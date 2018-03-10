@@ -81,6 +81,34 @@ static size_t jit_emit_do_relative_jump(char* p_jit,
   return index;
 }
 
+static size_t jit_emit_intel_to_6502_zero(char* p_jit, size_t index) {
+  // sete dl
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x94;
+  p_jit[index++] = 0xc2;
+
+  return index;
+}
+
+static size_t jit_emit_intel_to_6502_negative(char* p_jit, size_t index) {
+  // sets dh
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x98;
+  p_jit[index++] = 0xc6;
+
+  return index;
+}
+
+static size_t jit_emit_intel_to_6502_carry(char* p_jit, size_t index) {
+  // setb r9b
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x92;
+  p_jit[index++] = 0xc1;
+
+  return index;
+}
+
 static size_t jit_emit_do_zn_flags(char* p_jit, size_t index, int reg) {
   assert(index + 8 <= k_jit_bytes_per_byte);
   if (reg == -1) {
@@ -98,14 +126,77 @@ static size_t jit_emit_do_zn_flags(char* p_jit, size_t index, int reg) {
     p_jit[index++] = 0x84;
     p_jit[index++] = 0xff;
   }
-  // sete dl
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x94;
-  p_jit[index++] = 0xc2;
-  // sets dh
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x98;
+
+  index = jit_emit_intel_to_6502_zero(p_jit, index);
+  index = jit_emit_intel_to_6502_negative(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_intel_to_6502_znc(char* p_jit, size_t index) {
+  index = jit_emit_intel_to_6502_zero(p_jit, index);
+  index = jit_emit_intel_to_6502_negative(p_jit, index);
+  index = jit_emit_intel_to_6502_carry(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_6502_carry_to_intel(char* p_jit, size_t index) {
+  // cmp r9b, 1 
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x80;
+  p_jit[index++] = 0xf9;
+  p_jit[index++] = 0x01;
+
+  return index;
+}
+
+static size_t jit_emit_set_carry(char* p_jit, size_t index, unsigned char val) {
+  // mov r9b, val
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0xb1;
+  p_jit[index++] = val;
+
+  return index;
+}
+
+static size_t jit_emit_test_carry(char* p_jit, size_t index) {
+  // test r9b, r9b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x84;
+  p_jit[index++] = 0xc9;
+
+  return index;
+}
+
+static size_t jit_emit_a_to_scratch(char* p_jit, size_t index) {
+  // mov sil, al
+  p_jit[index++] = 0x40;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0xc6;
+
+  return index;
+}
+
+static size_t jit_emit_x_to_scratch(char* p_jit, size_t index) {
+  // mov sil, bl
+  p_jit[index++] = 0x40;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0xde;
+
+  return index;
+}
+
+static size_t jit_emit_y_to_scratch(char* p_jit, size_t index) {
+  // mov si, bx
+  p_jit[index++] = 0x66;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xde;
+  // shr si, 8
+  p_jit[index++] = 0x66;
+  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xee;
+  p_jit[index++] = 0x08;
 
   return index;
 }
@@ -137,54 +228,45 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x4c;
       p_jit[index++] = 0x89;
       p_jit[index++] = 0xc6;
-      // mov r9, rax
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xc1;
-      // shr r9, 8
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0xc1;
-      p_jit[index++] = 0xe9;
-      p_jit[index++] = 0x08;
       // or rsi, r9
       p_jit[index++] = 0x4c;
       p_jit[index++] = 0x09;
       p_jit[index++] = 0xce;
-      // mov r9, rdx
+      // mov r15, rdx
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x89;
-      p_jit[index++] = 0xd1;
-      // and r9, 1
+      p_jit[index++] = 0xd7;
+      // and r15, 1
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x83;
-      p_jit[index++] = 0xe1;
+      p_jit[index++] = 0xe7;
       p_jit[index++] = 0x01;
-      // shl r9, 1
+      // shl r15, 1
       p_jit[index++] = 0x49;
       p_jit[index++] = 0xd1;
-      p_jit[index++] = 0xe1;
-      // or rsi, r9
+      p_jit[index++] = 0xe7;
+      // or rsi, r15
       p_jit[index++] = 0x4c;
       p_jit[index++] = 0x09;
-      p_jit[index++] = 0xce;
-      // mov r9, rdx
+      p_jit[index++] = 0xfe;
+      // mov r15, rdx
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x89;
-      p_jit[index++] = 0xd1;
-      // shr r9, 8
+      p_jit[index++] = 0xd7;
+      // shr r15, 8
       p_jit[index++] = 0x49;
       p_jit[index++] = 0xc1;
-      p_jit[index++] = 0xe9;
+      p_jit[index++] = 0xef;
       p_jit[index++] = 0x08;
-      // shl r9, 7
+      // shl r15, 7
       p_jit[index++] = 0x49;
       p_jit[index++] = 0xc1;
-      p_jit[index++] = 0xe1;
+      p_jit[index++] = 0xe7;
       p_jit[index++] = 0x07;
-      // or rsi, r9
+      // or rsi, r15
       p_jit[index++] = 0x4c;
       p_jit[index++] = 0x09;
-      p_jit[index++] = 0xce;
+      p_jit[index++] = 0xfe;
 
       // mov [rdi + rcx], sil
       p_jit[index++] = 0x40;
@@ -209,11 +291,7 @@ jit_jit(char* p_mem,
       // shl al, 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0xe0;
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x10:
@@ -228,6 +306,11 @@ jit_jit(char* p_mem,
                                         0x74,
                                         operand1);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 2);
+      break;
+    case 0x18:
+      // CLC
+      index = jit_emit_set_carry(p_jit, index, 0);
+      jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x24:
       // BIT zp
@@ -271,18 +354,12 @@ jit_jit(char* p_mem,
       break;
     case 0x26:
       // ROL zp
-      // shr ah, 1 (load carry flag to eflags)
-      p_jit[index++] = 0xd0;
-      p_jit[index++] = 0xec;
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
       // rcl [rdi + op1], 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0x97;
       index = jit_emit_int(p_jit, index, operand1);
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 2);
       break;
     case 0x28:
@@ -302,10 +379,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xba;
       p_jit[index++] = 0xe0;
       p_jit[index++] = 0x00;
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
       // bt r8, 1
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x0f;
@@ -343,25 +417,17 @@ jit_jit(char* p_mem,
       break;
     case 0x38:
       // SEC
-      // mov ah, 1
-      p_jit[index++] = 0xb4;
-      p_jit[index++] = 0x01;
+      index = jit_emit_set_carry(p_jit, index, 1);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x66:
       // ROR zp
-      // shr ah, 1 (load carry flag to eflags)
-      p_jit[index++] = 0xd0;
-      p_jit[index++] = 0xec;
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
       // rcr [rdi + op1], 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0x9f;
       index = jit_emit_int(p_jit, index, operand1);
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 2);
       break;
     case 0x20:
@@ -375,7 +441,7 @@ jit_jit(char* p_mem,
       index = jit_emit_int(p_jit,
                            index,
                            -(ssize_t) (k_addr_space_size + k_guard_size));
-      // sub rsi, rdi
+      // sub rax, rdi
       p_jit[index++] = 0x48;
       p_jit[index++] = 0x29;
       p_jit[index++] = 0xf8;
@@ -432,11 +498,7 @@ jit_jit(char* p_mem,
       // shr al, 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0xe8;
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x4c:
@@ -531,17 +593,11 @@ jit_jit(char* p_mem,
       break;
     case 0x6a:
       // ROR A
-      // shr ah, 1 (load carry flag to eflags)
-      p_jit[index++] = 0xd0;
-      p_jit[index++] = 0xec;
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
       // rcr al, 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0xd8;
-      // setb ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x78:
@@ -617,9 +673,7 @@ jit_jit(char* p_mem,
       break;
     case 0x90:
       // BCC
-      // test ah, ah
-      p_jit[index++] = 0x84;
-      p_jit[index++] = 0xe4;
+      index = jit_emit_test_carry(p_jit, index);
       // je
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -772,9 +826,7 @@ jit_jit(char* p_mem,
       break;
     case 0xb0:
       // BCS
-      // test ah, ah
-      p_jit[index++] = 0x84;
-      p_jit[index++] = 0xe4;
+      index = jit_emit_test_carry(p_jit, index);
       // jne
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -806,18 +858,13 @@ jit_jit(char* p_mem,
       break;
     case 0xc9:
       // CMP #imm
-      // mov ah, al
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0xc4;
-      // sub ah, op1
+      index = jit_emit_a_to_scratch(p_jit, index);
+      // sub sil, op1
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x80;
-      p_jit[index++] = 0xec;
+      p_jit[index++] = 0xee;
       p_jit[index++] = operand1;
-      // setae ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x93;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 2);
       break;
     case 0xca:
@@ -830,21 +877,16 @@ jit_jit(char* p_mem,
       break;
     case 0xcd:
       // CMP abs
-      // mov ah, al
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0xc4;
-      // sub ah, [rdi + op1,op2]
+      index = jit_emit_a_to_scratch(p_jit, index);
+      // sub sil, [rdi + op1,op2]
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x2a;
-      p_jit[index++] = 0xa7;
+      p_jit[index++] = 0xb7;
       p_jit[index++] = operand1;
       p_jit[index++] = operand2;
       p_jit[index++] = 0;
       p_jit[index++] = 0;
-      // setae ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x93;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 3);
       break;
     case 0xd0:
@@ -872,18 +914,13 @@ jit_jit(char* p_mem,
       break;
     case 0xe0:
       // CPX #imm
-      // mov ah, bl
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0xdc;
-      // sub ah, op1
+      index = jit_emit_x_to_scratch(p_jit, index);
+      // sub sil, op1
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x80;
-      p_jit[index++] = 0xec;
+      p_jit[index++] = 0xee;
       p_jit[index++] = operand1;
-      // setae ah
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x93;
-      p_jit[index++] = 0xc4;
-      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 2);
       break;
     case 0xe8:
@@ -939,7 +976,6 @@ jit_enter(const char* p_mem,
 
   asm volatile (
     // al is 6502 A.
-    // ah is 6502 CF.
     "xor %%eax, %%eax;"
     // bl is 6502 X.
     // bh is 6502 Y.
@@ -951,11 +987,15 @@ jit_enter(const char* p_mem,
     // dh is 6502 NF.
     "xor %%edx, %%edx;"
     // r8 is the rest of the 6502 flags or'ed together.
-    // Bit 5 is always set.
+    // Bit 2 is interrupt disable.
+    // Bit 3 is decimal mode.
     // Bit 4 is set for BRK and PHP.
+    // Bit 5 is always set.
     "xor %%r8, %%r8;"
-    "bts $5, %%r8;"
     "bts $4, %%r8;"
+    "bts $5, %%r8;"
+    // r9 is carry flag.
+    "xor %%r9, %%r9;"
     // rdi points to the virtual RAM, guard page, JIT space.
     "mov %1, %%rdi;"
     // Use rsi as a scratch register for jump location.
@@ -963,7 +1003,7 @@ jit_enter(const char* p_mem,
     "call *%%rsi;"
     :
     : "r" (p_entry), "r" (p_mem)
-    : "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8"
+    : "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9"
   );
 }
 
