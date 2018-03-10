@@ -363,6 +363,28 @@ static size_t jit_emit_ind_y_to_scratch(char* p_jit,
   return index;
 }
 
+size_t jit_emit_zp_x_to_scratch(char* p_jit,
+                                size_t index,
+                                unsigned char operand1) {
+  // mov esi, ebx
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xde;
+  // add si, op1
+  p_jit[index++] = 0x66;
+  p_jit[index++] = 0x81;
+  p_jit[index++] = 0xc6;
+  p_jit[index++] = operand1;
+  p_jit[index++] = 0x00;
+  // and si, 0xff
+  p_jit[index++] = 0x66;
+  p_jit[index++] = 0x81;
+  p_jit[index++] = 0xe6;
+  p_jit[index++] = 0xff;
+  p_jit[index++] = 0x00;
+
+  return index;
+}
+
 static size_t jit_emit_bit_common(char* p_jit, size_t index) {
   // bt esi, 7
   p_jit[index++] = 0x0f;
@@ -1116,21 +1138,7 @@ jit_jit(char* p_mem,
       break;
     case 0x95:
       // STA zp, X
-      // mov esi, ebx
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xde;
-      // add si, op1
-      p_jit[index++] = 0x66;
-      p_jit[index++] = 0x81;
-      p_jit[index++] = 0xc6;
-      p_jit[index++] = operand1;
-      p_jit[index++] = 0x00;
-      // and si, 0xff
-      p_jit[index++] = 0x66;
-      p_jit[index++] = 0x81;
-      p_jit[index++] = 0xe6;
-      p_jit[index++] = 0xff;
-      p_jit[index++] = 0x00;
+      index = jit_emit_zp_x_to_scratch(p_jit, index, operand1);
       // mov [rdi + rsi], al
       p_jit[index++] = 0x88;
       p_jit[index++] = 0x04;
