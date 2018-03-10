@@ -82,7 +82,8 @@ static size_t jit_emit_do_relative_jump(char* p_jit,
 }
 
 static size_t jit_emit_intel_to_6502_zero(char* p_jit, size_t index) {
-  // sete dl
+  // sete r10b
+  p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x94;
   p_jit[index++] = 0xc2;
@@ -91,10 +92,11 @@ static size_t jit_emit_intel_to_6502_zero(char* p_jit, size_t index) {
 }
 
 static size_t jit_emit_intel_to_6502_negative(char* p_jit, size_t index) {
-  // sets dh
+  // sets r11b
+  p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x98;
-  p_jit[index++] = 0xc6;
+  p_jit[index++] = 0xc3;
 
   return index;
 }
@@ -105,6 +107,36 @@ static size_t jit_emit_intel_to_6502_carry(char* p_jit, size_t index) {
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
   p_jit[index++] = 0xc1;
+
+  return index;
+}
+
+static size_t jit_emit_carry_to_6502_zero(char* p_jit, size_t index) {
+  // setb r10b
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x92;
+  p_jit[index++] = 0xc2;
+
+  return index;
+}
+
+static size_t jit_emit_carry_to_6502_negative(char* p_jit, size_t index) {
+  // setb r11b
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x92;
+  p_jit[index++] = 0xc3;
+
+  return index;
+}
+
+static size_t jit_emit_carry_to_6502_overflow(char* p_jit, size_t index) {
+  // setb r12b
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x92;
+  p_jit[index++] = 0xc4;
 
   return index;
 }
@@ -165,6 +197,33 @@ static size_t jit_emit_test_carry(char* p_jit, size_t index) {
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
   p_jit[index++] = 0xc9;
+
+  return index;
+}
+
+static size_t jit_emit_test_zero(char* p_jit, size_t index) {
+  // test r10b, r10b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x84;
+  p_jit[index++] = 0xd2;
+
+  return index;
+}
+
+static size_t jit_emit_test_negative(char* p_jit, size_t index) {
+  // test r11b, r11b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x84;
+  p_jit[index++] = 0xdb;
+
+  return index;
+}
+
+static size_t jit_emit_test_overflow(char* p_jit, size_t index) {
+  // test r12b, r12b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x84;
+  p_jit[index++] = 0xe4;
 
   return index;
 }
@@ -296,9 +355,7 @@ jit_jit(char* p_mem,
       break;
     case 0x10:
       // BPL
-      // test dh, dh
-      p_jit[index++] = 0x84;
-      p_jit[index++] = 0xf6;
+      index = jit_emit_test_negative(p_jit, index);
       // je
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -314,39 +371,29 @@ jit_jit(char* p_mem,
       break;
     case 0x24:
       // BIT zp
-      // mov dl, [rdi + op1]
+      // mov sil [rdi + op1]
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x97;
+      p_jit[index++] = 0xb7;
       index = jit_emit_int(p_jit, index, operand1);
-      // bt edx, 7
+      // bt esi, 7
       p_jit[index++] = 0x0f;
       p_jit[index++] = 0xba;
-      p_jit[index++] = 0xe2;
-      p_jit[index++] = 0x07;
-      // setb dh
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc6;
-      // mov esi, edx
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xd6;
-      // and esi, 0x40
-      p_jit[index++] = 0x83;
       p_jit[index++] = 0xe6;
+      p_jit[index++] = 0x07;
+      index = jit_emit_carry_to_6502_negative(p_jit, index);
+      // bt esi, 6
+      p_jit[index++] = 0x0f;
+      p_jit[index++] = 0xba;
+      p_jit[index++] = 0xe6;
+      p_jit[index++] = 0x06;
+      index = jit_emit_carry_to_6502_overflow(p_jit, index);
+      // and sil, al
       p_jit[index++] = 0x40;
-      // and r8b, 0xbf
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x80;
-      p_jit[index++] = 0xe0;
-      p_jit[index++] = 0xbf;
-      // or r8, rsi
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0x09;
-      p_jit[index++] = 0xf0;
-      // and dl, al
       p_jit[index++] = 0x20;
-      p_jit[index++] = 0xc2;
-      // sete dl
+      p_jit[index++] = 0xc6;
+      // sete r10b
+      p_jit[index++] = 0x41;
       p_jit[index++] = 0x0f;
       p_jit[index++] = 0x94;
       p_jit[index++] = 0xc2;
@@ -386,25 +433,26 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xba;
       p_jit[index++] = 0xe0;
       p_jit[index++] = 0x01;
-      // setb dl
+      index = jit_emit_carry_to_6502_zero(p_jit, index);
+      // bt r8, 6
+      p_jit[index++] = 0x49;
       p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc2;
+      p_jit[index++] = 0xba;
+      p_jit[index++] = 0xe0;
+      p_jit[index++] = 0x06;
+      index = jit_emit_carry_to_6502_overflow(p_jit, index);
       // bt r8, 7
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x0f;
       p_jit[index++] = 0xba;
       p_jit[index++] = 0xe0;
-      p_jit[index++] = 0x07;
-      // setb dh
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0x92;
-      p_jit[index++] = 0xc6;
-      // and r8b, 0x7c
+      p_jit[index++] = 0x06;
+      index = jit_emit_carry_to_6502_negative(p_jit, index);
+      // and r8b, 0x3c
       p_jit[index++] = 0x41;
       p_jit[index++] = 0x80;
       p_jit[index++] = 0xe0;
-      p_jit[index++] = 0x7c;
+      p_jit[index++] = 0x3c;
       jit_emit_do_jmp_next(p_jit, jit_stride, index, 1);
       break;
     case 0x29:
@@ -518,11 +566,7 @@ jit_jit(char* p_mem,
       break;
     case 0x50:
       // BVC
-      // test r8b, 0x40
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0xf6;
-      p_jit[index++] = 0xc0;
-      p_jit[index++] = 0x40;
+      index = jit_emit_test_overflow(p_jit, index);
       // je
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -891,9 +935,7 @@ jit_jit(char* p_mem,
       break;
     case 0xd0:
       // BNE
-      // test dl, dl
-      p_jit[index++] = 0x84;
-      p_jit[index++] = 0xd2;
+      index = jit_emit_test_zero(p_jit, index);
       // je
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -933,9 +975,7 @@ jit_jit(char* p_mem,
       break;
     case 0xf0:
       // BEQ
-      // test dl, dl
-      p_jit[index++] = 0x84;
-      p_jit[index++] = 0xd2;
+      index = jit_emit_test_zero(p_jit, index);
       // jne
       index = jit_emit_do_relative_jump(p_jit,
                                         jit_stride,
@@ -983,8 +1023,7 @@ jit_enter(const char* p_mem,
     // cl is 6502 S.
     // ch is 0x01 so that cx is 0x1xx, an offset from virtual RAM base.
     "mov $0x00000100, %%ecx;"
-    // dl is 6502 ZF.
-    // dh is 6502 NF.
+    // rdx is scratch.
     "xor %%edx, %%edx;"
     // r8 is the rest of the 6502 flags or'ed together.
     // Bit 2 is interrupt disable.
@@ -996,6 +1035,12 @@ jit_enter(const char* p_mem,
     "bts $5, %%r8;"
     // r9 is carry flag.
     "xor %%r9, %%r9;"
+    // r10 is zero flag.
+    "xor %%r10, %%r10;"
+    // r11 is negative flag.
+    "xor %%r11, %%r11;"
+    // r12 is overflow flag.
+    "xor %%r12, %%r12;"
     // rdi points to the virtual RAM, guard page, JIT space.
     "mov %1, %%rdi;"
     // Use rsi as a scratch register for jump location.
@@ -1003,7 +1048,7 @@ jit_enter(const char* p_mem,
     "call *%%rsi;"
     :
     : "r" (p_entry), "r" (p_mem)
-    : "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9"
+    : "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12"
   );
 }
 
