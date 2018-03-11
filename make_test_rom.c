@@ -17,8 +17,8 @@ main(int argc, const char* argv[]) {
   p_mem[0x3ffc] = 0x00;
   p_mem[0x3ffd] = 0xc0;
 
-  // Fail!
-  p_mem[0x0000] = 0x2f;
+  // Success.
+  p_mem[0x0000] = 0x02;
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
