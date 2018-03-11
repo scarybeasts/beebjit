@@ -12,15 +12,23 @@ static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_os_rom_len = 0x4000;
 static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_lang_rom_len = 0x4000;
+static const size_t k_registers_offset = 0xfc00;
+static const size_t k_registers_len = 0x300;
 static const int k_jit_bytes_per_byte = 64;
 static const int k_jit_bytes_shift = 6;
 static const size_t k_vector_reset = 0xfffc;
 
 static void
-jit_init(char* p_mem, size_t num_bytes) {
+mem_init(char* p_mem) {
+  memset(p_mem, '\0', k_addr_space_size);
+}
+
+static void
+jit_init(char* p_mem) {
   char* p_jit = p_mem + k_addr_space_size + k_guard_size;
   // nop
-  memset(p_jit, '\x90', num_bytes * k_jit_bytes_per_byte);
+  memset(p_jit, '\x90', k_addr_space_size * k_jit_bytes_per_byte);
+  size_t num_bytes = k_addr_space_size;
   while (num_bytes--) {
     // ud2
     p_jit[0] = 0x0f;
@@ -1533,6 +1541,8 @@ main(int argc, const char* argv[]) {
 
   p_mem = p_map + k_guard_size;
 
+  mem_init(p_mem);
+
   fd = open("os12.rom", O_RDONLY);
   if (fd < 0) {
     errx(1, "can't load OS rom");
@@ -1553,7 +1563,9 @@ main(int argc, const char* argv[]) {
   }
   close(fd);
 
-  jit_init(p_mem, k_addr_space_size);
+  memset(p_mem + k_registers_offset, '\0', k_registers_len);
+
+  jit_init(p_mem);
   jit_jit(p_mem, k_os_rom_offset, k_os_rom_len);
   jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len);
   jit_enter(p_mem, k_vector_reset);
