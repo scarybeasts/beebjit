@@ -102,7 +102,45 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc0;
 
+  // Some ADC tests.
   index = set_new_index(index, 0xc0);
+  p_mem[index++] = 0x38; // SEC
+  p_mem[index++] = 0xa9; // LDA #$01
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x69; // ADC #$01
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xc9; // CMP #$03
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0xf0; // BEQ (should be ZF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x69; // ADC #$7f
+  p_mem[index++] = 0x7f;
+  p_mem[index++] = 0xd0; // BNE (should be ZF=0)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x30; // BMI (should be NF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x90; // BCC (should be CF=0)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x70; // BVS (should be OF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x69; // ADC #$7f
+  p_mem[index++] = 0x7f;
+  p_mem[index++] = 0xb0; // BCS (should be CF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x50; // BVC (should be OF=0)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x4c; // JMP $C100
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc1;
+
+  index = set_new_index(index, 0x100);
   p_mem[index++] = 0x02; // Done
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

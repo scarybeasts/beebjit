@@ -218,11 +218,11 @@ static size_t jit_emit_intel_to_6502_znco(char* p_jit, size_t index) {
 }
 
 static size_t jit_emit_6502_carry_to_intel(char* p_jit, size_t index) {
-  // cmp r9b, 1 
+  // Note: doesn't just check carry value but also trashes it.
+  // shr r9b, 1
   p_jit[index++] = 0x41;
-  p_jit[index++] = 0x80;
-  p_jit[index++] = 0xf9;
-  p_jit[index++] = 0x01;
+  p_jit[index++] = 0xd0;
+  p_jit[index++] = 0xe9;
 
   return index;
 }
@@ -1003,6 +1003,13 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0;
       index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
+      break;
+    case 0x70:
+      // BVS
+      index = jit_emit_test_overflow(p_jit, index);
+      // jne
+      index = jit_emit_do_relative_jump(p_jit, index, 0x75, operand1);
+      jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x78:
       // SEI
