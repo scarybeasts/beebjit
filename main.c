@@ -504,87 +504,81 @@ static size_t jit_emit_sta_scratch_offset(char* p_jit, size_t index) {
 }
 
 static size_t jit_emit_stack_inc(char* p_jit, size_t index) {
-  // inc cl
+  // inc sil
+  p_jit[index++] = 0x40;
   p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t jit_emit_stack_dec(char* p_jit, size_t index) {
-  // dec cl
+  // dec sil
+  p_jit[index++] = 0x40;
   p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xc9;
+  p_jit[index++] = 0xce;
 
   return index;
 }
 
 static size_t jit_emit_pull_to_a(char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
-  // mov al, [rdi + rcx]
+  // mov al, [rsi]
   p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x04;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x06;
 
   return index;
 }
 
 static size_t jit_emit_pull_to_scratch(char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
-  // mov dl, [rdi + rcx]
+  // mov dl, [rsi]
   p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x16;
 
   return index;
 }
 
 static size_t jit_emit_pull_to_scratch_word(char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
-  // movzx edx, BYTE PTR [rdi + rcx]
+  // movzx edx, BYTE PTR [rsi]
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x16;
   index = jit_emit_stack_inc(p_jit, index);
-  // mov dh, BYTE PTR [rdi + rcx]
+  // mov dh, BYTE PTR [rsi]
   p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x34;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x36;
 
   return index;
 }
 
 static size_t jit_emit_push_from_a(char* p_jit, size_t index) {
-  // mov [rdi + rcx], al
+  // mov [rsi], al
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0x04;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x06;
   index = jit_emit_stack_dec(p_jit, index);
 
   return index;
 }
 
 static size_t jit_emit_push_from_scratch(char* p_jit, size_t index) {
-  // mov [rdi + rcx], dl
+  // mov [rsi], dl
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x16;
   index = jit_emit_stack_dec(p_jit, index);
 
   return index;
 }
 
 static size_t jit_emit_push_from_scratch_word(char* p_jit, size_t index) {
-  // mov [rdi + rcx], dh
+  // mov [rsi], dh
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0x34;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x36;
   index = jit_emit_stack_dec(p_jit, index);
-  // mov [rdi + rcx], dl
+  // mov [rsi], dl
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x16;
   index = jit_emit_stack_dec(p_jit, index);
 
   return index;
@@ -1281,9 +1275,10 @@ jit_jit(char* p_mem,
       break;
     case 0x9a:
       // TXS
-      // mov cl, bl
+      // mov sil, bl
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x88;
-      p_jit[index++] = 0xd9;
+      p_jit[index++] = 0xde;
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x9d:
@@ -1437,9 +1432,10 @@ jit_jit(char* p_mem,
       break;
     case 0xba:
       // TSX
-      // mov bl, cl
+      // mov bl, sil
+      p_jit[index++] = 0x40;
       p_jit[index++] = 0x88;
-      p_jit[index++] = 0xcb;
+      p_jit[index++] = 0xf3;
       index = jit_emit_do_zn_flags(p_jit, index, 1);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
@@ -1714,6 +1710,10 @@ jit_jit(char* p_mem,
 
 static void
 jit_enter(const char* p_mem, size_t vector_addr) {
+  // The memory must be aligned to at least 0x100 so that our stack access
+  // trick works.
+  assert(((size_t) p_mem & 0xff) == 0);
+
   unsigned char addr_lsb = p_mem[vector_addr];
   unsigned char addr_msb = p_mem[vector_addr + 1];
   unsigned int addr = (addr_msb << 8) | addr_lsb;
@@ -1726,9 +1726,6 @@ jit_enter(const char* p_mem, size_t vector_addr) {
     // bl is 6502 X.
     // bh is 6502 Y.
     "xor %%ebx, %%ebx;"
-    // cl is 6502 S.
-    // ch is 0x01 so that cx is 0x1xx, an offset from virtual RAM base.
-    "mov $0x00000100, %%ecx;"
     // rdx is scratch.
     "xor %%edx, %%edx;"
     // r8 is the rest of the 6502 flags or'ed together.
@@ -1749,12 +1746,15 @@ jit_enter(const char* p_mem, size_t vector_addr) {
     "xor %%r12, %%r12;"
     // rdi points to the virtual RAM, guard page, JIT space.
     "mov %1, %%rdi;"
+    // sil is 6502 S.
+    // rsi is a pointer to the real (aligned) backing memory.
+    "lea 0x100(%%rdi), %%rsi;"
     // Use scratch register for jump location.
     "mov %0, %%rdx;"
     "call *%%rdx;"
     :
     : "r" (p_entry), "r" (p_mem)
-    : "rax", "rbx", "rcx", "rdx", "rdi",
+    : "rax", "rbx", "rdx", "rdi", "rsi",
       "r8", "r9", "r10", "r11", "r12", "r15"
   );
 }
