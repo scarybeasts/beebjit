@@ -120,6 +120,16 @@ static size_t jit_emit_intel_to_6502_carry(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_intel_to_6502_sub_carry(char* p_jit, size_t index) {
+  // setae r9b
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x93;
+  p_jit[index++] = 0xc1;
+
+  return index;
+}
+
 static size_t jit_emit_intel_to_6502_overflow(char* p_jit, size_t index) {
   // seto r12b
   p_jit[index++] = 0x41;
@@ -188,6 +198,14 @@ static size_t jit_emit_intel_to_6502_znc(char* p_jit, size_t index) {
   index = jit_emit_intel_to_6502_zero(p_jit, index);
   index = jit_emit_intel_to_6502_negative(p_jit, index);
   index = jit_emit_intel_to_6502_carry(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_intel_to_6502_sub_znc(char* p_jit, size_t index) {
+  index = jit_emit_intel_to_6502_zero(p_jit, index);
+  index = jit_emit_intel_to_6502_negative(p_jit, index);
+  index = jit_emit_intel_to_6502_sub_carry(p_jit, index);
 
   return index;
 }
@@ -1287,7 +1305,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x80;
       p_jit[index++] = 0xff;
       p_jit[index++] = operand1;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xc5:
@@ -1296,7 +1314,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x3a;
       p_jit[index++] = 0x87;
       index = jit_emit_int(p_jit, index, operand1);
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xc6:
@@ -1321,7 +1339,7 @@ jit_jit(char* p_mem,
       // cmp al, op1
       p_jit[index++] = 0x3c;
       p_jit[index++] = operand1;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xca:
@@ -1341,7 +1359,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = operand2;
       p_jit[index++] = 0;
       p_jit[index++] = 0;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0xce:
@@ -1380,7 +1398,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x3a;
       p_jit[index++] = 0x04;
       p_jit[index++] = 0x17;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0xde:
@@ -1399,7 +1417,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x80;
       p_jit[index++] = 0xfb;
       p_jit[index++] = operand1;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xe6:
@@ -1437,7 +1455,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = operand2;
       p_jit[index++] = 0;
       p_jit[index++] = 0;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0xee:
