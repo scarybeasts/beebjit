@@ -1269,6 +1269,15 @@ jit_jit(char* p_mem,
       index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0xc5:
+      // CMP zp
+      // cmp al, [rdi + op1]
+      p_jit[index++] = 0x3a;
+      p_jit[index++] = 0x87;
+      index = jit_emit_int(p_jit, index, operand1);
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 2);
+      break;
     case 0xc6:
       // DEC zp
       // dec BYTE PTR [rdi + op1]
@@ -1370,6 +1379,15 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xfb;
       p_jit[index++] = operand1;
       index = jit_emit_intel_to_6502_znc(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 2);
+      break;
+    case 0xe6:
+      // INC zp
+      // inc BYTE PTR [rdi + op1]
+      p_jit[index++] = 0xfe;
+      p_jit[index++] = 0x87;
+      index = jit_emit_int(p_jit, index, operand1);
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xe8:
