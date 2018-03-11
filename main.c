@@ -503,6 +503,93 @@ static size_t jit_emit_sta_scratch_offset(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_stack_inc(char* p_jit, size_t index) {
+  // inc cl
+  p_jit[index++] = 0xfe;
+  p_jit[index++] = 0xc1;
+
+  return index;
+}
+
+static size_t jit_emit_stack_dec(char* p_jit, size_t index) {
+  // dec cl
+  p_jit[index++] = 0xfe;
+  p_jit[index++] = 0xc9;
+
+  return index;
+}
+
+static size_t jit_emit_pull_to_a(char* p_jit, size_t index) {
+  index = jit_emit_stack_inc(p_jit, index);
+  // mov al, [rdi + rcx]
+  p_jit[index++] = 0x8a;
+  p_jit[index++] = 0x04;
+  p_jit[index++] = 0x0f;
+
+  return index;
+}
+
+static size_t jit_emit_pull_to_scratch(char* p_jit, size_t index) {
+  index = jit_emit_stack_inc(p_jit, index);
+  // mov dl, [rdi + rcx]
+  p_jit[index++] = 0x8a;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x0f;
+
+  return index;
+}
+
+static size_t jit_emit_pull_to_scratch_word(char* p_jit, size_t index) {
+  index = jit_emit_stack_inc(p_jit, index);
+  // movzx edx, BYTE PTR [rdi + rcx]
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x0f;
+  index = jit_emit_stack_inc(p_jit, index);
+  // mov dh, BYTE PTR [rdi + rcx]
+  p_jit[index++] = 0x8a;
+  p_jit[index++] = 0x34;
+  p_jit[index++] = 0x0f;
+
+  return index;
+}
+
+static size_t jit_emit_push_from_a(char* p_jit, size_t index) {
+  // mov [rdi + rcx], al
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x04;
+  p_jit[index++] = 0x0f;
+  index = jit_emit_stack_dec(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_push_from_scratch(char* p_jit, size_t index) {
+  // mov [rdi + rcx], dl
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x0f;
+  index = jit_emit_stack_dec(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_push_from_scratch_word(char* p_jit, size_t index) {
+  // mov [rdi + rcx], dh
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x34;
+  p_jit[index++] = 0x0f;
+  index = jit_emit_stack_dec(p_jit, index);
+  // mov [rdi + rcx], dl
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x0f;
+  index = jit_emit_stack_dec(p_jit, index);
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -606,13 +693,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x09;
       p_jit[index++] = 0xfa;
 
-      // mov [rdi + rcx], dl
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0x14;
-      p_jit[index++] = 0x0f;
-      // dec cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc9;
+      index = jit_emit_push_from_scratch(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x09:
@@ -702,20 +783,7 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x83;
       p_jit[index++] = 0xc2;
       p_jit[index++] = 0x02;
-      // mov [rdi + rcx], dh
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0x34;
-      p_jit[index++] = 0x0f;
-      // dec cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc9;
-      // mov [rdi + rcx], dl
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0x14;
-      p_jit[index++] = 0x0f;
-      // dec cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc9;
+      index = jit_emit_push_from_scratch_word(p_jit, index);
       index = jit_emit_jmp_op1_op2(p_jit, index, operand1, operand2);
       break;
     case 0x24:
@@ -748,13 +816,7 @@ jit_jit(char* p_mem,
       break;
     case 0x28:
       // PLP
-      // inc cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc1;
-      // mov dl, [rdi + rcx]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x14;
-      p_jit[index++] = 0x0f;
+      index = jit_emit_pull_to_scratch(p_jit, index);
 
       index = jit_emit_scratch_bit_test(p_jit, index, 0);
       index = jit_emit_intel_to_6502_carry(p_jit, index);
@@ -861,13 +923,7 @@ jit_jit(char* p_mem,
       break;
     case 0x48:
       // PHA
-      // mov [rdi + rcx], al
-      p_jit[index++] = 0x88;
-      p_jit[index++] = 0x04;
-      p_jit[index++] = 0x0f;
-      // dec cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc9;
+      index = jit_emit_push_from_a(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x49:
@@ -933,21 +989,7 @@ jit_jit(char* p_mem,
       break;
     case 0x60:
       // RTS
-      // inc cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc1;
-      // movzx edx, BYTE PTR [rdi + rcx]
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0xb6;
-      p_jit[index++] = 0x14;
-      p_jit[index++] = 0x0f;
-      // inc cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc1;
-      // mov dh, BYTE PTR [rdi + rcx]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x34;
-      p_jit[index++] = 0x0f;
+      index = jit_emit_pull_to_scratch_word(p_jit, index);
       // inc dx
       p_jit[index++] = 0x66;
       p_jit[index++] = 0xff;
@@ -986,13 +1028,7 @@ jit_jit(char* p_mem,
       break;
     case 0x68:
       // PLA
-      // inc cl
-      p_jit[index++] = 0xfe;
-      p_jit[index++] = 0xc1;
-      // mov al, [rdi + rcx]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x04;
-      p_jit[index++] = 0x0f;
+      index = jit_emit_pull_to_a(p_jit, index);
       index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
