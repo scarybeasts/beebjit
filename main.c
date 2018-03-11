@@ -10,6 +10,8 @@ static const size_t k_addr_space_size = 0x10000;
 static const size_t k_guard_size = 4096;
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_os_rom_len = 0x4000;
+static const size_t k_lang_rom_offset = 0x8000;
+static const size_t k_lang_rom_len = 0x4000;
 static const int k_jit_bytes_per_byte = 64;
 static const int k_jit_bytes_shift = 6;
 static const size_t k_vector_reset = 0xfffc;
@@ -1533,16 +1535,27 @@ main(int argc, const char* argv[]) {
 
   fd = open("os12.rom", O_RDONLY);
   if (fd < 0) {
-    errx(1, "can't load rom");
+    errx(1, "can't load OS rom");
   }
   read_ret = read(fd, p_mem + k_os_rom_offset, k_os_rom_len);
   if (read_ret != k_os_rom_len) {
-    errx(1, "can't read rom");
+    errx(1, "can't read OS rom");
+  }
+  close(fd);
+
+  fd = open("basic.rom", O_RDONLY);
+  if (fd < 0) {
+    errx(1, "can't load language rom");
+  }
+  read_ret = read(fd, p_mem + k_lang_rom_offset, k_lang_rom_len);
+  if (read_ret != k_lang_rom_len) {
+    errx(1, "can't read lanuage rom");
   }
   close(fd);
 
   jit_init(p_mem, k_addr_space_size);
   jit_jit(p_mem, k_os_rom_offset, k_os_rom_len);
+  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len);
   jit_enter(p_mem, k_vector_reset);
 
   return 0;
