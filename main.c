@@ -217,6 +217,13 @@ static size_t jit_emit_intel_to_6502_znco(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_intel_to_6502_sub_znco(char* p_jit, size_t index) {
+  index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
+  index = jit_emit_intel_to_6502_overflow(p_jit, index);
+
+  return index;
+}
+
 static size_t jit_emit_6502_carry_to_intel(char* p_jit, size_t index) {
   // Note: doesn't just check carry value but also trashes it.
   // shr r9b, 1
@@ -1579,10 +1586,12 @@ jit_jit(char* p_mem,
     case 0xe9:
       // SBC imm
       index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // cmc
+      p_jit[index++] = 0xf5;
       // sbb al, op1
       p_jit[index++] = 0x1c;
       p_jit[index++] = operand1;
-      index = jit_emit_intel_to_6502_znco(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xec:
@@ -1628,11 +1637,13 @@ jit_jit(char* p_mem,
       // SBC abs, X
       index = jit_emit_abs_x_to_scratch(p_jit, index, operand1, operand2);
       index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // cmc
+      p_jit[index++] = 0xf5;
       // sbb al, [rdi + rdx]
       p_jit[index++] = 0x1a;
       p_jit[index++] = 0x04;
       p_jit[index++] = 0x17;
-      index = jit_emit_intel_to_6502_znco(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0xfe:
