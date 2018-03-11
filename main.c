@@ -441,6 +441,12 @@ jit_jit(char* p_mem,
       operand2_inc++;
     }
     switch (opcode) {
+    case 0x02:
+      // Illegal opcode. Hangs a standard 6502.
+      // Bounce out of JIT.
+      // ret
+      p_jit[index++] = 0xc3;
+      break;
     case 0x05:
       // ORA zp
       // or al, [rdi + op1]
@@ -1438,6 +1444,14 @@ jit_jit(char* p_mem,
       index = jit_emit_do_relative_jump(p_jit, index, 0x75, operand1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0xf2:
+      // Illegal opcode. Hangs a standard 6502.
+      // Generate a SEGV.
+      // xor rdx, rdx
+      p_jit[index++] = 0x31;
+      p_jit[index++] = 0xd2;
+      index = jit_emit_jmp_scratch(p_jit, index);
+      break;
     case 0xfd:
       // SBC abs, X
       index = jit_emit_abs_x_to_scratch(p_jit, index, operand1, operand2);
@@ -1532,6 +1546,11 @@ main(int argc, const char* argv[]) {
   char* p_mem;
   int fd;
   ssize_t read_ret;
+  const char* os_rom_name = "os12.rom";
+
+  if (argc > 1) {
+    os_rom_name = argv[1];
+  }
 
   p_map = mmap(NULL,
                (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
@@ -1561,7 +1580,7 @@ main(int argc, const char* argv[]) {
 
   mem_init(p_mem);
 
-  fd = open("os12.rom", O_RDONLY);
+  fd = open(os_rom_name, O_RDONLY);
   if (fd < 0) {
     errx(1, "can't load OS rom");
   }
