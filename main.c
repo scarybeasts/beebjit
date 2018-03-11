@@ -812,7 +812,7 @@ jit_jit(char* p_mem,
       // inc dx
       p_jit[index++] = 0x66;
       p_jit[index++] = 0xff;
-      p_jit[index++] = 0xc0;
+      p_jit[index++] = 0xc2;
       index = jit_emit_jit_bytes_shift_scratch_left(p_jit, index);
       // lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size]
       p_jit[index++] = 0x48;
