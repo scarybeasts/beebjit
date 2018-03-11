@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -14,9 +15,12 @@ static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_lang_rom_len = 0x4000;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
-static const int k_jit_bytes_per_byte = 64;
-static const int k_jit_bytes_shift = 6;
+static const int k_jit_bytes_per_byte = 128;
+static const int k_jit_bytes_shift = 7;
 static const size_t k_vector_reset = 0xfffc;
+
+static char g_jit_debug_space[64];
+static const unsigned int k_jit_debug = 1;
 
 static void
 mem_init(char* p_mem) {
@@ -569,10 +573,28 @@ static size_t jit_emit_push_from_scratch_word(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_6502_ip_to_scratch(char* p_jit, size_t index) {
+  // lea rdx, [rip - (k_addr_space_size + k_guard_size)]
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x15;
+  index = jit_emit_int(p_jit,
+                       index,
+                       -(ssize_t) (k_addr_space_size + k_guard_size));
+  // sub rdx, rdi
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x29;
+  p_jit[index++] = 0xfa;
+  index = jit_emit_jit_bytes_shift_scratch_right(p_jit, index);
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
-        size_t jit_len) {
+        size_t jit_len,
+        unsigned int flags) {
   char* p_jit = p_mem + k_addr_space_size + k_guard_size;
   size_t jit_end = jit_offset + jit_len;
   p_mem += jit_offset;
@@ -595,6 +617,50 @@ jit_jit(char* p_mem,
     if (operand1_inc == 0) {
       operand2_inc++;
     }
+
+    if (flags & k_jit_debug) {
+      index = jit_emit_6502_ip_to_scratch(p_jit, index);
+      // mov [r14 + 8], rdx
+      p_jit[index++] = 0x49;
+      p_jit[index++] = 0x89;
+      p_jit[index++] = 0x56;
+      p_jit[index++] = 0x08;
+      // push rax / rcx / rdx / rsi / rdi
+      p_jit[index++] = 0x50;
+      p_jit[index++] = 0x51;
+      p_jit[index++] = 0x52;
+      p_jit[index++] = 0x56;
+      p_jit[index++] = 0x57;
+      // push r8 / r9 / r10 / r11
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x50;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x51;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x52;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x53;
+      // call [r14]
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0xff;
+      p_jit[index++] = 0x16;
+      // pop r11 / r10 / r9 / r8
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x5b;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x5a;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x59;
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0x58;
+      // pop rdi / rsi / rdx / rcx / rax
+      p_jit[index++] = 0x5f;
+      p_jit[index++] = 0x5e;
+      p_jit[index++] = 0x5a;
+      p_jit[index++] = 0x59;
+      p_jit[index++] = 0x58;
+    }
+
     switch (opcode) {
     case 0x02:
       // Illegal opcode. Hangs a standard 6502.
@@ -746,18 +812,7 @@ jit_jit(char* p_mem,
       break;
     case 0x20:
       // JSR
-      // lea rdx, [rip - (k_addr_space_size + k_guard_size)]
-      p_jit[index++] = 0x48;
-      p_jit[index++] = 0x8d;
-      p_jit[index++] = 0x15;
-      index = jit_emit_int(p_jit,
-                           index,
-                           -(ssize_t) (k_addr_space_size + k_guard_size));
-      // sub rdx, rdi
-      p_jit[index++] = 0x48;
-      p_jit[index++] = 0x29;
-      p_jit[index++] = 0xfa;
-      index = jit_emit_jit_bytes_shift_scratch_right(p_jit, index);
+      index = jit_emit_6502_ip_to_scratch(p_jit, index);
       // add edx, 2
       p_jit[index++] = 0x83;
       p_jit[index++] = 0xc2;
@@ -1694,7 +1749,14 @@ jit_jit(char* p_mem,
 }
 
 static void
-jit_enter(const char* p_mem, size_t vector_addr) {
+jit_debug_callback() {
+  char** p_jit_debug_space = (char**) &g_jit_debug_space;
+  size_t ip_6502 = (size_t) p_jit_debug_space[1];
+  printf("IP: %zx\n", ip_6502);
+}
+
+static void
+jit_enter(char* p_mem, size_t vector_addr) {
   // The memory must be aligned to at least 0x100 so that our stack access
   // trick works.
   assert(((size_t) p_mem & 0xff) == 0);
@@ -1702,8 +1764,10 @@ jit_enter(const char* p_mem, size_t vector_addr) {
   unsigned char addr_lsb = p_mem[vector_addr];
   unsigned char addr_msb = p_mem[vector_addr + 1];
   unsigned int addr = (addr_msb << 8) | addr_lsb;
-  const char* p_jit = p_mem + k_addr_space_size + k_guard_size;
-  const char* p_entry = p_jit + (addr * k_jit_bytes_per_byte);
+  char* p_jit = p_mem + k_addr_space_size + k_guard_size;
+  char* p_entry = p_jit + (addr * k_jit_bytes_per_byte);
+  char** p_jit_debug_space = (char**) &g_jit_debug_space;
+  p_jit_debug_space[0] = (char*) jit_debug_callback;
 
   asm volatile (
     // al is 6502 A.
@@ -1735,13 +1799,15 @@ jit_enter(const char* p_mem, size_t vector_addr) {
     // sil is 6502 S.
     // rsi is a pointer to the real (aligned) backing memory.
     "lea 0x100(%%rdi), %%rsi;"
+    // Pass a pointer to a debug area in r14.
+    "mov %2, %%r14;"
     // Use scratch register for jump location.
     "mov %0, %%rdx;"
     "call *%%rdx;"
     :
-    : "r" (p_entry), "r" (p_mem)
+    : "g" (p_entry), "g" (p_mem), "g" (p_jit_debug_space)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r8", "r9", "r10", "r11", "r12", "r15"
+      "r8", "r9", "r10", "r11", "r12", "r14", "r15"
   );
 }
 
@@ -1808,8 +1874,8 @@ main(int argc, const char* argv[]) {
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
 
   jit_init(p_mem);
-  jit_jit(p_mem, k_os_rom_offset, k_os_rom_len);
-  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len);
+  jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, k_jit_debug);
+  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len, k_jit_debug);
   jit_enter(p_mem, k_vector_reset);
 
   return 0;
