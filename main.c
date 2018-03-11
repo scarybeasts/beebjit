@@ -432,6 +432,24 @@ static size_t jit_emit_jit_bytes_shift_scratch_right(char* p_jit,
   return index;
 }
 
+static size_t jit_emit_lda_scratch_offset(char* p_jit, size_t index) {
+  // mov al, [rdi + rdx]
+  p_jit[index++] = 0x8a;
+  p_jit[index++] = 0x04;
+  p_jit[index++] = 0x17;
+
+  return index;
+}
+
+static size_t jit_emit_cmp_scratch_offset(char* p_jit, size_t index) {
+  // cmp al, [rdi + rdx]
+  p_jit[index++] = 0x3a;
+  p_jit[index++] = 0x04;
+  p_jit[index++] = 0x17;
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -712,6 +730,15 @@ jit_jit(char* p_mem,
       index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0x2a:
+      // ROL A
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // rcl al, 1
+      p_jit[index++] = 0xd0;
+      p_jit[index++] = 0xd0;
+      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 1);
+      break;
     case 0x2c:
       // BIT abs
       // mov dl [rdi + op1,op2]
@@ -760,6 +787,15 @@ jit_jit(char* p_mem,
       // SEC
       index = jit_emit_set_carry(p_jit, index, 1);
       jit_emit_do_jmp_next(p_jit, index, 1);
+      break;
+    case 0x45:
+      // EOR zp
+      // xor al, [rdi + op1]
+      p_jit[index++] = 0x32;
+      p_jit[index++] = 0x87;
+      index = jit_emit_int(p_jit, index, operand1);
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
+      jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x48:
       // PHA
@@ -862,6 +898,19 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x17;
       index = jit_emit_int(p_jit, index, k_addr_space_size + k_guard_size);
       index = jit_emit_jmp_scratch(p_jit, index);
+      break;
+    case 0x65:
+      // ADC zp
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // adc al, [rdi + op1]
+      p_jit[index++] = 0x12;
+      p_jit[index++] = 0x87;
+      p_jit[index++] = operand1;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0;
+      index = jit_emit_intel_to_6502_znco(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x66:
       // ROR zp
@@ -997,6 +1046,18 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x17;
       index = jit_emit_intel_to_6502_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
+      break;
+    case 0x84:
+      // STY zp
+      // mov [rdi + op1], bh
+      // TODO: can be optimized to 1-byte offset for 0-0x7f.
+      p_jit[index++] = 0x88;
+      p_jit[index++] = 0xbf;
+      p_jit[index++] = operand1;
+      p_jit[index++] = 0x00;
+      p_jit[index++] = 0x00;
+      p_jit[index++] = 0x00;
+      jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x85:
       // STA zp
@@ -1251,13 +1312,24 @@ jit_jit(char* p_mem,
       index = jit_emit_do_relative_jump(p_jit, index, 0x75, operand1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0xb1:
+      // LDA (indirect), Y
+      index = jit_emit_ind_y_to_scratch(p_jit, index, operand1);
+      index = jit_emit_lda_scratch_offset(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 2);
+      break;
+    case 0xb8:
+      // CLV
+      // mov r12b, 0
+      p_jit[index++] = 0x41;
+      p_jit[index++] = 0xb4;
+      p_jit[index++] = 0x00;
+      jit_emit_do_jmp_next(p_jit, index, 1);
+      break;
     case 0xb9:
       // LDA abs, Y
       index = jit_emit_abs_y_to_scratch(p_jit, index, operand1, operand2);
-      // mov al, [rdi + rdx]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x04;
-      p_jit[index++] = 0x17;
+      index = jit_emit_lda_scratch_offset(p_jit, index);
       index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
@@ -1282,10 +1354,7 @@ jit_jit(char* p_mem,
     case 0xbd:
       // LDA abs, X
       index = jit_emit_abs_x_to_scratch(p_jit, index, operand1, operand2);
-      // mov al, [rdi + rdx]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0x04;
-      p_jit[index++] = 0x17;
+      index = jit_emit_lda_scratch_offset(p_jit, index);
       index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
@@ -1381,6 +1450,13 @@ jit_jit(char* p_mem,
       index = jit_emit_do_relative_jump(p_jit, index, 0x74, operand1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0xd1:
+      // CMP (indirect), Y
+      index = jit_emit_ind_y_to_scratch(p_jit, index, operand1);
+      index = jit_emit_cmp_scratch_offset(p_jit, index);
+      index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 2);
+      break;
     case 0xd8:
       // CLD
       // btr r8, 3
@@ -1394,10 +1470,7 @@ jit_jit(char* p_mem,
     case 0xdd:
       // CMP abs, X
       index = jit_emit_abs_x_to_scratch(p_jit, index, operand1, operand2);
-      // cmp al, [rdi + rdx]
-      p_jit[index++] = 0x3a;
-      p_jit[index++] = 0x04;
-      p_jit[index++] = 0x17;
+      index = jit_emit_cmp_scratch_offset(p_jit, index);
       index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
