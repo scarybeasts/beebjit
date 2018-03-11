@@ -573,6 +573,13 @@ jit_jit(char* p_mem,
       index = jit_emit_do_relative_jump(p_jit, index, 0x74, operand1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0x12:
+      // Illegal opcode. Hangs a standard 6502.
+      // Generate a debug trap and continue.
+      // int 3
+      p_jit[index++] = 0xcc;
+      jit_emit_do_jmp_next(p_jit, index, 1);
+      break;
     case 0x18:
       // CLC
       index = jit_emit_set_carry(p_jit, index, 0);
@@ -1235,6 +1242,14 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0x17;
       index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 3);
+      break;
+    case 0xba:
+      // TSX
+      // mov bl, cl
+      p_jit[index++] = 0x88;
+      p_jit[index++] = 0xcb;
+      index = jit_emit_do_zn_flags(p_jit, index, 1);
+      jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0xbc:
       // LDY abs, X
