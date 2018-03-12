@@ -2007,6 +2007,7 @@ main(int argc, const char* argv[]) {
   char* p_mem;
   int fd;
   ssize_t read_ret;
+  int ret;
   const char* os_rom_name = "os12.rom";
 
   if (argc > 1) {
@@ -2020,22 +2021,38 @@ main(int argc, const char* argv[]) {
                MAP_PRIVATE | MAP_ANONYMOUS,
                -1,
                0);
+  if (p_map == MAP_FAILED) {
+    errx(1, "mmap() failed");
+  }
+
   p_mem = p_map + k_guard_size;
 
-  mprotect(p_map,
-           k_guard_size,
-           PROT_NONE);
-  mprotect(p_mem + k_addr_space_size,
-           k_guard_size,
-           PROT_NONE);
-  mprotect(p_mem + (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
-               k_guard_size,
-           k_guard_size,
-           PROT_NONE);
+  ret = mprotect(p_map,
+                 k_guard_size,
+                 PROT_NONE);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
+  ret = mprotect(p_mem + k_addr_space_size,
+                 k_guard_size,
+                 PROT_NONE);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
+  ret = mprotect(p_mem + (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
+                     k_guard_size,
+                 k_guard_size,
+                 PROT_NONE);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
 
-  mprotect(p_mem + k_addr_space_size + k_guard_size,
-           k_addr_space_size * k_jit_bytes_per_byte,
-           PROT_READ | PROT_WRITE | PROT_EXEC);
+  ret = mprotect(p_mem + k_addr_space_size + k_guard_size,
+                 k_addr_space_size * k_jit_bytes_per_byte,
+                 PROT_READ | PROT_WRITE | PROT_EXEC);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
 
   p_mem = p_map + k_guard_size;
 
