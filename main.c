@@ -18,9 +18,117 @@ static const size_t k_registers_len = 0x300;
 static const int k_jit_bytes_per_byte = 128;
 static const int k_jit_bytes_shift = 7;
 static const size_t k_vector_reset = 0xfffc;
+static const size_t k_max_opcode_len = 16;
 
 static char g_jit_debug_space[64];
 static const unsigned int k_jit_debug = 1;
+
+static const char* g_p_opcodes[256] =
+{
+  // 0x00
+  "BRK", "ORA", "!!!", "???", "???", "ORA", "ASL", "???",
+  "PHP", "ORA", "ASL", "???", "???", "ORA", "ASL", "???",
+  // 0x10
+  "BPL", "ORA", "!!!", "???", "???", "ORA", "ASL", "???",
+  "CLC", "ORA", "???", "???", "???", "ORA", "ASL", "???",
+  // 0x20
+  "JSR", "AND", "!!!", "???", "BIT", "AND", "ROL", "???",
+  "PLP", "AND", "ROL", "???", "BIT", "AND", "ROL", "???",
+  // 0x30
+  "BMI", "AND", "!!!", "???", "???", "AND", "ROL", "???",
+  "SEC", "AND", "???", "???", "???", "AND", "ROL", "???",
+  // 0x40
+  "RTI", "EOR", "!!!", "???", "???", "EOR", "LSR", "???",
+  "PHA", "EOR", "LSR", "???", "JMP", "EOR", "LSR", "???",
+  // 0x50
+  "BVC", "EOR", "!!!", "???", "???", "EOR", "LSR", "???",
+  "CLI", "EOR", "???", "???", "???", "EOR", "LSR", "???",
+  // 0x60
+  "RTS", "ADC", "!!!", "???", "???", "ADC", "ROR", "???",
+  "PLA", "ADC", "ROR", "???", "JMP", "ADC", "ROR", "???",
+  // 0x70
+  "BVS", "ADC", "!!!", "???", "???", "ADC", "ROR", "???",
+  "SEI", "ADC", "???", "???", "???", "ADC", "ROR", "???",
+  // 0x80
+  "???", "STA", "???", "???", "STY", "STA", "STX", "???",
+  "DEY", "???", "TXA", "???", "STY", "STA", "STX", "???",
+  // 0x90
+  "BCC", "STA", "!!!", "???", "STY", "STA", "STX", "???",
+  "TYA", "STA", "TXS", "???", "???", "STA", "???", "???",
+  // 0xa0
+  "LDY", "LDA", "LDX", "???", "LDY", "LDA", "LDX", "???",
+  "TAY", "LDA", "TAX", "???", "LDY", "LDA", "LDX", "???",
+  // 0xb0
+  "BCS", "LDA", "!!!", "???", "LDY", "LDA", "LDX", "???",
+  "CLV", "LDA", "TSX", "???", "LDY", "LDA", "LDX", "???",
+  // 0xc0
+  "CPY", "CMP", "???", "???", "CPY", "CMP", "DEC", "???",
+  "INY", "CMP", "DEX", "???", "CPY", "CMP", "DEC", "???",
+  // 0xd0
+  "BNE", "CMP", "!!!", "???", "???", "CMP", "DEC", "???",
+  "CLD", "CMP", "???", "???", "???", "CMP", "DEC", "???",
+  // 0xe0
+  "CPX", "SBC", "???", "???", "CPX", "SBC", "INC", "???",
+  "INX", "SBC", "NOP", "???", "CPX", "SBC", "INC", "???",
+  // 0xf0
+  "BEQ", "SBC", "!!!", "???", "???", "SBC", "INC", "???",
+  "SED", "SBC", "???", "???", "???", "SBC", "INC", "???",
+};
+
+enum {
+  k_nil = 1,
+  k_imm = 2,
+  k_zpg = 3,
+  k_abs = 4,
+  k_zpx = 5,
+  k_zpy = 6,
+  k_abx = 7,
+  k_aby = 8,
+  k_idx = 9,
+  k_idy = 10,
+  k_ind = 11,
+};
+
+static unsigned char g_optypes[256] =
+{
+  // 0x00
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x10
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x20
+  k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  // 0x30
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x40
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x50
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x60
+  k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_ind, k_abs, k_abs, 0    ,
+  // 0x70
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0x80
+  0    , k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
+  k_nil, 0    , k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  // 0x90
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0xa0
+  k_imm, k_idx, k_imm, 0    , k_zpg, k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  // 0xb0
+  k_imm, k_idy, 0    ,     0, k_zpx, k_zpx, k_zpy, 0    ,
+  k_nil, k_aby, k_nil,     0, k_abx, k_abx, k_aby, 0    ,
+  // 0xc0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0xd0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0xe0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  // 0xf0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
 
 static void
 mem_init(char* p_mem) {
@@ -620,11 +728,11 @@ jit_jit(char* p_mem,
 
     if (flags & k_jit_debug) {
       index = jit_emit_6502_ip_to_scratch(p_jit, index);
-      // mov [r14 + 8], rdx
+      // mov [r14 + 16], rdx
       p_jit[index++] = 0x49;
       p_jit[index++] = 0x89;
       p_jit[index++] = 0x56;
-      p_jit[index++] = 0x08;
+      p_jit[index++] = 0x10;
       // push rax / rcx / rdx / rsi / rdi
       p_jit[index++] = 0x50;
       p_jit[index++] = 0x51;
@@ -1749,10 +1857,79 @@ jit_jit(char* p_mem,
 }
 
 static void
+print_opcode(char* buf,
+             unsigned char opcode,
+             unsigned char operand1,
+             unsigned char operand2) {
+  unsigned char optype = g_optypes[opcode];
+  const char* opname = g_p_opcodes[opcode];
+  switch (optype) {
+  case k_nil:
+    snprintf(buf, k_max_opcode_len, "%s", opname);
+    break;
+  case k_imm:
+    snprintf(buf, k_max_opcode_len, "%s #$%.2x", opname, operand1);
+    break;
+  case k_zpg:
+    snprintf(buf, k_max_opcode_len, "%s $%.2x", opname, operand1);
+    break;
+  case k_abs:
+    snprintf(buf, k_max_opcode_len, "%s $%.2x%.2x", opname, operand2, operand1);
+    break;
+  case k_zpx:
+    snprintf(buf, k_max_opcode_len, "%s $%.2x,X", opname, operand1);
+    break;
+  case k_zpy:
+    snprintf(buf, k_max_opcode_len, "%s $%.2x,Y", opname, operand1);
+    break;
+  case k_abx:
+    snprintf(buf,
+             k_max_opcode_len,
+             "%s $%.2x%.2x,X",
+             opname,
+             operand2,
+             operand1);
+    break;
+  case k_aby:
+    snprintf(buf,
+             k_max_opcode_len,
+             "%s $%.2x%.2x,Y",
+             opname,
+             operand2,
+             operand1);
+    break;
+  case k_idx:
+    snprintf(buf, k_max_opcode_len, "%s ($%.2x,X)", opname, operand1);
+    break;
+  case k_idy:
+    snprintf(buf, k_max_opcode_len, "%s ($%.2x),Y", opname, operand1);
+    break;
+  case k_ind:
+    snprintf(buf,
+             k_max_opcode_len,
+             "%s ($%.2x%.2x)",
+             opname,
+             operand2,
+             operand1);
+    break;
+  default:
+    snprintf(buf, k_max_opcode_len, "%s: %.2x", opname, opcode);
+    break;
+  }
+}
+
+static void
 jit_debug_callback() {
+  char opcode_buf[k_max_opcode_len];
   char** p_jit_debug_space = (char**) &g_jit_debug_space;
-  size_t ip_6502 = (size_t) p_jit_debug_space[1];
-  printf("IP: %zx\n", ip_6502);
+  char* p_mem = p_jit_debug_space[1];
+  size_t ip_6502 = (size_t) p_jit_debug_space[2];
+
+  unsigned char opcode = p_mem[ip_6502];
+  unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
+  unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
+  print_opcode(opcode_buf, opcode, operand1, operand2);
+  printf("%zx: %s\n", ip_6502, opcode_buf);
 }
 
 static void
@@ -1768,6 +1945,7 @@ jit_enter(char* p_mem, size_t vector_addr) {
   char* p_entry = p_jit + (addr * k_jit_bytes_per_byte);
   char** p_jit_debug_space = (char**) &g_jit_debug_space;
   p_jit_debug_space[0] = (char*) jit_debug_callback;
+  p_jit_debug_space[1] = p_mem;
 
   asm volatile (
     // al is 6502 A.
