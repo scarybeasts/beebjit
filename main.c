@@ -2076,13 +2076,24 @@ main(int argc, const char* argv[]) {
   ssize_t read_ret;
   int ret;
   const char* os_rom_name = "os12.rom";
+  const char* lang_rom_name = "basic.rom";
   unsigned int debug_flags = 0;
+  int i;
 
-  if (argc > 1) {
-    if (strcmp(argv[1], "-d") == 0) {
+  for (i = 1; i < argc; ++i) {
+    const char* arg = argv[i];
+    if (i + 1 < argc) {
+      const char* val = argv[i + 1];
+      if (strcmp(arg, "-o") == 0) {
+        os_rom_name = val;
+        ++i;
+      } else if (strcmp(arg, "-l") == 0) {
+        lang_rom_name = val;
+        ++i;
+      }
+    }
+    if (strcmp(arg, "-d") == 0) {
       debug_flags = k_jit_debug;
-    } else {
-      os_rom_name = argv[1];
     }
   }
 
@@ -2140,15 +2151,17 @@ main(int argc, const char* argv[]) {
   }
   close(fd);
 
-  fd = open("basic.rom", O_RDONLY);
-  if (fd < 0) {
-    errx(1, "can't load language rom");
+  if (strlen(lang_rom_name) > 0) {
+    fd = open(lang_rom_name, O_RDONLY);
+    if (fd < 0) {
+      errx(1, "can't load language rom");
+    }
+    read_ret = read(fd, p_mem + k_lang_rom_offset, k_lang_rom_len);
+    if (read_ret != k_lang_rom_len) {
+      errx(1, "can't read language rom");
+    }
+    close(fd);
   }
-  read_ret = read(fd, p_mem + k_lang_rom_offset, k_lang_rom_len);
-  if (read_ret != k_lang_rom_len) {
-    errx(1, "can't read lanuage rom");
-  }
-  close(fd);
 
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
 
