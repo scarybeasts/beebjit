@@ -1572,6 +1572,7 @@ jit_jit(char* p_mem,
       // LDA (indirect), Y
       index = jit_emit_ind_y_to_scratch(p_jit, index, operand1);
       index = jit_emit_lda_scratch_offset(p_jit, index);
+      index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0xb8:
