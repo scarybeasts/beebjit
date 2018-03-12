@@ -15,8 +15,8 @@ static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_lang_rom_len = 0x4000;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
-static const int k_jit_bytes_per_byte = 128;
-static const int k_jit_bytes_shift = 7;
+static const int k_jit_bytes_per_byte = 256;
+static const int k_jit_bytes_shift = 8;
 static const size_t k_vector_reset = 0xfffc;
 static const size_t k_max_opcode_len = 16;
 
