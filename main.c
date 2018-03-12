@@ -1836,6 +1836,21 @@ jit_jit(char* p_mem,
       index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
+    case 0xed:
+      // SBC abs
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // cmc
+      p_jit[index++] = 0xf5;
+      // sbb al, [rdi + op1,op2]
+      p_jit[index++] = 0x1a;
+      p_jit[index++] = 0x87;
+      p_jit[index++] = operand1;
+      p_jit[index++] = operand2;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0;
+      index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 3);
+      break;
     case 0xee:
       // INC abs
       // inc BYTE PTR [rdi + op1,op2]
@@ -1854,6 +1869,19 @@ jit_jit(char* p_mem,
       // jne
       index = jit_emit_do_relative_jump(p_jit, index, 0x75, operand1);
       jit_emit_do_jmp_next(p_jit, index, 2);
+      break;
+    case 0xf9:
+      // SBC abs, Y
+      index = jit_emit_abs_y_to_scratch(p_jit, index, operand1, operand2);
+      index = jit_emit_6502_carry_to_intel(p_jit, index);
+      // cmc
+      p_jit[index++] = 0xf5;
+      // sbb al, [rdi + rdx]
+      p_jit[index++] = 0x1a;
+      p_jit[index++] = 0x04;
+      p_jit[index++] = 0x17;
+      index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
+      jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0xf2:
       // Illegal opcode. Hangs a standard 6502.
