@@ -1941,6 +1941,7 @@ jit_debug_callback() {
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
   print_opcode(opcode_buf, opcode, operand1, operand2);
   printf("%zx: %s\n", ip_6502, opcode_buf);
+  fflush(stdout);
 }
 
 static void
