@@ -964,7 +964,13 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0x97;
       index = jit_emit_int(p_jit, index, operand1);
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      // test BYTE PTR [rdi + op1], 0xff
+      p_jit[index++] = 0xf6;
+      p_jit[index++] = 0x87;
+      index = jit_emit_int(p_jit, index, operand1);
+      p_jit[index++] = 0xff;
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x28:
@@ -1004,7 +1010,8 @@ jit_jit(char* p_mem,
       // rcl al, 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0xd0;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x2c:
@@ -1041,7 +1048,16 @@ jit_jit(char* p_mem,
       p_jit[index++] = operand2;
       p_jit[index++] = 0;
       p_jit[index++] = 0;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      // test BYTE PTR [rdi + op1,op2], 0xff
+      p_jit[index++] = 0xf6;
+      p_jit[index++] = 0x87;
+      p_jit[index++] = operand1;
+      p_jit[index++] = operand2;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0xff;
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0x30:
@@ -1176,7 +1192,13 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0x9f;
       index = jit_emit_int(p_jit, index, operand1);
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      // test BYTE PTR [rdi + op1], 0xff
+      p_jit[index++] = 0xf6;
+      p_jit[index++] = 0x87;
+      index = jit_emit_int(p_jit, index, operand1);
+      p_jit[index++] = 0xff;
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
     case 0x68:
@@ -1200,7 +1222,8 @@ jit_jit(char* p_mem,
       // rcr al, 1
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0xd8;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      index = jit_emit_do_zn_flags(p_jit, index, 0);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x6c:
@@ -1252,7 +1275,16 @@ jit_jit(char* p_mem,
       p_jit[index++] = operand2;
       p_jit[index++] = 0;
       p_jit[index++] = 0;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      // test BYTE PTR [rdi + op1,op2], 0xff
+      p_jit[index++] = 0xf6;
+      p_jit[index++] = 0x87;
+      p_jit[index++] = operand1;
+      p_jit[index++] = operand2;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0;
+      p_jit[index++] = 0xff;
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0x70:
@@ -1302,7 +1334,13 @@ jit_jit(char* p_mem,
       p_jit[index++] = 0xd0;
       p_jit[index++] = 0x1c;
       p_jit[index++] = 0x17;
-      index = jit_emit_intel_to_6502_znc(p_jit, index);
+      index = jit_emit_intel_to_6502_carry(p_jit, index);
+      // test BYTE PTR [rdi + rdx], 0xff
+      p_jit[index++] = 0xf6;
+      p_jit[index++] = 0x04;
+      p_jit[index++] = 0x17;
+      p_jit[index++] = 0xff;
+      index = jit_emit_do_zn_flags(p_jit, index, -1);
       jit_emit_do_jmp_next(p_jit, index, 3);
       break;
     case 0x81:
@@ -2010,9 +2048,14 @@ main(int argc, const char* argv[]) {
   ssize_t read_ret;
   int ret;
   const char* os_rom_name = "os12.rom";
+  unsigned int debug_flags = 0;
 
   if (argc > 1) {
-    os_rom_name = argv[1];
+    if (strcmp(argv[1], "-d") == 0) {
+      debug_flags = k_jit_debug;
+    } else {
+      os_rom_name = argv[1];
+    }
   }
 
   p_map = mmap(NULL,
@@ -2082,8 +2125,8 @@ main(int argc, const char* argv[]) {
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
 
   jit_init(p_mem);
-  jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, k_jit_debug);
-  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len, k_jit_debug);
+  jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, debug_flags);
+  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len, debug_flags);
   jit_enter(p_mem, k_vector_reset);
 
   return 0;

@@ -191,7 +191,23 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc1;
 
+  // Some ROR / ROL tests.
   index = set_new_index(index, 0x140);
+  p_mem[index++] = 0xa9; // LDA #$01
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x38; // SEC
+  p_mem[index++] = 0x6a; // ROR A
+  p_mem[index++] = 0x30; // BMI (should be NF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0xb0; // BCS (should be CF=1)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
+  p_mem[index++] = 0x4c; // JMP $C180
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc1;
+
+  index = set_new_index(index, 0x180);
   p_mem[index++] = 0x02; // Done
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
