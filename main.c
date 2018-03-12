@@ -92,42 +92,53 @@ enum {
 static unsigned char g_optypes[256] =
 {
   // 0x00
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , 0    , k_abs, k_abs, 0    ,
   // 0x10
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   // 0x20
   k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0x30
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   // 0x40
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0x50
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   // 0x60
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_ind, k_abs, k_abs, 0    ,
   // 0x70
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   // 0x80
   0    , k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, 0    , k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0x90
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
+  k_nil, k_aby, k_nil, 0    , 0    , k_abx, 0    , 0    ,
   // 0xa0
   k_imm, k_idx, k_imm, 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0xb0
-  k_imm, k_idy, 0    ,     0, k_zpx, k_zpx, k_zpy, 0    ,
-  k_nil, k_aby, k_nil,     0, k_abx, k_abx, k_aby, 0    ,
+  k_imm, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
+  k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_aby, 0    ,
   // 0xc0
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0xd0
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   // 0xe0
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   // 0xf0
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
 static void
