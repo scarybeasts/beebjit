@@ -709,6 +709,109 @@ static size_t jit_emit_6502_ip_to_scratch(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_push_ip_plus_two(char* p_jit, size_t index) {
+  index = jit_emit_6502_ip_to_scratch(p_jit, index);
+  // add edx, 2
+  p_jit[index++] = 0x83;
+  p_jit[index++] = 0xc2;
+  p_jit[index++] = 0x02;
+  index = jit_emit_push_from_scratch_word(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_php(char* p_jit, size_t index) {
+  // mov rdx, r8
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xc2;
+  // or rdx, r9
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x09;
+  p_jit[index++] = 0xca;
+
+  // mov r15, r10
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xd7;
+  // shl r15, 1
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0xd1;
+  p_jit[index++] = 0xe7;
+  // or rdx, r15
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x09;
+  p_jit[index++] = 0xfa;
+
+  // mov r15, r11
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xdf;
+  // shl r15, 7
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0x07;
+  // or rdx, r15
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x09;
+  p_jit[index++] = 0xfa;
+
+  // mov r15, r12
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xe7;
+  // shl r15, 6
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0x06;
+  // or rdx, r15
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x09;
+  p_jit[index++] = 0xfa;
+
+  index = jit_emit_push_from_scratch(p_jit, index);
+
+  return index;
+}
+
+static size_t jit_emit_jmp_indirect(char* p_jit,
+                                    size_t index,
+                                    unsigned char addr_low,
+                                    unsigned char addr_high) {
+  unsigned char next_addr_high = addr_high;
+  unsigned char next_addr_low = addr_low + 1;
+  if (next_addr_low == 0) {
+    next_addr_high++;
+  }
+  // movzx edx, BYTE PTR [rdi + low,high]
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0x97;
+  p_jit[index++] = addr_low;
+  p_jit[index++] = addr_high;
+  p_jit[index++] = 0;
+  p_jit[index++] = 0;
+  // mov dh, BYTE PTR [rdi + low,high + 1]
+  p_jit[index++] = 0x8a;
+  p_jit[index++] = 0xb7;
+  p_jit[index++] = next_addr_low;
+  p_jit[index++] = next_addr_high;
+  p_jit[index++] = 0;
+  p_jit[index++] = 0;
+  index = jit_emit_jit_bytes_shift_scratch_left(p_jit, index);
+  // lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size]
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x94;
+  p_jit[index++] = 0x17;
+  index = jit_emit_int(p_jit, index, k_addr_space_size + k_guard_size);
+  index = jit_emit_jmp_scratch(p_jit, index);
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -722,19 +825,12 @@ jit_jit(char* p_mem,
     unsigned char opcode = p_mem[0];
     unsigned char operand1 = 0;
     unsigned char operand2 = 0;
-    unsigned char operand1_inc;
-    unsigned char operand2_inc;
     size_t index = 0;
     if (jit_offset + 1 < jit_end) {
       operand1 = p_mem[1];
     }
     if (jit_offset + 2 < jit_end) {
       operand2 = p_mem[2];
-    }
-    operand1_inc = operand1 + 1;
-    operand2_inc = operand2;
-    if (operand1_inc == 0) {
-      operand2_inc++;
     }
 
     if (flags & k_jit_debug) {
@@ -781,6 +877,12 @@ jit_jit(char* p_mem,
     }
 
     switch (opcode) {
+    case 0x00:
+      // BRK
+      index = jit_emit_push_ip_plus_two(p_jit, index);
+      index = jit_emit_php(p_jit, index);
+      index = jit_emit_jmp_indirect(p_jit, index, 0xfe, 0xff);
+      break;
     case 0x02:
       // Illegal opcode. Hangs a standard 6502.
       // Bounce out of JIT.
@@ -807,57 +909,7 @@ jit_jit(char* p_mem,
       break;
     case 0x08:
       // PHP
-      // mov rdx, r8
-      p_jit[index++] = 0x4c;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xc2;
-      // or rdx, r9
-      p_jit[index++] = 0x4c;
-      p_jit[index++] = 0x09;
-      p_jit[index++] = 0xca;
-
-      // mov r15, r10
-      p_jit[index++] = 0x4d;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xd7;
-      // shl r15, 1
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0xd1;
-      p_jit[index++] = 0xe7;
-      // or rdx, r15
-      p_jit[index++] = 0x4c;
-      p_jit[index++] = 0x09;
-      p_jit[index++] = 0xfa;
-
-      // mov r15, r11
-      p_jit[index++] = 0x4d;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xdf;
-      // shl r15, 7
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0xc1;
-      p_jit[index++] = 0xe7;
-      p_jit[index++] = 0x07;
-      // or rdx, r15
-      p_jit[index++] = 0x4c;
-      p_jit[index++] = 0x09;
-      p_jit[index++] = 0xfa;
-
-      // mov r15, r12
-      p_jit[index++] = 0x4d;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0xe7;
-      // shl r15, 6
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0xc1;
-      p_jit[index++] = 0xe7;
-      p_jit[index++] = 0x06;
-      // or rdx, r15
-      p_jit[index++] = 0x4c;
-      p_jit[index++] = 0x09;
-      p_jit[index++] = 0xfa;
-
-      index = jit_emit_push_from_scratch(p_jit, index);
+      index = jit_emit_php(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 1);
       break;
     case 0x09:
@@ -931,12 +983,7 @@ jit_jit(char* p_mem,
       break;
     case 0x20:
       // JSR
-      index = jit_emit_6502_ip_to_scratch(p_jit, index);
-      // add edx, 2
-      p_jit[index++] = 0x83;
-      p_jit[index++] = 0xc2;
-      p_jit[index++] = 0x02;
-      index = jit_emit_push_from_scratch_word(p_jit, index);
+      index = jit_emit_push_ip_plus_two(p_jit, index);
       index = jit_emit_jmp_op1_op2(p_jit, index, operand1, operand2);
       break;
     case 0x24:
@@ -1228,29 +1275,7 @@ jit_jit(char* p_mem,
       break;
     case 0x6c:
       // JMP indirect
-      // movzx edx, BYTE PTR [rdi + op1,op2]
-      p_jit[index++] = 0x0f;
-      p_jit[index++] = 0xb6;
-      p_jit[index++] = 0x97;
-      p_jit[index++] = operand1;
-      p_jit[index++] = operand2;
-      p_jit[index++] = 0;
-      p_jit[index++] = 0;
-      // mov dh, BYTE PTR [rdi + op1,op2 + 1]
-      p_jit[index++] = 0x8a;
-      p_jit[index++] = 0xb7;
-      p_jit[index++] = operand1_inc;
-      p_jit[index++] = operand2_inc;
-      p_jit[index++] = 0;
-      p_jit[index++] = 0;
-      index = jit_emit_jit_bytes_shift_scratch_left(p_jit, index);
-      // lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size]
-      p_jit[index++] = 0x48;
-      p_jit[index++] = 0x8d;
-      p_jit[index++] = 0x94;
-      p_jit[index++] = 0x17;
-      index = jit_emit_int(p_jit, index, k_addr_space_size + k_guard_size);
-      index = jit_emit_jmp_scratch(p_jit, index);
+      index = jit_emit_jmp_indirect(p_jit, index, operand1, operand2);
       break;
     case 0x6d:
       // ADC abs

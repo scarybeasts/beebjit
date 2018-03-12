@@ -23,6 +23,9 @@ main(int argc, const char* argv[]) {
   // Reset vector: jump to 0xC000, start of OS ROM.
   p_mem[0x3ffc] = 0x00;
   p_mem[0x3ffd] = 0xc0;
+  // IRQ vector: also jumped to by the BRK instruction.
+  p_mem[0x3ffe] = 0xc0;
+  p_mem[0x3fff] = 0xc1;
 
   // Check TSX / TXS stack setup.
   index = set_new_index(index, 0);
@@ -197,6 +200,9 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x38; // SEC
   p_mem[index++] = 0x6a; // ROR A
+  p_mem[index++] = 0xd0; // BNE (should be ZF=0)
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; // FAIL
   p_mem[index++] = 0x30; // BMI (should be NF=1)
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; // FAIL
@@ -207,7 +213,15 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc1;
 
+  // Test BRK!
   index = set_new_index(index, 0x180);
+  p_mem[index++] = 0xa2; // LDX #$ff
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x9a; // TXS
+  p_mem[index++] = 0x00; // BRK ($fffe -> $c1c0)
+  p_mem[index++] = 0xf2; // FAIL
+
+  index = set_new_index(index, 0x1c0);
   p_mem[index++] = 0x02; // Done
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
