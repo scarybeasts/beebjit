@@ -1849,6 +1849,10 @@ jit_jit(char* p_mem,
       index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
       jit_emit_do_jmp_next(p_jit, index, 2);
       break;
+    case 0xea:
+      // NOP
+      jit_emit_do_jmp_next(p_jit, index, 1);
+      break;
     case 0xec:
       // CPX abs
       // cmp bl, [rdi + op1,op2]
