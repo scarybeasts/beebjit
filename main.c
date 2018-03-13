@@ -23,56 +23,129 @@ static const size_t k_max_opcode_len = 16;
 static char g_jit_debug_space[64];
 static const unsigned int k_jit_debug = 1;
 
-static const char* g_p_opcodes[256] =
+enum {
+  k_kil = 0,
+  k_unk = 1,
+  k_brk = 2,
+  k_ora = 3,
+  k_asl = 4,
+  k_php = 5,
+  k_bpl = 6,
+  k_clc = 7,
+  k_jsr = 8,
+  k_and = 9,
+  k_bit = 10,
+  k_plp = 11,
+  k_rol = 12,
+  k_bmi = 13,
+  k_sec = 14,
+  k_rti = 15,
+  k_eor = 16,
+  k_lsr = 17,
+  k_pha = 18,
+  k_jmp = 19,
+  k_bvc = 20,
+  k_cli = 21,
+  k_rts = 22,
+  k_adc = 23,
+  k_pla = 24,
+  k_ror = 25,
+  k_bvs = 26,
+  k_sei = 27,
+  k_sty = 28,
+  k_sta = 29,
+  k_stx = 30,
+  k_dey = 31,
+  k_txa = 32,
+  k_bcc = 33,
+  k_tya = 34,
+  k_txs = 35,
+  k_ldy = 36,
+  k_lda = 37,
+  k_ldx = 38,
+  k_tay = 39,
+  k_tax = 40,
+  k_bcs = 41,
+  k_clv = 42,
+  k_tsx = 43,
+  k_cpy = 44,
+  k_cmp = 45,
+  k_cpx = 46,
+  k_dec = 47,
+  k_iny = 48,
+  k_dex = 49,
+  k_bne = 50,
+  k_cld = 51,
+  k_sbc = 52,
+  k_inx = 53,
+  k_nop = 54,
+  k_inc = 55,
+  k_beq = 56,
+  k_sed = 57,
+};
+
+static const char* g_p_opnames[58] = {
+  "!!!", "???", "BRK", "ORA", "ASL", "PHP", "BPL", "CLC",
+  "JSR", "AND", "BIT", "PLP", "ROL", "BMI", "SEC", "RTI",
+  "EOR", "LSR", "PHA", "JMP", "BVC", "CLI", "RTS", "ADC",
+  "PLA", "ROR", "BVS", "SEI", "STY", "STA", "STX", "DEY",
+  "TXA", "BCC", "TYA", "TXS", "LDY", "LDA", "LDX", "TAY",
+  "TAX", "BCS", "CLV", "TSX", "CPY", "CMP", "CPX", "DEC",
+  "INY", "DEX", "BNE", "CLD", "SBC", "INX", "NOP", "INC",
+  "BEQ", "SED",
+};
+
+
+static unsigned char g_optypes[256] =
 {
   // 0x00
-  "BRK", "ORA", "!!!", "???", "???", "ORA", "ASL", "???",
-  "PHP", "ORA", "ASL", "???", "???", "ORA", "ASL", "???",
+  k_brk, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_unk,
+  k_php, k_ora, k_asl, k_unk, k_unk, k_ora, k_asl, k_unk,
   // 0x10
-  "BPL", "ORA", "!!!", "???", "???", "ORA", "ASL", "???",
-  "CLC", "ORA", "???", "???", "???", "ORA", "ASL", "???",
+  k_bpl, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_unk,
+  k_clc, k_ora, k_unk, k_unk, k_unk, k_ora, k_asl, k_unk,
   // 0x20
-  "JSR", "AND", "!!!", "???", "BIT", "AND", "ROL", "???",
-  "PLP", "AND", "ROL", "???", "BIT", "AND", "ROL", "???",
+  k_jsr, k_and, k_kil, k_unk, k_bit, k_and, k_rol, k_unk,
+  k_plp, k_and, k_rol, k_unk, k_bit, k_and, k_rol, k_unk,
   // 0x30
-  "BMI", "AND", "!!!", "???", "???", "AND", "ROL", "???",
-  "SEC", "AND", "???", "???", "???", "AND", "ROL", "???",
+  k_bmi, k_and, k_kil, k_unk, k_unk, k_and, k_rol, k_unk,
+  k_sec, k_and, k_unk, k_unk, k_unk, k_and, k_rol, k_unk,
   // 0x40
-  "RTI", "EOR", "!!!", "???", "???", "EOR", "LSR", "???",
-  "PHA", "EOR", "LSR", "???", "JMP", "EOR", "LSR", "???",
+  k_rti, k_eor, k_kil, k_unk, k_unk, k_eor, k_lsr, k_unk,
+  k_pha, k_eor, k_lsr, k_unk, k_jmp, k_eor, k_lsr, k_unk,
   // 0x50
-  "BVC", "EOR", "!!!", "???", "???", "EOR", "LSR", "???",
-  "CLI", "EOR", "???", "???", "???", "EOR", "LSR", "???",
+  k_bvc, k_eor, k_kil, k_unk, k_unk, k_eor, k_lsr, k_unk,
+  k_cli, k_eor, k_unk, k_unk, k_unk, k_eor, k_lsr, k_unk,
   // 0x60
-  "RTS", "ADC", "!!!", "???", "???", "ADC", "ROR", "???",
-  "PLA", "ADC", "ROR", "???", "JMP", "ADC", "ROR", "???",
+  k_rts, k_adc, k_kil, k_unk, k_unk, k_adc, k_ror, k_unk,
+  k_pla, k_adc, k_ror, k_unk, k_jmp, k_adc, k_ror, k_unk,
   // 0x70
-  "BVS", "ADC", "!!!", "???", "???", "ADC", "ROR", "???",
-  "SEI", "ADC", "???", "???", "???", "ADC", "ROR", "???",
+  k_bvs, k_adc, k_kil, k_unk, k_unk, k_adc, k_ror, k_unk,
+  k_sei, k_adc, k_unk, k_unk, k_unk, k_adc, k_ror, k_unk,
   // 0x80
-  "???", "STA", "???", "???", "STY", "STA", "STX", "???",
-  "DEY", "???", "TXA", "???", "STY", "STA", "STX", "???",
+  k_unk, k_sta, k_unk, k_unk, k_sty, k_sta, k_stx, k_unk,
+  k_dey, k_unk, k_txa, k_unk, k_sty, k_sta, k_stx, k_unk,
   // 0x90
-  "BCC", "STA", "!!!", "???", "STY", "STA", "STX", "???",
-  "TYA", "STA", "TXS", "???", "???", "STA", "???", "???",
+  k_bcc, k_sta, k_kil, k_unk, k_sty, k_sta, k_stx, k_unk,
+  k_tya, k_sta, k_txs, k_unk, k_unk, k_sta, k_unk, k_unk,
   // 0xa0
-  "LDY", "LDA", "LDX", "???", "LDY", "LDA", "LDX", "???",
-  "TAY", "LDA", "TAX", "???", "LDY", "LDA", "LDX", "???",
+  k_ldy, k_lda, k_ldx, k_unk, k_ldy, k_lda, k_ldx, k_unk,
+  k_tay, k_lda, k_tax, k_unk, k_ldy, k_lda, k_ldx, k_unk,
   // 0xb0
-  "BCS", "LDA", "!!!", "???", "LDY", "LDA", "LDX", "???",
-  "CLV", "LDA", "TSX", "???", "LDY", "LDA", "LDX", "???",
+  k_bcs, k_lda, k_kil, k_unk, k_ldy, k_lda, k_ldx, k_unk,
+  k_clv, k_lda, k_tsx, k_unk, k_ldy, k_lda, k_ldx, k_unk,
   // 0xc0
-  "CPY", "CMP", "???", "???", "CPY", "CMP", "DEC", "???",
-  "INY", "CMP", "DEX", "???", "CPY", "CMP", "DEC", "???",
+  k_cpy, k_cmp, k_unk, k_unk, k_cpy, k_cmp, k_dec, k_unk,
+  k_iny, k_cmp, k_dex, k_unk, k_cpy, k_cmp, k_dec, k_unk,
   // 0xd0
-  "BNE", "CMP", "!!!", "???", "???", "CMP", "DEC", "???",
-  "CLD", "CMP", "???", "???", "???", "CMP", "DEC", "???",
+  k_bne, k_cmp, k_kil, k_unk, k_unk, k_cmp, k_dec, k_unk,
+  k_cld, k_cmp, k_unk, k_unk, k_unk, k_cmp, k_dec, k_unk,
   // 0xe0
-  "CPX", "SBC", "???", "???", "CPX", "SBC", "INC", "???",
-  "INX", "SBC", "NOP", "???", "CPX", "SBC", "INC", "???",
+  k_cpx, k_sbc, k_unk, k_unk, k_cpx, k_sbc, k_inc, k_unk,
+  k_inx, k_sbc, k_nop, k_unk, k_cpx, k_sbc, k_inc, k_unk,
   // 0xf0
-  "BEQ", "SBC", "!!!", "???", "???", "SBC", "INC", "???",
-  "SED", "SBC", "???", "???", "???", "SBC", "INC", "???",
+  k_beq, k_sbc, k_kil, k_unk, k_unk, k_sbc, k_inc, k_unk,
+  k_sed, k_sbc, k_unk, k_unk, k_unk, k_sbc, k_inc, k_unk,
 };
 
 enum {
@@ -89,7 +162,7 @@ enum {
   k_ind = 11,
 };
 
-static unsigned char g_optypes[256] =
+static unsigned char g_opmodes[256] =
 {
   // 0x00
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
@@ -1968,9 +2041,9 @@ print_opcode(char* buf,
              unsigned char opcode,
              unsigned char operand1,
              unsigned char operand2) {
-  unsigned char optype = g_optypes[opcode];
-  const char* opname = g_p_opcodes[opcode];
-  switch (optype) {
+  unsigned char opmode = g_opmodes[opcode];
+  const char* opname = g_p_opnames[g_optypes[opcode]];
+  switch (opmode) {
   case k_nil:
     snprintf(buf, k_max_opcode_len, "%s", opname);
     break;
