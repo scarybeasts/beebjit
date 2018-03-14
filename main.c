@@ -953,6 +953,39 @@ static size_t jit_emit_calc_op(char* p_jit,
   return index;
 }
 
+static size_t jit_emit_shift_op(char* p_jit,
+                                size_t index,
+                                unsigned char opmode,
+                                unsigned char operand1,
+                                unsigned char operand2,
+                                unsigned char intel_op_base) {
+  switch (opmode) {
+  case k_nil:
+    // OP al, 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base;
+    break;
+  case k_zpg:
+  case k_abs:
+    // OP BYTE PTR [rdi + op1,op2?], 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base - 0x39;
+    p_jit[index++] = operand1;
+    p_jit[index++] = operand2;
+    p_jit[index++] = 0;
+    p_jit[index++] = 0;
+    break;
+  default:
+    // OP BYTE PTR [rdi + rdx], 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base - 0xbc;
+    p_jit[index++] = 0x17;
+    break;
+  }
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -1073,29 +1106,7 @@ jit_jit(char* p_mem,
       break;
     case k_asl:
       // ASL
-      switch (opmode) {
-      case k_nil:
-        // shl al, 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xe0;
-        break;
-      case k_zpg:
-      case k_abs:
-        // shl BYTE PTR [rdi + op1,op2?], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xa7;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // shl BYTE PTR [rdi + rdx], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x24;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xe0);
       index = jit_emit_intel_to_6502_znc(p_jit, index);
       break;
     case k_php:
@@ -1144,29 +1155,7 @@ jit_jit(char* p_mem,
     case k_rol:
       // ROL
       index = jit_emit_6502_carry_to_intel(p_jit, index);
-      switch (opmode) {
-      case k_nil:
-        // rcl al, 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xd0;
-        break;
-      case k_zpg:
-      case k_abs:
-        // rcl [rdi + op1,op2?], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x97;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // rcl BYTE PTR [rdi + rdx], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x14;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xd0);
       index = jit_emit_intel_to_6502_carry(p_jit, index);
       switch (opmode) {
       case k_nil:
@@ -1227,30 +1216,7 @@ jit_jit(char* p_mem,
       break;
     case k_lsr:
       // LSR
-      switch (opmode) {
-      case k_nil:
-        // LSR A
-        // shr al, 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xe8;
-        break;
-      case k_zpg:
-      case k_abs:
-        // shr BYTE PTR [rdi + op1,op2?], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xaf;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // shr BYTE PTR [rdi + rdx], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x2c;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xe8);
       index = jit_emit_intel_to_6502_znc(p_jit, index);
       break;
     case k_pha:
@@ -1305,29 +1271,7 @@ jit_jit(char* p_mem,
     case k_ror:
       // ROR
       index = jit_emit_6502_carry_to_intel(p_jit, index);
-      switch (opmode) {
-      case k_nil:
-        // rcr al, 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0xd8;
-        break;
-      case k_zpg:
-      case k_abs:
-        // rcr BYTE PTR [rdi + op1,op2?], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x9f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // rcr BYTE PTR [rdi + rdx], 1
-        p_jit[index++] = 0xd0;
-        p_jit[index++] = 0x1c;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xd8);
       // TODO: bottom half can be shared between ROL and ROR.
       index = jit_emit_intel_to_6502_carry(p_jit, index);
       switch (opmode) {
