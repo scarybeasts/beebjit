@@ -920,6 +920,39 @@ static size_t jit_emit_debug_sequence(char* p_jit, size_t index) {
   return index;
 }
 
+static size_t jit_emit_calc_op(char* p_jit,
+                               size_t index,
+                               unsigned char opmode,
+                               unsigned char operand1,
+                               unsigned char operand2,
+                               unsigned char intel_op_base) {
+  switch (opmode) {
+  case k_imm:
+    // OP al, op1
+    p_jit[index++] = intel_op_base + 2;
+    p_jit[index++] = operand1;
+    break;
+  case k_zpg:
+  case k_abs:
+    // OP al, [rdi + op1,op2?]
+    p_jit[index++] = intel_op_base;
+    p_jit[index++] = 0x87;
+    p_jit[index++] = operand1;
+    p_jit[index++] = operand2;
+    p_jit[index++] = 0;
+    p_jit[index++] = 0;
+    break;
+  default:
+    // OP al, [rdi + rdx]
+    p_jit[index++] = intel_op_base;
+    p_jit[index++] = 0x04;
+    p_jit[index++] = 0x17;
+    break;
+  }
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -1035,29 +1068,7 @@ jit_jit(char* p_mem,
       break;
     case k_ora:
       // ORA
-      switch (opmode) {
-      case k_imm:
-        // or al, op1
-        p_jit[index++] = 0x0c;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // or al, [rdi + op1,op2?]
-        p_jit[index++] = 0x0a;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // or al, [rdi + rdx]
-        p_jit[index++] = 0x0a;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x0a);
       index = jit_emit_do_zn_flags(p_jit, index, -1);
       break;
     case k_asl:
@@ -1127,29 +1138,7 @@ jit_jit(char* p_mem,
       break;
     case k_and:
       // AND
-      switch (opmode) {
-      case k_imm:
-        // and al, op1
-        p_jit[index++] = 0x24;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // and al, [rdi + op1,op2?]
-        p_jit[index++] = 0x22;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // and al, [rdi + rdx]
-        p_jit[index++] = 0x22;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x22);
       index = jit_emit_do_zn_flags(p_jit, index, -1);
       break;
     case k_rol:
@@ -1233,28 +1222,7 @@ jit_jit(char* p_mem,
       break;
     case k_eor:
       // EOR
-      switch (opmode) {
-      case k_imm:
-        // xor al, op1
-        p_jit[index++] = 0x34;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // xor al, [rdi + op1,op2?]
-        p_jit[index++] = 0x32;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        p_jit[index++] = 0x32;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x32);
       index = jit_emit_do_zn_flags(p_jit, index, -1);
       break;
     case k_lsr:
@@ -1331,29 +1299,7 @@ jit_jit(char* p_mem,
     case k_adc:
       // ADC
       index = jit_emit_6502_carry_to_intel(p_jit, index);
-      switch (opmode) {
-      case k_imm:
-        // adc al, op1
-        p_jit[index++] = 0x14;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // adc al, [rdi + op1,op2?]
-        p_jit[index++] = 0x12;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // adc al, [rdi + rdx]
-        p_jit[index++] = 0x12;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x12);
       index = jit_emit_intel_to_6502_znco(p_jit, index);
       break;
     case k_ror:
@@ -1798,29 +1744,7 @@ jit_jit(char* p_mem,
       index = jit_emit_6502_carry_to_intel(p_jit, index);
       // cmc
       p_jit[index++] = 0xf5;
-      switch (opmode) {
-      case k_imm:
-        // sbb al, op1
-        p_jit[index++] = 0x1c;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // sbb al, [rdi + op1,op2?]
-        p_jit[index++] = 0x1a;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default:
-        // sbb al, [rdi + rdx]
-        p_jit[index++] = 0x1a;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x1a);
       index = jit_emit_intel_to_6502_sub_znco(p_jit, index);
       break;
     case k_nop:
