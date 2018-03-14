@@ -986,6 +986,41 @@ static size_t jit_emit_shift_op(char* p_jit,
   return index;
 }
 
+static size_t jit_emit_post_rotate(char* p_jit,
+                                   size_t index,
+                                   unsigned char opmode,
+                                   unsigned char operand1,
+                                   unsigned char operand2) {
+  index = jit_emit_intel_to_6502_carry(p_jit, index);
+  switch (opmode) {
+  case k_nil:
+    index = jit_emit_do_zn_flags(p_jit, index, 0);
+    break;
+  case k_zpg:
+  case k_abs:
+    // test BYTE PTR [rdi + op1,op2?], 0xff
+    p_jit[index++] = 0xf6;
+    p_jit[index++] = 0x87;
+    p_jit[index++] = operand1;
+    p_jit[index++] = operand2;
+    p_jit[index++] = 0;
+    p_jit[index++] = 0;
+    p_jit[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    break;
+  default:
+    // test BYTE PTR [rdi + rdx], 0xff
+    p_jit[index++] = 0xf6;
+    p_jit[index++] = 0x04;
+    p_jit[index++] = 0x17;
+    p_jit[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    break;
+  }
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -1156,26 +1191,7 @@ jit_jit(char* p_mem,
       // ROL
       index = jit_emit_6502_carry_to_intel(p_jit, index);
       index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xd0);
-      index = jit_emit_intel_to_6502_carry(p_jit, index);
-      switch (opmode) {
-      case k_nil:
-        index = jit_emit_do_zn_flags(p_jit, index, 0);
-        break;
-      case k_zpg:
-      case k_abs:
-        // test BYTE PTR [rdi + op1,op2?], 0xff
-        p_jit[index++] = 0xf6;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0xff;
-        index = jit_emit_do_zn_flags(p_jit, index, -1);
-        break;
-      default:
-        break;
-      }
+      index = jit_emit_post_rotate(p_jit, index, opmode, operand1, operand2);
       break;
     case k_plp:
       // PLP
@@ -1272,33 +1288,7 @@ jit_jit(char* p_mem,
       // ROR
       index = jit_emit_6502_carry_to_intel(p_jit, index);
       index = jit_emit_shift_op(p_jit, index, opmode, operand1, operand2, 0xd8);
-      // TODO: bottom half can be shared between ROL and ROR.
-      index = jit_emit_intel_to_6502_carry(p_jit, index);
-      switch (opmode) {
-      case k_nil:
-        index = jit_emit_do_zn_flags(p_jit, index, 0);
-        break;
-      case k_zpg:
-      case k_abs:
-        // test BYTE PTR [rdi + op1,op2?], 0xff
-        p_jit[index++] = 0xf6;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0xff;
-        index = jit_emit_do_zn_flags(p_jit, index, -1);
-        break;
-      default:
-        // test BYTE PTR [rdi + rdx], 0xff
-        p_jit[index++] = 0xf6;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        p_jit[index++] = 0xff;
-        index = jit_emit_do_zn_flags(p_jit, index, -1);
-        break;
-      }
+      index = jit_emit_post_rotate(p_jit, index, opmode, operand1, operand2);
       break;
     case k_pla:
       // PLA
