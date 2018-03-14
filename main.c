@@ -245,6 +245,18 @@ static size_t jit_emit_int(char* p_jit, size_t index, ssize_t offset) {
   return index;
 }
 
+static size_t jit_emit_op1_op2(char* p_jit,
+                               size_t index,
+                               unsigned char operand1,
+                               unsigned char operand2) {
+  p_jit[index++] = operand1;
+  p_jit[index++] = operand2;
+  p_jit[index++] = 0;
+  p_jit[index++] = 0;
+
+  return index;
+}
+
 static size_t jit_emit_do_jmp_next(char* p_jit,
                                    size_t index,
                                    size_t oplen) {
@@ -517,17 +529,11 @@ static size_t jit_emit_ind_y_to_scratch(char* p_jit,
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
   p_jit[index++] = 0x97;
-  p_jit[index++] = operand1;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
+  index = jit_emit_op1_op2(p_jit, index, operand1, 0);
   // mov dh, BYTE PTR [rdi + op1 + 1]
   p_jit[index++] = 0x8a;
   p_jit[index++] = 0xb7;
-  p_jit[index++] = operand1_inc;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
+  index = jit_emit_op1_op2(p_jit, index, operand1_inc, 0);
   // add dx, cx
   p_jit[index++] = 0x66;
   p_jit[index++] = 0x01;
@@ -836,17 +842,11 @@ static size_t jit_emit_jmp_indirect(char* p_jit,
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
   p_jit[index++] = 0x97;
-  p_jit[index++] = addr_low;
-  p_jit[index++] = addr_high;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
+  index = jit_emit_op1_op2(p_jit, index, addr_low, addr_high);
   // mov dh, BYTE PTR [rdi + low,high + 1]
   p_jit[index++] = 0x8a;
   p_jit[index++] = 0xb7;
-  p_jit[index++] = next_addr_low;
-  p_jit[index++] = next_addr_high;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
+  index = jit_emit_op1_op2(p_jit, index, next_addr_low, next_addr_high);
   index = jit_emit_jit_bytes_shift_scratch_left(p_jit, index);
   // lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size]
   p_jit[index++] = 0x48;
@@ -937,10 +937,7 @@ static size_t jit_emit_calc_op(char* p_jit,
     // OP al, [rdi + op1,op2?]
     p_jit[index++] = intel_op_base;
     p_jit[index++] = 0x87;
-    p_jit[index++] = operand1;
-    p_jit[index++] = operand2;
-    p_jit[index++] = 0;
-    p_jit[index++] = 0;
+    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
     break;
   default:
     // OP al, [rdi + rdx]
@@ -970,10 +967,7 @@ static size_t jit_emit_shift_op(char* p_jit,
     // OP BYTE PTR [rdi + op1,op2?], 1
     p_jit[index++] = 0xd0;
     p_jit[index++] = intel_op_base - 0x39;
-    p_jit[index++] = operand1;
-    p_jit[index++] = operand2;
-    p_jit[index++] = 0;
-    p_jit[index++] = 0;
+    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
     break;
   default:
     // OP BYTE PTR [rdi + rdx], 1
@@ -1001,10 +995,7 @@ static size_t jit_emit_post_rotate(char* p_jit,
     // test BYTE PTR [rdi + op1,op2?], 0xff
     p_jit[index++] = 0xf6;
     p_jit[index++] = 0x87;
-    p_jit[index++] = operand1;
-    p_jit[index++] = operand2;
-    p_jit[index++] = 0;
-    p_jit[index++] = 0;
+    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
     p_jit[index++] = 0xff;
     index = jit_emit_do_zn_flags(p_jit, index, -1);
     break;
@@ -1169,10 +1160,7 @@ jit_jit(char* p_mem,
       // mov dl [rdi + op1,op2?]
       p_jit[index++] = 0x8a;
       p_jit[index++] = 0x97;
-      p_jit[index++] = operand1;
-      p_jit[index++] = operand2;
-      p_jit[index++] = 0;
-      p_jit[index++] = 0;
+      index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
       index = jit_emit_scratch_bit_test(p_jit, index, 7);
       index = jit_emit_carry_to_6502_negative(p_jit, index);
       index = jit_emit_scratch_bit_test(p_jit, index, 6);
@@ -1318,10 +1306,7 @@ jit_jit(char* p_mem,
         // mov [rdi + op1,op2?], al
         p_jit[index++] = 0x88;
         p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov [rdi + rdx], al
@@ -1339,10 +1324,7 @@ jit_jit(char* p_mem,
         // mov [rdi + op1,op2?], cl
         p_jit[index++] = 0x88;
         p_jit[index++] = 0x8f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov [rdi + rdx], cl
@@ -1360,10 +1342,7 @@ jit_jit(char* p_mem,
         // mov [rdi + op1,op2?], bl
         p_jit[index++] = 0x88;
         p_jit[index++] = 0x9f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov [rdi + rdx], bl
@@ -1420,10 +1399,7 @@ jit_jit(char* p_mem,
         // mov cl, [rdi + op1,op2?]
         p_jit[index++] = 0x8a;
         p_jit[index++] = 0x8f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov cl, [rdi + rdx]
@@ -1447,10 +1423,7 @@ jit_jit(char* p_mem,
         // mov bl, [rdi + op1,op2?]
         p_jit[index++] = 0x8a;
         p_jit[index++] = 0x9f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov bl, [rdi + rdx]
@@ -1474,10 +1447,7 @@ jit_jit(char* p_mem,
         // mov al, [rdi + op1,op2?]
         p_jit[index++] = 0x8a;
         p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0x00;
-        p_jit[index++] = 0x00;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default:
         // mov al, [rdi + rdx]
@@ -1537,10 +1507,7 @@ jit_jit(char* p_mem,
         // cmp cl, [rdi + op1,op2?]
         p_jit[index++] = 0x3a;
         p_jit[index++] = 0x8f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       }
       index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
@@ -1558,10 +1525,7 @@ jit_jit(char* p_mem,
         // dec BYTE PTR [rdi + op1,op2?]
         p_jit[index++] = 0xfe;
         p_jit[index++] = 0x8f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default: 
         // dec BYTE PTR [rdi + rdx]
@@ -1615,10 +1579,7 @@ jit_jit(char* p_mem,
         // cmp bl, [rdi + op1,op2?]
         p_jit[index++] = 0x3a;
         p_jit[index++] = 0x9f;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       }
       index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
@@ -1630,10 +1591,7 @@ jit_jit(char* p_mem,
       case k_abs:
         p_jit[index++] = 0xfe;
         p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
+        index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
         break;
       default: 
         // inc BYTE PTR [rdi + rdx]
