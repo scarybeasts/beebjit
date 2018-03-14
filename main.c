@@ -1613,29 +1613,7 @@ jit_jit(char* p_mem,
       break;
     case k_cmp:
       // CMP
-      switch (opmode) {
-      case k_imm:
-        // cmp al, op1
-        p_jit[index++] = 0x3c;
-        p_jit[index++] = operand1;
-        break;
-      case k_zpg:
-      case k_abs:
-        // cmp al, [rdi + op1,op2?]
-        p_jit[index++] = 0x3a;
-        p_jit[index++] = 0x87;
-        p_jit[index++] = operand1;
-        p_jit[index++] = operand2;
-        p_jit[index++] = 0;
-        p_jit[index++] = 0;
-        break;
-      default: 
-        // cmp al, [rdi + rdx]
-        p_jit[index++] = 0x3a;
-        p_jit[index++] = 0x04;
-        p_jit[index++] = 0x17;
-        break;
-      }
+      index = jit_emit_calc_op(p_jit, index, opmode, operand1, operand2, 0x3a);
       index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
       break;
     case k_dec:
