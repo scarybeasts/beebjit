@@ -875,6 +875,51 @@ size_t jit_emit_undefined(char* p_jit,
   return index;
 }
 
+static size_t jit_emit_debug_sequence(char* p_jit, size_t index) {
+  index = jit_emit_6502_ip_to_scratch(p_jit, index);
+  // mov [r14 + 16], rdx
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0x56;
+  p_jit[index++] = 0x10;
+  // push rax / rcx / rdx / rsi / rdi
+  p_jit[index++] = 0x50;
+  p_jit[index++] = 0x51;
+  p_jit[index++] = 0x52;
+  p_jit[index++] = 0x56;
+  p_jit[index++] = 0x57;
+  // push r8 / r9 / r10 / r11
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x50;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x51;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x52;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x53;
+  // call [r14]
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0xff;
+  p_jit[index++] = 0x16;
+  // pop r11 / r10 / r9 / r8
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x5b;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x5a;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x59;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x58;
+  // pop rdi / rsi / rdx / rcx / rax
+  p_jit[index++] = 0x5f;
+  p_jit[index++] = 0x5e;
+  p_jit[index++] = 0x5a;
+  p_jit[index++] = 0x59;
+  p_jit[index++] = 0x58;
+
+  return index;
+}
+
 static void
 jit_jit(char* p_mem,
         size_t jit_offset,
@@ -904,46 +949,7 @@ jit_jit(char* p_mem,
     }
 
     if (flags & k_jit_debug) {
-      index = jit_emit_6502_ip_to_scratch(p_jit, index);
-      // mov [r14 + 16], rdx
-      p_jit[index++] = 0x49;
-      p_jit[index++] = 0x89;
-      p_jit[index++] = 0x56;
-      p_jit[index++] = 0x10;
-      // push rax / rcx / rdx / rsi / rdi
-      p_jit[index++] = 0x50;
-      p_jit[index++] = 0x51;
-      p_jit[index++] = 0x52;
-      p_jit[index++] = 0x56;
-      p_jit[index++] = 0x57;
-      // push r8 / r9 / r10 / r11
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x50;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x51;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x52;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x53;
-      // call [r14]
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0xff;
-      p_jit[index++] = 0x16;
-      // pop r11 / r10 / r9 / r8
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x5b;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x5a;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x59;
-      p_jit[index++] = 0x41;
-      p_jit[index++] = 0x58;
-      // pop rdi / rsi / rdx / rcx / rax
-      p_jit[index++] = 0x5f;
-      p_jit[index++] = 0x5e;
-      p_jit[index++] = 0x5a;
-      p_jit[index++] = 0x59;
-      p_jit[index++] = 0x58;
+      index = jit_emit_debug_sequence(p_jit, index);
     }
 
     switch (opmode) {
