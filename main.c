@@ -533,16 +533,22 @@ static size_t jit_emit_abs_y_to_scratch(char* p_jit,
 static size_t jit_emit_ind_y_to_scratch(char* p_jit,
                                         size_t index,
                                         unsigned char operand1) {
-  unsigned char operand1_inc = operand1 + 1;
-  // movzx edx, BYTE PTR [rdi + op1]
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0x97;
-  index = jit_emit_op1_op2(p_jit, index, operand1, 0);
-  // mov dh, BYTE PTR [rdi + op1 + 1]
-  p_jit[index++] = 0x8a;
-  p_jit[index++] = 0xb7;
-  index = jit_emit_op1_op2(p_jit, index, operand1_inc, 0);
+  if (operand1 == 0xff) {
+    // movzx edx, BYTE PTR [rdi + 0xff]
+    p_jit[index++] = 0x0f;
+    p_jit[index++] = 0xb6;
+    p_jit[index++] = 0x97;
+    index = jit_emit_op1_op2(p_jit, index, 0xff, 0);
+    // mov dh, BYTE PTR [rdi]
+    p_jit[index++] = 0x8a;
+    p_jit[index++] = 0x37;
+  } else {
+    // movzx edx, WORD PTR [rdi + op1]
+    p_jit[index++] = 0x0f;
+    p_jit[index++] = 0xb7;
+    p_jit[index++] = 0x97;
+    index = jit_emit_op1_op2(p_jit, index, operand1, 0);
+  }
   // add dx, cx
   p_jit[index++] = 0x66;
   p_jit[index++] = 0x01;
