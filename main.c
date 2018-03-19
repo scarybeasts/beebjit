@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -19,7 +20,15 @@ static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
 static const size_t k_vector_reset = 0xfffc;
 static const size_t k_max_opcode_len = 16;
+static const size_t k_max_addr_len = 32;
 
+// 0:  debug_callback
+// 8:  pointer to 6502 memory
+// 16: 6502 ip
+// 24: 6502 A
+// 32: 6502 X
+// 40: 6502 Y
+// 48: 6502 S
 static char g_jit_debug_space[64];
 static const unsigned int k_jit_debug = 1;
 
@@ -877,11 +886,36 @@ size_t jit_emit_undefined(char* p_jit,
 
 static size_t jit_emit_debug_sequence(char* p_jit, size_t index) {
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
+  // Save 6502 IP
   // mov [r14 + 16], rdx
   p_jit[index++] = 0x49;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0x56;
   p_jit[index++] = 0x10;
+  // Save 6502 A
+  // mov [r14 + 24], rax
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0x46;
+  p_jit[index++] = 0x18;
+  // Save 6502 X
+  // mov [r14 + 32], rbx
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0x5e;
+  p_jit[index++] = 0x20;
+  // Save 6502 Y
+  // mov [r14 + 40], rcx
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0x4e;
+  p_jit[index++] = 0x28;
+  // Save 6502 S
+  // mov [r14 + 48], rsi
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0x76;
+  p_jit[index++] = 0x30;
   // push rax / rcx / rdx / rsi / rdi
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
@@ -1703,18 +1737,95 @@ print_opcode(char* buf,
   }
 }
 
+static int
+jit_debug_get_addr(uint16_t* p_addr_out,
+                   unsigned char* p_val_out,
+                   unsigned char opcode,
+                   unsigned char operand1,
+                   unsigned char operand2,
+                   unsigned char x_6502,
+                   unsigned char y_6502,
+                   char* p_mem) {
+  unsigned char opmode = g_opmodes[opcode];
+  uint16_t addr;
+  switch (opmode) {
+  case k_zpg:
+    addr = operand1;
+    break;
+  case k_zpx:
+    addr = (unsigned char) (operand1 + x_6502);
+    break;
+  case k_zpy:
+    addr = (unsigned char) (operand1 + y_6502);
+    break;
+  case k_abs:
+    addr = (uint16_t) (operand1 + (operand2 << 8));
+    break;
+  case k_abx:
+    addr = (uint16_t) (operand1 + (operand2 << 8) + x_6502);
+    break;
+  case k_aby:
+    addr = (uint16_t) (operand1 + (operand2 << 8) + y_6502);
+    break;
+  case k_idx:
+    addr = p_mem[(unsigned char) (operand1 + x_6502 + 1)];
+    addr <<= 8;
+    addr |= p_mem[(unsigned char) (operand1 + x_6502)];
+    break;
+  case k_idy:
+    addr = p_mem[(unsigned char) (operand1 + 1)];
+    addr <<= 8;
+    addr |= p_mem[operand1];
+    addr = (uint16_t) (addr + y_6502);
+    break;
+  default:
+    return 0;
+    break;
+  }
+  *p_addr_out = addr;
+  *p_val_out = p_mem[addr];
+  return 1;
+}
+
 static void
 jit_debug_callback() {
   char opcode_buf[k_max_opcode_len];
+  char addr_buf[k_max_addr_len];
   char** p_jit_debug_space = (char**) &g_jit_debug_space;
   char* p_mem = p_jit_debug_space[1];
-  size_t ip_6502 = (size_t) p_jit_debug_space[2];
-
+  uint16_t ip_6502 = (size_t) p_jit_debug_space[2];
+  uint16_t addr;
+  unsigned char val;
+  int ret;
+  unsigned char a_6502 = (size_t) p_jit_debug_space[3];
+  unsigned char x_6502 = (size_t) p_jit_debug_space[4];
+  unsigned char y_6502 = (size_t) p_jit_debug_space[5];
+  unsigned char s_6502 = (size_t) p_jit_debug_space[6];
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
+  ret = jit_debug_get_addr(&addr,
+                           &val,
+                           opcode,
+                           operand1,
+                           operand2,
+                           x_6502,
+                           y_6502,
+                           p_mem);
+  addr_buf[0] = '\0';
+  if (ret == 1) {
+    snprintf(addr_buf,sizeof(addr_buf), "[addr=%.4x val=%.2x]", addr, val);
+  }
+
   print_opcode(opcode_buf, opcode, operand1, operand2);
-  printf("%zx: %s\n", ip_6502, opcode_buf);
+  printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x] %s\n",
+         ip_6502,
+         opcode_buf,
+         a_6502,
+         x_6502,
+         y_6502,
+         s_6502,
+         addr_buf);
   fflush(stdout);
 }
 
