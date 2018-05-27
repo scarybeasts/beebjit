@@ -2,9 +2,12 @@
 
 #include "x.h"
 
+#define _GNU_SOURCE
+
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -24,6 +27,14 @@ static const size_t k_vector_reset = 0xfffc;
 // TODO: move into jit.h
 static const int k_jit_bytes_per_byte = 256;
 
+static void* jit_thread(void* p) {
+  char* p_mem = (char*) p;
+ 
+  jit_enter(p_mem, k_vector_reset);
+
+  return NULL;
+}
+
 int
 main(int argc, const char* argv[]) {
   char* p_map;
@@ -35,6 +46,7 @@ main(int argc, const char* argv[]) {
   const char* lang_rom_name = "basic.rom";
   unsigned int debug_flags = 0;
   int i;
+  pthread_t thread;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -126,7 +138,20 @@ main(int argc, const char* argv[]) {
   jit_init(p_mem);
   jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, debug_flags);
   jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len, debug_flags);
-  jit_enter(p_mem, k_vector_reset);
+
+  ret = pthread_create(&thread, NULL, jit_thread, p_mem);
+  if (ret != 0) {
+    errx(1, "couldn't create thread");
+  }
+
+  while (1) {
+    void* retval;
+    ret = pthread_tryjoin_np(thread, &retval);
+    if (ret == 0) {
+      break;
+    }
+    sleep(1);
+  }
 
   return 0;
 }
