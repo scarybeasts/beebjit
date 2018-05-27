@@ -1,5 +1,7 @@
 #include "jit.h"
 
+#include "x.h"
+
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
@@ -118,6 +120,8 @@ main(int argc, const char* argv[]) {
   }
 
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
+
+  x_init();
 
   jit_init(p_mem);
   jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, debug_flags);
