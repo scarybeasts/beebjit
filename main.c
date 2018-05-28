@@ -2,14 +2,13 @@
 
 #include "x.h"
 
-#define _GNU_SOURCE
-
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -35,7 +34,7 @@ static void* jit_thread(void* p) {
  
   jit_enter(p_mem, k_vector_reset);
 
-  return NULL;
+  exit(0);
 }
 
 int
@@ -152,11 +151,6 @@ main(int argc, const char* argv[]) {
   }
 
   while (1) {
-    void* retval;
-    ret = pthread_tryjoin_np(thread, &retval);
-    if (ret == 0) {
-      break;
-    }
     x_render(p_x);
     sleep(1);
   }
