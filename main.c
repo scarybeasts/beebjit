@@ -30,7 +30,7 @@ static const size_t k_mode7_height = 25;
 static const int k_jit_bytes_per_byte = 256;
 
 static void* jit_thread(void* p) {
-  char* p_mem = (char*) p;
+  unsigned char* p_mem = (unsigned char*) p;
  
   jit_enter(p_mem, k_vector_reset);
 
@@ -39,8 +39,8 @@ static void* jit_thread(void* p) {
 
 int
 main(int argc, const char* argv[]) {
-  char* p_map;
-  char* p_mem;
+  unsigned char* p_map;
+  unsigned char* p_mem;
   int fd;
   ssize_t read_ret;
   int ret;
