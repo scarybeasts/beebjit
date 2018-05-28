@@ -5,7 +5,7 @@
 
 struct x_struct;
 
-struct x_struct* x_create(char* p_screen_mem,
+struct x_struct* x_create(unsigned char* p_screen_mem,
                           size_t chars_width,
                           size_t chars_height);
 

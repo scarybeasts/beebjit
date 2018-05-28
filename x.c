@@ -10,7 +10,7 @@
 static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
 
 struct x_struct {
-  char* p_screen_mem;
+  unsigned char* p_screen_mem;
   size_t chars_width;
   size_t chars_height;
   Display* d;
@@ -21,7 +21,7 @@ struct x_struct {
 };
 
 struct x_struct*
-x_create(char* p_screen_mem, size_t chars_width, size_t chars_height) {
+x_create(unsigned char* p_screen_mem, size_t chars_width, size_t chars_height) {
   struct x_struct* p_x;
   int s;
   Window root_window;
@@ -29,7 +29,6 @@ x_create(char* p_screen_mem, size_t chars_width, size_t chars_height) {
   unsigned long white_pixel;
   XFontStruct* p_font;
   unsigned long ul_ret;
-  XEvent e;
 
   p_x = malloc(sizeof(struct x_struct));
   if (p_x == NULL) {
@@ -113,7 +112,7 @@ void
 x_render(struct x_struct* p_x) {
   size_t y;
   size_t y_offset = p_x->fy;
-  char* p_text = p_x->p_screen_mem;
+  char* p_text = (char*) p_x->p_screen_mem;
   if (!XClearWindow(p_x->d, p_x->w)) {
     errx(1, "XClearWindow failed");
   }

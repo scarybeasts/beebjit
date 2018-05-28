@@ -214,7 +214,7 @@ static unsigned char g_opmodes[256] =
 
 void
 jit_init(unsigned char* p_mem) {
-  char* p_jit = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_jit = p_mem + k_addr_space_size + k_guard_size;
   // nop
   memset(p_jit, '\x90', k_addr_space_size * k_jit_bytes_per_byte);
   size_t num_bytes = k_addr_space_size;
@@ -226,7 +226,7 @@ jit_init(unsigned char* p_mem) {
   }
 }
 
-static size_t jit_emit_int(char* p_jit, size_t index, ssize_t offset) {
+static size_t jit_emit_int(unsigned char* p_jit, size_t index, ssize_t offset) {
   p_jit[index++] = offset & 0xff;
   offset >>= 8;
   p_jit[index++] = offset & 0xff;
@@ -238,7 +238,7 @@ static size_t jit_emit_int(char* p_jit, size_t index, ssize_t offset) {
   return index;
 }
 
-static size_t jit_emit_op1_op2(char* p_jit,
+static size_t jit_emit_op1_op2(unsigned char* p_jit,
                                size_t index,
                                unsigned char operand1,
                                unsigned char operand2) {
@@ -250,7 +250,7 @@ static size_t jit_emit_op1_op2(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_do_jmp_next(char* p_jit,
+static size_t jit_emit_do_jmp_next(unsigned char* p_jit,
                                    size_t index,
                                    size_t oplen) {
   assert(index + 2 <= k_jit_bytes_per_byte);
@@ -268,7 +268,7 @@ static size_t jit_emit_do_jmp_next(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_do_relative_jump(char* p_jit,
+static size_t jit_emit_do_relative_jump(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char intel_opcode,
                                         unsigned char unsigned_jump_size) {
@@ -280,7 +280,6 @@ static size_t jit_emit_do_relative_jump(char* p_jit,
     p_jit[index++] = intel_opcode;
     p_jit[index++] = (unsigned char) offset;
   } else {
-    unsigned int uint_offset = (unsigned int) offset;
     offset -= 4;
     assert(index + 6 <= k_jit_bytes_per_byte);
     p_jit[index++] = 0x0f;
@@ -291,7 +290,7 @@ static size_t jit_emit_do_relative_jump(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_zero(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_zero(unsigned char* p_jit, size_t index) {
   // sete r10b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -301,7 +300,8 @@ static size_t jit_emit_intel_to_6502_zero(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_negative(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_negative(unsigned char* p_jit,
+                                              size_t index) {
   // sets r11b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -311,7 +311,7 @@ static size_t jit_emit_intel_to_6502_negative(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_carry(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
   // setb r9b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -321,7 +321,8 @@ static size_t jit_emit_intel_to_6502_carry(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_sub_carry(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_sub_carry(unsigned char* p_jit,
+                                               size_t index) {
   // setae r9b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -331,7 +332,8 @@ static size_t jit_emit_intel_to_6502_sub_carry(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_overflow(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_overflow(unsigned char* p_jit,
+                                              size_t index) {
   // seto r12b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -341,7 +343,7 @@ static size_t jit_emit_intel_to_6502_overflow(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_carry_to_6502_zero(char* p_jit, size_t index) {
+static size_t jit_emit_carry_to_6502_zero(unsigned char* p_jit, size_t index) {
   // setb r10b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -351,7 +353,8 @@ static size_t jit_emit_carry_to_6502_zero(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_carry_to_6502_negative(char* p_jit, size_t index) {
+static size_t jit_emit_carry_to_6502_negative(unsigned char* p_jit,
+                                              size_t index) {
   // setb r11b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -361,7 +364,8 @@ static size_t jit_emit_carry_to_6502_negative(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_carry_to_6502_overflow(char* p_jit, size_t index) {
+static size_t jit_emit_carry_to_6502_overflow(unsigned char* p_jit,
+                                              size_t index) {
   // setb r12b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -371,7 +375,9 @@ static size_t jit_emit_carry_to_6502_overflow(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_do_zn_flags(char* p_jit, size_t index, int reg) {
+static size_t jit_emit_do_zn_flags(unsigned char* p_jit,
+                                   size_t index,
+                                   int reg) {
   assert(index + 8 <= k_jit_bytes_per_byte);
   if (reg == -1) {
     // Nothing -- flags already set.
@@ -395,7 +401,7 @@ static size_t jit_emit_do_zn_flags(char* p_jit, size_t index, int reg) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_znc(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_znc(unsigned char* p_jit, size_t index) {
   index = jit_emit_intel_to_6502_zero(p_jit, index);
   index = jit_emit_intel_to_6502_negative(p_jit, index);
   index = jit_emit_intel_to_6502_carry(p_jit, index);
@@ -403,7 +409,8 @@ static size_t jit_emit_intel_to_6502_znc(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_sub_znc(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_sub_znc(unsigned char* p_jit,
+                                             size_t index) {
   index = jit_emit_intel_to_6502_zero(p_jit, index);
   index = jit_emit_intel_to_6502_negative(p_jit, index);
   index = jit_emit_intel_to_6502_sub_carry(p_jit, index);
@@ -411,21 +418,22 @@ static size_t jit_emit_intel_to_6502_sub_znc(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_znco(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_znco(unsigned char* p_jit, size_t index) {
   index = jit_emit_intel_to_6502_znc(p_jit, index);
   index = jit_emit_intel_to_6502_overflow(p_jit, index);
 
   return index;
 }
 
-static size_t jit_emit_intel_to_6502_sub_znco(char* p_jit, size_t index) {
+static size_t jit_emit_intel_to_6502_sub_znco(unsigned char* p_jit,
+                                              size_t index) {
   index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
   index = jit_emit_intel_to_6502_overflow(p_jit, index);
 
   return index;
 }
 
-static size_t jit_emit_6502_carry_to_intel(char* p_jit, size_t index) {
+static size_t jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
   // Note: doesn't just check carry value but also trashes it.
   // shr r9b, 1
   p_jit[index++] = 0x41;
@@ -435,7 +443,9 @@ static size_t jit_emit_6502_carry_to_intel(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_set_carry(char* p_jit, size_t index, unsigned char val) {
+static size_t jit_emit_set_carry(unsigned char* p_jit,
+                                 size_t index,
+                                 unsigned char val) {
   // mov r9b, val
   p_jit[index++] = 0x41;
   p_jit[index++] = 0xb1;
@@ -444,7 +454,7 @@ static size_t jit_emit_set_carry(char* p_jit, size_t index, unsigned char val) {
   return index;
 }
 
-static size_t jit_emit_test_carry(char* p_jit, size_t index) {
+static size_t jit_emit_test_carry(unsigned char* p_jit, size_t index) {
   // test r9b, r9b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
@@ -453,7 +463,7 @@ static size_t jit_emit_test_carry(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_test_zero(char* p_jit, size_t index) {
+static size_t jit_emit_test_zero(unsigned char* p_jit, size_t index) {
   // test r10b, r10b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
@@ -462,7 +472,7 @@ static size_t jit_emit_test_zero(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_test_negative(char* p_jit, size_t index) {
+static size_t jit_emit_test_negative(unsigned char* p_jit, size_t index) {
   // test r11b, r11b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
@@ -471,7 +481,7 @@ static size_t jit_emit_test_negative(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_test_overflow(char* p_jit, size_t index) {
+static size_t jit_emit_test_overflow(unsigned char* p_jit, size_t index) {
   // test r12b, r12b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
@@ -480,7 +490,7 @@ static size_t jit_emit_test_overflow(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_abs_x_to_scratch(char* p_jit,
+static size_t jit_emit_abs_x_to_scratch(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char operand1,
                                         unsigned char operand2) {
@@ -497,7 +507,7 @@ static size_t jit_emit_abs_x_to_scratch(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_abs_y_to_scratch(char* p_jit,
+static size_t jit_emit_abs_y_to_scratch(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char operand1,
                                         unsigned char operand2) {
@@ -514,7 +524,7 @@ static size_t jit_emit_abs_y_to_scratch(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_ind_y_to_scratch(char* p_jit,
+static size_t jit_emit_ind_y_to_scratch(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char operand1) {
   if (operand1 == 0xff) {
@@ -541,7 +551,7 @@ static size_t jit_emit_ind_y_to_scratch(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_ind_x_to_scratch(char* p_jit,
+static size_t jit_emit_ind_x_to_scratch(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char operand1) {
   unsigned char operand1_inc = operand1 + 1;
@@ -577,7 +587,7 @@ static size_t jit_emit_ind_x_to_scratch(char* p_jit,
   return index;
 }
 
-size_t jit_emit_zp_x_to_scratch(char* p_jit,
+size_t jit_emit_zp_x_to_scratch(unsigned char* p_jit,
                                 size_t index,
                                 unsigned char operand1) {
   // mov edx, ebx
@@ -591,7 +601,7 @@ size_t jit_emit_zp_x_to_scratch(char* p_jit,
   return index;
 }
 
-size_t jit_emit_zp_y_to_scratch(char* p_jit,
+size_t jit_emit_zp_y_to_scratch(unsigned char* p_jit,
                                 size_t index,
                                 unsigned char operand1) {
   // mov edx, ecx
@@ -605,7 +615,7 @@ size_t jit_emit_zp_y_to_scratch(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_scratch_bit_test(char* p_jit,
+static size_t jit_emit_scratch_bit_test(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char bit) {
   // bt edx, bit
@@ -617,7 +627,7 @@ static size_t jit_emit_scratch_bit_test(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_jmp_scratch(char* p_jit, size_t index) {
+static size_t jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
   // jmp rdx
   p_jit[index++] = 0xff;
   p_jit[index++] = 0xe2;
@@ -625,7 +635,7 @@ static size_t jit_emit_jmp_scratch(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_jmp_op1_op2(char* p_jit,
+static size_t jit_emit_jmp_op1_op2(unsigned char* p_jit,
                                    size_t index,
                                    unsigned char operand1,
                                    unsigned char operand2) {
@@ -644,7 +654,8 @@ static size_t jit_emit_jmp_op1_op2(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_jit_bytes_shift_scratch_left(char* p_jit, size_t index) {
+static size_t jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit,
+                                                    size_t index) {
   // shl edx, k_jit_bytes_shift
   p_jit[index++] = 0xc1;
   p_jit[index++] = 0xe2;
@@ -653,7 +664,7 @@ static size_t jit_emit_jit_bytes_shift_scratch_left(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_jit_bytes_shift_scratch_right(char* p_jit,
+static size_t jit_emit_jit_bytes_shift_scratch_right(unsigned char* p_jit,
                                                      size_t index) {
   // shr edx, k_jit_bytes_shift
   p_jit[index++] = 0xc1;
@@ -663,7 +674,7 @@ static size_t jit_emit_jit_bytes_shift_scratch_right(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_stack_inc(char* p_jit, size_t index) {
+static size_t jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
   // inc sil
   p_jit[index++] = 0x40;
   p_jit[index++] = 0xfe;
@@ -672,7 +683,7 @@ static size_t jit_emit_stack_inc(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_stack_dec(char* p_jit, size_t index) {
+static size_t jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
   // dec sil
   p_jit[index++] = 0x40;
   p_jit[index++] = 0xfe;
@@ -681,7 +692,7 @@ static size_t jit_emit_stack_dec(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_pull_to_a(char* p_jit, size_t index) {
+static size_t jit_emit_pull_to_a(unsigned char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
   // mov al, [rsi]
   p_jit[index++] = 0x8a;
@@ -690,7 +701,7 @@ static size_t jit_emit_pull_to_a(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_pull_to_scratch(char* p_jit, size_t index) {
+static size_t jit_emit_pull_to_scratch(unsigned char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
   // mov dl, [rsi]
   p_jit[index++] = 0x8a;
@@ -699,7 +710,8 @@ static size_t jit_emit_pull_to_scratch(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_pull_to_scratch_word(char* p_jit, size_t index) {
+static size_t jit_emit_pull_to_scratch_word(unsigned char* p_jit,
+                                            size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
   // movzx edx, BYTE PTR [rsi]
   p_jit[index++] = 0x0f;
@@ -713,7 +725,7 @@ static size_t jit_emit_pull_to_scratch_word(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_push_from_a(char* p_jit, size_t index) {
+static size_t jit_emit_push_from_a(unsigned char* p_jit, size_t index) {
   // mov [rsi], al
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x06;
@@ -722,7 +734,7 @@ static size_t jit_emit_push_from_a(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_push_from_scratch(char* p_jit, size_t index) {
+static size_t jit_emit_push_from_scratch(unsigned char* p_jit, size_t index) {
   // mov [rsi], dl
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x16;
@@ -731,7 +743,8 @@ static size_t jit_emit_push_from_scratch(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_push_from_scratch_word(char* p_jit, size_t index) {
+static size_t jit_emit_push_from_scratch_word(unsigned char* p_jit,
+                                              size_t index) {
   // mov [rsi], dh
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x36;
@@ -744,7 +757,7 @@ static size_t jit_emit_push_from_scratch_word(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_6502_ip_to_scratch(char* p_jit, size_t index) {
+static size_t jit_emit_6502_ip_to_scratch(unsigned char* p_jit, size_t index) {
   // lea rdx, [rip - (k_addr_space_size + k_guard_size)]
   p_jit[index++] = 0x48;
   p_jit[index++] = 0x8d;
@@ -761,7 +774,7 @@ static size_t jit_emit_6502_ip_to_scratch(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_push_ip_plus_two(char* p_jit, size_t index) {
+static size_t jit_emit_push_ip_plus_two(unsigned char* p_jit, size_t index) {
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
   // add edx, 2
   p_jit[index++] = 0x83;
@@ -772,7 +785,7 @@ static size_t jit_emit_push_ip_plus_two(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_php(char* p_jit, size_t index) {
+static size_t jit_emit_php(unsigned char* p_jit, size_t index) {
   // mov rdx, r8
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
@@ -828,7 +841,7 @@ static size_t jit_emit_php(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_jmp_indirect(char* p_jit,
+static size_t jit_emit_jmp_indirect(unsigned char* p_jit,
                                     size_t index,
                                     unsigned char addr_low,
                                     unsigned char addr_high) {
@@ -858,7 +871,7 @@ static size_t jit_emit_jmp_indirect(char* p_jit,
   return index;
 }
 
-size_t jit_emit_undefined(char* p_jit,
+size_t jit_emit_undefined(unsigned char* p_jit,
                           size_t index,
                           unsigned char opcode,
                           size_t jit_offset) {
@@ -874,7 +887,7 @@ size_t jit_emit_undefined(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_debug_sequence(char* p_jit, size_t index) {
+static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
   // Save 6502 IP
   // mov [r14 + 16], rdx
@@ -944,7 +957,7 @@ static size_t jit_emit_debug_sequence(char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_calc_op(char* p_jit,
+static size_t jit_emit_calc_op(unsigned char* p_jit,
                                size_t index,
                                unsigned char opmode,
                                unsigned char operand1,
@@ -974,7 +987,7 @@ static size_t jit_emit_calc_op(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_shift_op(char* p_jit,
+static size_t jit_emit_shift_op(unsigned char* p_jit,
                                 size_t index,
                                 unsigned char opmode,
                                 unsigned char operand1,
@@ -1004,7 +1017,7 @@ static size_t jit_emit_shift_op(char* p_jit,
   return index;
 }
 
-static size_t jit_emit_post_rotate(char* p_jit,
+static size_t jit_emit_post_rotate(unsigned char* p_jit,
                                    size_t index,
                                    unsigned char opmode,
                                    unsigned char operand1,
@@ -1041,7 +1054,7 @@ jit_jit(unsigned char* p_mem,
         size_t jit_offset,
         size_t jit_len,
         unsigned int debug_flags) {
-  char* p_jit = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_jit = p_mem + k_addr_space_size + k_guard_size;
   size_t jit_end = jit_offset + jit_len;
   p_mem += jit_offset;
   p_jit += (jit_offset * k_jit_bytes_per_byte);
@@ -1721,7 +1734,7 @@ jit_debug_get_addr(char* p_buf,
                    unsigned char operand2,
                    unsigned char x_6502,
                    unsigned char y_6502,
-                   char* p_mem) {
+                   unsigned char* p_mem) {
   unsigned char opmode = g_opmodes[opcode];
   uint16_t addr;
   switch (opmode) {
@@ -1765,10 +1778,9 @@ static void
 jit_debug_callback() {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
-  char** p_jit_debug_space = (char**) &g_jit_debug_space;
+  unsigned char** p_jit_debug_space = (unsigned char**) &g_jit_debug_space;
   unsigned char* p_mem = p_jit_debug_space[1];
   uint16_t ip_6502 = (size_t) p_jit_debug_space[2];
-  int ret;
   unsigned char a_6502 = (size_t) p_jit_debug_space[3];
   unsigned char x_6502 = (size_t) p_jit_debug_space[4];
   unsigned char y_6502 = (size_t) p_jit_debug_space[5];
@@ -1807,10 +1819,10 @@ jit_enter(unsigned char* p_mem, size_t vector_addr) {
   unsigned char addr_lsb = p_mem[vector_addr];
   unsigned char addr_msb = p_mem[vector_addr + 1];
   unsigned int addr = (addr_msb << 8) | addr_lsb;
-  char* p_jit = p_mem + k_addr_space_size + k_guard_size;
-  char* p_entry = p_jit + (addr * k_jit_bytes_per_byte);
-  char** p_jit_debug_space = (char**) &g_jit_debug_space;
-  p_jit_debug_space[0] = (char*) jit_debug_callback;
+  unsigned char* p_jit = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_entry = p_jit + (addr * k_jit_bytes_per_byte);
+  unsigned char** p_jit_debug_space = (unsigned char**) &g_jit_debug_space;
+  p_jit_debug_space[0] = (unsigned char*) jit_debug_callback;
   p_jit_debug_space[1] = p_mem;
 
   asm volatile (
