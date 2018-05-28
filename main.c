@@ -24,6 +24,9 @@ static const size_t k_lang_rom_len = 0x4000;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
 static const size_t k_vector_reset = 0xfffc;
+static const size_t k_mode7_offset = 0x7c00;
+static const size_t k_mode7_width = 40;
+static const size_t k_mode7_height = 25;
 // TODO: move into jit.h
 static const int k_jit_bytes_per_byte = 256;
 
@@ -47,6 +50,7 @@ main(int argc, const char* argv[]) {
   unsigned int debug_flags = 0;
   int i;
   pthread_t thread;
+  struct x_struct* p_x;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -133,7 +137,10 @@ main(int argc, const char* argv[]) {
 
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
 
-  x_init();
+  p_x = x_create(p_mem + k_mode7_offset, k_mode7_width, k_mode7_height);
+  if (p_x == NULL) {
+    errx(1, "couldn't initialize X");
+  }
 
   jit_init(p_mem);
   jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, debug_flags);
@@ -150,8 +157,11 @@ main(int argc, const char* argv[]) {
     if (ret == 0) {
       break;
     }
+    x_render(p_x);
     sleep(1);
   }
+
+  x_destroy(p_x);
 
   return 0;
 }
