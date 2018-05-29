@@ -1856,9 +1856,51 @@ jit_debug_get_addr(char* p_buf,
 }
 
 static void
+jit_debug_get_branch(char* p_buf,
+                     size_t buf_len,
+                     unsigned char opcode,
+                     struct jit_struct* p_jit) {
+  int taken = -1;
+  switch (g_optypes[opcode]) {
+  case k_bpl:
+    taken = !p_jit->fn_6502;
+    break;
+  case k_bmi:
+    taken = p_jit->fn_6502;
+    break;
+  case k_bvc:
+    taken = !p_jit->fo_6502;
+    break;
+  case k_bvs:
+    taken = p_jit->fo_6502;
+    break;
+  case k_bcc:
+    taken = !p_jit->fc_6502;
+    break;
+  case k_bcs:
+    taken = p_jit->fc_6502;
+    break;
+  case k_bne:
+    taken = !p_jit->fz_6502;
+    break;
+  case k_beq:
+    taken = p_jit->fz_6502;
+    break;
+  default:
+    break;
+  }
+  if (taken == 0) {
+    snprintf(p_buf, buf_len, "[not taken]");
+  } else if (taken == 1) {
+    snprintf(p_buf, buf_len, "[taken]");
+  }
+}
+
+static void
 jit_debug_callback(struct jit_struct* p_jit) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
+  char flags_buf[9];
   unsigned char* p_mem = p_jit->p_mem;
   uint16_t ip_6502 = p_jit->ip_6502;
   unsigned char a_6502 = p_jit->a_6502;
@@ -1877,15 +1919,40 @@ jit_debug_callback(struct jit_struct* p_jit) {
                      x_6502,
                      y_6502,
                      p_mem);
+  jit_debug_get_branch(extra_buf, sizeof(extra_buf), opcode, p_jit);
 
   print_opcode(opcode_buf, sizeof(opcode_buf), opcode, operand1, operand2);
-  printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x] %s\n",
+
+  memset(flags_buf, ' ', 8);
+  flags_buf[8] = '\0';
+  if (p_jit->fc_6502) {
+    flags_buf[0] = 'C';
+  }
+  if (p_jit->fz_6502) {
+    flags_buf[1] = 'Z';
+  }
+  if (p_jit->f_6502 & 4) {
+    flags_buf[2] = 'I';
+  }
+  if (p_jit->f_6502 & 8) {
+    flags_buf[3] = 'D';
+  }
+  flags_buf[5] = '1';
+  if (p_jit->fo_6502) {
+    flags_buf[6] = 'O';
+  }
+  if (p_jit->fn_6502) {
+    flags_buf[7] = 'N';
+  }
+
+  printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
          ip_6502,
          opcode_buf,
          a_6502,
          x_6502,
          y_6502,
          s_6502,
+         flags_buf,
          extra_buf);
   fflush(stdout);
 }
