@@ -30,9 +30,9 @@ static const size_t k_mode7_height = 25;
 static const int k_jit_bytes_per_byte = 256;
 
 static void* jit_thread(void* p) {
-  unsigned char* p_mem = (unsigned char*) p;
+  struct jit_struct* p_jit = (struct jit_struct*) p;
  
-  jit_enter(p_mem, k_vector_reset);
+  jit_enter(p_jit, k_vector_reset);
 
   exit(0);
 }
@@ -50,6 +50,7 @@ main(int argc, const char* argv[]) {
   int i;
   pthread_t thread;
   struct x_struct* p_x;
+  struct jit_struct* p_jit;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -138,14 +139,17 @@ main(int argc, const char* argv[]) {
 
   p_x = x_create(p_mem + k_mode7_offset, k_mode7_width, k_mode7_height);
   if (p_x == NULL) {
-    errx(1, "couldn't initialize X");
+    errx(1, "x_create failed");
   }
 
-  jit_init(p_mem);
-  jit_jit(p_mem, k_os_rom_offset, k_os_rom_len, debug_flags);
-  jit_jit(p_mem, k_lang_rom_offset, k_lang_rom_len, debug_flags);
+  p_jit = jit_create(p_mem);
+  if (p_jit == NULL) {
+    errx(1, "jit_create failed");
+  }
+  jit_jit(p_jit, k_os_rom_offset, k_os_rom_len, debug_flags);
+  jit_jit(p_jit, k_lang_rom_offset, k_lang_rom_len, debug_flags);
 
-  ret = pthread_create(&thread, NULL, jit_thread, p_mem);
+  ret = pthread_create(&thread, NULL, jit_thread, p_jit);
   if (ret != 0) {
     errx(1, "couldn't create thread");
   }
@@ -156,6 +160,7 @@ main(int argc, const char* argv[]) {
   }
 
   x_destroy(p_x);
+  jit_destroy(p_jit);
 
   return 0;
 }

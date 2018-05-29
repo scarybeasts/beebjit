@@ -3,11 +3,16 @@
 
 #include <stddef.h>
 
-void jit_init(unsigned char* p_mem);
-void jit_jit(unsigned char* p_mem,
+struct jit_struct;
+
+struct jit_struct* jit_create(unsigned char* p_mem);
+void jit_destroy(struct jit_struct* p_jit);
+
+void jit_jit(struct jit_struct* p_jit,
              size_t jit_offset,
              size_t jit_len,
              unsigned int flags);
-void jit_enter(unsigned char* p_mem, size_t vector_addr);
+void jit_enter(struct jit_struct* p_jit,
+               size_t vector_addr);
 
 #endif /* BEEJIT_JIT_H */
