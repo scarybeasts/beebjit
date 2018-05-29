@@ -14,15 +14,6 @@ static const int k_jit_bytes_shift = 8;
 static const size_t k_max_opcode_len = 16;
 static const size_t k_max_extra_len = 32;
 
-// 0:  debug_callback
-// 8:  pointer to 6502 memory
-// 16: 6502 ip
-// 24: 6502 A
-// 32: 6502 X
-// 40: 6502 Y
-// 48: 6502 S
-static char g_jit_debug_space[64];
-
 enum {
   k_kil = 0,
   k_unk = 1,
@@ -215,35 +206,19 @@ static unsigned char g_opmodes[256] =
 };
 
 struct jit_struct {
-  unsigned char* p_mem;
+  unsigned char* p_mem;   /* 0  */
+  void* p_debug_callback; /* 8  */
+  unsigned long ip_6502;  /* 16 */
+  unsigned char a_6502;   /* 24 */
+  unsigned char x_6502;   /* 25 */
+  unsigned char y_6502;   /* 26 */
+  unsigned char s_6502;   /* 27 */
+  unsigned char fz_6502;  /* 28 */
+  unsigned char fn_6502;  /* 29 */
+  unsigned char fc_6502;  /* 30 */
+  unsigned char fo_6502;  /* 31 */
+  unsigned char f_6502;   /* 32 */
 };
-
-struct jit_struct*
-jit_create(unsigned char* p_mem) {
-  unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
-  struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
-  if (p_jit == NULL) {
-    errx(1, "cannot allocate jit_struct");
-  }
-  p_jit->p_mem = p_mem;
-
-  // nop
-  memset(p_jit_buf, '\x90', k_addr_space_size * k_jit_bytes_per_byte);
-  size_t num_bytes = k_addr_space_size;
-  while (num_bytes--) {
-    // ud2
-    p_jit_buf[0] = 0x0f;
-    p_jit_buf[1] = 0x0b;
-    p_jit_buf += k_jit_bytes_per_byte;
-  }
-
-  return p_jit;
-}
-
-void
-jit_destroy(struct jit_struct* p_jit) {
-  free(p_jit);
-}
 
 static size_t jit_emit_int(unsigned char* p_jit, size_t index, ssize_t offset) {
   p_jit[index++] = offset & 0xff;
@@ -913,31 +888,61 @@ static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x49;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0x56;
-  p_jit[index++] = 0x10;
+  p_jit[index++] = 16;
   // Save 6502 A
-  // mov [r14 + 24], rax
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
+  // mov byte ptr [r14 + 24], al
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0x46;
-  p_jit[index++] = 0x18;
+  p_jit[index++] = 24;
   // Save 6502 X
-  // mov [r14 + 32], rbx
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
+  // mov byte ptr [r14 + 25], bl
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0x5e;
-  p_jit[index++] = 0x20;
+  p_jit[index++] = 25;
   // Save 6502 Y
-  // mov [r14 + 40], rcx
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
+  // mov byte ptr [r14 + 26], cl
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0x4e;
-  p_jit[index++] = 0x28;
+  p_jit[index++] = 26;
   // Save 6502 S
-  // mov [r14 + 48], rsi
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
+  // mov byte ptr [r14 + 27], sil
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0x76;
-  p_jit[index++] = 0x30;
+  p_jit[index++] = 27;
+  // Save 6502 ZF
+  // mov byte ptr [r14 + 28], r10b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x56;
+  p_jit[index++] = 28;
+  // Save 6502 NF
+  // mov byte ptr [r14 + 29], r11b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x5e;
+  p_jit[index++] = 29;
+  // Save 6502 CF
+  // mov byte ptr [r14 + 30], r9b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x4e;
+  p_jit[index++] = 30;
+  // Save 6502 OF
+  // mov byte ptr [r14 + 31], r12b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x66;
+  p_jit[index++] = 31;
+  // Save 6502 other flags
+  // mov byte ptr [r14 + 32], r8b
+  p_jit[index++] = 0x45;
+  p_jit[index++] = 0x88;
+  p_jit[index++] = 0x46;
+  p_jit[index++] = 32;
   // push rax / rcx / rdx / rsi / rdi
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
@@ -953,10 +958,16 @@ static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x52;
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x53;
-  // call [r14]
+  // Set param 1 to callback to be p_jit.
+  // mov rdi, r14
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xf7;
+  // call [r14 + 8]
   p_jit[index++] = 0x41;
   p_jit[index++] = 0xff;
-  p_jit[index++] = 0x16;
+  p_jit[index++] = 0x56;
+  p_jit[index++] = 8;
   // pop r11 / r10 / r9 / r8
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x5b;
@@ -1845,16 +1856,15 @@ jit_debug_get_addr(char* p_buf,
 }
 
 static void
-jit_debug_callback() {
+jit_debug_callback(struct jit_struct* p_jit) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
-  unsigned char** p_jit_debug_space = (unsigned char**) &g_jit_debug_space;
-  unsigned char* p_mem = p_jit_debug_space[1];
-  uint16_t ip_6502 = (size_t) p_jit_debug_space[2];
-  unsigned char a_6502 = (size_t) p_jit_debug_space[3];
-  unsigned char x_6502 = (size_t) p_jit_debug_space[4];
-  unsigned char y_6502 = (size_t) p_jit_debug_space[5];
-  unsigned char s_6502 = (size_t) p_jit_debug_space[6];
+  unsigned char* p_mem = p_jit->p_mem;
+  uint16_t ip_6502 = p_jit->ip_6502;
+  unsigned char a_6502 = p_jit->a_6502;
+  unsigned char x_6502 = p_jit->x_6502;
+  unsigned char y_6502 = p_jit->y_6502;
+  unsigned char s_6502 = p_jit->s_6502;
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
@@ -1888,14 +1898,10 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
   unsigned int addr = (addr_msb << 8) | addr_lsb;
   unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
   unsigned char* p_entry = p_jit_buf + (addr * k_jit_bytes_per_byte);
-  unsigned char** p_jit_debug_space = (unsigned char**) &g_jit_debug_space;
 
   // The memory must be aligned to at least 0x100 so that our stack access
   // trick works.
   assert(((size_t) p_mem & 0xff) == 0);
-
-  p_jit_debug_space[0] = (unsigned char*) jit_debug_callback;
-  p_jit_debug_space[1] = p_mem;
 
   asm volatile (
     // al is 6502 A.
@@ -1927,14 +1933,44 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     // sil is 6502 S.
     // rsi is a pointer to the real (aligned) backing memory.
     "lea 0x100(%%rdi), %%rsi;"
-    // Pass a pointer to a debug area in r14.
+    // Pass a pointer to the jit_struct in r14.
     "mov %2, %%r14;"
     // Use scratch register for jump location.
     "mov %0, %%rdx;"
     "call *%%rdx;"
     :
-    : "g" (p_entry), "g" (p_mem), "g" (p_jit_debug_space)
+    : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
       "r8", "r9", "r10", "r11", "r12", "r14", "r15"
   );
 }
+
+struct jit_struct*
+jit_create(unsigned char* p_mem) {
+  unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
+  struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
+  if (p_jit == NULL) {
+    errx(1, "cannot allocate jit_struct");
+  }
+  memset(p_jit, '\0', sizeof(struct jit_struct));
+  p_jit->p_mem = p_mem;
+  p_jit->p_debug_callback = jit_debug_callback;
+
+  // nop
+  memset(p_jit_buf, '\x90', k_addr_space_size * k_jit_bytes_per_byte);
+  size_t num_bytes = k_addr_space_size;
+  while (num_bytes--) {
+    // ud2
+    p_jit_buf[0] = 0x0f;
+    p_jit_buf[1] = 0x0b;
+    p_jit_buf += k_jit_bytes_per_byte;
+  }
+
+  return p_jit;
+}
+
+void
+jit_destroy(struct jit_struct* p_jit) {
+  free(p_jit);
+}
+
