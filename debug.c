@@ -3,12 +3,39 @@
 #include "jit.h"
 #include "opdefs.h"
 
+#include <ctype.h>
+#include <err.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 16;
 static const size_t k_max_extra_len = 32;
+static const size_t k_max_input_len = 256;
+
+static int debug_inited = 0;
+static int debug_break_addr = -1;
+static int debug_running = 0;
+static int debug_running_print = 0;
+
+static void
+int_handler(int signum) {
+  (void) signum;
+  debug_running = 0;
+}
+
+static void
+debug_init() {
+  sighandler_t ret = signal(SIGINT, int_handler);
+  if (ret == SIG_ERR) {
+    errx(1, "signal failed");
+  }
+  debug_inited = 1;
+}
 
 static void
 debug_print_opcode(char* buf,
@@ -151,6 +178,7 @@ void
 debug_jit_callback(struct jit_struct* p_jit) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
+  char input_buf[k_max_input_len];
   char flags_buf[9];
   unsigned char* p_mem = p_jit->p_mem;
   uint16_t ip_6502 = p_jit->ip_6502;
@@ -161,6 +189,11 @@ debug_jit_callback(struct jit_struct* p_jit) {
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
+
+  if (!debug_inited) {
+    debug_init();
+  }
+
   extra_buf[0] = '\0';
   debug_get_addr(extra_buf,
                  sizeof(extra_buf),
@@ -200,6 +233,10 @@ debug_jit_callback(struct jit_struct* p_jit) {
     flags_buf[7] = 'N';
   }
 
+  if (debug_running && ip_6502 != debug_break_addr && !debug_running_print) {
+    return;
+  }
+
   printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
          ip_6502,
          opcode_buf,
@@ -210,4 +247,68 @@ debug_jit_callback(struct jit_struct* p_jit) {
          flags_buf,
          extra_buf);
   fflush(stdout);
+
+  if (debug_running && ip_6502 != debug_break_addr) {
+    return;
+  }
+  debug_running = 0;
+
+  while (1) {
+    char* input_ret;
+    size_t i;
+    int parse_int;
+    uint16_t parse_addr;
+
+    printf("(6502db) ");
+    fflush(stdout);
+
+    input_ret = fgets(input_buf, sizeof(input_buf), stdin);
+    if (input_ret == NULL) {
+      errx(1, "fgets failed");
+    }
+    for (i = 0; i < sizeof(input_buf); ++i) {
+      char c = tolower(input_buf[i]);
+      if (c == '\n') {
+        c = 0;
+      }
+      input_buf[i] = c;
+    }
+
+    if (!strcmp(input_buf, "q")) {
+      exit(0);
+    } else if (!strcmp(input_buf, "p")) {
+      debug_running_print = !debug_running_print;
+    } else if (!strcmp(input_buf, "s")) {
+      break;
+    } else if (!strcmp(input_buf, "c")) {
+      debug_running = 1;
+      break;
+    } else if (sscanf(input_buf, "b %x", &parse_int) == 1) {
+      debug_break_addr = parse_int;
+    } else if (!strcmp(input_buf, "d")) {
+      debug_break_addr = -1;
+    } else if (sscanf(input_buf, "m %x", &parse_int) == 1) {
+      parse_addr = parse_int;
+      printf("%04x:", parse_addr);
+      for (i = 0; i < 16; ++i) {
+        printf(" %02x", p_mem[parse_addr]);
+        parse_addr++;
+      }
+      printf(" ");
+      parse_addr = parse_int;
+      for (i = 0; i < 16; ++i) {
+        char c = p_mem[parse_addr];
+        if (!isprint(c)) {
+          c = '.';
+        }
+        printf("%c", c);
+        parse_addr++;
+      }
+      printf("\n");
+      fflush(stdout);
+    } else {
+      printf("???\n");
+      fflush(stdout);
+    }
+  }
 }
