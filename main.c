@@ -1,42 +1,26 @@
 #include "bbc.h"
-#include "jit.h"
 #include "x.h"
 
 #include <err.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-static const size_t k_vector_reset = 0xfffc;
-
-static void* jit_thread(void* p) {
-  struct jit_struct* p_jit = (struct jit_struct*) p;
- 
-  jit_enter(p_jit, k_vector_reset);
-
-  exit(0);
-}
-
 int
 main(int argc, const char* argv[]) {
-  unsigned char* p_mem;
   unsigned char* p_mode7_mem;
   int fd;
   ssize_t read_ret;
-  int ret;
   const char* os_rom_name = "os12.rom";
   const char* lang_rom_name = "basic.rom";
   unsigned char os_rom[k_bbc_rom_size];
   unsigned char lang_rom[k_bbc_rom_size];
-  unsigned int debug_flags = 0;
+  int debug_flag = 0;
   int i;
-  pthread_t thread;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
-  struct jit_struct* p_jit;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -51,7 +35,7 @@ main(int argc, const char* argv[]) {
       }
     }
     if (strcmp(arg, "-d") == 0) {
-      debug_flags = 1;
+      debug_flag = 1;
     }
   }
 
@@ -80,12 +64,11 @@ main(int argc, const char* argv[]) {
     close(fd);
   }
 
-  p_bbc = bbc_create(os_rom, lang_rom);
+  p_bbc = bbc_create(os_rom, lang_rom, debug_flag);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }
 
-  p_mem = bbc_get_mem(p_bbc);
   p_mode7_mem = bbc_get_mode7_mem(p_bbc);
 
   p_x = x_create(p_mode7_mem, k_bbc_mode7_width, k_bbc_mode7_height);
@@ -93,17 +76,7 @@ main(int argc, const char* argv[]) {
     errx(1, "x_create failed");
   }
 
-  p_jit = jit_create(p_mem);
-  if (p_jit == NULL) {
-    errx(1, "jit_create failed");
-  }
-  jit_jit(p_jit, 0xc000, k_bbc_rom_size, debug_flags);
-  jit_jit(p_jit, 0x8000, k_bbc_rom_size, debug_flags);
-
-  ret = pthread_create(&thread, NULL, jit_thread, p_jit);
-  if (ret != 0) {
-    errx(1, "couldn't create thread");
-  }
+  bbc_run_async(p_bbc);
 
   while (1) {
     x_render(p_x);
@@ -111,7 +84,7 @@ main(int argc, const char* argv[]) {
   }
 
   x_destroy(p_x);
-  jit_destroy(p_jit);
+  bbc_destroy(p_bbc);
 
   return 0;
 }

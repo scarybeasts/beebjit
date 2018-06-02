@@ -17,6 +17,7 @@ struct bbc_struct* bbc_create();
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);
+void bbc_run_async(struct bbc_struct* p_bbc);
 
 unsigned char* bbc_get_mem(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mode7_mem(struct bbc_struct* p_bbc);

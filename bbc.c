@@ -1,6 +1,9 @@
 #include "bbc.h"
 
+#include "jit.h"
+
 #include <err.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,6 +15,7 @@ static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_mode7_offset = 0x7c00;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
+static const size_t k_vector_reset = 0xfffc;
 static const size_t k_guard_size = 4096;
 /* TODO: move into jit.h */
 static const int k_jit_bytes_per_byte = 256;
@@ -19,12 +23,23 @@ static const int k_jit_bytes_per_byte = 256;
 struct bbc_struct {
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
+  int debug_flag;
   unsigned char* p_map;
   unsigned char* p_mem;
+  struct jit_struct* p_jit;
 };
 
+static void*
+bbc_jit_thread(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  jit_enter(p_bbc->p_jit, k_vector_reset);
+
+  exit(0);
+}
+
 struct bbc_struct*
-bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom) {
+bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom, int debug_flag) {
   unsigned char* p_map;
   unsigned char* p_mem;
   int ret;
@@ -35,6 +50,7 @@ bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom) {
 
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
+  p_bbc->debug_flag = debug_flag;
 
   p_map = mmap(NULL,
                (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
@@ -78,14 +94,33 @@ bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom) {
     errx(1, "mprotect() failed");
   }
 
+  p_bbc->p_jit = jit_create(p_mem);
+  if (p_bbc->p_jit == NULL) {
+    errx(1, "jit_create failed");
+  }
+
   bbc_reset(p_bbc);
 
   return p_bbc;
 }
 
 void
+bbc_destroy(struct bbc_struct* p_bbc) {
+  int ret;
+  jit_destroy(p_bbc->p_jit);
+  ret = munmap(p_bbc->p_map, (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
+                             (k_guard_size * 3));
+  if (ret != 0) {
+    errx(1, "munmap failed");
+  }
+  free(p_bbc);
+}
+
+void
 bbc_reset(struct bbc_struct* p_bbc) {
   unsigned char* p_mem = p_bbc->p_mem;
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  int debug_flag = p_bbc->debug_flag;
   /* Clear memory / ROMs. */
   memset(p_mem, '\0', k_addr_space_size);
 
@@ -95,11 +130,10 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Initialize hardware registers. */
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
-}
 
-void
-bbc_destroy(struct bbc_struct* p_bbc) {
-  free(p_bbc);
+  /* JIT the ROMS. */
+  jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
+  jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
 }
 
 unsigned char*
@@ -110,6 +144,15 @@ bbc_get_mem(struct bbc_struct* p_bbc) {
 unsigned char*
 bbc_get_mode7_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem + k_mode7_offset;
+}
+
+void
+bbc_run_async(struct bbc_struct* p_bbc) {
+  pthread_t thread;
+  int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
+  if (ret != 0) {
+    errx(1, "couldn't create thread");
+  }
 }
 
 int
