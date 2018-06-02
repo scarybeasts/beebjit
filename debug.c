@@ -37,6 +37,18 @@ int_handler(int signum) {
   debug_running = 0;
 }
 
+struct debug_struct*
+debug_create(int run_flag, int print_flag) {
+  debug_running = run_flag;
+  debug_running_print = print_flag;
+  return NULL;
+}
+
+void
+debug_destroy(struct debug_struct* p_debug) {
+  (void) p_debug;
+}
+
 static void
 debug_init() {
   size_t i;
@@ -212,7 +224,7 @@ debug_hit_break(uint16_t ip_6502, int addr_6502) {
 }
 
 void
-debug_jit_callback(struct jit_struct* p_jit) {
+debug_callback(struct jit_struct* p_jit) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];

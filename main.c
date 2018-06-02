@@ -18,6 +18,8 @@ main(int argc, const char* argv[]) {
   unsigned char os_rom[k_bbc_rom_size];
   unsigned char lang_rom[k_bbc_rom_size];
   int debug_flag = 0;
+  int run_flag = 0;
+  int print_flag = 0;
   int i;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
@@ -36,6 +38,10 @@ main(int argc, const char* argv[]) {
     }
     if (strcmp(arg, "-d") == 0) {
       debug_flag = 1;
+    } else if (strcmp(arg, "-r") == 0) {
+      run_flag = 1;
+    } else if (strcmp(arg, "-p") == 0) {
+      print_flag = 1;
     }
   }
 
@@ -64,7 +70,7 @@ main(int argc, const char* argv[]) {
     close(fd);
   }
 
-  p_bbc = bbc_create(os_rom, lang_rom, debug_flag);
+  p_bbc = bbc_create(os_rom, lang_rom, debug_flag, run_flag, print_flag);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }

@@ -1,5 +1,6 @@
 #include "bbc.h"
 
+#include "debug.h"
 #include "jit.h"
 
 #include <err.h>
@@ -24,6 +25,8 @@ struct bbc_struct {
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
   int debug_flag;
+  int run_flag;
+  int print_flag;
   unsigned char* p_map;
   unsigned char* p_mem;
   struct jit_struct* p_jit;
@@ -39,7 +42,11 @@ bbc_jit_thread(void* p) {
 }
 
 struct bbc_struct*
-bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom, int debug_flag) {
+bbc_create(unsigned char* p_os_rom,
+           unsigned char* p_lang_rom,
+           int debug_flag,
+           int run_flag,
+           int print_flag) {
   unsigned char* p_map;
   unsigned char* p_mem;
   int ret;
@@ -51,6 +58,8 @@ bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom, int debug_flag) {
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
   p_bbc->debug_flag = debug_flag;
+  p_bbc->run_flag = run_flag;
+  p_bbc->print_flag = print_flag;
 
   p_map = mmap(NULL,
                (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
@@ -93,6 +102,8 @@ bbc_create(unsigned char* p_os_rom, unsigned char* p_lang_rom, int debug_flag) {
   if (ret != 0) {
     errx(1, "mprotect() failed");
   }
+
+  (void) debug_create(p_bbc->run_flag, p_bbc->print_flag);
 
   p_bbc->p_jit = jit_create(p_mem);
   if (p_bbc->p_jit == NULL) {

@@ -1617,7 +1617,7 @@ jit_create(unsigned char* p_mem) {
   }
   memset(p_jit, '\0', sizeof(struct jit_struct));
   p_jit->p_mem = p_mem;
-  p_jit->p_debug_callback = debug_jit_callback;
+  p_jit->p_debug_callback = debug_callback;
 
   // nop
   memset(p_jit_buf, '\x90', k_addr_space_size * k_jit_bytes_per_byte);

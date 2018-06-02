@@ -13,7 +13,11 @@ enum {
 
 struct bbc_struct;
 
-struct bbc_struct* bbc_create();
+struct bbc_struct* bbc_create(unsigned char* p_os_rom,
+                              unsigned char* p_lang_rom,
+                              int debug_flag,
+                              int run_flag,
+                              int print_flag);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);
