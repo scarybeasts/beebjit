@@ -15,12 +15,21 @@ typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 16;
 static const size_t k_max_extra_len = 32;
-static const size_t k_max_input_len = 256;
+enum {
+  k_max_break = 16,
+};
+enum {
+  k_max_input_len = 256,
+};
 
 static int debug_inited = 0;
-static int debug_break_addr = -1;
+static int debug_break_exec[k_max_break];
+static int debug_break_mem_low[k_max_break];
+static int debug_break_mem_high[k_max_break];
 static int debug_running = 0;
 static int debug_running_print = 0;
+
+static char debug_old_input_buf[k_max_input_len];
 
 static void
 int_handler(int signum) {
@@ -30,10 +39,18 @@ int_handler(int signum) {
 
 static void
 debug_init() {
+  size_t i;
   sighandler_t ret = signal(SIGINT, int_handler);
   if (ret == SIG_ERR) {
     errx(1, "signal failed");
   }
+
+  for (i = 0; i < k_max_break; ++i) {
+    debug_break_exec[i] = -1;
+    debug_break_mem_low[i] = -1;
+    debug_break_mem_high[i] = -1;
+  }
+
   debug_inited = 1;
 }
 
@@ -93,9 +110,12 @@ debug_get_addr(char* p_buf,
                unsigned char operand2,
                unsigned char x_6502,
                unsigned char y_6502,
-               unsigned char* p_mem) {
+               unsigned char* p_mem,
+               int* addr_6502) {
   unsigned char opmode = g_opmodes[opcode];
   uint16_t addr;
+  *addr_6502 = -1;
+
   switch (opmode) {
   case k_zpg:
     addr = operand1;
@@ -131,6 +151,7 @@ debug_get_addr(char* p_buf,
     break;
   }
   snprintf(p_buf, buf_len, "[addr=%.4x val=%.2x]", addr, p_mem[addr]);
+  *addr_6502 = addr;
 }
 
 static void
@@ -174,6 +195,22 @@ debug_get_branch(char* p_buf,
   }
 }
 
+static int
+debug_hit_break(uint16_t ip_6502, int addr_6502) {
+  size_t i;
+  for (i = 0; i < k_max_break; ++i) {
+    if (debug_break_exec[i] == ip_6502) {
+      return 1;
+    }
+    if (addr_6502 != -1 &&
+        debug_break_mem_low[i] <= addr_6502 &&
+        debug_break_mem_high[i] >= addr_6502) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void
 debug_jit_callback(struct jit_struct* p_jit) {
   char opcode_buf[k_max_opcode_len];
@@ -189,6 +226,8 @@ debug_jit_callback(struct jit_struct* p_jit) {
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
+  int addr_6502;
+  int hit_break;
 
   if (!debug_inited) {
     debug_init();
@@ -202,7 +241,8 @@ debug_jit_callback(struct jit_struct* p_jit) {
                  operand2,
                  x_6502,
                  y_6502,
-                 p_mem);
+                 p_mem,
+                 &addr_6502);
   debug_get_branch(extra_buf, sizeof(extra_buf), opcode, p_jit);
 
   debug_print_opcode(opcode_buf,
@@ -233,7 +273,9 @@ debug_jit_callback(struct jit_struct* p_jit) {
     flags_buf[7] = 'N';
   }
 
-  if (debug_running && ip_6502 != debug_break_addr && !debug_running_print) {
+  hit_break = debug_hit_break(ip_6502, addr_6502);
+
+  if (debug_running && !hit_break && !debug_running_print) {
     return;
   }
 
@@ -248,7 +290,7 @@ debug_jit_callback(struct jit_struct* p_jit) {
          extra_buf);
   fflush(stdout);
 
-  if (debug_running && ip_6502 != debug_break_addr) {
+  if (debug_running && !hit_break) {
     return;
   }
   debug_running = 0;
@@ -256,7 +298,9 @@ debug_jit_callback(struct jit_struct* p_jit) {
   while (1) {
     char* input_ret;
     size_t i;
-    int parse_int;
+    int parse_int = -1;
+    int parse_int2 = -1;
+    int parse_int3 = -1;
     uint16_t parse_addr;
 
     printf("(6502db) ");
@@ -274,6 +318,12 @@ debug_jit_callback(struct jit_struct* p_jit) {
       input_buf[i] = c;
     }
 
+    if (!strcmp(input_buf, "")) {
+      memcpy(input_buf, debug_old_input_buf, k_max_input_len);
+    } else {
+      memcpy(debug_old_input_buf, input_buf, k_max_input_len);
+    }
+
     if (!strcmp(input_buf, "q")) {
       exit(0);
     } else if (!strcmp(input_buf, "p")) {
@@ -283,10 +333,6 @@ debug_jit_callback(struct jit_struct* p_jit) {
     } else if (!strcmp(input_buf, "c")) {
       debug_running = 1;
       break;
-    } else if (sscanf(input_buf, "b %x", &parse_int) == 1) {
-      debug_break_addr = parse_int;
-    } else if (!strcmp(input_buf, "d")) {
-      debug_break_addr = -1;
     } else if (sscanf(input_buf, "m %x", &parse_int) == 1) {
       parse_addr = parse_int;
       printf("%04x:", parse_addr);
@@ -294,7 +340,7 @@ debug_jit_callback(struct jit_struct* p_jit) {
         printf(" %02x", p_mem[parse_addr]);
         parse_addr++;
       }
-      printf(" ");
+      printf("  ");
       parse_addr = parse_int;
       for (i = 0; i < 16; ++i) {
         char c = p_mem[parse_addr];
@@ -306,6 +352,33 @@ debug_jit_callback(struct jit_struct* p_jit) {
       }
       printf("\n");
       fflush(stdout);
+    } else if (sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      parse_addr = parse_int2;
+      debug_break_exec[parse_int] = parse_addr;
+    } else if (sscanf(input_buf,
+                      "bm %d %x %x",
+                      &parse_int,
+                      &parse_int2,
+                      &parse_int3) >=2 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      parse_addr = parse_int2;
+      debug_break_mem_low[parse_int] = parse_addr;
+      if (parse_int3 != -1) {
+        parse_addr = parse_int3;
+      }
+      debug_break_mem_high[parse_int] = parse_addr;
+    } else if (sscanf(input_buf, "d %d", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      debug_break_exec[parse_int] = -1;
+    } else if (sscanf(input_buf, "dm %d", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      debug_break_mem_low[parse_int] = -1;
+      debug_break_mem_high[parse_int] = -1;
     } else {
       printf("???\n");
       fflush(stdout);
