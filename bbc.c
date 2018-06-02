@@ -9,6 +9,7 @@
 static const size_t k_addr_space_size = 0x10000;
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
+static const size_t k_mode7_offset = 0x7c00;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
 static const size_t k_guard_size = 4096;
@@ -104,6 +105,11 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 unsigned char*
 bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
+}
+
+unsigned char*
+bbc_get_mode7_mem(struct bbc_struct* p_bbc) {
+  return p_bbc->p_mem + k_mode7_offset;
 }
 
 int

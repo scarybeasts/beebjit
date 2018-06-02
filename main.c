@@ -2,7 +2,6 @@
 #include "jit.h"
 #include "x.h"
 
-#include <assert.h>
 #include <err.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -12,9 +11,6 @@
 #include <unistd.h>
 
 static const size_t k_vector_reset = 0xfffc;
-static const size_t k_mode7_offset = 0x7c00;
-static const size_t k_mode7_width = 40;
-static const size_t k_mode7_height = 25;
 
 static void* jit_thread(void* p) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
@@ -27,6 +23,7 @@ static void* jit_thread(void* p) {
 int
 main(int argc, const char* argv[]) {
   unsigned char* p_mem;
+  unsigned char* p_mode7_mem;
   int fd;
   ssize_t read_ret;
   int ret;
@@ -89,8 +86,9 @@ main(int argc, const char* argv[]) {
   }
 
   p_mem = bbc_get_mem(p_bbc);
+  p_mode7_mem = bbc_get_mode7_mem(p_bbc);
 
-  p_x = x_create(p_mem + k_mode7_offset, k_mode7_width, k_mode7_height);
+  p_x = x_create(p_mode7_mem, k_bbc_mode7_width, k_bbc_mode7_height);
   if (p_x == NULL) {
     errx(1, "x_create failed");
   }
