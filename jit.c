@@ -750,10 +750,10 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0xd6;
 
   // param1
-  // mov rdi, r14
-  p_jit[index++] = 0x4c;
+  // mov rdi, rbp
+  p_jit[index++] = 0x48;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf7;
+  p_jit[index++] = 0xef;
 
   // param3: 6502 FZ
   // mov rdx, r10
@@ -779,10 +779,9 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xe1;
 
-  // call [r14 + 8]
-  p_jit[index++] = 0x41;
+  // call [rbp + 8]
   p_jit[index++] = 0xff;
-  p_jit[index++] = 0x56;
+  p_jit[index++] = 0x55;
   p_jit[index++] = 8;
 
   // add rsp, 40
@@ -1611,11 +1610,14 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     // sil is 6502 S.
     // rsi is a pointer to the real (aligned) backing memory.
     "lea 0x100(%%rdi), %%rsi;"
-    // Pass a pointer to the jit_struct in r14.
-    "mov %2, %%r14;"
     // Use scratch register for jump location.
     "mov %0, %%rdx;"
+    // Pass a pointer to the jit_struct in rbp.
+    "mov %2, %%r15;"
+    "push %%rbp;"
+    "mov %%r15, %%rbp;"
     "call *%%rdx;"
+    "pop %%rbp;"
     :
     : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
