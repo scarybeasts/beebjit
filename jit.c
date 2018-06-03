@@ -675,7 +675,50 @@ size_t jit_emit_undefined(unsigned char* p_jit,
   return index;
 }
 
-static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
+static size_t
+jit_emit_save_registers(unsigned char* p_jit, size_t index) {
+  // push rax / rcx / rdx / rsi / rdi
+  p_jit[index++] = 0x50;
+  p_jit[index++] = 0x51;
+  p_jit[index++] = 0x52;
+  p_jit[index++] = 0x56;
+  p_jit[index++] = 0x57;
+  // push r8 / r9 / r10 / r11
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x50;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x51;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x52;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x53;
+
+  return index;
+}
+
+static size_t
+jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
+  // pop r11 / r10 / r9 / r8
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x5b;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x5a;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x59;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x58;
+  // pop rdi / rsi / rdx / rcx / rax
+  p_jit[index++] = 0x5f;
+  p_jit[index++] = 0x5e;
+  p_jit[index++] = 0x5a;
+  p_jit[index++] = 0x59;
+  p_jit[index++] = 0x58;
+
+  return index;
+}
+
+static size_t
+jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
   // Save 6502 IP
   // mov [r14 + 16], rdx
@@ -737,21 +780,9 @@ static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x46;
   p_jit[index++] = 32;
-  // push rax / rcx / rdx / rsi / rdi
-  p_jit[index++] = 0x50;
-  p_jit[index++] = 0x51;
-  p_jit[index++] = 0x52;
-  p_jit[index++] = 0x56;
-  p_jit[index++] = 0x57;
-  // push r8 / r9 / r10 / r11
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x50;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x51;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x52;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x53;
+
+  index = jit_emit_save_registers(p_jit, index);
+
   // Set param 1 to callback to be p_jit.
   // mov rdi, r14
   p_jit[index++] = 0x4c;
@@ -762,21 +793,8 @@ static size_t jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0xff;
   p_jit[index++] = 0x56;
   p_jit[index++] = 8;
-  // pop r11 / r10 / r9 / r8
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x5b;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x5a;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x59;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x58;
-  // pop rdi / rsi / rdx / rcx / rax
-  p_jit[index++] = 0x5f;
-  p_jit[index++] = 0x5e;
-  p_jit[index++] = 0x5a;
-  p_jit[index++] = 0x59;
-  p_jit[index++] = 0x58;
+
+  index = jit_emit_restore_registers(p_jit, index);
 
   return index;
 }
