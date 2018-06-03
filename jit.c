@@ -767,10 +767,10 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xf9;
 
-  // call [rbp + 8]
+  // call [rbp + 16]
   p_jit[index++] = 0xff;
   p_jit[index++] = 0x55;
-  p_jit[index++] = 8;
+  p_jit[index++] = 16;
 
   // add rsp, 40
   p_jit[index++] = 0x48;
@@ -1614,7 +1614,11 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
 }
 
 struct jit_struct*
-jit_create(unsigned char* p_mem) {
+jit_create(unsigned char* p_mem,
+           void* p_debug_callback,
+           struct bbc_struct* p_bbc,
+           void* p_read_callback,
+           void* p_write_callback) {
   unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
@@ -1622,7 +1626,11 @@ jit_create(unsigned char* p_mem) {
   }
   memset(p_jit, '\0', sizeof(struct jit_struct));
   p_jit->p_mem = p_mem;
-  p_jit->p_debug_callback = debug_callback;
+  p_jit->p_debug = NULL;
+  p_jit->p_debug_callback = p_debug_callback;
+  p_jit->p_bbc = p_bbc;
+  p_jit->p_read_callback = p_read_callback;
+  p_jit->p_write_callback = p_write_callback;
 
   // nop
   memset(p_jit_buf, '\x90', k_addr_space_size * k_jit_bytes_per_byte);

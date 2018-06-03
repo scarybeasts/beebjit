@@ -30,6 +30,7 @@ struct bbc_struct {
   unsigned char* p_map;
   unsigned char* p_mem;
   struct jit_struct* p_jit;
+  struct debug_struct* p_debug;
 };
 
 static void*
@@ -105,7 +106,11 @@ bbc_create(unsigned char* p_os_rom,
 
   (void) debug_create(p_bbc->run_flag, p_bbc->print_flag);
 
-  p_bbc->p_jit = jit_create(p_mem);
+  p_bbc->p_jit = jit_create(p_mem,
+                            debug_callback,
+                            p_bbc,
+                            bbc_read_callback,
+                            bbc_write_callback);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
   }
@@ -119,6 +124,7 @@ void
 bbc_destroy(struct bbc_struct* p_bbc) {
   int ret;
   jit_destroy(p_bbc->p_jit);
+  debug_destroy(p_bbc->p_debug);
   ret = munmap(p_bbc->p_map, (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
                              (k_guard_size * 3));
   if (ret != 0) {
@@ -183,14 +189,14 @@ bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr) {
 }
 
 unsigned char
-bbc_special_read(struct bbc_struct* p_bbc, uint16_t addr) {
+bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   (void) p_bbc;
   (void) addr;
   return 0xff;
 }
 
 void
-bbc_special_write(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
+bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   (void) p_bbc;
   (void) addr;
   (void) val;
