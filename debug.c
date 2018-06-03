@@ -170,32 +170,35 @@ static void
 debug_get_branch(char* p_buf,
                  size_t buf_len,
                  unsigned char opcode,
-                 struct jit_struct* p_jit) {
+                 unsigned char fn_6502,
+                 unsigned char fo_6502,
+                 unsigned char fc_6502,
+                 unsigned char fz_6502) {
   int taken = -1;
   switch (g_optypes[opcode]) {
   case k_bpl:
-    taken = !p_jit->fn_6502;
+    taken = !fn_6502;
     break;
   case k_bmi:
-    taken = p_jit->fn_6502;
+    taken = fn_6502;
     break;
   case k_bvc:
-    taken = !p_jit->fo_6502;
+    taken = !fo_6502;
     break;
   case k_bvs:
-    taken = p_jit->fo_6502;
+    taken = fo_6502;
     break;
   case k_bcc:
-    taken = !p_jit->fc_6502;
+    taken = !fc_6502;
     break;
   case k_bcs:
-    taken = p_jit->fc_6502;
+    taken = fc_6502;
     break;
   case k_bne:
-    taken = !p_jit->fz_6502;
+    taken = !fz_6502;
     break;
   case k_beq:
-    taken = p_jit->fz_6502;
+    taken = fz_6502;
     break;
   default:
     break;
@@ -224,17 +227,22 @@ debug_hit_break(uint16_t ip_6502, int addr_6502) {
 }
 
 void
-debug_callback(struct jit_struct* p_jit) {
+debug_callback(struct jit_struct* p_jit,
+               uint16_t ip_6502,
+               uint8_t fz_6502,
+               uint8_t fn_6502,
+               uint8_t fc_6502,
+               uint8_t fo_6502,
+               uint8_t f_6502,
+               uint8_t a_6502,
+               uint8_t x_6502,
+               uint8_t y_6502,
+               uint8_t s_6502) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
   char flags_buf[9];
   unsigned char* p_mem = p_jit->p_mem;
-  uint16_t ip_6502 = p_jit->ip_6502;
-  unsigned char a_6502 = p_jit->a_6502;
-  unsigned char x_6502 = p_jit->x_6502;
-  unsigned char y_6502 = p_jit->y_6502;
-  unsigned char s_6502 = p_jit->s_6502;
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
@@ -255,7 +263,13 @@ debug_callback(struct jit_struct* p_jit) {
                  y_6502,
                  p_mem,
                  &addr_6502);
-  debug_get_branch(extra_buf, sizeof(extra_buf), opcode, p_jit);
+  debug_get_branch(extra_buf,
+                   sizeof(extra_buf),
+                   opcode,
+                   fn_6502,
+                   fo_6502,
+                   fc_6502,
+                   fz_6502);
 
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
@@ -265,23 +279,23 @@ debug_callback(struct jit_struct* p_jit) {
 
   memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
-  if (p_jit->fc_6502) {
+  if (fc_6502) {
     flags_buf[0] = 'C';
   }
-  if (p_jit->fz_6502) {
+  if (fz_6502) {
     flags_buf[1] = 'Z';
   }
-  if (p_jit->f_6502 & 4) {
+  if (f_6502 & 4) {
     flags_buf[2] = 'I';
   }
-  if (p_jit->f_6502 & 8) {
+  if (f_6502 & 8) {
     flags_buf[3] = 'D';
   }
   flags_buf[5] = '1';
-  if (p_jit->fo_6502) {
+  if (fo_6502) {
     flags_buf[6] = 'O';
   }
-  if (p_jit->fn_6502) {
+  if (fn_6502) {
     flags_buf[7] = 'N';
   }
 

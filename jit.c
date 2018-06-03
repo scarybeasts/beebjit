@@ -719,80 +719,78 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
-  index = jit_emit_6502_ip_to_scratch(p_jit, index);
-  // Save 6502 IP
-  // mov [r14 + 16], rdx
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0x56;
-  p_jit[index++] = 16;
-  // Save 6502 A
-  // mov byte ptr [r14 + 24], al
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x46;
-  p_jit[index++] = 24;
-  // Save 6502 X
-  // mov byte ptr [r14 + 25], bl
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x5e;
-  p_jit[index++] = 25;
-  // Save 6502 Y
-  // mov byte ptr [r14 + 26], cl
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x4e;
-  p_jit[index++] = 26;
-  // Save 6502 S
-  // mov byte ptr [r14 + 27], sil
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x76;
-  p_jit[index++] = 27;
-  // Save 6502 ZF
-  // mov byte ptr [r14 + 28], r10b
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x56;
-  p_jit[index++] = 28;
-  // Save 6502 NF
-  // mov byte ptr [r14 + 29], r11b
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x5e;
-  p_jit[index++] = 29;
-  // Save 6502 CF
-  // mov byte ptr [r14 + 30], r9b
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x4e;
-  p_jit[index++] = 30;
-  // Save 6502 OF
-  // mov byte ptr [r14 + 31], r12b
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x66;
-  p_jit[index++] = 31;
-  // Save 6502 other flags
-  // mov byte ptr [r14 + 32], r8b
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x46;
-  p_jit[index++] = 32;
-
   index = jit_emit_save_registers(p_jit, index);
 
-  // Set param 1 to callback to be p_jit.
+  // param11: 6502 S
+  // push rsi
+  p_jit[index++] = 0x56;
+
+  // param10: 6502 Y
+  // push rcx
+  p_jit[index++] = 0x51;
+
+  // param9: 6502 X
+  // push rbx
+  p_jit[index++] = 0x53;
+
+  // param8: 6502 A
+  // push rax
+  p_jit[index++] = 0x50;
+
+  // param7: remaining flags
+  // push r8
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x50;
+
+  // param2: 6502 IP
+  // (Must be done before param1, which trashes rdi.)
+  index = jit_emit_6502_ip_to_scratch(p_jit, index);
+  // mov rsi, rdx
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xd6;
+
+  // param1
   // mov rdi, r14
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xf7;
+
+  // param3: 6502 FZ
+  // mov rdx, r10
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xd2;
+
+  // param4: 6502 FN
+  // mov rcx, r11
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xd9;
+
+  // param5: 6502 FC
+  // mov r8, r9
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xc8;
+
+  // param6: 6502 FO
+  // mov r9, r12
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xe1;
+
   // call [r14 + 8]
   p_jit[index++] = 0x41;
   p_jit[index++] = 0xff;
   p_jit[index++] = 0x56;
   p_jit[index++] = 8;
+
+  // add rsp, 40
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x83;
+  p_jit[index++] = 0xc4;
+  p_jit[index++] = 40;
 
   index = jit_emit_restore_registers(p_jit, index);
 
