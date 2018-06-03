@@ -31,6 +31,7 @@ struct bbc_struct {
   unsigned char* p_mem;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
+  unsigned char IC32;
 };
 
 static void*
@@ -61,6 +62,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
+  p_bbc->IC32 = 0;
 
   p_map = mmap(NULL,
                (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
@@ -190,14 +192,31 @@ bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr) {
 
 unsigned char
 bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
-  (void) p_bbc;
-  (void) addr;
-  return 0xff;
+  unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char val = p_mem[addr];
+  switch (addr) {
+  case 0xfe4e:
+    return val | 0x80;
+  }
+  return 0xfe;
 }
 
 void
-bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
-  (void) p_bbc;
-  (void) addr;
-  (void) val;
+bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char val = p_mem[addr];
+  switch (addr) {
+  case 0xfe42:
+    {
+      unsigned char via_orb = p_mem[0xfe40];
+      unsigned char portb_val = (via_orb & val) | ~val;
+      if (portb_val & 8) {
+        p_bbc->IC32 |= (1 << (val & 7));
+      } else {
+        p_bbc->IC32 &= (1 << (val & 7));
+      }
+      printf("IC32 write %d, new value %d\n", val, p_bbc->IC32);
+      break;
+    }
+  }
 }

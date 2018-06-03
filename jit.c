@@ -1,5 +1,6 @@
 #include "jit.h"
 
+#include "bbc.h"
 #include "debug.h"
 #include "opdefs.h"
 
@@ -875,6 +876,77 @@ static size_t jit_emit_post_rotate(unsigned char* p_jit,
   return index;
 }
 
+static size_t
+jit_check_special_read(struct jit_struct* p_jit,
+                       uint16_t addr,
+                       unsigned char* p_jit_buf,
+                       size_t index) {
+  if (!bbc_is_special_read_addr(p_jit->p_bbc, addr)) {
+    return index;
+  }
+  index = jit_emit_save_registers(p_jit_buf, index);
+
+  // mov rdi, [rbp + 24]
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x7d;
+  p_jit_buf[index++] = 24;
+  // mov si, addr
+  p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0xbe;
+  p_jit_buf[index++] = addr & 0xff;
+  p_jit_buf[index++] = addr >> 8;
+  // call [rbp + 32]
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 32;
+  // mov rdx, rax
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xc2;
+
+  index = jit_emit_restore_registers(p_jit_buf, index);
+  // mov BYTE PTR [rdi + addr], dl
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0x97;
+  p_jit_buf[index++] = addr & 0xff;
+  p_jit_buf[index++] = addr >> 8;
+  p_jit_buf[index++] = 0;
+  p_jit_buf[index++] = 0;
+
+  return index;
+}
+
+static size_t
+jit_check_special_write(struct jit_struct* p_jit,
+                        uint16_t addr,
+                        unsigned char* p_jit_buf,
+                        size_t index) {
+  if (!bbc_is_special_write_addr(p_jit->p_bbc, addr)) {
+    return index;
+  }
+  index = jit_emit_save_registers(p_jit_buf, index);
+
+  // mov rdi, [rbp + 24]
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x7d;
+  p_jit_buf[index++] = 24;
+  // mov si, addr
+  p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0xbe;
+  p_jit_buf[index++] = addr & 0xff;
+  p_jit_buf[index++] = addr >> 8;
+  // call [rbp + 40]
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 40;
+
+  index = jit_emit_restore_registers(p_jit_buf, index);
+
+  return index;
+}
+
 void
 jit_jit(struct jit_struct* p_jit,
         size_t jit_offset,
@@ -892,6 +964,7 @@ jit_jit(struct jit_struct* p_jit,
     unsigned char oplen = 1;
     unsigned char operand1 = 0;
     unsigned char operand2 = 0;
+    uint16_t addr;
     size_t index = 0;
 
     // Note: not correct if JIT code wraps the address space but that shouldn't
@@ -954,6 +1027,7 @@ jit_jit(struct jit_struct* p_jit,
       // same x64 opcode generation code for both k_zpg and k_abs.
       operand2 = 0;
     }
+    addr = (operand2 << 8) | operand1;
 
     switch (optype) {
     case k_kil:
@@ -1063,7 +1137,11 @@ jit_jit(struct jit_struct* p_jit,
                                 operand1,
                                 operand2,
                                 0xd0);
-      index = jit_emit_post_rotate(p_jit_buf, index, opmode, operand1, operand2);
+      index = jit_emit_post_rotate(p_jit_buf,
+                                   index,
+                                   opmode,
+                                   operand1,
+                                   operand2);
       break;
     case k_plp:
       // PLP
@@ -1247,6 +1325,7 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x9f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        index = jit_check_special_write(p_jit, addr, p_jit_buf, index);
         break;
       default:
         // mov [rdi + rdx], bl
@@ -1348,6 +1427,7 @@ jit_jit(struct jit_struct* p_jit,
         break;
       case k_zpg:
       case k_abs:
+        index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
         // mov al, [rdi + op1,op2?]
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x87;
