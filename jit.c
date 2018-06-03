@@ -79,86 +79,86 @@ static size_t jit_emit_do_relative_jump(unsigned char* p_jit,
 }
 
 static size_t jit_emit_intel_to_6502_zero(unsigned char* p_jit, size_t index) {
-  // sete r10b
+  // sete r13b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x94;
-  p_jit[index++] = 0xc2;
+  p_jit[index++] = 0xc5;
 
   return index;
 }
 
 static size_t jit_emit_intel_to_6502_negative(unsigned char* p_jit,
                                               size_t index) {
-  // sets r11b
+  // sets r14b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x98;
-  p_jit[index++] = 0xc3;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
-  // setb r9b
+  // setb r12b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xc4;
 
   return index;
 }
 
 static size_t jit_emit_intel_to_6502_sub_carry(unsigned char* p_jit,
                                                size_t index) {
-  // setae r9b
+  // setae r12b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x93;
-  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xc4;
 
   return index;
 }
 
 static size_t jit_emit_intel_to_6502_overflow(unsigned char* p_jit,
                                               size_t index) {
-  // seto r12b
+  // seto r15b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x90;
-  p_jit[index++] = 0xc4;
+  p_jit[index++] = 0xc7;
 
   return index;
 }
 
 static size_t jit_emit_carry_to_6502_zero(unsigned char* p_jit, size_t index) {
-  // setb r10b
+  // setb r13b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc2;
+  p_jit[index++] = 0xc5;
 
   return index;
 }
 
 static size_t jit_emit_carry_to_6502_negative(unsigned char* p_jit,
                                               size_t index) {
-  // setb r11b
+  // setb r14b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc3;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t jit_emit_carry_to_6502_overflow(unsigned char* p_jit,
                                               size_t index) {
-  // setb r12b
+  // setb r15b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc4;
+  p_jit[index++] = 0xc7;
 
   return index;
 }
@@ -223,10 +223,10 @@ static size_t jit_emit_intel_to_6502_sub_znco(unsigned char* p_jit,
 
 static size_t jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
   // Note: doesn't just check carry value but also trashes it.
-  // shr r9b, 1
+  // shr r12b, 1
   p_jit[index++] = 0x41;
   p_jit[index++] = 0xd0;
-  p_jit[index++] = 0xe9;
+  p_jit[index++] = 0xec;
 
   return index;
 }
@@ -234,46 +234,46 @@ static size_t jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
 static size_t jit_emit_set_carry(unsigned char* p_jit,
                                  size_t index,
                                  unsigned char val) {
-  // mov r9b, val
+  // mov r12b, val
   p_jit[index++] = 0x41;
-  p_jit[index++] = 0xb1;
+  p_jit[index++] = 0xb4;
   p_jit[index++] = val;
 
   return index;
 }
 
 static size_t jit_emit_test_carry(unsigned char* p_jit, size_t index) {
-  // test r9b, r9b
+  // test r12b, r12b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
-  p_jit[index++] = 0xc9;
+  p_jit[index++] = 0xe4;
 
   return index;
 }
 
 static size_t jit_emit_test_zero(unsigned char* p_jit, size_t index) {
-  // test r10b, r10b
+  // test r13b, r13b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
-  p_jit[index++] = 0xd2;
+  p_jit[index++] = 0xed;
 
   return index;
 }
 
 static size_t jit_emit_test_negative(unsigned char* p_jit, size_t index) {
-  // test r11b, r11b
+  // test r14b, r14b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
-  p_jit[index++] = 0xdb;
+  p_jit[index++] = 0xf6;
 
   return index;
 }
 
 static size_t jit_emit_test_overflow(unsigned char* p_jit, size_t index) {
-  // test r12b, r12b
+  // test r15b, r15b
   p_jit[index++] = 0x45;
   p_jit[index++] = 0x84;
-  p_jit[index++] = 0xe4;
+  p_jit[index++] = 0xff;
 
   return index;
 }
@@ -343,34 +343,34 @@ static size_t jit_emit_ind_x_to_scratch(unsigned char* p_jit,
                                         size_t index,
                                         unsigned char operand1) {
   unsigned char operand1_inc = operand1 + 1;
-  // mov r15, rbx
+  // mov r9, rbx
   p_jit[index++] = 0x49;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xdf;
-  // add r15b, operand1_inc
+  p_jit[index++] = 0xd9;
+  // add r9b, operand1_inc
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x80;
-  p_jit[index++] = 0xc7;
+  p_jit[index++] = 0xc1;
   p_jit[index++] = operand1_inc;
-  // movzx rdx, BYTE PTR [rdi + r15]
+  // movzx rdx, BYTE PTR [rdi + r9]
   p_jit[index++] = 0x4a;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
   p_jit[index++] = 0x14;
-  p_jit[index++] = 0x3f;
+  p_jit[index++] = 0x0f;
   // shl edx, 8
   p_jit[index++] = 0xc1;
   p_jit[index++] = 0xe2;
   p_jit[index++] = 0x08;
-  // dec r15b
+  // dec r9b
   p_jit[index++] = 0x41;
   p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xcf;
-  // mov dl, BYTE PTR [rdi + r15]
+  p_jit[index++] = 0xc9;
+  // mov dl, BYTE PTR [rdi + r9]
   p_jit[index++] = 0x42;
   p_jit[index++] = 0x8a;
   p_jit[index++] = 0x14;
-  p_jit[index++] = 0x3f;
+  p_jit[index++] = 0x0f;
 
   return index;
 }
@@ -578,51 +578,51 @@ static size_t jit_emit_php(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xc2;
+  // or rdx, r12
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x09;
+  p_jit[index++] = 0xe2;
+
+  // mov r9, r13
+  p_jit[index++] = 0x4d;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xe9;
+  // shl r9, 1
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0xd1;
+  p_jit[index++] = 0xe1;
   // or rdx, r9
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
   p_jit[index++] = 0xca;
 
-  // mov r15, r10
+  // mov r9, r14
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xd7;
-  // shl r15, 1
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0xd1;
-  p_jit[index++] = 0xe7;
-  // or rdx, r15
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x09;
-  p_jit[index++] = 0xfa;
-
-  // mov r15, r11
-  p_jit[index++] = 0x4d;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xdf;
-  // shl r15, 7
+  p_jit[index++] = 0xf1;
+  // shl r9, 7
   p_jit[index++] = 0x49;
   p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0xe1;
   p_jit[index++] = 0x07;
-  // or rdx, r15
+  // or rdx, r9
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
-  p_jit[index++] = 0xfa;
+  p_jit[index++] = 0xca;
 
-  // mov r15, r12
+  // mov r9, r15
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xe7;
-  // shl r15, 6
+  p_jit[index++] = 0xf9;
+  // shl r9, 6
   p_jit[index++] = 0x49;
   p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0xe1;
   p_jit[index++] = 0x06;
-  // or rdx, r15
+  // or rdx, r9
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
-  p_jit[index++] = 0xfa;
+  p_jit[index++] = 0xca;
 
   index = jit_emit_push_from_scratch(p_jit, index);
 
@@ -683,28 +683,16 @@ jit_emit_save_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x51;
   p_jit[index++] = 0x56;
   p_jit[index++] = 0x57;
-  // push r8 / r9 / r10 / r11
+  // push r8
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x50;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x51;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x52;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x53;
 
   return index;
 }
 
 static size_t
 jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
-  // pop r11 / r10 / r9 / r8
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x5b;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x5a;
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x59;
+  // pop r8
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x58;
   // pop rdi / rsi / rcx / rax
@@ -756,28 +744,28 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0xef;
 
   // param3: 6502 FZ
-  // mov rdx, r10
+  // mov rdx, r13
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xd2;
+  p_jit[index++] = 0xea;
 
   // param4: 6502 FN
-  // mov rcx, r11
+  // mov rcx, r14
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xd9;
+  p_jit[index++] = 0xf1;
 
   // param5: 6502 FC
-  // mov r8, r9
+  // mov r8, r12
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xc8;
+  p_jit[index++] = 0xe0;
 
   // param6: 6502 FO
-  // mov r9, r12
+  // mov r9, r15
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xe1;
+  p_jit[index++] = 0xf9;
 
   // call [rbp + 8]
   p_jit[index++] = 0xff;
@@ -1396,9 +1384,9 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_clv:
       // CLV
-      // mov r12b, 0
+      // mov r15b, 0
       p_jit_buf[index++] = 0x41;
-      p_jit_buf[index++] = 0xb4;
+      p_jit_buf[index++] = 0xb7;
       p_jit_buf[index++] = 0x00;
       break;
     case k_tsx:
@@ -1597,14 +1585,14 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     "xor %%r8, %%r8;"
     "bts $4, %%r8;"
     "bts $5, %%r8;"
-    // r9 is carry flag.
-    "xor %%r9, %%r9;"
-    // r10 is zero flag.
-    "xor %%r10, %%r10;"
-    // r11 is negative flag.
-    "xor %%r11, %%r11;"
-    // r12 is overflow flag.
+    // r12 is carry flag.
     "xor %%r12, %%r12;"
+    // r13 is zero flag.
+    "xor %%r13, %%r13;"
+    // r14 is negative flag.
+    "xor %%r14, %%r14;"
+    // r15 is overflow flag.
+    "xor %%r15, %%r15;"
     // rdi points to the virtual RAM, guard page, JIT space.
     "mov %1, %%rdi;"
     // sil is 6502 S.
@@ -1613,15 +1601,15 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     // Use scratch register for jump location.
     "mov %0, %%rdx;"
     // Pass a pointer to the jit_struct in rbp.
-    "mov %2, %%r15;"
+    "mov %2, %%r9;"
     "push %%rbp;"
-    "mov %%r15, %%rbp;"
+    "mov %%r9, %%rbp;"
     "call *%%rdx;"
     "pop %%rbp;"
     :
     : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r8", "r9", "r10", "r11", "r12", "r14", "r15"
+      "r8", "r9", "r12", "r13", "r14", "r15"
   );
 }
 
