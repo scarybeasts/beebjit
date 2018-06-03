@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "jit.h"
 
+#include <assert.h>
 #include <err.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -31,7 +32,8 @@ struct bbc_struct {
   unsigned char* p_mem;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
-  unsigned char IC32;
+  unsigned char sysvia_IC32;
+  unsigned char sysvia_sdb;
 };
 
 static void*
@@ -62,7 +64,8 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
-  p_bbc->IC32 = 0;
+  p_bbc->sysvia_IC32 = 0;
+  p_bbc->sysvia_sdb = 0;
 
   p_map = mmap(NULL,
                (k_addr_space_size * (k_jit_bytes_per_byte + 1)) +
@@ -176,7 +179,7 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 
 int
 bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr) {
-  if (addr < 0xfe00 || addr >= 0xff00) {
+  if (addr < 0xfe40 || addr >= 0xff50) {
     return 0;
   }
   return 1;
@@ -184,39 +187,101 @@ bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr) {
 
 int
 bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr) {
-  if (addr < 0xfe00 || addr >= 0xff00) {
+  if (addr < 0xfe40 || addr >= 0xfe50) {
     return 0;
   }
   return 1;
 }
 
+static void
+bbc_sysvia_update_sdb(struct bbc_struct* p_bbc) {
+  if (!(p_bbc->sysvia_IC32 & 8)) {
+    // Key is not pressed.
+    p_bbc->sysvia_sdb &= 0x7f;
+  }
+}
+
+static unsigned char
+bbc_sysvia_read_porta(struct bbc_struct* p_bbc) {
+  bbc_sysvia_update_sdb(p_bbc);
+  printf("sysvia sdb read %x\n", p_bbc->sysvia_sdb);
+  return p_bbc->sysvia_sdb;
+}
+
+static void
+bbc_sysvia_write_porta(struct bbc_struct* p_bbc) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char via_ora = p_mem[0xfe41];
+  unsigned char via_ddra = p_mem[0xfe43];
+  unsigned char porta_val = (via_ora & via_ddra) | ~via_ddra;
+  unsigned char keyrow = (porta_val >> 4) & 7;
+  unsigned char keycol = porta_val & 0xf;
+  p_bbc->sysvia_sdb = porta_val;
+  printf("sysvia sdb write val %x keyrow %d keycol %d\n",
+         porta_val,
+         keyrow,
+         keycol);
+  bbc_sysvia_update_sdb(p_bbc);
+}
+
+static void
+bbc_sysvia_write_portb(struct bbc_struct* p_bbc) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char via_orb = p_mem[0xfe40];
+  unsigned char via_ddrb = p_mem[0xfe42];
+  unsigned char portb_val = (via_orb & via_ddrb) | ~via_ddrb;
+  if (portb_val & 8) {
+    p_bbc->sysvia_IC32 |= (1 << (portb_val & 7));
+  } else {
+    p_bbc->sysvia_IC32 &= ~(1 << (portb_val & 7));
+  }
+  printf("sysvia IC32 orb %x ddrb %x portb %x, new value %x\n",
+         via_orb,
+         via_ddrb,
+         portb_val,
+         p_bbc->sysvia_IC32);
+}
+
 unsigned char
 bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   unsigned char* p_mem = p_bbc->p_mem;
-  unsigned char val = p_mem[addr];
+  unsigned char val;
+  unsigned char acr;
+  unsigned char ora;
+  unsigned char ddra;
   switch (addr) {
-  case 0xfe4e:
+  case 0xfe4e: /* IER, sysvia */
+    val = p_mem[addr];
     return val | 0x80;
+  case 0xfe4f: /* ORAnh, sysvia */
+    ddra = p_mem[0xfe43];
+    ora = p_mem[0xfe41];
+    acr = p_mem[0xfe4b];
+    assert(!acr);
+    val = ora & ddra;
+    val |= bbc_sysvia_read_porta(p_bbc) & ~ddra;
+    return val;
   }
   return 0xfe;
 }
 
 void
 bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
-  unsigned char* p_mem = p_bbc->p_mem;
-  unsigned char val = p_mem[addr];
+  unsigned char* p_mem;
   switch (addr) {
-  case 0xfe42:
-    {
-      unsigned char via_orb = p_mem[0xfe40];
-      unsigned char portb_val = (via_orb & val) | ~val;
-      if (portb_val & 8) {
-        p_bbc->IC32 |= (1 << (val & 7));
-      } else {
-        p_bbc->IC32 &= (1 << (val & 7));
-      }
-      printf("IC32 write %d, new value %d\n", val, p_bbc->IC32);
-      break;
-    }
+  case 0xfe40: /* ORB, sysvia */
+    bbc_sysvia_write_portb(p_bbc);
+    break;
+  case 0xfe42: /* DDRB, sysvia */
+    bbc_sysvia_write_portb(p_bbc);
+    break;
+  case 0xfe43: /* DDRA, sysvia */
+    bbc_sysvia_write_porta(p_bbc);
+    break;
+  case 0xfe4f: /* ORAnh, sysvia */
+    p_mem = p_bbc->p_mem;
+    p_mem[0xfe41] = p_mem[0xfe4f];
+    bbc_sysvia_write_porta(p_bbc);
+    break;
   }
 }

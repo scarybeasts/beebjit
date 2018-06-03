@@ -1289,6 +1289,7 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x87;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        index = jit_check_special_write(p_jit, addr, p_jit_buf, index);
         break;
       default:
         // mov [rdi + rdx], al
@@ -1307,6 +1308,7 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x8f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        index = jit_check_special_write(p_jit, addr, p_jit_buf, index);
         break;
       default:
         // mov [rdi + rdx], cl
@@ -1379,6 +1381,7 @@ jit_jit(struct jit_struct* p_jit,
         break;
       case k_zpg:
       case k_abs:
+        index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
         // mov cl, [rdi + op1,op2?]
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x8f;
@@ -1403,6 +1406,7 @@ jit_jit(struct jit_struct* p_jit,
         break;
       case k_zpg:
       case k_abs:
+        index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
         // mov bl, [rdi + op1,op2?]
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x9f;
