@@ -677,10 +677,10 @@ size_t jit_emit_undefined(unsigned char* p_jit,
 
 static size_t
 jit_emit_save_registers(unsigned char* p_jit, size_t index) {
-  // push rax / rcx / rdx / rsi / rdi
+  // No need to push rdx because it's a scratch register.
+  // push rax / rcx / rsi / rdi
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
-  p_jit[index++] = 0x52;
   p_jit[index++] = 0x56;
   p_jit[index++] = 0x57;
   // push r8 / r9 / r10 / r11
@@ -707,10 +707,9 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x58;
-  // pop rdi / rsi / rdx / rcx / rax
+  // pop rdi / rsi / rcx / rax
   p_jit[index++] = 0x5f;
   p_jit[index++] = 0x5e;
-  p_jit[index++] = 0x5a;
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x58;
 
