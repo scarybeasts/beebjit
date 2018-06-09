@@ -1105,6 +1105,7 @@ jit_jit(struct jit_struct* p_jit,
     case k_bit:
       // BIT
       // Only has zp and abs
+      index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
       // mov dl [rdi + op1,op2?]
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x97;
