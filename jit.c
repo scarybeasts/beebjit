@@ -1007,7 +1007,7 @@ jit_emit_check_interrupt(unsigned char* p_jit_buf,
   p_jit_buf[index++] = 0xf6;
   p_jit_buf[index++] = 0x45;
   p_jit_buf[index++] = k_offset_interrupt;
-  p_jit_buf[index++] = 0x00;
+  p_jit_buf[index++] = 0x01;
   /* je ... */
   p_jit_buf[index++] = 0x74;
   p_jit_buf[index++] = 0xfe;
