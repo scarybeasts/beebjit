@@ -591,53 +591,62 @@ static size_t jit_emit_push_ip_plus_two(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_php(unsigned char* p_jit, size_t index) {
-  // mov rdx, r8
+static size_t jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
+  /* mov rdx, r8 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xc2;
-  // or rdx, r12
+  if (!is_brk) {
+    /* btc rdx, 4 */
+    p_jit[index++] = 0x48;
+    p_jit[index++] = 0x0f;
+    p_jit[index++] = 0xba;
+    p_jit[index++] = 0xfa;
+    p_jit[index++] = 0x04;
+  }
+
+  /* or rdx, r12 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
   p_jit[index++] = 0xe2;
 
-  // mov r9, r13
+  /* mov r9, r13 */
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xe9;
-  // shl r9, 1
+  /* shl r9, 1 */
   p_jit[index++] = 0x49;
   p_jit[index++] = 0xd1;
   p_jit[index++] = 0xe1;
-  // or rdx, r9
+  /* or rdx, r9 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
   p_jit[index++] = 0xca;
 
-  // mov r9, r14
+  /* mov r9, r14 */
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xf1;
-  // shl r9, 7
+  /* shl r9, 7 */
   p_jit[index++] = 0x49;
   p_jit[index++] = 0xc1;
   p_jit[index++] = 0xe1;
   p_jit[index++] = 0x07;
-  // or rdx, r9
+  /* or rdx, r9 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
   p_jit[index++] = 0xca;
 
-  // mov r9, r15
+  /* mov r9, r15 */
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xf9;
-  // shl r9, 6
+  /* shl r9, 6 */
   p_jit[index++] = 0x49;
   p_jit[index++] = 0xc1;
   p_jit[index++] = 0xe1;
   p_jit[index++] = 0x06;
-  // or rdx, r9
+  /* or rdx, r9 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x09;
   p_jit[index++] = 0xca;
@@ -965,6 +974,70 @@ jit_check_special_write(struct jit_struct* p_jit,
   return index;
 }
 
+size_t
+jit_emit_sei(unsigned char* p_jit_buf, size_t index) {
+  /* bts r8, 2 */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xba;
+  p_jit_buf[index++] = 0xe8;
+  p_jit_buf[index++] = 0x02;
+
+  return index;
+}
+
+size_t
+jit_emit_do_interrupt(unsigned char* p_jit_buf, size_t index, int is_brk) {
+  uint16_t vector = k_bbc_vector_irq;
+  index = jit_emit_push_ip_plus_two(p_jit_buf, index);
+  index = jit_emit_php(p_jit_buf, index, is_brk);
+  index = jit_emit_sei(p_jit_buf, index);
+  index = jit_emit_jmp_indirect(p_jit_buf, index, vector & 0xff, vector >> 8);
+
+  return index;
+}
+
+size_t
+jit_emit_check_interrupt(unsigned char* p_jit_buf,
+                         size_t index,
+                         int check_flag) {
+  size_t index_jmp1 = 0;
+  size_t index_jmp2 = 0;
+  /* test BYTE PTR [rbp + k_offset_interrupt], 1 */
+  p_jit_buf[index++] = 0xf6;
+  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = k_offset_interrupt;
+  p_jit_buf[index++] = 0x00;
+  /* je ... */
+  p_jit_buf[index++] = 0x74;
+  p_jit_buf[index++] = 0xfe;
+  index_jmp1 = index;
+
+  if (check_flag) {
+    /* bt r8, 2 */
+    p_jit_buf[index++] = 0x49;
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xba;
+    p_jit_buf[index++] = 0xe0;
+    p_jit_buf[index++] = 0x02;
+    /* jb ... */
+    p_jit_buf[index++] = 0x72;
+    p_jit_buf[index++] = 0xfe;
+    index_jmp2 = index;
+  }
+
+  index = jit_emit_do_interrupt(p_jit_buf, index, 0);
+
+  if (index_jmp1) {
+    p_jit_buf[index_jmp1 - 1] = index - index_jmp1;
+  }
+  if (index_jmp2) {
+    p_jit_buf[index_jmp2 - 1] = index - index_jmp2;
+  }
+
+  return index;
+}
+
 void
 jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
   p_jit->interrupt = interrupt;
@@ -1082,9 +1155,7 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_brk:
       // BRK
-      index = jit_emit_push_ip_plus_two(p_jit_buf, index);
-      index = jit_emit_php(p_jit_buf, index);
-      index = jit_emit_jmp_indirect(p_jit_buf, index, 0xfe, 0xff);
+      index = jit_emit_do_interrupt(p_jit_buf, index, 1);
       break;
     case k_ora:
       // ORA
@@ -1108,7 +1179,7 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_php:
       // PHP
-      index = jit_emit_php(p_jit_buf, index);
+      index = jit_emit_php(p_jit_buf, index, 1);
       break;
     case k_bpl:
       // BPL
@@ -1188,6 +1259,7 @@ jit_jit(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0x80;
       p_jit_buf[index++] = 0xe0;
       p_jit_buf[index++] = 0x3c;
+      index = jit_emit_check_interrupt(p_jit_buf, index, 1);
       break;
     case k_bmi:
       // BMI
@@ -1245,6 +1317,7 @@ jit_jit(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0xba;
       p_jit_buf[index++] = 0xf0;
       p_jit_buf[index++] = 0x02;
+      index = jit_emit_check_interrupt(p_jit_buf, index, 0);
       break;
     case k_rts:
       // RTS
@@ -1296,13 +1369,8 @@ jit_jit(struct jit_struct* p_jit,
       index = jit_emit_do_relative_jump(p_jit_buf, index, 0x75, operand1);
       break;
     case k_sei:
-      // SEI
-      // bts r8, 2
-      p_jit_buf[index++] = 0x49;
-      p_jit_buf[index++] = 0x0f;
-      p_jit_buf[index++] = 0xba;
-      p_jit_buf[index++] = 0xe8;
-      p_jit_buf[index++] = 0x02;
+      /* SEI */
+      index = jit_emit_sei(p_jit_buf, index);
       break;
     case k_sta:
       // STA

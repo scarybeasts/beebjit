@@ -22,7 +22,6 @@ static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_mode7_offset = 0x7c00;
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
-static const size_t k_vector_reset = 0xfffc;
 enum {
   k_addr_sysvia = 0xfe40,
 };
@@ -71,7 +70,7 @@ static void*
 bbc_jit_thread(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  jit_enter(p_bbc->p_jit, k_vector_reset);
+  jit_enter(p_bbc->p_jit, k_bbc_vector_reset);
 
   exit(0);
 }
@@ -90,6 +89,7 @@ bbc_create(unsigned char* p_os_rom,
   if (p_bbc == NULL) {
     errx(1, "couldn't allocate bbc struct");
   }
+  memset(p_bbc, '\0', sizeof(struct bbc_struct));
 
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
@@ -246,6 +246,14 @@ bbc_check_interrupt(struct bbc_struct* p_bbc) {
     interrupt = 1;
   }
   jit_set_interrupt(p_jit, interrupt);
+}
+
+void
+bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
+  assert(user == 0);
+  assert(!(bits & 0x80));
+  p_bbc->sysvia_IFR |= bits;
+  bbc_check_interrupt(p_bbc);
 }
 
 int
