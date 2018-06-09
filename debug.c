@@ -32,6 +32,7 @@ static int debug_break_mem_low[k_max_break];
 static int debug_break_mem_high[k_max_break];
 static int debug_running = 0;
 static int debug_running_print = 0;
+static int debug_break_opcodes[256];
 
 static char debug_old_input_buf[k_max_input_len];
 
@@ -224,7 +225,7 @@ debug_get_branch(char* p_buf,
 }
 
 static int
-debug_hit_break(uint16_t ip_6502, int addr_6502) {
+debug_hit_break(uint16_t ip_6502, int addr_6502, unsigned char opcode_6502) {
   size_t i;
   for (i = 0; i < k_max_break; ++i) {
     if (debug_break_exec[i] == ip_6502) {
@@ -236,6 +237,10 @@ debug_hit_break(uint16_t ip_6502, int addr_6502) {
       return 1;
     }
   }
+  if (debug_break_opcodes[opcode_6502]) {
+    return 1;
+  }
+
   return 0;
 }
 
@@ -257,6 +262,7 @@ debug_callback(struct debug_struct* p_debug,
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
   char flags_buf[9];
+  /* NOTE: not correct for execution in hardware registers. */
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
@@ -313,7 +319,7 @@ debug_callback(struct debug_struct* p_debug,
     flags_buf[7] = 'N';
   }
 
-  hit_break = debug_hit_break(ip_6502, addr_6502);
+  hit_break = debug_hit_break(ip_6502, addr_6502, opcode);
 
   if (debug_running && !hit_break && !debug_running_print) {
     return;
@@ -422,6 +428,10 @@ debug_callback(struct debug_struct* p_debug,
     } else if (sscanf(input_buf, "int %d %x", &parse_int, &parse_int2) == 2 &&
                parse_int == 0) {
       bbc_fire_interrupt(p_bbc, parse_int, parse_int2 & 0x7f);
+    } else if (sscanf(input_buf, "bop %x", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < 256) {
+      debug_break_opcodes[parse_int] = 1;
     } else {
       printf("???\n");
       fflush(stdout);
