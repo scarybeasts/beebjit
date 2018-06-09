@@ -3,15 +3,14 @@
 
 #include <stdint.h>
 
-struct jit_struct;
+struct bbc_struct;
 
 struct debug_struct;
 
-struct debug_struct* debug_create(int run_flag, int print_flag);
+struct debug_struct* debug_create(struct bbc_struct* p_bbc);
 void debug_destroy(struct debug_struct* p_debug);
 
-/* TODO: API should be generic, not relying on jit_struct. */
-void debug_callback(struct jit_struct* p_jit,
+void debug_callback(struct debug_struct* p_debug,
                     uint16_t ip_6502,
                     uint8_t fz_6502,
                     uint8_t fn_6502,

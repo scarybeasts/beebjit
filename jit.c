@@ -15,6 +15,23 @@ static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
 
+static const int k_offset_debug = 8;
+static const int k_offset_debug_callback = 16;
+static const int k_offset_bbc = 24;
+static const int k_offset_read_callback = 32;
+static const int k_offset_write_callback = 40;
+static const int k_offset_interrupt = 48;
+
+struct jit_struct {
+  unsigned char* p_mem;     /* 0  */
+  void* p_debug;            /* 8  */
+  void* p_debug_callback;   /* 16 */
+  struct bbc_struct* p_bbc; /* 24 */
+  void* p_read_callback;    /* 32 */
+  void* p_write_callback;   /* 40 */
+  uint64_t interrupt;       /* 48 */
+};
+
 static size_t jit_emit_int(unsigned char* p_jit, size_t index, ssize_t offset) {
   p_jit[index++] = offset & 0xff;
   offset >>= 8;
@@ -739,10 +756,11 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0xd6;
 
   // param1
-  // mov rdi, rbp
+  // mov rdi, [rbp + k_offset_debug]
   p_jit[index++] = 0x48;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xef;
+  p_jit[index++] = 0x8b;
+  p_jit[index++] = 0x7d;
+  p_jit[index++] = k_offset_debug;
 
   // param3: 6502 FZ
   // mov rdx, r13
@@ -768,10 +786,10 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xf9;
 
-  // call [rbp + 16]
+  // call [rbp + k_offset_debug_callback]
   p_jit[index++] = 0xff;
   p_jit[index++] = 0x55;
-  p_jit[index++] = 16;
+  p_jit[index++] = k_offset_debug_callback;
 
   // add rsp, 40
   p_jit[index++] = 0x48;
@@ -886,20 +904,20 @@ jit_check_special_read(struct jit_struct* p_jit,
   }
   index = jit_emit_save_registers(p_jit_buf, index);
 
-  // mov rdi, [rbp + 24]
+  // mov rdi, [rbp + k_offset_bbc]
   p_jit_buf[index++] = 0x48;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x7d;
-  p_jit_buf[index++] = 24;
+  p_jit_buf[index++] = k_offset_bbc;
   // mov si, addr
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xbe;
   p_jit_buf[index++] = addr & 0xff;
   p_jit_buf[index++] = addr >> 8;
-  // call [rbp + 32]
+  // call [rbp + k_offset_read_callback]
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x55;
-  p_jit_buf[index++] = 32;
+  p_jit_buf[index++] = k_offset_read_callback;
   // mov rdx, rax
   p_jit_buf[index++] = 0x48;
   p_jit_buf[index++] = 0x89;
@@ -927,24 +945,29 @@ jit_check_special_write(struct jit_struct* p_jit,
   }
   index = jit_emit_save_registers(p_jit_buf, index);
 
-  // mov rdi, [rbp + 24]
+  // mov rdi, [rbp + k_offset_bbc]
   p_jit_buf[index++] = 0x48;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x7d;
-  p_jit_buf[index++] = 24;
+  p_jit_buf[index++] = k_offset_bbc;
   // mov si, addr
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xbe;
   p_jit_buf[index++] = addr & 0xff;
   p_jit_buf[index++] = addr >> 8;
-  // call [rbp + 40]
+  // call [rbp + k_offset_write_callback]
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x55;
-  p_jit_buf[index++] = 40;
+  p_jit_buf[index++] = k_offset_write_callback;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
 
   return index;
+}
+
+void
+jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
+  p_jit->interrupt = interrupt;
 }
 
 void
@@ -1701,6 +1724,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
 struct jit_struct*
 jit_create(unsigned char* p_mem,
            void* p_debug_callback,
+           struct debug_struct* p_debug,
            struct bbc_struct* p_bbc,
            void* p_read_callback,
            void* p_write_callback) {
@@ -1711,7 +1735,7 @@ jit_create(unsigned char* p_mem,
   }
   memset(p_jit, '\0', sizeof(struct jit_struct));
   p_jit->p_mem = p_mem;
-  p_jit->p_debug = NULL;
+  p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
   p_jit->p_bbc = p_bbc;
   p_jit->p_read_callback = p_read_callback;
@@ -1734,4 +1758,3 @@ void
 jit_destroy(struct jit_struct* p_jit) {
   free(p_jit);
 }
-

@@ -25,6 +25,8 @@ void bbc_run_async(struct bbc_struct* p_bbc);
 
 unsigned char* bbc_get_mem(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mode7_mem(struct bbc_struct* p_bbc);
+int bbc_get_run_flag(struct bbc_struct* p_bbc);
+int bbc_get_print_flag(struct bbc_struct* p_bbc);
 
 int bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr);
 int bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr);

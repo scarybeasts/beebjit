@@ -86,6 +86,7 @@ bbc_create(unsigned char* p_os_rom,
   unsigned char* p_mem;
   int ret;
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
+  struct debug_struct* p_debug;
   if (p_bbc == NULL) {
     errx(1, "couldn't allocate bbc struct");
   }
@@ -153,10 +154,14 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "mprotect() failed");
   }
 
-  (void) debug_create(p_bbc->run_flag, p_bbc->print_flag);
+  p_debug = debug_create(p_bbc);
+  if (p_debug == NULL) {
+    errx(1, "debug_create failed");
+  }
 
   p_bbc->p_jit = jit_create(p_mem,
                             debug_callback,
+                            p_debug,
                             p_bbc,
                             bbc_read_callback,
                             bbc_write_callback);
@@ -212,6 +217,16 @@ bbc_get_mode7_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem + k_mode7_offset;
 }
 
+int
+bbc_get_run_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->run_flag;
+}
+
+int
+bbc_get_print_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->print_flag;
+}
+
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
   pthread_t thread;
@@ -219,6 +234,18 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   if (ret != 0) {
     errx(1, "couldn't create thread");
   }
+}
+
+static void
+bbc_check_interrupt(struct bbc_struct* p_bbc) {
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  int interrupt = 0;
+  assert(!(p_bbc->sysvia_IER & 0x80));
+  assert(!(p_bbc->sysvia_IFR & 0x80));
+  if (p_bbc->sysvia_IER & p_bbc->sysvia_IFR) {
+    interrupt = 1;
+  }
+  jit_set_interrupt(p_jit, interrupt);
 }
 
 int
@@ -363,6 +390,7 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
       p_bbc->sysvia_IER &= ~(val & 0x7f);
     }
     p_mem[k_addr_sysvia | k_via_IER] = p_bbc->sysvia_IER;
+    bbc_check_interrupt(p_bbc);
     printf("new sysvia IER %x\n", p_bbc->sysvia_IER);
     break;
   case k_addr_sysvia | k_via_ORAnh:

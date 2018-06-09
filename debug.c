@@ -1,6 +1,6 @@
 #include "debug.h"
 
-#include "jit.h"
+#include "bbc.h"
 #include "opdefs.h"
 
 #include <ctype.h>
@@ -22,6 +22,10 @@ enum {
   k_max_input_len = 256,
 };
 
+struct debug_struct {
+  struct bbc_struct* p_bbc;
+};
+
 static int debug_inited = 0;
 static int debug_break_exec[k_max_break];
 static int debug_break_mem_low[k_max_break];
@@ -38,15 +42,23 @@ int_handler(int signum) {
 }
 
 struct debug_struct*
-debug_create(int run_flag, int print_flag) {
-  debug_running = run_flag;
-  debug_running_print = print_flag;
-  return NULL;
+debug_create(struct bbc_struct* p_bbc) {
+  struct debug_struct* p_debug = malloc(sizeof(struct debug_struct));
+  if (p_debug == NULL) {
+    errx(1, "couldn't allocate debug_struct");
+  }
+
+  debug_running = bbc_get_run_flag(p_bbc);
+  debug_running_print = bbc_get_print_flag(p_bbc);
+
+  p_debug->p_bbc = p_bbc;
+
+  return p_debug;
 }
 
 void
 debug_destroy(struct debug_struct* p_debug) {
-  (void) p_debug;
+  free(p_debug);
 }
 
 static void
@@ -227,7 +239,7 @@ debug_hit_break(uint16_t ip_6502, int addr_6502) {
 }
 
 void
-debug_callback(struct jit_struct* p_jit,
+debug_callback(struct debug_struct* p_debug,
                uint16_t ip_6502,
                uint8_t fz_6502,
                uint8_t fn_6502,
@@ -238,11 +250,12 @@ debug_callback(struct jit_struct* p_jit,
                uint8_t x_6502,
                uint8_t y_6502,
                uint8_t s_6502) {
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
   char flags_buf[9];
-  unsigned char* p_mem = p_jit->p_mem;
   unsigned char opcode = p_mem[ip_6502];
   unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
