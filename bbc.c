@@ -263,6 +263,14 @@ bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
   bbc_check_interrupt(p_bbc);
 }
 
+void
+bbc_force_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
+  assert(user == 0);
+  assert(!(bits & 0x80));
+  p_bbc->sysvia_IER |= bits;
+  bbc_fire_interrupt(p_bbc, user, bits);
+}
+
 int
 bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr) {
   if (addr < 0xfe40 || addr >= 0xfe50) {
@@ -281,9 +289,20 @@ bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr) {
 
 static void
 bbc_sysvia_update_sdb(struct bbc_struct* p_bbc) {
+  unsigned char sdb = p_bbc->sysvia_sdb;
+  unsigned char keyrow = (sdb >> 4) & 7;
+  unsigned char keycol = sdb & 0xf;
   if (!(p_bbc->sysvia_IC32 & 8)) {
-    // Key is not pressed.
-    p_bbc->sysvia_sdb &= 0x7f;
+    if (!p_bbc->keys[keyrow][keycol]) {
+      p_bbc->sysvia_sdb &= 0x7f;
+    }
+    if (p_bbc->keys_count_col[keycol]) {
+      bbc_fire_interrupt(p_bbc, 0, 0x01);
+    }
+  } else {
+    if (p_bbc->keys_count > 0) {
+      bbc_fire_interrupt(p_bbc, 0, 0x01);
+    }
   }
 }
 
@@ -298,12 +317,12 @@ static void
 bbc_sysvia_write_porta(struct bbc_struct* p_bbc) {
   unsigned char via_ora = p_bbc->sysvia_ORA;
   unsigned char via_ddra = p_bbc->sysvia_DDRA;
-  unsigned char porta_val = (via_ora & via_ddra) | ~via_ddra;
-  unsigned char keyrow = (porta_val >> 4) & 7;
-  unsigned char keycol = porta_val & 0xf;
-  p_bbc->sysvia_sdb = porta_val;
+  unsigned char sdb = (via_ora & via_ddra) | ~via_ddra;
+  p_bbc->sysvia_sdb = sdb;
+  unsigned char keyrow = (sdb >> 4) & 7;
+  unsigned char keycol = sdb & 0xf;
   printf("sysvia sdb write val %x keyrow %d keycol %d\n",
-         porta_val,
+         sdb,
          keyrow,
          keycol);
   bbc_sysvia_update_sdb(p_bbc);
@@ -457,6 +476,9 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
   p_bbc->keys[row][col] = 1;
   p_bbc->keys_count_col[col]++;
   p_bbc->keys_count++;
+
+  /* TODO: we're on the X thread so we have concurrent access issues. */
+  bbc_fire_interrupt(p_bbc, 0, 0x01);
 }
 
 void
