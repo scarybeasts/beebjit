@@ -596,13 +596,16 @@ static size_t jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xc2;
-  if (!is_brk) {
-    /* btc rdx, 4 */
-    p_jit[index++] = 0x48;
-    p_jit[index++] = 0x0f;
-    p_jit[index++] = 0xba;
-    p_jit[index++] = 0xfa;
-    p_jit[index++] = 0x04;
+  if (is_brk) {
+    /* or dl, 0x30 */
+    p_jit[index++] = 0x80;
+    p_jit[index++] = 0xca;
+    p_jit[index++] = 0x30;
+  } else {
+    /* or dl, 0x20 */
+    p_jit[index++] = 0x80;
+    p_jit[index++] = 0xca;
+    p_jit[index++] = 0x20;
   }
 
   /* or rdx, r12 */
@@ -1239,7 +1242,7 @@ jit_jit(struct jit_struct* p_jit,
                                    operand2);
       break;
     case k_plp:
-      // PLP
+      /* PLP */
       index = jit_emit_pull_to_scratch(p_jit_buf, index);
 
       index = jit_emit_scratch_bit_test(p_jit_buf, index, 0);
@@ -1250,15 +1253,14 @@ jit_jit(struct jit_struct* p_jit,
       index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
       index = jit_emit_scratch_bit_test(p_jit_buf, index, 7);
       index = jit_emit_carry_to_6502_negative(p_jit_buf, index);
-      // mov r8b, dl
+      /* and dl, 0xc */
+      p_jit_buf[index++] = 0x80;
+      p_jit_buf[index++] = 0xe2;
+      p_jit_buf[index++] = 0x0c;
+      /* mov r8b, dl */
       p_jit_buf[index++] = 0x41;
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0xd0;
-      // and r8b, 0x3c
-      p_jit_buf[index++] = 0x41;
-      p_jit_buf[index++] = 0x80;
-      p_jit_buf[index++] = 0xe0;
-      p_jit_buf[index++] = 0x3c;
       index = jit_emit_check_interrupt(p_jit_buf, index, 1);
       break;
     case k_bmi:
@@ -1756,11 +1758,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     // r8 is the rest of the 6502 flags or'ed together.
     // Bit 2 is interrupt disable.
     // Bit 3 is decimal mode.
-    // Bit 4 is set for BRK and PHP.
-    // Bit 5 is always set.
     "xor %%r8, %%r8;"
-    "bts $4, %%r8;"
-    "bts $5, %%r8;"
     // r12 is carry flag.
     "xor %%r12, %%r12;"
     // r13 is zero flag.
