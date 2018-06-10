@@ -1,6 +1,10 @@
 #include "x.h"
 
+#include "bbc.h"
+
+#include <assert.h>
 #include <err.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -13,6 +17,7 @@ struct x_struct {
   unsigned char* p_screen_mem;
   size_t chars_width;
   size_t chars_height;
+  struct bbc_struct* p_bbc;
   Display* d;
   Window w;
   GC gc;
@@ -21,7 +26,10 @@ struct x_struct {
 };
 
 struct x_struct*
-x_create(unsigned char* p_screen_mem, size_t chars_width, size_t chars_height) {
+x_create(unsigned char* p_screen_mem,
+         size_t chars_width,
+         size_t chars_height,
+         struct bbc_struct* p_bbc) {
   struct x_struct* p_x;
   int s;
   Window root_window;
@@ -30,6 +38,10 @@ x_create(unsigned char* p_screen_mem, size_t chars_width, size_t chars_height) {
   XFontStruct* p_font;
   unsigned long ul_ret;
 
+  if (XInitThreads() == 0) {
+    errx(1, "XInitThreads failed");
+  }
+
   p_x = malloc(sizeof(struct x_struct));
   if (p_x == NULL) {
     errx(1, "couldn't allocate x_struct");
@@ -37,6 +49,7 @@ x_create(unsigned char* p_screen_mem, size_t chars_width, size_t chars_height) {
   p_x->p_screen_mem = p_screen_mem;
   p_x->chars_width = chars_width;
   p_x->chars_height = chars_height;
+  p_x->p_bbc = p_bbc;
 
   p_x->d = XOpenDisplay(NULL);
   if (p_x->d == NULL) {
@@ -74,6 +87,9 @@ x_create(unsigned char* p_screen_mem, size_t chars_width, size_t chars_height) {
                                black_pixel);
   if (p_x->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
+  }
+  if (!XSelectInput(p_x->d, p_x->w, KeyPressMask | KeyReleaseMask)) {
+    errx(1, "XSelectInput failed");
   }
 
   if (!XMapWindow(p_x->d, p_x->w)) {
@@ -124,5 +140,53 @@ x_render(struct x_struct* p_x) {
   }
   if (!XFlush(p_x->d)) {
     errx(1, "XFlush failed");
+  }
+}
+
+void
+x_event_loop(struct x_struct* p_x) {
+  Display* d = p_x->d;
+  struct bbc_struct* p_bbc = p_x->p_bbc;
+  XEvent event;
+  int ret;
+  int key;
+
+  while (1) {
+    ret = XNextEvent(d, &event);
+    if (ret != 0) {
+      errx(1, "XNextEvent failed");
+    }
+    switch (event.type) {
+    case KeyPress:
+      key = event.xkey.keycode;
+      printf("key press %d\n", key);
+      bbc_key_pressed(p_bbc, key);
+      break;
+    case KeyRelease:
+      key = event.xkey.keycode;
+      printf("key release %d\n", key);
+      bbc_key_released(p_bbc, key);
+      break;
+    default:
+      assert(0);
+    }
+  }
+}
+
+static void*
+x_event_thread(void* p) {
+  struct x_struct* p_x = (struct x_struct*) p;
+
+  x_event_loop(p_x);
+
+  assert(0);
+}
+
+void
+x_launch_event_loop_async(struct x_struct* p_x) {
+  pthread_t thread;
+  int ret = pthread_create(&thread, NULL, x_event_thread, p_x);
+  if (ret != 0) {
+    errx(1, "couldn't create thread");
   }
 }

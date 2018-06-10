@@ -77,12 +77,14 @@ main(int argc, const char* argv[]) {
 
   p_mode7_mem = bbc_get_mode7_mem(p_bbc);
 
-  p_x = x_create(p_mode7_mem, k_bbc_mode7_width, k_bbc_mode7_height);
+  p_x = x_create(p_mode7_mem, k_bbc_mode7_width, k_bbc_mode7_height, p_bbc);
   if (p_x == NULL) {
     errx(1, "x_create failed");
   }
 
   bbc_run_async(p_bbc);
+
+  x_launch_event_loop_async(p_x);
 
   while (1) {
     x_render(p_x);

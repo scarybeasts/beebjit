@@ -65,16 +65,10 @@ struct bbc_struct {
   unsigned char sysvia_IER;
   unsigned char sysvia_IC32;
   unsigned char sysvia_sdb;
+  unsigned char keys[16][16];
+  unsigned char keys_count;
+  unsigned char keys_count_col[16];
 };
-
-static void*
-bbc_jit_thread(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-
-  jit_enter(p_bbc->p_jit, k_bbc_vector_reset);
-
-  exit(0);
-}
 
 struct bbc_struct*
 bbc_create(unsigned char* p_os_rom,
@@ -226,6 +220,15 @@ bbc_get_run_flag(struct bbc_struct* p_bbc) {
 int
 bbc_get_print_flag(struct bbc_struct* p_bbc) {
   return p_bbc->print_flag;
+}
+
+static void*
+bbc_jit_thread(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  jit_enter(p_bbc->p_jit, k_bbc_vector_reset);
+
+  exit(0);
 }
 
 void
@@ -420,4 +423,54 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   default:
     assert(0);
   }
+}
+
+static void
+bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
+  int row = 0;
+  int col = 0;
+  switch (key) {
+  case 40: /* D */
+    row = 3;
+    col = 2;
+    break;
+  default:
+    printf("warning: unhandled key %d\n", key);
+    break;
+  }
+
+  *p_row = row;
+  *p_col = col;
+}
+
+void
+bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
+  int row;
+  int col;
+  bbc_key_to_rowcol(key, &row, &col);
+  if (!row && !col) {
+    return;
+  }
+  if (p_bbc->keys[row][col]) {
+    return;
+  }
+  p_bbc->keys[row][col] = 1;
+  p_bbc->keys_count_col[col]++;
+  p_bbc->keys_count++;
+}
+
+void
+bbc_key_released(struct bbc_struct* p_bbc, int key) {
+  int row;
+  int col;
+  bbc_key_to_rowcol(key, &row, &col);
+  if (!row && !col) {
+    return;
+  }
+  assert(p_bbc->keys[row][col]);
+  p_bbc->keys[row][col] = 0;
+  assert(p_bbc->keys_count_col[col] > 0);
+  p_bbc->keys_count_col[col]--;
+  assert(p_bbc->keys_count > 0);
+  p_bbc->keys_count--;
 }

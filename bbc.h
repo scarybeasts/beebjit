@@ -41,4 +41,7 @@ int bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr);
 unsigned char bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr);
 void bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr);
 
+void bbc_key_pressed(struct bbc_struct* p_bbc, int key);
+void bbc_key_released(struct bbc_struct* p_bbc, int key);
+
 #endif /* BEEJIT_JIT_H */
