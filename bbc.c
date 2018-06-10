@@ -36,6 +36,7 @@ enum {
   k_via_T1LH = 0x7,
   k_via_ACR = 0xb,
   k_via_PCR = 0xc,
+  k_via_IFR = 0xd,
   k_via_IER = 0xe,
   k_via_ORAnh = 0xf,
 };
@@ -239,11 +240,14 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 static void
 bbc_check_interrupt(struct bbc_struct* p_bbc) {
   struct jit_struct* p_jit = p_bbc->p_jit;
-  int interrupt = 0;
+  int interrupt;
   assert(!(p_bbc->sysvia_IER & 0x80));
-  assert(!(p_bbc->sysvia_IFR & 0x80));
   if (p_bbc->sysvia_IER & p_bbc->sysvia_IFR) {
+    p_bbc->sysvia_IFR |= 0x80;
     interrupt = 1;
+  } else {
+    p_bbc->sysvia_IFR &= ~0x80;
+    interrupt = 0;
   }
   jit_set_interrupt(p_jit, interrupt);
 }
@@ -336,6 +340,8 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     /* Read is for joystick and CMOS. 0xff means nothing interesting. */
     val |= (0xff & ~ddrb);
     return val;
+  case k_addr_sysvia | k_via_IFR:
+    return p_bbc->sysvia_IFR;
   case k_addr_sysvia | k_via_IER:
     return p_bbc->sysvia_IER | 0x80;
   case k_addr_sysvia | k_via_ORAnh:
@@ -390,6 +396,12 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     assert(val == 4);
     p_bbc->sysvia_PCR = val;
     printf("new sysvia PCR %x\n", val);
+    break;
+  case k_addr_sysvia | k_via_IFR:
+    p_bbc->sysvia_IFR &= ~(val & 0x7f);
+    p_mem[k_addr_sysvia | k_via_IFR] = p_bbc->sysvia_IFR;
+    bbc_check_interrupt(p_bbc);
+    printf("new sysvia IFR %x\n", p_bbc->sysvia_IFR);
     break;
   case k_addr_sysvia | k_via_IER:
     if (val & 0x80) {
