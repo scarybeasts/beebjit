@@ -56,6 +56,11 @@ x_create(unsigned char* p_screen_mem,
     errx(1, "cannot open X display");
   }
 
+  /* Using this for now, as the method of event peeking to detect autorepeat
+   * KeyRelease events is not reliable.
+   */
+  XAutoRepeatOff(p_x->d);
+
   p_font = XLoadQueryFont(p_x->d, k_p_font_name);
   if (p_font == NULL) {
     errx(1, "cannot load font");
