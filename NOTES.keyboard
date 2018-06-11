@@ -1,0 +1,58 @@
+Keyboard handling in Acorn MOS 1.2 and BBC B system VIA hardware.
+
+The keyboard handling in hardware is relatively simple, but with quirks. The
+handling in software is a little more complicated and uses the hardware in
+various different modes when the state machine is in different states.
+
+This quick walkthrough takes us through all the keyboard handling, from bootup
+to a keystroke successfully read by BASIC.
+
+1. Bootup.
+- Memory is cleared to 0, by a loop that hits here:
+da56: STA $00,X
+This includes zeroing out &ed.
+
+- &ed is initialized to 0x62, here:
+da64: LDA #$62
+da66: STA $ed
+&ed is important, as is this initialization, as we'll see later.
+
+- system VIA interrupt enable is initialized to 0x72, here:
+da80: LDX #$f2
+da82: STX $fe4e
+The value 0x72 includes TIMER1 (0x40) and TIMER2 (0x20) but not the keyboard,
+CA2 (0x01). This means that after initialization, you can hammer on the
+keyboard all day long and it will assert CA2 to the system VIA but the system
+VIA will not assert a 6502 interrupt.
+So something else must be responsible for the keyboard actually working.
+
+- BASIC calls in to OSWORD 0x00 at 0xbc1d.
+This is "read line from current input to memory", and it starts at 0xe902,
+which quickly calls OSRDCH (0xffe0) -> 0xdec5. At 0xdeed, 0xe577 is called to
+get a byte from the buffer, which calls OSBYTE 145 (get byte from buffer) at
+0xe460 -> 0xe464.
+While there are no keypresses, this code ends up looping calling OSBYTE 145 and
+getting nothing back. The check that "fails" is:
+e466: LDA $02d8,X
+e469: CMP $02e1,X
+e46c: BEQ #$72 (taken: buffer empty)
+(Note that before getting to the failure loop, it seems to read the byte 0xca
+that expands to a special string of length 0 and little effect -- so not sure
+what the deal is with that. It's put into the buffer at 0xdb2d.)
+
+(In actuality, the TIMER1 ticks are interleaved with the boot-up and
+initialization because the BBC Micro can only get so much done in 10ms :D
+Sequence on b-em is:
+- 0xddcc: TIMER1
+- 0x8000: BASIC entry
+- 0x8025: OSBYTE 0x84 (read bottom of display RAM)
+- 0x802e: OSBYTE 0x83 (read PAGE value)
+- 0xddcc: TIMER1
+- 0xbc1d: OSWORD 0x00 (read line from current input to memory))
+
+
+2. First TIMER1 (10ms) tick.
+In general, The IRQ interrupt vector at 0xfffe bounces execution to 0xdc1c,
+which has responsibility for working out what type of IRQ fired and redirecting
+execution accordingly. TIMER1 ticks are sysvia interrupts, which get considered
+at 0xdd08 and confirmed TIMER1 interrupt handing starts at 0xddcc.
