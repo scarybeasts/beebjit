@@ -56,3 +56,137 @@ In general, The IRQ interrupt vector at 0xfffe bounces execution to 0xdc1c,
 which has responsibility for working out what type of IRQ fired and redirecting
 execution accordingly. TIMER1 ticks are sysvia interrupts, which get considered
 at 0xdd08 and confirmed TIMER1 interrupt handing starts at 0xddcc.
+
+- Decide that the keyboard needs a scan.
+At 0xde31, the memory locations &ec andd &ed are checked to see if they are
+non-zero. At bootup, 0x62 was written to &ed and this makes the logic think
+that there was a key event to look at and therefore the keyboard code is
+entered.
+
+- Keyboard housekeeping.
+The call is made to 0xf065 -> 0xef02, which does some housekeeping including
+checking to see if the shift / ctrl keys are pressed or not.
+There is no current keypress &ec but there is a previous keypress &ed, so the
+code at 0xefed calls 0xf02a with X=0x62 (code for the space bar key as it
+happens) so see if it is still pressed by querying the hardware for a specific
+key. Let's assume it's not pressed (because it was never pressed), in which
+case 0x00 is written to &ed. Now there is no previous key press and no current
+press.
+At 0xeffe, a call is make to 0xf0cc.
+
+- Scan keyboard.
+We'll cover this in more detail later, for now let's assume a scan of the
+keyboard decides that no keys are pressed.
+After entry to the scan routine at 0xf0cc, control arrives at 0xf126 with
+X=0xff, indicating nothing found in the scan.
+At 0xf12e (called twice), the keyboard is put in autoscan mode, meaning that
+any key down will attempt to trigger an interrupt. (Keyboard interrupt is still
+disabled at this time.)
+
+- Process scan results.
+No new keys are pressed and control transfers to 0xeeda, which notices that
+no new key is pressed &ec and no previous press is registered &ed.
+And now the magic: at 0xeee2, the system VIA interrupt enable register is
+modified to enable CA2 (0x01), the keyboard interrupt.
+
+- Final housekeeping.
+The status of the caps lock and shift lock LEDs is written to hardware at
+0xeeec. 0xf12e is called again for good measure to put the keyboard in autoscan
+mode.
+Keyboard routine is exited.
+
+- Why?
+This setup may seem complicated but it's probably the only way to use the
+hardware as presented with good efficiency and accuracy.
+Scanning the keyboard for an unknown key press is a bunch of work and it's
+certainly something to be avoided when we're sure there's no key down.
+Conversely, it's not clear that it would work to rely on interrupts while there
+is known to be a key down. One problem could be getting multiple simultaneous
+key presses detected properly. Another problem is that common documentation
+doesn't describe if leaving interrupts enabled would cause an interrupt storm,
+i.e. will CA2 flip flop as the different keyboard matrix rows are scanned?
+
+
+3. A keyboard interrupt fires.
+Congratulations! You just pressed the A key.
+
+- Keyboard interrupt fires.
+The IRQ handling code determines it's a keyboard interrupt at 0xde78, which
+promptly jumps into keyboard code at 0xf065 -> 0xef02.
+You may notice this is the same entry location as called from the timer
+interrupt. However, the flags are different. In this instance, the carry flag
+is clear, causing a different code path.
+
+- Keyboard code entered.
+First, the keyboard interrupt, CA2 (0x01) is unconditionally disabled. Next,
+0xf00f is called, which appears to do a superfluous keypress check with an
+unclearly defined X register value?
+At 0xf018, 0xf0cc is called to do a keyboard scan for which key is pressed.
+Final key is determined at 0xf110 and is in the A register at that time.
+Execution arrives at 0xf007, which stores the new key press in &ec, and
+then calls 0xf01f to set the key repeat timer to 1 in &e7.
+
+- Final housekeeping.
+Execution arrives at 0xeeda -- see above for details of what this does.
+
+
+4. First post keypress TIMER1 (10ms) tick.
+As in the first timer tick, the keyboard routine at 0xf065 is called because one
+or more of &ec, &ed is non-zero. In our case, &ec is 0x41.
+
+- Check most recent key press.
+At 0xef37, the more recent key press of A is loaded from &ec and 0xf02a is
+called to determine whether the key is still pressed.
+Let's assume it is, in which case we branch to 0xef50.
+But a strange issue occurs: the stored &ec key of 0x41 is not equal to our
+checked key value of 0xc1 (which is 0x41|0x80), so we end up at 0xef42 to
+overwrite our stored key in &ec with 0xc1.
+
+- Keyboard scan.
+The 0x41 keypress is detected but it's not a new key press so nothing occurs.
+
+- Final housekeeping.
+As above.
+
+
+5. Second post keypress TIMER1 (10ms) tick.
+As before, the keyboard routine at 0xf065 is called because one or more of &ec,
+&ed is non-zero. In our case, &ec is 0xc1.
+
+- Check most recent key press.
+At 0xef37, the more recent key press of A is loaded from &ec and 0xf02a is
+called to determine whether the key is still pressed.
+Let's assume it is, in which case we branch to 0xef50.
+The current key press value of 0xc1 matches the key test value of 0xc1, so we
+proceed to look at the key repeat value in &e7.
+The key repeat value is 1, which we set in the keyboard interrupt, so we
+consider the key fired at 0xef5c.
+
+- Perform some key lookups.
+At 0xef91, various considerations as to whether shift, ctrl or caps lock are
+pressed might affect the character value.
+
+- Put character into buffer!
+Eventually, execution arrives at 0xefe6, with Y set to the ASCII character.
+In our case, Y is 0x41, or ASCII capital A.
+Routine 0xe4f1 is called, which loads 0x00 into X (keyboard buffer id) and
+then falls through to OSBYTE 153 "Put byte in input Buffer checking for ESCAPE".
+You can see where this is going but this branches to 0xe4a8 which calls
+through to OSBYTE 138 "Put byte into Buffer".
+At 0xe4c8, the incremented buffer end pointer is written:
+e4c8: STA &02E1,X
+And that is what unblocks the OSWORD 0 call that BASIC is waiting on. The
+unblock will occur once we return from the current IRQ.
+
+- Keyboard scan and final housekeeping.
+As per above.
+
+
+NOT DOCUMENTED
+- Key rollover is not described. The MOS code can keep track of two keys
+down simultaneously.
+- Key release handling is not described, although I believe it is pretty
+simple (not based on keyboard interrupts, but based on noticing the key is no
+longer down with a direct query).
+
+
