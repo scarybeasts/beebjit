@@ -837,98 +837,6 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_calc_op(unsigned char* p_jit,
-                               size_t index,
-                               unsigned char opmode,
-                               unsigned char operand1,
-                               unsigned char operand2,
-                               unsigned char intel_op_base) {
-  switch (opmode) {
-  case k_imm:
-    // OP al, op1
-    p_jit[index++] = intel_op_base + 2;
-    p_jit[index++] = operand1;
-    break;
-  case k_zpg:
-  case k_abs:
-    // OP al, [rdi + op1,op2?]
-    p_jit[index++] = intel_op_base;
-    p_jit[index++] = 0x87;
-    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
-    break;
-  default:
-    // OP al, [rdi + rdx]
-    p_jit[index++] = intel_op_base;
-    p_jit[index++] = 0x04;
-    p_jit[index++] = 0x17;
-    break;
-  }
-
-  return index;
-}
-
-static size_t jit_emit_shift_op(unsigned char* p_jit,
-                                size_t index,
-                                unsigned char opmode,
-                                unsigned char operand1,
-                                unsigned char operand2,
-                                unsigned char intel_op_base) {
-  switch (opmode) {
-  case k_nil:
-    // OP al, 1
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base;
-    break;
-  case k_zpg:
-  case k_abs:
-    // OP BYTE PTR [rdi + op1,op2?], 1
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base - 0x39;
-    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
-    break;
-  default:
-    // OP BYTE PTR [rdi + rdx], 1
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base - 0xbc;
-    p_jit[index++] = 0x17;
-    break;
-  }
-
-  return index;
-}
-
-static size_t jit_emit_post_rotate(unsigned char* p_jit,
-                                   size_t index,
-                                   unsigned char opmode,
-                                   unsigned char operand1,
-                                   unsigned char operand2) {
-  index = jit_emit_intel_to_6502_carry(p_jit, index);
-  switch (opmode) {
-  case k_nil:
-    index = jit_emit_do_zn_flags(p_jit, index, 0);
-    break;
-  case k_zpg:
-  case k_abs:
-    // test BYTE PTR [rdi + op1,op2?], 0xff
-    p_jit[index++] = 0xf6;
-    p_jit[index++] = 0x87;
-    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
-    p_jit[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit, index, -1);
-    break;
-  default:
-    // test BYTE PTR [rdi + rdx], 0xff
-    p_jit[index++] = 0xf6;
-    p_jit[index++] = 0x04;
-    p_jit[index++] = 0x17;
-    p_jit[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit, index, -1);
-    break;
-  }
-
-  return index;
-}
-
 static size_t
 jit_check_special_read(struct jit_struct* p_jit,
                        uint16_t addr,
@@ -996,6 +904,101 @@ jit_check_special_write(struct jit_struct* p_jit,
   p_jit_buf[index++] = k_offset_write_callback;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
+
+  return index;
+}
+
+static size_t jit_emit_calc_op(struct jit_struct* p_jit,
+                               unsigned char* p_jit_buf,
+                               size_t index,
+                               unsigned char opmode,
+                               unsigned char operand1,
+                               unsigned char operand2,
+                               unsigned char intel_op_base) {
+  uint16_t addr = (operand2 << 8) | operand1;
+  switch (opmode) {
+  case k_imm:
+    /* OP al, op1 */
+    p_jit_buf[index++] = intel_op_base + 2;
+    p_jit_buf[index++] = operand1;
+    break;
+  case k_zpg:
+  case k_abs:
+    index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
+    /* OP al, [rdi + op1,op2?] */
+    p_jit_buf[index++] = intel_op_base;
+    p_jit_buf[index++] = 0x87;
+    index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+    break;
+  default:
+    /* OP al, [rdi + rdx] */
+    p_jit_buf[index++] = intel_op_base;
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x17;
+    break;
+  }
+
+  return index;
+}
+
+static size_t jit_emit_shift_op(unsigned char* p_jit,
+                                size_t index,
+                                unsigned char opmode,
+                                unsigned char operand1,
+                                unsigned char operand2,
+                                unsigned char intel_op_base) {
+  switch (opmode) {
+  case k_nil:
+    // OP al, 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base;
+    break;
+  case k_zpg:
+  case k_abs:
+    // OP BYTE PTR [rdi + op1,op2?], 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base - 0x39;
+    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
+    break;
+  default:
+    // OP BYTE PTR [rdi + rdx], 1
+    p_jit[index++] = 0xd0;
+    p_jit[index++] = intel_op_base - 0xbc;
+    p_jit[index++] = 0x17;
+    break;
+  }
+
+  return index;
+}
+
+static size_t jit_emit_post_rotate(unsigned char* p_jit,
+                                   size_t index,
+                                   unsigned char opmode,
+                                   unsigned char operand1,
+                                   unsigned char operand2) {
+  index = jit_emit_intel_to_6502_carry(p_jit, index);
+  switch (opmode) {
+  case k_nil:
+    index = jit_emit_do_zn_flags(p_jit, index, 0);
+    break;
+  case k_zpg:
+  case k_abs:
+    // test BYTE PTR [rdi + op1,op2?], 0xff
+    p_jit[index++] = 0xf6;
+    p_jit[index++] = 0x87;
+    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
+    p_jit[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    break;
+  default:
+    // test BYTE PTR [rdi + rdx], 0xff
+    p_jit[index++] = 0xf6;
+    p_jit[index++] = 0x04;
+    p_jit[index++] = 0x17;
+    p_jit[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    break;
+  }
 
   return index;
 }
@@ -1185,7 +1188,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_ora:
       // ORA
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
@@ -1241,7 +1245,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_and:
       // AND
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
@@ -1281,7 +1286,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_eor:
       // EOR
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
@@ -1349,7 +1355,8 @@ jit_jit(struct jit_struct* p_jit,
     case k_adc:
       // ADC
       index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
@@ -1605,7 +1612,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_cmp:
       // CMP
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
@@ -1710,7 +1718,8 @@ jit_jit(struct jit_struct* p_jit,
       index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
       // cmc
       p_jit_buf[index++] = 0xf5;
-      index = jit_emit_calc_op(p_jit_buf,
+      index = jit_emit_calc_op(p_jit,
+                               p_jit_buf,
                                index,
                                opmode,
                                operand1,
