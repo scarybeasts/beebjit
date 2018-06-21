@@ -58,7 +58,7 @@ execution accordingly. TIMER1 ticks are sysvia interrupts, which get considered
 at 0xdd08 and confirmed TIMER1 interrupt handing starts at 0xddcc.
 
 - Decide that the keyboard needs a scan.
-At 0xde31, the memory locations &ec andd &ed are checked to see if they are
+At 0xde31, the memory locations &ec and &ed are checked to see if they are
 non-zero. At bootup, 0x62 was written to &ed and this makes the logic think
 that there was a key event to look at and therefore the keyboard code is
 entered.
@@ -182,11 +182,18 @@ unblock will occur once we return from the current IRQ.
 As per above.
 
 
+LATENCY
+One interesting note is regarding key press response latency. As can be seen,
+the act of actually making the key press available to BASIC is NOT done in
+the keyboard interrupt handler. It is done in not the first but the second 10ms
+timer tick after the keyboard interrupt. So that's up to a 20ms latency which
+could easily miss a 50fps video frame opportunity. Lag!
+
+
 NOT DOCUMENTED
 - Key rollover is not described. The MOS code can keep track of two keys
 down simultaneously.
 - Key release handling is not described, although I believe it is pretty
 simple (not based on keyboard interrupts, but based on noticing the key is no
 longer down with a direct query).
-
 
