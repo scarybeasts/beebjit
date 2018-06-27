@@ -398,15 +398,18 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     bbc_sysvia_write_porta(p_bbc);
     break;
   case k_addr_sysvia | k_via_T1CH:
+    assert(val == 0x27);
     assert((p_bbc->sysvia_ACR & 0xc0) != 0x80);
-    p_bbc->sysvia_T1LL = val;
-    p_bbc->sysvia_T1CL = val;
-    p_bbc->sysvia_T1CH = p_bbc->sysvia_T1LH;
+    p_bbc->sysvia_T1LH = val;
+    p_bbc->sysvia_T1CL = p_bbc->sysvia_T1LL;
+    p_bbc->sysvia_T1CH = val;
     break;
   case k_addr_sysvia | k_via_T1LL:
+    assert(val == 0x0e);
     p_bbc->sysvia_T1LL = val;
     break;
   case k_addr_sysvia | k_via_T1LH:
+    assert(val == 0x27);
     p_bbc->sysvia_T1LH = val;
     break;
   case k_addr_sysvia | k_via_ACR:
