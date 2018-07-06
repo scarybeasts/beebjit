@@ -5,10 +5,12 @@
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <sys/mman.h>
 
@@ -26,19 +28,23 @@ enum {
   k_addr_sysvia = 0xfe40,
 };
 enum {
-  k_via_ORB = 0x0,
-  k_via_ORA = 0x1,
-  k_via_DDRB = 0x2,
-  k_via_DDRA = 0x3,
-  k_via_T1CL = 0x4,
-  k_via_T1CH = 0x5,
-  k_via_T1LL = 0x6,
-  k_via_T1LH = 0x7,
-  k_via_ACR = 0xb,
-  k_via_PCR = 0xc,
-  k_via_IFR = 0xd,
-  k_via_IER = 0xe,
+  k_via_ORB =   0x0,
+  k_via_ORA =   0x1,
+  k_via_DDRB =  0x2,
+  k_via_DDRA =  0x3,
+  k_via_T1CL =  0x4,
+  k_via_T1CH =  0x5,
+  k_via_T1LL =  0x6,
+  k_via_T1LH =  0x7,
+  k_via_ACR =   0xb,
+  k_via_PCR =   0xc,
+  k_via_IFR =   0xd,
+  k_via_IER =   0xe,
   k_via_ORAnh = 0xf,
+};
+enum {
+  k_int_CA2 =    0x01,
+  k_int_TIMER1 = 0x40,
 };
 
 struct bbc_struct {
@@ -231,12 +237,38 @@ bbc_jit_thread(void* p) {
   exit(0);
 }
 
+static void*
+bbc_10ms_timer_thread(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  struct timespec ts;
+  int ret;
+
+  while (1) {
+    ret = -1;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000 * 1000 * 10;
+    while (ret == -1) {
+      ret = nanosleep(&ts, &ts);
+      assert(ret == 0 || ret == -1);
+      if (ret == -1 && errno != EINTR) {
+        errx(1, "nanosleep failed");
+      }
+    }
+    bbc_fire_interrupt(p_bbc, 0, k_int_TIMER1);
+  }
+}
+
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
   pthread_t thread;
   int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {
-    errx(1, "couldn't create thread");
+    errx(1, "couldn't create jit thread");
+  }
+  ret = pthread_create(&thread, NULL, bbc_10ms_timer_thread, p_bbc);
+  if (ret != 0) {
+    errx(1, "couldn't create timer thread");
   }
 }
 
@@ -263,14 +295,6 @@ bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
   bbc_check_interrupt(p_bbc);
 }
 
-void
-bbc_force_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
-  assert(user == 0);
-  assert(!(bits & 0x80));
-  p_bbc->sysvia_IER |= bits;
-  bbc_fire_interrupt(p_bbc, user, bits);
-}
-
 int
 bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr) {
   if (addr < 0xfe40 || addr >= 0xfe50) {
@@ -292,17 +316,21 @@ bbc_sysvia_update_sdb(struct bbc_struct* p_bbc) {
   unsigned char sdb = p_bbc->sysvia_sdb;
   unsigned char keyrow = (sdb >> 4) & 7;
   unsigned char keycol = sdb & 0xf;
+  int fire = 0;
   if (!(p_bbc->sysvia_IC32 & 8)) {
     if (!p_bbc->keys[keyrow][keycol]) {
       p_bbc->sysvia_sdb &= 0x7f;
     }
     if (p_bbc->keys_count_col[keycol]) {
-      bbc_fire_interrupt(p_bbc, 0, 0x01);
+      fire = 1;
     }
   } else {
     if (p_bbc->keys_count > 0) {
-      bbc_fire_interrupt(p_bbc, 0, 0x01);
+      fire = 1;
     }
+  }
+  if (fire) {
+    bbc_fire_interrupt(p_bbc, 0, k_int_CA2);
   }
 }
 
