@@ -580,12 +580,16 @@ static size_t jit_emit_6502_ip_to_scratch(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static size_t jit_emit_push_ip_plus_two(unsigned char* p_jit, size_t index) {
+static size_t jit_emit_push_ip_plus_n(unsigned char* p_jit,
+                                      size_t index,
+                                      unsigned char n) {
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
-  // add edx, 2
-  p_jit[index++] = 0x83;
-  p_jit[index++] = 0xc2;
-  p_jit[index++] = 0x02;
+  if (n != 0) {
+    /* add edx, n */
+    p_jit[index++] = 0x83;
+    p_jit[index++] = 0xc2;
+    p_jit[index++] = n;
+  }
   index = jit_emit_push_from_scratch_word(p_jit, index);
 
   return index;
@@ -1018,7 +1022,11 @@ jit_emit_sei(unsigned char* p_jit_buf, size_t index) {
 size_t
 jit_emit_do_interrupt(unsigned char* p_jit_buf, size_t index, int is_brk) {
   uint16_t vector = k_bbc_vector_irq;
-  index = jit_emit_push_ip_plus_two(p_jit_buf, index);
+  unsigned char n = 0;
+  if (is_brk) {
+    n = 2;
+  }
+  index = jit_emit_push_ip_plus_n(p_jit_buf, index, n);
   index = jit_emit_php(p_jit_buf, index, is_brk);
   index = jit_emit_sei(p_jit_buf, index);
   index = jit_emit_jmp_indirect(p_jit_buf, index, vector & 0xff, vector >> 8);
@@ -1223,7 +1231,7 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_jsr:
       // JSR
-      index = jit_emit_push_ip_plus_two(p_jit_buf, index);
+      index = jit_emit_push_ip_plus_n(p_jit_buf, index, 2);
       index = jit_emit_jmp_op1_op2(p_jit_buf, index, operand1, operand2);
       break;
     case k_bit:
