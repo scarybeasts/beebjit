@@ -454,7 +454,6 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     p_bbc->sysvia_IFR &= ~(val & 0x7f);
     p_mem[k_addr_sysvia | k_via_IFR] = p_bbc->sysvia_IFR;
     bbc_check_interrupt(p_bbc);
-    printf("new sysvia IFR %x\n", p_bbc->sysvia_IFR);
     break;
   case k_addr_sysvia | k_via_IER:
     if (val & 0x80) {
@@ -477,11 +476,175 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
 
 static void
 bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
-  int row = 0;
-  int col = 0;
+  int row = -1;
+  int col = -1;
   switch (key) {
+  case 9: /* Escape */
+    row = 7;
+    col = 0;
+    break;
+  case 10: /* 1 */
+    row = 3;
+    col = 0;
+    break;
+  case 11: /* 2 */
+    row = 3;
+    col = 1;
+    break;
+  case 12: /* 3 */
+    row = 1;
+    col = 1;
+    break;
+  case 13: /* 4 */
+    row = 1;
+    col = 2;
+    break;
+  case 14: /* 5 */
+    row = 1;
+    col = 3;
+    break;
+  case 15: /* 6 */
+    row = 3;
+    col = 4;
+    break;
+  case 16: /* 7 */
+    row = 2;
+    col = 4;
+    break;
+  case 17: /* 8 */
+    row = 1;
+    col = 5;
+    break;
+  case 18: /* 9 */
+    row = 2;
+    col = 6;
+    break;
+  case 19: /* 0 */
+    row = 2;
+    col = 7;
+    break;
+  case 22: /* Backspace / DELETE */
+    row = 5;
+    col = 9;
+    break;
+  case 24: /* Q */
+    row = 1;
+    col = 0;
+    break;
+  case 25: /* W */
+    row = 2;
+    col = 1;
+    break;
+  case 26: /* E */
+    row = 2;
+    col = 2;
+    break;
+  case 27: /* R */
+    row = 3;
+    col = 3;
+    break;
+  case 28: /* T */
+    row = 2;
+    col = 3;
+    break;
+  case 29: /* Y */
+    row = 4;
+    col = 4;
+    break;
+  case 30: /* U */
+    row = 3;
+    col = 5;
+    break;
+  case 31: /* I */
+    row = 2;
+    col = 5;
+    break;
+  case 32: /* O */
+    row = 3;
+    col = 6;
+    break;
+  case 33: /* P */
+    row = 3;
+    col = 7;
+    break;
+  case 36: /* Enter / RETURN */
+    row = 4;
+    col = 9;
+    break;
+  case 38: /* A */
+    row = 4;
+    col = 1;
+    break;
+  case 39: /* S */
+    row = 5;
+    col = 1;
+    break;
   case 40: /* D */
     row = 3;
+    col = 2;
+    break;
+  case 41: /* F */
+    row = 4;
+    col = 3;
+    break;
+  case 42: /* G */
+    row = 5;
+    col = 3;
+    break;
+  case 43: /* H */
+    row = 5;
+    col = 4;
+    break;
+  case 44: /* J */
+    row = 4;
+    col = 5;
+    break;
+  case 45: /* K */
+    row = 4;
+    col = 6;
+    break;
+  case 46: /* L */
+    row = 5;
+    col = 6;
+    break;
+  case 50: /* Left shift */
+    row = 0;
+    col = 0;
+    break;
+  case 52: /* Z */
+    row = 6;
+    col = 1;
+    break;
+  case 53: /* X */
+    row = 4;
+    col = 2;
+    break;
+  case 54: /* C */
+    row = 5;
+    col = 2;
+    break;
+  case 55: /* V */
+    row = 6;
+    col = 3;
+    break;
+  case 56: /* B */
+    row = 6;
+    col = 4;
+    break;
+  case 57: /* N */
+    row = 5;
+    col = 5;
+    break;
+  case 58: /* M */
+    row = 6;
+    col = 5;
+    break;
+  case 62: /* Right shift */
+    row = 0;
+    col = 0;
+    break;
+  case 65: /* Space */
+    row = 6;
     col = 2;
     break;
   default:
@@ -498,9 +661,13 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
   int row;
   int col;
   bbc_key_to_rowcol(key, &row, &col);
-  if (!row && !col) {
+  if (row == -1 && col == -1) {
     return;
   }
+  assert(row >= 0);
+  assert(row < 16);
+  assert(col >= 0);
+  assert(col < 16);
   if (p_bbc->keys[row][col]) {
     return;
   }
@@ -509,21 +676,28 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
   p_bbc->keys_count++;
 
   /* TODO: we're on the X thread so we have concurrent access issues. */
-  bbc_fire_interrupt(p_bbc, 0, 0x01);
+  bbc_fire_interrupt(p_bbc, 0, k_int_CA2);
 }
 
 void
 bbc_key_released(struct bbc_struct* p_bbc, int key) {
   int row;
   int col;
+  int was_pressed;
   bbc_key_to_rowcol(key, &row, &col);
-  if (!row && !col) {
+  if (row == -1 && col == -1) {
     return;
   }
-  assert(p_bbc->keys[row][col]);
+  assert(row >= 0);
+  assert(row < 16);
+  assert(col >= 0);
+  assert(col < 16);
+  was_pressed = p_bbc->keys[row][col];
   p_bbc->keys[row][col] = 0;
-  assert(p_bbc->keys_count_col[col] > 0);
-  p_bbc->keys_count_col[col]--;
-  assert(p_bbc->keys_count > 0);
-  p_bbc->keys_count--;
+  if (was_pressed) {
+    assert(p_bbc->keys_count_col[col] > 0);
+    p_bbc->keys_count_col[col]--;
+    assert(p_bbc->keys_count > 0);
+    p_bbc->keys_count--;
+  }
 }
