@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <X11/XKBlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 
@@ -37,6 +38,7 @@ x_create(unsigned char* p_screen_mem,
   unsigned long white_pixel;
   XFontStruct* p_font;
   unsigned long ul_ret;
+  Bool bool_ret;
 
   if (XInitThreads() == 0) {
     errx(1, "XInitThreads failed");
@@ -56,10 +58,10 @@ x_create(unsigned char* p_screen_mem,
     errx(1, "cannot open X display");
   }
 
-  /* Using this for now, as the method of event peeking to detect autorepeat
-   * KeyRelease events is not reliable.
-   */
-  XAutoRepeatOff(p_x->d);
+  (void) XkbSetDetectableAutoRepeat(p_x->d, True, &bool_ret);
+  if (bool_ret != True) {
+    errx(1, "can't set detect auto repeat");
+  }
 
   p_font = XLoadQueryFont(p_x->d, k_p_font_name);
   if (p_font == NULL) {
