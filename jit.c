@@ -3,6 +3,7 @@
 #include "bbc.h"
 #include "debug.h"
 #include "opdefs.h"
+#include "util.h"
 
 #include <assert.h>
 #include <err.h>
@@ -14,22 +15,24 @@ static const size_t k_addr_space_size = 0x10000;
 static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
+static void* k_jit_addr = (void*) 0x20000000;
 
-static const int k_offset_debug = 8;
-static const int k_offset_debug_callback = 16;
-static const int k_offset_bbc = 24;
-static const int k_offset_read_callback = 32;
-static const int k_offset_write_callback = 40;
-static const int k_offset_interrupt = 48;
+static const int k_offset_debug = 16;
+static const int k_offset_debug_callback = 24;
+static const int k_offset_bbc = 32;
+static const int k_offset_read_callback = 40;
+static const int k_offset_write_callback = 48;
+static const int k_offset_interrupt = 56;
 
 struct jit_struct {
   unsigned char* p_mem;     /* 0  */
-  void* p_debug;            /* 8  */
-  void* p_debug_callback;   /* 16 */
-  struct bbc_struct* p_bbc; /* 24 */
-  void* p_read_callback;    /* 32 */
-  void* p_write_callback;   /* 40 */
-  uint64_t interrupt;       /* 48 */
+  unsigned char* p_jit_buf; /* 8  */
+  void* p_debug;            /* 16 */
+  void* p_debug_callback;   /* 24 */
+  struct bbc_struct* p_bbc; /* 32 */
+  void* p_read_callback;    /* 40 */
+  void* p_write_callback;   /* 48 */
+  uint64_t interrupt;       /* 54 */
 };
 
 static size_t jit_emit_int(unsigned char* p_jit, size_t index, ssize_t offset) {
@@ -434,28 +437,25 @@ static size_t jit_emit_scratch_bit_test(unsigned char* p_jit,
 }
 
 static size_t jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
-  // jmp rdx
+  /* jmp rdx */
   p_jit[index++] = 0xff;
   p_jit[index++] = 0xe2;
 
   return index;
 }
 
-static size_t jit_emit_jmp_op1_op2(unsigned char* p_jit,
+static size_t jit_emit_jmp_op1_op2(unsigned char* p_jit_buf,
                                    size_t index,
                                    unsigned char operand1,
                                    unsigned char operand2) {
-  // lea rdx, [rdi + k_addr_space_size + k_guard_size +
-  //               op1,op2 * k_jit_bytes_per_byte]
-  p_jit[index++] = 0x48;
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x97;
-  index = jit_emit_int(p_jit,
+  uint16_t addr = operand1 + (operand2 << 8);
+  /* TODO: use jmp absolute. */
+  /* mov edx, k_jit_addr + (addr * k_jit_bytes_per_byte) */
+  p_jit_buf[index++] = 0xba;
+  index = jit_emit_int(p_jit_buf,
                        index,
-                       k_addr_space_size + k_guard_size +
-                           ((operand1 + (operand2 << 8)) *
-                               k_jit_bytes_per_byte));
-  index = jit_emit_jmp_scratch(p_jit, index);
+                       (size_t) k_jit_addr + (addr * k_jit_bytes_per_byte));
+  index = jit_emit_jmp_scratch(p_jit_buf, index);
 
   return index;
 }
@@ -564,17 +564,10 @@ static size_t jit_emit_push_from_scratch_word(unsigned char* p_jit,
 }
 
 static size_t jit_emit_6502_ip_to_scratch(unsigned char* p_jit, size_t index) {
-  // lea rdx, [rip - (k_addr_space_size + k_guard_size)]
-  p_jit[index++] = 0x48;
+  /* lea edx, [rip] */
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0x15;
-  index = jit_emit_int(p_jit,
-                       index,
-                       -(ssize_t) (k_addr_space_size + k_guard_size));
-  // sub rdx, rdi
-  p_jit[index++] = 0x48;
-  p_jit[index++] = 0x29;
-  p_jit[index++] = 0xfa;
+  index = jit_emit_int(p_jit, index, 0);
   index = jit_emit_jit_bytes_shift_scratch_right(p_jit, index);
 
   return index;
@@ -686,7 +679,7 @@ static size_t jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
   return index;
 }
 
-static size_t jit_emit_jmp_indirect(unsigned char* p_jit,
+static size_t jit_emit_jmp_indirect(unsigned char* p_jit_buf,
                                     size_t index,
                                     unsigned char addr_low,
                                     unsigned char addr_high) {
@@ -695,23 +688,22 @@ static size_t jit_emit_jmp_indirect(unsigned char* p_jit,
   if (next_addr_low == 0) {
     next_addr_high++;
   }
-  // movzx edx, BYTE PTR [rdi + low,high]
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0x97;
-  index = jit_emit_op1_op2(p_jit, index, addr_low, addr_high);
-  // mov dh, BYTE PTR [rdi + low,high + 1]
-  p_jit[index++] = 0x8a;
-  p_jit[index++] = 0xb7;
-  index = jit_emit_op1_op2(p_jit, index, next_addr_low, next_addr_high);
-  index = jit_emit_jit_bytes_shift_scratch_left(p_jit, index);
-  // lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size]
-  p_jit[index++] = 0x48;
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x94;
-  p_jit[index++] = 0x17;
-  index = jit_emit_int(p_jit, index, k_addr_space_size + k_guard_size);
-  index = jit_emit_jmp_scratch(p_jit, index);
+  /* movzx edx, BYTE PTR [rdi + low,high] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb6;
+  p_jit_buf[index++] = 0x97;
+  index = jit_emit_op1_op2(p_jit_buf, index, addr_low, addr_high);
+  /* mov dh, BYTE PTR [rdi + low,high + 1] */
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0xb7;
+  index = jit_emit_op1_op2(p_jit_buf, index, next_addr_low, next_addr_high);
+  index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
+  /* add edx, k_jit_addr */
+  p_jit_buf[index++] = 0x81;
+  p_jit_buf[index++] = 0xc2;
+  /* TODO: fetch from p_jit */
+  index = jit_emit_int(p_jit_buf, index, (size_t) k_jit_addr);
+  index = jit_emit_jmp_scratch(p_jit_buf, index);
 
   return index;
 }
@@ -1086,7 +1078,7 @@ jit_jit(struct jit_struct* p_jit,
         size_t jit_len,
         unsigned int debug_flags) {
   unsigned char* p_mem = p_jit->p_mem;
-  unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_jit_buf = p_jit->p_jit_buf;
   size_t jit_end = jit_offset + jit_len;
   p_mem += jit_offset;
   p_jit_buf += (jit_offset * k_jit_bytes_per_byte);
@@ -1352,12 +1344,11 @@ jit_jit(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0xff;
       p_jit_buf[index++] = 0xc2;
       index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
-      /* lea rdx, [rdi + rdx + k_addr_space_size + k_guard_size] */
-      p_jit_buf[index++] = 0x48;
-      p_jit_buf[index++] = 0x8d;
-      p_jit_buf[index++] = 0x94;
-      p_jit_buf[index++] = 0x17;
-      index = jit_emit_int(p_jit_buf, index, k_addr_space_size + k_guard_size);
+      /* add edx, k_jit_addr */
+      p_jit_buf[index++] = 0x81;
+      p_jit_buf[index++] = 0xc2;
+      /* TODO: fetch from p_jit */
+      index = jit_emit_int(p_jit_buf, index, (size_t) k_jit_addr);
       index = jit_emit_jmp_scratch(p_jit_buf, index);
       break;
     case k_adc:
@@ -1765,7 +1756,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
   unsigned char addr_lsb = p_mem[vector_addr];
   unsigned char addr_msb = p_mem[vector_addr + 1];
   unsigned int addr = (addr_msb << 8) | addr_lsb;
-  unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_jit_buf = p_jit->p_jit_buf;
   unsigned char* p_entry = p_jit_buf + (addr * k_jit_bytes_per_byte);
 
   // The memory must be aligned to at least 0x100 so that our stack access
@@ -1820,13 +1811,20 @@ jit_create(unsigned char* p_mem,
            struct bbc_struct* p_bbc,
            void* p_read_callback,
            void* p_write_callback) {
-  unsigned char* p_jit_buf = p_mem + k_addr_space_size + k_guard_size;
+  unsigned char* p_jit_buf;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");
   }
   memset(p_jit, '\0', sizeof(struct jit_struct));
+
+  p_jit_buf = util_get_guarded_mapping(
+      k_jit_addr,
+      k_addr_space_size * k_jit_bytes_per_byte,
+      1);
+
   p_jit->p_mem = p_mem;
+  p_jit->p_jit_buf = p_jit_buf;
   p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
   p_jit->p_bbc = p_bbc;
@@ -1848,5 +1846,7 @@ jit_create(unsigned char* p_mem,
 
 void
 jit_destroy(struct jit_struct* p_jit) {
+  util_free_guarded_mapping(p_jit->p_jit_buf,
+                            k_addr_space_size * k_jit_bytes_per_byte);
   free(p_jit);
 }
