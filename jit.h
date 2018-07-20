@@ -19,8 +19,8 @@ void jit_destroy(struct jit_struct* p_jit);
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 
 void jit_jit(struct jit_struct* p_jit,
-             size_t jit_offset,
-             size_t jit_len,
+             size_t addr_6502,
+             size_t num_opcodes,
              unsigned int flags);
 void jit_enter(struct jit_struct* p_jit,
                size_t vector_addr);
