@@ -552,21 +552,20 @@ jit_emit_push_from_a(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_push_from_scratch(unsigned char* p_jit, size_t index) {
-  // mov [rsi], dl
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x16;
-  index = jit_emit_stack_dec(p_jit, index);
+jit_emit_push_constant(unsigned char* p_jit_buf,
+                       size_t index,
+                       unsigned char val) {
+  // mov BYTE PTR [rsi], val
+  p_jit_buf[index++] = 0xc6;
+  p_jit_buf[index++] = 0x06;
+  p_jit_buf[index++] = val;
+  index = jit_emit_stack_dec(p_jit_buf, index);
 
   return index;
 }
 
 static size_t
-jit_emit_push_from_scratch_word(unsigned char* p_jit, size_t index) {
-  // mov [rsi], dh
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x36;
-  index = jit_emit_stack_dec(p_jit, index);
+jit_emit_push_from_scratch(unsigned char* p_jit, size_t index) {
   // mov [rsi], dl
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x16;
@@ -587,15 +586,9 @@ jit_emit_6502_ip_to_scratch(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_push_ip_plus_n(unsigned char* p_jit, size_t index, unsigned char n) {
-  index = jit_emit_6502_ip_to_scratch(p_jit, index);
-  if (n != 0) {
-    /* add edx, n */
-    p_jit[index++] = 0x83;
-    p_jit[index++] = 0xc2;
-    p_jit[index++] = n;
-  }
-  index = jit_emit_push_from_scratch_word(p_jit, index);
+jit_emit_push_addr(unsigned char* p_jit_buf, size_t index, uint16_t addr_6502) {
+  index = jit_emit_push_constant(p_jit_buf, index, (addr_6502 >> 8));
+  index = jit_emit_push_constant(p_jit_buf, index, (addr_6502 & 0xff));
 
   return index;
 }
@@ -1034,13 +1027,14 @@ static size_t
 jit_emit_do_interrupt(struct jit_struct* p_jit,
                       unsigned char* p_jit_buf,
                       size_t index,
+                      uint16_t addr_6502,
                       int is_brk) {
   uint16_t vector = k_bbc_vector_irq;
   unsigned char n = 0;
   if (is_brk) {
     n = 2;
   }
-  index = jit_emit_push_ip_plus_n(p_jit_buf, index, n);
+  index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + n);
   index = jit_emit_php(p_jit_buf, index, is_brk);
   index = jit_emit_sei(p_jit_buf, index);
   index = jit_emit_jmp_indirect(p_jit,
@@ -1056,6 +1050,7 @@ static size_t
 jit_emit_check_interrupt(struct jit_struct* p_jit,
                          unsigned char* p_jit_buf,
                          size_t index,
+                         uint16_t addr_6502,
                          int check_flag) {
   size_t index_jmp1 = 0;
   size_t index_jmp2 = 0;
@@ -1082,7 +1077,7 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
     index_jmp2 = index;
   }
 
-  index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, 0);
+  index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
 
   if (index_jmp1) {
     p_jit_buf[index_jmp1 - 1] = index - index_jmp1;
@@ -1211,7 +1206,7 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_brk:
       // BRK
-      index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, 1);
+      index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502, 1);
       break;
     case k_ora:
       // ORA
@@ -1250,7 +1245,7 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_jsr:
       // JSR
-      index = jit_emit_push_ip_plus_n(p_jit_buf, index, 2);
+      index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + 2);
       index = jit_emit_jmp_6502_addr(p_jit,
                                      p_jit_buf,
                                      index,
@@ -1303,7 +1298,7 @@ jit_jit(struct jit_struct* p_jit,
     case k_plp:
       /* PLP */
       index = jit_emit_plp(p_jit_buf, index);
-      index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, 1);
+      index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 1);
       break;
     case k_bmi:
       // BMI
@@ -1370,7 +1365,7 @@ jit_jit(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0xba;
       p_jit_buf[index++] = 0xf0;
       p_jit_buf[index++] = 0x02;
-      index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, 0);
+      index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
       break;
     case k_rti:
       index = jit_emit_plp(p_jit_buf, index);
@@ -1800,7 +1795,7 @@ jit_jit(struct jit_struct* p_jit,
                                    p_jit_buf,
                                    index,
                                    addr_6502,
-                                   (uint16_t) (addr_6502 + oplen));
+                                   addr_6502 + oplen);
 
     assert(index <= k_jit_bytes_per_byte);
 
