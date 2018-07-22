@@ -355,36 +355,26 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
                           unsigned char* p_jit_buf,
                           size_t index,
                           unsigned char operand1) {
-  unsigned char operand1_inc = operand1 + 1;
-  /* movzx r9, bl */
-  p_jit_buf[index++] = 0x4c;
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb6;
-  p_jit_buf[index++] = 0xcb;
-  /* add r9b, operand1_inc */
-  p_jit_buf[index++] = 0x41;
+  /* mov rdi, rbx */
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xdf;
+  /* add dil, operand1 */
+  p_jit_buf[index++] = 0x40;
   p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xc1;
-  p_jit_buf[index++] = operand1_inc;
-  /* movzx rdx, BYTE PTR [r9 + p_mem] */
-  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0xc7;
+  p_jit_buf[index++] = operand1;
+  /* movzx edx, BYTE PTR [rdi] */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb6;
-  p_jit_buf[index++] = 0x91;
-  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
-  /* shl edx, 8 */
-  p_jit_buf[index++] = 0xc1;
-  p_jit_buf[index++] = 0xe2;
-  p_jit_buf[index++] = 0x08;
-  /* dec r9b */
-  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x17;
+  /* inc dil */
+  p_jit_buf[index++] = 0x40;
   p_jit_buf[index++] = 0xfe;
-  p_jit_buf[index++] = 0xc9;
-  /* mov dl, BYTE PTR [r9 + p_mem] */
-  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0xc7;
+  /* mov dh, BYTE PTR [rdi] */
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x91;
-  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+  p_jit_buf[index++] = 0x37;
 
   return index;
 }
