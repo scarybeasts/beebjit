@@ -37,16 +37,16 @@ struct jit_struct {
 };
 
 static size_t
-jit_emit_int(unsigned char* p_jit, size_t index, ssize_t offset) {
+jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
   assert(offset >= INT_MIN);
   assert(offset <= INT_MAX);
-  p_jit[index++] = offset & 0xff;
+  p_jit_buf[index++] = offset & 0xff;
   offset >>= 8;
-  p_jit[index++] = offset & 0xff;
+  p_jit_buf[index++] = offset & 0xff;
   offset >>= 8;
-  p_jit[index++] = offset & 0xff;
+  p_jit_buf[index++] = offset & 0xff;
   offset >>= 8;
-  p_jit[index++] = offset & 0xff;
+  p_jit_buf[index++] = offset & 0xff;
 
   return index;
 }
@@ -301,9 +301,10 @@ jit_emit_abs_x_to_scratch(unsigned char* p_jit,
                           size_t index,
                           unsigned char operand1,
                           unsigned char operand2) {
-  /* mov edx, ebx */
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xda;
+  /* movzx edx, bl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xd3;
   /* add dx, op1,op2 */
   p_jit[index++] = 0x66;
   p_jit[index++] = 0x81;
@@ -319,9 +320,10 @@ jit_emit_abs_y_to_scratch(unsigned char* p_jit,
                           size_t index,
                           unsigned char operand1,
                           unsigned char operand2) {
-  /* mov edx, ecx */
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xca;
+  /* movzx edx, cl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xd1;
   /* add dx, op1,op2 */
   p_jit[index++] = 0x66;
   p_jit[index++] = 0x81;
@@ -333,29 +335,30 @@ jit_emit_abs_y_to_scratch(unsigned char* p_jit,
 }
 
 static size_t
-jit_emit_ind_y_to_scratch(unsigned char* p_jit,
+jit_emit_ind_y_to_scratch(struct jit_struct* p_jit,
+                          unsigned char* p_jit_buf,
                           size_t index,
                           unsigned char operand1) {
   if (operand1 == 0xff) {
-    /* movzx edx, BYTE PTR [rdi + 0xff] */
-    p_jit[index++] = 0x0f;
-    p_jit[index++] = 0xb6;
-    p_jit[index++] = 0x97;
-    index = jit_emit_op1_op2(p_jit, index, 0xff, 0);
-    /* mov dh, BYTE PTR [rdi] */
-    p_jit[index++] = 0x8a;
-    p_jit[index++] = 0x37;
+    /* movzx edx, BYTE PTR [p_mem + 0xff] */
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xb6;
+    p_jit_buf[index++] = 0x14;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + 0xff);
+    /* mov dh, BYTE PTR [p_mem] */
+    p_jit_buf[index++] = 0x8a;
+    p_jit_buf[index++] = 0x34;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
   } else {
-    /* movzx edx, WORD PTR [rdi + op1] */
-    p_jit[index++] = 0x0f;
-    p_jit[index++] = 0xb7;
-    p_jit[index++] = 0x97;
-    index = jit_emit_op1_op2(p_jit, index, operand1, 0);
+    /* movzx edx, WORD PTR [p_mem + op1] */
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xb7;
+    p_jit_buf[index++] = 0x14;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + operand1);
   }
-  /* add dx, cx */
-  p_jit[index++] = 0x66;
-  p_jit[index++] = 0x01;
-  p_jit[index++] = 0xca;
 
   return index;
 }
@@ -365,10 +368,11 @@ jit_emit_ind_x_to_scratch(unsigned char* p_jit,
                           size_t index,
                           unsigned char operand1) {
   unsigned char operand1_inc = operand1 + 1;
-  /* mov r9, rbx */
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xd9;
+  /* movzx r9, bl */
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xcb;
   /* add r9b, operand1_inc */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x80;
@@ -401,9 +405,10 @@ static size_t
 jit_emit_zp_x_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
-  /* mov edx, ebx */
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xda;
+  /* movzx edx, bl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xd3;
   /* add dl, op1 */
   p_jit[index++] = 0x80;
   p_jit[index++] = 0xc2;
@@ -416,9 +421,10 @@ static size_t
 jit_emit_zp_y_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
-  /* mov edx, ecx */
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xca;
+  /* movzx edx, cl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xd1;
   /* add dl, op1 */
   p_jit[index++] = 0x80;
   p_jit[index++] = 0xc2;
@@ -938,11 +944,23 @@ jit_emit_calc_op(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x87;
     index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
     break;
-  default:
+  case k_idy:
+    /* OP al, [rdx + rcx] */
+    p_jit_buf[index++] = intel_op_base - 2;
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x0a;
+    break;
+  case k_zpx:
+  case k_abx:
+  case k_aby:
+  case k_idx:
     /* OP al, [rdi + rdx] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x04;
     p_jit_buf[index++] = 0x17;
+    break;
+  default:
+    assert(0);
     break;
   }
 
@@ -950,7 +968,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_shift_op(unsigned char* p_jit,
+jit_emit_shift_op(unsigned char* p_jit_buf,
                   size_t index,
                   unsigned char opmode,
                   unsigned char operand1,
@@ -959,21 +977,25 @@ jit_emit_shift_op(unsigned char* p_jit,
   switch (opmode) {
   case k_nil:
     /* OP al, 1 */
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base;
+    p_jit_buf[index++] = 0xd0;
+    p_jit_buf[index++] = intel_op_base;
     break;
   case k_zpg:
   case k_abs:
     /* OP BYTE PTR [rdi + op1,op2?], 1 */
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base - 0x39;
-    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
+    p_jit_buf[index++] = 0xd0;
+    p_jit_buf[index++] = intel_op_base - 0x39;
+    index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+    break;
+  case k_zpx:
+  case k_abx:
+    /* OP BYTE PTR [rdi + rdx], 1 */
+    p_jit_buf[index++] = 0xd0;
+    p_jit_buf[index++] = intel_op_base - 0xbc;
+    p_jit_buf[index++] = 0x17;
     break;
   default:
-    /* OP BYTE PTR [rdi + rdx], 1 */
-    p_jit[index++] = 0xd0;
-    p_jit[index++] = intel_op_base - 0xbc;
-    p_jit[index++] = 0x17;
+    assert(0);
     break;
   }
 
@@ -1000,13 +1022,17 @@ jit_emit_post_rotate(unsigned char* p_jit,
     p_jit[index++] = 0xff;
     index = jit_emit_do_zn_flags(p_jit, index, -1);
     break;
-  default:
+  case k_zpx:
+  case k_abx:
     /* test BYTE PTR [rdi + rdx], 0xff */
     p_jit[index++] = 0xf6;
     p_jit[index++] = 0x04;
     p_jit[index++] = 0x17;
     p_jit[index++] = 0xff;
     index = jit_emit_do_zn_flags(p_jit, index, -1);
+    break;
+  default:
+    assert(0);
     break;
   }
 
@@ -1110,7 +1136,7 @@ jit_jit(struct jit_struct* p_jit,
     unsigned char opcode = p_mem[0];
     unsigned char opmode = g_opmodes[opcode];
     unsigned char optype = g_optypes[opcode];
-    unsigned char oplen = 1;
+    unsigned char oplen = 0;
     unsigned char operand1 = 0;
     unsigned char operand2 = 0;
     uint16_t opcode_addr_6502;
@@ -1158,7 +1184,7 @@ jit_jit(struct jit_struct* p_jit,
       oplen = 3;
       break;
     case k_idy:
-      index = jit_emit_ind_y_to_scratch(p_jit_buf, index, operand1);
+      index = jit_emit_ind_y_to_scratch(p_jit, p_jit_buf, index, operand1);
       oplen = 2;
       break;
     case k_idx:
@@ -1168,7 +1194,14 @@ jit_jit(struct jit_struct* p_jit,
     case k_ind:
       oplen = 3;
       break;
+    case k_nil:
+      oplen = 1;
+      break;
+    case 0:
+      oplen = 1;
+      break;
     default:
+      assert(0);
       break;
     }
 
@@ -1259,6 +1292,7 @@ jit_jit(struct jit_struct* p_jit,
     case k_bit:
       /* BIT */
       /* Only has zp and abs. */
+      assert(opmode == k_zpg || opmode == k_abs);
       index = jit_check_special_read(p_jit, opcode_addr_6502, p_jit_buf, index);
       /* mov dl [rdi + op1,op2?] */
       p_jit_buf[index++] = 0x8a;
@@ -1444,11 +1478,23 @@ jit_jit(struct jit_struct* p_jit,
                                         p_jit_buf,
                                         index);
         break;
-      default:
+      case k_idy:
+        /* mov [rdx + rcx], al */
+        p_jit_buf[index++] = 0x88;
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x0a;
+        break;
+      case k_zpx:
+      case k_abx:
+      case k_aby:
+      case k_idx:
         /* mov [rdi + rdx], al */
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x04;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       break;
@@ -1466,11 +1512,14 @@ jit_jit(struct jit_struct* p_jit,
                                         p_jit_buf,
                                         index);
         break;
-      default:
+      case k_zpx:
         /* mov [rdi + rdx], cl */
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x0c;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       break;
@@ -1488,11 +1537,14 @@ jit_jit(struct jit_struct* p_jit,
                                         p_jit_buf,
                                         index);
         break;
-      default:
+      case k_zpy:
         /* mov [rdi + rdx], bl */
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x1c;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       break;
@@ -1549,11 +1601,15 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x8f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
-      default:
+      case k_zpx:
+      case k_abx:
         /* mov cl, [rdi + rdx] */
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x0c;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       index = jit_emit_do_zn_flags(p_jit_buf, index, 2);
@@ -1577,11 +1633,15 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x9f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
-      default:
+      case k_zpy:
+      case k_aby:
         /* mov bl, [rdi + rdx] */
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x1c;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       index = jit_emit_do_zn_flags(p_jit_buf, index, 1);
@@ -1605,11 +1665,23 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x87;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
-      default:
+      case k_idy:
+        /* mov al, [rdx + rcx] */
+        p_jit_buf[index++] = 0x8a;
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x0a;
+        break;
+      case k_zpx:
+      case k_abx:
+      case k_aby:
+      case k_idx:
         /* mov al, [rdi + rdx] */
         p_jit_buf[index++] = 0x8a;
         p_jit_buf[index++] = 0x04;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
@@ -1665,6 +1737,9 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x8f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
+      default:
+        assert(0);
+        break;
       }
       index = jit_emit_intel_to_6502_sub_znc(p_jit_buf, index);
       break;
@@ -1689,11 +1764,15 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x8f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
-      default: 
+      case k_zpx: 
+      case k_abx: 
         /* dec BYTE PTR [rdi + rdx] */
         p_jit_buf[index++] = 0xfe;
         p_jit_buf[index++] = 0x0c;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
@@ -1743,6 +1822,9 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x9f;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
+      default:
+        assert(0);
+        break;
       }
       index = jit_emit_intel_to_6502_sub_znc(p_jit_buf, index);
       break;
@@ -1755,11 +1837,15 @@ jit_jit(struct jit_struct* p_jit,
         p_jit_buf[index++] = 0x87;
         index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
         break;
-      default: 
+      case k_zpx: 
+      case k_abx: 
         /* inc BYTE PTR [rdi + rdx] */
         p_jit_buf[index++] = 0xfe;
         p_jit_buf[index++] = 0x04;
         p_jit_buf[index++] = 0x17;
+        break;
+      default:
+        assert(0);
         break;
       }
       index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
@@ -1822,18 +1908,20 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
   unsigned char* p_jit_base = p_jit->p_jit_base;
   unsigned char* p_entry = p_jit_base + (addr * k_jit_bytes_per_byte);
 
-  /* The memory must be aligned to at least 0x100 so that our stack access
-   * trick works.
+  /* The memory must be aligned to at least 0x100 so that our register access
+   * tricks work.
    */
   assert(((size_t) p_mem & 0xff) == 0);
 
   asm volatile (
+    /* rdi points to the virtual RAM. */
+    "mov %1, %%rdi;"
     /* al is 6502 A. */
     "xor %%eax, %%eax;"
     /* bl is 6502 X */
-    "xor %%ebx, %%ebx;"
+    "mov %%rdi, %%rbx;"
     /* cl is 6502 Y. */
-    "xor %%ecx, %%ecx;"
+    "mov %%rdi, %%rcx;"
     /* rdx is scratch. */
     "xor %%edx, %%edx;"
     /* r8 is the rest of the 6502 flags or'ed together. */
@@ -1848,8 +1936,6 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     "xor %%r14, %%r14;"
     /* r15 is overflow flag. */
     "xor %%r15, %%r15;"
-    /* rdi points to the virtual RAM. */
-    "mov %1, %%rdi;"
     /* sil is 6502 S. */
     /* rsi is a pointer to the real (aligned) backing memory. */
     "lea 0x100(%%rdi), %%rsi;"
