@@ -723,12 +723,11 @@ jit_emit_undefined(unsigned char* p_jit,
 
 static size_t
 jit_emit_save_registers(unsigned char* p_jit, size_t index) {
-  /* No need to push rdx because it's a scratch register. */
-  /* push rax / rcx / rsi / rdi */
+  /* No need to push rdx or rdi because they are scratch registers. */
+  /* push rax / rcx / rsi */
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
   p_jit[index++] = 0x56;
-  p_jit[index++] = 0x57;
   /* push r8 */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x50;
@@ -741,8 +740,7 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
   /* pop r8 */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x58;
-  /* pop rdi / rsi / rcx / rax */
-  p_jit[index++] = 0x5f;
+  /* pop rsi / rcx / rax */
   p_jit[index++] = 0x5e;
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x58;
@@ -776,7 +774,6 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x50;
 
   /* param2: 6502 IP */
-  /* (Must be done before param1, which trashes rdi.) */
   index = jit_emit_6502_ip_to_scratch(p_jit, index);
   /* mov rsi, rdx */
   p_jit[index++] = 0x48;
@@ -1938,16 +1935,15 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
   assert(((size_t) p_mem & 0xff) == 0);
 
   asm volatile (
-    /* rdi points to the virtual RAM. */
-    "mov %1, %%rdi;"
     /* al is 6502 A. */
     "xor %%eax, %%eax;"
     /* bl is 6502 X */
-    "mov %%rdi, %%rbx;"
+    "mov %1, %%rbx;"
     /* cl is 6502 Y. */
-    "mov %%rdi, %%rcx;"
-    /* rdx is scratch. */
+    "mov %1, %%rcx;"
+    /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
+    "xor %%edi, %%edi;"
     /* r8 is the rest of the 6502 flags or'ed together. */
     /* Bit 2 is interrupt disable. */
     /* Bit 3 is decimal mode. */
@@ -1962,7 +1958,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     "xor %%r15, %%r15;"
     /* sil is 6502 S. */
     /* rsi is a pointer to the real (aligned) backing memory. */
-    "lea 0x100(%%rdi), %%rsi;"
+    "lea 0x100(%%rbx), %%rsi;"
     /* Use scratch register for jump location. */
     "mov %0, %%rdx;"
     /* Pass a pointer to the jit_struct in rbp. */
