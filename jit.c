@@ -52,19 +52,6 @@ jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
 }
 
 static size_t
-jit_emit_op1_op2(unsigned char* p_jit,
-                 size_t index,
-                 unsigned char operand1,
-                 unsigned char operand2) {
-  p_jit[index++] = operand1;
-  p_jit[index++] = operand2;
-  p_jit[index++] = 0;
-  p_jit[index++] = 0;
-
-  return index;
-}
-
-static size_t
 jit_emit_do_relative_jump(unsigned char* p_jit,
                           size_t index,
                           unsigned char intel_opcode,
@@ -364,39 +351,40 @@ jit_emit_ind_y_to_scratch(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_ind_x_to_scratch(unsigned char* p_jit,
+jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
+                          unsigned char* p_jit_buf,
                           size_t index,
                           unsigned char operand1) {
   unsigned char operand1_inc = operand1 + 1;
   /* movzx r9, bl */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xcb;
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb6;
+  p_jit_buf[index++] = 0xcb;
   /* add r9b, operand1_inc */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x80;
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = operand1_inc;
-  /* movzx rdx, BYTE PTR [rdi + r9] */
-  p_jit[index++] = 0x4a;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x80;
+  p_jit_buf[index++] = 0xc1;
+  p_jit_buf[index++] = operand1_inc;
+  /* movzx rdx, BYTE PTR [r9 + p_mem] */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb6;
+  p_jit_buf[index++] = 0x91;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
   /* shl edx, 8 */
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe2;
-  p_jit[index++] = 0x08;
+  p_jit_buf[index++] = 0xc1;
+  p_jit_buf[index++] = 0xe2;
+  p_jit_buf[index++] = 0x08;
   /* dec r9b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xc9;
-  /* mov dl, BYTE PTR [rdi + r9] */
-  p_jit[index++] = 0x42;
-  p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x0f;
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0xfe;
+  p_jit_buf[index++] = 0xc9;
+  /* mov dl, BYTE PTR [r9 + p_mem] */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x91;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
 
   return index;
 }
@@ -698,22 +686,14 @@ static size_t
 jit_emit_jmp_indirect(struct jit_struct* p_jit,
                       unsigned char* p_jit_buf,
                       size_t index,
-                      unsigned char addr_low,
-                      unsigned char addr_high) {
-  unsigned char next_addr_high = addr_high;
-  unsigned char next_addr_low = addr_low + 1;
-  if (next_addr_low == 0) {
-    next_addr_high++;
-  }
-  /* movzx edx, BYTE PTR [rdi + low,high] */
+                      uint16_t addr_6502) {
+  assert((addr_6502 & 0xff) != 0xff);
+  /* movzx edx, WORD PTR [p_mem + addr] */
   p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb6;
-  p_jit_buf[index++] = 0x97;
-  index = jit_emit_op1_op2(p_jit_buf, index, addr_low, addr_high);
-  /* mov dh, BYTE PTR [rdi + low,high + 1] */
-  p_jit_buf[index++] = 0x8a;
   p_jit_buf[index++] = 0xb7;
-  index = jit_emit_op1_op2(p_jit_buf, index, next_addr_low, next_addr_high);
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x25;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
   index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
   /* add edx, p_jit_base */
   p_jit_buf[index++] = 0x81;
@@ -852,10 +832,10 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_check_special_read(struct jit_struct* p_jit,
-                       uint16_t addr,
+                       uint16_t addr_6502,
                        unsigned char* p_jit_buf,
                        size_t index) {
-  if (!bbc_is_special_read_addr(p_jit->p_bbc, addr)) {
+  if (!bbc_is_special_read_addr(p_jit->p_bbc, addr_6502)) {
     return index;
   }
   index = jit_emit_save_registers(p_jit_buf, index);
@@ -865,11 +845,11 @@ jit_check_special_read(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x7d;
   p_jit_buf[index++] = k_offset_bbc;
-  /* mov si, addr */
+  /* mov si, addr_6502 */
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xbe;
-  p_jit_buf[index++] = addr & 0xff;
-  p_jit_buf[index++] = addr >> 8;
+  p_jit_buf[index++] = addr_6502 & 0xff;
+  p_jit_buf[index++] = addr_6502 >> 8;
   /* call [rbp + k_offset_read_callback] */
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x55;
@@ -880,13 +860,11 @@ jit_check_special_read(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0xc2;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
-  /* mov BYTE PTR [rdi + addr], dl */
+  /* mov [p_mem + addr_6502], dl */
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x97;
-  p_jit_buf[index++] = addr & 0xff;
-  p_jit_buf[index++] = addr >> 8;
-  p_jit_buf[index++] = 0;
-  p_jit_buf[index++] = 0;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x25;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
 
   return index;
 }
@@ -929,7 +907,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
                  unsigned char operand1,
                  unsigned char operand2,
                  unsigned char intel_op_base) {
-  uint16_t addr = (operand2 << 8) | operand1;
+  uint16_t addr_6502 = (operand2 << 8) | operand1;
   switch (opmode) {
   case k_imm:
     /* OP al, op1 */
@@ -938,15 +916,16 @@ jit_emit_calc_op(struct jit_struct* p_jit,
     break;
   case k_zpg:
   case k_abs:
-    index = jit_check_special_read(p_jit, addr, p_jit_buf, index);
-    /* OP al, [rdi + op1,op2?] */
+    index = jit_check_special_read(p_jit, addr_6502, p_jit_buf, index);
+    /* OP al, [p_mem + addr] */
     p_jit_buf[index++] = intel_op_base;
-    p_jit_buf[index++] = 0x87;
-    index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
     break;
   case k_idy:
     /* OP al, [rdx + rcx] */
-    p_jit_buf[index++] = intel_op_base - 2;
+    p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x04;
     p_jit_buf[index++] = 0x0a;
     break;
@@ -954,10 +933,10 @@ jit_emit_calc_op(struct jit_struct* p_jit,
   case k_abx:
   case k_aby:
   case k_idx:
-    /* OP al, [rdi + rdx] */
+    /* OP al, [rdx + p_mem] */
     p_jit_buf[index++] = intel_op_base;
-    p_jit_buf[index++] = 0x04;
-    p_jit_buf[index++] = 0x17;
+    p_jit_buf[index++] = 0x82;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
     break;
   default:
     assert(0);
@@ -968,12 +947,14 @@ jit_emit_calc_op(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_shift_op(unsigned char* p_jit_buf,
+jit_emit_shift_op(struct jit_struct* p_jit,
+                  unsigned char* p_jit_buf,
                   size_t index,
                   unsigned char opmode,
                   unsigned char operand1,
                   unsigned char operand2,
                   unsigned char intel_op_base) {
+  uint16_t addr_6502 = (operand2 << 8) | operand1;
   switch (opmode) {
   case k_nil:
     /* OP al, 1 */
@@ -982,17 +963,18 @@ jit_emit_shift_op(unsigned char* p_jit_buf,
     break;
   case k_zpg:
   case k_abs:
-    /* OP BYTE PTR [rdi + op1,op2?], 1 */
+    /* OP BYTE PTR [p_mem + addr], 1 */
     p_jit_buf[index++] = 0xd0;
-    p_jit_buf[index++] = intel_op_base - 0x39;
-    index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+    p_jit_buf[index++] = intel_op_base - 0xbc;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
     break;
   case k_zpx:
   case k_abx:
-    /* OP BYTE PTR [rdi + rdx], 1 */
+    /* OP BYTE PTR [rdx + p_mem], 1 */
     p_jit_buf[index++] = 0xd0;
-    p_jit_buf[index++] = intel_op_base - 0xbc;
-    p_jit_buf[index++] = 0x17;
+    p_jit_buf[index++] = intel_op_base - 0x3e;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
     break;
   default:
     assert(0);
@@ -1003,33 +985,36 @@ jit_emit_shift_op(unsigned char* p_jit_buf,
 }
 
 static size_t
-jit_emit_post_rotate(unsigned char* p_jit,
+jit_emit_post_rotate(struct jit_struct* p_jit,
+                     unsigned char* p_jit_buf,
                      size_t index,
                      unsigned char opmode,
                      unsigned char operand1,
                      unsigned char operand2) {
-  index = jit_emit_intel_to_6502_carry(p_jit, index);
+  uint16_t addr_6502 = (operand2 << 8) | operand1;
+  index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
   switch (opmode) {
   case k_nil:
-    index = jit_emit_do_zn_flags(p_jit, index, 0);
+    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
     break;
   case k_zpg:
   case k_abs:
-    /* test BYTE PTR [rdi + op1,op2?], 0xff */
-    p_jit[index++] = 0xf6;
-    p_jit[index++] = 0x87;
-    index = jit_emit_op1_op2(p_jit, index, operand1, operand2);
-    p_jit[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    /* test BYTE PTR [p_mem + addr], 0xff */
+    p_jit_buf[index++] = 0xf6;
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x25;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
+    p_jit_buf[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_zpx:
   case k_abx:
-    /* test BYTE PTR [rdi + rdx], 0xff */
-    p_jit[index++] = 0xf6;
-    p_jit[index++] = 0x04;
-    p_jit[index++] = 0x17;
-    p_jit[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit, index, -1);
+    /* test BYTE PTR [rdx + p_mem], 0xff */
+    p_jit_buf[index++] = 0xf6;
+    p_jit_buf[index++] = 0x82;
+    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+    p_jit_buf[index++] = 0xff;
+    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   default:
     assert(0);
@@ -1065,11 +1050,7 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
   index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + n);
   index = jit_emit_php(p_jit_buf, index, is_brk);
   index = jit_emit_sei(p_jit_buf, index);
-  index = jit_emit_jmp_indirect(p_jit,
-                                p_jit_buf,
-                                index,
-                                vector & 0xff,
-                                vector >> 8);
+  index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
 
   return index;
 }
@@ -1188,7 +1169,7 @@ jit_jit(struct jit_struct* p_jit,
       oplen = 2;
       break;
     case k_idx:
-      index = jit_emit_ind_x_to_scratch(p_jit_buf, index, operand1);
+      index = jit_emit_ind_x_to_scratch(p_jit, p_jit_buf, index, operand1);
       oplen = 2;
       break;
     case k_ind:
@@ -1258,7 +1239,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_asl:
       /* ASL */
-      index = jit_emit_shift_op(p_jit_buf,
+      index = jit_emit_shift_op(p_jit,
+                                p_jit_buf,
                                 index,
                                 opmode,
                                 operand1,
@@ -1294,10 +1276,13 @@ jit_jit(struct jit_struct* p_jit,
       /* Only has zp and abs. */
       assert(opmode == k_zpg || opmode == k_abs);
       index = jit_check_special_read(p_jit, opcode_addr_6502, p_jit_buf, index);
-      /* mov dl [rdi + op1,op2?] */
+      /* mov dl, [p_mem + addr] */
       p_jit_buf[index++] = 0x8a;
-      p_jit_buf[index++] = 0x97;
-      index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+      p_jit_buf[index++] = 0x14;
+      p_jit_buf[index++] = 0x25;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           (size_t) p_jit->p_mem + opcode_addr_6502);
       index = jit_emit_scratch_bit_test(p_jit_buf, index, 7);
       index = jit_emit_carry_to_6502_negative(p_jit_buf, index);
       index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
@@ -1321,13 +1306,15 @@ jit_jit(struct jit_struct* p_jit,
     case k_rol:
       /* ROL */
       index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
-      index = jit_emit_shift_op(p_jit_buf,
+      index = jit_emit_shift_op(p_jit,
+                                p_jit_buf,
                                 index,
                                 opmode,
                                 operand1,
                                 operand2,
                                 0xd0);
-      index = jit_emit_post_rotate(p_jit_buf,
+      index = jit_emit_post_rotate(p_jit,
+                                   p_jit_buf,
                                    index,
                                    opmode,
                                    operand1,
@@ -1361,7 +1348,8 @@ jit_jit(struct jit_struct* p_jit,
       break;
     case k_lsr:
       /* LSR */
-      index = jit_emit_shift_op(p_jit_buf,
+      index = jit_emit_shift_op(p_jit,
+                                p_jit_buf,
                                 index,
                                 opmode,
                                 operand1,
@@ -1385,8 +1373,7 @@ jit_jit(struct jit_struct* p_jit,
         index = jit_emit_jmp_indirect(p_jit,
                                       p_jit_buf,
                                       index,
-                                      operand1,
-                                      operand2);
+                                      opcode_addr_6502);
       }
       break;
     case k_bvc:
@@ -1437,13 +1424,15 @@ jit_jit(struct jit_struct* p_jit,
     case k_ror:
       /* ROR */
       index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
-      index = jit_emit_shift_op(p_jit_buf,
+      index = jit_emit_shift_op(p_jit,
+                                p_jit_buf,
                                 index,
                                 opmode,
                                 operand1,
                                 operand2,
                                 0xd8);
-      index = jit_emit_post_rotate(p_jit_buf,
+      index = jit_emit_post_rotate(p_jit,
+                                   p_jit_buf,
                                    index,
                                    opmode,
                                    operand1,
@@ -1469,10 +1458,13 @@ jit_jit(struct jit_struct* p_jit,
       switch (opmode) {
       case k_zpg:
       case k_abs:
-        /* mov [rdi + op1,op2?], al */
+        /* mov [p_mem + addr], al */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x87;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         index = jit_check_special_write(p_jit,
                                         opcode_addr_6502,
                                         p_jit_buf,
@@ -1488,10 +1480,10 @@ jit_jit(struct jit_struct* p_jit,
       case k_abx:
       case k_aby:
       case k_idx:
-        /* mov [rdi + rdx], al */
+        /* mov [rdx + p_mem], al */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x04;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x82;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1503,20 +1495,23 @@ jit_jit(struct jit_struct* p_jit,
       switch (opmode) {
       case k_zpg:
       case k_abs:
-        /* mov [rdi + op1,op2?], cl */
+        /* mov [p_mem + addr], cl */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x8f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x0c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         index = jit_check_special_write(p_jit,
                                         opcode_addr_6502,
                                         p_jit_buf,
                                         index);
         break;
       case k_zpx:
-        /* mov [rdi + rdx], cl */
+        /* mov [rdx + p_mem], cl */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x0c;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x8a;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1528,20 +1523,23 @@ jit_jit(struct jit_struct* p_jit,
       switch (opmode) {
       case k_zpg:
       case k_abs:
-        /* mov [rdi + op1,op2?], bl */
+        /* mov [p_mem + addr], bl */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x9f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x1c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         index = jit_check_special_write(p_jit,
                                         opcode_addr_6502,
                                         p_jit_buf,
                                         index);
         break;
       case k_zpy:
-        /* mov [rdi + rdx], bl */
+        /* mov [rdx + p_mem], bl */
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x1c;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x9a;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1596,17 +1594,20 @@ jit_jit(struct jit_struct* p_jit,
                                        opcode_addr_6502,
                                        p_jit_buf,
                                        index);
-        /* mov cl, [rdi + op1,op2?] */
+        /* mov cl, [p_mem + addr] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x8f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x0c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       case k_zpx:
       case k_abx:
-        /* mov cl, [rdi + rdx] */
+        /* mov cl, [rdx + p_mem] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x0c;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x8a;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1628,17 +1629,20 @@ jit_jit(struct jit_struct* p_jit,
                                        opcode_addr_6502,
                                        p_jit_buf,
                                        index);
-        /* mov bl, [rdi + op1,op2?] */
+        /* mov bl, [p_mem + addr] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x9f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x1c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       case k_zpy:
       case k_aby:
-        /* mov bl, [rdi + rdx] */
+        /* mov bl, [rdx + p_mem] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x1c;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x9a;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1660,10 +1664,13 @@ jit_jit(struct jit_struct* p_jit,
                                        opcode_addr_6502,
                                        p_jit_buf,
                                        index);
-        /* mov al, [rdi + op1,op2?] */
+        /* mov al, [p_mem + addr] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x87;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       case k_idy:
         /* mov al, [rdx + rcx] */
@@ -1675,10 +1682,10 @@ jit_jit(struct jit_struct* p_jit,
       case k_abx:
       case k_aby:
       case k_idx:
-        /* mov al, [rdi + rdx] */
+        /* mov al, [rdx + p_mem] */
         p_jit_buf[index++] = 0x8a;
-        p_jit_buf[index++] = 0x04;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x82;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
         break;
       default:
         assert(0);
@@ -1732,10 +1739,13 @@ jit_jit(struct jit_struct* p_jit,
         break;
       case k_zpg:
       case k_abs:
-        /* cmp cl, [rdi + op1,op2?] */
+        /* cmp cl, [p_mem + addr] */
         p_jit_buf[index++] = 0x3a;
-        p_jit_buf[index++] = 0x8f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x0c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       default:
         assert(0);
@@ -1759,17 +1769,22 @@ jit_jit(struct jit_struct* p_jit,
       switch (opmode) {
       case k_zpg:
       case k_abs:
-        /* dec BYTE PTR [rdi + op1,op2?] */
+        /* dec BYTE PTR [p_mem + addr] */
         p_jit_buf[index++] = 0xfe;
-        p_jit_buf[index++] = 0x8f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x0c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       case k_zpx: 
       case k_abx: 
-        /* dec BYTE PTR [rdi + rdx] */
+        /* dec BYTE PTR [rdx + p_mem] */
         p_jit_buf[index++] = 0xfe;
-        p_jit_buf[index++] = 0x0c;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x8a;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       default:
         assert(0);
@@ -1817,10 +1832,13 @@ jit_jit(struct jit_struct* p_jit,
         break;
       case k_zpg:
       case k_abs:
-        /* cmp bl, [rdi + op1,op2?] */
+        /* cmp bl, [p_mem + addr] */
         p_jit_buf[index++] = 0x3a;
-        p_jit_buf[index++] = 0x9f;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x1c;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       default:
         assert(0);
@@ -1833,16 +1851,22 @@ jit_jit(struct jit_struct* p_jit,
       switch (opmode) {
       case k_zpg:
       case k_abs:
+        /* inc BYTE PTR [p_mem + addr] */
         p_jit_buf[index++] = 0xfe;
-        p_jit_buf[index++] = 0x87;
-        index = jit_emit_op1_op2(p_jit_buf, index, operand1, operand2);
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x25;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       case k_zpx: 
       case k_abx: 
-        /* inc BYTE PTR [rdi + rdx] */
+        /* inc BYTE PTR [rdx + p_mem] */
         p_jit_buf[index++] = 0xfe;
-        p_jit_buf[index++] = 0x04;
-        p_jit_buf[index++] = 0x17;
+        p_jit_buf[index++] = 0x82;
+        index = jit_emit_int(p_jit_buf,
+                             index,
+                             (size_t) p_jit->p_mem + opcode_addr_6502);
         break;
       default:
         assert(0);
