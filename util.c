@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <err.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/mman.h>
 
@@ -109,4 +110,13 @@ void
 util_buffer_set_pos(struct util_buffer* p_buf, size_t pos) {
   assert(pos <= p_buf->length);
   p_buf->pos = pos;
+}
+
+void
+util_buffer_append(struct util_buffer* p_buf, struct util_buffer* p_src_buf) {
+  assert(p_buf->pos + p_src_buf->pos >= p_buf->pos);
+  assert(p_buf->pos + p_src_buf->pos <= p_buf->length);
+
+  memcpy(p_buf->p_mem + p_buf->pos, p_src_buf->p_mem, p_src_buf->pos);
+  p_buf->pos += p_src_buf->pos;
 }

@@ -417,11 +417,12 @@ static size_t
 jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
                        unsigned char* p_jit_buf,
                        size_t index,
+                       size_t offset,
                        uint16_t curr_addr_6502,
                        uint16_t new_addr_6502) {
   ssize_t delta = (int) new_addr_6502 - (int) curr_addr_6502;
   delta *= k_jit_bytes_per_byte;
-  delta -= index;
+  delta -= offset;
   /* Intel opcode length (5) counts against jump delta. */
   delta -= 5;
   /* jmp relative, 4 byte offset */
@@ -1103,11 +1104,11 @@ jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
 }
 
 static size_t
-jit_at_addr(struct jit_struct* p_jit,
-            struct util_buffer* p_buf,
-            uint16_t addr_6502,
-            unsigned int debug_flags,
-            unsigned int jit_flags) {
+jit_single(struct jit_struct* p_jit,
+           struct util_buffer* p_buf,
+           uint16_t addr_6502,
+           unsigned int debug_flags,
+           unsigned int jit_flags) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1280,6 +1281,7 @@ jit_at_addr(struct jit_struct* p_jit,
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_jit_buf,
                                    index,
+                                   index,
                                    addr_6502,
                                    opcode_addr_6502);
     break;
@@ -1380,6 +1382,7 @@ jit_at_addr(struct jit_struct* p_jit,
     if (opmode == k_abs) {
       index = jit_emit_jmp_6502_addr(p_jit,
                                      p_jit_buf,
+                                     index,
                                      index,
                                      addr_6502,
                                      opcode_addr_6502);
@@ -1970,6 +1973,42 @@ jit_at_addr(struct jit_struct* p_jit,
 }
 
 void
+jit_at_addr(struct jit_struct* p_jit,
+            struct util_buffer* p_buf,
+            uint16_t addr_6502,
+            unsigned int debug_flags,
+            unsigned int jit_flags) {
+  unsigned char single_jit_buf[k_jit_bytes_per_byte];
+  struct util_buffer* p_single_buf = util_buffer_create();
+  size_t index;
+  size_t offset;
+  unsigned char* p_jit_buf;
+
+  util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
+  p_jit_buf = util_buffer_get_ptr(p_single_buf);
+
+  size_t num_6502_bytes = jit_single(p_jit,
+                                     p_single_buf,
+                                     addr_6502,
+                                     debug_flags,
+                                     1);
+  util_buffer_append(p_buf, p_single_buf);
+
+  util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
+  offset = util_buffer_get_pos(p_buf);
+  index = jit_emit_jmp_6502_addr(p_jit,
+                                 p_jit_buf,
+                                 0,
+                                 offset,
+                                 addr_6502,
+                                 addr_6502 + num_6502_bytes);
+  util_buffer_set_pos(p_single_buf, index);
+  util_buffer_append(p_buf, p_single_buf);
+
+  util_buffer_destroy(p_single_buf);
+}
+
+void
 jit_jit(struct jit_struct* p_jit,
         size_t addr_6502,
         size_t num_opcodes,
@@ -1977,23 +2016,11 @@ jit_jit(struct jit_struct* p_jit,
   size_t jit_end = addr_6502 + num_opcodes;
   unsigned char* p_jit_base = p_jit->p_jit_base;
   while (addr_6502 < jit_end) {
-    size_t index;
     unsigned char* p_jit_buf = p_jit_base + (addr_6502 * k_jit_bytes_per_byte);
     struct util_buffer* p_buf = util_buffer_create();
     util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
 
-    size_t num_6502_bytes = jit_at_addr(p_jit,
-                                        p_buf,
-                                        addr_6502,
-                                        debug_flags,
-                                        1);
-
-    index = util_buffer_get_pos(p_buf);
-    index = jit_emit_jmp_6502_addr(p_jit,
-                                   p_jit_buf,
-                                   index,
-                                   addr_6502,
-                                   addr_6502 + num_6502_bytes);
+    jit_at_addr(p_jit, p_buf, addr_6502, debug_flags, 1);
 
     util_buffer_destroy(p_buf);
     addr_6502++;
