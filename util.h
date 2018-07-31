@@ -3,8 +3,20 @@
 
 #include <stddef.h>
 
+/* Memory mapping. */
 void* util_get_guarded_mapping(void* p_addr, size_t size, int is_exec);
 void util_free_guarded_mapping(void* p_addr, size_t size);
 void util_make_mapping_read_only(void* p_addr, size_t size);
+
+/* Buffer. */
+struct util_buffer;
+struct util_buffer* util_buffer_create();
+void util_buffer_destroy(struct util_buffer* p_buf);
+void util_buffer_setup(struct util_buffer* p_buf,
+                       unsigned char* p_mem,
+                       size_t len);
+unsigned char* util_buffer_get_ptr(struct util_buffer* p_buf);
+size_t util_buffer_get_pos(struct util_buffer* p_buf);
+void util_buffer_set_pos(struct util_buffer* p_buf, size_t len);
 
 #endif /* BEEBJIT_UTIL_H */

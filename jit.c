@@ -1092,12 +1092,13 @@ jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
   p_jit->interrupt = interrupt;
 }
 
-static void
+static size_t
 jit_at_addr(struct jit_struct* p_jit,
+            struct util_buffer* p_buf,
             uint16_t addr_6502,
             unsigned int debug_flags) {
   unsigned char* p_mem = p_jit->p_mem;
-  unsigned char* p_jit_buf = p_jit->p_jit_base;
+  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
   uint16_t addr_6502_plus_1 = addr_6502 + 1;
   uint16_t addr_6502_plus_2 = addr_6502 + 2;
@@ -1111,8 +1112,7 @@ jit_at_addr(struct jit_struct* p_jit,
   unsigned char oplen = 0;
   uint16_t opcode_addr_6502;
   size_t index = 0;
-
-  p_jit_buf += (addr_6502 * k_jit_bytes_per_byte);
+  size_t num_6502_bytes = 0;
 
   if (debug_flags) {
     index = jit_emit_debug_sequence(p_jit_buf, index);
@@ -1165,6 +1165,8 @@ jit_at_addr(struct jit_struct* p_jit,
     assert(0);
     break;
   }
+
+  num_6502_bytes += oplen;
 
   if (oplen < 3) { 
     /* Clear operand2 if we're not using it. This enables us to re-use the
@@ -1929,13 +1931,9 @@ jit_at_addr(struct jit_struct* p_jit,
     break;
   }
 
-  index = jit_emit_jmp_6502_addr(p_jit,
-                                 p_jit_buf,
-                                 index,
-                                 addr_6502,
-                                 addr_6502 + oplen);
+  util_buffer_set_pos(p_buf, index);
 
-  assert(index <= k_jit_bytes_per_byte);
+  return num_6502_bytes;
 }
 
 void
@@ -1944,8 +1942,23 @@ jit_jit(struct jit_struct* p_jit,
         size_t num_opcodes,
         unsigned int debug_flags) {
   size_t jit_end = addr_6502 + num_opcodes;
+  unsigned char* p_jit_base = p_jit->p_jit_base;
   while (addr_6502 < jit_end) {
-    jit_at_addr(p_jit, addr_6502, debug_flags);
+    size_t index;
+    unsigned char* p_jit_buf = p_jit_base + (addr_6502 * k_jit_bytes_per_byte);
+    struct util_buffer* p_buf = util_buffer_create();
+    util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
+
+    size_t num_6502_bytes = jit_at_addr(p_jit, p_buf, addr_6502, debug_flags);
+
+    index = util_buffer_get_pos(p_buf);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_jit_buf,
+                                   index,
+                                   addr_6502,
+                                   addr_6502 + num_6502_bytes);
+
+    util_buffer_destroy(p_buf);
     addr_6502++;
   }
 }
