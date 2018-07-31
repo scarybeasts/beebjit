@@ -930,37 +930,47 @@ jit_emit_shift_op(struct jit_struct* p_jit,
                   unsigned char opmode,
                   unsigned char operand1,
                   unsigned char operand2,
-                  unsigned char intel_op_base) {
+                  unsigned char intel_op_base,
+                  size_t n_count) {
+  assert(n_count < 8);
   uint16_t addr_6502 = (operand2 << 8) | operand1;
+  unsigned char first_byte = 0xd0;
+  if (n_count > 1) {
+    first_byte = 0xc0;
+  }
   switch (opmode) {
   case k_nil:
-    /* OP al, 1 */
-    p_jit_buf[index++] = 0xd0;
+    /* OP al, n */
+    p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base;
     break;
   case k_zpg:
   case k_abs:
-    /* OP BYTE PTR [p_mem + addr], 1 */
-    p_jit_buf[index++] = 0xd0;
+    /* OP BYTE PTR [p_mem + addr], n */
+    p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0xbc;
     p_jit_buf[index++] = 0x25;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
     break;
   case k_zpx:
-    /* OP BYTE PTR [rdx + p_mem], 1 */
-    p_jit_buf[index++] = 0xd0;
+    /* OP BYTE PTR [rdx + p_mem], n */
+    p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0x3e;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
     break;
   case k_abx:
-    /* OP BYTE PTR [rbx + addr_6502], 1 */
-    p_jit_buf[index++] = 0xd0;
+    /* OP BYTE PTR [rbx + addr_6502], n */
+    p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0x3d;
     index = jit_emit_int(p_jit_buf, index, addr_6502);
     break;
   default:
     assert(0);
     break;
+  }
+
+  if (n_count > 1) {
+    p_jit_buf[index++] = n_count;
   }
 
   return index;
@@ -1096,7 +1106,8 @@ static size_t
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
             uint16_t addr_6502,
-            unsigned int debug_flags) {
+            unsigned int debug_flags,
+            unsigned int jit_flags) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1113,6 +1124,7 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t opcode_addr_6502;
   size_t index = 0;
   size_t num_6502_bytes = 0;
+  size_t n_count = 1;
 
   if (debug_flags) {
     index = jit_emit_debug_sequence(p_jit_buf, index);
@@ -1176,6 +1188,23 @@ jit_at_addr(struct jit_struct* p_jit,
   }
   opcode_addr_6502 = (operand2 << 8) | operand1;
 
+  /* Handle merging repeated shift / rotate instructions. */
+  if (jit_flags) {
+    if (optype == k_lsr ||
+        optype == k_asl ||
+        optype == k_rol ||
+        optype == k_ror) {
+      if (opmode == k_nil) {
+        uint16_t next_addr_6502 = addr_6502 + 1;
+        while (n_count < 7 && p_mem[next_addr_6502] == opcode) {
+          n_count++;
+          next_addr_6502++;
+          num_6502_bytes++;
+        }
+      }
+    }
+  }
+
   switch (optype) {
   case k_kil:
     switch (opcode) {
@@ -1227,7 +1256,8 @@ jit_at_addr(struct jit_struct* p_jit,
                               opmode,
                               operand1,
                               operand2,
-                              0xe0);
+                              0xe0,
+                              n_count);
     index = jit_emit_intel_to_6502_znc(p_jit_buf, index);
     break;
   case k_php:
@@ -1294,7 +1324,8 @@ jit_at_addr(struct jit_struct* p_jit,
                               opmode,
                               operand1,
                               operand2,
-                              0xd0);
+                              0xd0,
+                              n_count);
     index = jit_emit_post_rotate(p_jit,
                                  p_jit_buf,
                                  index,
@@ -1336,7 +1367,8 @@ jit_at_addr(struct jit_struct* p_jit,
                               opmode,
                               operand1,
                               operand2,
-                              0xe8);
+                              0xe8,
+                              n_count);
     index = jit_emit_intel_to_6502_znc(p_jit_buf, index);
     break;
   case k_pha:
@@ -1412,7 +1444,8 @@ jit_at_addr(struct jit_struct* p_jit,
                               opmode,
                               operand1,
                               operand2,
-                              0xd8);
+                              0xd8,
+                              n_count);
     index = jit_emit_post_rotate(p_jit,
                                  p_jit_buf,
                                  index,
@@ -1949,7 +1982,11 @@ jit_jit(struct jit_struct* p_jit,
     struct util_buffer* p_buf = util_buffer_create();
     util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
 
-    size_t num_6502_bytes = jit_at_addr(p_jit, p_buf, addr_6502, debug_flags);
+    size_t num_6502_bytes = jit_at_addr(p_jit,
+                                        p_buf,
+                                        addr_6502,
+                                        debug_flags,
+                                        1);
 
     index = util_buffer_get_pos(p_buf);
     index = jit_emit_jmp_6502_addr(p_jit,
