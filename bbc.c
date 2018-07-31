@@ -139,14 +139,21 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 void
 bbc_reset(struct bbc_struct* p_bbc) {
   unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char* p_os_start = p_mem + k_os_rom_offset;
+  unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
   struct jit_struct* p_jit = p_bbc->p_jit;
   int debug_flag = p_bbc->debug_flag;
+
   /* Clear memory / ROMs. */
   memset(p_mem, '\0', k_addr_space_size);
 
   /* Copy in OS and language ROM. */
-  memcpy(p_mem + k_os_rom_offset, p_bbc->p_os_rom, k_bbc_rom_size);
-  memcpy(p_mem + k_lang_rom_offset, p_bbc->p_lang_rom, k_bbc_rom_size);
+  memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
+  /* TODO: make OS ROM readonly. Can't do that at the moment because of how
+   * register reads / writes work.
+   */
+  memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
+  util_make_mapping_read_only(p_lang_start, k_bbc_rom_size);
 
   /* Initialize hardware registers. */
   memset(p_mem + k_registers_offset, '\0', k_registers_len);

@@ -54,3 +54,11 @@ util_free_guarded_mapping(void* p_addr, size_t size) {
     errx(1, "munmap() failed");
   }
 }
+
+void
+util_make_mapping_read_only(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, PROT_READ);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
+}
