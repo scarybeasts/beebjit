@@ -268,6 +268,7 @@ debug_callback(struct debug_struct* p_debug,
   unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
   int addr_6502;
   int hit_break;
+  int do_trap = 0;
 
   if (!debug_inited) {
     debug_init();
@@ -376,6 +377,9 @@ debug_callback(struct debug_struct* p_debug,
       debug_running_print = !debug_running_print;
     } else if (!strcmp(input_buf, "s")) {
       break;
+    } else if (!strcmp(input_buf, "t")) {
+      do_trap = 1;
+      break;
     } else if (!strcmp(input_buf, "c")) {
       debug_running = 1;
       break;
@@ -435,6 +439,12 @@ debug_callback(struct debug_struct* p_debug,
     } else {
       printf("???\n");
       fflush(stdout);
+    }
+  }
+  if (do_trap) {
+    int ret = raise(SIGTRAP);
+    if (ret != 0) {
+      errx(1, "raise failed");
     }
   }
 }
