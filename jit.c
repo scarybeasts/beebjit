@@ -1983,25 +1983,39 @@ jit_at_addr(struct jit_struct* p_jit,
   size_t index;
   size_t offset;
   unsigned char* p_jit_buf;
+  size_t num_6502_bytes;
+  size_t total_num_ops = 0;
+  size_t total_6502_bytes = 0;
+  uint16_t start_addr_6502 = addr_6502;
+
+  do {
+    util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
+    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502, debug_flags, 1);
+    size_t opcodes_len = util_buffer_get_pos(p_single_buf);
+    size_t buf_left = util_buffer_remaining(p_buf);
+    /* TODO: don't hardcode jmp length. */
+    if (buf_left >= opcodes_len + 5) {
+      util_buffer_append(p_buf, p_single_buf);
+      total_6502_bytes += num_6502_bytes;
+      total_num_ops++;
+      break;
+    } else {
+      break;
+    }
+    addr_6502 += num_6502_bytes;
+  } while (1);
+
+  assert(total_num_ops > 0);
 
   util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
   p_jit_buf = util_buffer_get_ptr(p_single_buf);
-
-  size_t num_6502_bytes = jit_single(p_jit,
-                                     p_single_buf,
-                                     addr_6502,
-                                     debug_flags,
-                                     1);
-  util_buffer_append(p_buf, p_single_buf);
-
-  util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
   offset = util_buffer_get_pos(p_buf);
   index = jit_emit_jmp_6502_addr(p_jit,
                                  p_jit_buf,
                                  0,
                                  offset,
-                                 addr_6502,
-                                 addr_6502 + num_6502_bytes);
+                                 start_addr_6502,
+                                 start_addr_6502 + total_6502_bytes);
   util_buffer_set_pos(p_single_buf, index);
   util_buffer_append(p_buf, p_single_buf);
 

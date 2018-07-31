@@ -112,6 +112,11 @@ util_buffer_set_pos(struct util_buffer* p_buf, size_t pos) {
   p_buf->pos = pos;
 }
 
+size_t
+util_buffer_remaining(struct util_buffer* p_buf) {
+  return p_buf->length - p_buf->pos;
+}
+
 void
 util_buffer_append(struct util_buffer* p_buf, struct util_buffer* p_src_buf) {
   assert(p_buf->pos + p_src_buf->pos >= p_buf->pos);

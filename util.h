@@ -18,6 +18,7 @@ void util_buffer_setup(struct util_buffer* p_buf,
 unsigned char* util_buffer_get_ptr(struct util_buffer* p_buf);
 size_t util_buffer_get_pos(struct util_buffer* p_buf);
 void util_buffer_set_pos(struct util_buffer* p_buf, size_t len);
+size_t util_buffer_remaining(struct util_buffer* p_buf);
 void util_buffer_append(struct util_buffer* p_buf,
                         struct util_buffer* p_src_buf);
 
