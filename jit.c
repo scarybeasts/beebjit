@@ -443,16 +443,6 @@ jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_jit_bytes_shift_scratch_right(unsigned char* p_jit, size_t index) {
-  /* shr edx, k_jit_bytes_shift */
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xea;
-  p_jit[index++] = k_jit_bytes_shift;
-
-  return index;
-}
-
-static size_t
 jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
   /* inc sil */
   p_jit[index++] = 0x40;
@@ -537,17 +527,6 @@ jit_emit_push_from_scratch(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x88;
   p_jit[index++] = 0x16;
   index = jit_emit_stack_dec(p_jit, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_6502_ip_to_scratch(unsigned char* p_jit, size_t index) {
-  /* lea edx, [rip] */
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x15;
-  index = jit_emit_int(p_jit, index, 0);
-  index = jit_emit_jit_bytes_shift_scratch_right(p_jit, index);
 
   return index;
 }
@@ -720,7 +699,9 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
+jit_emit_debug_sequence(unsigned char* p_jit,
+                        size_t index,
+                        uint16_t addr_6502) {
   index = jit_emit_save_registers(p_jit, index);
 
   /* param11: 6502 S */
@@ -744,31 +725,11 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x50;
 
-  /* param2: 6502 IP */
-  index = jit_emit_6502_ip_to_scratch(p_jit, index);
-  /* mov rsi, rdx */
-  p_jit[index++] = 0x48;
+  /* param6: 6502 FO */
+  /* mov r9, r15 */
+  p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xd6;
-
-  /* param1 */
-  /* mov rdi, [rbp + k_offset_debug] */
-  p_jit[index++] = 0x48;
-  p_jit[index++] = 0x8b;
-  p_jit[index++] = 0x7d;
-  p_jit[index++] = k_offset_debug;
-
-  /* param3: 6502 FZ */
-  /* mov rdx, r13 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xea;
-
-  /* param4: 6502 FN */
-  /* mov rcx, r14 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf1;
+  p_jit[index++] = 0xf9;
 
   /* param5: 6502 FC */
   /* mov r8, r12 */
@@ -776,11 +737,29 @@ jit_emit_debug_sequence(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xe0;
 
-  /* param6: 6502 FO */
-  /* mov r9, r15 */
-  p_jit[index++] = 0x4d;
+  /* param4: 6502 FN */
+  /* mov rcx, r14 */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf9;
+  p_jit[index++] = 0xf1;
+
+  /* param3: 6502 FZ */
+  /* mov rdx, r13 */
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xea;
+
+  /* param2: 6502 IP */
+  /* mov esi, addr_6502 */
+  p_jit[index++] = 0xbe;
+  index = jit_emit_int(p_jit, index, addr_6502);
+
+  /* param1 */
+  /* mov rdi, [rbp + k_offset_debug] */
+  p_jit[index++] = 0x48;
+  p_jit[index++] = 0x8b;
+  p_jit[index++] = 0x7d;
+  p_jit[index++] = k_offset_debug;
 
   /* call [rbp + k_offset_debug_callback] */
   p_jit[index++] = 0xff;
@@ -1128,7 +1107,7 @@ jit_single(struct jit_struct* p_jit,
   size_t n_count = 1;
 
   if (debug_flags) {
-    index = jit_emit_debug_sequence(p_jit_buf, index);
+    index = jit_emit_debug_sequence(p_jit_buf, index, addr_6502);
   }
 
   switch (opmode) {
@@ -2006,6 +1985,7 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
+//printf("addr %x, total_num_ops: %zu\n", start_addr_6502, total_num_ops);
 
   util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
   p_jit_buf = util_buffer_get_ptr(p_single_buf);
