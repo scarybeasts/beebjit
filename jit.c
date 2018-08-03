@@ -693,14 +693,14 @@ jit_emit_debug_util(unsigned char* p_jit) {
   size_t index = 0;
   index = jit_emit_save_registers(p_jit, index);
 
+  /* param11: 6502 S */
+  /* push rsi */
+  p_jit[index++] = 0x56;
+
   /* param2: 6502 IP */
   /* mov esi, edx */
   p_jit[index++] = 0x89;
   p_jit[index++] = 0xd6;
-
-  /* param11: 6502 S */
-  /* push rsi */
-  p_jit[index++] = 0x56;
 
   /* param10: 6502 Y */
   /* push rcx */
