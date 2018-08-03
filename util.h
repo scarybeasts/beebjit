@@ -25,4 +25,8 @@ void util_buffer_set_base_address(struct util_buffer* p_buf,
                                   unsigned char* p_base);
 unsigned char* util_buffer_get_base_address(struct util_buffer* p_buf);
 
+void util_buffer_add_1b(struct util_buffer* p_buf, int b1);
+void util_buffer_add_2b_1w(struct util_buffer* p_buf, int b1, int b2, int w1);
+void util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3);
+
 #endif /* BEEBJIT_UTIL_H */

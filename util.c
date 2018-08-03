@@ -138,3 +138,25 @@ unsigned char*
 util_buffer_get_base_address(struct util_buffer* p_buf) {
   return p_buf->p_base;
 }
+
+void
+util_buffer_add_1b(struct util_buffer* p_buf, int b1) {
+  assert(b1 >= 0 && b1 <= 0xff);
+  assert(p_buf->pos < p_buf->length);
+  p_buf->p_mem[p_buf->pos++] = b1;
+}
+
+void
+util_buffer_add_2b_1w(struct util_buffer* p_buf, int b1, int b2, int w1) {
+  util_buffer_add_1b(p_buf, b1);
+  util_buffer_add_1b(p_buf, b2);
+  util_buffer_add_1b(p_buf, w1 & 0xff);
+  util_buffer_add_1b(p_buf, w1 >> 8);
+}
+
+void
+util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3) {
+  util_buffer_add_1b(p_buf, b1);
+  util_buffer_add_1b(p_buf, b2);
+  util_buffer_add_1b(p_buf, b3);
+}
