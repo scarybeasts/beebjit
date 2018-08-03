@@ -1997,7 +1997,6 @@ jit_at_addr(struct jit_struct* p_jit,
       util_buffer_append(p_buf, p_single_buf);
       total_6502_bytes += num_6502_bytes;
       total_num_ops++;
-      break;
     } else {
       break;
     }
