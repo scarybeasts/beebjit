@@ -69,6 +69,7 @@ struct util_buffer {
   unsigned char* p_mem;
   size_t length;
   size_t pos;
+  unsigned char* p_base;
 };
 
 struct util_buffer*
@@ -80,6 +81,7 @@ util_buffer_create() {
   p_buf->p_mem = NULL;
   p_buf->length = 0;
   p_buf->pos = 0;
+  p_buf->p_base = NULL;
 
   return p_buf;
 }
@@ -94,6 +96,7 @@ util_buffer_setup(struct util_buffer* p_buf, unsigned char* p_mem, size_t len) {
   p_buf->p_mem = p_mem;
   p_buf->length = len;
   p_buf->pos = 0;
+  p_buf->p_base = NULL;
 }
 
 unsigned char*
@@ -124,4 +127,14 @@ util_buffer_append(struct util_buffer* p_buf, struct util_buffer* p_src_buf) {
 
   memcpy(p_buf->p_mem + p_buf->pos, p_src_buf->p_mem, p_src_buf->pos);
   p_buf->pos += p_src_buf->pos;
+}
+
+void
+util_buffer_set_base_address(struct util_buffer* p_buf, unsigned char* p_base) {
+  p_buf->p_base = p_base;
+}
+
+unsigned char*
+util_buffer_get_base_address(struct util_buffer* p_buf) {
+  return p_buf->p_base;
 }

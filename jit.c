@@ -52,29 +52,6 @@ jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
 }
 
 static size_t
-jit_emit_do_relative_jump(unsigned char* p_jit,
-                          size_t index,
-                          unsigned char intel_opcode,
-                          unsigned char unsigned_jump_size) {
-  char jump_size = (char) unsigned_jump_size;
-  ssize_t offset = (k_jit_bytes_per_byte * (jump_size + 2)) - (index + 2);
-  if (offset <= 0x7f && offset >= -0x80) {
-    /* Fits in a 1-byte offset. */
-    assert(index + 2 <= k_jit_bytes_per_byte);
-    p_jit[index++] = intel_opcode;
-    p_jit[index++] = (unsigned char) offset;
-  } else {
-    offset -= 4;
-    assert(index + 6 <= k_jit_bytes_per_byte);
-    p_jit[index++] = 0x0f;
-    p_jit[index++] = intel_opcode + 0x10;
-    index = jit_emit_int(p_jit, index, offset);
-  }
-
-  return index;
-}
-
-static size_t
 jit_emit_intel_to_6502_zero(unsigned char* p_jit, size_t index) {
   /* sete r13b */
   p_jit[index++] = 0x41;
@@ -415,19 +392,26 @@ jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
-                       unsigned char* p_jit_buf,
-                       size_t index,
-                       size_t offset,
-                       uint16_t curr_addr_6502,
-                       uint16_t new_addr_6502) {
-  ssize_t delta = (int) new_addr_6502 - (int) curr_addr_6502;
-  delta *= k_jit_bytes_per_byte;
-  delta -= offset;
-  /* Intel opcode length (5) counts against jump delta. */
-  delta -= 5;
-  /* jmp relative, 4 byte offset */
-  p_jit_buf[index++] = 0xe9;
-  index = jit_emit_int(p_jit_buf, index, delta);
+                       struct util_buffer* p_buf,
+                       uint16_t new_addr_6502,
+                       unsigned char opcode1,
+                       unsigned char opcode2) {
+  unsigned char* p_src_addr = util_buffer_get_base_address(p_buf) +
+                              util_buffer_get_pos(p_buf);
+  unsigned char* p_dst_addr = p_jit->p_jit_base +
+                              (new_addr_6502 * k_jit_bytes_per_byte);
+  ssize_t offset = p_dst_addr - p_src_addr;
+  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
+  size_t index = util_buffer_get_pos(p_buf);
+  /* TODO: emit short opcode sequence if jump is in range. */
+  /* Intel opcode length (5 or 6) counts against jump delta. */
+  offset -= 5;
+  p_jit_buf[index++] = opcode1;
+  if (opcode2 != 0) {
+    p_jit_buf[index++] = opcode2;
+    offset--;
+  }
+  index = jit_emit_int(p_jit_buf, index, offset);
 
   return index;
 }
@@ -1097,6 +1081,7 @@ jit_single(struct jit_struct* p_jit,
   unsigned char opcode = p_mem[addr_6502];
   unsigned char operand1 = p_mem[addr_6502_plus_1];
   unsigned char operand2 = p_mem[addr_6502_plus_2];
+  uint16_t addr_6502_relative_jump = (int) addr_6502 + 2 + (char) operand1;
 
   unsigned char opmode = g_opmodes[opcode];
   unsigned char optype = g_optypes[opcode];
@@ -1248,7 +1233,12 @@ jit_single(struct jit_struct* p_jit,
     /* BPL */
     index = jit_emit_test_negative(p_jit_buf, index);
     /* je */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x74, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x84);
     break;
   case k_clc:
     /* CLC */
@@ -1257,12 +1247,8 @@ jit_single(struct jit_struct* p_jit,
   case k_jsr:
     /* JSR */
     index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + 2);
-    index = jit_emit_jmp_6502_addr(p_jit,
-                                   p_jit_buf,
-                                   index,
-                                   index,
-                                   addr_6502,
-                                   opcode_addr_6502);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit, p_buf, opcode_addr_6502, 0xe9, 0);
     break;
   case k_bit:
     /* BIT */
@@ -1323,7 +1309,12 @@ jit_single(struct jit_struct* p_jit,
     /* BMI */
     index = jit_emit_test_negative(p_jit_buf, index);
     /* jne */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x75, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x85);
     break;
   case k_sec:
     /* SEC */
@@ -1360,11 +1351,10 @@ jit_single(struct jit_struct* p_jit,
     /* JMP */
     if (opmode == k_abs) {
       index = jit_emit_jmp_6502_addr(p_jit,
-                                     p_jit_buf,
-                                     index,
-                                     index,
-                                     addr_6502,
-                                     opcode_addr_6502);
+                                     p_buf,
+                                     opcode_addr_6502,
+                                     0xe9,
+                                     0);
     } else {
       index = jit_emit_jmp_indirect(p_jit,
                                     p_jit_buf,
@@ -1376,7 +1366,12 @@ jit_single(struct jit_struct* p_jit,
     /* BVC */
     index = jit_emit_test_overflow(p_jit_buf, index);
     /* je */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x74, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x84);
     break;
   case k_cli:
     /* CLI */
@@ -1444,7 +1439,12 @@ jit_single(struct jit_struct* p_jit,
     /* BVS */
     index = jit_emit_test_overflow(p_jit_buf, index);
     /* jne */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x75, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x85);
     break;
   case k_sei:
     /* SEI */
@@ -1571,7 +1571,12 @@ jit_single(struct jit_struct* p_jit,
     /* BCC */
     index = jit_emit_test_carry(p_jit_buf, index);
     /* je */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x74, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x84);
     break;
   case k_tya:
     /* TYA */
@@ -1738,7 +1743,12 @@ jit_single(struct jit_struct* p_jit,
     /* BCS */
     index = jit_emit_test_carry(p_jit_buf, index);
     /* jne */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x75, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x85);
     break;
   case k_clv:
     /* CLV */
@@ -1842,7 +1852,12 @@ jit_single(struct jit_struct* p_jit,
     /* BNE */
     index = jit_emit_test_zero(p_jit_buf, index);
     /* je */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x74, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x84);
     break;
   case k_cld:
     /* CLD */
@@ -1939,7 +1954,12 @@ jit_single(struct jit_struct* p_jit,
     /* BEQ */
     index = jit_emit_test_zero(p_jit_buf, index);
     /* jne */
-    index = jit_emit_do_relative_jump(p_jit_buf, index, 0x75, operand1);
+    util_buffer_set_pos(p_buf, index);
+    index = jit_emit_jmp_6502_addr(p_jit,
+                                   p_buf,
+                                   addr_6502_relative_jump,
+                                   0x0f,
+                                   0x85);
     break;
   default:
     index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
@@ -1959,16 +1979,16 @@ jit_at_addr(struct jit_struct* p_jit,
             unsigned int jit_flags) {
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
   struct util_buffer* p_single_buf = util_buffer_create();
-  size_t index;
-  size_t offset;
-  unsigned char* p_jit_buf;
   size_t num_6502_bytes;
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
+  unsigned char* p_dst;
 
   do {
+    p_dst = util_buffer_get_ptr(p_buf) + util_buffer_get_pos(p_buf);
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
+    util_buffer_set_base_address(p_single_buf, p_dst);
     num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502, debug_flags, 1);
     size_t opcodes_len = util_buffer_get_pos(p_single_buf);
     size_t buf_left = util_buffer_remaining(p_buf);
@@ -1987,19 +2007,13 @@ jit_at_addr(struct jit_struct* p_jit,
   assert(total_num_ops > 0);
 //printf("addr %x, total_num_ops: %zu\n", start_addr_6502, total_num_ops);
 
-  util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
-  p_jit_buf = util_buffer_get_ptr(p_single_buf);
-  offset = util_buffer_get_pos(p_buf);
-  index = jit_emit_jmp_6502_addr(p_jit,
-                                 p_jit_buf,
-                                 0,
-                                 offset,
-                                 start_addr_6502,
-                                 start_addr_6502 + total_6502_bytes);
-  util_buffer_set_pos(p_single_buf, index);
-  util_buffer_append(p_buf, p_single_buf);
-
   util_buffer_destroy(p_single_buf);
+
+  (void) jit_emit_jmp_6502_addr(p_jit,
+                                p_buf,
+                                start_addr_6502 + total_6502_bytes,
+                                0xe9,
+                                0);
 }
 
 void
@@ -2013,6 +2027,7 @@ jit_jit(struct jit_struct* p_jit,
     unsigned char* p_jit_buf = p_jit_base + (addr_6502 * k_jit_bytes_per_byte);
     struct util_buffer* p_buf = util_buffer_create();
     util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
+    util_buffer_set_base_address(p_buf, p_jit_buf);
 
     jit_at_addr(p_jit, p_buf, addr_6502, debug_flags, 1);
 

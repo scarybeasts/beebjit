@@ -21,5 +21,8 @@ void util_buffer_set_pos(struct util_buffer* p_buf, size_t len);
 size_t util_buffer_remaining(struct util_buffer* p_buf);
 void util_buffer_append(struct util_buffer* p_buf,
                         struct util_buffer* p_src_buf);
+void util_buffer_set_base_address(struct util_buffer* p_buf,
+                                  unsigned char* p_base);
+unsigned char* util_buffer_get_base_address(struct util_buffer* p_buf);
 
 #endif /* BEEBJIT_UTIL_H */
