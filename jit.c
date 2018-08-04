@@ -29,6 +29,39 @@ static const int k_offset_read_callback = 56;
 static const int k_offset_write_callback = 64;
 static const int k_offset_interrupt = 72;
 
+enum {
+  k_a = 1,
+  k_x = 2,
+  k_y = 3,
+  k_intel = 4,
+  k_6502 = 5,
+};
+
+/* k_a: PLA, TXA, TYA, LDA */
+/* k_x: LDX, TAX, TSX, DEX, INX */
+/* k_y: DEY, LDY, TAY, INY */
+static const unsigned char g_nz_flag_results[58] = {
+  0, 0, 0, k_6502, k_6502, 0, 0, 0,
+  0, k_6502, k_6502, k_6502, k_6502, 0, 0, k_6502,
+  k_6502, k_6502, 0, 0, 0, 0, 0, k_6502,
+  k_a, k_6502, 0, 0, 0, 0, 0, k_y,
+  k_a, 0, k_a, 0, k_y, k_a, k_x, k_y,
+  k_x, 0, 0, k_x, k_6502, k_6502, k_6502, k_6502,
+  k_y, k_x, 0, 0, k_6502, k_x, 0, k_6502,
+  0, 0,
+};
+
+static const unsigned char g_nz_flags_needed[58] = {
+  0, 0, 1, 0, 0, 1, 1, 0,
+  1, 0, 0, 0, 0, 1, 0, 0,
+  0, 0, 0, 1, 1, 1, 1, 0,
+  0, 0, 1, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 0, 0, 0, 0, 0,
+  1, 0,
+};
+
 struct jit_struct {
   unsigned char* p_mem;        /* 0  */
   unsigned char* p_jit_base;   /* 8  */
@@ -1085,7 +1118,8 @@ jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502,
            unsigned int debug_flags,
-           unsigned int jit_flags) {
+           unsigned int jit_flags,
+           unsigned char* p_opcode) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1104,6 +1138,8 @@ jit_single(struct jit_struct* p_jit,
   size_t index = 0;
   size_t num_6502_bytes = 0;
   size_t n_count = 1;
+
+  *p_opcode = opcode;
 
   if (debug_flags) {
     jit_emit_debug_sequence(p_buf, addr_6502);
@@ -1448,7 +1484,6 @@ jit_single(struct jit_struct* p_jit,
   case k_pla:
     /* PLA */
     index = jit_emit_pull_to_a(p_jit_buf, index);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
     break;
   case k_bvs:
     /* BVS */
@@ -1573,14 +1608,12 @@ jit_single(struct jit_struct* p_jit,
     /* dec cl */
     p_jit_buf[index++] = 0xfe;
     p_jit_buf[index++] = 0xc9;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_txa:
     /* TXA */
     /* mov al, bl */
     p_jit_buf[index++] = 0x88;
     p_jit_buf[index++] = 0xd8;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
     break;
   case k_bcc:
     /* BCC */
@@ -1598,7 +1631,6 @@ jit_single(struct jit_struct* p_jit,
     /* mov al, cl */
     p_jit_buf[index++] = 0x88;
     p_jit_buf[index++] = 0xc8;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
     break;
   case k_txs:
     /* TXS */
@@ -1645,7 +1677,6 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 2);
     break;
   case k_ldx:
     /* LDX */
@@ -1685,7 +1716,6 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 1);
     break;
   case k_lda:
     /* LDA */
@@ -1738,21 +1768,18 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
     break;
   case k_tay:
     /* TAY */
     /* mov cl, al */
     p_jit_buf[index++] = 0x88;
     p_jit_buf[index++] = 0xc1;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 2);
     break;
   case k_tax:
     /* TAX */
     /* mov bl, al */
     p_jit_buf[index++] = 0x88;
     p_jit_buf[index++] = 0xc3;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 1);
     break;
   case k_bcs:
     /* BCS */
@@ -1778,7 +1805,6 @@ jit_single(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x40;
     p_jit_buf[index++] = 0x88;
     p_jit_buf[index++] = 0xf3;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 1);
     break;
   case k_cpy:
     /* CPY */
@@ -1854,14 +1880,12 @@ jit_single(struct jit_struct* p_jit,
     /* inc cl */
     p_jit_buf[index++] = 0xfe;
     p_jit_buf[index++] = 0xc1;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_dex:
     /* DEX */
     /* dec bl */
     p_jit_buf[index++] = 0xfe;
     p_jit_buf[index++] = 0xcb;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_bne:
     /* BNE */
@@ -1946,7 +1970,6 @@ jit_single(struct jit_struct* p_jit,
     /* inc bl */
     p_jit_buf[index++] = 0xfe;
     p_jit_buf[index++] = 0xc3;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_sbc:
     /* SBC */
@@ -2001,12 +2024,40 @@ jit_at_addr(struct jit_struct* p_jit,
   unsigned char* p_dst;
 
   do {
+    unsigned char opcode;
+    unsigned char optype;
+    unsigned char nz_flags;
+    int reg = -1;
+    size_t opcodes_len;
+    size_t buf_left;
+
     p_dst = util_buffer_get_ptr(p_buf) + util_buffer_get_pos(p_buf);
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
     util_buffer_set_base_address(p_single_buf, p_dst);
-    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502, debug_flags, 1);
-    size_t opcodes_len = util_buffer_get_pos(p_single_buf);
-    size_t buf_left = util_buffer_remaining(p_buf);
+    num_6502_bytes = jit_single(p_jit,
+                                p_single_buf,
+                                addr_6502,
+                                debug_flags,
+                                1,
+                                &opcode);
+
+    optype = g_optypes[opcode];
+    nz_flags = g_nz_flag_results[optype];
+    if (nz_flags == k_a) {
+      reg = 0;
+    } else if (nz_flags == k_x) {
+      reg = 1;
+    } else if (nz_flags == k_y) {
+      reg = 2;
+    }
+    if (reg >= 0) {
+      size_t index = util_buffer_get_pos(p_single_buf);
+      index = jit_emit_do_zn_flags(single_jit_buf, index, reg);
+      util_buffer_set_pos(p_single_buf, index);
+    }
+
+    opcodes_len = util_buffer_get_pos(p_single_buf);
+    buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode jmp length. */
     if (buf_left >= opcodes_len + 5) {
       util_buffer_append(p_buf, p_single_buf);
