@@ -1113,20 +1113,25 @@ jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
   p_jit->interrupt = interrupt;
 }
 
+static unsigned char
+jit_get_opcode(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_mem = p_jit->p_mem;
+  return p_mem[addr_6502];
+}
+
 static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502,
            unsigned int debug_flags,
-           unsigned int jit_flags,
-           unsigned char* p_opcode) {
+           unsigned int jit_flags) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
   uint16_t addr_6502_plus_1 = addr_6502 + 1;
   uint16_t addr_6502_plus_2 = addr_6502 + 2;
 
-  unsigned char opcode = p_mem[addr_6502];
+  unsigned char opcode = jit_get_opcode(p_jit, addr_6502);
   unsigned char operand1 = p_mem[addr_6502_plus_1];
   unsigned char operand2 = p_mem[addr_6502_plus_2];
   uint16_t addr_6502_relative_jump = (int) addr_6502 + 2 + (char) operand1;
@@ -1135,11 +1140,9 @@ jit_single(struct jit_struct* p_jit,
   unsigned char optype = g_optypes[opcode];
   unsigned char oplen = 0;
   uint16_t opcode_addr_6502;
-  size_t index = 0;
+  size_t index = util_buffer_get_pos(p_buf);
   size_t num_6502_bytes = 0;
   size_t n_count = 1;
-
-  *p_opcode = opcode;
 
   if (debug_flags) {
     jit_emit_debug_sequence(p_buf, addr_6502);
@@ -2015,54 +2018,52 @@ jit_at_addr(struct jit_struct* p_jit,
             uint16_t addr_6502,
             unsigned int debug_flags,
             unsigned int jit_flags) {
+  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
   struct util_buffer* p_single_buf = util_buffer_create();
   size_t num_6502_bytes;
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
-  unsigned char* p_dst;
+  int curr_nz_flags = -1;
 
   do {
     unsigned char opcode;
     unsigned char optype;
-    unsigned char nz_flags;
-    int reg = -1;
     size_t opcodes_len;
     size_t buf_left;
+    unsigned char new_nz_flags;
+    int nz_lazy_loaded = 0;
+    unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
 
-    p_dst = util_buffer_get_ptr(p_buf) + util_buffer_get_pos(p_buf);
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
     util_buffer_set_base_address(p_single_buf, p_dst);
-    num_6502_bytes = jit_single(p_jit,
-                                p_single_buf,
-                                addr_6502,
-                                debug_flags,
-                                1,
-                                &opcode);
 
+    opcode = jit_get_opcode(p_jit, addr_6502);
     optype = g_optypes[opcode];
-    nz_flags = g_nz_flag_results[optype];
-    if (nz_flags == k_a) {
-      reg = 0;
-    } else if (nz_flags == k_x) {
-      reg = 1;
-    } else if (nz_flags == k_y) {
-      reg = 2;
-    }
-    if (reg >= 0) {
-      size_t index = util_buffer_get_pos(p_single_buf);
-      index = jit_emit_do_zn_flags(single_jit_buf, index, reg);
+    /* See if we need to lazy load the 6502 NZ flags. */
+    if (g_nz_flags_needed[optype] && curr_nz_flags != -1) {
+      size_t index = jit_emit_do_zn_flags(single_jit_buf, 0, curr_nz_flags - 1);
       util_buffer_set_pos(p_single_buf, index);
+      nz_lazy_loaded = 1;
     }
+
+    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502, debug_flags, 1);
 
     opcodes_len = util_buffer_get_pos(p_single_buf);
     buf_left = util_buffer_remaining(p_buf);
-    /* TODO: don't hardcode jmp length. */
-    if (buf_left >= opcodes_len + 5) {
+    /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
+    if (buf_left >= opcodes_len + 2 + 4 + 4 + 5) {
       util_buffer_append(p_buf, p_single_buf);
       total_6502_bytes += num_6502_bytes;
       total_num_ops++;
+
+      new_nz_flags = g_nz_flag_results[optype];
+      if (new_nz_flags == k_a || new_nz_flags == k_x || new_nz_flags == k_y) {
+        curr_nz_flags = new_nz_flags;
+      } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
+        curr_nz_flags = -1;
+      }
     } else {
       break;
     }
@@ -2073,6 +2074,13 @@ jit_at_addr(struct jit_struct* p_jit,
 //printf("addr %x, total_num_ops: %zu\n", start_addr_6502, total_num_ops);
 
   util_buffer_destroy(p_single_buf);
+
+  /* See if we need to lazy load the 6502 NZ flags. */
+  if (curr_nz_flags != -1) {
+    size_t index = util_buffer_get_pos(p_buf);
+    index = jit_emit_do_zn_flags(p_jit_buf, index, curr_nz_flags - 1);
+    util_buffer_set_pos(p_buf, index);
+  }
 
   (void) jit_emit_jmp_6502_addr(p_jit,
                                 p_buf,
