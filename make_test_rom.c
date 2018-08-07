@@ -303,7 +303,33 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc2;
   p_mem[index++] = 0x60; /* RTS */
 
+  /* Test BIT. */
   index = set_new_index(index, 0x2c0);
+  p_mem[index++] = 0xa9; /* LDA #$C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0x85; /* STA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0x24; /* BIT $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C300 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc3;
+
+  index = set_new_index(index, 0x300);
   p_mem[index++] = 0x02; /* Done */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

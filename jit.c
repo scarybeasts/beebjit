@@ -91,28 +91,6 @@ jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
 }
 
 static size_t
-jit_emit_intel_to_6502_zero(unsigned char* p_jit, size_t index) {
-  /* sete r13b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x94;
-  p_jit[index++] = 0xc5;
-
-  return index;
-}
-
-static size_t
-jit_emit_intel_to_6502_negative(unsigned char* p_jit, size_t index) {
-  /* sets r14b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x98;
-  p_jit[index++] = 0xc6;
-
-  return index;
-}
-
-static size_t
 jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
   /* setb r12b */
   p_jit[index++] = 0x41;
@@ -147,28 +125,6 @@ jit_emit_intel_to_6502_overflow(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_carry_to_6502_zero(unsigned char* p_jit, size_t index) {
-  /* setb r13b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc5;
-
-  return index;
-}
-
-static size_t
-jit_emit_carry_to_6502_negative(unsigned char* p_jit, size_t index) {
-  /* setb r14b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc6;
-
-  return index;
-}
-
-static size_t
 jit_emit_carry_to_6502_overflow(unsigned char* p_jit, size_t index) {
   /* setb r15b */
   p_jit[index++] = 0x41;
@@ -181,10 +137,8 @@ jit_emit_carry_to_6502_overflow(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_do_zn_flags(unsigned char* p_jit, size_t index, int reg) {
-  assert(index + 8 <= k_jit_bytes_per_byte);
-  if (reg == -1) {
-    /* Nothing -- flags already set. */
-  } else if (reg == 0) {
+  assert(reg >= 0 && reg <= 2);
+  if (reg == 0) {
     /* test al, al */
     p_jit[index++] = 0x84;
     p_jit[index++] = 0xc0;
@@ -198,41 +152,20 @@ jit_emit_do_zn_flags(unsigned char* p_jit, size_t index, int reg) {
     p_jit[index++] = 0xc9;
   }
 
-  index = jit_emit_intel_to_6502_zero(p_jit, index);
-  index = jit_emit_intel_to_6502_negative(p_jit, index);
-
   return index;
 }
 
 static size_t
-jit_emit_intel_to_6502_znc(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_zero(p_jit, index);
-  index = jit_emit_intel_to_6502_negative(p_jit, index);
+jit_emit_intel_to_6502_co(unsigned char* p_jit, size_t index) {
   index = jit_emit_intel_to_6502_carry(p_jit, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_intel_to_6502_sub_znc(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_zero(p_jit, index);
-  index = jit_emit_intel_to_6502_negative(p_jit, index);
-  index = jit_emit_intel_to_6502_sub_carry(p_jit, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_intel_to_6502_znco(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_znc(p_jit, index);
   index = jit_emit_intel_to_6502_overflow(p_jit, index);
 
   return index;
 }
 
 static size_t
-jit_emit_intel_to_6502_sub_znco(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_sub_znc(p_jit, index);
+jit_emit_intel_to_6502_sub_co(unsigned char* p_jit, size_t index) {
+  index = jit_emit_intel_to_6502_sub_carry(p_jit, index);
   index = jit_emit_intel_to_6502_overflow(p_jit, index);
 
   return index;
@@ -240,11 +173,12 @@ jit_emit_intel_to_6502_sub_znco(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
-  /* Note: doesn't just check carry value but also trashes it. */
-  /* shr r12b, 1 */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0xd0;
-  p_jit[index++] = 0xec;
+  /* bt r12, 0 */
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xba;
+  p_jit[index++] = 0xe4;
+  p_jit[index++] = 0x00;
 
   return index;
 }
@@ -261,40 +195,17 @@ jit_emit_set_carry(unsigned char* p_jit, size_t index, unsigned char val) {
 
 static size_t
 jit_emit_test_carry(unsigned char* p_jit, size_t index) {
-  /* test r12b, r12b */
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x84;
-  p_jit[index++] = 0xe4;
-
-  return index;
-}
-
-static size_t
-jit_emit_test_zero(unsigned char* p_jit, size_t index) {
-  /* test r13b, r13b */
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x84;
-  p_jit[index++] = 0xed;
-
-  return index;
-}
-
-static size_t
-jit_emit_test_negative(unsigned char* p_jit, size_t index) {
-  /* test r14b, r14b */
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x84;
-  p_jit[index++] = 0xf6;
-
-  return index;
+  return jit_emit_6502_carry_to_intel(p_jit, index);
 }
 
 static size_t
 jit_emit_test_overflow(unsigned char* p_jit, size_t index) {
-  /* test r15b, r15b */
-  p_jit[index++] = 0x45;
-  p_jit[index++] = 0x84;
-  p_jit[index++] = 0xff;
+  /* bt r15, 0 */
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xba;
+  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0x00;
 
   return index;
 }
@@ -598,67 +509,71 @@ jit_emit_push_addr(unsigned char* p_jit_buf, size_t index, uint16_t addr_6502) {
 
 static size_t
 jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
-  /* mov rdx, r8 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xc2;
+  unsigned char brk_and_set_bit = 0x20;
   if (is_brk) {
-    /* or dl, 0x30 */
-    p_jit[index++] = 0x80;
-    p_jit[index++] = 0xca;
-    p_jit[index++] = 0x30;
-  } else {
-    /* or dl, 0x20 */
-    p_jit[index++] = 0x80;
-    p_jit[index++] = 0xca;
-    p_jit[index++] = 0x20;
+    brk_and_set_bit += 0x10;
   }
 
-  /* or rdx, r12 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x09;
-  p_jit[index++] = 0xe2;
+  /* lahf */
+  p_jit[index++] = 0x9f;
 
-  /* mov r9, r13 */
-  p_jit[index++] = 0x4d;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xe9;
-  /* shl r9, 1 */
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0xd1;
-  p_jit[index++] = 0xe1;
-  /* or rdx, r9 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x09;
-  p_jit[index++] = 0xca;
+  /* r8 is IF and DF */
+  /* r12 is CF */
+  /* lea rdx, [r8 + r12 + brk_and_set_bit] */
+  p_jit[index++] = 0x4b;
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x54;
+  p_jit[index++] = 0x20;
+  p_jit[index++] = brk_and_set_bit;
 
-  /* mov r9, r14 */
-  p_jit[index++] = 0x4d;
+  /* r15 is OF */
+  /* mov rdi, r15 */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf1;
-  /* shl r9, 7 */
-  p_jit[index++] = 0x49;
+  p_jit[index++] = 0xff;
+  /* shl edi, 6 */
   p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe1;
-  p_jit[index++] = 0x07;
-  /* or rdx, r9 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x09;
-  p_jit[index++] = 0xca;
-
-  /* mov r9, r15 */
-  p_jit[index++] = 0x4d;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf9;
-  /* shl r9, 6 */
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe1;
+  p_jit[index++] = 0xe7;
   p_jit[index++] = 0x06;
-  /* or rdx, r9 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x09;
-  p_jit[index++] = 0xca;
+  /* lea edx, [rdx + rdi] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x3a;
+
+  /* Intel flags bit 6 is ZF, 6502 flags bit 1 */
+  /* movzx edi, ah */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xfc;
+  /* and edi, 0x40 */
+  p_jit[index++] = 0x83;
+  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0x40;
+  /* shr edi, 5 */
+  p_jit[index++] = 0xc1;
+  p_jit[index++] = 0xef;
+  p_jit[index++] = 0x05;
+  /* lea edx, [rdx + rdi] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x3a;
+
+  /* Intel flags bit 7 is SF, 6502 flags bit 7 */
+  /* movzx edi, ah */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
+  p_jit[index++] = 0xfc;
+  /* and edi, 0x80 */
+  p_jit[index++] = 0x83;
+  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0x80;
+  /* lea edx, [rdx + rdi] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x14;
+  p_jit[index++] = 0x3a;
+
+  /* sahf */
+  p_jit[index++] = 0x9e;
 
   index = jit_emit_push_from_scratch(p_jit, index);
 
@@ -671,12 +586,8 @@ jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
 
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 0);
   index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
-  index = jit_emit_scratch_bit_test(p_jit_buf, index, 1);
-  index = jit_emit_carry_to_6502_zero(p_jit_buf, index);
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
   index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
-  index = jit_emit_scratch_bit_test(p_jit_buf, index, 7);
-  index = jit_emit_carry_to_6502_negative(p_jit_buf, index);
   /* and dl, 0xc */
   p_jit_buf[index++] = 0x80;
   p_jit_buf[index++] = 0xe2;
@@ -730,6 +641,9 @@ jit_emit_undefined(unsigned char* p_jit,
 
 static size_t
 jit_emit_save_registers(unsigned char* p_jit, size_t index) {
+  /* The flags we need to save are negative and zero, both covered by lahf. */
+  /* lahf */
+  p_jit[index++] = 0x9f;
   /* No need to push rdx or rdi because they are scratch registers. */
   /* push rax / rcx / rsi */
   p_jit[index++] = 0x50;
@@ -751,6 +665,8 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x5e;
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x58;
+  /* sahf */
+  p_jit[index++] = 0x9e;
 
   return index;
 }
@@ -799,16 +715,16 @@ jit_emit_debug_util(unsigned char* p_jit) {
   p_jit[index++] = 0xe0;
 
   /* param4: 6502 FN */
-  /* mov rcx, r14 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf1;
+  /* sets cl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x98;
+  p_jit[index++] = 0xc1;
 
   /* param3: 6502 FZ */
-  /* mov rdx, r13 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xea;
+  /* sete dl */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0x94;
+  p_jit[index++] = 0xc2;
 
   /* param1 */
   /* mov rdi, [rbp + k_offset_debug] */
@@ -1042,7 +958,6 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x25;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
     p_jit_buf[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_zpx:
     /* test BYTE PTR [rdx + p_mem], 0xff */
@@ -1050,7 +965,6 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x82;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
     p_jit_buf[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_abx:
     /* test BYTE PTR [rbx + addr_6502], 0xff */
@@ -1058,7 +972,6 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x83;
     index = jit_emit_int(p_jit_buf, index, addr_6502);
     p_jit_buf[index++] = 0xff;
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   default:
     assert(0);
@@ -1299,7 +1212,6 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x0a);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_asl:
     /* ASL */
@@ -1311,7 +1223,7 @@ jit_single(struct jit_struct* p_jit,
                               operand2,
                               0xe0,
                               n_count);
-    index = jit_emit_intel_to_6502_znc(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
     break;
   case k_php:
     /* PHP */
@@ -1319,14 +1231,13 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_bpl:
     /* BPL */
-    index = jit_emit_test_negative(p_jit_buf, index);
-    /* je */
+    /* jns */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x84);
+                                   0x89);
     break;
   case k_clc:
     /* CLC */
@@ -1343,21 +1254,48 @@ jit_single(struct jit_struct* p_jit,
     /* Only has zp and abs. */
     assert(opmode == k_zpg || opmode == k_abs);
     index = jit_check_special_read(p_jit, opcode_addr_6502, p_jit_buf, index);
-    /* mov dl, [p_mem + addr] */
+    /* mov ah, [p_mem + addr] */
     p_jit_buf[index++] = 0x8a;
-    p_jit_buf[index++] = 0x14;
+    p_jit_buf[index++] = 0x24;
     p_jit_buf[index++] = 0x25;
     index = jit_emit_int(p_jit_buf,
                          index,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
-    index = jit_emit_scratch_bit_test(p_jit_buf, index, 7);
-    index = jit_emit_carry_to_6502_negative(p_jit_buf, index);
-    index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
+
+    /* Bit 14 of eax is bit 6 of ah, where we get the OF from. */
+    /* bt eax, 14 */
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xba;
+    p_jit_buf[index++] = 0xe0;
+    p_jit_buf[index++] = 14;
     index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
-    /* and dl, al */
-    p_jit_buf[index++] = 0x20;
+
+    /* Set ZF. */
+    /* test ah, al */
+    p_jit_buf[index++] = 0x84;
+    p_jit_buf[index++] = 0xc4;
+    /* sete dl */
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0x94;
     p_jit_buf[index++] = 0xc2;
-    index = jit_emit_intel_to_6502_zero(p_jit_buf, index);
+    /* x64 ZF is bit 6 in flags. */
+    /* shl dl, 6 */
+    p_jit_buf[index++] = 0xc0;
+    p_jit_buf[index++] = 0xe2;
+    p_jit_buf[index++] = 6;
+
+    /* Set NF. With a trick: NF is bit 7 in both x64 and 6502 flags. */
+    /* and ah, 0x80 */
+    p_jit_buf[index++] = 0x80;
+    p_jit_buf[index++] = 0xe4;
+    p_jit_buf[index++] = 0x80;
+
+    /* Put new flags into Intel flags. */
+    /* or ah, dl */
+    p_jit_buf[index++] = 0x08;
+    p_jit_buf[index++] = 0xd4;
+    /* sahf */
+    p_jit_buf[index++] = 0x9e;
     break;
   case k_and:
     /* AND */
@@ -1368,7 +1306,6 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x22);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_rol:
     /* ROL */
@@ -1395,14 +1332,13 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_bmi:
     /* BMI */
-    index = jit_emit_test_negative(p_jit_buf, index);
-    /* jne */
+    /* js */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x85);
+                                   0x88);
     break;
   case k_sec:
     /* SEC */
@@ -1417,7 +1353,6 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x32);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_lsr:
     /* LSR */
@@ -1429,7 +1364,7 @@ jit_single(struct jit_struct* p_jit,
                               operand2,
                               0xe8,
                               n_count);
-    index = jit_emit_intel_to_6502_znc(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
     break;
   case k_pha:
     /* PHA */
@@ -1453,13 +1388,13 @@ jit_single(struct jit_struct* p_jit,
   case k_bvc:
     /* BVC */
     index = jit_emit_test_overflow(p_jit_buf, index);
-    /* je */
+    /* jae / jnc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x84);
+                                   0x83);
     break;
   case k_cli:
     /* CLI */
@@ -1499,7 +1434,7 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x12);
-    index = jit_emit_intel_to_6502_znco(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_co(p_jit_buf, index);
     break;
   case k_ror:
     /* ROR */
@@ -1526,13 +1461,13 @@ jit_single(struct jit_struct* p_jit,
   case k_bvs:
     /* BVS */
     index = jit_emit_test_overflow(p_jit_buf, index);
-    /* jne */
+    /* jb / jc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x85);
+                                   0x82);
     break;
   case k_sei:
     /* SEI */
@@ -1656,13 +1591,13 @@ jit_single(struct jit_struct* p_jit,
   case k_bcc:
     /* BCC */
     index = jit_emit_test_carry(p_jit_buf, index);
-    /* je */
+    /* jae / jnc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x84);
+                                   0x83);
     break;
   case k_tya:
     /* TYA */
@@ -1822,13 +1757,13 @@ jit_single(struct jit_struct* p_jit,
   case k_bcs:
     /* BCS */
     index = jit_emit_test_carry(p_jit_buf, index);
-    /* jne */
+    /* jb / jc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x85);
+                                   0x82);
     break;
   case k_clv:
     /* CLV */
@@ -1867,7 +1802,7 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_intel_to_6502_sub_znc(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_cmp:
     /* CMP */
@@ -1878,7 +1813,7 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x3a);
-    index = jit_emit_intel_to_6502_sub_znc(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_dec:
     /* DEC */
@@ -1911,7 +1846,6 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_iny:
     /* INY */
@@ -1927,14 +1861,13 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_bne:
     /* BNE */
-    index = jit_emit_test_zero(p_jit_buf, index);
-    /* je */
+    /* jne */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x84);
+                                   0x85);
     break;
   case k_cld:
     /* CLD */
@@ -1968,7 +1901,7 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_intel_to_6502_sub_znc(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_inc:
     /* INC */
@@ -2001,7 +1934,6 @@ jit_single(struct jit_struct* p_jit,
       assert(0);
       break;
     }
-    index = jit_emit_do_zn_flags(p_jit_buf, index, -1);
     break;
   case k_inx:
     /* INX */
@@ -2021,21 +1953,20 @@ jit_single(struct jit_struct* p_jit,
                              operand1,
                              operand2,
                              0x1a);
-    index = jit_emit_intel_to_6502_sub_znco(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_sub_co(p_jit_buf, index);
     break;
   case k_nop:
     /* NOP */
     break;
   case k_beq:
     /* BEQ */
-    index = jit_emit_test_zero(p_jit_buf, index);
-    /* jne */
+    /* je */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
                                    p_buf,
                                    addr_6502_relative_jump,
                                    0x0f,
-                                   0x85);
+                                   0x84);
     break;
   default:
     index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
