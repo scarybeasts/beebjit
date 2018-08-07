@@ -516,13 +516,13 @@ jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
   /* lahf */
   p_jit[index++] = 0x9f;
 
-  /* r8 is IF and DF */
+  /* r13 is IF and DF */
   /* r14 is CF */
-  /* lea rdx, [r8 + r14 + brk_and_set_bit] */
+  /* lea rdx, [r13 + r14 + brk_and_set_bit] */
   p_jit[index++] = 0x4b;
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0x94;
-  p_jit[index++] = 0x30;
+  p_jit[index++] = 0x35;
   p_jit[index++] = brk_and_set_bit;
 
   /* r15 is OF */
@@ -588,14 +588,14 @@ jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
   index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
   /* I and D flags */
-  /* mov r8b, dl */
+  /* mov r13b, dl */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0xd0;
-  /* and r8b, 0xc */
+  p_jit_buf[index++] = 0xd5;
+  /* and r13b, 0xc */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xe0;
+  p_jit_buf[index++] = 0xe5;
   p_jit_buf[index++] = 0x0c;
   /* ZF */
   /* mov ah, dl */
@@ -673,18 +673,12 @@ jit_emit_save_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
   p_jit[index++] = 0x56;
-  /* push r8 */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x50;
 
   return index;
 }
 
 static size_t
 jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
-  /* pop r8 */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x58;
   /* pop rsi / rcx / rax */
   p_jit[index++] = 0x5e;
   p_jit[index++] = 0x59;
@@ -722,9 +716,9 @@ jit_emit_debug_util(unsigned char* p_jit) {
   p_jit[index++] = 0x50;
 
   /* param7: remaining flags */
-  /* push r8 */
+  /* push r13 */
   p_jit[index++] = 0x41;
-  p_jit[index++] = 0x50;
+  p_jit[index++] = 0x55;
 
   /* param6: 6502 FO */
   /* mov r9, r15 */
@@ -1007,11 +1001,11 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
 
 static size_t
 jit_emit_sei(unsigned char* p_jit_buf, size_t index) {
-  /* bts r8, 2 */
+  /* bts r13, 2 */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xba;
-  p_jit_buf[index++] = 0xe8;
+  p_jit_buf[index++] = 0xed;
   p_jit_buf[index++] = 0x02;
 
   return index;
@@ -1056,11 +1050,11 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
   index_jmp1 = index;
 
   if (check_flag) {
-    /* bt r8, 2 */
+    /* bt r13, 2 */
     p_jit_buf[index++] = 0x49;
     p_jit_buf[index++] = 0x0f;
     p_jit_buf[index++] = 0xba;
-    p_jit_buf[index++] = 0xe0;
+    p_jit_buf[index++] = 0xe5;
     p_jit_buf[index++] = 0x02;
     /* jb ... */
     p_jit_buf[index++] = 0x72;
@@ -1423,11 +1417,11 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_cli:
     /* CLI */
-    /* btr r8, 2 */
+    /* btr r13, 2 */
     p_jit_buf[index++] = 0x49;
     p_jit_buf[index++] = 0x0f;
     p_jit_buf[index++] = 0xba;
-    p_jit_buf[index++] = 0xf0;
+    p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x02;
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
     break;
@@ -1896,11 +1890,11 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_cld:
     /* CLD */
-    /* btr r8, 3 */
+    /* btr r13, 3 */
     p_jit_buf[index++] = 0x49;
     p_jit_buf[index++] = 0x0f;
     p_jit_buf[index++] = 0xba;
-    p_jit_buf[index++] = 0xf0;
+    p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x03;
     break;
   case k_cpx:
@@ -2127,12 +2121,12 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
-    /* r8 is the rest of the 6502 flags or'ed together. */
+    /* r13 is the rest of the 6502 flags or'ed together. */
     /* 6502 start up state is all flags clear apart from I. */
     /* Bit 2 is interrupt disable. */
     /* Bit 3 is decimal mode. */
-    "xor %%r8, %%r8;"
-    "bts $2, %%r8;"
+    "xor %%r13, %%r13;"
+    "bts $2, %%r13;"
     /* r14 is carry flag. */
     "xor %%r14, %%r14;"
     /* r15 is overflow flag. */
@@ -2154,7 +2148,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     :
     : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r8", "r9", "r14", "r15"
+      "r9", "r13", "r14", "r15"
   );
 }
 
