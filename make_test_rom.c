@@ -293,7 +293,17 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc2;
 
+  /* Test simple JSR / RTS pair. */
   index = set_new_index(index, 0x280);
+  p_mem[index++] = 0x20; /* JSR $C286 */
+  p_mem[index++] = 0x86;
+  p_mem[index++] = 0xc2;
+  p_mem[index++] = 0x4c; /* JMP $C2C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc2;
+  p_mem[index++] = 0x60; /* RTS */
+
+  index = set_new_index(index, 0x2c0);
   p_mem[index++] = 0x02; /* Done */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
