@@ -588,14 +588,39 @@ jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
   index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
   index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
-  /* and dl, 0xc */
-  p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xe2;
-  p_jit_buf[index++] = 0x0c;
+  /* I and D flags */
   /* mov r8b, dl */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
   p_jit_buf[index++] = 0xd0;
+  /* and r8b, 0xc */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x80;
+  p_jit_buf[index++] = 0xe0;
+  p_jit_buf[index++] = 0x0c;
+  /* ZF */
+  /* mov ah, dl */
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0xd4;
+  /* and ah, 2 */
+  p_jit_buf[index++] = 0x80;
+  p_jit_buf[index++] = 0xe4;
+  p_jit_buf[index++] = 0x02;
+  /* shl ah, 5 */
+  p_jit_buf[index++] = 0xc0;
+  p_jit_buf[index++] = 0xe4;
+  p_jit_buf[index++] = 0x05;
+  /* NF */
+  /* and dl, 0x80 */
+  p_jit_buf[index++] = 0x80;
+  p_jit_buf[index++] = 0xe2;
+  p_jit_buf[index++] = 0x80;
+  /* or ah, dl */
+  p_jit_buf[index++] = 0x08;
+  p_jit_buf[index++] = 0xd4;
+
+  /* sahf */
+  p_jit_buf[index++] = 0x9e;
 
   return index;
 }
@@ -1020,13 +1045,14 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                          int check_flag) {
   size_t index_jmp1 = 0;
   size_t index_jmp2 = 0;
-  /* test BYTE PTR [rbp + k_offset_interrupt], 1 */
-  p_jit_buf[index++] = 0xf6;
-  p_jit_buf[index++] = 0x45;
+  /* bt DWORD PTR [rbp + k_offset_interrupt], 0 */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xba;
+  p_jit_buf[index++] = 0x65;
   p_jit_buf[index++] = k_offset_interrupt;
-  p_jit_buf[index++] = 0x01;
-  /* je ... */
-  p_jit_buf[index++] = 0x74;
+  p_jit_buf[index++] = 0x00;
+  /* jae / jnc ... */
+  p_jit_buf[index++] = 0x73;
   p_jit_buf[index++] = 0xfe;
   index_jmp1 = index;
 
