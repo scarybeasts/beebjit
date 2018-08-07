@@ -92,23 +92,22 @@ jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
 
 static size_t
 jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
-  /* setb r12b */
+  /* setb r14b */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc4;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t
 jit_emit_intel_to_6502_sub_carry(unsigned char* p_jit, size_t index) {
-  /* setae r12b */
-
+  /* setae r14b */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x93;
-  p_jit[index++] = 0xc4;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
@@ -173,11 +172,11 @@ jit_emit_intel_to_6502_sub_co(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
-  /* bt r12, 0 */
+  /* bt r14, 0 */
   p_jit[index++] = 0x49;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xba;
-  p_jit[index++] = 0xe4;
+  p_jit[index++] = 0xe6;
   p_jit[index++] = 0x00;
 
   return index;
@@ -185,9 +184,9 @@ jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_set_carry(unsigned char* p_jit, size_t index, unsigned char val) {
-  /* mov r12b, val */
+  /* mov r14b, val */
   p_jit[index++] = 0x41;
-  p_jit[index++] = 0xb4;
+  p_jit[index++] = 0xb6;
   p_jit[index++] = val;
 
   return index;
@@ -518,12 +517,12 @@ jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
   p_jit[index++] = 0x9f;
 
   /* r8 is IF and DF */
-  /* r12 is CF */
-  /* lea rdx, [r8 + r12 + brk_and_set_bit] */
+  /* r14 is CF */
+  /* lea rdx, [r8 + r14 + brk_and_set_bit] */
   p_jit[index++] = 0x4b;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x54;
-  p_jit[index++] = 0x20;
+  p_jit[index++] = 0x94;
+  p_jit[index++] = 0x30;
   p_jit[index++] = brk_and_set_bit;
 
   /* r15 is OF */
@@ -734,10 +733,10 @@ jit_emit_debug_util(unsigned char* p_jit) {
   p_jit[index++] = 0xf9;
 
   /* param5: 6502 FC */
-  /* mov r8, r12 */
+  /* mov r8, r14 */
   p_jit[index++] = 0x4d;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xe0;
+  p_jit[index++] = 0xf0;
 
   /* param4: 6502 FN */
   /* sets cl */
@@ -2134,8 +2133,8 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     /* Bit 3 is decimal mode. */
     "xor %%r8, %%r8;"
     "bts $2, %%r8;"
-    /* r12 is carry flag. */
-    "xor %%r12, %%r12;"
+    /* r14 is carry flag. */
+    "xor %%r14, %%r14;"
     /* r15 is overflow flag. */
     "xor %%r15, %%r15;"
     /* sil is 6502 S. */
@@ -2155,7 +2154,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     :
     : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r8", "r9", "r12", "r15"
+      "r8", "r9", "r14", "r15"
   );
 }
 
