@@ -351,23 +351,35 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
                           unsigned char* p_jit_buf,
                           size_t index,
                           unsigned char operand1) {
+  unsigned char operand1_inc = operand1 + 1;
+  /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
+   * instead.
+   */
   /* mov rdi, rbx */
   p_jit_buf[index++] = 0x48;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xdf;
-  /* add dil, operand1 */
+  /* lea edx, [rbx + operand1] */
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x93;
+  index = jit_emit_int(p_jit_buf, index, operand1);
+  /* lea r9, [rbx + operand1 + 1] */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x8b;
+  index = jit_emit_int(p_jit_buf, index, operand1_inc);
+  /* mov dil, dl */
   p_jit_buf[index++] = 0x40;
-  p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xc7;
-  p_jit_buf[index++] = operand1;
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0xd7;
   /* movzx edx, BYTE PTR [rdi] */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb6;
   p_jit_buf[index++] = 0x17;
-  /* inc dil */
-  p_jit_buf[index++] = 0x40;
-  p_jit_buf[index++] = 0xfe;
-  p_jit_buf[index++] = 0xc7;
+  /* mov dil, r9b */
+  p_jit_buf[index++] = 0x44;
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0xcf;
   /* mov dh, BYTE PTR [rdi] */
   p_jit_buf[index++] = 0x8a;
   p_jit_buf[index++] = 0x37;
@@ -379,6 +391,9 @@ static size_t
 jit_emit_zp_x_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
+  /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
+   * instead.
+   */
   /* lea edi, [rbx + operand1] */
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0xbb;
@@ -396,6 +411,9 @@ static size_t
 jit_emit_zp_y_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
+  /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
+   * instead.
+   */
   /* lea edi, [rcx + operand1] */
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0xb9;
