@@ -379,14 +379,15 @@ static size_t
 jit_emit_zp_x_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
-  /* movzx edx, bl */
+  /* lea edi, [rbx + operand1] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0xbb;
+  index = jit_emit_int(p_jit, index, operand1);
+  /* movzx edx, dil */
+  p_jit[index++] = 0x40;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd3;
-  /* add dl, op1 */
-  p_jit[index++] = 0x80;
-  p_jit[index++] = 0xc2;
-  p_jit[index++] = operand1;
+  p_jit[index++] = 0xd7;
 
   return index;
 }
@@ -395,14 +396,15 @@ static size_t
 jit_emit_zp_y_to_scratch(unsigned char* p_jit,
                          size_t index,
                          unsigned char operand1) {
-  /* movzx edx, cl */
+  /* lea edi, [rcx + operand1] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0xb9;
+  index = jit_emit_int(p_jit, index, operand1);
+  /* movzx edx, dil */
+  p_jit[index++] = 0x40;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd1;
-  /* add dl, op1 */
-  p_jit[index++] = 0x80;
-  p_jit[index++] = 0xc2;
-  p_jit[index++] = operand1;
+  p_jit[index++] = 0xd7;
 
   return index;
 }
