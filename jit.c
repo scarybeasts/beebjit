@@ -487,20 +487,28 @@ jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
-  /* inc sil */
+  /* lea edi, [rsi + 1] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x7e;
+  p_jit[index++] = 0x01;
+  /* mov sil, dl */
   p_jit[index++] = 0x40;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t
 jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
-  /* dec sil */
+  /* lea edi, [rsi - 1] */
+  p_jit[index++] = 0x8d;
+  p_jit[index++] = 0x7e;
+  p_jit[index++] = 0xff;
+  /* mov sil, dl */
   p_jit[index++] = 0x40;
+  p_jit[index++] = 0x88;
   p_jit[index++] = 0xfe;
-  p_jit[index++] = 0xce;
 
   return index;
 }
@@ -534,7 +542,6 @@ jit_emit_pull_to_scratch_word(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x16;
   index = jit_emit_stack_inc(p_jit, index);
   /* mov dh, BYTE PTR [rsi] */
-
   p_jit[index++] = 0x8a;
   p_jit[index++] = 0x36;
 
@@ -688,9 +695,9 @@ jit_emit_jmp_indirect(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x25;
   index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
   index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
-  /* add edx, p_jit_base */
-  p_jit_buf[index++] = 0x81;
-  p_jit_buf[index++] = 0xc2;
+  /* lea edx, [rdx + p_jit_base] */
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x92;
   index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_jit_base);
   index = jit_emit_jmp_scratch(p_jit_buf, index);
 
@@ -1463,14 +1470,15 @@ jit_single(struct jit_struct* p_jit,
   case k_rts:
     /* RTS */
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
-    /* inc dx */
+    /* lea dx, [rdx + 1] */
     p_jit_buf[index++] = 0x66;
-    p_jit_buf[index++] = 0xff;
-    p_jit_buf[index++] = 0xc2;
+    p_jit_buf[index++] = 0x8d;
+    p_jit_buf[index++] = 0x52;
+    p_jit_buf[index++] = 0x01;
     index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
-    /* add edx, k_jit_addr */
-    p_jit_buf[index++] = 0x81;
-    p_jit_buf[index++] = 0xc2;
+    /* lea edx, [rdx + k_jit_addr] */
+    p_jit_buf[index++] = 0x8d;
+    p_jit_buf[index++] = 0x92;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_jit_base);
     index = jit_emit_jmp_scratch(p_jit_buf, index);
     break;
