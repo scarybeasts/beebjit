@@ -2110,10 +2110,6 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     "bts $2, %%r8;"
     /* r12 is carry flag. */
     "xor %%r12, %%r12;"
-    /* r13 is zero flag. */
-    "xor %%r13, %%r13;"
-    /* r14 is negative flag. */
-    "xor %%r14, %%r14;"
     /* r15 is overflow flag. */
     "xor %%r15, %%r15;"
     /* sil is 6502 S. */
@@ -2133,7 +2129,7 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     :
     : "g" (p_entry), "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r8", "r9", "r12", "r13", "r14", "r15"
+      "r8", "r9", "r12", "r15"
   );
 }
 
