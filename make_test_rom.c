@@ -27,8 +27,24 @@ main(int argc, const char* argv[]) {
   p_mem[0x3ffe] = 0xc0;
   p_mem[0x3fff] = 0xc1;
 
-  // Check TSX / TXS stack setup.
+  /* Check PHP, including initial 6502 boot-up flags status. */
   index = set_new_index(index, 0);
+  p_mem[index++] = 0x08; /* PHP */
+  p_mem[index++] = 0xad; /* LDA $0100 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xc9; /* CMP #$34 */ /* I, BRK, 1 */
+  p_mem[index++] = 0x34;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x28; /* PLP */
+  p_mem[index++] = 0x4c; /* JMP $C040 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc0;
+
+  // Check TSX / TXS stack setup.
+  index = set_new_index(index, 0x40);
   p_mem[index++] = 0xba; // TSX
   p_mem[index++] = 0xf0; // BEQ (should be ZF=1)
   p_mem[index++] = 0x01;
@@ -42,24 +58,6 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; // FAIL
   p_mem[index++] = 0x9a; // TXS
-  p_mem[index++] = 0x4c; // JMP $C040
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc0;
-
-  // Check PHP.
-  index = set_new_index(index, 0x40);
-  p_mem[index++] = 0xa9; // LDA #$00
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x08; // PHP
-  p_mem[index++] = 0xad; // LDA $01ff
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xc9; // CMP #$32
-  p_mem[index++] = 0x32;
-  p_mem[index++] = 0xf0; // BEQ (should be ZF=1)
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; // FAIL
-  p_mem[index++] = 0x28; // PLP
   p_mem[index++] = 0x4c; // JMP $C080
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc0;

@@ -2091,18 +2091,23 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
 
   asm volatile (
     /* al is 6502 A. */
+    /* We also use ah for lahf / sahf. */
     "xor %%eax, %%eax;"
     /* bl is 6502 X */
+    /* rbx is a real x64 pointer to the 6502 RAM. */
     "mov %1, %%rbx;"
     /* cl is 6502 Y. */
+    /* rcx is a real x64 pointer to the 6502 RAM. */
     "mov %1, %%rcx;"
     /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
     /* r8 is the rest of the 6502 flags or'ed together. */
+    /* 6502 start up state is all flags clear apart from I. */
     /* Bit 2 is interrupt disable. */
     /* Bit 3 is decimal mode. */
     "xor %%r8, %%r8;"
+    "bts $2, %%r8;"
     /* r12 is carry flag. */
     "xor %%r12, %%r12;"
     /* r13 is zero flag. */
@@ -2112,8 +2117,11 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     /* r15 is overflow flag. */
     "xor %%r15, %%r15;"
     /* sil is 6502 S. */
-    /* rsi is a pointer to the real (aligned) backing memory. */
+    /* rsi is a real x64 pointer to the 6502 RAM. */
     "lea 0x100(%%rbx), %%rsi;"
+    /* x64 flags is used for zero and negative flags. */
+    /* Clear them. ah is already 0 here from above. */
+    "sahf;"
     /* Use scratch register for jump location. */
     "mov %0, %%rdx;"
     /* Pass a pointer to the jit_struct in rbp. */
