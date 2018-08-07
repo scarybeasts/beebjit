@@ -248,7 +248,39 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc2;
 
+  /* Test indexed zero page addressing. */
   index = set_new_index(index, 0x200);
+  p_mem[index++] = 0xa9; /* LDA #$FE */
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x85; /* STA $07 */
+  p_mem[index++] = 0x07;
+  p_mem[index++] = 0xa9; /* LDA #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x85; /* STA $08 */
+  p_mem[index++] = 0x08;
+  p_mem[index++] = 0xa2; /* LDX #$02 */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xb5; /* LDA $05,X */
+  p_mem[index++] = 0x05;
+  p_mem[index++] = 0xc9; /* CMP #$FE */
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xf0; /* BEQ */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa2; /* LDX #$d1 */
+  p_mem[index++] = 0xd1;
+  p_mem[index++] = 0xb5; /* LDA $37,X */ /* Zero page wrap. */
+  p_mem[index++] = 0x37;
+  p_mem[index++] = 0xc9; /* CMP #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xf0; /* BEQ */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C240 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc2;
+
+  index = set_new_index(index, 0x240);
   p_mem[index++] = 0x02; /* Done */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
