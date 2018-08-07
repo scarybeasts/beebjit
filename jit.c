@@ -477,10 +477,17 @@ jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
 
 static size_t
 jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
-  /* shl edx, k_jit_bytes_shift */
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe2;
+  /* NOTE: uses BMI2 shlx instruction to avoid modifying flags. */
+  /* mov dil, k_jit_bytes_shift */
+  p_jit[index++] = 0x40;
+  p_jit[index++] = 0xb7;
   p_jit[index++] = k_jit_bytes_shift;
+  /* shlx edx, edx, edi k_jit_bytes_shift */ /* BMI2 */
+  p_jit[index++] = 0xc4;
+  p_jit[index++] = 0xe2;
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0xf7;
+  p_jit[index++] = 0xd2;
 
   return index;
 }
