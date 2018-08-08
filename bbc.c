@@ -220,7 +220,7 @@ bbc_get_screen_num_colors(struct bbc_struct* p_bbc) {
   unsigned char pixel_width = bbc_get_screen_pixel_width(p_bbc);
   unsigned char clock_speed = (ula_control & k_ula_clock_speed) >>
                               k_ula_clock_speed_shift;
-  return (1 << clock_speed) * pixel_width; 
+  return (1 << clock_speed) * (1 << (pixel_width - 1));
 }
 
 int

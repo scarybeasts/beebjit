@@ -238,7 +238,13 @@ x_render(struct x_struct* p_x) {
   unsigned int colors[16];
   memset(colors, '\0', sizeof(colors));
   colors[0] = 0;
-  colors[1] = 0x000000ff;
+  colors[1] = 0x00ff0000;
+  colors[2] = 0x0000ff00;
+  colors[3] = 0x00ffff00;
+  colors[4] = 0x000000ff;
+  colors[5] = 0x00ff00ff;
+  colors[6] = 0x0000ffff;
+  colors[7] = 0x00ffffff;
 
   ret = XClearWindow(p_x->d, p_x->w);
   if (ret != 1) {
@@ -276,7 +282,6 @@ x_render(struct x_struct* p_x) {
               pixel = 0;
             }
             packed_pixels <<= 1;
-            /* R, G, B, no alpha */
             p_x_mem[0] = pixel;
             p_x_mem[640] = pixel;
             p_x_mem++;
@@ -290,13 +295,37 @@ x_render(struct x_struct* p_x) {
       for (x = 0; x < 80; ++x) {
         size_t y2;
         for (y2 = 0; y2 < 8; ++y2) {
-          size_t i;
           unsigned char packed_pixels = *p_screen_mem++;
-          unsigned char p1 = (packed_pixels >> 4);
-          unsigned char p2 = (packed_pixels & 0xf);
-          unsigned char* p_x_mem = p_x->p_shm;
-          p_x_mem += ((y * 8) + y2) * 2 * 640 * 4;
-          p_x_mem += x * 8 * 4;
+          /* TODO: lookup table to make this fast. */
+          unsigned char v1 = ((packed_pixels & 0x80) >> 4) |
+                             ((packed_pixels & 0x20) >> 3) |
+                             ((packed_pixels & 0x08) >> 2) |
+                             ((packed_pixels & 0x02) >> 1);
+          unsigned char v2 = ((packed_pixels & 0x40) >> 3) |
+                             ((packed_pixels & 0x10) >> 2) |
+                             ((packed_pixels & 0x04) >> 1) |
+                             ((packed_pixels & 0x01) >> 0);
+          unsigned int p1 = colors[v1];
+          unsigned int p2 = colors[v2];
+          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640;
+          p_x_mem += x * 8;
+          p_x_mem[0] = p1;
+          p_x_mem[1] = p1;
+          p_x_mem[2] = p1;
+          p_x_mem[3] = p1;
+          p_x_mem[4] = p2;
+          p_x_mem[5] = p2;
+          p_x_mem[6] = p2;
+          p_x_mem[7] = p2;
+          p_x_mem[640] = p1;
+          p_x_mem[641] = p1;
+          p_x_mem[642] = p1;
+          p_x_mem[643] = p1;
+          p_x_mem[644] = p2;
+          p_x_mem[645] = p2;
+          p_x_mem[646] = p2;
+          p_x_mem[647] = p2;
         }
       }
     }
