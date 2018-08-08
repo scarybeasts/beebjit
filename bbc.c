@@ -30,6 +30,10 @@ enum {
 };
 enum {
   k_ula_teletext = 0x02,
+  k_ula_chars_per_line = 0x0c,
+  k_ula_chars_per_line_shift = 2,
+  k_ula_clock_speed = 0x10,
+  k_ula_clock_speed_shift = 4,
 };
 enum {
   k_via_ORB =   0x0,
@@ -204,12 +208,19 @@ bbc_get_screen_is_text(struct bbc_struct* p_bbc) {
 
 size_t
 bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
-  return 1;
+  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char ula_chars_per_line = (ula_control & k_ula_chars_per_line) >>
+                                     k_ula_chars_per_line_shift;
+  return 1 << (3 - ula_chars_per_line);
 }
 
 size_t
 bbc_get_screen_num_colors(struct bbc_struct* p_bbc) {
-  return 2;
+  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char pixel_width = bbc_get_screen_pixel_width(p_bbc);
+  unsigned char clock_speed = (ula_control & k_ula_clock_speed) >>
+                              k_ula_clock_speed_shift;
+  return (1 << clock_speed) * pixel_width; 
 }
 
 int

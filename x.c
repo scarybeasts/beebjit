@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -234,9 +235,10 @@ x_render(struct x_struct* p_x) {
   size_t x;
   size_t y;
   int ret;
-
-  (void) pixel_width;
-  (void) num_colors;
+  unsigned int colors[16];
+  memset(colors, '\0', sizeof(colors));
+  colors[0] = 0;
+  colors[1] = 0x000000ff;
 
   ret = XClearWindow(p_x->d, p_x->w);
   if (ret != 1) {
@@ -255,7 +257,7 @@ x_render(struct x_struct* p_x) {
       p_screen_mem += p_x->chars_width;
       y_offset += 16;
     }
-  } else {
+  } else if (num_colors == 2 && pixel_width == 1) {
     for (y = 0; y < 32; ++y) {
       for (x = 0; x < 80; ++x) {
         size_t y2;
@@ -287,6 +289,23 @@ x_render(struct x_struct* p_x) {
         }
       }
     }
+  } else if (num_colors == 16) {
+    assert(pixel_width == 4);
+    for (y = 0; y < 32; ++y) {
+      for (x = 0; x < 80; ++x) {
+        size_t y2;
+        for (y2 = 0; y2 < 8; ++y2) {
+          size_t i;
+          unsigned char packed_pixels = *p_screen_mem++;
+          unsigned char p1 = (packed_pixels >> 4);
+          unsigned char p2 = (packed_pixels & 0xf);
+          unsigned char* p_x_mem = p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640 * 4;
+          p_x_mem += x * 8 * 4;
+        }
+      }
+    }
+
     Bool bool_ret = XShmPutImage(p_x->d,
                                  p_x->w,
                                  p_x->gc,
