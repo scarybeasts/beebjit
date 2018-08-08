@@ -19,10 +19,16 @@ static void* k_mem_addr = (void*) 0x10000000;
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_mode7_offset = 0x7c00;
+
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
+
 enum {
+  k_addr_ula_control = 0xfe20,
   k_addr_sysvia = 0xfe40,
+};
+enum {
+  k_ula_teletext = 0x02,
 };
 enum {
   k_via_ORB =   0x0,
@@ -168,9 +174,34 @@ bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
 }
 
+static unsigned char
+bbc_get_ula_control(struct bbc_struct* p_bbc) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  return p_mem[k_addr_ula_control];
+}
+
 unsigned char*
-bbc_get_mode7_mem(struct bbc_struct* p_bbc) {
+bbc_get_screen_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem + k_mode7_offset;
+}
+
+int
+bbc_get_screen_is_text(struct bbc_struct* p_bbc) {
+  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  if (ula_control & k_ula_teletext) {
+    return 1;
+  }
+  return 0;
+}
+
+size_t
+bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
+  return 1;
+}
+
+size_t
+bbc_get_screen_num_colors(struct bbc_struct* p_bbc) {
+  return 2;
 }
 
 int

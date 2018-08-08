@@ -7,10 +7,9 @@ struct bbc_struct;
 
 struct x_struct;
 
-struct x_struct* x_create(unsigned char* p_screen_mem,
+struct x_struct* x_create(struct bbc_struct* p_bbc,
                           size_t chars_width,
-                          size_t chars_height,
-                          struct bbc_struct* p_bbc);
+                          size_t chars_height);
 
 void x_destroy(struct x_struct* p_x);
 

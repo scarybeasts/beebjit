@@ -15,10 +15,9 @@
 static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
 
 struct x_struct {
-  unsigned char* p_screen_mem;
+  struct bbc_struct* p_bbc;
   size_t chars_width;
   size_t chars_height;
-  struct bbc_struct* p_bbc;
   Display* d;
   Window w;
   GC gc;
@@ -27,10 +26,7 @@ struct x_struct {
 };
 
 struct x_struct*
-x_create(unsigned char* p_screen_mem,
-         size_t chars_width,
-         size_t chars_height,
-         struct bbc_struct* p_bbc) {
+x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   struct x_struct* p_x;
   int s;
   Window root_window;
@@ -48,10 +44,9 @@ x_create(unsigned char* p_screen_mem,
   if (p_x == NULL) {
     errx(1, "couldn't allocate x_struct");
   }
-  p_x->p_screen_mem = p_screen_mem;
+  p_x->p_bbc = p_bbc;
   p_x->chars_width = chars_width;
   p_x->chars_height = chars_height;
-  p_x->p_bbc = p_bbc;
 
   p_x->d = XOpenDisplay(NULL);
   if (p_x->d == NULL) {
@@ -87,8 +82,8 @@ x_create(unsigned char* p_screen_mem,
                                root_window,
                                10,
                                10,
-                               p_x->chars_width * p_x->fx,
-                               p_x->chars_height * p_x->fy,
+                               640,
+                               512,
                                1,
                                black_pixel,
                                black_pixel);
@@ -133,17 +128,35 @@ x_destroy(struct x_struct* p_x) {
 
 void
 x_render(struct x_struct* p_x) {
+  struct bbc_struct* p_bbc = p_x->p_bbc;
+  size_t y_offset = 16;
+  unsigned char* p_screen_mem = bbc_get_screen_mem(p_bbc);
+  int is_text = bbc_get_screen_is_text(p_bbc);
+  size_t pixel_width = bbc_get_screen_pixel_width(p_bbc);
+  size_t num_colors = bbc_get_screen_num_colors(p_bbc);
   size_t y;
-  size_t y_offset = p_x->fy;
-  char* p_text = (char*) p_x->p_screen_mem;
+
+  (void) pixel_width;
+  (void) num_colors;
+
   if (!XClearWindow(p_x->d, p_x->w)) {
     errx(1, "XClearWindow failed");
   }
-  for (y = 0; y < p_x->chars_height; ++y) {
-    /* Seems to return 0 on success -- status not checked. */
-    XDrawString(p_x->d, p_x->w, p_x->gc, 0, y_offset, p_text, p_x->chars_width);
-    p_text += p_x->chars_width;
-    y_offset += p_x->fy;
+  if (is_text) {
+    for (y = 0; y < p_x->chars_height; ++y) {
+      /* Seems to return 0 on success -- status not checked. */
+      XDrawString(p_x->d,
+                  p_x->w,
+                  p_x->gc,
+                  0,
+                  y_offset,
+                  (char*) p_screen_mem,
+                  p_x->chars_width);
+      p_screen_mem += p_x->chars_width;
+      y_offset += 16;
+    }
+  } else {
+    /* Nothing yet. */
   }
   if (!XFlush(p_x->d)) {
     errx(1, "XFlush failed");

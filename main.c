@@ -10,7 +10,6 @@
 
 int
 main(int argc, const char* argv[]) {
-  unsigned char* p_mode7_mem;
   int fd;
   ssize_t read_ret;
   const char* os_rom_name = "os12.rom";
@@ -75,9 +74,7 @@ main(int argc, const char* argv[]) {
     errx(1, "bbc_create failed");
   }
 
-  p_mode7_mem = bbc_get_mode7_mem(p_bbc);
-
-  p_x = x_create(p_mode7_mem, k_bbc_mode7_width, k_bbc_mode7_height, p_bbc);
+  p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
   if (p_x == NULL) {
     errx(1, "x_create failed");
   }
