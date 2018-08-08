@@ -244,6 +244,7 @@ x_render(struct x_struct* p_x) {
   if (ret != 1) {
     errx(1, "XClearWindow failed");
   }
+
   if (is_text) {
     for (y = 0; y < p_x->chars_height; ++y) {
       /* Seems to return 0 on success -- status not checked. */
@@ -264,27 +265,21 @@ x_render(struct x_struct* p_x) {
         for (y2 = 0; y2 < 8; ++y2) {
           size_t i;
           unsigned char packed_pixels = *p_screen_mem++;
-          unsigned char* p_x_mem = p_x->p_shm;
-          p_x_mem += ((y * 8) + y2) * 2 * 640 * 4;
-          p_x_mem += x * 8 * 4;
+          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640;
+          p_x_mem += x * 8;
           for (i = 0; i < 8; ++i) {
-            unsigned char pixel;
+            unsigned int pixel;
             if (packed_pixels & 0x80) {
-              pixel = 0xff;
+              pixel = 0x00ffffff;
             } else {
               pixel = 0;
             }
             packed_pixels <<= 1;
             /* R, G, B, no alpha */
             p_x_mem[0] = pixel;
-            p_x_mem[1] = pixel;
-            p_x_mem[2] = pixel;
-            p_x_mem[3] = 0;
-            p_x_mem[0 + (640 * 4)] = pixel;
-            p_x_mem[1 + (640 * 4)] = pixel;
-            p_x_mem[2 + (640 * 4)] = pixel;
-            p_x_mem[3 + (640 * 4)] = 0;
-            p_x_mem += 4;
+            p_x_mem[640] = pixel;
+            p_x_mem++;
           }
         }
       }
@@ -305,7 +300,9 @@ x_render(struct x_struct* p_x) {
         }
       }
     }
+  }
 
+  if (!is_text) {
     Bool bool_ret = XShmPutImage(p_x->d,
                                  p_x->w,
                                  p_x->gc,
@@ -321,6 +318,7 @@ x_render(struct x_struct* p_x) {
       errx(1, "XShmPutImage failed");
     }
   }
+
   ret = XFlush(p_x->d);
   if (ret != 1) {
     errx(1, "XFlush failed");
