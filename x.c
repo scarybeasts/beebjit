@@ -26,6 +26,7 @@ struct x_struct {
   size_t chars_width;
   size_t chars_height;
   Display* d;
+  XFontStruct* p_font;
   Window w;
   GC gc;
   size_t fx;
@@ -43,14 +44,14 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   Window root_window;
   unsigned long black_pixel;
   unsigned long white_pixel;
-  XFontStruct* p_font;
   unsigned long ul_ret;
   Bool bool_ret;
   int ret;
   Visual* p_visual;
   int depth;
 
-  if (XInitThreads() == 0) {
+  ret = XInitThreads();
+  if (ret != 1) {
     errx(1, "XInitThreads failed");
   }
 
@@ -72,16 +73,17 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
     errx(1, "can't set detect auto repeat");
   }
 
-  p_font = XLoadQueryFont(p_x->d, k_p_font_name);
-  if (p_font == NULL) {
+  p_x->p_font = XLoadQueryFont(p_x->d, k_p_font_name);
+  if (p_x->p_font == NULL) {
     errx(1, "cannot load font");
   }
 
-  if (!XGetFontProperty(p_font, XA_FONT, &ul_ret)) {
+  bool_ret = XGetFontProperty(p_x->p_font, XA_FONT, &ul_ret);
+  if (bool_ret != True) {
     errx(1, "cannot get font property XA_FONT");
   }
-  p_x->fx = p_font->per_char[0].width;
-  p_x->fy = p_font->per_char[0].ascent;
+  p_x->fx = p_x->p_font->per_char[0].width;
+  p_x->fy = p_x->p_font->per_char[0].ascent;
   printf("loaded font: %s (%zux%zu)\n",
          XGetAtomName(p_x->d, (Atom) ul_ret),
          p_x->fx,
@@ -144,11 +146,13 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   if (p_x->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
   }
-  if (!XSelectInput(p_x->d, p_x->w, KeyPressMask | KeyReleaseMask)) {
+  ret = XSelectInput(p_x->d, p_x->w, KeyPressMask | KeyReleaseMask);
+  if (ret != 1) {
     errx(1, "XSelectInput failed");
   }
 
-  if (!XMapWindow(p_x->d, p_x->w)) {
+  ret = XMapWindow(p_x->d, p_x->w);
+  if (ret != 1) {
     errx(1, "XMapWindow failed");
   }
 
@@ -156,17 +160,21 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   if (p_x->gc == 0) {
     errx(1, "XCreateGC failed");
   }
-  if (!XSetBackground(p_x->d, p_x->gc, black_pixel)) {
+  ret = XSetBackground(p_x->d, p_x->gc, black_pixel);
+  if (ret != 1) {
     errx(1, "XSetBackground failed");
   }
-  if (!XSetForeground(p_x->d, p_x->gc, white_pixel)) {
+  ret = XSetForeground(p_x->d, p_x->gc, white_pixel);
+  if (ret != 1) {
     errx(1, "XSetForeground failed");
   }
-  if (!XSetFont(p_x->d, p_x->gc, p_font->fid)) {
+  ret = XSetFont(p_x->d, p_x->gc, p_x->p_font->fid);
+  if (ret != 1) {
     errx(1, "XSetFont failed");
   }
 
-  if (!XFlush(p_x->d)) {
+  ret = XFlush(p_x->d);
+  if (ret != 1) {
     errx(1, "XFlush failed");
   }
 
@@ -175,12 +183,20 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
 
 void
 x_destroy(struct x_struct* p_x) {
-  /* TODO: destroy more stuff that we created! */
   int ret;
   Bool bool_ret;
-  ret = shmdt(p_x->p_shm);
-  if (ret != 0) {
-    errx(1, "shmdt failed");
+
+  ret = XFreeGC(p_x->d, p_x->gc);
+  if (ret != 1) {
+    errx(1, "XFreeGC failed");
+  }
+  ret = XUnmapWindow(p_x->d, p_x->w);
+  if (ret != 1) {
+    errx(1, "XUnmapWindow failed");
+  }
+  ret = XDestroyWindow(p_x->d, p_x->w);
+  if (ret != 1) {
+    errx(1, "XDestroyWindow failed");
   }
   bool_ret = XShmDetach(p_x->d, &p_x->shm_info);
   if (bool_ret != True) {
@@ -190,9 +206,20 @@ x_destroy(struct x_struct* p_x) {
   if (ret != 1) {
     errx(1, "XDestroyImage failed");
   }
+  ret = shmdt(p_x->p_shm);
+  if (ret != 0) {
+    errx(1, "shmdt failed");
+  }
+  ret = XFreeFont(p_x->d, p_x->p_font);
+  if (ret != 1) {
+    errx(1, "XFreeFont failed");
+  }
 
-  /* Seems to return 0 -- status not checked. */
-  XCloseDisplay(p_x->d);
+  ret = XCloseDisplay(p_x->d);
+  if (ret != 1) {
+    errx(1, "XCloseDisplay failed");
+  }
+
   free(p_x); 
 }
 
@@ -206,11 +233,13 @@ x_render(struct x_struct* p_x) {
   size_t num_colors = bbc_get_screen_num_colors(p_bbc);
   size_t x;
   size_t y;
+  int ret;
 
   (void) pixel_width;
   (void) num_colors;
 
-  if (!XClearWindow(p_x->d, p_x->w)) {
+  ret = XClearWindow(p_x->d, p_x->w);
+  if (ret != 1) {
     errx(1, "XClearWindow failed");
   }
   if (is_text) {
@@ -273,7 +302,8 @@ x_render(struct x_struct* p_x) {
       errx(1, "XShmPutImage failed");
     }
   }
-  if (!XFlush(p_x->d)) {
+  ret = XFlush(p_x->d);
+  if (ret != 1) {
     errx(1, "XFlush failed");
   }
 }
