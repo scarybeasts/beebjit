@@ -2,15 +2,22 @@
 
 #include "bbc.h"
 
+#include <X11/Xlib.h>
+
+#include <X11/XKBlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+
+#include <X11/extensions/XShm.h>
+
 #include <assert.h>
 #include <err.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <X11/XKBlib.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
 
@@ -23,6 +30,10 @@ struct x_struct {
   GC gc;
   size_t fx;
   size_t fy;
+  int shmid;
+  void* p_shm;
+  XImage* p_image;
+  XShmSegmentInfo shm_info;
 };
 
 struct x_struct*
@@ -35,6 +46,9 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   XFontStruct* p_font;
   unsigned long ul_ret;
   Bool bool_ret;
+  int ret;
+  Visual* p_visual;
+  int depth;
 
   if (XInitThreads() == 0) {
     errx(1, "XInitThreads failed");
@@ -75,8 +89,48 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
 
   s = DefaultScreen(p_x->d);
   root_window = RootWindow(p_x->d, s);
+  p_visual = DefaultVisual(p_x->d, s);
   black_pixel = BlackPixel(p_x->d, s);
   white_pixel = WhitePixel(p_x->d, s);
+  depth = DefaultDepth(p_x->d, s);
+
+  if (depth != 24) {
+    errx(1, "default depth not 24");
+  }
+
+  p_x->shmid = shmget(IPC_PRIVATE, 640 * 512 * 4, IPC_CREAT|0600);
+  if (p_x->shmid < 0) {
+    errx(1, "shmget failed");
+  }
+  p_x->p_shm = shmat(p_x->shmid, NULL, 0);
+  if (p_x->p_shm == NULL) {
+    errx(1, "shmat failed");
+  }
+  ret = shmctl(p_x->shmid, IPC_RMID, NULL);
+  if (ret != 0) {
+    errx(1, "shmctl failed");
+  }
+
+  p_x->p_image = XShmCreateImage(p_x->d,
+                                 p_visual,
+                                 24,
+                                 ZPixmap,
+                                 NULL,
+                                 &p_x->shm_info,
+                                 640,
+                                 512);
+  if (p_x->p_image == NULL) {
+    errx(1, "XShmCreateImage failed");
+  }
+
+  p_x->shm_info.shmid = p_x->shmid;
+  p_x->shm_info.shmaddr = p_x->p_image->data = p_x->p_shm;
+  p_x->shm_info.readOnly = False;
+
+  bool_ret = XShmAttach(p_x->d, &p_x->shm_info);
+  if (bool_ret != True) {
+    errx(1, "XShmAttach failed");
+  }
 
   p_x->w = XCreateSimpleWindow(p_x->d,
                                root_window,
@@ -121,6 +175,22 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
 
 void
 x_destroy(struct x_struct* p_x) {
+  /* TODO: destroy more stuff that we created! */
+  int ret;
+  Bool bool_ret;
+  ret = shmdt(p_x->p_shm);
+  if (ret != 0) {
+    errx(1, "shmdt failed");
+  }
+  bool_ret = XShmDetach(p_x->d, &p_x->shm_info);
+  if (bool_ret != True) {
+    errx(1, "XShmDetach failed");
+  }
+  ret = XDestroyImage(p_x->p_image);
+  if (ret != 1) {
+    errx(1, "XDestroyImage failed");
+  }
+
   /* Seems to return 0 -- status not checked. */
   XCloseDisplay(p_x->d);
   free(p_x); 
@@ -134,6 +204,7 @@ x_render(struct x_struct* p_x) {
   int is_text = bbc_get_screen_is_text(p_bbc);
   size_t pixel_width = bbc_get_screen_pixel_width(p_bbc);
   size_t num_colors = bbc_get_screen_num_colors(p_bbc);
+  size_t x;
   size_t y;
 
   (void) pixel_width;
@@ -156,7 +227,51 @@ x_render(struct x_struct* p_x) {
       y_offset += 16;
     }
   } else {
-    /* Nothing yet. */
+    for (y = 0; y < 32; ++y) {
+      for (x = 0; x < 80; ++x) {
+        size_t y2;
+        for (y2 = 0; y2 < 8; ++y2) {
+          size_t i;
+          unsigned char packed_pixels = *p_screen_mem++;
+          unsigned char* p_x_mem = p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640 * 4;
+          p_x_mem += x * 8 * 4;
+          for (i = 0; i < 8; ++i) {
+            unsigned char pixel;
+            if (packed_pixels & 0x80) {
+              pixel = 0xff;
+            } else {
+              pixel = 0;
+            }
+            packed_pixels <<= 1;
+            /* R, G, B, no alpha */
+            p_x_mem[0] = pixel;
+            p_x_mem[1] = pixel;
+            p_x_mem[2] = pixel;
+            p_x_mem[3] = 0;
+            p_x_mem[0 + (640 * 4)] = pixel;
+            p_x_mem[1 + (640 * 4)] = pixel;
+            p_x_mem[2 + (640 * 4)] = pixel;
+            p_x_mem[3 + (640 * 4)] = 0;
+            p_x_mem += 4;
+          }
+        }
+      }
+    }
+    Bool bool_ret = XShmPutImage(p_x->d,
+                                 p_x->w,
+                                 p_x->gc,
+                                 p_x->p_image,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 640,
+                                 512,
+                                 False);
+    if (bool_ret != True) {
+      errx(1, "XShmPutImage failed");
+    }
   }
   if (!XFlush(p_x->d)) {
     errx(1, "XFlush failed");
