@@ -7,4 +7,5 @@ gcc -Wall -g -o make_test_rom make_test_rom.c
 ./make_test_rom
 
 ./6502jit -o test.rom -l ''
+./6502jit -o test.rom -l '' -d -r
 

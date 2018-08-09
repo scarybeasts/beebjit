@@ -408,7 +408,7 @@ jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0x7e;
   p_jit[index++] = 0x01;
-  /* mov sil, dl */
+  /* mov sil, dil */
   p_jit[index++] = 0x40;
   p_jit[index++] = 0x88;
   p_jit[index++] = 0xfe;
@@ -422,7 +422,7 @@ jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0x7e;
   p_jit[index++] = 0xff;
-  /* mov sil, dl */
+  /* mov sil, dil */
   p_jit[index++] = 0x40;
   p_jit[index++] = 0x88;
   p_jit[index++] = 0xfe;
@@ -521,7 +521,7 @@ jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
   /* lea rdx, [r13 + r14 + brk_and_set_bit] */
   p_jit[index++] = 0x4b;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x94;
+  p_jit[index++] = 0x54;
   p_jit[index++] = 0x35;
   p_jit[index++] = brk_and_set_bit;
 
@@ -805,12 +805,13 @@ jit_check_special_read(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xc2;
 
-  index = jit_emit_restore_registers(p_jit_buf, index);
   /* mov [p_mem + addr_6502], dl */
   p_jit_buf[index++] = 0x88;
   p_jit_buf[index++] = 0x14;
   p_jit_buf[index++] = 0x25;
   index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
+
+  index = jit_emit_restore_registers(p_jit_buf, index);
 
   return index;
 }
