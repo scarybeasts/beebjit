@@ -38,6 +38,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   int fd;
   int ret;
   ssize_t read_ret;
+  unsigned char* p_mem;
 
   fd = open(p_file_name, O_RDONLY);
   if (fd < 0) {
@@ -65,4 +66,18 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   printf("Loading BEMv2.x snapshot, model %u, PC %x\n",
          p_bem->model,
          p_bem->pc);
+
+  p_mem = bbc_get_mem(p_bbc);
+  memcpy(p_mem, p_bem->ram, k_bbc_ram_size);
+
+  bbc_set_init_registers(p_bbc,
+                         p_bem->a,
+                         p_bem->x,
+                         p_bem->y,
+                         p_bem->s,
+                         p_bem->flags,
+                         p_bem->pc);
+
+  /* Hack: MODE 7. */
+  p_mem[0xfe20] = 0x4b;
 }

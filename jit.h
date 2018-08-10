@@ -2,6 +2,7 @@
 #define BEEBJIT_JIT_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct bbc_struct;
 struct debug_struct;
@@ -16,13 +17,20 @@ struct jit_struct* jit_create(unsigned char* p_mem,
                               void* p_write_callback);
 void jit_destroy(struct jit_struct* p_jit);
 
+void jit_set_init_registers(struct jit_struct* p_jit,
+                            unsigned char a,
+                            unsigned char x,
+                            unsigned char y,
+                            unsigned char s,
+                            unsigned char flags,
+                            uint16_t pc);
+
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 
 void jit_jit(struct jit_struct* p_jit,
              size_t addr_6502,
              size_t num_opcodes,
              unsigned int flags);
-void jit_enter(struct jit_struct* p_jit,
-               size_t vector_addr);
+void jit_enter(struct jit_struct* p_jit);
 
 #endif /* BEEJIT_JIT_H */

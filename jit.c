@@ -20,14 +20,22 @@ static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
+static const size_t k_utils_init_offset = 0x100;
 
 static const int k_offset_util_debug = 24;
-static const int k_offset_debug = 32;
-static const int k_offset_debug_callback = 40;
-static const int k_offset_bbc = 48;
-static const int k_offset_read_callback = 56;
-static const int k_offset_write_callback = 64;
-static const int k_offset_interrupt = 72;
+static const int k_offset_util_init = 32;
+static const int k_offset_debug = 40;
+static const int k_offset_debug_callback = 48;
+static const int k_offset_bbc = 56;
+static const int k_offset_read_callback = 64;
+static const int k_offset_write_callback = 72;
+static const int k_offset_interrupt = 80;
+static const int k_offset_init_a = 88;
+static const int k_offset_init_x = 89;
+static const int k_offset_init_y = 90;
+static const int k_offset_init_s = 91;
+static const int k_offset_init_flags = 92;
+static const int k_offset_init_pc = 94;
 
 enum {
   k_a = 1,
@@ -67,12 +75,20 @@ struct jit_struct {
   unsigned char* p_jit_base;   /* 8  */
   unsigned char* p_utils_base; /* 16 */
   unsigned char* p_util_debug; /* 24 */
-  void* p_debug;               /* 32 */
-  void* p_debug_callback;      /* 40 */
-  struct bbc_struct* p_bbc;    /* 48 */
-  void* p_read_callback;       /* 56 */
-  void* p_write_callback;      /* 64 */
-  uint64_t interrupt;          /* 72 */
+  unsigned char* p_util_init;  /* 32 */
+  void* p_debug;               /* 40 */
+  void* p_debug_callback;      /* 48 */
+  struct bbc_struct* p_bbc;    /* 56 */
+  void* p_read_callback;       /* 64 */
+  void* p_write_callback;      /* 72 */
+  uint64_t interrupt;          /* 80 */
+  unsigned char init_a;        /* 88 */
+  unsigned char init_x;        /* 89 */
+  unsigned char init_y;        /* 90 */
+  unsigned char init_s;        /* 91 */
+  unsigned char init_flags;    /* 92 */
+  unsigned char pad;
+  uint16_t init_pc;            /* 94 */
 };
 
 static size_t
@@ -580,9 +596,7 @@ jit_emit_php(unsigned char* p_jit, size_t index, int is_brk) {
 }
 
 static size_t
-jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
-  index = jit_emit_pull_to_scratch(p_jit_buf, index);
-
+jit_emit_set_flags(unsigned char* p_jit_buf, size_t index) {
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 0);
   index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
@@ -625,6 +639,20 @@ jit_emit_plp(unsigned char* p_jit_buf, size_t index) {
 }
 
 static size_t
+jit_emit_jmp_from_6502_scratch(struct jit_struct* p_jit,
+                               unsigned char* p_jit_buf,
+                               size_t index) {
+  index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
+  /* lea edx, [rdx + p_jit_base] */
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x92;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_jit_base);
+  index = jit_emit_jmp_scratch(p_jit_buf, index);
+
+  return index;
+}
+
+static size_t
 jit_emit_jmp_indirect(struct jit_struct* p_jit,
                       unsigned char* p_jit_buf,
                       size_t index,
@@ -636,12 +664,7 @@ jit_emit_jmp_indirect(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x14;
   p_jit_buf[index++] = 0x25;
   index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + addr_6502);
-  index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
-  /* lea edx, [rdx + p_jit_base] */
-  p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x92;
-  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_jit_base);
-  index = jit_emit_jmp_scratch(p_jit_buf, index);
+  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
 
   return index;
 }
@@ -766,6 +789,54 @@ jit_emit_debug_util(unsigned char* p_jit) {
 
   /* ret */
   p_jit[index++] = 0xc3;
+}
+
+static void
+jit_emit_init_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+  size_t index = 0;
+
+  /* Set A. */
+  /* mov al, [rbp + k_offset_init_a] */
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = k_offset_init_a;
+
+  /* Set X. */
+  /* mov bl, [rbp + k_offset_init_x] */
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x5d;
+  p_jit_buf[index++] = k_offset_init_x;
+
+  /* Set Y. */
+  /* mov cl, [rbp + k_offset_init_y] */
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x4d;
+  p_jit_buf[index++] = k_offset_init_x;
+
+  /* Set S. */
+  /* mov sil, [rbp + k_offset_init_s] */
+  p_jit_buf[index++] = 0x40;
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x75;
+  p_jit_buf[index++] = k_offset_init_s;
+
+  /* Set flags. */
+  /* mov dl, [rbp + k_offset_init_flags] */
+  p_jit_buf[index++] = 0x8a;
+  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = k_offset_init_flags;
+  index = jit_emit_set_flags(p_jit_buf, index);
+
+  /* Jump to 6502 PC. */
+  /* movzx edx, [rbp + k_offset_init_pc] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = k_offset_init_pc;
+  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+
+  /* NOTREACHED */
+  p_jit_buf[index++] = 0xcc;
 }
 
 static void
@@ -1347,7 +1418,8 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_plp:
     /* PLP */
-    index = jit_emit_plp(p_jit_buf, index);
+    index = jit_emit_pull_to_scratch(p_jit_buf, index);
+    index = jit_emit_set_flags(p_jit_buf, index);
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 1);
     break;
   case k_bmi:
@@ -1427,7 +1499,8 @@ jit_single(struct jit_struct* p_jit,
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
     break;
   case k_rti:
-    index = jit_emit_plp(p_jit_buf, index);
+    index = jit_emit_pull_to_scratch(p_jit_buf, index);
+    index = jit_emit_set_flags(p_jit_buf, index);
     /* Fall through to RTS. */
   case k_rts:
     /* RTS */
@@ -1437,12 +1510,7 @@ jit_single(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x8d;
     p_jit_buf[index++] = 0x52;
     p_jit_buf[index++] = 0x01;
-    index = jit_emit_jit_bytes_shift_scratch_left(p_jit_buf, index);
-    /* lea edx, [rdx + k_jit_addr] */
-    p_jit_buf[index++] = 0x8d;
-    p_jit_buf[index++] = 0x92;
-    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_jit_base);
-    index = jit_emit_jmp_scratch(p_jit_buf, index);
+    index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     break;
   case k_adc:
     /* ADC */
@@ -2096,13 +2164,8 @@ jit_jit(struct jit_struct* p_jit,
 }
 
 void
-jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
+jit_enter(struct jit_struct* p_jit) {
   unsigned char* p_mem = p_jit->p_mem;
-  unsigned char addr_lsb = p_mem[vector_addr];
-  unsigned char addr_msb = p_mem[vector_addr + 1];
-  unsigned int addr = (addr_msb << 8) | addr_lsb;
-  unsigned char* p_jit_base = p_jit->p_jit_base;
-  unsigned char* p_entry = p_jit_base + (addr * k_jit_bytes_per_byte);
 
   /* The memory must be aligned to at least 0x100 so that our register access
    * tricks work.
@@ -2115,19 +2178,17 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     "xor %%eax, %%eax;"
     /* bl is 6502 X */
     /* rbx is a real x64 pointer to the 6502 RAM. */
-    "mov %1, %%rbx;"
+    "mov %0, %%rbx;"
     /* cl is 6502 Y. */
     /* rcx is a real x64 pointer to the 6502 RAM. */
-    "mov %1, %%rcx;"
+    "mov %0, %%rcx;"
     /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
     /* r13 is the rest of the 6502 flags or'ed together. */
-    /* 6502 start up state is all flags clear apart from I. */
     /* Bit 2 is interrupt disable. */
     /* Bit 3 is decimal mode. */
     "xor %%r13, %%r13;"
-    "bts $2, %%r13;"
     /* r14 is carry flag. */
     "xor %%r14, %%r14;"
     /* r15 is overflow flag. */
@@ -2138,16 +2199,15 @@ jit_enter(struct jit_struct* p_jit, size_t vector_addr) {
     /* x64 flags is used for zero and negative flags. */
     /* Clear them. ah is already 0 here from above. */
     "sahf;"
-    /* Use scratch register for jump location. */
-    "mov %0, %%rdx;"
     /* Pass a pointer to the jit_struct in rbp. */
-    "mov %2, %%r9;"
+    "mov %1, %%r9;"
     "push %%rbp;"
     "mov %%r9, %%rbp;"
-    "call *%%rdx;"
+    /* Call init_util -- offset must match struct jit_struct layout. */
+    "call *32(%%rbp);"
     "pop %%rbp;"
     :
-    : "g" (p_entry), "g" (p_mem), "g" (p_jit)
+    : "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
       "r9", "r13", "r14", "r15"
   );
@@ -2163,6 +2223,7 @@ jit_create(unsigned char* p_mem,
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_util_debug;
+  unsigned char* p_util_init;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");
@@ -2176,12 +2237,13 @@ jit_create(unsigned char* p_mem,
 
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
-  jit_emit_debug_util(p_util_debug);
+  p_util_init = p_utils_base + k_utils_init_offset;
 
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
   p_jit->p_util_debug = p_util_debug;
+  p_jit->p_util_init = p_util_init;
   p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
   p_jit->p_bbc = p_bbc;
@@ -2198,7 +2260,26 @@ jit_create(unsigned char* p_mem,
     p_jit_base += k_jit_bytes_per_byte;
   }
 
+  jit_emit_debug_util(p_util_debug);
+  jit_emit_init_util(p_jit, p_util_init);
+
   return p_jit;
+}
+
+void
+jit_set_init_registers(struct jit_struct* p_jit,
+                       unsigned char a,
+                       unsigned char x,
+                       unsigned char y,
+                       unsigned char s,
+                       unsigned char flags,
+                       uint16_t pc) {
+  p_jit->init_a = a;
+  p_jit->init_x = x;
+  p_jit->init_y = y;
+  p_jit->init_s = s;
+  p_jit->init_flags = flags;
+  p_jit->init_pc = pc;
 }
 
 void

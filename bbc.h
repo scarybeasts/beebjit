@@ -6,6 +6,7 @@
 
 enum {
   k_bbc_rom_size = 0x4000,
+  k_bbc_ram_size = 0x8000,
 };
 enum {
   k_bbc_vector_reset = 0xfffc,
@@ -26,6 +27,13 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);
+void bbc_set_init_registers(struct bbc_struct* p_bbc,
+                            unsigned char a,
+                            unsigned char x,
+                            unsigned char y,
+                            unsigned char s,
+                            unsigned char flags,
+                            uint16_t pc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
 void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);

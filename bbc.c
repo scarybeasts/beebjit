@@ -154,6 +154,7 @@ bbc_reset(struct bbc_struct* p_bbc) {
   unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
   struct jit_struct* p_jit = p_bbc->p_jit;
   int debug_flag = p_bbc->debug_flag;
+  uint16_t init_pc;
 
   /* Clear memory / ROMs. */
   memset(p_mem, '\0', k_addr_space_size);
@@ -172,6 +173,28 @@ bbc_reset(struct bbc_struct* p_bbc) {
   /* JIT the ROMS. */
   jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
   jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
+
+  /* Initial 6502 state. */
+  init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
+  jit_set_init_registers(p_jit,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0x04, /* I flag */
+                         init_pc);
+}
+
+void
+bbc_set_init_registers(struct bbc_struct* p_bbc,
+                       unsigned char a,
+                       unsigned char x,
+                       unsigned char y,
+                       unsigned char s,
+                       unsigned char flags,
+                       uint16_t pc) {
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  jit_set_init_registers(p_jit, a, x, y, s, flags, pc);
 }
 
 unsigned char*
@@ -237,7 +260,7 @@ static void*
 bbc_jit_thread(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  jit_enter(p_bbc->p_jit, k_bbc_vector_reset);
+  jit_enter(p_bbc->p_jit);
 
   exit(0);
 }
