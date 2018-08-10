@@ -1,4 +1,5 @@
 #include "bbc.h"
+#include "state.h"
 #include "x.h"
 
 #include <err.h>
@@ -14,6 +15,7 @@ main(int argc, const char* argv[]) {
   ssize_t read_ret;
   const char* os_rom_name = "os12.rom";
   const char* lang_rom_name = "basic.rom";
+  const char* load_name = NULL;
   unsigned char os_rom[k_bbc_rom_size];
   unsigned char lang_rom[k_bbc_rom_size];
   int debug_flag = 0;
@@ -32,6 +34,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (strcmp(arg, "-lang") == 0) {
         lang_rom_name = val;
+        ++i;
+      } else if (strcmp(arg, "-load") == 0) {
+        load_name = val;
         ++i;
       }
     }
@@ -72,6 +77,10 @@ main(int argc, const char* argv[]) {
   p_bbc = bbc_create(os_rom, lang_rom, debug_flag, run_flag, print_flag);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
+  }
+
+  if (load_name != NULL) {
+    state_load(p_bbc, load_name);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
