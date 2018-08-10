@@ -27,10 +27,10 @@ main(int argc, const char* argv[]) {
     const char* arg = argv[i];
     if (i + 1 < argc) {
       const char* val = argv[i + 1];
-      if (strcmp(arg, "-o") == 0) {
+      if (strcmp(arg, "-os") == 0) {
         os_rom_name = val;
         ++i;
-      } else if (strcmp(arg, "-l") == 0) {
+      } else if (strcmp(arg, "-lang") == 0) {
         lang_rom_name = val;
         ++i;
       }
