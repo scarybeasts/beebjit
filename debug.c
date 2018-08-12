@@ -435,6 +435,10 @@ debug_callback(struct debug_struct* p_debug,
                parse_int >= 0 &&
                parse_int < 256) {
       debug_break_opcodes[parse_int] = 1;
+    } else if (sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2 &&
+               parse_int >= 0 &&
+               parse_int < 65536) {
+      p_mem[parse_int] = parse_int2;
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");
@@ -446,6 +450,7 @@ debug_callback(struct debug_struct* p_debug,
       printf("dm <id>          : delete memory breakpoint <id>\n");
       printf("bop <op>         : break on opcode <op>\n");
       printf("m <addr>         : show memory at <addr>\n");
+      printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
     } else {
       printf("???\n");
     }
