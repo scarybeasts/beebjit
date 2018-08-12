@@ -1090,11 +1090,7 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
                       uint16_t addr_6502,
                       int is_brk) {
   uint16_t vector = k_bbc_vector_irq;
-  unsigned char n = 0;
-  if (is_brk) {
-    n = 2;
-  }
-  index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + n);
+  index = jit_emit_push_addr(p_jit_buf, index, addr_6502);
   index = jit_emit_php(p_jit_buf, index, is_brk);
   index = jit_emit_sei(p_jit_buf, index);
   index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
@@ -1292,7 +1288,7 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_brk:
     /* BRK */
-    index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502, 1);
+    index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502 + 2, 1);
     break;
   case k_ora:
     /* ORA */
@@ -1420,7 +1416,7 @@ jit_single(struct jit_struct* p_jit,
     /* PLP */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     index = jit_emit_set_flags(p_jit_buf, index);
-    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 1);
+    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 1);
     break;
   case k_bmi:
     /* BMI */
@@ -1496,12 +1492,14 @@ jit_single(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0xba;
     p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x02;
-    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
+    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 0);
     break;
   case k_rti:
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     index = jit_emit_set_flags(p_jit_buf, index);
-    /* Fall through to RTS. */
+    index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
+    index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+    break;
   case k_rts:
     /* RTS */
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
