@@ -135,13 +135,13 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
-  bbc_set_init_registers(p_bbc,
-                         p_bem->a,
-                         p_bem->x,
-                         p_bem->y,
-                         p_bem->s,
-                         p_bem->flags,
-                         p_bem->pc);
+  bbc_set_registers(p_bbc,
+                    p_bem->a,
+                    p_bem->x,
+                    p_bem->y,
+                    p_bem->s,
+                    p_bem->flags,
+                    p_bem->pc);
 
   bbc_set_video_ula(p_bbc, p_bem->ula_control);
   bbc_set_sysvia(p_bbc,

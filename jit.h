@@ -17,13 +17,20 @@ struct jit_struct* jit_create(unsigned char* p_mem,
                               void* p_write_callback);
 void jit_destroy(struct jit_struct* p_jit);
 
-void jit_set_init_registers(struct jit_struct* p_jit,
-                            unsigned char a,
-                            unsigned char x,
-                            unsigned char y,
-                            unsigned char s,
-                            unsigned char flags,
-                            uint16_t pc);
+void jit_get_registers(struct jit_struct* p_jit,
+                       unsigned char* a,
+                       unsigned char* x,
+                       unsigned char* y,
+                       unsigned char* s,
+                       unsigned char* flags,
+                       uint16_t* pc);
+void jit_set_registers(struct jit_struct* p_jit,
+                       unsigned char a,
+                       unsigned char x,
+                       unsigned char y,
+                       unsigned char s,
+                       unsigned char flags,
+                       uint16_t pc);
 
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 

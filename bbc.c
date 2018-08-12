@@ -171,25 +171,31 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Initial 6502 state. */
   init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
-  jit_set_init_registers(p_jit,
-                         0,
-                         0,
-                         0,
-                         0,
-                         0x04, /* I flag */
-                         init_pc);
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0x04, /* I flag */ init_pc);
 }
 
 void
-bbc_set_init_registers(struct bbc_struct* p_bbc,
-                       unsigned char a,
-                       unsigned char x,
-                       unsigned char y,
-                       unsigned char s,
-                       unsigned char flags,
-                       uint16_t pc) {
+bbc_get_registers(struct bbc_struct* p_bbc,
+                  unsigned char* a,
+                  unsigned char* x,
+                  unsigned char* y,
+                  unsigned char* s,
+                  unsigned char* flags,
+                  uint16_t* pc) {
   struct jit_struct* p_jit = p_bbc->p_jit;
-  jit_set_init_registers(p_jit, a, x, y, s, flags, pc);
+  jit_get_registers(p_jit, a, x, y, s, flags, pc);
+}
+
+void
+bbc_set_registers(struct bbc_struct* p_bbc,
+                  unsigned char a,
+                  unsigned char x,
+                  unsigned char y,
+                  unsigned char s,
+                  unsigned char flags,
+                  uint16_t pc) {
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  jit_set_registers(p_jit, a, x, y, s, flags, pc);
 }
 
 void

@@ -246,17 +246,7 @@ debug_hit_break(uint16_t ip_6502, int addr_6502, unsigned char opcode_6502) {
 }
 
 void
-debug_callback(struct debug_struct* p_debug,
-               uint16_t ip_6502,
-               uint8_t fz_6502,
-               uint8_t fn_6502,
-               uint8_t fc_6502,
-               uint8_t fo_6502,
-               uint8_t f_6502,
-               uint8_t a_6502,
-               uint8_t x_6502,
-               uint8_t y_6502,
-               uint8_t s_6502) {
+debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   char opcode_buf[k_max_opcode_len];
@@ -264,12 +254,32 @@ debug_callback(struct debug_struct* p_debug,
   char input_buf[k_max_input_len];
   char flags_buf[9];
   /* NOTE: not correct for execution in hardware registers. */
-  unsigned char opcode = p_mem[ip_6502];
-  unsigned char operand1 = p_mem[((ip_6502 + 1) & 0xffff)];
-  unsigned char operand2 = p_mem[((ip_6502 + 2) & 0xffff)];
+  unsigned char opcode;
+  unsigned char operand1;
+  unsigned char operand2;
   int addr_6502;
   int hit_break;
   int do_trap = 0;
+  unsigned char reg_a;
+  unsigned char reg_x;
+  unsigned char reg_y;
+  unsigned char reg_s;
+  unsigned char reg_flags;
+  uint16_t reg_pc;
+  unsigned char flag_z;
+  unsigned char flag_n;
+  unsigned char flag_c;
+  unsigned char flag_o;
+
+  bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
+  flag_z = !!(reg_flags & 0x02);
+  flag_n = !!(reg_flags & 0x80);
+  flag_c = !!(reg_flags & 0x01);
+  flag_o = !!(reg_flags & 0x40);
+
+  opcode = p_mem[reg_pc];
+  operand1 = p_mem[((reg_pc + 1) & 0xffff)];
+  operand2 = p_mem[((reg_pc + 2) & 0xffff)];
 
   if (!debug_inited) {
     debug_init();
@@ -281,17 +291,17 @@ debug_callback(struct debug_struct* p_debug,
                  opcode,
                  operand1,
                  operand2,
-                 x_6502,
-                 y_6502,
+                 reg_x,
+                 reg_y,
                  p_mem,
                  &addr_6502);
   debug_get_branch(extra_buf,
                    sizeof(extra_buf),
                    opcode,
-                   fn_6502,
-                   fo_6502,
-                   fc_6502,
-                   fz_6502);
+                   flag_n,
+                   flag_o,
+                   flag_c,
+                   flag_z);
 
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
@@ -301,39 +311,39 @@ debug_callback(struct debug_struct* p_debug,
 
   memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
-  if (fc_6502) {
+  if (flag_c) {
     flags_buf[0] = 'C';
   }
-  if (fz_6502) {
+  if (flag_z) {
     flags_buf[1] = 'Z';
   }
-  if (f_6502 & 4) {
+  if (reg_flags & 0x04) {
     flags_buf[2] = 'I';
   }
-  if (f_6502 & 8) {
+  if (reg_flags & 0x08) {
     flags_buf[3] = 'D';
   }
   flags_buf[5] = '1';
-  if (fo_6502) {
+  if (flag_o) {
     flags_buf[6] = 'O';
   }
-  if (fn_6502) {
+  if (flag_n) {
     flags_buf[7] = 'N';
   }
 
-  hit_break = debug_hit_break(ip_6502, addr_6502, opcode);
+  hit_break = debug_hit_break(reg_pc, addr_6502, opcode);
 
   if (debug_running && !hit_break && !debug_running_print) {
     return;
   }
 
   printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
-         ip_6502,
+         reg_pc,
          opcode_buf,
-         a_6502,
-         x_6502,
-         y_6502,
-         s_6502,
+         reg_a,
+         reg_x,
+         reg_y,
+         reg_s,
          flags_buf,
          extra_buf);
   fflush(stdout);
