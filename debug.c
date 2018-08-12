@@ -401,7 +401,6 @@ debug_callback(struct debug_struct* p_debug,
         parse_addr++;
       }
       printf("\n");
-      fflush(stdout);
     } else if (sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
@@ -436,10 +435,21 @@ debug_callback(struct debug_struct* p_debug,
                parse_int >= 0 &&
                parse_int < 256) {
       debug_break_opcodes[parse_int] = 1;
+    } else if (!strcmp(input_buf, "?")) {
+      printf("q                : quit\n");
+      printf("c                : continue\n");
+      printf("s                : step one 6502 instuction\n");
+      printf("t                : trap into gdb\n");
+      printf("b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n");
+      printf("d <id>           : delete breakpoint <id>\n");
+      printf("bm <id> <lo> (hi): set memory breakpoint for 6502 range\n");
+      printf("dm <id>          : delete memory breakpoint <id>\n");
+      printf("bop <op>         : break on opcode <op>\n");
+      printf("m <addr>         : show memory at <addr>\n");
     } else {
       printf("???\n");
-      fflush(stdout);
     }
+    fflush(stdout);
   }
   if (do_trap) {
     int ret = raise(SIGTRAP);
