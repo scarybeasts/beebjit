@@ -228,6 +228,23 @@ bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
 }
 
+void
+bbc_set_memory_block(struct bbc_struct* p_bbc,
+                     uint16_t addr,
+                     uint16_t len,
+                     unsigned char* p_src_mem) {
+  int debug_flag = p_bbc->debug_flag;
+  unsigned char* p_mem = p_bbc->p_mem;
+  struct jit_struct* p_jit = p_bbc->p_jit;
+
+  assert((addr + len) <= 65536);
+
+  memcpy(p_mem + addr, p_src_mem, len);
+
+  /* JIT the new bytes. */
+  jit_jit(p_jit, addr, len, debug_flag);
+}
+
 static unsigned char
 bbc_get_ula_control(struct bbc_struct* p_bbc) {
   unsigned char* p_mem = p_bbc->p_mem;
@@ -323,8 +340,6 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   /* JIT the ROMS. */
   jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
   jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
-  /* JIT the RAM. */
-  jit_jit(p_jit, 0, k_lang_rom_offset, debug_flag);
 
   int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {

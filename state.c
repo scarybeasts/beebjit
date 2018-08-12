@@ -2,6 +2,7 @@
 
 #include "bbc.h"
 
+#include <assert.h>
 #include <err.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -80,21 +81,19 @@ struct bem_v2x {
 
 static const size_t k_snapshot_size = 327885;
 
-void
-state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
+static void
+state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
-  unsigned char snapshot[k_snapshot_size];
   int fd;
   int ret;
   ssize_t read_ret;
-  unsigned char* p_mem;
 
   fd = open(p_file_name, O_RDONLY);
   if (fd < 0) {
     errx(1, "couldn't open state file");
   }
 
-  read_ret = read(fd, snapshot, k_snapshot_size);
+  read_ret = read(fd, p_buf, k_snapshot_size);
   if (read_ret < 0) {
     errx(1, "read failed");
   }
@@ -107,7 +106,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
     errx(1, "close failed");
   }
 
-  p_bem = (struct bem_v2x*) snapshot;
+  p_bem = (struct bem_v2x*) p_buf;
   if (memcmp(p_bem->signature, "BEMSNAP1", 8)) {
     errx(1, "file is not a BEMv2.x snapshot");
   }
@@ -118,13 +117,23 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   printf("Loading BEMv2.x snapshot, model %u, PC %x\n",
          p_bem->model,
          p_bem->pc);
+  fflush(stdout);
+}
+
+void
+state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
+  struct bem_v2x* p_bem;
+  unsigned char snapshot[k_snapshot_size];
+
+  state_read(snapshot, p_file_name);
+
+  p_bem = (struct bem_v2x*) snapshot;
 
   if (p_bem->fe30 != 0x0f || p_bem->fe34 != 0x00) {
     errx(1, "can only load standard RAM / ROM setups");
   }
 
-  p_mem = bbc_get_mem(p_bbc);
-  memcpy(p_mem, p_bem->ram, k_bbc_ram_size);
+  bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
   bbc_set_init_registers(p_bbc,
                          p_bem->a,
@@ -146,4 +155,39 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                  p_bem->sysvia_ifr,
                  p_bem->sysvia_ier,
                  p_bem->sysvia_IC32);
+}
+
+void
+state_load_memory(struct bbc_struct* p_bbc,
+                  const char* p_file_name,
+                  uint16_t addr,
+                  uint16_t len) {
+  struct bem_v2x* p_bem;
+  unsigned char snapshot[k_snapshot_size];
+
+  assert(((uint16_t)(addr + len)) >= addr);
+
+  state_read(snapshot, p_file_name);
+
+  p_bem = (struct bem_v2x*) snapshot;
+
+  bbc_set_memory_block(p_bbc, addr, len, p_bem->ram + addr);
+}
+
+void
+state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
+  struct bem_v2x* p_bem;
+  unsigned char snapshot[k_snapshot_size];
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
+
+  memset(snapshot, '\0', k_snapshot_size);
+
+  p_bem = (struct bem_v2x*) snapshot;
+  memcpy(p_bem->signature, "BEMSNAP1", 8);
+  p_bem->model = 3;
+
+  p_bem->fe30 = 0x0f;
+  p_bem->fe34 = 0x00;
+
+  memcpy(p_bem->ram, p_mem, k_bbc_ram_size);
 }

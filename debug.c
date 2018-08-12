@@ -2,6 +2,7 @@
 
 #include "bbc.h"
 #include "opdefs.h"
+#include "state.h"
 
 #include <ctype.h>
 #include <err.h>
@@ -348,6 +349,7 @@ debug_callback(struct debug_struct* p_debug,
     int parse_int = -1;
     int parse_int2 = -1;
     int parse_int3 = -1;
+    char parse_string[256];
     uint16_t parse_addr;
 
     printf("(6502db) ");
@@ -439,6 +441,21 @@ debug_callback(struct debug_struct* p_debug,
                parse_int >= 0 &&
                parse_int < 65536) {
       p_mem[parse_int] = parse_int2;
+    } else if (sscanf(input_buf,
+                      "lm %255s %x %x",
+                      parse_string,
+                      &parse_int,
+                      &parse_int2) == 3 &&
+               parse_int >= 0 &&
+               parse_int < 65536 &&
+               parse_int2 >= 0 &&
+               parse_int2 <= 65536 &&
+               parse_int + parse_int2 <= 65536) {
+      parse_string[255] = '\0';
+      state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
+    } else if (sscanf(input_buf, "ss %255s", parse_string)) {
+      parse_string[255] = '\0';
+      state_save(p_bbc, parse_string);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");
@@ -451,6 +468,8 @@ debug_callback(struct debug_struct* p_debug,
       printf("bop <op>         : break on opcode <op>\n");
       printf("m <addr>         : show memory at <addr>\n");
       printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
+      printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
+      printf("ss <f>           : save state to BEM file <f>\n");
     } else {
       printf("???\n");
     }
