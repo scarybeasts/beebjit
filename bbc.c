@@ -587,9 +587,21 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 2;
     col = 7;
     break;
-  case 22: /* Backspace / DELETE */
+  case 20: /* - */
+    row = 1;
+    col = 7;
+    break;
+  case 21: /* = (BBC ^) */
+    row = 1;
+    col = 8;
+    break;
+  case 22: /* Backspace / (BBC DELETE) */
     row = 5;
     col = 9;
+    break;
+  case 23: /* Tab */
+    row = 6;
+    col = 0;
     break;
   case 24: /* Q */
     row = 1;
@@ -631,7 +643,11 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 3;
     col = 7;
     break;
-  case 36: /* Enter / RETURN */
+  case 34: /* [ (BBC @) */
+    row = 4;
+    col = 7;
+    break;
+  case 36: /* Enter (BBC RETURN) */
     row = 4;
     col = 9;
     break;
@@ -671,6 +687,14 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 5;
     col = 6;
     break;
+  case 47: /* ; */
+    row = 5;
+    col = 7;
+    break;
+  case 48: /* ' (BBC colon) */
+    row = 4;
+    col = 8;
+    break;
   case 50: /* Left shift */
     row = 0;
     col = 0;
@@ -702,6 +726,18 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
   case 58: /* M */
     row = 6;
     col = 5;
+    break;
+  case 59: /* , */
+    row = 6;
+    col = 6;
+    break;
+  case 60: /* . */
+    row = 6;
+    col = 7;
+    break;
+  case 61: /* / */
+    row = 6;
+    col = 8;
     break;
   case 62: /* Right shift */
     row = 0;
