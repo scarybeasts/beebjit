@@ -153,7 +153,6 @@ bbc_reset(struct bbc_struct* p_bbc) {
   unsigned char* p_os_start = p_mem + k_os_rom_offset;
   unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
   struct jit_struct* p_jit = p_bbc->p_jit;
-  int debug_flag = p_bbc->debug_flag;
   uint16_t init_pc;
 
   /* Clear memory / ROMs. */
@@ -169,10 +168,6 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Initialize hardware registers. */
   memset(p_mem + k_registers_offset, '\0', k_registers_len);
-
-  /* JIT the ROMS. */
-  jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
-  jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
 
   /* Initial 6502 state. */
   init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
@@ -195,6 +190,37 @@ bbc_set_init_registers(struct bbc_struct* p_bbc,
                        uint16_t pc) {
   struct jit_struct* p_jit = p_bbc->p_jit;
   jit_set_init_registers(p_jit, a, x, y, s, flags, pc);
+}
+
+void
+bbc_set_sysvia(struct bbc_struct* p_bbc,
+               unsigned char sysvia_ORA,
+               unsigned char sysvia_ORB,
+               unsigned char sysvia_DDRA,
+               unsigned char sysvia_DDRB,
+               unsigned char sysvia_SR,
+               unsigned char sysvia_ACR,
+               unsigned char sysvia_PCR,
+               unsigned char sysvia_IFR,
+               unsigned char sysvia_IER,
+               unsigned char sysvia_IC32) {
+  p_bbc->sysvia_ORA = sysvia_ORA;
+  p_bbc->sysvia_ORB = sysvia_ORB;
+  p_bbc->sysvia_DDRA = sysvia_DDRA;
+  p_bbc->sysvia_DDRB = sysvia_DDRB;
+  p_bbc->sysvia_ACR = sysvia_ACR;
+  p_bbc->sysvia_PCR = sysvia_PCR;
+  p_bbc->sysvia_IFR = sysvia_IFR;
+  p_bbc->sysvia_IER = sysvia_IER;
+  p_bbc->sysvia_IC32 = sysvia_IC32;
+
+  p_bbc->sysvia_sdb = 0;
+}
+
+void
+bbc_set_video_ula(struct bbc_struct* p_bbc, unsigned char ula_control) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  p_mem[k_addr_ula_control] = ula_control;
 }
 
 unsigned char*
@@ -290,6 +316,16 @@ bbc_10ms_timer_thread(void* p) {
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
   pthread_t thread;
+
+  int debug_flag = p_bbc->debug_flag;
+  struct jit_struct* p_jit = p_bbc->p_jit;
+
+  /* JIT the ROMS. */
+  jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
+  jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
+  /* JIT the RAM. */
+  jit_jit(p_jit, 0, k_lang_rom_offset, debug_flag);
+
   int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {
     errx(1, "couldn't create jit thread");
