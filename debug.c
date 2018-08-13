@@ -453,11 +453,11 @@ debug_callback(struct debug_struct* p_debug) {
         parse_addr = parse_int3;
       }
       debug_break_mem_high[parse_int] = parse_addr;
-    } else if (sscanf(input_buf, "d %d", &parse_int) == 1 &&
+    } else if (sscanf(input_buf, "db %d", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
       debug_break_exec[parse_int] = -1;
-    } else if (sscanf(input_buf, "dm %d", &parse_int) == 1 &&
+    } else if (sscanf(input_buf, "dbm %d", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
       debug_break_mem_low[parse_int] = -1;
@@ -505,9 +505,9 @@ debug_callback(struct debug_struct* p_debug) {
       printf("d <addr>         : disassemble at <addr>\n");
       printf("t                : trap into gdb\n");
       printf("b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n");
-      printf("d <id>           : delete breakpoint <id>\n");
+      printf("db <id>          : delete breakpoint <id>\n");
       printf("bm <id> <lo> (hi): set memory breakpoint for 6502 range\n");
-      printf("dm <id>          : delete memory breakpoint <id>\n");
+      printf("dbm <id>         : delete memory breakpoint <id>\n");
       printf("bop <op>         : break on opcode <op>\n");
       printf("m <addr>         : show memory at <addr>\n");
       printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
