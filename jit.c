@@ -130,22 +130,22 @@ jit_emit_intel_to_6502_sub_carry(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_intel_to_6502_overflow(unsigned char* p_jit, size_t index) {
-  /* seto r15b */
+  /* seto r12b */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x90;
-  p_jit[index++] = 0xc7;
+  p_jit[index++] = 0xc4;
 
   return index;
 }
 
 static size_t
 jit_emit_carry_to_6502_overflow(unsigned char* p_jit, size_t index) {
-  /* setb r15b */
+  /* setb r12b */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0x92;
-  p_jit[index++] = 0xc7;
+  p_jit[index++] = 0xc4;
 
   return index;
 }
@@ -215,11 +215,11 @@ jit_emit_test_carry(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_test_overflow(unsigned char* p_jit, size_t index) {
-  /* bt r15, 0 */
+  /* bt r12, 0 */
   p_jit[index++] = 0x49;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xba;
-  p_jit[index++] = 0xe7;
+  p_jit[index++] = 0xe4;
   p_jit[index++] = 0x00;
 
   return index;
@@ -541,11 +541,11 @@ jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
   p_jit[index++] = 0x35;
   p_jit[index++] = brk_and_set_bit;
 
-  /* r15 is OF */
-  /* mov rdi, r15 */
+  /* r12 is OF */
+  /* mov rdi, r12 */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x89;
-  p_jit[index++] = 0xff;
+  p_jit[index++] = 0xe7;
   /* shl edi, 6 */
   p_jit[index++] = 0xc1;
   p_jit[index++] = 0xe7;
@@ -1841,9 +1841,9 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_clv:
     /* CLV */
-    /* mov r15b, 0 */
+    /* mov r12b, 0 */
     p_jit_buf[index++] = 0x41;
-    p_jit_buf[index++] = 0xb7;
+    p_jit_buf[index++] = 0xb4;
     p_jit_buf[index++] = 0x00;
     break;
   case k_tsx:
@@ -2171,14 +2171,14 @@ jit_enter(struct jit_struct* p_jit) {
     /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
+    /* r12 is overflow flag. */
+    "xor %%r12, %%r12;"
     /* r13 is the rest of the 6502 flags or'ed together. */
     /* Bit 2 is interrupt disable. */
     /* Bit 3 is decimal mode. */
     "xor %%r13, %%r13;"
     /* r14 is carry flag. */
     "xor %%r14, %%r14;"
-    /* r15 is overflow flag. */
-    "xor %%r15, %%r15;"
     /* sil is 6502 S. */
     /* rsi is a real x64 pointer to the 6502 RAM. */
     "lea 0x100(%%rbx), %%rsi;"
@@ -2200,7 +2200,7 @@ jit_enter(struct jit_struct* p_jit) {
     :
     : "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r9", "r13", "r14", "r15"
+      "r9", "r12", "r13", "r14"
   );
 }
 
