@@ -716,62 +716,69 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   index = jit_emit_save_registers(p_jit_buf, index);
 
   /* 6502 A */
-  /* mov [rbp + k_offset_reg_a], al */
+  /* mov [r15 + k_offset_reg_a], al */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = 0x47;
   p_jit_buf[index++] = k_offset_reg_a;
 
   /* 6502 X */
-  /* mov [rbp + k_offset_reg_x], bl */
+  /* mov [r15 + k_offset_reg_x], bl */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x5d;
+  p_jit_buf[index++] = 0x5f;
   p_jit_buf[index++] = k_offset_reg_x;
 
   /* 6502 Y */
-  /* mov [rbp + k_offset_reg_y], cl */
+  /* mov [r15 + k_offset_reg_y], cl */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x4d;
+  p_jit_buf[index++] = 0x4f;
   p_jit_buf[index++] = k_offset_reg_y;
 
   /* 6502 S */
-  /* mov [rbp + k_offset_reg_s], sil */
-  p_jit_buf[index++] = 0x40;
+  /* mov [r15 + k_offset_reg_s], sil */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x75;
+  p_jit_buf[index++] = 0x77;
   p_jit_buf[index++] = k_offset_reg_s;
 
   /* 6502 IP */
   /* Must come before flags because gathering flags trashes dx. */
-  /* mov [rbp + k_offset_reg_s], dx */
+  /* mov [r15 + k_offset_reg_pc], dx */
   p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_reg_pc;
 
   /* 6502 flags */
   index = jit_emit_flags_to_scratch(p_jit_buf, index, 1);
-  /* mov [rbp + k_offset_reg_flags], dl */
+  /* mov [r15 + k_offset_reg_flags], dl */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_reg_flags;
 
   /* param1 */
-  /* mov rdi, [rbp + k_offset_debug] */
-  p_jit_buf[index++] = 0x48;
+  /* mov rdi, [r15 + k_offset_debug] */
+  p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x7d;
+  p_jit_buf[index++] = 0x7f;
   p_jit_buf[index++] = k_offset_debug;
 
-  /* call [rbp + k_offset_debug_callback] */
+  /* call [r15 + k_offset_debug_callback] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_debug_callback;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
 
-  /* call [rbp + k_offset_util_regs] */
+  /* call [r15 + k_offset_util_regs] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_util_regs;
 
   /* ret */
@@ -783,42 +790,47 @@ jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   size_t index = 0;
 
   /* Set A. */
-  /* mov al, [rbp + k_offset_reg_a] */
+  /* mov al, [r15 + k_offset_reg_a] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = 0x47;
   p_jit_buf[index++] = k_offset_reg_a;
 
   /* Set X. */
-  /* mov bl, [rbp + k_offset_reg_x] */
+  /* mov bl, [r15 + k_offset_reg_x] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x5d;
+  p_jit_buf[index++] = 0x5f;
   p_jit_buf[index++] = k_offset_reg_x;
 
   /* Set Y. */
-  /* mov cl, [rbp + k_offset_reg_y] */
+  /* mov cl, [r15 + k_offset_reg_y] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x4d;
+  p_jit_buf[index++] = 0x4f;
   p_jit_buf[index++] = k_offset_reg_y;
 
   /* Set S. */
-  /* mov sil, [rbp + k_offset_reg_s] */
-  p_jit_buf[index++] = 0x40;
+  /* mov sil, [r15 + k_offset_reg_s] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x75;
+  p_jit_buf[index++] = 0x77;
   p_jit_buf[index++] = k_offset_reg_s;
 
   /* Set flags. */
-  /* mov dl, [rbp + k_offset_reg_flags] */
+  /* mov dl, [r15 + k_offset_reg_flags] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_reg_flags;
   index = jit_emit_set_flags(p_jit_buf, index);
 
   /* Load PC into edx. */
-  /* movzx edx, [rbp + k_offset_reg_pc] */
+  /* movzx edx, WORD PTR [r15 + k_offset_reg_pc] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb7;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_reg_pc;
 
   /* ret */
@@ -829,8 +841,8 @@ static void
 jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
   /* mov dx, addr_6502 */
   util_buffer_add_2b_1w(p_buf, 0x66, 0xba, addr_6502);
-  /* call [rbp + k_offset_util_debug] */
-  util_buffer_add_3b(p_buf, 0xff, 0x55, k_offset_util_debug);
+  /* call [r15 + k_offset_util_debug] */
+  util_buffer_add_4b(p_buf, 0x41, 0xff, 0x57, k_offset_util_debug);
 }
 
 static size_t
@@ -843,19 +855,20 @@ jit_check_special_read(struct jit_struct* p_jit,
   }
   index = jit_emit_save_registers(p_jit_buf, index);
 
-  /* mov rdi, [rbp + k_offset_bbc] */
-  p_jit_buf[index++] = 0x48;
+  /* mov rdi, [r15 + k_offset_bbc] */
+  p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x7d;
+  p_jit_buf[index++] = 0x7f;
   p_jit_buf[index++] = k_offset_bbc;
   /* mov si, addr_6502 */
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xbe;
   p_jit_buf[index++] = addr_6502 & 0xff;
   p_jit_buf[index++] = addr_6502 >> 8;
-  /* call [rbp + k_offset_read_callback] */
+  /* call [r15 + k_offset_read_callback] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_read_callback;
   /* mov rdx, rax */
   p_jit_buf[index++] = 0x48;
@@ -883,19 +896,20 @@ jit_check_special_write(struct jit_struct* p_jit,
   }
   index = jit_emit_save_registers(p_jit_buf, index);
 
-  /* mov rdi, [rbp + k_offset_bbc] */
-  p_jit_buf[index++] = 0x48;
+  /* mov rdi, [r15 + k_offset_bbc] */
+  p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x7d;
+  p_jit_buf[index++] = 0x7f;
   p_jit_buf[index++] = k_offset_bbc;
   /* mov si, addr */
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xbe;
   p_jit_buf[index++] = addr & 0xff;
   p_jit_buf[index++] = addr >> 8;
-  /* call [rbp + k_offset_write_callback] */
+  /* call [r15 + k_offset_write_callback] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_write_callback;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
@@ -1093,10 +1107,11 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                          int check_flag) {
   size_t index_jmp1 = 0;
   size_t index_jmp2 = 0;
-  /* bt DWORD PTR [rbp + k_offset_interrupt], 0 */
+  /* bt DWORD PTR [r15 + k_offset_interrupt], 0 */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xba;
-  p_jit_buf[index++] = 0x65;
+  p_jit_buf[index++] = 0x67;
   p_jit_buf[index++] = k_offset_interrupt;
   p_jit_buf[index++] = 0x00;
   /* jae / jnc ... */
@@ -2185,22 +2200,19 @@ jit_enter(struct jit_struct* p_jit) {
     /* x64 flags is used for zero and negative flags. */
     /* Clear them. ah is already 0 here from above. */
     "sahf;"
-    /* Pass a pointer to the jit_struct in rbp. */
-    "mov %1, %%r9;"
-    "push %%rbp;"
-    "mov %%r9, %%rbp;"
+    /* Pass a pointer to the jit_struct in r15. */
+    "mov %1, %%r15;"
     /* Call regs_util -- offset must match struct jit_struct layout. */
-    "call *32(%%rbp);"
+    "call *32(%%r15);"
     /* Constants here must match. */
     "mov $8, %%edi;"
     "shlx %%edi, %%edx, %%edx;"
     "lea 0x20000000(%%edx), %%edx;"
     "call *%%rdx;"
-    "pop %%rbp;"
     :
     : "g" (p_mem), "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r9", "r12", "r13", "r14"
+      "r9", "r12", "r13", "r14", "r15"
   );
 }
 
