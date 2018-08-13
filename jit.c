@@ -20,10 +20,10 @@ static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
-static const size_t k_utils_init_offset = 0x100;
+static const size_t k_utils_regs_offset = 0x100;
 
 static const int k_offset_util_debug = 24;
-static const int k_offset_util_init = 32;
+static const int k_offset_util_regs = 32;
 static const int k_offset_debug = 40;
 static const int k_offset_debug_callback = 48;
 static const int k_offset_bbc = 56;
@@ -75,7 +75,7 @@ struct jit_struct {
   unsigned char* p_jit_base;   /* 8  */
   unsigned char* p_utils_base; /* 16 */
   unsigned char* p_util_debug; /* 24 */
-  unsigned char* p_util_init;  /* 32 */
+  unsigned char* p_util_regs;  /* 32 */
   void* p_debug;               /* 40 */
   void* p_debug_callback;      /* 48 */
   struct bbc_struct* p_bbc;    /* 56 */
@@ -774,7 +774,7 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
 }
 
 static void
-jit_emit_init_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   size_t index = 0;
 
   /* Set A. */
@@ -2205,7 +2205,7 @@ jit_create(unsigned char* p_mem,
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_util_debug;
-  unsigned char* p_util_init;
+  unsigned char* p_util_regs;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");
@@ -2219,13 +2219,13 @@ jit_create(unsigned char* p_mem,
 
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
-  p_util_init = p_utils_base + k_utils_init_offset;
+  p_util_regs = p_utils_base + k_utils_regs_offset;
 
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
   p_jit->p_util_debug = p_util_debug;
-  p_jit->p_util_init = p_util_init;
+  p_jit->p_util_regs = p_util_regs;
   p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
   p_jit->p_bbc = p_bbc;
@@ -2243,7 +2243,7 @@ jit_create(unsigned char* p_mem,
   }
 
   jit_emit_debug_util(p_util_debug);
-  jit_emit_init_util(p_jit, p_util_init);
+  jit_emit_regs_util(p_jit, p_util_regs);
 
   return p_jit;
 }
