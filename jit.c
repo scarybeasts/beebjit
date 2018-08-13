@@ -769,6 +769,11 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
 
   index = jit_emit_restore_registers(p_jit_buf, index);
 
+  /* call [rbp + k_offset_util_regs] */
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x55;
+  p_jit_buf[index++] = k_offset_util_regs;
+
   /* ret */
   p_jit_buf[index++] = 0xc3;
 }
@@ -809,16 +814,15 @@ jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   p_jit_buf[index++] = k_offset_reg_flags;
   index = jit_emit_set_flags(p_jit_buf, index);
 
-  /* Jump to 6502 PC. */
+  /* Load PC into edx. */
   /* movzx edx, [rbp + k_offset_reg_pc] */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb7;
   p_jit_buf[index++] = 0x55;
   p_jit_buf[index++] = k_offset_reg_pc;
-  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
 
-  /* NOTREACHED */
-  p_jit_buf[index++] = 0xcc;
+  /* ret */
+  p_jit_buf[index++] = 0xc3;
 }
 
 static void
@@ -2185,8 +2189,13 @@ jit_enter(struct jit_struct* p_jit) {
     "mov %1, %%r9;"
     "push %%rbp;"
     "mov %%r9, %%rbp;"
-    /* Call init_util -- offset must match struct jit_struct layout. */
+    /* Call regs_util -- offset must match struct jit_struct layout. */
     "call *32(%%rbp);"
+    /* Constants here must match. */
+    "mov $8, %%edi;"
+    "shlx %%edi, %%edx, %%edx;"
+    "lea 0x20000000(%%edx), %%edx;"
+    "call *%%rdx;"
     "pop %%rbp;"
     :
     : "g" (p_mem), "g" (p_jit)

@@ -466,6 +466,12 @@ debug_callback(struct debug_struct* p_debug) {
     } else if (sscanf(input_buf, "ss %255s", parse_string)) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
+    } else if (sscanf(input_buf, "a=%x", &parse_int)) {
+      reg_a = parse_int;
+    } else if (sscanf(input_buf, "x=%x", &parse_int)) {
+      reg_x = parse_int;
+    } else if (sscanf(input_buf, "y=%x", &parse_int)) {
+      reg_y = parse_int;
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");
@@ -480,9 +486,11 @@ debug_callback(struct debug_struct* p_debug) {
       printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
       printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
       printf("ss <f>           : save state to BEM file <f>\n");
+      printf("{a,x,y}=<val>    : set register to <val>\n");
     } else {
       printf("???\n");
     }
+    bbc_set_registers(p_bbc, reg_a, reg_x, reg_y, reg_s, reg_flags, reg_pc);
     fflush(stdout);
   }
   if (do_trap) {
