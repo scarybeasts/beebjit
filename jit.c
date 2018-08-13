@@ -2172,7 +2172,10 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
-//printf("addr %x, total_num_ops: %zu\n", start_addr_6502, total_num_ops);
+/*printf("addr %x - %x, total_num_ops: %zu\n",
+       start_addr_6502,
+       addr_6502 - 1,
+       total_num_ops);*/
 
   util_buffer_destroy(p_single_buf);
 
@@ -2208,7 +2211,6 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
    * invalidate JIT upon writes to these addresses. This is unimplemented.
    */
   assert(addr_6502 >= 0x200);
-/*printf("JIT at: %x\n", addr_6502);*/
 
   p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
 
