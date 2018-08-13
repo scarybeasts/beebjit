@@ -4,7 +4,7 @@
 const char* g_p_opnames[58];
 unsigned char g_optypes[256];
 unsigned char g_opmodes[256];
-unsigned char g_opmodelens[12];
+unsigned char g_opmodelens[13];
 unsigned char g_opmem[58];
 
 enum {
@@ -80,6 +80,7 @@ enum {
   k_idx = 9,
   k_idy = 10,
   k_ind = 11,
+  k_rel = 12,
 };
 
 enum {

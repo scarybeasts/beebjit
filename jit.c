@@ -1229,7 +1229,7 @@ jit_single(struct jit_struct* p_jit,
   unsigned char opmode = g_opmodes[opcode];
   unsigned char optype = g_optypes[opcode];
   unsigned char opmem = g_opmem[optype];
-  unsigned char oplen = 0;
+  unsigned char oplen = g_opmodelens[opmode];
   uint16_t opcode_addr_6502;
   size_t index = util_buffer_get_pos(p_buf);
   size_t num_6502_bytes = 0;
@@ -1241,50 +1241,25 @@ jit_single(struct jit_struct* p_jit,
   }
 
   switch (opmode) {
-  case k_imm:
-    oplen = 2;
-    break;
-  case k_zpg:
-    oplen = 2;
-    break;
-  case k_abs:
-    oplen = 3;
-    break;
   case k_zpx:
     index = jit_emit_zp_x_to_scratch(p_jit_buf, index, operand1);
-    oplen = 2;
     break;
   case k_zpy:
     index = jit_emit_zp_y_to_scratch(p_jit_buf, index, operand1);
-    oplen = 2;
     break;
   case k_abx:
     index = jit_emit_abs_x_to_scratch(p_jit_buf, index, operand1, operand2);
-    oplen = 3;
     break;
   case k_aby:
     index = jit_emit_abs_y_to_scratch(p_jit_buf, index, operand1, operand2);
-    oplen = 3;
     break;
   case k_idy:
     index = jit_emit_ind_y_to_scratch(p_jit, p_jit_buf, index, operand1);
-    oplen = 2;
     break;
   case k_idx:
     index = jit_emit_ind_x_to_scratch(p_jit, p_jit_buf, index, operand1);
-    oplen = 2;
-    break;
-  case k_ind:
-    oplen = 3;
-    break;
-  case k_nil:
-    oplen = 1;
-    break;
-  case 0:
-    oplen = 1;
     break;
   default:
-    assert(0);
     break;
   }
 

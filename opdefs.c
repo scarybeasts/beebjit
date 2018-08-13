@@ -77,57 +77,57 @@ unsigned char g_optypes[256] =
 
 unsigned char g_opmodes[256] =
 {
-  // 0x00
+  /* 0x00 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , 0    , k_abs, k_abs, 0    ,
-  // 0x10
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0x10 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
-  // 0x20
+  /* 0x20 */
   k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0x30
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0x30 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
-  // 0x40
+  /* 0x40 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0x50
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0x50 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
-  // 0x60
+  /* 0x60 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_ind, k_abs, k_abs, 0    ,
-  // 0x70
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0x70 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
-  // 0x80
+  /* 0x80 */
   0    , k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, 0    , k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0x90
-  k_imm, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
+  /* 0x90 */
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
   k_nil, k_aby, k_nil, 0    , 0    , k_abx, 0    , 0    ,
-  // 0xa0
+  /* 0xa0 */
   k_imm, k_idx, k_imm, 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0xb0
-  k_imm, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
+  /* 0xb0 */
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_aby, 0    ,
-  // 0xc0
+  /* 0xc0 */
   k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0xd0
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0xd0 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
-  // 0xe0
+  /* 0xe0 */
   k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
-  // 0xf0
-  k_imm, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  /* 0xf0 */
+  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
-unsigned char g_opmodelens[12] =
+unsigned char g_opmodelens[13] =
 {
   1, /* ??? */
   1, /* nil */
@@ -141,4 +141,5 @@ unsigned char g_opmodelens[12] =
   2, /* idx */
   2, /* idy */
   3, /* ind */
+  2, /* rel */
 };

@@ -86,9 +86,11 @@ debug_print_opcode(char* buf,
                    size_t buf_len,
                    unsigned char opcode,
                    unsigned char operand1,
-                   unsigned char operand2) {
+                   unsigned char operand2,
+                   uint16_t reg_pc) {
   unsigned char opmode = g_opmodes[opcode];
   const char* opname = g_p_opnames[g_optypes[opcode]];
+  uint16_t addr = operand1 | (operand2 << 8);
   switch (opmode) {
   case k_nil:
     snprintf(buf, buf_len, "%s", opname);
@@ -100,7 +102,7 @@ debug_print_opcode(char* buf,
     snprintf(buf, buf_len, "%s $%.2x", opname, operand1);
     break;
   case k_abs:
-    snprintf(buf, buf_len, "%s $%.2x%.2x", opname, operand2, operand1);
+    snprintf(buf, buf_len, "%s $%.4x", opname, addr);
     break;
   case k_zpx:
     snprintf(buf, buf_len, "%s $%.2x,X", opname, operand1);
@@ -109,10 +111,10 @@ debug_print_opcode(char* buf,
     snprintf(buf, buf_len, "%s $%.2x,Y", opname, operand1);
     break;
   case k_abx:
-    snprintf(buf, buf_len, "%s $%.2x%.2x,X", opname, operand2, operand1);
+    snprintf(buf, buf_len, "%s $%.4x,X", opname, addr);
     break;
   case k_aby:
-    snprintf(buf, buf_len, "%s $%.2x%.2x,Y", opname, operand2, operand1);
+    snprintf(buf, buf_len, "%s $%.4x,Y", opname, addr);
     break;
   case k_idx:
     snprintf(buf, buf_len, "%s ($%.2x,X)", opname, operand1);
@@ -121,7 +123,11 @@ debug_print_opcode(char* buf,
     snprintf(buf, buf_len, "%s ($%.2x),Y", opname, operand1);
     break;
   case k_ind:
-    snprintf(buf, buf_len, "%s ($%.2x%.2x)", opname, operand2, operand1);
+    snprintf(buf, buf_len, "%s ($%.4x)", opname, addr);
+    break;
+  case k_rel:
+    addr = reg_pc + 2 + (char) operand1;
+    snprintf(buf, buf_len, "%s $%.4x", opname, addr);
     break;
   default:
     snprintf(buf, buf_len, "%s: %.2x", opname, opcode);
@@ -241,7 +247,8 @@ debug_disass(unsigned char* p_mem, uint16_t addr_6502) {
                        sizeof(opcode_buf),
                        opcode,
                        operand1,
-                       operand2);
+                       operand2,
+                       addr_6502);
     printf("%.4x: %s\n", addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
@@ -329,7 +336,8 @@ debug_callback(struct debug_struct* p_debug) {
                      sizeof(opcode_buf),
                      opcode,
                      operand1,
-                     operand2);
+                     operand2,
+                     reg_pc);
 
   memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
