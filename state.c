@@ -90,7 +90,7 @@ state_read(unsigned char* p_buf, const char* p_file_name) {
 
   fd = open(p_file_name, O_RDONLY);
   if (fd < 0) {
-    errx(1, "couldn't open state file");
+    errx(1, "couldn't open load state file");
   }
 
   read_ret = read(fd, p_buf, k_snapshot_size);
@@ -178,6 +178,10 @@ void
 state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
+  int fd;
+  int ret;
+  ssize_t write_ret;
+
   unsigned char* p_mem = bbc_get_mem(p_bbc);
 
   memset(snapshot, '\0', k_snapshot_size);
@@ -190,4 +194,42 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->fe34 = 0x00;
 
   memcpy(p_bem->ram, p_mem, k_bbc_ram_size);
+
+  bbc_get_registers(p_bbc,
+                    &p_bem->a,
+                    &p_bem->x,
+                    &p_bem->y,
+                    &p_bem->s,
+                    &p_bem->flags,
+                    &p_bem->pc);
+  p_bem->ula_control = bbc_get_video_ula(p_bbc);
+  bbc_get_sysvia(p_bbc,
+                 &p_bem->sysvia_ora,
+                 &p_bem->sysvia_orb,
+                 &p_bem->sysvia_ddra,
+                 &p_bem->sysvia_ddrb,
+                 &p_bem->sysvia_sr,
+                 &p_bem->sysvia_acr,
+                 &p_bem->sysvia_pcr,
+                 &p_bem->sysvia_ifr,
+                 &p_bem->sysvia_ier,
+                 &p_bem->sysvia_IC32);
+
+  fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
+  if (fd < 0) {
+    errx(1, "couldn't open save state file");
+  }
+
+  write_ret = write(fd, snapshot, k_snapshot_size);
+  if (write_ret < 0) {
+    errx(1, "write failed");
+  }
+  if (write_ret != k_snapshot_size) {
+    errx(1, "short snapshot write");
+  }
+
+  ret = close(fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
 }

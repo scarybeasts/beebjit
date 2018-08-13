@@ -43,6 +43,17 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        uint16_t pc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
+void bbc_get_sysvia(struct bbc_struct* p_bbc,
+                    unsigned char* sysvia_ORA,
+                    unsigned char* sysvia_ORB,
+                    unsigned char* sysvia_DDRA,
+                    unsigned char* sysvia_DDRB,
+                    unsigned char* sysvia_SR,
+                    unsigned char* sysvia_ACR,
+                    unsigned char* sysvia_PCR,
+                    unsigned char* sysvia_IFR,
+                    unsigned char* sysvia_IER,
+                    unsigned char* sysvia_IC32);
 void bbc_set_sysvia(struct bbc_struct* p_bbc,
                     unsigned char sysvia_ORA,
                     unsigned char sysvia_ORB,
@@ -54,6 +65,7 @@ void bbc_set_sysvia(struct bbc_struct* p_bbc,
                     unsigned char sysvia_IFR,
                     unsigned char sysvia_IER,
                     unsigned char sysvia_IC32);
+unsigned char bbc_get_video_ula(struct bbc_struct* p_bbc);
 void bbc_set_video_ula(struct bbc_struct* p_bbc, unsigned char ula_control);
 
 void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);

@@ -199,6 +199,29 @@ bbc_set_registers(struct bbc_struct* p_bbc,
 }
 
 void
+bbc_get_sysvia(struct bbc_struct* p_bbc,
+               unsigned char* sysvia_ORA,
+               unsigned char* sysvia_ORB,
+               unsigned char* sysvia_DDRA,
+               unsigned char* sysvia_DDRB,
+               unsigned char* sysvia_SR,
+               unsigned char* sysvia_ACR,
+               unsigned char* sysvia_PCR,
+               unsigned char* sysvia_IFR,
+               unsigned char* sysvia_IER,
+               unsigned char* sysvia_IC32) {
+  *sysvia_ORA = p_bbc->sysvia_ORA;
+  *sysvia_ORB = p_bbc->sysvia_ORB;
+  *sysvia_DDRA = p_bbc->sysvia_DDRA;
+  *sysvia_DDRB = p_bbc->sysvia_DDRB;
+  *sysvia_ACR = p_bbc->sysvia_ACR;
+  *sysvia_PCR = p_bbc->sysvia_PCR;
+  *sysvia_IFR = p_bbc->sysvia_IFR;
+  *sysvia_IER = p_bbc->sysvia_IER;
+  *sysvia_IC32 = p_bbc->sysvia_IC32;
+}
+
+void
 bbc_set_sysvia(struct bbc_struct* p_bbc,
                unsigned char sysvia_ORA,
                unsigned char sysvia_ORB,
@@ -221,6 +244,12 @@ bbc_set_sysvia(struct bbc_struct* p_bbc,
   p_bbc->sysvia_IC32 = sysvia_IC32;
 
   p_bbc->sysvia_sdb = 0;
+}
+
+unsigned char
+bbc_get_video_ula(struct bbc_struct* p_bbc) {
+  unsigned char* p_mem = p_bbc->p_mem;
+  return p_mem[k_addr_ula_control];
 }
 
 void
