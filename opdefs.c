@@ -115,3 +115,18 @@ unsigned char g_opmodes[256] =
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
+unsigned char g_opmodelens[12] =
+{
+  1, /* ??? */
+  1, /* nil */
+  2, /* imm */
+  2, /* zpg */
+  3, /* abs */
+  2, /* zpx */
+  2, /* zpy */
+  3, /* abx */
+  3, /* aby */
+  2, /* idx */
+  2, /* idy */
+  3, /* ind */
+};

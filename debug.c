@@ -225,6 +225,28 @@ debug_get_branch(char* p_buf,
   }
 }
 
+static void
+debug_disass(unsigned char* p_mem, uint16_t addr_6502) {
+  size_t i;
+  for (i = 0; i < 20; ++i) {
+    char opcode_buf[k_max_opcode_len];
+    uint16_t addr_plus_1 = addr_6502 + 1;
+    uint16_t addr_plus_2 = addr_6502 + 2;
+    unsigned char opcode = p_mem[addr_6502];
+    unsigned char opmode = g_opmodes[opcode];
+    unsigned char oplen = g_opmodelens[opmode];
+    unsigned char operand1 = p_mem[addr_plus_1];
+    unsigned char operand2 = p_mem[addr_plus_2];
+    debug_print_opcode(opcode_buf,
+                       sizeof(opcode_buf),
+                       opcode,
+                       operand1,
+                       operand2);
+    printf("%.4x: %s\n", addr_6502, opcode_buf);
+    addr_6502 += oplen;
+  }
+}
+
 static int
 debug_hit_break(uint16_t ip_6502, int addr_6502, unsigned char opcode_6502) {
   size_t i;
@@ -472,10 +494,15 @@ debug_callback(struct debug_struct* p_debug) {
       reg_x = parse_int;
     } else if (sscanf(input_buf, "y=%x", &parse_int)) {
       reg_y = parse_int;
+    } else if (sscanf(input_buf, "s=%x", &parse_int)) {
+      reg_s = parse_int;
+    } else if (sscanf(input_buf, "d %x", &parse_int)) {
+      debug_disass(p_mem, parse_int);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");
       printf("s                : step one 6502 instuction\n");
+      printf("d <addr>         : disassemble at <addr>\n");
       printf("t                : trap into gdb\n");
       printf("b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n");
       printf("d <id>           : delete breakpoint <id>\n");

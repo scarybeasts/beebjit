@@ -4,6 +4,7 @@
 const char* g_p_opnames[58];
 unsigned char g_optypes[256];
 unsigned char g_opmodes[256];
+unsigned char g_opmodelens[12];
 
 enum {
   k_kil = 0,
