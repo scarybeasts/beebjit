@@ -485,18 +485,18 @@ debug_callback(struct debug_struct* p_debug) {
                parse_int + parse_int2 <= 65536) {
       parse_string[255] = '\0';
       state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
-    } else if (sscanf(input_buf, "ss %255s", parse_string)) {
+    } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
-    } else if (sscanf(input_buf, "a=%x", &parse_int)) {
+    } else if (sscanf(input_buf, "a=%x", &parse_int) == 1) {
       reg_a = parse_int;
-    } else if (sscanf(input_buf, "x=%x", &parse_int)) {
+    } else if (sscanf(input_buf, "x=%x", &parse_int) == 1) {
       reg_x = parse_int;
-    } else if (sscanf(input_buf, "y=%x", &parse_int)) {
+    } else if (sscanf(input_buf, "y=%x", &parse_int) == 1) {
       reg_y = parse_int;
-    } else if (sscanf(input_buf, "s=%x", &parse_int)) {
+    } else if (sscanf(input_buf, "s=%x", &parse_int) == 1) {
       reg_s = parse_int;
-    } else if (sscanf(input_buf, "d %x", &parse_int)) {
+    } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_mem, parse_int);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
