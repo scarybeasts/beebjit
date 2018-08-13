@@ -1,6 +1,7 @@
 #include "opdefs.h"
 
-const char* g_p_opnames[58] = {
+const char* g_p_opnames[58] =
+{
   "!!!", "???", "BRK", "ORA", "ASL", "PHP", "BPL", "CLC",
   "JSR", "AND", "BIT", "PLP", "ROL", "BMI", "SEC", "RTI",
   "EOR", "LSR", "PHA", "JMP", "BVC", "CLI", "RTS", "ADC",
@@ -9,6 +10,17 @@ const char* g_p_opnames[58] = {
   "TAX", "BCS", "CLV", "TSX", "CPY", "CMP", "CPX", "DEC",
   "INY", "DEX", "BNE", "CLD", "SBC", "INX", "NOP", "INC",
   "BEQ", "SED",
+};
+
+unsigned char g_opmem[58] = {
+  k_nomem, k_nomem, k_nomem, k_read , k_rw   , k_nomem, k_nomem, k_nomem,
+  k_nomem, k_read , k_read , k_nomem, k_rw   , k_nomem, k_nomem, k_nomem,
+  k_read , k_rw   , k_nomem, k_nomem, k_nomem, k_nomem, k_nomem, k_read ,
+  k_nomem, k_rw   , k_nomem, k_nomem, k_write, k_write, k_write, k_nomem,
+  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_nomem,
+  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_rw   ,
+  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_nomem, k_nomem, k_rw   ,
+  k_nomem, k_nomem,
 };
 
 unsigned char g_optypes[256] =

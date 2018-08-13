@@ -5,6 +5,7 @@ const char* g_p_opnames[58];
 unsigned char g_optypes[256];
 unsigned char g_opmodes[256];
 unsigned char g_opmodelens[12];
+unsigned char g_opmem[58];
 
 enum {
   k_kil = 0,
@@ -79,6 +80,13 @@ enum {
   k_idx = 9,
   k_idy = 10,
   k_ind = 11,
+};
+
+enum {
+  k_nomem = 0,
+  k_read = 1,
+  k_write = 2,
+  k_rw = 3,
 };
 
 #endif /* BEEBJIT_OPDEFS_H */

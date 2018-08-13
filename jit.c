@@ -1228,6 +1228,7 @@ jit_single(struct jit_struct* p_jit,
 
   unsigned char opmode = g_opmodes[opcode];
   unsigned char optype = g_optypes[opcode];
+  unsigned char opmem = g_opmem[optype];
   unsigned char oplen = 0;
   uint16_t opcode_addr_6502;
   size_t index = util_buffer_get_pos(p_buf);
@@ -2114,6 +2115,24 @@ jit_single(struct jit_struct* p_jit,
   default:
     index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
     break;
+  }
+
+  /* Writes to memory invalidate the JIT there. */
+  if (opmem == k_write || opmem == k_rw) {
+    if (opmode == k_abs) {
+      /* mov [p_jit + (addr * size)], 0x??57ff41 */
+      p_jit_buf[index++] = 0xc7;
+      p_jit_buf[index++] = 0x04;
+      p_jit_buf[index++] = 0x25;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           (size_t) p_jit->p_jit_base +
+                               (opcode_addr_6502 << k_jit_bytes_shift));
+      p_jit_buf[index++] = 0x41;
+      p_jit_buf[index++] = 0xff;
+      p_jit_buf[index++] = 0x57;
+      p_jit_buf[index++] = k_offset_util_jit;
+    }
   }
 
   util_buffer_set_pos(p_buf, index);

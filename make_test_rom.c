@@ -364,12 +364,32 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xa9; /* LDA #$60 */
   p_mem[index++] = 0x60;
   /* Stores RTS at $2000. */
-  p_mem[index++] = 0x8d; /* STA $0100 */
+  p_mem[index++] = 0x8d; /* STA $2000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x20;
   p_mem[index++] = 0x20; /* JSR $2000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x20;
+  p_mem[index++] = 0xa9; /* LDA #$E8 */
+  p_mem[index++] = 0xe8;
+  /* Stores INX at $2000. */
+  p_mem[index++] = 0x8d; /* STA $2000 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0x60;
+  /* Stores RTS at $2001. */
+  p_mem[index++] = 0x8d; /* STA $2000 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0xa2; /* LDX #$ff */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x20; /* JSR $2000 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0x4c; /* JMP $C389 */
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc3;
