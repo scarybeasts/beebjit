@@ -359,7 +359,22 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x48; /* PHP */
   p_mem[index++] = 0x40; /* RTI */
 
+  /* Test most simple self-modifying code. */
   index = set_new_index(index, 0x340);
+  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0x60;
+  /* Stores RTS at $2000. */
+  p_mem[index++] = 0x8d; /* STA $0100 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0x20; /* JSR $2000 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0x4c; /* JMP $C389 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc3;
+
+  index = set_new_index(index, 0x380);
   p_mem[index++] = 0x02; /* Done */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

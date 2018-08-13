@@ -134,6 +134,8 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "jit_create failed");
   }
 
+  jit_set_debug(p_bbc->p_jit, debug_flag);
+
   bbc_reset(p_bbc);
 
   return p_bbc;
@@ -268,16 +270,13 @@ bbc_set_memory_block(struct bbc_struct* p_bbc,
                      uint16_t addr,
                      uint16_t len,
                      unsigned char* p_src_mem) {
-  int debug_flag = p_bbc->debug_flag;
   unsigned char* p_mem = p_bbc->p_mem;
-  struct jit_struct* p_jit = p_bbc->p_jit;
 
   assert((addr + len) <= 65536);
 
   memcpy(p_mem + addr, p_src_mem, len);
 
-  /* JIT the new bytes. */
-  jit_jit(p_jit, addr, len, debug_flag);
+  /* TODO: invalidate the old JIT for this memory area. */
 }
 
 static unsigned char
@@ -368,13 +367,6 @@ bbc_10ms_timer_thread(void* p) {
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
   pthread_t thread;
-
-  int debug_flag = p_bbc->debug_flag;
-  struct jit_struct* p_jit = p_bbc->p_jit;
-
-  /* JIT the ROMS. */
-  jit_jit(p_jit, k_os_rom_offset, k_bbc_rom_size, debug_flag);
-  jit_jit(p_jit, k_lang_rom_offset, k_bbc_rom_size, debug_flag);
 
   int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {

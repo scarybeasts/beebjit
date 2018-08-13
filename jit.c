@@ -21,21 +21,27 @@ static void* k_utils_addr = (void*) 0x80000000;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
+static const size_t k_utils_jit_offset = 0x200;
 
 static const int k_offset_util_debug = 24;
 static const int k_offset_util_regs = 32;
-static const int k_offset_debug = 40;
-static const int k_offset_debug_callback = 48;
-static const int k_offset_bbc = 56;
-static const int k_offset_read_callback = 64;
-static const int k_offset_write_callback = 72;
-static const int k_offset_interrupt = 80;
-static const int k_offset_reg_a = 88;
-static const int k_offset_reg_x = 89;
-static const int k_offset_reg_y = 90;
-static const int k_offset_reg_s = 91;
-static const int k_offset_reg_flags = 92;
-static const int k_offset_reg_pc = 94;
+static const int k_offset_util_jit = 40;
+static const int k_offset_debug = 48;
+static const int k_offset_debug_callback = 56;
+static const int k_offset_jit_callback = 64;
+static const int k_offset_bbc = 72;
+static const int k_offset_read_callback = 80;
+static const int k_offset_write_callback = 88;
+static const int k_offset_interrupt = 96;
+static const int k_offset_reg_a = 104;
+static const int k_offset_reg_x = 105;
+static const int k_offset_reg_y = 106;
+static const int k_offset_reg_s = 107;
+static const int k_offset_reg_flags = 108;
+static const int k_offset_reg_pc = 110;
+
+static const unsigned int k_jit_flag_debug = 1;
+static const unsigned int k_jit_flag_merge_ops = 2;
 
 enum {
   k_a = 1,
@@ -71,24 +77,27 @@ static const unsigned char g_nz_flags_needed[58] = {
 };
 
 struct jit_struct {
-  unsigned char* p_mem;        /* 0  */
-  unsigned char* p_jit_base;   /* 8  */
-  unsigned char* p_utils_base; /* 16 */
-  unsigned char* p_util_debug; /* 24 */
-  unsigned char* p_util_regs;  /* 32 */
-  void* p_debug;               /* 40 */
-  void* p_debug_callback;      /* 48 */
-  struct bbc_struct* p_bbc;    /* 56 */
-  void* p_read_callback;       /* 64 */
-  void* p_write_callback;      /* 72 */
-  uint64_t interrupt;          /* 80 */
-  unsigned char reg_a;         /* 88 */
-  unsigned char reg_x;         /* 89 */
-  unsigned char reg_y;         /* 90 */
-  unsigned char reg_s;         /* 91 */
-  unsigned char reg_flags;     /* 92 */
+  unsigned char* p_mem;        /* 0   */
+  unsigned char* p_jit_base;   /* 8   */
+  unsigned char* p_utils_base; /* 16  */
+  unsigned char* p_util_debug; /* 24  */
+  unsigned char* p_util_regs;  /* 32  */
+  unsigned char* p_util_jit;   /* 40  */
+  void* p_debug;               /* 48  */
+  void* p_debug_callback;      /* 56  */
+  void* p_jit_callback;        /* 64  */
+  struct bbc_struct* p_bbc;    /* 72  */
+  void* p_read_callback;       /* 80  */
+  void* p_write_callback;      /* 88  */
+  uint64_t interrupt;          /* 96  */
+  unsigned char reg_a;         /* 104 */
+  unsigned char reg_x;         /* 105 */
+  unsigned char reg_y;         /* 106 */
+  unsigned char reg_s;         /* 107 */
+  unsigned char reg_flags;     /* 108 */
   unsigned char pad;
-  uint16_t reg_pc;             /* 94 */
+  uint16_t reg_pc;             /* 110 */
+  unsigned int jit_flags;
 };
 
 static size_t
@@ -838,6 +847,53 @@ jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
 }
 
 static void
+jit_emit_jit_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+  size_t index = 0;
+
+  /* Save calling rip. */
+  /* mov rdx, [rsp] */
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x24;
+
+  index = jit_emit_save_registers(p_jit_buf, index);
+
+  /* param1: jit_struct pointer. */
+  /* mov rdi, r15 */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xff;
+
+  /* param2: x64 rip that call'ed here. */
+  /* mov rsi, rdx */
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xd6;
+
+  /* call [r15 + k_offset_jit_callback] */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x57;
+  p_jit_buf[index++] = k_offset_jit_callback;
+
+  index = jit_emit_restore_registers(p_jit_buf, index);
+
+  /* movzx edx, WORD PTR [r15 + k_offset_reg_pc] */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x57;
+  p_jit_buf[index++] = k_offset_reg_pc;
+
+  /* We are jumping out of a call, so need to pop the return value. */
+  /* pop rdi */
+  p_jit_buf[index++] = 0x5f;
+
+  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+}
+
+static void
 jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
   /* mov dx, addr_6502 */
   util_buffer_add_2b_1w(p_buf, 0x66, 0xba, addr_6502);
@@ -1158,9 +1214,7 @@ jit_get_opcode(struct jit_struct* p_jit, uint16_t addr_6502) {
 static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
-           uint16_t addr_6502,
-           unsigned int debug_flags,
-           unsigned int jit_flags) {
+           uint16_t addr_6502) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1180,7 +1234,7 @@ jit_single(struct jit_struct* p_jit,
   size_t num_6502_bytes = 0;
   size_t n_count = 1;
 
-  if (debug_flags) {
+  if (p_jit->jit_flags & k_jit_flag_debug) {
     jit_emit_debug_sequence(p_buf, addr_6502);
     index = util_buffer_get_pos(p_buf);
   }
@@ -1244,7 +1298,7 @@ jit_single(struct jit_struct* p_jit,
   opcode_addr_6502 = (operand2 << 8) | operand1;
 
   /* Handle merging repeated shift / rotate instructions. */
-  if (jit_flags) {
+  if (p_jit->jit_flags & k_jit_flag_merge_ops) {
     if (optype == k_lsr ||
         optype == k_asl ||
         optype == k_rol ||
@@ -2067,12 +2121,10 @@ jit_single(struct jit_struct* p_jit,
   return num_6502_bytes;
 }
 
-void
+static void
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
-            uint16_t addr_6502,
-            unsigned int debug_flags,
-            unsigned int jit_flags) {
+            uint16_t addr_6502) {
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
   struct util_buffer* p_single_buf = util_buffer_create();
@@ -2103,7 +2155,7 @@ jit_at_addr(struct jit_struct* p_jit,
       nz_lazy_loaded = 1;
     }
 
-    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502, debug_flags, 1);
+    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502);
 
     opcodes_len = util_buffer_get_pos(p_single_buf);
     buf_left = util_buffer_remaining(p_buf);
@@ -2144,24 +2196,37 @@ jit_at_addr(struct jit_struct* p_jit,
                                 0);
 }
 
-void
-jit_jit(struct jit_struct* p_jit,
-        size_t addr_6502,
-        size_t num_opcodes,
-        unsigned int debug_flags) {
-  size_t jit_end = addr_6502 + num_opcodes;
-  unsigned char* p_jit_base = p_jit->p_jit_base;
-  while (addr_6502 < jit_end) {
-    unsigned char* p_jit_buf = p_jit_base + (addr_6502 * k_jit_bytes_per_byte);
-    struct util_buffer* p_buf = util_buffer_create();
-    util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
-    util_buffer_set_base_address(p_buf, p_jit_buf);
+static void
+jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
+  struct util_buffer* p_buf;
+  size_t addr_6502;
+  unsigned char* p_jit_buf;
 
-    jit_at_addr(p_jit, p_buf, addr_6502, debug_flags, 1);
+  assert(p_jit_addr >= p_jit->p_jit_base);
+  addr_6502 = p_jit_addr - p_jit->p_jit_base;
+  addr_6502 >>= k_jit_bytes_shift;
+  assert(addr_6502 <= 0xffff);
 
-    util_buffer_destroy(p_buf);
-    addr_6502++;
-  }
+  /* Executing within the zero page and stack page is trapped.
+   * By default, for performance, writes to these pages do not invalidate
+   * related JIT code.
+   * Upon hitting this trap, we could re-JIT everything in a new mode that does
+   * invalidate JIT upon writes to these addresses. This is unimplemented.
+   */
+  assert(addr_6502 >= 0x200);
+/*printf("JIT at: %x\n", addr_6502);*/
+
+  p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
+
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
+  util_buffer_set_base_address(p_buf, p_jit_buf);
+
+  jit_at_addr(p_jit, p_buf, addr_6502);
+
+  util_buffer_destroy(p_buf);
+
+  p_jit->reg_pc = addr_6502;
 }
 
 void
@@ -2227,6 +2292,7 @@ jit_create(unsigned char* p_mem,
   unsigned char* p_utils_base;
   unsigned char* p_util_debug;
   unsigned char* p_util_regs;
+  unsigned char* p_util_jit;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");
@@ -2241,32 +2307,47 @@ jit_create(unsigned char* p_mem,
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
   p_util_regs = p_utils_base + k_utils_regs_offset;
+  p_util_jit = p_utils_base + k_utils_jit_offset;
 
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
   p_jit->p_util_debug = p_util_debug;
   p_jit->p_util_regs = p_util_regs;
+  p_jit->p_util_jit = p_util_jit;
   p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
+  p_jit->p_jit_callback = jit_callback;
   p_jit->p_bbc = p_bbc;
   p_jit->p_read_callback = p_read_callback;
   p_jit->p_write_callback = p_write_callback;
+  p_jit->jit_flags = k_jit_flag_merge_ops;
 
-  /* nop */
-  memset(p_jit_base, '\x90', k_addr_space_size * k_jit_bytes_per_byte);
+  /* int3 */
+  memset(p_jit_base, '\xcc', k_addr_space_size * k_jit_bytes_per_byte);
   size_t num_bytes = k_addr_space_size;
   while (num_bytes--) {
-    /* ud2 */
-    p_jit_base[0] = 0x0f;
-    p_jit_base[1] = 0x0b;
+    /* call [r15 + k_offset_util_jit] */
+    p_jit_base[0] = 0x41;
+    p_jit_base[1] = 0xff;
+    p_jit_base[2] = 0x57;
+    p_jit_base[3] = k_offset_util_jit;
     p_jit_base += k_jit_bytes_per_byte;
   }
 
   jit_emit_debug_util(p_util_debug);
   jit_emit_regs_util(p_jit, p_util_regs);
+  jit_emit_jit_util(p_jit, p_util_jit);
 
   return p_jit;
+}
+
+void
+jit_set_debug(struct jit_struct* p_jit, int debug) {
+  p_jit->jit_flags &= ~k_jit_flag_debug;
+  if (debug) {
+    p_jit->jit_flags |= k_jit_flag_debug;
+  }
 }
 
 void

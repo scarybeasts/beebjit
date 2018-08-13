@@ -15,6 +15,7 @@ struct jit_struct* jit_create(unsigned char* p_mem,
                               struct bbc_struct* p_bbc,
                               void* p_read_callback,
                               void* p_write_callback);
+void jit_set_debug(struct jit_struct* p_jit, int debug);
 void jit_destroy(struct jit_struct* p_jit);
 
 void jit_get_registers(struct jit_struct* p_jit,
@@ -34,10 +35,6 @@ void jit_set_registers(struct jit_struct* p_jit,
 
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 
-void jit_jit(struct jit_struct* p_jit,
-             size_t addr_6502,
-             size_t num_opcodes,
-             unsigned int flags);
 void jit_enter(struct jit_struct* p_jit);
 
 #endif /* BEEJIT_JIT_H */
