@@ -12,7 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_addr_space_size = 0x10000;
+enum {
+  k_addr_space_size = 0x10000,
+};
 static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
@@ -39,9 +41,11 @@ static const int k_offset_reg_y = 106;
 static const int k_offset_reg_s = 107;
 static const int k_offset_reg_flags = 108;
 static const int k_offset_reg_pc = 110;
+static const int k_offset_jit_ptrs = 116;
 
 static const unsigned int k_jit_flag_debug = 1;
 static const unsigned int k_jit_flag_merge_ops = 2;
+static const unsigned int k_jit_flag_self_modifying = 4;
 
 enum {
   k_a = 1,
@@ -51,6 +55,7 @@ enum {
   k_6502 = 5,
 };
 
+/* TODO: this is stale. */
 /* k_a: PLA, TXA, TYA, LDA */
 /* k_x: LDX, TAX, TSX, DEX, INX */
 /* k_y: DEY, LDY, TAY, INY */
@@ -97,7 +102,8 @@ struct jit_struct {
   unsigned char reg_flags;     /* 108 */
   unsigned char pad;
   uint16_t reg_pc;             /* 110 */
-  unsigned int jit_flags;
+  unsigned int jit_flags;      /* 112 */
+  unsigned int jit_ptrs[k_addr_space_size]; /* 116 */
 };
 
 static size_t
@@ -2093,16 +2099,20 @@ jit_single(struct jit_struct* p_jit,
   }
 
   /* Writes to memory invalidate the JIT there. */
-  if (opmem == k_write || opmem == k_rw) {
+  if ((p_jit->jit_flags & k_jit_flag_self_modifying) &&
+      (opmem == k_write || opmem == k_rw)) {
     if (opmode == k_abs) {
-      /* mov [p_jit + (addr * size)], 0x??57ff41 */
-      p_jit_buf[index++] = 0xc7;
-      p_jit_buf[index++] = 0x04;
-      p_jit_buf[index++] = 0x25;
+      /* mov edx, DWORD PTR [r15 + k_offset_jit_ptrs + (addr * 4) */
+      p_jit_buf[index++] = 0x41;
+      p_jit_buf[index++] = 0x8b;
+      p_jit_buf[index++] = 0x97;
       index = jit_emit_int(p_jit_buf,
                            index,
-                           (size_t) p_jit->p_jit_base +
-                               (opcode_addr_6502 << k_jit_bytes_shift));
+                           k_offset_jit_ptrs +
+                               (opcode_addr_6502 * sizeof(unsigned int)));
+      /* mov DWORD PTR [rdx], 0x??57ff41 */
+      p_jit_buf[index++] = 0xc7;
+      p_jit_buf[index++] = 0x02;
       p_jit_buf[index++] = 0x41;
       p_jit_buf[index++] = 0xff;
       p_jit_buf[index++] = 0x57;
@@ -2129,19 +2139,21 @@ jit_at_addr(struct jit_struct* p_jit,
   int curr_nz_flags = -1;
 
   do {
-    unsigned char opcode;
+    unsigned char opcode_6502;
     unsigned char optype;
-    size_t opcodes_len;
+    size_t intel_opcodes_len;
     size_t buf_left;
     unsigned char new_nz_flags;
+    size_t i;
     int nz_lazy_loaded = 0;
     unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
+    assert((size_t) p_dst < 0xffffffff);
 
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
     util_buffer_set_base_address(p_single_buf, p_dst);
 
-    opcode = jit_get_opcode(p_jit, addr_6502);
-    optype = g_optypes[opcode];
+    opcode_6502 = jit_get_opcode(p_jit, addr_6502);
+    optype = g_optypes[opcode_6502];
     /* See if we need to lazy load the 6502 NZ flags. */
     if (g_nz_flags_needed[optype] && curr_nz_flags != -1) {
       size_t index = jit_emit_do_zn_flags(single_jit_buf, 0, curr_nz_flags - 1);
@@ -2151,23 +2163,30 @@ jit_at_addr(struct jit_struct* p_jit,
 
     num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502);
 
-    opcodes_len = util_buffer_get_pos(p_single_buf);
+    intel_opcodes_len = util_buffer_get_pos(p_single_buf);
     buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
-    if (buf_left >= opcodes_len + 2 + 4 + 4 + 5) {
-      util_buffer_append(p_buf, p_single_buf);
-      total_6502_bytes += num_6502_bytes;
-      total_num_ops++;
-
-      new_nz_flags = g_nz_flag_results[optype];
-      if (new_nz_flags == k_a || new_nz_flags == k_x || new_nz_flags == k_y) {
-        curr_nz_flags = new_nz_flags;
-      } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
-        curr_nz_flags = -1;
-      }
-    } else {
+    if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5) {
       break;
     }
+
+    util_buffer_append(p_buf, p_single_buf);
+    total_6502_bytes += num_6502_bytes;
+    total_num_ops++;
+
+    for (i = 0; i < num_6502_bytes; ++i) {
+      unsigned int old_ptr = p_jit->jit_ptrs[addr_6502 + i];
+      (void) old_ptr;
+      p_jit->jit_ptrs[addr_6502 + i] = (unsigned int) (size_t) p_dst;
+    }
+
+    new_nz_flags = g_nz_flag_results[optype];
+    if (new_nz_flags == k_a || new_nz_flags == k_x || new_nz_flags == k_y) {
+      curr_nz_flags = new_nz_flags;
+    } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
+      curr_nz_flags = -1;
+    }
+
     addr_6502 += num_6502_bytes;
   } while (1);
 
@@ -2317,18 +2336,22 @@ jit_create(unsigned char* p_mem,
   p_jit->p_bbc = p_bbc;
   p_jit->p_read_callback = p_read_callback;
   p_jit->p_write_callback = p_write_callback;
-  p_jit->jit_flags = k_jit_flag_merge_ops;
+  p_jit->jit_flags = k_jit_flag_merge_ops | k_jit_flag_self_modifying;
 
   /* int3 */
   memset(p_jit_base, '\xcc', k_addr_space_size * k_jit_bytes_per_byte);
-  size_t num_bytes = k_addr_space_size;
-  while (num_bytes--) {
+  size_t num_bytes = 0;
+  while (num_bytes < k_addr_space_size) {
     /* call [r15 + k_offset_util_jit] */
     p_jit_base[0] = 0x41;
     p_jit_base[1] = 0xff;
     p_jit_base[2] = 0x57;
     p_jit_base[3] = k_offset_util_jit;
     p_jit_base += k_jit_bytes_per_byte;
+
+    p_jit->jit_ptrs[num_bytes] = (unsigned int) (size_t) p_jit_base;
+
+    num_bytes++;
   }
 
   jit_emit_debug_util(p_util_debug);
