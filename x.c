@@ -231,7 +231,7 @@ x_render(struct x_struct* p_x) {
   unsigned char* p_screen_mem = bbc_get_screen_mem(p_bbc);
   int is_text = bbc_get_screen_is_text(p_bbc);
   size_t pixel_width = bbc_get_screen_pixel_width(p_bbc);
-  size_t num_colors = bbc_get_screen_num_colors(p_bbc);
+  size_t clock_speed = bbc_get_screen_clock_speed(p_bbc);
   size_t x;
   size_t y;
   int ret;
@@ -264,7 +264,8 @@ x_render(struct x_struct* p_x) {
       p_screen_mem += p_x->chars_width;
       y_offset += 16;
     }
-  } else if (num_colors == 2 && pixel_width == 1) {
+  } else if (pixel_width == 1) {
+    assert(clock_speed == 1);
     for (y = 0; y < 32; ++y) {
       for (x = 0; x < 80; ++x) {
         size_t y2;
@@ -289,8 +290,105 @@ x_render(struct x_struct* p_x) {
         }
       }
     }
-  } else if (num_colors == 16) {
-    assert(pixel_width == 4);
+  } else if (pixel_width == 2 && clock_speed == 1) {
+    for (y = 0; y < 32; ++y) {
+      for (x = 0; x < 80; ++x) {
+        size_t y2;
+        for (y2 = 0; y2 < 8; ++y2) {
+          unsigned char packed_pixels = *p_screen_mem++;
+          /* TODO: lookup table to make this fast. */
+          unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
+                             ((packed_pixels & 0x08) >> 3);
+          unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
+                             ((packed_pixels & 0x04) >> 2);
+          unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
+                             ((packed_pixels & 0x02) >> 1);
+          unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
+                             ((packed_pixels & 0x01) >> 0);
+          unsigned int p1 = colors[(1 << v1) - 1];
+          unsigned int p2 = colors[(1 << v2) - 1];
+          unsigned int p3 = colors[(1 << v3) - 1];
+          unsigned int p4 = colors[(1 << v4) - 1];
+          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640;
+          p_x_mem += x * 8;
+          p_x_mem[0] = p1;
+          p_x_mem[1] = p1;
+          p_x_mem[2] = p2;
+          p_x_mem[3] = p2;
+          p_x_mem[4] = p3;
+          p_x_mem[5] = p3;
+          p_x_mem[6] = p4;
+          p_x_mem[7] = p4;
+          p_x_mem[640] = p1;
+          p_x_mem[641] = p1;
+          p_x_mem[642] = p2;
+          p_x_mem[643] = p2;
+          p_x_mem[644] = p3;
+          p_x_mem[645] = p3;
+          p_x_mem[646] = p4;
+          p_x_mem[647] = p4;
+        }
+      }
+    }
+  } else if (pixel_width == 4 && clock_speed == 0) {
+    for (y = 0; y < 32; ++y) {
+      for (x = 0; x < 40; ++x) {
+        size_t y2;
+        for (y2 = 0; y2 < 8; ++y2) {
+          unsigned char packed_pixels = *p_screen_mem++;
+          /* TODO: lookup table to make this fast. */
+          unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
+                             ((packed_pixels & 0x08) >> 3);
+          unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
+                             ((packed_pixels & 0x04) >> 2);
+          unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
+                             ((packed_pixels & 0x02) >> 1);
+          unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
+                             ((packed_pixels & 0x01) >> 0);
+          unsigned int p1 = colors[(1 << v1) - 1];
+          unsigned int p2 = colors[(1 << v2) - 1];
+          unsigned int p3 = colors[(1 << v3) - 1];
+          unsigned int p4 = colors[(1 << v4) - 1];
+          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
+          p_x_mem += ((y * 8) + y2) * 2 * 640;
+          p_x_mem += x * 16;
+          p_x_mem[0] = p1;
+          p_x_mem[1] = p1;
+          p_x_mem[2] = p1;
+          p_x_mem[3] = p1;
+          p_x_mem[4] = p2;
+          p_x_mem[5] = p2;
+          p_x_mem[6] = p2;
+          p_x_mem[7] = p2;
+          p_x_mem[8] = p3;
+          p_x_mem[9] = p3;
+          p_x_mem[10] = p3;
+          p_x_mem[11] = p3;
+          p_x_mem[12] = p4;
+          p_x_mem[13] = p4;
+          p_x_mem[14] = p4;
+          p_x_mem[15] = p4;
+          p_x_mem[640] = p1;
+          p_x_mem[641] = p1;
+          p_x_mem[642] = p1;
+          p_x_mem[643] = p1;
+          p_x_mem[644] = p2;
+          p_x_mem[645] = p2;
+          p_x_mem[646] = p2;
+          p_x_mem[647] = p2;
+          p_x_mem[648] = p3;
+          p_x_mem[649] = p3;
+          p_x_mem[650] = p3;
+          p_x_mem[651] = p3;
+          p_x_mem[652] = p4;
+          p_x_mem[653] = p4;
+          p_x_mem[654] = p4;
+          p_x_mem[655] = p4;
+        }
+      }
+    }
+  } else if (pixel_width == 4 && clock_speed == 1) {
     for (y = 0; y < 32; ++y) {
       for (x = 0; x < 80; ++x) {
         size_t y2;

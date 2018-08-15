@@ -82,7 +82,7 @@ int bbc_get_print_flag(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_screen_mem(struct bbc_struct* p_bbc);
 int bbc_get_screen_is_text(struct bbc_struct* p_bbc);
 size_t bbc_get_screen_pixel_width(struct bbc_struct* p_bbc);
-size_t bbc_get_screen_num_colors(struct bbc_struct* p_bbc);
+size_t bbc_get_screen_clock_speed(struct bbc_struct* p_bbc);
 
 int bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr);
 int bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr);

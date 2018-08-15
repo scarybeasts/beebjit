@@ -19,7 +19,8 @@ static void* k_mem_addr = (void*) 0x10000000;
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
 static const size_t k_mode7_offset = 0x7c00;
-static const size_t k_mode0_offset = 0x3000;
+static const size_t k_mode45_offset = 0x5800;
+static const size_t k_mode012_offset = 0x3000;
 
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
@@ -291,8 +292,10 @@ bbc_get_screen_mem(struct bbc_struct* p_bbc) {
   size_t offset;
   if (ula_control & k_ula_teletext) {
     offset = k_mode7_offset;
+  } else if (bbc_get_screen_clock_speed(p_bbc) == 1) {
+    offset = k_mode012_offset;
   } else {
-    offset = k_mode0_offset;
+    offset = k_mode45_offset;
   }
   return p_bbc->p_mem + offset;
 }
@@ -310,17 +313,16 @@ size_t
 bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
   unsigned char ula_control = bbc_get_ula_control(p_bbc);
   unsigned char ula_chars_per_line = (ula_control & k_ula_chars_per_line) >>
-                                     k_ula_chars_per_line_shift;
+                                         k_ula_chars_per_line_shift;
   return 1 << (3 - ula_chars_per_line);
 }
 
 size_t
-bbc_get_screen_num_colors(struct bbc_struct* p_bbc) {
+bbc_get_screen_clock_speed(struct bbc_struct* p_bbc) {
   unsigned char ula_control = bbc_get_ula_control(p_bbc);
-  unsigned char pixel_width = bbc_get_screen_pixel_width(p_bbc);
   unsigned char clock_speed = (ula_control & k_ula_clock_speed) >>
-                              k_ula_clock_speed_shift;
-  return (1 << clock_speed) * (1 << (pixel_width - 1));
+                                  k_ula_clock_speed_shift;
+  return clock_speed;
 }
 
 int
