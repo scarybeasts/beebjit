@@ -3,10 +3,12 @@
 #include "x.h"
 
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 int
@@ -93,8 +95,16 @@ main(int argc, const char* argv[]) {
   x_launch_event_loop_async(p_x);
 
   while (1) {
+    int ret;
+    struct timespec ts = { 0, 16 * 1000 * 1000 };
     x_render(p_x);
-    sleep(1);
+    /* 16ms, or about 60fps. */
+    ret = nanosleep(&ts, NULL);
+    if (ret != 0) {
+      if (ret != -1 || errno != EINTR) {
+        errx(1, "nanosleep failed");
+      }
+    }
   }
 
   x_destroy(p_x);
