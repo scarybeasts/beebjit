@@ -135,19 +135,15 @@ debug_print_opcode(char* buf,
   }
 }
 
-static void
-debug_get_addr(char* p_buf,
-               size_t buf_len,
-               unsigned char opcode,
+static int
+debug_get_addr(unsigned char opcode,
                unsigned char operand1,
                unsigned char operand2,
                unsigned char x_6502,
                unsigned char y_6502,
-               unsigned char* p_mem,
-               int* addr_6502) {
+               unsigned char* p_mem) {
   unsigned char opmode = g_opmodes[opcode];
   uint16_t addr;
-  *addr_6502 = -1;
 
   switch (opmode) {
   case k_zpg:
@@ -180,21 +176,20 @@ debug_get_addr(char* p_buf,
     addr = (uint16_t) (addr + y_6502);
     break;
   default:
-    return;
+    return -1;
     break;
   }
-  snprintf(p_buf, buf_len, "[addr=%.4x val=%.2x]", addr, p_mem[addr]);
-  *addr_6502 = addr;
+  return addr;
 }
 
 static void
-debug_get_branch(char* p_buf,
-                 size_t buf_len,
-                 unsigned char opcode,
-                 unsigned char fn_6502,
-                 unsigned char fo_6502,
-                 unsigned char fc_6502,
-                 unsigned char fz_6502) {
+debug_print_branch(char* p_buf,
+                   size_t buf_len,
+                   unsigned char opcode,
+                   unsigned char fn_6502,
+                   unsigned char fo_6502,
+                   unsigned char fc_6502,
+                   unsigned char fz_6502) {
   int taken = -1;
   switch (g_optypes[opcode]) {
   case k_bpl:
@@ -295,6 +290,8 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char reg_s;
   unsigned char reg_flags;
   uint16_t reg_pc;
+  uint16_t reg_pc_plus_1;
+  uint16_t reg_pc_plus_2;
   unsigned char flag_z;
   unsigned char flag_n;
   unsigned char flag_c;
@@ -307,30 +304,39 @@ debug_callback(struct debug_struct* p_debug) {
   flag_o = !!(reg_flags & 0x40);
 
   opcode = p_mem[reg_pc];
-  operand1 = p_mem[((reg_pc + 1) & 0xffff)];
-  operand2 = p_mem[((reg_pc + 2) & 0xffff)];
+  reg_pc_plus_1 = reg_pc + 1;
+  reg_pc_plus_2 = reg_pc + 2;
+  operand1 = p_mem[reg_pc_plus_1];
+  operand2 = p_mem[reg_pc_plus_2];
 
   if (!debug_inited) {
     debug_init();
   }
 
+  addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
+
+  hit_break = debug_hit_break(reg_pc, addr_6502, opcode);
+
+  if (debug_running && !hit_break && !debug_running_print) {
+    return;
+  }
+
   extra_buf[0] = '\0';
-  debug_get_addr(extra_buf,
-                 sizeof(extra_buf),
-                 opcode,
-                 operand1,
-                 operand2,
-                 reg_x,
-                 reg_y,
-                 p_mem,
-                 &addr_6502);
-  debug_get_branch(extra_buf,
-                   sizeof(extra_buf),
-                   opcode,
-                   flag_n,
-                   flag_o,
-                   flag_c,
-                   flag_z);
+  if (addr_6502 != -1) {
+    snprintf(extra_buf,
+             sizeof(extra_buf),
+             "[addr=%.4x val=%.2x]",
+             addr_6502,
+             p_mem[addr_6502]);
+  } else {
+    debug_print_branch(extra_buf,
+                       sizeof(extra_buf),
+                       opcode,
+                       flag_n,
+                       flag_o,
+                       flag_c,
+                       flag_z);
+  }
 
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
@@ -359,12 +365,6 @@ debug_callback(struct debug_struct* p_debug) {
   }
   if (flag_n) {
     flags_buf[7] = 'N';
-  }
-
-  hit_break = debug_hit_break(reg_pc, addr_6502, opcode);
-
-  if (debug_running && !hit_break && !debug_running_print) {
-    return;
   }
 
   printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
