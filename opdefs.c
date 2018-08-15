@@ -1,6 +1,6 @@
 #include "opdefs.h"
 
-const char* g_p_opnames[58] =
+const char* g_p_opnames[k_6502_op_num_types] =
 {
   "!!!", "???", "BRK", "ORA", "ASL", "PHP", "BPL", "CLC",
   "JSR", "AND", "BIT", "PLP", "ROL", "BMI", "SEC", "RTI",
@@ -12,7 +12,7 @@ const char* g_p_opnames[58] =
   "BEQ", "SED",
 };
 
-unsigned char g_opmem[58] = {
+unsigned char g_opmem[k_6502_op_num_types] = {
   k_nomem, k_nomem, k_nomem, k_read , k_rw   , k_nomem, k_nomem, k_nomem,
   k_nomem, k_read , k_read , k_nomem, k_rw   , k_nomem, k_nomem, k_nomem,
   k_read , k_rw   , k_nomem, k_nomem, k_nomem, k_nomem, k_nomem, k_read ,
@@ -23,7 +23,7 @@ unsigned char g_opmem[58] = {
   k_nomem, k_nomem,
 };
 
-unsigned char g_opbranch[58] = {
+unsigned char g_opbranch[k_6502_op_num_types] = {
   k_bra_n, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
   k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_y,
   k_bra_n, k_bra_n, k_bra_n, k_bra_y, k_bra_m, k_bra_n, k_bra_y, k_bra_n,
@@ -34,7 +34,7 @@ unsigned char g_opbranch[58] = {
   k_bra_m, k_bra_n,
 };
 
-unsigned char g_optypes[256] =
+unsigned char g_optypes[k_6502_op_num_opcodes] =
 {
   // 0x00
   k_brk, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_unk,
@@ -86,7 +86,7 @@ unsigned char g_optypes[256] =
   k_sed, k_sbc, k_unk, k_unk, k_unk, k_sbc, k_inc, k_unk,
 };
 
-unsigned char g_opmodes[256] =
+unsigned char g_opmodes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
@@ -138,7 +138,7 @@ unsigned char g_opmodes[256] =
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
-unsigned char g_opmodelens[13] =
+unsigned char g_opmodelens[k_6502_op_num_modes] =
 {
   1, /* ??? */
   1, /* nil */

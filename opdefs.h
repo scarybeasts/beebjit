@@ -1,12 +1,18 @@
 #ifndef BEEBJIT_OPDEFS_H
 #define BEEBJIT_OPDEFS_H
 
-const char* g_p_opnames[58];
-unsigned char g_optypes[256];
-unsigned char g_opmodes[256];
-unsigned char g_opmodelens[13];
-unsigned char g_opmem[58];
-unsigned char g_opbranch[58];
+enum {
+  k_6502_op_num_types = 58,
+  k_6502_op_num_opcodes = 256,
+  k_6502_op_num_modes = 13,
+};
+
+const char* g_p_opnames[k_6502_op_num_types];
+unsigned char g_optypes[k_6502_op_num_opcodes];
+unsigned char g_opmodes[k_6502_op_num_opcodes];
+unsigned char g_opmodelens[k_6502_op_num_modes];
+unsigned char g_opmem[k_6502_op_num_types];
+unsigned char g_opbranch[k_6502_op_num_types];
 
 enum {
   k_kil = 0,
