@@ -503,6 +503,31 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xe8; /* INX */
   p_mem[index++] = 0x60; /* RTS */
+  index = set_new_index(index, 0x3010);
+  /* This is close to one of the simplest self-modifying routines I found: the
+   * Galaforce memory copy at first load.
+   */
+  p_mem[index++] = 0xa0; /* LDY #$04 */
+  p_mem[index++] = 0x04;
+  p_mem[index++] = 0xbd; /* LDA $1a00,X */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x1a;
+  p_mem[index++] = 0x9d; /* STA $0a00,X */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x0a;
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0xd0; /* BNE -9 */
+  p_mem[index++] = 0xf7;
+  p_mem[index++] = 0xee; /* INC $3014 */ /* Self-modifying. */
+  p_mem[index++] = 0x14;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xee; /* INC $3017 */ /* Self-modifying. */
+  p_mem[index++] = 0x17;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x88; /* DEY */
+  p_mem[index++] = 0xd0; /* BNE -18 */
+  p_mem[index++] = 0xee;
+  p_mem[index++] = 0x60; /* RTS */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
