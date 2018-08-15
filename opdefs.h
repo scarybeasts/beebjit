@@ -6,6 +6,7 @@ unsigned char g_optypes[256];
 unsigned char g_opmodes[256];
 unsigned char g_opmodelens[13];
 unsigned char g_opmem[58];
+unsigned char g_opbranch[58];
 
 enum {
   k_kil = 0,
@@ -88,6 +89,12 @@ enum {
   k_read = 1,
   k_write = 2,
   k_rw = 3,
+};
+
+enum {
+  k_bra_n = 0,
+  k_bra_y = 1,
+  k_bra_m = 2,
 };
 
 #endif /* BEEBJIT_OPDEFS_H */

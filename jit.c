@@ -2146,6 +2146,7 @@ jit_at_addr(struct jit_struct* p_jit,
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   int curr_nz_flags = -1;
+  int jumps_always = 0;
 
   do {
     unsigned char opcode_6502;
@@ -2162,6 +2163,7 @@ jit_at_addr(struct jit_struct* p_jit,
 
     opcode_6502 = jit_get_opcode(p_jit, addr_6502);
     optype = g_optypes[opcode_6502];
+
     /* See if we need to lazy load the 6502 NZ flags. */
     if (g_nz_flags_needed[optype] && curr_nz_flags != -1) {
       size_t index = jit_emit_do_zn_flags(single_jit_buf, 0, curr_nz_flags - 1);
@@ -2176,6 +2178,10 @@ jit_at_addr(struct jit_struct* p_jit,
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
     if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5) {
       break;
+    }
+
+    if (g_opbranch[optype] == k_bra_y) {
+      jumps_always = 1;
     }
 
     total_6502_bytes += num_6502_bytes;
@@ -2203,6 +2209,10 @@ jit_at_addr(struct jit_struct* p_jit,
     } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
       curr_nz_flags = -1;
     }
+
+    if (jumps_always) {
+      break;
+    }
   } while (1);
 
   assert(total_num_ops > 0);
@@ -2213,6 +2223,10 @@ jit_at_addr(struct jit_struct* p_jit,
 fflush(stdout);*/
 
   util_buffer_destroy(p_single_buf);
+
+  if (jumps_always) {
+    return;
+  }
 
   /* See if we need to lazy load the 6502 NZ flags. */
   if (curr_nz_flags != -1) {

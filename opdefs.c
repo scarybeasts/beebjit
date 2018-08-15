@@ -23,6 +23,17 @@ unsigned char g_opmem[58] = {
   k_nomem, k_nomem,
 };
 
+unsigned char g_opbranch[58] = {
+  k_bra_n, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
+  k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_y,
+  k_bra_n, k_bra_n, k_bra_n, k_bra_y, k_bra_m, k_bra_n, k_bra_y, k_bra_n,
+  k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_m, k_bra_n,
+};
+
 unsigned char g_optypes[256] =
 {
   // 0x00
