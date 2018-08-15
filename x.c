@@ -479,12 +479,10 @@ x_event_loop(struct x_struct* p_x) {
     switch (event.type) {
     case KeyPress:
       key = event.xkey.keycode;
-      printf("key press %d\n", key);
       bbc_key_pressed(p_bbc, key);
       break;
     case KeyRelease:
       key = event.xkey.keycode;
-      printf("key release %d\n", key);
       bbc_key_released(p_bbc, key);
       break;
     default:
