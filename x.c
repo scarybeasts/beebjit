@@ -264,29 +264,40 @@ x_render(struct x_struct* p_x) {
       p_screen_mem += p_x->chars_width;
       y_offset += 16;
     }
-  } else if (pixel_width == 1) {
+  } else if (pixel_width == 1)  {
     assert(clock_speed == 1);
     for (y = 0; y < 32; ++y) {
       for (x = 0; x < 80; ++x) {
         size_t y2;
         for (y2 = 0; y2 < 8; ++y2) {
-          size_t i;
           unsigned char packed_pixels = *p_screen_mem++;
           unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
+          unsigned char p1 = !!(packed_pixels & 0x80);
+          unsigned char p2 = !!(packed_pixels & 0x40);
+          unsigned char p3 = !!(packed_pixels & 0x20);
+          unsigned char p4 = !!(packed_pixels & 0x10);
+          unsigned char p5 = !!(packed_pixels & 0x08);
+          unsigned char p6 = !!(packed_pixels & 0x04);
+          unsigned char p7 = !!(packed_pixels & 0x02);
+          unsigned char p8 = !!(packed_pixels & 0x01);
           p_x_mem += ((y * 8) + y2) * 2 * 640;
           p_x_mem += x * 8;
-          for (i = 0; i < 8; ++i) {
-            unsigned int pixel;
-            if (packed_pixels & 0x80) {
-              pixel = 0x00ffffff;
-            } else {
-              pixel = 0;
-            }
-            packed_pixels <<= 1;
-            p_x_mem[0] = pixel;
-            p_x_mem[640] = pixel;
-            p_x_mem++;
-          }
+          p_x_mem[0] = ~(p1 - 1);
+          p_x_mem[1] = ~(p2 - 1);
+          p_x_mem[2] = ~(p3 - 1);
+          p_x_mem[3] = ~(p4 - 1);
+          p_x_mem[4] = ~(p5 - 1);
+          p_x_mem[5] = ~(p6 - 1);
+          p_x_mem[6] = ~(p7 - 1);
+          p_x_mem[7] = ~(p8 - 1);
+          p_x_mem[640] = ~(p1 - 1);
+          p_x_mem[641] = ~(p2 - 1);
+          p_x_mem[642] = ~(p3 - 1);
+          p_x_mem[643] = ~(p4 - 1);
+          p_x_mem[644] = ~(p5 - 1);
+          p_x_mem[645] = ~(p6 - 1);
+          p_x_mem[646] = ~(p7 - 1);
+          p_x_mem[647] = ~(p8 - 1);
         }
       }
     }
