@@ -9,6 +9,7 @@
 #include <err.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1218,6 +1219,17 @@ jit_get_opcode(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static size_t
+jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
+  /* call [r15 + k_offset_util_jit] */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x57;
+  p_jit_buf[index++] = k_offset_util_jit;
+
+  return index;
+}
+
+static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502) {
@@ -2113,10 +2125,7 @@ jit_single(struct jit_struct* p_jit,
       /* mov DWORD PTR [rdx], 0x??57ff41 */
       p_jit_buf[index++] = 0xc7;
       p_jit_buf[index++] = 0x02;
-      p_jit_buf[index++] = 0x41;
-      p_jit_buf[index++] = 0xff;
-      p_jit_buf[index++] = 0x57;
-      p_jit_buf[index++] = k_offset_util_jit;
+      index = jit_emit_do_jit(p_jit_buf, index);
     }
   }
 
@@ -2144,7 +2153,6 @@ jit_at_addr(struct jit_struct* p_jit,
     size_t intel_opcodes_len;
     size_t buf_left;
     unsigned char new_nz_flags;
-    size_t i;
     int nz_lazy_loaded = 0;
     unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
     assert((size_t) p_dst < 0xffffffff);
@@ -2170,15 +2178,24 @@ jit_at_addr(struct jit_struct* p_jit,
       break;
     }
 
-    util_buffer_append(p_buf, p_single_buf);
     total_6502_bytes += num_6502_bytes;
     total_num_ops++;
 
-    for (i = 0; i < num_6502_bytes; ++i) {
-      unsigned int old_ptr = p_jit->jit_ptrs[addr_6502 + i];
-      (void) old_ptr;
-      p_jit->jit_ptrs[addr_6502 + i] = (unsigned int) (size_t) p_dst;
+    /* Store where the Intel code is for each 6502 opcode, so we can invalidate
+     * Intel JIT on 6502 writes.
+     */
+    while (num_6502_bytes > 0) {
+/*      unsigned int old_ptr = p_jit->jit_ptrs[addr_6502];
+      unsigned char* ptr = (void*) (size_t) old_ptr;*/
+      /* Make sure the old JIT code is invalidated. */
+      /*(void) jit_emit_do_jit(ptr, 0); */
+
+      p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_dst;
+      addr_6502++;
+      num_6502_bytes--;
     }
+
+    util_buffer_append(p_buf, p_single_buf);
 
     new_nz_flags = g_nz_flag_results[optype];
     if (new_nz_flags == k_a || new_nz_flags == k_x || new_nz_flags == k_y) {
@@ -2186,15 +2203,14 @@ jit_at_addr(struct jit_struct* p_jit,
     } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
       curr_nz_flags = -1;
     }
-
-    addr_6502 += num_6502_bytes;
   } while (1);
 
   assert(total_num_ops > 0);
 /*printf("addr %x - %x, total_num_ops: %zu\n",
        start_addr_6502,
        addr_6502 - 1,
-       total_num_ops);*/
+       total_num_ops);
+fflush(stdout);*/
 
   util_buffer_destroy(p_single_buf);
 
@@ -2342,15 +2358,11 @@ jit_create(unsigned char* p_mem,
   memset(p_jit_base, '\xcc', k_addr_space_size * k_jit_bytes_per_byte);
   size_t num_bytes = 0;
   while (num_bytes < k_addr_space_size) {
-    /* call [r15 + k_offset_util_jit] */
-    p_jit_base[0] = 0x41;
-    p_jit_base[1] = 0xff;
-    p_jit_base[2] = 0x57;
-    p_jit_base[3] = k_offset_util_jit;
-    p_jit_base += k_jit_bytes_per_byte;
+    (void) jit_emit_do_jit(p_jit_base, 0);
 
     p_jit->jit_ptrs[num_bytes] = (unsigned int) (size_t) p_jit_base;
 
+    p_jit_base += k_jit_bytes_per_byte;
     num_bytes++;
   }
 

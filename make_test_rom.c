@@ -434,8 +434,75 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc3;
 
+  /* Copy some ROM to RAM so we can test code generation better.
+   * This copy uses indirect Y addressing which wasn't actually previously
+   * tested either.
+   */
   index = set_new_index(index, 0x3c0);
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x85; /* STA #$f0 */
+  p_mem[index++] = 0xf0;
+  p_mem[index++] = 0x85; /* STA #$f2 */
+  p_mem[index++] = 0xf2;
+  p_mem[index++] = 0xa9; /* LDA #$f0 */
+  p_mem[index++] = 0xf0;
+  p_mem[index++] = 0x85; /* STA #$f1 */
+  p_mem[index++] = 0xf1;
+  p_mem[index++] = 0xa9; /* LDA #$30 */
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x85; /* STA #$f1 */
+  p_mem[index++] = 0xf3;
+  p_mem[index++] = 0xa0; /* LDY #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xb1; /* LDA ($f0),Y */
+  p_mem[index++] = 0xf0;
+  p_mem[index++] = 0x91; /* STA ($f2),Y */
+  p_mem[index++] = 0xf2;
+  p_mem[index++] = 0xc8; /* INY */
+  p_mem[index++] = 0xd0; /* BNE -7 */
+  p_mem[index++] = 0xf9;
+  p_mem[index++] = 0x4c; /* JMP $C400 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc4;
+
+  index = set_new_index(index, 0x400);
+  p_mem[index++] = 0x20; /* JSR $3000 */ /* Sets X to 0, INX. */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3002 */ /* INX. */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xe0; /* CPX #$02 */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  /* Flip INX to DEX at $3002. */
+  p_mem[index++] = 0xa9; /* LDA #$ca */
+  p_mem[index++] = 0xca;
+  p_mem[index++] = 0x8d; /* STA $3002 */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3000 */ /* Sets X to 0, DEX. */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
+  p_mem[index++] = 0x01;
+  /*p_mem[index++] = 0xf2;*/ /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C440 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc4;
+
+  index = set_new_index(index, 0x440);
   p_mem[index++] = 0x02; /* Done */
+
+  /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
+  index = set_new_index(index, 0x3000);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0x60; /* RTS */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
