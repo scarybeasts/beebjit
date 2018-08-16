@@ -2245,13 +2245,14 @@ fflush(stdout);*/
 static void
 jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
   struct util_buffer* p_buf;
-  size_t addr_6502;
+  size_t block_addr_6502;
   unsigned char* p_jit_buf;
 
+  /* Calculate the 6502 start address of the basic block we're in. */
   assert(p_jit_addr >= p_jit->p_jit_base);
-  addr_6502 = p_jit_addr - p_jit->p_jit_base;
-  addr_6502 >>= k_jit_bytes_shift;
-  assert(addr_6502 <= 0xffff);
+  block_addr_6502 = p_jit_addr - p_jit->p_jit_base;
+  block_addr_6502 >>= k_jit_bytes_shift;
+  assert(block_addr_6502 <= 0xffff);
 
   /* Executing within the zero page and stack page is trapped.
    * By default, for performance, writes to these pages do not invalidate
@@ -2259,19 +2260,25 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
    * Upon hitting this trap, we could re-JIT everything in a new mode that does
    * invalidate JIT upon writes to these addresses. This is unimplemented.
    */
-  assert(addr_6502 >= 0x200);
+  assert(block_addr_6502 >= 0x200);
 
-  p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
+  p_jit_buf = p_jit->p_jit_base + (block_addr_6502 << k_jit_bytes_shift);
+
+  /* For now, our expectations are that we should only hit JIT at the start of
+   * a basic block.
+   */
+  /* -4 because of the jmp [r15 + offset] opcode size. */
+  assert(p_jit_buf == (p_jit_addr - 4));
 
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
   util_buffer_set_base_address(p_buf, p_jit_buf);
 
-  jit_at_addr(p_jit, p_buf, addr_6502);
+  jit_at_addr(p_jit, p_buf, block_addr_6502);
 
   util_buffer_destroy(p_buf);
 
-  p_jit->reg_pc = addr_6502;
+  p_jit->reg_pc = block_addr_6502;
 }
 
 void
