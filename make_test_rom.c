@@ -489,7 +489,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x30;
   p_mem[index++] = 0x30; /* BMI (should be NF=1) */
   p_mem[index++] = 0x01;
-  /*p_mem[index++] = 0xf2;*/ /* FAIL */
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0x4c; /* JMP $C440 */
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc4;

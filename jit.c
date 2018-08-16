@@ -2138,15 +2138,32 @@ static void
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
             uint16_t addr_6502) {
-  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
-  unsigned char single_jit_buf[k_jit_bytes_per_byte];
-  struct util_buffer* p_single_buf = util_buffer_create();
+  unsigned char* p_old_jit_addr;
   size_t num_6502_bytes;
+
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   int curr_nz_flags = -1;
   int jumps_always = 0;
+  unsigned char single_jit_buf[k_jit_bytes_per_byte];
+
+  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
+  struct util_buffer* p_single_buf = util_buffer_create();
+
+  /* This opcode may be compiled into part of a previous basic block, so make
+   * sure to replace it with a jump to the new basic block we're just
+   * starting.
+   */
+  p_old_jit_addr = (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  assert(p_old_jit_addr <= p_jit_buf);
+  util_buffer_setup(p_single_buf, p_old_jit_addr, 5);
+  util_buffer_set_base_address(p_single_buf, p_old_jit_addr);
+  (void) jit_emit_jmp_6502_addr(p_jit,
+                                p_single_buf,
+                                addr_6502,
+                                0xe9,
+                                0);
 
   do {
     unsigned char opcode_6502;
@@ -2191,11 +2208,6 @@ jit_at_addr(struct jit_struct* p_jit,
      * Intel JIT on 6502 writes.
      */
     while (num_6502_bytes > 0) {
-/*      unsigned int old_ptr = p_jit->jit_ptrs[addr_6502];
-      unsigned char* ptr = (void*) (size_t) old_ptr;*/
-      /* Make sure the old JIT code is invalidated. */
-      /*(void) jit_emit_do_jit(ptr, 0); */
-
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_dst;
       addr_6502++;
       num_6502_bytes--;
