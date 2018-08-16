@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 enum {
+  k_bbc_addr_space_size = 0x10000,
   k_bbc_rom_size = 0x4000,
   k_bbc_ram_size = 0x8000,
 };

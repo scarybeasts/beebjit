@@ -1,3 +1,5 @@
+#define _GNU_SOURCE /* For qsort_r() */
+
 #include "debug.h"
 
 #include "bbc.h"
@@ -25,8 +27,15 @@ enum {
 
 struct debug_struct {
   struct bbc_struct* p_bbc;
+  /* Stats. */
+  int stats;
+  size_t count_addr[k_bbc_addr_space_size];
+  size_t count_opcode[k_6502_op_num_opcodes];
+  size_t count_optype[k_6502_op_num_types];
+  size_t count_opmode[k_6502_op_num_modes];
 };
 
+/* TODO: move into debug_struct! */
 static int debug_inited = 0;
 static int debug_break_exec[k_max_break];
 static int debug_break_mem_low[k_max_break];
@@ -269,6 +278,67 @@ debug_hit_break(uint16_t ip_6502, int addr_6502, unsigned char opcode_6502) {
   return 0;
 }
 
+static int
+debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
+  struct debug_struct* p_debug = (struct debug_struct*) p_state;
+  unsigned char op1 = *(unsigned char*) p_op1;
+  unsigned char op2 = *(unsigned char*) p_op2;
+  return p_debug->count_opcode[op1] - p_debug->count_opcode[op2];
+}
+
+static int
+debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
+  struct debug_struct* p_debug = (struct debug_struct*) p_state;
+  uint16_t addr1 = *(uint16_t*) p_addr1;
+  uint16_t addr2 = *(uint16_t*) p_addr2;
+  return p_debug->count_addr[addr1] - p_debug->count_addr[addr2];
+}
+
+static void
+debug_dump_stats(struct debug_struct* p_debug) {
+  size_t i;
+  unsigned char sorted_opcodes[k_6502_op_num_opcodes];
+  uint16_t sorted_addrs[k_bbc_addr_space_size];
+
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    sorted_opcodes[i] = i;
+  }
+  qsort_r(sorted_opcodes,
+          k_6502_op_num_opcodes,
+          sizeof(unsigned char),
+          debug_sort_opcodes,
+          p_debug);
+  printf("=== Opcodes ===\n");
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    char opcode_buf[k_max_opcode_len];
+    unsigned char opcode = sorted_opcodes[i];
+    size_t count = p_debug->count_opcode[opcode];
+    if (!count) {
+      continue;
+    }
+    debug_print_opcode(opcode_buf, sizeof(opcode_buf), opcode, 0, 0, 0xfffe);
+    printf("%12s: %zu\n", opcode_buf, count);
+  }
+
+  for (i = 0; i < k_bbc_addr_space_size; ++i) {
+    sorted_addrs[i] = i;
+  }
+  qsort_r(sorted_addrs,
+          k_bbc_addr_space_size,
+          sizeof(uint16_t),
+          debug_sort_addrs,
+          p_debug);
+  printf("=== Addrs ===\n");
+  for (i = k_bbc_addr_space_size - 256; i < k_bbc_addr_space_size; ++i) {
+    uint16_t addr = sorted_addrs[i];
+    size_t count = p_debug->count_addr[addr];
+    if (!count) {
+      continue;
+    }
+    printf("%4x: %zu\n", addr, count);
+  }
+}
+
 void
 debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -283,7 +353,6 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char operand2;
   int addr_6502;
   int hit_break;
-  int do_trap = 0;
   unsigned char reg_a;
   unsigned char reg_x;
   unsigned char reg_y;
@@ -296,6 +365,7 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char flag_n;
   unsigned char flag_c;
   unsigned char flag_o;
+  int do_trap = 0;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -311,6 +381,15 @@ debug_callback(struct debug_struct* p_debug) {
 
   if (!debug_inited) {
     debug_init();
+  }
+
+  if (p_debug->stats) {
+    unsigned char optype = g_optypes[opcode];
+    unsigned char opmode = g_opmodes[opcode];
+    p_debug->count_addr[reg_pc]++;
+    p_debug->count_opcode[opcode]++;
+    p_debug->count_optype[optype]++;
+    p_debug->count_opmode[opmode]++;
   }
 
   addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
@@ -417,6 +496,12 @@ debug_callback(struct debug_struct* p_debug) {
       exit(0);
     } else if (!strcmp(input_buf, "p")) {
       debug_running_print = !debug_running_print;
+      printf("print now: %d\n", debug_running_print);
+    } else if (!strcmp(input_buf, "stats")) {
+      p_debug->stats = !p_debug->stats;
+      printf("stats now: %d\n", p_debug->stats);
+    } else if (!strcmp(input_buf, "ds")) {
+      debug_dump_stats(p_debug);
     } else if (!strcmp(input_buf, "s")) {
       break;
     } else if (!strcmp(input_buf, "t")) {
