@@ -445,7 +445,7 @@ bbc_sysvia_update_sdb(struct bbc_struct* p_bbc) {
 static unsigned char
 bbc_sysvia_read_porta(struct bbc_struct* p_bbc) {
   bbc_sysvia_update_sdb(p_bbc);
-  printf("sysvia sdb read %x\n", p_bbc->sysvia_sdb);
+/*  printf("sysvia sdb read %x\n", p_bbc->sysvia_sdb); */
   return p_bbc->sysvia_sdb;
 }
 
@@ -455,12 +455,12 @@ bbc_sysvia_write_porta(struct bbc_struct* p_bbc) {
   unsigned char via_ddra = p_bbc->sysvia_DDRA;
   unsigned char sdb = (via_ora & via_ddra) | ~via_ddra;
   p_bbc->sysvia_sdb = sdb;
-  unsigned char keyrow = (sdb >> 4) & 7;
+/*  unsigned char keyrow = (sdb >> 4) & 7;
   unsigned char keycol = sdb & 0xf;
   printf("sysvia sdb write val %x keyrow %d keycol %d\n",
          sdb,
          keyrow,
-         keycol);
+         keycol);*/
   bbc_sysvia_update_sdb(p_bbc);
 }
 
@@ -474,11 +474,11 @@ bbc_sysvia_write_portb(struct bbc_struct* p_bbc) {
   } else {
     p_bbc->sysvia_IC32 &= ~(1 << (portb_val & 7));
   }
-  printf("sysvia IC32 orb %x ddrb %x portb %x, new value %x\n",
+/*  printf("sysvia IC32 orb %x ddrb %x portb %x, new value %x\n",
          via_orb,
          via_ddrb,
          portb_val,
-         p_bbc->sysvia_IC32);
+         p_bbc->sysvia_IC32);*/
 }
 
 unsigned char
@@ -571,7 +571,7 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     }
     p_mem[k_addr_sysvia | k_via_IER] = p_bbc->sysvia_IER;
     bbc_check_interrupt(p_bbc);
-    printf("new sysvia IER %x\n", p_bbc->sysvia_IER);
+/*    printf("new sysvia IER %x\n", p_bbc->sysvia_IER);*/
     break;
   case k_addr_sysvia | k_via_ORAnh:
     p_bbc->sysvia_ORA = val;
