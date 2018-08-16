@@ -201,6 +201,12 @@ bbc_set_registers(struct bbc_struct* p_bbc,
   jit_set_registers(p_jit, a, x, y, s, flags, pc);
 }
 
+uint16_t
+bbc_get_basic_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  return jit_get_basic_block(p_jit, reg_pc);
+}
+
 void
 bbc_get_sysvia(struct bbc_struct* p_bbc,
                unsigned char* sysvia_ORA,

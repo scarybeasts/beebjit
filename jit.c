@@ -2446,6 +2446,20 @@ jit_set_registers(struct jit_struct* p_jit,
   p_jit->reg_pc = pc;
 }
 
+uint16_t
+jit_get_basic_block(struct jit_struct* p_jit, uint16_t reg_pc) {
+  size_t block_addr_6502;
+  unsigned char* p_jit_ptr = (unsigned char*) (size_t) p_jit->jit_ptrs[reg_pc];
+  size_t size_t_jit_ptr = (size_t) p_jit_ptr;
+
+  size_t_jit_ptr -= (size_t) p_jit->p_jit_base;
+  block_addr_6502 = size_t_jit_ptr >> k_jit_bytes_shift;
+  assert(block_addr_6502 <= 0xffff);
+
+  return block_addr_6502;
+}
+
+
 void
 jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_jit_base,

@@ -16,7 +16,7 @@
 
 typedef void (*sighandler_t)(int);
 
-static const size_t k_max_opcode_len = 16;
+static const size_t k_max_opcode_len = 12 + 1;
 static const size_t k_max_extra_len = 32;
 enum {
   k_max_break = 16,
@@ -236,10 +236,13 @@ debug_print_branch(char* p_buf,
 }
 
 static void
-debug_disass(unsigned char* p_mem, uint16_t addr_6502) {
+debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
   size_t i;
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
+
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
+
     uint16_t addr_plus_1 = addr_6502 + 1;
     uint16_t addr_plus_2 = addr_6502 + 2;
     unsigned char opcode = p_mem[addr_6502];
@@ -247,13 +250,14 @@ debug_disass(unsigned char* p_mem, uint16_t addr_6502) {
     unsigned char oplen = g_opmodelens[opmode];
     unsigned char operand1 = p_mem[addr_plus_1];
     unsigned char operand2 = p_mem[addr_plus_2];
+    uint16_t basic_block_6502 = bbc_get_basic_block(p_bbc, addr_6502);
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
                        opcode,
                        operand1,
                        operand2,
                        addr_6502);
-    printf("%.4x: %s\n", addr_6502, opcode_buf);
+    printf("[%.4x] %.4x: %s\n", basic_block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
 }
@@ -317,7 +321,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
       continue;
     }
     debug_print_opcode(opcode_buf, sizeof(opcode_buf), opcode, 0, 0, 0xfffe);
-    printf("%12s: %zu\n", opcode_buf, count);
+    printf("%14s: %zu\n", opcode_buf, count);
   }
 
   for (i = 0; i < k_bbc_addr_space_size; ++i) {
@@ -361,6 +365,7 @@ debug_callback(struct debug_struct* p_debug) {
   uint16_t reg_pc;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
+  uint16_t basic_block_6502;
   unsigned char flag_z;
   unsigned char flag_n;
   unsigned char flag_c;
@@ -446,7 +451,10 @@ debug_callback(struct debug_struct* p_debug) {
     flags_buf[7] = 'N';
   }
 
-  printf("%.4x: %-16s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
+  basic_block_6502 = bbc_get_basic_block(p_bbc, reg_pc);
+
+  printf("[%.4x] %.4x: %-14s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
+         basic_block_6502,
          reg_pc,
          opcode_buf,
          reg_a,
@@ -590,7 +598,7 @@ debug_callback(struct debug_struct* p_debug) {
     } else if (sscanf(input_buf, "s=%x", &parse_int) == 1) {
       reg_s = parse_int;
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
-      debug_disass(p_mem, parse_int);
+      debug_disass(p_bbc, parse_int);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");

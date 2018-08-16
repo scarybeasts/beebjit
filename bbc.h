@@ -42,6 +42,7 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char s,
                        unsigned char flags,
                        uint16_t pc);
+uint16_t bbc_get_basic_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
 void bbc_get_sysvia(struct bbc_struct* p_bbc,
