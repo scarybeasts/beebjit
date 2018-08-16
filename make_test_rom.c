@@ -490,6 +490,18 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x30; /* BMI (should be NF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  /* Flip LDX #$00 to LDX #$60 at $3000. */
+  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0x60;
+  p_mem[index++] = 0x8d; /* STA $3001 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3000 */ /* Sets X to 0x60, DEX. */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x10; /* BPL (should be NF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0x4c; /* JMP $C440 */
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc4;
