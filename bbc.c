@@ -695,6 +695,10 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 4;
     col = 9;
     break;
+  case 37: /* Ctrl */
+    row = 0;
+    col = 1;
+    break;
   case 38: /* A */
     row = 4;
     col = 1;
@@ -790,6 +794,10 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
   case 65: /* Space */
     row = 6;
     col = 2;
+    break;
+  case 66: /* Caps Lock */
+    row = 4;
+    col = 0;
     break;
   default:
     printf("warning: unhandled key %d\n", key);
