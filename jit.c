@@ -27,27 +27,27 @@ static const size_t k_utils_regs_offset = 0x100;
 static const size_t k_utils_jit_offset = 0x200;
 
 static const int k_offset_reg_rip = 0;
-static const int k_offset_reg_a_rax = 8;
-static const int k_offset_reg_x_rbx = 16;
-static const int k_offset_reg_y_rcx = 24;
-static const int k_offset_reg_s_rsi = 32;
-static const int k_offset_reg_pc = 40;
-static const int k_offset_reg_x64_flags = 42;
-static const int k_offset_reg_6502_flags = 43;
-static const int k_offset_irq = 44;
+static const int k_offset_reg_a_eax = 4;
+static const int k_offset_reg_x_ebx = 8;
+static const int k_offset_reg_y_ecx = 12;
+static const int k_offset_reg_s_esi = 16;
+static const int k_offset_reg_pc = 20;
+static const int k_offset_reg_x64_flags = 22;
+static const int k_offset_reg_6502_flags = 23;
+static const int k_offset_irq = 24;
 
-static const int k_offset_util_debug = 48;
-static const int k_offset_util_regs = 56;
-static const int k_offset_util_jit = 64;
+static const int k_offset_util_debug = 32;
+static const int k_offset_util_regs = 40;
+static const int k_offset_util_jit = 48;
 
-static const int k_offset_debug_callback = 72;
-static const int k_offset_jit_callback = 80;
-static const int k_offset_read_callback = 88;
-static const int k_offset_write_callback = 96;
+static const int k_offset_debug_callback = 56;
+static const int k_offset_jit_callback = 64;
+static const int k_offset_read_callback = 72;
+static const int k_offset_write_callback = 80;
 
-static const int k_offset_debug = 104;
-static const int k_offset_bbc = 112;
-static const int k_offset_jit_ptrs = 120;
+static const int k_offset_debug = 88;
+static const int k_offset_bbc = 96;
+static const int k_offset_jit_ptrs = 104;
 
 static const unsigned int k_jit_flag_debug = 1;
 static const unsigned int k_jit_flag_merge_ops = 2;
@@ -89,31 +89,31 @@ static const unsigned char g_nz_flags_needed[58] = {
 
 struct jit_struct {
   /* Registers. */
-  size_t reg_rip;               /* 0   */
-  size_t reg_a_rax;             /* 8   */
-  size_t reg_x_rbx;             /* 16  */
-  size_t reg_y_rcx;             /* 24  */
-  size_t reg_s_rsi;             /* 32  */
-  uint16_t reg_pc;              /* 40  */
-  unsigned char reg_x64_flags;  /* 42  */
-  unsigned char reg_6502_flags; /* 43  */
-  unsigned char irq;            /* 44  */
+  unsigned int reg_rip;         /* 0   */
+  unsigned int reg_a_eax;       /* 4   */
+  unsigned int reg_x_ebx;       /* 8   */
+  unsigned int reg_y_ecx;       /* 12  */
+  unsigned int reg_s_esi;       /* 16  */
+  uint16_t reg_pc;              /* 20  */
+  unsigned char reg_x64_flags;  /* 22  */
+  unsigned char reg_6502_flags; /* 23  */
+  unsigned char irq;            /* 24  */
 
   /* Utilities called by JIT code. */
-  unsigned char* p_util_debug;  /* 48  */
-  unsigned char* p_util_regs;   /* 56  */
-  unsigned char* p_util_jit;    /* 64  */
+  unsigned char* p_util_debug;  /* 32  */
+  unsigned char* p_util_regs;   /* 40  */
+  unsigned char* p_util_jit;    /* 48  */
 
   /* C callbacks called by JIT code. */
-  void* p_debug_callback;       /* 72  */
-  void* p_jit_callback;         /* 80  */
-  void* p_read_callback;        /* 88  */
-  void* p_write_callback;       /* 96  */
+  void* p_debug_callback;       /* 56  */
+  void* p_jit_callback;         /* 64  */
+  void* p_read_callback;        /* 72  */
+  void* p_write_callback;       /* 80  */
 
   /* Structures reeferenced by JIT code. */
-  void* p_debug;                /* 104 */
-  struct bbc_struct* p_bbc;     /* 112 */
-  unsigned int jit_ptrs[k_addr_space_size]; /* 120 */
+  void* p_debug;                /* 88  */
+  struct bbc_struct* p_bbc;     /* 96 */
+  unsigned int jit_ptrs[k_addr_space_size]; /* 104 */
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
@@ -746,32 +746,32 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   size_t index = 0;
 
   /* 6502 A */
-  /* mov [r15 + k_offset_reg_a_rax], rax */
-  p_jit_buf[index++] = 0x49;
+  /* mov [r15 + k_offset_reg_a_eax], eax */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x47;
-  p_jit_buf[index++] = k_offset_reg_a_rax;
+  p_jit_buf[index++] = k_offset_reg_a_eax;
 
   /* 6502 X */
-  /* mov [r15 + k_offset_reg_x_rbx], rbx */
-  p_jit_buf[index++] = 0x49;
+  /* mov [r15 + k_offset_reg_x_ebx], ebx */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x5f;
-  p_jit_buf[index++] = k_offset_reg_x_rbx;
+  p_jit_buf[index++] = k_offset_reg_x_ebx;
 
   /* 6502 Y */
-  /* mov [r15 + k_offset_reg_y_rcx], rcx */
-  p_jit_buf[index++] = 0x49;
+  /* mov [r15 + k_offset_reg_y_ecx], ecx */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x4f;
-  p_jit_buf[index++] = k_offset_reg_y_rcx;
+  p_jit_buf[index++] = k_offset_reg_y_ecx;
 
   /* 6502 S */
-  /* mov [r15 + k_offset_reg_s_rsi], rsi */
-  p_jit_buf[index++] = 0x49;
+  /* mov [r15 + k_offset_reg_s_esi], esi */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x77;
-  p_jit_buf[index++] = k_offset_reg_s_rsi;
+  p_jit_buf[index++] = k_offset_reg_s_esi;
 
   /* 6502 IP */
   /* Must come before flags because gathering flags trashes dx. */
@@ -818,32 +818,32 @@ jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   size_t index = 0;
 
   /* Set A. */
-  /* mov rax, [r15 + k_offset_reg_a_rax] */
-  p_jit_buf[index++] = 0x49;
+  /* mov eax, [r15 + k_offset_reg_a_eax] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x47;
-  p_jit_buf[index++] = k_offset_reg_a_rax;
+  p_jit_buf[index++] = k_offset_reg_a_eax;
 
   /* Set X. */
-  /* mov rbx, [r15 + k_offset_reg_x_rbx] */
-  p_jit_buf[index++] = 0x49;
+  /* mov ebx, [r15 + k_offset_reg_x_ebx] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x5f;
-  p_jit_buf[index++] = k_offset_reg_x_rbx;
+  p_jit_buf[index++] = k_offset_reg_x_ebx;
 
   /* Set Y. */
-  /* mov rcx, [r15 + k_offset_reg_y_rcx] */
-  p_jit_buf[index++] = 0x49;
+  /* mov ecx, [r15 + k_offset_reg_y_ecx] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x4f;
-  p_jit_buf[index++] = k_offset_reg_y_rcx;
+  p_jit_buf[index++] = k_offset_reg_y_ecx;
 
   /* Set S. */
-  /* mov rsi, [r15 + k_offset_reg_s_rsi] */
-  p_jit_buf[index++] = 0x49;
+  /* mov esi, [r15 + k_offset_reg_s_esi] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x77;
-  p_jit_buf[index++] = k_offset_reg_s_rsi;
+  p_jit_buf[index++] = k_offset_reg_s_esi;
 
   /* Set flags. */
   /* mov dl, [r15 + k_offset_reg_6502_flags] */
@@ -2344,7 +2344,7 @@ jit_enter(struct jit_struct* p_jit) {
     /* Clear them. ah is already 0 here from above. */
     "sahf;"
     /* Call regs_util -- offset must match struct jit_struct layout. */
-    "call *56(%%r15);"
+    "call *40(%%r15);"
     /* Constants here must match. */
     "mov $8, %%edi;"
     "shlx %%edi, %%edx, %%edx;"
@@ -2380,9 +2380,9 @@ jit_create(unsigned char* p_mem,
       k_addr_space_size * k_jit_bytes_per_byte,
       1);
 
-  p_jit->reg_x_rbx = (size_t) p_mem;
-  p_jit->reg_y_rcx = (size_t) p_mem;
-  p_jit->reg_s_rsi = ((size_t) p_mem) + 0x100;
+  p_jit->reg_x_ebx = (unsigned int) (size_t) p_mem;
+  p_jit->reg_y_ecx = (unsigned int) (size_t) p_mem;
+  p_jit->reg_s_esi = ((unsigned int) (size_t) p_mem) + 0x100;
 
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
@@ -2438,10 +2438,10 @@ jit_get_registers(struct jit_struct* p_jit,
                   unsigned char* s,
                   unsigned char* flags,
                   uint16_t* pc) {
-  *a = (unsigned char) p_jit->reg_a_rax;
-  *x = (unsigned char) p_jit->reg_x_rbx;
-  *y = (unsigned char) p_jit->reg_y_rcx;
-  *s = (unsigned char) p_jit->reg_s_rsi;
+  *a = (unsigned char) p_jit->reg_a_eax;
+  *x = (unsigned char) p_jit->reg_x_ebx;
+  *y = (unsigned char) p_jit->reg_y_ecx;
+  *s = (unsigned char) p_jit->reg_s_esi;
   *flags = p_jit->reg_6502_flags;
   *pc = p_jit->reg_pc;
 }
@@ -2454,9 +2454,10 @@ jit_set_registers(struct jit_struct* p_jit,
                   unsigned char s,
                   unsigned char flags,
                   uint16_t pc) {
-  *((unsigned char*) &p_jit->reg_a_rax) = a;
-  *((unsigned char*) &p_jit->reg_x_rbx) = x;
-  *((unsigned char*) &p_jit->reg_y_rcx) = y;
+  *((unsigned char*) &p_jit->reg_a_eax) = a;
+  *((unsigned char*) &p_jit->reg_x_ebx) = x;
+  *((unsigned char*) &p_jit->reg_y_ecx) = y;
+  *((unsigned char*) &p_jit->reg_s_esi) = s;
   p_jit->reg_6502_flags = flags;
   p_jit->reg_pc = pc;
 }
