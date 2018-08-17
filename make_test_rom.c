@@ -507,6 +507,27 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc4;
 
   index = set_new_index(index, 0x440);
+  p_mem[index++] = 0xa9; /* LDA #$e1 */
+  p_mem[index++] = 0xe1;
+  p_mem[index++] = 0x8d; /* STA $1ccc */
+  p_mem[index++] = 0xcc;
+  p_mem[index++] = 0x1c;
+  p_mem[index++] = 0x20; /* JSR $3010 */
+  p_mem[index++] = 0x10;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xad; /* LDA $0ccc */
+  p_mem[index++] = 0xcc;
+  p_mem[index++] = 0x0c;
+  p_mem[index++] = 0xc9; /* CMP #$e1 */
+  p_mem[index++] = 0xe1;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C480 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc4;
+
+  index = set_new_index(index, 0x480);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
