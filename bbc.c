@@ -208,6 +208,12 @@ bbc_get_basic_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
 }
 
 void
+bbc_check_pc(struct bbc_struct* p_bbc) {
+  struct jit_struct* p_jit = p_bbc->p_jit;
+  jit_check_pc(p_jit);
+}
+
+void
 bbc_get_sysvia(struct bbc_struct* p_bbc,
                unsigned char* sysvia_ORA,
                unsigned char* sysvia_ORB,

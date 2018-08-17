@@ -372,6 +372,8 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char flag_o;
   int do_trap = 0;
 
+  bbc_check_pc(p_bbc);
+
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
   flag_n = !!(reg_flags & 0x80);

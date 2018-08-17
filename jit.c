@@ -57,23 +57,21 @@ enum {
   k_a = 1,
   k_x = 2,
   k_y = 3,
-  k_intel = 4,
-  k_6502 = 5,
+  k_set = 4,
 };
 
-/* TODO: this is stale. */
 /* k_a: PLA, TXA, TYA, LDA */
 /* k_x: LDX, TAX, TSX, DEX, INX */
 /* k_y: DEY, LDY, TAY, INY */
-static const unsigned char g_nz_flag_results[58] = {
-  0, 0, 0, k_6502, k_6502, 0, 0, 0,
-  0, k_6502, k_6502, k_6502, k_6502, 0, 0, k_6502,
-  k_6502, k_6502, 0, 0, 0, 0, 0, k_6502,
-  k_a, k_6502, 0, 0, 0, 0, 0, k_y,
-  k_a, 0, k_a, 0, k_y, k_a, k_x, k_y,
-  k_x, 0, 0, k_x, k_6502, k_6502, k_6502, k_6502,
-  k_y, k_x, 0, 0, k_6502, k_x, 0, k_6502,
-  0, 0,
+static const unsigned char g_nz_flag_pending[58] = {
+  0    , 0    , 0    , k_set, k_set, 0    , 0    , 0    ,
+  0    , k_set, k_set, k_set, k_set, 0    , 0    , 0    ,
+  k_set, k_set, 0    , 0    , 0    , 0    , 0    , k_set,
+  k_a  , k_set, 0    , 0    , 0    , 0    , 0    , k_y  ,
+  k_a  , 0    , k_a  , 0    , k_y  , k_a  , k_x  , k_y  ,
+  k_x  , 0    , 0    , k_x  , k_set, k_set, k_set, k_set,
+  k_y  , k_x  , 0    , 0    , k_set, k_x  , 0    , k_set,
+  0    , 0    ,
 };
 
 static const unsigned char g_nz_flags_needed[58] = {
@@ -745,6 +743,15 @@ static void
 jit_emit_debug_util(unsigned char* p_jit_buf) {
   size_t index = 0;
 
+  /* 6502 IP */
+  /* Must come first flags because other operations below trash dx. */
+  /* mov [r15 + k_offset_reg_pc], dx */
+  p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0x57;
+  p_jit_buf[index++] = k_offset_reg_pc;
+
   /* Save Intel JIT address. */
   /* mov rdx, [rsp] */
   p_jit_buf[index++] = 0x48;
@@ -784,15 +791,6 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x77;
   p_jit_buf[index++] = k_offset_reg_s_esi;
-
-  /* 6502 IP */
-  /* Must come before flags because gathering flags trashes dx. */
-  /* mov [r15 + k_offset_reg_pc], dx */
-  p_jit_buf[index++] = 0x66;
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_offset_reg_pc;
 
   /* 6502 flags */
   index = jit_emit_flags_to_scratch(p_jit_buf, index, 1);
@@ -2168,7 +2166,7 @@ jit_at_addr(struct jit_struct* p_jit,
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
-  int curr_nz_flags = -1;
+  unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
 
@@ -2192,10 +2190,11 @@ jit_at_addr(struct jit_struct* p_jit,
   do {
     unsigned char opcode_6502;
     unsigned char optype;
+    unsigned char opcode_6502_next;
+    unsigned char optype_next;
     size_t intel_opcodes_len;
     size_t buf_left;
     unsigned char new_nz_flags;
-    int nz_lazy_loaded = 0;
     unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
     assert((size_t) p_dst < 0xffffffff);
 
@@ -2204,15 +2203,30 @@ jit_at_addr(struct jit_struct* p_jit,
 
     opcode_6502 = jit_get_opcode(p_jit, addr_6502);
     optype = g_optypes[opcode_6502];
-
-    /* See if we need to lazy load the 6502 NZ flags. */
-    if (g_nz_flags_needed[optype] && curr_nz_flags != -1) {
-      size_t index = jit_emit_do_zn_flags(single_jit_buf, 0, curr_nz_flags - 1);
-      util_buffer_set_pos(p_single_buf, index);
-      nz_lazy_loaded = 1;
-    }
+    new_nz_flags = g_nz_flag_pending[optype];
 
     num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502);
+
+    opcode_6502_next = jit_get_opcode(p_jit, addr_6502 + num_6502_bytes);
+    optype_next = g_optypes[opcode_6502_next];
+
+    /* See if we need to load the 6502 NZ flags. */
+    if (g_nz_flags_needed[optype_next] && new_nz_flags != k_set) {
+      unsigned char commit_nz_flags = 0;
+      if (new_nz_flags != 0) {
+        commit_nz_flags = new_nz_flags;
+        new_nz_flags = 0;
+      } else if (curr_nz_flags != 0) {
+        commit_nz_flags = curr_nz_flags;
+      }
+      if (commit_nz_flags != 0) {
+        size_t index = util_buffer_get_pos(p_single_buf);
+        index = jit_emit_do_zn_flags(single_jit_buf,
+                                     index,
+                                     commit_nz_flags - 1);
+        util_buffer_set_pos(p_single_buf, index);
+      }
+    }
 
     intel_opcodes_len = util_buffer_get_pos(p_single_buf);
     buf_left = util_buffer_remaining(p_buf);
@@ -2224,6 +2238,11 @@ jit_at_addr(struct jit_struct* p_jit,
     if (g_opbranch[optype] == k_bra_y) {
       jumps_always = 1;
     }
+
+    if (new_nz_flags == k_set) {
+      new_nz_flags = 0;
+    }
+    curr_nz_flags = new_nz_flags;
 
     total_6502_bytes += num_6502_bytes;
     total_num_ops++;
@@ -2238,13 +2257,6 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     util_buffer_append(p_buf, p_single_buf);
-
-    new_nz_flags = g_nz_flag_results[optype];
-    if (new_nz_flags == k_a || new_nz_flags == k_x || new_nz_flags == k_y) {
-      curr_nz_flags = new_nz_flags;
-    } else if (new_nz_flags == k_6502 || nz_lazy_loaded) {
-      curr_nz_flags = -1;
-    }
 
     if (jumps_always) {
       break;
@@ -2265,7 +2277,7 @@ fflush(stdout);*/
   }
 
   /* See if we need to lazy load the 6502 NZ flags. */
-  if (curr_nz_flags != -1) {
+  if (curr_nz_flags != 0) {
     size_t index = util_buffer_get_pos(p_buf);
     index = jit_emit_do_zn_flags(p_jit_buf, index, curr_nz_flags - 1);
     util_buffer_set_pos(p_buf, index);
@@ -2483,6 +2495,18 @@ jit_get_basic_block(struct jit_struct* p_jit, uint16_t reg_pc) {
   return block_addr_6502;
 }
 
+void
+jit_check_pc(struct jit_struct* p_jit) {
+  /* Some consistency checks to make sure our basic block tracking is ok. */
+  uint16_t reg_pc = p_jit->reg_pc;
+  unsigned int reg_rip = p_jit->reg_rip;
+  unsigned int jit_ptr = p_jit->jit_ptrs[reg_pc];
+
+  /* -8 because the debug sequence call rip is +8 bytes from the start of
+   * the 6502 instruction.
+   */
+  assert(reg_rip - 8 == jit_ptr);
+}
 
 void
 jit_destroy(struct jit_struct* p_jit) {
