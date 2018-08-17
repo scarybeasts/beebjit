@@ -745,6 +745,18 @@ static void
 jit_emit_debug_util(unsigned char* p_jit_buf) {
   size_t index = 0;
 
+  /* Save Intel JIT address. */
+  /* mov rdx, [rsp] */
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x24;
+  /* mov [r15 + k_offset_reg_rip], edx */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0x57;
+  p_jit_buf[index++] = k_offset_reg_rip;
+
   /* 6502 A */
   /* mov [r15 + k_offset_reg_a_eax], eax */
   p_jit_buf[index++] = 0x41;
