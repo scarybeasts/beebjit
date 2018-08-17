@@ -744,33 +744,32 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
 static void
 jit_emit_debug_util(unsigned char* p_jit_buf) {
   size_t index = 0;
-  index = jit_emit_save_registers(p_jit_buf, index);
 
   /* 6502 A */
-  /* mov [r15 + k_offset_reg_a], al */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x88;
+  /* mov [r15 + k_offset_reg_a_rax], rax */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x47;
   p_jit_buf[index++] = k_offset_reg_a_rax;
 
   /* 6502 X */
-  /* mov [r15 + k_offset_reg_x], bl */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x88;
+  /* mov [r15 + k_offset_reg_x_rbx], rbx */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x5f;
   p_jit_buf[index++] = k_offset_reg_x_rbx;
 
   /* 6502 Y */
-  /* mov [r15 + k_offset_reg_y], cl */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x88;
+  /* mov [r15 + k_offset_reg_y_rcx], rcx */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x4f;
   p_jit_buf[index++] = k_offset_reg_y_rcx;
 
   /* 6502 S */
-  /* mov [r15 + k_offset_reg_s], sil */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x88;
+  /* mov [r15 + k_offset_reg_s_rsi], rsi */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0x77;
   p_jit_buf[index++] = k_offset_reg_s_rsi;
 
@@ -785,7 +784,7 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
 
   /* 6502 flags */
   index = jit_emit_flags_to_scratch(p_jit_buf, index, 1);
-  /* mov [r15 + k_offset_reg_flags], dl */
+  /* mov [r15 + k_offset_reg_6502_flags], dl */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
   p_jit_buf[index++] = 0x57;
@@ -804,8 +803,6 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_debug_callback;
 
-  index = jit_emit_restore_registers(p_jit_buf, index);
-
   /* call [r15 + k_offset_util_regs] */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
@@ -821,35 +818,35 @@ jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   size_t index = 0;
 
   /* Set A. */
-  /* mov al, [r15 + k_offset_reg_a] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8a;
+  /* mov rax, [r15 + k_offset_reg_a_rax] */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x47;
   p_jit_buf[index++] = k_offset_reg_a_rax;
 
   /* Set X. */
-  /* mov bl, [r15 + k_offset_reg_x] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8a;
+  /* mov rbx, [r15 + k_offset_reg_x_rbx] */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x5f;
   p_jit_buf[index++] = k_offset_reg_x_rbx;
 
   /* Set Y. */
-  /* mov cl, [r15 + k_offset_reg_y] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8a;
+  /* mov rcx, [r15 + k_offset_reg_y_rcx] */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x4f;
   p_jit_buf[index++] = k_offset_reg_y_rcx;
 
   /* Set S. */
-  /* mov sil, [r15 + k_offset_reg_s] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8a;
+  /* mov rsi, [r15 + k_offset_reg_s_rsi] */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x77;
   p_jit_buf[index++] = k_offset_reg_s_rsi;
 
   /* Set flags. */
-  /* mov dl, [r15 + k_offset_reg_flags] */
+  /* mov dl, [r15 + k_offset_reg_6502_flags] */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
   p_jit_buf[index++] = 0x57;
@@ -2318,15 +2315,17 @@ jit_enter(struct jit_struct* p_jit) {
   assert(((size_t) p_mem & 0xff) == 0);
 
   asm volatile (
+    /* Pass a pointer to the jit_struct in r15. */
+    "mov %0, %%r15;"
     /* al is 6502 A. */
     /* We also use ah for lahf / sahf. */
     "xor %%eax, %%eax;"
     /* bl is 6502 X */
     /* rbx is a real x64 pointer to the 6502 RAM. */
-    "mov %0, %%rbx;"
+    "xor %%ebx, %%ebx;"
     /* cl is 6502 Y. */
     /* rcx is a real x64 pointer to the 6502 RAM. */
-    "mov %0, %%rcx;"
+    "xor %%ecx, %%ecx;"
     /* rdx, rdi are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
@@ -2340,12 +2339,10 @@ jit_enter(struct jit_struct* p_jit) {
     "xor %%r14, %%r14;"
     /* sil is 6502 S. */
     /* rsi is a real x64 pointer to the 6502 RAM. */
-    "lea 0x100(%%rbx), %%rsi;"
+    "xor %%esi, %%esi;"
     /* x64 flags is used for zero and negative flags. */
     /* Clear them. ah is already 0 here from above. */
     "sahf;"
-    /* Pass a pointer to the jit_struct in r15. */
-    "mov %1, %%r15;"
     /* Call regs_util -- offset must match struct jit_struct layout. */
     "call *56(%%r15);"
     /* Constants here must match. */
@@ -2354,7 +2351,7 @@ jit_enter(struct jit_struct* p_jit) {
     "lea 0x20000000(%%edx), %%edx;"
     "call *%%rdx;"
     :
-    : "g" (p_mem), "g" (p_jit)
+    : "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
       "r9", "r12", "r13", "r14", "r15"
   );
@@ -2382,6 +2379,10 @@ jit_create(unsigned char* p_mem,
       k_jit_addr,
       k_addr_space_size * k_jit_bytes_per_byte,
       1);
+
+  p_jit->reg_x_rbx = (size_t) p_mem;
+  p_jit->reg_y_rcx = (size_t) p_mem;
+  p_jit->reg_s_rsi = ((size_t) p_mem) + 0x100;
 
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
