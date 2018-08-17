@@ -2317,18 +2317,16 @@ jit_enter(struct jit_struct* p_jit) {
   asm volatile (
     /* Pass a pointer to the jit_struct in r15. */
     "mov %0, %%r15;"
-    /* al is 6502 A. */
-    /* We also use ah for lahf / sahf. */
+    /* al, bl, cl, sil are 6502 A, X, Y, S. */
+    /* ebx, ecx, esi point to real Intel virtual RAM backing the 6502 RAM. */
     "xor %%eax, %%eax;"
-    /* bl is 6502 X */
-    /* rbx is a real x64 pointer to the 6502 RAM. */
     "xor %%ebx, %%ebx;"
-    /* cl is 6502 Y. */
-    /* rcx is a real x64 pointer to the 6502 RAM. */
     "xor %%ecx, %%ecx;"
-    /* rdx, rdi are scratch. */
+    "xor %%esi, %%esi;"
+    /* rdx, rdi, r9 are scratch. */
     "xor %%edx, %%edx;"
     "xor %%edi, %%edi;"
+    "xor %%r9, %%r9;"
     /* r12 is overflow flag. */
     "xor %%r12, %%r12;"
     /* r13 is the rest of the 6502 flags or'ed together. */
@@ -2337,14 +2335,12 @@ jit_enter(struct jit_struct* p_jit) {
     "xor %%r13, %%r13;"
     /* r14 is carry flag. */
     "xor %%r14, %%r14;"
-    /* sil is 6502 S. */
-    /* rsi is a real x64 pointer to the 6502 RAM. */
-    "xor %%esi, %%esi;"
-    /* x64 flags is used for zero and negative flags. */
-    /* Clear them. ah is already 0 here from above. */
-    "sahf;"
-    /* Call regs_util -- offset must match struct jit_struct layout. */
+    /* Call regs_util to set all the 6502 registers and flags.
+     * 6502 start address left in edx.
+     * Offset must match struct jit_struct layout.
+     */
     "call *40(%%r15);"
+    /* Calculate address of Intel JIT code for the 6502 execution address. */
     /* Constants here must match. */
     "mov $8, %%edi;"
     "shlx %%edi, %%edx, %%edx;"
