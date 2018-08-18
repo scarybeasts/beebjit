@@ -250,14 +250,14 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
     unsigned char oplen = g_opmodelens[opmode];
     unsigned char operand1 = p_mem[addr_plus_1];
     unsigned char operand2 = p_mem[addr_plus_2];
-    uint16_t basic_block_6502 = bbc_get_basic_block(p_bbc, addr_6502);
+    uint16_t block_6502 = bbc_get_block(p_bbc, addr_6502);
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
                        opcode,
                        operand1,
                        operand2,
                        addr_6502);
-    printf("[%.4x] %.4x: %s\n", basic_block_6502, addr_6502, opcode_buf);
+    printf("[%.4x] %.4x: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
 }
@@ -365,7 +365,7 @@ debug_callback(struct debug_struct* p_debug) {
   uint16_t reg_pc;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
-  uint16_t basic_block_6502;
+  uint16_t block_6502;
   unsigned char flag_z;
   unsigned char flag_n;
   unsigned char flag_c;
@@ -453,10 +453,10 @@ debug_callback(struct debug_struct* p_debug) {
     flags_buf[7] = 'N';
   }
 
-  basic_block_6502 = bbc_get_basic_block(p_bbc, reg_pc);
+  block_6502 = bbc_get_block(p_bbc, reg_pc);
 
   printf("[%.4x] %.4x: %-14s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
-         basic_block_6502,
+         block_6502,
          reg_pc,
          opcode_buf,
          reg_a,

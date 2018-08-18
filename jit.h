@@ -32,7 +32,7 @@ void jit_set_registers(struct jit_struct* p_jit,
                        unsigned char s,
                        unsigned char flags,
                        uint16_t pc);
-uint16_t jit_get_basic_block(struct jit_struct* p_jit, uint16_t reg_pc);
+uint16_t jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502);
 void jit_check_pc(struct jit_struct* p_jit);
 
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);

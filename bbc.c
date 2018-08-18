@@ -202,9 +202,9 @@ bbc_set_registers(struct bbc_struct* p_bbc,
 }
 
 uint16_t
-bbc_get_basic_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
+bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
   struct jit_struct* p_jit = p_bbc->p_jit;
-  return jit_get_basic_block(p_jit, reg_pc);
+  return jit_block_from_6502(p_jit, reg_pc);
 }
 
 void

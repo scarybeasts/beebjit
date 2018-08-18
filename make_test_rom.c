@@ -528,6 +528,24 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc4;
 
   index = set_new_index(index, 0x480);
+  p_mem[index++] = 0xa2; /* LDX #$ff */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xa0; /* LDY #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x4c; /* JMP $C488 */ /* L1 */
+  p_mem[index++] = 0x88;
+  p_mem[index++] = 0xc4;
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0xd0; /* BNE -3 */ /* L1 here. */
+  p_mem[index++] = 0xfd;
+  p_mem[index++] = 0x88; /* DEY */
+  p_mem[index++] = 0xf0; /* BEQ -5 */
+  p_mem[index++] = 0xfb;
+  p_mem[index++] = 0x4c; /* JMP $C4C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc4;
+
+  index = set_new_index(index, 0x4c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

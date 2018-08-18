@@ -2156,36 +2156,50 @@ jit_single(struct jit_struct* p_jit,
   return num_6502_bytes;
 }
 
+uint16_t
+jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502) {
+  size_t block_addr_6502;
+
+  unsigned char* p_jit_ptr =
+      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  size_t size_t_jit_ptr = (size_t) p_jit_ptr;
+
+  size_t_jit_ptr -= (size_t) p_jit->p_jit_base;
+  block_addr_6502 = size_t_jit_ptr >> k_jit_bytes_shift;
+  assert(block_addr_6502 <= 0xffff);
+
+  return block_addr_6502;
+}
+
+static void
+jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = p_jit->p_jit_base;
+  p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
+  (void) jit_emit_do_jit(p_jit_ptr, 0);
+}
+
 static void
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
             uint16_t addr_6502) {
-  unsigned char* p_old_jit_addr;
   size_t num_6502_bytes;
+  unsigned char single_jit_buf[k_jit_bytes_per_byte];
+  uint16_t block_addr_6502;
 
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
-  unsigned char single_jit_buf[k_jit_bytes_per_byte];
 
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = util_buffer_create();
 
-  /* This opcode may be compiled into part of a previous basic block, so make
-   * sure to replace it with a jump to the new basic block we're just
-   * starting.
+  /* This opcode may be compiled into part of a previous block, so make sure to
+   * invalidate that block.
    */
-  p_old_jit_addr = (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
-  assert(p_old_jit_addr <= p_jit_buf);
-  util_buffer_setup(p_single_buf, p_old_jit_addr, 5);
-  util_buffer_set_base_address(p_single_buf, p_old_jit_addr);
-  (void) jit_emit_jmp_6502_addr(p_jit,
-                                p_single_buf,
-                                addr_6502,
-                                0xe9,
-                                0);
+  block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
+  jit_addr_invalidate(p_jit, block_addr_6502);
 
   do {
     unsigned char opcode_6502;
@@ -2251,6 +2265,7 @@ jit_at_addr(struct jit_struct* p_jit,
      * Intel JIT on 6502 writes.
      */
     while (num_6502_bytes > 0) {
+      jit_addr_invalidate(p_jit, addr_6502);
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_dst;
       addr_6502++;
       num_6502_bytes--;
@@ -2264,11 +2279,11 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
-/*printf("addr %x - %x, total_num_ops: %zu\n",
+printf("addr %x - %x, total_num_ops: %zu\n",
        start_addr_6502,
        addr_6502 - 1,
        total_num_ops);
-fflush(stdout);*/
+fflush(stdout);
 
   util_buffer_destroy(p_single_buf);
 
@@ -2425,14 +2440,15 @@ jit_create(unsigned char* p_mem,
 
   /* int3 */
   memset(p_jit_base, '\xcc', k_addr_space_size * k_jit_bytes_per_byte);
-  size_t num_bytes = 0;
-  while (num_bytes < k_addr_space_size) {
+  size_t addr_6502 = 0;
+  while (addr_6502 < k_addr_space_size) {
     (void) jit_emit_do_jit(p_jit_base, 0);
 
-    p_jit->jit_ptrs[num_bytes] = (unsigned int) (size_t) p_jit_base;
+    p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_base;
+    jit_addr_invalidate(p_jit, addr_6502);
 
     p_jit_base += k_jit_bytes_per_byte;
-    num_bytes++;
+    addr_6502++;
   }
 
   jit_emit_debug_util(p_util_debug);
@@ -2480,19 +2496,6 @@ jit_set_registers(struct jit_struct* p_jit,
   *((unsigned char*) &p_jit->reg_s_esi) = s;
   p_jit->reg_6502_flags = flags;
   p_jit->reg_pc = pc;
-}
-
-uint16_t
-jit_get_basic_block(struct jit_struct* p_jit, uint16_t reg_pc) {
-  size_t block_addr_6502;
-  unsigned char* p_jit_ptr = (unsigned char*) (size_t) p_jit->jit_ptrs[reg_pc];
-  size_t size_t_jit_ptr = (size_t) p_jit_ptr;
-
-  size_t_jit_ptr -= (size_t) p_jit->p_jit_base;
-  block_addr_6502 = size_t_jit_ptr >> k_jit_bytes_shift;
-  assert(block_addr_6502 <= 0xffff);
-
-  return block_addr_6502;
 }
 
 void
