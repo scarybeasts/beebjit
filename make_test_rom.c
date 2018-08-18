@@ -434,7 +434,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc3;
 
-  /* Copy some ROM to RAM so we can test code generation better.
+  /* Copy some ROM to RAM so we can test self-modifying code easier.
    * This copy uses indirect Y addressing which wasn't actually previously
    * tested either.
    */
@@ -466,6 +466,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc4;
 
+  /* Test some more involved self-modifying code situations. */
   index = set_new_index(index, 0x400);
   p_mem[index++] = 0x20; /* JSR $3000 */ /* Sets X to 0, INX. */
   p_mem[index++] = 0x00;
@@ -502,10 +503,18 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x10; /* BPL (should be NF=0) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  /* The horrors: jump into the middle of an instruction. */
+  p_mem[index++] = 0x20; /* JSR $3001 */ /* 0x60 == RTS */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3000 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x30;
   p_mem[index++] = 0x4c; /* JMP $C440 */
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc4;
 
+  /* Tests a real self-modifying copy loop. */
   index = set_new_index(index, 0x440);
   p_mem[index++] = 0xa9; /* LDA #$e1 */
   p_mem[index++] = 0xe1;
@@ -527,6 +536,9 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc4;
 
+  /* Tests a sequence of forwards / backwards jumps that confused the JIT
+   * address tracking.
+   */
   index = set_new_index(index, 0x480);
   p_mem[index++] = 0xa2; /* LDX #$ff */
   p_mem[index++] = 0xff;
