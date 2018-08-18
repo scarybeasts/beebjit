@@ -2171,6 +2171,22 @@ jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502) {
   return block_addr_6502;
 }
 
+static int
+jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr;
+  uint16_t block_addr_6502 = jit_block_from_6502(p_jit, addr_6502);
+  if (block_addr_6502 != addr_6502) {
+    return 0;
+  }
+  p_jit_ptr = p_jit->p_jit_base;
+  p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
+  if (p_jit_ptr[0] == 0x41 && p_jit_ptr[1] == 0xff && p_jit_ptr[2] == 0x57) {
+    /* jmp [r15 + offset] */
+    return 0;
+  }
+  return 1;
+}
+
 static void
 jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = p_jit->p_jit_base;
@@ -2211,6 +2227,10 @@ jit_at_addr(struct jit_struct* p_jit,
     unsigned char new_nz_flags;
     unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
     assert((size_t) p_dst < 0xffffffff);
+
+    if (jit_is_valid_block_start(p_jit, addr_6502)) {
+      break;
+    }
 
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
     util_buffer_set_base_address(p_single_buf, p_dst);
@@ -2279,11 +2299,11 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
-printf("addr %x - %x, total_num_ops: %zu\n",
+/*printf("addr %x - %x, total_num_ops: %zu\n",
        start_addr_6502,
        addr_6502 - 1,
        total_num_ops);
-fflush(stdout);
+fflush(stdout);*/
 
   util_buffer_destroy(p_single_buf);
 
