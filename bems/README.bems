@@ -1,0 +1,15 @@
+Files from Stairway To Hell archive unless otherwise noted.
+
+- tarzan.bem
+Based on:
+375166a3ff683347fd5b8a224741fc64  Tarzan-Alligata.zip
+Commands to run game:
+*LOAD TARZAN2
+CALL &4332
+Notes:
+1) Initial relocation routine jumps to $2E11 at $438E.
+2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC is
+nop'd out with two bytes of EA, to get a version speed limited only by
+emulator speed.
+Initial 6502 PC: $2E11.
+
