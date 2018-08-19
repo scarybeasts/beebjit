@@ -557,6 +557,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc4;
 
+  /* Test self-modifying within a block. */
   index = set_new_index(index, 0x4c0);
   p_mem[index++] = 0x20; /* JSR $3030 */
   p_mem[index++] = 0x30;
@@ -568,7 +569,35 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc5;
 
+  /* Test self-modifying code that may invalidate assumptions about instruction
+   * flag optimizations.
+   */
   index = set_new_index(index, 0x500);
+  p_mem[index++] = 0x20; /* JSR $3040 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0x60;
+  /* Store RTS at $3042. */
+  p_mem[index++] = 0x8d; /* STA $3042 */
+  p_mem[index++] = 0x42;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x20; /* JSR $3040 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0x30;
+  /* Test to see if the flags update went missing due to the self modifying
+   * code changing flag expectations within the block.
+   */
+/*  p_mem[index++] = 0xd0; */ /* BNE (should be ZF=0) */
+/*  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; */ /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C540 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc5;
+
+  index = set_new_index(index, 0x540);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -611,6 +640,14 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x8d; /* STA $3036 */
   p_mem[index++] = 0x36;
   p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* Another block for us to modify. */
+  index = set_new_index(index, 0x3040);
+  p_mem[index++] = 0xa9; /* LDA #$ff */
+  p_mem[index++] = 0xff;
   p_mem[index++] = 0xa9; /* LDA #$00 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x60; /* RTS */
