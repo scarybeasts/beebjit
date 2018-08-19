@@ -558,6 +558,17 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc4;
 
   index = set_new_index(index, 0x4c0);
+  p_mem[index++] = 0x20; /* JSR $3030 */
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C500 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc5;
+
+  index = set_new_index(index, 0x500);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -566,10 +577,11 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xe8; /* INX */
   p_mem[index++] = 0x60; /* RTS */
-  index = set_new_index(index, 0x3010);
+
   /* This is close to one of the simplest self-modifying routines I found: the
    * Galaforce memory copy at first load.
    */
+  index = set_new_index(index, 0x3010);
   p_mem[index++] = 0xa0; /* LDY #$04 */
   p_mem[index++] = 0x04;
   p_mem[index++] = 0xbd; /* LDA $1a00,X */
@@ -590,6 +602,17 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x88; /* DEY */
   p_mem[index++] = 0xd0; /* BNE -18 */
   p_mem[index++] = 0xee;
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* A block that self-modifies within itself. */
+  index = set_new_index(index, 0x3030);
+  p_mem[index++] = 0xa9; /* LDA #$ff */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x8d; /* STA $3036 */
+  p_mem[index++] = 0x36;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
   p_mem[index++] = 0x60; /* RTS */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

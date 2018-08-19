@@ -19,6 +19,7 @@ enum {
 static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
+static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
 static const size_t k_utils_size = 4096;
@@ -2345,11 +2346,27 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
   struct util_buffer* p_buf;
   unsigned char* p_jit_buf;
   uint16_t block_addr_6502;
+  uint16_t addr_6502;
+  size_t jit_addr_masked;
 
   /* -4 because of the jmp [r15 + offset] opcode size. */
   p_jit_addr -= 4;
 
   block_addr_6502 = jit_block_from_intel(p_jit, p_jit_addr);
+  addr_6502 = block_addr_6502;
+  jit_addr_masked = ((size_t) p_jit_addr) & k_jit_bytes_mask;
+
+  if (jit_addr_masked) {
+    int found = 0;
+    while (addr_6502 < 0xffff) {
+      if ((unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502] == p_jit_addr) {
+        found = 1;
+        break;
+      }
+      addr_6502++;
+    }
+    assert(found);
+  }
 
   /* Executing within the zero page and stack page is trapped.
    * By default, for performance, writes to these pages do not invalidate
@@ -2359,22 +2376,17 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
    */
   assert(block_addr_6502 >= 0x200);
 
-  p_jit_buf = p_jit->p_jit_base + (block_addr_6502 << k_jit_bytes_shift);
-
-  /* For now, our expectations are that we should only hit JIT at the start of
-   * a basic block.
-   */
-  assert(p_jit_buf == p_jit_addr);
+  p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
 
   p_buf = util_buffer_create();
   util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
   util_buffer_set_base_address(p_buf, p_jit_buf);
 
-  jit_at_addr(p_jit, p_buf, block_addr_6502);
+  jit_at_addr(p_jit, p_buf, addr_6502);
 
   util_buffer_destroy(p_buf);
 
-  p_jit->reg_pc = block_addr_6502;
+  p_jit->reg_pc = addr_6502;
 }
 
 void
