@@ -13,3 +13,15 @@ nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
 Initial 6502 PC: $2E11.
 
+- galaforce.bem
+Based on:
+2fd6a8499fe3f6120daf7e52d7be7c60  Galaforce.zip
+Commands to run game:
+*LOAD GALA3
+CALL &4000
+Notes:
+1) Loader code, starting at $4000, is self-modifying. INC $402F, at $4036,
+changes the low byte of the operand for LDA $1A00,X, for example.
+2) Routine starting at $1280 performs LDA $FE44, which is sysvia timer1 counter
+low byte. Looks like it's seeding and running an RNG?
+3) Game code at $1B04 self-modifies the operand of the LDA #$00 at $1B1E.
