@@ -510,6 +510,8 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     /* Read is for joystick and CMOS. 0xff means nothing interesting. */
     val |= (0xff & ~ddrb);
     return val;
+  case k_addr_sysvia | k_via_T1CL:
+    return p_bbc->sysvia_T1CL;
   case k_addr_sysvia | k_via_IFR:
     return p_bbc->sysvia_IFR;
   case k_addr_sysvia | k_via_IER:
