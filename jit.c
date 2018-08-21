@@ -935,8 +935,9 @@ jit_is_special_address(struct jit_struct* p_jit,
                        uint16_t opcode_addr_6502_upper_range) {
   struct bbc_struct* p_bbc = p_jit->p_bbc;
   /* NOTE: assumes contiguous ranges of BBC special addresses. */
-  if (bbc_is_special_address(p_bbc, opcode_addr_6502) ||
-      bbc_is_special_address(p_bbc, opcode_addr_6502_upper_range)) {
+  if (bbc_is_special_address(p_bbc,
+                             opcode_addr_6502,
+                             opcode_addr_6502_upper_range)) {
     return 1;
   }
   return 0;

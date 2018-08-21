@@ -166,14 +166,10 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Copy in OS and language ROM. */
   memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
-  /* TODO: make OS ROM readonly. Can't do that at the moment because of how
-   * register reads / writes work.
-   */
+  util_make_mapping_read_only(p_os_start, k_bbc_rom_size);
+
   memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
   util_make_mapping_read_only(p_lang_start, k_bbc_rom_size);
-
-  /* Initialize hardware registers. */
-  memset(p_mem + k_registers_offset, '\0', k_registers_len);
 
   /* Initial 6502 state. */
   init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
@@ -421,11 +417,19 @@ bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
 }
 
 int
-bbc_is_special_address(struct bbc_struct* p_bbc, uint16_t addr) {
-  if (addr < 0xfe40 || addr >= 0xfe50) {
-    return 0;
+bbc_is_special_address(struct bbc_struct* p_bbc,
+                       uint16_t addr_low,
+                       uint16_t addr_high) {
+  if (addr_low >= 0xfe40 && addr_low < 0xfe50) {
+    return 1;
   }
-  return 1;
+  if (addr_high >= 0xfe40 && addr_high < 0xfe50) {
+    return 1;
+  }
+  if (addr_low < 0xfe40 && addr_high >= 0xfe50) {
+    return 1;
+  }
+  return 0;
 }
 
 static void
