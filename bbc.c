@@ -45,6 +45,7 @@ enum {
   k_via_T1CH =  0x5,
   k_via_T1LL =  0x6,
   k_via_T1LH =  0x7,
+  k_via_SR =    0xa,
   k_via_ACR =   0xb,
   k_via_PCR =   0xc,
   k_via_IFR =   0xd,
@@ -73,6 +74,7 @@ struct bbc_struct {
   unsigned char sysvia_T1CH;
   unsigned char sysvia_T1LL;
   unsigned char sysvia_T1LH;
+  unsigned char sysvia_SR;
   unsigned char sysvia_ACR;
   unsigned char sysvia_PCR;
   unsigned char sysvia_IFR;
@@ -111,6 +113,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->sysvia_T1CH = 0xff;
   p_bbc->sysvia_T1LL = 0xff;
   p_bbc->sysvia_T1LH = 0xff;
+  p_bbc->sysvia_SR = 0;
   p_bbc->sysvia_ACR = 0;
   p_bbc->sysvia_PCR = 0;
   p_bbc->sysvia_IFR = 0;
@@ -229,6 +232,7 @@ bbc_get_sysvia(struct bbc_struct* p_bbc,
   *sysvia_ORB = p_bbc->sysvia_ORB;
   *sysvia_DDRA = p_bbc->sysvia_DDRA;
   *sysvia_DDRB = p_bbc->sysvia_DDRB;
+  *sysvia_SR = p_bbc->sysvia_SR;
   *sysvia_ACR = p_bbc->sysvia_ACR;
   *sysvia_PCR = p_bbc->sysvia_PCR;
   *sysvia_IFR = p_bbc->sysvia_IFR;
@@ -252,6 +256,7 @@ bbc_set_sysvia(struct bbc_struct* p_bbc,
   p_bbc->sysvia_ORB = sysvia_ORB;
   p_bbc->sysvia_DDRA = sysvia_DDRA;
   p_bbc->sysvia_DDRB = sysvia_DDRB;
+  p_bbc->sysvia_SR = sysvia_SR;
   p_bbc->sysvia_ACR = sysvia_ACR;
   p_bbc->sysvia_PCR = sysvia_PCR;
   p_bbc->sysvia_IFR = sysvia_IFR;
@@ -416,15 +421,7 @@ bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
 }
 
 int
-bbc_is_special_read_addr(struct bbc_struct* p_bbc, uint16_t addr) {
-  if (addr < 0xfe40 || addr >= 0xfe50) {
-    return 0;
-  }
-  return 1;
-}
-
-int
-bbc_is_special_write_addr(struct bbc_struct* p_bbc, uint16_t addr) {
+bbc_is_special_address(struct bbc_struct* p_bbc, uint16_t addr) {
   if (addr < 0xfe40 || addr >= 0xfe50) {
     return 0;
   }
@@ -512,6 +509,8 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     return val;
   case k_addr_sysvia | k_via_T1CL:
     return p_bbc->sysvia_T1CL;
+  case k_addr_sysvia | k_via_SR:
+    return p_bbc->sysvia_SR;
   case k_addr_sysvia | k_via_IFR:
     return p_bbc->sysvia_IFR;
   case k_addr_sysvia | k_via_IER:
@@ -530,10 +529,7 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
 }
 
 void
-bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
-  unsigned char* p_mem = p_bbc->p_mem;
-  unsigned char val = p_mem[addr];
-
+bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   switch (addr) {
   case k_addr_sysvia | k_via_ORB:
     p_bbc->sysvia_ORB = val;
@@ -562,6 +558,9 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     assert(val == 0x27);
     p_bbc->sysvia_T1LH = val;
     break;
+  case k_addr_sysvia | k_via_SR:
+    p_bbc->sysvia_SR = val;
+    break;
   case k_addr_sysvia | k_via_ACR:
     assert(val == 0x60);
     p_bbc->sysvia_ACR = val;
@@ -574,7 +573,6 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     break;
   case k_addr_sysvia | k_via_IFR:
     p_bbc->sysvia_IFR &= ~(val & 0x7f);
-    p_mem[k_addr_sysvia | k_via_IFR] = p_bbc->sysvia_IFR;
     bbc_check_interrupt(p_bbc);
     break;
   case k_addr_sysvia | k_via_IER:
@@ -583,7 +581,6 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     } else {
       p_bbc->sysvia_IER &= ~(val & 0x7f);
     }
-    p_mem[k_addr_sysvia | k_via_IER] = p_bbc->sysvia_IER;
     bbc_check_interrupt(p_bbc);
 /*    printf("new sysvia IER %x\n", p_bbc->sysvia_IER);*/
     break;

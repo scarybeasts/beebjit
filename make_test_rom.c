@@ -597,7 +597,26 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc5;
 
+  /* Test various simple hardware register read / writes. */
   index = set_new_index(index, 0x540);
+  p_mem[index++] = 0xa9; /* LDA #$41 */
+  p_mem[index++] = 0x41;
+  p_mem[index++] = 0x8d; /* STA $FE0A */
+  p_mem[index++] = 0x0a;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xad; /* LDA $FE0A */
+  p_mem[index++] = 0x0a;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xc9; /* CMP #$41 */
+  p_mem[index++] = 0x41;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C580 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc5;
+
+  index = set_new_index(index, 0x580);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
