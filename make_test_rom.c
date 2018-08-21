@@ -601,11 +601,11 @@ main(int argc, const char* argv[]) {
   index = set_new_index(index, 0x540);
   p_mem[index++] = 0xa9; /* LDA #$41 */
   p_mem[index++] = 0x41;
-  p_mem[index++] = 0x8d; /* STA $FE0A */
-  p_mem[index++] = 0x0a;
+  p_mem[index++] = 0x8d; /* STA $FE4A */
+  p_mem[index++] = 0x4a;
   p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE0A */
-  p_mem[index++] = 0x0a;
+  p_mem[index++] = 0xad; /* LDA $FE4A */
+  p_mem[index++] = 0x4a;
   p_mem[index++] = 0xfe;
   p_mem[index++] = 0xc9; /* CMP #$41 */
   p_mem[index++] = 0x41;
