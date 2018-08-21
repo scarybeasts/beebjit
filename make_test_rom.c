@@ -639,6 +639,17 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xce; /* DEC $FE4A */
+  p_mem[index++] = 0x4a;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xad; /* LDA $FE4A */
+  p_mem[index++] = 0x4a;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xc9; /* CMP #$9F */
+  p_mem[index++] = 0x9f;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0x4c; /* JMP $C580 */
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc5;

@@ -1113,15 +1113,20 @@ jit_emit_shift_op(struct jit_struct* p_jit,
                   int special,
                   unsigned char intel_op_base,
                   size_t n_count) {
-  unsigned char first_byte = 0xd0;
-  assert(n_count < 8);
-  if (n_count > 1) {
+  unsigned char first_byte;
+  if (n_count == 0) {
+    /* inc or dec */
+    first_byte = 0xfe;
+  } else if (n_count == 1) {
+    first_byte = 0xd0;
+  } else {
+    assert(n_count < 8);
     first_byte = 0xc0;
   }
   if (special) {
-    assert(n_count == 1);
+    assert(n_count <= 1);
     /* OP dl */
-    p_jit_buf[index++] = 0xd0;
+    p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base + 2;
     return index;
   }
@@ -2079,35 +2084,14 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_dec:
     /* DEC */
-    switch (opmode) {
-    case k_zpg:
-    case k_abs:
-      /* dec BYTE PTR [p_mem + addr] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x0c;
-      p_jit_buf[index++] = 0x25;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           (size_t) p_jit->p_mem + opcode_addr_6502);
-      break;
-    case k_zpx: 
-      /* dec BYTE PTR [rdx + p_mem] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x8a;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           (size_t) p_jit->p_mem + opcode_addr_6502);
-      break;
-    case k_abx:
-      /* dec BYTE PTR [rbx + addr_6502] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x8b;
-      index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
-      break;
-    default:
-      assert(0);
-      break;
-    }
+    index = jit_emit_shift_op(p_jit,
+                              p_jit_buf,
+                              index,
+                              opmode,
+                              opcode_addr_6502,
+                              special,
+                              0xc8,
+                              0);
     break;
   case k_iny:
     /* INY */
@@ -2167,35 +2151,14 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_inc:
     /* INC */
-    switch (opmode) {
-    case k_zpg:
-    case k_abs:
-      /* inc BYTE PTR [p_mem + addr] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x04;
-      p_jit_buf[index++] = 0x25;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           (size_t) p_jit->p_mem + opcode_addr_6502);
-      break;
-    case k_zpx: 
-      /* inc BYTE PTR [rdx + p_mem] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x82;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           (size_t) p_jit->p_mem + opcode_addr_6502);
-      break;
-    case k_abx:
-      /* inc BYTE PTR [rbx + addr_6502] */
-      p_jit_buf[index++] = 0xfe;
-      p_jit_buf[index++] = 0x83;
-      index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
-      break;
-    default:
-      assert(0);
-      break;
-    }
+    index = jit_emit_shift_op(p_jit,
+                              p_jit_buf,
+                              index,
+                              opmode,
+                              opcode_addr_6502,
+                              special,
+                              0xc0,
+                              0);
     break;
   case k_inx:
     /* INX */
