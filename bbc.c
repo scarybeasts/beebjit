@@ -523,6 +523,15 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   unsigned char ddra;
   unsigned char orb;
   unsigned char ddrb;
+  /* We have an imprecise match for abx and aby addressing modes so we may get
+   * here with a non-registers address.
+   */
+  if (addr < k_registers_offset ||
+      addr >= k_registers_offset + k_registers_len) {
+    unsigned char* p_mem = bbc_get_mem(p_bbc);
+    return p_mem[addr];
+  }
+
   switch (addr) {
   case k_addr_acia:
     /* No ACIA interrupt (bit 7). */

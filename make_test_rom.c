@@ -686,13 +686,15 @@ main(int argc, const char* argv[]) {
 
   /* Test LDX with aby addressing, which was broken, oops! */
   index = set_new_index(index, 0x5c0);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
   p_mem[index++] = 0xa0; /* LDY #$04 */
   p_mem[index++] = 0x04;
   p_mem[index++] = 0xbe; /* LDX $C5C0,Y */
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc5;
-  p_mem[index++] = 0xe0; /* CPX #$C5 */
-  p_mem[index++] = 0xc5;
+  p_mem[index++] = 0xe0; /* CPX #$BE */
+  p_mem[index++] = 0xbe;
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
@@ -700,7 +702,23 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc6;
 
+  /* Test a variety of additional high-address reads and writes of interest. */
   index = set_new_index(index, 0x600);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xbd; /* LDA $FBFF,X */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xfb;
+  p_mem[index++] = 0xc9; /* CMP #$7D */
+  p_mem[index++] = 0x7d;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C640 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc6;
+
+  index = set_new_index(index, 0x640);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -754,6 +772,10 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xa9; /* LDA #$00 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x60; /* RTS */
+
+  /* Need this byte here for a specific test. */
+  index = set_new_index(index, 0x3bff);
+  p_mem[index++] = 0x7d;
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
