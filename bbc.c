@@ -578,6 +578,9 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   case k_addr_video_ula | k_video_ula_control:
     bbc_set_video_ula_control(p_bbc, val);
     break;
+  case k_addr_video_ula | k_video_ula_palette:
+    printf("ignoring video ULA palette write\n");
+    break;
   case k_addr_rom_latch:
     printf("ignoring ROM latch write\n");
     break;
