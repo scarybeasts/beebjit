@@ -1952,7 +1952,7 @@ jit_single(struct jit_struct* p_jit,
     case k_aby:
       /* mov bl, [rcx + addr_6502] */
       p_jit_buf[index++] = 0x8a;
-      p_jit_buf[index++] = 0x9b;
+      p_jit_buf[index++] = 0x99;
       index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
       break;
     default:
