@@ -3,9 +3,11 @@
 #include "debug.h"
 
 #include "bbc.h"
+#include "jit.h"
 #include "opdefs.h"
 #include "state.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <err.h>
 #include <signal.h>
@@ -343,6 +345,39 @@ debug_dump_stats(struct debug_struct* p_debug) {
   }
 }
 
+static void
+debug_check_unhandled(struct debug_struct* p_debug,
+                      unsigned char opcode,
+                      uint16_t reg_pc,
+                      uint16_t addr_6502) {
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  unsigned char opmode = g_opmodes[opcode];
+  unsigned char optype = g_optypes[opcode];
+  unsigned char opmem = g_opmem[optype];
+  /* Currently unimplemented and untrapped: indirect reads into the hardware
+   * register space.
+   */
+  if (addr_6502 >= 0xfc00 && addr_6502 < 0xff00 &&
+      (opmode == k_idx || opmode == k_idy)) {
+    assert(0);
+  }
+
+  /* Currently unimplemented and untrapped: write invalidate of JIT other than
+   * the abs addressing mode.
+   */
+  if ((opmem == k_write || opmem == k_rw) &&
+      addr_6502 < 0x3000 &&
+      (opmode == k_abx ||
+       opmode == k_aby ||
+       opmode == k_idx ||
+       opmode == k_idy)) {
+    struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+    if (jit_has_code(p_jit, addr_6502)) {
+      assert(0);
+    }
+  }
+}
+
 void
 debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -400,6 +435,8 @@ debug_callback(struct debug_struct* p_debug) {
   }
 
   addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
+
+  debug_check_unhandled(p_debug, opcode, reg_pc, addr_6502);
 
   hit_break = debug_hit_break(reg_pc, addr_6502, opcode);
 
