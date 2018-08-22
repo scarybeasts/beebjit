@@ -1,3 +1,5 @@
+#define _GNU_SOURCE /* For REG_RIP */
+
 #include "jit.h"
 
 #include "bbc.h"
@@ -8,10 +10,13 @@
 #include <assert.h>
 #include <err.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ucontext.h>
+#include <unistd.h>
 
 enum {
   k_addr_space_size = 0x10000,
@@ -2462,9 +2467,73 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
   p_jit->reg_pc = addr_6502;
 }
 
+static void
+sigsegv_reraise(void) {
+  struct sigaction sa;
+
+  memset(&sa, '\0', sizeof(sa));
+  sa.sa_handler = SIG_DFL;
+  (void) sigaction(SIGSEGV, &sa, NULL);
+  (void) raise(SIGSEGV);
+  _exit(1);
+}
+
+static void
+handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
+  size_t rip_inc;
+
+  unsigned char* p_addr = (unsigned char*) p_siginfo->si_addr;
+  ucontext_t* p_context = (ucontext_t*) p_void;
+  unsigned char* p_rip = (unsigned char*) p_context->uc_mcontext.gregs[REG_RIP];
+
+  (void) signum;
+  (void) p_siginfo;
+  (void) p_void;
+
+  /* Is is a fault trying to write to the ROM region of BBC memory? */
+  if (signum != SIGSEGV ||
+      p_siginfo->si_code != SEGV_ACCERR ||
+      p_addr < (unsigned char*) (size_t) 0x10008000 ||
+      p_addr > (unsigned char*) (size_t) 0x1000ffff) {
+    sigsegv_reraise();
+  }
+
+  /* Is the faulting instruction in the JIT region? */
+  if (p_rip < (unsigned char*) (size_t) 0x20000000 ||
+      p_rip > (unsigned char*) (size_t) 0x20ffffff) {
+    sigsegv_reraise();
+  }
+
+  /* Ok, it's a write fault in the ROM region. We can continue.
+   * To continue, we need to bump rip along!
+   */
+  /* STA ($xx),Y */
+  if (p_rip[0] == 0x88 && p_rip[1] == 0x04 && p_rip[2] == 0x0a) {
+    rip_inc = 3;
+  } else {
+    sigsegv_reraise();
+  }
+
+  p_context->uc_mcontext.gregs[REG_RIP] += rip_inc;
+}
+
 void
 jit_enter(struct jit_struct* p_jit) {
+  int ret;
+  struct sigaction sa;
   unsigned char* p_mem = p_jit->p_mem;
+
+  /* Ah the horrors, a SIGSEGV handler! This actually enables a ton of
+   * optimizations by using faults for very uncommon conditions, such that the
+   * fast path doesn't need certain checks.
+   */
+  memset(&sa, '\0', sizeof(sa));
+  sa.sa_sigaction = handle_sigsegv;
+  sa.sa_flags = SA_SIGINFO | SA_NODEFER;
+  ret = sigaction(SIGSEGV, &sa, NULL);
+  if (ret != 0) {
+    errx(1, "sigaction failed");
+  }
 
   /* The memory must be aligned to at least 0x100 so that our register access
    * tricks work.

@@ -654,7 +654,37 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc5;
 
+  /* Test writing to ROM memory. */
   index = set_new_index(index, 0x580);
+  p_mem[index++] = 0xa9; /* LDA #$39 */
+  p_mem[index++] = 0x39;
+  p_mem[index++] = 0x85; /* STA $02 */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xa9; /* LDA #$C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0x85; /* STA $03 */
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0xb1; /* LDA ($02),Y */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0x85; /* STA $04 */
+  p_mem[index++] = 0x04;
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0x69; /* ADC #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x91; /* STA ($02),Y */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xb1; /* LDA ($02),Y */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xc5; /* CMP $04 */
+  p_mem[index++] = 0x04;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C5C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc5;
+
+  index = set_new_index(index, 0x5c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

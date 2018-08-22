@@ -6,6 +6,6 @@ gcc -Wall -g -o 6502jit \
 gcc -Wall -g -o make_test_rom make_test_rom.c
 ./make_test_rom
 
-./6502jit -os test.rom -lang ''
-./6502jit -os test.rom -lang '' -d -r
+./6502jit -os test.rom -lang '' || echo 'FAIL! non-debug'
+./6502jit -os test.rom -lang '' -d -r || echo 'FAIL! debug'
 

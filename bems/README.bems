@@ -25,3 +25,5 @@ changes the low byte of the operand for LDA $1A00,X, for example.
 2) Routine starting at $1280 performs LDA $FE44, which is sysvia timer1 counter
 low byte. Looks like it's seeding and running an RNG?
 3) Game code at $1B04 self-modifies the operand of the LDA #$00 at $1B1E.
+4) Game code at $0B5A, first time through, starts writing at high addresses,
+the first being $C039?? That's ROM, not writeable.
