@@ -26,8 +26,23 @@ static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
 
 enum {
-  k_addr_ula_control = 0xfe20,
+  k_addr_crtc = 0xfe00,
+  k_addr_acia = 0xfe08,
+  k_addr_serial_ula = 0xfe10,
+  k_addr_video_ula = 0xfe20,
+  k_addr_rom_latch = 0xfe30,
   k_addr_sysvia = 0xfe40,
+  k_addr_uservia = 0xfe60,
+  k_addr_adc = 0xfec0,
+  k_addr_tube = 0xfee0,
+};
+enum {
+  k_crtc_address = 0x0,
+  k_crtc_data = 0x1,
+};
+enum {
+  k_video_ula_control = 0x0,
+  k_video_ula_palette = 0x1,
 };
 enum {
   k_ula_teletext = 0x02,
@@ -66,6 +81,9 @@ struct bbc_struct {
   unsigned char* p_mem;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
+
+  unsigned char video_ula_control;
+
   unsigned char sysvia_ORB;
   unsigned char sysvia_ORA;
   unsigned char sysvia_DDRB;
@@ -81,6 +99,7 @@ struct bbc_struct {
   unsigned char sysvia_IER;
   unsigned char sysvia_IC32;
   unsigned char sysvia_sdb;
+  unsigned char uservia_PCR;
   unsigned char keys[16][16];
   unsigned char keys_count;
   unsigned char keys_count_col[16];
@@ -105,6 +124,8 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
 
+  p_bbc->video_ula_control = 0;
+
   p_bbc->sysvia_ORB = 0;
   p_bbc->sysvia_ORA = 0;
   p_bbc->sysvia_DDRB = 0;
@@ -120,6 +141,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->sysvia_IER = 0;
   p_bbc->sysvia_IC32 = 0;
   p_bbc->sysvia_sdb = 0;
+  p_bbc->uservia_PCR = 0;
 
   p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
 
@@ -262,18 +284,6 @@ bbc_set_sysvia(struct bbc_struct* p_bbc,
   p_bbc->sysvia_sdb = 0;
 }
 
-unsigned char
-bbc_get_video_ula(struct bbc_struct* p_bbc) {
-  unsigned char* p_mem = p_bbc->p_mem;
-  return p_mem[k_addr_ula_control];
-}
-
-void
-bbc_set_video_ula(struct bbc_struct* p_bbc, unsigned char ula_control) {
-  unsigned char* p_mem = p_bbc->p_mem;
-  p_mem[k_addr_ula_control] = ula_control;
-}
-
 unsigned char*
 bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
@@ -293,15 +303,19 @@ bbc_set_memory_block(struct bbc_struct* p_bbc,
   /* TODO: invalidate the old JIT for this memory area. */
 }
 
-static unsigned char
-bbc_get_ula_control(struct bbc_struct* p_bbc) {
-  unsigned char* p_mem = p_bbc->p_mem;
-  return p_mem[k_addr_ula_control];
+unsigned char
+bbc_get_video_ula_control(struct bbc_struct* p_bbc) {
+  return p_bbc->video_ula_control;
+}
+
+void
+bbc_set_video_ula_control(struct bbc_struct* p_bbc, unsigned char val) {
+  p_bbc->video_ula_control = val;
 }
 
 unsigned char*
 bbc_get_screen_mem(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
   size_t offset;
   if (ula_control & k_ula_teletext) {
     offset = k_mode7_offset;
@@ -315,7 +329,7 @@ bbc_get_screen_mem(struct bbc_struct* p_bbc) {
 
 int
 bbc_get_screen_is_text(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
   if (ula_control & k_ula_teletext) {
     return 1;
   }
@@ -324,7 +338,7 @@ bbc_get_screen_is_text(struct bbc_struct* p_bbc) {
 
 size_t
 bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
   unsigned char ula_chars_per_line = (ula_control & k_ula_chars_per_line) >>
                                          k_ula_chars_per_line_shift;
   return 1 << (3 - ula_chars_per_line);
@@ -332,7 +346,7 @@ bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
 
 size_t
 bbc_get_screen_clock_speed(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_ula_control(p_bbc);
+  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
   unsigned char clock_speed = (ula_control & k_ula_clock_speed) >>
                                   k_ula_clock_speed_shift;
   return clock_speed;
@@ -420,13 +434,16 @@ int
 bbc_is_special_address(struct bbc_struct* p_bbc,
                        uint16_t addr_low,
                        uint16_t addr_high) {
-  if (addr_low >= 0xfe40 && addr_low < 0xfe50) {
+  if (addr_low >= k_registers_offset &&
+      addr_low < k_registers_offset + k_registers_len) {
     return 1;
   }
-  if (addr_high >= 0xfe40 && addr_high < 0xfe50) {
+  if (addr_high >= k_registers_offset &&
+      addr_high < k_registers_offset + k_registers_len) {
     return 1;
   }
-  if (addr_low < 0xfe40 && addr_high >= 0xfe50) {
+  if (addr_low < k_registers_offset &&
+      addr_high >= k_registers_offset + k_registers_len) {
     return 1;
   }
   return 0;
@@ -502,6 +519,9 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   unsigned char orb;
   unsigned char ddrb;
   switch (addr) {
+  case k_addr_acia:
+    /* No ACIA interrupt (bit 7). */
+    return 0;
   case k_addr_sysvia | k_via_ORB:
     assert((p_bbc->sysvia_PCR & 0xa0) != 0x20);
     assert(!(p_bbc->sysvia_ACR & 2));
@@ -526,6 +546,14 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     val = ora & ddra;
     val |= (bbc_sysvia_read_porta(p_bbc) & ~ddra);
     return val;
+  case k_addr_uservia | k_via_PCR:
+    return p_bbc->uservia_PCR;
+  case k_addr_adc:
+    /* No ADC attention needed (bit 6). */
+    return 0;
+  case k_addr_tube:
+    /* Not present -- fall through to return 0xfe. */
+    break;
   default:
     assert(0);
   }
@@ -535,6 +563,24 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
 void
 bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   switch (addr) {
+  case k_addr_crtc | k_crtc_address:
+    printf("ignoring CRTC address write\n");
+    break;
+  case k_addr_crtc | k_crtc_data:
+    printf("ignoring CRTC data write\n");
+    break;
+  case k_addr_acia:
+    printf("ignoring ACIA write\n");
+    break;
+  case k_addr_serial_ula:
+    printf("ignoring serial ULA write\n");
+    break;
+  case k_addr_video_ula | k_video_ula_control:
+    bbc_set_video_ula_control(p_bbc, val);
+    break;
+  case k_addr_rom_latch:
+    printf("ignoring ROM latch write\n");
+    break;
   case k_addr_sysvia | k_via_ORB:
     p_bbc->sysvia_ORB = val;
     bbc_sysvia_write_portb(p_bbc);
@@ -591,6 +637,24 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   case k_addr_sysvia | k_via_ORAnh:
     p_bbc->sysvia_ORA = val;
     bbc_sysvia_write_porta(p_bbc);
+    break;
+  case k_addr_uservia | k_via_DDRA:
+    printf("ignoring user VIA DDRA write\n");
+    break;
+  case k_addr_uservia | k_via_PCR:
+    p_bbc->uservia_PCR = val;
+    break;
+  case k_addr_uservia | k_via_IFR:
+    printf("ignoring user VIA IFR write\n");
+    break;
+  case k_addr_uservia | k_via_IER:
+    printf("ignoring user VIA IER write\n");
+    break;
+  case k_addr_adc:
+    printf("ignoring ADC write\n");
+    break;
+  case k_addr_tube:
+    printf("ignoring tube write\n");
     break;
   default:
     assert(0);

@@ -68,8 +68,9 @@ void bbc_set_sysvia(struct bbc_struct* p_bbc,
                     unsigned char sysvia_IFR,
                     unsigned char sysvia_IER,
                     unsigned char sysvia_IC32);
-unsigned char bbc_get_video_ula(struct bbc_struct* p_bbc);
-void bbc_set_video_ula(struct bbc_struct* p_bbc, unsigned char ula_control);
+unsigned char bbc_get_video_ula_control(struct bbc_struct* p_bbc);
+void bbc_set_video_ula_control(struct bbc_struct* p_bbc,
+                               unsigned char ula_control);
 
 void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);
 

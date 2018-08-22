@@ -143,7 +143,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->flags,
                     p_bem->pc);
 
-  bbc_set_video_ula(p_bbc, p_bem->ula_control);
+  bbc_set_video_ula_control(p_bbc, p_bem->ula_control);
   bbc_set_sysvia(p_bbc,
                  p_bem->sysvia_ora,
                  p_bem->sysvia_orb,
@@ -202,7 +202,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->s,
                     &p_bem->flags,
                     &p_bem->pc);
-  p_bem->ula_control = bbc_get_video_ula(p_bbc);
+  p_bem->ula_control = bbc_get_video_ula_control(p_bbc);
   bbc_get_sysvia(p_bbc,
                  &p_bem->sysvia_ora,
                  &p_bem->sysvia_orb,
