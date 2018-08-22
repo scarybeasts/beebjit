@@ -74,6 +74,7 @@ void bbc_set_video_ula_control(struct bbc_struct* p_bbc,
 
 void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);
 
+struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mem(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
                           uint16_t addr,

@@ -284,6 +284,11 @@ bbc_set_sysvia(struct bbc_struct* p_bbc,
   p_bbc->sysvia_sdb = 0;
 }
 
+struct jit_struct*
+bbc_get_jit(struct bbc_struct* p_bbc) {
+  return p_bbc->p_jit;
+}
+
 unsigned char*
 bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
