@@ -935,17 +935,25 @@ jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
 }
 
 static int
-jit_is_special_address(struct jit_struct* p_jit,
-                       uint16_t opcode_addr_6502,
-                       uint16_t opcode_addr_6502_upper_range) {
+jit_is_special_read_address(struct jit_struct* p_jit,
+                            uint16_t opcode_addr_6502,
+                            uint16_t opcode_addr_6502_upper_range) {
   struct bbc_struct* p_bbc = p_jit->p_bbc;
   /* NOTE: assumes contiguous ranges of BBC special addresses. */
-  if (bbc_is_special_address(p_bbc,
-                             opcode_addr_6502,
-                             opcode_addr_6502_upper_range)) {
-    return 1;
-  }
-  return 0;
+  return bbc_is_special_read_address(p_bbc,
+                                     opcode_addr_6502,
+                                     opcode_addr_6502_upper_range);
+}
+
+static int
+jit_is_special_write_address(struct jit_struct* p_jit,
+                             uint16_t opcode_addr_6502,
+                             uint16_t opcode_addr_6502_upper_range) {
+  struct bbc_struct* p_bbc = p_jit->p_bbc;
+  /* NOTE: assumes contiguous ranges of BBC special addresses. */
+  return bbc_is_special_write_address(p_bbc,
+                                      opcode_addr_6502,
+                                      opcode_addr_6502_upper_range);
 }
 
 static size_t
@@ -1346,7 +1354,7 @@ jit_single(struct jit_struct* p_jit,
 
   uint16_t opcode_addr_6502;
   uint16_t opcode_addr_6502_upper_range;
-  int special;
+  int special = 0;
 
   if (oplen < 3) {
     /* Clear operand2 if we're not using it. This enables us to re-use the
@@ -1398,9 +1406,18 @@ jit_single(struct jit_struct* p_jit,
              opcode_addr_6502 <= 0xff00) {
     opcode_addr_6502_upper_range = opcode_addr_6502 + 0xff;
   }
-  special = jit_is_special_address(p_jit,
+  if ((opmem == k_read || opmem == k_rw) &&
+      jit_is_special_read_address(p_jit,
+                                  opcode_addr_6502,
+                                  opcode_addr_6502_upper_range)) {
+    special = 1;
+  }
+  if ((opmem == k_write || opmem == k_rw) &&
+      jit_is_special_write_address(p_jit,
                                    opcode_addr_6502,
-                                   opcode_addr_6502_upper_range);
+                                   opcode_addr_6502_upper_range)) {
+    special = 1;
+  }
   if (special && (opmem == k_read || opmem == k_rw)) {
     index = jit_emit_special_read(p_jit,
                                   opcode_addr_6502,

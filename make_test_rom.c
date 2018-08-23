@@ -714,6 +714,30 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x8d; /* STA $801B */
+  p_mem[index++] = 0x1b;
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xad; /* LDA $C603 */
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0xc6;
+  p_mem[index++] = 0xc9; /* CMP #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xce; /* DEC $C603 */
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0xc6;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0x6e; /* ROR $C603 */
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0xc6;
+  p_mem[index++] = 0xb0; /* BCS (should be CF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0x4c; /* JMP $C640 */
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc6;

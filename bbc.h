@@ -89,9 +89,12 @@ int bbc_get_screen_is_text(struct bbc_struct* p_bbc);
 size_t bbc_get_screen_pixel_width(struct bbc_struct* p_bbc);
 size_t bbc_get_screen_clock_speed(struct bbc_struct* p_bbc);
 
-int bbc_is_special_address(struct bbc_struct* p_bbc,
-                           uint16_t addr_low,
-                           uint16_t addr_high);
+int bbc_is_special_read_address(struct bbc_struct* p_bbc,
+                                uint16_t addr_low,
+                                uint16_t addr_high);
+int bbc_is_special_write_address(struct bbc_struct* p_bbc,
+                                 uint16_t addr_low,
+                                 uint16_t addr_high);
 
 /* Callbacks for memory access. */
 unsigned char bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr);
