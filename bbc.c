@@ -575,6 +575,8 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     return val;
   case k_addr_uservia | k_via_PCR:
     return p_bbc->uservia_PCR;
+  case k_addr_uservia | k_via_IFR:
+    return 0;
   case k_addr_adc:
     /* No ADC attention needed (bit 6). */
     return 0;
@@ -678,6 +680,18 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     break;
   case k_addr_uservia | k_via_DDRA:
     printf("ignoring user VIA DDRA write\n");
+    break;
+  case k_addr_uservia | k_via_T1CH:
+    printf("ignoring user VIA T1CH write\n");
+    break;
+  case k_addr_uservia | k_via_T1LL:
+    printf("ignoring user VIA T1LL write\n");
+    break;
+  case k_addr_uservia | k_via_T1LH:
+    printf("ignoring user VIA T1LH write\n");
+    break;
+  case k_addr_uservia | k_via_ACR:
+    printf("ignoring user VIA ACR write\n");
     break;
   case k_addr_uservia | k_via_PCR:
     p_bbc->uservia_PCR = val;

@@ -27,3 +27,14 @@ low byte. Looks like it's seeding and running an RNG?
 3) Game code at $1B04 self-modifies the operand of the LDA #$00 at $1B1E.
 4) Game code at $0B5A, first time through, starts writing at high addresses,
 the first being $C039?? That's ROM, not writeable.
+
+- mree.bem
+Based on:
+4f1e5098d4fa8701d95f08b773245841  MrEe.zip
+Commands to run game:
+*LOAD MRE2
+CALL &4300
+Notes:
+1) Immediately, $4302 writes to ROM?! via STA $801B.
+2) Uses SED, ugh, first instance $0DB5. Unclear why.
+3) Waits for uservia timer to fire at $0987.
