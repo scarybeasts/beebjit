@@ -2146,6 +2146,9 @@ jit_single(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x03;
     break;
+  case k_sed:
+    printf("ignoring SED!\n");
+    break;
   case k_cpx:
     /* CPX */
     switch (opmode) {
