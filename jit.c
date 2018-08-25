@@ -2291,7 +2291,7 @@ jit_single(struct jit_struct* p_jit,
   if ((p_jit->jit_flags & k_jit_flag_self_modifying) &&
       (opmem == k_write || opmem == k_rw)) {
     if (opmode == k_abs) {
-      /* mov edx, DWORD PTR [rdi + k_offset_jit_ptrs + (addr * 4) */
+      /* mov edx, [rdi + k_offset_jit_ptrs + (addr * 4) */
       p_jit_buf[index++] = 0x8b;
       p_jit_buf[index++] = 0x97;
       index = jit_emit_int(p_jit_buf,
@@ -2303,6 +2303,52 @@ jit_single(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0xc7;
       p_jit_buf[index++] = 0x02;
       index = jit_emit_do_jit(p_jit_buf, index);
+    } else if (opmode == k_abx) {
+      /* movzx r8, bl */
+      p_jit_buf[index++] = 0x4c;
+      p_jit_buf[index++] = 0x0f;
+      p_jit_buf[index++] = 0xb6;
+      p_jit_buf[index++] = 0xc3;
+      /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4) */
+      p_jit_buf[index++] = 0x42;
+      p_jit_buf[index++] = 0x8b;
+      p_jit_buf[index++] = 0x94;
+      p_jit_buf[index++] = 0x87;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           k_offset_jit_ptrs +
+                               (opcode_addr_6502 * sizeof(unsigned int)));
+      /* mov WORD PTR [rdx], 0x17ff */
+      p_jit_buf[index++] = 0x66;
+      p_jit_buf[index++] = 0xc7;
+      p_jit_buf[index++] = 0x02;
+      index = jit_emit_do_jit(p_jit_buf, index);
+    } else if (opmode == k_aby) {
+      /* movzx r8, cl */
+      p_jit_buf[index++] = 0x4c;
+      p_jit_buf[index++] = 0x0f;
+      p_jit_buf[index++] = 0xb6;
+      p_jit_buf[index++] = 0xc1;
+      /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4) */
+      p_jit_buf[index++] = 0x42;
+      p_jit_buf[index++] = 0x8b;
+      p_jit_buf[index++] = 0x94;
+      p_jit_buf[index++] = 0x87;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           k_offset_jit_ptrs +
+                               (opcode_addr_6502 * sizeof(unsigned int)));
+      /* mov WORD PTR [rdx], 0x17ff */
+      p_jit_buf[index++] = 0x66;
+      p_jit_buf[index++] = 0xc7;
+      p_jit_buf[index++] = 0x02;
+      index = jit_emit_do_jit(p_jit_buf, index);
+    } else if (opmode == k_idy) {
+      /* lea dx, [rdx + rcx] */
+      /*p_jit_buf[index++] = 0x66;
+      p_jit_buf[index++] = 0x8d;
+      p_jit_buf[index++] = 0x14;
+      p_jit_buf[index++] = 0x0a;*/
     }
   }
 
@@ -2632,10 +2678,10 @@ jit_enter(struct jit_struct* p_jit) {
     errx(1, "sigaction failed");
   }
 
-  /* The memory must be aligned to at least 0x100 so that our register access
+  /* The memory must be aligned to at least 0x10000 so that our register access
    * tricks work.
    */
-  assert(((size_t) p_mem & 0xff) == 0);
+  assert(((size_t) p_mem & 0xffff) == 0);
 
   asm volatile (
     /* Pass a pointer to the jit_struct in rdi. */

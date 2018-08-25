@@ -367,9 +367,7 @@ debug_check_unhandled(struct debug_struct* p_debug,
    */
   if ((opmem == k_write || opmem == k_rw) &&
       addr_6502 < 0x3000 &&
-      (opmode == k_abx ||
-       opmode == k_aby ||
-       opmode == k_idx ||
+      (opmode == k_idx ||
        opmode == k_idy)) {
     struct jit_struct* p_jit = bbc_get_jit(p_bbc);
     if (jit_has_code(p_jit, addr_6502)) {
