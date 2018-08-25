@@ -32,19 +32,19 @@ static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
 static const size_t k_utils_jit_offset = 0x200;
 
-static const int k_offset_reg_rip = 0;
-static const int k_offset_reg_a_eax = 4;
-static const int k_offset_reg_x_ebx = 8;
-static const int k_offset_reg_y_ecx = 12;
-static const int k_offset_reg_s_esi = 16;
-static const int k_offset_reg_pc = 20;
-static const int k_offset_reg_x64_flags = 22;
-static const int k_offset_reg_6502_flags = 23;
-static const int k_offset_irq = 24;
+static const int k_offset_util_jit = 0;
+static const int k_offset_util_regs = 8;
+static const int k_offset_util_debug = 16;
 
-static const int k_offset_util_debug = 32;
-static const int k_offset_util_regs = 40;
-static const int k_offset_util_jit = 48;
+static const int k_offset_reg_rip = 24;
+static const int k_offset_reg_a_eax = 28;
+static const int k_offset_reg_x_ebx = 32;
+static const int k_offset_reg_y_ecx = 36;
+static const int k_offset_reg_s_esi = 40;
+static const int k_offset_reg_pc = 44;
+static const int k_offset_reg_x64_flags = 46;
+static const int k_offset_reg_6502_flags = 47;
+static const int k_offset_irq = 48;
 
 static const int k_offset_debug_callback = 56;
 static const int k_offset_jit_callback = 64;
@@ -92,21 +92,22 @@ static const unsigned char g_nz_flags_needed[58] = {
 };
 
 struct jit_struct {
-  /* Registers. */
-  unsigned int reg_rip;         /* 0   */
-  unsigned int reg_a_eax;       /* 4   */
-  unsigned int reg_x_ebx;       /* 8   */
-  unsigned int reg_y_ecx;       /* 12  */
-  unsigned int reg_s_esi;       /* 16  */
-  uint16_t reg_pc;              /* 20  */
-  unsigned char reg_x64_flags;  /* 22  */
-  unsigned char reg_6502_flags; /* 23  */
-  unsigned char irq;            /* 24  */
-
   /* Utilities called by JIT code. */
-  unsigned char* p_util_debug;  /* 32  */
-  unsigned char* p_util_regs;   /* 40  */
-  unsigned char* p_util_jit;    /* 48  */
+  /* Must be at 0. */
+  unsigned char* p_util_jit;    /* 0   */
+  unsigned char* p_util_regs;   /* 8   */
+  unsigned char* p_util_debug;  /* 16  */
+
+  /* Registers. */
+  unsigned int reg_rip;         /* 24  */
+  unsigned int reg_a_eax;       /* 28  */
+  unsigned int reg_x_ebx;       /* 32  */
+  unsigned int reg_y_ecx;       /* 36  */
+  unsigned int reg_s_esi;       /* 40  */
+  uint16_t reg_pc;              /* 44  */
+  unsigned char reg_x64_flags;  /* 46  */
+  unsigned char reg_6502_flags; /* 47  */
+  unsigned char irq;            /* 48  */
 
   /* C callbacks called by JIT code. */
   void* p_debug_callback;       /* 56  */
@@ -1365,10 +1366,9 @@ jit_get_opcode(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static size_t
 jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
-  /* call [rdi + k_offset_util_jit] */
+  /* call [rdi] */
   p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_offset_util_jit;
+  p_jit_buf[index++] = 0x17;
 
   return index;
 }
@@ -1493,12 +1493,16 @@ jit_single(struct jit_struct* p_jit,
     case 0x02:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Bounce out of JIT. */
+      /* nop */ /* Opcodes byte length must be at least 2. */
+      p_jit_buf[index++] = 0x90;
       /* ret */
       p_jit_buf[index++] = 0xc3;
       break;
     case 0x12:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a debug trap and continue. */
+      /* nop */ /* Opcodes byte length must be at least 2. */
+      p_jit_buf[index++] = 0x90;
       /* int 3 */
       p_jit_buf[index++] = 0xcc;
       break;
@@ -2192,6 +2196,10 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_sed:
     printf("ignoring SED!\n");
+    /* nop */ /* Opcodes byte length must be at least 2. */
+    p_jit_buf[index++] = 0x90;
+    /* nop */
+    p_jit_buf[index++] = 0x90;
     break;
   case k_cpx:
     /* CPX */
@@ -2251,6 +2259,10 @@ jit_single(struct jit_struct* p_jit,
     break;
   case k_nop:
     /* NOP */
+    /* nop */ /* Opcodes byte length must be at least 2. */
+    p_jit_buf[index++] = 0x90;
+    /* nop */
+    p_jit_buf[index++] = 0x90;
     break;
   case k_beq:
     /* BEQ */
@@ -2286,11 +2298,11 @@ jit_single(struct jit_struct* p_jit,
                            index,
                            k_offset_jit_ptrs +
                                (opcode_addr_6502 * sizeof(unsigned int)));
-      /* mov DWORD PTR [rdx], 0x00??57ff */
+      /* mov WORD PTR [rdx], 0x17ff */
+      p_jit_buf[index++] = 0x66;
       p_jit_buf[index++] = 0xc7;
       p_jit_buf[index++] = 0x02;
       index = jit_emit_do_jit(p_jit_buf, index);
-      p_jit_buf[index++] = 0x00;
     }
   }
 
@@ -2338,8 +2350,8 @@ jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  /* call [rdi + offset] */
-  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x57) {
+  /* call [rdi] */
+  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x17) {
     return 0;
   }
   return 1;
@@ -2354,8 +2366,8 @@ jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  /* call [rdi + offset] */
-  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x57) {
+  /* call [rdi] */
+  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x17) {
     return 0;
   }
   return 1;
@@ -2437,6 +2449,11 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     intel_opcodes_len = util_buffer_get_pos(p_single_buf);
+    /* For us to be to JIT invalidate correctly, all Intel sequences must be at
+     * least 2 bytes because the invalidation sequence is 2 bytes.
+     */
+    assert(intel_opcodes_len >= 2);
+
     buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
     if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5) {
@@ -2507,8 +2524,8 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
   uint16_t addr_6502;
   size_t jit_addr_masked;
 
-  /* -3 because of the call [rdi + offset] opcode size. */
-  p_jit_addr -= 3;
+  /* -2 because of the call [rdi] opcode size. */
+  p_jit_addr -= 2;
 
   block_addr_6502 = jit_block_from_intel(p_jit, p_jit_addr);
   addr_6502 = block_addr_6502;
@@ -2646,7 +2663,7 @@ jit_enter(struct jit_struct* p_jit) {
      * Offset must match struct jit_struct layout.
      */
     "mov %%rdi, %%r15;"
-    "call *40(%%rdi);"
+    "call *8(%%rdi);"
     /* Calculate address of Intel JIT code for the 6502 execution address. */
     /* Constants here must match. */
     "mov $8, %%r8;"

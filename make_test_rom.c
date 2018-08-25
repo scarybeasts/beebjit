@@ -746,9 +746,7 @@ main(int argc, const char* argv[]) {
    * adjacent instructions are clobbered.
    */
   index = set_new_index(index, 0x640);
-  p_mem[index++] = 0x4c; /* JMP $C680 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc6;
+  p_mem[index++] = 0xea; /* NOP */
   p_mem[index++] = 0x20; /* JSR $3050 */
   p_mem[index++] = 0x50;
   p_mem[index++] = 0x30;
