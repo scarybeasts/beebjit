@@ -67,16 +67,16 @@ enum {
 };
 
 /* k_a: PLA, TXA, TYA, LDA */
-/* k_x: LDX, TAX, TSX, DEX, INX */
-/* k_y: DEY, LDY, TAY, INY */
+/* k_x: LDX, TAX, TSX */
+/* k_y: LDY, TAY */
 static const unsigned char g_nz_flag_pending[58] = {
   0    , 0    , 0    , k_set, k_set, 0    , 0    , 0    ,
   0    , k_set, k_set, k_set, k_set, 0    , 0    , 0    ,
   k_set, k_set, 0    , 0    , 0    , 0    , 0    , k_set,
-  k_a  , k_set, 0    , 0    , 0    , 0    , 0    , k_y  ,
+  k_a  , k_set, 0    , 0    , 0    , 0    , 0    , k_set,
   k_a  , 0    , k_a  , 0    , k_y  , k_a  , k_x  , k_y  ,
   k_x  , 0    , 0    , k_x  , k_set, k_set, k_set, k_set,
-  k_y  , k_x  , 0    , 0    , k_set, k_x  , 0    , k_set,
+  k_set, k_set, 0    , 0    , k_set, k_set, 0    , k_set,
   0    , 0    ,
 };
 
