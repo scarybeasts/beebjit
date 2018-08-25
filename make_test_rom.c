@@ -742,7 +742,32 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc6;
 
+  /* Test an interesting bug we have with self-modifying code where two
+   * adjacent instructions are clobbered.
+   */
   index = set_new_index(index, 0x640);
+  p_mem[index++] = 0x4c; /* JMP $C680 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc6;
+  p_mem[index++] = 0x20; /* JSR $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0x60;
+  p_mem[index++] = 0x8d; /* STA $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x8d; /* STA $3051 */
+  p_mem[index++] = 0x51;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x4c; /* JMP $C680 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc6;
+
+  index = set_new_index(index, 0x680);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -795,6 +820,12 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xff;
   p_mem[index++] = 0xa9; /* LDA #$00 */
   p_mem[index++] = 0x00;
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* Yet another block for us to modify. */
+  index = set_new_index(index, 0x3050);
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0xc8; /* INY */
   p_mem[index++] = 0x60; /* RTS */
 
   /* Need this byte here for a specific test. */

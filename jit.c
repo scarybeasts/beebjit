@@ -314,6 +314,12 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
+  /* TODO: getting messy, rewrite. */
+  /* Preserve rdi. */
+  /* mov r8, rdi */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xf8;
   /* mov rdi, rbx */
   p_jit_buf[index++] = 0x48;
   p_jit_buf[index++] = 0x89;
@@ -342,6 +348,11 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
   /* mov dh, BYTE PTR [rdi] */
   p_jit_buf[index++] = 0x8a;
   p_jit_buf[index++] = 0x37;
+  /* Restore rdi. */
+  /* mov rdi, r8 */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xc7;
 
   return index;
 }
@@ -353,15 +364,16 @@ jit_emit_zp_x_to_scratch(unsigned char* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
-  /* lea edi, [rbx + operand1] */
+  /* lea r8, [rbx + operand1] */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0xbb;
+  p_jit[index++] = 0x83;
   index = jit_emit_int(p_jit, index, operand1);
-  /* movzx edx, dil */
-  p_jit[index++] = 0x40;
+  /* movzx edx, r8b */
+  p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd7;
+  p_jit[index++] = 0xd0;
 
   return index;
 }
@@ -373,15 +385,16 @@ jit_emit_zp_y_to_scratch(unsigned char* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
-  /* lea edi, [rcx + operand1] */
+  /* lea r8, [rcx + operand1] */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0xb9;
+  p_jit[index++] = 0x81;
   index = jit_emit_int(p_jit, index, operand1);
-  /* movzx edx, dil */
-  p_jit[index++] = 0x40;
+  /* movzx edx, r8b */
+  p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd7;
+  p_jit[index++] = 0xd0;
 
   return index;
 }
@@ -437,14 +450,14 @@ jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
 static size_t
 jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
   /* NOTE: uses BMI2 shlx instruction to avoid modifying flags. */
-  /* mov dil, k_jit_bytes_shift */
-  p_jit[index++] = 0x40;
-  p_jit[index++] = 0xb7;
+  /* mov r8b, k_jit_bytes_shift */
+  p_jit[index++] = 0x41;
+  p_jit[index++] = 0xb0;
   p_jit[index++] = k_jit_bytes_shift;
-  /* shlx edx, edx, edi k_jit_bytes_shift */ /* BMI2 */
+  /* shlx edx, edx, r8d */ /* BMI2 */
   p_jit[index++] = 0xc4;
   p_jit[index++] = 0xe2;
-  p_jit[index++] = 0x41;
+  p_jit[index++] = 0x39;
   p_jit[index++] = 0xf7;
   p_jit[index++] = 0xd2;
 
@@ -453,28 +466,30 @@ jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
-  /* lea edi, [rsi + 1] */
+  /* lea r8, [rsi + 1] */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x7e;
+  p_jit[index++] = 0x46;
   p_jit[index++] = 0x01;
-  /* mov sil, dil */
-  p_jit[index++] = 0x40;
+  /* mov sil, r8b */
+  p_jit[index++] = 0x44;
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0xfe;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
 
 static size_t
 jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
-  /* lea edi, [rsi - 1] */
+  /* lea r8, [rsi - 1] */
+  p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x7e;
+  p_jit[index++] = 0x46;
   p_jit[index++] = 0xff;
-  /* mov sil, dil */
-  p_jit[index++] = 0x40;
+  /* mov sil, r8b */
+  p_jit[index++] = 0x44;
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0xfe;
+  p_jit[index++] = 0xc6;
 
   return index;
 }
@@ -562,6 +577,13 @@ jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
     brk_and_set_bit += 0x10;
   }
 
+  /* TODO: getting messy, rewrite? */
+  /* Preserve rdi. */
+  /* mov r8, rdi */
+  p_jit[index++] = 0x49;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xf8;
+
   /* lahf */
   p_jit[index++] = 0x9f;
 
@@ -622,6 +644,12 @@ jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
 
   /* sahf */
   p_jit[index++] = 0x9e;
+
+  /* Restore rdi. */
+  /* mov rdi, r8 */
+  p_jit[index++] = 0x4c;
+  p_jit[index++] = 0x89;
+  p_jit[index++] = 0xc7;
 
   return index;
 }
@@ -722,18 +750,20 @@ jit_emit_save_registers(unsigned char* p_jit, size_t index) {
   /* The flags we need to save are negative and zero, both covered by lahf. */
   /* lahf */
   p_jit[index++] = 0x9f;
-  /* No need to push rdx or rdi because they are scratch registers. */
-  /* push rax / rcx / rsi */
+  /* No need to push rdx because it is a scratch registers. */
+  /* push rax / rcx / rsi / rdi */
   p_jit[index++] = 0x50;
   p_jit[index++] = 0x51;
   p_jit[index++] = 0x56;
+  p_jit[index++] = 0x57;
 
   return index;
 }
 
 static size_t
 jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
-  /* pop rsi / rcx / rax */
+  /* pop rdi / rsi / rcx / rax */
+  p_jit[index++] = 0x5f;
   p_jit[index++] = 0x5e;
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x58;
@@ -746,6 +776,12 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
 static void
 jit_emit_debug_util(unsigned char* p_jit_buf) {
   size_t index = 0;
+
+  /* Save rdi. */
+  /* mov r15, rdi */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xff;
 
   /* 6502 IP */
   /* Must come first flags because other operations below trash dx. */
@@ -823,6 +859,12 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_util_regs;
 
+  /* Restore rdi. */
+  /* mov rdi, r15 */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xff;
+
   /* ret */
   p_jit_buf[index++] = 0xc3;
 }
@@ -893,10 +935,7 @@ jit_emit_jit_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   index = jit_emit_save_registers(p_jit_buf, index);
 
   /* param1: jit_struct pointer. */
-  /* mov rdi, r15 */
-  p_jit_buf[index++] = 0x4c;
-  p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0xff;
+  /* It's already in rdi. */
 
   /* param2: x64 rip that call'ed here. */
   /* mov rsi, rdx */
@@ -904,24 +943,23 @@ jit_emit_jit_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xd6;
 
-  /* call [r15 + k_offset_jit_callback] */
-  p_jit_buf[index++] = 0x41;
+  /* call [rdi + k_offset_jit_callback] */
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_jit_callback;
 
   index = jit_emit_restore_registers(p_jit_buf, index);
 
-  /* movzx edx, WORD PTR [r15 + k_offset_reg_pc] */
-  p_jit_buf[index++] = 0x41;
+  /* movzx edx, WORD PTR [rdi + k_offset_reg_pc] */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb7;
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_reg_pc;
 
   /* We are jumping out of a call, so need to pop the return value. */
-  /* pop rdi */
-  p_jit_buf[index++] = 0x5f;
+  /* pop r8 */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x58;
 
   index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
 }
@@ -930,8 +968,8 @@ static void
 jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
   /* mov dx, addr_6502 */
   util_buffer_add_2b_1w(p_buf, 0x66, 0xba, addr_6502);
-  /* call [r15 + k_offset_util_debug] */
-  util_buffer_add_4b(p_buf, 0x41, 0xff, 0x57, k_offset_util_debug);
+  /* call [rdi + k_offset_util_debug] */
+  util_buffer_add_3b(p_buf, 0xff, 0x57, k_offset_util_debug);
 }
 
 static int
@@ -964,6 +1002,10 @@ jit_emit_special_read(struct jit_struct* p_jit,
                       size_t index) {
   index = jit_emit_save_registers(p_jit_buf, index);
 
+  /* mov r15, rdi */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xff;
   /* mov rdi, [r15 + k_offset_bbc] */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
@@ -1014,6 +1056,10 @@ jit_emit_special_write(struct jit_struct* p_jit,
                        size_t index) {
   index = jit_emit_save_registers(p_jit_buf, index);
 
+  /* mov r15, rdi */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0x89;
+  p_jit_buf[index++] = 0xff;
   /* mov rdi, [r15 + k_offset_bbc] */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
@@ -1270,8 +1316,7 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                          int check_flag) {
   size_t index_jmp1 = 0;
   size_t index_jmp2 = 0;
-  /* bt DWORD PTR [r15 + k_offset_interrupt], 0 */
-  p_jit_buf[index++] = 0x41;
+  /* bt DWORD PTR [rdi + k_offset_interrupt], 0 */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xba;
   p_jit_buf[index++] = 0x67;
@@ -1320,8 +1365,7 @@ jit_get_opcode(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static size_t
 jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
-  /* call [r15 + k_offset_util_jit] */
-  p_jit_buf[index++] = 0x41;
+  /* call [rdi + k_offset_util_jit] */
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_util_jit;
@@ -2235,18 +2279,18 @@ jit_single(struct jit_struct* p_jit,
   if ((p_jit->jit_flags & k_jit_flag_self_modifying) &&
       (opmem == k_write || opmem == k_rw)) {
     if (opmode == k_abs) {
-      /* mov edx, DWORD PTR [r15 + k_offset_jit_ptrs + (addr * 4) */
-      p_jit_buf[index++] = 0x41;
+      /* mov edx, DWORD PTR [rdi + k_offset_jit_ptrs + (addr * 4) */
       p_jit_buf[index++] = 0x8b;
       p_jit_buf[index++] = 0x97;
       index = jit_emit_int(p_jit_buf,
                            index,
                            k_offset_jit_ptrs +
                                (opcode_addr_6502 * sizeof(unsigned int)));
-      /* mov DWORD PTR [rdx], 0x??57ff41 */
+      /* mov DWORD PTR [rdx], 0x00??57ff */
       p_jit_buf[index++] = 0xc7;
       p_jit_buf[index++] = 0x02;
       index = jit_emit_do_jit(p_jit_buf, index);
+      p_jit_buf[index++] = 0x00;
     }
   }
 
@@ -2294,8 +2338,8 @@ jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  if (p_jit_ptr[0] == 0x41 && p_jit_ptr[1] == 0xff && p_jit_ptr[2] == 0x57) {
-    /* jmp [r15 + offset] */
+  /* call [rdi + offset] */
+  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x57) {
     return 0;
   }
   return 1;
@@ -2310,8 +2354,8 @@ jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  if (p_jit_ptr[0] == 0x41 && p_jit_ptr[1] == 0xff && p_jit_ptr[2] == 0x57) {
-    /* jmp [r15 + offset] */
+  /* call [rdi + offset] */
+  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x57) {
     return 0;
   }
   return 1;
@@ -2463,8 +2507,8 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
   uint16_t addr_6502;
   size_t jit_addr_masked;
 
-  /* -4 because of the jmp [r15 + offset] opcode size. */
-  p_jit_addr -= 4;
+  /* -3 because of the call [rdi + offset] opcode size. */
+  p_jit_addr -= 3;
 
   block_addr_6502 = jit_block_from_intel(p_jit, p_jit_addr);
   addr_6502 = block_addr_6502;
@@ -2577,17 +2621,17 @@ jit_enter(struct jit_struct* p_jit) {
   assert(((size_t) p_mem & 0xff) == 0);
 
   asm volatile (
-    /* Pass a pointer to the jit_struct in r15. */
-    "mov %0, %%r15;"
+    /* Pass a pointer to the jit_struct in rdi. */
+    "mov %0, %%rdi;"
     /* al, bl, cl, sil are 6502 A, X, Y, S. */
     /* ebx, ecx, esi point to real Intel virtual RAM backing the 6502 RAM. */
     "xor %%eax, %%eax;"
     "xor %%ebx, %%ebx;"
     "xor %%ecx, %%ecx;"
     "xor %%esi, %%esi;"
-    /* rdx, rdi, r9 are scratch. */
+    /* rdx, r8, r9 are scratch. */
     "xor %%edx, %%edx;"
-    "xor %%edi, %%edi;"
+    "xor %%r8, %%r8;"
     "xor %%r9, %%r9;"
     /* r12 is overflow flag. */
     "xor %%r12, %%r12;"
@@ -2601,17 +2645,18 @@ jit_enter(struct jit_struct* p_jit) {
      * 6502 start address left in edx.
      * Offset must match struct jit_struct layout.
      */
-    "call *40(%%r15);"
+    "mov %%rdi, %%r15;"
+    "call *40(%%rdi);"
     /* Calculate address of Intel JIT code for the 6502 execution address. */
     /* Constants here must match. */
-    "mov $8, %%edi;"
-    "shlx %%edi, %%edx, %%edx;"
+    "mov $8, %%r8;"
+    "shlx %%r8d, %%edx, %%edx;"
     "lea 0x20000000(%%edx), %%edx;"
     "call *%%rdx;"
     :
     : "g" (p_jit)
     : "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-      "r9", "r12", "r13", "r14", "r15"
+      "r8", "r9", "r12", "r13", "r14", "r15"
   );
 }
 
@@ -2728,10 +2773,10 @@ jit_check_pc(struct jit_struct* p_jit) {
   unsigned int reg_rip = p_jit->reg_rip;
   unsigned int jit_ptr = p_jit->jit_ptrs[reg_pc];
 
-  /* -8 because the debug sequence call rip is +8 bytes from the start of
+  /* -7 because the debug sequence call rip is +7 bytes from the start of
    * the 6502 instruction.
    */
-  assert(reg_rip - 8 == jit_ptr);
+  assert(reg_rip - 7 == jit_ptr);
 }
 
 void

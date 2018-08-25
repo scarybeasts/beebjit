@@ -155,9 +155,8 @@ util_buffer_add_2b_1w(struct util_buffer* p_buf, int b1, int b2, int w1) {
 }
 
 void
-util_buffer_add_4b(struct util_buffer* p_buf, int b1, int b2, int b3, int b4) {
+util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3) {
   util_buffer_add_1b(p_buf, b1);
   util_buffer_add_1b(p_buf, b2);
   util_buffer_add_1b(p_buf, b3);
-  util_buffer_add_1b(p_buf, b4);
 }
