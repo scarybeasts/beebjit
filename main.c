@@ -23,6 +23,7 @@ main(int argc, const char* argv[]) {
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
+  int slow_flag = 0;
   int i;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
@@ -48,6 +49,8 @@ main(int argc, const char* argv[]) {
       run_flag = 1;
     } else if (strcmp(arg, "-p") == 0) {
       print_flag = 1;
+    } else if (strcmp(arg, "-s") == 0) {
+      slow_flag = 1;
     }
   }
 
@@ -76,7 +79,12 @@ main(int argc, const char* argv[]) {
     close(fd);
   }
 
-  p_bbc = bbc_create(os_rom, lang_rom, debug_flag, run_flag, print_flag);
+  p_bbc = bbc_create(os_rom,
+                     lang_rom,
+                     debug_flag,
+                     run_flag,
+                     print_flag,
+                     slow_flag);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }

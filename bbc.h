@@ -24,7 +24,8 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
                               unsigned char* p_lang_rom,
                               int debug_flag,
                               int run_flag,
-                              int print_flag);
+                              int print_flag,
+                              int slow_flag);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);
@@ -83,6 +84,7 @@ void bbc_set_memory_block(struct bbc_struct* p_bbc,
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
+int bbc_get_slow_flag(struct bbc_struct* p_bbc);
 
 unsigned char* bbc_get_screen_mem(struct bbc_struct* p_bbc);
 int bbc_get_screen_is_text(struct bbc_struct* p_bbc);

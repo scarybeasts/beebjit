@@ -16,6 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/time.h>
+
 typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 12 + 1;
@@ -44,6 +46,7 @@ static int debug_break_mem_low[k_max_break];
 static int debug_break_mem_high[k_max_break];
 static int debug_running = 0;
 static int debug_running_print = 0;
+static int debug_running_slow = 0;
 static int debug_break_opcodes[256];
 
 static char debug_old_input_buf[k_max_input_len];
@@ -64,6 +67,7 @@ debug_create(struct bbc_struct* p_bbc) {
 
   debug_running = bbc_get_run_flag(p_bbc);
   debug_running_print = bbc_get_print_flag(p_bbc);
+  debug_running_slow = bbc_get_slow_flag(p_bbc);
 
   p_debug->p_bbc = p_bbc;
 
@@ -376,6 +380,25 @@ debug_check_unhandled(struct debug_struct* p_debug,
   }
 }
 
+static void
+debug_slow_down() {
+  int ret;
+  struct timeval tv;
+  size_t start_us;
+
+  ret = gettimeofday(&tv, NULL);
+  if (ret != 0) {
+    errx(1, "gettimeofday failed");
+  }
+  start_us = tv.tv_usec;
+  do {
+    ret = gettimeofday(&tv, NULL);
+    if (ret != 0) {
+      errx(1, "gettimeofday failed");
+    }
+  } while (tv.tv_usec >= start_us && tv.tv_usec < start_us + 2);
+}
+
 void
 debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -403,6 +426,7 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char flag_n;
   unsigned char flag_c;
   unsigned char flag_o;
+
   int do_trap = 0;
 
   bbc_check_pc(p_bbc);
@@ -435,6 +459,10 @@ debug_callback(struct debug_struct* p_debug) {
   addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
 
   debug_check_unhandled(p_debug, opcode, reg_pc, addr_6502);
+
+  if (debug_running_slow) {
+    debug_slow_down();
+  }
 
   hit_break = debug_hit_break(reg_pc, addr_6502, opcode);
 

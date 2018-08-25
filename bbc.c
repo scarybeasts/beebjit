@@ -78,6 +78,7 @@ struct bbc_struct {
   int debug_flag;
   int run_flag;
   int print_flag;
+  int slow_flag;
   unsigned char* p_mem;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
@@ -110,7 +111,8 @@ bbc_create(unsigned char* p_os_rom,
            unsigned char* p_lang_rom,
            int debug_flag,
            int run_flag,
-           int print_flag) {
+           int print_flag,
+           int slow_flag) {
   struct debug_struct* p_debug;
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -123,6 +125,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
+  p_bbc->slow_flag = slow_flag;
 
   p_bbc->video_ula_control = 0;
 
@@ -365,6 +368,11 @@ bbc_get_run_flag(struct bbc_struct* p_bbc) {
 int
 bbc_get_print_flag(struct bbc_struct* p_bbc) {
   return p_bbc->print_flag;
+}
+
+int
+bbc_get_slow_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->slow_flag;
 }
 
 static void*
