@@ -625,6 +625,10 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     p_bbc->sysvia_ORB = val;
     bbc_sysvia_write_portb(p_bbc);
     break;
+  case k_addr_sysvia | k_via_ORA:
+    p_bbc->sysvia_ORA = val;
+    bbc_sysvia_write_porta(p_bbc);
+    break;
   case k_addr_sysvia | k_via_DDRB:
     p_bbc->sysvia_DDRB = val;
     bbc_sysvia_write_portb(p_bbc);
