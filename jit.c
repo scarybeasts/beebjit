@@ -1499,11 +1499,6 @@ jit_single(struct jit_struct* p_jit,
 
   opcode_addr_6502 = (operand2 << 8) | operand1;
 
-  if (p_jit->jit_flags & k_jit_flag_debug) {
-    jit_emit_debug_sequence(p_buf, addr_6502);
-    index = util_buffer_get_pos(p_buf);
-  }
-
   switch (opmode) {
   case k_zpx:
     index = jit_emit_zp_x_to_scratch(p_jit_buf, index, opcode_addr_6502);
@@ -2478,6 +2473,11 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
+  int debug = 0;
+
+  if (p_jit->jit_flags & k_jit_flag_debug) {
+    debug = 1;
+  }
 
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = util_buffer_create();
@@ -2510,13 +2510,17 @@ jit_at_addr(struct jit_struct* p_jit,
     optype = g_optypes[opcode_6502];
     new_nz_flags = g_nz_flag_pending[optype];
 
+    if (debug) {
+      jit_emit_debug_sequence(p_single_buf, addr_6502);
+    }
+
     num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502);
 
     opcode_6502_next = jit_get_opcode(p_jit, addr_6502 + num_6502_bytes);
     optype_next = g_optypes[opcode_6502_next];
 
     /* See if we need to load the 6502 NZ flags. */
-    if (g_nz_flags_needed[optype_next] && new_nz_flags != k_set) {
+    if ((debug || g_nz_flags_needed[optype_next]) && new_nz_flags != k_set) {
       unsigned char commit_nz_flags = 0;
       if (new_nz_flags != 0) {
         commit_nz_flags = new_nz_flags;
