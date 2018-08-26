@@ -765,7 +765,46 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc6;
 
+  /* Test JIT invalidation through different write modes. */
   index = set_new_index(index, 0x680);
+  p_mem[index++] = 0x20; /* JSR $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa0; /* LDY #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa9; /* LDA #$ca */ /* DEX opcode */
+  p_mem[index++] = 0xca;
+  p_mem[index++] = 0x9d; /* STA $3050,X */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xe0; /* CPX #$ff */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$88 */ /* DEY opcode */
+  p_mem[index++] = 0x88;
+  p_mem[index++] = 0x99; /* STA $3050,Y */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3050 */
+  p_mem[index++] = 0x50;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xc0; /* CPY #$ff */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C6C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc6;
+
+  index = set_new_index(index, 0x6c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -824,6 +863,11 @@ main(int argc, const char* argv[]) {
   index = set_new_index(index, 0x3050);
   p_mem[index++] = 0xe8; /* INX */
   p_mem[index++] = 0xc8; /* INY */
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* etc... */
+  index = set_new_index(index, 0x3060);
+  p_mem[index++] = 0xea; /* NOP */
   p_mem[index++] = 0x60; /* RTS */
 
   /* Need this byte here for a specific test. */
