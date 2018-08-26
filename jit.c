@@ -1374,6 +1374,97 @@ jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
 }
 
 static size_t
+jit_handle_invalidate(struct jit_struct* p_jit,
+                      unsigned char opmem,
+                      unsigned char opmode,
+                      uint16_t opcode_addr_6502,
+                      unsigned char* p_jit_buf,
+                      size_t index) {
+  /* TODO: it's most common that only the abs addressing mode needs to be
+   * handled for self-modifying to work.
+   * Should have a higher performance flag and mode just for this.
+   */
+  if (!(p_jit->jit_flags & k_jit_flag_self_modifying)) {
+    return index;
+  }
+  if (opmem != k_write && opmem != k_rw) {
+    return index;
+  }
+  if (opmode == k_nil ||
+      opmode == k_zpg ||
+      opmode == k_zpx ||
+      opmode == k_zpy) {
+    return index;
+  }
+
+  if (opmode == k_abs) {
+    /* mov edx, [rdi + k_offset_jit_ptrs + (addr * 4)] */
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x97;
+    index = jit_emit_int(p_jit_buf,
+                         index,
+                         k_offset_jit_ptrs +
+                             (opcode_addr_6502 * sizeof(unsigned int)));
+  } else if (opmode == k_abx) {
+    /* movzx r8, bl */
+    p_jit_buf[index++] = 0x4c;
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xb6;
+    p_jit_buf[index++] = 0xc3;
+    /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4)] */
+    p_jit_buf[index++] = 0x42;
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x94;
+    p_jit_buf[index++] = 0x87;
+    index = jit_emit_int(p_jit_buf,
+                         index,
+                         k_offset_jit_ptrs +
+                             (opcode_addr_6502 * sizeof(unsigned int)));
+  } else if (opmode == k_aby) {
+    /* movzx r8, cl */
+    p_jit_buf[index++] = 0x4c;
+    p_jit_buf[index++] = 0x0f;
+    p_jit_buf[index++] = 0xb6;
+    p_jit_buf[index++] = 0xc1;
+    /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4)] */
+    p_jit_buf[index++] = 0x42;
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x94;
+    p_jit_buf[index++] = 0x87;
+    index = jit_emit_int(p_jit_buf,
+                         index,
+                         k_offset_jit_ptrs +
+                             (opcode_addr_6502 * sizeof(unsigned int)));
+  } else if (opmode == k_idy) {
+    /* lea dx, [rdx + rcx] */
+    p_jit_buf[index++] = 0x66;
+    p_jit_buf[index++] = 0x8d;
+    p_jit_buf[index++] = 0x14;
+    p_jit_buf[index++] = 0x0a;
+    /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x54;
+    p_jit_buf[index++] = 0x97;
+    p_jit_buf[index++] = k_offset_jit_ptrs;
+  } else {
+    assert(opmode == k_idx);
+    /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x54;
+    p_jit_buf[index++] = 0x97;
+    p_jit_buf[index++] = k_offset_jit_ptrs;
+  }
+
+  /* mov WORD PTR [rdx], 0x17ff */
+  p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0xc7;
+  p_jit_buf[index++] = 0x02;
+  index = jit_emit_do_jit(p_jit_buf, index);
+
+  return index;
+}
+
+static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502) {
@@ -2288,69 +2379,12 @@ jit_single(struct jit_struct* p_jit,
   }
 
   /* Writes to memory invalidate the JIT there. */
-  if ((p_jit->jit_flags & k_jit_flag_self_modifying) &&
-      (opmem == k_write || opmem == k_rw)) {
-    if (opmode == k_abs) {
-      /* mov edx, [rdi + k_offset_jit_ptrs + (addr * 4) */
-      p_jit_buf[index++] = 0x8b;
-      p_jit_buf[index++] = 0x97;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           k_offset_jit_ptrs +
-                               (opcode_addr_6502 * sizeof(unsigned int)));
-      /* mov WORD PTR [rdx], 0x17ff */
-      p_jit_buf[index++] = 0x66;
-      p_jit_buf[index++] = 0xc7;
-      p_jit_buf[index++] = 0x02;
-      index = jit_emit_do_jit(p_jit_buf, index);
-    } else if (opmode == k_abx) {
-      /* movzx r8, bl */
-      p_jit_buf[index++] = 0x4c;
-      p_jit_buf[index++] = 0x0f;
-      p_jit_buf[index++] = 0xb6;
-      p_jit_buf[index++] = 0xc3;
-      /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4) */
-      p_jit_buf[index++] = 0x42;
-      p_jit_buf[index++] = 0x8b;
-      p_jit_buf[index++] = 0x94;
-      p_jit_buf[index++] = 0x87;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           k_offset_jit_ptrs +
-                               (opcode_addr_6502 * sizeof(unsigned int)));
-      /* mov WORD PTR [rdx], 0x17ff */
-      p_jit_buf[index++] = 0x66;
-      p_jit_buf[index++] = 0xc7;
-      p_jit_buf[index++] = 0x02;
-      index = jit_emit_do_jit(p_jit_buf, index);
-    } else if (opmode == k_aby) {
-      /* movzx r8, cl */
-      p_jit_buf[index++] = 0x4c;
-      p_jit_buf[index++] = 0x0f;
-      p_jit_buf[index++] = 0xb6;
-      p_jit_buf[index++] = 0xc1;
-      /* mov edx, [rdi + k_offset_jit_ptrs + r8*4 + (addr * 4) */
-      p_jit_buf[index++] = 0x42;
-      p_jit_buf[index++] = 0x8b;
-      p_jit_buf[index++] = 0x94;
-      p_jit_buf[index++] = 0x87;
-      index = jit_emit_int(p_jit_buf,
-                           index,
-                           k_offset_jit_ptrs +
-                               (opcode_addr_6502 * sizeof(unsigned int)));
-      /* mov WORD PTR [rdx], 0x17ff */
-      p_jit_buf[index++] = 0x66;
-      p_jit_buf[index++] = 0xc7;
-      p_jit_buf[index++] = 0x02;
-      index = jit_emit_do_jit(p_jit_buf, index);
-    } else if (opmode == k_idy) {
-      /* lea dx, [rdx + rcx] */
-      /*p_jit_buf[index++] = 0x66;
-      p_jit_buf[index++] = 0x8d;
-      p_jit_buf[index++] = 0x14;
-      p_jit_buf[index++] = 0x0a;*/
-    }
-  }
+  index = jit_handle_invalidate(p_jit,
+                                opmem,
+                                opmode,
+                                opcode_addr_6502,
+                                p_jit_buf,
+                                index);
 
   util_buffer_set_pos(p_buf, index);
 
