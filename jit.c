@@ -1604,6 +1604,20 @@ jit_single(struct jit_struct* p_jit,
       break;
     }
     break;
+  case k_unk:
+    switch (opcode) {
+    case 0x04:
+      /* NOP zp */
+      /* nop */ /* Opcodes byte length must be at least 2. */
+      p_jit_buf[index++] = 0x90;
+      /* nop */
+      p_jit_buf[index++] = 0x90;
+      break;
+    default:
+      index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
+      break;
+    }
+    break;
   case k_brk:
     /* BRK */
     index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502 + 2, 1);
@@ -2360,7 +2374,7 @@ jit_single(struct jit_struct* p_jit,
                                    0x84);
     break;
   default:
-    index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
+    assert(0);
     break;
   }
 
