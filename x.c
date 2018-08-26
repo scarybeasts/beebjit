@@ -245,13 +245,13 @@ x_render(struct x_struct* p_x) {
   colors[5] = 0x00ff00ff;
   colors[6] = 0x0000ffff;
   colors[7] = 0x00ffffff;
-  colors[8] = 0x00ffffff;
-  colors[9] = 0x00ffffff;
-  colors[10] = 0x00ffffff;
-  colors[11] = 0x00ffffff;
-  colors[12] = 0x00ffffff;
-  colors[13] = 0x00ffffff;
-  colors[14] = 0x00ffffff;
+  colors[8] = 0;
+  colors[9] = 0x00ff0000;
+  colors[10] = 0x0000ff00;
+  colors[11] = 0x00ffff00;
+  colors[12] = 0x000000ff;
+  colors[13] = 0x00ff00ff;
+  colors[14] = 0x0000ffff;
   colors[15] = 0x00ffffff;
 
   ret = XClearWindow(p_x->d, p_x->w);
