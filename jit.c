@@ -2421,9 +2421,15 @@ jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static void
 jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = p_jit->p_jit_base;
-  p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
+  unsigned char* p_jit_ptr;
+
+  p_jit_ptr = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
   (void) jit_emit_do_jit(p_jit_ptr, 0);
+}
+
+void
+jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502) {
+  jit_addr_invalidate(p_jit, addr_6502);
 }
 
 static void
@@ -2595,7 +2601,7 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
    * Upon hitting this trap, we could re-JIT everything in a new mode that does
    * invalidate JIT upon writes to these addresses. This is unimplemented.
    */
-  assert(block_addr_6502 >= 0x200);
+/*  assert(block_addr_6502 >= 0x200);*/
 
   p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
 

@@ -81,6 +81,9 @@ void bbc_set_memory_block(struct bbc_struct* p_bbc,
                           uint16_t addr,
                           uint16_t len,
                           unsigned char* p_src_mem);
+void bbc_memory_write(struct bbc_struct* p_bbc,
+                      uint16_t addr_6502,
+                      unsigned char val);
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);

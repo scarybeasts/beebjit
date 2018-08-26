@@ -302,13 +302,24 @@ bbc_set_memory_block(struct bbc_struct* p_bbc,
                      uint16_t addr,
                      uint16_t len,
                      unsigned char* p_src_mem) {
+  size_t count = 0;
+  while (count < len) {
+    bbc_memory_write(p_bbc, addr, p_src_mem[count]);
+    count++;
+    addr++;
+  }
+}
+
+void
+bbc_memory_write(struct bbc_struct* p_bbc,
+                 uint16_t addr_6502,
+                 unsigned char val) {
   unsigned char* p_mem = p_bbc->p_mem;
+  struct jit_struct* p_jit = p_bbc->p_jit;
 
-  assert((addr + len) <= 65536);
+  p_mem[addr_6502] = val;
 
-  memcpy(p_mem + addr, p_src_mem, len);
-
-  /* TODO: invalidate the old JIT for this memory area. */
+  jit_memory_written(p_jit, addr_6502);
 }
 
 unsigned char

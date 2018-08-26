@@ -638,7 +638,7 @@ debug_callback(struct debug_struct* p_debug) {
     } else if (sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2 &&
                parse_int >= 0 &&
                parse_int < 65536) {
-      p_mem[parse_int] = parse_int2;
+      bbc_memory_write(p_bbc, parse_int, parse_int2);
     } else if (sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,
