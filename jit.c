@@ -3,7 +3,6 @@
 #include "jit.h"
 
 #include "bbc.h"
-#include "debug.h"
 #include "opdefs.h"
 #include "util.h"
 
