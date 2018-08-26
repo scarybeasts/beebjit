@@ -129,10 +129,6 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   p_bem = (struct bem_v2x*) snapshot;
 
-  if (p_bem->fe30 != 0x0f || p_bem->fe34 != 0x00) {
-    errx(1, "can only load standard RAM / ROM setups");
-  }
-
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
   bbc_set_registers(p_bbc,
