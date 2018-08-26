@@ -559,7 +559,7 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     return 0;
   case k_addr_sysvia | k_via_ORB:
     assert((p_bbc->sysvia_PCR & 0xa0) != 0x20);
-    assert(!(p_bbc->sysvia_ACR & 2));
+    assert(!(p_bbc->sysvia_ACR & 0x02));
     orb = p_bbc->sysvia_ORB;
     ddrb = p_bbc->sysvia_DDRB;
     val = orb & ddrb;
@@ -575,7 +575,7 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   case k_addr_sysvia | k_via_IER:
     return p_bbc->sysvia_IER | 0x80;
   case k_addr_sysvia | k_via_ORAnh:
-    assert(!(p_bbc->sysvia_ACR & 1));
+    assert(!(p_bbc->sysvia_ACR & 0x01));
     ora = p_bbc->sysvia_ORA;
     ddra = p_bbc->sysvia_DDRA;
     val = ora & ddra;
@@ -630,10 +630,16 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     printf("ignoring ROM latch write\n");
     break;
   case k_addr_sysvia | k_via_ORB:
+    assert((p_bbc->sysvia_PCR & 0xa0) != 0x20);
+    assert((p_bbc->sysvia_PCR & 0xe0) != 0x80);
+    assert((p_bbc->sysvia_PCR & 0xe0) != 0xa0);
     p_bbc->sysvia_ORB = val;
     bbc_sysvia_write_portb(p_bbc);
     break;
   case k_addr_sysvia | k_via_ORA:
+    assert((p_bbc->sysvia_PCR & 0x0a) != 0x02);
+    assert((p_bbc->sysvia_PCR & 0x0e) != 0x08);
+    assert((p_bbc->sysvia_PCR & 0x0e) != 0x0a);
     p_bbc->sysvia_ORA = val;
     bbc_sysvia_write_porta(p_bbc);
     break;
@@ -658,18 +664,21 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     break;
   case k_addr_sysvia | k_via_T1LH:
     assert(val == 0x27);
+    /* TODO: clear timer interrupt if acr & 0x40. */
     p_bbc->sysvia_T1LH = val;
     break;
   case k_addr_sysvia | k_via_SR:
     p_bbc->sysvia_SR = val;
     break;
   case k_addr_sysvia | k_via_ACR:
-    assert(val == 0x60);
     p_bbc->sysvia_ACR = val;
     printf("new sysvia ACR %x\n", val);
     break;
   case k_addr_sysvia | k_via_PCR:
-    assert(val == 4);
+    assert((val & 0x0e) != 0x0c);
+    assert(!(val & 0x08));
+    assert((val & 0xe0) != 0xc0);
+    assert(!(val & 0x80));
     p_bbc->sysvia_PCR = val;
     printf("new sysvia PCR %x\n", val);
     break;
