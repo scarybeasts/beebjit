@@ -6,12 +6,12 @@ Based on:
 Commands to run game:
 *LOAD TARZAN2
 CALL &4332
+Initial 6502 PC: $2E11
 Notes:
 1) Initial relocation routine jumps to $2E11 at $438E.
 2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC is
 nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
-Initial 6502 PC: $2E11.
 
 - galaforce.bem
 Based on:
@@ -19,6 +19,9 @@ Based on:
 Commands to run game:
 *LOAD GALA3
 CALL &4000
+Initial 6502 PC: $4000
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $0D8F
 Notes:
 1) Loader code, starting at $4000, is self-modifying. INC $402F, at $4036,
 changes the low byte of the operand for LDA $1A00,X, for example.
@@ -27,6 +30,8 @@ low byte. Looks like it's seeding and running an RNG?
 3) Game code at $1B04 self-modifies the operand of the LDA #$00 at $1B1E.
 4) Game code at $0B5A, first time through, starts writing at high addresses,
 the first being $C039?? That's ROM, not writeable.
+5) Sprite plot routine is at $0B00 and starts with a bunch of self-modifying
+writes.
 
 - mree.bem
 Based on:
@@ -38,3 +43,34 @@ Notes:
 1) Immediately, $4302 writes to ROM?! via STA $801B.
 2) Uses SED, ugh, first instance $0DB5. Unclear why.
 3) Waits for uservia timer to fire at $0987.
+
+- cit.bem
+Based on:
+1e91b92780aac00ad3afff07af58c761  Citadel.zip
+Initial 6502 PC: $55E8
+IRQ1V @ $0204: $DC93
+Notes:
+1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
+2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
+3) Breaking at $55E8 is where the main game has finished loading from disk.
+4) Need to load the loader first to select key layout for main game to work.
+
+- Hopper
+Based on:
+d2e7a0712d13b5c26d8cd0360551bfdf  Hopper.zip
+IRQ1V @ $0204: $DC93 (default)
+Notes:
+- Uses SED.
+- Self-modifies a drawing route at $1F8E using aby addressing mode:
+  STA $2004,Y. Routine starts at $1F7A. 8 bytes of code are written.
+- Self-modified instructions are different opcodes, e.g. starts with
+  LDA ($72),Y vs. LDA #$30.
+
+- Exile
+Based on:
+cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
+IRQ1V @ $0204: $12A6
+Notes:
+- Uses SED, at $6045, as part of checksumming the saved game file?
+- Lots of self-modifying code.
+
