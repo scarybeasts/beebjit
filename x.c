@@ -60,6 +60,8 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   if (p_x == NULL) {
     errx(1, "couldn't allocate x_struct");
   }
+  memset(p_x, '\0', sizeof(struct x_struct));
+
   p_x->p_bbc = p_bbc;
   p_x->chars_width = chars_width;
   p_x->chars_height = chars_height;
