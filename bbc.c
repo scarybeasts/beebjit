@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "jit.h"
 #include "util.h"
+#include "video.h"
 
 #include <assert.h>
 #include <err.h>
@@ -18,9 +19,6 @@ static void* k_mem_addr = (void*) 0x10000000;
 
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
-static const size_t k_mode7_offset = 0x7c00;
-static const size_t k_mode45_offset = 0x5800;
-static const size_t k_mode012_offset = 0x3000;
 
 static const size_t k_registers_offset = 0xfc00;
 static const size_t k_registers_len = 0x300;
@@ -43,13 +41,6 @@ enum {
 enum {
   k_video_ula_control = 0x0,
   k_video_ula_palette = 0x1,
-};
-enum {
-  k_ula_teletext = 0x02,
-  k_ula_chars_per_line = 0x0c,
-  k_ula_chars_per_line_shift = 2,
-  k_ula_clock_speed = 0x10,
-  k_ula_clock_speed_shift = 4,
 };
 enum {
   k_via_ORB =   0x0,
@@ -80,10 +71,9 @@ struct bbc_struct {
   int print_flag;
   int slow_flag;
   unsigned char* p_mem;
+  struct video_struct* p_video;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
-
-  unsigned char video_ula_control;
 
   unsigned char sysvia_ORB;
   unsigned char sysvia_ORA;
@@ -127,8 +117,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
-  p_bbc->video_ula_control = 0;
-
   p_bbc->sysvia_ORB = 0;
   p_bbc->sysvia_ORA = 0;
   p_bbc->sysvia_DDRB = 0;
@@ -147,6 +135,11 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->uservia_PCR = 0;
 
   p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
+
+  p_bbc->p_video = video_create(p_bbc->p_mem);
+  if (p_bbc->p_video == NULL) {
+    errx(1, "video_create failed");
+  }
 
   p_debug = debug_create(p_bbc);
   if (p_debug == NULL) {
@@ -174,6 +167,7 @@ void
 bbc_destroy(struct bbc_struct* p_bbc) {
   jit_destroy(p_bbc->p_jit);
   debug_destroy(p_bbc->p_debug);
+  video_destroy(p_bbc->p_video);
   util_free_guarded_mapping(p_bbc->p_mem, k_addr_space_size);
   free(p_bbc);
 }
@@ -292,6 +286,11 @@ bbc_get_jit(struct bbc_struct* p_bbc) {
   return p_bbc->p_jit;
 }
 
+struct video_struct*
+bbc_get_video(struct bbc_struct* p_bbc) {
+  return p_bbc->p_video;
+}
+
 unsigned char*
 bbc_get_mem(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem;
@@ -320,55 +319,6 @@ bbc_memory_write(struct bbc_struct* p_bbc,
   p_mem[addr_6502] = val;
 
   jit_memory_written(p_jit, addr_6502);
-}
-
-unsigned char
-bbc_get_video_ula_control(struct bbc_struct* p_bbc) {
-  return p_bbc->video_ula_control;
-}
-
-void
-bbc_set_video_ula_control(struct bbc_struct* p_bbc, unsigned char val) {
-  p_bbc->video_ula_control = val;
-}
-
-unsigned char*
-bbc_get_screen_mem(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
-  size_t offset;
-  if (ula_control & k_ula_teletext) {
-    offset = k_mode7_offset;
-  } else if (bbc_get_screen_clock_speed(p_bbc) == 1) {
-    offset = k_mode012_offset;
-  } else {
-    offset = k_mode45_offset;
-  }
-  return p_bbc->p_mem + offset;
-}
-
-int
-bbc_get_screen_is_text(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
-  if (ula_control & k_ula_teletext) {
-    return 1;
-  }
-  return 0;
-}
-
-size_t
-bbc_get_screen_pixel_width(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
-  unsigned char ula_chars_per_line = (ula_control & k_ula_chars_per_line) >>
-                                         k_ula_chars_per_line_shift;
-  return 1 << (3 - ula_chars_per_line);
-}
-
-size_t
-bbc_get_screen_clock_speed(struct bbc_struct* p_bbc) {
-  unsigned char ula_control = bbc_get_video_ula_control(p_bbc);
-  unsigned char clock_speed = (ula_control & k_ula_clock_speed) >>
-                                  k_ula_clock_speed_shift;
-  return clock_speed;
 }
 
 int
@@ -610,6 +560,7 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
 
 void
 bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
+  struct video_struct* p_video = bbc_get_video(p_bbc);
   /* We bounce here for ROM writes as well as register writes; ROM writes
    * are simply squashed.
    */
@@ -632,10 +583,10 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     printf("ignoring serial ULA write\n");
     break;
   case k_addr_video_ula | k_video_ula_control:
-    bbc_set_video_ula_control(p_bbc, val);
+    video_set_ula_control(p_video, val);
     break;
   case k_addr_video_ula | k_video_ula_palette:
-    printf("ignoring video ULA palette write\n");
+    video_set_ula_palette(p_video, val);
     break;
   case k_addr_rom_latch:
     printf("ignoring ROM latch write\n");

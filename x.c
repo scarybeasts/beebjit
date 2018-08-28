@@ -1,6 +1,7 @@
 #include "x.h"
 
 #include "bbc.h"
+#include "video.h"
 
 #include <X11/Xlib.h>
 
@@ -229,32 +230,10 @@ x_destroy(struct x_struct* p_x) {
 void
 x_render(struct x_struct* p_x) {
   struct bbc_struct* p_bbc = p_x->p_bbc;
-  size_t y_offset = 16;
-  unsigned char* p_screen_mem = bbc_get_screen_mem(p_bbc);
-  int is_text = bbc_get_screen_is_text(p_bbc);
-  size_t pixel_width = bbc_get_screen_pixel_width(p_bbc);
-  size_t clock_speed = bbc_get_screen_clock_speed(p_bbc);
-  size_t x;
-  size_t y;
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+  int is_text = video_is_text(p_video);
+
   int ret;
-  unsigned int colors[16];
-  memset(colors, '\0', sizeof(colors));
-  colors[0] = 0;
-  colors[1] = 0x00ff0000;
-  colors[2] = 0x0000ff00;
-  colors[3] = 0x00ffff00;
-  colors[4] = 0x000000ff;
-  colors[5] = 0x00ff00ff;
-  colors[6] = 0x0000ffff;
-  colors[7] = 0x00ffffff;
-  colors[8] = 0;
-  colors[9] = 0x00ff0000;
-  colors[10] = 0x0000ff00;
-  colors[11] = 0x00ffff00;
-  colors[12] = 0x000000ff;
-  colors[13] = 0x00ff00ff;
-  colors[14] = 0x0000ffff;
-  colors[15] = 0x00ffffff;
 
   ret = XClearWindow(p_x->d, p_x->w);
   if (ret != 1) {
@@ -262,6 +241,9 @@ x_render(struct x_struct* p_x) {
   }
 
   if (is_text) {
+    unsigned char* p_video_mem = video_get_memory(p_video);
+    size_t y_offset = 16;
+    size_t y;
     for (y = 0; y < p_x->chars_height; ++y) {
       /* Seems to return 0 on success -- status not checked. */
       XDrawString(p_x->d,
@@ -269,188 +251,13 @@ x_render(struct x_struct* p_x) {
                   p_x->gc,
                   0,
                   y_offset,
-                  (char*) p_screen_mem,
+                  (char*) p_video_mem,
                   p_x->chars_width);
-      p_screen_mem += p_x->chars_width;
+      p_video_mem += p_x->chars_width;
       y_offset += 16;
     }
-  } else if (pixel_width == 1)  {
-    assert(clock_speed == 1);
-    for (y = 0; y < 32; ++y) {
-      for (x = 0; x < 80; ++x) {
-        size_t y2;
-        for (y2 = 0; y2 < 8; ++y2) {
-          unsigned char packed_pixels = *p_screen_mem++;
-          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
-          unsigned char p1 = !!(packed_pixels & 0x80);
-          unsigned char p2 = !!(packed_pixels & 0x40);
-          unsigned char p3 = !!(packed_pixels & 0x20);
-          unsigned char p4 = !!(packed_pixels & 0x10);
-          unsigned char p5 = !!(packed_pixels & 0x08);
-          unsigned char p6 = !!(packed_pixels & 0x04);
-          unsigned char p7 = !!(packed_pixels & 0x02);
-          unsigned char p8 = !!(packed_pixels & 0x01);
-          p_x_mem += ((y * 8) + y2) * 2 * 640;
-          p_x_mem += x * 8;
-          p_x_mem[0] = ~(p1 - 1);
-          p_x_mem[1] = ~(p2 - 1);
-          p_x_mem[2] = ~(p3 - 1);
-          p_x_mem[3] = ~(p4 - 1);
-          p_x_mem[4] = ~(p5 - 1);
-          p_x_mem[5] = ~(p6 - 1);
-          p_x_mem[6] = ~(p7 - 1);
-          p_x_mem[7] = ~(p8 - 1);
-          p_x_mem[640] = ~(p1 - 1);
-          p_x_mem[641] = ~(p2 - 1);
-          p_x_mem[642] = ~(p3 - 1);
-          p_x_mem[643] = ~(p4 - 1);
-          p_x_mem[644] = ~(p5 - 1);
-          p_x_mem[645] = ~(p6 - 1);
-          p_x_mem[646] = ~(p7 - 1);
-          p_x_mem[647] = ~(p8 - 1);
-        }
-      }
-    }
-  } else if (pixel_width == 2 && clock_speed == 1) {
-    for (y = 0; y < 32; ++y) {
-      for (x = 0; x < 80; ++x) {
-        size_t y2;
-        for (y2 = 0; y2 < 8; ++y2) {
-          unsigned char packed_pixels = *p_screen_mem++;
-          /* TODO: lookup table to make this fast. */
-          unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
-                             ((packed_pixels & 0x08) >> 3);
-          unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
-                             ((packed_pixels & 0x04) >> 2);
-          unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
-                             ((packed_pixels & 0x02) >> 1);
-          unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
-                             ((packed_pixels & 0x01) >> 0);
-          unsigned int p1 = colors[(1 << v1) - 1];
-          unsigned int p2 = colors[(1 << v2) - 1];
-          unsigned int p3 = colors[(1 << v3) - 1];
-          unsigned int p4 = colors[(1 << v4) - 1];
-          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
-          p_x_mem += ((y * 8) + y2) * 2 * 640;
-          p_x_mem += x * 8;
-          p_x_mem[0] = p1;
-          p_x_mem[1] = p1;
-          p_x_mem[2] = p2;
-          p_x_mem[3] = p2;
-          p_x_mem[4] = p3;
-          p_x_mem[5] = p3;
-          p_x_mem[6] = p4;
-          p_x_mem[7] = p4;
-          p_x_mem[640] = p1;
-          p_x_mem[641] = p1;
-          p_x_mem[642] = p2;
-          p_x_mem[643] = p2;
-          p_x_mem[644] = p3;
-          p_x_mem[645] = p3;
-          p_x_mem[646] = p4;
-          p_x_mem[647] = p4;
-        }
-      }
-    }
-  } else if (pixel_width == 4 && clock_speed == 0) {
-    for (y = 0; y < 32; ++y) {
-      for (x = 0; x < 40; ++x) {
-        size_t y2;
-        for (y2 = 0; y2 < 8; ++y2) {
-          unsigned char packed_pixels = *p_screen_mem++;
-          /* TODO: lookup table to make this fast. */
-          unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
-                             ((packed_pixels & 0x08) >> 3);
-          unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
-                             ((packed_pixels & 0x04) >> 2);
-          unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
-                             ((packed_pixels & 0x02) >> 1);
-          unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
-                             ((packed_pixels & 0x01) >> 0);
-          unsigned int p1 = colors[(1 << v1) - 1];
-          unsigned int p2 = colors[(1 << v2) - 1];
-          unsigned int p3 = colors[(1 << v3) - 1];
-          unsigned int p4 = colors[(1 << v4) - 1];
-          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
-          p_x_mem += ((y * 8) + y2) * 2 * 640;
-          p_x_mem += x * 16;
-          p_x_mem[0] = p1;
-          p_x_mem[1] = p1;
-          p_x_mem[2] = p1;
-          p_x_mem[3] = p1;
-          p_x_mem[4] = p2;
-          p_x_mem[5] = p2;
-          p_x_mem[6] = p2;
-          p_x_mem[7] = p2;
-          p_x_mem[8] = p3;
-          p_x_mem[9] = p3;
-          p_x_mem[10] = p3;
-          p_x_mem[11] = p3;
-          p_x_mem[12] = p4;
-          p_x_mem[13] = p4;
-          p_x_mem[14] = p4;
-          p_x_mem[15] = p4;
-          p_x_mem[640] = p1;
-          p_x_mem[641] = p1;
-          p_x_mem[642] = p1;
-          p_x_mem[643] = p1;
-          p_x_mem[644] = p2;
-          p_x_mem[645] = p2;
-          p_x_mem[646] = p2;
-          p_x_mem[647] = p2;
-          p_x_mem[648] = p3;
-          p_x_mem[649] = p3;
-          p_x_mem[650] = p3;
-          p_x_mem[651] = p3;
-          p_x_mem[652] = p4;
-          p_x_mem[653] = p4;
-          p_x_mem[654] = p4;
-          p_x_mem[655] = p4;
-        }
-      }
-    }
-  } else if (pixel_width == 4 && clock_speed == 1) {
-    for (y = 0; y < 32; ++y) {
-      for (x = 0; x < 80; ++x) {
-        size_t y2;
-        for (y2 = 0; y2 < 8; ++y2) {
-          unsigned char packed_pixels = *p_screen_mem++;
-          /* TODO: lookup table to make this fast. */
-          unsigned char v1 = ((packed_pixels & 0x80) >> 4) |
-                             ((packed_pixels & 0x20) >> 3) |
-                             ((packed_pixels & 0x08) >> 2) |
-                             ((packed_pixels & 0x02) >> 1);
-          unsigned char v2 = ((packed_pixels & 0x40) >> 3) |
-                             ((packed_pixels & 0x10) >> 2) |
-                             ((packed_pixels & 0x04) >> 1) |
-                             ((packed_pixels & 0x01) >> 0);
-          unsigned int p1 = colors[v1];
-          unsigned int p2 = colors[v2];
-          unsigned int* p_x_mem = (unsigned int*) p_x->p_shm;
-          p_x_mem += ((y * 8) + y2) * 2 * 640;
-          p_x_mem += x * 8;
-          p_x_mem[0] = p1;
-          p_x_mem[1] = p1;
-          p_x_mem[2] = p1;
-          p_x_mem[3] = p1;
-          p_x_mem[4] = p2;
-          p_x_mem[5] = p2;
-          p_x_mem[6] = p2;
-          p_x_mem[7] = p2;
-          p_x_mem[640] = p1;
-          p_x_mem[641] = p1;
-          p_x_mem[642] = p1;
-          p_x_mem[643] = p1;
-          p_x_mem[644] = p2;
-          p_x_mem[645] = p2;
-          p_x_mem[646] = p2;
-          p_x_mem[647] = p2;
-        }
-      }
-    }
-  }
-
-  if (!is_text) {
+  } else {
+    video_render(p_video, p_x->p_shm, 640, 512, 4);
     Bool bool_ret = XShmPutImage(p_x->d,
                                  p_x->w,
                                  p_x->gc,

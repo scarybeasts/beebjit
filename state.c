@@ -1,6 +1,7 @@
 #include "state.h"
 
 #include "bbc.h"
+#include "video.h"
 
 #include <assert.h>
 #include <err.h>
@@ -125,6 +126,8 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
 
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+
   state_read(snapshot, p_file_name);
 
   p_bem = (struct bem_v2x*) snapshot;
@@ -139,7 +142,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->flags,
                     p_bem->pc);
 
-  bbc_set_video_ula_control(p_bbc, p_bem->ula_control);
+  video_set_ula_control(p_video, p_bem->ula_control);
   bbc_set_sysvia(p_bbc,
                  p_bem->sysvia_ora,
                  p_bem->sysvia_orb,
@@ -178,6 +181,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   int ret;
   ssize_t write_ret;
 
+  struct video_struct* p_video = bbc_get_video(p_bbc);
   unsigned char* p_mem = bbc_get_mem(p_bbc);
 
   memset(snapshot, '\0', k_snapshot_size);
@@ -198,7 +202,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->s,
                     &p_bem->flags,
                     &p_bem->pc);
-  p_bem->ula_control = bbc_get_video_ula_control(p_bbc);
+  p_bem->ula_control = video_get_ula_control(p_video);
   bbc_get_sysvia(p_bbc,
                  &p_bem->sysvia_ora,
                  &p_bem->sysvia_orb,

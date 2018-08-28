@@ -13,10 +13,6 @@ enum {
   k_bbc_vector_reset = 0xfffc,
   k_bbc_vector_irq = 0xfffe,
 };
-enum {
-  k_bbc_mode7_width = 40,
-  k_bbc_mode7_height = 25,
-};
 
 struct bbc_struct;
 
@@ -69,13 +65,11 @@ void bbc_set_sysvia(struct bbc_struct* p_bbc,
                     unsigned char sysvia_IFR,
                     unsigned char sysvia_IER,
                     unsigned char sysvia_IC32);
-unsigned char bbc_get_video_ula_control(struct bbc_struct* p_bbc);
-void bbc_set_video_ula_control(struct bbc_struct* p_bbc,
-                               unsigned char ula_control);
 
 void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
+struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mem(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
                           uint16_t addr,
@@ -88,11 +82,6 @@ void bbc_memory_write(struct bbc_struct* p_bbc,
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_slow_flag(struct bbc_struct* p_bbc);
-
-unsigned char* bbc_get_screen_mem(struct bbc_struct* p_bbc);
-int bbc_get_screen_is_text(struct bbc_struct* p_bbc);
-size_t bbc_get_screen_pixel_width(struct bbc_struct* p_bbc);
-size_t bbc_get_screen_clock_speed(struct bbc_struct* p_bbc);
 
 int bbc_is_special_read_address(struct bbc_struct* p_bbc,
                                 uint16_t addr_low,

@@ -1,5 +1,6 @@
 #include "bbc.h"
 #include "state.h"
+#include "video.h"
 #include "x.h"
 
 #include <err.h>
