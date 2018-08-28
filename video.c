@@ -22,6 +22,7 @@ enum {
 struct video_struct {
   unsigned char* p_mem;
   unsigned char video_ula_control;
+  unsigned char video_palette[16];
   unsigned int palette[16];
 };
 
@@ -366,10 +367,21 @@ video_set_ula_control(struct video_struct* p_video, unsigned char val) {
 }
 
 void
+video_get_ula_full_palette(struct video_struct* p_video,
+                           unsigned char* p_values) {
+  size_t i;
+  for (i = 0; i < 16; ++i) {
+    p_values[i] = p_video->video_palette[i];
+  }
+}
+
+void
 video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
   unsigned char index = (val >> 4);
   unsigned char rgbf = (val & 0x0f);
   unsigned int color = 0xff000000;
+
+  p_video->video_palette[index] = rgbf;
 
   if (!(rgbf & 0x1)) {
     color |= 0x00ff0000;
@@ -382,6 +394,17 @@ video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
   }
 
   p_video->palette[index] = color;
+}
+
+void
+video_set_ula_full_palette(struct video_struct* p_video,
+                           const unsigned char* p_values) {
+  size_t i;
+  for (i = 0; i < 16; ++i) {
+    unsigned char val = p_values[i] & 0x0f;
+    val |= (i << 4);
+    video_set_ula_palette(p_video, val);
+  }
 }
 
 unsigned char*

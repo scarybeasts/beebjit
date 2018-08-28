@@ -23,6 +23,10 @@ unsigned char* video_get_memory(struct video_struct* p_video);
 int video_is_text(struct video_struct* p_video);
 unsigned char video_get_ula_control(struct video_struct* p_video);
 void video_set_ula_control(struct video_struct* p_video, unsigned char val);
+void video_get_ula_full_palette(struct video_struct* p_video,
+                                unsigned char* p_values);
 void video_set_ula_palette(struct video_struct* p_video, unsigned char val);
+void video_set_ula_full_palette(struct video_struct* p_video,
+                                const unsigned char* p_values);
 
 #endif /* BEEBJIT_VIDEO_H */
