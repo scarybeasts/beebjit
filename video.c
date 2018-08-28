@@ -86,6 +86,64 @@ video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 }
 
 static void
+video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t y;
+  for (y = 0; y < 32; ++y) {
+    size_t x;
+    for (x = 0; x < 40; ++x) {
+      size_t y2;
+      for (y2 = 0; y2 < 8; ++y2) {
+        unsigned char packed_pixels = *p_video_mem++;
+        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
+        unsigned char p1 = !!(packed_pixels & 0x80);
+        unsigned char p2 = !!(packed_pixels & 0x40);
+        unsigned char p3 = !!(packed_pixels & 0x20);
+        unsigned char p4 = !!(packed_pixels & 0x10);
+        unsigned char p5 = !!(packed_pixels & 0x08);
+        unsigned char p6 = !!(packed_pixels & 0x04);
+        unsigned char p7 = !!(packed_pixels & 0x02);
+        unsigned char p8 = !!(packed_pixels & 0x01);
+        p_x_mem += ((y * 8) + y2) * 2 * 640;
+        p_x_mem += x * 16;
+        p_x_mem[0] = ~(p1 - 1);
+        p_x_mem[1] = ~(p1 - 1);
+        p_x_mem[2] = ~(p2 - 1);
+        p_x_mem[3] = ~(p2 - 1);
+        p_x_mem[4] = ~(p3 - 1);
+        p_x_mem[5] = ~(p3 - 1);
+        p_x_mem[6] = ~(p4 - 1);
+        p_x_mem[7] = ~(p4 - 1);
+        p_x_mem[8] = ~(p5 - 1);
+        p_x_mem[9] = ~(p5 - 1);
+        p_x_mem[10] = ~(p6 - 1);
+        p_x_mem[11] = ~(p6 - 1);
+        p_x_mem[12] = ~(p7 - 1);
+        p_x_mem[13] = ~(p7 - 1);
+        p_x_mem[14] = ~(p8 - 1);
+        p_x_mem[15] = ~(p8 - 1);
+        p_x_mem[640] = ~(p1 - 1);
+        p_x_mem[641] = ~(p1 - 1);
+        p_x_mem[642] = ~(p2 - 1);
+        p_x_mem[643] = ~(p2 - 1);
+        p_x_mem[644] = ~(p3 - 1);
+        p_x_mem[645] = ~(p3 - 1);
+        p_x_mem[646] = ~(p4 - 1);
+        p_x_mem[647] = ~(p4 - 1);
+        p_x_mem[648] = ~(p5 - 1);
+        p_x_mem[649] = ~(p5 - 1);
+        p_x_mem[650] = ~(p6 - 1);
+        p_x_mem[651] = ~(p6 - 1);
+        p_x_mem[652] = ~(p7 - 1);
+        p_x_mem[653] = ~(p7 - 1);
+        p_x_mem[654] = ~(p8 - 1);
+        p_x_mem[655] = ~(p8 - 1);
+      }
+    }
+  }
+}
+
+static void
 video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
   unsigned int* p_palette = &p_video->palette[0];
@@ -280,6 +338,8 @@ video_render(struct video_struct* p_video,
   if (pixel_width == 1)  {
     assert(clock_speed == 1);
     video_mode0_render(p_video, p_x_mem);
+  } else if (pixel_width == 2 && clock_speed == 0) {
+    video_mode4_render(p_video, p_x_mem);
   } else if (pixel_width == 2 && clock_speed == 1) {
     video_mode1_render(p_video, p_x_mem);
   } else if (pixel_width == 4 && clock_speed == 1) {
@@ -291,7 +351,6 @@ video_render(struct video_struct* p_video,
      * just not set.
      */
   } else {
-    /* Mode 6? */
     assert(0);
   }
 }
@@ -311,8 +370,6 @@ video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
   unsigned char index = (val >> 4);
   unsigned char rgbf = (val & 0x0f);
   unsigned int color = 0xff000000;
-
-printf("index %x val %x invval %x\n", index, rgbf, ~rgbf);
 
   if (!(rgbf & 0x1)) {
     color |= 0x00ff0000;
