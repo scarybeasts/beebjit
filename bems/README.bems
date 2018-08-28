@@ -49,11 +49,14 @@ Based on:
 1e91b92780aac00ad3afff07af58c761  Citadel.zip
 Initial 6502 PC: $55E8
 IRQ1V @ $0204: $DC93
+EVNTV @ $0220: $2500
 Notes:
 1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
 2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
 3) Breaking at $55E8 is where the main game has finished loading from disk.
 4) Need to load the loader first to select key layout for main game to work.
+5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
+$2500 simply does INC $0120; RTS.
 
 - Hopper
 Based on:
