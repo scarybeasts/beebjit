@@ -443,6 +443,25 @@ video_set_ula_full_palette(struct video_struct* p_video,
   }
 }
 
+void
+video_get_crtc_registers(struct video_struct* p_video,
+                         unsigned char* p_values) {
+  memset(p_values, '\0', 18);
+  p_values[k_crtc_reg_horiz_displayed] = p_video->crtc_horiz_displayed;
+  p_values[k_crtc_reg_vert_displayed] = p_video->crtc_vert_displayed;
+  p_values[k_crtc_reg_mem_addr_high] = p_video->crtc_mem_addr_high;
+  p_values[k_crtc_reg_mem_addr_low] = p_video->crtc_mem_addr_low;
+}
+
+void
+video_set_crtc_registers(struct video_struct* p_video,
+                         const unsigned char* p_values) {
+  p_video->crtc_horiz_displayed = p_values[k_crtc_reg_horiz_displayed];
+  p_video->crtc_vert_displayed = p_values[k_crtc_reg_vert_displayed];
+  p_video->crtc_mem_addr_high = p_values[k_crtc_reg_mem_addr_high];
+  p_video->crtc_mem_addr_low = p_values[k_crtc_reg_mem_addr_low];
+}
+
 unsigned char*
 video_get_memory(struct video_struct* p_video) {
   unsigned char* p_mem;

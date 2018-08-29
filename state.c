@@ -78,6 +78,15 @@ struct bem_v2x {
   /* Video ULA. */
   unsigned char ula_control;
   unsigned char ula_palette[16];
+  /* CRTC. */
+  unsigned char crtc_regs[18];
+  unsigned char crtc_vc;
+  unsigned char crtc_sc;
+  unsigned char crtc_hc;
+  unsigned char crtc_ma_high;
+  unsigned char crtc_ma_low;
+  unsigned char crtc_maback_high;
+  unsigned char crtc_maback_low;
 } __attribute__((packed));
 
 static const size_t k_snapshot_size = 327885;
@@ -144,6 +153,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   video_set_ula_control(p_video, p_bem->ula_control);
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
+  video_set_crtc_registers(p_video, &p_bem->crtc_regs[0]);
   bbc_set_sysvia(p_bbc,
                  p_bem->sysvia_ora,
                  p_bem->sysvia_orb,
@@ -205,6 +215,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->pc);
   p_bem->ula_control = video_get_ula_control(p_video);
   video_get_ula_full_palette(p_video, &p_bem->ula_palette[0]);
+  video_get_crtc_registers(p_video, &p_bem->crtc_regs[0]);
   bbc_get_sysvia(p_bbc,
                  &p_bem->sysvia_ora,
                  &p_bem->sysvia_orb,
