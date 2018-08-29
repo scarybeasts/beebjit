@@ -19,15 +19,26 @@ enum {
   k_ula_clock_speed_shift = 4,
 };
 
+enum {
+  k_crtc_reg_mem_addr_high = 12,
+  k_crtc_reg_mem_addr_low = 13,
+};
+
 struct video_struct {
   unsigned char* p_mem;
+  unsigned char* p_sysvia_IC32;
+
   unsigned char video_ula_control;
   unsigned char video_palette[16];
   unsigned int palette[16];
+
+  unsigned char crtc_address;
+  unsigned char crtc_mem_addr_low;
+  unsigned char crtc_mem_addr_high;
 };
 
 struct video_struct*
-video_create(unsigned char* p_mem) {
+video_create(unsigned char* p_mem, unsigned char* p_sysvia_IC32) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
   if (p_video == NULL) {
     errx(1, "cannot allocate video_struct");
@@ -35,6 +46,7 @@ video_create(unsigned char* p_mem) {
   memset(p_video, '\0', sizeof(struct video_struct));
 
   p_video->p_mem = p_mem;
+  p_video->p_sysvia_IC32 = p_sysvia_IC32;
 
   return p_video;
 }
@@ -47,11 +59,15 @@ video_destroy(struct video_struct* p_video) {
 static void
 video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t video_memory_size = video_get_memory_size(p_video);
   size_t y;
   for (y = 0; y < 32; ++y) {
     size_t x;
     for (x = 0; x < 80; ++x) {
       size_t y2;
+      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
+        p_video_mem -= video_memory_size;
+      }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
@@ -89,11 +105,15 @@ video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 static void
 video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t video_memory_size = video_get_memory_size(p_video);
   size_t y;
   for (y = 0; y < 32; ++y) {
     size_t x;
     for (x = 0; x < 40; ++x) {
       size_t y2;
+      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
+        p_video_mem -= video_memory_size;
+      }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
@@ -147,12 +167,16 @@ video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 static void
 video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t y;
   for (y = 0; y < 32; ++y) {
     size_t x;
     for (x = 0; x < 80; ++x) {
       size_t y2;
+      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
+        p_video_mem -= video_memory_size;
+      }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
         /* TODO: lookup table to make this fast. */
@@ -195,12 +219,16 @@ video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 static void
 video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t y;
   for (y = 0; y < 32; ++y) {
     size_t x;
     for (x = 0; x < 40; ++x) {
       size_t y2;
+      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
+        p_video_mem -= video_memory_size;
+      }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
         /* TODO: lookup table to make this fast. */
@@ -259,12 +287,16 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 static void
 video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
+  size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t y;
   for (y = 0; y < 32; ++y) {
     size_t x;
     for (x = 0; x < 80; ++x) {
       size_t y2;
+      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
+        p_video_mem -= video_memory_size;
+      }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
         /* TODO: lookup table to make this fast. */
@@ -409,16 +441,53 @@ video_set_ula_full_palette(struct video_struct* p_video,
 
 unsigned char*
 video_get_memory(struct video_struct* p_video) {
-  unsigned char ula_control = video_get_ula_control(p_video);
+  unsigned char* p_mem;
   size_t offset;
+
+  unsigned char ula_control = video_get_ula_control(p_video);
+
   if (ula_control & k_ula_teletext) {
     offset = k_mode7_offset;
-  } else if (video_get_clock_speed(p_video) == 1) {
-    offset = k_mode012_offset;
   } else {
-    offset = k_mode45_offset;
+    offset = ((p_video->crtc_mem_addr_high << 8) | p_video->crtc_mem_addr_low);
+    offset <<= 3;
   }
-  return p_video->p_mem + offset;
+
+  p_mem = p_video->p_mem;
+  /* Need alignment; we check for the pointer low bytes crossing 0x8000. */
+  assert(((size_t) p_mem & 0xffff) == 0);
+  p_mem += offset;
+  return p_mem;
+}
+
+size_t
+video_get_memory_size(struct video_struct* p_video) {
+  size_t ret;
+  size_t size = *(p_video->p_sysvia_IC32);
+  size >>= 4;
+  size &= 3;
+  /* Note: doesn't seem to match the BBC Microcomputer Advanced User Guide, but
+   * does work and does match b-em.
+   */
+  switch (size) {
+  case 0:
+    ret = 0x4000;
+    break;
+  case 1:
+    ret = 0x2000;
+    break;
+  case 2:
+    ret = 0x5000;
+    break;
+  case 3:
+    ret = 0x2800;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+
+  return ret;
 }
 
 int
@@ -428,4 +497,24 @@ video_is_text(struct video_struct* p_video) {
     return 1;
   }
   return 0;
+}
+
+void
+video_set_crtc_address(struct video_struct* p_video, unsigned char val) {
+  p_video->crtc_address = val;
+}
+
+void
+video_set_crtc_data(struct video_struct* p_video, unsigned char val) {
+  unsigned char address = p_video->crtc_address;
+  switch (address) {
+  case k_crtc_reg_mem_addr_high:
+    p_video->crtc_mem_addr_high = (val & 0x3f);
+    break;
+  case k_crtc_reg_mem_addr_low:
+    p_video->crtc_mem_addr_low = val;
+    break;
+  default:
+    break;
+  }
 }

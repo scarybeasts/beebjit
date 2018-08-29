@@ -136,7 +136,7 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
 
-  p_bbc->p_video = video_create(p_bbc->p_mem);
+  p_bbc->p_video = video_create(p_bbc->p_mem, &p_bbc->sysvia_IC32);
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
   }
@@ -571,10 +571,10 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
 
   switch (addr) {
   case k_addr_crtc | k_crtc_address:
-    printf("ignoring CRTC address write\n");
+    video_set_crtc_address(p_video, val);
     break;
   case k_addr_crtc | k_crtc_data:
-    printf("ignoring CRTC data write\n");
+    video_set_crtc_data(p_video, val);
     break;
   case k_addr_acia:
     printf("ignoring ACIA write\n");
