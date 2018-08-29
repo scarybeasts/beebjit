@@ -7,8 +7,6 @@
 
 enum {
   k_mode7_offset = 0x7c00,
-  k_mode45_offset = 0x5800,
-  k_mode012_offset = 0x3000,
 };
 
 enum {
@@ -20,6 +18,8 @@ enum {
 };
 
 enum {
+  k_crtc_reg_horiz_displayed = 1,
+  k_crtc_reg_vert_displayed = 6,
   k_crtc_reg_mem_addr_high = 12,
   k_crtc_reg_mem_addr_low = 13,
 };
@@ -35,6 +35,8 @@ struct video_struct {
   unsigned char crtc_address;
   unsigned char crtc_mem_addr_low;
   unsigned char crtc_mem_addr_high;
+  unsigned char crtc_horiz_displayed;
+  unsigned char crtc_vert_displayed;
 };
 
 struct video_struct*
@@ -289,10 +291,12 @@ video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
+  size_t horiz_chars = video_get_horiz_chars(p_video);
+  size_t vert_chars = video_get_vert_chars(p_video);
   size_t y;
-  for (y = 0; y < 32; ++y) {
+  for (y = 0; y < vert_chars; ++y) {
     size_t x;
-    for (x = 0; x < 80; ++x) {
+    for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
       if (((size_t) p_video_mem & 0xffff) == 0x8000) {
         p_video_mem -= video_memory_size;
@@ -490,6 +494,31 @@ video_get_memory_size(struct video_struct* p_video) {
   return ret;
 }
 
+size_t
+video_get_horiz_chars(struct video_struct* p_video) {
+  size_t clock_speed = video_get_clock_speed(p_video);
+  size_t ret = p_video->crtc_horiz_displayed;
+  assert(clock_speed == 0 || clock_speed == 1);
+
+  if (clock_speed == 1 && ret > 80) {
+    ret = 80;
+  } else if (clock_speed == 0 && ret > 40) {
+    ret = 40;
+  }
+
+  return ret;
+}
+
+size_t
+video_get_vert_chars(struct video_struct* p_video) {
+  size_t ret = p_video->crtc_vert_displayed;
+  if (ret > 32) {
+    ret = 32;
+  }
+
+  return ret;
+}
+
 int
 video_is_text(struct video_struct* p_video) {
   unsigned char ula_control = video_get_ula_control(p_video);
@@ -513,6 +542,12 @@ video_set_crtc_data(struct video_struct* p_video, unsigned char val) {
     break;
   case k_crtc_reg_mem_addr_low:
     p_video->crtc_mem_addr_low = val;
+    break;
+  case k_crtc_reg_horiz_displayed:
+    p_video->crtc_horiz_displayed = val;
+    break;
+  case k_crtc_reg_vert_displayed:
+    p_video->crtc_vert_displayed = val;
     break;
   default:
     break;
