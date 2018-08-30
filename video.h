@@ -22,7 +22,7 @@ void video_render(struct video_struct* p_video,
 
 unsigned char* video_get_memory(struct video_struct* p_video);
 size_t video_get_memory_size(struct video_struct* p_video);
-size_t video_get_horiz_chars(struct video_struct* p_video);
+size_t video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed);
 size_t video_get_vert_chars(struct video_struct* p_video);
 int video_is_text(struct video_struct* p_video);
 

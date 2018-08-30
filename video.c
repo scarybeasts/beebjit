@@ -291,7 +291,7 @@ video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
   unsigned char* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t horiz_chars = video_get_horiz_chars(p_video);
+  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
   size_t vert_chars = video_get_vert_chars(p_video);
   size_t y;
   for (y = 0; y < vert_chars; ++y) {
@@ -476,6 +476,8 @@ video_get_memory(struct video_struct* p_video) {
     offset <<= 3;
   }
 
+  offset &= 0x7fff;
+
   p_mem = p_video->p_mem;
   /* Need alignment; we check for the pointer low bytes crossing 0x8000. */
   assert(((size_t) p_mem & 0xffff) == 0);
@@ -514,10 +516,11 @@ video_get_memory_size(struct video_struct* p_video) {
 }
 
 size_t
-video_get_horiz_chars(struct video_struct* p_video) {
-  size_t clock_speed = video_get_clock_speed(p_video);
+video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed) {
+  /* NOTE: clock_speed is passed in rather than fetched, to avoid race
+   * conditions where the BBC thread is changing values from under us.
+   */
   size_t ret = p_video->crtc_horiz_displayed;
-  assert(clock_speed == 0 || clock_speed == 1);
 
   if (clock_speed == 1 && ret > 80) {
     ret = 80;
