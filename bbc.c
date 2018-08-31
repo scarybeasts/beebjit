@@ -664,6 +664,9 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   case k_addr_uservia | k_via_DDRA:
     printf("ignoring user VIA DDRA write\n");
     break;
+  case k_addr_uservia | k_via_T1CL:
+    printf("ignoring user VIA T1CL write\n");
+    break;
   case k_addr_uservia | k_via_T1CH:
     printf("ignoring user VIA T1CH write\n");
     break;
