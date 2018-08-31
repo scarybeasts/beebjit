@@ -240,10 +240,10 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
                            ((packed_pixels & 0x02) >> 1);
         unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
                            ((packed_pixels & 0x01) >> 0);
-        unsigned int p1 = p_palette[(1 << v1) - 1];
-        unsigned int p2 = p_palette[(1 << v2) - 1];
-        unsigned int p3 = p_palette[(1 << v3) - 1];
-        unsigned int p4 = p_palette[(1 << v4) - 1];
+        unsigned int p1 = p_palette[4 + (v1 << 1)];
+        unsigned int p2 = p_palette[4 + (v2 << 1)];
+        unsigned int p3 = p_palette[4 + (v3 << 1)];
+        unsigned int p4 = p_palette[4 + (v4 << 1)];
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
         p_x_mem += ((y * 8) + y2) * 2 * 640;
         p_x_mem += x * 16;
