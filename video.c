@@ -58,12 +58,15 @@ video_destroy(struct video_struct* p_video) {
 
 static void
 video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  size_t y;
-  for (y = 0; y < 32; ++y) {
+  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
+  size_t vert_chars = video_get_vert_chars(p_video);
+
+  for (y = 0; y < vert_chars; ++y) {
     size_t x;
-    for (x = 0; x < 80; ++x) {
+    for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
       if (((size_t) p_video_mem & 0xffff) == 0x8000) {
         p_video_mem -= video_memory_size;
@@ -104,12 +107,15 @@ video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  size_t y;
-  for (y = 0; y < 32; ++y) {
+  size_t horiz_chars = video_get_horiz_chars(p_video, 0);
+  size_t vert_chars = video_get_vert_chars(p_video);
+
+  for (y = 0; y < vert_chars; ++y) {
     size_t x;
-    for (x = 0; x < 40; ++x) {
+    for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
       if (((size_t) p_video_mem & 0xffff) == 0x8000) {
         p_video_mem -= video_memory_size;
@@ -166,13 +172,16 @@ video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t y;
-  for (y = 0; y < 32; ++y) {
+  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
+  size_t vert_chars = video_get_vert_chars(p_video);
+
+  for (y = 0; y < vert_chars; ++y) {
     size_t x;
-    for (x = 0; x < 80; ++x) {
+    for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
       if (((size_t) p_video_mem & 0xffff) == 0x8000) {
         p_video_mem -= video_memory_size;
@@ -218,13 +227,16 @@ video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t y;
-  for (y = 0; y < 32; ++y) {
+  size_t horiz_chars = video_get_horiz_chars(p_video, 0);
+  size_t vert_chars = video_get_vert_chars(p_video);
+
+  for (y = 0; y < vert_chars; ++y) {
     size_t x;
-    for (x = 0; x < 40; ++x) {
+    for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
       if (((size_t) p_video_mem & 0xffff) == 0x8000) {
         p_video_mem -= video_memory_size;
@@ -286,12 +298,13 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t horiz_chars = video_get_horiz_chars(p_video, 1);
   size_t vert_chars = video_get_vert_chars(p_video);
-  size_t y;
+
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
     for (x = 0; x < horiz_chars; ++x) {
