@@ -365,13 +365,10 @@ video_render(struct video_struct* p_video,
   assert(y == 512);
   assert(bpp == 4);
 
-  assert(!video_is_text(p_video));
-
   pixel_width = video_get_pixel_width(p_video);
   clock_speed = video_get_clock_speed(p_video);
 
   if (pixel_width == 1)  {
-    assert(clock_speed == 1);
     video_mode0_render(p_video, p_x_mem);
   } else if (pixel_width == 2 && clock_speed == 0) {
     video_mode4_render(p_video, p_x_mem);
@@ -381,12 +378,11 @@ video_render(struct video_struct* p_video,
     video_mode2_render(p_video, p_x_mem);
   } else if (pixel_width == 4 && clock_speed == 0) {
     video_mode5_render(p_video, p_x_mem);
-  } else if (pixel_width == 8) {
+  } else {
     /* Ignore for now: could be custom mode, or more likely control register
      * just not set.
+     * Can also be a race conditions vs. the main 6502 thread.
      */
-  } else {
-    assert(0);
   }
 }
 
@@ -468,17 +464,15 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
   int is_text = (ula_control & k_ula_teletext);
   unsigned char* p_mem = p_video->p_mem;
 
-  if (is_text) {
-    assert(offset < 0x400);
+  assert(offset < 0x5000);
 
+  if (is_text) {
     mem_offset = p_video->crtc_mem_addr_high;
     mem_offset ^= 0x20;
     mem_offset += 0x74;
     mem_offset <<= 8;
     mem_offset |= p_video->crtc_mem_addr_low;
   } else {
-    assert(offset < 0x5000);
-
     mem_offset = ((p_video->crtc_mem_addr_high << 8) |
                   p_video->crtc_mem_addr_low);
     mem_offset <<= 3;
