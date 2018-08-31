@@ -241,10 +241,15 @@ x_render(struct x_struct* p_x) {
   }
 
   if (is_text) {
-    unsigned char* p_video_mem = video_get_memory(p_video);
-    size_t y_offset = 16;
     size_t y;
-    for (y = 0; y < p_x->chars_height; ++y) {
+    size_t offset = 0;
+    size_t y_offset = 16;
+    size_t chars_width = p_x->chars_width;
+    size_t chars_height = p_x->chars_height;
+    for (y = 0; y < chars_height; ++y) {
+      unsigned char* p_video_mem = video_get_memory(p_video,
+                                                    offset,
+                                                    chars_width);
       /* Seems to return 0 on success -- status not checked. */
       XDrawString(p_x->d,
                   p_x->w,
@@ -252,8 +257,8 @@ x_render(struct x_struct* p_x) {
                   0,
                   y_offset,
                   (char*) p_video_mem,
-                  p_x->chars_width);
-      p_video_mem += p_x->chars_width;
+                  chars_width);
+      offset += chars_width;
       y_offset += 16;
     }
   } else {

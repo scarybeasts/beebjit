@@ -20,7 +20,9 @@ void video_render(struct video_struct* p_video,
                   size_t y,
                   size_t bpp);
 
-unsigned char* video_get_memory(struct video_struct* p_video);
+unsigned char* video_get_memory(struct video_struct* p_video,
+                                size_t offset,
+                                size_t len);
 size_t video_get_memory_size(struct video_struct* p_video);
 size_t video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed);
 size_t video_get_vert_chars(struct video_struct* p_video);

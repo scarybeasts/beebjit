@@ -6,10 +6,6 @@
 #include <string.h>
 
 enum {
-  k_mode7_offset = 0x7c00,
-};
-
-enum {
   k_ula_teletext = 0x02,
   k_ula_chars_per_line = 0x0c,
   k_ula_chars_per_line_shift = 2,
@@ -31,6 +27,8 @@ struct video_struct {
   unsigned char video_ula_control;
   unsigned char video_palette[16];
   unsigned int palette[16];
+
+  unsigned char teletext_line[k_bbc_mode7_width];
 
   unsigned char crtc_address;
   unsigned char crtc_mem_addr_low;
@@ -60,7 +58,7 @@ video_destroy(struct video_struct* p_video) {
 
 static void
 video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
-  unsigned char* p_video_mem = video_get_memory(p_video);
+  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   size_t y;
   for (y = 0; y < 32; ++y) {
@@ -106,7 +104,7 @@ video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
-  unsigned char* p_video_mem = video_get_memory(p_video);
+  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   size_t y;
   for (y = 0; y < 32; ++y) {
@@ -168,7 +166,7 @@ video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
-  unsigned char* p_video_mem = video_get_memory(p_video);
+  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t y;
@@ -220,7 +218,7 @@ video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
-  unsigned char* p_video_mem = video_get_memory(p_video);
+  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t y;
@@ -288,7 +286,7 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
-  unsigned char* p_video_mem = video_get_memory(p_video);
+  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t horiz_chars = video_get_horiz_chars(p_video, 1);
@@ -463,25 +461,55 @@ video_set_crtc_registers(struct video_struct* p_video,
 }
 
 unsigned char*
-video_get_memory(struct video_struct* p_video) {
-  unsigned char* p_mem;
-  size_t offset;
+video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
+  size_t mem_offset;
 
   unsigned char ula_control = video_get_ula_control(p_video);
+  int is_text = (ula_control & k_ula_teletext);
+  unsigned char* p_mem = p_video->p_mem;
 
-  if (ula_control & k_ula_teletext) {
-    offset = k_mode7_offset;
+  if (is_text) {
+    assert(offset < 0x400);
+
+    mem_offset = p_video->crtc_mem_addr_high;
+    mem_offset ^= 0x20;
+    mem_offset += 0x74;
+    mem_offset <<= 8;
+    mem_offset |= p_video->crtc_mem_addr_low;
   } else {
-    offset = ((p_video->crtc_mem_addr_high << 8) | p_video->crtc_mem_addr_low);
-    offset <<= 3;
+    assert(offset < 0x5000);
+
+    mem_offset = ((p_video->crtc_mem_addr_high << 8) |
+                  p_video->crtc_mem_addr_low);
+    mem_offset <<= 3;
   }
 
-  offset &= 0x7fff;
+  mem_offset &= 0x7fff;
+  mem_offset += offset;
+  if (mem_offset >= 0x8000) {
+    if (is_text) {
+      mem_offset -= 0x400;
+    } else {
+      size_t memory_size = video_get_memory_size(p_video);
+      mem_offset -= memory_size;
+    }
+  }
 
-  p_mem = p_video->p_mem;
+  if (is_text && len == k_bbc_mode7_width) {
+    assert(mem_offset < 0x8000);
+    if (mem_offset + len > 0x8000) {
+      unsigned char* p_line = &p_video->teletext_line[0];
+      size_t pre_len = 0x8000 - mem_offset;
+      size_t post_len = k_bbc_mode7_width - pre_len;
+      memcpy(p_line, p_mem + mem_offset, pre_len);
+      memcpy(p_line + pre_len, p_mem + 0x7c00, post_len);
+      return p_line;
+    }
+  }
+
   /* Need alignment; we check for the pointer low bytes crossing 0x8000. */
   assert(((size_t) p_mem & 0xffff) == 0);
-  p_mem += offset;
+  p_mem += mem_offset;
   return p_mem;
 }
 
