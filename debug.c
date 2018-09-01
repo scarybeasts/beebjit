@@ -363,11 +363,13 @@ debug_check_unhandled(struct debug_struct* p_debug,
    */
   if (addr_6502 >= 0xfc00 && addr_6502 < 0xff00 &&
       (opmode == k_idx || opmode == k_idy)) {
-    assert(0);
+    printf("Indirect read to %.4x at %.4x\n", addr_6502, reg_pc);
+    debug_running = 0;
   }
 
-  /* Currently unimplemented and untrapped: write invalidate of JIT other than
-   * the abs addressing mode.
+  /* Currently unimplemented and untrapped.
+   * NOTE: this is now implmented but I've never seen a game use it, so keeping
+   * it in so we can find such a game and write some notes about it.
    */
   if ((opmem == k_write || opmem == k_rw) &&
       addr_6502 < 0x3000 &&
@@ -375,7 +377,10 @@ debug_check_unhandled(struct debug_struct* p_debug,
        opmode == k_idy)) {
     struct jit_struct* p_jit = bbc_get_jit(p_bbc);
     if (jit_has_code(p_jit, addr_6502)) {
-      assert(0);
+      printf("Indirect write to existing code %.4x at %.4x\n",
+             addr_6502,
+             reg_pc);
+      debug_running = 0;
     }
   }
 }
