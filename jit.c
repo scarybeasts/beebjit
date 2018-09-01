@@ -124,6 +124,9 @@ struct jit_struct {
   unsigned char* p_mem;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
+  struct util_buffer* p_dest_buf;
+  struct util_buffer* p_seq_buf;
+  struct util_buffer* p_single_buf;
 };
 
 static size_t
@@ -443,6 +446,7 @@ jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
     offset--;
   }
   index = jit_emit_int(p_jit_buf, index, offset);
+  util_buffer_set_pos(p_buf, index);
 
   return index;
 }
@@ -2463,9 +2467,9 @@ jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static void
 jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr;
+  unsigned char* p_jit_ptr =
+      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
 
-  p_jit_ptr = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 }
 
@@ -2488,13 +2492,12 @@ jit_at_addr(struct jit_struct* p_jit,
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
   int debug = 0;
+  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
+  struct util_buffer* p_single_buf = p_jit->p_single_buf;
 
   if (p_jit->jit_flags & k_jit_flag_debug) {
     debug = 1;
   }
-
-  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
-  struct util_buffer* p_single_buf = util_buffer_create();
 
   /* This opcode may be compiled into part of a previous block, so make sure to
    * invalidate that block.
@@ -2510,7 +2513,9 @@ jit_at_addr(struct jit_struct* p_jit,
     size_t intel_opcodes_len;
     size_t buf_left;
     unsigned char new_nz_flags;
-    unsigned char* p_dst = p_jit_buf + util_buffer_get_pos(p_buf);
+
+    unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
+                           util_buffer_get_pos(p_buf);
     assert((size_t) p_dst < 0xffffffff);
 
     if (jit_is_valid_block_start(p_jit, addr_6502)) {
@@ -2552,8 +2557,8 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     intel_opcodes_len = util_buffer_get_pos(p_single_buf);
-    /* For us to be to JIT invalidate correctly, all Intel sequences must be at
-     * least 2 bytes because the invalidation sequence is 2 bytes.
+    /* For us to be able to JIT invalidate correctly, all Intel sequences must
+     * be at least 2 bytes because the invalidation sequence is 2 bytes.
      */
     assert(intel_opcodes_len >= 2);
 
@@ -2599,8 +2604,6 @@ jit_at_addr(struct jit_struct* p_jit,
        total_num_ops);
 fflush(stdout);*/
 
-  util_buffer_destroy(p_single_buf);
-
   if (jumps_always) {
     return;
   }
@@ -2621,11 +2624,13 @@ fflush(stdout);*/
 
 static void
 jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
-  struct util_buffer* p_buf;
-  unsigned char* p_jit_buf;
+  unsigned char* p_jit_ptr;
   uint16_t block_addr_6502;
   uint16_t addr_6502;
   size_t jit_addr_masked;
+  unsigned char jit_bytes[k_jit_bytes_per_byte];
+
+  struct util_buffer* p_buf = p_jit->p_seq_buf;
 
   /* -2 because of the call [rdi] opcode size. */
   p_jit_addr -= 2;
@@ -2654,15 +2659,15 @@ jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
    */
 /*  assert(block_addr_6502 >= 0x200);*/
 
-  p_jit_buf = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
+  p_jit_ptr = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
 
-  p_buf = util_buffer_create();
-  util_buffer_setup(p_buf, p_jit_buf, k_jit_bytes_per_byte);
-  util_buffer_set_base_address(p_buf, p_jit_buf);
+  util_buffer_setup(p_buf, &jit_bytes[0], k_jit_bytes_per_byte);
+  util_buffer_set_base_address(p_buf, p_jit_ptr);
 
   jit_at_addr(p_jit, p_buf, addr_6502);
 
-  util_buffer_destroy(p_buf);
+  util_buffer_setup(p_jit->p_dest_buf, p_jit_ptr, k_jit_bytes_per_byte);
+  util_buffer_append(p_jit->p_dest_buf, p_buf);
 
   p_jit->reg_pc = addr_6502;
 }
@@ -2843,6 +2848,10 @@ jit_create(unsigned char* p_mem,
   jit_emit_regs_util(p_jit, p_util_regs);
   jit_emit_jit_util(p_jit, p_util_jit);
 
+  p_jit->p_dest_buf = util_buffer_create();
+  p_jit->p_seq_buf = util_buffer_create();
+  p_jit->p_single_buf = util_buffer_create();
+
   return p_jit;
 }
 
@@ -2904,5 +2913,8 @@ jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);
+  util_buffer_destroy(p_jit->p_dest_buf);
+  util_buffer_destroy(p_jit->p_seq_buf);
+  util_buffer_destroy(p_jit->p_single_buf);
   free(p_jit);
 }

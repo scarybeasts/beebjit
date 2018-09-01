@@ -742,7 +742,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc6;
 
-  /* Test an interesting bug we have with self-modifying code where two
+  /* Test an interesting bug we had with self-modifying code where two
    * adjacent instructions are clobbered.
    */
   index = set_new_index(index, 0x640);
@@ -856,7 +856,32 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc7;
 
+  /* Test JIT recompilation bug leading to corrupted code generation.
+   * Trigger condition is replacing an opcode resulting in short generated code
+   * with one resulting in longer generated code.
+   */
   index = set_new_index(index, 0x700);
+  p_mem[index++] = 0x20; /* JSR $3070 */
+  p_mem[index++] = 0x70;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$48 */ /* PHA */
+  p_mem[index++] = 0x48;
+  p_mem[index++] = 0x8d; /* STA $3070 */
+  p_mem[index++] = 0x70;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$68 */ /* PLA */
+  p_mem[index++] = 0x68;
+  p_mem[index++] = 0x8d; /* STA $3071 */
+  p_mem[index++] = 0x71;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3070 */
+  p_mem[index++] = 0x70;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x4c; /* JMP $C740 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc7;
+
+  index = set_new_index(index, 0x740);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -920,6 +945,12 @@ main(int argc, const char* argv[]) {
   /* etc... */
   index = set_new_index(index, 0x3060);
   p_mem[index++] = 0xea; /* NOP */
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* etc... */
+  index = set_new_index(index, 0x3070);
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0xc8; /* INY */
   p_mem[index++] = 0x60; /* RTS */
 
   /* Need this byte here for a specific test. */
