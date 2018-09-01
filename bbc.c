@@ -553,6 +553,7 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     /* Not present -- fall through to return 0xfe. */
     break;
   default:
+    printf("unknown read: %x\n", addr);
     assert(0);
   }
   return 0xfe;
@@ -695,6 +696,7 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     printf("ignoring tube write\n");
     break;
   default:
+    printf("unknown write: %x\n", addr);
     assert(0);
   }
 }
