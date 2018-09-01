@@ -97,7 +97,7 @@ via_write_port_a(struct via_struct* p_via) {
     unsigned char port_val = ((ora & ddra) | ~ddra);
     p_via->peripheral_a = port_val;
     sysvia_update_port_a(p_via);
-  } else if (p_via->id == k_via_system) {
+  } else if (p_via->id == k_via_user) {
     /* Printer port. Ignore. */
   } else {
     assert(0);
@@ -223,10 +223,6 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     printf("new via %d ACR %x\n", p_via->id, val);
     break;
   case k_via_PCR:
-    assert((val & 0x0e) != 0x0c);
-    assert(!(val & 0x08));
-    assert((val & 0xe0) != 0xc0);
-    assert(!(val & 0x80));
     p_via->PCR = val;
     printf("new via %d PCR %x\n", p_via->id, val);
     break;
