@@ -77,3 +77,13 @@ Notes:
 - Uses SED, at $6045, as part of checksumming the saved game file?
 - Lots of self-modifying code.
 
+- Snapper
+Based on:
+7d801d30c56c27b61faaf9b6b7c3fa45  Snapper-v1.zip
+IRQ1V @ $0204: $DC93 (default)
+Notes:
+- Interesting wait loop at $10D3, which is simply polling $FE60 waiting for it
+to change. This value automagically changes in the hardware as the user VIA
+timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
+the timer interrupt and indeed the IER for the user VIA is 0x00.
+
