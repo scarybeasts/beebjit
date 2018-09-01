@@ -157,6 +157,10 @@ via_read(struct via_struct* p_via, size_t reg) {
     return p_via->T1CL;
   case k_via_SR:
     return p_via->SR;
+  case k_via_ACR:
+    return p_via->ACR;
+  case k_via_PCR:
+    return p_via->PCR;
   case k_via_IFR:
     return p_via->IFR;
   case k_via_IER:
@@ -170,6 +174,7 @@ via_read(struct via_struct* p_via, size_t reg) {
     val |= (port_val & ~ddra);
     return val;
   default:
+    printf("unhandled VIA read %zu\n", reg);
     assert(0);
   }
 }
@@ -244,6 +249,7 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     via_write_port_a(p_via);
     break;
   default:
+    printf("unhandled VIA write %zu\n", reg);
     assert(0);
     break;
   }
