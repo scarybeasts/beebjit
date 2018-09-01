@@ -58,8 +58,6 @@ struct bbc_struct {
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
 
-  unsigned char sysvia_IC32;
-  unsigned char sysvia_sdb;
   unsigned char keys[16][16];
   unsigned char keys_count;
   unsigned char keys_count_col[16];
@@ -86,15 +84,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
-  p_bbc->sysvia_IC32 = 0;
-  p_bbc->sysvia_sdb = 0;
-
   p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
-
-  p_bbc->p_video = video_create(p_bbc->p_mem, &p_bbc->sysvia_IC32);
-  if (p_bbc->p_video == NULL) {
-    errx(1, "video_create failed");
-  }
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
@@ -103,6 +93,12 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->p_user_via = via_create(k_via_user, p_bbc);
   if (p_bbc->p_system_via == NULL) {
     errx(1, "via_create failed");
+  }
+
+  p_bbc->p_video = video_create(p_bbc->p_mem,
+                                via_get_peripheral_b_ptr(p_bbc->p_system_via));
+  if (p_bbc->p_video == NULL) {
+    errx(1, "video_create failed");
   }
 
   p_debug = debug_create(p_bbc);

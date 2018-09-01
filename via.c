@@ -327,3 +327,8 @@ void via_set_registers(struct via_struct* p_via,
   p_via->peripheral_a = peripheral_a;
   p_via->peripheral_b = peripheral_b;
 }
+
+unsigned char*
+via_get_peripheral_b_ptr(struct via_struct* p_via) {
+  return &p_via->peripheral_b;
+}

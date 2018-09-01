@@ -68,4 +68,6 @@ void via_set_registers(struct via_struct* p_via,
                        unsigned char peripheral_a,
                        unsigned char peripheral_b);
 
+unsigned char* via_get_peripheral_b_ptr(struct via_struct* p_via);
+
 #endif /* BEEBJIT_VIA_H */
