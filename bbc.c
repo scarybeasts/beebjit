@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "jit.h"
 #include "util.h"
+#include "via.h"
 #include "video.h"
 
 #include <assert.h>
@@ -42,26 +43,6 @@ enum {
   k_video_ula_control = 0x0,
   k_video_ula_palette = 0x1,
 };
-enum {
-  k_via_ORB =   0x0,
-  k_via_ORA =   0x1,
-  k_via_DDRB =  0x2,
-  k_via_DDRA =  0x3,
-  k_via_T1CL =  0x4,
-  k_via_T1CH =  0x5,
-  k_via_T1LL =  0x6,
-  k_via_T1LH =  0x7,
-  k_via_SR =    0xa,
-  k_via_ACR =   0xb,
-  k_via_PCR =   0xc,
-  k_via_IFR =   0xd,
-  k_via_IER =   0xe,
-  k_via_ORAnh = 0xf,
-};
-enum {
-  k_int_CA2 =    0x01,
-  k_int_TIMER1 = 0x40,
-};
 
 struct bbc_struct {
   unsigned char* p_os_rom;
@@ -72,25 +53,13 @@ struct bbc_struct {
   int slow_flag;
   unsigned char* p_mem;
   struct video_struct* p_video;
+  struct via_struct* p_system_via;
+  struct via_struct* p_user_via;
   struct jit_struct* p_jit;
   struct debug_struct* p_debug;
 
-  unsigned char sysvia_ORB;
-  unsigned char sysvia_ORA;
-  unsigned char sysvia_DDRB;
-  unsigned char sysvia_DDRA;
-  unsigned char sysvia_T1CL;
-  unsigned char sysvia_T1CH;
-  unsigned char sysvia_T1LL;
-  unsigned char sysvia_T1LH;
-  unsigned char sysvia_SR;
-  unsigned char sysvia_ACR;
-  unsigned char sysvia_PCR;
-  unsigned char sysvia_IFR;
-  unsigned char sysvia_IER;
   unsigned char sysvia_IC32;
   unsigned char sysvia_sdb;
-  unsigned char uservia_PCR;
   unsigned char keys[16][16];
   unsigned char keys_count;
   unsigned char keys_count_col[16];
@@ -117,28 +86,23 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
-  p_bbc->sysvia_ORB = 0;
-  p_bbc->sysvia_ORA = 0;
-  p_bbc->sysvia_DDRB = 0;
-  p_bbc->sysvia_DDRA = 0;
-  p_bbc->sysvia_T1CL = 0xff;
-  p_bbc->sysvia_T1CH = 0xff;
-  p_bbc->sysvia_T1LL = 0xff;
-  p_bbc->sysvia_T1LH = 0xff;
-  p_bbc->sysvia_SR = 0;
-  p_bbc->sysvia_ACR = 0;
-  p_bbc->sysvia_PCR = 0;
-  p_bbc->sysvia_IFR = 0;
-  p_bbc->sysvia_IER = 0;
   p_bbc->sysvia_IC32 = 0;
   p_bbc->sysvia_sdb = 0;
-  p_bbc->uservia_PCR = 0;
 
   p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
 
   p_bbc->p_video = video_create(p_bbc->p_mem, &p_bbc->sysvia_IC32);
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
+  }
+
+  p_bbc->p_system_via = via_create(k_via_system, p_bbc);
+  if (p_bbc->p_system_via == NULL) {
+    errx(1, "via_create failed");
+  }
+  p_bbc->p_user_via = via_create(k_via_user, p_bbc);
+  if (p_bbc->p_system_via == NULL) {
+    errx(1, "via_create failed");
   }
 
   p_debug = debug_create(p_bbc);
@@ -231,54 +195,9 @@ bbc_check_pc(struct bbc_struct* p_bbc) {
   jit_check_pc(p_jit);
 }
 
-void
-bbc_get_sysvia(struct bbc_struct* p_bbc,
-               unsigned char* sysvia_ORA,
-               unsigned char* sysvia_ORB,
-               unsigned char* sysvia_DDRA,
-               unsigned char* sysvia_DDRB,
-               unsigned char* sysvia_SR,
-               unsigned char* sysvia_ACR,
-               unsigned char* sysvia_PCR,
-               unsigned char* sysvia_IFR,
-               unsigned char* sysvia_IER,
-               unsigned char* sysvia_IC32) {
-  *sysvia_ORA = p_bbc->sysvia_ORA;
-  *sysvia_ORB = p_bbc->sysvia_ORB;
-  *sysvia_DDRA = p_bbc->sysvia_DDRA;
-  *sysvia_DDRB = p_bbc->sysvia_DDRB;
-  *sysvia_SR = p_bbc->sysvia_SR;
-  *sysvia_ACR = p_bbc->sysvia_ACR;
-  *sysvia_PCR = p_bbc->sysvia_PCR;
-  *sysvia_IFR = p_bbc->sysvia_IFR;
-  *sysvia_IER = p_bbc->sysvia_IER;
-  *sysvia_IC32 = p_bbc->sysvia_IC32;
-}
-
-void
-bbc_set_sysvia(struct bbc_struct* p_bbc,
-               unsigned char sysvia_ORA,
-               unsigned char sysvia_ORB,
-               unsigned char sysvia_DDRA,
-               unsigned char sysvia_DDRB,
-               unsigned char sysvia_SR,
-               unsigned char sysvia_ACR,
-               unsigned char sysvia_PCR,
-               unsigned char sysvia_IFR,
-               unsigned char sysvia_IER,
-               unsigned char sysvia_IC32) {
-  p_bbc->sysvia_ORA = sysvia_ORA;
-  p_bbc->sysvia_ORB = sysvia_ORB;
-  p_bbc->sysvia_DDRA = sysvia_DDRA;
-  p_bbc->sysvia_DDRB = sysvia_DDRB;
-  p_bbc->sysvia_SR = sysvia_SR;
-  p_bbc->sysvia_ACR = sysvia_ACR;
-  p_bbc->sysvia_PCR = sysvia_PCR;
-  p_bbc->sysvia_IFR = sysvia_IFR;
-  p_bbc->sysvia_IER = sysvia_IER;
-  p_bbc->sysvia_IC32 = sysvia_IC32;
-
-  p_bbc->sysvia_sdb = 0;
+struct via_struct*
+bbc_get_sysvia(struct bbc_struct* p_bbc) {
+  return p_bbc->p_system_via;
 }
 
 struct jit_struct*
@@ -363,7 +282,7 @@ bbc_10ms_timer_thread(void* p) {
         errx(1, "nanosleep failed");
       }
     }
-    bbc_fire_interrupt(p_bbc, 0, k_int_TIMER1);
+    via_raise_interrupt(p_bbc->p_system_via, k_int_TIMER1);
   }
 }
 
@@ -381,27 +300,9 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   }
 }
 
-static void
-bbc_check_interrupt(struct bbc_struct* p_bbc) {
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  int interrupt;
-  assert(!(p_bbc->sysvia_IER & 0x80));
-  if (p_bbc->sysvia_IER & p_bbc->sysvia_IFR) {
-    p_bbc->sysvia_IFR |= 0x80;
-    interrupt = 1;
-  } else {
-    p_bbc->sysvia_IFR &= ~0x80;
-    interrupt = 0;
-  }
-  jit_set_interrupt(p_jit, interrupt);
-}
-
 void
-bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits) {
-  assert(user == 0);
-  assert(!(bits & 0x80));
-  p_bbc->sysvia_IFR |= bits;
-  bbc_check_interrupt(p_bbc);
+bbc_set_interrupt(struct bbc_struct* p_bbc, int interrupt) {
+  jit_set_interrupt(p_bbc->p_jit, interrupt);
 }
 
 int
@@ -436,75 +337,8 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
   return 0;
 }
 
-static void
-bbc_sysvia_update_sdb(struct bbc_struct* p_bbc) {
-  unsigned char sdb = p_bbc->sysvia_sdb;
-  unsigned char keyrow = (sdb >> 4) & 7;
-  unsigned char keycol = sdb & 0xf;
-  int fire = 0;
-  if (!(p_bbc->sysvia_IC32 & 8)) {
-    if (!p_bbc->keys[keyrow][keycol]) {
-      p_bbc->sysvia_sdb &= 0x7f;
-    }
-    if (p_bbc->keys_count_col[keycol]) {
-      fire = 1;
-    }
-  } else {
-    if (p_bbc->keys_count > 0) {
-      fire = 1;
-    }
-  }
-  if (fire) {
-    bbc_fire_interrupt(p_bbc, 0, k_int_CA2);
-  }
-}
-
-static unsigned char
-bbc_sysvia_read_porta(struct bbc_struct* p_bbc) {
-  bbc_sysvia_update_sdb(p_bbc);
-/*  printf("sysvia sdb read %x\n", p_bbc->sysvia_sdb); */
-  return p_bbc->sysvia_sdb;
-}
-
-static void
-bbc_sysvia_write_porta(struct bbc_struct* p_bbc) {
-  unsigned char via_ora = p_bbc->sysvia_ORA;
-  unsigned char via_ddra = p_bbc->sysvia_DDRA;
-  unsigned char sdb = (via_ora & via_ddra) | ~via_ddra;
-  p_bbc->sysvia_sdb = sdb;
-/*  unsigned char keyrow = (sdb >> 4) & 7;
-  unsigned char keycol = sdb & 0xf;
-  printf("sysvia sdb write val %x keyrow %d keycol %d\n",
-         sdb,
-         keyrow,
-         keycol);*/
-  bbc_sysvia_update_sdb(p_bbc);
-}
-
-static void
-bbc_sysvia_write_portb(struct bbc_struct* p_bbc) {
-  unsigned char via_orb = p_bbc->sysvia_ORB;
-  unsigned char via_ddrb = p_bbc->sysvia_DDRB;
-  unsigned char portb_val = (via_orb & via_ddrb) | ~via_ddrb;
-  if (portb_val & 8) {
-    p_bbc->sysvia_IC32 |= (1 << (portb_val & 7));
-  } else {
-    p_bbc->sysvia_IC32 &= ~(1 << (portb_val & 7));
-  }
-/*  printf("sysvia IC32 orb %x ddrb %x portb %x, new value %x\n",
-         via_orb,
-         via_ddrb,
-         portb_val,
-         p_bbc->sysvia_IC32);*/
-}
-
 unsigned char
 bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
-  unsigned char val;
-  unsigned char ora;
-  unsigned char ddra;
-  unsigned char orb;
-  unsigned char ddrb;
   /* We have an imprecise match for abx and aby addressing modes so we may get
    * here with a non-registers address.
    */
@@ -514,37 +348,16 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     return p_mem[addr];
   }
 
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0xf) {
+    return via_read(p_bbc->p_system_via, addr & 0xf);
+  }
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0xf) {
+    return via_read(p_bbc->p_user_via, addr & 0xf);
+  }
+
   switch (addr) {
   case k_addr_acia:
     /* No ACIA interrupt (bit 7). */
-    return 0;
-  case k_addr_sysvia | k_via_ORB:
-    assert((p_bbc->sysvia_PCR & 0xa0) != 0x20);
-    assert(!(p_bbc->sysvia_ACR & 0x02));
-    orb = p_bbc->sysvia_ORB;
-    ddrb = p_bbc->sysvia_DDRB;
-    val = orb & ddrb;
-    /* Read is for joystick and CMOS. 0xff means nothing interesting. */
-    val |= (0xff & ~ddrb);
-    return val;
-  case k_addr_sysvia | k_via_T1CL:
-    return p_bbc->sysvia_T1CL;
-  case k_addr_sysvia | k_via_SR:
-    return p_bbc->sysvia_SR;
-  case k_addr_sysvia | k_via_IFR:
-    return p_bbc->sysvia_IFR;
-  case k_addr_sysvia | k_via_IER:
-    return p_bbc->sysvia_IER | 0x80;
-  case k_addr_sysvia | k_via_ORAnh:
-    assert(!(p_bbc->sysvia_ACR & 0x01));
-    ora = p_bbc->sysvia_ORA;
-    ddra = p_bbc->sysvia_DDRA;
-    val = ora & ddra;
-    val |= (bbc_sysvia_read_porta(p_bbc) & ~ddra);
-    return val;
-  case k_addr_uservia | k_via_PCR:
-    return p_bbc->uservia_PCR;
-  case k_addr_uservia | k_via_IFR:
     return 0;
   case k_addr_adc:
     /* No ADC attention needed (bit 6). */
@@ -570,6 +383,15 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     return;
   }
 
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0xf) {
+    via_write(p_bbc->p_system_via, addr & 0xf, val);
+    return;
+  }
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0xf) {
+    via_write(p_bbc->p_user_via, addr & 0xf, val);
+    return;
+  }
+
   switch (addr) {
   case k_addr_crtc | k_crtc_address:
     video_set_crtc_address(p_video, val);
@@ -591,103 +413,6 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     break;
   case k_addr_rom_latch:
     printf("ignoring ROM latch write\n");
-    break;
-  case k_addr_sysvia | k_via_ORB:
-    assert((p_bbc->sysvia_PCR & 0xa0) != 0x20);
-    assert((p_bbc->sysvia_PCR & 0xe0) != 0x80);
-    assert((p_bbc->sysvia_PCR & 0xe0) != 0xa0);
-    p_bbc->sysvia_ORB = val;
-    bbc_sysvia_write_portb(p_bbc);
-    break;
-  case k_addr_sysvia | k_via_ORA:
-    assert((p_bbc->sysvia_PCR & 0x0a) != 0x02);
-    assert((p_bbc->sysvia_PCR & 0x0e) != 0x08);
-    assert((p_bbc->sysvia_PCR & 0x0e) != 0x0a);
-    p_bbc->sysvia_ORA = val;
-    bbc_sysvia_write_porta(p_bbc);
-    break;
-  case k_addr_sysvia | k_via_DDRB:
-    p_bbc->sysvia_DDRB = val;
-    bbc_sysvia_write_portb(p_bbc);
-    break;
-  case k_addr_sysvia | k_via_DDRA:
-    p_bbc->sysvia_DDRA = val;
-    bbc_sysvia_write_porta(p_bbc);
-    break;
-  case k_addr_sysvia | k_via_T1CH:
-    assert(val == 0x27);
-    assert((p_bbc->sysvia_ACR & 0xc0) != 0x80);
-    p_bbc->sysvia_T1LH = val;
-    p_bbc->sysvia_T1CL = p_bbc->sysvia_T1LL;
-    p_bbc->sysvia_T1CH = val;
-    break;
-  case k_addr_sysvia | k_via_T1LL:
-    assert(val == 0x0e);
-    p_bbc->sysvia_T1LL = val;
-    break;
-  case k_addr_sysvia | k_via_T1LH:
-    assert(val == 0x27);
-    /* TODO: clear timer interrupt if acr & 0x40. */
-    p_bbc->sysvia_T1LH = val;
-    break;
-  case k_addr_sysvia | k_via_SR:
-    p_bbc->sysvia_SR = val;
-    break;
-  case k_addr_sysvia | k_via_ACR:
-    p_bbc->sysvia_ACR = val;
-    printf("new sysvia ACR %x\n", val);
-    break;
-  case k_addr_sysvia | k_via_PCR:
-    assert((val & 0x0e) != 0x0c);
-    assert(!(val & 0x08));
-    assert((val & 0xe0) != 0xc0);
-    assert(!(val & 0x80));
-    p_bbc->sysvia_PCR = val;
-    printf("new sysvia PCR %x\n", val);
-    break;
-  case k_addr_sysvia | k_via_IFR:
-    p_bbc->sysvia_IFR &= ~(val & 0x7f);
-    bbc_check_interrupt(p_bbc);
-    break;
-  case k_addr_sysvia | k_via_IER:
-    if (val & 0x80) {
-      p_bbc->sysvia_IER |= (val & 0x7f);
-    } else {
-      p_bbc->sysvia_IER &= ~(val & 0x7f);
-    }
-    bbc_check_interrupt(p_bbc);
-/*    printf("new sysvia IER %x\n", p_bbc->sysvia_IER);*/
-    break;
-  case k_addr_sysvia | k_via_ORAnh:
-    p_bbc->sysvia_ORA = val;
-    bbc_sysvia_write_porta(p_bbc);
-    break;
-  case k_addr_uservia | k_via_DDRA:
-    printf("ignoring user VIA DDRA write\n");
-    break;
-  case k_addr_uservia | k_via_T1CL:
-    printf("ignoring user VIA T1CL write\n");
-    break;
-  case k_addr_uservia | k_via_T1CH:
-    printf("ignoring user VIA T1CH write\n");
-    break;
-  case k_addr_uservia | k_via_T1LL:
-    printf("ignoring user VIA T1LL write\n");
-    break;
-  case k_addr_uservia | k_via_T1LH:
-    printf("ignoring user VIA T1LH write\n");
-    break;
-  case k_addr_uservia | k_via_ACR:
-    printf("ignoring user VIA ACR write\n");
-    break;
-  case k_addr_uservia | k_via_PCR:
-    p_bbc->uservia_PCR = val;
-    break;
-  case k_addr_uservia | k_via_IFR:
-    printf("ignoring user VIA IFR write\n");
-    break;
-  case k_addr_uservia | k_via_IER:
-    printf("ignoring user VIA IER write\n");
     break;
   case k_addr_adc:
     printf("ignoring ADC write\n");
@@ -947,7 +672,7 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
   p_bbc->keys_count++;
 
   /* TODO: we're on the X thread so we have concurrent access issues. */
-  bbc_fire_interrupt(p_bbc, 0, k_int_CA2);
+  via_raise_interrupt(p_bbc->p_system_via, k_int_CA2);
 }
 
 void
@@ -971,4 +696,21 @@ bbc_key_released(struct bbc_struct* p_bbc, int key) {
     assert(p_bbc->keys_count > 0);
     p_bbc->keys_count--;
   }
+}
+
+int
+bbc_is_key_pressed(struct bbc_struct* p_bbc,
+                   unsigned char row,
+                   unsigned char col) {
+  return p_bbc->keys[row][col];
+}
+
+int
+bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col) {
+  return (p_bbc->keys_count_col[col] > 0);
+}
+
+int
+bbc_is_any_key_pressed(struct bbc_struct* p_bbc) {
+  return (p_bbc->keys_count > 0);
 }

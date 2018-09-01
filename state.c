@@ -1,6 +1,7 @@
 #include "state.h"
 
 #include "bbc.h"
+#include "via.h"
 #include "video.h"
 
 #include <assert.h>
@@ -136,6 +137,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   unsigned char snapshot[k_snapshot_size];
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
+  struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
 
   state_read(snapshot, p_file_name);
 
@@ -154,17 +156,18 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   video_set_ula_control(p_video, p_bem->ula_control);
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_set_crtc_registers(p_video, &p_bem->crtc_regs[0]);
-  bbc_set_sysvia(p_bbc,
-                 p_bem->sysvia_ora,
-                 p_bem->sysvia_orb,
-                 p_bem->sysvia_ddra,
-                 p_bem->sysvia_ddrb,
-                 p_bem->sysvia_sr,
-                 p_bem->sysvia_acr,
-                 p_bem->sysvia_pcr,
-                 p_bem->sysvia_ifr,
-                 p_bem->sysvia_ier,
-                 p_bem->sysvia_IC32);
+  via_set_registers(p_system_via,
+                    p_bem->sysvia_ora,
+                    p_bem->sysvia_orb,
+                    p_bem->sysvia_ddra,
+                    p_bem->sysvia_ddrb,
+                    p_bem->sysvia_sr,
+                    p_bem->sysvia_acr,
+                    p_bem->sysvia_pcr,
+                    p_bem->sysvia_ifr,
+                    p_bem->sysvia_ier,
+                    0,
+                    p_bem->sysvia_IC32);
 }
 
 void
@@ -191,8 +194,10 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   int fd;
   int ret;
   ssize_t write_ret;
+  unsigned char unused_char;
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
+  struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   unsigned char* p_mem = bbc_get_mem(p_bbc);
 
   memset(snapshot, '\0', k_snapshot_size);
@@ -216,17 +221,18 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->ula_control = video_get_ula_control(p_video);
   video_get_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_get_crtc_registers(p_video, &p_bem->crtc_regs[0]);
-  bbc_get_sysvia(p_bbc,
-                 &p_bem->sysvia_ora,
-                 &p_bem->sysvia_orb,
-                 &p_bem->sysvia_ddra,
-                 &p_bem->sysvia_ddrb,
-                 &p_bem->sysvia_sr,
-                 &p_bem->sysvia_acr,
-                 &p_bem->sysvia_pcr,
-                 &p_bem->sysvia_ifr,
-                 &p_bem->sysvia_ier,
-                 &p_bem->sysvia_IC32);
+  via_get_registers(p_system_via,
+                    &p_bem->sysvia_ora,
+                    &p_bem->sysvia_orb,
+                    &p_bem->sysvia_ddra,
+                    &p_bem->sysvia_ddrb,
+                    &p_bem->sysvia_sr,
+                    &p_bem->sysvia_acr,
+                    &p_bem->sysvia_pcr,
+                    &p_bem->sysvia_ifr,
+                    &p_bem->sysvia_ier,
+                    &unused_char,
+                    &p_bem->sysvia_IC32);
 
   fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
   if (fd < 0) {

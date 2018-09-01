@@ -628,9 +628,6 @@ debug_callback(struct debug_struct* p_debug) {
                parse_int < k_max_break) {
       debug_break_mem_low[parse_int] = -1;
       debug_break_mem_high[parse_int] = -1;
-    } else if (sscanf(input_buf, "int %d %x", &parse_int, &parse_int2) == 2 &&
-               parse_int == 0) {
-      bbc_fire_interrupt(p_bbc, parse_int, parse_int2 & 0x7f);
     } else if (sscanf(input_buf, "bop %x", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < 256) {

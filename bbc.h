@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct via_struct;
+
 enum {
   k_bbc_addr_space_size = 0x10000,
   k_bbc_rom_size = 0x4000,
@@ -39,34 +41,12 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char s,
                        unsigned char flags,
                        uint16_t pc);
+void bbc_set_interrupt(struct bbc_struct* p_bbc, int interrupt);
 uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 void bbc_check_pc(struct bbc_struct* p_bbc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
-void bbc_get_sysvia(struct bbc_struct* p_bbc,
-                    unsigned char* sysvia_ORA,
-                    unsigned char* sysvia_ORB,
-                    unsigned char* sysvia_DDRA,
-                    unsigned char* sysvia_DDRB,
-                    unsigned char* sysvia_SR,
-                    unsigned char* sysvia_ACR,
-                    unsigned char* sysvia_PCR,
-                    unsigned char* sysvia_IFR,
-                    unsigned char* sysvia_IER,
-                    unsigned char* sysvia_IC32);
-void bbc_set_sysvia(struct bbc_struct* p_bbc,
-                    unsigned char sysvia_ORA,
-                    unsigned char sysvia_ORB,
-                    unsigned char sysvia_DDRA,
-                    unsigned char sysvia_DDRB,
-                    unsigned char sysvia_SR,
-                    unsigned char sysvia_ACR,
-                    unsigned char sysvia_PCR,
-                    unsigned char sysvia_IFR,
-                    unsigned char sysvia_IER,
-                    unsigned char sysvia_IC32);
-
-void bbc_fire_interrupt(struct bbc_struct* p_bbc, int user, unsigned char bits);
+struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
@@ -98,5 +78,10 @@ void bbc_write_callback(struct bbc_struct* p_bbc,
 
 void bbc_key_pressed(struct bbc_struct* p_bbc, int key);
 void bbc_key_released(struct bbc_struct* p_bbc, int key);
+int bbc_is_key_pressed(struct bbc_struct* p_bbc,
+                       unsigned char row,
+                       unsigned char col);
+int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
+int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
 
 #endif /* BEEJIT_JIT_H */
