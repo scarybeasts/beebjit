@@ -361,24 +361,21 @@ main(int argc, const char* argv[]) {
 
   /* Test most simple self-modifying code. */
   index = set_new_index(index, 0x340);
-  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0xa9; /* LDA #$60 */ /* RTS */
   p_mem[index++] = 0x60;
-  /* Stores RTS at $2000. */
   p_mem[index++] = 0x8d; /* STA $2000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x20;
   p_mem[index++] = 0x20; /* JSR $2000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x20;
-  p_mem[index++] = 0xa9; /* LDA #$E8 */
+  p_mem[index++] = 0xa9; /* LDA #$E8 */ /* INX */
   p_mem[index++] = 0xe8;
-  /* Stores INX at $2000. */
   p_mem[index++] = 0x8d; /* STA $2000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x20;
-  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0xa9; /* LDA #$60 */ /* RTS */
   p_mem[index++] = 0x60;
-  /* Stores RTS at $2001. */
   p_mem[index++] = 0x8d; /* STA $2001 */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x20;
@@ -397,17 +394,17 @@ main(int argc, const char* argv[]) {
   /* Test self-modifying an operand of an opcode. */
   index = set_new_index(index, 0x380);
   /* Stores LDA #$00; RTS at $1000. */
-  p_mem[index++] = 0xa9; /* LDA #$a9 */
+  p_mem[index++] = 0xa9; /* LDA #$a9 */ /* LDA */
   p_mem[index++] = 0xa9;
   p_mem[index++] = 0x8d; /* STA $1000 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x10;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0xa9; /* LDA #$00 */ /* #$00 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x8d; /* STA $1001 */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x10;
-  p_mem[index++] = 0xa9; /* LDA #$60 */
+  p_mem[index++] = 0xa9; /* LDA #$60 */ /* RTS */
   p_mem[index++] = 0x60;
   p_mem[index++] = 0x8d; /* STA $1002 */
   p_mem[index++] = 0x02;
@@ -419,7 +416,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
   /* Modify LDA #$00 at $1000 to be LDA #$01. */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
+  p_mem[index++] = 0xa9; /* LDA #$01 */ /* #$01 */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x8d; /* STA $1001 */
   p_mem[index++] = 0x01;
@@ -516,18 +513,18 @@ main(int argc, const char* argv[]) {
 
   /* Tests a real self-modifying copy loop. */
   index = set_new_index(index, 0x440);
-  p_mem[index++] = 0xa9; /* LDA #$e1 */
+  p_mem[index++] = 0xa9; /* LDA #$E1 */
   p_mem[index++] = 0xe1;
-  p_mem[index++] = 0x8d; /* STA $1ccc */
+  p_mem[index++] = 0x8d; /* STA $1CCC */
   p_mem[index++] = 0xcc;
   p_mem[index++] = 0x1c;
   p_mem[index++] = 0x20; /* JSR $3010 */
   p_mem[index++] = 0x10;
   p_mem[index++] = 0x30;
-  p_mem[index++] = 0xad; /* LDA $0ccc */
+  p_mem[index++] = 0xad; /* LDA $0CCC */
   p_mem[index++] = 0xcc;
   p_mem[index++] = 0x0c;
-  p_mem[index++] = 0xc9; /* CMP #$e1 */
+  p_mem[index++] = 0xc9; /* CMP #$E1 */
   p_mem[index++] = 0xe1;
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
@@ -540,7 +537,7 @@ main(int argc, const char* argv[]) {
    * address tracking.
    */
   index = set_new_index(index, 0x480);
-  p_mem[index++] = 0xa2; /* LDX #$ff */
+  p_mem[index++] = 0xa2; /* LDX #$FF */
   p_mem[index++] = 0xff;
   p_mem[index++] = 0xa0; /* LDY #$01 */
   p_mem[index++] = 0x01;
@@ -937,10 +934,10 @@ main(int argc, const char* argv[]) {
   index = set_new_index(index, 0x3010);
   p_mem[index++] = 0xa0; /* LDY #$04 */
   p_mem[index++] = 0x04;
-  p_mem[index++] = 0xbd; /* LDA $1a00,X */
+  p_mem[index++] = 0xbd; /* LDA $1A00,X */ /* Jump target for both BNEs. */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x1a;
-  p_mem[index++] = 0x9d; /* STA $0a00,X */
+  p_mem[index++] = 0x9d; /* STA $0A00,X */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x0a;
   p_mem[index++] = 0xe8; /* INX */

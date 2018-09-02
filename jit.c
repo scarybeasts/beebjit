@@ -57,6 +57,7 @@ static const int k_offset_jit_ptrs = 104;
 static const unsigned int k_jit_flag_debug = 1;
 static const unsigned int k_jit_flag_merge_ops = 2;
 static const unsigned int k_jit_flag_self_modifying = 4;
+static const unsigned int k_jit_flag_dynamic_operand = 8;
 
 enum {
   k_a = 1,
@@ -127,6 +128,7 @@ struct jit_struct {
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
+  unsigned char compiled_opcode[k_bbc_addr_space_size];
 };
 
 static size_t
@@ -398,6 +400,23 @@ jit_emit_zp_y_to_scratch(unsigned char* p_jit,
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
   p_jit[index++] = 0xd0;
+
+  return index;
+}
+
+static size_t
+jit_emit_abs_x_dyn_to_scratch(struct jit_struct* p_jit,
+                              unsigned char* p_jit_buf,
+                              size_t index,
+                              uint16_t addr_6502_plus_1) {
+  /* movzx edx, WORD PTR [p_mem + addr_6502_plus_1] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x25;
+  index = jit_emit_int(p_jit_buf,
+                       index,
+                       (size_t) p_jit->p_mem + addr_6502_plus_1);
 
   return index;
 }
@@ -1438,12 +1457,23 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                          index,
                          k_offset_jit_ptrs +
                              (opcode_addr_6502 * sizeof(unsigned int)));
-  } else if (opmode == k_idy) {
+  } else if (opmode == k_idy || opmode == k_aby_dyn) {
     /* lea dx, [rdx + rcx] */
     p_jit_buf[index++] = 0x66;
     p_jit_buf[index++] = 0x8d;
     p_jit_buf[index++] = 0x14;
     p_jit_buf[index++] = 0x0a;
+    /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
+    p_jit_buf[index++] = 0x8b;
+    p_jit_buf[index++] = 0x54;
+    p_jit_buf[index++] = 0x97;
+    p_jit_buf[index++] = k_offset_jit_ptrs;
+  } else if (opmode == k_abx_dyn) {
+    /* lea dx, [rdx + rbx] */
+    p_jit_buf[index++] = 0x66;
+    p_jit_buf[index++] = 0x8d;
+    p_jit_buf[index++] = 0x14;
+    p_jit_buf[index++] = 0x1a;
     /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
     p_jit_buf[index++] = 0x8b;
     p_jit_buf[index++] = 0x54;
@@ -1470,7 +1500,8 @@ jit_handle_invalidate(struct jit_struct* p_jit,
 static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
-           uint16_t addr_6502) {
+           uint16_t addr_6502,
+           int dynamic_operand) {
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1503,6 +1534,23 @@ jit_single(struct jit_struct* p_jit,
 
   opcode_addr_6502 = (operand2 << 8) | operand1;
 
+  if (dynamic_operand) {
+    switch (opmode) {
+    case k_imm:
+      opmode = k_imm_dyn;
+      opcode_addr_6502 = addr_6502_plus_1;
+      break;
+    case k_abx:
+      opmode = k_abx_dyn;
+      break;
+    case k_aby:
+      opmode = k_aby_dyn;
+      break;
+    default:
+      assert(0);
+    }
+  }
+
   switch (opmode) {
   case k_zpx:
     index = jit_emit_zp_x_to_scratch(p_jit_buf, index, opcode_addr_6502);
@@ -1527,6 +1575,13 @@ jit_single(struct jit_struct* p_jit,
                                       p_jit_buf,
                                       index,
                                       opcode_addr_6502);
+    break;
+  case k_abx_dyn:
+  case k_aby_dyn:
+    index = jit_emit_abs_x_dyn_to_scratch(p_jit,
+                                          p_jit_buf,
+                                          index,
+                                          addr_6502_plus_1);
     break;
   default:
     break;
@@ -1921,6 +1976,7 @@ jit_single(struct jit_struct* p_jit,
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_idy:
+    case k_aby_dyn:
       /* mov [rdx + rcx], al */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x04;
@@ -1944,6 +2000,12 @@ jit_single(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x82;
       index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+      break;
+    case k_abx_dyn:
+      /* mov [rdx + rbx], al */
+      p_jit_buf[index++] = 0x88;
+      p_jit_buf[index++] = 0x04;
+      p_jit_buf[index++] = 0x1a;
       break;
     default:
       assert(0);
@@ -2144,6 +2206,7 @@ jit_single(struct jit_struct* p_jit,
       break;
     case k_zpg:
     case k_abs:
+    case k_imm_dyn:
       /* mov al, [p_mem + addr] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x04;
@@ -2153,6 +2216,7 @@ jit_single(struct jit_struct* p_jit,
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_idy:
+    case k_aby_dyn:
       /* mov al, [rdx + rcx] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x04;
@@ -2176,6 +2240,12 @@ jit_single(struct jit_struct* p_jit,
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x82;
       index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+      break;
+    case k_abx_dyn:
+      /* mov al, [rdx + rbx] */
+      p_jit_buf[index++] = 0x8a;
+      p_jit_buf[index++] = 0x04;
+      p_jit_buf[index++] = 0x1a;
       break;
     default:
       assert(0);
@@ -2433,6 +2503,16 @@ jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502) {
   return block_addr_6502;
 }
 
+static int
+jit_is_invalidation_sequence(unsigned char* p_jit_ptr) {
+  /* call [rdi] */
+  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x17) {
+    return 1;
+  }
+  return 0;
+}
+
+/* TODO: track more explicitly via an array of booleans. */
 int
 jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr;
@@ -2442,8 +2522,7 @@ jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  /* call [rdi] */
-  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x17) {
+  if (jit_is_invalidation_sequence(p_jit_ptr)) {
     return 0;
   }
   return 1;
@@ -2458,11 +2537,20 @@ jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
   }
   p_jit_ptr = p_jit->p_jit_base;
   p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  /* call [rdi] */
-  if (p_jit_ptr[0] == 0xff && p_jit_ptr[1] == 0x17) {
+  if (jit_is_invalidation_sequence(p_jit_ptr)) {
     return 0;
   }
   return 1;
+}
+
+static int
+jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr =
+      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  if (jit_is_invalidation_sequence(p_jit_ptr)) {
+    return 1;
+  }
+  return 0;
 }
 
 static void
@@ -2482,7 +2570,6 @@ static void
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
             uint16_t addr_6502) {
-  size_t num_6502_bytes;
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
   uint16_t block_addr_6502;
 
@@ -2513,9 +2600,13 @@ jit_at_addr(struct jit_struct* p_jit,
     size_t intel_opcodes_len;
     size_t buf_left;
     unsigned char new_nz_flags;
+    size_t num_6502_bytes;
+    size_t i;
 
     unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
                            util_buffer_get_pos(p_buf);
+    int dynamic_operand = 0;
+
     assert((size_t) p_dst < 0xffffffff);
 
     if (jit_is_valid_block_start(p_jit, addr_6502)) {
@@ -2529,11 +2620,27 @@ jit_at_addr(struct jit_struct* p_jit,
     optype = g_optypes[opcode_6502];
     new_nz_flags = g_nz_flag_pending[optype];
 
+    /* If we're compiling the same opcode on top of an existing invalidated
+     * opcode, apply * a self-modifying optimization to try and avoid future
+     * re-compilations.
+     */
+    if (jit_has_invalidated_code(p_jit, addr_6502) &&
+        opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
+      unsigned char opmode = g_opmodes[opcode_6502];
+      if ((optype == k_lda || optype == k_sta) &&
+          (opmode == k_abx || opmode == k_aby || opmode == k_imm)) {
+        dynamic_operand = 1;
+      }
+    }
+
     if (debug) {
       jit_emit_debug_sequence(p_single_buf, addr_6502);
     }
 
-    num_6502_bytes = jit_single(p_jit, p_single_buf, addr_6502);
+    num_6502_bytes = jit_single(p_jit,
+                                p_single_buf,
+                                addr_6502,
+                                dynamic_operand);
 
     opcode_6502_next = jit_get_opcode(p_jit, addr_6502 + num_6502_bytes);
     optype_next = g_optypes[opcode_6502_next];
@@ -2582,12 +2689,23 @@ jit_at_addr(struct jit_struct* p_jit,
 
     /* Store where the Intel code is for each 6502 opcode, so we can invalidate
      * Intel JIT on 6502 writes.
+     * Note that invalidation for operands can be disabled if we're lifted
+     * self-modification into inline resolution.
+     * Also record the last compiled opcode at a given address.
      */
-    while (num_6502_bytes > 0) {
+    for (i = 0; i < num_6502_bytes; ++i) {
+      unsigned char* p_jit_ptr = p_dst;
+      if (i == 0) {
+        p_jit->compiled_opcode[addr_6502] = opcode_6502;
+      } else {
+        p_jit->compiled_opcode[addr_6502] = 0;
+        if (dynamic_operand) {
+          p_jit_ptr = (p_jit->p_jit_base + (0xffff << k_jit_bytes_shift));
+        }
+      }
       jit_addr_invalidate(p_jit, addr_6502);
-      p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_dst;
+      p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
       addr_6502++;
-      num_6502_bytes--;
     }
 
     util_buffer_append(p_buf, p_single_buf);
