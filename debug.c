@@ -38,6 +38,8 @@ struct debug_struct {
   size_t count_opcode[k_6502_op_num_opcodes];
   size_t count_optype[k_6502_op_num_types];
   size_t count_opmode[k_6502_op_num_modes];
+  /* Other. */
+  unsigned char warned_at_addr[k_bbc_addr_space_size];
 };
 
 /* TODO: move into debug_struct! */
@@ -393,36 +395,51 @@ debug_dump_stats(struct debug_struct* p_debug) {
 }
 
 static void
-debug_check_unhandled(struct debug_struct* p_debug,
-                      unsigned char opcode,
-                      uint16_t reg_pc,
-                      uint16_t addr_6502) {
+debug_check_unusual(struct debug_struct* p_debug,
+                    unsigned char opcode,
+                    uint16_t reg_pc,
+                    uint16_t addr_6502) {
+  int is_write;
+  int is_register;
+  int is_rom;
+  int has_code;
+
   struct bbc_struct* p_bbc = p_debug->p_bbc;
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
   unsigned char opmode = g_opmodes[opcode];
   unsigned char optype = g_optypes[opcode];
   unsigned char opmem = g_opmem[optype];
+
+  is_write = ((opmem == k_write || opmem == k_rw) && opmode != k_nil);
+  is_register = (addr_6502 >= 0xfc00 && addr_6502 < 0xff00);
+  is_rom = (!is_register && addr_6502 >= 0x8000);
+  has_code = jit_has_code(p_jit, addr_6502);
+
   /* Currently unimplemented and untrapped: indirect reads into the hardware
    * register space.
    */
-  if (addr_6502 >= 0xfc00 && addr_6502 < 0xff00 &&
-      (opmode == k_idx || opmode == k_idy)) {
-    printf("Indirect read to %.4x at %.4x\n", addr_6502, reg_pc);
+  if (is_register && (opmode == k_idx || opmode == k_idy)) {
+    printf("Indirect read to register %.4x at %.4x\n", addr_6502, reg_pc);
     debug_running = 0;
+  }
+
+  /* Handled via a SIGSEGV handler(!) but worth noting. */
+  if (is_write && is_rom && !p_debug->warned_at_addr[reg_pc]) {
+    printf("Code at %.4x is writing to ROM at %.4x\n", reg_pc, addr_6502);
+    p_debug->warned_at_addr[reg_pc] = 1;
   }
 
   /* Currently unimplemented and untrapped.
    * NOTE: this is now implmented but I've never seen a game use it, so keeping
    * it in so we can find such a game and write some notes about it.
    */
-  if ((opmem == k_write || opmem == k_rw) &&
-      addr_6502 < 0x3000 &&
-      (opmode == k_idx ||
-       opmode == k_idy)) {
-    struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-    if (jit_has_code(p_jit, addr_6502)) {
-      printf("Indirect write to existing code %.4x at %.4x\n",
-             addr_6502,
-             reg_pc);
+  if (is_write && has_code) {
+    if (!p_debug->warned_at_addr[reg_pc]) {
+      printf("Code at %.4x modifying code at %.4x\n", reg_pc, addr_6502);
+      p_debug->warned_at_addr[reg_pc] = 1;
+    }
+    if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
+      printf("Indirect write at %.4x to %.4x\n", reg_pc, addr_6502);
       debug_running = 0;
     }
   }
@@ -506,7 +523,7 @@ debug_callback(struct debug_struct* p_debug) {
 
   addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
 
-  debug_check_unhandled(p_debug, opcode, reg_pc, addr_6502);
+  debug_check_unusual(p_debug, opcode, reg_pc, addr_6502);
 
   if (debug_running_slow) {
     debug_slow_down();
