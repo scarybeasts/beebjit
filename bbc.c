@@ -196,6 +196,11 @@ bbc_get_sysvia(struct bbc_struct* p_bbc) {
   return p_bbc->p_system_via;
 }
 
+struct via_struct*
+bbc_get_uservia(struct bbc_struct* p_bbc) {
+  return p_bbc->p_user_via;
+}
+
 struct jit_struct*
 bbc_get_jit(struct bbc_struct* p_bbc) {
   return p_bbc->p_jit;

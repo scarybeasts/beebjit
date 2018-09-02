@@ -6,6 +6,7 @@
 #include "jit.h"
 #include "opdefs.h"
 #include "state.h"
+#include "via.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -266,6 +267,48 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
     printf("[%.4x] %.4x: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
+}
+
+static void
+debug_dump_via(struct bbc_struct* p_bbc, int id) {
+  struct via_struct* p_via;
+  unsigned char ORA;
+  unsigned char ORB;
+  unsigned char DDRA;
+  unsigned char DDRB;
+  unsigned char SR;
+  unsigned char ACR;
+  unsigned char PCR;
+  unsigned char IFR;
+  unsigned char IER;
+  unsigned char peripheral_a;
+  unsigned char peripheral_b;
+
+  if (id == k_via_system) {
+    printf("System VIA\n");
+    p_via = bbc_get_sysvia(p_bbc);
+  } else if (id == k_via_user) {
+    printf("User VIA\n");
+    p_via = bbc_get_uservia(p_bbc);
+  } else {
+    assert(0);
+  }
+  via_get_registers(p_via,
+                    &ORA,
+                    &ORB,
+                    &DDRA,
+                    &DDRB,
+                    &SR,
+                    &ACR,
+                    &PCR,
+                    &IFR,
+                    &IER,
+                    &peripheral_a,
+                    &peripheral_b);
+  printf("IFR %.2x IER %.2x\n", IFR, IER);
+  printf("ORA %.2x DDRA %.2x periph %.2x\n", ORA, DDRA, peripheral_a);
+  printf("ORB %.2x DDRB %.2x periph %.2x\n", ORB, DDRB, peripheral_b);
+  printf("SR %.2x ACR %.2x PCR %.2x\n", SR, ACR, PCR);
 }
 
 static int
@@ -666,6 +709,10 @@ debug_callback(struct debug_struct* p_debug) {
       reg_s = parse_int;
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_bbc, parse_int);
+    } else if (!strcmp(input_buf, "sys")) {
+      debug_dump_via(p_bbc, k_via_system);
+    } else if (!strcmp(input_buf, "user")) {
+      debug_dump_via(p_bbc, k_via_user);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");

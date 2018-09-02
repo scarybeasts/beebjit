@@ -47,6 +47,7 @@ void bbc_check_pc(struct bbc_struct* p_bbc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);
+struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
