@@ -729,6 +729,8 @@ debug_callback(struct debug_struct* p_debug) {
       printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
       printf("ss <f>           : save state to BEM file <f>\n");
       printf("{a,x,y}=<val>    : set register to <val>\n");
+      printf("sys              : show system VIA registers\n");
+      printf("user             : show user VIA registers\n");
     } else {
       printf("???\n");
     }
