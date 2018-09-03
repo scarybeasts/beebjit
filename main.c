@@ -1,5 +1,6 @@
 #include "bbc.h"
 #include "state.h"
+#include "test.h"
 #include "video.h"
 #include "x.h"
 
@@ -30,6 +31,7 @@ main(int argc, const char* argv[]) {
   int run_flag = 0;
   int print_flag = 0;
   int slow_flag = 0;
+  int test_flag = 0;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -57,6 +59,8 @@ main(int argc, const char* argv[]) {
       print_flag = 1;
     } else if (strcmp(arg, "-s") == 0) {
       slow_flag = 1;
+    } else if (strcmp(arg, "-t") == 0) {
+      test_flag = 1;
     }
   }
 
@@ -98,6 +102,10 @@ main(int argc, const char* argv[]) {
 
   if (load_name != NULL) {
     state_load(p_bbc, load_name);
+  }
+
+  if (test_flag) {
+    test_do_tests(p_bbc);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
