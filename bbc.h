@@ -28,7 +28,8 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
                               int debug_flag,
                               int run_flag,
                               int print_flag,
-                              int slow_flag);
+                              int slow_flag,
+                              const char* p_opt_flags);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);

@@ -16,18 +16,20 @@ int
 main(int argc, const char* argv[]) {
   int fd;
   ssize_t read_ret;
+  unsigned char os_rom[k_bbc_rom_size];
+  unsigned char lang_rom[k_bbc_rom_size];
+  int i;
+  struct x_struct* p_x;
+  struct bbc_struct* p_bbc;
+
   const char* os_rom_name = "os12.rom";
   const char* lang_rom_name = "basic.rom";
   const char* load_name = NULL;
-  unsigned char os_rom[k_bbc_rom_size];
-  unsigned char lang_rom[k_bbc_rom_size];
+  const char* opt_flags = "";
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
   int slow_flag = 0;
-  int i;
-  struct x_struct* p_x;
-  struct bbc_struct* p_bbc;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -41,6 +43,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (strcmp(arg, "-load") == 0) {
         load_name = val;
+        ++i;
+      } else if (strcmp(arg, "-opt") == 0) {
+        opt_flags = val;
         ++i;
       }
     }
@@ -85,7 +90,8 @@ main(int argc, const char* argv[]) {
                      debug_flag,
                      run_flag,
                      print_flag,
-                     slow_flag);
+                     slow_flag,
+                     opt_flags);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }

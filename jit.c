@@ -55,6 +55,7 @@ static const unsigned int k_jit_flag_debug = 1;
 static const unsigned int k_jit_flag_merge_ops = 2;
 static const unsigned int k_jit_flag_self_modifying = 4;
 static const unsigned int k_jit_flag_dynamic_operand = 8;
+static const unsigned int k_jit_flag_no_rom_fault = 16;
 
 enum {
   k_a = 1,
@@ -1500,6 +1501,7 @@ jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502,
            int dynamic_operand) {
+  unsigned int jit_flags = p_jit->jit_flags;
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
 
@@ -1613,7 +1615,7 @@ jit_single(struct jit_struct* p_jit,
   }
 
   /* Handle merging repeated shift / rotate instructions. */
-  if (p_jit->jit_flags & k_jit_flag_merge_ops) {
+  if (jit_flags & k_jit_flag_merge_ops) {
     if (optype == k_lsr ||
         optype == k_asl ||
         optype == k_rol ||
@@ -1975,27 +1977,30 @@ jit_single(struct jit_struct* p_jit,
       break;
     case k_idy:
     case k_aby_dyn:
-      /* lea dx, [rdx + rcx] */
-      p_jit_buf[index++] = 0x66;
-      p_jit_buf[index++] = 0x8d;
-      p_jit_buf[index++] = 0x14;
-      p_jit_buf[index++] = 0x0a;
-      /* bt edx, 15 */
-      p_jit_buf[index++] = 0x0f;
-      p_jit_buf[index++] = 0xba;
-      p_jit_buf[index++] = 0xe2;
-      p_jit_buf[index++] = 0x0f;
-      /* jb / jc + 6 */
-      p_jit_buf[index++] = 0x72;
-      p_jit_buf[index++] = 0x06;
-      /* mov [rdx + p_mem], al */
-      p_jit_buf[index++] = 0x88;
-      p_jit_buf[index++] = 0x82;
-      index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
-      /* mov [rdx + rcx], al */
-      /* p_jit_buf[index++] = 0x88;
-      p_jit_buf[index++] = 0x04;
-      p_jit_buf[index++] = 0x0a;*/
+      if (jit_flags & k_jit_flag_no_rom_fault) {
+        /* lea dx, [rdx + rcx] */
+        p_jit_buf[index++] = 0x66;
+        p_jit_buf[index++] = 0x8d;
+        p_jit_buf[index++] = 0x14;
+        p_jit_buf[index++] = 0x0a;
+        /* bt edx, 15 */
+        p_jit_buf[index++] = 0x0f;
+        p_jit_buf[index++] = 0xba;
+        p_jit_buf[index++] = 0xe2;
+        p_jit_buf[index++] = 0x0f;
+        /* jb / jc + 6 */
+        p_jit_buf[index++] = 0x72;
+        p_jit_buf[index++] = 0x06;
+        /* mov [rdx + p_mem], al */
+        p_jit_buf[index++] = 0x88;
+        p_jit_buf[index++] = 0x82;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+      } else {
+        /* mov [rdx + rcx], al */
+        p_jit_buf[index++] = 0x88;
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x0a;
+      }
       break;
     case k_abx:
       /* mov [rbx + addr_6502], al */
@@ -2582,12 +2587,17 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
-  int debug = 0;
+  int emit_debug = 0;
+  int emit_dynamic_operand = 0;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
+  unsigned int jit_flags = p_jit->jit_flags;
 
-  if (p_jit->jit_flags & k_jit_flag_debug) {
-    debug = 1;
+  if (jit_flags & k_jit_flag_debug) {
+    emit_debug = 1;
+  }
+  if (jit_flags & k_jit_flag_dynamic_operand) {
+    emit_dynamic_operand = 1;
   }
 
   /* This opcode may be compiled into part of a previous block, so make sure to
@@ -2628,7 +2638,8 @@ jit_at_addr(struct jit_struct* p_jit,
      * opcode, apply a self-modifying optimization to try and avoid future
      * re-compilations.
      */
-    if (jit_has_invalidated_code(p_jit, addr_6502) &&
+    if (emit_dynamic_operand &&
+        jit_has_invalidated_code(p_jit, addr_6502) &&
         opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
       unsigned char opmode = g_opmodes[opcode_6502];
       if ((optype == k_lda || optype == k_sta) &&
@@ -2637,7 +2648,7 @@ jit_at_addr(struct jit_struct* p_jit,
       }
     }
 
-    if (debug) {
+    if (emit_debug) {
       jit_emit_debug_sequence(p_single_buf, addr_6502);
     }
 
@@ -2650,7 +2661,8 @@ jit_at_addr(struct jit_struct* p_jit,
     optype_next = g_optypes[opcode_6502_next];
 
     /* See if we need to load the 6502 NZ flags. */
-    if ((debug || g_nz_flags_needed[optype_next]) && new_nz_flags != k_set) {
+    if ((emit_debug || g_nz_flags_needed[optype_next]) &&
+        new_nz_flags != k_set) {
       unsigned char commit_nz_flags = 0;
       if (new_nz_flags != 0) {
         commit_nz_flags = new_nz_flags;
@@ -2924,7 +2936,9 @@ jit_create(void* p_debug_callback,
            struct debug_struct* p_debug,
            struct bbc_struct* p_bbc,
            void* p_read_callback,
-           void* p_write_callback) {
+           void* p_write_callback,
+           const char* p_opt_flags) {
+  unsigned int jit_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_util_debug;
@@ -2964,7 +2978,14 @@ jit_create(void* p_debug_callback,
   p_jit->p_bbc = p_bbc;
   p_jit->p_read_callback = p_read_callback;
   p_jit->p_write_callback = p_write_callback;
-  p_jit->jit_flags = k_jit_flag_merge_ops | k_jit_flag_self_modifying;
+
+  jit_flags = k_jit_flag_merge_ops |
+              k_jit_flag_self_modifying |
+              k_jit_flag_dynamic_operand;
+  if (strstr(p_opt_flags, "jit:no-rom-fault")) {
+    jit_flags |= k_jit_flag_no_rom_fault;
+  }
+  p_jit->jit_flags = jit_flags;
 
   /* int3 */
   memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);

@@ -63,7 +63,8 @@ bbc_create(unsigned char* p_os_rom,
            int debug_flag,
            int run_flag,
            int print_flag,
-           int slow_flag) {
+           int slow_flag,
+           const char* p_opt_flags) {
   struct debug_struct* p_debug;
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -107,7 +108,8 @@ bbc_create(unsigned char* p_os_rom,
                             p_debug,
                             p_bbc,
                             bbc_read_callback,
-                            bbc_write_callback);
+                            bbc_write_callback,
+                            p_opt_flags);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
   }
