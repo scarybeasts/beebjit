@@ -38,6 +38,7 @@ struct debug_struct {
   size_t count_opcode[k_6502_op_num_opcodes];
   size_t count_optype[k_6502_op_num_types];
   size_t count_opmode[k_6502_op_num_modes];
+  size_t rom_write_faults;
   /* Other. */
   unsigned char warned_at_addr[k_bbc_addr_space_size];
 };
@@ -392,6 +393,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
     }
     printf("%4x: %zu\n", addr, count);
   }
+  printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
 }
 
 static void
@@ -423,10 +425,15 @@ debug_check_unusual(struct debug_struct* p_debug,
     debug_running = 0;
   }
 
-  /* Handled via a SIGSEGV handler(!) but worth noting. */
-  if (is_write && is_rom && !p_debug->warned_at_addr[reg_pc]) {
-    printf("Code at %.4x is writing to ROM at %.4x\n", reg_pc, addr_6502);
-    p_debug->warned_at_addr[reg_pc] = 1;
+  /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
+  if (is_write && is_rom) {
+    if (!p_debug->warned_at_addr[reg_pc]) {
+      printf("Code at %.4x is writing to ROM at %.4x\n", reg_pc, addr_6502);
+      p_debug->warned_at_addr[reg_pc] = 1;
+    }
+    if (p_debug->stats && (opmode == k_idx || opmode == k_idy)) {
+      p_debug->rom_write_faults++;
+    }
   }
 
   /* Currently unimplemented and untrapped.
