@@ -421,7 +421,7 @@ debug_check_unusual(struct debug_struct* p_debug,
    * register space.
    */
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
-    printf("Indirect read to register %.4x at %.4x\n", addr_6502, reg_pc);
+    printf("Indirect access to register %.4x at %.4x\n", addr_6502, reg_pc);
     debug_running = 0;
   }
 
