@@ -127,6 +127,7 @@ struct jit_struct {
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
   unsigned char has_code[k_bbc_addr_space_size];
+  unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
 };
 
@@ -2557,21 +2558,6 @@ jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static int
-jit_is_valid_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr;
-  uint16_t block_addr_6502 = jit_block_from_6502(p_jit, addr_6502);
-  if (block_addr_6502 != addr_6502) {
-    return 0;
-  }
-  p_jit_ptr = p_jit->p_jit_base;
-  p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  if (jit_is_invalidation_sequence(p_jit_ptr)) {
-    return 0;
-  }
-  return 1;
-}
-
-static int
 jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr =
       (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
@@ -2619,10 +2605,19 @@ jit_at_addr(struct jit_struct* p_jit,
     emit_dynamic_operand = 1;
   }
 
+  block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
+
+  /* If we're landing at this address for the first time, or we're landing in
+   * the middle of a block for non-self-modifying code, this is a block start.
+   */
+  if (!p_jit->has_code[start_addr_6502] ||
+      !jit_has_invalidated_code(p_jit, start_addr_6502)) {
+    p_jit->is_block_start[start_addr_6502] = 1;
+  }
+
   /* This opcode may be compiled into part of a previous block, so make sure to
    * invalidate that block.
    */
-  block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
   jit_addr_invalidate(p_jit, block_addr_6502);
 
   do {
@@ -2642,7 +2637,7 @@ jit_at_addr(struct jit_struct* p_jit,
 
     assert((size_t) p_dst < 0xffffffff);
 
-    if (jit_is_valid_block_start(p_jit, addr_6502)) {
+    if (addr_6502 != start_addr_6502 && p_jit->is_block_start[addr_6502]) {
       break;
     }
 
