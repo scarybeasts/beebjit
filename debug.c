@@ -155,50 +155,75 @@ debug_print_opcode(char* buf,
 }
 
 static int
-debug_get_addr(unsigned char opcode,
+debug_get_addr(int* wrapped,
+               unsigned char opcode,
                unsigned char operand1,
                unsigned char operand2,
                unsigned char x_6502,
                unsigned char y_6502,
                unsigned char* p_mem) {
   unsigned char opmode = g_opmodes[opcode];
-  uint16_t addr;
+  unsigned int addr;
+  uint16_t trunc_addr;
+  uint16_t addr_addr;
+
+  *wrapped = 0;
 
   switch (opmode) {
   case k_zpg:
     addr = operand1;
+    trunc_addr = addr;
     break;
   case k_zpx:
-    addr = (unsigned char) (operand1 + x_6502);
+    addr = (operand1 + x_6502);
+    trunc_addr = (unsigned char) addr;
     break;
   case k_zpy:
     addr = (unsigned char) (operand1 + y_6502);
+    trunc_addr = (unsigned char) addr;
     break;
   case k_abs:
     addr = (uint16_t) (operand1 + (operand2 << 8));
+    trunc_addr = addr;
     break;
   case k_abx:
-    addr = (uint16_t) (operand1 + (operand2 << 8) + x_6502);
+    addr = (operand1 + (operand2 << 8) + x_6502);
+    trunc_addr = (uint16_t) addr;
     break;
   case k_aby:
-    addr = (uint16_t) (operand1 + (operand2 << 8) + y_6502);
+    addr = (operand1 + (operand2 << 8) + y_6502);
+    trunc_addr = (uint16_t) addr;
     break;
   case k_idx:
-    addr = p_mem[(unsigned char) (operand1 + x_6502 + 1)];
+    addr_addr = (operand1 + x_6502);
+    trunc_addr = (unsigned char) addr_addr;
+    if (trunc_addr != addr_addr || addr_addr == 0xff) {
+      *wrapped = 1;
+    }
+    addr = p_mem[(unsigned char) (addr_addr + 1)];
     addr <<= 8;
-    addr |= p_mem[(unsigned char) (operand1 + x_6502)];
+    addr |= p_mem[(unsigned char) addr_addr];
+    trunc_addr = addr;
     break;
   case k_idy:
+    if (operand1 == 0xff) {
+      *wrapped = 1;
+    }
     addr = p_mem[(unsigned char) (operand1 + 1)];
     addr <<= 8;
     addr |= p_mem[operand1];
-    addr = (uint16_t) (addr + y_6502);
+    addr = (addr + y_6502);
+    trunc_addr = (uint16_t) addr;
     break;
   default:
     return -1;
     break;
   }
-  return addr;
+
+  if (trunc_addr != addr) {
+    *wrapped = 1;
+  }
+  return trunc_addr;
 }
 
 static void
@@ -400,7 +425,8 @@ static void
 debug_check_unusual(struct debug_struct* p_debug,
                     unsigned char opcode,
                     uint16_t reg_pc,
-                    uint16_t addr_6502) {
+                    uint16_t addr_6502,
+                    int wrapped) {
   int is_write;
   int is_register;
   int is_rom;
@@ -451,6 +477,14 @@ debug_check_unusual(struct debug_struct* p_debug,
       debug_running = 0;
     }
   }
+
+  /* Look for zero page wrap or full address space wraps. We want to prove
+   * these are unusual to move to more fault-based fixups.
+   */
+  if (wrapped) {
+    printf("ADDRESS WRAP AROUND at %.4x to %.4x\n", reg_pc, addr_6502);
+    /*debug_running = 0;*/
+  }
 }
 
 static void
@@ -499,6 +533,7 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char flag_n;
   unsigned char flag_c;
   unsigned char flag_o;
+  int wrapped;
 
   int do_trap = 0;
 
@@ -529,9 +564,15 @@ debug_callback(struct debug_struct* p_debug) {
     p_debug->count_opmode[opmode]++;
   }
 
-  addr_6502 = debug_get_addr(opcode, operand1, operand2, reg_x, reg_y, p_mem);
+  addr_6502 = debug_get_addr(&wrapped,
+                             opcode,
+                             operand1,
+                             operand2,
+                             reg_x,
+                             reg_y,
+                             p_mem);
 
-  debug_check_unusual(p_debug, opcode, reg_pc, addr_6502);
+  debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
 
   if (debug_running_slow) {
     debug_slow_down();
