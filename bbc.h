@@ -12,8 +12,13 @@ enum {
   k_bbc_ram_size = 0x8000,
 };
 enum {
+  k_bbc_registers_start = 0xfc00,
+  k_bbc_registers_len = 0x300,
   k_bbc_vector_reset = 0xfffc,
   k_bbc_vector_irq = 0xfffe,
+};
+enum {
+  k_bbc_mem_mmap_addr = 0x10000000,
 };
 
 struct bbc_struct;

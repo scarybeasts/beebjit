@@ -2818,21 +2818,31 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   (void) p_siginfo;
   (void) p_void;
 
-  /* Is is a fault trying to write to the ROM region of BBC memory? */
+  /* Crash unless it's fault trying to write to the ROM region of BBC memory. */
   if (signum != SIGSEGV ||
       p_siginfo->si_code != SEGV_ACCERR ||
-      p_addr < (unsigned char*) (size_t) 0x10008000 ||
-      p_addr > (unsigned char*) (size_t) 0x1000ffff) {
+      p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr + k_bbc_ram_size ||
+      p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
+               k_bbc_addr_space_size) {
     sigsegv_reraise();
   }
 
-  /* Is the faulting instruction in the JIT region? */
-  if (p_rip < (unsigned char*) (size_t) 0x20000000 ||
-      p_rip > (unsigned char*) (size_t) 0x20ffffff) {
+  /* Crash if it's in the registers region. */
+  if (p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
+                k_bbc_registers_start &&
+      p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
+               k_bbc_registers_start +
+               k_bbc_registers_len) {
     sigsegv_reraise();
   }
 
-  /* TODO: don't continue if it's a register write! */
+  /* Crash unless the faulting instruction in the JIT region. */
+  if (p_rip < (unsigned char*) k_jit_addr ||
+      p_rip >= (unsigned char*) k_jit_addr +
+               (k_bbc_addr_space_size << k_jit_bytes_shift)) {
+    sigsegv_reraise();
+  }
+
   /* Ok, it's a write fault in the ROM region. We can continue.
    * To continue, we need to bump rip along!
    */
@@ -2910,8 +2920,7 @@ jit_enter(struct jit_struct* p_jit) {
 }
 
 struct jit_struct*
-jit_create(unsigned char* p_mem,
-           void* p_debug_callback,
+jit_create(void* p_debug_callback,
            struct debug_struct* p_debug,
            struct bbc_struct* p_bbc,
            void* p_read_callback,
@@ -2921,6 +2930,8 @@ jit_create(unsigned char* p_mem,
   unsigned char* p_util_debug;
   unsigned char* p_util_regs;
   unsigned char* p_util_jit;
+
+  unsigned char* p_mem = (unsigned char*) (size_t) k_bbc_mem_mmap_addr;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");

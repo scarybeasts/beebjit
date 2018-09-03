@@ -15,14 +15,8 @@
 #include <string.h>
 #include <time.h>
 
-static const size_t k_addr_space_size = 0x10000;
-static void* k_mem_addr = (void*) 0x10000000;
-
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
-
-static const size_t k_registers_offset = 0xfc00;
-static const size_t k_registers_len = 0x300;
 
 enum {
   k_addr_crtc = 0xfe00,
@@ -84,7 +78,10 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
-  p_bbc->p_mem = util_get_guarded_mapping(k_mem_addr, k_addr_space_size, 0);
+  p_bbc->p_mem =
+      util_get_guarded_mapping((unsigned char*) (size_t) k_bbc_mem_mmap_addr,
+                               k_bbc_addr_space_size,
+                               0);
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
@@ -106,8 +103,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "debug_create failed");
   }
 
-  p_bbc->p_jit = jit_create(k_mem_addr,
-                            debug_callback,
+  p_bbc->p_jit = jit_create(debug_callback,
                             p_debug,
                             p_bbc,
                             bbc_read_callback,
@@ -128,7 +124,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   jit_destroy(p_bbc->p_jit);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
-  util_free_guarded_mapping(p_bbc->p_mem, k_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem, k_bbc_addr_space_size);
   free(p_bbc);
 }
 
@@ -141,7 +137,7 @@ bbc_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
   /* Clear memory / ROMs. */
-  memset(p_mem, '\0', k_addr_space_size);
+  memset(p_mem, '\0', k_bbc_addr_space_size);
 
   /* Copy in OS and language ROM. */
   memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
@@ -310,16 +306,16 @@ int
 bbc_is_special_read_address(struct bbc_struct* p_bbc,
                             uint16_t addr_low,
                             uint16_t addr_high) {
-  if (addr_low >= k_registers_offset &&
-      addr_low < k_registers_offset + k_registers_len) {
+  if (addr_low >= k_bbc_registers_start &&
+      addr_low < k_bbc_registers_start + k_bbc_registers_len) {
     return 1;
   }
-  if (addr_high >= k_registers_offset &&
-      addr_high < k_registers_offset + k_registers_len) {
+  if (addr_high >= k_bbc_registers_start &&
+      addr_high < k_bbc_registers_start + k_bbc_registers_len) {
     return 1;
   }
-  if (addr_low < k_registers_offset &&
-      addr_high >= k_registers_offset + k_registers_len) {
+  if (addr_low < k_bbc_registers_start &&
+      addr_high >= k_bbc_registers_start + k_bbc_registers_len) {
     return 1;
   }
   return 0;
@@ -343,8 +339,8 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   /* We have an imprecise match for abx and aby addressing modes so we may get
    * here with a non-registers address.
    */
-  if (addr < k_registers_offset ||
-      addr >= k_registers_offset + k_registers_len) {
+  if (addr < k_bbc_registers_start ||
+      addr >= k_bbc_registers_start + k_bbc_registers_len) {
     unsigned char* p_mem = bbc_get_mem(p_bbc);
     return p_mem[addr];
   }
@@ -379,8 +375,8 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
   /* We bounce here for ROM writes as well as register writes; ROM writes
    * are simply squashed.
    */
-  if (addr < k_registers_offset ||
-      addr >= k_registers_offset + k_registers_len) {
+  if (addr < k_bbc_registers_start ||
+      addr >= k_bbc_registers_start + k_bbc_registers_len) {
     return;
   }
 

@@ -9,8 +9,7 @@ struct debug_struct;
 
 struct jit_struct;
 
-struct jit_struct* jit_create(unsigned char* p_mem,
-                              void* p_debug_callback,
+struct jit_struct* jit_create(void* p_debug_callback,
                               struct debug_struct* p_debug,
                               struct bbc_struct* p_bbc,
                               void* p_read_callback,
