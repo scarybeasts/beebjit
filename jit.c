@@ -17,9 +17,6 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-enum {
-  k_addr_space_size = 0x10000,
-};
 static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
@@ -118,7 +115,7 @@ struct jit_struct {
   /* Structures reeferenced by JIT code. */
   void* p_debug;                /* 88  */
   struct bbc_struct* p_bbc;     /* 96 */
-  unsigned int jit_ptrs[k_addr_space_size]; /* 104 */
+  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 104 */
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
@@ -2932,7 +2929,7 @@ jit_create(unsigned char* p_mem,
 
   p_jit_base = util_get_guarded_mapping(
       k_jit_addr,
-      k_addr_space_size * k_jit_bytes_per_byte,
+      k_bbc_addr_space_size * k_jit_bytes_per_byte,
       1);
 
   p_jit->reg_x_ebx = (unsigned int) (size_t) p_mem;
@@ -2959,9 +2956,9 @@ jit_create(unsigned char* p_mem,
   p_jit->jit_flags = k_jit_flag_merge_ops | k_jit_flag_self_modifying;
 
   /* int3 */
-  memset(p_jit_base, '\xcc', k_addr_space_size * k_jit_bytes_per_byte);
+  memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);
   size_t addr_6502 = 0;
-  while (addr_6502 < k_addr_space_size) {
+  while (addr_6502 < k_bbc_addr_space_size) {
     (void) jit_emit_do_jit(p_jit_base, 0);
 
     p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_base;
@@ -3038,7 +3035,7 @@ jit_check_pc(struct jit_struct* p_jit) {
 void
 jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_jit_base,
-                            k_addr_space_size * k_jit_bytes_per_byte);
+                            k_bbc_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);
   util_buffer_destroy(p_jit->p_dest_buf);
   util_buffer_destroy(p_jit->p_seq_buf);
