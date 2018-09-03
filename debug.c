@@ -413,8 +413,9 @@ debug_check_unusual(struct debug_struct* p_debug,
   unsigned char opmem = g_opmem[optype];
 
   is_write = ((opmem == k_write || opmem == k_rw) && opmode != k_nil);
-  is_register = (addr_6502 >= 0xfc00 && addr_6502 < 0xff00);
-  is_rom = (!is_register && addr_6502 >= 0x8000);
+  is_register = (addr_6502 >= k_bbc_registers_start &&
+                 addr_6502 < k_bbc_registers_start + k_bbc_registers_len);
+  is_rom = (!is_register && addr_6502 >= k_bbc_ram_size);
   has_code = jit_has_code(p_jit, addr_6502);
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
