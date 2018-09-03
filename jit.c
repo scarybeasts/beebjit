@@ -2493,19 +2493,38 @@ jit_single(struct jit_struct* p_jit,
   return num_6502_bytes;
 }
 
-uint16_t
-jit_block_from_intel(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
+static uint16_t
+jit_6502_addr_from_intel(struct jit_struct* p_jit, unsigned char* intel_rip) {
   size_t block_addr_6502;
+  size_t addr_6502;
+  size_t intel_rip_masked;
 
   unsigned char* p_jit_base = p_jit->p_jit_base;
 
-  assert(p_jit_addr >= p_jit_base);
-  assert(p_jit_addr < p_jit_base + (0x10000 << k_jit_bytes_shift));
+  /* -2 because of the call [rdi] opcode size. */
+  intel_rip -= 2;
 
-  block_addr_6502 = p_jit_addr - p_jit_base;
+  block_addr_6502 = (intel_rip - p_jit_base);
   block_addr_6502 >>= k_jit_bytes_shift;
 
-  return (uint16_t) block_addr_6502;
+  assert(block_addr_6502 < k_bbc_addr_space_size);
+
+  addr_6502 = block_addr_6502;
+  intel_rip_masked = ((size_t) intel_rip) & k_jit_bytes_mask;
+
+  if (intel_rip_masked) {
+    int found = 0;
+    while (addr_6502 < 0xffff) {
+      if ((unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502] == intel_rip) {
+        found = 1;
+        break;
+      }
+      addr_6502++;
+    }
+    assert(found);
+  }
+
+  return (uint16_t) addr_6502;
 }
 
 uint16_t
@@ -2758,33 +2777,14 @@ fflush(stdout);*/
 }
 
 static void
-jit_callback(struct jit_struct* p_jit, unsigned char* p_jit_addr) {
+jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   unsigned char* p_jit_ptr;
-  uint16_t block_addr_6502;
   uint16_t addr_6502;
-  size_t jit_addr_masked;
   unsigned char jit_bytes[k_jit_bytes_per_byte];
 
   struct util_buffer* p_buf = p_jit->p_seq_buf;
 
-  /* -2 because of the call [rdi] opcode size. */
-  p_jit_addr -= 2;
-
-  block_addr_6502 = jit_block_from_intel(p_jit, p_jit_addr);
-  addr_6502 = block_addr_6502;
-  jit_addr_masked = ((size_t) p_jit_addr) & k_jit_bytes_mask;
-
-  if (jit_addr_masked) {
-    int found = 0;
-    while (addr_6502 < 0xffff) {
-      if ((unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502] == p_jit_addr) {
-        found = 1;
-        break;
-      }
-      addr_6502++;
-    }
-    assert(found);
-  }
+  addr_6502 = jit_6502_addr_from_intel(p_jit, intel_rip);
 
   /* Executing within the zero page and stack page is trapped.
    * By default, for performance, writes to these pages do not invalidate
