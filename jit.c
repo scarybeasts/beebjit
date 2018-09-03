@@ -128,6 +128,7 @@ struct jit_struct {
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
+  unsigned char has_code[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
 };
 
@@ -2512,20 +2513,9 @@ jit_is_invalidation_sequence(unsigned char* p_jit_ptr) {
   return 0;
 }
 
-/* TODO: track more explicitly via an array of booleans. */
 int
 jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr;
-  uint16_t block_addr_6502 = jit_block_from_6502(p_jit, addr_6502);
-  if (block_addr_6502 != addr_6502) {
-    return 1;
-  }
-  p_jit_ptr = p_jit->p_jit_base;
-  p_jit_ptr += (addr_6502 << k_jit_bytes_shift);
-  if (jit_is_invalidation_sequence(p_jit_ptr)) {
-    return 0;
-  }
-  return 1;
+  return p_jit->has_code[addr_6502];
 }
 
 static int
@@ -2621,7 +2611,7 @@ jit_at_addr(struct jit_struct* p_jit,
     new_nz_flags = g_nz_flag_pending[optype];
 
     /* If we're compiling the same opcode on top of an existing invalidated
-     * opcode, apply * a self-modifying optimization to try and avoid future
+     * opcode, apply a self-modifying optimization to try and avoid future
      * re-compilations.
      */
     if (jit_has_invalidated_code(p_jit, addr_6502) &&
@@ -2695,6 +2685,7 @@ jit_at_addr(struct jit_struct* p_jit,
      */
     for (i = 0; i < num_6502_bytes; ++i) {
       unsigned char* p_jit_ptr = p_dst;
+      p_jit->has_code[addr_6502] = 1;
       if (i == 0) {
         p_jit->compiled_opcode[addr_6502] = opcode_6502;
       } else {
