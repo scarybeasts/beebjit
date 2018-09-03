@@ -1978,10 +1978,27 @@ jit_single(struct jit_struct* p_jit,
       break;
     case k_idy:
     case k_aby_dyn:
-      /* mov [rdx + rcx], al */
-      p_jit_buf[index++] = 0x88;
-      p_jit_buf[index++] = 0x04;
+      /* lea dx, [rdx + rcx] */
+      p_jit_buf[index++] = 0x66;
+      p_jit_buf[index++] = 0x8d;
+      p_jit_buf[index++] = 0x14;
       p_jit_buf[index++] = 0x0a;
+      /* bt edx, 15 */
+      p_jit_buf[index++] = 0x0f;
+      p_jit_buf[index++] = 0xba;
+      p_jit_buf[index++] = 0xe2;
+      p_jit_buf[index++] = 0x0f;
+      /* jb / jc + 6 */
+      p_jit_buf[index++] = 0x72;
+      p_jit_buf[index++] = 0x06;
+      /* mov [rdx + p_mem], al */
+      p_jit_buf[index++] = 0x88;
+      p_jit_buf[index++] = 0x82;
+      index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+      /* mov [rdx + rcx], al */
+      /* p_jit_buf[index++] = 0x88;
+      p_jit_buf[index++] = 0x04;
+      p_jit_buf[index++] = 0x0a;*/
       break;
     case k_abx:
       /* mov [rbx + addr_6502], al */
@@ -2818,6 +2835,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     sigsegv_reraise();
   }
 
+  /* TODO: don't continue if it's a register write! */
   /* Ok, it's a write fault in the ROM region. We can continue.
    * To continue, we need to bump rip along!
    */
