@@ -2681,6 +2681,9 @@ jit_at_addr(struct jit_struct* p_jit,
         !jit_is_force_invalidated(p_jit, addr_6502) &&
         opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 1;
+      /*printf("self-modify location %.4x, opcode %.2x\n",
+             addr_6502,
+             opcode_6502);*/
     } else if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
@@ -2785,11 +2788,11 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
-/*printf("addr %x - %x, total_num_ops: %zu\n",
-       start_addr_6502,
-       addr_6502 - 1,
-       total_num_ops);
-fflush(stdout);*/
+  /*printf("addr %x - %x, total_num_ops: %zu\n",
+         start_addr_6502,
+         addr_6502 - 1,
+         total_num_ops);
+  fflush(stdout);*/
 
   if (jumps_always) {
     return;
