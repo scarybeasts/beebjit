@@ -37,6 +37,7 @@ void jit_check_pc(struct jit_struct* p_jit);
 void jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502);
 
 int jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502);
+int jit_is_block_start(struct jit_struct* p_jit, uint16_t addr_6502);
 
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 

@@ -2557,6 +2557,11 @@ jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->has_code[addr_6502];
 }
 
+int
+jit_is_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
+  return p_jit->is_block_start[addr_6502];
+}
+
 static int
 jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr =
@@ -2610,7 +2615,7 @@ jit_at_addr(struct jit_struct* p_jit,
   /* If we're landing at this address for the first time, or we're landing in
    * the middle of a block for non-self-modifying code, this is a block start.
    */
-  if (!p_jit->has_code[start_addr_6502] ||
+  if (!jit_has_code(p_jit, start_addr_6502) ||
       !jit_has_invalidated_code(p_jit, start_addr_6502)) {
     p_jit->is_block_start[start_addr_6502] = 1;
   }
@@ -2637,7 +2642,7 @@ jit_at_addr(struct jit_struct* p_jit,
 
     assert((size_t) p_dst < 0xffffffff);
 
-    if (addr_6502 != start_addr_6502 && p_jit->is_block_start[addr_6502]) {
+    if (addr_6502 != start_addr_6502 && jit_is_block_start(p_jit, addr_6502)) {
       break;
     }
 
@@ -2778,6 +2783,8 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   unsigned char jit_bytes[k_jit_bytes_per_byte];
 
   struct util_buffer* p_buf = p_jit->p_seq_buf;
+
+  assert(jit_is_invalidation_sequence(intel_rip - 2));
 
   addr_6502 = jit_6502_addr_from_intel(p_jit, intel_rip);
 
