@@ -129,6 +129,7 @@ struct jit_struct {
   unsigned char has_code[k_bbc_addr_space_size];
   unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
+  unsigned char self_modify_optimize[k_bbc_addr_space_size];
 };
 
 static size_t
@@ -2569,7 +2570,7 @@ jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
   return ((unsigned char*) (size_t) ptr);
 }
 
-static int
+int
 jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
   if (jit_is_invalidation_sequence(p_jit_ptr)) {
@@ -2659,12 +2660,17 @@ jit_at_addr(struct jit_struct* p_jit,
     new_nz_flags = g_nz_flag_pending[optype];
 
     /* If we're compiling the same opcode on top of an existing invalidated
-     * opcode, apply a self-modifying optimization to try and avoid future
-     * re-compilations.
+     * opcode, mark the location as self-modify optimize.
      */
-    if (emit_dynamic_operand &&
-        jit_has_invalidated_code(p_jit, addr_6502) &&
+    if (jit_has_invalidated_code(p_jit, addr_6502) &&
         opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
+      p_jit->self_modify_optimize[addr_6502] = 1;
+    } else if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
+      p_jit->self_modify_optimize[addr_6502] = 0;
+    }
+
+    /* Try and emit a self-modifying optimization if appropriate. */
+    if (emit_dynamic_operand && p_jit->self_modify_optimize[addr_6502]) {
       unsigned char opmode = g_opmodes[opcode_6502];
       if ((optype == k_lda || optype == k_sta) &&
           (opmode == k_abx || opmode == k_aby || opmode == k_imm)) {

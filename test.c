@@ -80,9 +80,15 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
 
   callback(p_jit, test_6502_jump_addr_to_intel(0x2000));
 
+  assert(jit_is_block_start(p_jit, 0x2000));
+  assert(!jit_is_block_start(p_jit, 0x2001));
+  assert(!jit_is_block_start(p_jit, 0x2002));
+
   /* Simulate the memory effects of running at $2000. */
   p_mem[0x2002] = 0x01;
   jit_memory_written(p_jit, 0x2002);
+
+  assert(jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Run / compile the invalidated opcode. */
   callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
@@ -90,6 +96,30 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x2000));
   assert(!jit_is_block_start(p_jit, 0x2001));
   assert(!jit_is_block_start(p_jit, 0x2002));
+
+  /* This effectively split the block, so the block start should be
+   * invalidated.
+   */
+  assert(jit_has_invalidated_code(p_jit, 0x2000));
+
+  /* Executing at $2000 again will therefore recompile the block. */
+  assert(jit_get_code_ptr(p_jit, 0x2000) ==
+         test_6502_jump_addr_to_intel(0x2000) - 2);
+
+  callback(p_jit, test_6502_jump_addr_to_intel(0x2000));
+
+  assert(jit_is_block_start(p_jit, 0x2000));
+  assert(!jit_is_block_start(p_jit, 0x2001));
+  assert(!jit_is_block_start(p_jit, 0x2002));
+
+  /* Simulate the memory effects of running at $2000. */
+  p_mem[0x2002] = 0x02;
+  jit_memory_written(p_jit, 0x2002);
+
+  /* Our JIT shouldn't have invalidated because the LDA #$?? operand is now
+   * marked as self-modifying and fetched dynamically.
+   */
+  assert(!jit_has_invalidated_code(p_jit, 0x2001));
 }
 
 void
