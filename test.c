@@ -37,6 +37,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_has_code(p_jit, 0x1001));
   assert(jit_has_code(p_jit, 0x1002));
   assert(!jit_has_code(p_jit, 0x1003));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
 
   assert(jit_is_block_start(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1001));
@@ -50,6 +51,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x1001));
   assert(jit_is_block_start(p_jit, 0x1002));
   assert(!jit_is_block_start(p_jit, 0x1003));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
 
   /* Recompile start of fractured block. */
   callback(p_jit, test_6502_jump_addr_to_intel(0x1000));
@@ -58,6 +60,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x1001));
   assert(jit_is_block_start(p_jit, 0x1002));
   assert(!jit_is_block_start(p_jit, 0x1003));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
 }
 
 static void
@@ -74,9 +77,9 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   p_mem[index++] = 0xa9; /* LDA #$00 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xee; /* INC $2002 */ /* Self-modifying. */
-  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x02;
   p_mem[index++] = 0x20;
-  p_mem[index++] = 0x60; /* RTS */
+  p_mem[index++] = 0x02; /* Exit JIT. */
 
   callback(p_jit, test_6502_jump_addr_to_intel(0x2000));
 
@@ -84,14 +87,21 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2001));
   assert(!jit_is_block_start(p_jit, 0x2002));
 
-  /* Simulate the memory effects of running at $2000. */
-  p_mem[0x2002] = 0x01;
-  jit_memory_written(p_jit, 0x2002);
+  /* Run at $2000. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  jit_enter(p_jit);
+  assert(p_mem[0x2002] == 0x01);
 
   assert(jit_has_invalidated_code(p_jit, 0x2001));
+  assert(jit_is_block_start(p_jit, 0x2000));
+  assert(!jit_is_block_start(p_jit, 0x2001));
+  assert(!jit_is_block_start(p_jit, 0x2002));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 
   /* Run / compile the invalidated opcode. */
-  callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  jit_enter(p_jit);
+  assert(p_mem[0x2002] == 0x02);
 
   assert(jit_is_block_start(p_jit, 0x2000));
   assert(!jit_is_block_start(p_jit, 0x2001));
@@ -102,21 +112,20 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
    * invalidated.
    */
   assert(jit_has_invalidated_code(p_jit, 0x2000));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x2000));
 
   /* Executing at $2000 again will therefore recompile the block. */
   assert(jit_get_code_ptr(p_jit, 0x2000) ==
          test_6502_jump_addr_to_intel(0x2000) - 2);
 
-  callback(p_jit, test_6502_jump_addr_to_intel(0x2000));
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  jit_enter(p_jit);
+  assert(p_mem[0x2002] == 0x03);
 
   assert(jit_is_block_start(p_jit, 0x2000));
   assert(!jit_is_block_start(p_jit, 0x2001));
   assert(!jit_is_block_start(p_jit, 0x2002));
   assert(jit_has_self_modify_optimize(p_jit, 0x2001));
-
-  /* Simulate the memory effects of running at $2000. */
-  p_mem[0x2002] = 0x02;
-  jit_memory_written(p_jit, 0x2002);
 
   /* Our JIT shouldn't have invalidated because the LDA #$?? operand is now
    * marked as self-modifying and fetched dynamically.

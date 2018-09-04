@@ -130,6 +130,7 @@ struct jit_struct {
   unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
   unsigned char self_modify_optimize[k_bbc_addr_space_size];
+  unsigned char force_invalidated[k_bbc_addr_space_size];
 };
 
 static size_t
@@ -2580,6 +2581,11 @@ jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 int
+jit_is_force_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
+  return p_jit->force_invalidated[addr_6502];
+}
+
+int
 jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->self_modify_optimize[addr_6502];
 }
@@ -2589,6 +2595,8 @@ jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
+
+  p_jit->force_invalidated[addr_6502] = 1;
 }
 
 void
@@ -2634,7 +2642,9 @@ jit_at_addr(struct jit_struct* p_jit,
   /* This opcode may be compiled into part of a previous block, so make sure to
    * invalidate that block.
    */
-  jit_addr_invalidate(p_jit, block_addr_6502);
+  if (block_addr_6502 != start_addr_6502) {
+    jit_addr_invalidate(p_jit, block_addr_6502);
+  }
 
   do {
     unsigned char opcode_6502;
@@ -2668,6 +2678,7 @@ jit_at_addr(struct jit_struct* p_jit,
      * opcode, mark the location as self-modify optimize.
      */
     if (jit_has_invalidated_code(p_jit, addr_6502) &&
+        !jit_is_force_invalidated(p_jit, addr_6502) &&
         opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 1;
     } else if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
@@ -2752,11 +2763,16 @@ jit_at_addr(struct jit_struct* p_jit,
         p_jit->compiled_opcode[addr_6502] = opcode_6502;
       } else {
         p_jit->compiled_opcode[addr_6502] = 0;
+        p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
           p_jit_ptr = (p_jit->p_jit_base + (0xffff << k_jit_bytes_shift));
         }
       }
+      /* TODO: do we need this invalidate here? */
       jit_addr_invalidate(p_jit, addr_6502);
+      if (i == 0) {
+        p_jit->force_invalidated[addr_6502] = 0;
+      }
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
       addr_6502++;
     }

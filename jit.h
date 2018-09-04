@@ -39,6 +39,7 @@ void jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_is_block_start(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502);
+int jit_is_force_invalidated(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502);
 unsigned char* jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502);
 
