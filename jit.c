@@ -2802,6 +2802,10 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   p_jit->reg_pc = addr_6502;
 }
 
+void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*) {
+  return jit_callback;
+}
+
 static void
 sigsegv_reraise(void) {
   struct sigaction sa;

@@ -106,6 +106,7 @@ main(int argc, const char* argv[]) {
 
   if (test_flag) {
     test_do_tests(p_bbc);
+    return 0;
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);

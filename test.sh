@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 gcc -Wall -g -o 6502jit \
     main.c bbc.c jit.c opdefs.c x.c debug.c util.c state.c video.c via.c \
@@ -7,6 +8,8 @@ gcc -Wall -g -o 6502jit \
 gcc -Wall -g -o make_test_rom make_test_rom.c
 ./make_test_rom
 
-./6502jit -t -os test.rom -lang '' || echo 'FAIL! non-debug'
-./6502jit -t -os test.rom -lang '' -d -r || echo 'FAIL! debug'
+./6502jit -t
+./6502jit -os test.rom -lang ''
+./6502jit -os test.rom -lang '' -d -r
 
+echo 'All is well!'

@@ -34,11 +34,14 @@ void jit_set_registers(struct jit_struct* p_jit,
                        uint16_t pc);
 uint16_t jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502);
 void jit_check_pc(struct jit_struct* p_jit);
-int jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502);
 void jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502);
+
+int jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502);
 
 void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
 
 void jit_enter(struct jit_struct* p_jit);
+
+void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*);
 
 #endif /* BEEJIT_JIT_H */
