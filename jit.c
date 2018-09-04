@@ -2516,7 +2516,8 @@ jit_6502_addr_from_intel(struct jit_struct* p_jit, unsigned char* intel_rip) {
   if (intel_rip_masked) {
     int found = 0;
     while (addr_6502 < 0xffff) {
-      if ((unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502] == intel_rip) {
+      unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
+      if (p_jit_ptr == intel_rip) {
         found = 1;
         break;
       }
@@ -2532,8 +2533,7 @@ uint16_t
 jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502) {
   size_t block_addr_6502;
 
-  unsigned char* p_jit_ptr =
-      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
   size_t size_t_jit_ptr = (size_t) p_jit_ptr;
 
   size_t_jit_ptr -= (size_t) p_jit->p_jit_base;
@@ -2562,10 +2562,16 @@ jit_is_block_start(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->is_block_start[addr_6502];
 }
 
+unsigned char*
+jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned int ptr = p_jit->jit_ptrs[addr_6502];
+
+  return ((unsigned char*) (size_t) ptr);
+}
+
 static int
 jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr =
-      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
   if (jit_is_invalidation_sequence(p_jit_ptr)) {
     return 1;
   }
@@ -2574,8 +2580,7 @@ jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static void
 jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr =
-      (unsigned char*) (size_t) p_jit->jit_ptrs[addr_6502];
+  unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 }
