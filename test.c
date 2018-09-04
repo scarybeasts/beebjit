@@ -96,6 +96,7 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x2000));
   assert(!jit_is_block_start(p_jit, 0x2001));
   assert(!jit_is_block_start(p_jit, 0x2002));
+  assert(jit_has_self_modify_optimize(p_jit, 0x2001));
 
   /* This effectively split the block, so the block start should be
    * invalidated.
@@ -111,6 +112,7 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x2000));
   assert(!jit_is_block_start(p_jit, 0x2001));
   assert(!jit_is_block_start(p_jit, 0x2002));
+  assert(jit_has_self_modify_optimize(p_jit, 0x2001));
 
   /* Simulate the memory effects of running at $2000. */
   p_mem[0x2002] = 0x02;
@@ -120,6 +122,24 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
    * marked as self-modifying and fetched dynamically.
    */
   assert(!jit_has_invalidated_code(p_jit, 0x2001));
+
+  /* Clobber the LDA with another LDA. */
+  p_mem[0x2001] = 0xa9;
+  jit_memory_written(p_jit, 0x2001);
+  assert(jit_has_invalidated_code(p_jit, 0x2001));
+
+  callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
+
+  assert(jit_has_self_modify_optimize(p_jit, 0x2001));
+
+  /* Clobber the LDA with unrelated opcode ORA #$?? */
+  p_mem[0x2001] = 0x09;
+  jit_memory_written(p_jit, 0x2001);
+  assert(jit_has_invalidated_code(p_jit, 0x2001));
+
+  callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
+
+  assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 }
 
 void

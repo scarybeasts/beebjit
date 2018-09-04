@@ -2579,6 +2579,11 @@ jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   return 0;
 }
 
+int
+jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502) {
+  return p_jit->self_modify_optimize[addr_6502];
+}
+
 static void
 jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
@@ -2670,7 +2675,8 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     /* Try and emit a self-modifying optimization if appropriate. */
-    if (emit_dynamic_operand && p_jit->self_modify_optimize[addr_6502]) {
+    if (emit_dynamic_operand &&
+        jit_has_self_modify_optimize(p_jit, addr_6502)) {
       unsigned char opmode = g_opmodes[opcode_6502];
       if ((optype == k_lda || optype == k_sta) &&
           (opmode == k_abx || opmode == k_aby || opmode == k_imm)) {
