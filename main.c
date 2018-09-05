@@ -27,6 +27,7 @@ main(int argc, const char* argv[]) {
   const char* lang_rom_name = "basic.rom";
   const char* load_name = NULL;
   const char* opt_flags = "";
+  const char* log_flags = "";
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
@@ -48,6 +49,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (strcmp(arg, "-opt") == 0) {
         opt_flags = val;
+        ++i;
+      } else if (strcmp(arg, "-log") == 0) {
+        log_flags = val;
         ++i;
       }
     }
@@ -95,7 +99,8 @@ main(int argc, const char* argv[]) {
                      run_flag,
                      print_flag,
                      slow_flag,
-                     opt_flags);
+                     opt_flags,
+                     log_flags);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }

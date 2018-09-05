@@ -58,6 +58,8 @@ static const unsigned int k_jit_flag_dynamic_operand = 8;
 static const unsigned int k_jit_flag_no_rom_fault = 16;
 static const unsigned int k_jit_flag_self_modifying_all = 32;
 
+static const unsigned int k_log_flag_self_modify = 1;
+
 enum {
   k_a = 1,
   k_x = 2,
@@ -121,6 +123,7 @@ struct jit_struct {
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
+  unsigned int log_flags;
   unsigned char* p_mem;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -2632,15 +2635,21 @@ jit_at_addr(struct jit_struct* p_jit,
   int jumps_always = 0;
   int emit_debug = 0;
   int emit_dynamic_operand = 0;
+  int log_self_modify = 0;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
   unsigned int jit_flags = p_jit->jit_flags;
+  unsigned int log_flags = p_jit->log_flags;
 
   if (jit_flags & k_jit_flag_debug) {
     emit_debug = 1;
   }
   if (jit_flags & k_jit_flag_dynamic_operand) {
     emit_dynamic_operand = 1;
+  }
+
+  if (log_flags & k_log_flag_self_modify) {
+    log_self_modify = 1;
   }
 
   block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
@@ -2692,13 +2701,24 @@ jit_at_addr(struct jit_struct* p_jit,
      * opcode, mark the location as self-modify optimize.
      */
     if (jit_has_invalidated_code(p_jit, addr_6502) &&
-        !jit_is_force_invalidated(p_jit, addr_6502) &&
-        opcode_6502 == p_jit->compiled_opcode[addr_6502]) {
-      p_jit->self_modify_optimize[addr_6502] = 1;
-      /*printf("self-modify location %.4x, opcode %.2x\n",
-             addr_6502,
-             opcode_6502);*/
-    } else if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
+        !jit_is_force_invalidated(p_jit, addr_6502)) {
+      unsigned char old_opcode_6502 = p_jit->compiled_opcode[addr_6502];
+      if (opcode_6502 == old_opcode_6502) {
+        p_jit->self_modify_optimize[addr_6502] = 1;
+        if (log_self_modify) {
+          printf("JIT: self-modified opcode match location %.4x, opcode %.2x\n",
+                 addr_6502,
+                 opcode_6502);
+        }
+      } else if (log_self_modify) {
+        printf("JIT: self-modified opcode MISMATCH "
+               "location %.4x, opcode %.2x, old %.2x\n",
+               addr_6502,
+               opcode_6502,
+               old_opcode_6502);
+      }
+    }
+    if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
 
@@ -2993,8 +3013,10 @@ jit_create(void* p_debug_callback,
            struct bbc_struct* p_bbc,
            void* p_read_callback,
            void* p_write_callback,
-           const char* p_opt_flags) {
+           const char* p_opt_flags,
+           const char* p_log_flags) {
   unsigned int jit_flags;
+  unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_util_debug;
@@ -3048,6 +3070,12 @@ jit_create(void* p_debug_callback,
     jit_flags &= ~k_jit_flag_self_modifying_abs;
   }
   p_jit->jit_flags = jit_flags;
+
+  log_flags = 0;
+  if (strstr(p_log_flags, "jit:self-modify")) {
+    log_flags |= k_log_flag_self_modify;
+  }
+  p_jit->log_flags = log_flags;
 
   /* int3 */
   memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);

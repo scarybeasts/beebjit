@@ -14,7 +14,8 @@ struct jit_struct* jit_create(void* p_debug_callback,
                               struct bbc_struct* p_bbc,
                               void* p_read_callback,
                               void* p_write_callback,
-                              const char* p_opt_flags);
+                              const char* p_opt_flags,
+                              const char* p_log_flags);
 void jit_set_debug(struct jit_struct* p_jit, int debug);
 void jit_destroy(struct jit_struct* p_jit);
 
