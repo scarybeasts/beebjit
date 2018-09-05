@@ -1537,6 +1537,7 @@ jit_single(struct jit_struct* p_jit,
   unsigned char optype = g_optypes[opcode];
   unsigned char opmem = g_opmem[optype];
   unsigned char oplen = g_opmodelens[opmode];
+  uint16_t next_addr_6502 = addr_6502 + oplen;
   size_t index = util_buffer_get_pos(p_buf);
   size_t num_6502_bytes = oplen;
   size_t n_count = 1;
@@ -1641,7 +1642,6 @@ jit_single(struct jit_struct* p_jit,
         optype == k_rol ||
         optype == k_ror) {
       if (opmode == k_nil) {
-        uint16_t next_addr_6502 = addr_6502 + 1;
         while (n_count < 7 && p_mem[next_addr_6502] == opcode) {
           n_count++;
           next_addr_6502++;
@@ -1650,6 +1650,21 @@ jit_single(struct jit_struct* p_jit,
       }
     }
   }
+
+/* TODO: consider enabling this optimization, which eliminates a Galaforce
+   delay loop.
+   Need to make sure the opcode change from DEY to LDY doesn't confuse the
+   lazy flag setting logic.
+  if (optype == k_dey &&
+      p_mem[next_addr_6502] == 0xd0 &&
+      p_mem[(uint16_t) (next_addr_6502 + 1)] == 0xfd) {
+printf("ooh\n");
+    optype = k_ldy;
+    opmode = k_imm;
+    operand1 = 0;
+    num_6502_bytes += 2;
+  }
+*/
 
   switch (optype) {
   case k_kil:
