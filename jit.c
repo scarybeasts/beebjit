@@ -53,9 +53,10 @@ static const int k_offset_jit_ptrs = 104;
 
 static const unsigned int k_jit_flag_debug = 1;
 static const unsigned int k_jit_flag_merge_ops = 2;
-static const unsigned int k_jit_flag_self_modifying = 4;
+static const unsigned int k_jit_flag_self_modifying_abs = 4;
 static const unsigned int k_jit_flag_dynamic_operand = 8;
 static const unsigned int k_jit_flag_no_rom_fault = 16;
+static const unsigned int k_jit_flag_self_modifying_all = 32;
 
 enum {
   k_a = 1,
@@ -1404,13 +1405,13 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                       uint16_t opcode_addr_6502,
                       unsigned char* p_jit_buf,
                       size_t index) {
-  /* TODO: it's most common that only the abs addressing mode needs to be
-   * handled for self-modifying to work.
-   * Should have a higher performance flag and mode just for this.
-   */
-  if (!(p_jit->jit_flags & k_jit_flag_self_modifying)) {
+  int abs_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_abs);
+  int all_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_all);
+
+  if (!abs_mode && !all_mode) {
     return index;
   }
+
   if (opmem != k_write && opmem != k_rw) {
     return index;
   }
@@ -1429,7 +1430,20 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                          index,
                          k_offset_jit_ptrs +
                              (opcode_addr_6502 * sizeof(unsigned int)));
-  } else if (opmode == k_abx) {
+    /* mov WORD PTR [rdx], 0x17ff */
+    p_jit_buf[index++] = 0x66;
+    p_jit_buf[index++] = 0xc7;
+    p_jit_buf[index++] = 0x02;
+    index = jit_emit_do_jit(p_jit_buf, index);
+
+    return index;
+  }
+
+  if (!all_mode) {
+    return index;
+  }
+
+  if (opmode == k_abx) {
     /* movzx r8, bl */
     p_jit_buf[index++] = 0x4c;
     p_jit_buf[index++] = 0x0f;
@@ -3022,10 +3036,16 @@ jit_create(void* p_debug_callback,
   p_jit->p_write_callback = p_write_callback;
 
   jit_flags = k_jit_flag_merge_ops |
-              k_jit_flag_self_modifying |
+              k_jit_flag_self_modifying_abs |
               k_jit_flag_dynamic_operand;
   if (strstr(p_opt_flags, "jit:no-rom-fault")) {
     jit_flags |= k_jit_flag_no_rom_fault;
+  }
+  if (strstr(p_opt_flags, "jit:self-mod-all")) {
+    jit_flags |= k_jit_flag_self_modifying_all;
+  }
+  if (strstr(p_opt_flags, "jit:no-self-mod-abs")) {
+    jit_flags &= ~k_jit_flag_self_modifying_abs;
   }
   p_jit->jit_flags = jit_flags;
 

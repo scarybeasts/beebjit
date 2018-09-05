@@ -9,7 +9,7 @@ gcc -Wall -g -o make_test_rom make_test_rom.c
 ./make_test_rom
 
 ./6502jit -t
-./6502jit -os test.rom -lang ''
-./6502jit -os test.rom -lang '' -d -r
+./6502jit -os test.rom -lang '' -opt jit:self-mod-all
+./6502jit -os test.rom -lang '' -opt jit:self-mod-all -d -r
 
 echo 'All is well!'
