@@ -1168,6 +1168,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
     break;
   case k_idy:
+  case k_idy_dyn:
     /* OP al, [rdx + rcx] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x04;
@@ -2774,16 +2775,7 @@ jit_at_addr(struct jit_struct* p_jit,
     /* Try and emit a self-modifying optimization if appropriate. */
     if (emit_dynamic_operand &&
         jit_has_self_modify_optimize(p_jit, addr_6502)) {
-      if (optype == k_lda ||
-          optype == k_sta ||
-          optype == k_ldx ||
-          optype == k_ldy ||
-          optype == k_ora ||
-          optype == k_cmp ||
-          optype == k_jmp ||
-          optype == k_jsr) {
-        dynamic_operand = 1;
-      }
+      dynamic_operand = 1;
     }
 
     if (emit_debug) {
