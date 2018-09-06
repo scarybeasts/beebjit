@@ -95,6 +95,7 @@ enum {
   k_abs_dyn = 14,
   k_abx_dyn = 15,
   k_aby_dyn = 16,
+  k_idy_dyn = 17,
 };
 
 enum {

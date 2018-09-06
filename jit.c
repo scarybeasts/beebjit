@@ -291,8 +291,8 @@ static size_t
 jit_emit_ind_y_to_scratch(struct jit_struct* p_jit,
                           unsigned char* p_jit_buf,
                           size_t index,
-                          unsigned char operand1) {
-  if (operand1 == 0xff) {
+                          uint16_t opcode_addr_6502) {
+  if (opcode_addr_6502 == 0xff) {
     /* movzx edx, BYTE PTR [p_mem + 0xff] */
     p_jit_buf[index++] = 0x0f;
     p_jit_buf[index++] = 0xb6;
@@ -310,7 +310,9 @@ jit_emit_ind_y_to_scratch(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0xb7;
     p_jit_buf[index++] = 0x14;
     p_jit_buf[index++] = 0x25;
-    index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem + operand1);
+    index = jit_emit_int(p_jit_buf,
+                         index,
+                         (size_t) p_jit->p_mem + opcode_addr_6502);
   }
 
   return index;
@@ -411,18 +413,23 @@ jit_emit_zp_y_to_scratch(unsigned char* p_jit,
 }
 
 static size_t
-jit_emit_abs_x_dyn_to_scratch(struct jit_struct* p_jit,
+jit_emit_ind_y_dyn_to_scratch(struct jit_struct* p_jit,
                               unsigned char* p_jit_buf,
                               size_t index,
-                              uint16_t addr_6502_plus_1) {
-  /* movzx edx, WORD PTR [p_mem + addr_6502_plus_1] */
+                              uint16_t opcode_addr_6502) {
+  /* movzx edx, BYTE PTR [p_mem + addr] */
   p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0xb6;
   p_jit_buf[index++] = 0x14;
   p_jit_buf[index++] = 0x25;
   index = jit_emit_int(p_jit_buf,
                        index,
-                       (size_t) p_jit->p_mem + addr_6502_plus_1);
+                       (size_t) p_jit->p_mem + opcode_addr_6502);
+  /* movzx edx, WORD PTR [p_mem + rdx] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x92;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
 
   return index;
 }
@@ -1151,6 +1158,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
     break;
   case k_zpg:
   case k_abs:
+  case k_imm_dyn:
     /* OP al, [p_mem + addr] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x04;
@@ -1556,16 +1564,23 @@ jit_single(struct jit_struct* p_jit,
   opcode_addr_6502 = (operand2 << 8) | operand1;
 
   if (dynamic_operand) {
+    opcode_addr_6502 = addr_6502_plus_1;
+
     switch (opmode) {
     case k_imm:
       opmode = k_imm_dyn;
-      opcode_addr_6502 = addr_6502_plus_1;
+      break;
+    case k_abs:
+      opmode = k_abs_dyn;
       break;
     case k_abx:
       opmode = k_abx_dyn;
       break;
     case k_aby:
       opmode = k_aby_dyn;
+      break;
+    case k_idy:
+      opmode = k_idy_dyn;
       break;
     default:
       assert(0);
@@ -1586,6 +1601,9 @@ jit_single(struct jit_struct* p_jit,
     index = jit_emit_abs_y_to_scratch(p_jit_buf, index, opcode_addr_6502);
     break;
   case k_idy:
+  case k_abs_dyn:
+  case k_abx_dyn:
+  case k_aby_dyn:
     index = jit_emit_ind_y_to_scratch(p_jit,
                                       p_jit_buf,
                                       index,
@@ -1597,13 +1615,11 @@ jit_single(struct jit_struct* p_jit,
                                       index,
                                       opcode_addr_6502);
     break;
-  case k_abx_dyn:
-  case k_aby_dyn:
-    index = jit_emit_abs_x_dyn_to_scratch(p_jit,
+  case k_idy_dyn:
+    index = jit_emit_ind_y_dyn_to_scratch(p_jit,
                                           p_jit_buf,
                                           index,
-                                          addr_6502_plus_1);
-    break;
+                                          opcode_addr_6502);
   default:
     break;
   }
@@ -1761,7 +1777,12 @@ printf("ooh\n");
     /* JSR */
     index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + 2);
     util_buffer_set_pos(p_buf, index);
-    index = jit_emit_jmp_6502_addr(p_jit, p_buf, opcode_addr_6502, 0xe9, 0);
+    if (opmode == k_abs) {
+      index = jit_emit_jmp_6502_addr(p_jit, p_buf, opcode_addr_6502, 0xe9, 0);
+    } else {
+      assert(opmode == k_abs_dyn);
+      index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+    }
     break;
   case k_bit:
     /* BIT */
@@ -1898,11 +1919,14 @@ printf("ooh\n");
                                      opcode_addr_6502,
                                      0xe9,
                                      0);
-    } else {
+    } else if (opmode == k_ind) {
       index = jit_emit_jmp_indirect(p_jit,
                                     p_jit_buf,
                                     index,
                                     opcode_addr_6502);
+    } else {
+      assert(opmode == k_abs_dyn);
+      index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     }
     break;
   case k_bvc:
@@ -2011,7 +2035,7 @@ printf("ooh\n");
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_idy:
-    case k_aby_dyn:
+    case k_idy_dyn:
       if (jit_flags & k_jit_flag_no_rom_fault) {
         /* lea dx, [rdx + rcx] */
         p_jit_buf[index++] = 0x66;
@@ -2037,6 +2061,12 @@ printf("ooh\n");
         p_jit_buf[index++] = 0x0a;
       }
       break;
+    case k_aby_dyn:
+      /* mov [rdx + rcx], al */
+      p_jit_buf[index++] = 0x88;
+      p_jit_buf[index++] = 0x04;
+      p_jit_buf[index++] = 0x0a;
+      break;
     case k_abx:
       /* mov [rbx + addr_6502], al */
       p_jit_buf[index++] = 0x88;
@@ -2051,6 +2081,7 @@ printf("ooh\n");
       break;
     case k_zpx:
     case k_idx:
+    case k_abs_dyn:
       /* mov [rdx + p_mem], al */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x82;
@@ -2179,6 +2210,7 @@ printf("ooh\n");
       break;
     case k_zpg:
     case k_abs:
+    case k_imm_dyn:
       /* mov cl, [p_mem + addr] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x0c;
@@ -2220,6 +2252,7 @@ printf("ooh\n");
       break;
     case k_zpg:
     case k_abs:
+    case k_imm_dyn:
       /* mov bl, [p_mem + addr] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x1c;
@@ -2229,6 +2262,7 @@ printf("ooh\n");
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_zpy:
+    case k_abs_dyn:
       /* mov bl, [rdx + p_mem] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x9a;
@@ -2740,9 +2774,14 @@ jit_at_addr(struct jit_struct* p_jit,
     /* Try and emit a self-modifying optimization if appropriate. */
     if (emit_dynamic_operand &&
         jit_has_self_modify_optimize(p_jit, addr_6502)) {
-      unsigned char opmode = g_opmodes[opcode_6502];
-      if ((optype == k_lda || optype == k_sta) &&
-          (opmode == k_abx || opmode == k_aby || opmode == k_imm)) {
+      if (optype == k_lda ||
+          optype == k_sta ||
+          optype == k_ldx ||
+          optype == k_ldy ||
+          optype == k_ora ||
+          optype == k_cmp ||
+          optype == k_jmp ||
+          optype == k_jsr) {
         dynamic_operand = 1;
       }
     }

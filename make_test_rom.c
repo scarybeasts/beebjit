@@ -477,7 +477,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
   /* Flip INX to DEX at $3002. */
-  p_mem[index++] = 0xa9; /* LDA #$ca */
+  p_mem[index++] = 0xa9; /* LDA #$CA */
   p_mem[index++] = 0xca;
   p_mem[index++] = 0x8d; /* STA $3002 */
   p_mem[index++] = 0x02;
