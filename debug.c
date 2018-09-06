@@ -11,13 +11,17 @@
 #include <assert.h>
 #include <ctype.h>
 #include <err.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
 
 typedef void (*sighandler_t)(int);
 
@@ -506,6 +510,48 @@ debug_slow_down() {
   } while (tv.tv_usec >= start_us && tv.tv_usec < start_us + 2);
 }
 
+static void
+debug_load_raw(struct debug_struct* p_debug,
+               const char* p_file,
+               uint16_t addr) {
+  int ret;
+  ssize_t read_ret;
+  size_t len;
+  struct stat stat_buf;
+  unsigned char buf[k_bbc_addr_space_size];
+
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  int fd = open(p_file, O_RDONLY);
+
+  /* TODO: put this file read code into a helper. */
+  if (fd < 0) {
+    errx(1, "open failed");
+  }
+  ret = fstat(fd, &stat_buf);
+  if (ret != 0) {
+    errx(1, "stat failed");
+  }
+
+  len = k_bbc_addr_space_size;
+  if (stat_buf.st_size < len) {
+    len = stat_buf.st_size;
+  }
+  if (k_bbc_addr_space_size - addr < len) {
+    len = k_bbc_addr_space_size - addr;
+  }
+  read_ret = read(fd, buf, len);
+  if (read_ret != len) {
+    errx(1, "read failed");
+  }
+
+  ret = close(fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
+
+  bbc_set_memory_block(p_bbc, addr, len, buf);
+}
+
 void
 debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -762,6 +808,14 @@ debug_callback(struct debug_struct* p_debug) {
                parse_int + parse_int2 <= 65536) {
       parse_string[255] = '\0';
       state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
+    } else if (sscanf(input_buf,
+                      "lr %255s %x",
+                      parse_string,
+                      &parse_int) == 2 &&
+               parse_int >= 0 &&
+               parse_int < 65536) {
+      parse_string[255] = '\0';
+      debug_load_raw(p_debug, parse_string, parse_int);
     } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
@@ -793,6 +847,7 @@ debug_callback(struct debug_struct* p_debug) {
       printf("m <addr>         : show memory at <addr>\n");
       printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
       printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
+      printf("lr <f> <addr>    : load memory at <addr> from raw file <f>\n");
       printf("ss <f>           : save state to BEM file <f>\n");
       printf("{a,x,y}=<val>    : set register to <val>\n");
       printf("sys              : show system VIA registers\n");
