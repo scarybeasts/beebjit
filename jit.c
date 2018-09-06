@@ -59,6 +59,7 @@ static const unsigned int k_jit_flag_no_rom_fault = 16;
 static const unsigned int k_jit_flag_self_modifying_all = 32;
 
 static const unsigned int k_log_flag_self_modify = 1;
+static const unsigned int k_log_flag_compile = 2;
 
 enum {
   k_a = 1,
@@ -2868,11 +2869,12 @@ jit_at_addr(struct jit_struct* p_jit,
   } while (1);
 
   assert(total_num_ops > 0);
-  /*printf("addr %x - %x, total_num_ops: %zu\n",
-         start_addr_6502,
-         addr_6502 - 1,
-         total_num_ops);
-  fflush(stdout);*/
+  if (log_flags & k_log_flag_compile) {
+    printf("JIT: compile address %.4x - %.4x, total_num_ops: %zu\n",
+           start_addr_6502,
+           addr_6502 - 1,
+           total_num_ops);
+  }
 
   if (jumps_always) {
     return;
@@ -3120,6 +3122,9 @@ jit_create(void* p_debug_callback,
   log_flags = 0;
   if (strstr(p_log_flags, "jit:self-modify")) {
     log_flags |= k_log_flag_self_modify;
+  }
+  if (strstr(p_log_flags, "jit:compile")) {
+    log_flags |= k_log_flag_compile;
   }
   p_jit->log_flags = log_flags;
 
