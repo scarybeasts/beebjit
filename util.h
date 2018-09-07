@@ -32,5 +32,8 @@ void util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3);
 size_t util_read_file(unsigned char* p_buf,
                       size_t max_size,
                       const char* p_file_name);
+void util_write_file(const char* p_file_name,
+                     const unsigned char* p_buf,
+                     size_t size);
 
 #endif /* BEEBJIT_UTIL_H */

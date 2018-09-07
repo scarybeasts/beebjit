@@ -171,7 +171,6 @@ util_read_file(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
   ssize_t read_ret;
 
   int fd = open(p_file_name, O_RDONLY);
-
   if (fd < 0) {
     errx(1, "open failed");
   }
@@ -187,4 +186,27 @@ util_read_file(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
   }
 
   return read_ret;
+}
+
+void
+util_write_file(const char* p_file_name,
+                const unsigned char* p_buf,
+                size_t size) {
+  int ret;
+  ssize_t write_ret;
+
+  int fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
+  if (fd < 0) {
+    errx(1, "open failed");
+  }
+
+  write_ret = write(fd, p_buf, size);
+  if (write_ret != size) {
+    errx(1, "write failed");
+  }
+
+  ret = close(fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
 }

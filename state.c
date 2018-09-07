@@ -7,13 +7,8 @@
 
 #include <assert.h>
 #include <err.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-
-#include <sys/stat.h>
-#include <sys/types.h>
 
 struct bem_v2x {
   unsigned char signature[8];
@@ -177,9 +172,6 @@ void
 state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
-  int fd;
-  int ret;
-  ssize_t write_ret;
   unsigned char unused_char;
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
@@ -219,22 +211,5 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_ier,
                     &unused_char,
                     &p_bem->sysvia_IC32);
-
-  fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
-  if (fd < 0) {
-    errx(1, "couldn't open save state file");
-  }
-
-  write_ret = write(fd, snapshot, k_snapshot_size);
-  if (write_ret < 0) {
-    errx(1, "write failed");
-  }
-  if (write_ret != k_snapshot_size) {
-    errx(1, "short snapshot write");
-  }
-
-  ret = close(fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
+  util_write_file(p_file_name, snapshot, k_snapshot_size);
 }
