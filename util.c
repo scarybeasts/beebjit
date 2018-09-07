@@ -2,10 +2,14 @@
 
 #include <assert.h>
 #include <err.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 static const size_t k_guard_size = 4096;
 
@@ -159,4 +163,28 @@ util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3) {
   util_buffer_add_1b(p_buf, b1);
   util_buffer_add_1b(p_buf, b2);
   util_buffer_add_1b(p_buf, b3);
+}
+
+size_t
+util_read_file(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
+  int ret;
+  ssize_t read_ret;
+
+  int fd = open(p_file_name, O_RDONLY);
+
+  if (fd < 0) {
+    errx(1, "open failed");
+  }
+
+  read_ret = read(fd, p_buf, max_size);
+  if (read_ret < 0) {
+    errx(1, "read failed");
+  }
+
+  ret = close(fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
+
+  return read_ret;
 }

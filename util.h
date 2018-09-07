@@ -29,4 +29,8 @@ void util_buffer_add_1b(struct util_buffer* p_buf, int b1);
 void util_buffer_add_2b_1w(struct util_buffer* p_buf, int b1, int b2, int w1);
 void util_buffer_add_3b(struct util_buffer* p_buf, int b1, int b2, int b3);
 
+size_t util_read_file(unsigned char* p_buf,
+                      size_t max_size,
+                      const char* p_file_name);
+
 #endif /* BEEBJIT_UTIL_H */

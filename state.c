@@ -1,6 +1,7 @@
 #include "state.h"
 
 #include "bbc.h"
+#include "util.h"
 #include "via.h"
 #include "video.h"
 
@@ -95,26 +96,11 @@ static const size_t k_snapshot_size = 327885;
 static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
-  int fd;
-  int ret;
-  ssize_t read_ret;
 
-  fd = open(p_file_name, O_RDONLY);
-  if (fd < 0) {
-    errx(1, "couldn't open load state file");
-  }
+  size_t len = util_read_file(p_buf, k_snapshot_size, p_file_name);
 
-  read_ret = read(fd, p_buf, k_snapshot_size);
-  if (read_ret < 0) {
-    errx(1, "read failed");
-  }
-  if (read_ret != k_snapshot_size) {
+  if (len != k_snapshot_size) {
     errx(1, "wrong snapshot size (expected %zu)", k_snapshot_size);
-  }
-
-  ret = close(fd);
-  if (ret != 0) {
-    errx(1, "close failed");
   }
 
   p_bem = (struct bem_v2x*) p_buf;

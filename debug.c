@@ -6,22 +6,19 @@
 #include "jit.h"
 #include "opdefs.h"
 #include "state.h"
+#include "util.h"
 #include "via.h"
 
 #include <assert.h>
 #include <ctype.h>
 #include <err.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-#include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/types.h>
 
 typedef void (*sighandler_t)(int);
 
@@ -512,44 +509,16 @@ debug_slow_down() {
 
 static void
 debug_load_raw(struct debug_struct* p_debug,
-               const char* p_file,
-               uint16_t addr) {
-  int ret;
-  ssize_t read_ret;
+               const char* p_file_name,
+               uint16_t addr_6502) {
   size_t len;
-  struct stat stat_buf;
   unsigned char buf[k_bbc_addr_space_size];
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
-  int fd = open(p_file, O_RDONLY);
 
-  /* TODO: put this file read code into a helper. */
-  if (fd < 0) {
-    errx(1, "open failed");
-  }
-  ret = fstat(fd, &stat_buf);
-  if (ret != 0) {
-    errx(1, "stat failed");
-  }
+  len = util_read_file(buf, sizeof(buf), p_file_name);
 
-  len = k_bbc_addr_space_size;
-  if (stat_buf.st_size < len) {
-    len = stat_buf.st_size;
-  }
-  if (k_bbc_addr_space_size - addr < len) {
-    len = k_bbc_addr_space_size - addr;
-  }
-  read_ret = read(fd, buf, len);
-  if (read_ret != len) {
-    errx(1, "read failed");
-  }
-
-  ret = close(fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
-
-  bbc_set_memory_block(p_bbc, addr, len, buf);
+  bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }
 
 void
