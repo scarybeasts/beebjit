@@ -3,6 +3,7 @@
 #include "jit.h"
 
 #include "bbc.h"
+#include "debug.h"
 #include "opdefs.h"
 #include "util.h"
 
@@ -51,12 +52,11 @@ static const int k_offset_debug = 88;
 static const int k_offset_bbc = 96;
 static const int k_offset_jit_ptrs = 104;
 
-static const unsigned int k_jit_flag_debug = 1;
-static const unsigned int k_jit_flag_merge_ops = 2;
-static const unsigned int k_jit_flag_self_modifying_abs = 4;
-static const unsigned int k_jit_flag_dynamic_operand = 8;
-static const unsigned int k_jit_flag_no_rom_fault = 16;
-static const unsigned int k_jit_flag_self_modifying_all = 32;
+static const unsigned int k_jit_flag_merge_ops = 1;
+static const unsigned int k_jit_flag_self_modifying_abs = 2;
+static const unsigned int k_jit_flag_dynamic_operand = 4;
+static const unsigned int k_jit_flag_no_rom_fault = 8;
+static const unsigned int k_jit_flag_self_modifying_all = 16;
 
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
@@ -125,6 +125,7 @@ struct jit_struct {
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
   unsigned int log_flags;
+  uint16_t debug_stop_addr;
   unsigned char* p_mem;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -2684,7 +2685,6 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
-  int emit_debug = 0;
   int emit_dynamic_operand = 0;
   int log_self_modify = 0;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
@@ -2692,9 +2692,6 @@ jit_at_addr(struct jit_struct* p_jit,
   unsigned int jit_flags = p_jit->jit_flags;
   unsigned int log_flags = p_jit->log_flags;
 
-  if (jit_flags & k_jit_flag_debug) {
-    emit_debug = 1;
-  }
   if (jit_flags & k_jit_flag_dynamic_operand) {
     emit_dynamic_operand = 1;
   }
@@ -2731,14 +2728,20 @@ jit_at_addr(struct jit_struct* p_jit,
     size_t num_6502_bytes;
     size_t i;
 
+    struct debug_struct* p_debug = p_jit->p_debug;
     unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
                            util_buffer_get_pos(p_buf);
     int dynamic_operand = 0;
+    int emit_debug = 0;
 
     assert((size_t) p_dst < 0xffffffff);
 
     if (addr_6502 != start_addr_6502 && jit_is_block_start(p_jit, addr_6502)) {
       break;
+    }
+
+    if (debug_active_at_addr(p_debug, addr_6502)) {
+      emit_debug = 1;
     }
 
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
@@ -3150,14 +3153,6 @@ jit_create(void* p_debug_callback,
   p_jit->p_single_buf = util_buffer_create();
 
   return p_jit;
-}
-
-void
-jit_set_debug(struct jit_struct* p_jit, int debug) {
-  p_jit->jit_flags &= ~k_jit_flag_debug;
-  if (debug) {
-    p_jit->jit_flags |= k_jit_flag_debug;
-  }
 }
 
 void

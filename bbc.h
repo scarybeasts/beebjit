@@ -30,7 +30,8 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
                               int print_flag,
                               int slow_flag,
                               const char* p_opt_flags,
-                              const char* p_log_flags);
+                              const char* p_log_flags,
+                              uint16_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_reset(struct bbc_struct* p_bbc);

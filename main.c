@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -33,6 +34,7 @@ main(int argc, const char* argv[]) {
   int print_flag = 0;
   int slow_flag = 0;
   int test_flag = 0;
+  int debug_stop_addr = 0;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -52,6 +54,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (strcmp(arg, "-log") == 0) {
         log_flags = val;
+        ++i;
+      } else if (strcmp(arg, "-stopat") == 0) {
+        (void) sscanf(val, "%x", &debug_stop_addr);
         ++i;
       }
     }
@@ -100,7 +105,8 @@ main(int argc, const char* argv[]) {
                      print_flag,
                      slow_flag,
                      opt_flags,
-                     log_flags);
+                     log_flags,
+                     debug_stop_addr);
   if (p_bbc == NULL) {
     errx(1, "bbc_create failed");
   }

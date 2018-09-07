@@ -33,6 +33,8 @@ enum {
 
 struct debug_struct {
   struct bbc_struct* p_bbc;
+  int debug_active;
+  uint16_t debug_stop_addr;
   /* Stats. */
   int stats;
   size_t count_addr[k_bbc_addr_space_size];
@@ -63,7 +65,9 @@ int_handler(int signum) {
 }
 
 struct debug_struct*
-debug_create(struct bbc_struct* p_bbc) {
+debug_create(struct bbc_struct* p_bbc,
+             int debug_active,
+             uint16_t debug_stop_addr) {
   struct debug_struct* p_debug = malloc(sizeof(struct debug_struct));
   if (p_debug == NULL) {
     errx(1, "couldn't allocate debug_struct");
@@ -75,6 +79,8 @@ debug_create(struct bbc_struct* p_bbc) {
   debug_running_slow = bbc_get_slow_flag(p_bbc);
 
   p_debug->p_bbc = p_bbc;
+  p_debug->debug_active = debug_active;
+  p_debug->debug_stop_addr = debug_stop_addr;
 
   return p_debug;
 }
@@ -82,6 +88,14 @@ debug_create(struct bbc_struct* p_bbc) {
 void
 debug_destroy(struct debug_struct* p_debug) {
   free(p_debug);
+}
+
+int
+debug_active_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
+  if (p_debug->debug_active || (addr_6502 == p_debug->debug_stop_addr)) {
+    return 1;
+  }
+  return 0;
 }
 
 static void
@@ -523,8 +537,6 @@ debug_load_raw(struct debug_struct* p_debug,
 
 void
 debug_callback(struct debug_struct* p_debug) {
-  struct bbc_struct* p_bbc = p_debug->p_bbc;
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -550,6 +562,8 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char flag_o;
   int wrapped;
 
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
   int do_trap = 0;
 
   bbc_check_pc(p_bbc);

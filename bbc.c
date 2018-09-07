@@ -65,7 +65,8 @@ bbc_create(unsigned char* p_os_rom,
            int print_flag,
            int slow_flag,
            const char* p_opt_flags,
-           const char* p_log_flags) {
+           const char* p_log_flags,
+           uint16_t debug_stop_addr) {
   struct debug_struct* p_debug;
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -100,7 +101,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "video_create failed");
   }
 
-  p_debug = debug_create(p_bbc);
+  p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
   if (p_debug == NULL) {
     errx(1, "debug_create failed");
   }
@@ -115,8 +116,6 @@ bbc_create(unsigned char* p_os_rom,
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
   }
-
-  jit_set_debug(p_bbc->p_jit, debug_flag);
 
   bbc_reset(p_bbc);
 
