@@ -48,7 +48,7 @@ Notes:
 Based on:
 1e91b92780aac00ad3afff07af58c761  Citadel.zip
 Initial 6502 PC: $55E8
-IRQ1V @ $0204: $DC93
+IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $2500
 Notes:
 1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
