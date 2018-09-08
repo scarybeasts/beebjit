@@ -6,7 +6,11 @@ Based on:
 Commands to run game:
 *LOAD TARZAN2
 CALL &4332
-Initial 6502 PC: $2E11
+Commands to run emulator:
+(Patches out vsync test and DFS ROM presence.)
+echo -e 'sm 2af 00\nsm 24dc ea\nsm 24dd ea\nstopat 0\nc\n' | ./6502jit -load bems/tarzan.bem -opt jit:no-self-mod-abs -stopat 2e11
+Initial 6502 PC: $4332
+IRQ1V @ $0204: $DC93 (default)
 Notes:
 1) Initial relocation routine jumps to $2E11 at $438E.
 2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC can be
