@@ -779,6 +779,14 @@ debug_callback(struct debug_struct* p_debug) {
                parse_int >= 0 &&
                parse_int < 65536) {
       bbc_memory_write(p_bbc, parse_int, parse_int2);
+    } else if (sscanf(input_buf, "inv %x", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < 65536) {
+      bbc_memory_write(p_bbc, parse_int, p_mem[parse_int]);
+    } else if (sscanf(input_buf, "stopat %x", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < 65536) {
+      p_debug->debug_stop_addr = parse_int;
     } else if (sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,
