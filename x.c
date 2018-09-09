@@ -235,6 +235,7 @@ x_render(struct x_struct* p_x) {
 
   int ret;
 
+  /* TODO: only clear window if screen size changed? */
   ret = XClearWindow(p_x->d, p_x->w);
   if (ret != 1) {
     errx(1, "XClearWindow failed");
