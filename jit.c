@@ -61,6 +61,8 @@ static const unsigned int k_jit_flag_self_modifying_all = 16;
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
 
+static const size_t k_max_6502_bytes = 8;
+
 enum {
   k_a = 1,
   k_x = 2,
@@ -1531,6 +1533,7 @@ static size_t
 jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502,
+           size_t max_6502_bytes,
            int dynamic_operand) {
   unsigned int jit_flags = p_jit->jit_flags;
   unsigned char* p_mem = p_jit->p_mem;
@@ -1661,7 +1664,9 @@ jit_single(struct jit_struct* p_jit,
         optype == k_rol ||
         optype == k_ror) {
       if (opmode == k_nil) {
-        while (n_count < 7 && p_mem[next_addr_6502] == opcode) {
+        while (n_count < 7 &&
+               num_6502_bytes < max_6502_bytes &&
+               p_mem[next_addr_6502] == opcode) {
           n_count++;
           next_addr_6502++;
           num_6502_bytes++;
@@ -2660,8 +2665,18 @@ jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static void
-jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
+jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
+
+  (void) jit_emit_do_jit(p_jit_ptr, 0);
+
+  p_jit->force_invalidated[addr_6502] = 1;
+}
+
+static void
+jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = (p_jit->p_jit_base +
+                              (addr_6502 << k_jit_bytes_shift));
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 
@@ -2670,7 +2685,7 @@ jit_addr_invalidate(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 void
 jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502) {
-  jit_addr_invalidate(p_jit, addr_6502);
+  jit_invalidate_addr(p_jit, addr_6502);
 }
 
 static void
@@ -2714,7 +2729,7 @@ jit_at_addr(struct jit_struct* p_jit,
    * invalidate that block.
    */
   if (block_addr_6502 != start_addr_6502) {
-    jit_addr_invalidate(p_jit, block_addr_6502);
+    jit_invalidate_jump_target(p_jit, block_addr_6502);
   }
 
   do {
@@ -2727,6 +2742,7 @@ jit_at_addr(struct jit_struct* p_jit,
     unsigned char new_nz_flags;
     size_t num_6502_bytes;
     size_t i;
+    size_t max_6502_bytes;
 
     struct debug_struct* p_debug = p_jit->p_debug;
     unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
@@ -2735,10 +2751,6 @@ jit_at_addr(struct jit_struct* p_jit,
     int emit_debug = 0;
 
     assert((size_t) p_dst < 0xffffffff);
-
-    if (addr_6502 != start_addr_6502 && jit_is_block_start(p_jit, addr_6502)) {
-      break;
-    }
 
     if (debug_active_at_addr(p_debug, addr_6502)) {
       emit_debug = 1;
@@ -2786,10 +2798,25 @@ jit_at_addr(struct jit_struct* p_jit,
       jit_emit_debug_sequence(p_single_buf, addr_6502);
     }
 
+    /* This is a lookahead for block starts. It's used to stop instruction
+     * coalescing in some cases to preserve block boundaries and prevent
+     * continual recompilations.
+     */
+    for (max_6502_bytes = 1;
+         max_6502_bytes < k_max_6502_bytes;
+         ++max_6502_bytes) {
+      if (jit_is_block_start(p_jit, addr_6502 + max_6502_bytes)) {
+        break;
+      }
+    }
+
     num_6502_bytes = jit_single(p_jit,
                                 p_single_buf,
                                 addr_6502,
+                                max_6502_bytes,
                                 dynamic_operand);
+    assert(num_6502_bytes > 0);
+    assert(num_6502_bytes < k_max_6502_bytes);
 
     opcode_6502_next = jit_get_opcode(p_jit, addr_6502 + num_6502_bytes);
     optype_next = g_optypes[opcode_6502_next];
@@ -2846,19 +2873,18 @@ jit_at_addr(struct jit_struct* p_jit,
     for (i = 0; i < num_6502_bytes; ++i) {
       unsigned char* p_jit_ptr = p_dst;
       p_jit->has_code[addr_6502] = 1;
+
+      jit_invalidate_jump_target(p_jit, addr_6502);
+
       if (i == 0) {
         p_jit->compiled_opcode[addr_6502] = opcode_6502;
+        p_jit->force_invalidated[addr_6502] = 0;
       } else {
         p_jit->compiled_opcode[addr_6502] = 0;
-        p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
           p_jit_ptr = (p_jit->p_jit_base + (0xffff << k_jit_bytes_shift));
         }
-      }
-      /* TODO: do we need this invalidate here? */
-      jit_addr_invalidate(p_jit, addr_6502);
-      if (i == 0) {
-        p_jit->force_invalidated[addr_6502] = 0;
+        p_jit->is_block_start[addr_6502] = 0;
       }
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
       addr_6502++;
@@ -2867,6 +2893,9 @@ jit_at_addr(struct jit_struct* p_jit,
     util_buffer_append(p_buf, p_single_buf);
 
     if (jumps_always) {
+      break;
+    }
+    if (jit_is_block_start(p_jit, addr_6502)) {
       break;
     }
   } while (1);
@@ -3138,7 +3167,7 @@ jit_create(void* p_debug_callback,
     (void) jit_emit_do_jit(p_jit_base, 0);
 
     p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_base;
-    jit_addr_invalidate(p_jit, addr_6502);
+    jit_invalidate_jump_target(p_jit, addr_6502);
 
     p_jit_base += k_jit_bytes_per_byte;
     addr_6502++;

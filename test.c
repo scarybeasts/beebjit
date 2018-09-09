@@ -64,7 +64,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
 }
 
 static void
-do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
+do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem(p_bbc);
@@ -151,8 +151,92 @@ do_totally_lit_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 }
 
+static void
+do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
+  size_t index;
+
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+
+  index = 0x2100;
+  p_mem[index++] = 0xa9; /* LDA #$06 */
+  p_mem[index++] = 0x06;
+  p_mem[index++] = 0x0a; /* ASL A */
+  p_mem[index++] = 0x0a; /* ASL A */
+  p_mem[index++] = 0x0a; /* ASL A */
+  p_mem[index++] = 0x0a; /* ASL A */
+  p_mem[index++] = 0x85; /* STA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x02; /* Exit JIT. */
+
+  /* Run at $2100. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2100);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x60);
+
+  assert(jit_is_block_start(p_jit, 0x2100));
+  assert(!jit_is_block_start(p_jit, 0x2102));
+  assert(!jit_is_block_start(p_jit, 0x2103));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x2100));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x2102));
+  assert(!jit_has_invalidated_code(p_jit, 0x2100));
+  assert(!jit_has_invalidated_code(p_jit, 0x2102));
+  assert(!jit_has_invalidated_code(p_jit, 0x2103));
+  assert(!jit_has_invalidated_code(p_jit, 0x2104));
+  assert(!jit_has_invalidated_code(p_jit, 0x2105));
+  assert(!jit_is_force_invalidated(p_jit, 0x2102));
+  assert(jit_is_force_invalidated(p_jit, 0x2103));
+  assert(jit_is_force_invalidated(p_jit, 0x2104));
+  assert(jit_is_force_invalidated(p_jit, 0x2105));
+  assert(!jit_is_force_invalidated(p_jit, 0x2106));
+  assert(jit_is_force_invalidated(p_jit, 0x2107));
+
+  /* The ASL A's will have been coalesced into one x64 instruction. Jump into
+   * the middle of them.
+   */
+  /* Run at $2103. */
+  jit_set_registers(p_jit, 0x06, 0, 0, 0, 0, 0x2103);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x30);
+
+  assert(jit_is_block_start(p_jit, 0x2100));
+  assert(!jit_is_block_start(p_jit, 0x2102));
+  assert(jit_is_block_start(p_jit, 0x2103));
+  assert(!jit_is_block_start(p_jit, 0x2104));
+  assert(jit_has_invalidated_code(p_jit, 0x2100));
+  assert(!jit_has_invalidated_code(p_jit, 0x2102));
+  assert(!jit_has_invalidated_code(p_jit, 0x2103));
+  assert(!jit_has_invalidated_code(p_jit, 0x2104));
+  assert(jit_is_force_invalidated(p_jit, 0x2100));
+  assert(!jit_is_force_invalidated(p_jit, 0x2102));
+  assert(!jit_is_force_invalidated(p_jit, 0x2103));
+  assert(jit_is_force_invalidated(p_jit, 0x2104));
+
+  /* Run at $2100 again. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2100);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x60);
+
+  assert(jit_is_block_start(p_jit, 0x2100));
+  assert(!jit_is_block_start(p_jit, 0x2102));
+  assert(jit_is_block_start(p_jit, 0x2103));
+  assert(!jit_is_force_invalidated(p_jit, 0x2100));
+  assert(jit_is_force_invalidated(p_jit, 0x2101));
+  assert(!jit_is_force_invalidated(p_jit, 0x2102));
+  assert(!jit_is_force_invalidated(p_jit, 0x2103));
+
+  /* Clobber an ASL A with a NOP. */
+  p_mem[0x2103] = 0xea;
+  jit_memory_written(p_jit, 0x2103);
+  /* Run at $2103 again. */
+  jit_set_registers(p_jit, 0x06, 0, 0, 0, 0, 0x2103);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x18);
+}
+
 void
 test_do_tests(struct bbc_struct* p_bbc) {
   do_basic_jit_tests(p_bbc);
-  do_totally_lit_jit_tests(p_bbc);
+  do_totally_lit_jit_test_1(p_bbc);
+  do_totally_lit_jit_test_2(p_bbc);
 }
