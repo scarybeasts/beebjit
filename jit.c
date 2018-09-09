@@ -1209,6 +1209,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
     break;
   case k_zpx:
   case k_idx:
+  case k_zpg_dyn:
     /* OP al, [rdx + p_mem] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x82;
@@ -1592,6 +1593,8 @@ jit_single(struct jit_struct* p_jit,
 
     switch (opmode) {
     case k_nil:
+      break;
+    case k_rel:
       break;
     case k_imm:
       opmode = k_imm_dyn;
