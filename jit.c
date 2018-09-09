@@ -1189,6 +1189,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
     break;
   case k_idy:
+  case k_aby_dyn:
   case k_idy_dyn:
     /* OP al, [rdx + rcx] */
     p_jit_buf[index++] = intel_op_base;
@@ -2516,6 +2517,7 @@ printf("ooh\n");
       break;
     case k_zpg:
     case k_abs:
+    case k_imm_dyn:
       /* cmp bl, [p_mem + addr] */
       p_jit_buf[index++] = 0x3a;
       p_jit_buf[index++] = 0x1c;
