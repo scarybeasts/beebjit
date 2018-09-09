@@ -76,10 +76,15 @@ Notes:
 - Exile
 Based on:
 cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
+Commands to run emulator:
+(Patches out vsync requirement and some palette modification wait loop.)
+echo -e 'sm 1f65 ea\nsm 1f66 ea\nsm 12aa 4c\nsm 12ab e9\nsm 12ac 12\nstopat 0\nc\n' | ./6502jit -load bems/exile_post_sed.bem -stopat 6075
 IRQ1V @ $0204: $12A6
 Notes:
 - Uses SED, at $6045, as part of checksumming the saved game file?
 - Lots of self-modifying code.
+- Seems to use zero-page wraparound for zero page X addressing mode at $223D
+with ADC $B6,X. And some further instances below.
 
 - Snapper
 Based on:
