@@ -235,12 +235,6 @@ x_render(struct x_struct* p_x) {
 
   int ret;
 
-  /* TODO: only clear window if screen size changed? */
-  ret = XClearWindow(p_x->d, p_x->w);
-  if (ret != 1) {
-    errx(1, "XClearWindow failed");
-  }
-
   if (is_text) {
     size_t y;
     size_t offset = 0;
@@ -252,7 +246,7 @@ x_render(struct x_struct* p_x) {
                                                     offset,
                                                     chars_width);
       /* Seems to return 0 on success -- status not checked. */
-      XDrawString(p_x->d,
+      XDrawImageString(p_x->d,
                   p_x->w,
                   p_x->gc,
                   0,
