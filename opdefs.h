@@ -88,14 +88,13 @@ enum {
   k_idy = 10,
   k_ind = 11,
   k_rel = 12,
-  /* Additional address modes not in the original 6502 but supported internally
-   * for efficient self-modifying code.
-   */
+  /* Additional address modes supported for efficient self-modifying code. */
   k_imm_dyn = 13,
-  k_abs_dyn = 14,
-  k_abx_dyn = 15,
-  k_aby_dyn = 16,
-  k_idy_dyn = 17,
+  k_zpg_dyn = 14,
+  k_abs_dyn = 15,
+  k_abx_dyn = 16,
+  k_aby_dyn = 17,
+  k_idy_dyn = 18,
 };
 
 enum {

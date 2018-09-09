@@ -323,6 +323,23 @@ jit_emit_ind_y_to_scratch(struct jit_struct* p_jit,
 }
 
 static size_t
+jit_emit_zpg_dyn_to_scratch(struct jit_struct* p_jit,
+                            unsigned char* p_jit_buf,
+                            size_t index,
+                            uint16_t opcode_addr_6502) {
+  /* movzx edx, BYTE PTR [p_mem + addr] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb6;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x25;
+  index = jit_emit_int(p_jit_buf,
+                       index,
+                       (size_t) p_jit->p_mem + opcode_addr_6502);
+
+  return index;
+}
+
+static size_t
 jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
                           unsigned char* p_jit_buf,
                           size_t index,
@@ -1248,6 +1265,7 @@ jit_emit_shift_op(struct jit_struct* p_jit,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
     break;
   case k_zpx:
+  case k_zpg_dyn:
     /* OP BYTE PTR [rdx + p_mem], n */
     p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0x3e;
@@ -1573,8 +1591,13 @@ jit_single(struct jit_struct* p_jit,
     opcode_addr_6502 = addr_6502_plus_1;
 
     switch (opmode) {
+    case k_nil:
+      break;
     case k_imm:
       opmode = k_imm_dyn;
+      break;
+    case k_zpg:
+      opmode = k_zpg_dyn;
       break;
     case k_abs:
       opmode = k_abs_dyn;
@@ -1620,6 +1643,12 @@ jit_single(struct jit_struct* p_jit,
                                       p_jit_buf,
                                       index,
                                       opcode_addr_6502);
+    break;
+  case k_zpg_dyn:
+    index = jit_emit_zpg_dyn_to_scratch(p_jit,
+                                        p_jit_buf,
+                                        index,
+                                        opcode_addr_6502);
     break;
   case k_idy_dyn:
     index = jit_emit_ind_y_dyn_to_scratch(p_jit,
@@ -2126,6 +2155,7 @@ printf("ooh\n");
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_zpx:
+    case k_abs_dyn:
       /* mov [rdx + p_mem], cl */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x8a;
@@ -2333,6 +2363,7 @@ printf("ooh\n");
       break;
     case k_zpx:
     case k_idx:
+    case k_zpg_dyn:
       /* mov al, [rdx + p_mem] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x82;
