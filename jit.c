@@ -50,7 +50,8 @@ static const int k_offset_write_callback = 80;
 
 static const int k_offset_debug = 88;
 static const int k_offset_bbc = 96;
-static const int k_offset_jit_ptrs = 104;
+static const int k_offset_counter = 104;
+static const int k_offset_jit_ptrs = 112;
 
 static const unsigned int k_jit_flag_merge_ops = 1;
 static const unsigned int k_jit_flag_self_modifying_abs = 2;
@@ -119,10 +120,11 @@ struct jit_struct {
   void* p_read_callback;        /* 72  */
   void* p_write_callback;       /* 80  */
 
-  /* Structures reeferenced by JIT code. */
+  /* Structures referenced by JIT code. */
   void* p_debug;                /* 88  */
-  struct bbc_struct* p_bbc;     /* 96 */
-  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 104 */
+  struct bbc_struct* p_bbc;     /* 96  */
+  size_t counter;               /* 104 */
+  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 112 */
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
@@ -1029,6 +1031,22 @@ jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
   util_buffer_add_3b(p_buf, 0xff, 0x57, k_offset_util_debug);
 }
 
+static void
+jit_emit_counter_sequence(struct util_buffer* p_buf) {
+  /* mov rdx, [rdi + k_offset_counter] */
+  util_buffer_add_4b(p_buf, 0x48, 0x8b, 0x57, k_offset_counter);
+  /* lea rdx, [rdx - 1] */
+  util_buffer_add_4b(p_buf, 0x48, 0x8d, 0x52, 0xff);
+  /* mov [rdi + k_offset_counter], rdx */
+  util_buffer_add_4b(p_buf, 0x48, 0x89, 0x57, k_offset_counter);
+  /* bt rdx, 63 */
+  util_buffer_add_5b(p_buf, 0x48, 0x0f, 0xba, 0xe2, 0x3f);
+  /* jae / jnc + 1 */
+  util_buffer_add_2b(p_buf, 0x73, 0x01);
+  /* int 3 */
+  util_buffer_add_1b(p_buf, 0xcc);
+}
+
 static int
 jit_is_special_read_address(struct jit_struct* p_jit,
                             uint16_t opcode_addr_6502,
@@ -1417,6 +1435,11 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
 void
 jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
   p_jit->irq = interrupt;
+}
+
+void
+jit_set_counter(struct jit_struct* p_jit, size_t counter) {
+  p_jit->counter = counter;
 }
 
 static unsigned char
@@ -2785,11 +2808,15 @@ jit_at_addr(struct jit_struct* p_jit,
                            util_buffer_get_pos(p_buf);
     int dynamic_operand = 0;
     int emit_debug = 0;
+    int emit_counter = 0;
 
     assert((size_t) p_dst < 0xffffffff);
 
     if (debug_active_at_addr(p_debug, addr_6502)) {
       emit_debug = 1;
+    }
+    if (debug_counter_at_addr(p_debug, addr_6502)) {
+      emit_counter = 1;
     }
 
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
@@ -2832,6 +2859,9 @@ jit_at_addr(struct jit_struct* p_jit,
 
     if (emit_debug) {
       jit_emit_debug_sequence(p_single_buf, addr_6502);
+    }
+    if (emit_counter) {
+      jit_emit_counter_sequence(p_single_buf);
     }
 
     /* This is a lookahead for block starts. It's used to stop instruction
@@ -3064,6 +3094,7 @@ void
 jit_enter(struct jit_struct* p_jit) {
   int ret;
   struct sigaction sa;
+
   unsigned char* p_mem = p_jit->p_mem;
 
   /* Ah the horrors, a SIGSEGV handler! This actually enables a ton of

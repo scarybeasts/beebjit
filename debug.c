@@ -35,6 +35,7 @@ struct debug_struct {
   struct bbc_struct* p_bbc;
   int debug_active;
   uint16_t debug_stop_addr;
+  uint16_t debug_counter_addr;
   /* Stats. */
   int stats;
   size_t count_addr[k_bbc_addr_space_size];
@@ -93,6 +94,14 @@ debug_destroy(struct debug_struct* p_debug) {
 int
 debug_active_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
   if (p_debug->debug_active || (addr_6502 == p_debug->debug_stop_addr)) {
+    return 1;
+  }
+  return 0;
+}
+
+int
+debug_counter_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
+  if (addr_6502 == p_debug->debug_counter_addr) {
     return 1;
   }
   return 0;
@@ -787,6 +796,15 @@ debug_callback(struct debug_struct* p_debug) {
                parse_int >= 0 &&
                parse_int < 65536) {
       p_debug->debug_stop_addr = parse_int;
+    } else if (sscanf(input_buf, "counterat %x", &parse_int) == 1 &&
+               parse_int >= 0 &&
+               parse_int < 65536) {
+      p_debug->debug_counter_addr = parse_int;
+    } else if (sscanf(input_buf, "counter %d", &parse_int) == 1 &&
+               parse_int > 0) {
+      /* NOTE: layer violation, should probably be bbc_set_counter? */
+      struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+      jit_set_counter(p_jit, parse_int);
     } else if (sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,
