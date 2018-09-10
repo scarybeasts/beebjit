@@ -53,11 +53,13 @@ static const int k_offset_bbc = 96;
 static const int k_offset_counter = 104;
 static const int k_offset_jit_ptrs = 112;
 
-static const unsigned int k_jit_flag_merge_ops = 1;
-static const unsigned int k_jit_flag_self_modifying_abs = 2;
-static const unsigned int k_jit_flag_dynamic_operand = 4;
-static const unsigned int k_jit_flag_no_rom_fault = 8;
-static const unsigned int k_jit_flag_self_modifying_all = 16;
+static const unsigned int k_jit_flag_merge_ops = (1 << 0);
+static const unsigned int k_jit_flag_self_modifying_abs = (1 << 1);
+static const unsigned int k_jit_flag_dynamic_operand = (1 << 2);
+static const unsigned int k_jit_flag_no_rom_fault = (1 << 3);
+static const unsigned int k_jit_flag_self_modifying_all = (1 << 4);
+static const unsigned int k_jit_flag_batch_ops = (1 << 5);
+static const unsigned int k_jit_flag_elim_nz_flag_tests = (1 << 6);
 
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
@@ -350,45 +352,45 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
-  /* TODO: getting messy, rewrite. */
-  /* Preserve rdi. */
-  /* mov r8, rdi */
+  /* movzx edx, WORD PTR [rbx + operand1] */
+  /*p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x93;
+  index = jit_emit_int(p_jit_buf, index, operand1);*/
+  /* mov r9, rbx */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0xf8;
-  /* mov rdi, rbx */
-  p_jit_buf[index++] = 0x48;
-  p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0xdf;
-  /* lea edx, [rbx + operand1] */
-  p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x93;
-  index = jit_emit_int(p_jit_buf, index, operand1);
-  /* lea r9, [rbx + operand1 + 1] */
+  p_jit_buf[index++] = 0xd9;
+  /* lea r8, [rbx + operand1 + 1] */
   p_jit_buf[index++] = 0x4c;
   p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x83;
   index = jit_emit_int(p_jit_buf, index, operand1_inc);
-  /* mov dil, dl */
-  p_jit_buf[index++] = 0x40;
+  /* mov r9b, r8b */
+  p_jit_buf[index++] = 0x45;
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0xd7;
-  /* movzx edx, BYTE PTR [rdi] */
+  p_jit_buf[index++] = 0xc1;
+  /* movzx edx, BYTE PTR [r9] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb6;
-  p_jit_buf[index++] = 0x17;
-  /* mov dil, r9b */
-  p_jit_buf[index++] = 0x44;
+  p_jit_buf[index++] = 0x11;
+  /* mov dh, dl */
   p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0xcf;
-  /* mov dh, BYTE PTR [rdi] */
+  p_jit_buf[index++] = 0xd6;
+  /* lea r8, [r8 - 1] */
+  p_jit_buf[index++] = 0x4d;
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x40;
+  p_jit_buf[index++] = 0xff;
+  /* mov r9b, r8b */
+  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0xc1;
+  /* mov dl, BYTE PTR [r9] */
+  p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x37;
-  /* Restore rdi. */
-  /* mov rdi, r8 */
-  p_jit_buf[index++] = 0x4c;
-  p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0xc7;
+  p_jit_buf[index++] = 0x11;
 
   return index;
 }
@@ -2755,11 +2757,13 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t block_addr_6502;
 
   size_t total_num_ops = 0;
+  size_t max_num_ops = ~0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
+  int elim_nz_flag_tests = 0;
   int log_self_modify = 0;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
@@ -2768,6 +2772,12 @@ jit_at_addr(struct jit_struct* p_jit,
 
   if (jit_flags & k_jit_flag_dynamic_operand) {
     emit_dynamic_operand = 1;
+  }
+  if (jit_flags & k_jit_flag_elim_nz_flag_tests) {
+    elim_nz_flag_tests = 1;
+  }
+  if (!(jit_flags & k_jit_flag_batch_ops)) {
+    max_num_ops = 1;
   }
 
   if (log_flags & k_log_flag_self_modify) {
@@ -2888,7 +2898,7 @@ jit_at_addr(struct jit_struct* p_jit,
     optype_next = g_optypes[opcode_6502_next];
 
     /* See if we need to load the 6502 NZ flags. */
-    if ((emit_debug || g_nz_flags_needed[optype_next]) &&
+    if ((g_nz_flags_needed[optype_next] || emit_debug || !elim_nz_flag_tests) &&
         new_nz_flags != k_set) {
       unsigned char commit_nz_flags = 0;
       if (new_nz_flags != 0) {
@@ -2962,6 +2972,9 @@ jit_at_addr(struct jit_struct* p_jit,
       break;
     }
     if (jit_is_block_start(p_jit, addr_6502)) {
+      break;
+    }
+    if (total_num_ops == max_num_ops) {
       break;
     }
   } while (1);
@@ -3206,7 +3219,9 @@ jit_create(void* p_debug_callback,
 
   jit_flags = k_jit_flag_merge_ops |
               k_jit_flag_self_modifying_abs |
-              k_jit_flag_dynamic_operand;
+              k_jit_flag_dynamic_operand |
+              k_jit_flag_batch_ops |
+              k_jit_flag_elim_nz_flag_tests;
   if (strstr(p_opt_flags, "jit:no-rom-fault")) {
     jit_flags |= k_jit_flag_no_rom_fault;
   }
@@ -3215,6 +3230,18 @@ jit_create(void* p_debug_callback,
   }
   if (strstr(p_opt_flags, "jit:no-self-mod-abs")) {
     jit_flags &= ~k_jit_flag_self_modifying_abs;
+  }
+  if (strstr(p_opt_flags, "jit:no-dynamic-operand")) {
+    jit_flags &= ~k_jit_flag_dynamic_operand;
+  }
+  if (strstr(p_opt_flags, "jit:no-merge-ops")) {
+    jit_flags &= ~k_jit_flag_merge_ops;
+  }
+  if (strstr(p_opt_flags, "jit:no-batch-ops")) {
+    jit_flags &= ~k_jit_flag_batch_ops;
+  }
+  if (strstr(p_opt_flags, "jit:no-elim-nz-flag-tests")) {
+    jit_flags &= ~k_jit_flag_elim_nz_flag_tests;
   }
   p_jit->jit_flags = jit_flags;
 
