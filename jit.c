@@ -402,16 +402,14 @@ jit_emit_zp_x_to_scratch(unsigned char* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
-  /* lea r8, [rbx + operand1] */
-  p_jit[index++] = 0x4c;
+  /* lea edx, [rbx + operand1] */
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x83;
+  p_jit[index++] = 0x93;
   index = jit_emit_int(p_jit, index, operand1);
-  /* movzx edx, r8b */
-  p_jit[index++] = 0x41;
+  /* movzx edx, dl */
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd0;
+  p_jit[index++] = 0xd2;
 
   return index;
 }
@@ -423,16 +421,14 @@ jit_emit_zp_y_to_scratch(unsigned char* p_jit,
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
    */
-  /* lea r8, [rcx + operand1] */
-  p_jit[index++] = 0x4c;
+  /* lea edx, [rcx + operand1] */
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x81;
+  p_jit[index++] = 0x91;
   index = jit_emit_int(p_jit, index, operand1);
-  /* movzx edx, r8b */
-  p_jit[index++] = 0x41;
+  /* movzx edx, dl */
   p_jit[index++] = 0x0f;
   p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xd0;
+  p_jit[index++] = 0xd2;
 
   return index;
 }
