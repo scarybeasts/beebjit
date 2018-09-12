@@ -350,13 +350,24 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
                           unsigned char operand1) {
   unsigned char operand1_inc = operand1 + 1;
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
-   * instead.
+   * instead, but we won't.
+   * Why not?
+   * Doing fault-based fixup would replace the long instruction sequence below
+   * with just
+   * movzx edx, WORD PTR [rbx + operand1]
+   *
+   * But it's slower -- whaaaa? Seems like my Broadwell i5, at least, really
+   * doesn't like WORD accesses, even when they're aligned. There's also
+   * some compounding effect going on if there are other BYTE accesses in the
+   * same cache line. Of course, the 6502 zero page is just 4 x64 cache lines
+   * so this is common.
+   * Timings:
+   * 1 WORD access, same cache line BYTE accesses  : 11.15s
+   * 1 WORD access, different cache line           : 10.25s
+   * 2 BYTE accesses, same cache line BYTE accesses: 10.05s
+   * 2 BYTE accesses, no wrap-around checks        : 10.02s
    */
-  /* movzx edx, WORD PTR [rbx + operand1] */
-  /*p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb7;
-  p_jit_buf[index++] = 0x93;
-  index = jit_emit_int(p_jit_buf, index, operand1);*/
+
   /* mov r9, rbx */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x89;
