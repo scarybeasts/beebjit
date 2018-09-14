@@ -6,6 +6,7 @@ gcc -Wall -Werror -g -o 6502jit \
     test.c \
     -lX11 -lXext -lpthread
 gcc -Wall -Werror -g -o make_test_rom make_test_rom.c
+gcc -Wall -Werror -g -o make_perf_rom make_perf_rom.c
 ./make_test_rom
 
 ./6502jit -t
