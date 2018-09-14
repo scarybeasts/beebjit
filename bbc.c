@@ -306,6 +306,11 @@ bbc_set_interrupt(struct bbc_struct* p_bbc, int interrupt) {
 }
 
 int
+bbc_is_ram_address(struct bbc_struct* p_bbc, uint16_t addr) {
+  return (addr < k_bbc_ram_size);
+}
+
+int
 bbc_is_special_read_address(struct bbc_struct* p_bbc,
                             uint16_t addr_low,
                             uint16_t addr_high) {

@@ -72,6 +72,7 @@ int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_slow_flag(struct bbc_struct* p_bbc);
 
+int bbc_is_ram_address(struct bbc_struct* p_bbc, uint16_t addr);
 int bbc_is_special_read_address(struct bbc_struct* p_bbc,
                                 uint16_t addr_low,
                                 uint16_t addr_high);

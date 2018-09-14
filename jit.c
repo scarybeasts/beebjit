@@ -24,10 +24,12 @@ static const int k_jit_bytes_shift = 8;
 static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
+static void* k_tables_addr = (void*) 0x0f000000;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
 static const size_t k_utils_jit_offset = 0x200;
+static const size_t k_tables_size = 4096;
 
 static const int k_offset_util_jit = 0;
 static const int k_offset_util_regs = 8;
@@ -135,6 +137,7 @@ struct jit_struct {
   unsigned char* p_mem;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
+  unsigned char* p_tables_base;
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
@@ -1039,6 +1042,12 @@ jit_emit_counter_sequence(struct util_buffer* p_buf) {
   util_buffer_add_2b(p_buf, 0x73, 0x01);
   /* int 3 */
   util_buffer_add_1b(p_buf, 0xcc);
+}
+
+static int
+jit_is_ram_address(struct jit_struct* p_jit, uint16_t addr_6502) {
+  struct bbc_struct* p_bbc = p_jit->p_bbc;
+  return bbc_is_ram_address(p_bbc, addr_6502);
 }
 
 static int
@@ -2095,25 +2104,45 @@ printf("ooh\n");
     case k_idy:
     case k_idy_dyn:
       if (jit_flags & k_jit_flag_no_rom_fault) {
-        /* lea dx, [rdx + rcx] */
-        p_jit_buf[index++] = 0x66;
+        /* The old sequence was a about 10% faster and was as follows:
+         * lea dx, [rdx + rcx]
+         * bt edx, 15
+         * jb / jc + 6
+         * mov [rdx + p_mem], al
+         *
+         * The new sequence is a bit slower but has the following advantages:
+         * - Doesn't trash the Intel carry flag, so we can optimize better
+         * across sequences of 6502 instructions.
+         * - Branch-free, which may have speed advantages in macro benchmarks.
+         * - "For free", supports detection of writes to hardware registers,
+         * they will fault due to careful selection of table entries.
+         */
+        /* lea edx, [rcx + rdx] */
         p_jit_buf[index++] = 0x8d;
         p_jit_buf[index++] = 0x14;
         p_jit_buf[index++] = 0x0a;
-        /* bt edx, 15 */
+        /* movzx r8, dl */
+        p_jit_buf[index++] = 0x4c;
         p_jit_buf[index++] = 0x0f;
-        p_jit_buf[index++] = 0xba;
-        p_jit_buf[index++] = 0xe2;
+        p_jit_buf[index++] = 0xb6;
+        p_jit_buf[index++] = 0xc2;
+        /* movzx edx, dh */
         p_jit_buf[index++] = 0x0f;
-        /* jb / jc + 6 */
-        p_jit_buf[index++] = 0x72;
-        p_jit_buf[index++] = 0x06;
-        /* mov [rdx + p_mem], al */
+        p_jit_buf[index++] = 0xb6;
+        p_jit_buf[index++] = 0xd6;
+        /* mov r9d, [rdx*4 + p_tables_base] */
+        p_jit_buf[index++] = 0x44;
+        p_jit_buf[index++] = 0x8b;
+        p_jit_buf[index++] = 0x0c;
+        p_jit_buf[index++] = 0x95;
+        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_tables_base);
+        /* mov [r8 + r9], al */
+        p_jit_buf[index++] = 0x43;
         p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x82;
-        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+        p_jit_buf[index++] = 0x04;
+        p_jit_buf[index++] = 0x01;
       } else {
-        /* mov [rdx + rcx], al */
+        /* mov [rcx + rdx], al */
         p_jit_buf[index++] = 0x88;
         p_jit_buf[index++] = 0x04;
         p_jit_buf[index++] = 0x0a;
@@ -3085,7 +3114,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   /* Ok, it's a write fault in the ROM region. We can continue.
    * To continue, we need to bump rip along!
    */
-  /* STA ($xx),Y */
+  /* STA ($xx),Y */ /* mov [rcx + rdx], al */
   if (p_rip[0] == 0x88 && p_rip[1] == 0x04 && p_rip[2] == 0x0a) {
     rip_inc = 3;
   } else {
@@ -3171,9 +3200,11 @@ jit_create(void* p_debug_callback,
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
+  unsigned char* p_tables_base;
   unsigned char* p_util_debug;
   unsigned char* p_util_regs;
   unsigned char* p_util_jit;
+  size_t i;
 
   unsigned char* p_mem = (unsigned char*) (size_t) k_bbc_mem_mmap_addr;
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
@@ -3182,6 +3213,7 @@ jit_create(void* p_debug_callback,
   }
   memset(p_jit, '\0', sizeof(struct jit_struct));
 
+  /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
       k_jit_addr,
       k_bbc_addr_space_size * k_jit_bytes_per_byte,
@@ -3191,14 +3223,36 @@ jit_create(void* p_debug_callback,
   p_jit->reg_y_ecx = (unsigned int) (size_t) p_mem;
   p_jit->reg_s_esi = ((unsigned int) (size_t) p_mem) + 0x100;
 
+  /* This is the mapping that holds static little runtime code gadgets. */
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
   p_util_debug = p_utils_base + k_utils_debug_offset;
   p_util_regs = p_utils_base + k_utils_regs_offset;
   p_util_jit = p_utils_base + k_utils_jit_offset;
 
+  /* This is the mapping that holds runtime tables used by JIT code. */
+  p_tables_base = util_get_guarded_mapping(k_tables_addr, 4096, 0);
+  for (i = 0; i < 256; ++i) {
+    uint16_t addr_6502 = (i << 8);
+    unsigned int* p_table_entry = (unsigned int*) (p_tables_base + (i * 4));
+    unsigned int table_value;
+    if (jit_is_ram_address(p_jit, addr_6502)) {
+      table_value = (unsigned int) (size_t) (p_mem + (i * 256));
+    } else if (jit_is_special_read_address(p_jit, addr_6502, addr_6502)) {
+      /* Make writes to register regions fault, so fixup can be done. */
+      table_value = (unsigned int) (size_t) (k_tables_addr - 256);
+    } else {
+      /* ROM. Squash the useless write by directing the write to an otherwise
+       * unused 256 bytes of RAM at the end of the table.
+       */
+      table_value = (unsigned int) (size_t) (k_tables_addr + (256 * 4));
+    }
+    *p_table_entry = table_value;
+  }
+
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
+  p_jit->p_tables_base = p_tables_base;
   p_jit->p_util_debug = p_util_debug;
   p_jit->p_util_regs = p_util_regs;
   p_jit->p_util_jit = p_util_jit;
@@ -3317,6 +3371,7 @@ jit_check_pc(struct jit_struct* p_jit) {
 
 void
 jit_destroy(struct jit_struct* p_jit) {
+  util_free_guarded_mapping(p_jit->p_tables_base, k_tables_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_bbc_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);
