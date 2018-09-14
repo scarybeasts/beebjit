@@ -45,14 +45,20 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x10;
 
   index = set_new_index(index, 0x100);
+  p_mem[index++] = 0xa9; /* LDA #$20 */
+  p_mem[index++] = 0x20;
+  p_mem[index++] = 0x85; /* STA $01 */
+  p_mem[index++] = 0x01;
   p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x85; /* STA $00 */
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xaa; /* TAX */
   p_mem[index++] = 0xa8; /* TAY */
-  p_mem[index++] = 0x85; /* STA $FE */
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x85; /* STA $FF */
-  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x85; /* STA $30 */
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x85; /* STA $31 */
+  p_mem[index++] = 0x31;
   for (arg = 1; arg < argc; ++arg) {
     int i;
     if (sscanf(argv[arg], "%x", &i) == 1) {
@@ -66,12 +72,12 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc8; /* INY */
   p_mem[index++] = 0xd0; /* BNE */
   p_mem[index++] = 0xfa - bytes;
-  p_mem[index++] = 0xe6; /* INC $FE */
-  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xe6; /* INC $30 */
+  p_mem[index++] = 0x30;
   p_mem[index++] = 0xd0; /* BNE */
   p_mem[index++] = 0xf6 - bytes;
-  p_mem[index++] = 0xe6; /* INC $FD */
-  p_mem[index++] = 0xfd;
+  p_mem[index++] = 0xe6; /* INC $31 */
+  p_mem[index++] = 0x31;
   p_mem[index++] = 0xd0; /* BNE */
   p_mem[index++] = 0xf2 - bytes;
   p_mem[index++] = 0x02; /* Done! */
