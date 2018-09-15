@@ -298,12 +298,31 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 
 static void
 video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+  size_t i;
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
   size_t horiz_chars = video_get_horiz_chars(p_video, 1);
   size_t vert_chars = video_get_vert_chars(p_video);
+
+  unsigned int p1s[256];
+  unsigned int p2s[256];
+  for (i = 0; i < 256; ++i) {
+    unsigned char v1 = ((i & 0x80) >> 4) |
+                       ((i & 0x20) >> 3) |
+                       ((i & 0x08) >> 2) |
+                       ((i & 0x02) >> 1);
+    unsigned char v2 = ((i & 0x40) >> 3) |
+                       ((i & 0x10) >> 2) |
+                       ((i & 0x04) >> 1) |
+                       ((i & 0x01) >> 0);
+    unsigned int p1 = p_palette[v1];
+    unsigned int p2 = p_palette[v2];
+
+    p1s[i] = p1;
+    p2s[i] = p2;
+  }
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -314,17 +333,8 @@ video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
       }
       for (y2 = 0; y2 < 8; ++y2) {
         unsigned char packed_pixels = *p_video_mem++;
-        /* TODO: lookup table to make this fast. */
-        unsigned char v1 = ((packed_pixels & 0x80) >> 4) |
-                           ((packed_pixels & 0x20) >> 3) |
-                           ((packed_pixels & 0x08) >> 2) |
-                           ((packed_pixels & 0x02) >> 1);
-        unsigned char v2 = ((packed_pixels & 0x40) >> 3) |
-                           ((packed_pixels & 0x10) >> 2) |
-                           ((packed_pixels & 0x04) >> 1) |
-                           ((packed_pixels & 0x01) >> 0);
-        unsigned int p1 = p_palette[v1];
-        unsigned int p2 = p_palette[v2];
+        unsigned int p1 = p1s[packed_pixels];
+        unsigned int p2 = p2s[packed_pixels];
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
         p_x_mem += ((y * 8) + y2) * 2 * 640;
         p_x_mem += x * 8;
