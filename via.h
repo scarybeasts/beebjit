@@ -29,6 +29,7 @@ enum {
 };
 enum {
   k_int_CA2 =    0x01,
+  k_int_CA1 =    0x02,
   k_int_TIMER1 = 0x40,
 };
 

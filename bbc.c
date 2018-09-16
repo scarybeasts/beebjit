@@ -322,6 +322,11 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
     via_raise_interrupt(p_bbc->p_system_via, k_int_TIMER1);
   }
 
+  /* Fire vsync at 50Hz. */
+  if (!(p_bbc->time_in_us % 20000)) {
+    via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
+  }
+
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
 }
