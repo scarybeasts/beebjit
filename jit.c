@@ -30,14 +30,14 @@ static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
 static const size_t k_utils_jit_offset = 0x200;
-static const size_t k_utils_ret_offset = 0x300;
+static const size_t k_utils_do_interrupt_offset = 0x300;
 static const size_t k_tables_size = 4096;
 static const size_t k_semaphore_size = 4096;
 
 static const int k_offset_util_jit = 0;
 static const int k_offset_util_regs = 8;
 static const int k_offset_util_debug = 16;
-static const int k_offset_util_block = 24;
+static const int k_offset_util_do_interrupt = 24;
 
 static const int k_offset_reg_rip = 32;
 static const int k_offset_reg_a_eax = 32 + 4;
@@ -105,12 +105,12 @@ static const unsigned char g_nz_flags_needed[58] = {
 };
 
 struct jit_struct {
-  /* Utilities called by JIT code. */
+  /* Utilities called by JIT code via call [rdi + 0x??] */
   /* Must be at 0. */
   unsigned char* p_util_jit;    /* 0   */
   unsigned char* p_util_regs;
   unsigned char* p_util_debug;
-  unsigned char* p_util_unused;
+  unsigned char* p_util_do_interrupt;
 
   /* Registers. */
   unsigned int reg_rip;         /* 32  */
@@ -140,13 +140,16 @@ struct jit_struct {
   unsigned int log_flags;
   uint16_t debug_stop_addr;
   unsigned char* p_mem;
+
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_tables_base;
   unsigned char* p_semaphore;
+
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
+
   unsigned char has_code[k_bbc_addr_space_size];
   unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
@@ -625,9 +628,20 @@ jit_emit_push_from_scratch(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_push_addr(unsigned char* p_jit_buf, size_t index, uint16_t addr_6502) {
+jit_emit_push_word(unsigned char* p_jit_buf, size_t index, uint16_t addr_6502) {
   index = jit_emit_push_constant(p_jit_buf, index, (addr_6502 >> 8));
   index = jit_emit_push_constant(p_jit_buf, index, (addr_6502 & 0xff));
+
+  return index;
+}
+
+static size_t
+jit_emit_push_word_from_scratch(unsigned char* p_jit_buf, size_t index) {
+  /* mov [rsi], dh */
+  p_jit_buf[index++] = 0x88;
+  p_jit_buf[index++] = 0x36;
+  index = jit_emit_stack_dec(p_jit_buf, index);
+  index = jit_emit_push_from_scratch(p_jit_buf, index);
 
   return index;
 }
@@ -1387,16 +1401,43 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
                       size_t index,
                       uint16_t addr_6502,
                       int is_brk) {
-  uint16_t vector = k_bbc_vector_irq;
-  index = jit_emit_push_addr(p_jit_buf, index, addr_6502);
-  index = jit_emit_flags_to_scratch(p_jit_buf, index, is_brk);
-  index = jit_emit_push_from_scratch(p_jit_buf, index);
-  index = jit_emit_sei(p_jit_buf, index);
-  index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
+  /* mov dx, addr_6502 */
+  p_jit_buf[index++] = 0x66;
+  p_jit_buf[index++] = 0xba;
+  p_jit_buf[index++] = (addr_6502 & 0xff);
+  p_jit_buf[index++] = (addr_6502 >> 8);
+  /* mov r9, is_brk */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0xc7;
+  p_jit_buf[index++] = 0xc1;
+  index = jit_emit_int(p_jit_buf, index, (is_brk * 0x10));
+  /* jmp [rdi + k_offset_util_do_interrupt] */
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0x67;
+  p_jit_buf[index++] = k_offset_util_do_interrupt;
 
   return index;
 }
 
+static void
+jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+  uint16_t vector = k_bbc_vector_irq;
+  size_t index = 0;
+
+  index = jit_emit_push_word_from_scratch(p_jit_buf, index);
+  index = jit_emit_flags_to_scratch(p_jit_buf, index, 0);
+  /* Add in the BRK flag. */
+  /* lea rdx, [rdx + r9] */
+  p_jit_buf[index++] = 0x4a;
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x0a;
+  index = jit_emit_push_from_scratch(p_jit_buf, index);
+  index = jit_emit_sei(p_jit_buf, index);
+  index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
+}
+
+/*
 static size_t
 jit_emit_check_interrupt(struct jit_struct* p_jit,
                          unsigned char* p_jit_buf,
@@ -1405,25 +1446,25 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                          int check_flag) {
   size_t index_jmp1 = 0;
   size_t index_jmp2 = 0;
-  /* bt DWORD PTR [rdi + k_offset_interrupt], 0 */
+  * bt DWORD PTR [rdi + k_offset_interrupt], 0 *
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xba;
   p_jit_buf[index++] = 0x67;
   p_jit_buf[index++] = k_offset_irq;
   p_jit_buf[index++] = 0x00;
-  /* jae / jnc ... */
+  * jae / jnc ... *
   p_jit_buf[index++] = 0x73;
   p_jit_buf[index++] = 0xfe;
   index_jmp1 = index;
 
   if (check_flag) {
-    /* bt r13, 2 */
+    * bt r13, 2 *
     p_jit_buf[index++] = 0x49;
     p_jit_buf[index++] = 0x0f;
     p_jit_buf[index++] = 0xba;
     p_jit_buf[index++] = 0xe5;
     p_jit_buf[index++] = 0x02;
-    /* jb ... */
+    * jb ... *
     p_jit_buf[index++] = 0x72;
     p_jit_buf[index++] = 0xfe;
     index_jmp2 = index;
@@ -1440,6 +1481,7 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
 
   return index;
 }
+*/
 
 void
 jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
@@ -1856,7 +1898,7 @@ printf("ooh\n");
     break;
   case k_jsr:
     /* JSR */
-    index = jit_emit_push_addr(p_jit_buf, index, addr_6502 + 2);
+    index = jit_emit_push_word(p_jit_buf, index, addr_6502 + 2);
     util_buffer_set_pos(p_buf, index);
     if (opmode == k_abs) {
       index = jit_emit_jmp_6502_addr(p_jit, p_buf, opcode_addr_6502, 0xe9, 0);
@@ -1950,7 +1992,7 @@ printf("ooh\n");
     /* PLP */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     index = jit_emit_set_flags(p_jit_buf, index);
-    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 1);
+//    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 1);
     break;
   case k_bmi:
     /* BMI */
@@ -2029,7 +2071,7 @@ printf("ooh\n");
     p_jit_buf[index++] = 0xba;
     p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x02;
-    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 0);
+//    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 0);
     break;
   case k_rti:
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
@@ -2674,9 +2716,6 @@ jit_6502_addr_from_intel(struct jit_struct* p_jit, unsigned char* intel_rip) {
 
   unsigned char* p_jit_base = p_jit->p_jit_base;
 
-  /* -2 because of the call [rdi] opcode size. */
-  intel_rip -= 2;
-
   block_addr_6502 = (intel_rip - p_jit_base);
   block_addr_6502 >>= k_jit_bytes_shift;
 
@@ -3065,7 +3104,10 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
 
   struct util_buffer* p_buf = p_jit->p_seq_buf;
 
-  assert(jit_is_invalidation_sequence(intel_rip - 2));
+  /* -2 because of the call [rdi] instruction sequence size. */
+  intel_rip -= 2;
+
+  assert(jit_is_invalidation_sequence(intel_rip));
 
   addr_6502 = jit_6502_addr_from_intel(p_jit, intel_rip);
 
@@ -3146,7 +3188,17 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   if (p_addr == k_semaphore_addr) {
     struct jit_struct* p_jit =
         (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+    size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
     jit_sync_timer_tick(p_jit);
+    /* (r13 & 4) identifies the 6502 interrupt disable flag. */
+    if (p_jit->irq && !(r13 & 4)) {
+      uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
+      /* ABI is rdx for 6502 RTI address, r9 == 0 for BRK == 0. */
+      p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
+      p_context->uc_mcontext.gregs[REG_R9] = 0;
+      p_context->uc_mcontext.gregs[REG_RIP] =
+          (size_t) p_jit->p_util_do_interrupt;
+    }
     return;
   }
 
@@ -3259,6 +3311,7 @@ jit_create(void* p_debug_callback,
   unsigned char* p_util_debug;
   unsigned char* p_util_regs;
   unsigned char* p_util_jit;
+  unsigned char* p_util_do_interrupt;
   size_t i;
 
   unsigned char* p_mem = (unsigned char*) (size_t) k_bbc_mem_mmap_addr;
@@ -3283,6 +3336,7 @@ jit_create(void* p_debug_callback,
   p_util_debug = p_utils_base + k_utils_debug_offset;
   p_util_regs = p_utils_base + k_utils_regs_offset;
   p_util_jit = p_utils_base + k_utils_jit_offset;
+  p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
 
   /* This is the mapping that holds runtime tables used by JIT code. */
   p_tables_base = util_get_guarded_mapping(k_tables_addr, k_tables_size, 0);
@@ -3318,6 +3372,7 @@ jit_create(void* p_debug_callback,
   p_jit->p_util_debug = p_util_debug;
   p_jit->p_util_regs = p_util_regs;
   p_jit->p_util_jit = p_util_jit;
+  p_jit->p_util_do_interrupt = p_util_do_interrupt;
   p_jit->p_debug = p_debug;
   p_jit->p_debug_callback = p_debug_callback;
   p_jit->p_jit_callback = jit_callback;
@@ -3378,6 +3433,7 @@ jit_create(void* p_debug_callback,
   jit_emit_debug_util(p_util_debug);
   jit_emit_regs_util(p_jit, p_util_regs);
   jit_emit_jit_util(p_jit, p_util_jit);
+  jit_emit_do_interrupt_util(p_jit, p_util_do_interrupt);
 
   p_jit->p_dest_buf = util_buffer_create();
   p_jit->p_seq_buf = util_buffer_create();

@@ -24,8 +24,8 @@ main(int argc, const char* argv[]) {
   p_mem[0x3ffc] = 0x00;
   p_mem[0x3ffd] = 0xc0;
   /* IRQ vector: also jumped to by the BRK instruction. */
-  p_mem[0x3ffe] = 0xc0;
-  p_mem[0x3fff] = 0xc1;
+  p_mem[0x3ffe] = 0x00;
+  p_mem[0x3fff] = 0xff;
 
   /* Check PHP, including initial 6502 boot-up flags status. */
   index = set_new_index(index, 0);
@@ -234,11 +234,23 @@ main(int argc, const char* argv[]) {
 
   /* Test BRK! */
   index = set_new_index(index, 0x180);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x86; /* STX $00 */
+  p_mem[index++] = 0x00;
   p_mem[index++] = 0xa2; /* LDX #$ff */
   p_mem[index++] = 0xff;
   p_mem[index++] = 0x9a; /* TXS */
-  p_mem[index++] = 0x00; /* BRK ($FFFE -> $C1C0) */
+  p_mem[index++] = 0x00; /* BRK ($FFFE -> $FF00) */
+  p_mem[index++] = 0xf2; /* FAIL */ /* Jumped over by RTI. */
+  p_mem[index++] = 0xa6; /* LDX $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C1C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc1;
 
   /* Test shift / rotate instuction coalescing. */
   index = set_new_index(index, 0x1c0);
@@ -269,8 +281,8 @@ main(int argc, const char* argv[]) {
 
   /* Test indexed zero page addressing. */
   index = set_new_index(index, 0x200);
-  p_mem[index++] = 0xa9; /* LDA #$FE */
-  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xa9; /* LDA #$FD */
+  p_mem[index++] = 0xfd;
   p_mem[index++] = 0x85; /* STA $07 */
   p_mem[index++] = 0x07;
   p_mem[index++] = 0xa9; /* LDA #$FF */
@@ -281,14 +293,14 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x02;
   p_mem[index++] = 0xb5; /* LDA $05,X */
   p_mem[index++] = 0x05;
-  p_mem[index++] = 0xc9; /* CMP #$FE */
-  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xc9; /* CMP #$FD */
+  p_mem[index++] = 0xfd;
   p_mem[index++] = 0xf0; /* BEQ */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0xa2; /* LDX #$D1 */
   p_mem[index++] = 0xd1;
-  p_mem[index++] = 0xb5; /* LDA $37,X */ /* Zero page wrap. */
+  p_mem[index++] = 0xb5; /* LDA $37,X */ /* Zero page wrap. */ /* Addr: $08 */
   p_mem[index++] = 0x37;
   p_mem[index++] = 0xc9; /* CMP #$FF */
   p_mem[index++] = 0xff;
@@ -993,6 +1005,12 @@ main(int argc, const char* argv[]) {
   /* Need this byte here for a specific test. */
   index = set_new_index(index, 0x3bff);
   p_mem[index++] = 0x7d;
+
+  /* IRQ routine. */
+  index = set_new_index(index, 0x3f00);
+  p_mem[index++] = 0xe6; /* INC $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x40; /* RTI */
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
