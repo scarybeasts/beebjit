@@ -930,7 +930,59 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc7;
 
+  /* Test the firing of a timer interrupt. */
   index = set_new_index(index, 0x780);
+  p_mem[index++] = 0x78; /* SEI */
+  p_mem[index++] = 0xad; /* LDA $FE4E */ /* sysvia IER */
+  p_mem[index++] = 0x4e;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xc9; /* CMP #$80 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$0e */
+  p_mem[index++] = 0x0e;
+  p_mem[index++] = 0x8d; /* STA $FE44 */ /* sysvia T1CL */
+  p_mem[index++] = 0x44;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xa9; /* LDA #$27 */
+  p_mem[index++] = 0x27;
+  p_mem[index++] = 0x8d; /* STA $FE45 */ /* sysvia T1CH */
+  p_mem[index++] = 0x45;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
+  p_mem[index++] = 0x4d;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x85; /* STA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa9; /* LDA #$C0 */ /* set, TIMER1 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0x8d; /* STA $FE44 */ /* sysvia IER */
+  p_mem[index++] = 0x4e;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x58; /* CLI */
+  p_mem[index++] = 0xa5; /* LDA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xf0; /* BEQ -4 */ /* Wait until an interrupt is serviced. */
+  p_mem[index++] = 0xfc;
+  p_mem[index++] = 0xa9; /* LDA #$40 */ /* clear, TIMER1 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0x8d; /* STA $FE44 */ /* sysvia IER */
+  p_mem[index++] = 0x4e;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x4c; /* JMP $C7C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc7;
+
+  index = set_new_index(index, 0x7c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

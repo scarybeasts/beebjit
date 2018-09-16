@@ -40,6 +40,7 @@ unsigned char via_read(struct via_struct* p_via, size_t reg);
 void via_write(struct via_struct* p_via, size_t reg, unsigned char val);
 
 void via_raise_interrupt(struct via_struct* p_via, unsigned char val);
+void via_clear_interrupt(struct via_struct* p_via, unsigned char val);
 
 void via_check_interrupt(struct via_struct* p_via);
 

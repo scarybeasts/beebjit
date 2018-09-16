@@ -209,9 +209,12 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     assert((p_via->ACR & 0xc0) != 0x80);
     p_via->T1LH = val;
     p_via->T1CL = p_via->T1LL;
-    p_via->T1CH = val;
+    p_via->T1CH = p_via->T1LH;
+    via_clear_interrupt(p_via, k_int_TIMER1);
     break;
+  case k_via_T1CL:
   case k_via_T1LL:
+    /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
     assert(val == 0x0e);
     p_via->T1LL = val;
     break;
@@ -259,6 +262,13 @@ void
 via_raise_interrupt(struct via_struct* p_via, unsigned char val) {
   assert(!(val & 0x80));
   p_via->IFR |= val;
+  via_check_interrupt(p_via);
+}
+
+void
+via_clear_interrupt(struct via_struct* p_via, unsigned char val) {
+  assert(!(val & 0x80));
+  p_via->IFR &= ~val;
   via_check_interrupt(p_via);
 }
 

@@ -329,6 +329,8 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
+
+  /* TODO: do we need to recalculate 6502 interrupt flag unconditionally? */
 }
 
 void
