@@ -18,6 +18,8 @@
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
 
+static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
+
 enum {
   k_addr_crtc = 0xfe00,
   k_addr_acia = 0xfe08,
@@ -39,6 +41,7 @@ enum {
 };
 
 struct bbc_struct {
+  size_t time_in_us;
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
   int debug_flag;
@@ -74,6 +77,7 @@ bbc_create(unsigned char* p_os_rom,
   }
   memset(p_bbc, '\0', sizeof(struct bbc_struct));
 
+  p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
   p_bbc->debug_flag = debug_flag;
@@ -255,35 +259,71 @@ bbc_get_slow_flag(struct bbc_struct* p_bbc) {
   return p_bbc->slow_flag;
 }
 
+static void
+bbc_async_timer_tick(struct bbc_struct* p_bbc) {
+  /* TODO: this timer ticks at 1kHz and interrupts the JIT process at the same
+   * rate. But we only need to interrupt the JIT process if there's something
+   * to do, which would improve performance.
+   * The "cost" would be needing to be very careful with the async nature of
+   * this thread.
+   */
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  jit_async_timer_tick(p_jit);
+}
+
+static void*
+bbc_timer_thread(void* p) {
+  struct timespec ts;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  ts.tv_sec = 0;
+  ts.tv_nsec = k_us_per_timer_tick * 1000;
+
+  while (1) {
+    int ret = nanosleep(&ts, NULL);
+    if (ret != 0) {
+      errx(1, "nanosleep failed");
+    }
+    bbc_async_timer_tick(p_bbc);
+  }
+
+  return NULL;
+}
+
+static void
+bbc_start_timer_tick(struct bbc_struct* p_bbc) {
+  pthread_t thread;
+
+  int ret = pthread_create(&thread, NULL, bbc_timer_thread, p_bbc);
+  if (ret != 0) {
+    errx(1, "couldn't create jit thread");
+  }
+}
+
 static void*
 bbc_jit_thread(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  bbc_start_timer_tick(p_bbc);
 
   jit_enter(p_bbc->p_jit);
 
   exit(0);
 }
 
-static void*
-bbc_10ms_timer_thread(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+void
+bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
+  assert((k_us_per_timer_tick % 1000) == 0);
 
-  struct timespec ts;
-  int ret;
+  p_bbc->time_in_us += k_us_per_timer_tick;
 
-  while (1) {
-    ret = -1;
-    ts.tv_sec = 0;
-    ts.tv_nsec = 1000 * 1000 * 10;
-    while (ret == -1) {
-      ret = nanosleep(&ts, &ts);
-      assert(ret == 0 || ret == -1);
-      if (ret == -1 && errno != EINTR) {
-        errx(1, "nanosleep failed");
-      }
-    }
+  /* 100Hz sysvia timer. */
+  if (!(p_bbc->time_in_us % 10000)) {
     via_raise_interrupt(p_bbc->p_system_via, k_int_TIMER1);
   }
+
+  /* Read sysvia port A to update keyboard state and fire interrupts. */
+  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
 }
 
 void
@@ -293,10 +333,6 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {
     errx(1, "couldn't create jit thread");
-  }
-  ret = pthread_create(&thread, NULL, bbc_10ms_timer_thread, p_bbc);
-  if (ret != 0) {
-    errx(1, "couldn't create timer thread");
   }
 }
 
@@ -659,6 +695,9 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
 
 void
 bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
+  /* Threading model: called from the X thread.
+   * Allowed to read/write keyboard state.
+   */
   int row;
   int col;
   bbc_key_to_rowcol(key, &row, &col);
@@ -675,13 +714,18 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
   p_bbc->keys[row][col] = 1;
   p_bbc->keys_count_col[col]++;
   p_bbc->keys_count++;
-
-  /* TODO: we're on the X thread so we have concurrent access issues. */
-  via_raise_interrupt(p_bbc->p_system_via, k_int_CA2);
 }
 
 void
 bbc_key_released(struct bbc_struct* p_bbc, int key) {
+  /* Threading model: called from the X thread.
+   * Allowed to read/write keyboard state.
+   * There's no other writer thread, so updates (such as increment / decrement
+   * of counters) don't need to be atomic. However, the reader should be aware
+   * that keyboard state is changing asynchronously.
+   * e.g. bbc_is_any_key_pressed() could return 0 but an immediately following
+   * specific bbc_is_key_pressed() could return 1.
+   */
   int row;
   int col;
   int was_pressed;
@@ -707,15 +751,24 @@ int
 bbc_is_key_pressed(struct bbc_struct* p_bbc,
                    unsigned char row,
                    unsigned char col) {
+  /* Threading model: called from the BBC thread.
+   * Only allowed to read keyboard state.
+   */
   return p_bbc->keys[row][col];
 }
 
 int
 bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col) {
+  /* Threading model: called from the BBC thread.
+   * Only allowed to read keyboard state.
+   */
   return (p_bbc->keys_count_col[col] > 0);
 }
 
 int
 bbc_is_any_key_pressed(struct bbc_struct* p_bbc) {
+  /* Threading model: called from the BBC thread.
+   * Only allowed to read keyboard state.
+   */
   return (p_bbc->keys_count > 0);
 }

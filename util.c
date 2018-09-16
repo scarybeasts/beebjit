@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -64,6 +65,14 @@ util_free_guarded_mapping(void* p_addr, size_t size) {
 void
 util_make_mapping_read_only(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_READ);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
+}
+
+void
+util_make_mapping_none(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {
     errx(1, "mprotect() failed");
   }
@@ -191,6 +200,25 @@ util_buffer_add_5b(struct util_buffer* p_buf,
   util_buffer_add_1b(p_buf, b3);
   util_buffer_add_1b(p_buf, b4);
   util_buffer_add_1b(p_buf, b5);
+}
+
+void
+util_buffer_add_int(struct util_buffer* p_buf, ssize_t i) {
+  int b1;
+  int b2;
+  int b3;
+  int b4;
+  assert(i >= INT_MIN);
+  assert(i <= INT_MAX);
+  b1 = (i & 0xff);
+  i >>= 8;
+  b2 = (i & 0xff);
+  i >>= 8;
+  b3 = (i & 0xff);
+  i >>= 8;
+  b4 = (i & 0xff);
+
+  util_buffer_add_4b(p_buf, b1, b2, b3, b4);
 }
 
 size_t

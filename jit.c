@@ -25,35 +25,39 @@ static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
 static void* k_tables_addr = (void*) 0x0f000000;
+static void* k_semaphore_addr = (void*) 0x0e000000;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
 static const size_t k_utils_jit_offset = 0x200;
+static const size_t k_utils_ret_offset = 0x300;
 static const size_t k_tables_size = 4096;
+static const size_t k_semaphore_size = 4096;
 
 static const int k_offset_util_jit = 0;
 static const int k_offset_util_regs = 8;
 static const int k_offset_util_debug = 16;
+static const int k_offset_util_block = 24;
 
-static const int k_offset_reg_rip = 24;
-static const int k_offset_reg_a_eax = 28;
-static const int k_offset_reg_x_ebx = 32;
-static const int k_offset_reg_y_ecx = 36;
-static const int k_offset_reg_s_esi = 40;
-static const int k_offset_reg_pc = 44;
-static const int k_offset_reg_x64_flags = 46;
-static const int k_offset_reg_6502_flags = 47;
-static const int k_offset_irq = 48;
+static const int k_offset_reg_rip = 32;
+static const int k_offset_reg_a_eax = 32 + 4;
+static const int k_offset_reg_x_ebx = 32 + 8;
+static const int k_offset_reg_y_ecx = 32 + 12;
+static const int k_offset_reg_s_esi = 32 + 16;
+static const int k_offset_reg_pc = 32 + 20;
+static const int k_offset_reg_x64_flags = 32 + 22;
+static const int k_offset_reg_6502_flags = 32 + 23;
+static const int k_offset_irq = 32 + 24;
 
-static const int k_offset_debug_callback = 56;
-static const int k_offset_jit_callback = 64;
-static const int k_offset_read_callback = 72;
-static const int k_offset_write_callback = 80;
+static const int k_offset_debug_callback = 64;
+static const int k_offset_jit_callback = 64 + 8;
+static const int k_offset_read_callback = 64 + 16;
+static const int k_offset_write_callback = 64 + 24;
 
-static const int k_offset_debug = 88;
-static const int k_offset_bbc = 96;
-static const int k_offset_counter = 104;
-static const int k_offset_jit_ptrs = 112;
+static const int k_offset_debug = 96;
+static const int k_offset_bbc = 96 + 8;
+static const int k_offset_counter = 96 + 16;
+static const int k_offset_jit_ptrs = 96 + 24;
 
 static const unsigned int k_jit_flag_merge_ops = (1 << 0);
 static const unsigned int k_jit_flag_self_modifying_abs = (1 << 1);
@@ -104,31 +108,32 @@ struct jit_struct {
   /* Utilities called by JIT code. */
   /* Must be at 0. */
   unsigned char* p_util_jit;    /* 0   */
-  unsigned char* p_util_regs;   /* 8   */
-  unsigned char* p_util_debug;  /* 16  */
+  unsigned char* p_util_regs;
+  unsigned char* p_util_debug;
+  unsigned char* p_util_unused;
 
   /* Registers. */
-  unsigned int reg_rip;         /* 24  */
-  unsigned int reg_a_eax;       /* 28  */
-  unsigned int reg_x_ebx;       /* 32  */
-  unsigned int reg_y_ecx;       /* 36  */
-  unsigned int reg_s_esi;       /* 40  */
-  uint16_t reg_pc;              /* 44  */
-  unsigned char reg_x64_flags;  /* 46  */
-  unsigned char reg_6502_flags; /* 47  */
-  unsigned char irq;            /* 48  */
+  unsigned int reg_rip;         /* 32  */
+  unsigned int reg_a_eax;
+  unsigned int reg_x_ebx;
+  unsigned int reg_y_ecx;
+  unsigned int reg_s_esi;
+  uint16_t reg_pc;
+  unsigned char reg_x64_flags;
+  unsigned char reg_6502_flags;
+  unsigned char irq;
 
   /* C callbacks called by JIT code. */
-  void* p_debug_callback;       /* 56  */
-  void* p_jit_callback;         /* 64  */
-  void* p_read_callback;        /* 72  */
-  void* p_write_callback;       /* 80  */
+  void* p_debug_callback;       /* 64  */
+  void* p_jit_callback;
+  void* p_read_callback;
+  void* p_write_callback;
 
   /* Structures referenced by JIT code. */
-  void* p_debug;                /* 88  */
-  struct bbc_struct* p_bbc;     /* 96  */
-  size_t counter;               /* 104 */
-  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 112 */
+  void* p_debug;                /* 96  */
+  struct bbc_struct* p_bbc;
+  size_t counter;
+  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 120 */
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
@@ -138,6 +143,7 @@ struct jit_struct {
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_tables_base;
+  unsigned char* p_semaphore;
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
@@ -1460,6 +1466,14 @@ jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
   return index;
 }
 
+static void
+jit_emit_block_prolog(struct jit_struct* p_jit, struct util_buffer* p_buf) {
+  (void) p_jit;
+  /* mov edx, [rdi + k_offset_util_block] */
+  util_buffer_add_3b(p_buf, 0x8b, 0x14, 0x25);
+  util_buffer_add_int(p_buf, (ssize_t) k_semaphore_addr);
+}
+
 static size_t
 jit_handle_invalidate(struct jit_struct* p_jit,
                       unsigned char opmem,
@@ -2736,6 +2750,22 @@ jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   return 0;
 }
 
+static unsigned char*
+jit_get_jump_target_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = (p_jit->p_jit_base +
+                              (addr_6502 << k_jit_bytes_shift));
+  return p_jit_ptr;
+}
+
+int
+jit_jump_target_is_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
+  if (jit_is_invalidation_sequence(p_jit_ptr)) {
+    return 1;
+  }
+  return 0;
+}
+
 int
 jit_is_force_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->force_invalidated[addr_6502];
@@ -2757,8 +2787,7 @@ jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static void
 jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = (p_jit->p_jit_base +
-                              (addr_6502 << k_jit_bytes_shift));
+  unsigned char* p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 
@@ -2821,6 +2850,8 @@ jit_at_addr(struct jit_struct* p_jit,
   if (block_addr_6502 != start_addr_6502) {
     jit_invalidate_jump_target(p_jit, block_addr_6502);
   }
+
+  jit_emit_block_prolog(p_jit, p_buf);
 
   do {
     unsigned char opcode_6502;
@@ -3046,7 +3077,7 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
    */
 /*  assert(block_addr_6502 >= 0x200);*/
 
-  p_jit_ptr = p_jit->p_jit_base + (addr_6502 << k_jit_bytes_shift);
+  p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
 
   util_buffer_setup(p_buf, &jit_bytes[0], k_jit_bytes_per_byte);
   util_buffer_set_base_address(p_buf, p_jit_ptr);
@@ -3061,6 +3092,19 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
 
 void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*) {
   return jit_callback;
+}
+
+void
+jit_async_timer_tick(struct jit_struct* p_jit) {
+  util_make_mapping_none(p_jit->p_semaphore, k_semaphore_size);
+}
+
+static void
+jit_sync_timer_tick(struct jit_struct* p_jit) {
+  struct bbc_struct* p_bbc = p_jit->p_bbc;
+
+  util_make_mapping_read_only(p_jit->p_semaphore, k_semaphore_size);
+  bbc_sync_timer_tick(p_bbc);
 }
 
 static void
@@ -3086,12 +3130,30 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   (void) p_siginfo;
   (void) p_void;
 
-  /* Crash unless it's fault trying to write to the ROM region of BBC memory. */
-  if (signum != SIGSEGV ||
-      p_siginfo->si_code != SEGV_ACCERR ||
-      p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr + k_bbc_ram_size ||
+  /* Crash unless it's fault we clearly recognize. */
+  if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
+    sigsegv_reraise();
+  }
+
+  /* Crash unless the faulting instruction in the JIT region. */
+  if (p_rip < (unsigned char*) k_jit_addr ||
+      p_rip >= (unsigned char*) k_jit_addr +
+               (k_bbc_addr_space_size << k_jit_bytes_shift)) {
+    sigsegv_reraise();
+  }
+
+  /* Handle the async -> sync semaphore fault. */
+  if (p_addr == k_semaphore_addr) {
+    struct jit_struct* p_jit =
+        (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+    jit_sync_timer_tick(p_jit);
+    return;
+  }
+
+  /* Bail unless it's a fault writing the read-only ROM region. */
+  if (p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr + k_bbc_ram_size ||
       p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
-               k_bbc_addr_space_size) {
+                k_bbc_addr_space_size) {
     sigsegv_reraise();
   }
 
@@ -3101,13 +3163,6 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
                k_bbc_registers_start +
                k_bbc_registers_len) {
-    sigsegv_reraise();
-  }
-
-  /* Crash unless the faulting instruction in the JIT region. */
-  if (p_rip < (unsigned char*) k_jit_addr ||
-      p_rip >= (unsigned char*) k_jit_addr +
-               (k_bbc_addr_space_size << k_jit_bytes_shift)) {
     sigsegv_reraise();
   }
 
@@ -3230,7 +3285,7 @@ jit_create(void* p_debug_callback,
   p_util_jit = p_utils_base + k_utils_jit_offset;
 
   /* This is the mapping that holds runtime tables used by JIT code. */
-  p_tables_base = util_get_guarded_mapping(k_tables_addr, 4096, 0);
+  p_tables_base = util_get_guarded_mapping(k_tables_addr, k_tables_size, 0);
   for (i = 0; i < 256; ++i) {
     uint16_t addr_6502 = (i << 8);
     unsigned int* p_table_entry = (unsigned int*) (p_tables_base + (i * 4));
@@ -3248,6 +3303,13 @@ jit_create(void* p_debug_callback,
     }
     *p_table_entry = table_value;
   }
+
+  /* This is the mapping that is a semaphore to trigger JIT execution
+   * interruption.
+   */
+  p_jit->p_semaphore = util_get_guarded_mapping(k_semaphore_addr,
+                                                k_semaphore_size,
+                                                0);
 
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
@@ -3371,6 +3433,7 @@ jit_check_pc(struct jit_struct* p_jit) {
 
 void
 jit_destroy(struct jit_struct* p_jit) {
+  util_free_guarded_mapping(p_jit->p_semaphore, k_semaphore_size);
   util_free_guarded_mapping(p_jit->p_tables_base, k_tables_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_bbc_addr_space_size * k_jit_bytes_per_byte);

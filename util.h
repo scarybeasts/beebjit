@@ -1,12 +1,14 @@
 #ifndef BEEBJIT_UTIL_H
 #define BEEBJIT_UTIL_H
 
-#include <stddef.h>
+#include <stdint.h>
+#include <unistd.h>
 
 /* Memory mapping. */
 void* util_get_guarded_mapping(void* p_addr, size_t size, int is_exec);
 void util_free_guarded_mapping(void* p_addr, size_t size);
 void util_make_mapping_read_only(void* p_addr, size_t size);
+void util_make_mapping_none(void* p_addr, size_t size);
 
 /* Buffer. */
 struct util_buffer;
@@ -40,6 +42,7 @@ void util_buffer_add_5b(struct util_buffer* p_buf,
                         int b3,
                         int b4,
                         int b5);
+void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
 
 size_t util_read_file(unsigned char* p_buf,
                       size_t max_size,
