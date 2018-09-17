@@ -44,6 +44,8 @@ void via_clear_interrupt(struct via_struct* p_via, unsigned char val);
 
 void via_check_interrupt(struct via_struct* p_via);
 
+void via_time_advance(struct via_struct* p_via, size_t us);
+
 void via_get_registers(struct via_struct* p_via,
                        unsigned char* ORA,
                        unsigned char* ORB,
@@ -55,7 +57,11 @@ void via_get_registers(struct via_struct* p_via,
                        unsigned char* IFR,
                        unsigned char* IER,
                        unsigned char* peripheral_a,
-                       unsigned char* peripheral_b);
+                       unsigned char* peripheral_b,
+                       int* T1C,
+                       int* T1L,
+                       int* T2C,
+                       int* T2L);
 
 void via_set_registers(struct via_struct* p_via,
                        unsigned char ORA,
@@ -68,7 +74,11 @@ void via_set_registers(struct via_struct* p_via,
                        unsigned char IFR,
                        unsigned char IER,
                        unsigned char peripheral_a,
-                       unsigned char peripheral_b);
+                       unsigned char peripheral_b,
+                       int T1C,
+                       int T1L,
+                       int T2C,
+                       int T2L);
 
 unsigned char* via_get_peripheral_b_ptr(struct via_struct* p_via);
 

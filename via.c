@@ -16,10 +16,6 @@ struct via_struct {
   unsigned char ORA;
   unsigned char DDRB;
   unsigned char DDRA;
-  unsigned char T1CL;
-  unsigned char T1CH;
-  unsigned char T1LL;
-  unsigned char T1LH;
   unsigned char SR;
   unsigned char ACR;
   unsigned char PCR;
@@ -27,6 +23,10 @@ struct via_struct {
   unsigned char IER;
   unsigned char peripheral_b;
   unsigned char peripheral_a;
+  int T1C;
+  int T1L;
+  int T2C;
+  int T2L;
 };
 
 struct via_struct*
@@ -40,10 +40,10 @@ via_create(int id, struct bbc_struct* p_bbc) {
   p_via->id = id;
   p_via->p_bbc = p_bbc;
 
-  p_via->T1CL = 0xff;
-  p_via->T1CH = 0xff;
-  p_via->T1LL = 0xff;
-  p_via->T1LH = 0xff;
+  p_via->T1C = 0xffff;
+  p_via->T1L = 0xffff;
+  p_via->T2C = 0xffff;
+  p_via->T2L = 0xffff;
 
   return p_via;
 }
@@ -154,7 +154,8 @@ via_read(struct via_struct* p_via, size_t reg) {
     val |= (port_val & ~ddrb);
     return val;
   case k_via_T1CL:
-    return p_via->T1CL;
+    /* TODO: clear interrupt. */
+    return (p_via->T1C & 0xff);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
@@ -205,23 +206,19 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     via_write_port_a(p_via);
     break;
   case k_via_T1CH:
-    assert(val == 0x27);
     assert((p_via->ACR & 0xc0) != 0x80);
-    p_via->T1LH = val;
-    p_via->T1CL = p_via->T1LL;
-    p_via->T1CH = p_via->T1LH;
+    p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
+    p_via->T1C = p_via->T1L;
     via_clear_interrupt(p_via, k_int_TIMER1);
     break;
   case k_via_T1CL:
   case k_via_T1LL:
     /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
-    assert(val == 0x0e);
-    p_via->T1LL = val;
+    p_via->T1L = ((p_via->T1L & 0xff00) | val);
     break;
   case k_via_T1LH:
-    assert(val == 0x27);
     /* TODO: clear timer interrupt if acr & 0x40. */
-    p_via->T1LH = val;
+    p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
     break;
   case k_via_SR:
     p_via->SR = val;
@@ -299,7 +296,11 @@ via_get_registers(struct via_struct* p_via,
                   unsigned char* IFR,
                   unsigned char* IER,
                   unsigned char* peripheral_a,
-                  unsigned char* peripheral_b) {
+                  unsigned char* peripheral_b,
+                  int* T1C,
+                  int* T1L,
+                  int* T2C,
+                  int* T2L) {
   *ORA = p_via->ORA;
   *ORB = p_via->ORB;
   *DDRA = p_via->DDRA;
@@ -311,6 +312,10 @@ via_get_registers(struct via_struct* p_via,
   *IER = p_via->IER;
   *peripheral_a = p_via->peripheral_a;
   *peripheral_b = p_via->peripheral_b;
+  *T1C = p_via->T1C;
+  *T1L = p_via->T1L;
+  *T2C = p_via->T2C;
+  *T2L = p_via->T2L;
 }
 
 void via_set_registers(struct via_struct* p_via,
@@ -324,7 +329,11 @@ void via_set_registers(struct via_struct* p_via,
                        unsigned char IFR,
                        unsigned char IER,
                        unsigned char peripheral_a,
-                       unsigned char peripheral_b) {
+                       unsigned char peripheral_b,
+                       int T1C,
+                       int T1L,
+                       int T2C,
+                       int T2L) {
   p_via->ORA = ORA;
   p_via->ORB = ORB;
   p_via->DDRA = DDRA;
@@ -336,9 +345,30 @@ void via_set_registers(struct via_struct* p_via,
   p_via->IER = IER;
   p_via->peripheral_a = peripheral_a;
   p_via->peripheral_b = peripheral_b;
+  p_via->T1C = T1C;
+  p_via->T1L = T1L;
+  p_via->T2C = T2C;
+  p_via->T2L = T2L;
 }
 
 unsigned char*
 via_get_peripheral_b_ptr(struct via_struct* p_via) {
   return &p_via->peripheral_b;
+}
+
+void
+via_time_advance(struct via_struct* p_via, size_t us) {
+  while (us > 0) {
+    if (us > p_via->T1C) {
+      /* NOTE: 1us is used to reload timer with latch value but that's not
+       * accurate to a real BBC.
+       */
+      us -= (p_via->T1C + 1);
+      p_via->T1C = p_via->T1L;
+      via_raise_interrupt(p_via, k_int_TIMER1);
+    } else {
+      p_via->T1C -= us;
+      us = 0;
+    }
+  }
 }

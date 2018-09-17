@@ -41,10 +41,10 @@ struct bem_v2x {
   unsigned char sysvia_pcr;
   unsigned char sysvia_ifr;
   unsigned char sysvia_ier;
-  unsigned int sysvia_t1l;
-  unsigned int sysvia_t2l;
-  unsigned int sysvia_t1c;
-  unsigned int sysvia_t2c;
+  int sysvia_t1l;
+  int sysvia_t2l;
+  int sysvia_t1c;
+  int sysvia_t2c;
   unsigned char sysvia_t1hit;
   unsigned char sysvia_t2hit;
   unsigned char sysvia_ca1;
@@ -64,10 +64,10 @@ struct bem_v2x {
   unsigned char uservia_pcr;
   unsigned char uservia_ifr;
   unsigned char uservia_ier;
-  unsigned int uservia_t1l;
-  unsigned int uservia_t2l;
-  unsigned int uservia_t1c;
-  unsigned int uservia_t2c;
+  int uservia_t1l;
+  int uservia_t2l;
+  int uservia_t1c;
+  int uservia_t2c;
   unsigned char uservia_t1hit;
   unsigned char uservia_t2hit;
   unsigned char uservia_ca1;
@@ -137,6 +137,15 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   video_set_ula_control(p_video, p_bem->ula_control);
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_set_crtc_registers(p_video, &p_bem->crtc_regs[0]);
+  /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Divide! */
+  /* NOTE: b-em saves int-width negative values outside the expected
+   * -2 -> 0xffff range for t2c.
+   * Keeps decrementing an int-width negative counter.
+   */
+  p_bem->sysvia_t1c >>= 1;
+  p_bem->sysvia_t1l >>= 1;
+  p_bem->sysvia_t2c >>= 1;
+  p_bem->sysvia_t2l >>= 1;
   via_set_registers(p_system_via,
                     p_bem->sysvia_ora,
                     p_bem->sysvia_orb,
@@ -148,7 +157,11 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->sysvia_ifr,
                     p_bem->sysvia_ier,
                     0,
-                    p_bem->sysvia_IC32);
+                    p_bem->sysvia_IC32,
+                    p_bem->sysvia_t1c,
+                    p_bem->sysvia_t1l,
+                    p_bem->sysvia_t2c,
+                    p_bem->sysvia_t2l);
 }
 
 void
@@ -210,6 +223,15 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_ifr,
                     &p_bem->sysvia_ier,
                     &unused_char,
-                    &p_bem->sysvia_IC32);
+                    &p_bem->sysvia_IC32,
+                    &p_bem->sysvia_t1c,
+                    &p_bem->sysvia_t1l,
+                    &p_bem->sysvia_t2c,
+                    &p_bem->sysvia_t2l);
+  /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Double up. */
+  p_bem->sysvia_t1c <<= 1;
+  p_bem->sysvia_t1l <<= 1;
+  p_bem->sysvia_t2c <<= 1;
+  p_bem->sysvia_t2l <<= 1;
   util_write_file(p_file_name, snapshot, k_snapshot_size);
 }

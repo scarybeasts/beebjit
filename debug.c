@@ -335,6 +335,10 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
   unsigned char IER;
   unsigned char peripheral_a;
   unsigned char peripheral_b;
+  int T1C;
+  int T1L;
+  int T2C;
+  int T2L;
 
   if (id == k_via_system) {
     printf("System VIA\n");
@@ -356,11 +360,17 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &IFR,
                     &IER,
                     &peripheral_a,
-                    &peripheral_b);
+                    &peripheral_b,
+                    &T1C,
+                    &T1L,
+                    &T2C,
+                    &T2L);
   printf("IFR %.2x IER %.2x\n", IFR, IER);
   printf("ORA %.2x DDRA %.2x periph %.2x\n", ORA, DDRA, peripheral_a);
   printf("ORB %.2x DDRB %.2x periph %.2x\n", ORB, DDRB, peripheral_b);
   printf("SR %.2x ACR %.2x PCR %.2x\n", SR, ACR, PCR);
+  printf("T1L %.4x T1C %.4x\n", T1L, T1C);
+  printf("T2L %.4x T2C %.4x\n", T2L, T2C);
 }
 
 static int

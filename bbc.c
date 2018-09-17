@@ -318,9 +318,8 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
   p_bbc->time_in_us += k_us_per_timer_tick;
 
   /* 100Hz sysvia timer. */
-  if (!(p_bbc->time_in_us % 10000)) {
-    via_raise_interrupt(p_bbc->p_system_via, k_int_TIMER1);
-  }
+  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
+  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
 
   /* Fire vsync at 50Hz. */
   if (!(p_bbc->time_in_us % 20000)) {
