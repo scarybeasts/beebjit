@@ -266,6 +266,8 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
    * to do, which would improve performance.
    * The "cost" would be needing to be very careful with the async nature of
    * this thread.
+   * Alternatively: dynamically adjust the timer tick based on the suite of
+   * timers and when the next one is expected to expire.
    */
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
   jit_async_timer_tick(p_jit);
@@ -328,8 +330,6 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
-
-  /* TODO: do we need to recalculate 6502 interrupt flag unconditionally? */
 }
 
 void
