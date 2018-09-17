@@ -978,11 +978,30 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x8d; /* STA $FE44 */ /* sysvia IER */
   p_mem[index++] = 0x4e;
   p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x4c; /* JMP $C7C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc7;
+  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
+  p_mem[index++] = 0x4d;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xad; /* LDA $FE44 */ /* sysvia T1CL */ /* Clears TIMER1. */
+  p_mem[index++] = 0x44;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
+  p_mem[index++] = 0x4d;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C800 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc8;
 
-  index = set_new_index(index, 0x7c0);
+  index = set_new_index(index, 0x800);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
