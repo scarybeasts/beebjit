@@ -61,7 +61,9 @@ void via_get_registers(struct via_struct* p_via,
                        int* T1C,
                        int* T1L,
                        int* T2C,
-                       int* T2L);
+                       int* T2L,
+                       unsigned char* t1_oneshot_fired,
+                       unsigned char* t2_oneshot_fired);
 
 void via_set_registers(struct via_struct* p_via,
                        unsigned char ORA,
@@ -78,7 +80,9 @@ void via_set_registers(struct via_struct* p_via,
                        int T1C,
                        int T1L,
                        int T2C,
-                       int T2L);
+                       int T2L,
+                       unsigned char t1_oneshot_fired,
+                       unsigned char t2_oneshot_fired);
 
 unsigned char* via_get_peripheral_b_ptr(struct via_struct* p_via);
 

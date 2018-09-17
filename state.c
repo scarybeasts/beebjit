@@ -161,7 +161,9 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->sysvia_t1c,
                     p_bem->sysvia_t1l,
                     p_bem->sysvia_t2c,
-                    p_bem->sysvia_t2l);
+                    p_bem->sysvia_t2l,
+                    p_bem->sysvia_t1hit,
+                    p_bem->sysvia_t2hit);
 }
 
 void
@@ -227,7 +229,9 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_t1c,
                     &p_bem->sysvia_t1l,
                     &p_bem->sysvia_t2c,
-                    &p_bem->sysvia_t2l);
+                    &p_bem->sysvia_t2l,
+                    &p_bem->sysvia_t1hit,
+                    &p_bem->sysvia_t2hit);
   /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Double up. */
   p_bem->sysvia_t1c <<= 1;
   p_bem->sysvia_t1l <<= 1;

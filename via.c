@@ -27,6 +27,8 @@ struct via_struct {
   int T1L;
   int T2C;
   int T2L;
+  unsigned char t1_oneshot_fired;
+  unsigned char t2_oneshot_fired;
 };
 
 struct via_struct*
@@ -40,10 +42,26 @@ via_create(int id, struct bbc_struct* p_bbc) {
   p_via->id = id;
   p_via->p_bbc = p_bbc;
 
+  /* We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
+   * differs from b-em, which sets them to 0xff.
+   * This doesn't really matter because the OS will initilize them anyway.
+   * I think jsbeeb could be correct because it cites a 1977 data sheet,
+   * http://archive.6502.org/datasheets/mos_6522_preliminary_nov_1977.pdf
+   */
+
   p_via->T1C = 0xffff;
   p_via->T1L = 0xffff;
   p_via->T2C = 0xffff;
   p_via->T2L = 0xffff;
+
+  /* From the above data sheet:
+   * "The interval timer one-shot mode allows generation of a single interrupt
+   * for each timer load operation."
+   * It's unclear whether "power on" / "reset" counts as an effective timer
+   * load or not. Let's copy jsbeeb and b-em and say that it does not.
+   */
+  p_via->t1_oneshot_fired = 1;
+  p_via->t2_oneshot_fired = 1;
 
   return p_via;
 }
@@ -209,6 +227,7 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     assert((p_via->ACR & 0xc0) != 0x80);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
     p_via->T1C = p_via->T1L;
+    p_via->t1_oneshot_fired = 0;
     via_clear_interrupt(p_via, k_int_TIMER1);
     break;
   case k_via_T1CL:
@@ -300,7 +319,9 @@ via_get_registers(struct via_struct* p_via,
                   int* T1C,
                   int* T1L,
                   int* T2C,
-                  int* T2L) {
+                  int* T2L,
+                  unsigned char* t1_oneshot_fired,
+                  unsigned char* t2_oneshot_fired) {
   *ORA = p_via->ORA;
   *ORB = p_via->ORB;
   *DDRA = p_via->DDRA;
@@ -316,6 +337,8 @@ via_get_registers(struct via_struct* p_via,
   *T1L = p_via->T1L;
   *T2C = p_via->T2C;
   *T2L = p_via->T2L;
+  *t1_oneshot_fired = p_via->t1_oneshot_fired;
+  *t2_oneshot_fired = p_via->t2_oneshot_fired;
 }
 
 void via_set_registers(struct via_struct* p_via,
@@ -333,7 +356,9 @@ void via_set_registers(struct via_struct* p_via,
                        int T1C,
                        int T1L,
                        int T2C,
-                       int T2L) {
+                       int T2L,
+                       unsigned char t1_oneshot_fired,
+                       unsigned char t2_oneshot_fired) {
   p_via->ORA = ORA;
   p_via->ORB = ORB;
   p_via->DDRA = DDRA;
@@ -349,6 +374,8 @@ void via_set_registers(struct via_struct* p_via,
   p_via->T1L = T1L;
   p_via->T2C = T2C;
   p_via->T2L = T2L;
+  p_via->t1_oneshot_fired = t1_oneshot_fired;
+  p_via->t2_oneshot_fired = t2_oneshot_fired;
 }
 
 unsigned char*
@@ -365,7 +392,15 @@ via_time_advance(struct via_struct* p_via, size_t us) {
        */
       us -= (p_via->T1C + 1);
       p_via->T1C = p_via->T1L;
-      via_raise_interrupt(p_via, k_int_TIMER1);
+      if (!p_via->t1_oneshot_fired) {
+        via_raise_interrupt(p_via, k_int_TIMER1);
+      }
+      /* If we're in one-shot mode, flag the timer hit so we don't assert an
+       * interrupt again until T1CH has been re-written.
+       */
+      if (!(p_via->ACR & 0x40)) {
+        p_via->t1_oneshot_fired = 1;
+      }
     } else {
       p_via->T1C -= us;
       us = 0;
