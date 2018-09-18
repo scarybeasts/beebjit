@@ -25,7 +25,11 @@ static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
 static void* k_tables_addr = (void*) 0x0f000000;
-static void* k_semaphore_addr = (void*) 0x0e000000;
+static void* k_semaphores_addr = (void*) 0x0e000000;
+static const size_t k_semaphore_block = 0;
+static const size_t k_semaphore_cli = 4096;
+static const size_t k_semaphore_cli_end_minus_4 = (4096 * 2) - 4;
+static const size_t k_semaphore_cli_read_only = 4096 * 2;
 static const size_t k_utils_size = 4096;
 static const size_t k_utils_debug_offset = 0;
 static const size_t k_utils_regs_offset = 0x100;
@@ -33,6 +37,7 @@ static const size_t k_utils_jit_offset = 0x200;
 static const size_t k_utils_do_interrupt_offset = 0x300;
 static const size_t k_tables_size = 4096;
 static const size_t k_semaphore_size = 4096;
+static const size_t k_semaphores_size = 4096 * 3;
 
 static const int k_offset_util_jit = 0;
 static const int k_offset_util_regs = 8;
@@ -144,7 +149,7 @@ struct jit_struct {
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
   unsigned char* p_tables_base;
-  unsigned char* p_semaphore;
+  unsigned char* p_semaphores;
 
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
@@ -1437,51 +1442,47 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
 }
 
-/*
 static size_t
 jit_emit_check_interrupt(struct jit_struct* p_jit,
                          unsigned char* p_jit_buf,
                          size_t index,
-                         uint16_t addr_6502,
-                         int check_flag) {
-  size_t index_jmp1 = 0;
-  size_t index_jmp2 = 0;
-  * bt DWORD PTR [rdi + k_offset_interrupt], 0 *
-  p_jit_buf[index++] = 0x0f;
+                         uint16_t addr_6502) {
+  /* ABI in fault handler for the CLI semaphore is that rdx is set to the
+   * 6502 interrupt return address.
+   */
+  /* mov edx, addr_6502 */
   p_jit_buf[index++] = 0xba;
-  p_jit_buf[index++] = 0x67;
-  p_jit_buf[index++] = k_offset_irq;
-  p_jit_buf[index++] = 0x00;
-  * jae / jnc ... *
-  p_jit_buf[index++] = 0x73;
-  p_jit_buf[index++] = 0xfe;
-  index_jmp1 = index;
-
-  if (check_flag) {
-    * bt r13, 2 *
-    p_jit_buf[index++] = 0x49;
-    p_jit_buf[index++] = 0x0f;
-    p_jit_buf[index++] = 0xba;
-    p_jit_buf[index++] = 0xe5;
-    p_jit_buf[index++] = 0x02;
-    * jb ... *
-    p_jit_buf[index++] = 0x72;
-    p_jit_buf[index++] = 0xfe;
-    index_jmp2 = index;
-  }
-
-  index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502, 0);
-
-  if (index_jmp1) {
-    p_jit_buf[index_jmp1 - 1] = index - index_jmp1;
-  }
-  if (index_jmp2) {
-    p_jit_buf[index_jmp2 - 1] = index - index_jmp2;
-  }
+  index = jit_emit_int(p_jit_buf, index, addr_6502);
+  /* mov r8, 4 */
+  p_jit_buf[index++] = 0x49;
+  p_jit_buf[index++] = 0xc7;
+  p_jit_buf[index++] = 0xc0;
+  index = jit_emit_int(p_jit_buf, index, 4);
+  /* Exotic instruction alert! BMI2 */
+  /* Transfers bit 2 (interrupt disable) to bit 0 without affecting flags. */
+  /* pext r8d, r13d, r8d */
+  p_jit_buf[index++] = 0xc4;
+  p_jit_buf[index++] = 0x42;
+  p_jit_buf[index++] = 0x12;
+  p_jit_buf[index++] = 0xf5;
+  p_jit_buf[index++] = 0xc0;
+  /* Reads the very end of the semaphore page if interrupts are enabled,
+   * i.e. fault if semaphore is raised and interrupts are enabled. If
+   * interrupts are disabled, the next post-semaphore page is read and this
+   * will never fault.
+   */
+  /* mov r8d, [r8*4 + k_semaphore_cli_end_minus_4] */
+  p_jit_buf[index++] = 0x46;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x04;
+  p_jit_buf[index++] = 0x85;
+  index = jit_emit_int(p_jit_buf,
+                       index,
+                       (ssize_t) (k_semaphores_addr +
+                                  k_semaphore_cli_end_minus_4));
 
   return index;
 }
-*/
 
 void
 jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
@@ -1511,9 +1512,9 @@ jit_emit_do_jit(unsigned char* p_jit_buf, size_t index) {
 static void
 jit_emit_block_prolog(struct jit_struct* p_jit, struct util_buffer* p_buf) {
   (void) p_jit;
-  /* mov edx, [rdi + k_offset_util_block] */
+  /* mov edx, [k_semaphore_block] */
   util_buffer_add_3b(p_buf, 0x8b, 0x14, 0x25);
-  util_buffer_add_int(p_buf, (ssize_t) k_semaphore_addr);
+  util_buffer_add_int(p_buf, (ssize_t) (k_semaphores_addr + k_semaphore_block));
 }
 
 static size_t
@@ -1992,7 +1993,7 @@ printf("ooh\n");
     /* PLP */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     index = jit_emit_set_flags(p_jit_buf, index);
-//    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 1);
+    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1);
     break;
   case k_bmi:
     /* BMI */
@@ -2071,7 +2072,7 @@ printf("ooh\n");
     p_jit_buf[index++] = 0xba;
     p_jit_buf[index++] = 0xf5;
     p_jit_buf[index++] = 0x02;
-//    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1, 0);
+    index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1);
     break;
   case k_rti:
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
@@ -3138,14 +3139,13 @@ void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*) {
 
 void
 jit_async_timer_tick(struct jit_struct* p_jit) {
-  util_make_mapping_none(p_jit->p_semaphore, k_semaphore_size);
+  util_make_mapping_none(p_jit->p_semaphores + k_semaphore_block,
+                         k_semaphore_size);
 }
 
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
   struct bbc_struct* p_bbc = p_jit->p_bbc;
-
-  util_make_mapping_read_only(p_jit->p_semaphore, k_semaphore_size);
   bbc_sync_timer_tick(p_bbc);
 }
 
@@ -3158,6 +3158,80 @@ sigsegv_reraise(void) {
   (void) sigaction(SIGSEGV, &sa, NULL);
   (void) raise(SIGSEGV);
   _exit(1);
+}
+
+static void
+handle_sigsegv_fire_interrupt(ucontext_t* p_context,
+                              struct jit_struct* p_jit,
+                              uint16_t addr_6502) {
+  /* ABI is rdx for 6502 RTI address, r9 == 0 for BRK == 0. */
+  p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
+  p_context->uc_mcontext.gregs[REG_R9] = 0;
+  p_context->uc_mcontext.gregs[REG_RIP] = (size_t) p_jit->p_util_do_interrupt;
+}
+
+static void
+handle_block_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
+  struct jit_struct* p_jit =
+      (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+  size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
+
+  jit_sync_timer_tick(p_jit);
+  /* Exit if neither of the VIAs are asserting an interrupt. */
+  if (!p_jit->irq) {
+    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
+                                k_semaphore_size);
+    return;
+  }
+  /* (r13 & 4) identifies the 6502 interrupt disable flag. */
+  if (!(r13 & 4)) {
+    /* Interrupts are enabled -- fire the 6502 interrupt logic. */
+    uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
+
+    /* Lower both the block and cli semaphores -- both could potentially be
+     * raised.
+     * Assumes / requires those semaphores are contiguous.
+     */
+    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
+                                k_semaphore_size * 2);
+
+    handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502);
+  } else {
+    /* Sadness, interrupts are disabled. Trigger the CLI semaphore so we
+     * fault again when interrupts are enabled.
+     */
+    util_make_mapping_none(p_jit->p_semaphores + k_semaphore_cli,
+                           k_semaphore_size);
+    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
+                                k_semaphore_size);
+  }
+}
+
+static void
+handle_cli_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
+  struct jit_struct* p_jit =
+      (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+  size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
+  uint16_t addr_6502 = (uint16_t) p_context->uc_mcontext.gregs[REG_RDX];
+  /* Should only get here if 6502 interrupts are enabled. */
+  /* assert() async safe...? Uhh yeah, ahem. */
+  assert(!(r13 & 4));
+
+  /* Lower the semaphore -- we'll either resolve the condition, or find there
+   * is no longer a condition.
+   */
+  util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_cli,
+                              k_semaphore_size);
+
+  /* Exit if neither of the VIAs are asserting an interrupt. This can happen if
+   * something else clears the interrupt since we raised the semaphore but
+   * before the semaphore hit.
+   */
+  if (!p_jit->irq) {
+    return;
+  }
+
+  handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502);
 }
 
 static void
@@ -3184,21 +3258,14 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     sigsegv_reraise();
   }
 
-  /* Handle the async -> sync semaphore fault. */
-  if (p_addr == k_semaphore_addr) {
-    struct jit_struct* p_jit =
-        (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
-    size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
-    jit_sync_timer_tick(p_jit);
-    /* (r13 & 4) identifies the 6502 interrupt disable flag. */
-    if (p_jit->irq && !(r13 & 4)) {
-      uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
-      /* ABI is rdx for 6502 RTI address, r9 == 0 for BRK == 0. */
-      p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
-      p_context->uc_mcontext.gregs[REG_R9] = 0;
-      p_context->uc_mcontext.gregs[REG_RIP] =
-          (size_t) p_jit->p_util_do_interrupt;
-    }
+  /* Handle the start-of-block semaphore fault. */
+  if (p_addr == (k_semaphores_addr + k_semaphore_block)) {
+    handle_block_semaphore_sigsegv(p_context, p_rip);
+    return;
+  }
+  /* Handle the post-CLI-or-PLP semaphore fault. */
+  if (p_addr == (k_semaphores_addr + k_semaphore_cli_end_minus_4)) {
+    handle_cli_semaphore_sigsegv(p_context, p_rip);
     return;
   }
 
@@ -3361,9 +3428,10 @@ jit_create(void* p_debug_callback,
   /* This is the mapping that is a semaphore to trigger JIT execution
    * interruption.
    */
-  p_jit->p_semaphore = util_get_guarded_mapping(k_semaphore_addr,
-                                                k_semaphore_size,
-                                                0);
+  p_jit->p_semaphores = util_get_guarded_mapping(k_semaphores_addr,
+                                                 k_semaphores_size,
+                                                 0);
+  util_make_mapping_read_only(p_jit->p_semaphores, k_semaphores_size);
 
   p_jit->p_mem = p_mem;
   p_jit->p_jit_base = p_jit_base;
@@ -3489,7 +3557,7 @@ jit_check_pc(struct jit_struct* p_jit) {
 
 void
 jit_destroy(struct jit_struct* p_jit) {
-  util_free_guarded_mapping(p_jit->p_semaphore, k_semaphore_size);
+  util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
   util_free_guarded_mapping(p_jit->p_tables_base, k_tables_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_bbc_addr_space_size * k_jit_bytes_per_byte);
