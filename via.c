@@ -174,6 +174,8 @@ via_read(struct via_struct* p_via, size_t reg) {
   case k_via_T1CL:
     via_clear_interrupt(p_via, k_int_TIMER1);
     return (p_via->T1C & 0xff);
+  case k_via_T1CH:
+    return (p_via->T1C >> 8);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
