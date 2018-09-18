@@ -582,6 +582,10 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 4;
     col = 7;
     break;
+  case 35: /* ] (BBC [) */
+    row = 3;
+    col = 8;
+    break;
   case 36: /* Enter (BBC RETURN) */
     row = 4;
     col = 9;
@@ -637,6 +641,10 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
   case 50: /* Left shift */
     row = 0;
     col = 0;
+    break;
+  case 51: /* \ (BBC ]) */
+    row = 5;
+    col = 8;
     break;
   case 52: /* Z */
     row = 6;
