@@ -180,6 +180,11 @@ via_read(struct via_struct* p_via, size_t reg) {
     return (p_via->T1L & 0xff);
   case k_via_T1LH:
     return (p_via->T1L >> 8);
+  case k_via_T2CL:
+    via_clear_interrupt(p_via, k_int_TIMER2);
+    return (p_via->T2C & 0xff);
+  case k_via_T2CH:
+    return (p_via->T2C >> 8);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
@@ -229,6 +234,11 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     p_via->DDRA = val;
     via_write_port_a(p_via);
     break;
+  case k_via_T1CL:
+  case k_via_T1LL:
+    /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
+    p_via->T1L = ((p_via->T1L & 0xff00) | val);
+    break;
   case k_via_T1CH:
     assert((p_via->ACR & 0xc0) != 0x80);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
@@ -236,14 +246,18 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     p_via->t1_oneshot_fired = 0;
     via_clear_interrupt(p_via, k_int_TIMER1);
     break;
-  case k_via_T1CL:
-  case k_via_T1LL:
-    /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
-    p_via->T1L = ((p_via->T1L & 0xff00) | val);
-    break;
   case k_via_T1LH:
     /* TODO: clear timer interrupt if acr & 0x40. */
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
+    break;
+  case k_via_T2CL:
+    p_via->T2L = ((p_via->T2L & 0xff00) | val);
+    break;
+  case k_via_T2CH:
+    p_via->T2L = ((val << 8) | (p_via->T2L & 0xff));
+    p_via->T2C = p_via->T2L;
+    p_via->t2_oneshot_fired = 0;
+    via_clear_interrupt(p_via, k_int_TIMER2);
     break;
   case k_via_SR:
     p_via->SR = val;

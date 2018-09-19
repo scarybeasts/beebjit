@@ -20,6 +20,8 @@ enum {
   k_via_T1CH =  0x5,
   k_via_T1LL =  0x6,
   k_via_T1LH =  0x7,
+  k_via_T2CL =  0x8,
+  k_via_T2CH =  0x9,
   k_via_SR =    0xa,
   k_via_ACR =   0xb,
   k_via_PCR =   0xc,
@@ -31,6 +33,7 @@ enum {
   k_int_CA2 =    0x01,
   k_int_CA1 =    0x02,
   k_int_TIMER1 = 0x40,
+  k_int_TIMER2 = 0x20,
 };
 
 struct via_struct* via_create(int id, struct bbc_struct* p_bbc);
