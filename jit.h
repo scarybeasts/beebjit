@@ -45,7 +45,7 @@ int jit_is_force_invalidated(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502);
 unsigned char* jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502);
 
-void jit_set_interrupt(struct jit_struct* p_jit, int interrupt);
+void jit_set_interrupt(struct jit_struct* p_jit, int id, int set);
 void jit_set_counter(struct jit_struct* p_jit, size_t counter);
 
 void jit_enter(struct jit_struct* p_jit);

@@ -343,8 +343,8 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 }
 
 void
-bbc_set_interrupt(struct bbc_struct* p_bbc, int interrupt) {
-  jit_set_interrupt(p_bbc->p_jit, interrupt);
+bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set) {
+  jit_set_interrupt(p_bbc->p_jit, id, set);
 }
 
 int
@@ -430,12 +430,12 @@ bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
     return;
   }
 
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0xf) {
-    via_write(p_bbc->p_system_via, addr & 0xf, val);
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
+    via_write(p_bbc->p_system_via, (addr & 0xf), val);
     return;
   }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0xf) {
-    via_write(p_bbc->p_user_via, addr & 0xf, val);
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
+    via_write(p_bbc->p_user_via, (addr & 0xf), val);
     return;
   }
 

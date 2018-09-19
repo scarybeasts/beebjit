@@ -1485,8 +1485,12 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
 }
 
 void
-jit_set_interrupt(struct jit_struct* p_jit, int interrupt) {
-  p_jit->irq = interrupt;
+jit_set_interrupt(struct jit_struct* p_jit, int id, int set) {
+  if (set) {
+    p_jit->irq |= (1 << id);
+  } else {
+    p_jit->irq &= ~(1 << id);
+  }
 }
 
 void

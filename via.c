@@ -313,14 +313,13 @@ via_check_interrupt(struct via_struct* p_via) {
   int interrupt;
   assert(!(p_via->IER & 0x80));
   if (p_via->IER & p_via->IFR) {
-    assert(p_via->id == k_via_system);
     p_via->IFR |= 0x80;
     interrupt = 1;
   } else {
     p_via->IFR &= ~0x80;
     interrupt = 0;
   }
-  bbc_set_interrupt(p_via->p_bbc, interrupt);
+  bbc_set_interrupt(p_via->p_bbc, p_via->id, interrupt);
 }
 
 void
