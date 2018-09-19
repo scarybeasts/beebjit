@@ -240,7 +240,10 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     p_via->T1L = ((p_via->T1L & 0xff00) | val);
     break;
   case k_via_T1CH:
-    assert((p_via->ACR & 0xc0) != 0x80);
+    if ((p_via->ACR & 0xc0) == 0x80) {
+      /* For one-shot timers with PB7 enabled, the output starts low. */
+      p_via->ORB &= ~0x80;
+    }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xff));
     p_via->T1C = p_via->T1L;
     p_via->t1_oneshot_fired = 0;
@@ -408,6 +411,10 @@ via_time_advance(struct via_struct* p_via, size_t us) {
   if (p_via->T1C < 0) {
     if (!p_via->t1_oneshot_fired) {
       via_raise_interrupt(p_via, k_int_TIMER1);
+      if (p_via->ACR & 0x80) {
+        /* If PB7 output mode is active, toggle PB7. */
+        p_via->ORB ^= 0x80;
+      }
     }
     /* If we're in one-shot mode, flag the timer hit so we don't assert an
      * interrupt again until T1CH has been re-written.
