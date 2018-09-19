@@ -4,6 +4,33 @@ Files from Stairway To Hell archive unless otherwise noted.
 - Ghouls (used to have it working, it broke)
 
 
+- arcad.bem, a180c48b3ab3a0669c8cca0b0029350e
+Use: ./6502jit -load bems/arcad.bem -opt jit:self-mod-all
+Based on: 5921034898f6710bde6d22ac5532c8d9  Arcadians.zip
+Commands to run game:
+*LOAD ARCAD1
+*TAPE
+?&2AF=0
+CALL &3F00
+Initial 6502 PC: $3F00
+IRQ1V @ $0204: $4A9A
+EVNTV @ $0220: $FFA6 (default)
+Notes:
+1) $3F00 jumps to $60D0 which is relocation loops. $60EE writes over old code,
+including $3F00, with new code, using the STA ($70),Y opcode. So -opt
+jit:self-mod-all is needed. Eventually, $60FB does JMP $49DA. I think a BEM
+file starting at $49DA wouldn't need the jit option.
+2) Has a poll wait loop at $4AA7 that needs $0418 and $041B to become different.
+This condition occurs when the interrupt handler at $4A9A detects a vsync
+interrupt and it does INC $0418 at $4AA1.
+3) Has a super interesting condition (bug?) when rendering the blown up ship
+animation. Rendering seems to kick off at $5119 by calling $3EC8 a couple of
+times to get randomness and storing it as a pointer at $77. Later, at $5144,
+this random address is read via AND ($05,X). Depending on the randomness, this
+read can and will read arbitrary hardware regsiters and that can and will have
+side effects!
+
+
 - cit.bem, c324650a75e61634c59a789af3330bde
 Use: ./6502jit -load bems/cit.bem -opt jit:no-rom-fault
 Based on: 1e91b92780aac00ad3afff07af58c761  Citadel.zip
@@ -134,20 +161,3 @@ Notes:
 to change. This value automagically changes in the hardware as the user VIA
 timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
 the timer interrupt and indeed the IER for the user VIA is 0x00.
-
-
-- Arcadians
-Based on:
-ef37488dcac07cf19c60e4838ae37c2cf00cc09953cd515a32850f09b5adc4b8  Arcadians.zip
-IRQ1V @ $0204: $4A9A
-EVNTV @ $0220: $FFA6 (default)
-Notes:
-- Has a poll wait loop at $4AA7 that needs $0418 and $041B to become different.
-This condition occurs when the interrupt handler at $4A9A detects a vsync
-interrupt and it does INC $0418 at $4AA1.
-- Has a super interesting condition (bug?) when rendering the blown up ship
-animation. Rendering seems to kick off at $5119 by calling $3EC8 a couple of
-times to get randomness and storing it as a pointer at $77. Later, at $5144,
-this random address is read via AND ($05,X). Depending on the randomness, this
-read can and will read arbitrary hardware regsiters and that can and will have
-side effects!
