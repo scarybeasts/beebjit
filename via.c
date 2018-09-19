@@ -176,6 +176,10 @@ via_read(struct via_struct* p_via, size_t reg) {
     return (p_via->T1C & 0xff);
   case k_via_T1CH:
     return (p_via->T1C >> 8);
+  case k_via_T1LL:
+    return (p_via->T1L & 0xff);
+  case k_via_T1LH:
+    return (p_via->T1L >> 8);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
