@@ -101,6 +101,18 @@ Notes:
 with the user VIA timer not wired up?
 
 
+- starship.bem, a30b2a6bc8153c71a006a6d843dabed6
+Use: ./6502jit -load bems/starship.bem -opt jit:no-self-mod-abs
+Based on: eb29752d2aaa1912772665a72822a616  StarshipCommand.zip
+Commands to run game:
+*LOAD COMMAND
+?&2AF=0
+CALL &62B1
+Initial 6502 PC: $62B1
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $FFA6 (default)
+
+
 - tarzan.bem, eb47d62dd4014aeb5a0a22d2850f013d
 Based on: 375166a3ff683347fd5b8a224741fc64  Tarzan-Alligata.zip
 Commands to run game:
