@@ -459,7 +459,7 @@ jit_emit_ind_y_dyn_to_scratch(struct jit_struct* p_jit,
   index = jit_emit_int(p_jit_buf,
                        index,
                        (size_t) p_jit->p_mem + opcode_addr_6502);
-  /* movzx edx, WORD PTR [p_mem + rdx] */
+  /* movzx edx, WORD PTR [rdx + p_mem] */
   p_jit_buf[index++] = 0x0f;
   p_jit_buf[index++] = 0xb7;
   p_jit_buf[index++] = 0x92;
@@ -1235,6 +1235,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
     break;
   case k_idy:
+  case k_abx_dyn:
   case k_aby_dyn:
   case k_idy_dyn:
     /* OP al, [rdx + rcx] */
@@ -1541,7 +1542,8 @@ jit_handle_invalidate(struct jit_struct* p_jit,
   if (opmode == k_nil ||
       opmode == k_zpg ||
       opmode == k_zpx ||
-      opmode == k_zpy) {
+      opmode == k_zpy ||
+      opmode == k_zpg_dyn) {
     return index;
   }
 
@@ -1619,7 +1621,7 @@ jit_handle_invalidate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0x97;
     p_jit_buf[index++] = k_offset_jit_ptrs;
   } else {
-    assert(opmode == k_idx);
+    assert(opmode == k_idx || opmode == k_abs_dyn);
     /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
     p_jit_buf[index++] = 0x8b;
     p_jit_buf[index++] = 0x54;
@@ -1915,11 +1917,19 @@ printf("ooh\n");
   case k_bit:
     /* BIT */
     /* Only has zp and abs. */
-    assert(opmode == k_zpg || opmode == k_abs);
+    assert(opmode == k_zpg ||
+           opmode == k_abs ||
+           opmode == k_zpg_dyn ||
+           opmode == k_abs_dyn);
     if (special) {
       /* mov ah, dl */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0xd4;
+    } else if (opmode == k_abs_dyn || opmode == k_zpg_dyn) {
+      /* mov ah, [rdx + p_mem] */
+      p_jit_buf[index++] = 0x8a;
+      p_jit_buf[index++] = 0xa2;
+      index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
     } else {
       /* mov ah, [p_mem + addr] */
       p_jit_buf[index++] = 0x8a;
@@ -2230,6 +2240,7 @@ printf("ooh\n");
     case k_zpx:
     case k_idx:
     case k_abs_dyn:
+    case k_zpg_dyn:
       /* mov [rdx + p_mem], al */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x82;
@@ -2267,6 +2278,7 @@ printf("ooh\n");
       break;
     case k_zpx:
     case k_abs_dyn:
+    case k_zpg_dyn:
       /* mov [rdx + p_mem], cl */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x8a;
@@ -2297,6 +2309,8 @@ printf("ooh\n");
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_zpy:
+    case k_abs_dyn:
+    case k_zpg_dyn:
       /* mov [rdx + p_mem], bl */
       p_jit_buf[index++] = 0x88;
       p_jit_buf[index++] = 0x9a;
@@ -2412,6 +2426,7 @@ printf("ooh\n");
       break;
     case k_zpy:
     case k_abs_dyn:
+    case k_zpg_dyn:
       /* mov bl, [rdx + p_mem] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x9a;
@@ -2455,6 +2470,7 @@ printf("ooh\n");
       break;
     case k_idy:
     case k_aby_dyn:
+    case k_idy_dyn:
       /* mov al, [rdx + rcx] */
       p_jit_buf[index++] = 0x8a;
       p_jit_buf[index++] = 0x04;
@@ -2474,6 +2490,7 @@ printf("ooh\n");
       break;
     case k_zpx:
     case k_idx:
+    case k_abs_dyn:
     case k_zpg_dyn:
       /* mov al, [rdx + p_mem] */
       p_jit_buf[index++] = 0x8a;
@@ -2632,6 +2649,12 @@ printf("ooh\n");
       index = jit_emit_int(p_jit_buf,
                            index,
                            (size_t) p_jit->p_mem + opcode_addr_6502);
+      break;
+    case k_zpg_dyn:
+      /* cmp bl, [rdx + p_mem] */
+      p_jit_buf[index++] = 0x3a;
+      p_jit_buf[index++] = 0x9a;
+      index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
       break;
     default:
       assert(0);
