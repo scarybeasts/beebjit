@@ -1,27 +1,45 @@
 Files from Stairway To Hell archive unless otherwise noted.
 
-- tarzan.bem
-Based on:
-375166a3ff683347fd5b8a224741fc64  Tarzan-Alligata.zip
-Commands to run game:
-*LOAD TARZAN2
-CALL &4332
-Commands to run emulator:
-(Patches out vsync test and DFS ROM presence.)
-echo -e 'sm 2af 00\nsm 24dc ea\nsm 24dd ea\nstopat 0\nc\n' | ./6502jit -load bems/tarzan.bem -opt jit:no-self-mod-abs -stopat 2e11
-Initial 6502 PC: $4332
-IRQ1V @ $0204: $DC93 (default)
-Notes:
-1) Initial relocation routine jumps to $2E11 at $438E.
-2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC can be
-nop'd out with two bytes of EA, to get a version speed limited only by
-emulator speed.
+- Hopper (used to have it working, it broke)
+- Ghouls (used to have it working, it broke)
 
-- galaforce.bem
-Based on:
-2fd6a8499fe3f6120daf7e52d7be7c60  Galaforce.zip
+
+- cit.bem, c324650a75e61634c59a789af3330bde
+Use: ./6502jit -load bems/cit.bem -opt jit:no-rom-fault
+Based on: 1e91b92780aac00ad3afff07af58c761  Citadel.zip
+Initial 6502 PC: $55E8
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $2500
+Notes:
+1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
+2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
+3) Breaking at $55E8 is where the main game has finished loading from disk.
+4) Need to load the loader first to select key layout for main game to work.
+5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
+$2500 simply does INC $0120; RTS.
+
+
+- exile_post_sed.bem, 03a4afdb0c75b987d1721176ed17f9cc
+Use: ./6502jit -load bems/exile_post_sed.bem
+Based on: cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
+Alt1 note: Patches out vsync wait for turbo speed.
+Alt1: echo -e 'sm 1f65 ea\nsm 1f66 ea\nstopat 0\nc\n' | ./6502jit -load bems/exile_post_sed.bem -stopat 6075
+Initial 6502 PC: $6075
+IRQ1V @ $0204: $12A6
+Notes:
+1) Uses SED, at $6045, as part of checksumming the saved game file?
+2) Lots of self-modifying code.
+3) Seems to use zero-page wraparound for zero page X addressing mode at $223D
+with ADC $B6,X. And some further instances below.
+
+
+- galaforce.bem, d17b8e77b6a8ca311b099ad0bc65a275
+Use: ./6502jit -load bems/galaforce.bem -opt jit:no-rom-fault
+Based on: 2fd6a8499fe3f6120daf7e52d7be7c60  Galaforce.zip
 Commands to run game:
 *LOAD GALA3
+*TAPE
+?&2AF=0
 CALL &4000
 Initial 6502 PC: $4000
 IRQ1V @ $0204: $DC93 (default)
@@ -38,6 +56,41 @@ the first being $C039?? That's ROM, not writeable.
 5) Sprite plot routine is at $0B00 and starts with a bunch of self-modifying
 writes.
 
+
+- lab.bem
+Based on: f00b3c18c653ac639366579a59b81f41  Labyrinth.ssd
+Commands to run game:
+*LOAD LABRNTH
+CALL &5D00
+Initial 6502 PC: $5D00
+IRQ1V @ $0204: $DC93 (default)
+
+
+- meteor.bem
+(todo)
+Notes:
+1) Loads T1CH, LDA $FE65 at $1601, which is not super common.
+2) Seems to be using the user VIA timers, although the game seems to work well
+with the user VIA timer not wired up?
+
+
+- tarzan.bem, eb47d62dd4014aeb5a0a22d2850f013d
+Based on: 375166a3ff683347fd5b8a224741fc64  Tarzan-Alligata.zip
+Commands to run game:
+*LOAD TARZAN2
+CALL &4332
+Commands to run emulator:
+(Patches out vsync test and DFS ROM presence.)
+echo -e 'sm 2af 00\nsm 24dc ea\nsm 24dd ea\nstopat 0\nc\n' | ./6502jit -load bems/tarzan.bem -opt jit:no-self-mod-abs -stopat 2e11
+Initial 6502 PC: $4332
+IRQ1V @ $0204: $DC93 (default)
+Notes:
+1) Initial relocation routine jumps to $2E11 at $438E.
+2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC can be
+nop'd out with two bytes of EA, to get a version speed limited only by
+emulator speed.
+
+
 - mree.bem
 Based on:
 4f1e5098d4fa8701d95f08b773245841  MrEe.zip
@@ -49,19 +102,16 @@ Notes:
 2) Uses SED, ugh, first instance $0DB5. Unclear why.
 3) Waits for uservia timer to fire at $0987.
 
-- cit.bem
-Based on:
-1e91b92780aac00ad3afff07af58c761  Citadel.zip
-Initial 6502 PC: $55E8
+
+- tkv.bem, 2de927001a7aec1c3ce03cd37bc87128
+Based on: 220ad878e83106e522a1c0bb1e83df97  TwinKingdomValley.ssd
+Commands to run game:
+*LOAD TKV
+CALL &7B00
+Initial 6502 PC: $7B00
 IRQ1V @ $0204: $DC93 (default)
-EVNTV @ $0220: $2500
-Notes:
-1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
-2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
-3) Breaking at $55E8 is where the main game has finished loading from disk.
-4) Need to load the loader first to select key layout for main game to work.
-5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
-$2500 simply does INC $0120; RTS.
+EVNTV @ $0220: $FFA6 (default)
+
 
 - Hopper
 Based on:
@@ -74,18 +124,6 @@ Notes:
 - Self-modified instructions are different opcodes, e.g. starts with
   LDA ($72),Y vs. LDA #$30.
 
-- Exile
-Based on:
-cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
-Commands to run emulator:
-(Patches out vsync requirement and some palette modification wait loop.)
-echo -e 'sm 1f65 ea\nsm 1f66 ea\nsm 12aa 4c\nsm 12ab e9\nsm 12ac 12\nstopat 0\nc\n' | ./6502jit -load bems/exile_post_sed.bem -stopat 6075
-IRQ1V @ $0204: $12A6
-Notes:
-- Uses SED, at $6045, as part of checksumming the saved game file?
-- Lots of self-modifying code.
-- Seems to use zero-page wraparound for zero page X addressing mode at $223D
-with ADC $B6,X. And some further instances below.
 
 - Snapper
 Based on:
@@ -96,6 +134,7 @@ Notes:
 to change. This value automagically changes in the hardware as the user VIA
 timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
 the timer interrupt and indeed the IER for the user VIA is 0x00.
+
 
 - Arcadians
 Based on:
