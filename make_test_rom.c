@@ -900,6 +900,14 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xad; /* LDA $FE70 */ /* User VIA ORB */ /* Alt address */
+  p_mem[index++] = 0x70;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xc9; /* CMP #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
   p_mem[index++] = 0xa9; /* LDA #$01 */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x8d; /* STA $FE62 */ /* User VIA DDRB */

@@ -395,11 +395,11 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
     return p_mem[addr];
   }
 
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0xf) {
-    return via_read(p_bbc->p_system_via, addr & 0xf);
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
+    return via_read(p_bbc->p_system_via, (addr & 0xf));
   }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0xf) {
-    return via_read(p_bbc->p_user_via, addr & 0xf);
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
+    return via_read(p_bbc->p_user_via, (addr & 0xf));
   }
 
   switch (addr) {
