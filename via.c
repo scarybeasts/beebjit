@@ -420,4 +420,26 @@ via_time_advance(struct via_struct* p_via, size_t us) {
       p_via->T1C += (p_via->T1L + 1);
     }
   }
+
+  /* If TIMER2 is in pulse counting mode, it doesn't decrement. */
+  if (p_via->ACR & 0x20) {
+    return;
+  }
+
+  p_via->T2C -= us;
+  if (p_via->T2C < 0) {
+    if (!p_via->t2_oneshot_fired) {
+      via_raise_interrupt(p_via, k_int_TIMER2);
+    }
+    p_via->t2_oneshot_fired = 1;
+    while (p_via->T2C < 0) {
+      /* NOTE: I'm suspicious of this value's correctness. It's copied from
+       * jsbeeb and is effectively 65536us. I think corresponds to an effective
+       * TIMER2 latch value of 0xFFFF, and a symmetrical arrangement with
+       * jsbeeb's TIMER1 would involve an increment of "latch + 2us", or
+       * 0x10001. I don't have a real BBC to test.
+       */
+      p_via->T2C += 0x10000;
+    }
+  }
 }
