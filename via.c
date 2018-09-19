@@ -405,25 +405,19 @@ via_get_peripheral_b_ptr(struct via_struct* p_via) {
 
 void
 via_time_advance(struct via_struct* p_via, size_t us) {
-  while (us > 0) {
-    if (us > p_via->T1C) {
-      /* NOTE: 1us is used to reload timer with latch value but that's not
-       * accurate to a real BBC.
-       */
-      us -= (p_via->T1C + 1);
-      p_via->T1C = p_via->T1L;
-      if (!p_via->t1_oneshot_fired) {
-        via_raise_interrupt(p_via, k_int_TIMER1);
-      }
-      /* If we're in one-shot mode, flag the timer hit so we don't assert an
-       * interrupt again until T1CH has been re-written.
-       */
-      if (!(p_via->ACR & 0x40)) {
-        p_via->t1_oneshot_fired = 1;
-      }
-    } else {
-      p_via->T1C -= us;
-      us = 0;
+  p_via->T1C -= us;
+  if (p_via->T1C < 0) {
+    if (!p_via->t1_oneshot_fired) {
+      via_raise_interrupt(p_via, k_int_TIMER1);
+    }
+    /* If we're in one-shot mode, flag the timer hit so we don't assert an
+     * interrupt again until T1CH has been re-written.
+     */
+    if (!(p_via->ACR & 0x40)) {
+      p_via->t1_oneshot_fired = 1;
+    }
+    while (p_via->T1C < 0) {
+      p_via->T1C += (p_via->T1L + 1);
     }
   }
 }
