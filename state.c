@@ -119,6 +119,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
+  struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
 
   state_read(snapshot, p_file_name);
 
@@ -146,6 +147,10 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->sysvia_t1l >>= 1;
   p_bem->sysvia_t2c >>= 1;
   p_bem->sysvia_t2l >>= 1;
+  p_bem->uservia_t1c >>= 1;
+  p_bem->uservia_t1l >>= 1;
+  p_bem->uservia_t2c >>= 1;
+  p_bem->uservia_t2l >>= 1;
   via_set_registers(p_system_via,
                     p_bem->sysvia_ora,
                     p_bem->sysvia_orb,
@@ -164,6 +169,24 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->sysvia_t2l,
                     p_bem->sysvia_t1hit,
                     p_bem->sysvia_t2hit);
+  via_set_registers(p_user_via,
+                    p_bem->uservia_ora,
+                    p_bem->uservia_orb,
+                    p_bem->uservia_ddra,
+                    p_bem->uservia_ddrb,
+                    p_bem->uservia_sr,
+                    p_bem->uservia_acr,
+                    p_bem->uservia_pcr,
+                    p_bem->uservia_ifr,
+                    p_bem->uservia_ier,
+                    0,
+                    0,
+                    p_bem->uservia_t1c,
+                    p_bem->uservia_t1l,
+                    p_bem->uservia_t2c,
+                    p_bem->uservia_t2l,
+                    p_bem->uservia_t1hit,
+                    p_bem->uservia_t2hit);
 }
 
 void
@@ -191,6 +214,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
+  struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
   unsigned char* p_mem = bbc_get_mem(p_bbc);
 
   memset(snapshot, '\0', k_snapshot_size);
@@ -232,10 +256,32 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_t2l,
                     &p_bem->sysvia_t1hit,
                     &p_bem->sysvia_t2hit);
+  via_get_registers(p_user_via,
+                    &p_bem->uservia_ora,
+                    &p_bem->uservia_orb,
+                    &p_bem->uservia_ddra,
+                    &p_bem->uservia_ddrb,
+                    &p_bem->uservia_sr,
+                    &p_bem->uservia_acr,
+                    &p_bem->uservia_pcr,
+                    &p_bem->uservia_ifr,
+                    &p_bem->uservia_ier,
+                    &unused_char,
+                    &unused_char,
+                    &p_bem->uservia_t1c,
+                    &p_bem->uservia_t1l,
+                    &p_bem->uservia_t2c,
+                    &p_bem->uservia_t2l,
+                    &p_bem->uservia_t1hit,
+                    &p_bem->uservia_t2hit);
   /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Double up. */
   p_bem->sysvia_t1c <<= 1;
   p_bem->sysvia_t1l <<= 1;
   p_bem->sysvia_t2c <<= 1;
   p_bem->sysvia_t2l <<= 1;
+  p_bem->uservia_t1c <<= 1;
+  p_bem->uservia_t1l <<= 1;
+  p_bem->uservia_t2c <<= 1;
+  p_bem->uservia_t2l <<= 1;
   util_write_file(p_file_name, snapshot, k_snapshot_size);
 }
