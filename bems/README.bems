@@ -101,6 +101,20 @@ Notes:
 with the user VIA timer not wired up?
 
 
+- mree.bem, c25c41bb59855f25f293fb41d89c8c69
+Use: ./6502jit -load bems/mree.bem
+Based on: 4f1e5098d4fa8701d95f08b773245841  MrEe.zip
+Commands to run game:
+*LOAD MRE2
+*TAPE
+?&2AF=0
+CALL &4300
+Notes:
+1) Immediately, $4302 writes to ROM?! via STA $801B.
+2) Uses SED, ugh, first instance $0DB5. Unclear why.
+3) Waits for uservia timer to fire at $0987.
+
+
 - starship.bem, a30b2a6bc8153c71a006a6d843dabed6
 Use: ./6502jit -load bems/starship.bem -opt jit:no-self-mod-abs
 Based on: eb29752d2aaa1912772665a72822a616  StarshipCommand.zip
@@ -128,18 +142,6 @@ Notes:
 2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC can be
 nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
-
-
-- mree.bem
-Based on:
-4f1e5098d4fa8701d95f08b773245841  MrEe.zip
-Commands to run game:
-*LOAD MRE2
-CALL &4300
-Notes:
-1) Immediately, $4302 writes to ROM?! via STA $801B.
-2) Uses SED, ugh, first instance $0DB5. Unclear why.
-3) Waits for uservia timer to fire at $0987.
 
 
 - tkv.bem, 2de927001a7aec1c3ce03cd37bc87128
