@@ -115,6 +115,25 @@ Notes:
 3) Waits for uservia timer to fire at $0987.
 
 
+- pom.bem, 7517be27b7a3d8d03babc4feec43ff31
+Use: ./6502jit -load bems/pom.bem -opt jit:no-self-mod-abs
+Based on: 24658bcd6bf33387637fc56467b1b821  PalaceOfMagic.zip
+Commands to run game:
+*LOAD POM2
+*TAPE
+?&2AF=0
+CALL &63A0
+Initial 6502 PC: $63A0
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $FFA6 (default)
+Notes:
+1) Seems to work flawlessly(?) first time, although this is one of the later
+games tried.
+2) Must use vsync: runs at normal speed.
+3) Does not appear to use self-modifying code.
+4) Appears to have a non-self-modifying but unrolled sprite plot loop at $0700.
+
+
 - starship.bem, a30b2a6bc8153c71a006a6d843dabed6
 Use: ./6502jit -load bems/starship.bem -opt jit:no-self-mod-abs
 Based on: eb29752d2aaa1912772665a72822a616  StarshipCommand.zip
