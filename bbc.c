@@ -148,10 +148,10 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Copy in OS and language ROM. */
   memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
-  util_make_mapping_read_only(p_os_start, k_bbc_rom_size);
-
   memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
-  util_make_mapping_read_only(p_lang_start, k_bbc_rom_size);
+
+  util_make_mapping_read_only(p_mem + k_bbc_ram_size,
+                              k_bbc_addr_space_size - k_bbc_ram_size);
 
   /* Initial 6502 state. */
   init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
@@ -239,7 +239,21 @@ bbc_memory_write(struct bbc_struct* p_bbc,
   unsigned char* p_mem = p_bbc->p_mem;
   struct jit_struct* p_jit = p_bbc->p_jit;
 
+  /* Allow a forced write to ROM using this API -- need to flip memory
+   * protections.
+   */
+  if (addr_6502 >= k_bbc_ram_size) {
+    util_make_mapping_read_write(p_mem + k_bbc_ram_size,
+                                 k_bbc_addr_space_size - k_bbc_ram_size);
+  }
+
   p_mem[addr_6502] = val;
+
+  if (addr_6502 >= k_bbc_ram_size) {
+    util_make_mapping_read_only(p_mem + k_bbc_ram_size,
+                                k_bbc_addr_space_size - k_bbc_ram_size);
+  }
+
 
   jit_memory_written(p_jit, addr_6502);
 }

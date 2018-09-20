@@ -71,6 +71,14 @@ util_make_mapping_read_only(void* p_addr, size_t size) {
 }
 
 void
+util_make_mapping_read_write(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, PROT_READ|PROT_WRITE);
+  if (ret != 0) {
+    errx(1, "mprotect() failed");
+  }
+}
+
+void
 util_make_mapping_none(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {
