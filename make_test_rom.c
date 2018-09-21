@@ -1102,7 +1102,42 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc8;
 
+  /* Test dynamic operands for a branch instruction. */
   index = set_new_index(index, 0x840);
+  p_mem[index++] = 0x20; /* JSR $3080 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xa9; /* LDA #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x8d; /* STA $3083 */
+  p_mem[index++] = 0x83;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3080 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xe0; /* CPX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x8d; /* STA $3083 */
+  p_mem[index++] = 0x83;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3080 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0xe0; /* CPX #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C880 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc8;
+
+  index = set_new_index(index, 0x880);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
@@ -1172,6 +1207,15 @@ main(int argc, const char* argv[]) {
   index = set_new_index(index, 0x3070);
   p_mem[index++] = 0xe8; /* INX */
   p_mem[index++] = 0xc8; /* INY */
+  p_mem[index++] = 0x60; /* RTS */
+
+  /* For branch dynamic operands. */
+  index = set_new_index(index, 0x3080);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xf0; /* BEQ + 1 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xe8; /* INX */
   p_mem[index++] = 0x60; /* RTS */
 
   /* Need this byte here for a specific test. */

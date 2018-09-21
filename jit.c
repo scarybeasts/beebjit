@@ -1683,8 +1683,10 @@ jit_single(struct jit_struct* p_jit,
 
     switch (opmode) {
     case k_nil:
+      assert(0);
       break;
     case k_rel:
+      assert(0);
       break;
     case k_imm:
       opmode = k_imm_dyn;
@@ -2923,6 +2925,7 @@ jit_at_addr(struct jit_struct* p_jit,
   do {
     unsigned char opcode_6502;
     unsigned char optype;
+    unsigned char opmode;
     unsigned char opcode_6502_next;
     unsigned char optype_next;
     size_t intel_opcodes_len;
@@ -2953,6 +2956,7 @@ jit_at_addr(struct jit_struct* p_jit,
 
     opcode_6502 = jit_get_opcode(p_jit, addr_6502);
     optype = g_optypes[opcode_6502];
+    opmode = g_opmodes[opcode_6502];
     new_nz_flags = g_nz_flag_pending[optype];
 
     /* If we're compiling the same opcode on top of an existing invalidated
@@ -2977,6 +2981,9 @@ jit_at_addr(struct jit_struct* p_jit,
       }
     }
     if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
+      p_jit->self_modify_optimize[addr_6502] = 0;
+    }
+    if (opmode == k_rel) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
 
