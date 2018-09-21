@@ -426,6 +426,9 @@ bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
   case k_addr_tube:
     /* Not present -- fall through to return 0xfe. */
     break;
+  case 0xFE18:
+    /* Only used in Master model but read by Synchron. */
+    break;
   default:
     printf("unknown read: %x\n", addr);
     assert(0);
