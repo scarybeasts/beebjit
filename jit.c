@@ -2177,7 +2177,7 @@ printf("ooh\n");
     case k_idy:
     case k_idy_dyn:
       if (jit_flags & k_jit_flag_no_rom_fault) {
-        /* The old sequence was a about 10% faster and was as follows:
+        /* The old sequence was about 10% faster and was as follows:
          * lea dx, [rdx + rcx]
          * bt edx, 15
          * jb / jc + 6
@@ -2983,7 +2983,7 @@ jit_at_addr(struct jit_struct* p_jit,
     if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
-    if (opmode == k_rel) {
+    if (opmode == k_rel || opmode == k_nil) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
 

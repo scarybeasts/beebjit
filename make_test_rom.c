@@ -1102,7 +1102,9 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc8;
 
-  /* Test dynamic operands for a branch instruction. */
+  /* Test dynamic operands for a branch instruction, and a no-operands
+   * instruction.
+    */
   index = set_new_index(index, 0x840);
   p_mem[index++] = 0x20; /* JSR $3080 */
   p_mem[index++] = 0x80;
@@ -1133,6 +1135,14 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$e8 */ /* INX */
+  p_mem[index++] = 0xe8;
+  p_mem[index++] = 0x8d; /* STA $3084 */
+  p_mem[index++] = 0x84;
+  p_mem[index++] = 0x30;
+  p_mem[index++] = 0x20; /* JSR $3080 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0x30;
   p_mem[index++] = 0x4c; /* JMP $C880 */
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc8;
