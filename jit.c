@@ -1599,9 +1599,9 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                          index,
                          k_offset_jit_ptrs +
                              (opcode_addr_6502 * sizeof(unsigned int)));
-  } else if (opmode == k_idy || opmode == k_aby_dyn) {
-    /* If we have the jit:no-rom-fault option, dx is already set. */
-    if (!no_rom_fault) {
+  } else if (opmode == k_idy || opmode == k_aby_dyn || opmode == k_idy_dyn) {
+    /* If we have the jit:no-rom-fault option, dx may already be set. */
+    if (!no_rom_fault && (opmode == k_idy || opmode == k_idy_dyn)) {
       /* lea dx, [rdx + rcx] */
       p_jit_buf[index++] = 0x66;
       p_jit_buf[index++] = 0x8d;
