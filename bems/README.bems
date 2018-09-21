@@ -92,6 +92,10 @@ with ADC $B6,X. And some further instances below.
 - galaforce.bem, d17b8e77b6a8ca311b099ad0bc65a275
 Use: ./6502jit -load bems/galaforce.bem -opt jit:no-rom-fault
 Based on: 2fd6a8499fe3f6120daf7e52d7be7c60  Galaforce.zip
+Alt1 note: Benchmark, patches out busy wait loop and renders 1000000 sprites
+before stopping. Had it at about 1.2s but something slowed it down, it's now
+1.5s
+Alt1: echo -ne 'sm 1209 ea\ncounterat b00\ncounter 1000000\nc\n' | time ./6502jit -load bems/galaforce.bem -opt jit:no-rom-fault -stopat bef
 Commands to run game:
 *LOAD GALA3
 *TAPE
