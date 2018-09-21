@@ -46,6 +46,35 @@ Notes:
 $2500 simply does INC $0120; RTS.
 
 
+- cq.bem, b10878532187493f25112f78e023e59c
+Use: ./6502jit -load bems/cq.bem <TODO>
+Based on: e26cb656d8318f51da80d293374bfe23  CastleQuest.zip
+Commands to run game:
+*LOAD CASTLE7
+*TAPE
+?&2AF=0
+A=INKEY(200):CALL &5460
+Initial 6502 PC: $5460
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $FFA6 (default)
+Notes:
+1) Interesting Castle Quest keyboard bug!
+CQ uses the MOS keyboard handling routines, but breaks internal MOS state during
+it's startup / relocation routines.
+Startup is at $5460 and a loop at $54B5 clears the zero page via STA $00,X. This
+includes the bytes at $EC and $ED, which contain "which keys are pressed" state.
+If these bytes are cleared while a key is down, this leaves the MOS in a state
+where it thinks there are no keys down to scan for, and it won't have enabled
+the keyboard interrupt, leading to a frozen keyboard. Can be fixed in the
+debugger with "sm ec 20".
+The bug can be confirmed in other emulators by running the game via:
+*CASTLE7
+and holding down RETURN indefinitely. When the game starts, the keyboard won't
+work. Lovely!
+Worked around by saving a BEM file that has empty key down state, and keyboard
+interrupts enabled.
+
+
 - exile_post_sed.bem, 03a4afdb0c75b987d1721176ed17f9cc
 Use: ./6502jit -load bems/exile_post_sed.bem
 Based on: cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
