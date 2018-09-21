@@ -1,8 +1,5 @@
 Files from Stairway To Hell archive unless otherwise noted.
 
-- Hopper (used to have it working, it broke)
-- Ghouls (used to have it working, it broke)
-
 
 - arcad.bem, a180c48b3ab3a0669c8cca0b0029350e
 Use: ./6502jit -load bems/arcad.bem -opt jit:self-mod-all
@@ -117,6 +114,21 @@ the first being $C039?? That's ROM, not writeable.
 writes.
 
 
+- hopper.bem, e5daa3274e3e2729195fd80859efe516
+Use: ./6502jit -load bems/hopper.bem -opt jit:self-mod-all -d -r -s
+Based on: d2e7a0712d13b5c26d8cd0360551bfdf  Hopper.zip
+Initial 6502 PC: $41D0
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $FFA6 (default)
+Notes:
+1) Uses SED.
+2) Self-modifies a drawing route at $1F8E using aby addressing mode:
+  STA $2004,Y. Routine starts at $1F7A. 8 bytes of code are written.
+3) Self-modified instructions are different opcodes, e.g. starts with
+  LDA ($72),Y vs. LDA #$30.
+4) Doesn't sync to vsync so need to slow it down to play!
+
+
 - lab.bem
 Based on: f00b3c18c653ac639366579a59b81f41  Labyrinth.ssd
 Commands to run game:
@@ -204,18 +216,6 @@ CALL &7B00
 Initial 6502 PC: $7B00
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $FFA6 (default)
-
-
-- Hopper
-Based on:
-d2e7a0712d13b5c26d8cd0360551bfdf  Hopper.zip
-IRQ1V @ $0204: $DC93 (default)
-Notes:
-- Uses SED.
-- Self-modifies a drawing route at $1F8E using aby addressing mode:
-  STA $2004,Y. Routine starts at $1F7A. 8 bytes of code are written.
-- Self-modified instructions are different opcodes, e.g. starts with
-  LDA ($72),Y vs. LDA #$30.
 
 
 - Snapper
