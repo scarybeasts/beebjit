@@ -1531,6 +1531,7 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                       size_t index) {
   int abs_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_abs);
   int all_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_all);
+  int no_rom_fault = (p_jit->jit_flags & k_jit_flag_no_rom_fault);
 
   if (!abs_mode && !all_mode) {
     return index;
@@ -1599,11 +1600,14 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                          k_offset_jit_ptrs +
                              (opcode_addr_6502 * sizeof(unsigned int)));
   } else if (opmode == k_idy || opmode == k_aby_dyn) {
-    /* lea dx, [rdx + rcx] */
-    p_jit_buf[index++] = 0x66;
-    p_jit_buf[index++] = 0x8d;
-    p_jit_buf[index++] = 0x14;
-    p_jit_buf[index++] = 0x0a;
+    /* If we have the jit:no-rom-fault option, dx is already set. */
+    if (!no_rom_fault) {
+      /* lea dx, [rdx + rcx] */
+      p_jit_buf[index++] = 0x66;
+      p_jit_buf[index++] = 0x8d;
+      p_jit_buf[index++] = 0x14;
+      p_jit_buf[index++] = 0x0a;
+    }
     /* mov edx, [rdi + k_offset_jit_ptrs + rdx*4] */
     p_jit_buf[index++] = 0x8b;
     p_jit_buf[index++] = 0x54;
@@ -2189,25 +2193,36 @@ printf("ooh\n");
          * - Branch-free, which may have speed advantages in macro benchmarks.
          * - "For free", supports detection of writes to hardware registers,
          * they will fault due to careful selection of table entries.
+         *
+         * TODO: this got slow.
          */
-        /* lea edx, [rcx + rdx] */
+        /* lea dx, [rcx + rdx] */
+        p_jit_buf[index++] = 0x66;
         p_jit_buf[index++] = 0x8d;
         p_jit_buf[index++] = 0x14;
-        p_jit_buf[index++] = 0x0a;
+        p_jit_buf[index++] = 0x11;
+        /* mov r9, rdx */
+        p_jit_buf[index++] = 0x49;
+        p_jit_buf[index++] = 0x89;
+        p_jit_buf[index++] = 0xd1;
+        /* rorx r9, r9, 8 */ /* BMI2 */
+        p_jit_buf[index++] = 0xc4;
+        p_jit_buf[index++] = 0x43;
+        p_jit_buf[index++] = 0xfb;
+        p_jit_buf[index++] = 0xf0;
+        p_jit_buf[index++] = 0xc9;
+        p_jit_buf[index++] = 0x08;
         /* movzx r8, dl */
         p_jit_buf[index++] = 0x4c;
         p_jit_buf[index++] = 0x0f;
         p_jit_buf[index++] = 0xb6;
         p_jit_buf[index++] = 0xc2;
-        /* movzx edx, dh */
-        p_jit_buf[index++] = 0x0f;
-        p_jit_buf[index++] = 0xb6;
-        p_jit_buf[index++] = 0xd6;
-        /* mov r9d, [rdx*4 + p_tables_base] */
-        p_jit_buf[index++] = 0x44;
+        /* mov r9d, [r9d*4 + p_tables_base] */
+        p_jit_buf[index++] = 0x67;
+        p_jit_buf[index++] = 0x46;
         p_jit_buf[index++] = 0x8b;
         p_jit_buf[index++] = 0x0c;
-        p_jit_buf[index++] = 0x95;
+        p_jit_buf[index++] = 0x8d;
         index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_tables_base);
         /* mov [r8 + r9], al */
         p_jit_buf[index++] = 0x43;
