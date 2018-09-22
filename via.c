@@ -171,6 +171,19 @@ via_read(struct via_struct* p_via, size_t reg) {
     port_val = via_read_port_b(p_via);
     val |= (port_val & ~ddrb);
     return val;
+  case k_via_ORA:
+    assert((p_via->PCR & 0x0a) != 0x02);
+    via_clear_interrupt(p_via, k_int_CA1);
+    via_clear_interrupt(p_via, k_int_CA2);
+    /* Fall through. */
+  case k_via_ORAnh:
+    assert(!(p_via->ACR & 0x01));
+    ora = p_via->ORA;
+    ddra = p_via->DDRA;
+    val = (ora & ddra);
+    port_val = via_read_port_a(p_via);
+    val |= (port_val & ~ddra);
+    return val;
   case k_via_T1CL:
     via_clear_interrupt(p_via, k_int_TIMER1);
     return (p_via->T1C & 0xff);
@@ -195,14 +208,6 @@ via_read(struct via_struct* p_via, size_t reg) {
     return p_via->IFR;
   case k_via_IER:
     return (p_via->IER | 0x80);
-  case k_via_ORAnh:
-    assert(!(p_via->ACR & 0x01));
-    ora = p_via->ORA;
-    ddra = p_via->DDRA;
-    val = (ora & ddra);
-    port_val = via_read_port_a(p_via);
-    val |= (port_val & ~ddra);
-    return val;
   default:
     printf("unhandled VIA read %zu\n", reg);
     assert(0);
