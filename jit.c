@@ -2411,6 +2411,12 @@ printf("ooh\n");
       p_jit_buf[index++] = 0x8b;
       index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
       break;
+    case k_abx_dyn:
+      /* mov cl, [rbx + rdx] */
+      p_jit_buf[index++] = 0x8a;
+      p_jit_buf[index++] = 0x0c;
+      p_jit_buf[index++] = 0x13;
+      break;
     default:
       assert(0);
       break;
