@@ -179,6 +179,27 @@ games tried.
 4) Appears to have a non-self-modifying but unrolled sprite plot loop at $0700.
 
 
+- rocket.bem, ca67bdb32f47be3b2f54aae11c0b312c
+Use: Doesn't work.
+Based on: 80fe04ffb868db66892e8f87dca28e28  Acornsoft/RocketRaid.ssd
+Initial 6502 PC: $3400
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $FFA6 (default)
+Notes:
+1) Super interesting possible bug? Gets stuck in this loop:
+[1c47] 1c47: LDA #$02
+[1c49] 1c49: BIT $fe4d
+[1c4c] 1c4c: BEQ $1c47
+[1c4e] 1c4e: RTS
+It gets stuck because my emulator currently has different interrupt timing but
+even on a real BBC, this does not appear guaranteed to exit. It's trying to
+detect vsync but interrupts are enabled and the standard MOS sysvia interrupt
+handler is active. The MOS interrupt handler will take the vsync interrupt and
+clear the bit in $FE4D. So this loop, to exit, relies on the vsync interrupt
+arriving in the last cycle of the LDA #$02 or the first three cycles of the
+BIT.
+
+
 - starship.bem, a30b2a6bc8153c71a006a6d843dabed6
 Use: ./6502jit -load bems/starship.bem -opt jit:no-self-mod-abs
 Based on: eb29752d2aaa1912772665a72822a616  StarshipCommand.zip
@@ -189,6 +210,18 @@ CALL &62B1
 Initial 6502 PC: $62B1
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $FFA6 (default)
+
+
+- sync.bem, fddb130a699225eea4b0bc4cd33ed3a9
+Use: echo -e 'sm 7427 ea\nc\n' | ./6502jit -load bems/sync.bem -stopat 7400
+Based on: 9301dd8a1a6986bf75c3a57fcc283238  Syncron.ssd
+Initial 6502 PC: $7400
+IRQ1V @ $0204: $045C
+EVNTV @ $0220: $D9CD (??)
+Notes:
+1) Interesting "VIA timer is working??" check at $741F: LDA $FE44; CMP $FE44.
+Calls BRK if the compare fails. Breaks an emulator that decrements timers
+asynchronously!
 
 
 - tarzan.bem, eb47d62dd4014aeb5a0a22d2850f013d
