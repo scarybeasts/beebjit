@@ -715,6 +715,22 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 4;
     col = 0;
     break;
+  case 111: /* Up arrow */
+    row = 3;
+    col = 9;
+    break;
+  case 113: /* Left arrow */
+    row = 1;
+    col = 9;
+    break;
+  case 114: /* Right arrow */
+    row = 7;
+    col = 9;
+    break;
+  case 116: /* Down arrow */
+    row = 2;
+    col = 9;
+    break;
   default:
     printf("warning: unhandled key %d\n", key);
     break;
