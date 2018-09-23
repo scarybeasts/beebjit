@@ -15,7 +15,6 @@ void x_destroy(struct x_struct* p_x);
 
 void x_render(struct x_struct* p_x);
 
-void x_event_loop(struct x_struct* p_x);
-void x_launch_event_loop_async(struct x_struct* p_x);
+void x_event_check(struct x_struct* p_x);
 
 #endif /* BEEBJIT_X_H */

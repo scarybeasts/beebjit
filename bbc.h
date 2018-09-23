@@ -53,6 +53,7 @@ void bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set);
 uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 void bbc_check_pc(struct bbc_struct* p_bbc);
 void bbc_run_async(struct bbc_struct* p_bbc);
+int bbc_has_exited(struct bbc_struct* p_bbc);
 void bbc_sync_timer_tick(struct bbc_struct* p_bbc);
 
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);

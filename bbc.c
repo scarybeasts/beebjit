@@ -41,6 +41,8 @@ enum {
 };
 
 struct bbc_struct {
+  pthread_t thread;
+  int exited;
   size_t time_in_us;
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
@@ -77,6 +79,7 @@ bbc_create(unsigned char* p_os_rom,
   }
   memset(p_bbc, '\0', sizeof(struct bbc_struct));
 
+  p_bbc->exited = 0;
   p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
@@ -300,6 +303,9 @@ bbc_timer_thread(void* p) {
     if (ret != 0) {
       errx(1, "nanosleep failed");
     }
+    if (p_bbc->exited) {
+      break;
+    }
     bbc_async_timer_tick(p_bbc);
   }
 
@@ -324,7 +330,11 @@ bbc_jit_thread(void* p) {
 
   jit_enter(p_bbc->p_jit);
 
-  exit(0);
+  /* TODO: synchronously wait for the timer thread to exit. */
+
+  p_bbc->exited = 1;
+
+  return NULL;
 }
 
 void
@@ -348,12 +358,16 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
 
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
-  pthread_t thread;
-
-  int ret = pthread_create(&thread, NULL, bbc_jit_thread, p_bbc);
+  int ret = pthread_create(&p_bbc->thread, NULL, bbc_jit_thread, p_bbc);
   if (ret != 0) {
     errx(1, "couldn't create jit thread");
   }
+}
+
+int
+bbc_has_exited(struct bbc_struct* p_bbc) {
+  /* TODO: should use pthread_tryjoin_np? */
+  return p_bbc->exited;
 }
 
 void

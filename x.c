@@ -52,11 +52,6 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   Visual* p_visual;
   int depth;
 
-  ret = XInitThreads();
-  if (ret != 1) {
-    errx(1, "XInitThreads failed");
-  }
-
   p_x = malloc(sizeof(struct x_struct));
   if (p_x == NULL) {
     errx(1, "couldn't allocate x_struct");
@@ -220,7 +215,7 @@ x_destroy(struct x_struct* p_x) {
   }
 
   ret = XCloseDisplay(p_x->d);
-  if (ret != 1) {
+  if (ret != 0) {
     errx(1, "XCloseDisplay failed");
   }
 
@@ -281,47 +276,29 @@ x_render(struct x_struct* p_x) {
 }
 
 void
-x_event_loop(struct x_struct* p_x) {
-  Display* d = p_x->d;
-  struct bbc_struct* p_bbc = p_x->p_bbc;
+x_event_check(struct x_struct* p_x) {
   XEvent event;
-  int ret;
+  Bool ret;
   int key;
 
-  while (1) {
-    ret = XNextEvent(d, &event);
-    if (ret != 0) {
-      errx(1, "XNextEvent failed");
-    }
-    switch (event.type) {
-    case KeyPress:
-      key = event.xkey.keycode;
-      bbc_key_pressed(p_bbc, key);
-      break;
-    case KeyRelease:
-      key = event.xkey.keycode;
-      bbc_key_released(p_bbc, key);
-      break;
-    default:
-      assert(0);
-    }
+  Display* d = p_x->d;
+  struct bbc_struct* p_bbc = p_x->p_bbc;
+
+  ret = XCheckMaskEvent(d, ~0, &event);
+  if (ret == False) {
+    return;
   }
-}
 
-static void*
-x_event_thread(void* p) {
-  struct x_struct* p_x = (struct x_struct*) p;
-
-  x_event_loop(p_x);
-
-  assert(0);
-}
-
-void
-x_launch_event_loop_async(struct x_struct* p_x) {
-  pthread_t thread;
-  int ret = pthread_create(&thread, NULL, x_event_thread, p_x);
-  if (ret != 0) {
-    errx(1, "couldn't create thread");
+  switch (event.type) {
+  case KeyPress:
+    key = event.xkey.keycode;
+    bbc_key_pressed(p_bbc, key);
+    break;
+  case KeyRelease:
+    key = event.xkey.keycode;
+    bbc_key_released(p_bbc, key);
+    break;
+  default:
+    assert(0);
   }
 }

@@ -35,6 +35,7 @@ main(int argc, const char* argv[]) {
   int slow_flag = 0;
   int test_flag = 0;
   int debug_stop_addr = 0;
+  size_t ticks = 0;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -127,19 +128,26 @@ main(int argc, const char* argv[]) {
 
   bbc_run_async(p_bbc);
 
-  x_launch_event_loop_async(p_x);
-
   while (1) {
     int ret;
-    struct timespec ts = { 0, 16 * 1000 * 1000 };
-    x_render(p_x);
-    /* 16ms, or about 60fps. */
+    struct timespec ts = { 0, 1 * 1000 * 1000 };
+    /* TODO: replace with poll! */
+    /* 1ms */
     ret = nanosleep(&ts, NULL);
     if (ret != 0) {
       if (ret != -1 || errno != EINTR) {
         errx(1, "nanosleep failed");
       }
     }
+    if (bbc_has_exited(p_bbc)) {
+      break;
+    }
+    x_event_check(p_x);
+    if (!(ticks % 20)) {
+      /* Draw the buffer at 50Hz. */
+      x_render(p_x);
+    }
+    ticks++;
   }
 
   x_destroy(p_x);
