@@ -42,6 +42,7 @@ enum {
 
 struct bbc_struct {
   pthread_t thread;
+  pthread_t timer_thread;
   int exited;
   size_t time_in_us;
   unsigned char* p_os_rom;
@@ -300,6 +301,7 @@ bbc_timer_thread(void* p) {
 
   while (1) {
     int ret = nanosleep(&ts, NULL);
+    /* TODO: cope with signal interruption? */
     if (ret != 0) {
       errx(1, "nanosleep failed");
     }
@@ -314,25 +316,28 @@ bbc_timer_thread(void* p) {
 
 static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
-  pthread_t thread;
-
-  int ret = pthread_create(&thread, NULL, bbc_timer_thread, p_bbc);
+  int ret = pthread_create(&p_bbc->timer_thread, NULL, bbc_timer_thread, p_bbc);
   if (ret != 0) {
-    errx(1, "couldn't create jit thread");
+    errx(1, "couldn't create timer thread");
   }
 }
 
 static void*
 bbc_jit_thread(void* p) {
+  int ret;
+
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   bbc_start_timer_tick(p_bbc);
 
   jit_enter(p_bbc->p_jit);
 
-  /* TODO: synchronously wait for the timer thread to exit. */
-
   p_bbc->exited = 1;
+
+  ret = pthread_join(p_bbc->timer_thread, NULL);
+  if (ret != 0) {
+    errx(1, "pthread_join failed");
+  }
 
   return NULL;
 }
