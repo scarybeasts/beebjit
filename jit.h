@@ -65,6 +65,4 @@ void jit_enter(struct jit_struct* p_jit);
 
 void jit_async_timer_tick(struct jit_struct* p_jit);
 
-void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*);
-
 #endif /* BEEJIT_JIT_H */

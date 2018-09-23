@@ -5,22 +5,12 @@
 
 #include <assert.h>
 
-static unsigned char*
-test_6502_jump_addr_to_intel(uint16_t addr_6502) {
-  size_t addr_intel = 0x20000000;
-  addr_intel += (addr_6502 << 8);
-
-  return (unsigned char*) addr_intel;
-}
-
 static void
 do_basic_jit_tests(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  void (*callback)(struct jit_struct*, unsigned char*) =
-      jit_get_jit_callback_for_testing();
 
   assert(!jit_has_code(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1000));
@@ -28,9 +18,11 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   index = 0x1000;
   p_mem[index++] = 0xa9; /* LDA #$00 */
   p_mem[index++] = 0x00;
-  p_mem[index++] = 0x60; /* RTS */
+  p_mem[index++] = 0x02; /* Exit JIT. */
 
-  callback(p_jit, test_6502_jump_addr_to_intel(0x1000) + 2);
+  /* Run at $1000. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1000);
+  jit_enter(p_jit);
 
   assert(jit_has_code(p_jit, 0x1000));
   assert(jit_has_code(p_jit, 0x1001));
@@ -44,7 +36,9 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x1003));
 
   /* Split the existing block. */
-  callback(p_jit, test_6502_jump_addr_to_intel(0x1002) + 2);
+  /* Run at $1002. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1002);
+  jit_enter(p_jit);
 
   assert(jit_is_block_start(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1001));
@@ -53,7 +47,9 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
 
   /* Recompile start of fractured block. */
-  callback(p_jit, test_6502_jump_addr_to_intel(0x1000) + 2);
+  /* Run at $1000. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1000);
+  jit_enter(p_jit);
 
   assert(jit_is_block_start(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1001));
@@ -68,8 +64,6 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  void (*callback)(struct jit_struct*, unsigned char*) =
-      jit_get_jit_callback_for_testing();
 
   index = 0x2000;
   p_mem[index++] = 0xe8; /* INX */
@@ -79,12 +73,6 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   p_mem[index++] = 0x02;
   p_mem[index++] = 0x20;
   p_mem[index++] = 0x02; /* Exit JIT. */
-
-  callback(p_jit, test_6502_jump_addr_to_intel(0x2000) + 2);
-
-  assert(jit_is_block_start(p_jit, 0x2000));
-  assert(!jit_is_block_start(p_jit, 0x2001));
-  assert(!jit_is_block_start(p_jit, 0x2002));
 
   /* Run at $2000. */
   jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
@@ -98,6 +86,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 
   /* Run / compile the invalidated opcode. */
+  /* Run at $2000. */
   jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
   jit_enter(p_jit);
   assert(p_mem[0x2002] == 0x02);
@@ -114,6 +103,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(!jit_has_self_modify_optimize(p_jit, 0x2000));
 
   /* Executing at $2000 again will therefore recompile the block. */
+  /* Run at $2000. */
   jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
   jit_enter(p_jit);
   assert(p_mem[0x2002] == 0x03);
@@ -133,7 +123,9 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   jit_memory_written(p_jit, 0x2001);
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
-  callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
+  /* Run at $2001. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2001);
+  jit_enter(p_jit);
 
   assert(jit_has_self_modify_optimize(p_jit, 0x2001));
 
@@ -142,7 +134,9 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   jit_memory_written(p_jit, 0x2001);
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
-  callback(p_jit, jit_get_code_ptr(p_jit, 0x2001) + 2);
+  /* Run at $2001. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2001);
+  jit_enter(p_jit);
 
   assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 }

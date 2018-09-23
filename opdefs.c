@@ -24,7 +24,7 @@ unsigned char g_opmem[k_6502_op_num_types] = {
 };
 
 unsigned char g_opbranch[k_6502_op_num_types] = {
-  k_bra_n, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
+  k_bra_y, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
   k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_y,
   k_bra_n, k_bra_n, k_bra_n, k_bra_y, k_bra_m, k_bra_n, k_bra_y, k_bra_n,
   k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,

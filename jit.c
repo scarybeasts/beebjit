@@ -3247,10 +3247,6 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   p_jit->reg_pc = addr_6502;
 }
 
-void (*jit_get_jit_callback_for_testing())(struct jit_struct*, unsigned char*) {
-  return jit_callback;
-}
-
 void
 jit_async_timer_tick(struct jit_struct* p_jit) {
   util_make_mapping_none(p_jit->p_semaphores + k_semaphore_block,
