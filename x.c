@@ -277,28 +277,36 @@ x_render(struct x_struct* p_x) {
 
 void
 x_event_check(struct x_struct* p_x) {
-  XEvent event;
-  Bool ret;
-  int key;
-
   Display* d = p_x->d;
   struct bbc_struct* p_bbc = p_x->p_bbc;
 
-  ret = XCheckMaskEvent(d, ~0, &event);
-  if (ret == False) {
-    return;
-  }
+  while (1) {
+  XEvent event;
+    int key;
+    Bool ret = XCheckMaskEvent(d, ~0, &event);
+    if (ret == False) {
+      break;
+    }
 
-  switch (event.type) {
-  case KeyPress:
-    key = event.xkey.keycode;
-    bbc_key_pressed(p_bbc, key);
-    break;
-  case KeyRelease:
-    key = event.xkey.keycode;
-    bbc_key_released(p_bbc, key);
-    break;
-  default:
-    assert(0);
+    switch (event.type) {
+    case KeyPress:
+      key = event.xkey.keycode;
+      bbc_key_pressed(p_bbc, key);
+      break;
+    case KeyRelease:
+      key = event.xkey.keycode;
+      bbc_key_released(p_bbc, key);
+      break;
+    default:
+      assert(0);
+    }
   }
+}
+
+int
+x_get_fd(struct x_struct* p_x) {
+  Display* d = p_x->d;
+  int fd = ConnectionNumber(d);
+
+  return fd;
 }

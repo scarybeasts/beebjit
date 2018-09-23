@@ -4,9 +4,11 @@
 #include "video.h"
 #include "x.h"
 
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +25,9 @@ main(int argc, const char* argv[]) {
   int i;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
+  int x_fd;
+  int bbc_fd;
+  struct pollfd poll_fds[2];
 
   const char* os_rom_name = "os12.rom";
   const char* lang_rom_name = "basic.rom";
@@ -35,7 +40,6 @@ main(int argc, const char* argv[]) {
   int slow_flag = 0;
   int test_flag = 0;
   int debug_stop_addr = 0;
-  size_t ticks = 0;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -128,26 +132,36 @@ main(int argc, const char* argv[]) {
 
   bbc_run_async(p_bbc);
 
+  x_fd = x_get_fd(p_x);
+  bbc_fd = bbc_get_fd(p_bbc);
+
+  poll_fds[0].fd = x_fd;
+  poll_fds[0].events = POLLIN;
+  poll_fds[1].fd = bbc_fd;
+  poll_fds[1].events = POLLIN;
+
   while (1) {
     int ret;
-    struct timespec ts = { 0, 1 * 1000 * 1000 };
-    /* TODO: replace with poll! */
-    /* 1ms */
-    ret = nanosleep(&ts, NULL);
-    if (ret != 0) {
-      if (ret != -1 || errno != EINTR) {
-        errx(1, "nanosleep failed");
-      }
+    poll_fds[0].revents = 0;
+    poll_fds[1].revents = 0;
+    /* 20 ms */
+    ret = poll(&poll_fds[0], 2, 20);
+    if (ret < 0) {
+      errx(1, "poll failed");
     }
-    if (bbc_has_exited(p_bbc)) {
+
+    /* TODO: should render at 50Hz, but also renders on keypress! */
+    x_render(p_x);
+    if (ret == 0) {
+      continue;
+    }
+    if (poll_fds[0].revents & POLLIN) {
+      x_event_check(p_x);
+    }
+    if (poll_fds[1].revents & POLLIN) {
+      assert(bbc_has_exited(p_bbc));
       break;
     }
-    x_event_check(p_x);
-    if (!(ticks % 20)) {
-      /* Draw the buffer at 50Hz. */
-      x_render(p_x);
-    }
-    ticks++;
   }
 
   x_destroy(p_x);

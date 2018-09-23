@@ -41,16 +41,22 @@ enum {
 };
 
 struct bbc_struct {
+  /* Internal system mechanics. */
   pthread_t thread;
   pthread_t timer_thread;
   int exited;
-  size_t time_in_us;
+  int exit_write_fd;
+  int exit_read_fd;
+
+  /* Settings. */
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
   int debug_flag;
   int run_flag;
   int print_flag;
   int slow_flag;
+
+  size_t time_in_us;
   unsigned char* p_mem;
   struct video_struct* p_video;
   struct via_struct* p_system_via;
@@ -74,12 +80,22 @@ bbc_create(unsigned char* p_os_rom,
            const char* p_log_flags,
            uint16_t debug_stop_addr) {
   struct debug_struct* p_debug;
+  int pipefd[2];
+  int ret;
+
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
     errx(1, "couldn't allocate bbc struct");
   }
   memset(p_bbc, '\0', sizeof(struct bbc_struct));
 
+  ret = pipe(&pipefd[0]);
+  if (ret != 0) {
+    errx(1, "pipe failed");
+  }
+
+  p_bbc->exit_read_fd = pipefd[0];
+  p_bbc->exit_write_fd = pipefd[1];
   p_bbc->exited = 0;
   p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -327,6 +343,7 @@ bbc_jit_thread(void* p) {
   int ret;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  char write_char = 0;
 
   bbc_start_timer_tick(p_bbc);
 
@@ -337,6 +354,11 @@ bbc_jit_thread(void* p) {
   ret = pthread_join(p_bbc->timer_thread, NULL);
   if (ret != 0) {
     errx(1, "pthread_join failed");
+  }
+
+  ret = write(p_bbc->exit_write_fd, &write_char, 1);
+  if (ret != 1) {
+    errx(1, "write failed");
   }
 
   return NULL;
@@ -843,4 +865,9 @@ bbc_is_any_key_pressed(struct bbc_struct* p_bbc) {
    * Only allowed to read keyboard state.
    */
   return (p_bbc->keys_count > 0);
+}
+
+int
+bbc_get_fd(struct bbc_struct* p_bbc) {
+  return p_bbc->exit_read_fd;
 }

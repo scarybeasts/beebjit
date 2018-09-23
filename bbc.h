@@ -96,4 +96,6 @@ int bbc_is_key_pressed(struct bbc_struct* p_bbc,
 int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
 int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
 
+int bbc_get_fd(struct bbc_struct* p_bbc);
+
 #endif /* BEEJIT_JIT_H */
