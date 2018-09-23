@@ -2921,6 +2921,12 @@ jit_at_addr(struct jit_struct* p_jit,
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
   int log_self_modify = 0;
+  int is_new = 0;
+  int is_split = 0;
+  int is_inval = 0;
+  int is_size_stop = 0;
+  int is_jump_stop = 0;
+  int is_block_stop = 0;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
   unsigned int jit_flags = p_jit->jit_flags;
@@ -2948,6 +2954,7 @@ jit_at_addr(struct jit_struct* p_jit,
   if (!jit_has_code(p_jit, start_addr_6502) &&
       !jit_is_compilation_pending(p_jit, start_addr_6502)) {
     p_jit->is_block_start[start_addr_6502] = 1;
+    is_new = 1;
   }
 
   /* If we're landing on top of existing code that isn't invalidated, it must
@@ -2957,6 +2964,9 @@ jit_at_addr(struct jit_struct* p_jit,
    */
   if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
     p_jit->is_block_start[start_addr_6502] = 1;
+    is_split = 1;
+  } else {
+    is_inval = 1;
   }
 
   /* This opcode may be compiled into part of a previous block, so make sure to
@@ -3099,6 +3109,7 @@ jit_at_addr(struct jit_struct* p_jit,
     if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5 ||
         total_num_ops == max_num_ops) {
       p_jit->compilation_pending[addr_6502] = 1;
+      is_size_stop = 1;
       break;
     }
 
@@ -3146,19 +3157,40 @@ jit_at_addr(struct jit_struct* p_jit,
     util_buffer_append(p_buf, p_single_buf);
 
     if (jumps_always) {
+      is_jump_stop = 1;
       break;
     }
     if (jit_is_block_start(p_jit, addr_6502)) {
+      is_block_stop = 1;
       break;
     }
   } while (1);
 
   assert(total_num_ops > 0);
   if (log_flags & k_log_flag_compile) {
-    printf("JIT: compile address %.4x - %.4x, total_num_ops: %zu\n",
+    printf("JIT: compile address %.4x - %.4x, total_num_ops: %zu",
            start_addr_6502,
            addr_6502 - 1,
            total_num_ops);
+    if (is_new) {
+      printf(" [new]");
+    }
+    if (is_split) {
+      printf(" [split]");
+    }
+    if (is_inval) {
+      printf(" [inval]");
+    }
+    if (is_size_stop) {
+      printf(" [stop:size]");
+    }
+    if (is_jump_stop) {
+      printf(" [stop:jump]");
+    }
+    if (is_block_stop) {
+      printf(" [stop:block]");
+    }
+    printf("\n");
   }
 
   if (jumps_always) {
