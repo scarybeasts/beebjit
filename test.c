@@ -230,9 +230,76 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(p_mem[0x0000] == 0x18);
 }
 
+static void
+do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
+  size_t index;
+
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+
+  index = 0x2200;
+  p_mem[index++] = 0xa9; /* LDA #$CE */
+  p_mem[index++] = 0xce;
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x95; /* STA $00,X */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0x02; /* Exit JIT. */
+
+  /* Setting this flag makes us compile only one 6502 instruction and then jump
+   * to the next 6502 address.
+   */
+  jit_clear_flag(p_jit, k_jit_flag_batch_ops);
+
+  /* Run at $2200. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2200);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0xce);
+
+  jit_set_flag(p_jit, k_jit_flag_batch_ops);
+
+  assert(jit_is_block_start(p_jit, 0x2200));
+  assert(!jit_is_block_start(p_jit, 0x2201));
+  assert(!jit_is_block_start(p_jit, 0x2202));
+  assert(!jit_is_block_start(p_jit, 0x2203));
+  assert(!jit_is_block_start(p_jit, 0x2204));
+  assert(!jit_is_block_start(p_jit, 0x2205));
+  assert(!jit_is_block_start(p_jit, 0x2206));
+
+  /* Invalidate $2200 to force recompilation. */
+  jit_memory_written(p_jit, 0x2200);
+
+  /* Run at $2200. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2200);
+  jit_enter(p_jit);
+
+  assert(jit_is_block_start(p_jit, 0x2200));
+  assert(!jit_is_block_start(p_jit, 0x2201));
+  assert(!jit_is_block_start(p_jit, 0x2202));
+  assert(!jit_is_block_start(p_jit, 0x2203));
+  assert(!jit_is_block_start(p_jit, 0x2204));
+  assert(!jit_is_block_start(p_jit, 0x2205));
+  assert(!jit_is_block_start(p_jit, 0x2206));
+
+  /* Run at $2204. */
+  jit_set_registers(p_jit, 0xce, 1, 0, 0, 0, 0x2204);
+  jit_enter(p_jit);
+  assert(p_mem[0x0001] == 0xce);
+
+  assert(jit_is_block_start(p_jit, 0x2200));
+  assert(!jit_is_block_start(p_jit, 0x2201));
+  assert(!jit_is_block_start(p_jit, 0x2202));
+  assert(!jit_is_block_start(p_jit, 0x2203));
+  assert(jit_is_block_start(p_jit, 0x2204));
+  assert(!jit_is_block_start(p_jit, 0x2205));
+  assert(!jit_is_block_start(p_jit, 0x2206));
+}
+
 void
 test_do_tests(struct bbc_struct* p_bbc) {
   do_basic_jit_tests(p_bbc);
   do_totally_lit_jit_test_1(p_bbc);
   do_totally_lit_jit_test_2(p_bbc);
+  do_totally_lit_jit_test_3(p_bbc);
 }

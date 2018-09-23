@@ -152,6 +152,7 @@ struct jit_struct {
   unsigned char compiled_opcode[k_bbc_addr_space_size];
   unsigned char self_modify_optimize[k_bbc_addr_space_size];
   unsigned char force_invalidated[k_bbc_addr_space_size];
+  unsigned char compilation_pending[k_bbc_addr_space_size];
 };
 
 static size_t
@@ -2858,6 +2859,11 @@ jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->self_modify_optimize[addr_6502];
 }
 
+int
+jit_is_compilation_pending(struct jit_struct* p_jit, uint16_t addr_6502) {
+  return p_jit->compilation_pending[addr_6502];
+}
+
 static void
 jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
@@ -2918,11 +2924,20 @@ jit_at_addr(struct jit_struct* p_jit,
 
   block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
 
-  /* If we're landing at this address for the first time, or we're landing in
-   * the middle of a block for non-self-modifying code, this is a block start.
+  /* If we're landing at this address for the first time, it must be a block
+   * start, unless we're continuing a previous compilation!
    */
-  if (!jit_has_code(p_jit, start_addr_6502) ||
-      !jit_has_invalidated_code(p_jit, start_addr_6502)) {
+  if (!jit_has_code(p_jit, start_addr_6502) &&
+      !jit_is_compilation_pending(p_jit, start_addr_6502)) {
+    p_jit->is_block_start[start_addr_6502] = 1;
+  }
+
+  /* If we're landing on top of existing code that isn't invalidated, it must
+   * be a new block start on account of a jump.
+   * (If we're here with existing but invalidated code, it's likely
+   * self-modified code, or a block recompilation because the block was split.
+   */
+  if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
     p_jit->is_block_start[start_addr_6502] = 1;
   }
 
@@ -3063,7 +3078,9 @@ jit_at_addr(struct jit_struct* p_jit,
 
     buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
-    if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5) {
+    if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5 ||
+        total_num_ops == max_num_ops) {
+      p_jit->compilation_pending[addr_6502] = 1;
       break;
     }
 
@@ -3088,6 +3105,7 @@ jit_at_addr(struct jit_struct* p_jit,
     for (i = 0; i < num_6502_bytes; ++i) {
       unsigned char* p_jit_ptr = p_dst;
       p_jit->has_code[addr_6502] = 1;
+      p_jit->compilation_pending[addr_6502] = 0;
 
       jit_invalidate_jump_target(p_jit, addr_6502);
 
@@ -3096,10 +3114,12 @@ jit_at_addr(struct jit_struct* p_jit,
         p_jit->force_invalidated[addr_6502] = 0;
       } else {
         p_jit->compiled_opcode[addr_6502] = 0;
+        p_jit->self_modify_optimize[addr_6502] = 0;
+        p_jit->is_block_start[addr_6502] = 0;
+        p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
           p_jit_ptr = (p_jit->p_jit_base + (0xffff << k_jit_bytes_shift));
         }
-        p_jit->is_block_start[addr_6502] = 0;
       }
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
       addr_6502++;
@@ -3111,9 +3131,6 @@ jit_at_addr(struct jit_struct* p_jit,
       break;
     }
     if (jit_is_block_start(p_jit, addr_6502)) {
-      break;
-    }
-    if (total_num_ops == max_num_ops) {
       break;
     }
   } while (1);
