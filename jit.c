@@ -293,6 +293,9 @@ static size_t
 jit_emit_abs_x_to_scratch(unsigned char* p_jit,
                           size_t index,
                           uint16_t opcode_addr_6502) {
+  (void) p_jit;
+  (void) opcode_addr_6502;
+
   /* Empty -- optimized for now but wrap-around will cause a fault. */
   return index;
 }
@@ -301,6 +304,9 @@ static size_t
 jit_emit_abs_y_to_scratch(unsigned char* p_jit,
                           size_t index,
                           uint16_t opcode_addr_6502) {
+  (void) p_jit;
+  (void) opcode_addr_6502;
+
   /* Empty -- optimized for now but wrap-around will cause a fault. */
   return index;
 }
@@ -358,6 +364,8 @@ jit_emit_ind_x_to_scratch(struct jit_struct* p_jit,
                           unsigned char* p_jit_buf,
                           size_t index,
                           unsigned char operand1) {
+  (void) p_jit;
+
   unsigned char operand1_inc = operand1 + 1;
   /* NOTE: zero page wrap is very uncommon so we could do fault-based fixup
    * instead.
@@ -945,6 +953,8 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
 
 static void
 jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+  (void) p_jit;
+
   size_t index = 0;
 
   /* Set A. */
@@ -1096,6 +1106,8 @@ jit_emit_special_read(struct jit_struct* p_jit,
                       unsigned char opmode,
                       unsigned char* p_jit_buf,
                       size_t index) {
+  (void) p_jit;
+
   index = jit_emit_save_registers(p_jit_buf, index);
 
   /* mov r15, rdi */
@@ -1150,6 +1162,8 @@ jit_emit_special_write(struct jit_struct* p_jit,
                        unsigned char opmode,
                        unsigned char* p_jit_buf,
                        size_t index) {
+  (void) p_jit;
+
   index = jit_emit_save_registers(p_jit_buf, index);
 
   /* mov r15, rdi */
@@ -1400,6 +1414,8 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
                       size_t index,
                       uint16_t addr_6502,
                       int is_brk) {
+  (void) p_jit;
+
   /* mov dx, addr_6502 */
   p_jit_buf[index++] = 0x66;
   p_jit_buf[index++] = 0xba;
@@ -1441,6 +1457,8 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                          unsigned char* p_jit_buf,
                          size_t index,
                          uint16_t addr_6502) {
+  (void) p_jit;
+
   /* ABI in fault handler for the CLI semaphore is that rdx is set to the
    * 6502 interrupt return address.
    */
@@ -3273,6 +3291,8 @@ handle_block_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
 
 static void
 handle_cli_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
+  (void) p_rip;
+
   struct jit_struct* p_jit =
       (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
   size_t r13 = p_context->uc_mcontext.gregs[REG_R13];

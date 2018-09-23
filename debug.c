@@ -531,6 +531,7 @@ debug_slow_down() {
   struct timeval tv;
   size_t start_us;
 
+  /* TODO: this is ugly. Improve it. */
   ret = gettimeofday(&tv, NULL);
   if (ret != 0) {
     errx(1, "gettimeofday failed");
@@ -541,7 +542,8 @@ debug_slow_down() {
     if (ret != 0) {
       errx(1, "gettimeofday failed");
     }
-  } while (tv.tv_usec >= start_us && tv.tv_usec < start_us + 2);
+  } while ((size_t) tv.tv_usec >= start_us &&
+           (size_t) tv.tv_usec < start_us + 2);
 }
 
 static void

@@ -265,7 +265,10 @@ util_write_file(const char* p_file_name,
   }
 
   write_ret = write(fd, p_buf, size);
-  if (write_ret != size) {
+  if (write_ret < 0) {
+    errx(1, "write failed");
+  }
+  if ((size_t) write_ret != size) {
     errx(1, "write failed");
   }
 

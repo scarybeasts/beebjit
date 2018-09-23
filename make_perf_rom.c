@@ -87,7 +87,10 @@ main(int argc, const char* argv[]) {
     errx(1, "can't open output rom");
   }
   write_ret = write(fd, p_mem, k_rom_size);
-  if (write_ret != k_rom_size) {
+  if (write_ret < 0) {
+    errx(1, "can't write output rom");
+  }
+  if ((size_t) write_ret != k_rom_size) {
     errx(1, "can't write output rom");
   }
   close(fd);

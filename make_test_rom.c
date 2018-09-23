@@ -16,8 +16,13 @@ int
 main(int argc, const char* argv[]) {
   int fd;
   ssize_t write_ret;
+
   size_t index = 0;
   char* p_mem = malloc(k_rom_size);
+
+  (void) argc;
+  (void) argv;
+
   memset(p_mem, '\xf2', k_rom_size);
 
   /* Reset vector: jump to 0xC000, start of OS ROM. */
@@ -1243,7 +1248,10 @@ main(int argc, const char* argv[]) {
     errx(1, "can't open output rom");
   }
   write_ret = write(fd, p_mem, k_rom_size);
-  if (write_ret != k_rom_size) {
+  if (write_ret < 0) {
+    errx(1, "can't write output rom");
+  }
+  if ((size_t) write_ret != k_rom_size) {
     errx(1, "can't write output rom");
   }
   close(fd);

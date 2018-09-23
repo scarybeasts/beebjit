@@ -382,6 +382,8 @@ bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set) {
 
 int
 bbc_is_ram_address(struct bbc_struct* p_bbc, uint16_t addr) {
+  (void) p_bbc;
+
   return (addr < k_bbc_ram_size);
 }
 
@@ -389,6 +391,8 @@ int
 bbc_is_special_read_address(struct bbc_struct* p_bbc,
                             uint16_t addr_low,
                             uint16_t addr_high) {
+  (void) p_bbc;
+
   if (addr_low >= k_bbc_registers_start &&
       addr_low < k_bbc_registers_start + k_bbc_registers_len) {
     return 1;
@@ -408,6 +412,8 @@ int
 bbc_is_special_write_address(struct bbc_struct* p_bbc,
                              uint16_t addr_low,
                              uint16_t addr_high) {
+  (void) p_bbc;
+
   if (addr_low >= k_lang_rom_offset) {
     return 1;
   }
