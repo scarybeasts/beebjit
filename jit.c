@@ -64,14 +64,6 @@ static const int k_offset_bbc = 96 + 8;
 static const int k_offset_counter = 96 + 16;
 static const int k_offset_jit_ptrs = 96 + 24;
 
-static const unsigned int k_jit_flag_merge_ops = (1 << 0);
-static const unsigned int k_jit_flag_self_modifying_abs = (1 << 1);
-static const unsigned int k_jit_flag_dynamic_operand = (1 << 2);
-static const unsigned int k_jit_flag_no_rom_fault = (1 << 3);
-static const unsigned int k_jit_flag_self_modifying_all = (1 << 4);
-static const unsigned int k_jit_flag_batch_ops = (1 << 5);
-static const unsigned int k_jit_flag_elim_nz_flag_tests = (1 << 6);
-
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
 
@@ -3425,7 +3417,6 @@ jit_create(void* p_debug_callback,
            void* p_write_callback,
            const char* p_opt_flags,
            const char* p_log_flags) {
-  unsigned int jit_flags;
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -3503,33 +3494,33 @@ jit_create(void* p_debug_callback,
   p_jit->p_read_callback = p_read_callback;
   p_jit->p_write_callback = p_write_callback;
 
-  jit_flags = k_jit_flag_merge_ops |
-              k_jit_flag_self_modifying_abs |
-              k_jit_flag_dynamic_operand |
-              k_jit_flag_batch_ops |
-              k_jit_flag_elim_nz_flag_tests;
+  p_jit->jit_flags = 0;
+  jit_set_flag(p_jit, k_jit_flag_merge_ops);
+  jit_set_flag(p_jit, k_jit_flag_self_modifying_abs);
+  jit_set_flag(p_jit, k_jit_flag_dynamic_operand);
+  jit_set_flag(p_jit, k_jit_flag_batch_ops);
+  jit_set_flag(p_jit, k_jit_flag_elim_nz_flag_tests);
   if (strstr(p_opt_flags, "jit:no-rom-fault")) {
-    jit_flags |= k_jit_flag_no_rom_fault;
+    jit_set_flag(p_jit, k_jit_flag_no_rom_fault);
   }
   if (strstr(p_opt_flags, "jit:self-mod-all")) {
-    jit_flags |= k_jit_flag_self_modifying_all;
+    jit_set_flag(p_jit, k_jit_flag_self_modifying_all);
   }
   if (strstr(p_opt_flags, "jit:no-self-mod-abs")) {
-    jit_flags &= ~k_jit_flag_self_modifying_abs;
+    jit_clear_flag(p_jit, k_jit_flag_self_modifying_abs);
   }
   if (strstr(p_opt_flags, "jit:no-dynamic-operand")) {
-    jit_flags &= ~k_jit_flag_dynamic_operand;
+    jit_clear_flag(p_jit, k_jit_flag_dynamic_operand);
   }
   if (strstr(p_opt_flags, "jit:no-merge-ops")) {
-    jit_flags &= ~k_jit_flag_merge_ops;
+    jit_clear_flag(p_jit, k_jit_flag_merge_ops);
   }
   if (strstr(p_opt_flags, "jit:no-batch-ops")) {
-    jit_flags &= ~k_jit_flag_batch_ops;
+    jit_clear_flag(p_jit, k_jit_flag_batch_ops);
   }
   if (strstr(p_opt_flags, "jit:no-elim-nz-flag-tests")) {
-    jit_flags &= ~k_jit_flag_elim_nz_flag_tests;
+    jit_clear_flag(p_jit, k_jit_flag_elim_nz_flag_tests);
   }
-  p_jit->jit_flags = jit_flags;
 
   log_flags = 0;
   if (strstr(p_log_flags, "jit:self-modify")) {
@@ -3563,6 +3554,16 @@ jit_create(void* p_debug_callback,
   p_jit->p_single_buf = util_buffer_create();
 
   return p_jit;
+}
+
+void
+jit_set_flag(struct jit_struct* p_jit, unsigned int flag) {
+  p_jit->jit_flags |= flag;
+}
+
+void
+jit_clear_flag(struct jit_struct* p_jit, unsigned int flag) {
+  p_jit->jit_flags &= ~flag;
 }
 
 void
