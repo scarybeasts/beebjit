@@ -150,7 +150,6 @@ struct jit_struct {
   unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
   unsigned char self_modify_optimize[k_bbc_addr_space_size];
-  unsigned char force_invalidated[k_bbc_addr_space_size];
   unsigned char compilation_pending[k_bbc_addr_space_size];
 };
 
@@ -2882,11 +2881,6 @@ jit_jump_target_is_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 int
-jit_is_force_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
-  return p_jit->force_invalidated[addr_6502];
-}
-
-int
 jit_has_self_modify_optimize(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->self_modify_optimize[addr_6502];
 }
@@ -2901,8 +2895,6 @@ jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
-
-  p_jit->force_invalidated[addr_6502] = 1;
 }
 
 static void
@@ -2910,8 +2902,6 @@ jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
-
-  p_jit->force_invalidated[addr_6502] = 1;
 }
 
 void
@@ -3027,7 +3017,7 @@ jit_at_addr(struct jit_struct* p_jit,
      * opcode, mark the location as self-modify optimize.
      */
     if (jit_has_invalidated_code(p_jit, addr_6502) &&
-        !jit_is_force_invalidated(p_jit, addr_6502)) {
+        !jit_is_compilation_pending(p_jit, addr_6502)) {
       unsigned char old_opcode_6502 = p_jit->compiled_opcode[addr_6502];
       if (opcode_6502 == old_opcode_6502) {
         p_jit->self_modify_optimize[addr_6502] = 1;
@@ -3147,12 +3137,10 @@ jit_at_addr(struct jit_struct* p_jit,
 
       if (i == 0) {
         p_jit->compiled_opcode[addr_6502] = opcode_6502;
-        p_jit->force_invalidated[addr_6502] = 0;
       } else {
         p_jit->compiled_opcode[addr_6502] = 0;
         p_jit->self_modify_optimize[addr_6502] = 0;
         p_jit->is_block_start[addr_6502] = 0;
-        p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
           p_jit_ptr = jit_get_jit_base_addr(p_jit, 0xffff) + 7;
         }

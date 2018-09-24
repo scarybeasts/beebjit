@@ -50,6 +50,8 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x1002));
   assert(!jit_is_block_start(p_jit, 0x1003));
   assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
+  assert(jit_is_compilation_pending(p_jit, 0x1000));
+  assert(!jit_is_compilation_pending(p_jit, 0x1002));
 
   /* Recompile start of fractured block. */
   /* Run at $1000. */
@@ -61,6 +63,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x1002));
   assert(!jit_is_block_start(p_jit, 0x1003));
   assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
+  assert(!jit_is_compilation_pending(p_jit, 0x1000));
 }
 
 static void
@@ -178,12 +181,6 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(!jit_has_invalidated_code(p_jit, 0x2103));
   assert(!jit_has_invalidated_code(p_jit, 0x2104));
   assert(!jit_has_invalidated_code(p_jit, 0x2105));
-  assert(!jit_is_force_invalidated(p_jit, 0x2102));
-  assert(jit_is_force_invalidated(p_jit, 0x2103));
-  assert(jit_is_force_invalidated(p_jit, 0x2104));
-  assert(jit_is_force_invalidated(p_jit, 0x2105));
-  assert(!jit_is_force_invalidated(p_jit, 0x2106));
-  assert(jit_is_force_invalidated(p_jit, 0x2107));
 
   /* The ASL A's will have been coalesced into one x64 instruction. Jump into
    * the middle of them.
@@ -201,10 +198,9 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(!jit_has_invalidated_code(p_jit, 0x2102));
   assert(!jit_has_invalidated_code(p_jit, 0x2103));
   assert(!jit_has_invalidated_code(p_jit, 0x2104));
-  assert(jit_is_force_invalidated(p_jit, 0x2100));
-  assert(!jit_is_force_invalidated(p_jit, 0x2102));
-  assert(!jit_is_force_invalidated(p_jit, 0x2103));
-  assert(jit_is_force_invalidated(p_jit, 0x2104));
+  assert(jit_is_compilation_pending(p_jit, 0x2100));
+  assert(!jit_is_compilation_pending(p_jit, 0x2102));
+  assert(!jit_is_compilation_pending(p_jit, 0x2103));
 
   /* Run at $2100 again. */
   jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2100);
@@ -214,10 +210,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(jit_is_block_start(p_jit, 0x2100));
   assert(!jit_is_block_start(p_jit, 0x2102));
   assert(jit_is_block_start(p_jit, 0x2103));
-  assert(!jit_is_force_invalidated(p_jit, 0x2100));
-  assert(jit_is_force_invalidated(p_jit, 0x2101));
-  assert(!jit_is_force_invalidated(p_jit, 0x2102));
-  assert(!jit_is_force_invalidated(p_jit, 0x2103));
+  assert(!jit_is_compilation_pending(p_jit, 0x2100));
 
   /* Clobber an ASL A with a NOP. */
   p_mem[0x2103] = 0xea;
@@ -254,6 +247,8 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2200);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0xce);
+
+  assert(!jit_is_compilation_pending(p_jit, 0x2200));
 
   jit_set_flag(p_jit, k_jit_flag_batch_ops);
 
