@@ -491,6 +491,13 @@ jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
   return index;
 }
 
+static unsigned char*
+jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = (p_jit->p_jit_base +
+                              (addr_6502 * k_jit_bytes_per_byte));
+  return p_jit_ptr;
+}
+
 static size_t
 jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
                        struct util_buffer* p_buf,
@@ -499,8 +506,7 @@ jit_emit_jmp_6502_addr(struct jit_struct* p_jit,
                        unsigned char opcode2) {
   unsigned char* p_src_addr = util_buffer_get_base_address(p_buf) +
                               util_buffer_get_pos(p_buf);
-  unsigned char* p_dst_addr = p_jit->p_jit_base +
-                              (new_addr_6502 * k_jit_bytes_per_byte);
+  unsigned char* p_dst_addr = jit_get_jit_base_addr(p_jit, new_addr_6502);
   ssize_t offset = p_dst_addr - p_src_addr;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   size_t index = util_buffer_get_pos(p_buf);
@@ -2825,6 +2831,14 @@ jit_is_invalidation_sequence(unsigned char* p_jit_ptr) {
   return 0;
 }
 
+void
+jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  unsigned char* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+  (void) jit_emit_do_jit(p_jit_ptr, 0);
+
+  p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
+}
+
 int
 jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit->has_code[addr_6502];
@@ -2851,16 +2865,9 @@ jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   return 0;
 }
 
-static unsigned char*
-jit_get_jump_target_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = (p_jit->p_jit_base +
-                              (addr_6502 << k_jit_bytes_shift));
-  return p_jit_ptr;
-}
-
 int
 jit_jump_target_is_invalidated(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
+  unsigned char* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
   if (jit_is_invalidation_sequence(p_jit_ptr)) {
     return 1;
   }
@@ -2893,7 +2900,7 @@ jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 static void
 jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
+  unsigned char* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 
@@ -3149,7 +3156,7 @@ jit_at_addr(struct jit_struct* p_jit,
         p_jit->is_block_start[addr_6502] = 0;
         p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
-          p_jit_ptr = (p_jit->p_jit_base + (0xffff << k_jit_bytes_shift));
+          p_jit_ptr = jit_get_jit_base_addr(p_jit, 0xffff);
         }
       }
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
@@ -3236,7 +3243,7 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
    */
 /*  assert(block_addr_6502 >= 0x200);*/
 
-  p_jit_ptr = jit_get_jump_target_ptr(p_jit, addr_6502);
+  p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
   util_buffer_setup(p_buf, &jit_bytes[0], k_jit_bytes_per_byte);
   util_buffer_set_base_address(p_buf, p_jit_ptr);
@@ -3600,15 +3607,8 @@ jit_create(void* p_debug_callback,
 
   /* int3 */
   memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);
-  size_t addr_6502 = 0;
-  while (addr_6502 < k_bbc_addr_space_size) {
-    (void) jit_emit_do_jit(p_jit_base, 0);
-
-    p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_base;
-    jit_invalidate_jump_target(p_jit, addr_6502);
-
-    p_jit_base += k_jit_bytes_per_byte;
-    addr_6502++;
+  for (i = 0; i < k_bbc_addr_space_size; ++i) {
+    jit_init_addr(p_jit, i);
   }
 
   jit_emit_debug_util(p_util_debug);

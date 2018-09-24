@@ -12,6 +12,8 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
+  jit_init_addr(p_jit, 0x1000);
+
   assert(!jit_has_code(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1000));
 
