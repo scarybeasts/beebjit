@@ -2962,7 +2962,8 @@ jit_at_addr(struct jit_struct* p_jit,
    * (If we're here with existing but invalidated code, it's likely
    * self-modified code, or a block recompilation because the block was split.
    */
-  if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
+  if (!jit_has_invalidated_code(p_jit, start_addr_6502) &&
+      !jit_is_compilation_pending(p_jit, start_addr_6502)) {
     p_jit->is_block_start[start_addr_6502] = 1;
     is_split = 1;
   } else {
@@ -2973,7 +2974,8 @@ jit_at_addr(struct jit_struct* p_jit,
    * invalidate that block.
    */
   if (block_addr_6502 != start_addr_6502) {
-    jit_invalidate_addr(p_jit, block_addr_6502);
+    jit_invalidate_jump_target(p_jit, block_addr_6502);
+    p_jit->compilation_pending[block_addr_6502] = 1;
   }
 
   jit_emit_block_prolog(p_jit, p_buf);

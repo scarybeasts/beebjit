@@ -101,7 +101,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* This effectively split the block, so the block code should be invalidated.
    */
-  assert(jit_has_invalidated_code(p_jit, 0x2000));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2000));
   assert(!jit_has_self_modify_optimize(p_jit, 0x2000));
 
   /* Executing at $2000 again will therefore recompile the block. */
@@ -195,7 +195,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2102));
   assert(jit_is_block_start(p_jit, 0x2103));
   assert(!jit_is_block_start(p_jit, 0x2104));
-  assert(jit_has_invalidated_code(p_jit, 0x2100));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2100));
   assert(!jit_has_invalidated_code(p_jit, 0x2102));
   assert(!jit_has_invalidated_code(p_jit, 0x2103));
   assert(!jit_has_invalidated_code(p_jit, 0x2104));
