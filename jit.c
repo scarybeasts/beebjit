@@ -2962,22 +2962,14 @@ jit_at_addr(struct jit_struct* p_jit,
 
   block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
 
-  /* If we're landing at this address for the first time, it must be a block
-   * start, unless we're continuing a previous compilation!
-   */
-  if (!jit_has_code(p_jit, start_addr_6502) &&
-      !jit_is_compilation_pending(p_jit, start_addr_6502)) {
+  if (jit_is_compilation_pending(p_jit, start_addr_6502)) {
+    /* Nothing. */
+  } else if (!jit_has_code(p_jit, start_addr_6502)) {
+    /* We're landing at this address for the first time; block start. */
     p_jit->is_block_start[start_addr_6502] = 1;
     is_new = 1;
-  }
-
-  /* If we're landing on top of existing code that isn't invalidated, it must
-   * be a new block start on account of a jump.
-   * (If we're here with existing but invalidated code, it's likely
-   * self-modified code, or a block recompilation because the block was split.
-   */
-  if (!jit_has_invalidated_code(p_jit, start_addr_6502) &&
-      !jit_is_compilation_pending(p_jit, start_addr_6502)) {
+  } else if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
+    /* We've landed on valid code, so it must be a block split. */
     p_jit->is_block_start[start_addr_6502] = 1;
     is_split = 1;
   } else {
