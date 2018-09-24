@@ -147,7 +147,6 @@ struct jit_struct {
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
 
-  unsigned char has_code[k_bbc_addr_space_size];
   unsigned char is_block_start[k_bbc_addr_space_size];
   unsigned char compiled_opcode[k_bbc_addr_space_size];
   unsigned char self_modify_optimize[k_bbc_addr_space_size];
@@ -2841,7 +2840,15 @@ jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
 
 int
 jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
-  return p_jit->has_code[addr_6502];
+  unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
+  /* The "no code" state is the initial state, which is the code pointer
+   * pointing at the block prolog of a block.
+   */
+  if (((size_t) p_jit_ptr) & k_jit_bytes_mask) {
+    return 1;
+  }
+  assert(p_jit_ptr == jit_get_jit_base_addr(p_jit, addr_6502));
+  return 0;
 }
 
 int
@@ -3142,7 +3149,6 @@ jit_at_addr(struct jit_struct* p_jit,
      */
     for (i = 0; i < num_6502_bytes; ++i) {
       unsigned char* p_jit_ptr = p_dst;
-      p_jit->has_code[addr_6502] = 1;
       p_jit->compilation_pending[addr_6502] = 0;
 
       jit_invalidate_jump_target(p_jit, addr_6502);
@@ -3156,7 +3162,7 @@ jit_at_addr(struct jit_struct* p_jit,
         p_jit->is_block_start[addr_6502] = 0;
         p_jit->force_invalidated[addr_6502] = 1;
         if (dynamic_operand) {
-          p_jit_ptr = jit_get_jit_base_addr(p_jit, 0xffff);
+          p_jit_ptr = jit_get_jit_base_addr(p_jit, 0xffff) + 7;
         }
       }
       p_jit->jit_ptrs[addr_6502] = (unsigned int) (size_t) p_jit_ptr;
