@@ -147,6 +147,9 @@ main(int argc, const char* argv[]) {
     /* 20 ms */
     ret = poll(&poll_fds[0], 2, 20);
     if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
       errx(1, "poll failed");
     }
 
