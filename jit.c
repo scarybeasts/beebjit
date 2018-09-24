@@ -2973,7 +2973,7 @@ jit_at_addr(struct jit_struct* p_jit,
    * invalidate that block.
    */
   if (block_addr_6502 != start_addr_6502) {
-    jit_invalidate_jump_target(p_jit, block_addr_6502);
+    jit_invalidate_addr(p_jit, block_addr_6502);
   }
 
   jit_emit_block_prolog(p_jit, p_buf);
