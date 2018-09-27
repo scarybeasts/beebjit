@@ -1153,6 +1153,24 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc8;
 
   index = set_new_index(index, 0x880);
+  p_mem[index++] = 0xa2; /* LDX #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0xe8; /* INX */
+  /* ZF is now 1. This should clear ZF. */
+  p_mem[index++] = 0xa9; /* LDA #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x85; /* STA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x85; /* STA $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C8C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc8;
+
+  index = set_new_index(index, 0x8c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

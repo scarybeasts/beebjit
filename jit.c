@@ -3116,9 +3116,12 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     if (new_nz_flags == k_set) {
-      new_nz_flags = 0;
+      curr_nz_flags = 0;
+    } else if (new_nz_flags == 0) {
+      /* Nothing. nz flags status unaffected by opcode. */
+    } else {
+      curr_nz_flags = new_nz_flags;
     }
-    curr_nz_flags = new_nz_flags;
 
     total_6502_bytes += num_6502_bytes;
     total_num_ops++;
