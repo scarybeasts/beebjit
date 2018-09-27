@@ -184,6 +184,8 @@ via_read(struct via_struct* p_via, size_t reg) {
     port_val = via_read_port_a(p_via);
     val |= (port_val & ~ddra);
     return val;
+  case k_via_DDRB:
+    return p_via->DDRB;
   case k_via_T1CL:
     via_clear_interrupt(p_via, k_int_TIMER1);
     return (p_via->T1C & 0xff);
