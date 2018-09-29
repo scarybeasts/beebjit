@@ -16,6 +16,9 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
 
   assert(!jit_has_code(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1000));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x1000));
+  assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
+  assert(!jit_is_compilation_pending(p_jit, 0x1000));
 
   index = 0x1000;
   p_mem[index++] = 0xa9; /* LDA #$00 */

@@ -2955,15 +2955,17 @@ jit_at_addr(struct jit_struct* p_jit,
   if (jit_is_compilation_pending(p_jit, start_addr_6502)) {
     /* Nothing. */
   } else if (!jit_has_code(p_jit, start_addr_6502)) {
-    /* We're landing at this address for the first time; block start. */
-    p_jit->is_block_start[start_addr_6502] = 1;
+    /* We're landing at this address for the first time. */
     is_new = 1;
   } else if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
     /* We've landed on valid code, so it must be a block split. */
-    p_jit->is_block_start[start_addr_6502] = 1;
     is_split = 1;
   } else {
     is_inval = 1;
+  }
+
+  if (is_new || is_split) {
+    p_jit->is_block_start[start_addr_6502] = 1;
   }
 
   /* This opcode may be compiled into part of a previous block, so make sure to
