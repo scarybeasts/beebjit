@@ -3024,8 +3024,7 @@ jit_at_addr(struct jit_struct* p_jit,
     /* If we're compiling the same opcode on top of an existing invalidated
      * opcode, mark the location as self-modify optimize.
      */
-    if (jit_has_invalidated_code(p_jit, addr_6502) &&
-        !jit_is_compilation_pending(p_jit, addr_6502)) {
+    if (jit_has_invalidated_code(p_jit, addr_6502)) {
       unsigned char old_opcode_6502 = p_jit->compiled_opcode[addr_6502];
       if (opcode_6502 == old_opcode_6502) {
         p_jit->self_modify_optimize[addr_6502] = 1;
