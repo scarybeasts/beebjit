@@ -292,10 +292,87 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2206));
 }
 
+static void
+do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
+  size_t index;
+
+  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+
+  jit_set_max_compile_ops(p_jit, 2);
+
+  index = 0x2300;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa0; /* LDY #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xe6; /* INC $00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xf0; /* BEQ -8 */
+  p_mem[index++] = 0xf8;
+  p_mem[index++] = 0x02; /* Exit JIT. */
+
+  p_mem[0x0000] = 0x00;
+
+  /* Run at $2300. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2300);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x01);
+
+  assert(!jit_jump_target_is_invalidated(p_jit, 0x2300));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2301));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2302));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2303));
+  assert(!jit_jump_target_is_invalidated(p_jit, 0x2304));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2305));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2306));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2307));
+
+  assert(jit_is_block_start(p_jit, 0x2300));
+  assert(!jit_is_block_start(p_jit, 0x2301));
+  assert(!jit_is_block_start(p_jit, 0x2302));
+  assert(!jit_is_block_start(p_jit, 0x2303));
+  assert(!jit_is_block_start(p_jit, 0x2304));
+  assert(!jit_is_block_start(p_jit, 0x2305));
+  assert(!jit_is_block_start(p_jit, 0x2306));
+  assert(!jit_is_block_start(p_jit, 0x2307));
+
+  /* This will cause a branch. */
+  p_mem[0x0000] = 0xff;
+
+  /* Run at $2300 again. */
+  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2300);
+  jit_enter(p_jit);
+  assert(p_mem[0x0000] == 0x01);
+
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2300));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2301));
+  assert(!jit_jump_target_is_invalidated(p_jit, 0x2302));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2303));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2304));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2305));
+  assert(!jit_jump_target_is_invalidated(p_jit, 0x2306));
+  assert(jit_jump_target_is_invalidated(p_jit, 0x2307));
+
+  assert(jit_is_block_start(p_jit, 0x2300));
+  assert(!jit_is_block_start(p_jit, 0x2301));
+  assert(jit_is_block_start(p_jit, 0x2302));
+  assert(!jit_is_block_start(p_jit, 0x2303));
+  assert(!jit_is_block_start(p_jit, 0x2304));
+  assert(!jit_is_block_start(p_jit, 0x2305));
+  assert(!jit_is_block_start(p_jit, 0x2306));
+  assert(!jit_is_block_start(p_jit, 0x2307));
+
+  jit_set_max_compile_ops(p_jit, 0);
+}
+
 void
 test_do_tests(struct bbc_struct* p_bbc) {
   do_basic_jit_tests(p_bbc);
   do_totally_lit_jit_test_1(p_bbc);
   do_totally_lit_jit_test_2(p_bbc);
   do_totally_lit_jit_test_3(p_bbc);
+  do_totally_lit_jit_test_4(p_bbc);
 }
