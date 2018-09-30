@@ -2866,6 +2866,10 @@ jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
 int
 jit_has_invalidated_code(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
+  /* If there's no code at all, return false. */
+  if (!(((size_t) p_jit_ptr) & k_jit_bytes_mask)) {
+    return 0;
+  }
   if (jit_is_invalidation_sequence(p_jit_ptr)) {
     return 1;
   }
