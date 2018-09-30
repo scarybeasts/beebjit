@@ -340,6 +340,15 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2306));
   assert(!jit_is_block_start(p_jit, 0x2307));
 
+  assert(!jit_is_compilation_pending(p_jit, 0x2300));
+  assert(!jit_is_compilation_pending(p_jit, 0x2301));
+  assert(!jit_is_compilation_pending(p_jit, 0x2302));
+  assert(!jit_is_compilation_pending(p_jit, 0x2303));
+  assert(!jit_is_compilation_pending(p_jit, 0x2304));
+  assert(!jit_is_compilation_pending(p_jit, 0x2305));
+  assert(!jit_is_compilation_pending(p_jit, 0x2306));
+  assert(!jit_is_compilation_pending(p_jit, 0x2307));
+
   /* This will cause a branch. */
   p_mem[0x0000] = 0xff;
 
@@ -365,6 +374,15 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2305));
   assert(!jit_is_block_start(p_jit, 0x2306));
   assert(!jit_is_block_start(p_jit, 0x2307));
+
+  assert(jit_is_compilation_pending(p_jit, 0x2300));
+  assert(!jit_is_compilation_pending(p_jit, 0x2301));
+  assert(!jit_is_compilation_pending(p_jit, 0x2302));
+  assert(!jit_is_compilation_pending(p_jit, 0x2303));
+  assert(!jit_is_compilation_pending(p_jit, 0x2304));
+  assert(!jit_is_compilation_pending(p_jit, 0x2305));
+  assert(!jit_is_compilation_pending(p_jit, 0x2306));
+  assert(!jit_is_compilation_pending(p_jit, 0x2307));
 
   jit_set_max_compile_ops(p_jit, 0);
 }

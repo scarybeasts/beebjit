@@ -2976,7 +2976,8 @@ jit_at_addr(struct jit_struct* p_jit,
   /* This opcode may be compiled into part of a previous block, so make sure to
    * invalidate that block.
    */
-  if (block_addr_6502 != start_addr_6502) {
+  if (block_addr_6502 != start_addr_6502 &&
+      !jit_jump_target_is_invalidated(p_jit, block_addr_6502)) {
     jit_invalidate_jump_target(p_jit, block_addr_6502);
     p_jit->compilation_pending[block_addr_6502] = 1;
   }
