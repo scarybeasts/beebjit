@@ -135,6 +135,7 @@ struct jit_struct {
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
   unsigned int log_flags;
+  size_t max_num_ops;
   uint16_t debug_stop_addr;
   unsigned char* p_mem;
 
@@ -2917,7 +2918,6 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t block_addr_6502;
 
   size_t total_num_ops = 0;
-  size_t max_num_ops = ~0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
@@ -2935,6 +2935,7 @@ jit_at_addr(struct jit_struct* p_jit,
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
   unsigned int jit_flags = p_jit->jit_flags;
   unsigned int log_flags = p_jit->log_flags;
+  size_t max_num_ops = p_jit->max_num_ops;
 
   if (jit_flags & k_jit_flag_dynamic_operand) {
     emit_dynamic_operand = 1;
@@ -3596,6 +3597,8 @@ jit_create(void* p_debug_callback,
   }
   p_jit->log_flags = log_flags;
 
+  jit_set_max_compile_ops(p_jit, 0);
+
   /* int3 */
   memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);
   for (i = 0; i < k_bbc_addr_space_size; ++i) {
@@ -3622,6 +3625,14 @@ jit_set_flag(struct jit_struct* p_jit, unsigned int flag) {
 void
 jit_clear_flag(struct jit_struct* p_jit, unsigned int flag) {
   p_jit->jit_flags &= ~flag;
+}
+
+void
+jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops) {
+  if (max_num_ops == 0) {
+    max_num_ops = ~0;
+  }
+  p_jit->max_num_ops = max_num_ops;
 }
 
 void

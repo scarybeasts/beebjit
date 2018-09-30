@@ -30,6 +30,7 @@ void jit_destroy(struct jit_struct* p_jit);
 
 void jit_set_flag(struct jit_struct* p_jit, unsigned int flag);
 void jit_clear_flag(struct jit_struct* p_jit, unsigned int flag);
+void jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops);
 
 void jit_get_registers(struct jit_struct* p_jit,
                        unsigned char* a,
