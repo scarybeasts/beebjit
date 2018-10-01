@@ -274,11 +274,11 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     break;
   case k_via_ACR:
     p_via->ACR = val;
-    printf("new via %d ACR %x\n", p_via->id, val);
+    /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
   case k_via_PCR:
     p_via->PCR = val;
-    printf("new via %d PCR %x\n", p_via->id, val);
+    /*printf("new via %d PCR %x\n", p_via->id, val);*/
     break;
   case k_via_IFR:
     p_via->IFR &= ~(val & 0x7f);
