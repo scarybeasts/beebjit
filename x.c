@@ -228,8 +228,6 @@ x_render(struct x_struct* p_x) {
   struct video_struct* p_video = bbc_get_video(p_bbc);
   int is_text = video_is_text(p_video);
 
-  int ret;
-
   if (is_text) {
     size_t y;
     size_t offset = 0;
@@ -268,11 +266,6 @@ x_render(struct x_struct* p_x) {
       errx(1, "XShmPutImage failed");
     }
   }
-
-  ret = XFlush(p_x->d);
-  if (ret != 1) {
-    errx(1, "XFlush failed");
-  }
 }
 
 void
@@ -280,21 +273,24 @@ x_event_check(struct x_struct* p_x) {
   Display* d = p_x->d;
   struct bbc_struct* p_bbc = p_x->p_bbc;
 
-  while (1) {
-  XEvent event;
+  while (XPending(d) > 0) {
+    XEvent event;
     int key;
-    Bool ret = XCheckMaskEvent(d, ~0, &event);
-    if (ret == False) {
-      break;
+
+    int ret = XNextEvent(d, &event);
+    if (ret != 0) {
+      errx(1, "XNextEvent failed");
     }
 
     switch (event.type) {
     case KeyPress:
       key = event.xkey.keycode;
+      /*printf("key press: %d\n", key);*/
       bbc_key_pressed(p_bbc, key);
       break;
     case KeyRelease:
       key = event.xkey.keycode;
+      /*printf("key release: %d\n", key);*/
       bbc_key_released(p_bbc, key);
       break;
     default:

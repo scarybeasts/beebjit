@@ -153,18 +153,25 @@ main(int argc, const char* argv[]) {
       errx(1, "poll failed");
     }
 
-    /* TODO: should render at 50Hz, but also renders on keypress! */
-    x_render(p_x);
-    if (ret == 0) {
-      continue;
-    }
     if (poll_fds[0].revents & POLLIN) {
-      x_event_check(p_x);
+      assert(ret > 0);
+      /* No x_event_check here -- see below. */
     }
     if (poll_fds[1].revents & POLLIN) {
+      assert(ret > 0);
       assert(bbc_has_exited(p_bbc));
       break;
     }
+
+    /* TODO: should render at 50Hz, but also renders on keypress! */
+    x_render(p_x);
+    /* We need to call x_event_check unconditionally, in case a key event comes
+     * in during X rendering. In that case, the data could be read from the
+     * socket and placed in the event queue during standard X queue processing.
+     * This would lead to a delayed event because the poll() wouldn't see it
+     * in the socket queue.
+     */
+    x_event_check(p_x);
   }
 
   x_destroy(p_x);
