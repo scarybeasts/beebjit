@@ -2930,9 +2930,12 @@ jit_at_addr(struct jit_struct* p_jit,
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
   int log_self_modify = 0;
+  int is_compilation_pending = 0;
+  int has_code = 0;
+  int is_invalidated_code = 0;
+  int is_invalidated_block = 0;
   int is_new = 0;
   int is_split = 0;
-  int is_inval = 0;
   int is_size_stop = 0;
   int is_jump_stop = 0;
   int is_block_stop = 0;
@@ -2958,16 +2961,17 @@ jit_at_addr(struct jit_struct* p_jit,
 
   block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
 
-  if (jit_is_compilation_pending(p_jit, start_addr_6502)) {
-    /* Nothing. */
-  } else if (!jit_has_code(p_jit, start_addr_6502)) {
-    /* We're landing at this address for the first time. */
-    is_new = 1;
-  } else if (!jit_has_invalidated_code(p_jit, start_addr_6502)) {
-    /* We've landed on valid code, so it must be a block split. */
-    is_split = 1;
-  } else {
-    is_inval = 1;
+  is_compilation_pending = jit_is_compilation_pending(p_jit, start_addr_6502);
+  has_code = jit_has_code(p_jit, start_addr_6502);
+  is_invalidated_code = jit_has_invalidated_code(p_jit, start_addr_6502);
+  is_invalidated_block = jit_jump_target_is_invalidated(p_jit, start_addr_6502);
+
+  if (!is_compilation_pending) {
+    if (!has_code) {
+      is_new = 1;
+    } else if (!is_invalidated_code) {
+      is_split = 1;
+    }
   }
 
   if (is_new || is_split) {
@@ -3184,17 +3188,23 @@ jit_at_addr(struct jit_struct* p_jit,
     if (is_split) {
       printf(" [split]");
     }
-    if (is_inval) {
-      printf(" [inval]");
+    if (is_compilation_pending) {
+      printf(" [pend]");
+    }
+    if (is_invalidated_code) {
+      printf(" [inv:code]");
+    }
+    if (is_invalidated_block) {
+      printf(" [inv:block]");
     }
     if (is_size_stop) {
-      printf(" [stop:size]");
+      printf(" [s:size]");
     }
     if (is_jump_stop) {
-      printf(" [stop:jump]");
+      printf(" [s:jump]");
     }
     if (is_block_stop) {
-      printf(" [stop:block]");
+      printf(" [s:block]");
     }
     printf("\n");
   }
