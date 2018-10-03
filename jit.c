@@ -1270,6 +1270,7 @@ jit_emit_calc_op(struct jit_struct* p_jit,
   case k_zpx:
   case k_idx:
   case k_zpg_dyn:
+  case k_abs_dyn:
     /* OP al, [rdx + p_mem] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x82;
