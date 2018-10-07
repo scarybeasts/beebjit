@@ -1152,6 +1152,9 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x80;
   p_mem[index++] = 0xc8;
 
+  /* Tests for a bug where the NZ flags update was going missing if there
+   * were a couple of STA instructions in a row.
+   */
   index = set_new_index(index, 0x880);
   p_mem[index++] = 0xa2; /* LDX #$FF */
   p_mem[index++] = 0xff;
@@ -1170,7 +1173,22 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc8;
 
+  /* Test that timers don't return the same value twice in a row. */
   index = set_new_index(index, 0x8c0);
+  p_mem[index++] = 0xad; /* LDA $FE64 */
+  p_mem[index++] = 0x64;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xcd; /* CMP $FE64 */
+  p_mem[index++] = 0x64;
+  p_mem[index++] = 0xfe;
+  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C900 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc9;
+
+  index = set_new_index(index, 0x900);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
