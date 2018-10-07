@@ -1220,7 +1220,29 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x40;
   p_mem[index++] = 0xc9;
 
+  /* Tests for a bug where the NZ flags were updated from the wrong register. */
   index = set_new_index(index, 0x940);
+  p_mem[index++] = 0x20; /* JSR $C965 */ /* Create block boundary at the RTS. */
+  p_mem[index++] = 0x65;
+  p_mem[index++] = 0xc9;
+  p_mem[index++] = 0x20; /* JSR $C960 */
+  p_mem[index++] = 0x60;
+  p_mem[index++] = 0xc9;
+  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C980 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0xc9;
+  index = set_new_index(index, 0x960);
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xaa; /* TAX */
+  p_mem[index++] = 0xa9; /* LDA #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x60; /* RTS */
+
+  index = set_new_index(index, 0x980);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

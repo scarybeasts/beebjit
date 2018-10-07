@@ -3076,12 +3076,11 @@ jit_at_addr(struct jit_struct* p_jit,
     optype_next = g_optypes[opcode_6502_next];
 
     /* See if we need to load the 6502 NZ flags. */
-    if ((g_nz_flags_needed[optype_next] || /*emit_debug ||*/ !elim_nz_flag_tests) &&
+    if ((g_nz_flags_needed[optype_next] || emit_debug || !elim_nz_flag_tests) &&
         new_nz_flags_location != k_flags) {
       int commit_nz_flags_location = 0;
       if (new_nz_flags_location != 0) {
         commit_nz_flags_location = new_nz_flags_location;
-        new_nz_flags_location = 0;
       } else if (curr_nz_flags_location != k_flags) {
         commit_nz_flags_location = curr_nz_flags_location;
       }
