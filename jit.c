@@ -1373,7 +1373,9 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
   }
   switch (opmode) {
   case k_nil:
-    index = jit_emit_do_zn_flags(p_jit_buf, index, 0);
+    /* Nothing. The ZN flags are now in the accumulator and we have the
+     * machinery to pull them out if they are needed.
+     */
     break;
   case k_zpg:
   case k_abs:
@@ -3048,6 +3050,12 @@ jit_at_addr(struct jit_struct* p_jit,
     optype = g_optypes[opcode_6502];
     opmode = g_opmodes[opcode_6502];
     new_nz_flags = g_nz_flag_pending[optype];
+    /* Special case: the nil mode for ROL / ROR also doesn't test the
+     * flags immediately as an optimization.
+     */
+    if ((optype == k_rol || optype == k_ror) && opmode == k_nil) {
+      new_nz_flags = k_a;
+    }
 
     /* If we're compiling the same opcode on top of an existing invalidated
      * opcode, mark the location as self-modify optimize.
