@@ -73,7 +73,8 @@ enum {
   k_a = 1,
   k_x = 2,
   k_y = 3,
-  k_set = 4,
+  k_flags = 4,
+  k_register = 5,
 };
 
 enum {
@@ -85,26 +86,26 @@ enum {
 /* k_a: PLA, TXA, TYA, LDA */
 /* k_x: LDX, TAX, TSX */
 /* k_y: LDY, TAY */
-static const unsigned char g_nz_flag_pending[58] = {
-  0    , 0    , 0    , k_set, k_set, 0    , 0    , 0    ,
-  0    , k_set, k_set, k_set, k_set, 0    , 0    , 0    ,
-  k_set, k_set, 0    , 0    , 0    , 0    , 0    , k_set,
-  k_a  , k_set, 0    , 0    , 0    , 0    , 0    , k_set,
-  k_a  , 0    , k_a  , 0    , k_y  , k_a  , k_x  , k_y  ,
-  k_x  , 0    , 0    , k_x  , k_set, k_set, k_set, k_set,
-  k_set, k_set, 0    , 0    , k_set, k_set, 0    , k_set,
-  0    , 0    ,
+static const unsigned char g_nz_flags_location[58] = {
+  0      , 0      , 0      , k_flags, k_flags, 0      , 0      , 0      ,
+  0      , k_flags, k_flags, k_flags, k_flags, 0      , 0      , 0      ,
+  k_flags, k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
+  k_a    , k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
+  k_a    , 0      , k_a    , 0      , k_y    , k_a    , k_x    , k_y    ,
+  k_x    , 0      , 0      , k_x    , k_flags, k_flags, k_flags, k_flags,
+  k_flags, k_flags, 0      , 0      , k_flags, k_flags, 0      , k_flags,
+  0      , 0      ,
 };
 
 static const unsigned char g_nz_flags_needed[58] = {
-  0, 0, 1, 0, 0, 1, 1, 0,
-  1, 0, 0, 0, 0, 1, 0, 0,
-  0, 0, 0, 1, 1, 1, 1, 0,
-  0, 0, 1, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 0, 0, 0, 0,
-  0, 0, 1, 0, 0, 0, 0, 0,
-  1, 0,
+  0, 0, 1, 0, 0, 1, 1, 0, /* BRK, PHP, BPL */
+  1, 0, 0, 0, 0, 1, 0, 0, /* JSR, BMI */
+  0, 0, 0, 1, 1, 1, 1, 0, /* JMP, BVC, CLI, RTS */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BVS */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
+  1, 0,                   /* BEQ */
 };
 
 struct jit_struct {
@@ -2902,8 +2903,8 @@ jit_at_addr(struct jit_struct* p_jit,
   size_t total_num_ops = 0;
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
-  unsigned char curr_nz_flags = 0;
-  int curr_carry_flag = k_flag_unknown;
+  int curr_nz_flags_location = k_flags;
+  int curr_carry_flag_value = k_flag_unknown;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
@@ -2975,7 +2976,7 @@ jit_at_addr(struct jit_struct* p_jit,
     unsigned char optype_next;
     size_t intel_opcodes_len;
     size_t buf_left;
-    unsigned char new_nz_flags;
+    int new_nz_flags_location;
     size_t num_6502_bytes;
     size_t i;
     size_t max_6502_bytes;
@@ -3002,12 +3003,12 @@ jit_at_addr(struct jit_struct* p_jit,
     opcode_6502 = jit_get_opcode(p_jit, addr_6502);
     optype = g_optypes[opcode_6502];
     opmode = g_opmodes[opcode_6502];
-    new_nz_flags = g_nz_flag_pending[optype];
+    new_nz_flags_location = g_nz_flags_location[optype];
     /* Special case: the nil mode for ROL / ROR also doesn't test the
      * flags immediately as an optimization.
      */
     if ((optype == k_rol || optype == k_ror) && opmode == k_nil) {
-      new_nz_flags = k_a;
+      new_nz_flags_location = k_a;
     }
 
     /* If we're compiling the same opcode on top of an existing invalidated
@@ -3067,7 +3068,7 @@ jit_at_addr(struct jit_struct* p_jit,
                                 addr_6502,
                                 max_6502_bytes,
                                 dynamic_operand,
-                                curr_carry_flag);
+                                curr_carry_flag_value);
     assert(num_6502_bytes > 0);
     assert(num_6502_bytes < k_max_6502_bytes);
 
@@ -3075,20 +3076,20 @@ jit_at_addr(struct jit_struct* p_jit,
     optype_next = g_optypes[opcode_6502_next];
 
     /* See if we need to load the 6502 NZ flags. */
-    if ((g_nz_flags_needed[optype_next] || emit_debug || !elim_nz_flag_tests) &&
-        new_nz_flags != k_set) {
-      unsigned char commit_nz_flags = 0;
-      if (new_nz_flags != 0) {
-        commit_nz_flags = new_nz_flags;
-        new_nz_flags = 0;
-      } else if (curr_nz_flags != 0) {
-        commit_nz_flags = curr_nz_flags;
+    if ((g_nz_flags_needed[optype_next] || /*emit_debug ||*/ !elim_nz_flag_tests) &&
+        new_nz_flags_location != k_flags) {
+      int commit_nz_flags_location = 0;
+      if (new_nz_flags_location != 0) {
+        commit_nz_flags_location = new_nz_flags_location;
+        new_nz_flags_location = 0;
+      } else if (curr_nz_flags_location != k_flags) {
+        commit_nz_flags_location = curr_nz_flags_location;
       }
-      if (commit_nz_flags != 0) {
+      if (commit_nz_flags_location != 0) {
         size_t index = util_buffer_get_pos(p_single_buf);
         index = jit_emit_do_zn_flags(single_jit_buf,
                                      index,
-                                     commit_nz_flags - 1);
+                                     commit_nz_flags_location - 1);
         util_buffer_set_pos(p_single_buf, index);
       }
     }
@@ -3112,20 +3113,18 @@ jit_at_addr(struct jit_struct* p_jit,
       jumps_always = 1;
     }
 
-    if (new_nz_flags == k_set) {
-      curr_nz_flags = 0;
-    } else if (new_nz_flags == 0) {
+    if (new_nz_flags_location == 0) {
       /* Nothing. nz flags status unaffected by opcode. */
     } else {
-      curr_nz_flags = new_nz_flags;
+      curr_nz_flags_location = new_nz_flags_location;
     }
 
     if (optype == k_clc) {
-      curr_carry_flag = k_flag_clear;
+      curr_carry_flag_value = k_flag_clear;
     } else if (optype == k_sec) {
-      curr_carry_flag = k_flag_set;
+      curr_carry_flag_value = k_flag_set;
     } else if (g_optype_changes_carry[optype]) {
-      curr_carry_flag = k_flag_unknown;
+      curr_carry_flag_value = k_flag_unknown;
     }
 
     total_6502_bytes += num_6502_bytes;
@@ -3207,9 +3206,9 @@ jit_at_addr(struct jit_struct* p_jit,
   }
 
   /* See if we need to lazy load the 6502 NZ flags. */
-  if (curr_nz_flags != 0) {
+  if (curr_nz_flags_location != k_flags) {
     size_t index = util_buffer_get_pos(p_buf);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, curr_nz_flags - 1);
+    index = jit_emit_do_zn_flags(p_jit_buf, index, curr_nz_flags_location - 1);
     util_buffer_set_pos(p_buf, index);
   }
 
