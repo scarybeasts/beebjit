@@ -144,6 +144,7 @@ struct jit_struct {
   size_t max_num_ops;
   uint16_t debug_stop_addr;
   unsigned char* p_mem;
+  size_t dummy_rom_offset;
 
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -1556,7 +1557,6 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                       size_t index) {
   int abs_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_abs);
   int all_mode = (p_jit->jit_flags & k_jit_flag_self_modifying_all);
-  int no_rom_fault = (p_jit->jit_flags & k_jit_flag_no_rom_fault);
 
   if (!abs_mode && !all_mode) {
     return index;
@@ -1625,8 +1625,7 @@ jit_handle_invalidate(struct jit_struct* p_jit,
                          k_offset_jit_ptrs +
                              (opcode_addr_6502 * sizeof(unsigned int)));
   } else if (opmode == k_idy || opmode == k_aby_dyn || opmode == k_idy_dyn) {
-    /* If we have the jit:no-rom-fault option, dx may already be set. */
-    if (!no_rom_fault && (opmode == k_idy || opmode == k_idy_dyn)) {
+    if (opmode == k_idy || opmode == k_idy_dyn) {
       /* lea dx, [rdx + rcx] */
       p_jit_buf[index++] = 0x66;
       p_jit_buf[index++] = 0x8d;
@@ -2213,68 +2212,15 @@ printf("ooh\n");
                            (size_t) p_jit->p_mem + opcode_addr_6502);
       break;
     case k_idy:
-    case k_idy_dyn:
-      if (jit_flags & k_jit_flag_no_rom_fault) {
-        /* The old sequence was about 10% faster and was as follows:
-         * lea dx, [rdx + rcx]
-         * bt edx, 15
-         * jb / jc + 6
-         * mov [rdx + p_mem], al
-         *
-         * The new sequence is a bit slower but has the following advantages:
-         * - Doesn't trash the Intel carry flag, so we can optimize better
-         * across sequences of 6502 instructions.
-         * - Branch-free, which may have speed advantages in macro benchmarks.
-         * - "For free", supports detection of writes to hardware registers,
-         * they will fault due to careful selection of table entries.
-         *
-         * TODO: this got slow.
-         */
-        /* lea dx, [rcx + rdx] */
-        p_jit_buf[index++] = 0x66;
-        p_jit_buf[index++] = 0x8d;
-        p_jit_buf[index++] = 0x14;
-        p_jit_buf[index++] = 0x11;
-        /* mov r9, rdx */
-        p_jit_buf[index++] = 0x49;
-        p_jit_buf[index++] = 0x89;
-        p_jit_buf[index++] = 0xd1;
-        /* rorx r9, r9, 8 */ /* BMI2 */
-        p_jit_buf[index++] = 0xc4;
-        p_jit_buf[index++] = 0x43;
-        p_jit_buf[index++] = 0xfb;
-        p_jit_buf[index++] = 0xf0;
-        p_jit_buf[index++] = 0xc9;
-        p_jit_buf[index++] = 0x08;
-        /* movzx r8, dl */
-        p_jit_buf[index++] = 0x4c;
-        p_jit_buf[index++] = 0x0f;
-        p_jit_buf[index++] = 0xb6;
-        p_jit_buf[index++] = 0xc2;
-        /* mov r9d, [r9d*4 + p_tables_base] */
-        p_jit_buf[index++] = 0x67;
-        p_jit_buf[index++] = 0x46;
-        p_jit_buf[index++] = 0x8b;
-        p_jit_buf[index++] = 0x0c;
-        p_jit_buf[index++] = 0x8d;
-        index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_tables_base);
-        /* mov [r8 + r9], al */
-        p_jit_buf[index++] = 0x43;
-        p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x04;
-        p_jit_buf[index++] = 0x01;
-      } else {
-        /* mov [rcx + rdx], al */
-        p_jit_buf[index++] = 0x88;
-        p_jit_buf[index++] = 0x04;
-        p_jit_buf[index++] = 0x0a;
-      }
-      break;
     case k_aby_dyn:
-      /* mov [rdx + rcx], al */
+    case k_idy_dyn:
+      /* mov [rcx + rdx + dummy_rom_offset], al */
       p_jit_buf[index++] = 0x88;
-      p_jit_buf[index++] = 0x04;
-      p_jit_buf[index++] = 0x0a;
+      p_jit_buf[index++] = 0x84;
+      p_jit_buf[index++] = 0x11;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           p_jit->dummy_rom_offset);
       break;
     case k_abx:
       /* mov [rbx + addr_6502], al */
@@ -2288,8 +2234,15 @@ printf("ooh\n");
       p_jit_buf[index++] = 0x81;
       index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
       break;
-    case k_zpx:
     case k_idx:
+      /* mov [rdx + p_mem + offset], al */
+      p_jit_buf[index++] = 0x88;
+      p_jit_buf[index++] = 0x82;
+      index = jit_emit_int(p_jit_buf,
+                           index,
+                           (size_t) p_jit->p_mem + p_jit->dummy_rom_offset);
+      break;
+    case k_zpx:
     case k_abs_dyn:
     case k_zpg_dyn:
       /* mov [rdx + p_mem], al */
@@ -3437,28 +3390,28 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     return;
   }
 
-  /* Bail unless it's a fault writing the read-only ROM region. */
-  if (p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr + k_bbc_ram_size ||
-      p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
-                k_bbc_addr_space_size) {
+  /* Bail unless it's a fault writing the restricted ROM region. */
+  if (p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom_ro ||
+      p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
+                                          k_bbc_addr_space_size) {
     sigsegv_reraise();
   }
 
   /* Crash if it's in the registers region. */
-  if (p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
-                k_bbc_registers_start &&
-      p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr +
-               k_bbc_registers_start +
-               k_bbc_registers_len) {
+  if (p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
+                                          k_bbc_registers_start &&
+      p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
+                                         k_bbc_registers_start +
+                                         k_bbc_registers_len) {
     sigsegv_reraise();
   }
 
   /* Ok, it's a write fault in the ROM region. We can continue.
    * To continue, we need to bump rip along!
    */
-  /* STA ($xx),Y */ /* mov [rcx + rdx], al */
-  if (p_rip[0] == 0x88 && p_rip[1] == 0x04 && p_rip[2] == 0x0a) {
-    rip_inc = 3;
+  /* STA ($xx),Y */ /* mov [rcx + rdx + offset], al */
+  if (p_rip[0] == 0x88 && p_rip[1] == 0x84 && p_rip[2] == 0x11) {
+    rip_inc = 7;
   } else {
     sigsegv_reraise();
   }
@@ -3603,6 +3556,7 @@ jit_create(void* p_debug_callback,
   util_make_mapping_read_only(p_jit->p_semaphores, k_semaphores_size);
 
   p_jit->p_mem = p_mem;
+  p_jit->dummy_rom_offset = k_bbc_mem_mmap_addr_dummy_rom - k_bbc_mem_mmap_addr;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
   p_jit->p_tables_base = p_tables_base;
@@ -3623,9 +3577,6 @@ jit_create(void* p_debug_callback,
   jit_set_flag(p_jit, k_jit_flag_dynamic_operand);
   jit_set_flag(p_jit, k_jit_flag_batch_ops);
   jit_set_flag(p_jit, k_jit_flag_elim_nz_flag_tests);
-  if (strstr(p_opt_flags, "jit:no-rom-fault")) {
-    jit_set_flag(p_jit, k_jit_flag_no_rom_fault);
-  }
   if (strstr(p_opt_flags, "jit:self-mod-all")) {
     jit_set_flag(p_jit, k_jit_flag_self_modifying_all);
   }

@@ -13,6 +13,7 @@ void util_make_mapping_read_only(void* p_addr, size_t size);
 void util_make_mapping_read_write(void* p_addr, size_t size);
 void util_make_mapping_read_write_exec(void* p_addr, size_t size);
 void util_make_mapping_none(void* p_addr, size_t size);
+void* util_get_fixed_anonymous_mapping(void* p_addr, size_t size);
 
 /* Buffer. */
 struct util_buffer;

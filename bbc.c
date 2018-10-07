@@ -58,6 +58,7 @@ struct bbc_struct {
 
   size_t time_in_us;
   unsigned char* p_mem;
+  unsigned char* p_mem_dummy_rom;
   struct video_struct* p_video;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -117,6 +118,18 @@ bbc_create(unsigned char* p_os_rom,
           (unsigned char*) (size_t) k_bbc_mem_mmap_addr,
           k_bbc_addr_space_size);
 
+  p_bbc->p_mem_dummy_rom =
+      util_get_guarded_mapping_from_fd(
+          mem_fd,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom,
+          k_bbc_addr_space_size);
+  /* Install the dummy rom. */
+  (void) util_get_fixed_anonymous_mapping(
+      p_bbc->p_mem_dummy_rom + k_bbc_ram_size,
+      k_bbc_addr_space_size - k_bbc_ram_size);
+  /* Make the registers page inaccessible. Typical ROM faults happen lower. */
+  util_make_mapping_none(p_bbc->p_mem_dummy_rom + 0xf000, 4096);
+
   ret = close(mem_fd);
   if (ret != 0) {
     errx(1, "close failed");
@@ -164,6 +177,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
   util_free_guarded_mapping(p_bbc->p_mem, k_bbc_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_bbc_addr_space_size);
   free(p_bbc);
 }
 
@@ -285,7 +299,6 @@ bbc_memory_write(struct bbc_struct* p_bbc,
     util_make_mapping_read_only(p_mem + k_bbc_ram_size,
                                 k_bbc_addr_space_size - k_bbc_ram_size);
   }
-
 
   jit_memory_written(p_jit, addr_6502);
 }

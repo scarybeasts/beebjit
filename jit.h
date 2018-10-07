@@ -13,10 +13,9 @@ enum {
   k_jit_flag_merge_ops = 1,
   k_jit_flag_self_modifying_abs = 2,
   k_jit_flag_dynamic_operand = 4,
-  k_jit_flag_no_rom_fault = 8,
-  k_jit_flag_self_modifying_all = 16,
-  k_jit_flag_batch_ops = 32,
-  k_jit_flag_elim_nz_flag_tests = 64,
+  k_jit_flag_self_modifying_all = 8,
+  k_jit_flag_batch_ops = 16,
+  k_jit_flag_elim_nz_flag_tests = 32,
 };
 
 struct jit_struct* jit_create(void* p_debug_callback,

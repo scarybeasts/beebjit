@@ -670,6 +670,10 @@ main(int argc, const char* argv[]) {
 
   /* Test writing to ROM memory. */
   index = set_new_index(index, 0x580);
+  p_mem[index++] = 0xa2; /* LDX #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa0; /* LDY #$00 */
+  p_mem[index++] = 0x00;
   p_mem[index++] = 0xa9; /* LDA #$39 */
   p_mem[index++] = 0x39;
   p_mem[index++] = 0x85; /* STA $02 */
@@ -694,6 +698,16 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x81; /* STA ($02,X) */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0xa9; /* LDA #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x85; /* STA $02 */
+  p_mem[index++] = 0x02;
+  p_mem[index++] = 0x85; /* STA $03 */
+  p_mem[index++] = 0x03;
+  p_mem[index++] = 0x91; /* STA ($02),Y */
+  p_mem[index++] = 0x02;
   p_mem[index++] = 0x4c; /* JMP $C5C0 */
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc5;

@@ -89,6 +89,25 @@ util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size) {
   return p_map;
 }
 
+void*
+util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
+  void* p_map = mmap(p_addr,
+                     size,
+                     PROT_READ | PROT_WRITE,
+                     MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
+                     -1,
+                     0);
+  if (p_map == MAP_FAILED) {
+    errx(1, "mmap failed");
+  }
+
+  if (p_map != p_addr) {
+    errx(1, "mmap in wrong location");
+  }
+
+  return p_map;
+}
+
 void
 util_free_guarded_mapping(void* p_addr, size_t size) {
   char* p_map = p_addr - k_guard_size;

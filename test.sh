@@ -11,7 +11,6 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c
 
 ./6502jit -t
 ./6502jit -os test.rom -lang '' -opt jit:self-mod-all
-./6502jit -os test.rom -lang '' -opt jit:self-mod-all,jit:no-rom-fault
 ./6502jit -os test.rom -lang '' -opt jit:self-mod-all -d -r
 
 echo 'All is well!'
