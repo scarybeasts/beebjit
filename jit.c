@@ -3558,22 +3558,25 @@ jit_create(void* p_debug_callback,
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
       k_jit_addr,
-      k_bbc_addr_space_size * k_jit_bytes_per_byte,
-      1);
+      k_bbc_addr_space_size * k_jit_bytes_per_byte);
+  util_make_mapping_read_write_exec(
+      p_jit_base,
+      k_bbc_addr_space_size * k_jit_bytes_per_byte);
 
   p_jit->reg_x_ebx = (unsigned int) (size_t) p_mem;
   p_jit->reg_y_ecx = (unsigned int) (size_t) p_mem;
   p_jit->reg_s_esi = ((unsigned int) (size_t) p_mem) + 0x100;
 
   /* This is the mapping that holds static little runtime code gadgets. */
-  p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size, 1);
+  p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size);
+  util_make_mapping_read_write_exec(p_utils_base, k_utils_size);
   p_util_debug = p_utils_base + k_utils_debug_offset;
   p_util_regs = p_utils_base + k_utils_regs_offset;
   p_util_jit = p_utils_base + k_utils_jit_offset;
   p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
 
   /* This is the mapping that holds runtime tables used by JIT code. */
-  p_tables_base = util_get_guarded_mapping(k_tables_addr, k_tables_size, 0);
+  p_tables_base = util_get_guarded_mapping(k_tables_addr, k_tables_size);
   for (i = 0; i < 256; ++i) {
     uint16_t addr_6502 = (i << 8);
     unsigned int* p_table_entry = (unsigned int*) (p_tables_base + (i * 4));
@@ -3596,8 +3599,7 @@ jit_create(void* p_debug_callback,
    * interruption.
    */
   p_jit->p_semaphores = util_get_guarded_mapping(k_semaphores_addr,
-                                                 k_semaphores_size,
-                                                 0);
+                                                 k_semaphores_size);
   util_make_mapping_read_only(p_jit->p_semaphores, k_semaphores_size);
 
   p_jit->p_mem = p_mem;

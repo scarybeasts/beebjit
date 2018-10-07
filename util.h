@@ -5,10 +5,13 @@
 #include <unistd.h>
 
 /* Memory mapping. */
-void* util_get_guarded_mapping(void* p_addr, size_t size, int is_exec);
+int util_get_memory_fd(size_t size);
+void* util_get_guarded_mapping(void* p_addr, size_t size);
+void* util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size);
 void util_free_guarded_mapping(void* p_addr, size_t size);
 void util_make_mapping_read_only(void* p_addr, size_t size);
 void util_make_mapping_read_write(void* p_addr, size_t size);
+void util_make_mapping_read_write_exec(void* p_addr, size_t size);
 void util_make_mapping_none(void* p_addr, size_t size);
 
 /* Buffer. */

@@ -82,6 +82,7 @@ bbc_create(unsigned char* p_os_rom,
   struct debug_struct* p_debug;
   int pipefd[2];
   int ret;
+  int mem_fd;
 
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -105,10 +106,21 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
+  mem_fd = util_get_memory_fd(k_bbc_addr_space_size);
+  if (mem_fd < 0) {
+    errx(1, "util_get_memory_fd failed");
+  }
+
   p_bbc->p_mem =
-      util_get_guarded_mapping((unsigned char*) (size_t) k_bbc_mem_mmap_addr,
-                               k_bbc_addr_space_size,
-                               0);
+      util_get_guarded_mapping_from_fd(
+          mem_fd,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_addr,
+          k_bbc_addr_space_size);
+
+  ret = close(mem_fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
