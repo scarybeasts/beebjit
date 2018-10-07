@@ -76,6 +76,12 @@ enum {
   k_set = 4,
 };
 
+enum {
+  k_flag_unknown = 1,
+  k_flag_set = 2,
+  k_flag_clear = 3,
+};
+
 /* k_a: PLA, TXA, TYA, LDA */
 /* k_x: LDX, TAX, TSX */
 /* k_y: LDY, TAY */
@@ -1664,7 +1670,11 @@ jit_single(struct jit_struct* p_jit,
            struct util_buffer* p_buf,
            uint16_t addr_6502,
            size_t max_6502_bytes,
-           int dynamic_operand) {
+           int dynamic_operand,
+           int curr_carry_flag) {
+  uint16_t opcode_addr_6502;
+  uint16_t opcode_addr_6502_upper_range;
+
   unsigned int jit_flags = p_jit->jit_flags;
   unsigned char* p_mem = p_jit->p_mem;
   unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
@@ -1685,10 +1695,8 @@ jit_single(struct jit_struct* p_jit,
   size_t index = util_buffer_get_pos(p_buf);
   size_t num_6502_bytes = oplen;
   size_t n_count = 1;
-
-  uint16_t opcode_addr_6502;
-  uint16_t opcode_addr_6502_upper_range;
   int special = 0;
+  unsigned char intel_opcode_base;
 
   if (oplen < 3) {
     /* Clear operand2 if we're not using it. This enables us to re-use the
@@ -2129,14 +2137,21 @@ printf("ooh\n");
     break;
   case k_adc:
     /* ADC */
-    index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
+    if (curr_carry_flag != k_flag_clear) {
+      index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
+      /* adc */
+      intel_opcode_base = 0x12;
+    } else {
+      /* add */
+      intel_opcode_base = 0x02;
+    }
     index = jit_emit_calc_op(p_jit,
                              p_jit_buf,
                              index,
                              opmode,
                              opcode_addr_6502,
                              special,
-                             0x12);
+                             intel_opcode_base);
     index = jit_emit_intel_to_6502_co(p_jit_buf, index);
     break;
   case k_ror:
@@ -2721,16 +2736,23 @@ printf("ooh\n");
     break;
   case k_sbc:
     /* SBC */
-    index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
-    /* cmc */
-    p_jit_buf[index++] = 0xf5;
+    if (curr_carry_flag != k_flag_set) {
+      index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
+      /* cmc */
+      p_jit_buf[index++] = 0xf5;
+      /* sbb */
+      intel_opcode_base = 0x1a;
+    } else {
+      /* sub */
+      intel_opcode_base = 0x2a;
+    }
     index = jit_emit_calc_op(p_jit,
                              p_jit_buf,
                              index,
                              opmode,
                              opcode_addr_6502,
                              special,
-                             0x1a);
+                             intel_opcode_base);
     index = jit_emit_intel_to_6502_sub_co(p_jit_buf, index);
     break;
   case k_nop:
@@ -2926,6 +2948,7 @@ jit_at_addr(struct jit_struct* p_jit,
   size_t total_6502_bytes = 0;
   uint16_t start_addr_6502 = addr_6502;
   unsigned char curr_nz_flags = 0;
+  int curr_carry_flag = k_flag_unknown;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
@@ -3082,7 +3105,8 @@ jit_at_addr(struct jit_struct* p_jit,
                                 p_single_buf,
                                 addr_6502,
                                 max_6502_bytes,
-                                dynamic_operand);
+                                dynamic_operand,
+                                curr_carry_flag);
     assert(num_6502_bytes > 0);
     assert(num_6502_bytes < k_max_6502_bytes);
 
@@ -3133,6 +3157,14 @@ jit_at_addr(struct jit_struct* p_jit,
       /* Nothing. nz flags status unaffected by opcode. */
     } else {
       curr_nz_flags = new_nz_flags;
+    }
+
+    if (optype == k_clc) {
+      curr_carry_flag = k_flag_clear;
+    } else if (optype == k_sec) {
+      curr_carry_flag = k_flag_set;
+    } else if (g_optype_changes_carry[optype]) {
+      curr_carry_flag = k_flag_unknown;
     }
 
     total_6502_bytes += num_6502_bytes;

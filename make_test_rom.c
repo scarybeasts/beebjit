@@ -43,7 +43,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
   p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$ff */ /* Set all flags upon the PLP. */
+  p_mem[index++] = 0xa9; /* LDA #$FF */ /* Set all flags upon the PLP. */
   p_mem[index++] = 0xff;
   p_mem[index++] = 0x8d; /* STA $0100 */
   p_mem[index++] = 0x00;
@@ -60,7 +60,7 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0x01;
   p_mem[index++] = 0x28; /* PLP */
-  p_mem[index++] = 0xc9; /* CMP #$ff */
+  p_mem[index++] = 0xc9; /* CMP #$FF */
   p_mem[index++] = 0xff;
   p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
   p_mem[index++] = 0x01;
@@ -1188,7 +1188,25 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0x00;
   p_mem[index++] = 0xc9;
 
+  /* Test that the carry flag optimizations don't break anything. */
   index = set_new_index(index, 0x900);
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0xa9; /* LDA #$FF */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x69; /* ADC #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x69; /* ADC #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xc9; /* CMP #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C940 */
+  p_mem[index++] = 0x40;
+  p_mem[index++] = 0xc9;
+
+  index = set_new_index(index, 0x940);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

@@ -13,6 +13,8 @@ unsigned char g_opmodes[k_6502_op_num_opcodes];
 unsigned char g_opmodelens[k_6502_op_num_modes];
 unsigned char g_opmem[k_6502_op_num_types];
 unsigned char g_opbranch[k_6502_op_num_types];
+unsigned char g_optype_changes_carry[k_6502_op_num_types];
+unsigned char g_optype_changes_overflow[k_6502_op_num_types];
 
 enum {
   k_kil = 0,

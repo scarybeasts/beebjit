@@ -34,6 +34,28 @@ unsigned char g_opbranch[k_6502_op_num_types] = {
   k_bra_m, k_bra_n,
 };
 
+unsigned char g_optype_changes_carry[k_6502_op_num_types] = {
+  0, 0, 0, 0, 1, 0, 0, 1, /* ASL, CLC */
+  0, 0, 0, 1, 1, 0, 1, 1, /* PLP, ROL, SEC, RTI */
+  0, 1, 0, 0, 0, 0, 0, 1, /* LSR, ADC */
+  0, 1, 0, 0, 0, 0, 0, 0, /* ROR */
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 1, 1, 1, 0, /* CPY, CMP, CPX */
+  0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
+  0, 0,
+};
+
+unsigned char g_optype_changes_overflow[k_6502_op_num_types] = {
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 1, 0, 0, 0, 1, /* BIT, PLP, RTI */
+  0, 0, 0, 0, 0, 0, 0, 1, /* ADC */
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 0, 0, 0, 0, 0, /* CLV */
+  0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
+  0, 0,
+};
+
 unsigned char g_optypes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
