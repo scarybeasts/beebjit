@@ -40,6 +40,7 @@ main(int argc, const char* argv[]) {
   int slow_flag = 0;
   int test_flag = 0;
   int debug_stop_addr = 0;
+  int pc = 0;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -62,6 +63,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (strcmp(arg, "-stopat") == 0) {
         (void) sscanf(val, "%x", &debug_stop_addr);
+        ++i;
+      } else if (strcmp(arg, "-pc") == 0) {
+        (void) sscanf(val, "%x", &pc);
         ++i;
       }
     }
@@ -116,13 +120,17 @@ main(int argc, const char* argv[]) {
     errx(1, "bbc_create failed");
   }
 
-  if (load_name != NULL) {
-    state_load(p_bbc, load_name);
-  }
-
   if (test_flag) {
     test_do_tests(p_bbc);
     return 0;
+  }
+
+  if (load_name != NULL) {
+    state_load(p_bbc, load_name);
+  }
+  if (pc != 0) {
+    /* TODO: Need a more precision API, bbc_set_pc. */
+    bbc_set_registers(p_bbc, 0, 0, 0, 0, 0x04, pc);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
