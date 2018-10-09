@@ -3328,12 +3328,52 @@ jit_sync_timer_tick(struct jit_struct* p_jit) {
 }
 
 static void
-sigsegv_reraise(void) {
+jit_safe_hex_convert(unsigned char* p_buf, unsigned char* p_ptr) {
+  size_t i;
+  size_t val = (size_t) p_ptr;
+  for (i = 0; i < 8; ++i) {
+    unsigned char c1 = (val & 0x0f);
+    unsigned char c2 = ((val & 0xf0) >> 4);
+
+    if (c1 < 10) {
+      c1 = '0' + c1;
+    } else {
+      c1 = 'a' + (c1 - 10);
+    }
+    if (c2 < 10) {
+      c2 = '0' + c2;
+    } else {
+      c2 = 'a' + (c2 - 10);
+    }
+
+    p_buf[16 - 2 - (i * 2) + 1] = c1;
+    p_buf[16 - 2 - (i * 2) ] = c2;
+
+    val >>= 8;
+  }
+}
+
+static void
+sigsegv_reraise(unsigned char* p_rip, unsigned char* p_addr) {
   struct sigaction sa;
+  unsigned char hex_buf[16];
+
+  static const char* p_msg = "SIGSEGV: rip ";
+  static const char* p_msg2 = ", addr ";
+  static const char* p_msg3 = "\n";
 
   memset(&sa, '\0', sizeof(sa));
   sa.sa_handler = SIG_DFL;
   (void) sigaction(SIGSEGV, &sa, NULL);
+
+  (void) write(2, p_msg, strlen(p_msg));
+  jit_safe_hex_convert(&hex_buf[0], p_rip);
+  (void) write(2, hex_buf, sizeof(hex_buf));
+  (void) write(2, p_msg2, strlen(p_msg2));
+  jit_safe_hex_convert(&hex_buf[0], p_addr);
+  (void) write(2, hex_buf, sizeof(hex_buf));
+  (void) write(2, p_msg3, strlen(p_msg3));
+
   (void) raise(SIGSEGV);
   _exit(1);
 }
@@ -3428,14 +3468,14 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   /* Crash unless it's fault we clearly recognize. */
   if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
-    sigsegv_reraise();
+    sigsegv_reraise(p_rip, p_addr);
   }
 
-  /* Crash unless the faulting instruction in the JIT region. */
+  /* Crash unless the faulting instruction is in the JIT region. */
   if (p_rip < (unsigned char*) k_jit_addr ||
       p_rip >= (unsigned char*) k_jit_addr +
                (k_bbc_addr_space_size << k_jit_bytes_shift)) {
-    sigsegv_reraise();
+    sigsegv_reraise(p_rip, p_addr);
   }
 
   /* Handle the start-of-block semaphore fault. */
@@ -3453,7 +3493,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   if (p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom_ro ||
       p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
                                           k_bbc_addr_space_size) {
-    sigsegv_reraise();
+    sigsegv_reraise(p_rip, p_addr);
   }
 
   /* Crash if it's in the registers region. */
@@ -3462,7 +3502,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
                                          k_bbc_registers_start +
                                          k_bbc_registers_len) {
-    sigsegv_reraise();
+    sigsegv_reraise(p_rip, p_addr);
   }
 
   /* Ok, it's a write fault in the ROM region. We can continue.
@@ -3472,7 +3512,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   if (p_rip[0] == 0x88 && p_rip[1] == 0x84 && p_rip[2] == 0x11) {
     rip_inc = 7;
   } else {
-    sigsegv_reraise();
+    sigsegv_reraise(p_rip, p_addr);
   }
 
   p_context->uc_mcontext.gregs[REG_RIP] += rip_inc;
