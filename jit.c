@@ -73,8 +73,11 @@ enum {
   k_a = 1,
   k_x = 2,
   k_y = 3,
+  /* In host CPU flags. */
   k_flags = 4,
-  k_register = 5,
+  /* In host CPU flags, but inverted (used for carry, think SBC vc. sbb). */
+  k_finv = 5,
+  k_reg = 6,
 };
 
 enum {
@@ -88,7 +91,7 @@ enum {
 /* k_y: LDY, TAY */
 static const unsigned char g_nz_flags_location[58] = {
   0      , 0      , 0      , k_flags, k_flags, 0      , 0      , 0      ,
-  0      , k_flags, k_flags, k_flags, k_flags, 0      , 0      , 0      ,
+  0      , k_flags, k_flags, k_flags, k_flags, 0      , 0      , k_flags,
   k_flags, k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
   k_a    , k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
   k_a    , 0      , k_a    , 0      , k_y    , k_a    , k_x    , k_y    ,
@@ -106,6 +109,48 @@ static const unsigned char g_nz_flags_needed[58] = {
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
   0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
   1, 0,                   /* BEQ */
+};
+
+/* k_reg: CLC, PLP, ROL, SEC, RTI, ROR */
+/* k_flags: ASL, LSR, ADC */
+/* k_finv: CPY, CMP, CPX, SBC */
+static const unsigned char g_carry_flag_location[58] = {
+  0      , 0      , 0      , 0      , k_flags, 0      , 0      , k_reg  ,
+  0      , 0      , 0      , k_reg  , k_reg  , 0      , k_reg  , k_reg  ,
+  0      , k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
+  0      , k_reg  , 0      , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , 0      , 0      , k_finv , k_finv , k_finv , 0      ,
+  0      , 0      , 0      , 0      , k_finv , 0      , 0      , 0      ,
+  0      , 0      ,
+};
+
+/* TODO: BIT trashing carry is just an internal wart to fix. */
+/* This table tracks which 6502 opcodes need us to have the carry flag safely
+ * stored in a register.
+ * ORA / AND / EOR may be surprising at first but the underlying Intel
+ * instructions do not preserve the Intel carry flag.
+ */
+static const unsigned char g_carry_flag_needed_in_reg[58] = {
+  0, 0, 1, 1, 0, 1, 1, 0, /* BRK, ORA, PHP, BPL */
+  1, 1, 1, 0, 0, 1, 0, 0, /* JSR, AND, BIT, BMI */
+  1, 0, 0, 1, 1, 1, 1, 0, /* EOR, JMP, BVC, CLI, RTS */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BVS */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
+  1, 0,                   /* BEQ */
+};
+
+static const unsigned char g_inverted_carry_flag_used[58] = {
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 1, 1, 1, 0, /* CPY, CMP, CPX */
+  0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
+  0, 0,
 };
 
 struct jit_struct {
@@ -178,7 +223,7 @@ jit_emit_int(unsigned char* p_jit_buf, size_t index, ssize_t offset) {
 }
 
 static size_t
-jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
+jit_emit_intel_to_6502_carry_oldapi(unsigned char* p_jit, size_t index) {
   /* setb r14b */
   p_jit[index++] = 0x41;
   p_jit[index++] = 0x0f;
@@ -188,15 +233,16 @@ jit_emit_intel_to_6502_carry(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static size_t
-jit_emit_intel_to_6502_sub_carry(unsigned char* p_jit, size_t index) {
-  /* setae r14b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x93;
-  p_jit[index++] = 0xc6;
+static void
+jit_emit_intel_to_6502_carry(struct util_buffer* p_buf) {
+  /* setb r14b */
+  util_buffer_add_4b(p_buf, 0x41, 0x0f, 0x92, 0xc6);
+}
 
-  return index;
+static void
+jit_emit_intel_to_6502_carry_inverted(struct util_buffer* p_buf) {
+  /* setae r14b */
+  util_buffer_add_4b(p_buf, 0x41, 0x0f, 0x93, 0xc6);
 }
 
 static size_t
@@ -221,52 +267,25 @@ jit_emit_carry_to_6502_overflow(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static size_t
-jit_emit_do_zn_flags(unsigned char* p_jit, size_t index, int reg) {
+static void
+jit_emit_do_zn_flags(struct util_buffer* p_buf, int reg) {
   assert(reg >= 0 && reg <= 2);
   if (reg == 0) {
     /* test al, al */
-    p_jit[index++] = 0x84;
-    p_jit[index++] = 0xc0;
+    util_buffer_add_2b(p_buf, 0x84, 0xc0);
   } else if (reg == 1) {
     /* test bl, bl */
-    p_jit[index++] = 0x84;
-    p_jit[index++] = 0xdb;
+    util_buffer_add_2b(p_buf, 0x84, 0xdb);
   } else if (reg == 2) {
     /* test cl, cl */
-    p_jit[index++] = 0x84;
-    p_jit[index++] = 0xc9;
+    util_buffer_add_2b(p_buf, 0x84, 0xc9);
   }
-
-  return index;
 }
 
-static size_t
-jit_emit_intel_to_6502_co(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_carry(p_jit, index);
-  index = jit_emit_intel_to_6502_overflow(p_jit, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_intel_to_6502_sub_co(unsigned char* p_jit, size_t index) {
-  index = jit_emit_intel_to_6502_sub_carry(p_jit, index);
-  index = jit_emit_intel_to_6502_overflow(p_jit, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_6502_carry_to_intel(unsigned char* p_jit, size_t index) {
+static void
+jit_emit_6502_carry_to_intel(struct util_buffer* p_buf) {
   /* bt r14, 0 */
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xba;
-  p_jit[index++] = 0xe6;
-  p_jit[index++] = 0x00;
-
-  return index;
+  util_buffer_add_5b(p_buf, 0x49, 0x0f, 0xba, 0xe6, 0x00);
 }
 
 static size_t
@@ -277,11 +296,6 @@ jit_emit_set_carry(unsigned char* p_jit, size_t index, unsigned char val) {
   p_jit[index++] = val;
 
   return index;
-}
-
-static size_t
-jit_emit_test_carry(unsigned char* p_jit, size_t index) {
-  return jit_emit_6502_carry_to_intel(p_jit, index);
 }
 
 static size_t
@@ -752,7 +766,7 @@ jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
 static size_t
 jit_emit_set_flags(unsigned char* p_jit_buf, size_t index) {
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 0);
-  index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
+  index = jit_emit_intel_to_6502_carry_oldapi(p_jit_buf, index);
   index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
   index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
   /* I and D flags */
@@ -842,7 +856,9 @@ jit_emit_undefined(unsigned char* p_jit,
 
 static size_t
 jit_emit_save_registers(unsigned char* p_jit, size_t index) {
-  /* The flags we need to save are negative and zero, both covered by lahf. */
+  /* The flags we need to save are negative, zero and carry, all covered by
+   * lahf.
+   */
   /* lahf */
   p_jit[index++] = 0x9f;
   /* No need to push rdx because it is a scratch registers. */
@@ -1366,7 +1382,14 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
                      unsigned char opmode,
                      int special,
                      uint16_t opcode_addr_6502) {
-  index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
+  if (opmode == k_nil) {
+    /* Nothing. The NZ flags are now in the accumulator and we have the
+     * machinery to pull them out if they are needed. The carry flag remains
+     * in the processor carry flag.
+     */
+    return index;
+  }
+  index = jit_emit_intel_to_6502_carry_oldapi(p_jit_buf, index);
   if (special) {
     /* test dl, dl */
     p_jit_buf[index++] = 0x84;
@@ -1374,11 +1397,6 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     return index;
   }
   switch (opmode) {
-  case k_nil:
-    /* Nothing. The ZN flags are now in the accumulator and we have the
-     * machinery to pull them out if they are needed.
-     */
-    break;
   case k_zpg:
   case k_abs:
     /* test BYTE PTR [p_mem + addr], 0xff */
@@ -1915,7 +1933,6 @@ printf("ooh\n");
                               special,
                               0xe0,
                               n_count);
-    index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
     break;
   case k_php:
     /* PHP */
@@ -2020,7 +2037,6 @@ printf("ooh\n");
     break;
   case k_rol:
     /* ROL */
-    index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
     index = jit_emit_shift_op(p_jit,
                               p_jit_buf,
                               index,
@@ -2076,7 +2092,6 @@ printf("ooh\n");
                               special,
                               0xe8,
                               n_count);
-    index = jit_emit_intel_to_6502_carry(p_jit_buf, index);
     break;
   case k_pha:
     /* PHA */
@@ -2140,7 +2155,6 @@ printf("ooh\n");
   case k_adc:
     /* ADC */
     if (curr_carry_flag != k_flag_clear) {
-      index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
       /* adc */
       intel_opcode_base = 0x12;
     } else {
@@ -2154,11 +2168,10 @@ printf("ooh\n");
                              opcode_addr_6502,
                              special,
                              intel_opcode_base);
-    index = jit_emit_intel_to_6502_co(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_overflow(p_jit_buf, index);
     break;
   case k_ror:
     /* ROR */
-    index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
     index = jit_emit_shift_op(p_jit,
                               p_jit_buf,
                               index,
@@ -2340,7 +2353,6 @@ printf("ooh\n");
     break;
   case k_bcc:
     /* BCC */
-    index = jit_emit_test_carry(p_jit_buf, index);
     /* jae / jnc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
@@ -2533,7 +2545,6 @@ printf("ooh\n");
     break;
   case k_bcs:
     /* BCS */
-    index = jit_emit_test_carry(p_jit_buf, index);
     /* jb / jc */
     util_buffer_set_pos(p_buf, index);
     index = jit_emit_jmp_6502_addr(p_jit,
@@ -2579,7 +2590,6 @@ printf("ooh\n");
       assert(0);
       break;
     }
-    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_cmp:
     /* CMP */
@@ -2590,7 +2600,6 @@ printf("ooh\n");
                              opcode_addr_6502,
                              special,
                              0x3a);
-    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_dec:
     /* DEC */
@@ -2671,7 +2680,6 @@ printf("ooh\n");
       assert(0);
       break;
     }
-    index = jit_emit_intel_to_6502_sub_carry(p_jit_buf, index);
     break;
   case k_inc:
     /* INC */
@@ -2693,9 +2701,6 @@ printf("ooh\n");
   case k_sbc:
     /* SBC */
     if (curr_carry_flag != k_flag_set) {
-      index = jit_emit_6502_carry_to_intel(p_jit_buf, index);
-      /* cmc */
-      p_jit_buf[index++] = 0xf5;
       /* sbb */
       intel_opcode_base = 0x1a;
     } else {
@@ -2709,7 +2714,7 @@ printf("ooh\n");
                              opcode_addr_6502,
                              special,
                              intel_opcode_base);
-    index = jit_emit_intel_to_6502_sub_co(p_jit_buf, index);
+    index = jit_emit_intel_to_6502_overflow(p_jit_buf, index);
     break;
   case k_nop:
     /* NOP */
@@ -2905,9 +2910,11 @@ jit_at_addr(struct jit_struct* p_jit,
   uint16_t start_addr_6502 = addr_6502;
   int curr_nz_flags_location = k_flags;
   int curr_carry_flag_value = k_flag_unknown;
+  int curr_carry_flag_location = k_reg;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
+  int elim_carry_flag_tests = 1;
   int log_self_modify = 0;
   int is_compilation_pending = 0;
   int has_code = 0;
@@ -2918,7 +2925,6 @@ jit_at_addr(struct jit_struct* p_jit,
   int is_size_stop = 0;
   int is_jump_stop = 0;
   int is_block_stop = 0;
-  unsigned char* p_jit_buf = util_buffer_get_ptr(p_buf);
   struct util_buffer* p_single_buf = p_jit->p_single_buf;
   unsigned int jit_flags = p_jit->jit_flags;
   unsigned int log_flags = p_jit->log_flags;
@@ -2977,6 +2983,7 @@ jit_at_addr(struct jit_struct* p_jit,
     size_t intel_opcodes_len;
     size_t buf_left;
     int new_nz_flags_location;
+    int new_carry_flag_location;
     size_t num_6502_bytes;
     size_t i;
     size_t max_6502_bytes;
@@ -3004,11 +3011,13 @@ jit_at_addr(struct jit_struct* p_jit,
     optype = g_optypes[opcode_6502];
     opmode = g_opmodes[opcode_6502];
     new_nz_flags_location = g_nz_flags_location[optype];
+    new_carry_flag_location = g_carry_flag_location[optype];
     /* Special case: the nil mode for ROL / ROR also doesn't test the
      * flags immediately as an optimization.
      */
     if ((optype == k_rol || optype == k_ror) && opmode == k_nil) {
       new_nz_flags_location = k_a;
+      new_carry_flag_location = k_flags;
     }
 
     /* If we're compiling the same opcode on top of an existing invalidated
@@ -3063,6 +3072,29 @@ jit_at_addr(struct jit_struct* p_jit,
       }
     }
 
+    /* If the carry flag is consumed by this opcode, make sure to pull it from
+     * the register to the processor flag.
+     */
+    if (g_optype_uses_carry[optype]) {
+      int is_inverted = 0;
+      if (curr_carry_flag_location == k_finv) {
+        is_inverted = 1;
+      }
+      if (curr_carry_flag_location == k_reg) {
+        jit_emit_6502_carry_to_intel(p_single_buf);
+        curr_carry_flag_location = k_flags;
+      }
+      if (is_inverted ^ g_inverted_carry_flag_used[optype]) {
+        /* cmc */
+        util_buffer_add_1b(p_single_buf, 0xf5);
+        if (is_inverted) {
+          curr_carry_flag_location = k_flags;
+        } else {
+          curr_carry_flag_location = k_finv;
+        }
+      }
+    }
+
     num_6502_bytes = jit_single(p_jit,
                                 p_single_buf,
                                 addr_6502,
@@ -3075,7 +3107,27 @@ jit_at_addr(struct jit_struct* p_jit,
     opcode_6502_next = jit_get_opcode(p_jit, addr_6502 + num_6502_bytes);
     optype_next = g_optypes[opcode_6502_next];
 
-    /* See if we need to load the 6502 NZ flags. */
+    /* See if we need to sync the C flag from host flag to host register. */
+    if ((g_carry_flag_needed_in_reg[optype_next] ||
+         emit_debug ||
+         !elim_carry_flag_tests) &&
+        new_carry_flag_location != k_reg) {
+      int commit_carry_flag_location = 0;
+      if (new_carry_flag_location != 0) {
+        commit_carry_flag_location = new_carry_flag_location;
+      } else if (curr_carry_flag_location != k_reg) {
+        commit_carry_flag_location = curr_carry_flag_location;
+      }
+      if (commit_carry_flag_location == k_flags) {
+        jit_emit_intel_to_6502_carry(p_single_buf);
+        new_carry_flag_location = k_reg;
+      } else if (commit_carry_flag_location == k_finv) {
+        jit_emit_intel_to_6502_carry_inverted(p_single_buf);
+        new_carry_flag_location = k_reg;
+      }
+    }
+
+    /* See if we need to sync the NZ flags from 6502 register to host flags. */
     if ((g_nz_flags_needed[optype_next] || emit_debug || !elim_nz_flag_tests) &&
         new_nz_flags_location != k_flags) {
       int commit_nz_flags_location = 0;
@@ -3085,11 +3137,8 @@ jit_at_addr(struct jit_struct* p_jit,
         commit_nz_flags_location = curr_nz_flags_location;
       }
       if (commit_nz_flags_location != 0) {
-        size_t index = util_buffer_get_pos(p_single_buf);
-        index = jit_emit_do_zn_flags(single_jit_buf,
-                                     index,
-                                     commit_nz_flags_location - 1);
-        util_buffer_set_pos(p_single_buf, index);
+        jit_emit_do_zn_flags(p_single_buf, commit_nz_flags_location - 1);
+        new_nz_flags_location = k_flags;
       }
     }
 
@@ -3101,7 +3150,8 @@ jit_at_addr(struct jit_struct* p_jit,
 
     buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
-    if (buf_left < intel_opcodes_len + 2 + 4 + 4 + 5 ||
+    /* 4 for carry flag sync, 2 for NZ flag sync, 5 for jump. */
+    if (buf_left < intel_opcodes_len + 4 + 2 + 5 ||
         total_num_ops == max_num_ops) {
       p_jit->compilation_pending[addr_6502] = 1;
       is_size_stop = 1;
@@ -3116,6 +3166,12 @@ jit_at_addr(struct jit_struct* p_jit,
       /* Nothing. nz flags status unaffected by opcode. */
     } else {
       curr_nz_flags_location = new_nz_flags_location;
+    }
+
+    if (new_carry_flag_location == 0) {
+      /* Nothing. Carry flag status unaffected by opcode. */
+    } else {
+      curr_carry_flag_location = new_carry_flag_location;
     }
 
     if (optype == k_clc) {
@@ -3204,11 +3260,16 @@ jit_at_addr(struct jit_struct* p_jit,
     return;
   }
 
-  /* See if we need to lazy load the 6502 NZ flags. */
+  /* See if we need to lazy sync the 6502 carry flag. */
+  if (curr_carry_flag_location == k_flags) {
+    jit_emit_intel_to_6502_carry(p_buf);
+  } else if (curr_carry_flag_location == k_finv) {
+    jit_emit_intel_to_6502_carry_inverted(p_buf);
+  }
+
+  /* See if we need to lazy sync the 6502 NZ flags. */
   if (curr_nz_flags_location != k_flags) {
-    size_t index = util_buffer_get_pos(p_buf);
-    index = jit_emit_do_zn_flags(p_jit_buf, index, curr_nz_flags_location - 1);
-    util_buffer_set_pos(p_buf, index);
+    jit_emit_do_zn_flags(p_buf, curr_nz_flags_location - 1);
   }
 
   (void) jit_emit_jmp_6502_addr(p_jit,

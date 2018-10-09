@@ -1242,7 +1242,38 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xff;
   p_mem[index++] = 0x60; /* RTS */
 
+  /* Give the carry flag tracking logic a good workout. */
   index = set_new_index(index, 0x980);
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0xa9; /* LDA #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x4a; /* LSR */
+  p_mem[index++] = 0x69; /* ADC #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x69; /* ADC #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xaa; /* TAX */
+  p_mem[index++] = 0xe8; /* INX */
+  p_mem[index++] = 0x2a; /* ROL */
+  p_mem[index++] = 0xe9; /* SBC #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x6a; /* ROR */
+  p_mem[index++] = 0xa8; /* TAY */
+  p_mem[index++] = 0xe0; /* CPX #$04 */
+  p_mem[index++] = 0x04;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xc0; /* CPY #$82 */
+  p_mem[index++] = 0x82;
+  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $C9C0 */
+  p_mem[index++] = 0xc0;
+  p_mem[index++] = 0xc9;
+
+  index = set_new_index(index, 0x9c0);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

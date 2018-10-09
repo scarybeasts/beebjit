@@ -34,6 +34,17 @@ unsigned char g_opbranch[k_6502_op_num_types] = {
   k_bra_m, k_bra_n,
 };
 
+unsigned char g_optype_uses_carry[k_6502_op_num_types] = {
+  0, 0, 0, 0, 0, 1, 0, 0, /* PHP */
+  0, 0, 0, 0, 1, 0, 0, 0, /* ROL */
+  0, 0, 0, 0, 0, 0, 0, 1, /* ADC */
+  0, 1, 0, 0, 0, 0, 0, 0, /* ROR */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
+  0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
+  0, 0,
+};
+
 unsigned char g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 1, 0, 0, 1, /* ASL, CLC */
   0, 0, 0, 1, 1, 0, 1, 1, /* PLP, ROL, SEC, RTI */
