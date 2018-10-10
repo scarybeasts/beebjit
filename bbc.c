@@ -234,12 +234,6 @@ bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
   return jit_block_from_6502(p_jit, reg_pc);
 }
 
-void
-bbc_check_pc(struct bbc_struct* p_bbc) {
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  jit_check_pc(p_jit);
-}
-
 struct via_struct*
 bbc_get_sysvia(struct bbc_struct* p_bbc) {
   return p_bbc->p_system_via;
