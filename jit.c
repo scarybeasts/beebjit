@@ -3103,12 +3103,29 @@ jit_at_addr(struct jit_struct* p_jit,
       if (effective_carry_flag_location == k_finv) {
         is_inverted = 1;
       }
-      if (effective_carry_flag_location == k_reg) {
-        jit_emit_6502_carry_to_intel(p_single_buf);
-      }
-      if (is_inverted ^ g_inverted_carry_flag_used[optype]) {
-        /* cmc */
-        util_buffer_add_1b(p_single_buf, 0xf5);
+      if (curr_carry_flag_value != k_flag_unknown) {
+        int value = 1;
+        if (curr_carry_flag_value == k_flag_clear) {
+          value = 0;
+        }
+        if (g_inverted_carry_flag_used[optype]) {
+          value ^= 1;
+        }
+        if (value) {
+          /* stc */
+          util_buffer_add_1b(p_single_buf, 0xf9);
+        } else {
+          /* clc */
+          util_buffer_add_1b(p_single_buf, 0xf8);
+        }
+      } else {
+        if (effective_carry_flag_location == k_reg) {
+          jit_emit_6502_carry_to_intel(p_single_buf);
+        }
+        if (is_inverted ^ g_inverted_carry_flag_used[optype]) {
+          /* cmc */
+          util_buffer_add_1b(p_single_buf, 0xf5);
+        }
       }
     }
 
