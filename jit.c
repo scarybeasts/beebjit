@@ -1401,6 +1401,7 @@ jit_emit_shift_op(struct jit_struct* p_jit,
     break;
   case k_zpx:
   case k_zpg_dyn:
+  case k_abs_dyn:
     /* OP BYTE PTR [rdx + p_mem], n */
     p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0x3e;
@@ -1411,6 +1412,12 @@ jit_emit_shift_op(struct jit_struct* p_jit,
     p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base - 0x3d;
     index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
+    break;
+  case k_abx_dyn:
+    /* OP BYTE PTR [rbx + rdx], n */
+    p_jit_buf[index++] = first_byte;
+    p_jit_buf[index++] = intel_op_base - 0xbc;
+    p_jit_buf[index++] = 0x13;
     break;
   default:
     assert(0);
@@ -1458,6 +1465,8 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0xff;
     break;
   case k_zpx:
+  case k_zpg_dyn:
+  case k_abs_dyn:
     /* test BYTE PTR [rdx + p_mem], 0xff */
     p_jit_buf[index++] = 0xf6;
     p_jit_buf[index++] = 0x82;
@@ -1469,6 +1478,13 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
     p_jit_buf[index++] = 0xf6;
     p_jit_buf[index++] = 0x83;
     index = jit_emit_int(p_jit_buf, index, opcode_addr_6502);
+    p_jit_buf[index++] = 0xff;
+    break;
+  case k_abx_dyn:
+    /* test BYTE PTR [rbx + rdx], 0xff */
+    p_jit_buf[index++] = 0xf6;
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x13;
     p_jit_buf[index++] = 0xff;
     break;
   default:
