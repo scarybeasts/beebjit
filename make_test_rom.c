@@ -187,112 +187,63 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Test shift / rotate instuction coalescing. */
-  index = set_new_index(index, 0x1c0);
-  p_mem[index++] = 0xa9; /* LDA #$05 */
-  p_mem[index++] = 0x05;
-  p_mem[index++] = 0x0a; /* ASL A */
-  p_mem[index++] = 0x0a; /* ASL A */
-  p_mem[index++] = 0xc9; /* CMP #$14 */
-  p_mem[index++] = 0x14;
-  p_mem[index++] = 0xf0; /* BEQ */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x38; /* SEC */
-  p_mem[index++] = 0x6a; /* ROR A */
-  p_mem[index++] = 0x6a; /* ROR A */
-  p_mem[index++] = 0x6a; /* ROR A */
-  p_mem[index++] = 0xb0; /* BCS */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xc9; /* CMP #$22 */
-  p_mem[index++] = 0x22;
-  p_mem[index++] = 0xf0; /* BEQ */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C200 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc2;
+  util_buffer_set_pos(p_buf, 0x01c0);
+  emit_LDA(p_buf, k_imm, 0x05);
+  emit_ASL(p_buf, k_nil, 0);
+  emit_ASL(p_buf, k_nil, 0);
+  emit_CMP(p_buf, k_imm, 0x14);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_SEC(p_buf);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_CMP(p_buf, k_imm, 0x22);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC200);
 
   /* Test indexed zero page addressing. */
-  index = set_new_index(index, 0x200);
-  p_mem[index++] = 0xa9; /* LDA #$FD */
-  p_mem[index++] = 0xfd;
-  p_mem[index++] = 0x85; /* STA $07 */
-  p_mem[index++] = 0x07;
-  p_mem[index++] = 0xa9; /* LDA #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x85; /* STA $08 */
-  p_mem[index++] = 0x08;
-  p_mem[index++] = 0xa2; /* LDX #$02 */
-  p_mem[index++] = 0x02;
-  p_mem[index++] = 0xb5; /* LDA $05,X */
-  p_mem[index++] = 0x05;
-  p_mem[index++] = 0xc9; /* CMP #$FD */
-  p_mem[index++] = 0xfd;
-  p_mem[index++] = 0xf0; /* BEQ */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa2; /* LDX #$D1 */
-  p_mem[index++] = 0xd1;
-  p_mem[index++] = 0xb5; /* LDA $37,X */ /* Zero page wrap. */ /* Addr: $08 */
-  p_mem[index++] = 0x37;
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C240 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc2;
+  util_buffer_set_pos(p_buf, 0x0200);
+  emit_LDA(p_buf, k_imm, 0xfd);
+  emit_STA(p_buf, k_zpg, 0x07);
+  emit_LDA(p_buf, k_imm, 0xff);
+  emit_STA(p_buf, k_zpg, 0x08);
+  emit_LDX(p_buf, k_imm, 0x02);
+  emit_LDA(p_buf, k_zpx, 0x05);
+  emit_CMP(p_buf, k_imm, 0xfd);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0xd1);
+  emit_LDA(p_buf, k_zpx, 0x37);   /* Zero page wrap. */ /* Addr: $08 */
+  emit_CMP(p_buf, k_imm, 0xff);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC240);
 
   /* Test indirect indexed zero page addressing. */
-  index = set_new_index(index, 0x240);
-  p_mem[index++] = 0xa1; /* LDA ($36,X) */ /* Zero page wrap. */
-  p_mem[index++] = 0x36;
-  p_mem[index++] = 0xc9; /* CMP #$C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xf0; /* BEQ */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C280 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc2;
+  util_buffer_set_pos(p_buf, 0x0240);
+  emit_LDX(p_buf, k_imm, 0xd1);
+  emit_LDA(p_buf, k_idx, 0x36);   /* Zero page wrap. */
+  emit_CMP(p_buf, k_imm, 0xc0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC280);
 
   /* Test simple JSR / RTS pair. */
-  index = set_new_index(index, 0x280);
-  p_mem[index++] = 0x20; /* JSR $C286 */
-  p_mem[index++] = 0x86;
-  p_mem[index++] = 0xc2;
-  p_mem[index++] = 0x4c; /* JMP $C2C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc2;
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x0280);
+  emit_JSR(p_buf,  0xC286);
+  emit_JMP(p_buf, k_abs, 0xC2C0);
+  emit_RTS(p_buf);
 
   /* Test BIT. */
-  index = set_new_index(index, 0x2c0);
-  p_mem[index++] = 0xa9; /* LDA #$C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0x24; /* BIT $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C300 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc3;
+  util_buffer_set_pos(p_buf, 0x02c0);
+  emit_LDA(p_buf, k_imm, 0xc0);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_INX(p_buf);
+  emit_BIT(p_buf, k_zpg, 0x00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC300);
 
   /* Test RTI. */
   index = set_new_index(index, 0x300);

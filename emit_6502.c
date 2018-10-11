@@ -42,6 +42,14 @@ emit_ADC(struct util_buffer* p_buf, int mode, uint16_t addr) {
 }
 
 void
+emit_ASL(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x0a, 0x00, 0x06, 0x0e, 0x16, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_BCC(struct util_buffer* p_buf, char offset) {
   util_buffer_add_2b(p_buf, 0x90, offset);
 }
@@ -54,6 +62,14 @@ emit_BCS(struct util_buffer* p_buf, char offset) {
 void
 emit_BEQ(struct util_buffer* p_buf, char offset) {
   util_buffer_add_2b(p_buf, 0xf0, offset);
+}
+
+void
+emit_BIT(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0x00, 0x24, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
 }
 
 void
@@ -113,11 +129,27 @@ emit_CRASH(struct util_buffer* p_buf) {
 }
 
 void
+emit_INX(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xe8);
+}
+
+void
+emit_INY(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xc8);
+}
+
+void
 emit_JMP(struct util_buffer* p_buf, int mode, uint16_t addr) {
   static unsigned char s_bytes[13] =
   { 0x00,
     0x00, 0x00, 0x00, 0x4c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6c, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_JSR(struct util_buffer* p_buf, uint16_t addr) {
+  util_buffer_add_1b(p_buf, 0x20);
+  emit_operand(p_buf, k_abs, addr);
 }
 
 void
@@ -152,6 +184,11 @@ emit_ROR(struct util_buffer* p_buf, int mode, uint16_t addr) {
   { 0x00,
     0x6a, 0x00, 0x66, 0x6e, 0x76, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_RTS(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x60);
 }
 
 void
