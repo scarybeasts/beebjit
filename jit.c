@@ -1315,10 +1315,9 @@ jit_emit_calc_op(struct jit_struct* p_jit,
                          (size_t) p_jit->p_mem + opcode_addr_6502);
     break;
   case k_idy:
-  case k_abx_dyn:
   case k_aby_dyn:
   case k_idy_dyn:
-    /* OP al, [rdx + rcx] */
+    /* OP al, [rcx + rdx] */
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x04;
     p_jit_buf[index++] = 0x0a;
@@ -1343,6 +1342,12 @@ jit_emit_calc_op(struct jit_struct* p_jit,
     p_jit_buf[index++] = intel_op_base;
     p_jit_buf[index++] = 0x82;
     index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem);
+    break;
+  case k_abx_dyn:
+    /* OP al, [rbx + rdx] */
+    p_jit_buf[index++] = intel_op_base;
+    p_jit_buf[index++] = 0x04;
+    p_jit_buf[index++] = 0x13;
     break;
   default:
     assert(0);
