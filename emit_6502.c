@@ -34,6 +34,14 @@ emit_from_array(struct util_buffer* p_buf,
 }
 
 void
+emit_ADC(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0x69, 0x65, 0x6d, 0x75, 0x00, 0x7d, 0x79, 0x61, 0x71, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_BCC(struct util_buffer* p_buf, char offset) {
   util_buffer_add_2b(p_buf, 0x90, offset);
 }
@@ -61,6 +69,26 @@ emit_BNE(struct util_buffer* p_buf, char offset) {
 void
 emit_BPL(struct util_buffer* p_buf, char offset) {
   util_buffer_add_2b(p_buf, 0x10, offset);
+}
+
+void
+emit_BRK(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x00);
+}
+
+void
+emit_BVC(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0x50, offset);
+}
+
+void
+emit_BVS(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0x70, offset);
+}
+
+void
+emit_CLC(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x18);
 }
 
 void
@@ -119,10 +147,39 @@ emit_PLP(struct util_buffer* p_buf) {
 }
 
 void
+emit_ROR(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x6a, 0x00, 0x66, 0x6e, 0x76, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_SBC(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0xe9, 0xe5, 0xed, 0xf5, 0x00, 0xfd, 0xfd, 0xe1, 0xf1, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_SEC(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x38);
+}
+
+void
 emit_STA(struct util_buffer* p_buf, int mode, uint16_t addr) {
   static unsigned char s_bytes[13] =
   { 0x00,
     0x00, 0x00, 0x85, 0x8d, 0x95, 0x00, 0x9d, 0x99, 0x81, 0x91, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_STX(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0x00, 0x86, 0x8e, 0x00, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
 }
 

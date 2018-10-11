@@ -39,7 +39,7 @@ main(int argc, const char* argv[]) {
   p_mem[0x3fff] = 0xff;
 
   /* Check PHP, including initial 6502 boot-up flags status. */
-  util_buffer_set_pos(p_buf, 0);
+  util_buffer_set_pos(p_buf, 0x0000);
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x0100);
   emit_CMP(p_buf, k_imm, 0x34);   /* I, BRK, 1 */
@@ -61,7 +61,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
-  util_buffer_set_pos(p_buf, 0x40);
+  util_buffer_set_pos(p_buf, 0x0040);
   index = set_new_index(index, 0x40);
   emit_TSX(p_buf);
   emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
@@ -75,7 +75,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC080);
 
   /* Check CMP vs. flags. */
-  util_buffer_set_pos(p_buf, 0x80);
+  util_buffer_set_pos(p_buf, 0x0080);
   emit_LDX(p_buf, k_imm, 0xEE);
   emit_CPX(p_buf, k_imm, 0xEE);
   emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
@@ -101,132 +101,87 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC0C0);
 
   /* Some ADC tests. */
-  index = set_new_index(index, 0xc0);
-  p_mem[index++] = 0x38; /* SEC */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x69; /* ADC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xc9; /* CMP #$03 */
-  p_mem[index++] = 0x03;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x69; /* ADC #$7f */
-  p_mem[index++] = 0x7f;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x90; /* BCC (should be CF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x69; /* ADC #$7f */
-  p_mem[index++] = 0x7f;
-  p_mem[index++] = 0xb0; /* BCS (should be CF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C100 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc1;
+  util_buffer_set_pos(p_buf, 0x00c0);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_CMP(p_buf, k_imm, 0x03);
+  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
+  emit_CRASH(p_buf);
+  emit_ADC(p_buf, k_imm, 0x7f);
+  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
+  emit_CRASH(p_buf);
+  emit_BMI(p_buf, 1);             /* Should be NF=1 */
+  emit_CRASH(p_buf);
+  emit_BCC(p_buf, 1);             /* Should be CF=0 */
+  emit_CRASH(p_buf);
+  emit_BVS(p_buf, 1);             /* Should be OF=1 */
+  emit_CRASH(p_buf);
+  emit_ADC(p_buf, k_imm, 0x7f);
+  emit_BCS(p_buf, 1);             /* Should be CF=1 */
+  emit_CRASH(p_buf);
+  emit_BVC(p_buf, 1);             /* Should be OF=0 */
+  emit_CRASH(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC100);
 
   /* Some SBC tests. */
-  index = set_new_index(index, 0x100);
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0xa9; /* LDA #$02 */
-  p_mem[index++] = 0x02;
-  p_mem[index++] = 0xe9; /* SBC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x10; /* BPL (should be NF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xb0; /* BCS (should be CF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xe9; /* SBC #$80 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x90; /* BCC (should be CF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x38; /* SEC */
-  p_mem[index++] = 0xa9; /* LDA #$10 */
-  p_mem[index++] = 0x10;
-  p_mem[index++] = 0xe9; /* SBC #$7f */
-  p_mem[index++] = 0x7f;
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x90; /* BCC (should be CF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C140 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc1;
+  util_buffer_set_pos(p_buf, 0x0100);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
+  emit_CRASH(p_buf);
+  emit_BPL(p_buf, 1);             /* Should be NF=0 */
+  emit_CRASH(p_buf);
+  emit_BCS(p_buf, 1);             /* Should be CF=1 */
+  emit_CRASH(p_buf);
+  emit_BVC(p_buf, 1);             /* Should be OF=0 */
+  emit_CRASH(p_buf);
+  emit_SBC(p_buf, k_imm, 0x80);
+  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
+  emit_CRASH(p_buf);
+  emit_BMI(p_buf, 1);             /* Should be NF=1 */
+  emit_CRASH(p_buf);
+  emit_BCC(p_buf, 1);             /* Should be CF=0 */
+  emit_CRASH(p_buf);
+  emit_BVS(p_buf, 1);             /* Should be OF=1 */
+  emit_CRASH(p_buf);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_SBC(p_buf, k_imm, 0x7f);
+  emit_BMI(p_buf, 1);             /* Should be NF=1 */
+  emit_CRASH(p_buf);
+  emit_BCC(p_buf, 1);             /* Should be CF=0 */
+  emit_CRASH(p_buf);
+  emit_BVC(p_buf, 1);             /* Should be OF=0 */
+  emit_CRASH(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Some ROR / ROL tests. */
-  index = set_new_index(index, 0x140);
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x38; /* SEC */
-  p_mem[index++] = 0x6a; /* ROR A */
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xb0; /* BCS (should be CF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C180 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc1;
+  util_buffer_set_pos(p_buf, 0x0140);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_SEC(p_buf);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
+  emit_CRASH(p_buf);
+  emit_BMI(p_buf, 1);             /* Should be NF=1 */
+  emit_CRASH(p_buf);
+  emit_BCS(p_buf, 1);             /* Should be CF=1 */
+  emit_CRASH(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC180);
 
   /* Test BRK! */
-  index = set_new_index(index, 0x180);
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x86; /* STX $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa2; /* LDX #$ff */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x9a; /* TXS */
-  p_mem[index++] = 0x00; /* BRK ($FFFE -> $FF00) */
-  p_mem[index++] = 0xf2; /* FAIL */ /* Jumped over by RTI. */
-  p_mem[index++] = 0xa6; /* LDX $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C1C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc1;
+  util_buffer_set_pos(p_buf, 0x0180);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STX(p_buf, k_zpg, 0x00);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_TXS(p_buf);
+  emit_BRK(p_buf);                /* Calls vector $FFFE -> $FF00 (RTI) */
+  emit_CRASH(p_buf);              /* Jumped over by RTI. */
+  emit_LDX(p_buf, k_zpg, 0x00);
+  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
+  emit_CRASH(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Test shift / rotate instuction coalescing. */
   index = set_new_index(index, 0x1c0);
