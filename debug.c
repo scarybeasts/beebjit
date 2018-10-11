@@ -400,6 +400,9 @@ debug_hit_break(struct debug_struct* p_debug,
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
     return 1;
   }
+  if (reg_pc == p_debug->debug_stop_addr) {
+    return 1;
+  }
 
   return 0;
 }
