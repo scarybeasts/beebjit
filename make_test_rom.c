@@ -5,6 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "emit_6502.h"
+#include "opdefs.h"
+#include "util.h"
+
 static const size_t k_rom_size = 16384;
 
 static size_t set_new_index(size_t index, size_t new_index) {
@@ -18,12 +22,14 @@ main(int argc, const char* argv[]) {
   ssize_t write_ret;
 
   size_t index = 0;
-  char* p_mem = malloc(k_rom_size);
+  unsigned char* p_mem = malloc(k_rom_size);
+  struct util_buffer* p_buf = util_buffer_create();
 
   (void) argc;
   (void) argv;
 
-  memset(p_mem, '\xf2', k_rom_size);
+  (void) memset(p_mem, '\xf2', k_rom_size);
+  util_buffer_setup(p_buf, p_mem, k_rom_size);
 
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3ffc] = 0x00;
@@ -33,41 +39,26 @@ main(int argc, const char* argv[]) {
   p_mem[0x3fff] = 0xff;
 
   /* Check PHP, including initial 6502 boot-up flags status. */
-  index = set_new_index(index, 0);
-  p_mem[index++] = 0x08; /* PHP */
-  p_mem[index++] = 0xad; /* LDA $0100 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xc9; /* CMP #$34 */ /* I, BRK, 1 */
-  p_mem[index++] = 0x34;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$FF */ /* Set all flags upon the PLP. */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x8d; /* STA $0100 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x28; /* PLP */
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x08; /* PHP */
-  p_mem[index++] = 0xad; /* LDA $0100 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x28; /* PLP */
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C040 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc0;
+  util_buffer_set_pos(p_buf, 0);
+  emit_PHP(p_buf);
+  emit_LDA(p_buf, k_abs, 0x0100);
+  emit_CMP(p_buf, k_imm, 0x34);   /* I, BRK, 1 */
+  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
+  emit_CRASH(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);   /* Set all flags upon the PLP. */
+  emit_STA(p_buf, k_abs, 0x0100);
+  emit_PLP(p_buf);
+  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
+  emit_CRASH(p_buf);
+  emit_BMI(p_buf, 1);             /* Should be NF=1 */
+  emit_CRASH(p_buf);
+  emit_PHP(p_buf);
+  emit_LDA(p_buf, k_abs, 0x0100);
+  emit_PLP(p_buf);
+  emit_CMP(p_buf, k_imm, 0xff);
+  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
+  emit_CRASH(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
   index = set_new_index(index, 0x40);
@@ -1419,6 +1410,9 @@ main(int argc, const char* argv[]) {
     errx(1, "can't write output rom");
   }
   close(fd);
+
+  util_buffer_destroy(p_buf);
+  free(p_mem);
 
   return 0;
 }
