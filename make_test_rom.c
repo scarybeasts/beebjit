@@ -11,9 +11,50 @@
 
 static const size_t k_rom_size = 16384;
 
-static size_t set_new_index(size_t index, size_t new_index) {
+static size_t
+set_new_index(size_t index, size_t new_index) {
   assert(new_index >= index);
   return new_index;
+}
+
+static void
+emit_REQUIRE_ZF(struct util_buffer* p_buf, int require) {
+  if (require) {
+    emit_BEQ(p_buf, 1);
+  } else {
+    emit_BNE(p_buf, 1);
+  }
+  emit_CRASH(p_buf);
+}
+
+static void
+emit_REQUIRE_NF(struct util_buffer* p_buf, int require) {
+  if (require) {
+    emit_BMI(p_buf, 1);
+  } else {
+    emit_BPL(p_buf, 1);
+  }
+  emit_CRASH(p_buf);
+}
+
+static void
+emit_REQUIRE_CF(struct util_buffer* p_buf, int require) {
+  if (require) {
+    emit_BCS(p_buf, 1);
+  } else {
+    emit_BCC(p_buf, 1);
+  }
+  emit_CRASH(p_buf);
+}
+
+static void
+emit_REQUIRE_OF(struct util_buffer* p_buf, int require) {
+  if (require) {
+    emit_BVS(p_buf, 1);
+  } else {
+    emit_BVC(p_buf, 1);
+  }
+  emit_CRASH(p_buf);
 }
 
 int
@@ -43,34 +84,27 @@ main(int argc, const char* argv[]) {
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x0100);
   emit_CMP(p_buf, k_imm, 0x34);   /* I, BRK, 1 */
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0xFF);   /* Set all flags upon the PLP. */
   emit_STA(p_buf, k_abs, 0x0100);
   emit_PLP(p_buf);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x0100);
   emit_PLP(p_buf);
   emit_CMP(p_buf, k_imm, 0xff);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
   util_buffer_set_pos(p_buf, 0x0040);
   index = set_new_index(index, 0x40);
   emit_TSX(p_buf);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_LDX(p_buf, k_imm, 0xFF);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_TXS(p_buf);
   emit_JMP(p_buf, k_abs, 0xC080);
 
@@ -78,26 +112,17 @@ main(int argc, const char* argv[]) {
   util_buffer_set_pos(p_buf, 0x0080);
   emit_LDX(p_buf, k_imm, 0xEE);
   emit_CPX(p_buf, k_imm, 0xEE);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
-  emit_BCS(p_buf, 1);             /* Should be CF=1 */
-  emit_CRASH(p_buf);
-  emit_BPL(p_buf, 1);             /* Should be NF=0 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
   emit_CPX(p_buf, k_imm, 0x01);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BCS(p_buf, 1);             /* Should be CF=1 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_CPX(p_buf, k_imm, 0xFF);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BCC(p_buf, 1);             /* Should be CF=0 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC0C0);
 
   /* Some ADC tests. */
@@ -106,22 +131,15 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x01);
   emit_CMP(p_buf, k_imm, 0x03);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_ADC(p_buf, k_imm, 0x7f);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
-  emit_BCC(p_buf, 1);             /* Should be CF=0 */
-  emit_CRASH(p_buf);
-  emit_BVS(p_buf, 1);             /* Should be OF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_OF(p_buf, 1);
   emit_ADC(p_buf, k_imm, 0x7f);
-  emit_BCS(p_buf, 1);             /* Should be CF=1 */
-  emit_CRASH(p_buf);
-  emit_BVC(p_buf, 1);             /* Should be OF=0 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_OF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC100);
 
   /* Some SBC tests. */
@@ -129,32 +147,21 @@ main(int argc, const char* argv[]) {
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x02);
   emit_SBC(p_buf, k_imm, 0x01);
-  emit_BEQ(p_buf, 1);             /* Should be ZF=1 */
-  emit_CRASH(p_buf);
-  emit_BPL(p_buf, 1);             /* Should be NF=0 */
-  emit_CRASH(p_buf);
-  emit_BCS(p_buf, 1);             /* Should be CF=1 */
-  emit_CRASH(p_buf);
-  emit_BVC(p_buf, 1);             /* Should be OF=0 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_OF(p_buf, 0);
   emit_SBC(p_buf, k_imm, 0x80);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
-  emit_BCC(p_buf, 1);             /* Should be CF=0 */
-  emit_CRASH(p_buf);
-  emit_BVS(p_buf, 1);             /* Should be OF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_OF(p_buf, 1);
   emit_SEC(p_buf);
   emit_LDA(p_buf, k_imm, 0x10);
   emit_SBC(p_buf, k_imm, 0x7f);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
-  emit_BCC(p_buf, 1);             /* Should be CF=0 */
-  emit_CRASH(p_buf);
-  emit_BVC(p_buf, 1);             /* Should be OF=0 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_OF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Some ROR / ROL tests. */
@@ -162,12 +169,9 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x01);
   emit_SEC(p_buf);
   emit_ROR(p_buf, k_nil, 0);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
-  emit_BMI(p_buf, 1);             /* Should be NF=1 */
-  emit_CRASH(p_buf);
-  emit_BCS(p_buf, 1);             /* Should be CF=1 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC180);
 
   /* Test BRK! */
@@ -179,8 +183,7 @@ main(int argc, const char* argv[]) {
   emit_BRK(p_buf);                /* Calls vector $FFFE -> $FF00 (RTI) */
   emit_CRASH(p_buf);              /* Jumped over by RTI. */
   emit_LDX(p_buf, k_zpg, 0x00);
-  emit_BNE(p_buf, 1);             /* Should be ZF=0 */
-  emit_CRASH(p_buf);
+  emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Test shift / rotate instuction coalescing. */
