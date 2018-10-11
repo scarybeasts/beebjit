@@ -34,6 +34,16 @@ emit_from_array(struct util_buffer* p_buf,
 }
 
 void
+emit_BCC(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0x90, offset);
+}
+
+void
+emit_BCS(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0xb0, offset);
+}
+
+void
 emit_BEQ(struct util_buffer* p_buf, char offset) {
   util_buffer_add_2b(p_buf, 0xf0, offset);
 }
@@ -44,10 +54,28 @@ emit_BMI(struct util_buffer* p_buf, char offset) {
 }
 
 void
+emit_BNE(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0xd0, offset);
+}
+
+void
+emit_BPL(struct util_buffer* p_buf, char offset) {
+  util_buffer_add_2b(p_buf, 0x10, offset);
+}
+
+void
 emit_CMP(struct util_buffer* p_buf, int mode, uint16_t addr) {
   static unsigned char s_bytes[13] =
   { 0x00,
     0x00, 0xc9, 0xc5, 0xcd, 0xd5, 0x00, 0xdd, 0xd9, 0xc1, 0xd1, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_CPX(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0xe0, 0xe4, 0xec, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
 }
 
@@ -73,6 +101,14 @@ emit_LDA(struct util_buffer* p_buf, int mode, uint16_t addr) {
 }
 
 void
+emit_LDX(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0xa2, 0xa6, 0xae, 0x00, 0xb6, 0x00, 0xbe, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_PHP(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x08);
 }
@@ -88,4 +124,14 @@ emit_STA(struct util_buffer* p_buf, int mode, uint16_t addr) {
   { 0x00,
     0x00, 0x00, 0x85, 0x8d, 0x95, 0x00, 0x9d, 0x99, 0x81, 0x91, 0x00, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_TSX(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xba);
+}
+
+void
+emit_TXS(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x9a);
 }
