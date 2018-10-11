@@ -567,7 +567,7 @@ debug_load_raw(struct debug_struct* p_debug,
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }
 
-void
+void*
 debug_callback(struct debug_struct* p_debug) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
@@ -599,6 +599,7 @@ debug_callback(struct debug_struct* p_debug) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   int do_trap = 0;
+  void* ret_intel_pc = 0;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -643,7 +644,7 @@ debug_callback(struct debug_struct* p_debug) {
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
 
   if (debug_running && !hit_break && !debug_running_print) {
-    return;
+    return 0;
   }
 
   extra_buf[0] = '\0';
@@ -707,7 +708,7 @@ debug_callback(struct debug_struct* p_debug) {
   fflush(stdout);
 
   if (debug_running && !hit_break) {
-    return;
+    return 0;
   }
   debug_running = 0;
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
@@ -877,6 +878,9 @@ debug_callback(struct debug_struct* p_debug) {
       reg_y = parse_int;
     } else if (sscanf(input_buf, "s=%x", &parse_int) == 1) {
       reg_s = parse_int;
+    } else if (sscanf(input_buf, "pc=%x", &parse_int) == 1) {
+      reg_pc = parse_int;
+      ret_intel_pc = jit_get_jit_base_addr(bbc_get_jit(p_bbc), reg_pc);
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_bbc, parse_int);
     } else if (!strcmp(input_buf, "sys")) {
@@ -899,7 +903,7 @@ debug_callback(struct debug_struct* p_debug) {
       printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
       printf("lr <f> <addr>    : load memory at <addr> from raw file <f>\n");
       printf("ss <f>           : save state to BEM file <f>\n");
-      printf("{a,x,y}=<val>    : set register to <val>\n");
+      printf("{a,x,y,pc}=<val> : set register to <val>\n");
       printf("sys              : show system VIA registers\n");
       printf("user             : show user VIA registers\n");
     } else {
@@ -914,4 +918,5 @@ debug_callback(struct debug_struct* p_debug) {
       errx(1, "raise failed");
     }
   }
+  return ret_intel_pc;
 }

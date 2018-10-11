@@ -532,7 +532,7 @@ jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
   return index;
 }
 
-static unsigned char*
+unsigned char*
 jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = (p_jit->p_jit_base +
                               (addr_6502 * k_jit_bytes_per_byte));
@@ -984,6 +984,24 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x57;
   p_jit_buf[index++] = k_offset_debug_callback;
 
+  /* Save old PC. r8 preseved by next call. */
+  /* mov r8, [rsp] */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x8b;
+  p_jit_buf[index++] = 0x04;
+  p_jit_buf[index++] = 0x24;
+
+  /* Replace with new PC if there is one. */
+  /* test rax, rax */
+  p_jit_buf[index++] = 0x48;
+  p_jit_buf[index++] = 0x85;
+  p_jit_buf[index++] = 0xc0;
+  /* cmovne r8, rax */
+  p_jit_buf[index++] = 0x4c;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = 0xc0;
+
   /* call [r15 + k_offset_util_regs] */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0xff;
@@ -996,8 +1014,14 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xff;
 
-  /* ret */
-  p_jit_buf[index++] = 0xc3;
+  /* Pop the return value. */
+  /* pop rdx */
+  p_jit_buf[index++] = 0x5a;
+
+  /* jmp r8 */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0xff;
+  p_jit_buf[index++] = 0xe0;
 }
 
 static void

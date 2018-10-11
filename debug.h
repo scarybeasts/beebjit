@@ -16,6 +16,6 @@ void debug_destroy(struct debug_struct* p_debug);
 int debug_active_at_addr(struct debug_struct* p_debug, uint16_t addr_6502);
 int debug_counter_at_addr(struct debug_struct* p_debug, uint16_t addr_6502);
 
-void debug_callback(struct debug_struct* p_debug);
+void* debug_callback(struct debug_struct* p_debug);
 
 #endif /* BEEBJIT_DEBUG_H */
