@@ -1273,7 +1273,50 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xc0;
   p_mem[index++] = 0xc9;
 
+  /* Give the overflow flag tracking logic a good workout. */
   index = set_new_index(index, 0x9c0);
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0xa9; /* LDA #$01 */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0x69; /* ADC #$7f */ /* Sets OF=1 */
+  p_mem[index++] = 0x7f;
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x4a; /* LSR */
+  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xb8; /* CLV */
+  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x38; /* SEC */
+  p_mem[index++] = 0x69; /* ADC #$7f */ /* Sets OF=1 */
+  p_mem[index++] = 0x7f;
+  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xc9; /* CMP #$FF */ /* Should not affect OF. */
+  p_mem[index++] = 0xff;
+  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0xa9; /* LDA #$00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0x18; /* CLC */
+  p_mem[index++] = 0x69; /* ADC #$00 */ /* Sets OF=0 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xa9; /* LDA #$80 */
+  p_mem[index++] = 0x80;
+  p_mem[index++] = 0x6a; /* ROR */
+  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
+  p_mem[index++] = 0x01;
+  p_mem[index++] = 0xf2; /* FAIL */
+  p_mem[index++] = 0x4c; /* JMP $CA00 */
+  p_mem[index++] = 0x00;
+  p_mem[index++] = 0xca;
+
+  index = set_new_index(index, 0xa00);
   p_mem[index++] = 0x02; /* Done */
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

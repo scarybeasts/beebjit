@@ -89,7 +89,7 @@ enum {
 /* k_a: PLA, TXA, TYA, LDA */
 /* k_x: LDX, TAX, TSX */
 /* k_y: LDY, TAY */
-static const unsigned char g_nz_flags_location[58] = {
+static const unsigned char g_nz_flags_location[k_6502_op_num_types] = {
   0      , 0      , 0      , k_flags, k_flags, 0      , 0      , 0      ,
   0      , k_flags, k_flags, k_flags, k_flags, 0      , 0      , k_flags,
   k_flags, k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
@@ -100,7 +100,7 @@ static const unsigned char g_nz_flags_location[58] = {
   0      , 0      ,
 };
 
-static const unsigned char g_nz_flags_needed[58] = {
+static const unsigned char g_nz_flags_needed[k_6502_op_num_types] = {
   0, 0, 1, 0, 0, 1, 1, 0, /* BRK, PHP, BPL */
   1, 0, 0, 0, 0, 1, 0, 0, /* JSR, BMI */
   0, 0, 0, 1, 1, 1, 1, 0, /* JMP, BVC, CLI, RTS */
@@ -114,7 +114,7 @@ static const unsigned char g_nz_flags_needed[58] = {
 /* k_reg: CLC, PLP, ROL, SEC, RTI, ROR */
 /* k_flags: ASL, LSR, ADC */
 /* k_finv: CPY, CMP, CPX, SBC */
-static const unsigned char g_carry_flag_location[58] = {
+static const unsigned char g_carry_flag_location[k_6502_op_num_types] = {
   0      , 0      , 0      , 0      , k_flags, 0      , 0      , k_reg  ,
   0      , 0      , 0      , k_reg  , k_reg  , 0      , k_reg  , k_reg  ,
   0      , k_flags, 0      , 0      , 0      , 0      , 0      , k_flags,
@@ -125,13 +125,26 @@ static const unsigned char g_carry_flag_location[58] = {
   0      , 0      ,
 };
 
+/* k_reg: BIT, PLP, RTI, CLV */
+/* k_flags: ADC, SBC */
+static const unsigned char g_overflow_flag_location[k_6502_op_num_types] = {
+  0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , k_reg  , k_reg  , 0      , 0      , 0      , k_reg  ,
+  0      , 0      , 0      , 0      , 0      , 0      , 0      , k_flags,
+  0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , k_reg  , 0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , 0      , 0      , k_flags, 0      , 0      , 0      ,
+  0      , 0      ,
+};
+
 /* TODO: BIT trashing carry is just an internal wart to fix. */
-/* This table tracks which 6502 opcodes need us to have the carry flag safely
- * stored in a register.
+/* This table tracks which 6502 opcodes need us to have the carry and overflow
+ * flags safely stored in a register.
  * ORA / AND / EOR may be surprising at first but the underlying Intel
- * instructions do not preserve the Intel carry flag.
+ * instructions do not preserve the Intel carry or overflow flag.
  */
-static const unsigned char g_carry_flag_needed_in_reg[58] = {
+static const unsigned char g_carry_flag_needed_in_reg[k_6502_op_num_types] = {
   0, 0, 1, 1, 0, 1, 1, 0, /* BRK, ORA, PHP, BPL */
   1, 1, 1, 0, 0, 1, 0, 0, /* JSR, AND, BIT, BMI */
   1, 0, 0, 1, 1, 1, 1, 0, /* EOR, JMP, BVC, CLI, RTS */
@@ -142,7 +155,19 @@ static const unsigned char g_carry_flag_needed_in_reg[58] = {
   1, 0,                   /* BEQ */
 };
 
-static const unsigned char g_inverted_carry_flag_used[58] = {
+static const unsigned char g_overflow_flag_needed_in_reg[k_6502_op_num_types] =
+{
+  0, 0, 1, 1, 1, 1, 1, 0, /* BRK, ORA, ASL, PHP, BPL */
+  1, 1, 0, 0, 1, 1, 0, 0, /* JSR, AND, ROL, BMI */
+  1, 1, 0, 1, 1, 1, 1, 0, /* EOR, LSR, JMP, BVC, CLI, RTS */
+  0, 1, 1, 0, 0, 0, 0, 0, /* ROR, BVS */
+  0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
+  0, 1, 0, 0, 1, 1, 1, 0, /* BCS, CPY, CMP, CPX */
+  0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
+  1, 0,                   /* BEQ */
+};
+
+static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
@@ -245,15 +270,10 @@ jit_emit_intel_to_6502_carry_inverted(struct util_buffer* p_buf) {
   util_buffer_add_4b(p_buf, 0x41, 0x0f, 0x93, 0xc6);
 }
 
-static size_t
-jit_emit_intel_to_6502_overflow(unsigned char* p_jit, size_t index) {
+static void
+jit_emit_intel_to_6502_overflow(struct util_buffer* p_buf) {
   /* seto r12b */
-  p_jit[index++] = 0x41;
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0x90;
-  p_jit[index++] = 0xc4;
-
-  return index;
+  util_buffer_add_4b(p_buf, 0x41, 0x0f, 0x90, 0xc4);
 }
 
 static size_t
@@ -2169,7 +2189,6 @@ printf("ooh\n");
                              opcode_addr_6502,
                              special,
                              intel_opcode_base);
-    index = jit_emit_intel_to_6502_overflow(p_jit_buf, index);
     break;
   case k_ror:
     /* ROR */
@@ -2715,7 +2734,6 @@ printf("ooh\n");
                              opcode_addr_6502,
                              special,
                              intel_opcode_base);
-    index = jit_emit_intel_to_6502_overflow(p_jit_buf, index);
     break;
   case k_nop:
     /* NOP */
@@ -2912,10 +2930,11 @@ jit_at_addr(struct jit_struct* p_jit,
   int curr_nz_flags_location = k_flags;
   int curr_carry_flag_value = k_flag_unknown;
   int curr_carry_flag_location = k_reg;
+  int curr_overflow_flag_location = k_reg;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
   int elim_nz_flag_tests = 0;
-  int elim_carry_flag_tests = 1;
+  int elim_co_flag_tests = 1;
   int log_self_modify = 0;
   int is_compilation_pending = 0;
   int has_code = 0;
@@ -2981,11 +3000,12 @@ jit_at_addr(struct jit_struct* p_jit,
     unsigned char opmode;
     size_t intel_opcodes_len;
     size_t buf_left;
-    int new_nz_flags_location;
-    int new_carry_flag_location;
     size_t num_6502_bytes;
     size_t i;
     size_t max_6502_bytes;
+    int new_nz_flags_location;
+    int new_carry_flag_location;
+    int new_overflow_flag_location;
     int carry_flag_expectation;
     int effective_carry_flag_location;
 
@@ -3013,6 +3033,7 @@ jit_at_addr(struct jit_struct* p_jit,
     opmode = g_opmodes[opcode_6502];
     new_nz_flags_location = g_nz_flags_location[optype];
     new_carry_flag_location = g_carry_flag_location[optype];
+    new_overflow_flag_location = g_overflow_flag_location[optype];
     effective_carry_flag_location = curr_carry_flag_location;
 
     /* Special case: the nil mode for ROL / ROR also doesn't test the
@@ -3056,14 +3077,13 @@ jit_at_addr(struct jit_struct* p_jit,
       dynamic_operand = 1;
     }
 
-    /* See if we need to sync the C flag from host flag to host register, or
-     * visa versa.
+    /* See if we need to sync the C flag from host flag to host register.
      * Must be done before the NZ flags sync because that trashes the carry
      * flag.
      */
     if ((g_carry_flag_needed_in_reg[optype] ||
          emit_debug ||
-         !elim_carry_flag_tests) &&
+         !elim_co_flag_tests) &&
         effective_carry_flag_location != k_reg) {
       if (effective_carry_flag_location == k_flags) {
         jit_emit_intel_to_6502_carry(p_single_buf);
@@ -3072,6 +3092,20 @@ jit_at_addr(struct jit_struct* p_jit,
       }
       if (new_carry_flag_location == 0) {
         new_carry_flag_location = k_reg;
+      }
+      effective_carry_flag_location = k_reg;
+    }
+    /* See if we need to sync the O flag from host flag to host register.
+     * Must be done before the NZ flags sync because that trashes the overflow
+     * flag.
+     */
+    if ((g_overflow_flag_needed_in_reg[optype] ||
+         emit_debug ||
+         !elim_co_flag_tests) &&
+        curr_overflow_flag_location != k_reg) {
+      jit_emit_intel_to_6502_overflow(p_single_buf);
+      if (new_overflow_flag_location == 0) {
+        new_overflow_flag_location = k_reg;
       }
     }
 
@@ -3082,12 +3116,10 @@ jit_at_addr(struct jit_struct* p_jit,
       if (new_nz_flags_location == 0) {
         new_nz_flags_location = k_flags;
       }
-      effective_carry_flag_location = k_reg;
     }
 
     if (emit_debug) {
       jit_emit_debug_sequence(p_single_buf, addr_6502);
-      effective_carry_flag_location = k_reg;
     }
     if (emit_counter) {
       jit_emit_counter_sequence(p_single_buf);
@@ -3158,8 +3190,10 @@ jit_at_addr(struct jit_struct* p_jit,
 
     buf_left = util_buffer_remaining(p_buf);
     /* TODO: don't hardcode a guess at flag lazy load + jmp length. */
-    /* 4 for carry flag sync, 2 for NZ flag sync, 5 for jump. */
-    if (buf_left < intel_opcodes_len + 4 + 2 + 5 ||
+    /* 4 for carry flag sync, 4 for overflow flag sync, 2 for NZ flag sync,
+     * 5 for jump.
+     */
+    if (buf_left < intel_opcodes_len + 4 + 4 + 2 + 5 ||
         total_num_ops == max_num_ops) {
       p_jit->compilation_pending[addr_6502] = 1;
       is_size_stop = 1;
@@ -3175,11 +3209,15 @@ jit_at_addr(struct jit_struct* p_jit,
     } else {
       curr_nz_flags_location = new_nz_flags_location;
     }
-
     if (new_carry_flag_location == 0) {
       /* Nothing. Carry flag status unaffected by opcode. */
     } else {
       curr_carry_flag_location = new_carry_flag_location;
+    }
+    if (new_overflow_flag_location == 0) {
+      /* Nothing. Overflow flag status unaffected by opcode. */
+    } else {
+      curr_overflow_flag_location = new_overflow_flag_location;
     }
 
     if (optype == k_clc) {
@@ -3274,7 +3312,10 @@ jit_at_addr(struct jit_struct* p_jit,
   } else if (curr_carry_flag_location == k_finv) {
     jit_emit_intel_to_6502_carry_inverted(p_buf);
   }
-
+  /* See if we need to lazy sync the 6502 overflow flag. */
+  if (curr_overflow_flag_location == k_flags) {
+    jit_emit_intel_to_6502_overflow(p_buf);
+  }
   /* See if we need to lazy sync the 6502 NZ flags. */
   if (curr_nz_flags_location != k_flags) {
     jit_emit_do_zn_flags(p_buf, curr_nz_flags_location - 1);
