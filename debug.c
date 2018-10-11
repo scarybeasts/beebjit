@@ -883,6 +883,8 @@ debug_callback(struct debug_struct* p_debug) {
       ret_intel_pc = jit_get_jit_base_addr(bbc_get_jit(p_bbc), reg_pc);
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_bbc, parse_int);
+    } else if (!strcmp(input_buf, "d")) {
+      debug_disass(p_bbc, reg_pc);
     } else if (!strcmp(input_buf, "sys")) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {
