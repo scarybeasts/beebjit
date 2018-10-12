@@ -581,135 +581,66 @@ main(int argc, const char* argv[]) {
   /* Test the firing of a timer interrupt -- to be contrarian, let's now test
    * TIMER2 on the user VIA, using alternative registers.
    */
-  index = set_new_index(index, 0x800);
-  p_mem[index++] = 0x78; /* SEI */
-  p_mem[index++] = 0xa9; /* LDA #$0e */
-  p_mem[index++] = 0x0e;
-  p_mem[index++] = 0x8d; /* STA $FE78 */ /* uservia T2CL */
-  p_mem[index++] = 0x78;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xa9; /* LDA #$27 */
-  p_mem[index++] = 0x27;
-  p_mem[index++] = 0x8d; /* STA $FE79 */ /* uservia T2CH */
-  p_mem[index++] = 0x79;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE7D */ /* uservia IFR */
-  p_mem[index++] = 0x7d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$20 */ /* TIMER2 */
-  p_mem[index++] = 0x20;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$A0 */ /* set, TIMER2 */
-  p_mem[index++] = 0xa0;
-  p_mem[index++] = 0x8d; /* STA $FE7E */ /* uservia IER */
-  p_mem[index++] = 0x7e;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x58; /* CLI */
-  p_mem[index++] = 0xa5; /* LDA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xf0; /* BEQ -4 */ /* Wait until an interrupt is serviced. */
-  p_mem[index++] = 0xfc;
-  p_mem[index++] = 0xad; /* LDA $FE7D */ /* uservia IFR */
-  p_mem[index++] = 0x7d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$20 */ /* TIMER2 */
-  p_mem[index++] = 0x20;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$27 */
-  p_mem[index++] = 0x27;
-  p_mem[index++] = 0x8d; /* STA $FE79 */ /* uservia T2CH */ /* Clears TIMER2. */
-  p_mem[index++] = 0x79;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE7D */ /* uservia IFR */
-  p_mem[index++] = 0x7d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$20 */ /* TIMER2 */
-  p_mem[index++] = 0x20;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$20 */ /* clear, TIMER2 */
-  p_mem[index++] = 0x20;
-  p_mem[index++] = 0x8d; /* STA $FE7E */ /* uservia IER */
-  p_mem[index++] = 0x7e;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x4c; /* JMP $C840 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc8;
+  util_buffer_set_pos(p_buf, 0x0800);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_STA(p_buf, k_abs, 0xFE78); /* uservia T2CL */
+  emit_LDA(p_buf, k_imm, 0x27);
+  emit_STA(p_buf, k_abs, 0xFE79); /* uservia T2CH */
+  emit_LDA(p_buf, k_abs, 0xFE7D); /* uservia IFR */
+  emit_AND(p_buf, k_imm, 0x20);   /* TIMER2 */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0xA0);   /* set, TIMER2 */
+  emit_STA(p_buf, k_abs, 0xFE7E); /* uservia IER */
+  emit_CLI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_BEQ(p_buf, -4);            /* Wait until an interrupt is serviced. */
+  emit_LDA(p_buf, k_abs, 0xFE7D); /* uservia IFR */
+  emit_AND(p_buf, k_imm, 0x20);   /* TIMER2 */
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_LDA(p_buf, k_imm, 0x27);
+  emit_STA(p_buf, k_abs, 0xFE79); /* uservia T2CH */ /* Clears TIMER2. */
+  emit_LDA(p_buf, k_abs, 0xFE7D); /* uservia IFR */
+  emit_AND(p_buf, k_imm, 0x20);   /* TIMER2 */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x20);   /* clear, TIMER2 */
+  emit_STA(p_buf, k_abs, 0xFE7E); /* uservia IER */
+  emit_JMP(p_buf, k_abs, 0xC840);
 
   /* Test dynamic operands for a branch instruction, and a no-operands
    * instruction.
     */
-  index = set_new_index(index, 0x840);
-  p_mem[index++] = 0x20; /* JSR $3080 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x8d; /* STA $3083 */
-  p_mem[index++] = 0x83;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3080 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xe0; /* CPX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x8d; /* STA $3083 */
-  p_mem[index++] = 0x83;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3080 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xe0; /* CPX #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$e8 */ /* INX */
-  p_mem[index++] = 0xe8;
-  p_mem[index++] = 0x8d; /* STA $3084 */
-  p_mem[index++] = 0x84;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3080 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x4c; /* JMP $C880 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc8;
+  util_buffer_set_pos(p_buf, 0x0840);
+  emit_JSR(p_buf, 0x3080);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0x3083);
+  emit_JSR(p_buf, 0x3080);
+  emit_CPX(p_buf, k_imm, 0x00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x3083);
+  emit_JSR(p_buf, 0x3080);
+  emit_CPX(p_buf, k_imm, 0x01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
+  emit_STA(p_buf, k_abs, 0x3084);
+  emit_JSR(p_buf, 0x3080);
+  emit_JMP(p_buf, k_abs, 0xC880);
 
   /* Tests for a bug where the NZ flags update was going missing if there
    * were a couple of STA instructions in a row.
    */
-  index = set_new_index(index, 0x880);
-  p_mem[index++] = 0xa2; /* LDX #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xe8; /* INX */
+  util_buffer_set_pos(p_buf, 0x0840);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_INX(p_buf);
   /* ZF is now 1. This should clear ZF. */
-  p_mem[index++] = 0xa9; /* LDA #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C8C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc8;
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC8C0);
 
   /* Test that timers don't return the same value twice in a row. */
   index = set_new_index(index, 0x8c0);
