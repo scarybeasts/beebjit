@@ -1,5 +1,6 @@
 #include "bbc.h"
 
+#include "bbc_options.h"
 #include "debug.h"
 #include "interp.h"
 #include "jit.h"
@@ -58,6 +59,7 @@ struct bbc_struct {
   int run_flag;
   int print_flag;
   int slow_flag;
+  struct bbc_options options;
 
   /* Machine state. */
   struct state_6502 state_6502;
@@ -110,7 +112,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
-  p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
@@ -163,6 +164,10 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "debug_create failed");
   }
 
+  p_bbc->options.debug = debug_flag;
+  p_bbc->options.debug_callback = debug_callback;
+  p_bbc->options.p_debug_callback_object = p_debug;
+
   p_bbc->p_jit = jit_create(debug_callback,
                             p_debug,
                             p_bbc,
@@ -174,7 +179,9 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "jit_create failed");
   }
 
-  p_bbc->p_interp = interp_create(&p_bbc->state_6502, p_bbc->p_mem);
+  p_bbc->p_interp = interp_create(&p_bbc->state_6502,
+                                  p_bbc->p_mem,
+                                  &p_bbc->options);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
   }

@@ -571,7 +571,7 @@ debug_load_raw(struct debug_struct* p_debug,
 }
 
 void*
-debug_callback(struct debug_struct* p_debug) {
+debug_callback(void* p) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -599,6 +599,7 @@ debug_callback(struct debug_struct* p_debug) {
   unsigned char opmode;
   size_t oplen;
 
+  struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   int do_trap = 0;

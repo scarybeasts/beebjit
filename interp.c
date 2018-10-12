@@ -1,5 +1,6 @@
 #include "interp.h"
 
+#include "bbc_options.h"
 #include "opdefs.h"
 #include "state_6502.h"
 
@@ -12,10 +13,13 @@
 struct interp_struct {
   struct state_6502* p_state_6502;
   unsigned char* p_mem;
+  struct bbc_options* p_options;
 };
 
 struct interp_struct*
-interp_create(struct state_6502* p_state_6502, unsigned char* p_mem) {
+interp_create(struct state_6502* p_state_6502,
+              unsigned char* p_mem,
+              struct bbc_options* p_options) {
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
     errx(1, "couldn't allocate interp_struct");
@@ -24,6 +28,7 @@ interp_create(struct state_6502* p_state_6502, unsigned char* p_mem) {
 
   p_interp->p_state_6502 = p_state_6502;
   p_interp->p_mem = p_mem;
+  p_interp->p_options = p_options;
 
   return p_interp;
 }
@@ -44,7 +49,9 @@ interp_enter(struct interp_struct* p_interp) {
 
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
+  struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem = p_interp->p_mem;
+  void* (*debug_callback)(void*) = 0;
   uint16_t pc = p_state_6502->reg_pc;
   unsigned char a = p_state_6502->reg_a;
   unsigned char x = p_state_6502->reg_x;
@@ -53,7 +60,14 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char zf = ((flags & (1 << k_flag_zero)) != 0);
   unsigned char nf = ((flags & (1 << k_flag_negative)) != 0);
 
+  if (p_options->debug) {
+    debug_callback = p_options->debug_callback;
+  }
+
   while (1) {
+    if (debug_callback) {
+      debug_callback(p_options->p_debug_callback_object);
+    }
     branch = 0;
     opcode = p_mem[pc++];
     opmode = g_opmodes[opcode];
