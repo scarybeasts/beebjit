@@ -121,6 +121,11 @@ emit_CLI(struct util_buffer* p_buf) {
 }
 
 void
+emit_CLV(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xb8);
+}
+
+void
 emit_CMP(struct util_buffer* p_buf, int mode, uint16_t addr) {
   static unsigned char s_bytes[13] =
   { 0x00,
@@ -147,6 +152,11 @@ emit_CPY(struct util_buffer* p_buf, int mode, uint16_t addr) {
 void
 emit_CRASH(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0xf2);
+}
+
+void
+emit_EXIT(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x02);
 }
 
 void
@@ -216,6 +226,14 @@ emit_LDY(struct util_buffer* p_buf, int mode, uint16_t addr) {
 }
 
 void
+emit_LSR(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x4a, 0x00, 0x46, 0x4e, 0x56, 0x00, 0x5e, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_NOP(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0xea);
 }
@@ -233,6 +251,14 @@ emit_PHP(struct util_buffer* p_buf) {
 void
 emit_PLP(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x28);
+}
+
+void
+emit_ROL(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x2a, 0x00, 0x26, 0x2e, 0x36, 0x00, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
 }
 
 void
@@ -285,6 +311,16 @@ emit_STX(struct util_buffer* p_buf, int mode, uint16_t addr) {
   { 0x00,
     0x00, 0x00, 0x86, 0x8e, 0x00, 0x96, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
   emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
+emit_TAX(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xAA);
+}
+
+void
+emit_TAY(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xA8);
 }
 
 void

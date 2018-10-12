@@ -643,136 +643,78 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC8C0);
 
   /* Test that timers don't return the same value twice in a row. */
-  index = set_new_index(index, 0x8c0);
-  p_mem[index++] = 0xad; /* LDA $FE64 */
-  p_mem[index++] = 0x64;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xcd; /* CMP $FE64 */
-  p_mem[index++] = 0x64;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C900 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc9;
+  util_buffer_set_pos(p_buf, 0x08C0);
+  emit_LDA(p_buf, k_abs, 0xFE64);
+  emit_CMP(p_buf, k_abs, 0xFE64);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC900);
 
   /* Test that the carry flag optimizations don't break anything. */
-  index = set_new_index(index, 0x900);
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0xa9; /* LDA #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x69; /* ADC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x69; /* ADC #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc9; /* CMP #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C940 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc9;
+  util_buffer_set_pos(p_buf, 0x0900);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_CMP(p_buf, k_imm, 0x01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC940);
 
   /* Tests for a bug where the NZ flags were updated from the wrong register. */
-  index = set_new_index(index, 0x940);
-  p_mem[index++] = 0x20; /* JSR $C965 */ /* Create block boundary at the RTS. */
-  p_mem[index++] = 0x65;
-  p_mem[index++] = 0xc9;
-  p_mem[index++] = 0x20; /* JSR $C960 */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0xc9;
-  p_mem[index++] = 0x30; /* BMI (should be NF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C980 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc9;
-  index = set_new_index(index, 0x960);
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xaa; /* TAX */
-  p_mem[index++] = 0xa9; /* LDA #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x0940);
+  emit_JSR(p_buf, 0xC965);      /* Create block boundary at the RTS. */
+  emit_JSR(p_buf, 0xC960);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC980);
+  util_buffer_set_pos(p_buf, 0x0960);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_TAX(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_RTS(p_buf);
 
   /* Give the carry flag tracking logic a good workout. */
-  index = set_new_index(index, 0x980);
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x4a; /* LSR */
-  p_mem[index++] = 0x69; /* ADC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x69; /* ADC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xaa; /* TAX */
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0x2a; /* ROL */
-  p_mem[index++] = 0xe9; /* SBC #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x6a; /* ROR */
-  p_mem[index++] = 0xa8; /* TAY */
-  p_mem[index++] = 0xe0; /* CPX #$04 */
-  p_mem[index++] = 0x04;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xc0; /* CPY #$82 */
-  p_mem[index++] = 0x82;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C9C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc9;
+  util_buffer_set_pos(p_buf, 0x0980);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_LSR(p_buf, k_nil, 0);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_TAX(p_buf);
+  emit_INX(p_buf);
+  emit_ROL(p_buf, k_nil, 0);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_TAY(p_buf);
+  emit_CPX(p_buf, k_imm, 0x04);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_CPY(p_buf, k_imm, 0x82);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC9C0);
 
   /* Give the overflow flag tracking logic a good workout. */
-  index = set_new_index(index, 0x9c0);
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x69; /* ADC #$7f */ /* Sets OF=1 */
-  p_mem[index++] = 0x7f;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x4a; /* LSR */
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xb8; /* CLV */
-  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x38; /* SEC */
-  p_mem[index++] = 0x69; /* ADC #$7f */ /* Sets OF=1 */
-  p_mem[index++] = 0x7f;
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xc9; /* CMP #$FF */ /* Should not affect OF. */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x70; /* BVS (should be OF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0x69; /* ADC #$00 */ /* Sets OF=0 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$80 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0x6a; /* ROR */
-  p_mem[index++] = 0x50; /* BVC (should be OF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $CA00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xca;
+  util_buffer_set_pos(p_buf, 0x09C0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x7F);   /* Sets OF=1 */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LSR(p_buf, k_nil, 0);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_CLV(p_buf);
+  emit_REQUIRE_OF(p_buf, 0);
+  emit_SEC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x7F);   /* Sets OF=1 */
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_CMP(p_buf, k_imm, 0xFF);   /* Should not affect OF. */
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x00);   /* Sets OF=0 */
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_ROR(p_buf, k_nil, 0);
+  emit_REQUIRE_OF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xCA00);
 
-  index = set_new_index(index, 0xa00);
-  p_mem[index++] = 0x02; /* Done */
+  util_buffer_set_pos(p_buf, 0x0A00);
+  emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
   index = set_new_index(index, 0x3000);

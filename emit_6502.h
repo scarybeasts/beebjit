@@ -20,6 +20,7 @@ void emit_BVC(struct util_buffer* p_buf, char offset);
 void emit_BVS(struct util_buffer* p_buf, char offset);
 void emit_CLC(struct util_buffer* p_buf);
 void emit_CLI(struct util_buffer* p_buf);
+void emit_CLV(struct util_buffer* p_buf);
 void emit_CMP(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_CPX(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_CPY(struct util_buffer* p_buf, int mode, uint16_t addr);
@@ -33,10 +34,12 @@ void emit_JSR(struct util_buffer* p_buf, uint16_t addr);
 void emit_LDA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LDX(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LDY(struct util_buffer* p_buf, int mode, uint16_t addr);
+void emit_LSR(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_NOP(struct util_buffer* p_buf);
 void emit_PHA(struct util_buffer* p_buf);
 void emit_PHP(struct util_buffer* p_buf);
 void emit_PLP(struct util_buffer* p_buf);
+void emit_ROL(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_ROR(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_RTI(struct util_buffer* p_buf);
 void emit_RTS(struct util_buffer* p_buf);
@@ -45,9 +48,12 @@ void emit_SEC(struct util_buffer* p_buf);
 void emit_SEI(struct util_buffer* p_buf);
 void emit_STA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_STX(struct util_buffer* p_buf, int mode, uint16_t addr);
+void emit_TAX(struct util_buffer* p_buf);
+void emit_TAY(struct util_buffer* p_buf);
 void emit_TSX(struct util_buffer* p_buf);
 void emit_TXS(struct util_buffer* p_buf);
 
 void emit_CRASH(struct util_buffer* p_buf);
+void emit_EXIT(struct util_buffer* p_buf);
 
 #endif /* BEEBJIT_EMIT_6502_H */
