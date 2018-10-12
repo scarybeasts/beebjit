@@ -1,6 +1,7 @@
 #include "bbc.h"
 
 #include "debug.h"
+#include "interp.h"
 #include "jit.h"
 #include "util.h"
 #include "via.h"
@@ -51,6 +52,7 @@ struct bbc_struct {
   /* Settings. */
   unsigned char* p_os_rom;
   unsigned char* p_lang_rom;
+  int mode;
   int debug_flag;
   int run_flag;
   int print_flag;
@@ -63,6 +65,7 @@ struct bbc_struct {
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
   struct jit_struct* p_jit;
+  struct interp_struct* p_interp;
   struct debug_struct* p_debug;
 
   unsigned char keys[16][16];
@@ -98,6 +101,7 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->exit_read_fd = pipefd[0];
   p_bbc->exit_write_fd = pipefd[1];
+  p_bbc->mode = k_bbc_mode_jit;
   p_bbc->exited = 0;
   p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -166,6 +170,11 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "jit_create failed");
   }
 
+  p_bbc->p_interp = interp_create();
+  if (p_bbc->p_interp == NULL) {
+    errx(1, "interp_create failed");
+  }
+
   bbc_reset(p_bbc);
 
   return p_bbc;
@@ -174,11 +183,17 @@ bbc_create(unsigned char* p_os_rom,
 void
 bbc_destroy(struct bbc_struct* p_bbc) {
   jit_destroy(p_bbc->p_jit);
+  interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
   util_free_guarded_mapping(p_bbc->p_mem, k_bbc_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_bbc_addr_space_size);
   free(p_bbc);
+}
+
+void
+bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
+  p_bbc->mode = mode;
 }
 
 void
@@ -190,11 +205,11 @@ bbc_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
   /* Clear memory / ROMs. */
-  memset(p_mem, '\0', k_bbc_addr_space_size);
+  (void) memset(p_mem, '\0', k_bbc_addr_space_size);
 
   /* Copy in OS and language ROM. */
-  memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
-  memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
+  (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
+  (void) memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
 
   util_make_mapping_read_only(p_mem + k_bbc_ram_size,
                               k_bbc_addr_space_size - k_bbc_ram_size);
@@ -358,7 +373,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 }
 
 static void*
-bbc_jit_thread(void* p) {
+bbc_cpu_thread(void* p) {
   int ret;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -366,7 +381,16 @@ bbc_jit_thread(void* p) {
 
   bbc_start_timer_tick(p_bbc);
 
-  jit_enter(p_bbc->p_jit);
+  switch (p_bbc->mode) {
+  case k_bbc_mode_jit:
+    jit_enter(p_bbc->p_jit);
+    break;
+  case k_bbc_mode_interp:
+    interp_enter(p_bbc->p_interp);
+    break;
+  default:
+    assert(0);
+  }
 
   p_bbc->exited = 1;
 
@@ -404,7 +428,7 @@ bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
 
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
-  int ret = pthread_create(&p_bbc->thread, NULL, bbc_jit_thread, p_bbc);
+  int ret = pthread_create(&p_bbc->thread, NULL, bbc_cpu_thread, p_bbc);
   if (ret != 0) {
     errx(1, "couldn't create jit thread");
   }

@@ -41,49 +41,59 @@ main(int argc, const char* argv[]) {
   int test_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
+  int mode = k_bbc_mode_jit;
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
     if (i + 1 < argc) {
       const char* val = argv[i + 1];
-      if (strcmp(arg, "-os") == 0) {
+      if (!strcmp(arg, "-os")) {
         os_rom_name = val;
         ++i;
-      } else if (strcmp(arg, "-lang") == 0) {
+      } else if (!strcmp(arg, "-lang")) {
         lang_rom_name = val;
         ++i;
-      } else if (strcmp(arg, "-load") == 0) {
+      } else if (!strcmp(arg, "-load")) {
         load_name = val;
         ++i;
-      } else if (strcmp(arg, "-opt") == 0) {
+      } else if (!strcmp(arg, "-opt")) {
         opt_flags = val;
         ++i;
-      } else if (strcmp(arg, "-log") == 0) {
+      } else if (!strcmp(arg, "-log")) {
         log_flags = val;
         ++i;
-      } else if (strcmp(arg, "-stopat") == 0) {
+      } else if (!strcmp(arg, "-stopat")) {
         (void) sscanf(val, "%x", &debug_stop_addr);
         ++i;
-      } else if (strcmp(arg, "-pc") == 0) {
+      } else if (!strcmp(arg, "-pc")) {
         (void) sscanf(val, "%x", &pc);
+        ++i;
+      } else if (!strcmp(arg, "-mode")) {
+        if (!strcmp(val, "jit")) {
+          mode = k_bbc_mode_jit;
+        } else if (!strcmp(val, "interp")) {
+          mode = k_bbc_mode_interp;
+        } else {
+          errx(1, "unknown mode");
+        }
         ++i;
       }
     }
-    if (strcmp(arg, "-d") == 0) {
+    if (!strcmp(arg, "-d")) {
       debug_flag = 1;
-    } else if (strcmp(arg, "-r") == 0) {
+    } else if (!strcmp(arg, "-r")) {
       run_flag = 1;
-    } else if (strcmp(arg, "-p") == 0) {
+    } else if (!strcmp(arg, "-p")) {
       print_flag = 1;
-    } else if (strcmp(arg, "-s") == 0) {
+    } else if (!strcmp(arg, "-s")) {
       slow_flag = 1;
-    } else if (strcmp(arg, "-t") == 0) {
+    } else if (!strcmp(arg, "-t")) {
       test_flag = 1;
     }
   }
 
-  memset(os_rom, '\0', k_bbc_rom_size);
-  memset(lang_rom, '\0', k_bbc_rom_size);
+  (void) memset(os_rom, '\0', k_bbc_rom_size);
+  (void) memset(lang_rom, '\0', k_bbc_rom_size);
 
   fd = open(os_rom_name, O_RDONLY);
   if (fd < 0) {
@@ -124,6 +134,8 @@ main(int argc, const char* argv[]) {
     test_do_tests(p_bbc);
     return 0;
   }
+
+  bbc_set_mode(p_bbc, mode);
 
   if (load_name != NULL) {
     state_load(p_bbc, load_name);

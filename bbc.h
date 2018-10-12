@@ -23,6 +23,10 @@ enum {
   k_bbc_mem_mmap_addr_dummy_rom = 0x11000000,
   k_bbc_mem_mmap_addr_dummy_rom_ro = 0x1100f000,
 };
+enum {
+  k_bbc_mode_jit = 1,
+  k_bbc_mode_interp = 2,
+};
 
 struct bbc_struct;
 
@@ -36,6 +40,8 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
                               const char* p_log_flags,
                               uint16_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
+
+void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 
 void bbc_reset(struct bbc_struct* p_bbc);
 void bbc_get_registers(struct bbc_struct* p_bbc,
