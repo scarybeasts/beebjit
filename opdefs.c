@@ -67,6 +67,18 @@ unsigned char g_optype_changes_overflow[k_6502_op_num_types] = {
   0, 0,
 };
 
+unsigned char g_optype_sets_register[k_6502_op_num_types] =
+{
+  0  , 0  , 0  , k_a, 0  , 0  , 0  , 0  ,
+  0  , k_a, 0  , 0  , 0  , 0  , 0  , 0  ,
+  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_a,
+  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_y,
+  k_a, 0  , k_a, 0  , k_y, k_a, k_x, k_y,
+  k_x, 0  , 0  , k_x, 0  , 0  , 0  , 0  ,
+  k_y, k_x, 0  , 0  , k_a, k_x, 0  , 0  ,
+  0  , 0  ,
+};
+
 unsigned char g_optypes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */

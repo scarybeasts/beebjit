@@ -16,6 +16,7 @@ unsigned char g_opbranch[k_6502_op_num_types];
 unsigned char g_optype_uses_carry[k_6502_op_num_types];
 unsigned char g_optype_changes_carry[k_6502_op_num_types];
 unsigned char g_optype_changes_overflow[k_6502_op_num_types];
+unsigned char g_optype_sets_register[k_6502_op_num_types];
 
 enum {
   k_kil = 0,
@@ -111,6 +112,22 @@ enum {
   k_bra_n = 0,
   k_bra_y = 1,
   k_bra_m = 2,
+};
+
+enum {
+  k_a = 1,
+  k_x = 2,
+  k_y = 3,
+};
+
+enum {
+  k_flag_carry = 0,
+  k_flag_zero = 1,
+  k_flag_interrupt = 2,
+  k_flag_decimal = 3,
+  k_flag_brk = 4,
+  k_flag_overflow = 6,
+  k_flag_negative = 7,
 };
 
 #endif /* BEEBJIT_OPDEFS_H */

@@ -70,9 +70,9 @@ static const unsigned int k_log_flag_compile = 2;
 static const size_t k_max_6502_bytes = 8;
 
 enum {
-  k_a = 1,
-  k_x = 2,
-  k_y = 3,
+  /* k_a = 1 from opdefs.h */
+  /* k_x = 2 from opdefs.h */
+  /* k_y = 3 from opdefs.h */
   /* In host CPU flags. */
   k_flags = 4,
   /* In host CPU flags, but inverted (used for carry, think SBC vc. sbb). */

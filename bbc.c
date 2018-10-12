@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "interp.h"
 #include "jit.h"
+#include "state_6502.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
@@ -58,6 +59,8 @@ struct bbc_struct {
   int print_flag;
   int slow_flag;
 
+  /* Machine state. */
+  struct state_6502 state_6502;
   size_t time_in_us;
   unsigned char* p_mem;
   unsigned char* p_mem_dummy_rom;
@@ -68,6 +71,7 @@ struct bbc_struct {
   struct interp_struct* p_interp;
   struct debug_struct* p_debug;
 
+  /* Keyboard. */
   unsigned char keys[16][16];
   unsigned char keys_count;
   unsigned char keys_count_col[16];
@@ -170,7 +174,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "jit_create failed");
   }
 
-  p_bbc->p_interp = interp_create();
+  p_bbc->p_interp = interp_create(&p_bbc->state_6502, p_bbc->p_mem);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
   }
@@ -198,11 +202,11 @@ bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
 
 void
 bbc_reset(struct bbc_struct* p_bbc) {
+  uint16_t init_pc;
+
   unsigned char* p_mem = p_bbc->p_mem;
   unsigned char* p_os_start = p_mem + k_os_rom_offset;
   unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  uint16_t init_pc;
 
   /* Clear memory / ROMs. */
   (void) memset(p_mem, '\0', k_bbc_addr_space_size);
@@ -216,7 +220,7 @@ bbc_reset(struct bbc_struct* p_bbc) {
 
   /* Initial 6502 state. */
   init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0x04, /* I flag */ init_pc);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, /* I flag */ 0x04, init_pc);
 }
 
 void
@@ -239,8 +243,16 @@ bbc_set_registers(struct bbc_struct* p_bbc,
                   unsigned char s,
                   unsigned char flags,
                   uint16_t pc) {
+  /* TODO: keep the registers in one place only. */
   struct jit_struct* p_jit = p_bbc->p_jit;
   jit_set_registers(p_jit, a, x, y, s, flags, pc);
+
+  *((unsigned char*) &p_bbc->state_6502.reg_a) = a;
+  *((unsigned char*) &p_bbc->state_6502.reg_x) = x;
+  *((unsigned char*) &p_bbc->state_6502.reg_y) = y;
+  *((unsigned char*) &p_bbc->state_6502.reg_s) = s;
+  *((unsigned char*) &p_bbc->state_6502.reg_flags) = flags;
+  *((uint16_t*) &p_bbc->state_6502.reg_pc) = pc;
 }
 
 uint16_t
