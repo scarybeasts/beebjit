@@ -430,328 +430,153 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC600);
 
   /* Test a variety of additional high-address reads and writes of interest. */
-  index = set_new_index(index, 0x600);
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xbd; /* LDA $FBFF,X */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xfb;
-  p_mem[index++] = 0xc9; /* CMP #$7D */
-  p_mem[index++] = 0x7d;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x8d; /* STA $801B */
-  p_mem[index++] = 0x1b;
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xad; /* LDA $C603 */
-  p_mem[index++] = 0x03;
-  p_mem[index++] = 0xc6;
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xce; /* DEC $C603 */
-  p_mem[index++] = 0x03;
-  p_mem[index++] = 0xc6;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x18; /* CLC */
-  p_mem[index++] = 0x6e; /* ROR $C603 */
-  p_mem[index++] = 0x03;
-  p_mem[index++] = 0xc6;
-  p_mem[index++] = 0xb0; /* BCS (should be CF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C640 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc6;
+  util_buffer_set_pos(p_buf, 0x0600);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_abx, 0xFBFF);
+  emit_CMP(p_buf, k_imm, 0x7D);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_STA(p_buf, k_abs, 0x801B);
+  emit_LDA(p_buf, k_abs, 0xC603);
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_DEC(p_buf, k_abs, 0xC603);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_CLC(p_buf);
+  emit_ROR(p_buf, k_abs, 0xC603);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC640);
 
   /* Test an interesting bug we had with self-modifying code where two
    * adjacent instructions are clobbered.
    */
-  index = set_new_index(index, 0x640);
-  p_mem[index++] = 0xea; /* NOP */
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$60 */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0x8d; /* STA $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x8d; /* STA $3051 */
-  p_mem[index++] = 0x51;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x4c; /* JMP $C680 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc6;
+  util_buffer_set_pos(p_buf, 0x0640);
+  emit_NOP(p_buf);
+  emit_JSR(p_buf, 0x3050);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x3050);
+  emit_STA(p_buf, k_abs, 0x3051);
+  emit_JSR(p_buf, 0x3050);
+  emit_JMP(p_buf, k_abs, 0xC680);
 
   /* Test JIT invalidation through different write modes. */
-  index = set_new_index(index, 0x680);
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa0; /* LDY #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$ca */ /* DEX opcode */
-  p_mem[index++] = 0xca;
-  p_mem[index++] = 0x9d; /* STA $3050,X */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xe0; /* CPX #$ff */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$88 */ /* DEY opcode */
-  p_mem[index++] = 0x88;
-  p_mem[index++] = 0x99; /* STA $3050,Y */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xc0; /* CPY #$ff */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C6C0 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0xc6;
+  util_buffer_set_pos(p_buf, 0x0680);
+  emit_JSR(p_buf, 0x3050);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0xCA);   /* DEX */
+  emit_STA(p_buf, k_abx, 0x3050);
+  emit_JSR(p_buf, 0x3050);
+  emit_CPX(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x88);   /* DEY */
+  emit_STA(p_buf, k_aby, 0x3050);
+  emit_JSR(p_buf, 0x3050);
+  emit_CPY(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC6C0);
 
   /* Test JIT invalidation through remaining write modes. */
-  index = set_new_index(index, 0x6c0);
-  p_mem[index++] = 0xa9; /* LDA #$ea */ /* NOP opcode */
-  p_mem[index++] = 0xea;
-  p_mem[index++] = 0x8d; /* STA $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$50 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x85; /* STA $8F */
-  p_mem[index++] = 0x8f;
-  p_mem[index++] = 0xa9; /* LDA #$30 */
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x85; /* STA $90 */
-  p_mem[index++] = 0x90;
-  p_mem[index++] = 0xa0; /* LDY #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$e8 */ /* INX opcode */
-  p_mem[index++] = 0xe8;
-  p_mem[index++] = 0x91; /* STA ($8F),Y */
-  p_mem[index++] = 0x8f;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xe0; /* CPX #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$c8 */ /* INY opcode */
-  p_mem[index++] = 0xc8;
-  p_mem[index++] = 0x81; /* STA ($8F,X) */
-  p_mem[index++] = 0x8f;
-  p_mem[index++] = 0x20; /* JSR $3050 */
-  p_mem[index++] = 0x50;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xc0; /* CPY #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C700 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc7;
+  util_buffer_set_pos(p_buf, 0x06C0);
+  emit_LDA(p_buf, k_imm, 0xea);   /* NOP */
+  emit_STA(p_buf, k_abs, 0x3050);
+  emit_JSR(p_buf, 0x3050);
+  emit_LDA(p_buf, k_imm, 0x50);
+  emit_STA(p_buf, k_zpg, 0x8F);
+  emit_LDA(p_buf, k_imm, 0x30);
+  emit_STA(p_buf, k_zpg, 0x90);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0xe8);   /* INX */
+  emit_STA(p_buf, k_idy, 0x8F);
+  emit_JSR(p_buf, 0x3050);
+  emit_CPX(p_buf, k_imm, 0x01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0xc8);   /* INY */
+  emit_STA(p_buf, k_idx, 0x8F);
+  emit_JSR(p_buf, 0x3050);
+  emit_CPY(p_buf, k_imm, 0x01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC700);
 
   /* Test JIT recompilation bug leading to corrupted code generation.
    * Trigger condition is replacing an opcode resulting in short generated code
    * with one resulting in longer generated code.
    */
-  index = set_new_index(index, 0x700);
-  p_mem[index++] = 0x20; /* JSR $3070 */
-  p_mem[index++] = 0x70;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$48 */ /* PHA */
-  p_mem[index++] = 0x48;
-  p_mem[index++] = 0x8d; /* STA $3070 */
-  p_mem[index++] = 0x70;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$68 */ /* PLA */
-  p_mem[index++] = 0x68;
-  p_mem[index++] = 0x8d; /* STA $3071 */
-  p_mem[index++] = 0x71;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x20; /* JSR $3070 */
-  p_mem[index++] = 0x70;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x4c; /* JMP $C740 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xc7;
+  util_buffer_set_pos(p_buf, 0x0700);
+  emit_JSR(p_buf, 0x3070);
+  emit_LDA(p_buf, k_imm, 0x48);   /* PHA */
+  emit_STA(p_buf, k_abs, 0x3070);
+  emit_LDA(p_buf, k_imm, 0x68);   /* PLA */
+  emit_STA(p_buf, k_abs, 0x3071);
+  emit_JSR(p_buf, 0x3070);
+  emit_JMP(p_buf, k_abs, 0xC740);
 
   /* Test a few simple VIA behaviors. */
-  index = set_new_index(index, 0x740);
-  p_mem[index++] = 0xad; /* LDA $FE60 */ /* User VIA ORB */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xad; /* LDA $FE70 */ /* User VIA ORB */ /* Alt address */
-  p_mem[index++] = 0x70;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x8d; /* STA $FE62 */ /* User VIA DDRB */
-  p_mem[index++] = 0x62;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE60 */ /* User VIA ORB */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xc9; /* CMP #$FE */
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0x8d; /* STA $FE60 */ /* User VIA ORB */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE60 */ /* User VIA ORB */
-  p_mem[index++] = 0x60;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xc9; /* CMP #$FF */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0x4c; /* JMP $C780 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xc7;
+  util_buffer_set_pos(p_buf, 0x0740);
+  emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xFE70); /* User VIA ORB */ /* Alt address */
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE62); /* User VIA DDRB */
+  emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
+  emit_CMP(p_buf, k_imm, 0xFE);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
+  emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC780);
 
   /* Test the firing of a timer interrupt. */
-  index = set_new_index(index, 0x780);
-  p_mem[index++] = 0x78; /* SEI */
-  p_mem[index++] = 0xad; /* LDA $FE4E */ /* sysvia IER */
-  p_mem[index++] = 0x4e;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xc9; /* CMP #$80 */
-  p_mem[index++] = 0x80;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$0e */
-  p_mem[index++] = 0x0e;
-  p_mem[index++] = 0x8d; /* STA $FE44 */ /* sysvia T1CL */
-  p_mem[index++] = 0x44;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xa9; /* LDA #$27 */
-  p_mem[index++] = 0x27;
-  p_mem[index++] = 0x8d; /* STA $FE45 */ /* sysvia T1CH */
-  p_mem[index++] = 0x45;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
-  p_mem[index++] = 0x4d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xa9; /* LDA #$C0 */ /* set, TIMER1 */
-  p_mem[index++] = 0xc0;
-  p_mem[index++] = 0x8d; /* STA $FE4E */ /* sysvia IER */
-  p_mem[index++] = 0x4e;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x58; /* CLI */
-  p_mem[index++] = 0xa5; /* LDA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xf0; /* BEQ -4 */ /* Wait until an interrupt is serviced. */
-  p_mem[index++] = 0xfc;
-  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
-  p_mem[index++] = 0x4d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xd0; /* BNE (should be ZF=0) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$27 */
-  p_mem[index++] = 0x27;
-  p_mem[index++] = 0x8d; /* STA $FE45 */ /* sysvia T1CH */ /* Clears TIMER1. */
-  p_mem[index++] = 0x45;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
-  p_mem[index++] = 0x4d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
+  util_buffer_set_pos(p_buf, 0x0780);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE4E); /* sysvia IER */
+  emit_CMP(p_buf, k_imm, 0x80);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_STA(p_buf, k_abs, 0xFE44); /* sysvia T1CL */
+  emit_LDA(p_buf, k_imm, 0x27);
+  emit_STA(p_buf, k_abs, 0xFE45); /* sysvia T1CH */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
+  emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0xC0);   /* set, TIMER1 */
+  emit_STA(p_buf, k_abs, 0xFE4E); /* sysvia IER */
+  emit_CLI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_BEQ(p_buf, -4);            /* Wait until an interrupt is serviced. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
+  emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_LDA(p_buf, k_imm, 0x27);
+  emit_STA(p_buf, k_abs, 0xFE45); /* sysvia T1CH */ /* Clears TIMER1. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
+  emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
+  emit_REQUIRE_ZF(p_buf, 1);
   /* Loop again, starting here, with interrupts disabled.
    * Interrupt enable occurs briefly and within the block. Interrupt must still
    * fire :)
    */
-  p_mem[index++] = 0x58; /* CLI */
-  p_mem[index++] = 0x78; /* SEI */
-  p_mem[index++] = 0xa5; /* LDA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc9; /* CMP #$02 */
-  p_mem[index++] = 0x02;
-  p_mem[index++] = 0xd0; /* BNE -8 */
-  p_mem[index++] = 0xf8;
-  p_mem[index++] = 0x58; /* CLI */
-  p_mem[index++] = 0xad; /* LDA $FE44 */ /* sysvia T1CL */ /* Clears TIMER1. */
-  p_mem[index++] = 0x44;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0xad; /* LDA $FE4D */ /* sysvia IFR */
-  p_mem[index++] = 0x4d;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x29; /* AND #$40 */ /* TIMER1 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0xf0; /* BEQ (should be ZF=1) */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; /* FAIL */
-  p_mem[index++] = 0xa9; /* LDA #$40 */ /* clear, TIMER1 */
-  p_mem[index++] = 0x40;
-  p_mem[index++] = 0x8d; /* STA $FE4E */ /* sysvia IER */
-  p_mem[index++] = 0x4e;
-  p_mem[index++] = 0xfe;
-  p_mem[index++] = 0x4c; /* JMP $C800 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc8;
+  emit_CLI(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_CMP(p_buf, k_imm, 0x02);
+  emit_BNE(p_buf, -8);
+  emit_CLI(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE44); /* sysvia T1CL */ /* Clears TIMER1. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
+  emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x40);   /* clear, TIMER1 */
+  emit_STA(p_buf, k_abs, 0xFE4E); /* sysvia IER */
+  emit_JMP(p_buf, k_abs, 0xC800);
 
   /* Test the firing of a timer interrupt -- to be contrarian, let's now test
    * TIMER2 on the user VIA, using alternative registers.
