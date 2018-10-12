@@ -27,6 +27,7 @@ void emit_CPY(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_DEC(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_DEX(struct util_buffer* p_buf);
 void emit_DEY(struct util_buffer* p_buf);
+void emit_INC(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_INX(struct util_buffer* p_buf);
 void emit_INY(struct util_buffer* p_buf);
 void emit_JMP(struct util_buffer* p_buf, int mode, uint16_t addr);

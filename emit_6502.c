@@ -178,6 +178,14 @@ emit_DEY(struct util_buffer* p_buf) {
 }
 
 void
+emit_INC(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[13] =
+  { 0x00,
+    0x00, 0x00, 0xe6, 0xee, 0xf6, 0x00, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_INX(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0xe8);
 }

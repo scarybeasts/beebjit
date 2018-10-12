@@ -717,92 +717,71 @@ main(int argc, const char* argv[]) {
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
-  index = set_new_index(index, 0x3000);
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3000);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_INX(p_buf);
+  emit_RTS(p_buf);
 
   /* This is close to one of the simplest self-modifying routines I found: the
    * Galaforce memory copy at first load.
    */
-  index = set_new_index(index, 0x3010);
-  p_mem[index++] = 0xa0; /* LDY #$04 */
-  p_mem[index++] = 0x04;
-  p_mem[index++] = 0xbd; /* LDA $1A00,X */ /* Jump target for both BNEs. */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x1a;
-  p_mem[index++] = 0x9d; /* STA $0A00,X */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x0a;
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0xd0; /* BNE -9 */
-  p_mem[index++] = 0xf7;
-  p_mem[index++] = 0xee; /* INC $3014 */ /* Self-modifying. */
-  p_mem[index++] = 0x14;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xee; /* INC $3017 */ /* Self-modifying. */
-  p_mem[index++] = 0x17;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x88; /* DEY */
-  p_mem[index++] = 0xd0; /* BNE -18 */
-  p_mem[index++] = 0xee;
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3010);
+  emit_LDY(p_buf, k_imm, 0x04);
+  emit_LDA(p_buf, k_abx, 0x1A00); /* Jump target for both BNEs. */
+  emit_STA(p_buf, k_abx, 0x0A00);
+  emit_INX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_INC(p_buf, k_abs, 0x3014); /* Self-modifying. */
+  emit_INC(p_buf, k_abs, 0x3017); /* Self-modifying. */
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -18);
+  emit_RTS(p_buf);
 
   /* A block that self-modifies within itself. */
-  index = set_new_index(index, 0x3030);
-  p_mem[index++] = 0xa9; /* LDA #$ff */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0x8d; /* STA $3036 */
-  p_mem[index++] = 0x36;
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3030);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0x3036);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_RTS(p_buf);
 
   /* Another block for us to modify. */
-  index = set_new_index(index, 0x3040);
-  p_mem[index++] = 0xa9; /* LDA #$ff */
-  p_mem[index++] = 0xff;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3040);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_RTS(p_buf);
 
   /* Yet another block for us to modify. */
-  index = set_new_index(index, 0x3050);
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0xc8; /* INY */
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3050);
+  emit_INX(p_buf);
+  emit_INY(p_buf);
+  emit_RTS(p_buf);
 
   /* etc... */
-  index = set_new_index(index, 0x3060);
-  p_mem[index++] = 0xea; /* NOP */
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3060);
+  emit_NOP(p_buf);
+  emit_RTS(p_buf);
 
   /* etc... */
-  index = set_new_index(index, 0x3070);
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0xc8; /* INY */
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3070);
+  emit_INX(p_buf);
+  emit_INY(p_buf);
+  emit_RTS(p_buf);
 
   /* For branch dynamic operands. */
-  index = set_new_index(index, 0x3080);
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xf0; /* BEQ + 1 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0x60; /* RTS */
+  util_buffer_set_pos(p_buf, 0x3080);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_BEQ(p_buf, 1);
+  emit_INX(p_buf);
+  emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
-  index = set_new_index(index, 0x3bff);
-  p_mem[index++] = 0x7d;
+  util_buffer_set_pos(p_buf, 0x3BFF);
+  util_buffer_add_1b(p_buf, 0x7d);
 
   /* IRQ routine. */
-  index = set_new_index(index, 0x3f00);
-  p_mem[index++] = 0xe6; /* INC $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x40; /* RTI */
+  util_buffer_set_pos(p_buf, 0x3F00);
+  emit_INC(p_buf, k_zpg, 0x00);
+  emit_RTI(p_buf);
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
