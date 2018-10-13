@@ -42,6 +42,39 @@ interp_destroy(struct interp_struct* p_interp) {
   free(p_interp);
 }
 
+static void
+interp_set_flags(unsigned char flags,
+                 unsigned char* zf,
+                 unsigned char* nf,
+                 unsigned char* cf,
+                 unsigned char* of,
+                 unsigned char* df,
+                 unsigned char* intf) {
+  *zf = ((flags & (1 << k_flag_zero)) != 0);
+  *nf = ((flags & (1 << k_flag_negative)) != 0);
+  *cf = ((flags & (1 << k_flag_carry)) != 0);
+  *of = ((flags & (1 << k_flag_overflow)) != 0);
+  *df = ((flags & (1 << k_flag_decimal)) != 0);
+  *intf = ((flags & (1 << k_flag_interrupt)) != 0);
+}
+
+static unsigned char
+interp_get_flags(unsigned char zf,
+                 unsigned char nf,
+                 unsigned char cf,
+                 unsigned char of,
+                 unsigned char df,
+                 unsigned char intf) {
+  unsigned char flags = 0;
+  flags |= (cf << k_flag_carry);
+  flags |= (zf << k_flag_zero);
+  flags |= (intf << k_flag_interrupt);
+  flags |= (df << k_flag_decimal);
+  flags |= (of << k_flag_overflow);
+  flags |= (nf << k_flag_negative);
+  return flags;
+}
+
 void
 interp_enter(struct interp_struct* p_interp) {
   unsigned char a;
@@ -67,6 +100,7 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t addr;
   int branch;
   uint16_t temp_addr;
+  int tmp;
 
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
@@ -76,15 +110,7 @@ interp_enter(struct interp_struct* p_interp) {
   void* (*debug_callback)(void*) = 0;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-  zf = ((flags & (1 << k_flag_zero)) != 0);
-  nf = ((flags & (1 << k_flag_negative)) != 0);
-  cf = ((flags & (1 << k_flag_carry)) != 0);
-  of = ((flags & (1 << k_flag_overflow)) != 0);
-  df = ((flags & (1 << k_flag_decimal)) != 0);
-  intf = ((flags & (1 << k_flag_interrupt)) != 0);
-
-  (void) df;
-  (void) intf;
+  interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
   if (p_options->debug) {
     debug_callback = p_options->debug_callback;
@@ -92,9 +118,11 @@ interp_enter(struct interp_struct* p_interp) {
 
   while (1) {
     if (debug_callback) {
+      flags = interp_get_flags(zf, nf, cf, of, df, intf);
       state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
       debug_callback(p_options->p_debug_callback_object);
       state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
+      interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
     }
     branch = 0;
     opcode = p_mem[pc++];
@@ -104,6 +132,7 @@ interp_enter(struct interp_struct* p_interp) {
     opmem = g_opmem[optype];
     switch (opmode) {
     case k_nil:
+    case 0:
       break;
     case k_acc:
       opreg = k_a;
@@ -187,13 +216,20 @@ interp_enter(struct interp_struct* p_interp) {
         assert(0);
       }
       break;
+    case k_adc:
+      tmp = (a + v + cf);
+      cf = !!(tmp & 0x100);
+      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+      of = !!((a ^ tmp) & (v ^ tmp) & 0x80);
+      a = tmp;
+      break;
     case k_and: a &= v; break;
     case k_asl: cf = !!(v & 0x80); v <<= 1; break;
-    case k_beq: branch = (zf == 0); break;
+    case k_beq: branch = (zf == 1); break;
     case k_bcc: branch = (cf == 0); break;
     case k_bcs: branch = (cf == 1); break;
     case k_bmi: branch = (nf == 1); break;
-    case k_bne: branch = (zf == 1); break;
+    case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
     case k_bvc: branch = (of == 0); break;
     case k_bvs: branch = (of == 1); break;
@@ -201,9 +237,9 @@ interp_enter(struct interp_struct* p_interp) {
     case k_cld: df = 0; break;
     case k_cli: intf = 0; break;
     case k_clv: of = 0; break;
-    case k_cmp: cf = (a >= v); v = (v - a); opreg = k_v; break;
-    case k_cpx: cf = (x >= v); v = (v - x); opreg = k_v; break;
-    case k_cpy: cf = (y >= v); v = (v - y); opreg = k_v; break;
+    case k_cmp: cf = (a >= v); v = (a - v); opreg = k_v; break;
+    case k_cpx: cf = (x >= v); v = (x - v); opreg = k_v; break;
+    case k_cpy: cf = (y >= v); v = (y - v); opreg = k_v; break;
     case k_dec: v--; break;
     case k_dex: x--; break;
     case k_dey: y--; break;
@@ -225,19 +261,30 @@ interp_enter(struct interp_struct* p_interp) {
     case k_nop: break;
     case k_pha: p_stack[s--] = a; break;
     case k_php:
-      v = ((1 << k_flag_brk) | (1 << k_flag_always_set));
-      v |= (cf << k_flag_carry);
-      v |= (zf << k_flag_zero);
-      v |= (intf << k_flag_interrupt);
-      v |= (df << k_flag_decimal);
-      v |= (of << k_flag_overflow);
-      v |= (nf << k_flag_negative);
+      v = interp_get_flags(zf, nf, cf, of, df, intf);
+      v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
       p_stack[s--] = v;
       break;
     case k_pla: a = p_stack[++s]; break;
+    case k_plp:
+      v = p_stack[++s];
+      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
+      break;
     case k_ora: a |= v; break;
     case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
     case k_ror: tmpf = cf; cf = (v & 0x01); v >>= 1; v |= (tmpf << 7); break;
+    case k_sbc:
+      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+      /* "SBC simply takes the ones complement of the second value and then
+       * performs an ADC"
+       */
+      v = ~v;
+      tmp = (a + v + cf);
+      cf = !!(tmp & 0x100);
+      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+      of = !!((a ^ tmp) & (v ^ tmp) & 0x80);
+      a = tmp;
+      break;
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
     case k_sei: intf = 1; break;
@@ -256,6 +303,9 @@ interp_enter(struct interp_struct* p_interp) {
 
     if (opmem == k_write || opmem == k_rw) {
       p_mem[addr] = v;
+    }
+    if (opmode == k_acc) {
+      a = v;
     }
 
     switch (opreg) {
