@@ -46,6 +46,12 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char s;
   unsigned char flags;
   uint16_t pc;
+  unsigned char zf;
+  unsigned char nf;
+  unsigned char cf;
+  unsigned char of;
+  unsigned char df;
+  unsigned char intf;
 
   unsigned char opcode;
   unsigned char opmode;
@@ -64,8 +70,15 @@ interp_enter(struct interp_struct* p_interp) {
   void* (*debug_callback)(void*) = 0;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-  unsigned char zf = ((flags & (1 << k_flag_zero)) != 0);
-  unsigned char nf = ((flags & (1 << k_flag_negative)) != 0);
+  zf = ((flags & (1 << k_flag_zero)) != 0);
+  nf = ((flags & (1 << k_flag_negative)) != 0);
+  cf = ((flags & (1 << k_flag_carry)) != 0);
+  of = ((flags & (1 << k_flag_overflow)) != 0);
+  df = ((flags & (1 << k_flag_decimal)) != 0);
+  intf = ((flags & (1 << k_flag_interrupt)) != 0);
+
+  (void) df;
+  (void) intf;
 
   if (p_options->debug) {
     debug_callback = p_options->debug_callback;
@@ -121,10 +134,27 @@ interp_enter(struct interp_struct* p_interp) {
         assert(0);
       }
       break;
+    case k_and: a &= v; break;
     case k_beq: branch = (zf == 0); break;
+    case k_bcc: branch = (cf == 0); break;
+    case k_bcs: branch = (cf == 1); break;
     case k_bmi: branch = (nf == 1); break;
     case k_bne: branch = (zf == 1); break;
     case k_bpl: branch = (nf == 0); break;
+    case k_bvc: branch = (of == 0); break;
+    case k_bvs: branch = (of == 1); break;
+    case k_clc: cf = 0; break;
+    case k_cld: df = 0; break;
+    case k_cli: intf = 0; break;
+    case k_clv: of = 0; break;
+    case k_dex: x--; break;
+    case k_dey: y--; break;
+    case k_eor: a ^= v; break;
+    case k_inc:
+      v = p_mem[addr];
+      break;
+    case k_inx: x++; break;
+    case k_iny: y++; break;
     case k_jmp:
       pc = addr;
       break;
@@ -135,16 +165,26 @@ interp_enter(struct interp_struct* p_interp) {
       pc = addr;
       break;
     case k_lda: a = v; break;
+    case k_ldx: x = v; break;
+    case k_ldy: y = v; break;
     case k_nop: break;
     case k_pha: p_stack[s--] = a; break;
     case k_php:
       
       break;
+    case k_pla: a = p_stack[++s]; break;
     case k_ora: a |= v; break;
+    case k_sec: cf = 1; break;
+    case k_sed: df = 1; break;
+    case k_sei: intf = 1; break;
     case k_sta: p_mem[addr] = a; break;
+    case k_stx: p_mem[addr] = x; break;
+    case k_sty: p_mem[addr] = y; break;
     case k_tax: x = a; break;
     case k_tay: y = a; break;
+    case k_tsx: x = s; break;
     case k_txa: a = x; break;
+    case k_txs: s = x; break;
     case k_tya: a = y; break;
     default:
       assert(0);
