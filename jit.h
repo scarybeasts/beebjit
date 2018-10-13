@@ -4,8 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct bbc_options;
 struct bbc_struct;
 struct debug_struct;
+struct state_6502;
 
 struct jit_struct;
 
@@ -18,8 +20,9 @@ enum {
   k_jit_flag_elim_nz_flag_tests = 32,
 };
 
-struct jit_struct* jit_create(void* p_debug_callback,
-                              struct debug_struct* p_debug,
+struct jit_struct* jit_create(struct state_6502* p_state_6502,
+                              unsigned char* p_mem,
+                              struct bbc_options* p_options,
                               struct bbc_struct* p_bbc,
                               void* p_read_callback,
                               void* p_write_callback,
@@ -46,7 +49,6 @@ unsigned char* jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502);
 unsigned char* jit_get_jit_base_addr(struct jit_struct* p_jit,
                                      uint16_t addr_6502);
 
-void jit_set_interrupt(struct jit_struct* p_jit, int id, int set);
 void jit_set_counter(struct jit_struct* p_jit, size_t counter);
 
 void jit_enter(struct jit_struct* p_jit);

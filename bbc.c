@@ -168,8 +168,9 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_debug_callback_object = p_debug;
 
-  p_bbc->p_jit = jit_create(debug_callback,
-                            p_debug,
+  p_bbc->p_jit = jit_create(&p_bbc->state_6502,
+                            p_bbc->p_mem,
+                            &p_bbc->options,
                             p_bbc,
                             bbc_read_callback,
                             bbc_write_callback,
@@ -453,7 +454,12 @@ bbc_has_exited(struct bbc_struct* p_bbc) {
 
 void
 bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set) {
-  jit_set_interrupt(p_bbc->p_jit, id, set);
+  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  if (set) {
+    p_state_6502->irq |= (1 << id);
+  } else {
+    p_state_6502->irq &= ~(1 << id);
+  }
 }
 
 int

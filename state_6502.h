@@ -7,6 +7,18 @@ enum {
   k_6502_stack_addr = 0x100,
 };
 
+enum {
+  k_state_6502_offset_reg_a =          0,
+  k_state_6502_offset_reg_x =          4,
+  k_state_6502_offset_reg_y =          8,
+  k_state_6502_offset_reg_s =          12,
+  k_state_6502_offset_reg_pc =         16,
+  k_state_6502_offset_reg_flags =      20,
+  k_state_6502_offset_reg_irq =        24,
+  k_state_6502_offset_reg_host_pc =    28,
+  k_state_6502_offset_reg_host_flags = 32,
+};
+
 struct state_6502 {
   unsigned int reg_a;
   unsigned int reg_x;
