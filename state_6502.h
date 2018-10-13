@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+enum {
+  k_6502_stack_addr = 0x100,
+};
+
 struct state_6502 {
   unsigned int reg_a;
   unsigned int reg_x;

@@ -52,12 +52,15 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char optype;
   unsigned char opreg;
   unsigned char v;
+  uint16_t addr;
   int branch;
+  uint16_t temp_addr;
 
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem = p_interp->p_mem;
+  unsigned char* p_stack = p_mem + k_6502_stack_addr;
   void* (*debug_callback)(void*) = 0;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
@@ -86,6 +89,23 @@ interp_enter(struct interp_struct* p_interp) {
     case k_rel:
       v = p_mem[pc++];
       break;
+    case k_abs:
+      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      pc += 2;
+      v = p_mem[addr];
+      break;
+    case k_ind:
+      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      pc += 2;
+      v = p_mem[addr];
+      /* Indirect fetches wrap at page boundaries. */
+      if ((addr & 0xff) == 0xff) {
+        addr &= 0xff00;
+      } else {
+        addr++;
+      }
+      addr = (v | (p_mem[addr] << 8));
+      break;
     default:
       assert(0);
     }
@@ -105,9 +125,23 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bmi: branch = (nf == 1); break;
     case k_bne: branch = (zf == 1); break;
     case k_bpl: branch = (nf == 0); break;
+    case k_jmp:
+      pc = addr;
+      break;
+    case k_jsr:
+      temp_addr = pc - 1;
+      p_stack[s--] = (temp_addr >> 8);
+      p_stack[s--] = (temp_addr & 0xff);
+      pc = addr;
+      break;
     case k_lda: a = v; break;
     case k_nop: break;
+    case k_pha: p_stack[s--] = a; break;
+    case k_php:
+      
+      break;
     case k_ora: a |= v; break;
+    case k_sta: p_mem[addr] = a; break;
     case k_tax: x = a; break;
     case k_tay: y = a; break;
     case k_txa: a = x; break;
