@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum {
+  k_v = 4,
+};
+
 struct interp_struct {
   struct state_6502* p_state_6502;
   unsigned char* p_mem;
@@ -109,9 +113,33 @@ interp_enter(struct interp_struct* p_interp) {
     case k_imm:
     case k_rel:
       v = p_mem[pc++];
+      opmem = k_nomem;
+      break;
+    case k_zpg:
+      addr = p_mem[pc++];
       break;
     case k_abs:
       addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      pc += 2;
+      break;
+    case k_zpx:
+      addr = p_mem[pc++];
+      addr += x;
+      addr &= 0xff;
+      break;
+    case k_zpy:
+      addr = p_mem[pc++];
+      addr += y;
+      addr &= 0xff;
+      break;
+    case k_abx:
+      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr += x;
+      pc += 2;
+      break;
+    case k_aby:
+      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr += y;
       pc += 2;
       break;
     case k_ind:
@@ -125,6 +153,20 @@ interp_enter(struct interp_struct* p_interp) {
         addr++;
       }
       addr = (v | (p_mem[addr] << 8));
+      break;
+    case k_idx:
+      v = p_mem[pc++];
+      v += x;
+      addr = p_mem[v];
+      v++;
+      addr |= (p_mem[v] << 8);
+      break;
+    case k_idy:
+      v = p_mem[pc++];
+      addr = p_mem[v];
+      v++;
+      addr |= (p_mem[v] << 8);
+      addr += y;
       break;
     default:
       assert(0);
@@ -159,6 +201,9 @@ interp_enter(struct interp_struct* p_interp) {
     case k_cld: df = 0; break;
     case k_cli: intf = 0; break;
     case k_clv: of = 0; break;
+    case k_cmp: cf = (a >= v); v = (v - a); opreg = k_v; break;
+    case k_cpx: cf = (x >= v); v = (v - x); opreg = k_v; break;
+    case k_cpy: cf = (y >= v); v = (v - y); opreg = k_v; break;
     case k_dec: v--; break;
     case k_dex: x--; break;
     case k_dey: y--; break;
@@ -180,7 +225,14 @@ interp_enter(struct interp_struct* p_interp) {
     case k_nop: break;
     case k_pha: p_stack[s--] = a; break;
     case k_php:
-      
+      v = ((1 << k_flag_brk) | (1 << k_flag_always_set));
+      v |= (cf << k_flag_carry);
+      v |= (zf << k_flag_zero);
+      v |= (intf << k_flag_interrupt);
+      v |= (df << k_flag_decimal);
+      v |= (of << k_flag_overflow);
+      v |= (nf << k_flag_negative);
+      p_stack[s--] = v;
       break;
     case k_pla: a = p_stack[++s]; break;
     case k_ora: a |= v; break;
@@ -211,6 +263,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_a: zf = (a == 0); nf = !!(a & 0x80); break;
     case k_x: zf = (x == 0); nf = !!(x & 0x80); break;
     case k_y: zf = (y == 0); nf = !!(y & 0x80); break;
+    case k_v: zf = (v == 0); nf = !!(v & 0x80); break;
     default:
       assert(0);
     }

@@ -127,6 +127,7 @@ enum {
   k_flag_interrupt = 2,
   k_flag_decimal = 3,
   k_flag_brk = 4,
+  k_flag_always_set = 5,
   k_flag_overflow = 6,
   k_flag_negative = 7,
 };
