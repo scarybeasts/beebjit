@@ -27,7 +27,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   p_mem[index++] = 0x02; /* Exit JIT. */
 
   /* Run at $1000. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1000);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1000);
   jit_enter(p_jit);
 
   assert(jit_has_code(p_jit, 0x1000));
@@ -46,7 +46,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
 
   /* Split the existing block. */
   /* Run at $1002. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1002);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1002);
   jit_enter(p_jit);
 
   assert(jit_is_block_start(p_jit, 0x1000));
@@ -59,7 +59,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
 
   /* Recompile start of fractured block. */
   /* Run at $1000. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x1000);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1000);
   jit_enter(p_jit);
 
   assert(jit_is_block_start(p_jit, 0x1000));
@@ -87,7 +87,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   p_mem[index++] = 0x02; /* Exit JIT. */
 
   /* Run at $2000. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
   jit_enter(p_jit);
   assert(p_mem[0x2002] == 0x01);
 
@@ -99,7 +99,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* Run / compile the invalidated opcode. */
   /* Run at $2000. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
   jit_enter(p_jit);
   assert(p_mem[0x2002] == 0x02);
 
@@ -115,7 +115,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* Executing at $2000 again will therefore recompile the block. */
   /* Run at $2000. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2000);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
   jit_enter(p_jit);
   assert(p_mem[0x2002] == 0x03);
 
@@ -135,7 +135,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Run at $2001. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2001);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2001);
   jit_enter(p_jit);
 
   assert(jit_has_self_modify_optimize(p_jit, 0x2001));
@@ -146,7 +146,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Run at $2001. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2001);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2001);
   jit_enter(p_jit);
 
   assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
@@ -171,7 +171,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   p_mem[index++] = 0x02; /* Exit JIT. */
 
   /* Run at $2100. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2100);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2100);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x60);
 
@@ -190,7 +190,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
    * the middle of them.
    */
   /* Run at $2103. */
-  jit_set_registers(p_jit, 0x06, 0, 0, 0, 0, 0x2103);
+  bbc_set_registers(p_bbc, 0x06, 0, 0, 0, 0, 0x2103);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x30);
 
@@ -207,7 +207,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(!jit_is_compilation_pending(p_jit, 0x2103));
 
   /* Run at $2100 again. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2100);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2100);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x60);
 
@@ -220,7 +220,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   p_mem[0x2103] = 0xea;
   jit_memory_written(p_jit, 0x2103);
   /* Run at $2103 again. */
-  jit_set_registers(p_jit, 0x06, 0, 0, 0, 0, 0x2103);
+  bbc_set_registers(p_bbc, 0x06, 0, 0, 0, 0, 0x2103);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x18);
 }
@@ -248,7 +248,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   jit_clear_flag(p_jit, k_jit_flag_batch_ops);
 
   /* Run at $2200. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2200);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2200);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0xce);
 
@@ -268,7 +268,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   jit_memory_written(p_jit, 0x2200);
 
   /* Run at $2200. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2200);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2200);
   jit_enter(p_jit);
 
   assert(jit_is_block_start(p_jit, 0x2200));
@@ -280,7 +280,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2206));
 
   /* Run at $2204. */
-  jit_set_registers(p_jit, 0xce, 1, 0, 0, 0, 0x2204);
+  bbc_set_registers(p_bbc, 0xce, 1, 0, 0, 0, 0x2204);
   jit_enter(p_jit);
   assert(p_mem[0x0001] == 0xce);
 
@@ -318,7 +318,7 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   p_mem[0x0000] = 0x00;
 
   /* Run at $2300. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2300);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2300);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x01);
 
@@ -353,7 +353,7 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   p_mem[0x0000] = 0xff;
 
   /* Run at $2300 again. */
-  jit_set_registers(p_jit, 0, 0, 0, 0, 0, 0x2300);
+  bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2300);
   jit_enter(p_jit);
   assert(p_mem[0x0000] == 0x01);
 

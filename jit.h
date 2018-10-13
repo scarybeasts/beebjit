@@ -31,20 +31,6 @@ void jit_set_flag(struct jit_struct* p_jit, unsigned int flag);
 void jit_clear_flag(struct jit_struct* p_jit, unsigned int flag);
 void jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops);
 
-void jit_get_registers(struct jit_struct* p_jit,
-                       unsigned char* a,
-                       unsigned char* x,
-                       unsigned char* y,
-                       unsigned char* s,
-                       unsigned char* flags,
-                       uint16_t* pc);
-void jit_set_registers(struct jit_struct* p_jit,
-                       unsigned char a,
-                       unsigned char x,
-                       unsigned char y,
-                       unsigned char s,
-                       unsigned char flags,
-                       uint16_t pc);
 uint16_t jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502);
 void jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502);
 

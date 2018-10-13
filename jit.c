@@ -3636,6 +3636,15 @@ jit_enter(struct jit_struct* p_jit) {
    */
   assert(((size_t) p_mem & 0xffff) == 0);
 
+  /* TODO: get rid of local registers copy. */
+  bbc_get_registers(p_jit->p_bbc,
+                    (unsigned char*) &p_jit->reg_a_eax,
+                    (unsigned char*) &p_jit->reg_x_ebx,
+                    (unsigned char*) &p_jit->reg_y_ecx,
+                    (unsigned char*) &p_jit->reg_s_esi,
+                    (unsigned char*) &p_jit->reg_6502_flags,
+                    (uint16_t*) &p_jit->reg_pc);
+
   asm volatile (
     /* Pass a pointer to the jit_struct in rdi. */
     "mov %0, %%rdi;"
@@ -3834,38 +3843,6 @@ jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops) {
     max_num_ops = ~0;
   }
   p_jit->max_num_ops = max_num_ops;
-}
-
-void
-jit_get_registers(struct jit_struct* p_jit,
-                  unsigned char* a,
-                  unsigned char* x,
-                  unsigned char* y,
-                  unsigned char* s,
-                  unsigned char* flags,
-                  uint16_t* pc) {
-  *a = (unsigned char) p_jit->reg_a_eax;
-  *x = (unsigned char) p_jit->reg_x_ebx;
-  *y = (unsigned char) p_jit->reg_y_ecx;
-  *s = (unsigned char) p_jit->reg_s_esi;
-  *flags = p_jit->reg_6502_flags;
-  *pc = p_jit->reg_pc;
-}
-
-void
-jit_set_registers(struct jit_struct* p_jit,
-                  unsigned char a,
-                  unsigned char x,
-                  unsigned char y,
-                  unsigned char s,
-                  unsigned char flags,
-                  uint16_t pc) {
-  *((unsigned char*) &p_jit->reg_a_eax) = a;
-  *((unsigned char*) &p_jit->reg_x_ebx) = x;
-  *((unsigned char*) &p_jit->reg_y_ecx) = y;
-  *((unsigned char*) &p_jit->reg_s_esi) = s;
-  p_jit->reg_6502_flags = flags;
-  p_jit->reg_pc = pc;
 }
 
 void

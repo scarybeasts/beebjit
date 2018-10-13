@@ -40,6 +40,13 @@ interp_destroy(struct interp_struct* p_interp) {
 
 void
 interp_enter(struct interp_struct* p_interp) {
+  unsigned char a;
+  unsigned char x;
+  unsigned char y;
+  unsigned char s;
+  unsigned char flags;
+  uint16_t pc;
+
   unsigned char opcode;
   unsigned char opmode;
   unsigned char optype;
@@ -52,11 +59,8 @@ interp_enter(struct interp_struct* p_interp) {
   struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem = p_interp->p_mem;
   void* (*debug_callback)(void*) = 0;
-  uint16_t pc = p_state_6502->reg_pc;
-  unsigned char a = p_state_6502->reg_a;
-  unsigned char x = p_state_6502->reg_x;
-  unsigned char y = p_state_6502->reg_y;
-  unsigned char flags = p_state_6502->reg_flags;
+
+  state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   unsigned char zf = ((flags & (1 << k_flag_zero)) != 0);
   unsigned char nf = ((flags & (1 << k_flag_negative)) != 0);
 
@@ -66,7 +70,9 @@ interp_enter(struct interp_struct* p_interp) {
 
   while (1) {
     if (debug_callback) {
+      state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
       debug_callback(p_options->p_debug_callback_object);
+      state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
     }
     branch = 0;
     opcode = p_mem[pc++];

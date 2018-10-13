@@ -238,8 +238,8 @@ bbc_get_registers(struct bbc_struct* p_bbc,
                   unsigned char* s,
                   unsigned char* flags,
                   uint16_t* pc) {
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  jit_get_registers(p_jit, a, x, y, s, flags, pc);
+  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
 void
@@ -250,16 +250,8 @@ bbc_set_registers(struct bbc_struct* p_bbc,
                   unsigned char s,
                   unsigned char flags,
                   uint16_t pc) {
-  /* TODO: keep the registers in one place only. */
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  jit_set_registers(p_jit, a, x, y, s, flags, pc);
-
-  *((unsigned char*) &p_bbc->state_6502.reg_a) = a;
-  *((unsigned char*) &p_bbc->state_6502.reg_x) = x;
-  *((unsigned char*) &p_bbc->state_6502.reg_y) = y;
-  *((unsigned char*) &p_bbc->state_6502.reg_s) = s;
-  *((unsigned char*) &p_bbc->state_6502.reg_flags) = flags;
-  *((uint16_t*) &p_bbc->state_6502.reg_pc) = pc;
+  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
 uint16_t
