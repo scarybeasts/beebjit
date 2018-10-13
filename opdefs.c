@@ -135,25 +135,25 @@ unsigned char g_opmodes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
-  k_nil, k_imm, k_nil, 0    , 0    , k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_acc, 0    , 0    , k_abs, k_abs, 0    ,
   /* 0x10 */
   k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   /* 0x20 */
   k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
-  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_acc, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0x30 */
   k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   /* 0x40 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
-  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_acc, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0x50 */
   k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   /* 0x60 */
   k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
-  k_nil, k_imm, k_nil, 0    , k_ind, k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_acc, 0    , k_ind, k_abs, k_abs, 0    ,
   /* 0x70 */
   k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
@@ -187,6 +187,7 @@ unsigned char g_opmodelens[k_6502_op_num_modes] =
 {
   1, /* ??? */
   1, /* nil */
+  1, /* acc */
   2, /* imm */
   2, /* zpg */
   3, /* abs */

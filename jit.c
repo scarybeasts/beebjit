@@ -1384,7 +1384,7 @@ jit_emit_shift_op(struct jit_struct* p_jit,
     return index;
   }
   switch (opmode) {
-  case k_nil:
+  case k_acc:
     /* OP al, n */
     p_jit_buf[index++] = first_byte;
     p_jit_buf[index++] = intel_op_base;
@@ -1438,7 +1438,7 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
                      unsigned char opmode,
                      int special,
                      uint16_t opcode_addr_6502) {
-  if (opmode == k_nil) {
+  if (opmode == k_acc) {
     /* Nothing. The NZ flags are now in the accumulator and we have the
      * machinery to pull them out if they are needed. The carry flag remains
      * in the processor carry flag.
@@ -1650,6 +1650,7 @@ jit_handle_invalidate(struct jit_struct* p_jit,
     return index;
   }
   if (opmode == k_nil ||
+      opmode == k_acc ||
       opmode == k_zpg ||
       opmode == k_zpx ||
       opmode == k_zpy ||
@@ -1796,12 +1797,6 @@ jit_single(struct jit_struct* p_jit,
     opcode_addr_6502 = addr_6502_plus_1;
 
     switch (opmode) {
-    case k_nil:
-      assert(0);
-      break;
-    case k_rel:
-      assert(0);
-      break;
     case k_imm:
       opmode = k_imm_dyn;
       break;
@@ -1897,18 +1892,13 @@ jit_single(struct jit_struct* p_jit,
 
   /* Handle merging repeated shift / rotate instructions. */
   if (jit_flags & k_jit_flag_merge_ops) {
-    if (optype == k_lsr ||
-        optype == k_asl ||
-        optype == k_rol ||
-        optype == k_ror) {
-      if (opmode == k_nil) {
-        while (n_count < 7 &&
-               num_6502_bytes < max_6502_bytes &&
-               p_mem[next_addr_6502] == opcode) {
-          n_count++;
-          next_addr_6502++;
-          num_6502_bytes++;
-        }
+    if (opmode == k_acc) {
+      while (n_count < 7 &&
+             num_6502_bytes < max_6502_bytes &&
+             p_mem[next_addr_6502] == opcode) {
+        n_count++;
+        next_addr_6502++;
+        num_6502_bytes++;
       }
     }
   }
@@ -3084,7 +3074,7 @@ jit_at_addr(struct jit_struct* p_jit,
     /* Special case: the nil mode for ROL / ROR also doesn't test the
      * flags immediately as an optimization.
      */
-    if ((optype == k_rol || optype == k_ror) && opmode == k_nil) {
+    if ((optype == k_rol || optype == k_ror) && opmode == k_acc) {
       new_nz_flags_location = k_a;
       new_carry_flag_location = k_flags;
     }
@@ -3112,7 +3102,7 @@ jit_at_addr(struct jit_struct* p_jit,
     if (opcode_6502 != p_jit->compiled_opcode[addr_6502]) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
-    if (opmode == k_rel || opmode == k_nil) {
+    if (opmode == k_rel || opmode == k_nil || opmode == k_acc) {
       p_jit->self_modify_optimize[addr_6502] = 0;
     }
 

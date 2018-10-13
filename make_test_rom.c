@@ -168,7 +168,7 @@ main(int argc, const char* argv[]) {
   util_buffer_set_pos(p_buf, 0x0140);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_SEC(p_buf);
-  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_acc, 0);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 1);
@@ -189,14 +189,14 @@ main(int argc, const char* argv[]) {
   /* Test shift / rotate instuction coalescing. */
   util_buffer_set_pos(p_buf, 0x01c0);
   emit_LDA(p_buf, k_imm, 0x05);
-  emit_ASL(p_buf, k_nil, 0);
-  emit_ASL(p_buf, k_nil, 0);
+  emit_ASL(p_buf, k_acc, 0);
+  emit_ASL(p_buf, k_acc, 0);
   emit_CMP(p_buf, k_imm, 0x14);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_SEC(p_buf);
-  emit_ROR(p_buf, k_nil, 0);
-  emit_ROR(p_buf, k_nil, 0);
-  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_ROR(p_buf, k_acc, 0);
   emit_REQUIRE_CF(p_buf, 1);
   emit_CMP(p_buf, k_imm, 0x22);
   emit_REQUIRE_ZF(p_buf, 1);
@@ -675,14 +675,14 @@ main(int argc, const char* argv[]) {
   util_buffer_set_pos(p_buf, 0x0980);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x01);
-  emit_LSR(p_buf, k_nil, 0);
+  emit_LSR(p_buf, k_acc, 0);
   emit_ADC(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x01);
   emit_TAX(p_buf);
   emit_INX(p_buf);
-  emit_ROL(p_buf, k_nil, 0);
+  emit_ROL(p_buf, k_acc, 0);
   emit_SBC(p_buf, k_imm, 0x01);
-  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_acc, 0);
   emit_TAY(p_buf);
   emit_CPX(p_buf, k_imm, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
@@ -696,7 +696,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x7F);   /* Sets OF=1 */
   emit_LDA(p_buf, k_imm, 0x00);
-  emit_LSR(p_buf, k_nil, 0);
+  emit_LSR(p_buf, k_acc, 0);
   emit_REQUIRE_OF(p_buf, 1);
   emit_CLV(p_buf);
   emit_REQUIRE_OF(p_buf, 0);
@@ -709,7 +709,7 @@ main(int argc, const char* argv[]) {
   emit_CLC(p_buf);
   emit_ADC(p_buf, k_imm, 0x00);   /* Sets OF=0 */
   emit_LDA(p_buf, k_imm, 0x80);
-  emit_ROR(p_buf, k_nil, 0);
+  emit_ROR(p_buf, k_acc, 0);
   emit_REQUIRE_OF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xCA00);
 

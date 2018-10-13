@@ -4,7 +4,7 @@
 enum {
   k_6502_op_num_types = 58,
   k_6502_op_num_opcodes = 256,
-  k_6502_op_num_modes = 13,
+  k_6502_op_num_modes = 14,
 };
 
 const char* g_p_opnames[k_6502_op_num_types];
@@ -81,24 +81,25 @@ enum {
 
 enum {
   k_nil = 1,
-  k_imm = 2,
-  k_zpg = 3,
-  k_abs = 4,
-  k_zpx = 5,
-  k_zpy = 6,
-  k_abx = 7,
-  k_aby = 8,
-  k_idx = 9,
-  k_idy = 10,
-  k_ind = 11,
-  k_rel = 12,
+  k_acc = 2,
+  k_imm = 3,
+  k_zpg = 4,
+  k_abs = 5,
+  k_zpx = 6,
+  k_zpy = 7,
+  k_abx = 8,
+  k_aby = 9,
+  k_idx = 10,
+  k_idy = 11,
+  k_ind = 12,
+  k_rel = 13,
   /* Additional address modes supported for efficient self-modifying code. */
-  k_imm_dyn = 13,
-  k_zpg_dyn = 14,
-  k_abs_dyn = 15,
-  k_abx_dyn = 16,
-  k_aby_dyn = 17,
-  k_idy_dyn = 18,
+  k_imm_dyn = 14,
+  k_zpg_dyn = 15,
+  k_abs_dyn = 16,
+  k_abx_dyn = 17,
+  k_aby_dyn = 18,
+  k_idy_dyn = 19,
 };
 
 enum {
