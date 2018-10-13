@@ -225,12 +225,26 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case k_and: a &= v; break;
     case k_asl: cf = !!(v & 0x80); v <<= 1; break;
-    case k_beq: branch = (zf == 1); break;
     case k_bcc: branch = (cf == 0); break;
     case k_bcs: branch = (cf == 1); break;
+    case k_beq: branch = (zf == 1); break;
+    case k_bit:
+      zf = !(a & v);
+      nf = !!(v & 0x80);
+      of = !!(v & 0x40);
+      break;
     case k_bmi: branch = (nf == 1); break;
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
+    case k_brk:
+      temp_addr = pc + 1;
+      p_stack[s--] = (temp_addr >> 8);
+      p_stack[s--] = (temp_addr & 0xff);
+      v = interp_get_flags(zf, nf, cf, of, df, intf);
+      v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
+      p_stack[s--] = v;
+      pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+      break;
     case k_bvc: branch = (of == 0); break;
     case k_bvs: branch = (of == 1); break;
     case k_clc: cf = 0; break;
@@ -273,6 +287,17 @@ interp_enter(struct interp_struct* p_interp) {
     case k_ora: a |= v; break;
     case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
     case k_ror: tmpf = cf; cf = (v & 0x01); v >>= 1; v |= (tmpf << 7); break;
+    case k_rti:
+      v = p_stack[++s];
+      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
+      pc = p_stack[++s];
+      pc |= (p_stack[++s] << 8);
+      break;
+    case k_rts:
+      pc = p_stack[++s];
+      pc |= (p_stack[++s] << 8);
+      pc++;
+      break;
     case k_sbc:
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
       /* "SBC simply takes the ones complement of the second value and then

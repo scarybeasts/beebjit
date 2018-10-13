@@ -2191,6 +2191,7 @@ printf("ooh\n");
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1);
     break;
   case k_rti:
+    /* RTI */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     index = jit_emit_set_flags(p_jit_buf, index);
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);

@@ -2,6 +2,11 @@
 #define BEEBJIT_OPDEFS_H
 
 enum {
+  k_6502_vector_reset = 0xfffc,
+  k_6502_vector_irq = 0xfffe,
+};
+
+enum {
   k_6502_op_num_types = 58,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 14,
