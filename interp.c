@@ -52,10 +52,12 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char of;
   unsigned char df;
   unsigned char intf;
+  unsigned char tmpf;
 
   unsigned char opcode;
   unsigned char opmode;
   unsigned char optype;
+  unsigned char opmem;
   unsigned char opreg;
   unsigned char v;
   uint16_t addr;
@@ -95,8 +97,14 @@ interp_enter(struct interp_struct* p_interp) {
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
     opreg = g_optype_sets_register[optype];
+    opmem = g_opmem[optype];
     switch (opmode) {
     case k_nil:
+      break;
+    case k_acc:
+      opreg = k_a;
+      opmem = k_nomem;
+      v = a;
       break;
     case k_imm:
     case k_rel:
@@ -105,7 +113,6 @@ interp_enter(struct interp_struct* p_interp) {
     case k_abs:
       addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
       pc += 2;
-      v = p_mem[addr];
       break;
     case k_ind:
       addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
@@ -123,6 +130,10 @@ interp_enter(struct interp_struct* p_interp) {
       assert(0);
     }
 
+    if (opmem == k_read || opmem == k_rw) {
+      v = p_mem[addr];
+    }
+
     switch (optype) {
     case k_kil:
       switch (opcode) {
@@ -135,6 +146,7 @@ interp_enter(struct interp_struct* p_interp) {
       }
       break;
     case k_and: a &= v; break;
+    case k_asl: cf = !!(v & 0x80); v <<= 1; break;
     case k_beq: branch = (zf == 0); break;
     case k_bcc: branch = (cf == 0); break;
     case k_bcs: branch = (cf == 1); break;
@@ -147,17 +159,14 @@ interp_enter(struct interp_struct* p_interp) {
     case k_cld: df = 0; break;
     case k_cli: intf = 0; break;
     case k_clv: of = 0; break;
+    case k_dec: v--; break;
     case k_dex: x--; break;
     case k_dey: y--; break;
     case k_eor: a ^= v; break;
-    case k_inc:
-      v = p_mem[addr];
-      break;
+    case k_inc: v++; break;
     case k_inx: x++; break;
     case k_iny: y++; break;
-    case k_jmp:
-      pc = addr;
-      break;
+    case k_jmp: pc = addr; break;
     case k_jsr:
       temp_addr = pc - 1;
       p_stack[s--] = (temp_addr >> 8);
@@ -167,6 +176,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_lda: a = v; break;
     case k_ldx: x = v; break;
     case k_ldy: y = v; break;
+    case k_lsr: cf = (v & 0x01); v >>= 1; break;
     case k_nop: break;
     case k_pha: p_stack[s--] = a; break;
     case k_php:
@@ -174,12 +184,14 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case k_pla: a = p_stack[++s]; break;
     case k_ora: a |= v; break;
+    case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
+    case k_ror: tmpf = cf; cf = (v & 0x01); v >>= 1; v |= (tmpf << 7); break;
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
     case k_sei: intf = 1; break;
-    case k_sta: p_mem[addr] = a; break;
-    case k_stx: p_mem[addr] = x; break;
-    case k_sty: p_mem[addr] = y; break;
+    case k_sta: v = a; break;
+    case k_stx: v = x; break;
+    case k_sty: v = y; break;
     case k_tax: x = a; break;
     case k_tay: y = a; break;
     case k_tsx: x = s; break;
@@ -190,11 +202,15 @@ interp_enter(struct interp_struct* p_interp) {
       assert(0);
     }
 
+    if (opmem == k_write || opmem == k_rw) {
+      p_mem[addr] = v;
+    }
+
     switch (opreg) {
     case 0: break;
-    case k_a: zf = (a == 0); nf = ((a & 0x80) != 0); break;
-    case k_x: zf = (x == 0); nf = ((x & 0x80) != 0); break;
-    case k_y: zf = (y == 0); nf = ((y & 0x80) != 0); break;
+    case k_a: zf = (a == 0); nf = !!(a & 0x80); break;
+    case k_x: zf = (x == 0); nf = !!(x & 0x80); break;
+    case k_y: zf = (y == 0); nf = !!(y & 0x80); break;
     default:
       assert(0);
     }
