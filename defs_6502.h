@@ -1,9 +1,11 @@
-#ifndef BEEBJIT_OPDEFS_H
-#define BEEBJIT_OPDEFS_H
+#ifndef BEEBJIT_DEFS_6502_H
+#define BEEBJIT_DEFS_6502_H
 
 enum {
+  k_6502_addr_space_size = 0x10000,
   k_6502_vector_reset = 0xfffc,
   k_6502_vector_irq = 0xfffe,
+  k_6502_stack_addr = 0x100,
 };
 
 enum {
@@ -137,4 +139,4 @@ enum {
   k_flag_negative = 7,
 };
 
-#endif /* BEEBJIT_OPDEFS_H */
+#endif /* BEEBJIT_DEFS_6502_H */

@@ -4,10 +4,6 @@
 #include <stdint.h>
 
 enum {
-  k_6502_stack_addr = 0x100,
-};
-
-enum {
   k_state_6502_offset_reg_a =          0,
   k_state_6502_offset_reg_x =          4,
   k_state_6502_offset_reg_y =          8,

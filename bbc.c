@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "debug.h"
+#include "defs_6502.h"
 #include "interp.h"
 #include "jit.h"
 #include "state_6502.h"
@@ -116,7 +117,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
 
-  mem_fd = util_get_memory_fd(k_bbc_addr_space_size);
+  mem_fd = util_get_memory_fd(k_6502_addr_space_size);
   if (mem_fd < 0) {
     errx(1, "util_get_memory_fd failed");
   }
@@ -125,17 +126,17 @@ bbc_create(unsigned char* p_os_rom,
       util_get_guarded_mapping_from_fd(
           mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_addr,
-          k_bbc_addr_space_size);
+          k_6502_addr_space_size);
 
   p_bbc->p_mem_dummy_rom =
       util_get_guarded_mapping_from_fd(
           mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom,
-          k_bbc_addr_space_size);
+          k_6502_addr_space_size);
   /* Install the dummy rom. */
   (void) util_get_fixed_anonymous_mapping(
       p_bbc->p_mem_dummy_rom + k_bbc_ram_size,
-      k_bbc_addr_space_size - k_bbc_ram_size);
+      k_6502_addr_space_size - k_bbc_ram_size);
   /* Make the registers page inaccessible. Typical ROM faults happen lower. */
   util_make_mapping_none(p_bbc->p_mem_dummy_rom + 0xf000, 4096);
 
@@ -198,8 +199,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
-  util_free_guarded_mapping(p_bbc->p_mem, k_bbc_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_bbc_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_6502_addr_space_size);
   free(p_bbc);
 }
 
@@ -217,17 +218,18 @@ bbc_reset(struct bbc_struct* p_bbc) {
   unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
 
   /* Clear memory / ROMs. */
-  (void) memset(p_mem, '\0', k_bbc_addr_space_size);
+  (void) memset(p_mem, '\0', k_6502_addr_space_size);
 
   /* Copy in OS and language ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
   (void) memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
 
   util_make_mapping_read_only(p_mem + k_bbc_ram_size,
-                              k_bbc_addr_space_size - k_bbc_ram_size);
+                              k_6502_addr_space_size - k_bbc_ram_size);
 
   /* Initial 6502 state. */
-  init_pc = p_mem[k_bbc_vector_reset] | (p_mem[k_bbc_vector_reset + 1] << 8);
+  init_pc = (p_mem[k_6502_vector_reset] |
+             (p_mem[k_6502_vector_reset + 1] << 8));
   bbc_set_registers(p_bbc, 0, 0, 0, 0, /* I flag */ 0x04, init_pc);
 }
 
@@ -311,14 +313,14 @@ bbc_memory_write(struct bbc_struct* p_bbc,
    */
   if (addr_6502 >= k_bbc_ram_size) {
     util_make_mapping_read_write(p_mem + k_bbc_ram_size,
-                                 k_bbc_addr_space_size - k_bbc_ram_size);
+                                 k_6502_addr_space_size - k_bbc_ram_size);
   }
 
   p_mem[addr_6502] = val;
 
   if (addr_6502 >= k_bbc_ram_size) {
     util_make_mapping_read_only(p_mem + k_bbc_ram_size,
-                                k_bbc_addr_space_size - k_bbc_ram_size);
+                                k_6502_addr_space_size - k_bbc_ram_size);
   }
 
   jit_memory_written(p_jit, addr_6502);

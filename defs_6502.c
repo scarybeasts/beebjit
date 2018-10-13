@@ -1,4 +1,4 @@
-#include "opdefs.h"
+#include "defs_6502.h"
 
 const char* g_p_opnames[k_6502_op_num_types] =
 {

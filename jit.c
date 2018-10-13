@@ -5,7 +5,7 @@
 #include "bbc.h"
 #include "bbc_options.h"
 #include "debug.h"
-#include "opdefs.h"
+#include "defs_6502.h"
 #include "state_6502.h"
 #include "util.h"
 
@@ -193,7 +193,7 @@ struct jit_struct {
   void* p_debug;                   /* 72  */
   struct bbc_struct* p_bbc;
   size_t counter;
-  unsigned int jit_ptrs[k_bbc_addr_space_size]; /* 96 */
+  unsigned int jit_ptrs[k_6502_addr_space_size]; /* 96 */
 
   /* Fields not referenced by JIT'ed code. */
   unsigned int jit_flags;
@@ -212,10 +212,10 @@ struct jit_struct {
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
 
-  unsigned char is_block_start[k_bbc_addr_space_size];
-  unsigned char compiled_opcode[k_bbc_addr_space_size];
-  unsigned char self_modify_optimize[k_bbc_addr_space_size];
-  unsigned char compilation_pending[k_bbc_addr_space_size];
+  unsigned char is_block_start[k_6502_addr_space_size];
+  unsigned char compiled_opcode[k_6502_addr_space_size];
+  unsigned char self_modify_optimize[k_6502_addr_space_size];
+  unsigned char compilation_pending[k_6502_addr_space_size];
 };
 
 static size_t
@@ -1542,7 +1542,7 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
 
 static void
 jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
-  uint16_t vector = k_bbc_vector_irq;
+  uint16_t vector = k_6502_vector_irq;
   size_t index = 0;
 
   index = jit_emit_push_word_from_scratch(p_jit_buf, index);
@@ -2823,7 +2823,7 @@ jit_6502_addr_from_intel(struct jit_struct* p_jit, unsigned char* intel_rip) {
   block_addr_6502 = (intel_rip - p_jit_base);
   block_addr_6502 >>= k_jit_bytes_shift;
 
-  assert(block_addr_6502 < k_bbc_addr_space_size);
+  assert(block_addr_6502 < k_6502_addr_space_size);
 
   addr_6502 = block_addr_6502;
   intel_rip_masked = ((size_t) intel_rip) & k_jit_bytes_mask;
@@ -3557,7 +3557,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   /* Crash unless the faulting instruction is in the JIT region. */
   if (p_rip < (unsigned char*) k_jit_addr ||
       p_rip >= (unsigned char*) k_jit_addr +
-               (k_bbc_addr_space_size << k_jit_bytes_shift)) {
+               (k_6502_addr_space_size << k_jit_bytes_shift)) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
@@ -3575,7 +3575,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   /* Bail unless it's a fault writing the restricted ROM region. */
   if (p_addr < (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom_ro ||
       p_addr >= (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom +
-                                          k_bbc_addr_space_size) {
+                                          k_6502_addr_space_size) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
@@ -3695,10 +3695,10 @@ jit_create(struct state_6502* p_state_6502,
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
       k_jit_addr,
-      k_bbc_addr_space_size * k_jit_bytes_per_byte);
+      k_6502_addr_space_size * k_jit_bytes_per_byte);
   util_make_mapping_read_write_exec(
       p_jit_base,
-      k_bbc_addr_space_size * k_jit_bytes_per_byte);
+      k_6502_addr_space_size * k_jit_bytes_per_byte);
 
   p_jit->p_state_6502 = p_state_6502;
   p_state_6502->reg_x = uint_mem;
@@ -3793,8 +3793,8 @@ jit_create(struct state_6502* p_state_6502,
   jit_set_max_compile_ops(p_jit, 0);
 
   /* int3 */
-  memset(p_jit_base, '\xcc', k_bbc_addr_space_size * k_jit_bytes_per_byte);
-  for (i = 0; i < k_bbc_addr_space_size; ++i) {
+  memset(p_jit_base, '\xcc', k_6502_addr_space_size * k_jit_bytes_per_byte);
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
     jit_init_addr(p_jit, i);
   }
 
@@ -3833,7 +3833,7 @@ jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
   util_free_guarded_mapping(p_jit->p_tables_base, k_tables_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
-                            k_bbc_addr_space_size * k_jit_bytes_per_byte);
+                            k_6502_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);
   util_buffer_destroy(p_jit->p_dest_buf);
   util_buffer_destroy(p_jit->p_seq_buf);

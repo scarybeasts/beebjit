@@ -4,7 +4,7 @@
 
 #include "bbc.h"
 #include "jit.h"
-#include "opdefs.h"
+#include "defs_6502.h"
 #include "state.h"
 #include "util.h"
 #include "via.h"
@@ -39,13 +39,13 @@ struct debug_struct {
   uint16_t next_or_finish_stop_addr;
   /* Stats. */
   int stats;
-  size_t count_addr[k_bbc_addr_space_size];
+  size_t count_addr[k_6502_addr_space_size];
   size_t count_opcode[k_6502_op_num_opcodes];
   size_t count_optype[k_6502_op_num_types];
   size_t count_opmode[k_6502_op_num_modes];
   size_t rom_write_faults;
   /* Other. */
-  unsigned char warned_at_addr[k_bbc_addr_space_size];
+  unsigned char warned_at_addr[k_6502_addr_space_size];
 };
 
 /* TODO: move into debug_struct! */
@@ -427,7 +427,7 @@ static void
 debug_dump_stats(struct debug_struct* p_debug) {
   size_t i;
   unsigned char sorted_opcodes[k_6502_op_num_opcodes];
-  uint16_t sorted_addrs[k_bbc_addr_space_size];
+  uint16_t sorted_addrs[k_6502_addr_space_size];
 
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     sorted_opcodes[i] = i;
@@ -449,16 +449,16 @@ debug_dump_stats(struct debug_struct* p_debug) {
     printf("%14s: %zu\n", opcode_buf, count);
   }
 
-  for (i = 0; i < k_bbc_addr_space_size; ++i) {
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
     sorted_addrs[i] = i;
   }
   qsort_r(sorted_addrs,
-          k_bbc_addr_space_size,
+          k_6502_addr_space_size,
           sizeof(uint16_t),
           debug_sort_addrs,
           p_debug);
   printf("=== Addrs ===\n");
-  for (i = k_bbc_addr_space_size - 256; i < k_bbc_addr_space_size; ++i) {
+  for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
     size_t count = p_debug->count_addr[addr];
     if (!count) {
@@ -561,7 +561,7 @@ debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
   size_t len;
-  unsigned char buf[k_bbc_addr_space_size];
+  unsigned char buf[k_6502_addr_space_size];
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
@@ -774,9 +774,9 @@ debug_callback(void* p) {
     } else if (!strcmp(input_buf, "f")) {
       uint16_t finish_addr;
       unsigned char stack = reg_s + 1;
-      finish_addr = p_mem[k_bbc_stack_addr + stack];
+      finish_addr = p_mem[k_6502_stack_addr + stack];
       stack++;
-      finish_addr |= (p_mem[k_bbc_stack_addr + stack] << 8);
+      finish_addr |= (p_mem[k_6502_stack_addr + stack] << 8);
       finish_addr++;
       p_debug->next_or_finish_stop_addr = finish_addr;
       debug_running = 1;

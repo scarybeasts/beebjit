@@ -1,7 +1,7 @@
 #include "interp.h"
 
 #include "bbc_options.h"
-#include "opdefs.h"
+#include "defs_6502.h"
 #include "state_6502.h"
 
 #include <assert.h>

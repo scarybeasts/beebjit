@@ -2,7 +2,7 @@
 
 #include <assert.h>
 
-#include "opdefs.h"
+#include "defs_6502.h"
 #include "util.h"
 
 static void

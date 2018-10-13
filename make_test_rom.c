@@ -5,8 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "defs_6502.h"
 #include "emit_6502.h"
-#include "opdefs.h"
 #include "util.h"
 
 static const size_t k_rom_size = 16384;
