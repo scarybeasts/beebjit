@@ -43,7 +43,7 @@ interp_destroy(struct interp_struct* p_interp) {
   free(p_interp);
 }
 
-static void
+static inline void
 interp_set_flags(unsigned char flags,
                  unsigned char* zf,
                  unsigned char* nf,
@@ -59,7 +59,7 @@ interp_set_flags(unsigned char flags,
   *intf = ((flags & (1 << k_flag_interrupt)) != 0);
 }
 
-static unsigned char
+static inline unsigned char
 interp_get_flags(unsigned char zf,
                  unsigned char nf,
                  unsigned char cf,
@@ -74,6 +74,35 @@ interp_get_flags(unsigned char zf,
   flags |= (of << k_flag_overflow);
   flags |= (nf << k_flag_negative);
   return flags;
+}
+
+static inline unsigned char
+interp_read_mem(struct memory_access* p_memory_access,
+                unsigned char* p_mem,
+                uint16_t addr,
+                uint16_t read_callback_mask) {
+  if ((addr & read_callback_mask) == read_callback_mask) {
+    return p_memory_access->memory_read_callback(
+        p_memory_access->p_callback_obj,
+        addr);
+  } else {
+    return p_mem[addr];
+  }
+}
+
+static inline void
+interp_write_mem(struct memory_access* p_memory_access,
+                unsigned char* p_mem,
+                uint16_t addr,
+                unsigned char v,
+                uint16_t write_callback_mask) {
+  if ((addr & write_callback_mask) == write_callback_mask) {
+    p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
+                                           addr,
+                                           v);
+  } else {
+    p_mem[addr] = v;
+  }
 }
 
 void
@@ -105,10 +134,17 @@ interp_enter(struct interp_struct* p_interp) {
 
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
+  struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct bbc_options* p_options = p_interp->p_options;
-  unsigned char* p_mem = p_interp->p_memory_access->p_mem_read;
+  unsigned char* p_mem = p_memory_access->p_mem_read;
   unsigned char* p_stack = p_mem + k_6502_stack_addr;
   void* (*debug_callback)(void*) = 0;
+  uint16_t read_callback_mask =
+      p_memory_access->memory_read_needs_callback_mask(
+          p_memory_access->p_callback_obj);
+  uint16_t write_callback_mask =
+      p_memory_access->memory_write_needs_callback_mask(
+          p_memory_access->p_callback_obj);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -126,6 +162,7 @@ interp_enter(struct interp_struct* p_interp) {
       interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
     }
     branch = 0;
+    /* TODO: opcode fetch doesn't consider hardware register access. */
     opcode = p_mem[pc++];
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
@@ -203,7 +240,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_read || opmem == k_rw) {
-      v = p_mem[addr];
+      v = interp_read_mem(p_memory_access, p_mem, addr, read_callback_mask);
     }
 
     switch (optype) {
@@ -328,7 +365,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_write || opmem == k_rw) {
-      p_mem[addr] = v;
+      interp_write_mem(p_memory_access, p_mem, addr, v, write_callback_mask);
     }
     if (opmode == k_acc) {
       a = v;
