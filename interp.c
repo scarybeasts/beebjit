@@ -241,6 +241,9 @@ interp_enter(struct interp_struct* p_interp) {
 
     if (opmem == k_read || opmem == k_rw) {
       v = interp_read_mem(p_memory_access, p_mem, addr, read_callback_mask);
+      if (opmem == k_rw) {
+        opreg = k_v;
+      }
     }
 
     switch (optype) {
