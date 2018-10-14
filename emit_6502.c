@@ -271,6 +271,11 @@ emit_PHP(struct util_buffer* p_buf) {
 }
 
 void
+emit_PLA(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x68);
+}
+
+void
 emit_PLP(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x28);
 }

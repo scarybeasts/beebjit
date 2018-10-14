@@ -180,6 +180,7 @@ main(int argc, const char* argv[]) {
   emit_STX(p_buf, k_zpg, 0x00);
   emit_LDX(p_buf, k_imm, 0xFF);
   emit_TXS(p_buf);
+  emit_CLI(p_buf);
   emit_BRK(p_buf);                /* Calls vector $FFFE -> $FF00 (RTI) */
   emit_CRASH(p_buf);              /* Jumped over by RTI. */
   emit_LDX(p_buf, k_zpg, 0x00);
@@ -780,6 +781,10 @@ main(int argc, const char* argv[]) {
 
   /* IRQ routine. */
   util_buffer_set_pos(p_buf, 0x3F00);
+  emit_PHP(p_buf);
+  emit_PLA(p_buf);
+  emit_AND(p_buf, k_imm, 0x04);   /* Need I flag set. */
+  emit_REQUIRE_ZF(p_buf, 0);
   emit_INC(p_buf, k_zpg, 0x00);
   emit_RTI(p_buf);
 

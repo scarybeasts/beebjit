@@ -39,6 +39,7 @@ void emit_LSR(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_NOP(struct util_buffer* p_buf);
 void emit_PHA(struct util_buffer* p_buf);
 void emit_PHP(struct util_buffer* p_buf);
+void emit_PLA(struct util_buffer* p_buf);
 void emit_PLP(struct util_buffer* p_buf);
 void emit_ROL(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_ROR(struct util_buffer* p_buf, int mode, uint16_t addr);
