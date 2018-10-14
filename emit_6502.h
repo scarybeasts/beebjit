@@ -37,6 +37,7 @@ void emit_LDX(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LDY(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LSR(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_NOP(struct util_buffer* p_buf);
+void emit_ORA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_PHA(struct util_buffer* p_buf);
 void emit_PHP(struct util_buffer* p_buf);
 void emit_PLA(struct util_buffer* p_buf);

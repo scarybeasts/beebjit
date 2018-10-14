@@ -185,6 +185,10 @@ main(int argc, const char* argv[]) {
   emit_CRASH(p_buf);              /* Jumped over by RTI. */
   emit_LDX(p_buf, k_zpg, 0x00);
   emit_REQUIRE_ZF(p_buf, 0);
+  emit_PHP(p_buf);                /* Check I flag state was preserved. */
+  emit_PLA(p_buf);
+  emit_AND(p_buf, k_imm, 0x04);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Test shift / rotate instuction coalescing. */
@@ -570,7 +574,6 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_zpg, 0x00);
   emit_CMP(p_buf, k_imm, 0x02);
   emit_BNE(p_buf, -8);
-  emit_CLI(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE44); /* sysvia T1CL */ /* Clears TIMER1. */
   emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
   emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
@@ -786,6 +789,14 @@ main(int argc, const char* argv[]) {
   emit_AND(p_buf, k_imm, 0x04);   /* Need I flag set. */
   emit_REQUIRE_ZF(p_buf, 0);
   emit_INC(p_buf, k_zpg, 0x00);
+  emit_PLA(p_buf);
+  emit_PHA(p_buf);
+  emit_AND(p_buf, k_imm, 0x10);
+  emit_BEQ(p_buf, 1);
+  emit_RTI(p_buf);
+  emit_PLA(p_buf);                /* For interrupts, RTI with I flag set. */
+  emit_ORA(p_buf, k_imm, 0x04);
+  emit_PHA(p_buf);
   emit_RTI(p_buf);
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

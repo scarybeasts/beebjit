@@ -291,7 +291,6 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
     case k_brk:
-      intf = 1;
       temp_addr = pc + 1;
       p_stack[s--] = (temp_addr >> 8);
       p_stack[s--] = (temp_addr & 0xff);
@@ -299,6 +298,7 @@ interp_enter(struct interp_struct* p_interp) {
       v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
       p_stack[s--] = v;
       pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+      intf = 1;
       break;
     case k_bvc: branch = (of == 0); break;
     case k_bvs: branch = (of == 1); break;
@@ -399,17 +399,16 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (*p_irq && !intf) {
-      intf = 1;
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xff);
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= (1 << k_flag_always_set);
       p_stack[s--] = v;
       pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+      intf = 1;
     } else if (branch) {
       pc = (pc + (char) v);
     }
-
   }
 }
 

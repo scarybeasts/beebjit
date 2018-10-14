@@ -261,6 +261,15 @@ emit_NOP(struct util_buffer* p_buf) {
 }
 
 void
+emit_ORA(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[k_6502_op_num_modes] =
+  { 0x00,
+    0x00, 0x00, 0x09, 0x05, 0x0d, 0x15, 0x00, 0x1d, 0x19, 0x01, 0x11,
+    0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_PHA(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x48);
 }
