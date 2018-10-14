@@ -398,6 +398,9 @@ interp_enter(struct interp_struct* p_interp) {
       assert(0);
     }
 
+    if (branch) {
+      pc = (pc + (char) v);
+    }
     if (*p_irq && !intf) {
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xff);
@@ -406,8 +409,6 @@ interp_enter(struct interp_struct* p_interp) {
       p_stack[s--] = v;
       pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
       intf = 1;
-    } else if (branch) {
-      pc = (pc + (char) v);
     }
   }
 }
