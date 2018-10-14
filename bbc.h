@@ -78,20 +78,6 @@ int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_slow_flag(struct bbc_struct* p_bbc);
 
-int bbc_is_ram_address(struct bbc_struct* p_bbc, uint16_t addr);
-int bbc_is_special_read_address(struct bbc_struct* p_bbc,
-                                uint16_t addr_low,
-                                uint16_t addr_high);
-int bbc_is_special_write_address(struct bbc_struct* p_bbc,
-                                 uint16_t addr_low,
-                                 uint16_t addr_high);
-
-/* Callbacks for memory access. */
-unsigned char bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr);
-void bbc_write_callback(struct bbc_struct* p_bbc,
-                        uint16_t addr,
-                        unsigned char val);
-
 void bbc_key_pressed(struct bbc_struct* p_bbc, int key);
 void bbc_key_released(struct bbc_struct* p_bbc, int key);
 int bbc_is_key_pressed(struct bbc_struct* p_bbc,

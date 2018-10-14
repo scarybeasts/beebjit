@@ -5,6 +5,7 @@
 #include "defs_6502.h"
 #include "interp.h"
 #include "jit.h"
+#include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
 #include "via.h"
@@ -64,6 +65,7 @@ struct bbc_struct {
 
   /* Machine state. */
   struct state_6502 state_6502;
+  struct memory_access memory_access;
   size_t time_in_us;
   unsigned char* p_mem;
   unsigned char* p_mem_dummy_rom;
@@ -79,6 +81,164 @@ struct bbc_struct {
   unsigned char keys_count;
   unsigned char keys_count_col[16];
 };
+
+static int
+bbc_is_ram_address(void* p, uint16_t addr) {
+  (void) p;
+
+  return (addr < k_bbc_ram_size);
+}
+
+static uint16_t
+bbc_read_needs_callback_mask(void* p) {
+  (void) p;
+
+  /* Selects 0xfc00 - 0xffff which is broader than the needed 0xfc00 - 0xfeff,
+   * but that's fine.
+   */
+  return 0xfc00;
+}
+
+static uint16_t
+bbc_write_needs_callback_mask(void* p) {
+  (void) p;
+
+  /* Includes the entire ROM region. */
+  return 0x8000;
+}
+
+int
+bbc_is_special_read_address(struct bbc_struct* p_bbc,
+                            uint16_t addr_low,
+                            uint16_t addr_high) {
+  (void) p_bbc;
+
+  if (addr_low >= k_bbc_registers_start &&
+      addr_low < k_bbc_registers_start + k_bbc_registers_len) {
+    return 1;
+  }
+  if (addr_high >= k_bbc_registers_start &&
+      addr_high < k_bbc_registers_start + k_bbc_registers_len) {
+    return 1;
+  }
+  if (addr_low < k_bbc_registers_start &&
+      addr_high >= k_bbc_registers_start + k_bbc_registers_len) {
+    return 1;
+  }
+  return 0;
+}
+
+int
+bbc_is_special_write_address(struct bbc_struct* p_bbc,
+                             uint16_t addr_low,
+                             uint16_t addr_high) {
+  (void) p_bbc;
+
+  if (addr_low >= k_lang_rom_offset) {
+    return 1;
+  }
+  if (addr_high >= k_lang_rom_offset) {
+    return 1;
+  }
+  return 0;
+}
+
+unsigned char
+bbc_read_callback(void* p, uint16_t addr) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  /* We have an imprecise match for abx and aby addressing modes so we may get
+   * here with a non-registers address, or also for the 0xff00 - 0xffff range.
+   */
+  if (addr < k_bbc_registers_start ||
+      addr >= k_bbc_registers_start + k_bbc_registers_len) {
+    unsigned char* p_mem = bbc_get_mem(p_bbc);
+    return p_mem[addr];
+  }
+
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
+    return via_read(p_bbc->p_system_via, (addr & 0xf));
+  }
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
+    return via_read(p_bbc->p_user_via, (addr & 0xf));
+  }
+
+  switch (addr) {
+  case k_addr_acia:
+    /* No ACIA interrupt (bit 7). */
+    return 0;
+  case k_addr_adc:
+    /* No ADC attention needed (bit 6). */
+    return 0;
+  case k_addr_tube:
+    /* Not present -- fall through to return 0xfe. */
+    break;
+  case 0xFE18:
+    /* Only used in Master model but read by Synchron. */
+    break;
+  default:
+    printf("unknown read: %x\n", addr);
+    assert(0);
+  }
+  return 0xfe;
+}
+
+void
+bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+
+  /* We bounce here for ROM writes as well as register writes; ROM writes
+   * are simply squashed.
+   */
+  if (addr < k_bbc_registers_start ||
+      addr >= k_bbc_registers_start + k_bbc_registers_len) {
+    return;
+  }
+
+  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
+    via_write(p_bbc->p_system_via, (addr & 0xf), val);
+    return;
+  }
+  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
+    via_write(p_bbc->p_user_via, (addr & 0xf), val);
+    return;
+  }
+
+  switch (addr) {
+  case k_addr_crtc | k_crtc_address:
+    video_set_crtc_address(p_video, val);
+    break;
+  case k_addr_crtc | k_crtc_data:
+    video_set_crtc_data(p_video, val);
+    break;
+  case k_addr_acia:
+    printf("ignoring ACIA write\n");
+    break;
+  case k_addr_serial_ula:
+    printf("ignoring serial ULA write\n");
+    break;
+  case k_addr_video_ula | k_video_ula_control:
+    video_set_ula_control(p_video, val);
+    break;
+  case k_addr_video_ula | k_video_ula_palette:
+    video_set_ula_palette(p_video, val);
+    break;
+  case k_addr_rom_latch:
+    printf("ignoring ROM latch write\n");
+    break;
+  case k_addr_adc:
+    printf("ignoring ADC write\n");
+    break;
+  case k_addr_tube:
+    printf("ignoring tube write\n");
+    break;
+  default:
+    printf("unknown write: %x\n", addr);
+    assert(0);
+  }
+}
+
 
 struct bbc_struct*
 bbc_create(unsigned char* p_os_rom,
@@ -165,24 +325,33 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "debug_create failed");
   }
 
+  p_bbc->memory_access.p_mem_read = p_bbc->p_mem;
+  p_bbc->memory_access.p_mem_write = p_bbc->p_mem_dummy_rom;
+  p_bbc->memory_access.p_callback_obj = p_bbc;
+  p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
+  p_bbc->memory_access.memory_read_needs_callback_mask =
+      bbc_read_needs_callback_mask;
+  p_bbc->memory_access.memory_write_needs_callback_mask =
+      bbc_write_needs_callback_mask;
+  p_bbc->memory_access.memory_read_callback = bbc_read_callback;
+  p_bbc->memory_access.memory_write_callback = bbc_write_callback;
+
   p_bbc->options.debug = debug_flag;
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_debug_callback_object = p_debug;
+  p_bbc->options.p_opt_flags = p_opt_flags;
+  p_bbc->options.p_log_flags = p_log_flags;
 
   p_bbc->p_jit = jit_create(&p_bbc->state_6502,
-                            p_bbc->p_mem,
+                            &p_bbc->memory_access,
                             &p_bbc->options,
-                            p_bbc,
-                            bbc_read_callback,
-                            bbc_write_callback,
-                            p_opt_flags,
-                            p_log_flags);
+                            p_bbc);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
   }
 
   p_bbc->p_interp = interp_create(&p_bbc->state_6502,
-                                  p_bbc->p_mem,
+                                  &p_bbc->memory_access,
                                   &p_bbc->options);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
@@ -461,141 +630,6 @@ bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set) {
     p_state_6502->irq |= (1 << id);
   } else {
     p_state_6502->irq &= ~(1 << id);
-  }
-}
-
-int
-bbc_is_ram_address(struct bbc_struct* p_bbc, uint16_t addr) {
-  (void) p_bbc;
-
-  return (addr < k_bbc_ram_size);
-}
-
-int
-bbc_is_special_read_address(struct bbc_struct* p_bbc,
-                            uint16_t addr_low,
-                            uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_bbc_registers_start &&
-      addr_low < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_high >= k_bbc_registers_start &&
-      addr_high < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_low < k_bbc_registers_start &&
-      addr_high >= k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  return 0;
-}
-
-int
-bbc_is_special_write_address(struct bbc_struct* p_bbc,
-                             uint16_t addr_low,
-                             uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_lang_rom_offset) {
-    return 1;
-  }
-  if (addr_high >= k_lang_rom_offset) {
-    return 1;
-  }
-  return 0;
-}
-
-unsigned char
-bbc_read_callback(struct bbc_struct* p_bbc, uint16_t addr) {
-  /* We have an imprecise match for abx and aby addressing modes so we may get
-   * here with a non-registers address.
-   */
-  if (addr < k_bbc_registers_start ||
-      addr >= k_bbc_registers_start + k_bbc_registers_len) {
-    unsigned char* p_mem = bbc_get_mem(p_bbc);
-    return p_mem[addr];
-  }
-
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
-    return via_read(p_bbc->p_system_via, (addr & 0xf));
-  }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
-    return via_read(p_bbc->p_user_via, (addr & 0xf));
-  }
-
-  switch (addr) {
-  case k_addr_acia:
-    /* No ACIA interrupt (bit 7). */
-    return 0;
-  case k_addr_adc:
-    /* No ADC attention needed (bit 6). */
-    return 0;
-  case k_addr_tube:
-    /* Not present -- fall through to return 0xfe. */
-    break;
-  case 0xFE18:
-    /* Only used in Master model but read by Synchron. */
-    break;
-  default:
-    printf("unknown read: %x\n", addr);
-    assert(0);
-  }
-  return 0xfe;
-}
-
-void
-bbc_write_callback(struct bbc_struct* p_bbc, uint16_t addr, unsigned char val) {
-  struct video_struct* p_video = bbc_get_video(p_bbc);
-  /* We bounce here for ROM writes as well as register writes; ROM writes
-   * are simply squashed.
-   */
-  if (addr < k_bbc_registers_start ||
-      addr >= k_bbc_registers_start + k_bbc_registers_len) {
-    return;
-  }
-
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
-    via_write(p_bbc->p_system_via, (addr & 0xf), val);
-    return;
-  }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
-    via_write(p_bbc->p_user_via, (addr & 0xf), val);
-    return;
-  }
-
-  switch (addr) {
-  case k_addr_crtc | k_crtc_address:
-    video_set_crtc_address(p_video, val);
-    break;
-  case k_addr_crtc | k_crtc_data:
-    video_set_crtc_data(p_video, val);
-    break;
-  case k_addr_acia:
-    printf("ignoring ACIA write\n");
-    break;
-  case k_addr_serial_ula:
-    printf("ignoring serial ULA write\n");
-    break;
-  case k_addr_video_ula | k_video_ula_control:
-    video_set_ula_control(p_video, val);
-    break;
-  case k_addr_video_ula | k_video_ula_palette:
-    video_set_ula_palette(p_video, val);
-    break;
-  case k_addr_rom_latch:
-    printf("ignoring ROM latch write\n");
-    break;
-  case k_addr_adc:
-    printf("ignoring ADC write\n");
-    break;
-  case k_addr_tube:
-    printf("ignoring tube write\n");
-    break;
-  default:
-    printf("unknown write: %x\n", addr);
-    assert(0);
   }
 }
 

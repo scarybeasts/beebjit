@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "defs_6502.h"
+#include "memory_access.h"
 #include "state_6502.h"
 
 #include <assert.h>
@@ -16,13 +17,13 @@ enum {
 
 struct interp_struct {
   struct state_6502* p_state_6502;
-  unsigned char* p_mem;
+  struct memory_access* p_memory_access;
   struct bbc_options* p_options;
 };
 
 struct interp_struct*
 interp_create(struct state_6502* p_state_6502,
-              unsigned char* p_mem,
+              struct memory_access* p_memory_access,
               struct bbc_options* p_options) {
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
@@ -31,7 +32,7 @@ interp_create(struct state_6502* p_state_6502,
   (void) memset(p_interp, '\0', sizeof(struct interp_struct));
 
   p_interp->p_state_6502 = p_state_6502;
-  p_interp->p_mem = p_mem;
+  p_interp->p_memory_access = p_memory_access;
   p_interp->p_options = p_options;
 
   return p_interp;
@@ -105,7 +106,7 @@ interp_enter(struct interp_struct* p_interp) {
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct bbc_options* p_options = p_interp->p_options;
-  unsigned char* p_mem = p_interp->p_mem;
+  unsigned char* p_mem = p_interp->p_memory_access->p_mem_read;
   unsigned char* p_stack = p_mem + k_6502_stack_addr;
   void* (*debug_callback)(void*) = 0;
 

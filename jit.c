@@ -6,6 +6,7 @@
 #include "bbc_options.h"
 #include "debug.h"
 #include "defs_6502.h"
+#include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
 
@@ -26,7 +27,6 @@ static const int k_jit_bytes_shift = 8;
 static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
 static void* k_utils_addr = (void*) 0x80000000;
-static void* k_tables_addr = (void*) 0x0f000000;
 static void* k_semaphores_addr = (void*) 0x0e000000;
 static const size_t k_semaphore_block = 0;
 static const size_t k_semaphore_cli = 4096;
@@ -191,11 +191,13 @@ struct jit_struct {
 
   /* Structures referenced by JIT code. */
   void* p_debug;                   /* 72  */
+  /* TODO: make opaque to prove lack of layering violations. */
   struct bbc_struct* p_bbc;
   size_t counter;
   unsigned int jit_ptrs[k_6502_addr_space_size]; /* 96 */
 
   /* Fields not referenced by JIT'ed code. */
+  struct memory_access* p_memory_access;
   unsigned int jit_flags;
   unsigned int log_flags;
   size_t max_num_ops;
@@ -205,7 +207,6 @@ struct jit_struct {
 
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
-  unsigned char* p_tables_base;
   unsigned char* p_semaphores;
 
   struct util_buffer* p_dest_buf;
@@ -1153,31 +1154,29 @@ jit_emit_counter_sequence(struct util_buffer* p_buf) {
 }
 
 static int
-jit_is_ram_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  struct bbc_struct* p_bbc = p_jit->p_bbc;
-  return bbc_is_ram_address(p_bbc, addr_6502);
-}
-
-static int
 jit_is_special_read_address(struct jit_struct* p_jit,
                             uint16_t opcode_addr_6502,
                             uint16_t opcode_addr_6502_upper_range) {
-  struct bbc_struct* p_bbc = p_jit->p_bbc;
-  /* NOTE: assumes contiguous ranges of BBC special addresses. */
-  return bbc_is_special_read_address(p_bbc,
-                                     opcode_addr_6502,
-                                     opcode_addr_6502_upper_range);
+  struct memory_access* p_memory_access = p_jit->p_memory_access;
+  uint16_t mask = p_memory_access->memory_read_needs_callback_mask(
+      p_memory_access->p_callback_obj);
+  int lower_hit = ((opcode_addr_6502 & mask) == mask);
+  int upper_hit = ((opcode_addr_6502_upper_range & mask) == mask);
+
+  return (lower_hit || upper_hit);
 }
 
 static int
 jit_is_special_write_address(struct jit_struct* p_jit,
                              uint16_t opcode_addr_6502,
                              uint16_t opcode_addr_6502_upper_range) {
-  struct bbc_struct* p_bbc = p_jit->p_bbc;
-  /* NOTE: assumes contiguous ranges of BBC special addresses. */
-  return bbc_is_special_write_address(p_bbc,
-                                      opcode_addr_6502,
-                                      opcode_addr_6502_upper_range);
+  struct memory_access* p_memory_access = p_jit->p_memory_access;
+  uint16_t mask = p_memory_access->memory_write_needs_callback_mask(
+      p_memory_access->p_callback_obj);
+  int lower_hit = ((opcode_addr_6502 & mask) == mask);
+  int upper_hit = ((opcode_addr_6502_upper_range & mask) == mask);
+
+  return (lower_hit || upper_hit);
 }
 
 static size_t
@@ -3667,23 +3666,21 @@ jit_enter(struct jit_struct* p_jit) {
 
 struct jit_struct*
 jit_create(struct state_6502* p_state_6502,
-           unsigned char* p_mem,
+           struct memory_access* p_memory_access,
            struct bbc_options* p_options,
-           struct bbc_struct* p_bbc,
-           void* p_read_callback,
-           void* p_write_callback,
-           const char* p_opt_flags,
-           const char* p_log_flags) {
+           struct bbc_struct* p_bbc) {
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
-  unsigned char* p_tables_base;
   unsigned char* p_util_debug;
   unsigned char* p_util_regs;
   unsigned char* p_util_jit;
   unsigned char* p_util_do_interrupt;
   size_t i;
 
+  const char* p_opt_flags = p_options->p_opt_flags;
+  const char* p_log_flags = p_options->p_log_flags;
+  unsigned char* p_mem = p_memory_access->p_mem_read;
   unsigned int uint_mem = (unsigned int) (size_t) p_mem;
 
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
@@ -3713,26 +3710,6 @@ jit_create(struct state_6502* p_state_6502,
   p_util_jit = p_utils_base + k_utils_jit_offset;
   p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
 
-  /* This is the mapping that holds runtime tables used by JIT code. */
-  p_tables_base = util_get_guarded_mapping(k_tables_addr, k_tables_size);
-  for (i = 0; i < 256; ++i) {
-    uint16_t addr_6502 = (i << 8);
-    unsigned int* p_table_entry = (unsigned int*) (p_tables_base + (i * 4));
-    unsigned int table_value;
-    if (jit_is_ram_address(p_jit, addr_6502)) {
-      table_value = (unsigned int) (size_t) (p_mem + (i * 256));
-    } else if (jit_is_special_read_address(p_jit, addr_6502, addr_6502)) {
-      /* Make writes to register regions fault, so fixup can be done. */
-      table_value = (unsigned int) (size_t) (k_tables_addr - 256);
-    } else {
-      /* ROM. Squash the useless write by directing the write to an otherwise
-       * unused 256 bytes of RAM at the end of the table.
-       */
-      table_value = (unsigned int) (size_t) (k_tables_addr + (256 * 4));
-    }
-    *p_table_entry = table_value;
-  }
-
   /* This is the mapping that is a semaphore to trigger JIT execution
    * interruption.
    */
@@ -3744,7 +3721,6 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->dummy_rom_offset = k_bbc_mem_mmap_addr_dummy_rom - k_bbc_mem_mmap_addr;
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
-  p_jit->p_tables_base = p_tables_base;
   p_jit->p_util_debug = p_util_debug;
   p_jit->p_util_regs = p_util_regs;
   p_jit->p_util_jit = p_util_jit;
@@ -3753,8 +3729,9 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_debug_callback = p_options->debug_callback;
   p_jit->p_jit_callback = jit_callback;
   p_jit->p_bbc = p_bbc;
-  p_jit->p_read_callback = p_read_callback;
-  p_jit->p_write_callback = p_write_callback;
+  p_jit->p_read_callback = p_memory_access->memory_read_callback;
+  p_jit->p_write_callback = p_memory_access->memory_write_callback;
+  p_jit->p_memory_access = p_memory_access;
 
   p_jit->jit_flags = 0;
   jit_set_flag(p_jit, k_jit_flag_merge_ops);
@@ -3831,7 +3808,6 @@ jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops) {
 void
 jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
-  util_free_guarded_mapping(p_jit->p_tables_base, k_tables_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_6502_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);

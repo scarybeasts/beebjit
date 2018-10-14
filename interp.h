@@ -3,10 +3,11 @@
 
 struct bbc_options;
 struct interp_struct;
+struct memory_access;
 struct state_6502;
 
 struct interp_struct* interp_create(struct state_6502* p_state_6502,
-                                    unsigned char* p_mem,
+                                    struct memory_access* p_memory_access,
                                     struct bbc_options* p_options);
 void interp_destroy(struct interp_struct* p_interp);
 

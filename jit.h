@@ -7,6 +7,7 @@
 struct bbc_options;
 struct bbc_struct;
 struct debug_struct;
+struct memory_access;
 struct state_6502;
 
 struct jit_struct;
@@ -21,13 +22,9 @@ enum {
 };
 
 struct jit_struct* jit_create(struct state_6502* p_state_6502,
-                              unsigned char* p_mem,
+                              struct memory_access* p_memory_access,
                               struct bbc_options* p_options,
-                              struct bbc_struct* p_bbc,
-                              void* p_read_callback,
-                              void* p_write_callback,
-                              const char* p_opt_flags,
-                              const char* p_log_flags);
+                              struct bbc_struct* p_bbc);
 void jit_destroy(struct jit_struct* p_jit);
 
 void jit_set_flag(struct jit_struct* p_jit, unsigned int flag);
