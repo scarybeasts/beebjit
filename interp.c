@@ -1,6 +1,7 @@
 #include "interp.h"
 
 #include "bbc_options.h"
+#include "bbc_timing.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
@@ -18,12 +19,15 @@ enum {
 struct interp_struct {
   struct state_6502* p_state_6502;
   struct memory_access* p_memory_access;
+  struct bbc_timing* p_timing;
   struct bbc_options* p_options;
+  int async_tick;
 };
 
 struct interp_struct*
 interp_create(struct state_6502* p_state_6502,
               struct memory_access* p_memory_access,
+              struct bbc_timing* p_timing,
               struct bbc_options* p_options) {
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
@@ -33,7 +37,9 @@ interp_create(struct state_6502* p_state_6502,
 
   p_interp->p_state_6502 = p_state_6502;
   p_interp->p_memory_access = p_memory_access;
+  p_interp->p_timing = p_timing;
   p_interp->p_options = p_options;
+  p_interp->async_tick = 0;
 
   return p_interp;
 }
@@ -135,6 +141,7 @@ interp_enter(struct interp_struct* p_interp) {
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
+  struct bbc_timing* p_timing = p_interp->p_timing;
   struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem = p_memory_access->p_mem_read;
   unsigned char* p_stack = p_mem + k_6502_stack_addr;
@@ -145,6 +152,8 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t write_callback_mask =
       p_memory_access->memory_write_needs_callback_mask(
           p_memory_access->p_callback_obj);
+  volatile int* p_async_tick = &p_interp->async_tick;
+  unsigned int* p_irq = &p_state_6502->irq;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -154,6 +163,10 @@ interp_enter(struct interp_struct* p_interp) {
   }
 
   while (1) {
+    if (*p_async_tick) {
+      p_interp->async_tick = 0;
+      p_timing->sync_tick_callback(p_timing->p_callback_obj);
+    }
     if (debug_callback) {
       flags = interp_get_flags(zf, nf, cf, of, df, intf);
       state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
@@ -278,6 +291,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
     case k_brk:
+      intf = 1;
       temp_addr = pc + 1;
       p_stack[s--] = (temp_addr >> 8);
       p_stack[s--] = (temp_addr & 0xff);
@@ -384,8 +398,22 @@ interp_enter(struct interp_struct* p_interp) {
       assert(0);
     }
 
-    if (branch) {
+    if (*p_irq && !intf) {
+      intf = 1;
+      p_stack[s--] = (pc >> 8);
+      p_stack[s--] = (pc & 0xff);
+      v = interp_get_flags(zf, nf, cf, of, df, intf);
+      v |= (1 << k_flag_always_set);
+      p_stack[s--] = v;
+      pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+    } else if (branch) {
       pc = (pc + (char) v);
     }
+
   }
+}
+
+void
+interp_async_timer_tick(struct interp_struct* p_interp) {
+  p_interp->async_tick = 1;
 }

@@ -2,8 +2,9 @@
 
 #include "jit.h"
 
-#include "bbc.h"
 #include "bbc_options.h"
+#include "bbc_timing.h"
+/* TODO: get rid of. */
 #include "debug.h"
 #include "defs_6502.h"
 #include "memory_access.h"
@@ -20,6 +21,15 @@
 #include <string.h>
 #include <ucontext.h>
 #include <unistd.h>
+
+/* TODO: remove these. */
+enum {
+  k_bbc_registers_start = 0xfc00,
+  k_bbc_registers_len = 0x300,
+  k_bbc_mem_mmap_addr = 0x10000000,
+  k_bbc_mem_mmap_addr_dummy_rom = 0x11000000,
+  k_bbc_mem_mmap_addr_dummy_rom_ro = 0x1100f000,
+};
 
 static const size_t k_guard_size = 4096;
 static const int k_jit_bytes_per_byte = 256;
@@ -54,7 +64,7 @@ static const int k_offset_read_callback = 40 + 16;
 static const int k_offset_write_callback = 40 + 24;
 
 static const int k_offset_debug = 72;
-static const int k_offset_bbc = 72 + 8;
+static const int k_offset_memory = 72 + 8;
 static const int k_offset_counter = 72 + 16;
 static const int k_offset_jit_ptrs = 72 + 24;
 
@@ -191,13 +201,13 @@ struct jit_struct {
 
   /* Structures referenced by JIT code. */
   void* p_debug;                   /* 72  */
-  /* TODO: make opaque to prove lack of layering violations. */
-  struct bbc_struct* p_bbc;
+  void* p_memory_callback_object;
   size_t counter;
   unsigned int jit_ptrs[k_6502_addr_space_size]; /* 96 */
 
   /* Fields not referenced by JIT'ed code. */
   struct memory_access* p_memory_access;
+  struct bbc_timing* p_timing;
   unsigned int jit_flags;
   unsigned int log_flags;
   size_t max_num_ops;
@@ -1193,11 +1203,11 @@ jit_emit_special_read(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xff;
-  /* mov rdi, [r15 + k_offset_bbc] */
+  /* mov rdi, [r15 + k_offset_memory] */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x7f;
-  p_jit_buf[index++] = k_offset_bbc;
+  p_jit_buf[index++] = k_offset_memory;
   if (opmode == k_abs) {
     /* xor esi, esi */
     p_jit_buf[index++] = 0x31;
@@ -1249,11 +1259,11 @@ jit_emit_special_write(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x89;
   p_jit_buf[index++] = 0xff;
-  /* mov rdi, [r15 + k_offset_bbc] */
+  /* mov rdi, [r15 + k_offset_memory] */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0x8b;
   p_jit_buf[index++] = 0x7f;
-  p_jit_buf[index++] = k_offset_bbc;
+  p_jit_buf[index++] = k_offset_memory;
   if (opmode == k_abs) {
     /* xor esi, esi */
     p_jit_buf[index++] = 0x31;
@@ -3405,8 +3415,8 @@ jit_async_timer_tick(struct jit_struct* p_jit) {
 
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
-  struct bbc_struct* p_bbc = p_jit->p_bbc;
-  bbc_sync_timer_tick(p_bbc);
+  struct bbc_timing* p_timing = p_jit->p_timing;
+  p_timing->sync_tick_callback(p_timing->p_callback_obj);
 }
 
 static void
@@ -3483,8 +3493,7 @@ handle_block_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
                                 k_semaphore_size);
     return;
   }
-  /* (r13 & 4) identifies the 6502 interrupt disable flag. */
-  if (!(r13 & 4)) {
+  if (!(r13 & (1 << k_flag_interrupt))) {
     /* Interrupts are enabled -- fire the 6502 interrupt logic. */
     uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
 
@@ -3667,8 +3676,8 @@ jit_enter(struct jit_struct* p_jit) {
 struct jit_struct*
 jit_create(struct state_6502* p_state_6502,
            struct memory_access* p_memory_access,
-           struct bbc_options* p_options,
-           struct bbc_struct* p_bbc) {
+           struct bbc_timing* p_timing,
+           struct bbc_options* p_options) {
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -3725,13 +3734,14 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_util_regs = p_util_regs;
   p_jit->p_util_jit = p_util_jit;
   p_jit->p_util_do_interrupt = p_util_do_interrupt;
-  p_jit->p_debug = p_options->p_debug_callback_object;
   p_jit->p_debug_callback = p_options->debug_callback;
+  p_jit->p_debug = p_options->p_debug_callback_object;
   p_jit->p_jit_callback = jit_callback;
-  p_jit->p_bbc = p_bbc;
   p_jit->p_read_callback = p_memory_access->memory_read_callback;
   p_jit->p_write_callback = p_memory_access->memory_write_callback;
+  p_jit->p_memory_callback_object = p_memory_access->p_callback_obj;
   p_jit->p_memory_access = p_memory_access;
+  p_jit->p_timing = p_timing;
 
   p_jit->jit_flags = 0;
   jit_set_flag(p_jit, k_jit_flag_merge_ops);

@@ -1,6 +1,7 @@
 #include "bbc.h"
 
 #include "bbc_options.h"
+#include "bbc_timing.h"
 #include "debug.h"
 #include "defs_6502.h"
 #include "interp.h"
@@ -66,6 +67,7 @@ struct bbc_struct {
   /* Machine state. */
   struct state_6502 state_6502;
   struct memory_access memory_access;
+  struct bbc_timing timing;
   size_t time_in_us;
   unsigned char* p_mem;
   unsigned char* p_mem_dummy_rom;
@@ -239,6 +241,25 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
   }
 }
 
+static void
+bbc_sync_timer_tick(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  assert((k_us_per_timer_tick % 1000) == 0);
+
+  p_bbc->time_in_us += k_us_per_timer_tick;
+
+  /* 100Hz sysvia timer. */
+  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
+  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
+
+  /* Fire vsync at 50Hz. */
+  if (!(p_bbc->time_in_us % 20000)) {
+    via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
+  }
+
+  /* Read sysvia port A to update keyboard state and fire interrupts. */
+  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
+}
 
 struct bbc_struct*
 bbc_create(unsigned char* p_os_rom,
@@ -336,6 +357,9 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
 
+  p_bbc->timing.p_callback_obj = p_bbc;
+  p_bbc->timing.sync_tick_callback = bbc_sync_timer_tick;
+
   p_bbc->options.debug = debug_flag;
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_debug_callback_object = p_debug;
@@ -344,14 +368,15 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->p_jit = jit_create(&p_bbc->state_6502,
                             &p_bbc->memory_access,
-                            &p_bbc->options,
-                            p_bbc);
+                            &p_bbc->timing,
+                            &p_bbc->options);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
   }
 
   p_bbc->p_interp = interp_create(&p_bbc->state_6502,
                                   &p_bbc->memory_access,
+                                  &p_bbc->timing,
                                   &p_bbc->options);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
@@ -520,14 +545,23 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
    * Alternatively: dynamically adjust the timer tick based on the suite of
    * timers and when the next one is expected to expire.
    */
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  jit_async_timer_tick(p_jit);
+  switch (p_bbc->mode) {
+  case k_bbc_mode_jit:
+    jit_async_timer_tick(p_bbc->p_jit);
+    break;
+  case k_bbc_mode_interp:
+    interp_async_timer_tick(p_bbc->p_interp);
+    break;
+  default:
+    assert(0);
+  }
 }
 
 static void*
 bbc_timer_thread(void* p) {
   struct timespec ts;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  volatile int* p_exited = &p_bbc->exited;
 
   ts.tv_sec = 0;
   ts.tv_nsec = k_us_per_timer_tick * 1000;
@@ -538,7 +572,7 @@ bbc_timer_thread(void* p) {
     if (ret != 0) {
       errx(1, "nanosleep failed");
     }
-    if (p_bbc->exited) {
+    if (*p_exited) {
       break;
     }
     bbc_async_timer_tick(p_bbc);
@@ -591,25 +625,6 @@ bbc_cpu_thread(void* p) {
 }
 
 void
-bbc_sync_timer_tick(struct bbc_struct* p_bbc) {
-  assert((k_us_per_timer_tick % 1000) == 0);
-
-  p_bbc->time_in_us += k_us_per_timer_tick;
-
-  /* 100Hz sysvia timer. */
-  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
-  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
-
-  /* Fire vsync at 50Hz. */
-  if (!(p_bbc->time_in_us % 20000)) {
-    via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
-  }
-
-  /* Read sysvia port A to update keyboard state and fire interrupts. */
-  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
-}
-
-void
 bbc_run_async(struct bbc_struct* p_bbc) {
   int ret = pthread_create(&p_bbc->thread, NULL, bbc_cpu_thread, p_bbc);
   if (ret != 0) {
@@ -620,7 +635,8 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 int
 bbc_has_exited(struct bbc_struct* p_bbc) {
   /* TODO: should use pthread_tryjoin_np? */
-  return p_bbc->exited;
+  volatile int* p_exited = &p_bbc->exited;
+  return *p_exited;
 }
 
 void
