@@ -16,6 +16,7 @@ enum {
 enum {
   k_crtc_reg_horiz_displayed = 1,
   k_crtc_reg_horiz_position = 2,
+  k_crtc_reg_vert_adjust = 5,
   k_crtc_reg_vert_displayed = 6,
   k_crtc_reg_vert_position = 7,
   k_crtc_reg_mem_addr_high = 12,
@@ -39,11 +40,12 @@ struct video_struct {
   unsigned char crtc_horiz_position;
   unsigned char crtc_vert_displayed;
   unsigned char crtc_vert_position;
+  unsigned char crtc_vert_adjust;
 
   size_t prev_horiz_chars;
   size_t prev_vert_chars;
   int prev_horiz_chars_offset;
-  int prev_vert_chars_offset;
+  int prev_vert_lines_offset;
 };
 
 struct video_struct*
@@ -187,7 +189,7 @@ video_mode1_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
-                   size_t vert_chars_offset) {
+                   size_t vert_lines_offset) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
@@ -216,7 +218,7 @@ video_mode1_render(struct video_struct* p_video,
         unsigned int p3 = p_palette[4 + (v3 << 1)];
         unsigned int p4 = p_palette[4 + (v4 << 1)];
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
-        p_x_mem += (((y + vert_chars_offset) * 8) + y2) * 2 * 640;
+        p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 8);
         p_x_mem[0] = p1;
         p_x_mem[1] = p1;
@@ -245,7 +247,7 @@ video_mode5_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
-                   size_t vert_chars_offset) {
+                   size_t vert_lines_offset) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
@@ -274,7 +276,7 @@ video_mode5_render(struct video_struct* p_video,
         unsigned int p3 = p_palette[4 + (v3 << 1)];
         unsigned int p4 = p_palette[4 + (v4 << 1)];
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
-        p_x_mem += (((y + vert_chars_offset)* 8) + y2) * 2 * 640;
+        p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 16);
         p_x_mem[0] = p1;
         p_x_mem[1] = p1;
@@ -319,7 +321,7 @@ video_mode2_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
-                   size_t vert_chars_offset) {
+                   size_t vert_lines_offset) {
   size_t i;
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
@@ -356,7 +358,7 @@ video_mode2_render(struct video_struct* p_video,
         unsigned int p1 = p1s[packed_pixels];
         unsigned int p2 = p2s[packed_pixels];
         unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
-        p_x_mem += (((y + vert_chars_offset) * 8) + y2) * 2 * 640;
+        p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 8);
         p_x_mem[0] = p1;
         p_x_mem[1] = p1;
@@ -405,11 +407,12 @@ video_render(struct video_struct* p_video,
   size_t clock_speed;
   size_t horiz_chars;
   size_t vert_chars;
+  size_t vert_lines;
   int horiz_chars_offset;
-  int vert_chars_offset;
+  int vert_lines_offset;
 
   size_t max_horiz_chars;
-  size_t max_vert_chars;
+  size_t max_vert_lines;
 
   assert(x == 640);
   assert(y == 512);
@@ -418,7 +421,7 @@ video_render(struct video_struct* p_video,
   pixel_width = video_get_pixel_width(p_video);
   clock_speed = video_get_clock_speed(p_video);
 
-  max_vert_chars = 32;
+  max_vert_lines = 256;
   if (clock_speed == 0) {
     max_horiz_chars = 40;
   } else {
@@ -427,41 +430,43 @@ video_render(struct video_struct* p_video,
 
   horiz_chars = video_get_horiz_chars(p_video, clock_speed);
   vert_chars = video_get_vert_chars(p_video);
+  vert_lines = (vert_chars * 8);
   horiz_chars_offset = video_get_horiz_chars_offset(p_video, clock_speed);
-  vert_chars_offset = video_get_vert_chars_offset(p_video);
+  vert_lines_offset = video_get_vert_lines_offset(p_video);
   assert(horiz_chars_offset >= 0);
-  assert(vert_chars_offset >= 0);
+  assert(vert_lines_offset >= 0);
 
   if (horiz_chars > max_horiz_chars) {
     horiz_chars = max_horiz_chars;
   }
-  if (vert_chars > max_vert_chars) {
-    vert_chars = max_vert_chars;
+  if (vert_lines > max_vert_lines) {
+    vert_lines = max_vert_lines;
   }
   if ((size_t) horiz_chars_offset > max_horiz_chars) {
     horiz_chars_offset = max_horiz_chars;
   }
-  if ((size_t) vert_chars_offset > max_vert_chars) {
-    vert_chars_offset = max_vert_chars;
+  if ((size_t) vert_lines_offset > max_vert_lines) {
+    vert_lines_offset = max_vert_lines;
   }
   if (horiz_chars + horiz_chars_offset > max_horiz_chars) {
-    horiz_chars = max_horiz_chars - horiz_chars_offset;
+    horiz_chars = (max_horiz_chars - horiz_chars_offset);
   }
-  if (vert_chars + vert_chars_offset > max_vert_chars) {
-    vert_chars = max_vert_chars - vert_chars_offset;
+  if (vert_lines + vert_lines_offset > max_vert_lines) {
+    vert_lines = (max_vert_lines - vert_lines_offset);
+    vert_chars = (vert_lines / 8);
   }
 
   /* Clear the screen if the size or position changed. */
   if (horiz_chars != p_video->prev_horiz_chars ||
       vert_chars != p_video->prev_vert_chars ||
       horiz_chars_offset != p_video->prev_horiz_chars_offset ||
-      vert_chars_offset != p_video->prev_vert_chars_offset) {
+      vert_lines_offset != p_video->prev_vert_lines_offset) {
     (void) memset(p_x_mem, '\0', x * y * bpp);
   }
   p_video->prev_horiz_chars = horiz_chars;
   p_video->prev_vert_chars = vert_chars;
   p_video->prev_horiz_chars_offset = horiz_chars_offset;
-  p_video->prev_vert_chars_offset = vert_chars_offset;
+  p_video->prev_vert_lines_offset = vert_lines_offset;
 
   if (pixel_width == 1)  {
     video_mode0_render(p_video, p_x_mem, horiz_chars, vert_chars);
@@ -473,21 +478,21 @@ video_render(struct video_struct* p_video,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
-                       vert_chars_offset);
+                       vert_lines_offset);
   } else if (pixel_width == 4 && clock_speed == 1) {
     video_mode2_render(p_video,
                        p_x_mem,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
-                       vert_chars_offset);
+                       vert_lines_offset);
   } else if (pixel_width == 4 && clock_speed == 0) {
     video_mode5_render(p_video,
                        p_x_mem,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
-                       vert_chars_offset);
+                       vert_lines_offset);
   } else {
     /* Ignore for now: could be custom mode, or more likely control register
      * just not set.
@@ -555,6 +560,7 @@ video_get_crtc_registers(struct video_struct* p_video,
   p_values[k_crtc_reg_horiz_position] = p_video->crtc_horiz_position;
   p_values[k_crtc_reg_vert_displayed] = p_video->crtc_vert_displayed;
   p_values[k_crtc_reg_vert_position] = p_video->crtc_vert_position;
+  p_values[k_crtc_reg_vert_adjust] = p_video->crtc_vert_adjust;
   p_values[k_crtc_reg_mem_addr_high] = p_video->crtc_mem_addr_high;
   p_values[k_crtc_reg_mem_addr_low] = p_video->crtc_mem_addr_low;
 }
@@ -566,6 +572,7 @@ video_set_crtc_registers(struct video_struct* p_video,
   p_video->crtc_horiz_position = p_values[k_crtc_reg_horiz_position];
   p_video->crtc_vert_displayed = p_values[k_crtc_reg_vert_displayed];
   p_video->crtc_vert_position = p_values[k_crtc_reg_vert_position];
+  p_video->crtc_vert_adjust = p_values[k_crtc_reg_vert_adjust];
   p_video->crtc_mem_addr_high = p_values[k_crtc_reg_mem_addr_high];
   p_video->crtc_mem_addr_low = p_values[k_crtc_reg_mem_addr_low];
 }
@@ -695,13 +702,17 @@ video_get_horiz_chars_offset(struct video_struct* p_video, size_t clock_speed) {
 }
 
 int
-video_get_vert_chars_offset(struct video_struct* p_video) {
-  int ret = p_video->crtc_vert_position;
-  if (ret > 34) {
+video_get_vert_lines_offset(struct video_struct* p_video) {
+  int ret;
+  unsigned char pos = p_video->crtc_vert_position;
+  unsigned char adjust = (p_video->crtc_vert_adjust & 0x1f);
+  if (pos > 34) {
     ret = 34;
   }
 
-  return (34 - ret);
+  ret = ((34 - pos) * 8);
+  ret += adjust;
+  return ret;
 }
 
 int
@@ -739,6 +750,9 @@ video_set_crtc_data(struct video_struct* p_video, unsigned char val) {
     break;
   case k_crtc_reg_vert_position:
     p_video->crtc_vert_position = val;
+    break;
+  case k_crtc_reg_vert_adjust:
+    p_video->crtc_vert_adjust = val;
     break;
   default:
     break;
