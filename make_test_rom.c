@@ -95,6 +95,7 @@ main(int argc, const char* argv[]) {
   emit_PLP(p_buf);
   emit_CMP(p_buf, k_imm, 0xff);
   emit_REQUIRE_ZF(p_buf, 1);
+  emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */

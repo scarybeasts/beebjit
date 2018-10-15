@@ -120,6 +120,11 @@ emit_CLC(struct util_buffer* p_buf) {
 }
 
 void
+emit_CLD(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xd8);
+}
+
+void
 emit_CLI(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x58);
 }

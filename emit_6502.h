@@ -19,6 +19,7 @@ void emit_BRK(struct util_buffer* p_buf);
 void emit_BVC(struct util_buffer* p_buf, char offset);
 void emit_BVS(struct util_buffer* p_buf, char offset);
 void emit_CLC(struct util_buffer* p_buf);
+void emit_CLD(struct util_buffer* p_buf);
 void emit_CLI(struct util_buffer* p_buf);
 void emit_CLV(struct util_buffer* p_buf);
 void emit_CMP(struct util_buffer* p_buf, int mode, uint16_t addr);

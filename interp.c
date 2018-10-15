@@ -24,11 +24,15 @@ struct interp_struct {
   int async_tick;
 };
 
+static unsigned char s_bin_to_bcd[256];
+
 struct interp_struct*
 interp_create(struct state_6502* p_state_6502,
               struct memory_access* p_memory_access,
               struct bbc_timing* p_timing,
               struct bbc_options* p_options) {
+  size_t i;
+
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
     errx(1, "couldn't allocate interp_struct");
@@ -40,6 +44,18 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->p_timing = p_timing;
   p_interp->p_options = p_options;
   p_interp->async_tick = 0;
+
+  for (i = 0; i < 256; ++i) {
+    unsigned char hi = (i & 0xf0);
+    unsigned char lo = (i & 0x0f);
+    if (hi >= 0xa0) {
+      hi -= 0xa0;
+    }
+    if (lo >= 0x0a) {
+      lo -= 0x0a;
+    }
+    s_bin_to_bcd[i] = (hi | lo);
+  }
 
   return p_interp;
 }
@@ -272,21 +288,38 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case k_adc:
       tmp = (a + v + cf);
-      cf = !!(tmp & 0x100);
+      if (df) {
+        /* Fix up decimal carry on first nibble. */
+        int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
+        if (decimal_carry >= 10 && decimal_carry < 16) {
+          tmp += 0x10;
+        }
+        cf = (tmp >= 0xa0);
+      } else {
+        cf = !!(tmp & 0x100);
+      }
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
       of = !!((a ^ tmp) & (v ^ tmp) & 0x80);
-      a = tmp;
+      if (df) {
+        /* In decimal mode, NZ flags are based on this interim value. */
+        v = tmp;
+        opreg = k_v;
+        /* Using binary to decimal fixup, trying to make the logic similar to
+         * the hardware:
+         * http://atariage.com/forums/topic/
+         *        163876-flags-on-decimal-mode-on-the-nmos-6502/
+         */
+        a = s_bin_to_bcd[v];
+      } else {
+        a = tmp;
+      }
       break;
     case k_and: a &= v; break;
     case k_asl: cf = !!(v & 0x80); v <<= 1; break;
     case k_bcc: branch = (cf == 0); break;
     case k_bcs: branch = (cf == 1); break;
     case k_beq: branch = (zf == 1); break;
-    case k_bit:
-      zf = !(a & v);
-      nf = !!(v & 0x80);
-      of = !!(v & 0x40);
-      break;
+    case k_bit: zf = !(a & v); nf = !!(v & 0x80); of = !!(v & 0x40); break;
     case k_bmi: branch = (nf == 1); break;
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
@@ -348,12 +381,9 @@ interp_enter(struct interp_struct* p_interp) {
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
       break;
-    case k_rts:
-      pc = p_stack[++s];
-      pc |= (p_stack[++s] << 8);
-      pc++;
-      break;
+    case k_rts: pc = p_stack[++s]; pc |= (p_stack[++s] << 8); pc++; break;
     case k_sbc:
+      assert(!df);
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
       /* "SBC simply takes the ones complement of the second value and then
        * performs an ADC"
