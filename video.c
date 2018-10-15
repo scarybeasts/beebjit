@@ -707,7 +707,7 @@ video_get_vert_lines_offset(struct video_struct* p_video) {
   unsigned char pos = p_video->crtc_vert_position;
   unsigned char adjust = (p_video->crtc_vert_adjust & 0x1f);
   if (pos > 34) {
-    ret = 34;
+    pos = 34;
   }
 
   ret = ((34 - pos) * 8);
