@@ -35,6 +35,9 @@ struct video_struct {
   unsigned char crtc_mem_addr_high;
   unsigned char crtc_horiz_displayed;
   unsigned char crtc_vert_displayed;
+
+  size_t prev_horiz_chars;
+  size_t prev_vert_chars;
 };
 
 struct video_struct*
@@ -57,12 +60,13 @@ video_destroy(struct video_struct* p_video) {
 }
 
 static void
-video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+video_mode0_render(struct video_struct* p_video,
+                   unsigned char* p_frame_buf,
+                   size_t horiz_chars,
+                   size_t vert_chars) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
-  size_t vert_chars = video_get_vert_chars(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -106,12 +110,13 @@ video_mode0_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 }
 
 static void
-video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+video_mode4_render(struct video_struct* p_video,
+                   unsigned char* p_frame_buf,
+                   size_t horiz_chars,
+                   size_t vert_chars) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  size_t horiz_chars = video_get_horiz_chars(p_video, 0);
-  size_t vert_chars = video_get_vert_chars(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -171,13 +176,14 @@ video_mode4_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 }
 
 static void
-video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+video_mode1_render(struct video_struct* p_video,
+                   unsigned char* p_frame_buf,
+                   size_t horiz_chars,
+                   size_t vert_chars) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
-  size_t vert_chars = video_get_vert_chars(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -226,13 +232,14 @@ video_mode1_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 }
 
 static void
-video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+video_mode5_render(struct video_struct* p_video,
+                   unsigned char* p_frame_buf,
+                   size_t horiz_chars,
+                   size_t vert_chars) {
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t horiz_chars = video_get_horiz_chars(p_video, 0);
-  size_t vert_chars = video_get_vert_chars(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -297,14 +304,15 @@ video_mode5_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
 }
 
 static void
-video_mode2_render(struct video_struct* p_video, unsigned char* p_frame_buf) {
+video_mode2_render(struct video_struct* p_video,
+                   unsigned char* p_frame_buf,
+                   size_t horiz_chars,
+                   size_t vert_chars) {
   size_t i;
   size_t y;
   unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
   unsigned int* p_palette = &p_video->palette[0];
-  size_t horiz_chars = video_get_horiz_chars(p_video, 1);
-  size_t vert_chars = video_get_vert_chars(p_video);
 
   unsigned int p1s[256];
   unsigned int p2s[256];
@@ -383,6 +391,8 @@ video_render(struct video_struct* p_video,
              size_t bpp) {
   size_t pixel_width;
   size_t clock_speed;
+  size_t horiz_chars;
+  size_t vert_chars;
 
   assert(x == 640);
   assert(y == 512);
@@ -390,17 +400,27 @@ video_render(struct video_struct* p_video,
 
   pixel_width = video_get_pixel_width(p_video);
   clock_speed = video_get_clock_speed(p_video);
+  horiz_chars = video_get_horiz_chars(p_video, clock_speed);
+  vert_chars = video_get_vert_chars(p_video);
+
+  /* Clear the screen if the size or position changed. */
+  if (horiz_chars != p_video->prev_horiz_chars ||
+      vert_chars != p_video->prev_vert_chars) {
+    (void) memset(p_x_mem, '\0', x * y * bpp);
+  }
+  p_video->prev_horiz_chars = horiz_chars;
+  p_video->prev_vert_chars = vert_chars;
 
   if (pixel_width == 1)  {
-    video_mode0_render(p_video, p_x_mem);
+    video_mode0_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else if (pixel_width == 2 && clock_speed == 0) {
-    video_mode4_render(p_video, p_x_mem);
+    video_mode4_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else if (pixel_width == 2 && clock_speed == 1) {
-    video_mode1_render(p_video, p_x_mem);
+    video_mode1_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else if (pixel_width == 4 && clock_speed == 1) {
-    video_mode2_render(p_video, p_x_mem);
+    video_mode2_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else if (pixel_width == 4 && clock_speed == 0) {
-    video_mode5_render(p_video, p_x_mem);
+    video_mode5_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else {
     /* Ignore for now: could be custom mode, or more likely control register
      * just not set.
