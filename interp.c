@@ -152,7 +152,7 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t addr;
   int branch;
   uint16_t temp_addr;
-  int tmp;
+  int tmp_int;
 
   volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
@@ -287,32 +287,27 @@ interp_enter(struct interp_struct* p_interp) {
       }
       break;
     case k_adc:
-      tmp = (a + v + cf);
+      tmp_int = (a + v + cf);
       if (df) {
         /* Fix up decimal carry on first nibble. */
         int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
-        if (decimal_carry >= 10 && decimal_carry < 16) {
-          tmp += 0x10;
+        if (decimal_carry >= 0x0a) {
+          tmp_int += 0x06;
         }
-        cf = (tmp >= 0xa0);
-      } else {
-        cf = !!(tmp & 0x100);
       }
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ tmp) & (v ^ tmp) & 0x80);
+      of = !!((a ^ tmp_int) & (v ^ tmp_int) & 0x80);
       if (df) {
         /* In decimal mode, NZ flags are based on this interim value. */
-        v = tmp;
+        v = tmp_int;
         opreg = k_v;
-        /* Using binary to decimal fixup, trying to make the logic similar to
-         * the hardware:
-         * http://atariage.com/forums/topic/
-         *        163876-flags-on-decimal-mode-on-the-nmos-6502/
-         */
-        a = s_bin_to_bcd[v];
-      } else {
-        a = tmp;
+        int decimal_carry = ((a & 0xf0) + (v & 0xf0) + cf);
+        if (decimal_carry >= 0xa0) {
+          tmp_int += 0x60;
+        }
       }
+      a = tmp_int;
+      cf = !!(tmp_int & 0x100);
       break;
     case k_and: a &= v; break;
     case k_asl: cf = !!(v & 0x80); v <<= 1; break;
@@ -383,17 +378,29 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case k_rts: pc = p_stack[++s]; pc |= (p_stack[++s] << 8); pc++; break;
     case k_sbc:
-      assert(!df);
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
       /* "SBC simply takes the ones complement of the second value and then
        * performs an ADC"
        */
-      v = ~v;
-      tmp = (a + v + cf);
-      cf = !!(tmp & 0x100);
+      tmp_int = (a + (unsigned char) ~v + cf);
+      if (df) {
+        /* Fix up decimal carry on first nibble. */
+        if (((v & 0x0f) + !cf) > (a & 0x0f)) {
+          tmp_int -= 0x06;
+        }
+      }
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ tmp) & (v ^ tmp) & 0x80);
-      a = tmp;
+      of = !!((a ^ tmp_int) & ((unsigned char) ~v ^ tmp_int) & 0x80);
+      if (df) {
+        /* In decimal mode, NZ flags are based on this interim value. */
+        v = tmp_int;
+        opreg = k_v;
+        if ((v + !cf) > a) {
+          tmp_int -= 0x60;
+        }
+      }
+      a = tmp_int;
+      cf = !!(tmp_int & 0x100);
       break;
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
