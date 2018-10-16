@@ -301,8 +301,7 @@ interp_enter(struct interp_struct* p_interp) {
         /* In decimal mode, NZ flags are based on this interim value. */
         v = tmp_int;
         opreg = k_v;
-        int decimal_carry = ((a & 0xf0) + (v & 0xf0) + cf);
-        if (decimal_carry >= 0xa0) {
+        if (tmp_int >= 0xa0) {
           tmp_int += 0x60;
         }
       }
