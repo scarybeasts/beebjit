@@ -456,6 +456,12 @@ bbc_set_registers(struct bbc_struct* p_bbc,
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
+void
+bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc) {
+  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  state_6502_set_pc(p_state_6502, pc);
+}
+
 uint16_t
 bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
   struct jit_struct* p_jit = p_bbc->p_jit;

@@ -54,6 +54,7 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char s,
                        unsigned char flags,
                        uint16_t pc);
+void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 void bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set);
 uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 void bbc_run_async(struct bbc_struct* p_bbc);

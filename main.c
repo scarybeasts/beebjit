@@ -141,8 +141,7 @@ main(int argc, const char* argv[]) {
     state_load(p_bbc, load_name);
   }
   if (pc != 0) {
-    /* TODO: Need a more precision API, bbc_set_pc. */
-    bbc_set_registers(p_bbc, 0, 0, 0, 0, 0x04, pc);
+    bbc_set_pc(p_bbc, pc);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
