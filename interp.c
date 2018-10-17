@@ -161,7 +161,6 @@ interp_enter(struct interp_struct* p_interp) {
   struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem = p_memory_access->p_mem_read;
   unsigned char* p_stack = p_mem + k_6502_stack_addr;
-  void* (*debug_callback)(void*) = 0;
   uint16_t read_callback_mask =
       p_memory_access->memory_read_needs_callback_mask(
           p_memory_access->p_callback_obj);
@@ -170,26 +169,44 @@ interp_enter(struct interp_struct* p_interp) {
           p_memory_access->p_callback_obj);
   volatile int* p_async_tick = &p_interp->async_tick;
   unsigned int* p_irq = &p_state_6502->irq;
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
+  int debug_subsystem_active = p_options->debug_subsystem_active(
+      p_debug_callback_object);
+  size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
+      p_debug_callback_object);
+  void* (*debug_callback)(void*) = p_options->debug_callback;
+  int (*debug_active_at_addr)(void*, uint16_t) =
+      p_options->debug_active_at_addr;
+  int (*debug_counter_at_addr)(void*, uint16_t) =
+      p_options->debug_counter_at_addr;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
-
-  if (p_options->debug) {
-    debug_callback = p_options->debug_callback;
-  }
 
   while (1) {
     if (*p_async_tick) {
       p_interp->async_tick = 0;
       p_timing->sync_tick_callback(p_timing->p_callback_obj);
     }
-    if (debug_callback) {
-      flags = interp_get_flags(zf, nf, cf, of, df, intf);
-      state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
-      debug_callback(p_options->p_debug_callback_object);
-      state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-      interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+    if (debug_subsystem_active) {
+      if (debug_counter_at_addr(p_debug_callback_object, pc)) {
+        if (!*p_debug_counter_ptr) {
+          __builtin_trap();
+        }
+        *p_debug_counter_ptr = (*p_debug_counter_ptr - 1);
+      }
+
+      if (debug_active_at_addr(p_debug_callback_object, pc)) {
+        flags = interp_get_flags(zf, nf, cf, of, df, intf);
+        state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
+
+        debug_callback(p_options->p_debug_callback_object);
+
+        state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
+        interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+      }
     }
+
     branch = 0;
     /* TODO: opcode fetch doesn't consider hardware register access. */
     opcode = p_mem[pc++];

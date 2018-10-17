@@ -4,8 +4,6 @@
 
 #include "bbc_options.h"
 #include "bbc_timing.h"
-/* TODO: get rid of. */
-#include "debug.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
@@ -65,7 +63,7 @@ static const int k_offset_write_callback = 40 + 24;
 
 static const int k_offset_debug = 72;
 static const int k_offset_memory = 72 + 8;
-static const int k_offset_counter = 72 + 16;
+static const int k_offset_counter_ptr = 72 + 16;
 static const int k_offset_jit_ptrs = 72 + 24;
 
 static const unsigned int k_log_flag_self_modify = 1;
@@ -200,18 +198,18 @@ struct jit_struct {
   void* p_write_callback;
 
   /* Structures referenced by JIT code. */
-  void* p_debug;                   /* 72  */
+  void* p_debug_callback_object;   /* 72  */
   void* p_memory_callback_object;
-  size_t counter;
+  size_t* p_counter;
   unsigned int jit_ptrs[k_6502_addr_space_size]; /* 96 */
 
   /* Fields not referenced by JIT'ed code. */
   struct memory_access* p_memory_access;
   struct bbc_timing* p_timing;
+  struct bbc_options* p_options;
   unsigned int jit_flags;
   unsigned int log_flags;
   size_t max_num_ops;
-  uint16_t debug_stop_addr;
   unsigned char* p_mem;
   size_t dummy_rom_offset;
 
@@ -1149,18 +1147,26 @@ jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
 
 static void
 jit_emit_counter_sequence(struct util_buffer* p_buf) {
-  /* mov rdx, [rdi + k_offset_counter] */
-  util_buffer_add_4b(p_buf, 0x48, 0x8b, 0x57, k_offset_counter);
-  /* lea rdx, [rdx - 1] */
-  util_buffer_add_4b(p_buf, 0x48, 0x8d, 0x52, 0xff);
-  /* mov [rdi + k_offset_counter], rdx */
-  util_buffer_add_4b(p_buf, 0x48, 0x89, 0x57, k_offset_counter);
-  /* bt rdx, 63 */
-  util_buffer_add_5b(p_buf, 0x48, 0x0f, 0xba, 0xe2, 0x3f);
-  /* jae / jnc + 1 */
-  util_buffer_add_2b(p_buf, 0x73, 0x01);
+  /* Save rcx because we need it for jrcxz. */
+  /* mov r8, rcx */
+  util_buffer_add_3b(p_buf, 0x49, 0x89, 0xc8);
+  /* mov rdx, [rdi + k_offset_counter_ptr] */
+  util_buffer_add_4b(p_buf, 0x48, 0x8b, 0x57, k_offset_counter_ptr);
+  /* mov rcx, [rdx] */
+  util_buffer_add_3b(p_buf, 0x48, 0x8b, 0x0a);
+  /* Use jrcxz to do test / jump without flag updates. */
+  /* jrcxz + 2 */ /* Lands on int 3 */
+  util_buffer_add_2b(p_buf, 0xe3, 0x02);
+  /* jmp + 1 */ /* Jumps over int 3 */
+  util_buffer_add_2b(p_buf, 0xeb, 0x01);
   /* int 3 */
   util_buffer_add_1b(p_buf, 0xcc);
+  /* lea rcx, [rcx - 1] */
+  util_buffer_add_4b(p_buf, 0x48, 0x8d, 0x49, 0xff);
+  /* mov [rdx], rcx */
+  util_buffer_add_3b(p_buf, 0x48, 0x89, 0x0a);
+  /* mov rcx, r8 */
+  util_buffer_add_3b(p_buf, 0x4c, 0x89, 0xc1);
 }
 
 static int
@@ -1609,11 +1615,6 @@ jit_emit_check_interrupt(struct jit_struct* p_jit,
                                   k_semaphore_cli_end_minus_4));
 
   return index;
-}
-
-void
-jit_set_counter(struct jit_struct* p_jit, size_t counter) {
-  p_jit->counter = counter;
 }
 
 static unsigned char
@@ -3052,7 +3053,8 @@ jit_at_addr(struct jit_struct* p_jit,
     int carry_flag_expectation;
     int effective_carry_flag_location;
 
-    struct debug_struct* p_debug = p_jit->p_debug;
+    void* p_debug_callback_object = p_jit->p_debug_callback_object;
+    struct bbc_options* p_options = p_jit->p_options;
     unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
                            util_buffer_get_pos(p_buf);
     int dynamic_operand = 0;
@@ -3061,10 +3063,10 @@ jit_at_addr(struct jit_struct* p_jit,
 
     assert((size_t) p_dst < 0xffffffff);
 
-    if (debug_active_at_addr(p_debug, addr_6502)) {
+    if (p_options->debug_active_at_addr(p_debug_callback_object, addr_6502)) {
       emit_debug = 1;
     }
-    if (debug_counter_at_addr(p_debug, addr_6502)) {
+    if (p_options->debug_counter_at_addr(p_debug_callback_object, addr_6502)) {
       emit_counter = 1;
     }
 
@@ -3726,6 +3728,7 @@ jit_create(struct state_6502* p_state_6502,
                                                  k_semaphores_size);
   util_make_mapping_read_only(p_jit->p_semaphores, k_semaphores_size);
 
+  p_jit->p_options = p_options;
   p_jit->p_mem = p_mem;
   p_jit->dummy_rom_offset = k_bbc_mem_mmap_addr_dummy_rom - k_bbc_mem_mmap_addr;
   p_jit->p_jit_base = p_jit_base;
@@ -3735,7 +3738,9 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_util_jit = p_util_jit;
   p_jit->p_util_do_interrupt = p_util_do_interrupt;
   p_jit->p_debug_callback = p_options->debug_callback;
-  p_jit->p_debug = p_options->p_debug_callback_object;
+  p_jit->p_debug_callback_object = p_options->p_debug_callback_object;
+  p_jit->p_counter = p_options->debug_get_counter_ptr(
+      p_jit->p_debug_callback_object);
   p_jit->p_jit_callback = jit_callback;
   p_jit->p_read_callback = p_memory_access->memory_read_callback;
   p_jit->p_write_callback = p_memory_access->memory_write_callback;

@@ -3,6 +3,7 @@
 #include "debug.h"
 
 #include "bbc.h"
+/* TODO: get rid of. */
 #include "jit.h"
 #include "defs_6502.h"
 #include "state.h"
@@ -36,6 +37,7 @@ struct debug_struct {
   int debug_active;
   uint16_t debug_stop_addr;
   uint16_t debug_counter_addr;
+  size_t counter;
   uint16_t next_or_finish_stop_addr;
   /* Stats. */
   int stats;
@@ -93,7 +95,19 @@ debug_destroy(struct debug_struct* p_debug) {
 }
 
 int
-debug_active_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
+debug_subsystem_active(void* p) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  if (p_debug->debug_active ||
+      p_debug->debug_stop_addr ||
+      p_debug->debug_counter_addr) {
+    return 1;
+  }
+  return 0;
+}
+
+int
+debug_active_at_addr(void* p, uint16_t addr_6502) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
   if (p_debug->debug_active || (addr_6502 == p_debug->debug_stop_addr)) {
     return 1;
   }
@@ -101,11 +115,18 @@ debug_active_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
 }
 
 int
-debug_counter_at_addr(struct debug_struct* p_debug, uint16_t addr_6502) {
+debug_counter_at_addr(void* p, uint16_t addr_6502) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
   if (addr_6502 == p_debug->debug_counter_addr) {
     return 1;
   }
   return 0;
+}
+
+size_t*
+debug_get_counter_ptr(void* p) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  return &p_debug->counter;
 }
 
 static void
@@ -848,9 +869,7 @@ debug_callback(void* p) {
       p_debug->debug_counter_addr = parse_int;
     } else if (sscanf(input_buf, "counter %d", &parse_int) == 1 &&
                parse_int > 0) {
-      /* NOTE: layer violation, should probably be bbc_set_counter? */
-      struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-      jit_set_counter(p_jit, parse_int);
+      p_debug->counter = parse_int;
     } else if (sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,

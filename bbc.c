@@ -360,9 +360,12 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->timing.p_callback_obj = p_bbc;
   p_bbc->timing.sync_tick_callback = bbc_sync_timer_tick;
 
-  p_bbc->options.debug = debug_flag;
-  p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_debug_callback_object = p_debug;
+  p_bbc->options.debug_subsystem_active = debug_subsystem_active;
+  p_bbc->options.debug_active_at_addr = debug_active_at_addr;
+  p_bbc->options.debug_counter_at_addr = debug_counter_at_addr;
+  p_bbc->options.debug_get_counter_ptr = debug_get_counter_ptr;
+  p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;
   p_bbc->options.p_log_flags = p_log_flags;
 
