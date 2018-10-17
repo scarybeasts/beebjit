@@ -1,6 +1,7 @@
 #ifndef BEEBJIT_STATE_6502_H
 #define BEEBJIT_STATE_6502_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 enum {
@@ -25,7 +26,10 @@ struct state_6502 {
   unsigned int irq;
   unsigned int reg_host_pc;
   unsigned int reg_host_flags;
+  size_t cycles;
 };
+
+void state_6502_reset(struct state_6502* p_state_6502);
 
 void state_6502_get_registers(struct state_6502* p_state_6502,
                               unsigned char* a,
@@ -34,6 +38,7 @@ void state_6502_get_registers(struct state_6502* p_state_6502,
                               unsigned char* s,
                               unsigned char* flags,
                               uint16_t* pc);
+size_t state_6502_get_cycles(struct state_6502* p_state_6502);
 
 void state_6502_set_registers(struct state_6502* p_state_6502,
                               unsigned char a,
@@ -42,5 +47,7 @@ void state_6502_set_registers(struct state_6502* p_state_6502,
                               unsigned char s,
                               unsigned char flags,
                               uint16_t pc);
+void state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc);
+void state_6502_set_cycles(struct state_6502* p_state_6502, size_t cycles);
 
 #endif /* BEEBJIT_STATE_6502_H */
