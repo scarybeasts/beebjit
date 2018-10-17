@@ -151,6 +151,7 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char v;
   uint16_t addr;
   int branch;
+  int check_extra_read_cycle;
   uint16_t temp_addr;
   int tmp_int;
 
@@ -179,6 +180,7 @@ interp_enter(struct interp_struct* p_interp) {
       p_options->debug_active_at_addr;
   int (*debug_counter_at_addr)(void*, uint16_t) =
       p_options->debug_counter_at_addr;
+  size_t cycles = state_6502_get_cycles(p_state_6502);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -214,45 +216,35 @@ interp_enter(struct interp_struct* p_interp) {
     optype = g_optypes[opcode];
     opreg = g_optype_sets_register[optype];
     opmem = g_opmem[optype];
+
+    /* Cycles, except branch and page crossings. */
+    check_extra_read_cycle = (opmem == k_read);
+    cycles += g_opcycles[opcode];
+
     switch (opmode) {
     case k_nil:
-    case 0:
-      break;
-    case k_acc:
-      opreg = k_a;
-      opmem = k_nomem;
-      v = a;
-      break;
+    case 0: break;
+    case k_acc: opreg = k_a; opmem = k_nomem; v = a; break;
     case k_imm:
-    case k_rel:
-      v = p_mem[pc++];
-      opmem = k_nomem;
-      break;
-    case k_zpg:
-      addr = p_mem[pc++];
-      break;
-    case k_abs:
+    case k_rel: v = p_mem[pc++]; opmem = k_nomem; break;
+    case k_zpg: addr = p_mem[pc++]; break; case k_abs:
       addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
       pc += 2;
       break;
-    case k_zpx:
-      addr = p_mem[pc++];
-      addr += x;
-      addr &= 0xff;
-      break;
-    case k_zpy:
-      addr = p_mem[pc++];
-      addr += y;
-      addr &= 0xff;
-      break;
+    case k_zpx: addr = p_mem[pc++]; addr += x; addr &= 0xff; break;
+    case k_zpy: addr = p_mem[pc++]; addr += y; addr &= 0xff; break;
     case k_abx:
-      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr = p_mem[pc];
       addr += x;
+      cycles += ((addr >> 8) & check_extra_read_cycle);
+      addr += (p_mem[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
     case k_aby:
-      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr = p_mem[pc];
       addr += y;
+      cycles += ((addr >> 8) & check_extra_read_cycle);
+      addr += (p_mem[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
     case k_ind:
@@ -277,9 +269,10 @@ interp_enter(struct interp_struct* p_interp) {
     case k_idy:
       v = p_mem[pc++];
       addr = p_mem[v];
-      v++;
-      addr |= (p_mem[v] << 8);
       addr += y;
+      cycles += ((addr >> 8) & check_extra_read_cycle);
+      v++;
+      addr += (p_mem[v] << 8);
       break;
     default:
       assert(0);
@@ -452,7 +445,12 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (branch) {
+      cycles++;
+      temp_addr = pc;
       pc = (pc + (char) v);
+      if ((pc ^ temp_addr) & 0x0100) {
+        cycles++;
+      }
     }
     if (*p_irq && !intf) {
       p_stack[s--] = (pc >> 8);

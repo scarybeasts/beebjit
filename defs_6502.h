@@ -17,6 +17,7 @@ enum {
 const char* g_p_opnames[k_6502_op_num_types];
 unsigned char g_optypes[k_6502_op_num_opcodes];
 unsigned char g_opmodes[k_6502_op_num_opcodes];
+unsigned char g_opcycles[k_6502_op_num_opcodes];
 unsigned char g_opmodelens[k_6502_op_num_modes];
 unsigned char g_opmem[k_6502_op_num_types];
 unsigned char g_opbranch[k_6502_op_num_types];
