@@ -424,7 +424,10 @@ bbc_reset(struct bbc_struct* p_bbc) {
   /* Initial 6502 state. */
   init_pc = (p_mem[k_6502_vector_reset] |
              (p_mem[k_6502_vector_reset + 1] << 8));
-  bbc_set_registers(p_bbc, 0, 0, 0, 0, /* I flag */ 0x04, init_pc);
+  /* From https://www.pagetable.com/?p=410, initial 6502 state is not all zero.
+   * Also, see http://www.visual6502.org/JSSim/expert.html.
+   */
+  bbc_set_registers(p_bbc, 0xAA, 0, 0, 0xFD, /* B, I, Z flags */ 0x16, init_pc);
 }
 
 void

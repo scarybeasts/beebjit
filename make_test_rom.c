@@ -82,18 +82,18 @@ main(int argc, const char* argv[]) {
   /* Check PHP, including initial 6502 boot-up flags status. */
   util_buffer_set_pos(p_buf, 0x0000);
   emit_PHP(p_buf);
-  emit_LDA(p_buf, k_abs, 0x0100);
-  emit_CMP(p_buf, k_imm, 0x34);   /* I, BRK, 1 */
+  emit_LDA(p_buf, k_abs, 0x01FD);
+  emit_CMP(p_buf, k_imm, 0x36);   /* 1, BRK, I, Z */
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0xFF);   /* Set all flags upon the PLP. */
-  emit_STA(p_buf, k_abs, 0x0100);
+  emit_STA(p_buf, k_abs, 0x01FD);
   emit_PLP(p_buf);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_REQUIRE_NF(p_buf, 1);
   emit_PHP(p_buf);
-  emit_LDA(p_buf, k_abs, 0x0100);
+  emit_LDA(p_buf, k_abs, 0x01FD);
   emit_PLP(p_buf);
-  emit_CMP(p_buf, k_imm, 0xff);
+  emit_CMP(p_buf, k_imm, 0xFF);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xC040);
@@ -102,7 +102,7 @@ main(int argc, const char* argv[]) {
   util_buffer_set_pos(p_buf, 0x0040);
   index = set_new_index(index, 0x40);
   emit_TSX(p_buf);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 0);
   emit_LDX(p_buf, k_imm, 0xFF);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 1);
