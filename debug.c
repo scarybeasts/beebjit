@@ -33,10 +33,17 @@ enum {
 struct debug_struct {
   struct bbc_struct* p_bbc;
   int debug_active;
+  int debug_running;
+  int debug_running_print;
+  int debug_running_slow;
+  /* Breakpointing. */
   uint16_t debug_stop_addr;
   uint16_t debug_counter_addr;
-  size_t counter;
   uint16_t next_or_finish_stop_addr;
+  int debug_break_exec[k_max_break];
+  int debug_break_mem_low[k_max_break];
+  int debug_break_mem_high[k_max_break];
+  int debug_break_opcodes[256];
   /* Stats. */
   int stats;
   size_t count_addr[k_6502_addr_space_size];
@@ -48,45 +55,50 @@ struct debug_struct {
   uint64_t time_basis;
   size_t next_cycles;
   unsigned char warned_at_addr[k_6502_addr_space_size];
+  size_t counter;
+  char debug_old_input_buf[k_max_input_len];
 };
 
-/* TODO: move into debug_struct! */
-static int debug_inited = 0;
-static int debug_break_exec[k_max_break];
-static int debug_break_mem_low[k_max_break];
-static int debug_break_mem_high[k_max_break];
-static int debug_running = 0;
-static int debug_running_print = 0;
-static int debug_running_slow = 0;
-static int debug_break_opcodes[256];
-
-static char debug_old_input_buf[k_max_input_len];
+static int s_sigint_received;
 
 static void
-int_handler(int signum) {
+sigint_handler(int signum) {
   (void) signum;
-  debug_running = 0;
+  s_sigint_received = 1;
 }
 
 struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
              uint16_t debug_stop_addr) {
+  size_t i;
+  sighandler_t ret_sig;
+
   struct debug_struct* p_debug = malloc(sizeof(struct debug_struct));
   if (p_debug == NULL) {
     errx(1, "couldn't allocate debug_struct");
   }
-  memset(p_debug, '\0', sizeof(struct debug_struct));
+  (void) memset(p_debug, '\0', sizeof(struct debug_struct));
 
-  debug_running = bbc_get_run_flag(p_bbc);
-  debug_running_print = bbc_get_print_flag(p_bbc);
-  debug_running_slow = bbc_get_slow_flag(p_bbc);
+  ret_sig = signal(SIGINT, sigint_handler);
+  if (ret_sig == SIG_ERR) {
+    errx(1, "signal failed");
+  }
 
   p_debug->p_bbc = p_bbc;
   p_debug->debug_active = debug_active;
+  p_debug->debug_running = bbc_get_run_flag(p_bbc);
+  p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
+  p_debug->debug_running_slow = bbc_get_slow_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->time_basis = util_gettime();
   p_debug->next_cycles = 0;
+
+  for (i = 0; i < k_max_break; ++i) {
+    p_debug->debug_break_exec[i] = -1;
+    p_debug->debug_break_mem_low[i] = -1;
+    p_debug->debug_break_mem_high[i] = -1;
+  }
 
   return p_debug;
 }
@@ -129,23 +141,6 @@ size_t*
 debug_get_counter_ptr(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   return &p_debug->counter;
-}
-
-static void
-debug_init() {
-  size_t i;
-  sighandler_t ret = signal(SIGINT, int_handler);
-  if (ret == SIG_ERR) {
-    errx(1, "signal failed");
-  }
-
-  for (i = 0; i < k_max_break; ++i) {
-    debug_break_exec[i] = -1;
-    debug_break_mem_low[i] = -1;
-    debug_break_mem_high[i] = -1;
-  }
-
-  debug_inited = 1;
 }
 
 static void
@@ -408,16 +403,16 @@ debug_hit_break(struct debug_struct* p_debug,
                 unsigned char opcode_6502) {
   size_t i;
   for (i = 0; i < k_max_break; ++i) {
-    if (reg_pc == debug_break_exec[i]) {
+    if (reg_pc == p_debug->debug_break_exec[i]) {
       return 1;
     }
     if (addr_6502 != -1 &&
-        debug_break_mem_low[i] <= addr_6502 &&
-        debug_break_mem_high[i] >= addr_6502) {
+        p_debug->debug_break_mem_low[i] <= addr_6502 &&
+        p_debug->debug_break_mem_high[i] >= addr_6502) {
       return 1;
     }
   }
-  if (debug_break_opcodes[opcode_6502]) {
+  if (p_debug->debug_break_opcodes[opcode_6502]) {
     return 1;
   }
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
@@ -435,7 +430,7 @@ debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
   struct debug_struct* p_debug = (struct debug_struct*) p_state;
   unsigned char op1 = *(unsigned char*) p_op1;
   unsigned char op2 = *(unsigned char*) p_op2;
-  return p_debug->count_opcode[op1] - p_debug->count_opcode[op2];
+  return (p_debug->count_opcode[op1] - p_debug->count_opcode[op2]);
 }
 
 static int
@@ -443,7 +438,7 @@ debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
   struct debug_struct* p_debug = (struct debug_struct*) p_state;
   uint16_t addr1 = *(uint16_t*) p_addr1;
   uint16_t addr2 = *(uint16_t*) p_addr2;
-  return p_debug->count_addr[addr1] - p_debug->count_addr[addr2];
+  return (p_debug->count_addr[addr1] - p_debug->count_addr[addr2]);
 }
 
 static void
@@ -520,7 +515,7 @@ debug_check_unusual(struct debug_struct* p_debug,
    */
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
     printf("Indirect access to register %.4x at %.4x\n", addr_6502, reg_pc);
-    debug_running = 0;
+    p_debug->debug_running = 0;
   }
 
   /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
@@ -545,7 +540,7 @@ debug_check_unusual(struct debug_struct* p_debug,
     }
     if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
       printf("Indirect write at %.4x to %.4x\n", reg_pc, addr_6502);
-      debug_running = 0;
+      p_debug->debug_running = 0;
     }
   }
 
@@ -617,6 +612,7 @@ debug_callback(void* p) {
   unsigned char* p_mem = bbc_get_mem(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
+  volatile int* p_sigint_received = &s_sigint_received;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -631,10 +627,6 @@ debug_callback(void* p) {
   reg_pc_plus_2 = reg_pc + 2;
   operand1 = p_mem[reg_pc_plus_1];
   operand2 = p_mem[reg_pc_plus_2];
-
-  if (!debug_inited) {
-    debug_init();
-  }
 
   if (p_debug->stats) {
     unsigned char optype = g_optypes[opcode];
@@ -654,13 +646,18 @@ debug_callback(void* p) {
 
   debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
 
-  if (debug_running_slow) {
+  if (p_debug->debug_running_slow) {
     debug_slow_down(p_debug);
   }
 
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
 
-  if (debug_running && !hit_break && !debug_running_print) {
+  if (*p_sigint_received) {
+    *p_sigint_received = 0;
+    p_debug->debug_running = 0;
+  }
+
+  if (p_debug->debug_running && !hit_break && !p_debug->debug_running_print) {
     return 0;
   }
 
@@ -688,7 +685,7 @@ debug_callback(void* p) {
                      operand2,
                      reg_pc);
 
-  memset(flags_buf, ' ', 8);
+  (void) memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
   if (flag_c) {
     flags_buf[0] = 'C';
@@ -724,10 +721,10 @@ debug_callback(void* p) {
          extra_buf);
   fflush(stdout);
 
-  if (debug_running && !hit_break) {
+  if (p_debug->debug_running && !hit_break) {
     return 0;
   }
-  debug_running = 0;
+  p_debug->debug_running = 0;
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
     p_debug->next_or_finish_stop_addr = 0;
   }
@@ -757,16 +754,16 @@ debug_callback(void* p) {
     }
 
     if (!strcmp(input_buf, "")) {
-      memcpy(input_buf, debug_old_input_buf, k_max_input_len);
+      (void) memcpy(input_buf, p_debug->debug_old_input_buf, k_max_input_len);
     } else {
-      memcpy(debug_old_input_buf, input_buf, k_max_input_len);
+      (void) memcpy(p_debug->debug_old_input_buf, input_buf, k_max_input_len);
     }
 
     if (!strcmp(input_buf, "q")) {
       exit(0);
     } else if (!strcmp(input_buf, "p")) {
-      debug_running_print = !debug_running_print;
-      printf("print now: %d\n", debug_running_print);
+      p_debug->debug_running_print = !p_debug->debug_running_print;
+      printf("print now: %d\n", p_debug->debug_running_print);
     } else if (!strcmp(input_buf, "stats")) {
       p_debug->stats = !p_debug->stats;
       printf("stats now: %d\n", p_debug->stats);
@@ -778,11 +775,11 @@ debug_callback(void* p) {
       do_trap = 1;
       break;
     } else if (!strcmp(input_buf, "c")) {
-      debug_running = 1;
+      p_debug->debug_running = 1;
       break;
     } else if (!strcmp(input_buf, "n")) {
       p_debug->next_or_finish_stop_addr = reg_pc + oplen;
-      debug_running = 1;
+      p_debug->debug_running = 1;
       break;
     } else if (!strcmp(input_buf, "f")) {
       uint16_t finish_addr;
@@ -792,7 +789,7 @@ debug_callback(void* p) {
       finish_addr |= (p_mem[k_6502_stack_addr + stack] << 8);
       finish_addr++;
       p_debug->next_or_finish_stop_addr = finish_addr;
-      debug_running = 1;
+      p_debug->debug_running = 1;
       break;
     } else if (sscanf(input_buf, "m %x", &parse_int) == 1) {
       parse_addr = parse_int;
@@ -816,7 +813,7 @@ debug_callback(void* p) {
                parse_int >= 0 &&
                parse_int < k_max_break) {
       parse_addr = parse_int2;
-      debug_break_exec[parse_int] = parse_addr;
+      p_debug->debug_break_exec[parse_int] = parse_addr;
     } else if (sscanf(input_buf,
                       "bm %d %x %x",
                       &parse_int,
@@ -825,24 +822,24 @@ debug_callback(void* p) {
                parse_int >= 0 &&
                parse_int < k_max_break) {
       parse_addr = parse_int2;
-      debug_break_mem_low[parse_int] = parse_addr;
+      p_debug->debug_break_mem_low[parse_int] = parse_addr;
       if (parse_int3 != -1) {
         parse_addr = parse_int3;
       }
-      debug_break_mem_high[parse_int] = parse_addr;
+      p_debug->debug_break_mem_high[parse_int] = parse_addr;
     } else if (sscanf(input_buf, "db %d", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
-      debug_break_exec[parse_int] = -1;
+      p_debug->debug_break_exec[parse_int] = -1;
     } else if (sscanf(input_buf, "dbm %d", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
-      debug_break_mem_low[parse_int] = -1;
-      debug_break_mem_high[parse_int] = -1;
+      p_debug->debug_break_mem_low[parse_int] = -1;
+      p_debug->debug_break_mem_high[parse_int] = -1;
     } else if (sscanf(input_buf, "bop %x", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < 256) {
-      debug_break_opcodes[parse_int] = 1;
+      p_debug->debug_break_opcodes[parse_int] = 1;
     } else if (sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2 &&
                parse_int >= 0 &&
                parse_int < 65536) {
