@@ -23,6 +23,11 @@ enum {
   k_bbc_mode_jit = 1,
   k_bbc_mode_interp = 2,
 };
+enum {
+  k_message_exited = 1,
+  k_message_vsync = 2,
+  k_message_render_done = 3,
+};
 
 struct bbc_struct;
 
@@ -86,6 +91,8 @@ int bbc_is_key_pressed(struct bbc_struct* p_bbc,
 int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
 int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
 
-int bbc_get_fd(struct bbc_struct* p_bbc);
+int bbc_get_client_fd(struct bbc_struct* p_bbc);
+void bbc_client_send_message(struct bbc_struct* p_bbc, char message);
+char bbc_client_receive_message(struct bbc_struct* p_bbc);
 
 #endif /* BEEJIT_JIT_H */

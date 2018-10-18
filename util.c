@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -382,4 +383,16 @@ util_sleep_until(uint64_t time) {
       errx(1, "nanosleep failed");
     }
   } while (ret != 0);
+}
+
+void
+util_get_channel_fds(int* fd1, int* fd2) {
+  int fds[2];
+  int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
+  if (ret != 0) {
+    errx(1, "socketpair failed");
+  }
+
+  *fd1 = fds[0];
+  *fd2 = fds[1];
 }

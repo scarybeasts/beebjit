@@ -152,7 +152,7 @@ main(int argc, const char* argv[]) {
   bbc_run_async(p_bbc);
 
   x_fd = x_get_fd(p_x);
-  bbc_fd = bbc_get_fd(p_bbc);
+  bbc_fd = bbc_get_client_fd(p_bbc);
 
   poll_fds[0].fd = x_fd;
   poll_fds[0].events = POLLIN;
@@ -161,10 +161,11 @@ main(int argc, const char* argv[]) {
 
   while (1) {
     int ret;
+    char message;
+
     poll_fds[0].revents = 0;
     poll_fds[1].revents = 0;
-    /* 20 ms */
-    ret = poll(&poll_fds[0], 2, 20);
+    ret = poll(&poll_fds[0], 2, -1);
     if (ret < 0) {
       if (errno == EINTR) {
         continue;
@@ -178,12 +179,17 @@ main(int argc, const char* argv[]) {
     }
     if (poll_fds[1].revents & POLLIN) {
       assert(ret > 0);
-      assert(bbc_has_exited(p_bbc));
-      break;
+      message = bbc_client_receive_message(p_bbc);
+      if (message == k_message_exited) {
+        assert(bbc_has_exited(p_bbc));
+        break;
+      } else {
+        assert(message == k_message_vsync);
+        x_render(p_x);
+        bbc_client_send_message(p_bbc, k_message_render_done);
+      }
     }
 
-    /* TODO: should render at 50Hz, but also renders on keypress! */
-    x_render(p_x);
     /* We need to call x_event_check unconditionally, in case a key event comes
      * in during X rendering. In that case, the data could be read from the
      * socket and placed in the event queue during standard X queue processing.

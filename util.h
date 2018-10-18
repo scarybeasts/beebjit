@@ -49,6 +49,7 @@ void util_buffer_add_5b(struct util_buffer* p_buf,
                         int b5);
 void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
 
+/* File. */
 size_t util_read_file(unsigned char* p_buf,
                       size_t max_size,
                       const char* p_file_name);
@@ -56,8 +57,12 @@ void util_write_file(const char* p_file_name,
                      const unsigned char* p_buf,
                      size_t size);
 
+/* Timing. */
 /* These quantities are in microseconds. */
 uint64_t util_gettime();
 void util_sleep_until(uint64_t time);
+
+/* Channels. */
+void util_get_channel_fds(int* fd1, int* fd2);
 
 #endif /* BEEBJIT_UTIL_H */
