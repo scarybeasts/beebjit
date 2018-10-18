@@ -56,4 +56,8 @@ void util_write_file(const char* p_file_name,
                      const unsigned char* p_buf,
                      size_t size);
 
+/* These quantities are in microseconds. */
+uint64_t util_gettime();
+void util_sleep_until(uint64_t time);
+
 #endif /* BEEBJIT_UTIL_H */

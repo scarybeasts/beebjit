@@ -2,15 +2,18 @@
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 #include <sys/types.h>
 
 static const size_t k_guard_size = 4096;
@@ -340,4 +343,43 @@ util_write_file(const char* p_file_name,
   if (ret != 0) {
     errx(1, "close failed");
   }
+}
+
+uint64_t
+util_gettime() {
+  struct timeval tv;
+
+  int ret = gettimeofday(&tv, NULL);
+  if (ret != 0) {
+    errx(1, "gettimeofday failed");
+  }
+
+  return ((tv.tv_sec * (uint64_t) 1000000) + tv.tv_usec);
+}
+
+void
+util_sleep_until(uint64_t time) {
+  struct timespec ts;
+  uint64_t delta;
+  int ret;
+
+  uint64_t curr_time = util_gettime();
+
+  if (time <= curr_time) {
+    return;
+  }
+
+  delta = (time - curr_time);
+  ts.tv_sec = (delta / 1000000);
+  ts.tv_nsec = ((delta % 1000000) * 1000);
+
+  do {
+    ret = nanosleep(&ts, &ts);
+    if (ret != 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      errx(1, "nanosleep failed");
+    }
+  } while (ret != 0);
 }

@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
@@ -68,7 +67,6 @@ struct bbc_struct {
   struct state_6502 state_6502;
   struct memory_access memory_access;
   struct bbc_timing timing;
-  size_t time_in_us;
   unsigned char* p_mem;
   unsigned char* p_mem_dummy_rom;
   struct video_struct* p_video;
@@ -77,6 +75,9 @@ struct bbc_struct {
   struct jit_struct* p_jit;
   struct interp_struct* p_interp;
   struct debug_struct* p_debug;
+  uint64_t time_last;
+  uint64_t time;
+  uint64_t time_next_vsync;
 
   /* Keyboard. */
   unsigned char keys[16][16];
@@ -243,17 +244,23 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
 
 static void
 bbc_sync_timer_tick(void* p) {
+  uint64_t time;
+  uint64_t delta;
+
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  assert((k_us_per_timer_tick % 1000) == 0);
 
-  p_bbc->time_in_us += k_us_per_timer_tick;
+  assert(p_bbc->time > p_bbc->time_last);
 
-  /* 100Hz sysvia timer. */
-  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
-  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
+  time = p_bbc->time;
+  delta = (time - p_bbc->time_last);
+
+  /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
+  via_time_advance(p_bbc->p_system_via, delta);
+  via_time_advance(p_bbc->p_user_via, delta);
 
   /* Fire vsync at 50Hz. */
-  if (!(p_bbc->time_in_us % 20000)) {
+  if (time >= p_bbc->time_next_vsync) {
+    p_bbc->time_next_vsync += 20000;
     via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
   }
 
@@ -291,7 +298,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->exit_write_fd = pipefd[1];
   p_bbc->mode = k_bbc_mode_jit;
   p_bbc->exited = 0;
-  p_bbc->time_in_us = 0;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
   p_bbc->run_flag = run_flag;
@@ -570,19 +576,17 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
 
 static void*
 bbc_timer_thread(void* p) {
-  struct timespec ts;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   volatile int* p_exited = &p_bbc->exited;
 
-  ts.tv_sec = 0;
-  ts.tv_nsec = k_us_per_timer_tick * 1000;
+  uint64_t time = util_gettime();
+  p_bbc->time_last = time;
+  p_bbc->time_next_vsync = (time + 20000);
 
   while (1) {
-    int ret = nanosleep(&ts, NULL);
-    /* TODO: cope with signal interruption? */
-    if (ret != 0) {
-      errx(1, "nanosleep failed");
-    }
+    time += k_us_per_timer_tick;
+    util_sleep_until(time);
+    p_bbc->time = time;
     if (*p_exited) {
       break;
     }
