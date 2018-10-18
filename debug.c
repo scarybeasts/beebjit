@@ -19,8 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/time.h>
-
 typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 12 + 1;
@@ -47,6 +45,8 @@ struct debug_struct {
   size_t count_opmode[k_6502_op_num_modes];
   size_t rom_write_faults;
   /* Other. */
+  uint64_t time_basis;
+  size_t next_cycles;
   unsigned char warned_at_addr[k_6502_addr_space_size];
 };
 
@@ -85,6 +85,8 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->p_bbc = p_bbc;
   p_debug->debug_active = debug_active;
   p_debug->debug_stop_addr = debug_stop_addr;
+  p_debug->time_basis = util_gettime();
+  p_debug->next_cycles = 0;
 
   return p_debug;
 }
@@ -557,24 +559,14 @@ debug_check_unusual(struct debug_struct* p_debug,
 }
 
 static void
-debug_slow_down() {
-  int ret;
-  struct timeval tv;
-  size_t start_us;
+debug_slow_down(struct debug_struct* p_debug) {
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  size_t cycles = bbc_get_cycles(p_bbc);
 
-  /* TODO: this is ugly. Improve it. */
-  ret = gettimeofday(&tv, NULL);
-  if (ret != 0) {
-    errx(1, "gettimeofday failed");
+  if (cycles >= p_debug->next_cycles) {
+    util_sleep_until(p_debug->time_basis + (cycles / 2));
+    p_debug->next_cycles += 2000;
   }
-  start_us = tv.tv_usec;
-  do {
-    ret = gettimeofday(&tv, NULL);
-    if (ret != 0) {
-      errx(1, "gettimeofday failed");
-    }
-  } while ((size_t) tv.tv_usec >= start_us &&
-           (size_t) tv.tv_usec < start_us + 2);
 }
 
 static void
@@ -663,7 +655,7 @@ debug_callback(void* p) {
   debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
 
   if (debug_running_slow) {
-    debug_slow_down();
+    debug_slow_down(p_debug);
   }
 
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);

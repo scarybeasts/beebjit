@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <err.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -193,6 +194,7 @@ interp_enter(struct interp_struct* p_interp) {
     if (debug_subsystem_active) {
       if (debug_counter_at_addr(p_debug_callback_object, pc)) {
         if (!*p_debug_counter_ptr) {
+          printf("cycles: %zu\n", cycles);
           __builtin_trap();
         }
         *p_debug_counter_ptr = (*p_debug_counter_ptr - 1);
@@ -201,6 +203,7 @@ interp_enter(struct interp_struct* p_interp) {
       if (debug_active_at_addr(p_debug_callback_object, pc)) {
         flags = interp_get_flags(zf, nf, cf, of, df, intf);
         state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
+        state_6502_set_cycles(p_state_6502, cycles);
 
         debug_callback(p_options->p_debug_callback_object);
 

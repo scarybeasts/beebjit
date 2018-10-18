@@ -52,6 +52,7 @@ void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* s,
                        unsigned char* flags,
                        uint16_t* pc);
+size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char a,
                        unsigned char x,
