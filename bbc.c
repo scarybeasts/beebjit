@@ -970,7 +970,8 @@ bbc_is_key_pressed(struct bbc_struct* p_bbc,
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  return p_bbc->keys[row][col];
+  volatile unsigned char* p_key = &p_bbc->keys[row][col];
+  return *p_key;
 }
 
 int
@@ -978,7 +979,8 @@ bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  return (p_bbc->keys_count_col[col] > 0);
+  volatile unsigned char* p_count = &p_bbc->keys_count_col[col];
+  return (*p_count > 0);
 }
 
 int
@@ -986,7 +988,8 @@ bbc_is_any_key_pressed(struct bbc_struct* p_bbc) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  return (p_bbc->keys_count > 0);
+  volatile unsigned char* p_count = &p_bbc->keys_count;
+  return (*p_count > 0);
 }
 
 int
