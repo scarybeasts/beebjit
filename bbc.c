@@ -24,6 +24,7 @@ static const size_t k_os_rom_offset = 0xc000;
 static const size_t k_lang_rom_offset = 0x8000;
 
 static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
+static const size_t k_us_per_vsync = 20000; /* 20ms / 50Hz */
 
 enum {
   k_addr_crtc = 0xfe00,
@@ -75,7 +76,6 @@ struct bbc_struct {
   struct jit_struct* p_jit;
   struct interp_struct* p_interp;
   struct debug_struct* p_debug;
-  uint64_t time_last;
   uint64_t time;
   uint64_t time_next_vsync;
 
@@ -244,23 +244,18 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
 
 static void
 bbc_sync_timer_tick(void* p) {
-  uint64_t time;
-  uint64_t delta;
-
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  uint64_t time = p_bbc->time;
 
-  assert(p_bbc->time > p_bbc->time_last);
-
-  time = p_bbc->time;
-  delta = (time - p_bbc->time_last);
+  p_bbc->time += k_us_per_timer_tick;
 
   /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
-  via_time_advance(p_bbc->p_system_via, delta);
-  via_time_advance(p_bbc->p_user_via, delta);
+  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
+  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
 
   /* Fire vsync at 50Hz. */
   if (time >= p_bbc->time_next_vsync) {
-    p_bbc->time_next_vsync += 20000;
+    p_bbc->time_next_vsync += k_us_per_vsync;
     via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
   }
 
@@ -303,6 +298,9 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
+
+  p_bbc->time = 0;
+  p_bbc->time_next_vsync = k_us_per_vsync;
 
   mem_fd = util_get_memory_fd(k_6502_addr_space_size);
   if (mem_fd < 0) {
@@ -580,13 +578,10 @@ bbc_timer_thread(void* p) {
   volatile int* p_exited = &p_bbc->exited;
 
   uint64_t time = util_gettime();
-  p_bbc->time_last = time;
-  p_bbc->time_next_vsync = (time + 20000);
 
   while (1) {
     time += k_us_per_timer_tick;
     util_sleep_until(time);
-    p_bbc->time = time;
     if (*p_exited) {
       break;
     }
