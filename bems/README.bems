@@ -267,3 +267,10 @@ Notes:
 to change. This value automagically changes in the hardware as the user VIA
 timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
 the timer interrupt and indeed the IER for the user VIA is 0x00.
+
+- zalaga.bem
+Notes:
+- Undocumented instruction NOP $32A5,X at $221A.
+- Undocumented instruction SAX $80 at $10B0.
+- Undocumented instruction ALR #$AA at $10B2.
+- Undocumented instruction SLO $80 at $10B4.

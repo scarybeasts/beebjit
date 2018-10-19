@@ -230,7 +230,8 @@ interp_enter(struct interp_struct* p_interp) {
     case k_acc: opreg = k_a; opmem = k_nomem; v = a; break;
     case k_imm:
     case k_rel: v = p_mem[pc++]; opmem = k_nomem; break;
-    case k_zpg: addr = p_mem[pc++]; break; case k_abs:
+    case k_zpg: addr = p_mem[pc++]; break;
+    case k_abs:
       addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
       pc += 2;
       break;
@@ -321,6 +322,7 @@ interp_enter(struct interp_struct* p_interp) {
       a = tmp_int;
       cf = !!(tmp_int & 0x100);
       break;
+    case k_alr: a &= v; cf = (a & 0x01); a >>= 1; break;
     case k_and: a &= v; break;
     case k_asl: cf = !!(v & 0x80); v <<= 1; break;
     case k_bcc: branch = (cf == 0); break;
@@ -389,6 +391,7 @@ interp_enter(struct interp_struct* p_interp) {
       pc |= (p_stack[++s] << 8);
       break;
     case k_rts: pc = p_stack[++s]; pc |= (p_stack[++s] << 8); pc++; break;
+    case k_sax: v = (a & x); break;
     case k_sbc:
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
       /* "SBC simply takes the ones complement of the second value and then
@@ -417,6 +420,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
     case k_sei: intf = 1; break;
+    case k_slo: cf = !!(v & 0x80); v <<= 1; a |= v; break;
     case k_sta: v = a; break;
     case k_stx: v = x; break;
     case k_sty: v = y; break;
