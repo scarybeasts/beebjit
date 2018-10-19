@@ -48,9 +48,10 @@ enum {
 
 struct bbc_struct {
   /* Internal system mechanics. */
-  pthread_t thread;
+  pthread_t cpu_thread;
   pthread_t timer_thread;
-  int exited;
+  int thread_allocated;
+  int running;
   int message_cpu_fd;
   int message_client_fd;
 
@@ -337,7 +338,8 @@ bbc_create(unsigned char* p_os_rom,
   util_get_channel_fds(&p_bbc->message_cpu_fd, &p_bbc->message_client_fd);
 
   p_bbc->mode = k_bbc_mode_jit;
-  p_bbc->exited = 0;
+  p_bbc->thread_allocated = 0;
+  p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->p_lang_rom = p_lang_rom;
   p_bbc->run_flag = run_flag;
@@ -441,6 +443,17 @@ bbc_create(unsigned char* p_os_rom,
 
 void
 bbc_destroy(struct bbc_struct* p_bbc) {
+  volatile int* p_running = &p_bbc->running;
+  volatile int* p_thread_allocated = &p_bbc->thread_allocated;
+  assert(!*p_running);
+
+  if (*p_thread_allocated) {
+    int ret = pthread_join(p_bbc->cpu_thread, NULL);
+    if (ret != 0) {
+      errx(1, "pthread_join failed");
+    }
+  }
+
   jit_destroy(p_bbc->p_jit);
   interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
@@ -626,14 +639,14 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
 static void*
 bbc_timer_thread(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  volatile int* p_exited = &p_bbc->exited;
+  volatile int* p_running = &p_bbc->running;
 
   uint64_t time = util_gettime();
 
   while (1) {
     time += k_us_per_timer_tick;
     util_sleep_until(time);
-    if (*p_exited) {
+    if (!*p_running) {
       break;
     }
     bbc_async_timer_tick(p_bbc);
@@ -669,7 +682,7 @@ bbc_cpu_thread(void* p) {
     assert(0);
   }
 
-  p_bbc->exited = 1;
+  p_bbc->running = 0;
 
   ret = pthread_join(p_bbc->timer_thread, NULL);
   if (ret != 0) {
@@ -683,17 +696,16 @@ bbc_cpu_thread(void* p) {
 
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
-  int ret = pthread_create(&p_bbc->thread, NULL, bbc_cpu_thread, p_bbc);
+  int ret = pthread_create(&p_bbc->cpu_thread, NULL, bbc_cpu_thread, p_bbc);
   if (ret != 0) {
     errx(1, "couldn't create jit thread");
   }
-}
 
-int
-bbc_has_exited(struct bbc_struct* p_bbc) {
-  /* TODO: should use pthread_tryjoin_np? */
-  volatile int* p_exited = &p_bbc->exited;
-  return *p_exited;
+  assert(!p_bbc->thread_allocated);
+  assert(!p_bbc->running);
+
+  p_bbc->thread_allocated = 1;
+  p_bbc->running = 1;
 }
 
 void

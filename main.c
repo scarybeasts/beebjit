@@ -181,7 +181,6 @@ main(int argc, const char* argv[]) {
       assert(ret > 0);
       message = bbc_client_receive_message(p_bbc);
       if (message == k_message_exited) {
-        assert(bbc_has_exited(p_bbc));
         break;
       } else {
         assert(message == k_message_vsync);
