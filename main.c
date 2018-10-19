@@ -185,7 +185,9 @@ main(int argc, const char* argv[]) {
       } else {
         assert(message == k_message_vsync);
         x_render(p_x);
-        bbc_client_send_message(p_bbc, k_message_render_done);
+        if (bbc_get_vsync_wait_for_render(p_bbc)) {
+          bbc_client_send_message(p_bbc, k_message_render_done);
+        }
       }
     }
 

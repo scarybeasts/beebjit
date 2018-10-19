@@ -63,6 +63,7 @@ struct bbc_struct {
   int run_flag;
   int print_flag;
   int slow_flag;
+  int vsync_wait_for_render;
   struct bbc_options options;
 
   /* Machine state. */
@@ -300,8 +301,10 @@ bbc_sync_timer_tick(void* p) {
   if (time >= p_bbc->time_next_vsync) {
     p_bbc->time_next_vsync += k_us_per_vsync;
     bbc_cpu_send_message(p_bbc, k_message_vsync);
-    message = bbc_cpu_receive_message(p_bbc);
-    assert(message == k_message_render_done);
+    if (bbc_get_vsync_wait_for_render(p_bbc)) {
+      message = bbc_cpu_receive_message(p_bbc);
+      assert(message == k_message_render_done);
+    }
     via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
   }
 
@@ -345,9 +348,14 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
+  p_bbc->vsync_wait_for_render = 1;
 
   p_bbc->time = 0;
   p_bbc->time_next_vsync = k_us_per_vsync;
+
+  if (strstr(p_opt_flags, "video:no-vsync-wait-for-render")) {
+    p_bbc->vsync_wait_for_render = 0;
+  }
 
   mem_fd = util_get_memory_fd(k_6502_addr_space_size);
   if (mem_fd < 0) {
@@ -612,6 +620,11 @@ bbc_get_print_flag(struct bbc_struct* p_bbc) {
 int
 bbc_get_slow_flag(struct bbc_struct* p_bbc) {
   return p_bbc->slow_flag;
+}
+
+int
+bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
+  return p_bbc->vsync_wait_for_render;
 }
 
 static void
