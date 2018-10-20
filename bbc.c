@@ -239,7 +239,7 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
     printf("ignoring tube write\n");
     break;
   default:
-    printf("unknown write: %x\n", addr);
+    printf("unknown write: %x, %x\n", addr, val);
     assert(0);
   }
 }
