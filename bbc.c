@@ -20,22 +20,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_os_rom_offset = 0xc000;
+static const size_t k_os_rom_offset = 0xC000;
 static const size_t k_lang_rom_offset = 0x8000;
 
 static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
 static const size_t k_us_per_vsync = 20000; /* 20ms / 50Hz */
 
 enum {
-  k_addr_crtc = 0xfe00,
-  k_addr_acia = 0xfe08,
-  k_addr_serial_ula = 0xfe10,
-  k_addr_video_ula = 0xfe20,
-  k_addr_rom_latch = 0xfe30,
-  k_addr_sysvia = 0xfe40,
-  k_addr_uservia = 0xfe60,
-  k_addr_adc = 0xfec0,
-  k_addr_tube = 0xfee0,
+  k_addr_crtc = 0xFE00,
+  k_addr_acia = 0xFE08,
+  k_addr_serial_ula = 0xFE10,
+  k_addr_video_ula = 0xFE20,
+  k_addr_rom_select = 0xFE30,
+  k_addr_ram_select = 0xFE34,
+  k_addr_sysvia = 0xFE40,
+  k_addr_uservia = 0xFE60,
+  k_addr_adc_status = 0xFEC0,
+  k_addr_adc_high = 0xFEC1,
+  k_addr_adc_low = 0xFEC2,
+  k_addr_tube = 0xFEE0,
 };
 enum {
   k_crtc_address = 0x0,
@@ -172,20 +175,29 @@ bbc_read_callback(void* p, uint16_t addr) {
   case k_addr_acia:
     /* No ACIA interrupt (bit 7). */
     return 0;
-  case k_addr_adc:
+  case 0xFE18:
+    /* Only used in Master model but read by Synchron. */
+    break;
+  case k_addr_ram_select:
+    /* Ignore RAM select. Fall through.
+     * (On a B+ / Master, it does shadow RAM trickery.)
+     */
+    break;
+  case k_addr_adc_status:
     /* No ADC attention needed (bit 6). */
+    return 0;
+  case k_addr_adc_high:
+  case k_addr_adc_low:
+    /* No ADC values. */
     return 0;
   case k_addr_tube:
     /* Not present -- fall through to return 0xfe. */
-    break;
-  case 0xFE18:
-    /* Only used in Master model but read by Synchron. */
     break;
   default:
     printf("unknown read: %x\n", addr);
     assert(0);
   }
-  return 0xfe;
+  return 0xFE;
 }
 
 void
@@ -229,11 +241,16 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
   case k_addr_video_ula | k_video_ula_palette:
     video_set_ula_palette(p_video, val);
     break;
-  case k_addr_rom_latch:
-    printf("ignoring ROM latch write\n");
+  case k_addr_rom_select:
+    printf("ignoring ROM select write\n");
     break;
-  case k_addr_adc:
-    printf("ignoring ADC write\n");
+  case k_addr_ram_select:
+    /* Ignore RAM select. Doesn't do anything on a Model B.
+     * (On a B+ / Master, it does shadow RAM trickery.)
+     */
+    break;
+  case k_addr_adc_status:
+    printf("ignoring ADC status write\n");
     break;
   case k_addr_tube:
     printf("ignoring tube write\n");
