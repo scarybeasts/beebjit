@@ -157,6 +157,9 @@ debug_print_opcode(char* buf,
   case k_nil:
     snprintf(buf, buf_len, "%s", opname);
     break;
+  case k_acc:
+    snprintf(buf, buf_len, "%s A", opname);
+    break;
   case k_imm:
     snprintf(buf, buf_len, "%s #$%.2x", opname, operand1);
     break;
@@ -504,7 +507,9 @@ debug_check_unusual(struct debug_struct* p_debug,
   unsigned char optype = g_optypes[opcode];
   unsigned char opmem = g_opmem[optype];
 
-  is_write = ((opmem == k_write || opmem == k_rw) && opmode != k_nil);
+  is_write = ((opmem == k_write || opmem == k_rw) &&
+              opmode != k_nil &&
+              opmode != k_acc);
   is_register = (addr_6502 >= k_bbc_registers_start &&
                  addr_6502 < k_bbc_registers_start + k_bbc_registers_len);
   is_rom = (!is_register && addr_6502 >= k_bbc_ram_size);
