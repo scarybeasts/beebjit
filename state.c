@@ -92,7 +92,7 @@ static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
 
-  size_t len = util_read_file(p_buf, k_snapshot_size, p_file_name);
+  size_t len = util_file_read(p_buf, k_snapshot_size, p_file_name);
 
   if (len != k_snapshot_size) {
     errx(1, "wrong snapshot size (expected %zu)", k_snapshot_size);
@@ -283,5 +283,5 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->uservia_t1l <<= 1;
   p_bem->uservia_t2c <<= 1;
   p_bem->uservia_t2l <<= 1;
-  util_write_file(p_file_name, snapshot, k_snapshot_size);
+  util_file_write(p_file_name, snapshot, k_snapshot_size);
 }

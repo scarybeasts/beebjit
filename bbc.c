@@ -62,7 +62,6 @@ struct bbc_struct {
 
   /* Settings. */
   unsigned char* p_os_rom;
-  unsigned char* p_lang_rom;
   int mode;
   int debug_flag;
   int run_flag;
@@ -347,7 +346,6 @@ bbc_sync_timer_tick(void* p) {
 
 struct bbc_struct*
 bbc_create(unsigned char* p_os_rom,
-           unsigned char* p_lang_rom,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -377,7 +375,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
-  p_bbc->p_lang_rom = p_lang_rom;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
@@ -524,9 +521,12 @@ bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
   p_bbc->mode = mode;
 }
 
-static void
+void
 bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
   unsigned char* p_rom_dest = p_bbc->p_mem_sideways;
+
+  assert(index < k_bbc_num_roms);
+
   p_rom_dest += (index * k_bbc_rom_size);
   (void) memcpy(p_rom_dest, p_rom_src, k_bbc_rom_size);
 }
@@ -543,9 +543,6 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
 
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
-
-  /* Load the ROMs into the sideways area. */
-  bbc_load_rom(p_bbc, k_bbc_rom_language, p_bbc->p_lang_rom);
 
   p_bbc->romsel = 0;
   bbc_sideways_select(p_bbc, p_bbc->romsel);

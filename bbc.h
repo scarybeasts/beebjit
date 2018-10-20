@@ -11,6 +11,9 @@ enum {
   k_bbc_ram_size = 0x8000,
 };
 enum {
+  k_bbc_default_lang_rom_slot = 0xF,
+};
+enum {
   k_bbc_registers_start = 0xFC00,
   k_bbc_registers_len = 0x300,
 };
@@ -33,7 +36,6 @@ enum {
 struct bbc_struct;
 
 struct bbc_struct* bbc_create(unsigned char* p_os_rom,
-                              unsigned char* p_lang_rom,
                               int debug_flag,
                               int run_flag,
                               int print_flag,
@@ -43,9 +45,12 @@ struct bbc_struct* bbc_create(unsigned char* p_os_rom,
                               uint16_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
-void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
-
 void bbc_full_reset(struct bbc_struct* p_bbc);
+void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
+void bbc_load_rom(struct bbc_struct* p_bbc,
+                  size_t index,
+                  unsigned char* p_rom_src);
+
 void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* a,
                        unsigned char* x,

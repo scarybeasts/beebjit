@@ -1,27 +1,23 @@
 #include "bbc.h"
 #include "state.h"
 #include "test.h"
+#include "util.h"
 #include "video.h"
 #include "x.h"
 
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
 
 int
 main(int argc, const char* argv[]) {
-  int fd;
-  ssize_t read_ret;
+  size_t read_ret;
   unsigned char os_rom[k_bbc_rom_size];
-  unsigned char lang_rom[k_bbc_rom_size];
+  unsigned char load_rom[k_bbc_rom_size];
   int i;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
@@ -93,32 +89,14 @@ main(int argc, const char* argv[]) {
   }
 
   (void) memset(os_rom, '\0', k_bbc_rom_size);
-  (void) memset(lang_rom, '\0', k_bbc_rom_size);
+  (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-  fd = open(os_rom_name, O_RDONLY);
-  if (fd < 0) {
-    errx(1, "can't load OS rom");
-  }
-  read_ret = read(fd, os_rom, k_bbc_rom_size);
+  read_ret = util_file_read(os_rom, k_bbc_rom_size, os_rom_name);
   if (read_ret != k_bbc_rom_size) {
-    errx(1, "can't read OS rom");
-  }
-  close(fd);
-
-  if (strlen(lang_rom_name) > 0) {
-    fd = open(lang_rom_name, O_RDONLY);
-    if (fd < 0) {
-      errx(1, "can't load language rom");
-    }
-    read_ret = read(fd, lang_rom, k_bbc_rom_size);
-    if (read_ret != k_bbc_rom_size) {
-      errx(1, "can't read language rom");
-    }
-    close(fd);
+    errx(1, "can't load OS rom");
   }
 
   p_bbc = bbc_create(os_rom,
-                     lang_rom,
                      debug_flag,
                      run_flag,
                      print_flag,
@@ -142,6 +120,14 @@ main(int argc, const char* argv[]) {
   }
   if (pc != 0) {
     bbc_set_pc(p_bbc, pc);
+  }
+
+  if (strlen(lang_rom_name) > 0) {
+    read_ret = util_file_read(load_rom, k_bbc_rom_size, lang_rom_name);
+    if (read_ret != k_bbc_rom_size) {
+      errx(1, "can't load language rom");
+    }
+    bbc_load_rom(p_bbc, k_bbc_default_lang_rom_slot, load_rom);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
