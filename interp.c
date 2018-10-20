@@ -183,6 +183,9 @@ interp_enter(struct interp_struct* p_interp) {
       p_options->debug_counter_at_addr;
   size_t cycles = state_6502_get_cycles(p_state_6502);
 
+  v = 0;
+  addr = 0;
+
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 

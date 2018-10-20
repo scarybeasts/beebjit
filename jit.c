@@ -3449,6 +3449,7 @@ jit_safe_hex_convert(unsigned char* p_buf, unsigned char* p_ptr) {
 
 static void
 sigsegv_reraise(unsigned char* p_rip, unsigned char* p_addr) {
+  int ret;
   struct sigaction sa;
   unsigned char hex_buf[16];
 
@@ -3456,17 +3457,18 @@ sigsegv_reraise(unsigned char* p_rip, unsigned char* p_addr) {
   static const char* p_msg2 = ", addr ";
   static const char* p_msg3 = "\n";
 
-  memset(&sa, '\0', sizeof(sa));
+  (void) memset(&sa, '\0', sizeof(sa));
   sa.sa_handler = SIG_DFL;
   (void) sigaction(SIGSEGV, &sa, NULL);
 
-  (void) write(2, p_msg, strlen(p_msg));
+  ret = write(2, p_msg, strlen(p_msg));
   jit_safe_hex_convert(&hex_buf[0], p_rip);
-  (void) write(2, hex_buf, sizeof(hex_buf));
-  (void) write(2, p_msg2, strlen(p_msg2));
+  ret = write(2, hex_buf, sizeof(hex_buf));
+  ret = write(2, p_msg2, strlen(p_msg2));
   jit_safe_hex_convert(&hex_buf[0], p_addr);
-  (void) write(2, hex_buf, sizeof(hex_buf));
-  (void) write(2, p_msg3, strlen(p_msg3));
+  ret = write(2, hex_buf, sizeof(hex_buf));
+  ret = write(2, p_msg3, strlen(p_msg3));
+  (void) ret;
 
   (void) raise(SIGSEGV);
   _exit(1);
@@ -3622,7 +3624,7 @@ jit_enter(struct jit_struct* p_jit) {
    * optimizations by using faults for very uncommon conditions, such that the
    * fast path doesn't need certain checks.
    */
-  memset(&sa, '\0', sizeof(sa));
+  (void) memset(&sa, '\0', sizeof(sa));
   sa.sa_sigaction = handle_sigsegv;
   sa.sa_flags = SA_SIGINFO | SA_NODEFER;
   ret = sigaction(SIGSEGV, &sa, NULL);
@@ -3698,7 +3700,7 @@ jit_create(struct state_6502* p_state_6502,
   if (p_jit == NULL) {
     errx(1, "cannot allocate jit_struct");
   }
-  memset(p_jit, '\0', sizeof(struct jit_struct));
+  (void) memset(p_jit, '\0', sizeof(struct jit_struct));
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
@@ -3785,7 +3787,9 @@ jit_create(struct state_6502* p_state_6502,
   jit_set_max_compile_ops(p_jit, 0);
 
   /* int3 */
-  memset(p_jit_base, '\xcc', k_6502_addr_space_size * k_jit_bytes_per_byte);
+  (void) memset(p_jit_base,
+                '\xcc',
+                k_6502_addr_space_size * k_jit_bytes_per_byte);
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     jit_init_addr(p_jit, i);
   }
