@@ -76,6 +76,7 @@ struct bbc_struct {
   struct memory_access memory_access;
   struct bbc_timing timing;
   unsigned char* p_mem;
+  unsigned char* p_mem_rw;
   unsigned char* p_mem_dummy_rom;
   unsigned char* p_mem_sideways;
   struct video_struct* p_video;
@@ -86,6 +87,7 @@ struct bbc_struct {
   struct debug_struct* p_debug;
   uint64_t time;
   uint64_t time_next_vsync;
+  size_t romsel;
 
   /* Keyboard. */
   unsigned char keys[16][16];
@@ -203,6 +205,14 @@ bbc_read_callback(void* p, uint16_t addr) {
   return 0xFE;
 }
 
+static void
+bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
+  unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
+  unsigned char* p_sideways_dest = (p_bbc->p_mem_rw + k_bbc_sideways_offset);
+  p_sideways_src += (index * k_bbc_rom_size);
+  (void) memcpy(p_sideways_dest, p_sideways_src, k_bbc_rom_size);
+}
+
 void
 bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -245,7 +255,10 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
     video_set_ula_palette(p_video, val);
     break;
   case k_addr_rom_select:
-    printf("ignoring ROM select write\n");
+    if (val != p_bbc->romsel) {
+      p_bbc->romsel = val;
+      bbc_sideways_select(p_bbc, val);
+    }
     break;
   case k_addr_ram_select:
     /* Ignore RAM select. Doesn't do anything on a Model B.
@@ -382,6 +395,12 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "util_get_memory_fd failed");
   }
 
+  p_bbc->p_mem_rw =
+      util_get_guarded_mapping_from_fd(
+          mem_fd,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_rw_addr,
+          k_6502_addr_space_size);
+
   p_bbc->p_mem =
       util_get_guarded_mapping_from_fd(
           mem_fd,
@@ -402,7 +421,11 @@ bbc_create(unsigned char* p_os_rom,
       p_bbc->p_mem_dummy_rom + k_bbc_ram_size,
       k_6502_addr_space_size - k_bbc_ram_size);
   /* Make the registers page inaccessible. Typical ROM faults happen lower. */
-  util_make_mapping_none(p_bbc->p_mem_dummy_rom + 0xf000, 4096);
+  util_make_mapping_none((void*) k_bbc_mem_mmap_addr_dummy_rom_ro, 4096);
+
+  /* Make the ROM readonly in the main mapping used at runtime. */
+  util_make_mapping_read_only(p_bbc->p_mem + k_bbc_ram_size,
+                              k_6502_addr_space_size - k_bbc_ram_size);
 
   ret = close(mem_fd);
   if (ret != 0) {
@@ -490,6 +513,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
+  util_free_guarded_mapping(p_bbc->p_mem_rw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_6502_addr_space_size);
   free(p_bbc);
@@ -507,41 +531,30 @@ bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
   (void) memcpy(p_rom_dest, p_rom_src, k_bbc_rom_size);
 }
 
-static void
-bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
-  unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
-  unsigned char* p_sideways_dest = (p_bbc->p_mem + k_bbc_sideways_offset);
-  p_sideways_src += (index * k_bbc_rom_size);
-  (void) memcpy(p_sideways_dest, p_sideways_src, k_bbc_rom_size);
-}
-
 void
 bbc_full_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
-  unsigned char* p_mem = p_bbc->p_mem;
-  unsigned char* p_os_start = p_mem + k_bbc_os_rom_offset;
-
-  util_make_mapping_read_write(p_mem, k_6502_addr_space_size);
+  unsigned char* p_mem_rw = p_bbc->p_mem_rw;
+  unsigned char* p_os_start = p_mem_rw + k_bbc_os_rom_offset;
 
   /* Clear memory / ROMs. */
-  (void) memset(p_mem, '\0', k_6502_addr_space_size);
+  (void) memset(p_mem_rw, '\0', k_6502_addr_space_size);
 
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
 
   /* Load the ROMs into the sideways area. */
   bbc_load_rom(p_bbc, k_bbc_rom_language, p_bbc->p_lang_rom);
-  bbc_sideways_select(p_bbc, k_bbc_rom_language);
 
-  util_make_mapping_read_only(p_mem + k_bbc_ram_size,
-                              k_6502_addr_space_size - k_bbc_ram_size);
+  p_bbc->romsel = 0;
+  bbc_sideways_select(p_bbc, p_bbc->romsel);
 
   state_6502_reset(&p_bbc->state_6502);
 
   /* Initial 6502 state. */
-  init_pc = (p_mem[k_6502_vector_reset] |
-             (p_mem[k_6502_vector_reset + 1] << 8));
+  init_pc = (p_mem_rw[k_6502_vector_reset] |
+             (p_mem_rw[k_6502_vector_reset + 1] << 8));
   state_6502_set_pc(&p_bbc->state_6502, init_pc);
 }
 
@@ -629,23 +642,13 @@ void
 bbc_memory_write(struct bbc_struct* p_bbc,
                  uint16_t addr_6502,
                  unsigned char val) {
-  unsigned char* p_mem = p_bbc->p_mem;
+  unsigned char* p_mem_rw = p_bbc->p_mem_rw;
   struct jit_struct* p_jit = p_bbc->p_jit;
 
-  /* Allow a forced write to ROM using this API -- need to flip memory
-   * protections.
+  /* Allow a forced write to ROM using this API -- use the fully read/write
+   * mapping.
    */
-  if (addr_6502 >= k_bbc_ram_size) {
-    util_make_mapping_read_write(p_mem + k_bbc_ram_size,
-                                 k_6502_addr_space_size - k_bbc_ram_size);
-  }
-
-  p_mem[addr_6502] = val;
-
-  if (addr_6502 >= k_bbc_ram_size) {
-    util_make_mapping_read_only(p_mem + k_bbc_ram_size,
-                                k_6502_addr_space_size - k_bbc_ram_size);
-  }
+  p_mem_rw[addr_6502] = val;
 
   jit_memory_written(p_jit, addr_6502);
 }

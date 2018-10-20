@@ -18,6 +18,7 @@ enum {
   k_bbc_mem_mmap_addr = 0x10000000,
   k_bbc_mem_mmap_addr_dummy_rom = 0x11000000,
   k_bbc_mem_mmap_addr_dummy_rom_ro = 0x1100f000,
+  k_bbc_mem_mmap_rw_addr = 0x12000000,
 };
 enum {
   k_bbc_mode_jit = 1,
