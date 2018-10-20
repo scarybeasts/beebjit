@@ -24,9 +24,9 @@ main(int argc, const char* argv[]) {
   int x_fd;
   int bbc_fd;
   struct pollfd poll_fds[2];
+  const char* rom_names[k_bbc_num_roms] = {};
 
   const char* os_rom_name = "os12.rom";
-  const char* lang_rom_name = "basic.rom";
   const char* load_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
@@ -39,15 +39,26 @@ main(int argc, const char* argv[]) {
   int pc = 0;
   int mode = k_bbc_mode_jit;
 
+  rom_names[k_bbc_default_lang_rom_slot] = "basic.rom";
+
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
+    if (i + 2 < argc) {
+      int rom;
+      const char* val1 = argv[i + 1];
+      const char* val2 = argv[i + 2];
+      if (!strcmp(arg, "-rom")) {
+        (void) sscanf(val1, "%x", &rom);
+        if (rom < 0 || rom >= k_bbc_num_roms) {
+          errx(1, "rom number out of range");
+        }
+        rom_names[rom] = val2;
+      }
+    }
     if (i + 1 < argc) {
       const char* val = argv[i + 1];
       if (!strcmp(arg, "-os")) {
         os_rom_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-lang")) {
-        lang_rom_name = val;
         ++i;
       } else if (!strcmp(arg, "-load")) {
         load_name = val;
@@ -122,12 +133,13 @@ main(int argc, const char* argv[]) {
     bbc_set_pc(p_bbc, pc);
   }
 
-  if (strlen(lang_rom_name) > 0) {
-    read_ret = util_file_read(load_rom, k_bbc_rom_size, lang_rom_name);
-    if (read_ret != k_bbc_rom_size) {
-      errx(1, "can't load language rom");
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    const char* p_rom_name = rom_names[i];
+    if (p_rom_name != NULL) {
+      (void) memset(load_rom, '\0', k_bbc_rom_size);
+      (void) util_file_read(load_rom, k_bbc_rom_size, p_rom_name);
+      bbc_load_rom(p_bbc, i, load_rom);
     }
-    bbc_load_rom(p_bbc, k_bbc_default_lang_rom_slot, load_rom);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);

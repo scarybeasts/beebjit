@@ -11,6 +11,7 @@ enum {
   k_bbc_ram_size = 0x8000,
 };
 enum {
+  k_bbc_num_roms = 16,
   k_bbc_default_lang_rom_slot = 0xF,
 };
 enum {

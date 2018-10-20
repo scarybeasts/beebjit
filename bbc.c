@@ -22,8 +22,6 @@
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
-static const size_t k_bbc_num_roms = 16;
-static const size_t k_bbc_rom_language = 0x0F;
 
 static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
 static const size_t k_us_per_vsync = 20000; /* 20ms / 50Hz */
