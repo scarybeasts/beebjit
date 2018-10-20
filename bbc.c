@@ -20,8 +20,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_os_rom_offset = 0xC000;
-static const size_t k_lang_rom_offset = 0x8000;
+static const size_t k_bbc_os_rom_offset = 0xC000;
+static const size_t k_bbc_sideways_offset = 0x8000;
+static const size_t k_bbc_num_roms = 16;
+static const size_t k_bbc_rom_language = 0x0F;
 
 static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
 static const size_t k_us_per_vsync = 20000; /* 20ms / 50Hz */
@@ -75,6 +77,7 @@ struct bbc_struct {
   struct bbc_timing timing;
   unsigned char* p_mem;
   unsigned char* p_mem_dummy_rom;
+  unsigned char* p_mem_sideways;
   struct video_struct* p_video;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -142,10 +145,10 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
                              uint16_t addr_high) {
   (void) p_bbc;
 
-  if (addr_low >= k_lang_rom_offset) {
+  if (addr_low >= k_bbc_sideways_offset) {
     return 1;
   }
-  if (addr_high >= k_lang_rom_offset) {
+  if (addr_high >= k_bbc_sideways_offset) {
     return 1;
   }
   return 0;
@@ -390,6 +393,10 @@ bbc_create(unsigned char* p_os_rom,
           mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom,
           k_6502_addr_space_size);
+
+  p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
+  (void) memset(p_bbc->p_mem_sideways, '\0', k_bbc_rom_size * k_bbc_num_roms);
+
   /* Install the dummy rom. */
   (void) util_get_fixed_anonymous_mapping(
       p_bbc->p_mem_dummy_rom + k_bbc_ram_size,
@@ -461,7 +468,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "interp_create failed");
   }
 
-  bbc_reset(p_bbc);
+  bbc_full_reset(p_bbc);
 
   return p_bbc;
 }
@@ -493,20 +500,39 @@ bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
   p_bbc->mode = mode;
 }
 
+static void
+bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
+  unsigned char* p_rom_dest = p_bbc->p_mem_sideways;
+  p_rom_dest += (index * k_bbc_rom_size);
+  (void) memcpy(p_rom_dest, p_rom_src, k_bbc_rom_size);
+}
+
+static void
+bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
+  unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
+  unsigned char* p_sideways_dest = (p_bbc->p_mem + k_bbc_sideways_offset);
+  p_sideways_src += (index * k_bbc_rom_size);
+  (void) memcpy(p_sideways_dest, p_sideways_src, k_bbc_rom_size);
+}
+
 void
-bbc_reset(struct bbc_struct* p_bbc) {
+bbc_full_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
   unsigned char* p_mem = p_bbc->p_mem;
-  unsigned char* p_os_start = p_mem + k_os_rom_offset;
-  unsigned char* p_lang_start = p_mem + k_lang_rom_offset;
+  unsigned char* p_os_start = p_mem + k_bbc_os_rom_offset;
+
+  util_make_mapping_read_write(p_mem, k_6502_addr_space_size);
 
   /* Clear memory / ROMs. */
   (void) memset(p_mem, '\0', k_6502_addr_space_size);
 
-  /* Copy in OS and language ROM. */
+  /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
-  (void) memcpy(p_lang_start, p_bbc->p_lang_rom, k_bbc_rom_size);
+
+  /* Load the ROMs into the sideways area. */
+  bbc_load_rom(p_bbc, k_bbc_rom_language, p_bbc->p_lang_rom);
+  bbc_sideways_select(p_bbc, k_bbc_rom_language);
 
   util_make_mapping_read_only(p_mem + k_bbc_ram_size,
                               k_6502_addr_space_size - k_bbc_ram_size);

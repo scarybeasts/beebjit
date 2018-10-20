@@ -11,7 +11,7 @@ enum {
   k_bbc_ram_size = 0x8000,
 };
 enum {
-  k_bbc_registers_start = 0xfc00,
+  k_bbc_registers_start = 0xFC00,
   k_bbc_registers_len = 0x300,
 };
 enum {
@@ -44,7 +44,7 @@ void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 
-void bbc_reset(struct bbc_struct* p_bbc);
+void bbc_full_reset(struct bbc_struct* p_bbc);
 void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* a,
                        unsigned char* x,

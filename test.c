@@ -389,6 +389,8 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
 
 void
 test_do_tests(struct bbc_struct* p_bbc) {
+  bbc_full_reset(p_bbc);
+  bbc_full_reset(p_bbc);
   do_basic_jit_tests(p_bbc);
   do_totally_lit_jit_test_1(p_bbc);
   do_totally_lit_jit_test_2(p_bbc);

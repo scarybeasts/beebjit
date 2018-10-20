@@ -3,8 +3,8 @@
 
 enum {
   k_6502_addr_space_size = 0x10000,
-  k_6502_vector_reset = 0xfffc,
-  k_6502_vector_irq = 0xfffe,
+  k_6502_vector_reset = 0xFFFC,
+  k_6502_vector_irq = 0xFFFE,
   k_6502_stack_addr = 0x100,
 };
 
