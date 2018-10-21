@@ -102,8 +102,8 @@ state_read(unsigned char* p_buf, const char* p_file_name) {
   if (memcmp(p_bem->signature, "BEMSNAP1", 8)) {
     errx(1, "file is not a BEMv2.x snapshot");
   }
-  if (p_bem->model != 3) {
-    errx(1, "can only load standard BBC model snapshots");
+  if (p_bem->model != 3 && p_bem->model != 4) {
+    errx(1, "can only load default BBC model B snapshots, plus sideways RAM");
   }
 
   printf("Loading BEMv2.x snapshot, model %u, PC %x\n",
@@ -124,6 +124,11 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   state_read(snapshot, p_file_name);
 
   p_bem = (struct bem_v2x*) snapshot;
+
+  if (p_bem->model == 4) {
+    /* TODO: load the actual sideways RAM from the save file. */
+    bbc_make_sideways_ram(p_bbc, 0);
+  }
 
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
