@@ -161,8 +161,9 @@ interp_enter(struct interp_struct* p_interp) {
   struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct bbc_timing* p_timing = p_interp->p_timing;
   struct bbc_options* p_options = p_interp->p_options;
-  unsigned char* p_mem = p_memory_access->p_mem_read;
-  unsigned char* p_stack = p_mem + k_6502_stack_addr;
+  unsigned char* p_mem_read = p_memory_access->p_mem_read;
+  unsigned char* p_mem_write = p_memory_access->p_mem_write;
+  unsigned char* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t read_callback_mask =
       p_memory_access->memory_read_needs_callback_mask(
           p_memory_access->p_callback_obj);
@@ -217,7 +218,7 @@ interp_enter(struct interp_struct* p_interp) {
 
     branch = 0;
     /* TODO: opcode fetch doesn't consider hardware register access. */
-    opcode = p_mem[pc++];
+    opcode = p_mem_read[pc++];
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
     opreg = g_optype_sets_register[optype];
@@ -232,61 +233,64 @@ interp_enter(struct interp_struct* p_interp) {
     case 0: break;
     case k_acc: opreg = k_a; opmem = k_nomem; v = a; break;
     case k_imm:
-    case k_rel: v = p_mem[pc++]; opmem = k_nomem; break;
-    case k_zpg: addr = p_mem[pc++]; break;
+    case k_rel: v = p_mem_read[pc++]; opmem = k_nomem; break;
+    case k_zpg: addr = p_mem_read[pc++]; break;
     case k_abs:
-      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr = (p_mem_read[pc] | (p_mem_read[(uint16_t) (pc + 1)] << 8));
       pc += 2;
       break;
-    case k_zpx: addr = p_mem[pc++]; addr += x; addr &= 0xff; break;
-    case k_zpy: addr = p_mem[pc++]; addr += y; addr &= 0xff; break;
+    case k_zpx: addr = p_mem_read[pc++]; addr += x; addr &= 0xff; break;
+    case k_zpy: addr = p_mem_read[pc++]; addr += y; addr &= 0xff; break;
     case k_abx:
-      addr = p_mem[pc];
+      addr = p_mem_read[pc];
       addr += x;
       cycles += ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem[(uint16_t) (pc + 1)] << 8);
+      addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
     case k_aby:
-      addr = p_mem[pc];
+      addr = p_mem_read[pc];
       addr += y;
       cycles += ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem[(uint16_t) (pc + 1)] << 8);
+      addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
     case k_ind:
-      addr = (p_mem[pc] | (p_mem[(uint16_t) (pc + 1)] << 8));
+      addr = (p_mem_read[pc] | (p_mem_read[(uint16_t) (pc + 1)] << 8));
       pc += 2;
-      v = p_mem[addr];
+      v = p_mem_read[addr];
       /* Indirect fetches wrap at page boundaries. */
       if ((addr & 0xff) == 0xff) {
         addr &= 0xff00;
       } else {
         addr++;
       }
-      addr = (v | (p_mem[addr] << 8));
+      addr = (v | (p_mem_read[addr] << 8));
       break;
     case k_idx:
-      v = p_mem[pc++];
+      v = p_mem_read[pc++];
       v += x;
-      addr = p_mem[v];
+      addr = p_mem_read[v];
       v++;
-      addr |= (p_mem[v] << 8);
+      addr |= (p_mem_read[v] << 8);
       break;
     case k_idy:
-      v = p_mem[pc++];
-      addr = p_mem[v];
+      v = p_mem_read[pc++];
+      addr = p_mem_read[v];
       addr += y;
       cycles += ((addr >> 8) & check_extra_read_cycle);
       v++;
-      addr += (p_mem[v] << 8);
+      addr += (p_mem_read[v] << 8);
       break;
     default:
       assert(0);
     }
 
     if (opmem == k_read || opmem == k_rw) {
-      v = interp_read_mem(p_memory_access, p_mem, addr, read_callback_mask);
+      v = interp_read_mem(p_memory_access,
+                          p_mem_read,
+                          addr,
+                          read_callback_mask);
       if (opmem == k_rw) {
         opreg = k_v;
       }
@@ -342,7 +346,8 @@ interp_enter(struct interp_struct* p_interp) {
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
       p_stack[s--] = v;
-      pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+      pc = (p_mem_read[k_6502_vector_irq] |
+            (p_mem_read[k_6502_vector_irq + 1] << 8));
       intf = 1;
       break;
     case k_bvc: branch = (of == 0); break;
@@ -438,7 +443,11 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_write || opmem == k_rw) {
-      interp_write_mem(p_memory_access, p_mem, addr, v, write_callback_mask);
+      interp_write_mem(p_memory_access,
+                       p_mem_write,
+                       addr,
+                       v,
+                       write_callback_mask);
     }
     if (opmode == k_acc) {
       a = v;
@@ -468,7 +477,8 @@ interp_enter(struct interp_struct* p_interp) {
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= (1 << k_flag_always_set);
       p_stack[s--] = v;
-      pc = (p_mem[k_6502_vector_irq] | (p_mem[k_6502_vector_irq + 1] << 8));
+      pc = (p_mem_read[k_6502_vector_irq] |
+            (p_mem_read[k_6502_vector_irq + 1] << 8));
       intf = 1;
     }
   }

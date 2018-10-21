@@ -19,10 +19,10 @@ enum {
   k_bbc_registers_len = 0x300,
 };
 enum {
-  k_bbc_mem_mmap_addr = 0x10000000,
-  k_bbc_mem_mmap_addr_dummy_rom = 0x11000000,
-  k_bbc_mem_mmap_addr_dummy_rom_ro = 0x1100f000,
-  k_bbc_mem_mmap_rw_addr = 0x12000000,
+  k_bbc_mem_mmap_read_addr = 0x10000000,
+  k_bbc_mem_mmap_write_addr = 0x11000000,
+  k_bbc_mem_mmap_write_addr_ro = 0x1100f000,
+  k_bbc_mem_mmap_raw_addr = 0x12000000,
 };
 enum {
   k_bbc_mode_jit = 1,
@@ -77,7 +77,8 @@ struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
-unsigned char* bbc_get_mem(struct bbc_struct* p_bbc);
+unsigned char* bbc_get_mem_read(struct bbc_struct* p_bbc);
+unsigned char* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
                           uint16_t addr,
                           uint16_t len,

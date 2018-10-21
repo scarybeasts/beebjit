@@ -719,6 +719,16 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xCA00);
 
   util_buffer_set_pos(p_buf, 0x0A00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x7F01);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_STA(p_buf, k_abx, 0x7F01);
+  emit_CMP(p_buf, k_abs, 0x7F01);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCA40);
+
+  util_buffer_set_pos(p_buf, 0x0A40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $f000 to RAM at $3000 */

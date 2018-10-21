@@ -319,18 +319,18 @@ debug_print_branch(char* p_buf,
 static void
 debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
   size_t i;
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
 
     uint16_t addr_plus_1 = addr_6502 + 1;
     uint16_t addr_plus_2 = addr_6502 + 2;
-    unsigned char opcode = p_mem[addr_6502];
+    unsigned char opcode = p_mem_read[addr_6502];
     unsigned char opmode = g_opmodes[opcode];
     unsigned char oplen = g_opmodelens[opmode];
-    unsigned char operand1 = p_mem[addr_plus_1];
-    unsigned char operand2 = p_mem[addr_plus_2];
+    unsigned char operand1 = p_mem_read[addr_plus_1];
+    unsigned char operand2 = p_mem_read[addr_plus_2];
     uint16_t block_6502 = bbc_get_block(p_bbc, addr_6502);
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
@@ -614,7 +614,7 @@ debug_callback(void* p) {
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_sigint_received = &s_sigint_received;
@@ -625,13 +625,13 @@ debug_callback(void* p) {
   flag_c = !!(reg_flags & 0x01);
   flag_o = !!(reg_flags & 0x40);
 
-  opcode = p_mem[reg_pc];
+  opcode = p_mem_read[reg_pc];
   opmode = g_opmodes[opcode];
   oplen = g_opmodelens[opmode];
   reg_pc_plus_1 = reg_pc + 1;
   reg_pc_plus_2 = reg_pc + 2;
-  operand1 = p_mem[reg_pc_plus_1];
-  operand2 = p_mem[reg_pc_plus_2];
+  operand1 = p_mem_read[reg_pc_plus_1];
+  operand2 = p_mem_read[reg_pc_plus_2];
 
   if (p_debug->stats) {
     unsigned char optype = g_optypes[opcode];
@@ -647,7 +647,7 @@ debug_callback(void* p) {
                              operand2,
                              reg_x,
                              reg_y,
-                             p_mem);
+                             p_mem_read);
 
   debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
 
@@ -672,7 +672,7 @@ debug_callback(void* p) {
              sizeof(extra_buf),
              "[addr=%.4x val=%.2x]",
              addr_6502,
-             p_mem[addr_6502]);
+             p_mem_read[addr_6502]);
   } else {
     debug_print_branch(extra_buf,
                        sizeof(extra_buf),
@@ -789,9 +789,9 @@ debug_callback(void* p) {
     } else if (!strcmp(input_buf, "f")) {
       uint16_t finish_addr;
       unsigned char stack = reg_s + 1;
-      finish_addr = p_mem[k_6502_stack_addr + stack];
+      finish_addr = p_mem_read[k_6502_stack_addr + stack];
       stack++;
-      finish_addr |= (p_mem[k_6502_stack_addr + stack] << 8);
+      finish_addr |= (p_mem_read[k_6502_stack_addr + stack] << 8);
       finish_addr++;
       p_debug->next_or_finish_stop_addr = finish_addr;
       p_debug->debug_running = 1;
@@ -800,13 +800,13 @@ debug_callback(void* p) {
       parse_addr = parse_int;
       printf("%04x:", parse_addr);
       for (i = 0; i < 16; ++i) {
-        printf(" %02x", p_mem[parse_addr]);
+        printf(" %02x", p_mem_read[parse_addr]);
         parse_addr++;
       }
       printf("  ");
       parse_addr = parse_int;
       for (i = 0; i < 16; ++i) {
-        char c = p_mem[parse_addr];
+        char c = p_mem_read[parse_addr];
         if (!isprint(c)) {
           c = '.';
         }
@@ -852,7 +852,7 @@ debug_callback(void* p) {
     } else if (sscanf(input_buf, "inv %x", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < 65536) {
-      bbc_memory_write(p_bbc, parse_int, p_mem[parse_int]);
+      bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
     } else if (sscanf(input_buf, "stopat %x", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < 65536) {

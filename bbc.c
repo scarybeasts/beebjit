@@ -72,9 +72,9 @@ struct bbc_struct {
   struct state_6502 state_6502;
   struct memory_access memory_access;
   struct bbc_timing timing;
-  unsigned char* p_mem;
-  unsigned char* p_mem_rw;
-  unsigned char* p_mem_dummy_rom;
+  unsigned char* p_mem_raw;
+  unsigned char* p_mem_read;
+  unsigned char* p_mem_write;
   unsigned char* p_mem_sideways;
   struct video_struct* p_video;
   struct via_struct* p_system_via;
@@ -162,8 +162,8 @@ bbc_read_callback(void* p, uint16_t addr) {
    */
   if (addr < k_bbc_registers_start ||
       addr >= k_bbc_registers_start + k_bbc_registers_len) {
-    unsigned char* p_mem = bbc_get_mem(p_bbc);
-    return p_mem[addr];
+    unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
+    return p_mem_read[addr];
   }
 
   if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
@@ -205,7 +205,7 @@ bbc_read_callback(void* p, uint16_t addr) {
 static void
 bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
   unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
-  unsigned char* p_sideways_dest = (p_bbc->p_mem_rw + k_bbc_sideways_offset);
+  unsigned char* p_sideways_dest = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
   p_sideways_src += (index * k_bbc_rom_size);
   (void) memcpy(p_sideways_dest, p_sideways_src, k_bbc_rom_size);
 }
@@ -220,6 +220,14 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
    */
   if (addr < k_bbc_registers_start ||
       addr >= k_bbc_registers_start + k_bbc_registers_len) {
+    unsigned char* p_mem_write = bbc_get_mem_write(p_bbc);
+    if (addr >= k_bbc_os_rom_offset) {
+      return;
+    }
+    /* Possible to get here for a write at the end of a RAM region, e.g.
+     * STA $7F01,X
+     */
+    p_mem_write[addr] = val;
     return;
   }
 
@@ -390,36 +398,38 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "util_get_memory_fd failed");
   }
 
-  p_bbc->p_mem_rw =
+  p_bbc->p_mem_raw =
       util_get_guarded_mapping_from_fd(
           mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_rw_addr,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_raw_addr,
           k_6502_addr_space_size);
 
-  p_bbc->p_mem =
+  /* p_mem_read marks ROM regions as hardware read-only. */
+  p_bbc->p_mem_read =
       util_get_guarded_mapping_from_fd(
           mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_addr,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_read_addr,
           k_6502_addr_space_size);
 
-  p_bbc->p_mem_dummy_rom =
+  /* p_mem_write replaces ROM regions with dummy writebale regions. */
+  p_bbc->p_mem_write =
       util_get_guarded_mapping_from_fd(
           mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_addr_dummy_rom,
+          (unsigned char*) (size_t) k_bbc_mem_mmap_write_addr,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
   (void) memset(p_bbc->p_mem_sideways, '\0', k_bbc_rom_size * k_bbc_num_roms);
 
-  /* Install the dummy rom. */
+  /* Install the dummy writeable ROM region. */
   (void) util_get_fixed_anonymous_mapping(
-      p_bbc->p_mem_dummy_rom + k_bbc_ram_size,
+      p_bbc->p_mem_write + k_bbc_ram_size,
       k_6502_addr_space_size - k_bbc_ram_size);
   /* Make the registers page inaccessible. Typical ROM faults happen lower. */
-  util_make_mapping_none((void*) k_bbc_mem_mmap_addr_dummy_rom_ro, 4096);
+  util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
 
   /* Make the ROM readonly in the main mapping used at runtime. */
-  util_make_mapping_read_only(p_bbc->p_mem + k_bbc_ram_size,
+  util_make_mapping_read_only(p_bbc->p_mem_read + k_bbc_ram_size,
                               k_6502_addr_space_size - k_bbc_ram_size);
 
   ret = close(mem_fd);
@@ -436,7 +446,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "via_create failed");
   }
 
-  p_bbc->p_video = video_create(p_bbc->p_mem,
+  p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 via_get_peripheral_b_ptr(p_bbc->p_system_via));
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
@@ -447,8 +457,8 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "debug_create failed");
   }
 
-  p_bbc->memory_access.p_mem_read = p_bbc->p_mem;
-  p_bbc->memory_access.p_mem_write = p_bbc->p_mem_dummy_rom;
+  p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
+  p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
   p_bbc->memory_access.p_callback_obj = p_bbc;
   p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
   p_bbc->memory_access.memory_read_needs_callback_mask =
@@ -508,9 +518,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
-  util_free_guarded_mapping(p_bbc->p_mem_rw, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_dummy_rom, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
   free(p_bbc);
 }
 
@@ -533,11 +543,11 @@ void
 bbc_full_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
-  unsigned char* p_mem_rw = p_bbc->p_mem_rw;
-  unsigned char* p_os_start = p_mem_rw + k_bbc_os_rom_offset;
+  unsigned char* p_mem_raw = p_bbc->p_mem_raw;
+  unsigned char* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
 
   /* Clear memory / ROMs. */
-  (void) memset(p_mem_rw, '\0', k_6502_addr_space_size);
+  (void) memset(p_mem_raw, '\0', k_6502_addr_space_size);
 
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
@@ -548,8 +558,8 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
   state_6502_reset(&p_bbc->state_6502);
 
   /* Initial 6502 state. */
-  init_pc = (p_mem_rw[k_6502_vector_reset] |
-             (p_mem_rw[k_6502_vector_reset + 1] << 8));
+  init_pc = (p_mem_raw[k_6502_vector_reset] |
+             (p_mem_raw[k_6502_vector_reset + 1] << 8));
   state_6502_set_pc(&p_bbc->state_6502, init_pc);
 }
 
@@ -616,8 +626,13 @@ bbc_get_video(struct bbc_struct* p_bbc) {
 }
 
 unsigned char*
-bbc_get_mem(struct bbc_struct* p_bbc) {
-  return p_bbc->p_mem;
+bbc_get_mem_read(struct bbc_struct* p_bbc) {
+  return p_bbc->p_mem_read;
+}
+
+unsigned char*
+bbc_get_mem_write(struct bbc_struct* p_bbc) {
+  return p_bbc->p_mem_write;
 }
 
 void
@@ -637,13 +652,13 @@ void
 bbc_memory_write(struct bbc_struct* p_bbc,
                  uint16_t addr_6502,
                  unsigned char val) {
-  unsigned char* p_mem_rw = p_bbc->p_mem_rw;
+  unsigned char* p_mem_raw = p_bbc->p_mem_raw;
   struct jit_struct* p_jit = p_bbc->p_jit;
 
   /* Allow a forced write to ROM using this API -- use the fully read/write
    * mapping.
    */
-  p_mem_rw[addr_6502] = val;
+  p_mem_raw[addr_6502] = val;
 
   jit_memory_written(p_jit, addr_6502);
 }

@@ -215,18 +215,18 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
 
-  memset(snapshot, '\0', k_snapshot_size);
+  (void) memset(snapshot, '\0', k_snapshot_size);
 
   p_bem = (struct bem_v2x*) snapshot;
-  memcpy(p_bem->signature, "BEMSNAP1", 8);
+  (void) memcpy(p_bem->signature, "BEMSNAP1", 8);
   p_bem->model = 3;
 
   p_bem->fe30 = 0x0f;
   p_bem->fe34 = 0x00;
 
-  memcpy(p_bem->ram, p_mem, k_bbc_ram_size);
+  (void) memcpy(p_bem->ram, p_mem_read, k_bbc_ram_size);
 
   bbc_get_registers(p_bbc,
                     &p_bem->a,

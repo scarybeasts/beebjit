@@ -9,7 +9,7 @@ static void
 do_basic_jit_tests(struct bbc_struct* p_bbc) {
   size_t index;
 
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem = bbc_get_mem_write(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   jit_init_addr(p_jit, 0x1000);
@@ -74,7 +74,7 @@ static void
 do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   size_t index;
 
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem = bbc_get_mem_write(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   index = 0x2000;
@@ -156,7 +156,7 @@ static void
 do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   size_t index;
 
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem = bbc_get_mem_write(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   index = 0x2100;
@@ -229,7 +229,7 @@ static void
 do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   size_t index;
 
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem = bbc_get_mem_write(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   index = 0x2200;
@@ -297,7 +297,7 @@ static void
 do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   size_t index;
 
-  unsigned char* p_mem = bbc_get_mem(p_bbc);
+  unsigned char* p_mem = bbc_get_mem_write(p_bbc);
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   jit_set_max_compile_ops(p_jit, 2);
