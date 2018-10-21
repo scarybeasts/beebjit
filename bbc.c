@@ -103,10 +103,10 @@ static uint16_t
 bbc_read_needs_callback_mask(void* p) {
   (void) p;
 
-  /* Selects 0xfc00 - 0xffff which is broader than the needed 0xfc00 - 0xfeff,
+  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF,
    * but that's fine.
    */
-  return 0xfc00;
+  return 0xFC00;
 }
 
 static uint16_t

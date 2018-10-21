@@ -411,19 +411,27 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x02);
   emit_LDA(p_buf, k_imm, 0xC0);
   emit_STA(p_buf, k_zpg, 0x03);
-  emit_LDA(p_buf, k_idy, 0x02);
+  emit_LDA(p_buf, k_idy, 0x02); /* $C039 */
   emit_STA(p_buf, k_zpg, 0x04);
   emit_CLC(p_buf);
   emit_ADC(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_idy, 0x02);
+  emit_STA(p_buf, k_idy, 0x02); /* $C039 */
   emit_LDA(p_buf, k_idy, 0x02);
   emit_CMP(p_buf, k_zpg, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_STA(p_buf, k_idx, 0x02);
-  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_idx, 0x02); /* $C039 */
+  emit_LDA(p_buf, k_imm, 0x1B);
   emit_STA(p_buf, k_zpg, 0x02);
+  emit_LDA(p_buf, k_imm, 0x80);
   emit_STA(p_buf, k_zpg, 0x03);
-  emit_STA(p_buf, k_idy, 0x02);
+  emit_LDA(p_buf, k_idy, 0x02); /* $801B */
+  emit_STA(p_buf, k_zpg, 0x04);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_idy, 0x02); /* $801B */
+  emit_LDA(p_buf, k_idy, 0x02);
+  emit_CMP(p_buf, k_zpg, 0x04);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC5C0);
 
   /* Test LDX with aby addressing, which was broken, oops! */
@@ -450,6 +458,11 @@ main(int argc, const char* argv[]) {
   emit_CLC(p_buf);
   emit_ROR(p_buf, k_abs, 0xC603);
   emit_REQUIRE_CF(p_buf, 1);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0x02);
+  emit_STA(p_buf, k_zpg, 0x03);
+  emit_STA(p_buf, k_idy, 0x02); /* $FFFF */
   emit_JMP(p_buf, k_abs, 0xC640);
 
   /* Test an interesting bug we had with self-modifying code where two
