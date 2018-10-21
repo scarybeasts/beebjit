@@ -315,6 +315,14 @@ util_buffer_add_int(struct util_buffer* p_buf, ssize_t i) {
   util_buffer_add_4b(p_buf, b1, b2, b3, b4);
 }
 
+void
+util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size) {
+  assert(p_buf->pos + size > p_buf->pos);
+  assert(p_buf->pos + size <= p_buf->length);
+  (void) memcpy(p_buf->p_mem + p_buf->pos, p_src, size);
+  p_buf->pos += size;
+}
+
 size_t
 util_file_read(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
   int ret;

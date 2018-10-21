@@ -2,6 +2,7 @@
 
 #include "jit.h"
 
+#include "asm_x64.h"
 #include "bbc_options.h"
 #include "bbc_timing.h"
 #include "defs_6502.h"
@@ -1944,27 +1945,26 @@ printf("ooh\n");
     case 0x02:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Bounce out of JIT. */
-      /* nop */ /* Opcodes byte length must be at least 2. */
-      p_jit_buf[index++] = 0x90;
-      /* ret */
-      p_jit_buf[index++] = 0xc3;
+      index = asm_x64_copy(p_buf,
+                           asm_x64_instruction_EXIT,
+                           asm_x64_instruction_EXIT_END,
+                           2);
       break;
     case 0x12:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a debug trap and continue. */
-      /* nop */ /* Opcodes byte length must be at least 2. */
-      p_jit_buf[index++] = 0x90;
-      /* int 3 */
-      p_jit_buf[index++] = 0xcc;
+      index = asm_x64_copy(p_buf,
+                           asm_x64_instruction_TRAP,
+                           asm_x64_instruction_TRAP_END,
+                           2);
       break;
     case 0xf2:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a SEGV. */
-      /* mov al, [0x00000042] */
-      p_jit_buf[index++] = 0x8a;
-      p_jit_buf[index++] = 0x04;
-      p_jit_buf[index++] = 0x25;
-      index = jit_emit_int(p_jit_buf, index, 0xdead);
+      index = asm_x64_copy(p_buf,
+                           asm_x64_instruction_CRASH,
+                           asm_x64_instruction_CRASH_END,
+                           2);
       break;
     default:
       index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
