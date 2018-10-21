@@ -1016,6 +1016,46 @@ bbc_key_to_rowcol(int key, int* p_row, int* p_col) {
     row = 4;
     col = 0;
     break;
+  case 67: /* F1 */
+    row = 7;
+    col = 1;
+    break;
+  case 68: /* F2 */
+    row = 7;
+    col = 2;
+    break;
+  case 69: /* F3 */
+    row = 7;
+    col = 3;
+    break;
+  case 70: /* F4 */
+    row = 1;
+    col = 4;
+    break;
+  case 71: /* F5 */
+    row = 7;
+    col = 4;
+    break;
+  case 72: /* F6 */
+    row = 7;
+    col = 5;
+    break;
+  case 73: /* F7 */
+    row = 1;
+    col = 6;
+    break;
+  case 74: /* F8 */
+    row = 7;
+    col = 6;
+    break;
+  case 75: /* F9 */
+    row = 7;
+    col = 7;
+    break;
+  case 76: /* F0 */
+    row = 2;
+    col = 0;
+    break;
   case 111: /* Up arrow */
     row = 3;
     col = 9;
