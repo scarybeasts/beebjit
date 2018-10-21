@@ -72,6 +72,7 @@ struct bbc_struct {
   struct state_6502 state_6502;
   struct memory_access memory_access;
   struct bbc_timing timing;
+  int mem_fd;
   unsigned char* p_mem_raw;
   unsigned char* p_mem_read;
   unsigned char* p_mem_write;
@@ -84,7 +85,8 @@ struct bbc_struct {
   struct debug_struct* p_debug;
   uint64_t time;
   uint64_t time_next_vsync;
-  size_t romsel;
+  unsigned int romsel;
+  int is_sideways_ram_bank[k_bbc_num_roms];
 
   /* Keyboard. */
   unsigned char keys[16][16];
@@ -208,10 +210,57 @@ bbc_read_callback(void* p, uint16_t addr) {
 
 static void
 bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
+  /* The broad approach here is: slower sideways bank switching in order to
+   * enable faster memory accesses at runtime.
+   * Other emulators (jsbeeb, b-em) appear to make a different tradeoff: faster
+   * bank switching but slower memory accesses.
+   * By just copying ROM bytes into the single memory chunk representing the
+   * 6502 address space, memory access at runtime can be direct, instead of
+   * having to go through lookup arrays.
+   */
+  int curr_is_ram;
+  int new_is_ram;
   unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
-  unsigned char* p_sideways_dest = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  unsigned char* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  unsigned int curr_bank = p_bbc->romsel;
+
+  assert(curr_bank < k_bbc_num_roms);
+  assert(index < k_bbc_num_roms);
+
+  curr_is_ram = (p_bbc->is_sideways_ram_bank[curr_bank] != 0);
+  new_is_ram = (p_bbc->is_sideways_ram_bank[index] != 0);
+
   p_sideways_src += (index * k_bbc_rom_size);
-  (void) memcpy(p_sideways_dest, p_sideways_src, k_bbc_rom_size);
+
+  /* If current bank is RAM, save it. */
+  if (p_bbc->is_sideways_ram_bank[curr_bank]) {
+    unsigned char* p_sideways_dest = p_bbc->p_mem_sideways;
+    p_sideways_dest += (curr_bank * k_bbc_rom_size);
+    (void) memcpy(p_sideways_dest, p_mem_sideways, k_bbc_rom_size);
+  }
+
+  (void) memcpy(p_mem_sideways, p_sideways_src, k_bbc_rom_size);
+
+  /* If we flipped from ROM to RAM or visa versa, we need to update the write
+   * mapping with either a dummy area (ROM) or the real sideways area (RAM).
+   */
+  if (curr_is_ram ^ new_is_ram) {
+    if (new_is_ram) {
+      (void) util_get_fixed_mapping_from_fd(
+          p_bbc->mem_fd,
+          p_bbc->p_mem_write,
+          k_bbc_sideways_offset + k_bbc_rom_size);
+    } else {
+      (void) util_get_fixed_anonymous_mapping(
+          p_bbc->p_mem_write + k_bbc_sideways_offset,
+          k_6502_addr_space_size - k_bbc_sideways_offset);
+      /* Make the registers page inaccessible. Typical ROM faults happen lower.
+       */
+      util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
+    }
+  }
+
+  p_bbc->romsel = index;
 }
 
 void
@@ -264,8 +313,10 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
     video_set_ula_palette(p_video, val);
     break;
   case k_addr_rom_select:
+  case (k_addr_rom_select + 1):
+  case (k_addr_rom_select + 2):
+  case (k_addr_rom_select + 3):
     if (val != p_bbc->romsel) {
-      p_bbc->romsel = val;
       bbc_sideways_select(p_bbc, val);
     }
     break;
@@ -366,7 +417,6 @@ bbc_create(unsigned char* p_os_rom,
   struct debug_struct* p_debug;
   int pipefd[2];
   int ret;
-  int mem_fd;
 
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -397,28 +447,28 @@ bbc_create(unsigned char* p_os_rom,
     p_bbc->vsync_wait_for_render = 0;
   }
 
-  mem_fd = util_get_memory_fd(k_6502_addr_space_size);
-  if (mem_fd < 0) {
+  p_bbc->mem_fd = util_get_memory_fd(k_6502_addr_space_size);
+  if (p_bbc->mem_fd < 0) {
     errx(1, "util_get_memory_fd failed");
   }
 
   p_bbc->p_mem_raw =
       util_get_guarded_mapping_from_fd(
-          mem_fd,
+          p_bbc->mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_raw_addr,
           k_6502_addr_space_size);
 
   /* p_mem_read marks ROM regions as hardware read-only. */
   p_bbc->p_mem_read =
       util_get_guarded_mapping_from_fd(
-          mem_fd,
+          p_bbc->mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_read_addr,
           k_6502_addr_space_size);
 
   /* p_mem_write replaces ROM regions with dummy writebale regions. */
   p_bbc->p_mem_write =
       util_get_guarded_mapping_from_fd(
-          mem_fd,
+          p_bbc->mem_fd,
           (unsigned char*) (size_t) k_bbc_mem_mmap_write_addr,
           k_6502_addr_space_size);
 
@@ -435,11 +485,6 @@ bbc_create(unsigned char* p_os_rom,
   /* Make the ROM readonly in the main mapping used at runtime. */
   util_make_mapping_read_only(p_bbc->p_mem_read + k_bbc_ram_size,
                               k_6502_addr_space_size - k_bbc_ram_size);
-
-  ret = close(mem_fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
@@ -507,6 +552,7 @@ bbc_create(unsigned char* p_os_rom,
 
 void
 bbc_destroy(struct bbc_struct* p_bbc) {
+  int ret;
   volatile int* p_running = &p_bbc->running;
   volatile int* p_thread_allocated = &p_bbc->thread_allocated;
   assert(!*p_running);
@@ -525,6 +571,12 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
+
+  ret = close(p_bbc->mem_fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
+
   free(p_bbc);
 }
 
@@ -544,6 +596,12 @@ bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
 }
 
 void
+bbc_make_sideways_ram(struct bbc_struct* p_bbc, size_t index) {
+  assert(index < k_bbc_num_roms);
+  p_bbc->is_sideways_ram_bank[index] = 1;
+}
+
+void
 bbc_full_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
@@ -556,8 +614,7 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
 
-  p_bbc->romsel = 0;
-  bbc_sideways_select(p_bbc, p_bbc->romsel);
+  bbc_sideways_select(p_bbc, 0);
 
   state_6502_reset(&p_bbc->state_6502);
 

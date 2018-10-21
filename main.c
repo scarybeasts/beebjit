@@ -25,6 +25,7 @@ main(int argc, const char* argv[]) {
   int bbc_fd;
   struct pollfd poll_fds[2];
   const char* rom_names[k_bbc_num_roms] = {};
+  int sideways_ram[k_bbc_num_roms] = {};
 
   const char* os_rom_name = "os12.rom";
   const char* load_name = NULL;
@@ -44,15 +45,16 @@ main(int argc, const char* argv[]) {
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
     if (i + 2 < argc) {
-      int rom;
       const char* val1 = argv[i + 1];
       const char* val2 = argv[i + 2];
       if (!strcmp(arg, "-rom")) {
-        (void) sscanf(val1, "%x", &rom);
-        if (rom < 0 || rom >= k_bbc_num_roms) {
-          errx(1, "rom number out of range");
+        int bank;
+        (void) sscanf(val1, "%x", &bank);
+        if (bank < 0 || bank >= k_bbc_num_roms) {
+          errx(1, "ROM bank number out of range");
         }
-        rom_names[rom] = val2;
+        rom_names[bank] = val2;
+        i += 2;
       }
     }
     if (i + 1 < argc) {
@@ -83,6 +85,14 @@ main(int argc, const char* argv[]) {
         } else {
           errx(1, "unknown mode");
         }
+        ++i;
+      } else if (!strcmp(arg, "-swram")) {
+        int bank;
+        (void) sscanf(val, "%x", &bank);
+        if (bank < 0 || bank >= k_bbc_num_roms) {
+          errx(1, "RAM bank number out of range");
+        }
+        sideways_ram[bank] = 1;
         ++i;
       }
     }
@@ -139,6 +149,9 @@ main(int argc, const char* argv[]) {
       (void) memset(load_rom, '\0', k_bbc_rom_size);
       (void) util_file_read(load_rom, k_bbc_rom_size, p_rom_name);
       bbc_load_rom(p_bbc, i, load_rom);
+    }
+    if (sideways_ram[i]) {
+      bbc_make_sideways_ram(p_bbc, i);
     }
   }
 

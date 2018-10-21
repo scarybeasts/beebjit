@@ -72,6 +72,16 @@ Worked around by saving a BEM file that has empty key down state, and keyboard
 interrupts enabled.
 
 
+- exile_loader.bem
+Notes:
+1) Routine at $2687 detects the presence of sideways RAM or not. It cycles
+through all values (0x0F - 0x00) of ROM select, checking for each whether the
+full $8000 - $C000 range can reflect back reads for writes of #$AA and #$55.
+2) Sideways RAM detection routine writes to user VIA as well as $FE30 (ROM
+select) and $FE32 (ROM select alias). Maybe some old sideways RAM add-on was
+attached or controlled via the user VIA's port b?
+
+
 - exile_post_sed.bem, 03a4afdb0c75b987d1721176ed17f9cc
 Use: ./6502jit -load bems/exile_post_sed.bem
 Based on: cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip

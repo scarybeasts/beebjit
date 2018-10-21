@@ -51,6 +51,7 @@ void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   size_t index,
                   unsigned char* p_rom_src);
+void bbc_make_sideways_ram(struct bbc_struct* p_bbc, size_t index);
 
 void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* a,
