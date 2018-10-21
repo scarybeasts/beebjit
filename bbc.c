@@ -113,8 +113,12 @@ static uint16_t
 bbc_write_needs_callback_mask(void* p) {
   (void) p;
 
-  /* Includes the entire ROM region. */
-  return 0x8000;
+  /* Selects 0xFC00 - 0xFFFF. */
+  /* Doesn't select the whole ROM region 0x8000 - 0xFC00 because ROM write
+   * squashing is handled by writing to to the "write" mapping, which has the
+   * ROM regions backed by dummy RAM.
+   */
+  return 0xFC00;
 }
 
 int
