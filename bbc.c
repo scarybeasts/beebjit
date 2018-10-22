@@ -7,6 +7,7 @@
 #include "interp.h"
 #include "jit.h"
 #include "memory_access.h"
+#include "sound.h"
 #include "state_6502.h"
 #include "util.h"
 #include "via.h"
@@ -77,9 +78,10 @@ struct bbc_struct {
   unsigned char* p_mem_read;
   unsigned char* p_mem_write;
   unsigned char* p_mem_sideways;
-  struct video_struct* p_video;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
+  struct sound_struct* p_sound;
+  struct video_struct* p_video;
   struct jit_struct* p_jit;
   struct interp_struct* p_interp;
   struct debug_struct* p_debug;
@@ -495,6 +497,11 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "via_create failed");
   }
 
+  p_bbc->p_sound = sound_create();
+  if (p_bbc->p_sound == NULL) {
+    errx(1, "sound_create failed");
+  }
+
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 via_get_peripheral_b_ptr(p_bbc->p_system_via));
   if (p_bbc->p_video == NULL) {
@@ -568,6 +575,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   interp_destroy(p_bbc->p_interp);
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
+  sound_destroy(p_bbc->p_sound);
+  via_destroy(p_bbc->p_system_via);
+  via_destroy(p_bbc->p_user_via);
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
@@ -679,6 +689,11 @@ bbc_get_uservia(struct bbc_struct* p_bbc) {
 struct jit_struct*
 bbc_get_jit(struct bbc_struct* p_bbc) {
   return p_bbc->p_jit;
+}
+
+struct sound_struct*
+bbc_get_sound(struct bbc_struct* p_bbc) {
+  return p_bbc->p_sound;
 }
 
 struct video_struct*

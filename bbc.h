@@ -4,7 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct sound_struct;
 struct via_struct;
+struct video_struct;
 
 enum {
   k_bbc_rom_size = 0x4000,
@@ -75,9 +77,10 @@ void bbc_run_async(struct bbc_struct* p_bbc);
 
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
+struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
+struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
-struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mem_read(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,

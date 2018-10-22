@@ -1,6 +1,7 @@
 #include "via.h"
 
 #include "bbc.h"
+#include "sound.h"
 
 #include <assert.h>
 #include <err.h>
@@ -140,10 +141,16 @@ via_write_port_b(struct via_struct* p_via) {
     unsigned char orb = p_via->ORB;
     unsigned char ddrb = p_via->DDRB;
     unsigned char port_val = ((orb & ddrb) | ~ddrb);
-    if (port_val & 0x08) {
-      p_via->peripheral_b |= (1 << (port_val & 7));
+    unsigned char port_bit = (1 << (port_val & 7));
+    int bit_set = ((port_val & 0x08) == 0x08);
+    if (bit_set) {
+      p_via->peripheral_b |= port_bit;
     } else {
-      p_via->peripheral_b &= ~(1 << (port_val & 7));
+      p_via->peripheral_b &= ~port_bit;
+    }
+    if (port_bit == 1) {
+      struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
+      sound_apply_write_bit_and_data(p_sound, bit_set, p_via->peripheral_a);
     }
   } else if (p_via->id == k_via_user) {
     /* User port. Ignore. */
