@@ -2612,17 +2612,19 @@ printf("ooh\n");
       break;
     }
     break;
-  case k_tay:
-    /* TAY */
-    /* mov cl, al */
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xc1;
-    break;
   case k_tax:
     /* TAX */
-    /* mov bl, al */
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xc3;
+    index = asm_x64_copy(p_buf,
+                         asm_x64_instruction_TAX,
+                         asm_x64_instruction_TAX_END,
+                         2);
+    break;
+  case k_tay:
+    /* TAY */
+    index = asm_x64_copy(p_buf,
+                         asm_x64_instruction_TAY,
+                         asm_x64_instruction_TAY_END,
+                         2);
     break;
   case k_bcs:
     /* BCS */

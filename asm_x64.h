@@ -17,4 +17,9 @@ void asm_x64_instruction_EXIT_END();
 void asm_x64_instruction_TRAP();
 void asm_x64_instruction_TRAP_END();
 
+void asm_x64_instruction_TAX();
+void asm_x64_instruction_TAX_END();
+void asm_x64_instruction_TAY();
+void asm_x64_instruction_TAY_END();
+
 #endif /* BEEBJIT_ASM_X64_H */
