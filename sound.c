@@ -57,6 +57,8 @@ sound_play_thread(void* p) {
   int ret;
   unsigned int tmp;
   snd_pcm_uframes_t period_size;
+  snd_pcm_uframes_t buffer_size;
+  unsigned int periods;
   snd_pcm_t* playback_handle;
   snd_pcm_hw_params_t* hw_params;
 
@@ -102,12 +104,18 @@ sound_play_thread(void* p) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_channels failed");
   }
+  ret = snd_pcm_hw_params_set_buffer_size(playback_handle, hw_params, 512);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_set_buffer_size failed");
+  }
+  ret = snd_pcm_hw_params_set_periods(playback_handle, hw_params, 4, 0);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_set_periods failed");
+  }
   ret = snd_pcm_hw_params(playback_handle, hw_params);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params failed");
   }
-
-  printf("Sound device name: %s\n", snd_pcm_name(playback_handle));
 
   ret = snd_pcm_hw_params_get_channels(hw_params, &tmp);
   if (ret != 0) {
@@ -123,13 +131,29 @@ sound_play_thread(void* p) {
   if (tmp != 44100) {
     errx(1, "rate is not 44100");
   }
+  ret = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_get_buffer_size failed");
+  }
+  if (buffer_size != 512) {
+    errx(1, "buffer size is not 512");
+  }
+  ret = snd_pcm_hw_params_get_periods(hw_params, &periods, NULL);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_get_periods failed");
+  }
+  if (periods != 4) {
+    errx(1, "periods is not 4");
+  }
 
   ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_period_size failed");
   }
-
-  printf("period size: %u\n", (unsigned int) period_size);
+  printf("Sound device: %s, periods %d, period size %d\n",
+         snd_pcm_name(playback_handle),
+         (int) periods,
+         (int) period_size);
 
   ret = snd_pcm_prepare(playback_handle);
   if (ret != 0) {
