@@ -1,9 +1,7 @@
 #include "sound.h"
 
-/* TODO: remove. */
-#include <stdio.h>
-
 #include <err.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,11 +15,23 @@ enum {
 };
 
 struct sound_struct {
+  /* Configuration. */
+  size_t sample_rate;
+  size_t host_frames_per_fill;
+
+  /* Calculated configuration. */
+  double sn_ticks_per_host_tick;
+  size_t sn_frames_per_fill;
+
   /* Internal state. */
   int thread_running;
   int do_exit;
   pthread_t sound_thread;
   size_t cycles;
+  short* p_host_frames;
+  short* p_sn_frames;
+  uint16_t counter[k_sound_num_channels];
+  char output[k_sound_num_channels];
 
   /* Register values / interface from the host. */
   int write_status;
@@ -35,21 +45,51 @@ struct sound_struct {
 };
 
 static void
-sound_fill_buffer(struct sound_struct* p_sound,
-                  short* p_frames,
-                  size_t num_frames) {
-  size_t cycles = p_sound->cycles;
-  size_t i = 0;
-  while (i < num_frames) {
-    short value = 10000;
-    if ((cycles % 40) >= 20) {
-      value = -10000;
-    }
-    p_frames[i++] = value;
-    cycles++;
-  }
+sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
+  size_t i;
+  size_t channel;
 
-  p_sound->cycles = cycles;
+  size_t sn_frames_per_fill = p_sound->sn_frames_per_fill;
+  short* p_sn_frames = p_sound->p_sn_frames;
+
+  for (i = 0; i < sn_frames_per_fill; ++i) {
+    short sample = 0;
+    for (channel = 1; channel < 3; ++channel) {
+      /* Tick the sn76489 clock and see if any timers expire. Flip the flip
+       * flops if they do.
+       */
+      uint16_t counter = p_sound->counter[channel];
+      char output = p_sound->output[channel];
+      counter--;
+      if (counter == 0) {
+        counter = p_sound->period[channel];
+        output = -output;
+        p_sound->output[channel] = output;
+      }
+      if (p_sound->volume[channel]) {
+        sample += (8191 * output);
+      }
+    }
+    p_sn_frames[i] = sample;
+  }
+}
+
+static void
+sound_fill_buffer(struct sound_struct* p_sound) {
+  size_t i;
+
+  short* p_host_frames = p_sound->p_host_frames;
+  short* p_sn_frames = p_sound->p_sn_frames;
+  size_t host_frames_per_fill = p_sound->host_frames_per_fill;
+  double resample_step = p_sound->sn_ticks_per_host_tick;
+  double resample_index = 0;
+
+  sound_fill_sn76489_buffer(p_sound);
+
+  for (i = 0; i < host_frames_per_fill; ++i) {
+    p_host_frames[i++] = p_sn_frames[(size_t) resample_index];
+    resample_index += resample_step;
+  }
 }
 
 static void*
@@ -64,7 +104,7 @@ sound_play_thread(void* p) {
 
   struct sound_struct* p_sound = (struct sound_struct*) p;
   volatile int* p_do_exit = &p_sound->do_exit;
-  unsigned int rate = 44100;
+  unsigned int rate = p_sound->sample_rate;
   unsigned int rate_ret = rate;
 
   ret = snd_pcm_open(&playback_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
@@ -128,8 +168,8 @@ sound_play_thread(void* p) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_rate failed");
   }
-  if (tmp != 44100) {
-    errx(1, "rate is not 44100");
+  if (tmp != p_sound->sample_rate) {
+    errx(1, "sample rate is not %zu\n", p_sound->sample_rate);
   }
   ret = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size);
   if (ret != 0) {
@@ -155,17 +195,19 @@ sound_play_thread(void* p) {
          (int) periods,
          (int) period_size);
 
+  if (period_size != p_sound->host_frames_per_fill) {
+    errx(1, "period size %zu not available", p_sound->host_frames_per_fill);
+  }
+
   ret = snd_pcm_prepare(playback_handle);
   if (ret != 0) {
     errx(1, "snd_pcm_prepare failed");
   }
 
   while (!*p_do_exit) {
-    short frames[period_size];
+    sound_fill_buffer(p_sound);
 
-    sound_fill_buffer(p_sound, frames, period_size);
-
-    ret = snd_pcm_writei(playback_handle, frames, period_size);
+    ret = snd_pcm_writei(playback_handle, p_sound->p_host_frames, period_size);
     if ((unsigned int) ret != period_size) {
       errx(1, "snd_pcm_writei failed");
     }
@@ -181,18 +223,48 @@ sound_play_thread(void* p) {
 
 struct sound_struct*
 sound_create() {
+  size_t i;
+
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
     errx(1, "couldn't allocate sound_struct");
   }
   (void) memset(p_sound, '\0', sizeof(struct sound_struct));
 
+  p_sound->sample_rate = 44100;
+  p_sound->host_frames_per_fill = 128;
+  p_sound->sn_ticks_per_host_tick = ((double) 250000.0 /
+                                     (double) p_sound->sample_rate);
+  p_sound->sn_frames_per_fill = (p_sound->sn_ticks_per_host_tick *
+                                 p_sound->host_frames_per_fill);
+
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
+
+  p_sound->p_host_frames = malloc(p_sound->host_frames_per_fill * 2);
+  if (p_sound->p_host_frames == NULL) {
+    errx(1, "couldn't allocate host_frames");
+  }
+  (void) memset(p_sound->p_host_frames,
+                '\0',
+                p_sound->host_frames_per_fill * 2);
+  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_fill * 2);
+  if (p_sound->p_sn_frames == NULL) {
+    errx(1, "couldn't allocate sn_frames");
+  }
+  (void) memset(p_sound->p_sn_frames, '\0', p_sound->sn_frames_per_fill * 2);
+
   p_sound->write_status = 0;
   p_sound->noise_frequency = 0;
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
+
+  for (i = 0; i < 3; ++i) {
+    p_sound->volume[i] = 0;
+    p_sound->period[i] = 1;
+    p_sound->counter[i] = 1;
+    p_sound->output[i] = 1;
+  }
 
   return p_sound;
 }
@@ -208,6 +280,8 @@ sound_destroy(struct sound_struct* p_sound) {
       errx(1, "pthread_join failed");
     }
   }
+  free(p_sound->p_host_frames);
+  free(p_sound->p_sn_frames);
   free(p_sound);
 }
 
