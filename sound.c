@@ -17,9 +17,13 @@ enum {
 };
 
 struct sound_struct {
+  /* Internal state. */
   int thread_running;
   int do_exit;
   pthread_t sound_thread;
+  size_t cycles;
+
+  /* Register values / interface from the host. */
   int write_status;
   unsigned char volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
@@ -30,9 +34,29 @@ struct sound_struct {
   int last_channel;
 };
 
+static void
+sound_fill_buffer(struct sound_struct* p_sound,
+                  short* p_frames,
+                  size_t num_frames) {
+  size_t cycles = p_sound->cycles;
+  size_t i = 0;
+  while (i < num_frames) {
+    short value = 10000;
+    if ((cycles % 40) >= 20) {
+      value = -10000;
+    }
+    p_frames[i++] = value;
+    cycles++;
+  }
+
+  p_sound->cycles = cycles;
+}
+
 static void*
 sound_play_thread(void* p) {
   int ret;
+  unsigned int tmp;
+  snd_pcm_uframes_t period_size;
   snd_pcm_t* playback_handle;
   snd_pcm_hw_params_t* hw_params;
 
@@ -45,10 +69,9 @@ sound_play_thread(void* p) {
   if (ret != 0) {
     errx(1, "snd_pcm_open failed");
   }
-  ret = snd_pcm_hw_params_malloc(&hw_params);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_malloc failed");
-  }
+
+  snd_pcm_hw_params_alloca(&hw_params);
+
   ret = snd_pcm_hw_params_any(playback_handle, hw_params);
   if (ret < 0) {
     errx(1, "snd_pcm_hw_params_any failed");
@@ -84,7 +107,29 @@ sound_play_thread(void* p) {
     errx(1, "snd_pcm_hw_params failed");
   }
 
-  snd_pcm_hw_params_free(hw_params);
+  printf("Sound device name: %s\n", snd_pcm_name(playback_handle));
+
+  ret = snd_pcm_hw_params_get_channels(hw_params, &tmp);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_get_channels failed");
+  }
+  if (tmp != 1) {
+    errx(1, "channels is not 1");
+  }
+  ret = snd_pcm_hw_params_get_rate(hw_params, &tmp, NULL);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_get_rate failed");
+  }
+  if (tmp != 44100) {
+    errx(1, "rate is not 44100");
+  }
+
+  ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
+  if (ret != 0) {
+    errx(1, "snd_pcm_hw_params_get_period_size failed");
+  }
+
+  printf("period size: %u\n", (unsigned int) period_size);
 
   ret = snd_pcm_prepare(playback_handle);
   if (ret != 0) {
@@ -92,18 +137,14 @@ sound_play_thread(void* p) {
   }
 
   while (!*p_do_exit) {
-    short buf[10];
-    buf[0] = -30000;
-    buf[1] = -30000;
-    buf[2] = -30000;
-    buf[3] = -30000;
-    buf[4] = -30000;
-    buf[5] = 30000;
-    buf[6] = 30000;
-    buf[7] = 30000;
-    buf[8] = 30000;
-    buf[9] = 30000;
-    snd_pcm_writei(playback_handle, buf, 20);
+    short frames[period_size];
+
+    sound_fill_buffer(p_sound, frames, period_size);
+
+    ret = snd_pcm_writei(playback_handle, frames, period_size);
+    if ((unsigned int) ret != period_size) {
+      errx(1, "snd_pcm_writei failed");
+    }
   }
 
   ret = snd_pcm_close(playback_handle);
