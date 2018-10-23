@@ -5,7 +5,7 @@ gcc -Wall -W -Werror -g -o 6502jit \
     main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c state_6502.c sound.c test.c \
     asm_x64.c asm_x64.S \
-    -lX11 -lXext -lpthread
+    -lX11 -lXext -lpthread -lasound
 gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
     util.c defs_6502.c emit_6502.c
 gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c

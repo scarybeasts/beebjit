@@ -851,6 +851,8 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 
   p_bbc->thread_allocated = 1;
   p_bbc->running = 1;
+
+  sound_start_playing(p_bbc->p_sound);
 }
 
 void
