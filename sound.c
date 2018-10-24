@@ -331,19 +331,20 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
                                unsigned char data) {
   int channel;
 
+  int new_period = -1;
   int old_write_status = p_sound->write_status;
   p_sound->write_status = write;
+
   if (p_sound->write_status == 0 || old_write_status == 1) {
     return;
   }
 
-  channel = p_sound->last_channel;
-
   if (!(data & 0x80)) {
+    channel = p_sound->last_channel;
     /* Update of most significant bits of period for the last channel set. */
     uint16_t old_period = p_sound->period[channel];
-    p_sound->period[channel] = ((data & 0x3f) << 4);
-    p_sound->period[channel] |= (old_period & 0x0f);
+    new_period = ((data & 0x3f) << 4);
+    new_period |= (old_period & 0x0f);
   } else {
     int is_volume = !!(data & 0x10);
     /* Set channel plus some form of update. */
@@ -357,9 +358,15 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
       p_sound->noise_type = ((data & 0x04) >> 2);
     } else {
       uint16_t old_period = p_sound->period[channel];
-      p_sound->period[channel] = (data & 0x0f);
-      p_sound->period[channel] |= (old_period & 0x3f0);
+      new_period = (data & 0x0f);
+      new_period |= (old_period & 0x3f0);
     }
+  }
+  if (new_period != -1) {
+    if (new_period == 0) {
+      new_period = 0x400;
+    }
+    p_sound->period[channel] = new_period;
   }
 printf("channel, period, vol: %d %d %d\n", channel, p_sound->period[channel], p_sound->volume[channel]);
 }
