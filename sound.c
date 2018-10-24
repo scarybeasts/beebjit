@@ -66,6 +66,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
         output = -output;
         p_sound->output[channel] = output;
       }
+      p_sound->counter[channel] = counter;
       if (p_sound->volume[channel]) {
         sample += (8191 * output);
       }
@@ -87,7 +88,7 @@ sound_fill_buffer(struct sound_struct* p_sound) {
   sound_fill_sn76489_buffer(p_sound);
 
   for (i = 0; i < host_frames_per_fill; ++i) {
-    p_host_frames[i++] = p_sn_frames[(size_t) resample_index];
+    p_host_frames[i] = p_sn_frames[(size_t) resample_index];
     resample_index += resample_step;
   }
 }
@@ -208,8 +209,18 @@ sound_play_thread(void* p) {
     sound_fill_buffer(p_sound);
 
     ret = snd_pcm_writei(playback_handle, p_sound->p_host_frames, period_size);
-    if ((unsigned int) ret != period_size) {
-      errx(1, "snd_pcm_writei failed");
+    if (ret < 0) {
+      if (ret == -EPIPE) {
+        printf("sound: xrun\n");
+        ret = snd_pcm_prepare(playback_handle);
+        if (ret != 0) {
+          errx(1, "snd_pcm_prepare failed");
+        }
+      } else {
+        errx(1, "snd_pcm_writei failed: %d", ret);
+      }
+    } else if ((unsigned int) ret != period_size) {
+      errx(1, "snd_pcm_writei short write");
     }
   }
 
@@ -235,8 +246,8 @@ sound_create() {
   p_sound->host_frames_per_fill = 128;
   p_sound->sn_ticks_per_host_tick = ((double) 250000.0 /
                                      (double) p_sound->sample_rate);
-  p_sound->sn_frames_per_fill = (p_sound->sn_ticks_per_host_tick *
-                                 p_sound->host_frames_per_fill);
+  p_sound->sn_frames_per_fill = ceil(p_sound->sn_ticks_per_host_tick *
+                                     p_sound->host_frames_per_fill);
 
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
