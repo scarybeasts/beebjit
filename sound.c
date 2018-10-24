@@ -22,6 +22,7 @@ struct sound_struct {
   /* Calculated configuration. */
   double sn_ticks_per_host_tick;
   size_t sn_frames_per_fill;
+  short volumes[16];
 
   /* Internal state. */
   int thread_running;
@@ -35,7 +36,7 @@ struct sound_struct {
 
   /* Register values / interface from the host. */
   int write_status;
-  unsigned char volume[k_sound_num_channels];
+  short volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
   /* 0 - low, 1 - medium, 2 - high, 3 -- use tone generator 1. */
   int noise_frequency;
@@ -58,6 +59,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
+      short sample_component = p_sound->volume[channel];
       uint16_t counter = p_sound->counter[channel];
       char output = p_sound->output[channel];
       counter--;
@@ -67,9 +69,11 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
         p_sound->output[channel] = output;
       }
       p_sound->counter[channel] = counter;
-      if (p_sound->volume[channel]) {
-        sample += (8191 * output);
+
+      if (output == -1) {
+        sample_component = -sample_component;
       }
+      sample += sample_component;
     }
     p_sn_frames[i] = sample;
   }
@@ -235,6 +239,7 @@ sound_play_thread(void* p) {
 struct sound_struct*
 sound_create() {
   size_t i;
+  double volume;
 
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
@@ -276,6 +281,17 @@ sound_create() {
     p_sound->counter[i] = 1;
     p_sound->output[i] = 1;
   }
+
+  volume = 1.0;
+  i = 16;
+  do {
+    i--;
+    if (i == 0) {
+      volume = 0.0;
+    }
+    p_sound->volumes[i] = (32767 * volume) / 4.0;
+    volume *= pow(10.0, -0.1);
+  } while (i > 0);
 
   return p_sound;
 }
@@ -334,7 +350,8 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
     channel = (3 - ((data >> 5) & 0x03));
     p_sound->last_channel = channel;
     if (is_volume) {
-      p_sound->volume[channel] = (0x0f - (data & 0x0f));
+      unsigned char volume_index = (0x0f - (data & 0x0f));
+      p_sound->volume[channel] = p_sound->volumes[volume_index];
     } else if (channel == 0) {
       p_sound->noise_frequency = (data & 0x03);
       p_sound->noise_type = ((data & 0x04) >> 2);
