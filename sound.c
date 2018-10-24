@@ -52,6 +52,11 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
 
   size_t sn_frames_per_fill = p_sound->sn_frames_per_fill;
   short* p_sn_frames = p_sound->p_sn_frames;
+  uint16_t* p_counters = &p_sound->counter[0];
+  char* p_outputs = &p_sound->output[0];
+  /* These are written by another thread. */
+  volatile short* p_volumes = &p_sound->volume[0];
+  volatile uint16_t* p_periods = &p_sound->period[0];
 
   for (i = 0; i < sn_frames_per_fill; ++i) {
     short sample = 0;
@@ -59,16 +64,16 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
-      short sample_component = p_sound->volume[channel];
-      uint16_t counter = p_sound->counter[channel];
-      char output = p_sound->output[channel];
+      short sample_component = p_volumes[channel];
+      uint16_t counter = p_counters[channel];
+      char output = p_outputs[channel];
       counter--;
       if (counter == 0) {
-        counter = p_sound->period[channel];
+        counter = p_periods[channel];
         output = -output;
-        p_sound->output[channel] = output;
+        p_outputs[channel] = output;
       }
-      p_sound->counter[channel] = counter;
+      p_counters[channel] = counter;
 
       if (output == -1) {
         sample_component = -sample_component;
