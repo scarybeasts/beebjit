@@ -297,19 +297,6 @@ sound_create() {
   }
   (void) memset(p_sound->p_sn_frames, '\0', p_sound->sn_frames_per_fill * 2);
 
-  p_sound->write_status = 0;
-  p_sound->noise_frequency = 0;
-  p_sound->noise_type = 0;
-  p_sound->last_channel = 0;
-  p_sound->noise_rng = 0x4000;
-
-  for (i = 0; i <= 3; ++i) {
-    p_sound->volume[i] = 0;
-    p_sound->period[i] = 1;
-    p_sound->counter[i] = 1;
-    p_sound->output[i] = 1;
-  }
-
   volume = 1.0;
   i = 16;
   do {
@@ -320,6 +307,23 @@ sound_create() {
     p_sound->volumes[i] = (32767 * volume) / 4.0;
     volume *= pow(10.0, -0.1);
   } while (i > 0);
+
+  for (i = 0; i <= 3; ++i) {
+    short volume = p_sound->volumes[8];
+    if (i == 3) {
+      volume = 0;
+    }
+    p_sound->volume[i] = volume;
+    p_sound->period[i] = 0x400;
+    p_sound->counter[i] = 0x400;
+    p_sound->output[i] = 1;
+  }
+
+  p_sound->write_status = 0;
+  p_sound->noise_frequency = 0;
+  p_sound->noise_type = 0;
+  p_sound->last_channel = 0;
+  p_sound->noise_rng = (1 << 14);
 
   return p_sound;
 }
@@ -394,7 +398,7 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
         new_period = (p_sound->period[2] << 1);
       }
       p_sound->noise_type = ((data & 0x04) >> 2);
-      p_sound->noise_rng = 0x4000;
+      p_sound->noise_rng = (1 << 14);
     } else {
       uint16_t old_period = p_sound->period[channel];
       new_period = (data & 0x0f);
@@ -410,5 +414,4 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
       p_sound->period[3] = (new_period << 1);
     }
   }
-printf("channel, period, vol: %d %d %d\n", channel, p_sound->period[channel], p_sound->volume[channel]);
 }
