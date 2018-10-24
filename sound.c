@@ -54,7 +54,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
 
   for (i = 0; i < sn_frames_per_fill; ++i) {
     short sample = 0;
-    for (channel = 1; channel < 3; ++channel) {
+    for (channel = 1; channel <= 3; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
@@ -270,7 +270,7 @@ sound_create() {
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
 
-  for (i = 0; i < 3; ++i) {
+  for (i = 0; i <= 3; ++i) {
     p_sound->volume[i] = 0;
     p_sound->period[i] = 1;
     p_sound->counter[i] = 1;
