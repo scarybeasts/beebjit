@@ -229,8 +229,10 @@ sound_play_thread(void* p) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_period_size failed");
   }
-  printf("Sound device: %s, periods %d, period size %d\n",
+  printf("Sound device: %s, rate %d, buffer %d, periods %d, period size %d\n",
          snd_pcm_name(playback_handle),
+         (int) p_sound->sample_rate,
+         (int) p_sound->buffer_size,
          (int) periods,
          (int) period_size);
 
