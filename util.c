@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -421,4 +422,27 @@ util_get_channel_fds(int* fd1, int* fd2) {
 
   *fd1 = fds[0];
   *fd2 = fds[1];
+}
+
+int
+util_get_int_option(int* p_opt_out,
+                    const char* p_opt_str,
+                    const char* p_opt_name) {
+  int matches;
+  const char* p_opt_pos;
+
+  if (p_opt_str == NULL) {
+    return 0;
+  }
+
+  p_opt_pos = strstr(p_opt_str, p_opt_name);
+  if (p_opt_pos == NULL) {
+    return 0;
+  }
+  p_opt_pos += strlen(p_opt_name);
+  matches = sscanf(p_opt_pos, "%d", p_opt_out);
+  if (matches != 1) {
+    return 0;
+  }
+  return 1;
 }

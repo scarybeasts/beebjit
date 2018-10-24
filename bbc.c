@@ -488,6 +488,28 @@ bbc_create(unsigned char* p_os_rom,
   util_make_mapping_read_only(p_bbc->p_mem_read + k_bbc_ram_size,
                               k_6502_addr_space_size - k_bbc_ram_size);
 
+  p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
+  p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
+  p_bbc->memory_access.p_callback_obj = p_bbc;
+  p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
+  p_bbc->memory_access.memory_read_needs_callback_mask =
+      bbc_read_needs_callback_mask;
+  p_bbc->memory_access.memory_write_needs_callback_mask =
+      bbc_write_needs_callback_mask;
+  p_bbc->memory_access.memory_read_callback = bbc_read_callback;
+  p_bbc->memory_access.memory_write_callback = bbc_write_callback;
+
+  p_bbc->timing.p_callback_obj = p_bbc;
+  p_bbc->timing.sync_tick_callback = bbc_sync_timer_tick;
+
+  p_bbc->options.debug_subsystem_active = debug_subsystem_active;
+  p_bbc->options.debug_active_at_addr = debug_active_at_addr;
+  p_bbc->options.debug_counter_at_addr = debug_counter_at_addr;
+  p_bbc->options.debug_get_counter_ptr = debug_get_counter_ptr;
+  p_bbc->options.debug_callback = debug_callback;
+  p_bbc->options.p_opt_flags = p_opt_flags;
+  p_bbc->options.p_log_flags = p_log_flags;
+
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
     errx(1, "via_create failed");
@@ -497,7 +519,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "via_create failed");
   }
 
-  p_bbc->p_sound = sound_create();
+  p_bbc->p_sound = sound_create(&p_bbc->options);
   if (p_bbc->p_sound == NULL) {
     errx(1, "sound_create failed");
   }
@@ -513,28 +535,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "debug_create failed");
   }
 
-  p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
-  p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
-  p_bbc->memory_access.p_callback_obj = p_bbc;
-  p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
-  p_bbc->memory_access.memory_read_needs_callback_mask =
-      bbc_read_needs_callback_mask;
-  p_bbc->memory_access.memory_write_needs_callback_mask =
-      bbc_write_needs_callback_mask;
-  p_bbc->memory_access.memory_read_callback = bbc_read_callback;
-  p_bbc->memory_access.memory_write_callback = bbc_write_callback;
-
-  p_bbc->timing.p_callback_obj = p_bbc;
-  p_bbc->timing.sync_tick_callback = bbc_sync_timer_tick;
-
   p_bbc->options.p_debug_callback_object = p_debug;
-  p_bbc->options.debug_subsystem_active = debug_subsystem_active;
-  p_bbc->options.debug_active_at_addr = debug_active_at_addr;
-  p_bbc->options.debug_counter_at_addr = debug_counter_at_addr;
-  p_bbc->options.debug_get_counter_ptr = debug_get_counter_ptr;
-  p_bbc->options.debug_callback = debug_callback;
-  p_bbc->options.p_opt_flags = p_opt_flags;
-  p_bbc->options.p_log_flags = p_log_flags;
 
   p_bbc->p_jit = jit_create(&p_bbc->state_6502,
                             &p_bbc->memory_access,

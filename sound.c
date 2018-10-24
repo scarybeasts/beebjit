@@ -1,5 +1,8 @@
 #include "sound.h"
 
+#include "bbc_options.h"
+#include "util.h"
+
 #include <err.h>
 #include <math.h>
 #include <pthread.h>
@@ -17,6 +20,7 @@ enum {
 struct sound_struct {
   /* Configuration. */
   size_t sample_rate;
+  size_t buffer_size;
   size_t host_frames_per_fill;
 
   /* Calculated configuration. */
@@ -176,7 +180,10 @@ sound_play_thread(void* p) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_channels failed");
   }
-  ret = snd_pcm_hw_params_set_buffer_size(playback_handle, hw_params, 512);
+  /* Buffer size is in frames, not bytes. */
+  ret = snd_pcm_hw_params_set_buffer_size(playback_handle,
+                                          hw_params,
+                                          p_sound->buffer_size);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_buffer_size failed");
   }
@@ -201,14 +208,14 @@ sound_play_thread(void* p) {
     errx(1, "snd_pcm_hw_params_get_rate failed");
   }
   if (tmp != p_sound->sample_rate) {
-    errx(1, "sample rate is not %zu\n", p_sound->sample_rate);
+    errx(1, "sample rate is not %zu", p_sound->sample_rate);
   }
   ret = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_buffer_size failed");
   }
-  if (buffer_size != 512) {
-    errx(1, "buffer size is not 512");
+  if (buffer_size != p_sound->buffer_size) {
+    errx(1, "buffer size is not %zu", p_sound->buffer_size);
   }
   ret = snd_pcm_hw_params_get_periods(hw_params, &periods, NULL);
   if (ret != 0) {
@@ -264,9 +271,10 @@ sound_play_thread(void* p) {
 }
 
 struct sound_struct*
-sound_create() {
+sound_create(struct bbc_options* p_options) {
   size_t i;
   double volume;
+  int option;
 
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
@@ -275,7 +283,21 @@ sound_create() {
   (void) memset(p_sound, '\0', sizeof(struct sound_struct));
 
   p_sound->sample_rate = 44100;
-  p_sound->host_frames_per_fill = 128;
+  if (util_get_int_option(&option, p_options->p_opt_flags, "sound:rate=")) {
+    p_sound->sample_rate = option;
+  }
+  p_sound->buffer_size = 512;
+  /* This check makes a sample rate of 96kHz work reasonably by upping the
+   * default buffer size. At 512 samples per callback @ 96kHz, it's hard for
+   * the audio system to keep up.
+   */
+  if (p_sound->sample_rate > 50000) {
+    p_sound->buffer_size = 1024;
+  }
+  if (util_get_int_option(&option, p_options->p_opt_flags, "sound:buffer=")) {
+    p_sound->buffer_size = option;
+  }
+  p_sound->host_frames_per_fill = (p_sound->buffer_size / 4);
   p_sound->sn_ticks_per_host_tick = ((double) 250000.0 /
                                      (double) p_sound->sample_rate);
   p_sound->sn_frames_per_fill = ceil(p_sound->sn_ticks_per_host_tick *
