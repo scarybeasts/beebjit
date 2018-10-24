@@ -358,7 +358,7 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
     } else {
       uint16_t old_period = p_sound->period[channel];
       p_sound->period[channel] = (data & 0x0f);
-      p_sound->period[channel] |= (old_period & 0x0f);
+      p_sound->period[channel] |= (old_period & 0x3f0);
     }
   }
 printf("channel, period, vol: %d %d %d\n", channel, p_sound->period[channel], p_sound->volume[channel]);
