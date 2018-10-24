@@ -10,7 +10,7 @@
 #include <alsa/asoundlib.h>
 
 enum {
-  /* 0 noise channel, 1-3 square wave tone channels. */
+  /* 0-2 square wave tone channels, 3 noise channel. */
   k_sound_num_channels = 4,
 };
 
@@ -33,6 +33,7 @@ struct sound_struct {
   short* p_sn_frames;
   uint16_t counter[k_sound_num_channels];
   char output[k_sound_num_channels];
+  uint16_t noise_rng;
 
   /* Register values / interface from the host. */
   int write_status;
@@ -57,20 +58,41 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
   /* These are written by another thread. */
   volatile short* p_volumes = &p_sound->volume[0];
   volatile uint16_t* p_periods = &p_sound->period[0];
+  volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
+  volatile int* p_noise_type = &p_sound->noise_type;
 
   for (i = 0; i < sn_frames_per_fill; ++i) {
     short sample = 0;
-    for (channel = 1; channel <= 3; ++channel) {
+    for (channel = 0; channel <= 3; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
       short sample_component = p_volumes[channel];
       uint16_t counter = p_counters[channel];
       char output = p_outputs[channel];
+
       counter--;
       if (counter == 0) {
         counter = p_periods[channel];
-        output = -output;
+        if (channel == 3) {
+          uint16_t noise_rng = *p_noise_rng;
+          if (*p_noise_type == 0) {
+            noise_rng >>= 1;
+            if (noise_rng == 0) {
+              noise_rng = (1 << 14);
+            }
+          } else {
+            int bit = ((noise_rng & 1) ^ ((noise_rng & 2) >> 1));
+            noise_rng = ((noise_rng >> 1) | (bit << 14));
+          }
+          *p_noise_rng = noise_rng;
+          output = 1;
+          if (!(noise_rng & 1)) {
+            output = -1;
+          }
+        } else {
+          output = -output;
+        }
         p_outputs[channel] = output;
       }
       p_counters[channel] = counter;
@@ -279,6 +301,7 @@ sound_create() {
   p_sound->noise_frequency = 0;
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
+  p_sound->noise_rng = 0x4000;
 
   for (i = 0; i <= 3; ++i) {
     p_sound->volume[i] = 0;
@@ -353,14 +376,25 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
   } else {
     int is_volume = !!(data & 0x10);
     /* Set channel plus some form of update. */
-    channel = (3 - ((data >> 5) & 0x03));
+    channel = ((data >> 5) & 0x03);
     p_sound->last_channel = channel;
     if (is_volume) {
       unsigned char volume_index = (0x0f - (data & 0x0f));
       p_sound->volume[channel] = p_sound->volumes[volume_index];
-    } else if (channel == 0) {
-      p_sound->noise_frequency = (data & 0x03);
+    } else if (channel == 3) {
+      int noise_frequency = (data & 0x03);
+      p_sound->noise_frequency = noise_frequency;
+      if (noise_frequency == 0) {
+        new_period = 0x20;
+      } else if (noise_frequency == 1) {
+        new_period = 0x40;
+      } else if (noise_frequency == 2) {
+        new_period = 0x80;
+      } else {
+        new_period = (p_sound->period[2] << 1);
+      }
       p_sound->noise_type = ((data & 0x04) >> 2);
+      p_sound->noise_rng = 0x4000;
     } else {
       uint16_t old_period = p_sound->period[channel];
       new_period = (data & 0x0f);
@@ -372,6 +406,9 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
       new_period = 0x400;
     }
     p_sound->period[channel] = new_period;
+    if (channel == 2 && p_sound->noise_frequency == 3) {
+      p_sound->period[3] = (new_period << 1);
+    }
   }
 printf("channel, period, vol: %d %d %d\n", channel, p_sound->period[channel], p_sound->volume[channel]);
 }
