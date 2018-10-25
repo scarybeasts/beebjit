@@ -136,9 +136,6 @@ main(int argc, const char* argv[]) {
 
   bbc_set_mode(p_bbc, mode);
 
-  if (load_name != NULL) {
-    state_load(p_bbc, load_name);
-  }
   if (pc != 0) {
     bbc_set_pc(p_bbc, pc);
   }
@@ -153,6 +150,11 @@ main(int argc, const char* argv[]) {
     if (sideways_ram[i]) {
       bbc_make_sideways_ram(p_bbc, i);
     }
+  }
+
+  /* Load the state after setting up the ROMs, so that ROM selection works. */
+  if (load_name != NULL) {
+    state_load(p_bbc, load_name);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);

@@ -210,8 +210,13 @@ bbc_read_callback(void* p, uint16_t addr) {
   return 0xFE;
 }
 
-static void
-bbc_sideways_select(struct bbc_struct* p_bbc, size_t index) {
+unsigned char
+bbc_get_romsel(struct bbc_struct* p_bbc) {
+  return p_bbc->romsel;
+}
+
+void
+bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
   /* The broad approach here is: slower sideways bank switching in order to
    * enable faster memory accesses at runtime.
    * Other emulators (jsbeeb, b-em) appear to make a different tradeoff: faster
@@ -597,7 +602,9 @@ bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
 }
 
 void
-bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
+bbc_load_rom(struct bbc_struct* p_bbc,
+             unsigned char index,
+             unsigned char* p_rom_src) {
   unsigned char* p_rom_dest = p_bbc->p_mem_sideways;
 
   assert(index < k_bbc_num_roms);
@@ -607,7 +614,7 @@ bbc_load_rom(struct bbc_struct* p_bbc, size_t index, unsigned char* p_rom_src) {
 }
 
 void
-bbc_make_sideways_ram(struct bbc_struct* p_bbc, size_t index) {
+bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index) {
   assert(index < k_bbc_num_roms);
   p_bbc->is_sideways_ram_bank[index] = 1;
 }

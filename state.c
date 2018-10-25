@@ -132,6 +132,8 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
+  bbc_sideways_select(p_bbc, p_bem->fe30);
+
   bbc_set_registers(p_bbc,
                     p_bem->a,
                     p_bem->x,
@@ -228,7 +230,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   (void) memcpy(p_bem->signature, "BEMSNAP1", 8);
   p_bem->model = 3;
 
-  p_bem->fe30 = 0x0f;
+  p_bem->fe30 = bbc_get_romsel(p_bbc);
   p_bem->fe34 = 0x00;
 
   (void) memcpy(p_bem->ram, p_mem_read, k_bbc_ram_size);
