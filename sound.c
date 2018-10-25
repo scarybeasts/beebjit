@@ -439,3 +439,11 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
     }
   }
 }
+
+void
+sound_set_registers(struct sound_struct* p_sound, unsigned char* p_volumes) {
+  size_t i;
+  for (i = 0; i <= 3; ++i) {
+    p_sound->volume[i] = p_sound->volumes[p_volumes[i]];
+  }
+}

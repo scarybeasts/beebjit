@@ -8,6 +8,9 @@ struct sound_struct* sound_create(struct bbc_options* p_options);
 void sound_destroy(struct sound_struct* p_sound);
 void sound_start_playing(struct sound_struct* p_sound);
 
+void sound_set_registers(struct sound_struct* p_sound,
+                         unsigned char* p_volumes);
+
 void sound_apply_write_bit_and_data(struct sound_struct* p_sound,
                                     int write,
                                     unsigned char data);

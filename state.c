@@ -1,6 +1,7 @@
 #include "state.h"
 
 #include "bbc.h"
+#include "sound.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
@@ -80,10 +81,24 @@ struct bem_v2x {
   unsigned char crtc_vc;
   unsigned char crtc_sc;
   unsigned char crtc_hc;
-  unsigned char crtc_ma_high;
   unsigned char crtc_ma_low;
-  unsigned char crtc_maback_high;
+  unsigned char crtc_ma_high;
   unsigned char crtc_maback_low;
+  unsigned char crtc_maback_high;
+  /* Video. */
+  unsigned char video_scrx_low;
+  unsigned char video_scrx_high;
+  unsigned char video_scry_low;
+  unsigned char video_scry_high;
+  unsigned char video_oddclock;
+  int vidclocks;
+  /* Sound: sn76489 . */
+  uint32_t sn_latch[4];
+  uint32_t sn_count[4];
+  uint32_t sn_stat[4];
+  unsigned char sn_vol[4];
+  unsigned char sn_noise;
+  uint16_t sn_shift;
 } __attribute__((packed));
 
 static const size_t k_snapshot_size = 327885;
@@ -116,7 +131,10 @@ void
 state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
+  unsigned char volumes[4];
+  size_t i;
 
+  struct sound_struct* p_sound = bbc_get_sound(p_bbc);
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
@@ -194,6 +212,18 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->uservia_t2l,
                     p_bem->uservia_t1hit,
                     p_bem->uservia_t2hit);
+
+  /* b-em stores channels in the inverse order: channel 0 is noise. We use
+   * channel 3 is noise, matching the raw registers.
+   */
+  for (i = 0; i <= 3; ++i) {
+    volumes[i] = p_bem->sn_vol[3 - i];
+  }
+  /* NOTE: b-em doesn't serialize the "last channel updated" state, so it's not
+   * possible to fully reconstruct state.
+   */
+  /* TODO: restore more than just volumes. */
+  sound_set_registers(p_sound, &volumes[0]);
 }
 
 void
