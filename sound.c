@@ -67,7 +67,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
 
   for (i = 0; i < sn_frames_per_fill; ++i) {
     short sample = 0;
-    for (channel = 0; channel <= 3; ++channel) {
+    for (channel = 0; channel < 4; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
@@ -75,7 +75,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
       uint16_t counter = p_counters[channel];
       char output = p_outputs[channel];
 
-      counter--;
+      counter = ((counter - 1) & 0x3ff);
       if (counter == 0) {
         counter = p_periods[channel];
         if (channel == 3) {
@@ -120,10 +120,14 @@ sound_fill_buffer(struct sound_struct* p_sound) {
   double resample_step = p_sound->sn_ticks_per_host_tick;
   double resample_index = 0;
 
+  /* Generate the 250kHz signal from the sn76489. */
   sound_fill_sn76489_buffer(p_sound);
 
+  /* Downsample it to host device rate via simple nearest integer index
+   * selection.
+   */
   for (i = 0; i < host_frames_per_fill; ++i) {
-    p_host_frames[i] = p_sn_frames[(size_t) resample_index];
+    p_host_frames[i] = p_sn_frames[(size_t) round(resample_index)];
     resample_index += resample_step;
   }
 }
@@ -277,6 +281,7 @@ sound_create(struct bbc_options* p_options) {
   size_t i;
   double volume;
   int option;
+  short max_volume;
 
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
@@ -332,22 +337,40 @@ sound_create(struct bbc_options* p_options) {
     volume *= pow(10.0, -0.1);
   } while (i > 0);
 
-  for (i = 0; i <= 3; ++i) {
-    short volume = p_sound->volumes[8];
-    if (i == 3) {
-      volume = 0;
-    }
-    p_sound->volume[i] = volume;
-    p_sound->period[i] = 0x400;
-    p_sound->counter[i] = 0x400;
-    p_sound->output[i] = 1;
+  max_volume = p_sound->volumes[0xf];
+
+  /* EMU: initial sn76489 state and behavior is something no two sources seem
+   * to agree on. It doesn't matter a huge amount for BBC emulation because
+   * MOS sets the sound channels up on boot. But the intial BBC power-on
+   * noise does arise from power-on sn76489 state.
+   * I'm choosing a strategy that sets up the registers as if they're all zero
+   * initialized. This leads to max volume, lowest tone in all channels, and
+   * the noise channel is periodic.
+   */
+  for (i = 0; i < 4; ++i) {
+    /* NOTE: b-em uses volume of 8, mid-way volume. */
+    p_sound->volume[i] = max_volume;
+    /* NOTE: b-em == 0x3ff, b2 == 0x3ff, jsbeeb == 0 -> 0x3ff, MAME == 0 -> 0.
+     * I'm willing to bet jsbeeb is closest but still wrong. jsbeeb flips the
+     * output signal to positive immediately as it traverses -1.
+     * beebjit is 0 -> 0x3ff, via direct integer underflow, with no output
+     * signal flip. This means our first waveform will start negative, sort of
+     * matching MAME which notes the sn76489 has "inverted" output.
+     */
+    p_sound->period[i] = 0;
+    /* NOTE: b-em randomizes these counters, maybe to get a phase effect? */
+    p_sound->counter[i] = 0;
+    p_sound->output[i] = -1;
   }
 
-  p_sound->write_status = 0;
+  /* NOTE: b-em sets this to 3, selecting channel 2 period? */
   p_sound->noise_frequency = 0;
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
-  p_sound->noise_rng = (1 << 14);
+  /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
+  p_sound->noise_rng = 0;
+
+  p_sound->write_status = 0;
 
   return p_sound;
 }
@@ -432,9 +455,6 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
   }
 
   if (new_period != -1) {
-    if (new_period == 0) {
-      new_period = 0x400;
-    }
     p_sound->period[channel] = new_period;
     if (channel == 2 && p_sound->noise_frequency == 3) {
       p_sound->period[3] = (new_period << 1);
@@ -445,7 +465,7 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
 void
 sound_set_registers(struct sound_struct* p_sound, unsigned char* p_volumes) {
   size_t i;
-  for (i = 0; i <= 3; ++i) {
+  for (i = 0; i < 4; ++i) {
     p_sound->volume[i] = p_sound->volumes[p_volumes[i]];
   }
 }
