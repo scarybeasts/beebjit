@@ -150,6 +150,10 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    bbc_load_rom(p_bbc, i, (p_bem->rom + (i * k_bbc_rom_size)));
+  }
+
   bbc_sideways_select(p_bbc, p_bem->fe30);
 
   bbc_set_registers(p_bbc,
