@@ -395,40 +395,42 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
     return;
   }
 
-  if (!(data & 0x80)) {
+  if (data & 0x80) {
+    channel = ((data >> 5) & 0x03);
+    p_sound->last_channel = channel;
+  } else {
     channel = p_sound->last_channel;
-    /* Update of most significant bits of period for the last channel set. */
+  }
+
+  if ((data & 0x90) == 0x90) {
+    /* Update volume of channel. */
+    unsigned char volume_index = (0x0f - (data & 0x0f));
+    p_sound->volume[channel] = p_sound->volumes[volume_index];
+  } else if (channel == 3) {
+    /* For the noise channel, we only ever update the lower bits. */
+    int noise_frequency = (data & 0x03);
+    p_sound->noise_frequency = noise_frequency;
+    if (noise_frequency == 0) {
+      new_period = 0x20;
+    } else if (noise_frequency == 1) {
+      new_period = 0x40;
+    } else if (noise_frequency == 2) {
+      new_period = 0x80;
+    } else {
+      new_period = (p_sound->period[2] << 1);
+    }
+    p_sound->noise_type = ((data & 0x04) >> 2);
+    p_sound->noise_rng = (1 << 14);
+  } else if (data & 0x80) {
+    uint16_t old_period = p_sound->period[channel];
+    new_period = (data & 0x0f);
+    new_period |= (old_period & 0x3f0);
+  } else {
     uint16_t old_period = p_sound->period[channel];
     new_period = ((data & 0x3f) << 4);
     new_period |= (old_period & 0x0f);
-  } else {
-    int is_volume = !!(data & 0x10);
-    /* Set channel plus some form of update. */
-    channel = ((data >> 5) & 0x03);
-    p_sound->last_channel = channel;
-    if (is_volume) {
-      unsigned char volume_index = (0x0f - (data & 0x0f));
-      p_sound->volume[channel] = p_sound->volumes[volume_index];
-    } else if (channel == 3) {
-      int noise_frequency = (data & 0x03);
-      p_sound->noise_frequency = noise_frequency;
-      if (noise_frequency == 0) {
-        new_period = 0x20;
-      } else if (noise_frequency == 1) {
-        new_period = 0x40;
-      } else if (noise_frequency == 2) {
-        new_period = 0x80;
-      } else {
-        new_period = (p_sound->period[2] << 1);
-      }
-      p_sound->noise_type = ((data & 0x04) >> 2);
-      p_sound->noise_rng = (1 << 14);
-    } else {
-      uint16_t old_period = p_sound->period[channel];
-      new_period = (data & 0x0f);
-      new_period |= (old_period & 0x3f0);
-    }
   }
+
   if (new_period != -1) {
     if (new_period == 0) {
       new_period = 0x400;
