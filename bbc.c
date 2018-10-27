@@ -197,6 +197,7 @@ bbc_read_callback(void* p, uint16_t addr) {
      */
     break;
   case k_addr_floppy:
+  case (k_addr_floppy + 1):
     return intel_fdc_read(p_bbc->p_intel_fdc, addr);
   case k_addr_adc_status:
     /* No ADC attention needed (bit 6). */
