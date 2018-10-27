@@ -34,6 +34,12 @@ enum {
   k_intel_fdc_register_drive_out = 0x23,
 };
 
+enum {
+  k_intel_fdc_sector_size = 256,
+  k_intel_fdc_sectors_per_track = 10,
+  k_intel_fdc_num_tracks = 80,
+};
+
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
   uint8_t status;
@@ -46,6 +52,9 @@ struct intel_fdc_struct {
   uint8_t parameters_needed;
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
+  uint8_t disc_data[2][k_intel_fdc_num_tracks *
+                       k_intel_fdc_sectors_per_track *
+                       k_intel_fdc_num_tracks];
 };
 
 struct intel_fdc_struct*
@@ -69,6 +78,23 @@ intel_fdc_create(struct state_6502* p_state_6502) {
   p_intel_fdc->parameters_needed = 0;
 
   return p_intel_fdc;
+}
+
+void
+intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
+                   int drive,
+                   uint8_t* p_data,
+                   size_t length) {
+  size_t max_length = (k_intel_fdc_num_tracks *
+                       k_intel_fdc_sectors_per_track *
+                       k_intel_fdc_num_tracks);
+
+  assert(drive == 0 || drive == 1);
+  if (length > max_length) {
+    length = max_length;
+  }
+
+  (void) memcpy(&p_fdc->disc_data[drive], p_data, length);
 }
 
 void

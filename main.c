@@ -16,8 +16,9 @@
 int
 main(int argc, const char* argv[]) {
   size_t read_ret;
-  unsigned char os_rom[k_bbc_rom_size];
-  unsigned char load_rom[k_bbc_rom_size];
+  uint8_t os_rom[k_bbc_rom_size];
+  uint8_t load_rom[k_bbc_rom_size];
+  uint8_t disc_buffer[k_bbc_max_disc_size];
   int i;
   struct x_struct* p_x;
   struct bbc_struct* p_bbc;
@@ -29,6 +30,7 @@ main(int argc, const char* argv[]) {
 
   const char* os_rom_name = "roms/os12.rom";
   const char* load_name = NULL;
+  const char* disc_load_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
   int debug_flag = 0;
@@ -65,6 +67,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (!strcmp(arg, "-load")) {
         load_name = val;
+        ++i;
+      } else if (!strcmp(arg, "-disc")) {
+        disc_load_name = val;
         ++i;
       } else if (!strcmp(arg, "-opt")) {
         opt_flags = val;
@@ -156,6 +161,12 @@ main(int argc, const char* argv[]) {
   /* Load the state after setting up the ROMs, so that ROM selection works. */
   if (load_name != NULL) {
     state_load(p_bbc, load_name);
+  }
+
+  /* Load the disc into the drive! */
+  if (disc_load_name != NULL) {
+    read_ret = util_file_read(disc_buffer, k_bbc_max_disc_size, disc_load_name);
+    bbc_load_disc(p_bbc, disc_buffer, read_ret);
   }
 
   p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);

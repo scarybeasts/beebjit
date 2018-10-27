@@ -36,6 +36,9 @@ enum {
   k_message_vsync = 2,
   k_message_render_done = 3,
 };
+enum {
+  k_bbc_max_disc_size = (1024 * 1024),
+};
 
 struct bbc_struct;
 
@@ -106,6 +109,8 @@ int bbc_is_key_pressed(struct bbc_struct* p_bbc,
                        unsigned char col);
 int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
 int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
+
+void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
 
 int bbc_get_client_fd(struct bbc_struct* p_bbc);
 void bbc_client_send_message(struct bbc_struct* p_bbc, char message);
