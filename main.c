@@ -27,7 +27,7 @@ main(int argc, const char* argv[]) {
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
 
-  const char* os_rom_name = "os12.rom";
+  const char* os_rom_name = "roms/os12.rom";
   const char* load_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
@@ -40,7 +40,8 @@ main(int argc, const char* argv[]) {
   int pc = 0;
   int mode = k_bbc_mode_jit;
 
-  rom_names[k_bbc_default_lang_rom_slot] = "basic.rom";
+  rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
+  rom_names[k_bbc_default_lang_rom_slot] = "roms/basic.rom";
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];

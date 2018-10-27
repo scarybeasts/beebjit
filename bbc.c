@@ -4,6 +4,7 @@
 #include "bbc_timing.h"
 #include "debug.h"
 #include "defs_6502.h"
+#include "intel_fdc.h"
 #include "interp.h"
 #include "jit.h"
 #include "memory_access.h"
@@ -36,6 +37,7 @@ enum {
   k_addr_ram_select = 0xFE34,
   k_addr_sysvia = 0xFE40,
   k_addr_uservia = 0xFE60,
+  k_addr_floppy = 0xFE80,
   k_addr_adc_status = 0xFEC0,
   k_addr_adc_high = 0xFEC1,
   k_addr_adc_low = 0xFEC2,
@@ -82,6 +84,7 @@ struct bbc_struct {
   struct via_struct* p_user_via;
   struct sound_struct* p_sound;
   struct video_struct* p_video;
+  struct intel_fdc_struct* p_intel_fdc;
   struct jit_struct* p_jit;
   struct interp_struct* p_interp;
   struct debug_struct* p_debug;
@@ -193,6 +196,8 @@ bbc_read_callback(void* p, uint16_t addr) {
      * (On a B+ / Master, it does shadow RAM trickery.)
      */
     break;
+  case k_addr_floppy:
+    return intel_fdc_read(p_bbc->p_intel_fdc, addr);
   case k_addr_adc_status:
     /* No ADC attention needed (bit 6). */
     return 0;
@@ -331,6 +336,10 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
     /* Ignore RAM select. Doesn't do anything on a Model B.
      * (On a B+ / Master, it does shadow RAM trickery.)
      */
+    break;
+  case k_addr_floppy:
+  case (k_addr_floppy + 1):
+    intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
     break;
   case k_addr_adc_status:
     printf("ignoring ADC status write\n");
@@ -533,6 +542,11 @@ bbc_create(unsigned char* p_os_rom,
                                 via_get_peripheral_b_ptr(p_bbc->p_system_via));
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
+  }
+
+  p_bbc->p_intel_fdc = intel_fdc_create();
+  if (p_bbc->p_intel_fdc == NULL) {
+    errx(1, "intel_fdc_create failed");
   }
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
