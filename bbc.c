@@ -420,6 +420,11 @@ bbc_sync_timer_tick(void* p) {
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
+
+  /* Tick the floppy controller -- it may wish to raise an NMI if it's in
+   * the middle of reading data from disc.
+   */
+  intel_fdc_timer_tick(p_bbc->p_intel_fdc);
 }
 
 struct bbc_struct*
@@ -545,7 +550,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create();
+  p_bbc->p_intel_fdc = intel_fdc_create(&p_bbc->state_6502);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }

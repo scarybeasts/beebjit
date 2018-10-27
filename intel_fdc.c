@@ -1,5 +1,7 @@
 #include "intel_fdc.h"
 
+#include "state_6502.h"
+
 #include <assert.h>
 #include <err.h>
 #include <stdlib.h>
@@ -33,6 +35,7 @@ enum {
 };
 
 struct intel_fdc_struct {
+  struct state_6502* p_state_6502;
   uint8_t status;
   uint8_t result;
   uint8_t drive_0_or_1;
@@ -46,13 +49,15 @@ struct intel_fdc_struct {
 };
 
 struct intel_fdc_struct*
-intel_fdc_create() {
+intel_fdc_create(struct state_6502* p_state_6502) {
   struct intel_fdc_struct* p_intel_fdc =
       malloc(sizeof(struct intel_fdc_struct));
   if (p_intel_fdc == NULL) {
     errx(1, "couldn't allocate intel_fdc_struct");
   }
   (void) memset(p_intel_fdc, '\0', sizeof(struct intel_fdc_struct));
+
+  p_intel_fdc->p_state_6502 = p_state_6502;
 
   p_intel_fdc->status = 0;
   p_intel_fdc->result = 0;
@@ -200,4 +205,9 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
   default:
     assert(0);
   }
+}
+
+void
+intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
+  (void) p_intel_fdc;
 }
