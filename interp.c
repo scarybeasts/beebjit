@@ -25,15 +25,11 @@ struct interp_struct {
   int async_tick;
 };
 
-static unsigned char s_bin_to_bcd[256];
-
 struct interp_struct*
 interp_create(struct state_6502* p_state_6502,
               struct memory_access* p_memory_access,
               struct bbc_timing* p_timing,
               struct bbc_options* p_options) {
-  size_t i;
-
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
     errx(1, "couldn't allocate interp_struct");
@@ -45,18 +41,6 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->p_timing = p_timing;
   p_interp->p_options = p_options;
   p_interp->async_tick = 0;
-
-  for (i = 0; i < 256; ++i) {
-    unsigned char hi = (i & 0xf0);
-    unsigned char lo = (i & 0x0f);
-    if (hi >= 0xa0) {
-      hi -= 0xa0;
-    }
-    if (lo >= 0x0a) {
-      lo -= 0x0a;
-    }
-    s_bin_to_bcd[i] = (hi | lo);
-  }
 
   return p_interp;
 }
