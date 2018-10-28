@@ -82,7 +82,7 @@ unsigned char g_optype_sets_register[k_6502_op_num_types] =
 unsigned char g_optypes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
-  k_brk, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_slo,
+  k_brk, k_ora, k_kil, k_unk, k_nop, k_ora, k_asl, k_slo,
   k_php, k_ora, k_asl, k_unk, k_unk, k_ora, k_asl, k_unk,
   /* 0x10 */
   k_bpl, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_unk,
@@ -127,7 +127,7 @@ unsigned char g_optypes[k_6502_op_num_opcodes] =
   k_cpx, k_sbc, k_unk, k_unk, k_cpx, k_sbc, k_inc, k_unk,
   k_inx, k_sbc, k_nop, k_unk, k_cpx, k_sbc, k_inc, k_unk,
   /* 0xf0 */
-  k_beq, k_sbc, k_kil, k_unk, k_unk, k_sbc, k_inc, k_unk,
+  k_beq, k_sbc, k_kil, k_unk, k_nop, k_sbc, k_inc, k_unk,
   k_sed, k_sbc, k_unk, k_unk, k_unk, k_sbc, k_inc, k_unk,
 };
 
@@ -179,14 +179,14 @@ unsigned char g_opmodes[k_6502_op_num_opcodes] =
   k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0xf0 */
-  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
 unsigned char g_opcycles[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
-  7, 6, 0, 0, 0, 3, 5, 5,
+  7, 6, 0, 0, 3, 3, 5, 5,
   3, 2, 2, 0, 0, 4, 6, 0,
   /* 0x10 */
   2, 5, 0, 0, 0, 4, 6, 0,
@@ -231,7 +231,7 @@ unsigned char g_opcycles[k_6502_op_num_opcodes] =
   2, 6, 0, 0, 3, 3, 5, 0,
   2, 2, 2, 0, 4, 4, 6, 0,
   /* 0xf0 */
-  2, 5, 0, 0, 0, 4, 6, 0,
+  2, 5, 0, 0, 4, 4, 6, 0,
   2, 4, 0, 0, 0, 4, 7, 0,
 };
 
