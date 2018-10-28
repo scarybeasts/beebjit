@@ -18,7 +18,6 @@ enum {
   k_jit_flag_dynamic_operand = 4,
   k_jit_flag_self_modifying_all = 8,
   k_jit_flag_batch_ops = 16,
-  k_jit_flag_elim_nz_flag_tests = 32,
 };
 
 struct jit_struct* jit_create(struct state_6502* p_state_6502,

@@ -2996,8 +2996,6 @@ jit_at_addr(struct jit_struct* p_jit,
   int curr_overflow_flag_location = k_reg;
   int jumps_always = 0;
   int emit_dynamic_operand = 0;
-  int elim_nz_flag_tests = 0;
-  int elim_co_flag_tests = 1;
   int log_self_modify = 0;
   int is_compilation_pending = 0;
   int has_code = 0;
@@ -3015,9 +3013,6 @@ jit_at_addr(struct jit_struct* p_jit,
 
   if (jit_flags & k_jit_flag_dynamic_operand) {
     emit_dynamic_operand = 1;
-  }
-  if (jit_flags & k_jit_flag_elim_nz_flag_tests) {
-    elim_nz_flag_tests = 1;
   }
   if (!(jit_flags & k_jit_flag_batch_ops)) {
     max_num_ops = 1;
@@ -3145,9 +3140,7 @@ jit_at_addr(struct jit_struct* p_jit,
      * Must be done before the NZ flags sync because that trashes the carry
      * flag.
      */
-    if ((g_carry_flag_needed_in_reg[optype] ||
-         emit_debug ||
-         !elim_co_flag_tests) &&
+    if ((g_carry_flag_needed_in_reg[optype] || emit_debug) &&
         effective_carry_flag_location != k_reg) {
       if (effective_carry_flag_location == k_flags) {
         jit_emit_intel_to_6502_carry(p_single_buf);
@@ -3163,9 +3156,7 @@ jit_at_addr(struct jit_struct* p_jit,
      * Must be done before the NZ flags sync because that trashes the overflow
      * flag.
      */
-    if ((g_overflow_flag_needed_in_reg[optype] ||
-         emit_debug ||
-         !elim_co_flag_tests) &&
+    if ((g_overflow_flag_needed_in_reg[optype] || emit_debug) &&
         curr_overflow_flag_location != k_reg) {
       jit_emit_intel_to_6502_overflow(p_single_buf);
       if (new_overflow_flag_location == 0) {
@@ -3174,7 +3165,7 @@ jit_at_addr(struct jit_struct* p_jit,
     }
 
     /* See if we need to sync the NZ flags from 6502 register to host flags. */
-    if ((g_nz_flags_needed[optype] || emit_debug || !elim_nz_flag_tests) &&
+    if ((g_nz_flags_needed[optype] || emit_debug) &&
         curr_nz_flags_location != k_flags) {
       jit_emit_do_zn_flags(p_single_buf, curr_nz_flags_location - 1);
       if (new_nz_flags_location == 0) {
@@ -3776,7 +3767,6 @@ jit_create(struct state_6502* p_state_6502,
   jit_set_flag(p_jit, k_jit_flag_self_modifying_abs);
   jit_set_flag(p_jit, k_jit_flag_dynamic_operand);
   jit_set_flag(p_jit, k_jit_flag_batch_ops);
-  jit_set_flag(p_jit, k_jit_flag_elim_nz_flag_tests);
   if (strstr(p_opt_flags, "jit:self-mod-all")) {
     jit_set_flag(p_jit, k_jit_flag_self_modifying_all);
   }
@@ -3791,9 +3781,6 @@ jit_create(struct state_6502* p_state_6502,
   }
   if (strstr(p_opt_flags, "jit:no-batch-ops")) {
     jit_clear_flag(p_jit, k_jit_flag_batch_ops);
-  }
-  if (strstr(p_opt_flags, "jit:no-elim-nz-flag-tests")) {
-    jit_clear_flag(p_jit, k_jit_flag_elim_nz_flag_tests);
   }
 
   log_flags = 0;
