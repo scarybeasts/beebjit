@@ -2,8 +2,8 @@
 
 void
 state_6502_reset(struct state_6502* p_state_6502) {
-  /* From https://www.pagetable.com/?p=410, initial 6502 state is not all zero.
-   * Also, see http://www.visual6502.org/JSSim/expert.html.
+  /* EMU: from https://www.pagetable.com/?p=410, initial 6502 state is not all
+   * zero. Also, see http://www.visual6502.org/JSSim/expert.html.
    */
   state_6502_set_registers(p_state_6502,
                            0xAA,
