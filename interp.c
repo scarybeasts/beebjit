@@ -423,6 +423,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_txs: s = x; break;
     case k_tya: a = y; break;
     default:
+      printf("Unknown opcode: %x @ post-inc PC $%.4x\n", opcode, pc);
       assert(0);
     }
 
