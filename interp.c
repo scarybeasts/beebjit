@@ -455,15 +455,36 @@ interp_enter(struct interp_struct* p_interp) {
         cycles++;
       }
     }
-    if (*p_irq && !intf) {
-      p_stack[s--] = (pc >> 8);
-      p_stack[s--] = (pc & 0xff);
-      v = interp_get_flags(zf, nf, cf, of, df, intf);
-      v |= (1 << k_flag_always_set);
-      p_stack[s--] = v;
-      pc = (p_mem_read[k_6502_vector_irq] |
-            (p_mem_read[k_6502_vector_irq + 1] << 8));
-      intf = 1;
+    if (*p_irq) {
+      uint16_t vector = 0;
+      /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
+       * the NMI should fire. This is confirmed via visual 6502; see:
+       * http://forum.6502.org/viewtopic.php?t=1797
+       * Note that jsbeeb, b-em and beebem all appear to get this wrong, they
+       * will run the 7 cycle interrupt sequence twice in a row, which would
+       * be visible as stack and timing artifacts. b2 looks likely to be
+       * correct as it is a much more low level 6502 emulation.
+       */
+      if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+        vector = k_6502_vector_nmi;
+      } else if (!intf) {
+        vector = k_6502_vector_irq;
+      }
+      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt
+       * sequence for a non-NMI interrupt, the NMI should take precendence.
+       * Probably not worth emulating unless we can come up with a
+       * deterministic way to fire an NMI to trigger this.
+       */
+      if (vector) {
+        p_stack[s--] = (pc >> 8);
+        p_stack[s--] = (pc & 0xff);
+        v = interp_get_flags(zf, nf, cf, of, df, intf);
+        v |= (1 << k_flag_always_set);
+        p_stack[s--] = v;
+        pc = (p_mem_read[vector] | (p_mem_read[(uint16_t) (vector + 1)] << 8));
+        intf = 1;
+        cycles += 7;
+      }
     }
   }
 }
