@@ -906,6 +906,17 @@ debug_callback(void* p) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {
       debug_dump_via(p_bbc, k_via_user);
+    } else if (!strcmp(input_buf, "r")) {
+      printf("[%.4x] %.4x: %-14s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
+             block_6502,
+             reg_pc,
+             opcode_buf,
+             reg_a,
+             reg_x,
+             reg_y,
+             reg_s,
+             flags_buf,
+             extra_buf);
     } else if (!strcmp(input_buf, "?")) {
       printf("q                : quit\n");
       printf("c                : continue\n");
@@ -925,6 +936,7 @@ debug_callback(void* p) {
       printf("{a,x,y,pc}=<val> : set register to <val>\n");
       printf("sys              : show system VIA registers\n");
       printf("user             : show user VIA registers\n");
+      printf("r                : show regular registers\n");
     } else {
       printf("???\n");
     }
