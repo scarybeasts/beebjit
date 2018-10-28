@@ -100,7 +100,7 @@ static const unsigned char g_nz_flags_location[k_6502_op_num_types] = {
   k_a    , 0      , k_a    , 0      , k_y    , k_a    , k_x    , k_y    ,
   k_x    , 0      , 0      , k_x    , k_flags, k_flags, k_flags, k_flags,
   k_flags, k_flags, 0      , 0      , k_flags, k_flags, 0      , k_flags,
-  0      , 0      , 0      , k_flags, k_flags,
+  0      , 0      , 0      , k_flags, k_flags, 0      ,
 };
 
 static const unsigned char g_nz_flags_needed[k_6502_op_num_types] = {
@@ -111,7 +111,7 @@ static const unsigned char g_nz_flags_needed[k_6502_op_num_types] = {
   0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
   0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
-  1, 0, 0, 0, 0,          /* BEQ */
+  1, 0, 0, 0, 0, 0,       /* BEQ */
 };
 
 /* k_reg: CLC, PLP, ROL, SEC, RTI, ROR */
@@ -125,7 +125,7 @@ static const unsigned char g_carry_flag_location[k_6502_op_num_types] = {
   0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
   0      , 0      , 0      , 0      , k_finv , k_finv , k_finv , 0      ,
   0      , 0      , 0      , 0      , k_finv , 0      , 0      , 0      ,
-  0      , 0      , 0      , k_flags, k_flags,
+  0      , 0      , 0      , k_flags, k_flags, 0      ,
 };
 
 /* k_reg: BIT, PLP, RTI, CLV */
@@ -138,7 +138,7 @@ static const unsigned char g_overflow_flag_location[k_6502_op_num_types] = {
   0      , 0      , 0      , 0      , 0      , 0      , 0      , 0      ,
   0      , 0      , k_reg  , 0      , 0      , 0      , 0      , 0      ,
   0      , 0      , 0      , 0      , k_flags, 0      , 0      , 0      ,
-  0      , 0      , 0      , 0      , 0      ,
+  0      , 0      , 0      , 0      , 0      , 0      ,
 };
 
 /* TODO: BIT trashing carry is just an internal wart to fix. */
@@ -155,7 +155,7 @@ static const unsigned char g_carry_flag_needed_in_reg[k_6502_op_num_types] = {
   0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
   0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
-  1, 0, 1, 0, 0,          /* BEQ, SAX */
+  1, 0, 1, 0, 0, 0,       /* BEQ, SAX */
 };
 
 static const unsigned char g_overflow_flag_needed_in_reg[k_6502_op_num_types] =
@@ -167,7 +167,7 @@ static const unsigned char g_overflow_flag_needed_in_reg[k_6502_op_num_types] =
   0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
   0, 1, 0, 0, 1, 1, 1, 0, /* BCS, CPY, CMP, CPX */
   0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
-  1, 0, 1, 0, 0,          /* BEQ, SAX */
+  1, 0, 1, 0, 0, 0,       /* BEQ, SAX */
 };
 
 static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
@@ -178,7 +178,7 @@ static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 1, 1, 1, 0, /* CPY, CMP, CPX */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
-  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0,
 };
 
 struct jit_struct {
