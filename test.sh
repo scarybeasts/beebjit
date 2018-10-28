@@ -12,13 +12,13 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c
 ./make_test_rom
 
 echo 'Running JIT, debug.'
-./6502jit -os test.rom -lang '' -opt jit:self-mod-all -d -r
+./6502jit -os test.rom -opt jit:self-mod-all -d -r
 echo 'Running built-in tests.'
 ./6502jit -t
 echo 'Running JIT, opt.'
-./6502jit -os test.rom -lang '' -opt jit:self-mod-all
+./6502jit -os test.rom -opt jit:self-mod-all
 echo 'Running JIT, opt, no-batch-ops.'
-./6502jit -os test.rom -lang '' -opt jit:self-mod-all,jit:no-batch-ops
+./6502jit -os test.rom -opt jit:self-mod-all,jit:no-batch-ops
 echo 'Running interpreter.'
 ./6502jit -os test.rom -mode interp
 
