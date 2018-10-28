@@ -214,7 +214,7 @@ interp_enter(struct interp_struct* p_interp) {
 
     switch (opmode) {
     case k_nil:
-    case 0: break;
+    case 0: opmem = k_nomem; break;
     case k_acc: opreg = k_a; opmem = k_nomem; v = a; break;
     case k_imm:
     case k_rel: v = p_mem_read[pc++]; opmem = k_nomem; break;

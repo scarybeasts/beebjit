@@ -741,10 +741,25 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCA40);
 
+  /* Test for an interesting bug in the interpreter where NOP was reading the
+   * previous instruction's address.
+   * We can actually use the i8271 floppy controller for the simplest case of
+   * a read having an observable side effect.
+   */
   util_buffer_set_pos(p_buf, 0x0A40);
+  emit_LDA(p_buf, k_imm, 0x2C);
+  emit_STA(p_buf, k_abs, 0xFE80); /* Command: get drive status. */
+  emit_STA(p_buf, k_abs, 0xFE81); /* Parameter: spurious, effective no-op. */
+  emit_NOP(p_buf);                /* Should be no-op! */
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_CMP(p_buf, k_imm, 0x10);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCA80);
+
+  util_buffer_set_pos(p_buf, 0x0A80);
   emit_EXIT(p_buf);
 
-  /* Some program code that we copy to ROM at $f000 to RAM at $3000 */
+  /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
   util_buffer_set_pos(p_buf, 0x3000);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_INX(p_buf);

@@ -136,12 +136,12 @@ intel_fdc_read(struct intel_fdc_struct* p_intel_fdc, uint16_t addr) {
     return p_intel_fdc->status;
   case k_intel_fdc_result:
     intel_fdc_set_status_result(p_intel_fdc,
-                                p_intel_fdc->status & ~0x18,
+                                (p_intel_fdc->status & ~0x18),
                                 p_intel_fdc->result);
     return p_intel_fdc->result;
   case k_intel_fdc_data:
     intel_fdc_set_status_result(p_intel_fdc,
-                                p_intel_fdc->status & ~0x0C,
+                                (p_intel_fdc->status & ~0x0C),
                                 p_intel_fdc->result);
     return p_intel_fdc->data;
   default:
