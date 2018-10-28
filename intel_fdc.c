@@ -100,7 +100,7 @@ intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
                    size_t length) {
   size_t max_length = (k_intel_fdc_num_tracks *
                        k_intel_fdc_sectors_per_track *
-                       k_intel_fdc_num_tracks);
+                       k_intel_fdc_sector_size);
 
   assert(drive == 0 || drive == 1);
   if (length > max_length) {
