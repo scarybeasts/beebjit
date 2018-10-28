@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -123,8 +124,9 @@ video_mode4_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
-  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
+  uint32_t* p_palette = &p_video->palette[0];
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -134,50 +136,50 @@ video_mode4_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        unsigned char packed_pixels = *p_video_mem++;
-        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
-        unsigned char p1 = !!(packed_pixels & 0x80);
-        unsigned char p2 = !!(packed_pixels & 0x40);
-        unsigned char p3 = !!(packed_pixels & 0x20);
-        unsigned char p4 = !!(packed_pixels & 0x10);
-        unsigned char p5 = !!(packed_pixels & 0x08);
-        unsigned char p6 = !!(packed_pixels & 0x04);
-        unsigned char p7 = !!(packed_pixels & 0x02);
-        unsigned char p8 = !!(packed_pixels & 0x01);
+        uint8_t packed_pixels = *p_video_mem++;
+        uint32_t* p_x_mem = (uint32_t*) p_frame_buf;
+        uint32_t p1 = p_palette[((packed_pixels & 0x80) >> 4)];
+        uint32_t p2 = p_palette[((packed_pixels & 0x40) >> 3)];
+        uint32_t p3 = p_palette[((packed_pixels & 0x20) >> 2)];
+        uint32_t p4 = p_palette[((packed_pixels & 0x10) >> 1)];
+        uint32_t p5 = p_palette[(packed_pixels & 0x08)];
+        uint32_t p6 = p_palette[((packed_pixels & 0x04) << 1)];
+        uint32_t p7 = p_palette[((packed_pixels & 0x02) << 2)];
+        uint32_t p8 = p_palette[((packed_pixels & 0x01) << 3)];
         p_x_mem += ((y * 8) + y2) * 2 * 640;
         p_x_mem += x * 16;
-        p_x_mem[0] = ~(p1 - 1);
-        p_x_mem[1] = ~(p1 - 1);
-        p_x_mem[2] = ~(p2 - 1);
-        p_x_mem[3] = ~(p2 - 1);
-        p_x_mem[4] = ~(p3 - 1);
-        p_x_mem[5] = ~(p3 - 1);
-        p_x_mem[6] = ~(p4 - 1);
-        p_x_mem[7] = ~(p4 - 1);
-        p_x_mem[8] = ~(p5 - 1);
-        p_x_mem[9] = ~(p5 - 1);
-        p_x_mem[10] = ~(p6 - 1);
-        p_x_mem[11] = ~(p6 - 1);
-        p_x_mem[12] = ~(p7 - 1);
-        p_x_mem[13] = ~(p7 - 1);
-        p_x_mem[14] = ~(p8 - 1);
-        p_x_mem[15] = ~(p8 - 1);
-        p_x_mem[640] = ~(p1 - 1);
-        p_x_mem[641] = ~(p1 - 1);
-        p_x_mem[642] = ~(p2 - 1);
-        p_x_mem[643] = ~(p2 - 1);
-        p_x_mem[644] = ~(p3 - 1);
-        p_x_mem[645] = ~(p3 - 1);
-        p_x_mem[646] = ~(p4 - 1);
-        p_x_mem[647] = ~(p4 - 1);
-        p_x_mem[648] = ~(p5 - 1);
-        p_x_mem[649] = ~(p5 - 1);
-        p_x_mem[650] = ~(p6 - 1);
-        p_x_mem[651] = ~(p6 - 1);
-        p_x_mem[652] = ~(p7 - 1);
-        p_x_mem[653] = ~(p7 - 1);
-        p_x_mem[654] = ~(p8 - 1);
-        p_x_mem[655] = ~(p8 - 1);
+        p_x_mem[0] = p1;
+        p_x_mem[1] = p1;
+        p_x_mem[2] = p2;
+        p_x_mem[3] = p2;
+        p_x_mem[4] = p3;
+        p_x_mem[5] = p3;
+        p_x_mem[6] = p4;
+        p_x_mem[7] = p4;
+        p_x_mem[8] = p5;
+        p_x_mem[9] = p5;
+        p_x_mem[10] = p6;
+        p_x_mem[11] = p6;
+        p_x_mem[12] = p7;
+        p_x_mem[13] = p7;
+        p_x_mem[14] = p8;
+        p_x_mem[15] = p8;
+        p_x_mem[640] = p1;
+        p_x_mem[641] = p1;
+        p_x_mem[642] = p2;
+        p_x_mem[643] = p2;
+        p_x_mem[644] = p3;
+        p_x_mem[645] = p3;
+        p_x_mem[646] = p4;
+        p_x_mem[647] = p4;
+        p_x_mem[648] = p5;
+        p_x_mem[649] = p5;
+        p_x_mem[650] = p6;
+        p_x_mem[651] = p6;
+        p_x_mem[652] = p7;
+        p_x_mem[653] = p7;
+        p_x_mem[654] = p8;
+        p_x_mem[655] = p8;
       }
     }
   }
@@ -524,16 +526,20 @@ void
 video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
   unsigned char index = (val >> 4);
   unsigned char rgbf = (val & 0x0f);
+  /* Alpha. */
   unsigned int color = 0xff000000;
 
   p_video->video_palette[index] = rgbf;
 
+  /* Red. */
   if (!(rgbf & 0x1)) {
     color |= 0x00ff0000;
   }
+  /* Green. */
   if (!(rgbf & 0x2)) {
     color |= 0x0000ff00;
   }
+  /* Blue. */
   if (!(rgbf & 0x4)) {
     color |= 0x000000ff;
   }
