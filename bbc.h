@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 struct sound_struct;
+struct state_6502;
 struct via_struct;
 struct video_struct;
 
@@ -77,10 +78,10 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char flags,
                        uint16_t pc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
-void bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set);
 uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 void bbc_run_async(struct bbc_struct* p_bbc);
 
+struct state_6502* bbc_get_6502(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);

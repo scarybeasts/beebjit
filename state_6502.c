@@ -62,3 +62,52 @@ void
 state_6502_set_cycles(struct state_6502* p_state_6502, size_t cycles) {
   p_state_6502->cycles = cycles;
 }
+
+static int
+state_6502_irq_is_edge_triggered(int irq) {
+  if (irq == k_state_6502_irq_nmi) {
+    return 1;
+  }
+  return 0;
+}
+
+void
+state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
+  int irq_value = (1 << irq);
+  int old_level = !!(p_state_6502->irq_high & irq_value);
+  int fire;
+
+  if (level) {
+    p_state_6502->irq_high |= irq_value;
+  } else {
+    p_state_6502->irq_high &= ~irq_value;
+  }
+
+  if (state_6502_irq_is_edge_triggered(irq)) {
+    if (level && !old_level) {
+      fire = 1;
+    } else {
+      fire = 0;
+    }
+  } else {
+    fire = level;
+  }
+
+  if (fire) {
+    p_state_6502->irq_fire |= irq_value;
+  } else {
+    p_state_6502->irq_fire &= ~irq_value;
+  }
+}
+
+int
+state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq) {
+  int irq_value = (1 << irq);
+  int fire = !!(p_state_6502->irq_fire & irq_value);
+
+  if (state_6502_irq_is_edge_triggered(irq)) {
+    p_state_6502->irq_fire &= ~irq_value;
+  }
+
+  return fire;
+}

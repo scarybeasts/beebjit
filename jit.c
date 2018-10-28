@@ -3510,8 +3510,8 @@ handle_block_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
   size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
 
   jit_sync_timer_tick(p_jit);
-  /* Exit if neither of the VIAs are asserting an interrupt. */
-  if (!p_jit->p_state_6502->irq) {
+  /* Exit if nothing is asserting an interrupt. */
+  if (!p_jit->p_state_6502->irq_fire) {
     util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
                                 k_semaphore_size);
     return;
@@ -3557,11 +3557,11 @@ handle_cli_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
   util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_cli,
                               k_semaphore_size);
 
-  /* Exit if neither of the VIAs are asserting an interrupt. This can happen if
+  /* Exit if nothing is asserting an interrupt. This can happen if
    * something else clears the interrupt since we raised the semaphore but
    * before the semaphore hit.
    */
-  if (!p_jit->p_state_6502->irq) {
+  if (!p_jit->p_state_6502->irq_fire) {
     return;
   }
 

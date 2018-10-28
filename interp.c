@@ -155,7 +155,7 @@ interp_enter(struct interp_struct* p_interp) {
       p_memory_access->memory_write_needs_callback_mask(
           p_memory_access->p_callback_obj);
   volatile int* p_async_tick = &p_interp->async_tick;
-  unsigned int* p_irq = &p_state_6502->irq;
+  unsigned int* p_irq = &p_state_6502->irq_fire;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
   int debug_subsystem_active = p_options->debug_subsystem_active(
       p_debug_callback_object);

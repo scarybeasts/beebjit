@@ -704,6 +704,11 @@ bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
   return jit_block_from_6502(p_jit, reg_pc);
 }
 
+struct state_6502*
+bbc_get_6502(struct bbc_struct* p_bbc) {
+  return &p_bbc->state_6502;
+}
+
 struct via_struct*
 bbc_get_sysvia(struct bbc_struct* p_bbc) {
   return p_bbc->p_system_via;
@@ -881,16 +886,6 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   p_bbc->running = 1;
 
   sound_start_playing(p_bbc->p_sound);
-}
-
-void
-bbc_set_interrupt(struct bbc_struct* p_bbc, int id, int set) {
-  struct state_6502* p_state_6502 = &p_bbc->state_6502;
-  if (set) {
-    p_state_6502->irq |= (1 << id);
-  } else {
-    p_state_6502->irq &= ~(1 << id);
-  }
 }
 
 static void

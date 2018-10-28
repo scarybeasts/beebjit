@@ -2,6 +2,7 @@
 
 #include "bbc.h"
 #include "sound.h"
+#include "state_6502.h"
 
 #include <assert.h>
 #include <err.h>
@@ -329,16 +330,25 @@ via_clear_interrupt(struct via_struct* p_via, unsigned char val) {
 
 void
 via_check_interrupt(struct via_struct* p_via) {
+  int level;
   int interrupt;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_via->p_bbc);
+
   assert(!(p_via->IER & 0x80));
+
   if (p_via->IER & p_via->IFR) {
     p_via->IFR |= 0x80;
-    interrupt = 1;
+    level = 1;
   } else {
     p_via->IFR &= ~0x80;
-    interrupt = 0;
+    level = 0;
   }
-  bbc_set_interrupt(p_via->p_bbc, p_via->id, interrupt);
+  if (p_via->id == k_via_system) {
+    interrupt = k_state_6502_irq_1;
+  } else {
+    interrupt = k_state_6502_irq_2;
+  }
+  state_6502_set_irq_level(p_state_6502, interrupt, level);
 }
 
 void
