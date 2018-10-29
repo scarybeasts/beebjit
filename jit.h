@@ -31,7 +31,12 @@ void jit_clear_flag(struct jit_struct* p_jit, unsigned int flag);
 void jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops);
 
 uint16_t jit_block_from_6502(struct jit_struct* p_jit, uint16_t addr_6502);
-void jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502);
+void jit_memory_range_written(struct jit_struct* p_jit,
+                              uint16_t addr_6502,
+                              uint16_t len);
+void jit_memory_range_reset(struct jit_struct* p_jit,
+                            uint16_t addr_6502,
+                            uint16_t len);
 
 void jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502);
 int jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502);

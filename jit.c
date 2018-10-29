@@ -2962,13 +2962,6 @@ jit_is_compilation_pending(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static void
-jit_invalidate_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
-  unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
-
-  (void) jit_emit_do_jit(p_jit_ptr, 0);
-}
-
-static void
 jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
   unsigned char* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
@@ -2976,8 +2969,38 @@ jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 void
-jit_memory_written(struct jit_struct* p_jit, uint16_t addr_6502) {
-  jit_invalidate_addr(p_jit, addr_6502);
+jit_memory_range_written(struct jit_struct* p_jit,
+                         uint16_t addr_6502,
+                         uint16_t len) {
+  size_t i;
+  size_t addr_6502_end = (addr_6502 + len);
+  assert(addr_6502_end < k_6502_addr_space_size);
+
+  for (i = addr_6502; i < addr_6502_end; ++i) {
+    unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, i);
+
+    (void) jit_emit_do_jit(p_jit_ptr, 0);
+  }
+}
+
+void
+jit_memory_range_reset(struct jit_struct* p_jit,
+                       uint16_t addr_6502,
+                       uint16_t len) {
+  size_t i;
+  size_t addr_6502_end = (addr_6502 + len);
+  assert(addr_6502_end < k_6502_addr_space_size);
+
+  jit_memory_range_written(p_jit, addr_6502, len);
+
+  for (i = 0; i < addr_6502_end; ++i) {
+    jit_init_addr(p_jit, i);
+
+    p_jit->is_block_start[i] = 0;
+    p_jit->compiled_opcode[i] = 0;
+    p_jit->self_modify_optimize[i] = 0;
+    p_jit->compilation_pending[i] = 0;
+  }
 }
 
 static void
@@ -3692,6 +3715,7 @@ jit_create(struct state_6502* p_state_6502,
            struct memory_access* p_memory_access,
            struct bbc_timing* p_timing,
            struct bbc_options* p_options) {
+  size_t i;
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
@@ -3699,7 +3723,6 @@ jit_create(struct state_6502* p_state_6502,
   unsigned char* p_util_regs;
   unsigned char* p_util_jit;
   unsigned char* p_util_do_interrupt;
-  size_t i;
 
   const char* p_opt_flags = p_options->p_opt_flags;
   const char* p_log_flags = p_options->p_log_flags;

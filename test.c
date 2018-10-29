@@ -130,8 +130,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(!jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Clobber the LDA with another LDA. */
-  p_mem[0x2001] = 0xa9;
-  jit_memory_written(p_jit, 0x2001);
+  bbc_memory_write(p_bbc, 0x2001, 0xA9);
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Run at $2001. */
@@ -141,8 +140,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   assert(jit_has_self_modify_optimize(p_jit, 0x2001));
 
   /* Clobber the LDA with unrelated opcode ORA #$?? */
-  p_mem[0x2001] = 0x09;
-  jit_memory_written(p_jit, 0x2001);
+  bbc_memory_write(p_bbc, 0x2001, 0x09);
   assert(jit_has_invalidated_code(p_jit, 0x2001));
 
   /* Run at $2001. */
@@ -217,8 +215,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   assert(!jit_is_compilation_pending(p_jit, 0x2100));
 
   /* Clobber an ASL A with a NOP. */
-  p_mem[0x2103] = 0xea;
-  jit_memory_written(p_jit, 0x2103);
+  bbc_memory_write(p_bbc, 0x2103, 0xEA);
   /* Run at $2103 again. */
   bbc_set_registers(p_bbc, 0x06, 0, 0, 0, 0, 0x2103);
   jit_enter(p_jit);
@@ -265,7 +262,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   assert(!jit_is_block_start(p_jit, 0x2206));
 
   /* Invalidate $2200 to force recompilation. */
-  jit_memory_written(p_jit, 0x2200);
+  bbc_memory_write(p_bbc, 0x2200, 0xA9);
 
   /* Run at $2200. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2200);

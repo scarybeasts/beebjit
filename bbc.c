@@ -222,6 +222,36 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
 }
 
+static void
+bbc_memory_range_written(struct bbc_struct* p_bbc,
+                         uint16_t addr_6502,
+                         uint16_t len) {
+  switch (p_bbc->mode) {
+  case k_bbc_mode_jit:
+    jit_memory_range_written(p_bbc->p_jit, addr_6502, len);
+    break;
+  case k_bbc_mode_interp:
+    break;
+  default:
+    assert(0);
+  }
+}
+
+static void
+bbc_memory_range_reset(struct bbc_struct* p_bbc,
+                       uint16_t addr_6502,
+                       uint16_t len) {
+  switch (p_bbc->mode) {
+  case k_bbc_mode_jit:
+    jit_memory_range_reset(p_bbc->p_jit, addr_6502, len);
+    break;
+  case k_bbc_mode_interp:
+    break;
+  default:
+    assert(0);
+  }
+}
+
 void
 bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
   /* The broad approach here is: slower sideways bank switching in order to
@@ -254,6 +284,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
   }
 
   (void) memcpy(p_mem_sideways, p_sideways_src, k_bbc_rom_size);
+  bbc_memory_range_reset(p_bbc, k_bbc_sideways_offset, k_bbc_rom_size);
 
   /* If we flipped from ROM to RAM or visa versa, we need to update the write
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
@@ -763,14 +794,13 @@ bbc_memory_write(struct bbc_struct* p_bbc,
                  uint16_t addr_6502,
                  unsigned char val) {
   unsigned char* p_mem_raw = p_bbc->p_mem_raw;
-  struct jit_struct* p_jit = p_bbc->p_jit;
 
   /* Allow a forced write to ROM using this API -- use the fully read/write
    * mapping.
    */
   p_mem_raw[addr_6502] = val;
 
-  jit_memory_written(p_jit, addr_6502);
+  bbc_memory_range_written(p_bbc, addr_6502, 1);
 }
 
 int

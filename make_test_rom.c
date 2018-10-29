@@ -756,7 +756,28 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCA80);
 
+  /* Test that paging ROMs invalidates any previous artifcats, e.g. JIT
+   * compilation.
+   */
   util_buffer_set_pos(p_buf, 0x0A80);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
+  emit_JSR(p_buf, 0x8000);        /* A != 1 so this just RTS's. */
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in DFS. */
+  emit_LDA(p_buf, k_imm, 0xA0);   /* Set up the BRK vector to $CAA0. */
+  emit_STA(p_buf, k_abs, 0x4040);
+  emit_LDA(p_buf, k_imm, 0xCA);
+  emit_STA(p_buf, k_abs, 0x4041);
+  emit_JSR(p_buf, 0x8000);        /* Should hit BRK. */
+  emit_CRASH(p_buf);
+  util_buffer_set_pos(p_buf, 0x0AA0);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Unset BRK vector. */
+  emit_STA(p_buf, k_abs, 0x4040);
+  emit_STA(p_buf, k_abs, 0x4041);
+  emit_JMP(p_buf, k_abs, 0xCAC0);
+
+  util_buffer_set_pos(p_buf, 0x0AC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -823,6 +844,9 @@ main(int argc, const char* argv[]) {
 
   /* IRQ routine. */
   util_buffer_set_pos(p_buf, 0x3F00);
+  emit_LDA(p_buf, k_abs, 0x4041);
+  emit_BEQ(p_buf, 3);
+  emit_JMP(p_buf, k_ind, 0x4040);
   emit_PHP(p_buf);
   emit_PLA(p_buf);
   emit_AND(p_buf, k_imm, 0x04);   /* Need I flag set. */
