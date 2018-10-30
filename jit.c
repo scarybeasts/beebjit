@@ -697,12 +697,7 @@ jit_emit_push_word_from_scratch(unsigned char* p_jit_buf, size_t index) {
 }
 
 static size_t
-jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
-  unsigned char brk_and_set_bit = 0x20;
-  if (is_brk) {
-    brk_and_set_bit += 0x10;
-  }
-
+jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index) {
   /* TODO: getting messy, rewrite? */
   /* Preserve rdi. */
   /* mov r8, rdi */
@@ -715,12 +710,12 @@ jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index, int is_brk) {
 
   /* r13 is IF and DF */
   /* r14 is CF */
-  /* lea rdx, [r13 + r14 + brk_and_set_bit] */
+  /* lea rdx, [r13 + r14 + 0x20] */
   p_jit[index++] = 0x4b;
   p_jit[index++] = 0x8d;
   p_jit[index++] = 0x54;
   p_jit[index++] = 0x35;
-  p_jit[index++] = brk_and_set_bit;
+  p_jit[index++] = 0x20;
 
   /* r12 is OF */
   /* mov rdi, r12 */
@@ -964,7 +959,7 @@ jit_emit_debug_util(unsigned char* p_jit_buf) {
   p_jit_buf[index++] = k_state_6502_offset_reg_s;
 
   /* 6502 flags */
-  index = jit_emit_flags_to_scratch(p_jit_buf, index, 1);
+  index = jit_emit_flags_to_scratch(p_jit_buf, index);
   /* mov [r15 + k_state_6502_offset_reg_flags], dl */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x88;
@@ -1534,11 +1529,10 @@ jit_emit_sei(unsigned char* p_jit_buf, size_t index) {
 }
 
 static size_t
-jit_emit_do_interrupt(struct jit_struct* p_jit,
-                      unsigned char* p_jit_buf,
-                      size_t index,
-                      uint16_t addr_6502,
-                      int is_brk) {
+jit_emit_do_brk(struct jit_struct* p_jit,
+                unsigned char* p_jit_buf,
+                size_t index,
+                uint16_t addr_6502) {
   (void) p_jit;
 
   /* mov dx, addr_6502 */
@@ -1546,11 +1540,11 @@ jit_emit_do_interrupt(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0xba;
   p_jit_buf[index++] = (addr_6502 & 0xff);
   p_jit_buf[index++] = (addr_6502 >> 8);
-  /* mov r9, is_brk */
+  /* mov r9, 0x10 */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0xc7;
   p_jit_buf[index++] = 0xc1;
-  index = jit_emit_int(p_jit_buf, index, (is_brk * 0x10));
+  index = jit_emit_int(p_jit_buf, index, 0x10);
   /* jmp [rdi + k_offset_util_do_interrupt] */
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x67;
@@ -1565,7 +1559,7 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   size_t index = 0;
 
   index = jit_emit_push_word_from_scratch(p_jit_buf, index);
-  index = jit_emit_flags_to_scratch(p_jit_buf, index, 0);
+  index = jit_emit_flags_to_scratch(p_jit_buf, index);
   /* Add in the BRK flag. */
   /* lea rdx, [rdx + r9] */
   p_jit_buf[index++] = 0x4a;
@@ -1987,7 +1981,7 @@ printf("ooh\n");
     break;
   case k_brk:
     /* BRK */
-    index = jit_emit_do_interrupt(p_jit, p_jit_buf, index, addr_6502 + 2, 1);
+    index = jit_emit_do_brk(p_jit, p_jit_buf, index, addr_6502 + 2);
     break;
   case k_ora:
     /* ORA */
@@ -2012,7 +2006,13 @@ printf("ooh\n");
     break;
   case k_php:
     /* PHP */
-    index = jit_emit_flags_to_scratch(p_jit_buf, index, 1);
+    index = jit_emit_flags_to_scratch(p_jit_buf, index);
+    /* Add in BRK flag. */
+    /* lea rdx, [rdx + 0x10] */
+    p_jit_buf[index++] = 0x48;
+    p_jit_buf[index++] = 0x8d;
+    p_jit_buf[index++] = 0x52;
+    p_jit_buf[index++] = 0x10;
     index = jit_emit_push_from_scratch(p_jit_buf, index);
     break;
   case k_bpl:
