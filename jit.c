@@ -3537,11 +3537,52 @@ sigsegv_reraise(unsigned char* p_rip, unsigned char* p_addr) {
 static void
 handle_sigsegv_fire_interrupt(ucontext_t* p_context,
                               struct jit_struct* p_jit,
-                              uint16_t addr_6502) {
-  /* ABI is rdx for 6502 RTI address, r9 == 0x0e00 for IRQ vector, BRK == 0. */
+                              uint16_t addr_6502,
+                              uint16_t vector) {
+  /* ABI is rdx for 6502 RTI address, r9 == 0x??00 for IRQ vector, BRK == 0. */
+  uint16_t r9 = ((vector & 0x000F) << 8);
   p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
-  p_context->uc_mcontext.gregs[REG_R9] = 0x0e00;
+  p_context->uc_mcontext.gregs[REG_R9] = r9;
   p_context->uc_mcontext.gregs[REG_RIP] = (size_t) p_jit->p_util_do_interrupt;
+}
+
+static void
+handle_semaphore_sigsegv_common(ucontext_t* p_context,
+                                struct jit_struct* p_jit,
+                                uint16_t addr_6502,
+                                size_t r13) {
+  uint16_t vector = 0;
+  struct state_6502* p_state_6502 = p_jit->p_state_6502;
+
+  /* Lower both the block and cli semaphores -- both could potentially be
+   * raised.
+   * Assumes / requires those semaphores are contiguous.
+   */
+  util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
+                              k_semaphore_size * 2);
+
+  /* Exit if nothing is asserting an interrupt any more. */
+  if (!p_state_6502->irq_fire) {
+    return;
+  }
+
+  /* NMI takes precedence, or IRQ is fired iff interrupt disable is off. */
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    vector = k_6502_vector_nmi;
+  } else if (!(r13 & (1 << k_flag_interrupt))) {
+    vector = k_6502_vector_irq;
+  }
+
+  if (!vector) {
+    /* Sadness, interrupts are disabled for IRQ. Trigger the CLI semaphore so
+     * we fault again when interrupts are enabled.
+     */
+    util_make_mapping_none(p_jit->p_semaphores + k_semaphore_cli,
+                           k_semaphore_size);
+    return;
+  }
+
+  handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502, vector);
 }
 
 static void
@@ -3550,34 +3591,11 @@ handle_block_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
       (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
   size_t r13 = p_context->uc_mcontext.gregs[REG_R13];
 
+  uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
+
   jit_sync_timer_tick(p_jit);
-  /* Exit if nothing is asserting an interrupt. */
-  if (!p_jit->p_state_6502->irq_fire) {
-    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
-                                k_semaphore_size);
-    return;
-  }
-  if (!(r13 & (1 << k_flag_interrupt))) {
-    /* Interrupts are enabled -- fire the 6502 interrupt logic. */
-    uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_rip);
 
-    /* Lower both the block and cli semaphores -- both could potentially be
-     * raised.
-     * Assumes / requires those semaphores are contiguous.
-     */
-    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
-                                k_semaphore_size * 2);
-
-    handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502);
-  } else {
-    /* Sadness, interrupts are disabled. Trigger the CLI semaphore so we
-     * fault again when interrupts are enabled.
-     */
-    util_make_mapping_none(p_jit->p_semaphores + k_semaphore_cli,
-                           k_semaphore_size);
-    util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_block,
-                                k_semaphore_size);
-  }
+  handle_semaphore_sigsegv_common(p_context, p_jit, addr_6502, r13);
 }
 
 static void
@@ -3592,21 +3610,7 @@ handle_cli_semaphore_sigsegv(ucontext_t* p_context, unsigned char* p_rip) {
   /* assert() async safe...? Uhh yeah, ahem. */
   assert(!(r13 & 4));
 
-  /* Lower the semaphore -- we'll either resolve the condition, or find there
-   * is no longer a condition.
-   */
-  util_make_mapping_read_only(p_jit->p_semaphores + k_semaphore_cli,
-                              k_semaphore_size);
-
-  /* Exit if nothing is asserting an interrupt. This can happen if
-   * something else clears the interrupt since we raised the semaphore but
-   * before the semaphore hit.
-   */
-  if (!p_jit->p_state_6502->irq_fire) {
-    return;
-  }
-
-  handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502);
+  handle_semaphore_sigsegv_common(p_context, p_jit, addr_6502, r13);
 }
 
 static void
