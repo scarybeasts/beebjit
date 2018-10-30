@@ -494,5 +494,9 @@ interp_enter(struct interp_struct* p_interp) {
 
 void
 interp_async_timer_tick(struct interp_struct* p_interp) {
-  p_interp->async_tick = 1;
+  volatile int* p_async_tick = &p_interp->async_tick;
+  if (*p_async_tick) {
+    printf("WARNING: interp_async_timer_tick, already ticked!\n");
+  }
+  *p_async_tick = 1;
 }
