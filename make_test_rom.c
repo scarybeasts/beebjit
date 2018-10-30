@@ -72,12 +72,15 @@ main(int argc, const char* argv[]) {
   (void) memset(p_mem, '\xf2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
+  /* NMI vector. */
+  p_mem[0x3FFA] = 0x00;
+  p_mem[0x3FFB] = 0xFE;
   /* Reset vector: jump to 0xC000, start of OS ROM. */
-  p_mem[0x3ffc] = 0x00;
-  p_mem[0x3ffd] = 0xc0;
+  p_mem[0x3FFC] = 0x00;
+  p_mem[0x3FFD] = 0xC0;
   /* IRQ vector: also jumped to by the BRK instruction. */
-  p_mem[0x3ffe] = 0x00;
-  p_mem[0x3fff] = 0xff;
+  p_mem[0x3FFE] = 0x00;
+  p_mem[0x3FFF] = 0xFF;
 
   /* Check PHP, including initial 6502 boot-up flags status. */
   util_buffer_set_pos(p_buf, 0x0000);
@@ -777,7 +780,15 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x4041);
   emit_JMP(p_buf, k_abs, 0xCAC0);
 
+  /* Tests triggering a simple NMI. */
   util_buffer_set_pos(p_buf, 0x0AC0);
+  emit_LDA(p_buf, k_imm, 0x00); /* 0 is an invalid command for the 8271. */
+  emit_STA(p_buf, k_abs, 0xFE80);
+  emit_TAY(p_buf);
+  emit_BEQ(p_buf, -3);
+  emit_JMP(p_buf, k_abs, 0xCB00);
+
+  util_buffer_set_pos(p_buf, 0x0B00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -860,6 +871,11 @@ main(int argc, const char* argv[]) {
   emit_PLA(p_buf);                /* For interrupts, RTI with I flag set. */
   emit_ORA(p_buf, k_imm, 0x04);
   emit_PHA(p_buf);
+  emit_RTI(p_buf);
+
+  /* NMI routine. */
+  util_buffer_set_pos(p_buf, 0x3E00);
+  emit_LDA(p_buf, k_imm, 0x42);
   emit_RTI(p_buf);
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);

@@ -225,9 +225,6 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
     assert(!p_intel_fdc->current_sectors_left);
     assert(!p_intel_fdc->pending_success);
 
-    /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
-    intel_fdc_set_status_result(p_intel_fdc, 0x80, 0x00);
-
     p_intel_fdc->command = (val & 0x3F);
     p_intel_fdc->drive_select = (val >> 6);
     p_intel_fdc->drive_0_or_1 = !!(val & 0x80);
@@ -256,9 +253,12 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
       num_params = 5;
       break;
     default:
-      assert(0);
-      break;
+      intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x18);
+      return;
     }
+
+    /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
+    intel_fdc_set_status_result(p_intel_fdc, 0x80, 0x00);
 
     p_intel_fdc->parameters_needed = num_params;
     p_intel_fdc->parameters_index = 0;
