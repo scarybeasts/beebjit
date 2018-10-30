@@ -852,6 +852,20 @@ jit_emit_jmp_indirect(struct jit_struct* p_jit,
 }
 
 static size_t
+jit_emit_jmp_double_indirect(struct jit_struct* p_jit,
+                             unsigned char* p_jit_buf,
+                             size_t index) {
+  /* movzx edx, WORD PTR [rdx + p_mem] */
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb7;
+  p_jit_buf[index++] = 0x92;
+  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem_read);
+  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+
+  return index;
+}
+
+static size_t
 jit_emit_undefined(unsigned char* p_jit,
                    size_t index,
                    unsigned char opcode,
@@ -1540,11 +1554,12 @@ jit_emit_do_brk(struct jit_struct* p_jit,
   p_jit_buf[index++] = 0xba;
   p_jit_buf[index++] = (addr_6502 & 0xff);
   p_jit_buf[index++] = (addr_6502 >> 8);
-  /* mov r9, 0x10 */
+  /* Magic constant, 0x0e == vector offset from 0xFFF0, 0x10 == BRK flag. */
+  /* mov r9, 0x0e10 */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0xc7;
   p_jit_buf[index++] = 0xc1;
-  index = jit_emit_int(p_jit_buf, index, 0x10);
+  index = jit_emit_int(p_jit_buf, index, 0x0e10);
   /* jmp [rdi + k_offset_util_do_interrupt] */
   p_jit_buf[index++] = 0xff;
   p_jit_buf[index++] = 0x67;
@@ -1555,7 +1570,6 @@ jit_emit_do_brk(struct jit_struct* p_jit,
 
 static void
 jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
-  uint16_t vector = k_6502_vector_irq;
   size_t index = 0;
 
   index = jit_emit_push_word_from_scratch(p_jit_buf, index);
@@ -1568,7 +1582,20 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
   p_jit_buf[index++] = 0x0a;
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   index = jit_emit_sei(p_jit_buf, index);
-  index = jit_emit_jmp_indirect(p_jit, p_jit_buf, index, vector);
+  /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
+  /* rorx r9, r9, 8 */
+  p_jit_buf[index++] = 0xc4;
+  p_jit_buf[index++] = 0x43;
+  p_jit_buf[index++] = 0xfb;
+  p_jit_buf[index++] = 0xf0;
+  p_jit_buf[index++] = 0xc9;
+  p_jit_buf[index++] = 0x08;
+  /* lea edx, [r9 + 0xfff0]  */
+  p_jit_buf[index++] = 0x41;
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x91;
+  index = jit_emit_int(p_jit_buf, index, 0xfff0);
+  index = jit_emit_jmp_double_indirect(p_jit, p_jit_buf, index);
 }
 
 static size_t
@@ -3511,9 +3538,9 @@ static void
 handle_sigsegv_fire_interrupt(ucontext_t* p_context,
                               struct jit_struct* p_jit,
                               uint16_t addr_6502) {
-  /* ABI is rdx for 6502 RTI address, r9 == 0 for BRK == 0. */
+  /* ABI is rdx for 6502 RTI address, r9 == 0x0e00 for IRQ vector, BRK == 0. */
   p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
-  p_context->uc_mcontext.gregs[REG_R9] = 0;
+  p_context->uc_mcontext.gregs[REG_R9] = 0x0e00;
   p_context->uc_mcontext.gregs[REG_RIP] = (size_t) p_jit->p_util_do_interrupt;
 }
 
