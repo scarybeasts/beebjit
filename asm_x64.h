@@ -22,4 +22,7 @@ void asm_x64_instruction_TAX_END();
 void asm_x64_instruction_TAY();
 void asm_x64_instruction_TAY_END();
 
+void asm_x64_inturbo_next_opcode();
+void asm_x64_inturbo_next_opcode_END();
+
 #endif /* BEEBJIT_ASM_X64_H */

@@ -6,6 +6,7 @@
 #include "defs_6502.h"
 #include "intel_fdc.h"
 #include "interp.h"
+#include "inturbo.h"
 #include "jit.h"
 #include "memory_access.h"
 #include "sound.h"
@@ -87,6 +88,7 @@ struct bbc_struct {
   struct intel_fdc_struct* p_intel_fdc;
   struct jit_struct* p_jit;
   struct interp_struct* p_interp;
+  struct inturbo_struct* p_inturbo;
   struct debug_struct* p_debug;
   uint64_t time;
   uint64_t time_next_vsync;
@@ -231,6 +233,7 @@ bbc_memory_range_written(struct bbc_struct* p_bbc,
     jit_memory_range_written(p_bbc->p_jit, addr_6502, len);
     break;
   case k_bbc_mode_interp:
+  case k_bbc_mode_inturbo:
     break;
   default:
     assert(0);
@@ -246,6 +249,7 @@ bbc_memory_range_reset(struct bbc_struct* p_bbc,
     jit_memory_range_reset(p_bbc->p_jit, addr_6502, len);
     break;
   case k_bbc_mode_interp:
+  case k_bbc_mode_inturbo:
     break;
   default:
     assert(0);
@@ -610,6 +614,14 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "interp_create failed");
   }
 
+  p_bbc->p_inturbo = inturbo_create(&p_bbc->state_6502,
+                                    &p_bbc->memory_access,
+                                    &p_bbc->timing,
+                                    &p_bbc->options);
+  if (p_bbc->p_inturbo == NULL) {
+    errx(1, "inturbo_create failed");
+  }
+
   bbc_full_reset(p_bbc);
 
   return p_bbc;
@@ -840,6 +852,9 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
   case k_bbc_mode_interp:
     interp_async_timer_tick(p_bbc->p_interp);
     break;
+  case k_bbc_mode_inturbo:
+    inturbo_async_timer_tick(p_bbc->p_inturbo);
+    break;
   default:
     assert(0);
   }
@@ -886,6 +901,9 @@ bbc_cpu_thread(void* p) {
     break;
   case k_bbc_mode_interp:
     interp_enter(p_bbc->p_interp);
+    break;
+  case k_bbc_mode_inturbo:
+    inturbo_enter(p_bbc->p_inturbo);
     break;
   default:
     assert(0);

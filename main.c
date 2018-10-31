@@ -88,6 +88,8 @@ main(int argc, const char* argv[]) {
           mode = k_bbc_mode_jit;
         } else if (!strcmp(val, "interp")) {
           mode = k_bbc_mode_interp;
+        } else if (!strcmp(val, "inturbo")) {
+          mode = k_bbc_mode_inturbo;
         } else {
           errx(1, "unknown mode");
         }

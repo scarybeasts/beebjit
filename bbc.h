@@ -31,6 +31,7 @@ enum {
 enum {
   k_bbc_mode_jit = 1,
   k_bbc_mode_interp = 2,
+  k_bbc_mode_inturbo = 3,
 };
 enum {
   k_message_exited = 1,
