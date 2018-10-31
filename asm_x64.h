@@ -2,6 +2,7 @@
 #define BEEBJIT_ASM_X64_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct util_buffer;
 
@@ -21,6 +22,8 @@ void asm_x64_instruction_TAX();
 void asm_x64_instruction_TAX_END();
 void asm_x64_instruction_TAY();
 void asm_x64_instruction_TAY_END();
+
+void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 
 void asm_x64_inturbo_next_opcode();
 void asm_x64_inturbo_next_opcode_END();

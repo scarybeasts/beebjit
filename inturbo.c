@@ -14,10 +14,14 @@ static const size_t k_inturbo_bytes_per_opcode = 32;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
 static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
 static const size_t k_inturbo_jump_table_size = 4096;
+/* Start by jumping to the NOP handler, which does nothing, followed by a next
+ * opcode fetch from 6502 PC then opcode dispatch.
+ */
+static const uint8_t k_inturbo_start_opcode = 0xEA;
 
 struct inturbo_struct {
   unsigned char* p_inturbo_base;
-  unsigned char* p_jump_table;
+  uint64_t* p_jump_table;
 };
 
 static void
@@ -27,13 +31,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct util_buffer* p_buf = util_buffer_create();
   unsigned char* p_inturbo_base = p_inturbo->p_inturbo_base;
   unsigned char* p_inturbo_opcodes_ptr = p_inturbo_base;
-  uint64_t* p_jump_table_ptr = (uint64_t*) p_inturbo->p_jump_table;
+  uint64_t* p_jump_table = p_inturbo->p_jump_table;
 
   /* Opcode pointers for the "next opcode" jump table. */
   for (i = 0; i < 256; ++i) {
-    *p_jump_table_ptr =
+    p_jump_table[i] =
         (uint64_t) (p_inturbo_base + (i * k_inturbo_bytes_per_opcode));
-    p_jump_table_ptr++;
   }
 
   for (i = 0; i < 256; ++i) {
@@ -41,7 +44,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     switch (optype) {
+    case k_nop:
+      break;
     default:
+      /* int 3 */
+      util_buffer_add_1b(p_buf, 0xcc);
       break;
     }
 
@@ -101,7 +108,10 @@ inturbo_destroy(struct inturbo_struct* p_inturbo) {
 
 void
 inturbo_enter(struct inturbo_struct* p_inturbo) {
-  (void) p_inturbo;
+  uint64_t* p_jump_table = p_inturbo->p_jump_table;
+  uint32_t p_start_address = p_jump_table[k_inturbo_start_opcode];
+
+  asm_x64_asm_enter(p_inturbo, p_start_address);
 }
 
 void
