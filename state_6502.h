@@ -23,17 +23,17 @@ enum {
 };
 
 struct state_6502 {
-  unsigned int reg_a;
-  unsigned int reg_x;
-  unsigned int reg_y;
-  unsigned int reg_s;
-  unsigned int reg_pc;
-  unsigned int reg_flags;
-  unsigned int irq_fire;
-  unsigned int reg_host_pc;
-  unsigned int reg_host_flags;
-  unsigned int irq_high;
-  size_t cycles;
+  uint32_t reg_a;
+  uint32_t reg_x;
+  uint32_t reg_y;
+  uint32_t reg_s;
+  uint32_t reg_pc;
+  uint32_t reg_flags;
+  uint32_t irq_fire;
+  uint32_t reg_host_pc;
+  uint32_t reg_host_flags;
+  uint32_t irq_high;
+  uint64_t cycles;
 };
 
 void state_6502_reset(struct state_6502* p_state_6502);
@@ -45,8 +45,6 @@ void state_6502_get_registers(struct state_6502* p_state_6502,
                               unsigned char* s,
                               unsigned char* flags,
                               uint16_t* pc);
-size_t state_6502_get_cycles(struct state_6502* p_state_6502);
-
 void state_6502_set_registers(struct state_6502* p_state_6502,
                               unsigned char a,
                               unsigned char x,
@@ -54,8 +52,12 @@ void state_6502_set_registers(struct state_6502* p_state_6502,
                               unsigned char s,
                               unsigned char flags,
                               uint16_t pc);
-void state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc);
+
+size_t state_6502_get_cycles(struct state_6502* p_state_6502);
 void state_6502_set_cycles(struct state_6502* p_state_6502, size_t cycles);
+
+uint16_t state_6502_get_pc(struct state_6502* p_state_6502);
+void state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc);
 
 void state_6502_set_irq_level(struct state_6502* p_state_6502,
                               int irq,

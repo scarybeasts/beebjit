@@ -31,6 +31,7 @@
 #define REG_6502_S_32    esi
 #define REG_6502_S_64    rsi
 #define REG_6502_PC      r10
+#define REG_6502_PC_32   r10d
 #define REG_CONTEXT      rdi
 #define REG_SCRATCH1     rdx
 #define REG_SCRATCH1_32  edx
@@ -135,7 +136,7 @@ asm_x64_instruction_LDA_scratch_interp_END:
 asm_x64_asm_enter:
 
   # param1, rdi == context
-  # param2, rsi == start address
+  # param2, rsi == x64 start address
 
   push rbp
   mov rbp, rsp
@@ -145,6 +146,11 @@ asm_x64_asm_enter:
   push r14
   push r15
 
+  mov REG_SCRATCH1, 0
+  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH3, 0
+
+  mov REG_CONTEXT, REG_PARAM1
   mov REG_SCRATCH1, REG_PARAM2
 
   # 6502 A, X, Y, S.
@@ -153,9 +159,13 @@ asm_x64_asm_enter:
   mov REG_6502_Y_64, 0
   mov REG_6502_S_64, 0
 
-  # PC hack
-  mov REG_6502_PC, 0x10000000
-  # TODO: rest of registers.
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_6502_A_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A]
+  mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
+  mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
+  mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
+
   call REG_SCRATCH1
 
   pop r15
@@ -199,6 +209,7 @@ asm_x64_asm_debug:
   mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
   mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
   mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
   # TODO: flags!
   # TODO: handle different 6502 PC!
 
@@ -212,7 +223,7 @@ asm_x64_asm_debug_END:
 asm_x64_inturbo_next_opcode:
 
   movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC]
-  jmp [REG_SCRATCH1 * 4 + 0x3f000000]
+  jmp [REG_SCRATCH1 * 8 + 0x3f000000]
 
 asm_x64_inturbo_next_opcode_END:
 
@@ -225,6 +236,23 @@ asm_x64_inturbo_enter_debug:
   call [REG_CONTEXT + K_CONTEXT_OFFSET_UTIL_DEBUG]
 
 asm_x64_inturbo_enter_debug_END:
+
+.globl asm_x64_inturbo_mode_nil
+.globl asm_x64_inturbo_mode_nil_END
+asm_x64_inturbo_mode_nil:
+
+  lea r10, [r10 + 1]
+
+asm_x64_inturbo_mode_nil_END:
+
+
+.globl asm_x64_inturbo_mode_imm
+.globl asm_x64_inturbo_mode_imm_END
+asm_x64_inturbo_mode_imm:
+
+  lea r10, [r10 + 2]
+
+asm_x64_inturbo_mode_imm_END:
 
 
 .globl asm_x64_inturbo_mode_zpg

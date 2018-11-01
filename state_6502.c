@@ -52,6 +52,12 @@ state_6502_set_registers(struct state_6502* p_state_6502,
   state_6502_set_pc(p_state_6502, pc);
 }
 
+uint16_t
+state_6502_get_pc(struct state_6502* p_state_6502) {
+  unsigned int* p_pc = &p_state_6502->reg_pc;
+  return *((uint16_t*) p_pc);
+}
+
 void
 state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc) {
   unsigned int* p_pc = &p_state_6502->reg_pc;

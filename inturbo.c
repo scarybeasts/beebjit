@@ -4,6 +4,8 @@
 #include "asm_x64_abi.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
+#include "memory_access.h"
+#include "state_6502.h"
 #include "util.h"
 
 #include <err.h>
@@ -24,6 +26,7 @@ static const uint8_t k_inturbo_start_opcode = 0xEA;
 struct inturbo_struct {
   struct asm_x64_abi abi;
 
+  struct memory_access* p_memory_access;
   struct bbc_options* p_options;
   unsigned char* p_inturbo_base;
   uint64_t* p_jump_table;
@@ -52,7 +55,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     void* p_begin;
     void* p_end;
     unsigned char opmode = g_opmodes[i];
-    unsigned char optype = g_opmodes[i];
+    unsigned char optype = g_optypes[i];
     unsigned char opreg = g_optype_sets_register[i];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -65,8 +68,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     switch (opmode) {
     case k_nil:
-    case k_imm:
     case k_acc:
+    case k_imm:
     case 0:
     default:
       p_begin = NULL;
@@ -133,6 +136,30 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_copy(p_buf, p_begin, p_end, 0);
     }
 
+    switch (opmode) {
+    case k_nil:
+    case k_acc:
+    case 0:
+      /* All this does is advance 6502 PC by 1. */
+      p_begin = asm_x64_inturbo_mode_nil;
+      p_end = asm_x64_inturbo_mode_nil_END;
+      break;
+    case k_imm:
+      /* All this does is advance 6502 PC by 2. */
+      p_begin = asm_x64_inturbo_mode_imm;
+      p_end = asm_x64_inturbo_mode_imm_END;
+      break;
+    default:
+      /* Other modes have already done the PC advance. */
+      p_begin = NULL;
+      p_end = NULL;
+      break;
+    }
+
+    if (p_begin) {
+      asm_x64_copy(p_buf, p_begin, p_end, 0);
+    }
+
     /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo
      * handler.
      */
@@ -154,7 +181,6 @@ inturbo_create(struct state_6502* p_state_6502,
                struct bbc_options* p_options) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
-  (void) p_memory_access;
   (void) p_timing;
 
   if (p_inturbo == NULL) {
@@ -162,7 +188,10 @@ inturbo_create(struct state_6502* p_state_6502,
   }
   (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
 
+  p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
+
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
+  p_inturbo->p_memory_access = p_memory_access;
   p_inturbo->p_options = p_options;
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
@@ -191,7 +220,10 @@ inturbo_destroy(struct inturbo_struct* p_inturbo) {
 void
 inturbo_enter(struct inturbo_struct* p_inturbo) {
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
-  uint32_t p_start_address = p_jump_table[k_inturbo_start_opcode];
+  uint16_t addr_6502 = state_6502_get_pc(p_inturbo->abi.p_state_6502);
+  unsigned char* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
+  unsigned char opcode = p_mem_read[addr_6502];
+  uint32_t p_start_address = p_jump_table[opcode];
 
   asm_x64_asm_enter(p_inturbo, p_start_address);
 }
