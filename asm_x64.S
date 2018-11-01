@@ -3,6 +3,8 @@
 .section rodata
 .text
 
+#define BBC_MEM_READ_ADDR 0x10000000
+
 #define REG_6502_A    al
 #define REG_6502_X    bl
 #define REG_6502_Y    cl
@@ -41,6 +43,33 @@ asm_x64_instruction_TRAP:
 asm_x64_instruction_TRAP_END:
 
 
+.globl asm_x64_instruction_A_NZ_flags
+.globl asm_x64_instruction_A_NZ_flags_END
+asm_x64_instruction_A_NZ_flags:
+
+  test REG_6502_A, REG_6502_A
+
+asm_x64_instruction_A_NZ_flags_END:
+
+
+.globl asm_x64_instruction_X_NZ_flags
+.globl asm_x64_instruction_X_NZ_flags_END
+asm_x64_instruction_X_NZ_flags:
+
+  test REG_6502_X, REG_6502_X
+
+asm_x64_instruction_X_NZ_flags_END:
+
+
+.globl asm_x64_instruction_Y_NZ_flags
+.globl asm_x64_instruction_Y_NZ_flags_END
+asm_x64_instruction_Y_NZ_flags:
+
+  test REG_6502_Y, REG_6502_Y
+
+asm_x64_instruction_Y_NZ_flags_END:
+
+
 .globl asm_x64_instruction_TAX
 .globl asm_x64_instruction_TAX_END
 asm_x64_instruction_TAX:
@@ -57,6 +86,24 @@ asm_x64_instruction_TAY:
   mov REG_6502_Y, REG_6502_A
 
 asm_x64_instruction_TAY_END:
+
+
+.globl asm_x64_instruction_LDA_imm_interp
+.globl asm_x64_instruction_LDA_imm_interp_END
+asm_x64_instruction_LDA_imm_interp:
+
+  mov REG_6502_A, BYTE PTR [REG_6502_PC + 1]
+
+asm_x64_instruction_LDA_imm_interp_END:
+
+
+.globl asm_x64_instruction_LDA_scratch_interp
+.globl asm_x64_instruction_LDA_scratch_interp_END
+asm_x64_instruction_LDA_scratch_interp:
+
+  mov REG_6502_A, BYTE PTR [REG_SCRATCH1 + BBC_MEM_READ_ADDR]
+
+asm_x64_instruction_LDA_scratch_interp_END:
 
 
 .globl asm_x64_asm_enter
@@ -103,7 +150,26 @@ asm_x64_asm_enter_END:
 asm_x64_inturbo_next_opcode:
 
   movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC]
-  lea REG_6502_PC, [REG_6502_PC + 1]
   jmp [REG_SCRATCH1 * 4 + 0x3f000000]
 
 asm_x64_inturbo_next_opcode_END:
+
+
+.globl asm_x64_inturbo_mode_zpg
+.globl asm_x64_inturbo_mode_zpg_END
+asm_x64_inturbo_mode_zpg:
+
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_6502_PC, [REG_6502_PC + 2]
+
+asm_x64_inturbo_mode_zpg_END:
+
+
+.globl asm_x64_inturbo_mode_abs
+.globl asm_x64_inturbo_mode_abs_END
+asm_x64_inturbo_mode_abs:
+
+  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  lea REG_6502_PC, [REG_6502_PC + 3]
+
+asm_x64_inturbo_mode_abs_END:

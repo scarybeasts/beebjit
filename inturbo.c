@@ -40,20 +40,85 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   }
 
   for (i = 0; i < 256; ++i) {
+    void* p_begin;
+    void* p_end;
+    unsigned char opmode = g_opmodes[i];
     unsigned char optype = g_opmodes[i];
+    unsigned char opreg = g_optype_sets_register[i];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
-    switch (optype) {
-    case k_nop:
-      break;
+    switch (opmode) {
+    case k_nil:
+    case k_imm:
+    case k_acc:
+    case 0:
     default:
-      /* int 3 */
-      util_buffer_add_1b(p_buf, 0xcc);
+      p_begin = NULL;
+      p_end = NULL;
+      break;
+    case k_zpg:
+      p_begin = asm_x64_inturbo_mode_zpg;
+      p_end = asm_x64_inturbo_mode_zpg_END;
+      break;
+    case k_abs:
+      p_begin = asm_x64_inturbo_mode_abs;
+      p_end = asm_x64_inturbo_mode_abs_END;
       break;
     }
 
-    /* Load next opcode from 6502 PC, increment 6502 PC, jump to correct next
-     * asm opcode inturbo handler.
+    if (p_begin) {
+      asm_x64_copy(p_buf, p_begin, p_end, 0);
+    }
+
+    switch (optype) {
+    case k_lda:
+      if (opmode == k_imm) {
+        p_begin = asm_x64_instruction_LDA_imm_interp;
+        p_end = asm_x64_instruction_LDA_imm_interp_END;
+      } else {
+        p_begin = asm_x64_instruction_LDA_scratch_interp;
+        p_end = asm_x64_instruction_LDA_scratch_interp_END;
+      }
+      break;
+    case k_nop:
+      p_begin = NULL;
+      p_end = NULL;
+      break;
+    default:
+      p_begin = asm_x64_instruction_TRAP;
+      p_end = asm_x64_instruction_TRAP_END;
+      break;
+    }
+
+    if (p_begin) {
+      asm_x64_copy(p_buf, p_begin, p_end, 0);
+    }
+
+    switch (opreg) {
+    case k_a:
+      p_begin = asm_x64_instruction_A_NZ_flags;
+      p_end = asm_x64_instruction_A_NZ_flags_END;
+      break;
+    case k_x:
+      p_begin = asm_x64_instruction_X_NZ_flags;
+      p_end = asm_x64_instruction_X_NZ_flags_END;
+      break;
+    case k_y:
+      p_begin = asm_x64_instruction_Y_NZ_flags;
+      p_end = asm_x64_instruction_Y_NZ_flags_END;
+      break;
+    default:
+      p_begin = NULL;
+      p_end = NULL;
+      break;
+    }
+
+    if (p_begin) {
+      asm_x64_copy(p_buf, p_begin, p_end, 0);
+    }
+
+    /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo
+     * handler.
      */
     asm_x64_copy(p_buf,
                  asm_x64_inturbo_next_opcode,
