@@ -35,9 +35,12 @@ void asm_x64_instruction_TAY();
 void asm_x64_instruction_TAY_END();
 
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
+void asm_x64_asm_debug();
 
 void asm_x64_inturbo_next_opcode();
 void asm_x64_inturbo_next_opcode_END();
+void asm_x64_inturbo_enter_debug();
+void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_mode_zpg();
 void asm_x64_inturbo_mode_zpg_END();
 void asm_x64_inturbo_mode_abs();

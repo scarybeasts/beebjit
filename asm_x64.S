@@ -3,18 +3,42 @@
 .section rodata
 .text
 
-#define BBC_MEM_READ_ADDR 0x10000000
+#define K_BBC_MEM_READ_ADDR                 0x10000000
+#define K_CONTEXT_OFFSET_UTIL_DEBUG         8
+#define K_CONTEXT_OFFSET_STATE_6502         16
+#define K_CONTEXT_OFFSET_DEBUG_CALLBACK     32
+#define K_CONTEXT_OFFSET_DEBUG_OBJECT       40
+#define K_STATE_6502_OFFSET_REG_A           0
+#define K_STATE_6502_OFFSET_REG_X           4
+#define K_STATE_6502_OFFSET_REG_Y           8
+#define K_STATE_6502_OFFSET_REG_S           12
+#define K_STATE_6502_OFFSET_REG_PC          16
+#define K_STATE_6502_OFFSET_REG_FLAGS       20
+#define K_STATE_6502_OFFSET_REG_IRQ_FIRE    24
+#define K_STATE_6502_OFFSET_REG_HOST_PC     28
+#define K_STATE_6502_OFFSET_REG_HOST_FLAGS  32
 
-#define REG_6502_A    al
-#define REG_6502_X    bl
-#define REG_6502_Y    cl
-#define REG_6502_S    sil
-#define REG_6502_A64  rax
-#define REG_6502_X64  rbx
-#define REG_6502_Y64  rcx
-#define REG_6502_S64  rsi
-#define REG_6502_PC   r10
-#define REG_SCRATCH1  rdx
+#define REG_6502_A       al
+#define REG_6502_A_32    eax
+#define REG_6502_A_64    rax
+#define REG_6502_X       bl
+#define REG_6502_X_32    ebx
+#define REG_6502_X_64    rbx
+#define REG_6502_Y       cl
+#define REG_6502_Y_32    ecx
+#define REG_6502_Y_64    rcx
+#define REG_6502_S       sil
+#define REG_6502_S_32    esi
+#define REG_6502_S_64    rsi
+#define REG_6502_PC      r10
+#define REG_CONTEXT      rdi
+#define REG_SCRATCH1     rdx
+#define REG_SCRATCH1_32  edx
+#define REG_SCRATCH2     r8
+#define REG_SCRATCH3     r9
+
+#define REG_PARAM1       rdi
+#define REG_PARAM2       rsi
 
 .globl asm_x64_instruction_CRASH
 .globl asm_x64_instruction_CRASH_END
@@ -101,7 +125,7 @@ asm_x64_instruction_LDA_imm_interp_END:
 .globl asm_x64_instruction_LDA_scratch_interp_END
 asm_x64_instruction_LDA_scratch_interp:
 
-  mov REG_6502_A, BYTE PTR [REG_SCRATCH1 + BBC_MEM_READ_ADDR]
+  mov REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
 
 asm_x64_instruction_LDA_scratch_interp_END:
 
@@ -121,18 +145,18 @@ asm_x64_asm_enter:
   push r14
   push r15
 
-  mov rdx, rsi
+  mov REG_SCRATCH1, REG_PARAM2
 
   # 6502 A, X, Y, S.
-  mov REG_6502_A64, 0
-  mov REG_6502_X64, 0
-  mov REG_6502_Y64, 0
-  mov REG_6502_S64, 0
+  mov REG_6502_A_64, 0
+  mov REG_6502_X_64, 0
+  mov REG_6502_Y_64, 0
+  mov REG_6502_S_64, 0
 
   # PC hack
   mov REG_6502_PC, 0x10000000
   # TODO: rest of registers.
-  call rdx
+  call REG_SCRATCH1
 
   pop r15
   pop r14
@@ -145,6 +169,44 @@ asm_x64_asm_enter:
 asm_x64_asm_enter_END:
 
 
+.globl asm_x64_asm_debug
+.globl asm_x64_asm_debug_END
+asm_x64_asm_debug:
+
+  # Expectation: Context object in REG_CONTEXT.
+  # Expectation: 6502 PC in REG_SCRATCH1.
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  # Save 6502 IP.
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_SCRATCH1_32
+  # Save Intel IP.
+  mov REG_SCRATCH1, [rsp]
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_HOST_PC], REG_SCRATCH1_32
+  # Save A, X, Y, S.
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_6502_Y_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_6502_S_32
+  # TODO: flags!
+  mov REG_SCRATCH3, REG_CONTEXT
+  push REG_CONTEXT
+  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_DEBUG_OBJECT]
+  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_DEBUG_CALLBACK]
+  pop REG_CONTEXT
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_6502_A_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A]
+  mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
+  mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
+  mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  # TODO: flags!
+  # TODO: handle different 6502 PC!
+
+  ret
+
+asm_x64_asm_debug_END:
+
+
 .globl asm_x64_inturbo_next_opcode
 .globl asm_x64_inturbo_next_opcode_END
 asm_x64_inturbo_next_opcode:
@@ -153,6 +215,16 @@ asm_x64_inturbo_next_opcode:
   jmp [REG_SCRATCH1 * 4 + 0x3f000000]
 
 asm_x64_inturbo_next_opcode_END:
+
+
+.globl asm_x64_inturbo_enter_debug
+.globl asm_x64_inturbo_enter_debug_END
+asm_x64_inturbo_enter_debug:
+
+  mov REG_SCRATCH1, REG_6502_PC
+  call [REG_CONTEXT + K_CONTEXT_OFFSET_UTIL_DEBUG]
+
+asm_x64_inturbo_enter_debug_END:
 
 
 .globl asm_x64_inturbo_mode_zpg

@@ -1,6 +1,8 @@
 #include "inturbo.h"
 
 #include "asm_x64.h"
+#include "asm_x64_abi.h"
+#include "bbc_options.h"
 #include "defs_6502.h"
 #include "util.h"
 
@@ -20,6 +22,9 @@ static const size_t k_inturbo_jump_table_size = 4096;
 static const uint8_t k_inturbo_start_opcode = 0xEA;
 
 struct inturbo_struct {
+  struct asm_x64_abi abi;
+
+  struct bbc_options* p_options;
   unsigned char* p_inturbo_base;
   uint64_t* p_jump_table;
 };
@@ -32,6 +37,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   unsigned char* p_inturbo_base = p_inturbo->p_inturbo_base;
   unsigned char* p_inturbo_opcodes_ptr = p_inturbo_base;
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
+
+  struct bbc_options* p_options = p_inturbo->p_options;
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
+  int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
 
   /* Opcode pointers for the "next opcode" jump table. */
   for (i = 0; i < 256; ++i) {
@@ -46,6 +55,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     unsigned char optype = g_opmodes[i];
     unsigned char opreg = g_optype_sets_register[i];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
+
+    if (debug) {
+      asm_x64_copy(p_buf,
+                   asm_x64_inturbo_enter_debug,
+                   asm_x64_inturbo_enter_debug_END,
+                   0);
+    }
 
     switch (opmode) {
     case k_nil:
@@ -138,15 +154,16 @@ inturbo_create(struct state_6502* p_state_6502,
                struct bbc_options* p_options) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
-  (void) p_state_6502;
   (void) p_memory_access;
   (void) p_timing;
-  (void) p_options;
 
   if (p_inturbo == NULL) {
     errx(1, "couldn't allocate inturbo_struct");
   }
   (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+
+  asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
+  p_inturbo->p_options = p_options;
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
       k_inturbo_opcodes_addr,
