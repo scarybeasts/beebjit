@@ -2,6 +2,7 @@
 
 #include "jit.h"
 
+#include "asm_tables.h"
 #include "asm_x64.h"
 #include "bbc_options.h"
 #include "bbc_timing.h"
@@ -3766,6 +3767,8 @@ jit_create(struct state_6502* p_state_6502,
     errx(1, "cannot allocate jit_struct");
   }
   (void) memset(p_jit, '\0', sizeof(struct jit_struct));
+
+  asm_tables_init();
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(

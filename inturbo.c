@@ -1,5 +1,6 @@
 #include "inturbo.h"
 
+#include "asm_tables.h"
 #include "asm_x64.h"
 #include "asm_x64_abi.h"
 #include "bbc_options.h"
@@ -18,10 +19,6 @@ static const size_t k_inturbo_bytes_per_opcode = 32;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
 static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
 static const size_t k_inturbo_jump_table_size = 4096;
-/* Start by jumping to the NOP handler, which does nothing, followed by a next
- * opcode fetch from 6502 PC then opcode dispatch.
- */
-static const uint8_t k_inturbo_start_opcode = 0xEA;
 
 struct inturbo_struct {
   struct asm_x64_abi abi;
@@ -187,6 +184,8 @@ inturbo_create(struct state_6502* p_state_6502,
     errx(1, "couldn't allocate inturbo_struct");
   }
   (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+
+  asm_tables_init();
 
   p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
 
