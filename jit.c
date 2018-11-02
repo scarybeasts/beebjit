@@ -44,23 +44,21 @@ static const size_t k_semaphore_cli = 4096;
 static const size_t k_semaphore_cli_end_minus_4 = (4096 * 2) - 4;
 static const size_t k_semaphore_cli_read_only = 4096 * 2;
 static const size_t k_utils_size = 4096;
-static const size_t k_utils_regs_offset = 0;
-static const size_t k_utils_jit_offset = 0x100;
-static const size_t k_utils_do_interrupt_offset = 0x200;
+static const size_t k_utils_jit_offset = 0;
+static const size_t k_utils_do_interrupt_offset = 0x100;
 static const size_t k_tables_size = 4096;
 static const size_t k_semaphore_size = 4096;
 static const size_t k_semaphores_size = 4096 * 3;
 
-static const int k_offset_util_regs = k_asm_x64_abi_size;
-static const int k_offset_util_do_interrupt = (k_asm_x64_abi_size + 8);
+static const int k_offset_util_do_interrupt = k_asm_x64_abi_size;
 
-static const int k_offset_read_callback = (k_asm_x64_abi_size + 16);
-static const int k_offset_write_callback = (k_asm_x64_abi_size + 24);
-static const int k_offset_jit_callback = (k_asm_x64_abi_size + 32);
+static const int k_offset_read_callback = (k_asm_x64_abi_size + 8);
+static const int k_offset_write_callback = (k_asm_x64_abi_size + 16);
+static const int k_offset_jit_callback = (k_asm_x64_abi_size + 24);
 
-static const int k_offset_memory_object = (k_asm_x64_abi_size + 40);
-static const int k_offset_counter_ptr = (k_asm_x64_abi_size + 48);
-static const int k_offset_jit_ptrs = (k_asm_x64_abi_size + 56);
+static const int k_offset_memory_object = (k_asm_x64_abi_size + 32);
+static const int k_offset_counter_ptr = (k_asm_x64_abi_size + 40);
+static const int k_offset_jit_ptrs = (k_asm_x64_abi_size + 48);
 
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
@@ -179,7 +177,6 @@ static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
 struct jit_struct {
   struct asm_x64_abi abi;
 
-  unsigned char* p_util_regs;
   unsigned char* p_util_do_interrupt;
 
   /* C callbacks called by JIT code. */
@@ -898,67 +895,6 @@ jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x9e;
 
   return index;
-}
-
-static void
-jit_emit_regs_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
-  (void) p_jit;
-
-  size_t index = 0;
-
-  /* Get the pointer to the 6502 state. */
-  /* mov r15, [rdi + k_asm_x64_abi_offset_state_6502] */
-  p_jit_buf[index++] = 0x4c;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x7f;
-  p_jit_buf[index++] = k_asm_x64_abi_offset_state_6502;
-
-  /* Set A. */
-  /* mov eax, [r15 + k_state_6502_offset_reg_a] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x47;
-  p_jit_buf[index++] = k_state_6502_offset_reg_a;
-
-  /* Set X. */
-  /* mov ebx, [r15 + k_state_6502_offset_reg_x] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x5f;
-  p_jit_buf[index++] = k_state_6502_offset_reg_x;
-
-  /* Set Y. */
-  /* mov ecx, [r15 + k_state_6502_offset_reg_y] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x4f;
-  p_jit_buf[index++] = k_state_6502_offset_reg_y;
-
-  /* Set S. */
-  /* mov esi, [r15 + k_state_6502_offset_reg_s] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x77;
-  p_jit_buf[index++] = k_state_6502_offset_reg_s;
-
-  /* Set flags. */
-  /* mov dl, [r15 + k_state_6502_offset_reg_flags] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8a;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_state_6502_offset_reg_flags;
-  index = jit_emit_set_flags(p_jit_buf, index);
-
-  /* Load PC into edx. */
-  /* movzx edx, WORD PTR [r15 + k_state_6502_offset_reg_pc] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb7;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_state_6502_offset_reg_pc;
-
-  /* ret */
-  p_jit_buf[index++] = 0xc3;
 }
 
 static void
@@ -3577,7 +3513,6 @@ jit_create(struct state_6502* p_state_6502,
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
-  unsigned char* p_util_regs;
   unsigned char* p_util_jit;
   unsigned char* p_util_do_interrupt;
 
@@ -3611,7 +3546,6 @@ jit_create(struct state_6502* p_state_6502,
   /* This is the mapping that holds static little runtime code gadgets. */
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size);
   util_make_mapping_read_write_exec(p_utils_base, k_utils_size);
-  p_util_regs = p_utils_base + k_utils_regs_offset;
   p_util_jit = p_utils_base + k_utils_jit_offset;
   p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
 
@@ -3628,7 +3562,6 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->read_to_write_offset = (p_mem_write - p_mem_read);
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
-  p_jit->p_util_regs = p_util_regs;
   p_jit->abi.p_util_private = p_util_jit;
   p_jit->p_util_do_interrupt = p_util_do_interrupt;
   p_jit->p_counter = p_options->debug_get_counter_ptr(
@@ -3680,7 +3613,6 @@ jit_create(struct state_6502* p_state_6502,
     jit_init_addr(p_jit, i);
   }
 
-  jit_emit_regs_util(p_jit, p_util_regs);
   jit_emit_jit_util(p_jit, p_util_jit);
   jit_emit_do_interrupt_util(p_jit, p_util_do_interrupt);
 
