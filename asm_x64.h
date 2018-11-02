@@ -19,9 +19,12 @@ void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_PHP(struct util_buffer* p_buf);
 
+void asm_x64_emit_instruction_CMP_imm_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_CMP_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_LDA_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_LDA_scratch_interp(struct util_buffer* p_buf);
 
+/* Symbols pointing directly to ASM bytes. */
 void asm_x64_instruction_CRASH();
 void asm_x64_instruction_CRASH_END();
 void asm_x64_instruction_EXIT();
@@ -36,6 +39,10 @@ void asm_x64_instruction_X_NZ_flags_END();
 void asm_x64_instruction_Y_NZ_flags();
 void asm_x64_instruction_Y_NZ_flags_END();
 
+void asm_x64_instruction_CMP_imm_interp();
+void asm_x64_instruction_CMP_imm_interp_END();
+void asm_x64_instruction_CMP_scratch_interp();
+void asm_x64_instruction_CMP_scratch_interp_END();
 void asm_x64_instruction_LDA_imm_interp();
 void asm_x64_instruction_LDA_imm_interp_END();
 void asm_x64_instruction_LDA_scratch_interp();

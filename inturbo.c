@@ -53,7 +53,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     void* p_end;
     unsigned char opmode = g_opmodes[i];
     unsigned char optype = g_optypes[i];
-    unsigned char opreg = g_optype_sets_register[i];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     if (debug) {
@@ -87,6 +86,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (optype) {
+    case k_cmp:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_CMP_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_CMP_scratch_interp(p_buf);
+      }
+      break;
     case k_lda:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_LDA_imm_interp(p_buf);
@@ -102,29 +108,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     default:
       asm_x64_emit_instruction_TRAP(p_buf);
       break;
-    }
-
-    switch (opreg) {
-    case k_a:
-      p_begin = asm_x64_instruction_A_NZ_flags;
-      p_end = asm_x64_instruction_A_NZ_flags_END;
-      break;
-    case k_x:
-      p_begin = asm_x64_instruction_X_NZ_flags;
-      p_end = asm_x64_instruction_X_NZ_flags_END;
-      break;
-    case k_y:
-      p_begin = asm_x64_instruction_Y_NZ_flags;
-      p_end = asm_x64_instruction_Y_NZ_flags_END;
-      break;
-    default:
-      p_begin = NULL;
-      p_end = NULL;
-      break;
-    }
-
-    if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end, 0);
     }
 
     switch (opmode) {
