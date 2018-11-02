@@ -66,6 +66,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_nil:
     case k_acc:
     case k_imm:
+    case k_rel:
     case 0:
     default:
       p_begin = NULL;
@@ -86,6 +87,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (optype) {
+    case k_beq:
+      asm_x64_emit_instruction_BEQ_interp(p_buf);
+      break;
     case k_cmp:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_CMP_imm_interp(p_buf);

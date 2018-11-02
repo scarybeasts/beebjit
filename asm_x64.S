@@ -129,6 +129,18 @@ asm_x64_instruction_TAY:
 asm_x64_instruction_TAY_END:
 
 
+.globl asm_x64_instruction_BEQ_interp
+.globl asm_x64_instruction_BEQ_interp_END
+asm_x64_instruction_BEQ_interp:
+
+  mov REG_SCRATCH2, 0
+  movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  cmovne REG_SCRATCH1, REG_SCRATCH2
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+
+asm_x64_instruction_BEQ_interp_END:
+
+
 .globl asm_x64_instruction_CMP_imm_interp
 .globl asm_x64_instruction_CMP_imm_interp_END
 asm_x64_instruction_CMP_imm_interp:

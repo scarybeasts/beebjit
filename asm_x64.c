@@ -53,6 +53,14 @@ asm_x64_emit_instruction_PHP(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_BEQ_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BEQ_interp,
+               asm_x64_instruction_BEQ_interp_END,
+               0);
+}
+
+void
 asm_x64_emit_instruction_CMP_imm_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_CMP_imm_interp,
