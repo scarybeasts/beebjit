@@ -147,6 +147,37 @@ asm_x64_instruction_LDA_scratch_interp:
 asm_x64_instruction_LDA_scratch_interp_END:
 
 
+.globl asm_x64_asm_emit_intel_flags_to_scratch
+.globl asm_x64_asm_emit_intel_flags_to_scratch_END
+asm_x64_asm_emit_intel_flags_to_scratch:
+  lahf
+  # Add IF+DF, CF and "always set" (0x20)
+  lea REG_SCRATCH3, [REG_6502_ID_F_64 + REG_6502_CF_64 + 0x20]
+  rorx REG_6502_OF_64, REG_6502_OF_64, 58
+  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_OF_64]
+  rorx REG_6502_OF_64, REG_6502_OF_64, 6
+  movzx REG_SCRATCH1_32, ah
+  mov REG_SCRATCH1_8, [REG_SCRATCH1 + K_ASM_TABLE_X64_FLAGS_TO_6502]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + REG_SCRATCH3]
+
+asm_x64_asm_emit_intel_flags_to_scratch_END:
+  ret
+
+
+.globl asm_x64_asm_set_intel_flags_from_scratch
+.globl asm_x64_asm_set_intel_flags_from_scratch_END
+asm_x64_asm_set_intel_flags_from_scratch:
+  mov REG_SCRATCH2_32, 0x0106
+  mov REG_SCRATCH3_32, 0x0100
+  bextr REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
+  bextr REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
+  mov REG_6502_ID_F, [K_ASM_TABLE_6502_FLAGS_TO_MASK + REG_SCRATCH1]
+  mov ah, [K_ASM_TABLE_6502_FLAGS_TO_X64 + REG_SCRATCH1]
+  sahf
+asm_x64_asm_set_intel_flags_from_scratch_END:
+  ret
+
+
 .globl asm_x64_asm_enter
 .globl asm_x64_asm_enter_END
 asm_x64_asm_enter:
@@ -187,13 +218,8 @@ asm_x64_asm_enter:
   mov REG_6502_PC_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_PC]
   # Restore 6502 flags.
   movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_FLAGS]
-  mov REG_SCRATCH2_32, 0x0106
-  mov REG_SCRATCH3_32, 0x0100
-  bextr REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
-  bextr REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
-  mov REG_6502_ID_F, [K_ASM_TABLE_6502_FLAGS_TO_MASK + REG_SCRATCH1]
-  mov ah, [K_ASM_TABLE_6502_FLAGS_TO_X64 + REG_SCRATCH1]
-  sahf
+
+  call asm_x64_asm_set_intel_flags_from_scratch
 
   pop REG_SCRATCH1
   call REG_SCRATCH1
@@ -227,16 +253,9 @@ asm_x64_asm_debug:
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_6502_Y_32
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_6502_S_32
-  # Save 6502 flags.
-  lahf
-  # Add IF+DF, CF and "always set" (0x20)
-  lea REG_SCRATCH3, [REG_6502_ID_F_64 + REG_6502_CF_64 + 0x20]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 58
-  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_OF_64]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 6
-  movzx REG_SCRATCH1_32, ah
-  mov REG_SCRATCH1_8, [REG_SCRATCH1 + K_ASM_TABLE_X64_FLAGS_TO_6502]
-  lea REG_SCRATCH1, [REG_SCRATCH1 + REG_SCRATCH3]
+
+  call asm_x64_asm_emit_intel_flags_to_scratch
+
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS], REG_SCRATCH1_32
 
   mov REG_SCRATCH3, REG_CONTEXT
@@ -254,13 +273,9 @@ asm_x64_asm_debug:
   mov REG_6502_PC_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_PC]
   # Restore 6502 flags.
   movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_FLAGS]
-  mov REG_SCRATCH2_32, 0x0106
-  mov REG_SCRATCH3_32, 0x0100
-  bextr REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
-  bextr REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
-  mov REG_6502_ID_F, [K_ASM_TABLE_6502_FLAGS_TO_MASK + REG_SCRATCH1]
-  mov ah, [K_ASM_TABLE_6502_FLAGS_TO_X64 + REG_SCRATCH1]
-  sahf
+
+  call asm_x64_asm_set_intel_flags_from_scratch
+
   # TODO: handle different 6502 PC!
 
   ret

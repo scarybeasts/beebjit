@@ -493,19 +493,6 @@ jit_emit_ind_y_dyn_to_scratch(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_scratch_bit_test(unsigned char* p_jit,
-                          size_t index,
-                          unsigned char bit) {
-  /* bt edx, bit */
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xba;
-  p_jit[index++] = 0xe2;
-  p_jit[index++] = bit;
-
-  return index;
-}
-
-static size_t
 jit_emit_jmp_scratch(unsigned char* p_jit, size_t index) {
   /* jmp rdx */
   p_jit[index++] = 0xff;
@@ -566,30 +553,30 @@ jit_emit_jit_bytes_shift_scratch_left(unsigned char* p_jit, size_t index) {
 
 static size_t
 jit_emit_stack_inc(unsigned char* p_jit, size_t index) {
-  /* lea r8, [rsi + 1] */
+  /* lea r9, [rsi + 1] */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x46;
+  p_jit[index++] = 0x4e;
   p_jit[index++] = 0x01;
-  /* mov sil, r8b */
+  /* mov sil, r9b */
   p_jit[index++] = 0x44;
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0xc6;
+  p_jit[index++] = 0xce;
 
   return index;
 }
 
 static size_t
 jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
-  /* lea r8, [rsi - 1] */
+  /* lea r9, [rsi - 1] */
   p_jit[index++] = 0x4c;
   p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x46;
+  p_jit[index++] = 0x4e;
   p_jit[index++] = 0xff;
-  /* mov sil, r8b */
+  /* mov sil, r9b */
   p_jit[index++] = 0x44;
   p_jit[index++] = 0x88;
-  p_jit[index++] = 0xc6;
+  p_jit[index++] = 0xce;
 
   return index;
 }
@@ -607,8 +594,9 @@ jit_emit_pull_to_a(unsigned char* p_jit, size_t index) {
 static size_t
 jit_emit_pull_to_scratch(unsigned char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
-  /* mov dl, [rsi] */
-  p_jit[index++] = 0x8a;
+  /* movzx edx, BYTE PTR [rsi] */
+  p_jit[index++] = 0x0f;
+  p_jit[index++] = 0xb6;
   p_jit[index++] = 0x16;
 
   return index;
@@ -677,128 +665,6 @@ jit_emit_push_word_from_scratch(unsigned char* p_jit_buf, size_t index) {
   p_jit_buf[index++] = 0x36;
   index = jit_emit_stack_dec(p_jit_buf, index);
   index = jit_emit_push_from_scratch(p_jit_buf, index);
-
-  return index;
-}
-
-static size_t
-jit_emit_flags_to_scratch(unsigned char* p_jit, size_t index) {
-  /* TODO: getting messy, rewrite? */
-  /* Preserve rdi. */
-  /* mov r8, rdi */
-  p_jit[index++] = 0x49;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xf8;
-
-  /* lahf */
-  p_jit[index++] = 0x9f;
-
-  /* r13 is IF and DF */
-  /* r14 is CF */
-  /* lea rdx, [r13 + r14 + 0x20] */
-  p_jit[index++] = 0x4b;
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x54;
-  p_jit[index++] = 0x35;
-  p_jit[index++] = 0x20;
-
-  /* r12 is OF */
-  /* mov rdi, r12 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xe7;
-  /* shl edi, 6 */
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xe7;
-  p_jit[index++] = 0x06;
-  /* lea edx, [rdx + rdi] */
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x3a;
-
-  /* Intel flags bit 6 is ZF, 6502 flags bit 1 */
-  /* movzx edi, ah */
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xfc;
-  /* and edi, 0x40 */
-  p_jit[index++] = 0x83;
-  p_jit[index++] = 0xe7;
-  p_jit[index++] = 0x40;
-  /* shr edi, 5 */
-  p_jit[index++] = 0xc1;
-  p_jit[index++] = 0xef;
-  p_jit[index++] = 0x05;
-  /* lea edx, [rdx + rdi] */
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x3a;
-
-  /* Intel flags bit 7 is SF, 6502 flags bit 7 */
-  /* movzx edi, ah */
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0xfc;
-  /* and edi, 0x80 */
-  p_jit[index++] = 0x83;
-  p_jit[index++] = 0xe7;
-  p_jit[index++] = 0x80;
-  /* lea edx, [rdx + rdi] */
-  p_jit[index++] = 0x8d;
-  p_jit[index++] = 0x14;
-  p_jit[index++] = 0x3a;
-
-  /* sahf */
-  p_jit[index++] = 0x9e;
-
-  /* Restore rdi. */
-  /* mov rdi, r8 */
-  p_jit[index++] = 0x4c;
-  p_jit[index++] = 0x89;
-  p_jit[index++] = 0xc7;
-
-  return index;
-}
-
-static size_t
-jit_emit_set_flags(unsigned char* p_jit_buf, size_t index) {
-  index = jit_emit_scratch_bit_test(p_jit_buf, index, 0);
-  index = jit_emit_intel_to_6502_carry_oldapi(p_jit_buf, index);
-  index = jit_emit_scratch_bit_test(p_jit_buf, index, 6);
-  index = jit_emit_carry_to_6502_overflow(p_jit_buf, index);
-  /* I and D flags */
-  /* mov r13b, dl */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0xd5;
-  /* and r13b, 0xc */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xe5;
-  p_jit_buf[index++] = 0x0c;
-  /* ZF */
-  /* mov ah, dl */
-  p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0xd4;
-  /* and ah, 2 */
-  p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xe4;
-  p_jit_buf[index++] = 0x02;
-  /* shl ah, 5 */
-  p_jit_buf[index++] = 0xc0;
-  p_jit_buf[index++] = 0xe4;
-  p_jit_buf[index++] = 0x05;
-  /* NF */
-  /* and dl, 0x80 */
-  p_jit_buf[index++] = 0x80;
-  p_jit_buf[index++] = 0xe2;
-  p_jit_buf[index++] = 0x80;
-  /* or ah, dl */
-  p_jit_buf[index++] = 0x08;
-  p_jit_buf[index++] = 0xd4;
-
-  /* sahf */
-  p_jit_buf[index++] = 0x9e;
 
   return index;
 }
@@ -1353,10 +1219,10 @@ jit_emit_do_brk(struct jit_struct* p_jit,
   p_jit_buf[index++] = (addr_6502 & 0xff);
   p_jit_buf[index++] = (addr_6502 >> 8);
   /* Magic constant, 0x0e == vector offset from 0xFFF0, 0x10 == BRK flag. */
-  /* mov r9, 0x0e10 */
+  /* mov r8, 0x0e10 */
   p_jit_buf[index++] = 0x49;
   p_jit_buf[index++] = 0xc7;
-  p_jit_buf[index++] = 0xc1;
+  p_jit_buf[index++] = 0xc0;
   index = jit_emit_int(p_jit_buf, index, 0x0e10);
   /* jmp [rdi + k_offset_util_do_interrupt] */
   p_jit_buf[index++] = 0xff;
@@ -1367,31 +1233,38 @@ jit_emit_do_brk(struct jit_struct* p_jit,
 }
 
 static void
-jit_emit_do_interrupt_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
+jit_emit_do_interrupt_util(struct jit_struct* p_jit,
+                           struct util_buffer* p_buf) {
   size_t index = 0;
+  unsigned char* p_jit_buf = (util_buffer_get_ptr(p_buf) +
+                              util_buffer_get_pos(p_buf));
 
   index = jit_emit_push_word_from_scratch(p_jit_buf, index);
-  index = jit_emit_flags_to_scratch(p_jit_buf, index);
+  util_buffer_set_pos(p_buf, index);
+  index = asm_x64_copy(p_buf,
+                       asm_x64_asm_emit_intel_flags_to_scratch,
+                       asm_x64_asm_emit_intel_flags_to_scratch_END,
+                       2);
   /* Add in the BRK flag. */
-  /* lea rdx, [rdx + r9] */
+  /* lea rdx, [rdx + r8] */
   p_jit_buf[index++] = 0x4a;
   p_jit_buf[index++] = 0x8d;
   p_jit_buf[index++] = 0x14;
-  p_jit_buf[index++] = 0x0a;
+  p_jit_buf[index++] = 0x02;
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   index = jit_emit_sei(p_jit_buf, index);
   /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
-  /* rorx r9, r9, 8 */
+  /* rorx r8, r8, 8 */
   p_jit_buf[index++] = 0xc4;
   p_jit_buf[index++] = 0x43;
   p_jit_buf[index++] = 0xfb;
   p_jit_buf[index++] = 0xf0;
-  p_jit_buf[index++] = 0xc9;
+  p_jit_buf[index++] = 0xc0;
   p_jit_buf[index++] = 0x08;
-  /* lea edx, [r9 + 0xfff0]  */
+  /* lea edx, [r8 + 0xfff0]  */
   p_jit_buf[index++] = 0x41;
   p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x91;
+  p_jit_buf[index++] = 0x90;
   index = jit_emit_int(p_jit_buf, index, 0xfff0);
   index = jit_emit_jmp_double_indirect(p_jit, p_jit_buf, index);
 }
@@ -1831,7 +1704,10 @@ printf("ooh\n");
     break;
   case k_php:
     /* PHP */
-    index = jit_emit_flags_to_scratch(p_jit_buf, index);
+    index = asm_x64_copy(p_buf,
+                         asm_x64_asm_emit_intel_flags_to_scratch,
+                         asm_x64_asm_emit_intel_flags_to_scratch_END,
+                         2);
     /* Add in BRK flag. */
     /* lea rdx, [rdx + 0x10] */
     p_jit_buf[index++] = 0x48;
@@ -1956,7 +1832,11 @@ printf("ooh\n");
   case k_plp:
     /* PLP */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
-    index = jit_emit_set_flags(p_jit_buf, index);
+    util_buffer_set_pos(p_buf, index);
+    index = asm_x64_copy(p_buf,
+                         asm_x64_asm_set_intel_flags_from_scratch,
+                         asm_x64_asm_set_intel_flags_from_scratch_END,
+                         2);
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1);
     break;
   case k_bmi:
@@ -2040,7 +1920,11 @@ printf("ooh\n");
   case k_rti:
     /* RTI */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
-    index = jit_emit_set_flags(p_jit_buf, index);
+    util_buffer_set_pos(p_buf, index);
+    index = asm_x64_copy(p_buf,
+                         asm_x64_asm_set_intel_flags_from_scratch,
+                         asm_x64_asm_set_intel_flags_from_scratch_END,
+                         2);
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
     index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     break;
@@ -3337,10 +3221,10 @@ handle_sigsegv_fire_interrupt(ucontext_t* p_context,
                               struct jit_struct* p_jit,
                               uint16_t addr_6502,
                               uint16_t vector) {
-  /* ABI is rdx for 6502 RTI address, r9 == 0x??00 for IRQ vector, BRK == 0. */
-  uint16_t r9 = ((vector & 0x000F) << 8);
+  /* ABI is rdx for 6502 RTI address, r8 == 0x??00 for IRQ vector, BRK == 0. */
+  uint16_t r8 = ((vector & 0x000F) << 8);
   p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
-  p_context->uc_mcontext.gregs[REG_R9] = r9;
+  p_context->uc_mcontext.gregs[REG_R8] = r8;
   p_context->uc_mcontext.gregs[REG_RIP] = (size_t) p_jit->p_util_do_interrupt;
 }
 
@@ -3613,12 +3497,13 @@ jit_create(struct state_6502* p_state_6502,
     jit_init_addr(p_jit, i);
   }
 
-  jit_emit_jit_util(p_jit, p_util_jit);
-  jit_emit_do_interrupt_util(p_jit, p_util_do_interrupt);
-
   p_jit->p_dest_buf = util_buffer_create();
   p_jit->p_seq_buf = util_buffer_create();
   p_jit->p_single_buf = util_buffer_create();
+
+  jit_emit_jit_util(p_jit, p_util_jit);
+  util_buffer_setup(p_jit->p_dest_buf, p_util_do_interrupt, 0x100);
+  jit_emit_do_interrupt_util(p_jit, p_jit->p_dest_buf);
 
   return p_jit;
 }
