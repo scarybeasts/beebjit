@@ -14,6 +14,14 @@ size_t asm_x64_copy(struct util_buffer* p_buf,
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();
 
+void asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
+
+void asm_x64_emit_instruction_PHP(struct util_buffer* p_buf);
+
+void asm_x64_emit_instruction_LDA_imm_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_LDA_scratch_interp(struct util_buffer* p_buf);
+
 void asm_x64_instruction_CRASH();
 void asm_x64_instruction_CRASH_END();
 void asm_x64_instruction_EXIT();

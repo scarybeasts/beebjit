@@ -1643,18 +1643,14 @@ printf("ooh\n");
     case 0x12:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a debug trap and continue. */
-      index = asm_x64_copy(p_buf,
-                           asm_x64_instruction_TRAP,
-                           asm_x64_instruction_TRAP_END,
-                           2);
+      asm_x64_emit_instruction_TRAP(p_buf);
+      index = util_buffer_get_pos(p_buf);
       break;
     case 0xf2:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a SEGV. */
-      index = asm_x64_copy(p_buf,
-                           asm_x64_instruction_CRASH,
-                           asm_x64_instruction_CRASH_END,
-                           2);
+      asm_x64_emit_instruction_CRASH(p_buf);
+      index = util_buffer_get_pos(p_buf);
       break;
     default:
       index = jit_emit_undefined(p_jit_buf, index, opcode, addr_6502);
@@ -1702,18 +1698,8 @@ printf("ooh\n");
     break;
   case k_php:
     /* PHP */
-    asm_x64_copy(p_buf,
-                 asm_x64_asm_emit_intel_flags_to_scratch,
-                 asm_x64_asm_emit_intel_flags_to_scratch_END,
-                 2);
-    asm_x64_copy(p_buf,
-                 asm_x64_set_brk_flag_in_scratch,
-                 asm_x64_set_brk_flag_in_scratch_END,
-                 2);
-    index = asm_x64_copy(p_buf,
-                         asm_x64_push_from_scratch,
-                         asm_x64_push_from_scratch_END,
-                         2);
+    asm_x64_emit_instruction_PHP(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_bpl:
     /* BPL */

@@ -89,37 +89,19 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     switch (optype) {
     case k_lda:
       if (opmode == k_imm) {
-        p_begin = asm_x64_instruction_LDA_imm_interp;
-        p_end = asm_x64_instruction_LDA_imm_interp_END;
+        asm_x64_emit_instruction_LDA_imm_interp(p_buf);
       } else {
-        p_begin = asm_x64_instruction_LDA_scratch_interp;
-        p_end = asm_x64_instruction_LDA_scratch_interp_END;
+        asm_x64_emit_instruction_LDA_scratch_interp(p_buf);
       }
       break;
     case k_nop:
-      p_begin = NULL;
-      p_end = NULL;
       break;
     case k_php:
-      asm_x64_copy(p_buf,
-                   asm_x64_asm_emit_intel_flags_to_scratch,
-                   asm_x64_asm_emit_intel_flags_to_scratch_END,
-                   0);
-      asm_x64_copy(p_buf,
-                   asm_x64_set_brk_flag_in_scratch,
-                   asm_x64_set_brk_flag_in_scratch_END,
-                   0);
-      p_begin = asm_x64_push_from_scratch;
-      p_end = asm_x64_push_from_scratch_END;
+      asm_x64_emit_instruction_PHP(p_buf);
       break;
     default:
-      p_begin = asm_x64_instruction_TRAP;
-      p_end = asm_x64_instruction_TRAP_END;
+      asm_x64_emit_instruction_TRAP(p_buf);
       break;
-    }
-
-    if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end, 0);
     }
 
     switch (opreg) {
