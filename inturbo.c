@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_inturbo_bytes_per_opcode = 32;
+static const size_t k_inturbo_bytes_per_opcode = 128;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
 static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
 static const size_t k_inturbo_jump_table_size = 4096;
@@ -99,6 +99,18 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_nop:
       p_begin = NULL;
       p_end = NULL;
+      break;
+    case k_php:
+      asm_x64_copy(p_buf,
+                   asm_x64_asm_emit_intel_flags_to_scratch,
+                   asm_x64_asm_emit_intel_flags_to_scratch_END,
+                   0);
+      asm_x64_copy(p_buf,
+                   asm_x64_set_brk_flag_in_scratch,
+                   asm_x64_set_brk_flag_in_scratch_END,
+                   0);
+      p_begin = asm_x64_push_from_scratch;
+      p_end = asm_x64_push_from_scratch_END;
       break;
     default:
       p_begin = asm_x64_instruction_TRAP;

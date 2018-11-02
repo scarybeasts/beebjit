@@ -178,6 +178,26 @@ asm_x64_asm_set_intel_flags_from_scratch_END:
   ret
 
 
+.globl asm_x64_set_brk_flag_in_scratch
+.globl asm_x64_set_brk_flag_in_scratch_END
+asm_x64_set_brk_flag_in_scratch:
+
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x10]
+
+asm_x64_set_brk_flag_in_scratch_END:
+
+
+.globl asm_x64_push_from_scratch
+.globl asm_x64_push_from_scratch_END
+asm_x64_push_from_scratch:
+
+  mov [REG_6502_S_64], REG_SCRATCH1_8
+  lea REG_SCRATCH3, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+
+asm_x64_push_from_scratch_END:
+
+
 .globl asm_x64_asm_enter
 .globl asm_x64_asm_enter_END
 asm_x64_asm_enter:

@@ -11,6 +11,9 @@ size_t asm_x64_copy(struct util_buffer* p_buf,
                     void* p_end,
                     size_t min_for_padding);
 
+void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
+void asm_x64_asm_debug();
+
 void asm_x64_instruction_CRASH();
 void asm_x64_instruction_CRASH_END();
 void asm_x64_instruction_EXIT();
@@ -34,13 +37,14 @@ void asm_x64_instruction_TAX_END();
 void asm_x64_instruction_TAY();
 void asm_x64_instruction_TAY_END();
 
-void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
-void asm_x64_asm_debug();
-
 void asm_x64_asm_emit_intel_flags_to_scratch();
 void asm_x64_asm_emit_intel_flags_to_scratch_END();
 void asm_x64_asm_set_intel_flags_from_scratch();
 void asm_x64_asm_set_intel_flags_from_scratch_END();
+void asm_x64_set_brk_flag_in_scratch();
+void asm_x64_set_brk_flag_in_scratch_END();
+void asm_x64_push_from_scratch();
+void asm_x64_push_from_scratch_END();
 
 void asm_x64_inturbo_next_opcode();
 void asm_x64_inturbo_next_opcode_END();

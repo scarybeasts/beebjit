@@ -1245,12 +1245,10 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit,
                        asm_x64_asm_emit_intel_flags_to_scratch,
                        asm_x64_asm_emit_intel_flags_to_scratch_END,
                        2);
-  /* Add in the BRK flag. */
-  /* lea rdx, [rdx + r8] */
-  p_jit_buf[index++] = 0x4a;
-  p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x14;
-  p_jit_buf[index++] = 0x02;
+  index = asm_x64_copy(p_buf,
+                       asm_x64_set_brk_flag_in_scratch,
+                       asm_x64_set_brk_flag_in_scratch_END,
+                       2);
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   index = jit_emit_sei(p_jit_buf, index);
   /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
@@ -1704,17 +1702,18 @@ printf("ooh\n");
     break;
   case k_php:
     /* PHP */
+    asm_x64_copy(p_buf,
+                 asm_x64_asm_emit_intel_flags_to_scratch,
+                 asm_x64_asm_emit_intel_flags_to_scratch_END,
+                 2);
+    asm_x64_copy(p_buf,
+                 asm_x64_set_brk_flag_in_scratch,
+                 asm_x64_set_brk_flag_in_scratch_END,
+                 2);
     index = asm_x64_copy(p_buf,
-                         asm_x64_asm_emit_intel_flags_to_scratch,
-                         asm_x64_asm_emit_intel_flags_to_scratch_END,
+                         asm_x64_push_from_scratch,
+                         asm_x64_push_from_scratch_END,
                          2);
-    /* Add in BRK flag. */
-    /* lea rdx, [rdx + 0x10] */
-    p_jit_buf[index++] = 0x48;
-    p_jit_buf[index++] = 0x8d;
-    p_jit_buf[index++] = 0x52;
-    p_jit_buf[index++] = 0x10;
-    index = jit_emit_push_from_scratch(p_jit_buf, index);
     break;
   case k_bpl:
     /* BPL */
