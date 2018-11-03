@@ -135,6 +135,7 @@ static const unsigned char g_overflow_flag_location[k_6502_op_num_types] = {
 };
 
 /* TODO: BIT trashing carry is just an internal wart to fix. */
+/* TODO: SEI / CLD / etc. trashing carry is just an internal wart to fix. */
 /* This table tracks which 6502 opcodes need us to have the carry and overflow
  * flags safely stored in a register.
  * ORA / AND / EOR may be surprising at first but the underlying Intel
@@ -144,10 +145,10 @@ static const unsigned char g_carry_flag_needed_in_reg[k_6502_op_num_types] = {
   0, 0, 1, 1, 0, 1, 1, 0, /* BRK, ORA, PHP, BPL */
   1, 1, 1, 0, 0, 1, 0, 0, /* JSR, AND, BIT, BMI */
   1, 0, 0, 1, 1, 1, 1, 0, /* EOR, JMP, BVC, CLI, RTS */
-  0, 0, 1, 0, 0, 0, 0, 0, /* BVS */
+  0, 0, 1, 1, 0, 0, 0, 0, /* BVS, SEI */
   0, 1, 0, 0, 0, 0, 0, 0, /* BCC */
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
-  0, 0, 1, 0, 0, 0, 0, 0, /* BNE */
+  0, 0, 1, 1, 0, 0, 0, 0, /* BNE, CLD */
   1, 0, 1, 0, 0, 0,       /* BEQ, SAX */
 };
 

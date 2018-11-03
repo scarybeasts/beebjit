@@ -788,7 +788,19 @@ main(int argc, const char* argv[]) {
   emit_BEQ(p_buf, -3);
   emit_JMP(p_buf, k_abs, 0xCB00);
 
+  /* Tests a bug where SEI clobbered the carry flag in JIT mode. */
   util_buffer_set_pos(p_buf, 0x0B00);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_SEI(p_buf);
+  emit_SEI(p_buf);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_CLI(p_buf);
+  emit_JMP(p_buf, k_abs, 0xCB40);
+
+  util_buffer_set_pos(p_buf, 0x0B40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
