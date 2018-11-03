@@ -112,6 +112,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_bpl:
       asm_x64_emit_instruction_BPL_interp(p_buf);
       break;
+    case k_brk:
+      asm_x64_emit_instruction_BRK_interp(p_buf);
+      /* Set the opmode to something that doesn't advance the PC below. */
+      opmode = k_zpg;
+      break;
     case k_bvc:
       asm_x64_emit_instruction_BVC_interp(p_buf);
       break;
@@ -123,6 +128,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_cld:
       asm_x64_emit_instruction_CLD(p_buf);
+      break;
+    case k_cli:
+      asm_x64_emit_instruction_CLI(p_buf);
       break;
     case k_cmp:
       if (opmode == k_imm) {
@@ -180,8 +188,14 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_sec:
       asm_x64_emit_instruction_SEC(p_buf);
       break;
+    case k_sei:
+      asm_x64_emit_instruction_SEI(p_buf);
+      break;
     case k_sta:
       asm_x64_emit_instruction_STA_scratch_interp(p_buf);
+      break;
+    case k_stx:
+      asm_x64_emit_instruction_STX_scratch_interp(p_buf);
       break;
     case k_tsx:
       asm_x64_emit_instruction_TSX(p_buf);

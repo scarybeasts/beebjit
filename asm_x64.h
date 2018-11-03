@@ -17,9 +17,11 @@ void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_CLC(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CLD(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_CLI(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_PHP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_PLP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SEC(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_SEI(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TSX(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TXS(struct util_buffer* p_buf);
 
@@ -31,6 +33,7 @@ void asm_x64_emit_instruction_BEQ_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_BMI_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_BNE_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_BPL_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_BRK_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_BVC_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_BVS_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CMP_imm_interp(struct util_buffer* p_buf);
@@ -47,10 +50,13 @@ void asm_x64_emit_instruction_ROR_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SBC_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SBC_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_STA_scratch_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_A_NZ_flags(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_X_NZ_flags(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_Y_NZ_flags(struct util_buffer* p_buf);
+
+void asm_x64_emit_push_word_from_scratch(struct util_buffer* p_buf);
 
 void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf);
 
@@ -68,8 +74,12 @@ void asm_x64_instruction_CLC();
 void asm_x64_instruction_CLC_END();
 void asm_x64_instruction_CLD();
 void asm_x64_instruction_CLD_END();
+void asm_x64_instruction_CLI();
+void asm_x64_instruction_CLI_END();
 void asm_x64_instruction_SEC();
 void asm_x64_instruction_SEC_END();
+void asm_x64_instruction_SEI();
+void asm_x64_instruction_SEI_END();
 void asm_x64_instruction_TAX();
 void asm_x64_instruction_TAX_END();
 void asm_x64_instruction_TAY();
@@ -134,6 +144,8 @@ void asm_x64_instruction_SBC_scratch_interp();
 void asm_x64_instruction_SBC_scratch_interp_END();
 void asm_x64_instruction_STA_scratch_interp();
 void asm_x64_instruction_STA_scratch_interp_END();
+void asm_x64_instruction_STX_scratch_interp();
+void asm_x64_instruction_STX_scratch_interp_END();
 
 void asm_x64_asm_emit_intel_flags_to_scratch();
 void asm_x64_asm_emit_intel_flags_to_scratch_END();
@@ -143,13 +155,11 @@ void asm_x64_set_brk_flag_in_scratch();
 void asm_x64_set_brk_flag_in_scratch_END();
 void asm_x64_push_from_scratch();
 void asm_x64_push_from_scratch_END();
+void asm_x64_push_word_from_scratch();
+void asm_x64_push_word_from_scratch_END();
 void asm_x64_pull_to_scratch();
 void asm_x64_pull_to_scratch_END();
 
-void asm_x64_inturbo_next_opcode();
-void asm_x64_inturbo_next_opcode_END();
-void asm_x64_inturbo_enter_debug();
-void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_mode_nil();
 void asm_x64_inturbo_mode_nil_END();
 void asm_x64_inturbo_mode_imm();
@@ -158,5 +168,14 @@ void asm_x64_inturbo_mode_zpg();
 void asm_x64_inturbo_mode_zpg_END();
 void asm_x64_inturbo_mode_abs();
 void asm_x64_inturbo_mode_abs_END();
+
+void asm_x64_inturbo_next_opcode();
+void asm_x64_inturbo_next_opcode_END();
+void asm_x64_inturbo_enter_debug();
+void asm_x64_inturbo_enter_debug_END();
+void asm_x64_inturbo_pc_plus_1_to_scratch();
+void asm_x64_inturbo_pc_plus_1_to_scratch_END();
+void asm_x64_inturbo_interrupt_vector();
+void asm_x64_inturbo_interrupt_vector_END();
 
 #endif /* BEEBJIT_ASM_X64_H */

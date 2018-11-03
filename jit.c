@@ -660,17 +660,6 @@ jit_emit_push_word(unsigned char* p_jit_buf, size_t index, uint16_t addr_6502) {
 }
 
 static size_t
-jit_emit_push_word_from_scratch(unsigned char* p_jit_buf, size_t index) {
-  /* mov [rsi], dh */
-  p_jit_buf[index++] = 0x88;
-  p_jit_buf[index++] = 0x36;
-  index = jit_emit_stack_dec(p_jit_buf, index);
-  index = jit_emit_push_from_scratch(p_jit_buf, index);
-
-  return index;
-}
-
-static size_t
 jit_emit_jmp_from_6502_scratch(struct jit_struct* p_jit,
                                unsigned char* p_jit_buf,
                                size_t index) {
@@ -1196,18 +1185,6 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_sei(unsigned char* p_jit_buf, size_t index) {
-  /* bts r13, 2 */
-  p_jit_buf[index++] = 0x49;
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xba;
-  p_jit_buf[index++] = 0xed;
-  p_jit_buf[index++] = 0x02;
-
-  return index;
-}
-
-static size_t
 jit_emit_do_brk(struct jit_struct* p_jit,
                 unsigned char* p_jit_buf,
                 size_t index,
@@ -1240,16 +1217,17 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit,
   unsigned char* p_jit_buf = (util_buffer_get_ptr(p_buf) +
                               util_buffer_get_pos(p_buf));
 
-  index = jit_emit_push_word_from_scratch(p_jit_buf, index);
-  util_buffer_set_pos(p_buf, index);
-  index = asm_x64_copy(p_buf,
-                       asm_x64_asm_emit_intel_flags_to_scratch,
-                       asm_x64_asm_emit_intel_flags_to_scratch_END);
+  asm_x64_emit_push_word_from_scratch(p_buf);
+  asm_x64_copy(p_buf,
+               asm_x64_asm_emit_intel_flags_to_scratch,
+               asm_x64_asm_emit_intel_flags_to_scratch_END);
   index = asm_x64_copy(p_buf,
                        asm_x64_set_brk_flag_in_scratch,
                        asm_x64_set_brk_flag_in_scratch_END);
   index = jit_emit_push_from_scratch(p_jit_buf, index);
-  index = jit_emit_sei(p_jit_buf, index);
+  util_buffer_set_pos(p_buf, index);
+  asm_x64_emit_instruction_SEI(p_buf);
+  index = util_buffer_get_pos(p_buf);
   /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
   /* rorx r8, r8, 8 */
   p_jit_buf[index++] = 0xc4;
@@ -1972,7 +1950,8 @@ printf("ooh\n");
     break;
   case k_sei:
     /* SEI */
-    index = jit_emit_sei(p_jit_buf, index);
+    asm_x64_emit_instruction_SEI(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_sta:
     /* STA */

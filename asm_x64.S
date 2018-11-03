@@ -5,6 +5,7 @@
 
 #define K_BBC_MEM_READ_ADDR                 0x10000000
 #define K_BBC_MEM_WRITE_ADDR                0x11000000
+#define K_6502_VECTOR_IRQ                   0xFFFE
 #define K_ASM_TABLE_6502_FLAGS_TO_X64       0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK      0x50000100
 #define K_ASM_TABLE_X64_FLAGS_TO_6502       0x50000200
@@ -22,43 +23,44 @@
 #define K_STATE_6502_OFFSET_REG_HOST_PC     28
 #define K_STATE_6502_OFFSET_REG_HOST_FLAGS  32
 
-#define REG_6502_A        al
-#define REG_6502_A_32     eax
-#define REG_6502_A_64     rax
-#define REG_6502_X        bl
-#define REG_6502_X_32     ebx
-#define REG_6502_X_64     rbx
-#define REG_6502_Y        cl
-#define REG_6502_Y_32     ecx
-#define REG_6502_Y_64     rcx
-#define REG_6502_S        sil
-#define REG_6502_S_32     esi
-#define REG_6502_S_64     rsi
-#define REG_6502_PC       r10
-#define REG_6502_PC_16    r10w
-#define REG_6502_PC_32    r10d
-#define REG_6502_OF       r12b
-#define REG_6502_OF_64    r12
-#define REG_6502_CF       r14b
-#define REG_6502_CF_64    r14
-#define REG_6502_ID_F     r13b
-#define REG_6502_ID_F_64  r13
+#define REG_6502_A         al
+#define REG_6502_A_32      eax
+#define REG_6502_A_64      rax
+#define REG_6502_X         bl
+#define REG_6502_X_32      ebx
+#define REG_6502_X_64      rbx
+#define REG_6502_Y         cl
+#define REG_6502_Y_32      ecx
+#define REG_6502_Y_64      rcx
+#define REG_6502_S         sil
+#define REG_6502_S_32      esi
+#define REG_6502_S_64      rsi
+#define REG_6502_PC        r10
+#define REG_6502_PC_16     r10w
+#define REG_6502_PC_32     r10d
+#define REG_6502_OF        r12b
+#define REG_6502_OF_64     r12
+#define REG_6502_CF        r14b
+#define REG_6502_CF_64     r14
+#define REG_6502_ID_F      r13b
+#define REG_6502_ID_F_64   r13
 
-#define REG_CONTEXT       rdi
+#define REG_CONTEXT        rdi
 
-#define REG_SCRATCH1      rdx
-#define REG_SCRATCH1_8    dl
-#define REG_SCRATCH1_16   dx
-#define REG_SCRATCH1_32   edx
-#define REG_SCRATCH2      r8
-#define REG_SCRATCH2_8    r8b
-#define REG_SCRATCH2_32   r8d
-#define REG_SCRATCH3      r9
-#define REG_SCRATCH3_8    r9b
-#define REG_SCRATCH3_32   r9d
+#define REG_SCRATCH1       rdx
+#define REG_SCRATCH1_8     dl
+#define REG_SCRATCH1_8_HI  dh
+#define REG_SCRATCH1_16    dx
+#define REG_SCRATCH1_32    edx
+#define REG_SCRATCH2       r8
+#define REG_SCRATCH2_8     r8b
+#define REG_SCRATCH2_32    r8d
+#define REG_SCRATCH3       r9
+#define REG_SCRATCH3_8     r9b
+#define REG_SCRATCH3_32    r9d
 
-#define REG_PARAM1        rdi
-#define REG_PARAM2        rsi
+#define REG_PARAM1         rdi
+#define REG_PARAM2         rsi
 
 .globl asm_x64_instruction_CRASH
 .globl asm_x64_instruction_CRASH_END
@@ -114,6 +116,15 @@ asm_x64_instruction_CLD:
 asm_x64_instruction_CLD_END:
 
 
+.globl asm_x64_instruction_CLI
+.globl asm_x64_instruction_CLI_END
+asm_x64_instruction_CLI:
+
+  btr REG_6502_ID_F_64, 2
+
+asm_x64_instruction_CLI_END:
+
+
 .globl asm_x64_instruction_SEC
 .globl asm_x64_instruction_SEC_END
 asm_x64_instruction_SEC:
@@ -121,6 +132,15 @@ asm_x64_instruction_SEC:
   mov REG_6502_CF, 1
 
 asm_x64_instruction_SEC_END:
+
+
+.globl asm_x64_instruction_SEI
+.globl asm_x64_instruction_SEI_END
+asm_x64_instruction_SEI:
+
+  bts REG_6502_ID_F_64, 2
+
+asm_x64_instruction_SEI_END:
 
 
 .globl asm_x64_instruction_TAX
@@ -458,6 +478,15 @@ asm_x64_instruction_STA_scratch_interp:
 asm_x64_instruction_STA_scratch_interp_END:
 
 
+.globl asm_x64_instruction_STX_scratch_interp
+.globl asm_x64_instruction_STX_scratch_interp_END
+asm_x64_instruction_STX_scratch_interp:
+
+  mov BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_X
+
+asm_x64_instruction_STX_scratch_interp_END:
+
+
 .globl asm_x64_asm_emit_intel_flags_to_scratch
 .globl asm_x64_asm_emit_intel_flags_to_scratch_END
 asm_x64_asm_emit_intel_flags_to_scratch:
@@ -507,6 +536,21 @@ asm_x64_push_from_scratch:
   mov REG_6502_S, REG_SCRATCH3_8
 
 asm_x64_push_from_scratch_END:
+
+
+.globl asm_x64_push_word_from_scratch
+.globl asm_x64_push_word_from_scratch_END
+asm_x64_push_word_from_scratch:
+
+  mov [REG_6502_S_64], REG_SCRATCH1_8_HI
+  lea REG_SCRATCH3, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+
+  mov [REG_6502_S_64], REG_SCRATCH1_8
+  lea REG_SCRATCH3, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+
+asm_x64_push_word_from_scratch_END:
 
 
 .globl asm_x64_pull_to_scratch
@@ -625,25 +669,6 @@ asm_x64_asm_debug:
 asm_x64_asm_debug_END:
 
 
-.globl asm_x64_inturbo_next_opcode
-.globl asm_x64_inturbo_next_opcode_END
-asm_x64_inturbo_next_opcode:
-
-  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC]
-  jmp [REG_SCRATCH1 * 8 + 0x3f000000]
-
-asm_x64_inturbo_next_opcode_END:
-
-
-.globl asm_x64_inturbo_enter_debug
-.globl asm_x64_inturbo_enter_debug_END
-asm_x64_inturbo_enter_debug:
-
-  mov REG_SCRATCH1, REG_6502_PC
-  call [REG_CONTEXT + K_CONTEXT_OFFSET_UTIL_DEBUG]
-
-asm_x64_inturbo_enter_debug_END:
-
 .globl asm_x64_inturbo_mode_nil
 .globl asm_x64_inturbo_mode_nil_END
 asm_x64_inturbo_mode_nil:
@@ -680,3 +705,41 @@ asm_x64_inturbo_mode_abs:
   lea REG_6502_PC, [REG_6502_PC + 3]
 
 asm_x64_inturbo_mode_abs_END:
+
+
+.globl asm_x64_inturbo_next_opcode
+.globl asm_x64_inturbo_next_opcode_END
+asm_x64_inturbo_next_opcode:
+
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC]
+  jmp [REG_SCRATCH1 * 8 + 0x3f000000]
+
+asm_x64_inturbo_next_opcode_END:
+
+
+.globl asm_x64_inturbo_enter_debug
+.globl asm_x64_inturbo_enter_debug_END
+asm_x64_inturbo_enter_debug:
+
+  mov REG_SCRATCH1, REG_6502_PC
+  call [REG_CONTEXT + K_CONTEXT_OFFSET_UTIL_DEBUG]
+
+asm_x64_inturbo_enter_debug_END:
+
+
+.globl asm_x64_inturbo_pc_plus_1_to_scratch
+.globl asm_x64_inturbo_pc_plus_1_to_scratch_END
+asm_x64_inturbo_pc_plus_1_to_scratch:
+
+  lea REG_SCRATCH1, [REG_6502_PC + 1]
+
+asm_x64_inturbo_pc_plus_1_to_scratch_END:
+
+
+.globl asm_x64_inturbo_interrupt_vector
+.globl asm_x64_inturbo_interrupt_vector_END
+asm_x64_inturbo_interrupt_vector:
+
+  mov REG_6502_PC_16, [K_BBC_MEM_READ_ADDR + K_6502_VECTOR_IRQ]
+
+asm_x64_inturbo_interrupt_vector_END:

@@ -38,6 +38,11 @@ asm_x64_emit_instruction_CLD(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_CLI(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_CLI, asm_x64_instruction_CLI_END);
+}
+
+void
 asm_x64_emit_instruction_PHP(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_asm_emit_intel_flags_to_scratch,
@@ -59,6 +64,11 @@ asm_x64_emit_instruction_PLP(struct util_buffer* p_buf) {
 void
 asm_x64_emit_instruction_SEC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_SEC, asm_x64_instruction_SEC_END);
+}
+
+void
+asm_x64_emit_instruction_SEI(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_SEI, asm_x64_instruction_SEI_END);
 }
 
 void
@@ -111,6 +121,18 @@ asm_x64_emit_instruction_BPL_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_BPL_interp,
                asm_x64_instruction_BPL_interp_END);
+}
+
+void
+asm_x64_emit_instruction_BRK_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_pc_plus_1_to_scratch,
+               asm_x64_inturbo_pc_plus_1_to_scratch_END);
+  asm_x64_emit_push_word_from_scratch(p_buf);
+  asm_x64_emit_instruction_PHP(p_buf);
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_interrupt_vector,
+               asm_x64_inturbo_interrupt_vector_END);
 }
 
 void
@@ -240,6 +262,13 @@ asm_x64_emit_instruction_STA_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_STX_scratch_interp,
+               asm_x64_instruction_STX_scratch_interp_END);
+}
+
+void
 asm_x64_emit_instruction_A_NZ_flags(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_A_NZ_flags,
@@ -258,6 +287,13 @@ asm_x64_emit_instruction_Y_NZ_flags(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_Y_NZ_flags,
                asm_x64_instruction_Y_NZ_flags_END);
+}
+
+void
+asm_x64_emit_push_word_from_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_push_word_from_scratch,
+               asm_x64_push_word_from_scratch_END);
 }
 
 void
