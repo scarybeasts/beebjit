@@ -88,11 +88,17 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (optype) {
+    case k_bcs:
+      asm_x64_emit_instruction_BCS_interp(p_buf);
+      break;
     case k_beq:
       asm_x64_emit_instruction_BEQ_interp(p_buf);
       break;
     case k_bmi:
-      asm_x64_emit_instruction_BEQ_interp(p_buf);
+      asm_x64_emit_instruction_BMI_interp(p_buf);
+      break;
+    case k_bne:
+      asm_x64_emit_instruction_BNE_interp(p_buf);
       break;
     case k_cld:
       asm_x64_emit_instruction_CLD(p_buf);
@@ -104,6 +110,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_CMP_scratch_interp(p_buf);
       }
       break;
+    case k_cpx:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_CPX_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_CPX_scratch_interp(p_buf);
+      }
+      break;
     case k_jmp:
       asm_x64_emit_instruction_JMP_scratch_interp(p_buf);
       break;
@@ -112,6 +125,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_LDA_imm_interp(p_buf);
       } else {
         asm_x64_emit_instruction_LDA_scratch_interp(p_buf);
+      }
+      break;
+    case k_ldx:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_LDX_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_LDX_scratch_interp(p_buf);
       }
       break;
     case k_nop:
@@ -127,6 +147,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_tsx:
       asm_x64_emit_instruction_TSX(p_buf);
+      break;
+    case k_txs:
+      asm_x64_emit_instruction_TXS(p_buf);
       break;
     default:
       asm_x64_emit_instruction_TRAP(p_buf);

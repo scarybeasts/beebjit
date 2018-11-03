@@ -81,6 +81,22 @@ asm_x64_emit_instruction_TSX(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_TXS(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_TXS,
+               asm_x64_instruction_TXS_END,
+               2);
+}
+
+void
+asm_x64_emit_instruction_BCS_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BCS_interp,
+               asm_x64_instruction_BCS_interp_END,
+               0);
+}
+
+void
 asm_x64_emit_instruction_BEQ_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_BEQ_interp,
@@ -97,6 +113,14 @@ asm_x64_emit_instruction_BMI_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_BNE_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BNE_interp,
+               asm_x64_instruction_BNE_interp_END,
+               0);
+}
+
+void
 asm_x64_emit_instruction_CMP_imm_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_CMP_imm_interp,
@@ -109,6 +133,22 @@ asm_x64_emit_instruction_CMP_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_CMP_scratch_interp,
                asm_x64_instruction_CMP_scratch_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_CPX_imm_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_CPX_imm_interp,
+               asm_x64_instruction_CPX_imm_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_CPX_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_CPX_scratch_interp,
+               asm_x64_instruction_CPX_scratch_interp_END,
                0);
 }
 
@@ -133,6 +173,22 @@ asm_x64_emit_instruction_LDA_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_LDA_scratch_interp,
                asm_x64_instruction_LDA_scratch_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_LDX_imm_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_LDX_imm_interp,
+               asm_x64_instruction_LDX_imm_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_LDX_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_LDX_scratch_interp,
+               asm_x64_instruction_LDX_scratch_interp_END,
                0);
 }
 
