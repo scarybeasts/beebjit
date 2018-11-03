@@ -53,6 +53,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     void* p_end;
     unsigned char opmode = g_opmodes[i];
     unsigned char optype = g_optypes[i];
+    unsigned char opreg = g_optype_sets_register[optype];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     if (debug) {
@@ -90,12 +91,21 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_beq:
       asm_x64_emit_instruction_BEQ_interp(p_buf);
       break;
+    case k_bmi:
+      asm_x64_emit_instruction_BEQ_interp(p_buf);
+      break;
+    case k_cld:
+      asm_x64_emit_instruction_CLD(p_buf);
+      break;
     case k_cmp:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_CMP_imm_interp(p_buf);
       } else {
         asm_x64_emit_instruction_CMP_scratch_interp(p_buf);
       }
+      break;
+    case k_jmp:
+      asm_x64_emit_instruction_JMP_scratch_interp(p_buf);
       break;
     case k_lda:
       if (opmode == k_imm) {
@@ -109,8 +119,31 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_php:
       asm_x64_emit_instruction_PHP(p_buf);
       break;
+    case k_plp:
+      asm_x64_emit_instruction_PLP(p_buf);
+      break;
+    case k_sta:
+      asm_x64_emit_instruction_STA_scratch_interp(p_buf);
+      break;
+    case k_tsx:
+      asm_x64_emit_instruction_TSX(p_buf);
+      break;
     default:
       asm_x64_emit_instruction_TRAP(p_buf);
+      break;
+    }
+
+    switch (opreg) {
+    case k_a:
+      asm_x64_emit_instruction_A_NZ_flags(p_buf);
+      break;
+    case k_x:
+      asm_x64_emit_instruction_X_NZ_flags(p_buf);
+      break;
+    case k_y:
+      asm_x64_emit_instruction_Y_NZ_flags(p_buf);
+      break;
+    default:
       break;
     }
 
@@ -141,10 +174,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo
      * handler.
      */
-    asm_x64_copy(p_buf,
-                 asm_x64_inturbo_next_opcode,
-                 asm_x64_inturbo_next_opcode_END,
-                 0);
+    asm_x64_emit_inturbo_next_opcode(p_buf);
 
     p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode;
   }

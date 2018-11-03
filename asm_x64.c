@@ -37,6 +37,14 @@ asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_CLD(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_CLD,
+               asm_x64_instruction_CLD_END,
+               2);
+}
+
+void
 asm_x64_emit_instruction_PHP(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_asm_emit_intel_flags_to_scratch,
@@ -53,10 +61,38 @@ asm_x64_emit_instruction_PHP(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_PLP(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_pull_to_scratch,
+               asm_x64_pull_to_scratch_END,
+               0);
+  asm_x64_copy(p_buf,
+               asm_x64_asm_set_intel_flags_from_scratch,
+               asm_x64_asm_set_intel_flags_from_scratch_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_TSX(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_TSX,
+               asm_x64_instruction_TSX_END,
+               2);
+}
+
+void
 asm_x64_emit_instruction_BEQ_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_BEQ_interp,
                asm_x64_instruction_BEQ_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_BMI_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BMI_interp,
+               asm_x64_instruction_BMI_interp_END,
                0);
 }
 
@@ -77,6 +113,14 @@ asm_x64_emit_instruction_CMP_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_JMP_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_JMP_scratch_interp,
+               asm_x64_instruction_JMP_scratch_interp_END,
+               0);
+}
+
+void
 asm_x64_emit_instruction_LDA_imm_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_LDA_imm_interp,
@@ -89,5 +133,45 @@ asm_x64_emit_instruction_LDA_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_LDA_scratch_interp,
                asm_x64_instruction_LDA_scratch_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_STA_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_STA_scratch_interp,
+               asm_x64_instruction_STA_scratch_interp_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_A_NZ_flags(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_A_NZ_flags,
+               asm_x64_instruction_A_NZ_flags_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_X_NZ_flags(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_X_NZ_flags,
+               asm_x64_instruction_X_NZ_flags_END,
+               0);
+}
+
+void
+asm_x64_emit_instruction_Y_NZ_flags(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_Y_NZ_flags,
+               asm_x64_instruction_Y_NZ_flags_END,
+               0);
+}
+
+void
+asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_next_opcode,
+               asm_x64_inturbo_next_opcode_END,
                0);
 }

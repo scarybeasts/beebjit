@@ -4,6 +4,7 @@
 .text
 
 #define K_BBC_MEM_READ_ADDR                 0x10000000
+#define K_BBC_MEM_WRITE_ADDR                0x11000000
 #define K_ASM_TABLE_6502_FLAGS_TO_X64       0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK      0x50000100
 #define K_ASM_TABLE_X64_FLAGS_TO_6502       0x50000200
@@ -34,6 +35,7 @@
 #define REG_6502_S_32     esi
 #define REG_6502_S_64     rsi
 #define REG_6502_PC       r10
+#define REG_6502_PC_16    r10w
 #define REG_6502_PC_32    r10d
 #define REG_6502_OF       r12b
 #define REG_6502_OF_64    r12
@@ -46,6 +48,7 @@
 
 #define REG_SCRATCH1      rdx
 #define REG_SCRATCH1_8    dl
+#define REG_SCRATCH1_16   dx
 #define REG_SCRATCH1_32   edx
 #define REG_SCRATCH2      r8
 #define REG_SCRATCH2_8    r8b
@@ -84,6 +87,42 @@ asm_x64_instruction_TRAP:
 asm_x64_instruction_TRAP_END:
 
 
+.globl asm_x64_instruction_CLD
+.globl asm_x64_instruction_CLD_END
+asm_x64_instruction_CLD:
+
+  btr REG_6502_ID_F_64, 3
+
+asm_x64_instruction_CLD_END:
+
+
+.globl asm_x64_instruction_TAX
+.globl asm_x64_instruction_TAX_END
+asm_x64_instruction_TAX:
+
+  mov REG_6502_X, REG_6502_A
+
+asm_x64_instruction_TAX_END:
+
+
+.globl asm_x64_instruction_TAY
+.globl asm_x64_instruction_TAY_END
+asm_x64_instruction_TAY:
+
+  mov REG_6502_Y, REG_6502_A
+
+asm_x64_instruction_TAY_END:
+
+
+.globl asm_x64_instruction_TSX
+.globl asm_x64_instruction_TSX_END
+asm_x64_instruction_TSX:
+
+  mov REG_6502_X, REG_6502_S
+
+asm_x64_instruction_TSX_END:
+
+
 .globl asm_x64_instruction_A_NZ_flags
 .globl asm_x64_instruction_A_NZ_flags_END
 asm_x64_instruction_A_NZ_flags:
@@ -111,24 +150,6 @@ asm_x64_instruction_Y_NZ_flags:
 asm_x64_instruction_Y_NZ_flags_END:
 
 
-.globl asm_x64_instruction_TAX
-.globl asm_x64_instruction_TAX_END
-asm_x64_instruction_TAX:
-
-  mov REG_6502_X, REG_6502_A
-
-asm_x64_instruction_TAX_END:
-
-
-.globl asm_x64_instruction_TAY
-.globl asm_x64_instruction_TAY_END
-asm_x64_instruction_TAY:
-
-  mov REG_6502_Y, REG_6502_A
-
-asm_x64_instruction_TAY_END:
-
-
 .globl asm_x64_instruction_BEQ_interp
 .globl asm_x64_instruction_BEQ_interp_END
 asm_x64_instruction_BEQ_interp:
@@ -139,6 +160,18 @@ asm_x64_instruction_BEQ_interp:
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
 
 asm_x64_instruction_BEQ_interp_END:
+
+
+.globl asm_x64_instruction_BMI_interp
+.globl asm_x64_instruction_BMI_interp_END
+asm_x64_instruction_BMI_interp:
+
+  mov REG_SCRATCH2, 0
+  movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  cmovns REG_SCRATCH1, REG_SCRATCH2
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+
+asm_x64_instruction_BMI_interp_END:
 
 
 .globl asm_x64_instruction_CMP_imm_interp
@@ -163,12 +196,20 @@ asm_x64_instruction_CMP_scratch_interp:
 asm_x64_instruction_CMP_scratch_interp_END:
 
 
+.globl asm_x64_instruction_JMP_scratch_interp
+.globl asm_x64_instruction_JMP_scratch_interp_END
+asm_x64_instruction_JMP_scratch_interp:
+
+  mov REG_6502_PC_16, REG_SCRATCH1_16
+
+asm_x64_instruction_JMP_scratch_interp_END:
+
+
 .globl asm_x64_instruction_LDA_imm_interp
 .globl asm_x64_instruction_LDA_imm_interp_END
 asm_x64_instruction_LDA_imm_interp:
 
   mov REG_6502_A, BYTE PTR [REG_6502_PC + 1]
-  test REG_6502_A, REG_6502_A
 
 asm_x64_instruction_LDA_imm_interp_END:
 
@@ -178,9 +219,17 @@ asm_x64_instruction_LDA_imm_interp_END:
 asm_x64_instruction_LDA_scratch_interp:
 
   mov REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-  test REG_6502_A, REG_6502_A
 
 asm_x64_instruction_LDA_scratch_interp_END:
+
+
+.globl asm_x64_instruction_STA_scratch_interp
+.globl asm_x64_instruction_STA_scratch_interp_END
+asm_x64_instruction_STA_scratch_interp:
+
+  mov BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_A
+
+asm_x64_instruction_STA_scratch_interp_END:
 
 
 .globl asm_x64_asm_emit_intel_flags_to_scratch
@@ -232,6 +281,17 @@ asm_x64_push_from_scratch:
   mov REG_6502_S, REG_SCRATCH3_8
 
 asm_x64_push_from_scratch_END:
+
+
+.globl asm_x64_pull_to_scratch
+.globl asm_x64_pull_to_scratch_END
+asm_x64_pull_to_scratch:
+
+  lea REG_SCRATCH3, [REG_6502_S_64 + 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_S_64]
+
+asm_x64_pull_to_scratch_END:
 
 
 .globl asm_x64_asm_enter

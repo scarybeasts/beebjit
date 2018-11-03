@@ -1816,12 +1816,8 @@ printf("ooh\n");
     break;
   case k_plp:
     /* PLP */
-    index = jit_emit_pull_to_scratch(p_jit_buf, index);
-    util_buffer_set_pos(p_buf, index);
-    index = asm_x64_copy(p_buf,
-                         asm_x64_asm_set_intel_flags_from_scratch,
-                         asm_x64_asm_set_intel_flags_from_scratch_END,
-                         2);
+    asm_x64_emit_instruction_PLP(p_buf);
+    index = util_buffer_get_pos(p_buf);
     index = jit_emit_check_interrupt(p_jit, p_jit_buf, index, addr_6502 + 1);
     break;
   case k_bmi:
@@ -2412,13 +2408,8 @@ printf("ooh\n");
                                    0x85);
     break;
   case k_cld:
-    /* CLD */
-    /* btr r13, 3 */
-    p_jit_buf[index++] = 0x49;
-    p_jit_buf[index++] = 0x0f;
-    p_jit_buf[index++] = 0xba;
-    p_jit_buf[index++] = 0xf5;
-    p_jit_buf[index++] = 0x03;
+    asm_x64_emit_instruction_CLD(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_sed:
     printf("ignoring SED!\n");
