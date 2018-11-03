@@ -1221,9 +1221,10 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit,
   asm_x64_copy(p_buf,
                asm_x64_asm_emit_intel_flags_to_scratch,
                asm_x64_asm_emit_intel_flags_to_scratch_END);
-  index = asm_x64_copy(p_buf,
-                       asm_x64_set_brk_flag_in_scratch,
-                       asm_x64_set_brk_flag_in_scratch_END);
+  asm_x64_copy(p_buf,
+               asm_x64_set_brk_flag_in_scratch,
+               asm_x64_set_brk_flag_in_scratch_END);
+  index = util_buffer_get_pos(p_buf);
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   util_buffer_set_pos(p_buf, index);
   asm_x64_emit_instruction_SEI(p_buf);
@@ -1883,9 +1884,10 @@ printf("ooh\n");
     /* RTI */
     index = jit_emit_pull_to_scratch(p_jit_buf, index);
     util_buffer_set_pos(p_buf, index);
-    index = asm_x64_copy(p_buf,
-                         asm_x64_asm_set_intel_flags_from_scratch,
-                         asm_x64_asm_set_intel_flags_from_scratch_END);
+    asm_x64_copy(p_buf,
+                 asm_x64_asm_set_intel_flags_from_scratch,
+                 asm_x64_asm_set_intel_flags_from_scratch_END);
+    index = util_buffer_get_pos(p_buf);
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
     index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     break;
@@ -2285,15 +2287,13 @@ printf("ooh\n");
     break;
   case k_tax:
     /* TAX */
-    index = asm_x64_copy(p_buf,
-                         asm_x64_instruction_TAX,
-                         asm_x64_instruction_TAX_END);
+    asm_x64_copy(p_buf, asm_x64_instruction_TAX, asm_x64_instruction_TAX_END);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_tay:
     /* TAY */
-    index = asm_x64_copy(p_buf,
-                         asm_x64_instruction_TAY,
-                         asm_x64_instruction_TAY_END);
+    asm_x64_copy(p_buf, asm_x64_instruction_TAY, asm_x64_instruction_TAY_END);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_bcs:
     /* BCS */

@@ -2,12 +2,10 @@
 
 #include "util.h"
 
-size_t
+void
 asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   size_t size = (p_end - p_start);
   util_buffer_add_chunk(p_buf, p_start, size);
-
-  return util_buffer_get_pos(p_buf);
 }
 
 void

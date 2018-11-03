@@ -6,7 +6,7 @@
 
 struct util_buffer;
 
-size_t asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
+void asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
 
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();
