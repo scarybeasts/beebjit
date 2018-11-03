@@ -583,16 +583,6 @@ jit_emit_stack_dec(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_pull_to_a(unsigned char* p_jit, size_t index) {
-  index = jit_emit_stack_inc(p_jit, index);
-  /* mov al, [rsi] */
-  p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x06;
-
-  return index;
-}
-
-static size_t
 jit_emit_pull_to_scratch(unsigned char* p_jit, size_t index) {
   index = jit_emit_stack_inc(p_jit, index);
   /* movzx edx, BYTE PTR [rsi] */
@@ -614,16 +604,6 @@ jit_emit_pull_to_scratch_word(unsigned char* p_jit, size_t index) {
   /* mov dh, BYTE PTR [rsi] */
   p_jit[index++] = 0x8a;
   p_jit[index++] = 0x36;
-
-  return index;
-}
-
-static size_t
-jit_emit_push_from_a(unsigned char* p_jit, size_t index) {
-  /* mov [rsi], al */
-  p_jit[index++] = 0x88;
-  p_jit[index++] = 0x06;
-  index = jit_emit_stack_dec(p_jit, index);
 
   return index;
 }
@@ -1838,8 +1818,8 @@ printf("ooh\n");
                               n_count);
     break;
   case k_pha:
-    /* PHA */
-    index = jit_emit_push_from_a(p_jit_buf, index);
+    asm_x64_emit_instruction_PHA(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_jmp:
     /* JMP */
@@ -1936,8 +1916,8 @@ printf("ooh\n");
                                  opcode_addr_6502);
     break;
   case k_pla:
-    /* PLA */
-    index = jit_emit_pull_to_a(p_jit_buf, index);
+    asm_x64_emit_instruction_PLA(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_bvs:
     /* BVS */
