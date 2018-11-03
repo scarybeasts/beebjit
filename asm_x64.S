@@ -78,6 +78,15 @@ asm_x64_instruction_EXIT:
 asm_x64_instruction_EXIT_END:
 
 
+.globl asm_x64_instruction_REAL_NOP
+.globl asm_x64_instruction_REAL_NOP_END
+asm_x64_instruction_REAL_NOP:
+
+  nop
+
+asm_x64_instruction_REAL_NOP_END:
+
+
 .globl asm_x64_instruction_TRAP
 .globl asm_x64_instruction_TRAP_END
 asm_x64_instruction_TRAP:

@@ -1244,12 +1244,10 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit,
   util_buffer_set_pos(p_buf, index);
   index = asm_x64_copy(p_buf,
                        asm_x64_asm_emit_intel_flags_to_scratch,
-                       asm_x64_asm_emit_intel_flags_to_scratch_END,
-                       2);
+                       asm_x64_asm_emit_intel_flags_to_scratch_END);
   index = asm_x64_copy(p_buf,
                        asm_x64_set_brk_flag_in_scratch,
-                       asm_x64_set_brk_flag_in_scratch_END,
-                       2);
+                       asm_x64_set_brk_flag_in_scratch_END);
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   index = jit_emit_sei(p_jit_buf, index);
   /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
@@ -1636,15 +1634,19 @@ printf("ooh\n");
     case 0x02:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Bounce out of JIT. */
-      index = asm_x64_copy(p_buf,
-                           asm_x64_instruction_EXIT,
-                           asm_x64_instruction_EXIT_END,
-                           2);
+      asm_x64_copy(p_buf,
+                   asm_x64_instruction_EXIT,
+                   asm_x64_instruction_EXIT_END);
+      /* Need at least two bytes of JIT. */
+      asm_x64_emit_instruction_REAL_NOP(p_buf);
+      index = util_buffer_get_pos(p_buf);
       break;
     case 0x12:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Generate a debug trap and continue. */
       asm_x64_emit_instruction_TRAP(p_buf);
+      /* Need at least two bytes of JIT. */
+      asm_x64_emit_instruction_REAL_NOP(p_buf);
       index = util_buffer_get_pos(p_buf);
       break;
     case 0xf2:
@@ -1905,8 +1907,7 @@ printf("ooh\n");
     util_buffer_set_pos(p_buf, index);
     index = asm_x64_copy(p_buf,
                          asm_x64_asm_set_intel_flags_from_scratch,
-                         asm_x64_asm_set_intel_flags_from_scratch_END,
-                         2);
+                         asm_x64_asm_set_intel_flags_from_scratch_END);
     index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
     index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     break;
@@ -2307,15 +2308,13 @@ printf("ooh\n");
     /* TAX */
     index = asm_x64_copy(p_buf,
                          asm_x64_instruction_TAX,
-                         asm_x64_instruction_TAX_END,
-                         2);
+                         asm_x64_instruction_TAX_END);
     break;
   case k_tay:
     /* TAY */
     index = asm_x64_copy(p_buf,
                          asm_x64_instruction_TAY,
-                         asm_x64_instruction_TAY_END,
-                         2);
+                         asm_x64_instruction_TAY_END);
     break;
   case k_bcs:
     /* BCS */

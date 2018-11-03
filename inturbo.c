@@ -59,8 +59,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     if (debug) {
       asm_x64_copy(p_buf,
                    asm_x64_inturbo_enter_debug,
-                   asm_x64_inturbo_enter_debug_END,
-                   0);
+                   asm_x64_inturbo_enter_debug_END);
     }
 
     switch (opmode) {
@@ -84,7 +83,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end, 0);
+      asm_x64_copy(p_buf, p_begin, p_end);
     }
 
     switch (optype) {
@@ -191,7 +190,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end, 0);
+      asm_x64_copy(p_buf, p_begin, p_end);
     }
 
     /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo

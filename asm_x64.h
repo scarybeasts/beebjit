@@ -6,15 +6,13 @@
 
 struct util_buffer;
 
-size_t asm_x64_copy(struct util_buffer* p_buf,
-                    void* p_start,
-                    void* p_end,
-                    size_t min_for_padding);
+size_t asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
 
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();
 
 void asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_CLD(struct util_buffer* p_buf);
@@ -49,6 +47,8 @@ void asm_x64_instruction_CRASH();
 void asm_x64_instruction_CRASH_END();
 void asm_x64_instruction_EXIT();
 void asm_x64_instruction_EXIT_END();
+void asm_x64_instruction_REAL_NOP();
+void asm_x64_instruction_REAL_NOP_END();
 void asm_x64_instruction_TRAP();
 void asm_x64_instruction_TRAP_END();
 
