@@ -597,6 +597,9 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0x40);   /* clear, TIMER1 */
   emit_STA(p_buf, k_abs, 0xFE4E); /* sysvia IER */
+  emit_LDA(p_buf, k_zpg, 0x01);   /* Check BRK flag wasn't set in interrupt. */
+  emit_AND(p_buf, k_imm, 0x10);
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC800);
 
   /* Test the firing of a timer interrupt -- to be contrarian, let's now test
@@ -867,6 +870,9 @@ main(int argc, const char* argv[]) {
 
   /* IRQ routine. */
   util_buffer_set_pos(p_buf, 0x3F00);
+  emit_PLA(p_buf);
+  emit_STA(p_buf, k_zpg, 0x01);
+  emit_PHA(p_buf);
   emit_LDA(p_buf, k_abs, 0x4041);
   emit_BEQ(p_buf, 3);
   emit_JMP(p_buf, k_ind, 0x4040);

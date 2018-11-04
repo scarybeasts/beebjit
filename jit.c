@@ -1186,10 +1186,18 @@ jit_emit_do_interrupt_util(struct jit_struct* p_jit,
   asm_x64_copy(p_buf,
                asm_x64_asm_emit_intel_flags_to_scratch,
                asm_x64_asm_emit_intel_flags_to_scratch_END);
-  asm_x64_copy(p_buf,
-               asm_x64_set_brk_flag_in_scratch,
-               asm_x64_set_brk_flag_in_scratch_END);
   index = util_buffer_get_pos(p_buf);
+  /* Mix in the BRK flag if we have to. */
+  /* movzx r9d, r8b */
+  p_jit_buf[index++] = 0x45;
+  p_jit_buf[index++] = 0x0f;
+  p_jit_buf[index++] = 0xb6;
+  p_jit_buf[index++] = 0xc8;
+  /* lea edx, [rdx + r9] */
+  p_jit_buf[index++] = 0x42;
+  p_jit_buf[index++] = 0x8d;
+  p_jit_buf[index++] = 0x14;
+  p_jit_buf[index++] = 0x0a;
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   util_buffer_set_pos(p_buf, index);
   asm_x64_emit_instruction_SEI(p_buf);
@@ -1617,7 +1625,6 @@ printf("ooh\n");
     }
     break;
   case k_brk:
-    /* BRK */
     index = jit_emit_do_brk(p_jit, p_jit_buf, index, addr_6502 + 2);
     break;
   case k_ora:
