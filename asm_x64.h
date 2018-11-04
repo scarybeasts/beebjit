@@ -12,6 +12,7 @@ void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();
 
 void asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_EXIT(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
 
@@ -28,6 +29,8 @@ void asm_x64_emit_instruction_PLA(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_PLP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SEC(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SEI(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_TAX(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_TAY(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TSX(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TXS(struct util_buffer* p_buf);
 

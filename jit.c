@@ -1578,9 +1578,7 @@ printf("ooh\n");
     case 0x02:
       /* Illegal opcode. Hangs a standard 6502. */
       /* Bounce out of JIT. */
-      asm_x64_copy(p_buf,
-                   asm_x64_instruction_EXIT,
-                   asm_x64_instruction_EXIT_END);
+      asm_x64_emit_instruction_EXIT(p_buf);
       /* Need at least two bytes of JIT. */
       asm_x64_emit_instruction_REAL_NOP(p_buf);
       index = util_buffer_get_pos(p_buf);
@@ -2246,13 +2244,11 @@ printf("ooh\n");
     }
     break;
   case k_tax:
-    /* TAX */
-    asm_x64_copy(p_buf, asm_x64_instruction_TAX, asm_x64_instruction_TAX_END);
+    asm_x64_emit_instruction_TAX(p_buf);
     index = util_buffer_get_pos(p_buf);
     break;
   case k_tay:
-    /* TAY */
-    asm_x64_copy(p_buf, asm_x64_instruction_TAY, asm_x64_instruction_TAY_END);
+    asm_x64_emit_instruction_TAY(p_buf);
     index = util_buffer_get_pos(p_buf);
     break;
   case k_bcs:

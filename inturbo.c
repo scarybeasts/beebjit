@@ -99,6 +99,18 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (optype) {
+    case k_kil:
+      switch (i) {
+      case 0x02: /* EXIT */
+        asm_x64_emit_instruction_EXIT(p_buf);
+        break;
+      case 0xF2: /* CRASH */
+        asm_x64_emit_instruction_CRASH(p_buf);
+        break;
+      default:
+        asm_x64_emit_instruction_TRAP(p_buf);
+      }
+      asm_x64_emit_instruction_TRAP(p_buf);
     case k_adc:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_ADC_imm_interp(p_buf);
@@ -265,6 +277,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_stx:
       asm_x64_emit_instruction_STX_scratch_interp(p_buf);
+      break;
+    case k_tax:
+      asm_x64_emit_instruction_TAX(p_buf);
+      break;
+    case k_tay:
+      asm_x64_emit_instruction_TAY(p_buf);
       break;
     case k_tsx:
       asm_x64_emit_instruction_TSX(p_buf);
