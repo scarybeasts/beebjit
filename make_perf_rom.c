@@ -1,86 +1,69 @@
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-static const size_t k_rom_size = 16384;
+#include "defs_6502.h"
+#include "emit_6502.h"
+#include "util.h"
 
-static size_t set_new_index(size_t index, size_t new_index) {
-  assert(new_index >= index);
-  return new_index;
-}
+static const size_t k_rom_size = 16384;
 
 int
 main(int argc, const char* argv[]) {
   int fd;
   int arg;
   ssize_t write_ret;
-  size_t index = 0;
   size_t bytes = 0;
-  char* p_mem = malloc(k_rom_size);
-  memset(p_mem, '\xf2', k_rom_size);
+  uint8_t* p_mem = malloc(k_rom_size);
+  struct util_buffer* p_buf = util_buffer_create();
+
+  (void) memset(p_mem, '\xf2', k_rom_size);
+  util_buffer_setup(p_buf, p_mem, k_rom_size);
 
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3ffc] = 0x00;
   p_mem[0x3ffd] = 0xc0;
 
   /* Copy ROM to RAM. */
-  index = set_new_index(index, 0);
-  p_mem[index++] = 0xa2; /* LDX #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xbd; /* LDA $C100,X */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xc1;
-  p_mem[index++] = 0x9d; /* STA $1000,X */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x10;
-  p_mem[index++] = 0xca; /* DEX */
-  p_mem[index++] = 0xd0; /* BNE -9 */
-  p_mem[index++] = 0xf7;
-  p_mem[index++] = 0x4c; /* JMP $1000 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x10;
+  util_buffer_set_pos(p_buf, 0x0000);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_abx, 0xC100);
+  emit_STA(p_buf, k_abx, 0x1000);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_JMP(p_buf, k_abs, 0x1000);
 
-  index = set_new_index(index, 0x100);
-  p_mem[index++] = 0xa9; /* LDA #$20 */
-  p_mem[index++] = 0x20;
-  p_mem[index++] = 0x85; /* STA $01 */
-  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xa9; /* LDA #$00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0x85; /* STA $00 */
-  p_mem[index++] = 0x00;
-  p_mem[index++] = 0xaa; /* TAX */
-  p_mem[index++] = 0xa8; /* TAY */
-  p_mem[index++] = 0x85; /* STA $30 */
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0x85; /* STA $31 */
-  p_mem[index++] = 0x31;
+  util_buffer_set_pos(p_buf, 0x0100);
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_zpg, 0x01);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_TAX(p_buf);
+  emit_TAY(p_buf);
+  emit_STA(p_buf, k_zpg, 0x30);
+  emit_STA(p_buf, k_zpg, 0x31);
   for (arg = 1; arg < argc; ++arg) {
     int i;
     if (sscanf(argv[arg], "%x", &i) == 1) {
-      p_mem[index++] = (unsigned char) i;
+      util_buffer_add_1b(p_buf, i);
       bytes++;
     }
   }
-  p_mem[index++] = 0xe8; /* INX */
-  p_mem[index++] = 0xd0; /* BNE */
-  p_mem[index++] = 0xfd - bytes;
-  p_mem[index++] = 0xc8; /* INY */
-  p_mem[index++] = 0xd0; /* BNE */
-  p_mem[index++] = 0xfa - bytes;
-  p_mem[index++] = 0xe6; /* INC $30 */
-  p_mem[index++] = 0x30;
-  p_mem[index++] = 0xd0; /* BNE */
-  p_mem[index++] = 0xf6 - bytes;
-  p_mem[index++] = 0xe6; /* INC $31 */
-  p_mem[index++] = 0x31;
-  p_mem[index++] = 0xd0; /* BNE */
-  p_mem[index++] = 0xf2 - bytes;
-  p_mem[index++] = 0x02; /* Done! */
+  emit_INX(p_buf);
+  emit_BNE(p_buf, (0xfd - bytes));
+  emit_INY(p_buf);
+  emit_BNE(p_buf, (0xfa - bytes));
+  emit_INC(p_buf, k_zpg, 0x30);
+  emit_BNE(p_buf, (0xf6 - bytes));
+  emit_INC(p_buf, k_zpg, 0x31);
+  emit_BNE(p_buf, (0xf2 - bytes));
+  emit_EXIT(p_buf);
 
   fd = open("perf.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
