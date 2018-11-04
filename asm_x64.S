@@ -125,6 +125,42 @@ asm_x64_instruction_CLI:
 asm_x64_instruction_CLI_END:
 
 
+.globl asm_x64_instruction_DEX
+.globl asm_x64_instruction_DEX_END
+asm_x64_instruction_DEX:
+
+  dec REG_6502_X
+
+asm_x64_instruction_DEX_END:
+
+
+.globl asm_x64_instruction_DEY
+.globl asm_x64_instruction_DEY_END
+asm_x64_instruction_DEY:
+
+  dec REG_6502_Y
+
+asm_x64_instruction_DEY_END:
+
+
+.globl asm_x64_instruction_INX
+.globl asm_x64_instruction_INX_END
+asm_x64_instruction_INX:
+
+  inc REG_6502_X
+
+asm_x64_instruction_INX_END:
+
+
+.globl asm_x64_instruction_INY
+.globl asm_x64_instruction_INY_END
+asm_x64_instruction_INY:
+
+  inc REG_6502_Y
+
+asm_x64_instruction_INY_END:
+
+
 .globl asm_x64_instruction_PHA
 .globl asm_x64_instruction_PHA_END
 asm_x64_instruction_PHA:
@@ -270,6 +306,26 @@ asm_x64_instruction_AND_scratch_interp:
 asm_x64_instruction_AND_scratch_interp_END:
 
 
+.globl asm_x64_instruction_ASL_acc_interp
+.globl asm_x64_instruction_ASL_acc_interp_END
+asm_x64_instruction_ASL_acc_interp:
+
+  shl REG_6502_A, 1
+
+asm_x64_instruction_ASL_acc_interp_END:
+
+
+.globl asm_x64_instruction_ASL_scratch_interp
+.globl asm_x64_instruction_ASL_scratch_interp_END
+asm_x64_instruction_ASL_scratch_interp:
+
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  shl REG_SCRATCH2_8, 1
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
+
+asm_x64_instruction_ASL_scratch_interp_END:
+
+
 .globl asm_x64_instruction_BCC_interp
 .globl asm_x64_instruction_BCC_interp_END
 asm_x64_instruction_BCC_interp:
@@ -306,6 +362,27 @@ asm_x64_instruction_BEQ_interp:
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
 
 asm_x64_instruction_BEQ_interp_END:
+
+
+.globl asm_x64_instruction_BIT_interp
+.globl asm_x64_instruction_BIT_interp_END
+asm_x64_instruction_BIT_interp:
+
+  mov ah, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  # Load OF.
+  bt REG_6502_A_32, 14
+  setb REG_6502_OF
+  # Load ZF.
+  test ah, REG_6502_A
+  sete REG_SCRATCH1_8
+  shl REG_SCRATCH1_8, 6
+  # Load NF.
+  and ah, 0x80
+  # Put ZF / NF together.
+  or ah, REG_SCRATCH1_8
+  sahf
+
+asm_x64_instruction_BIT_interp_END:
 
 
 .globl asm_x64_instruction_BMI_interp
@@ -470,6 +547,24 @@ asm_x64_instruction_LDX_scratch_interp:
 asm_x64_instruction_LDX_scratch_interp_END:
 
 
+.globl asm_x64_instruction_LDY_imm_interp
+.globl asm_x64_instruction_LDY_imm_interp_END
+asm_x64_instruction_LDY_imm_interp:
+
+  mov REG_6502_Y, BYTE PTR [REG_6502_PC + 1]
+
+asm_x64_instruction_LDY_imm_interp_END:
+
+
+.globl asm_x64_instruction_LDY_scratch_interp
+.globl asm_x64_instruction_LDY_scratch_interp_END
+asm_x64_instruction_LDY_scratch_interp:
+
+  mov REG_6502_Y, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_instruction_LDY_scratch_interp_END:
+
+
 .globl asm_x64_instruction_ROR_acc_interp
 .globl asm_x64_instruction_ROR_acc_interp_END
 asm_x64_instruction_ROR_acc_interp:
@@ -615,6 +710,21 @@ asm_x64_pull_to_scratch:
 asm_x64_pull_to_scratch_END:
 
 
+.globl asm_x64_pull_word_to_scratch
+.globl asm_x64_pull_word_to_scratch_END
+asm_x64_pull_word_to_scratch:
+
+  lea REG_SCRATCH3, [REG_6502_S_64 + 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_S_64]
+
+  lea REG_SCRATCH3, [REG_6502_S_64 + 1]
+  mov REG_6502_S, REG_SCRATCH3_8
+  mov REG_SCRATCH1_8_HI, BYTE PTR [REG_6502_S_64]
+
+asm_x64_pull_word_to_scratch_END:
+
+
 .globl asm_x64_asm_enter
 .globl asm_x64_asm_enter_END
 asm_x64_asm_enter:
@@ -720,30 +830,11 @@ asm_x64_asm_debug:
 asm_x64_asm_debug_END:
 
 
-.globl asm_x64_inturbo_mode_nil
-.globl asm_x64_inturbo_mode_nil_END
-asm_x64_inturbo_mode_nil:
-
-  lea r10, [r10 + 1]
-
-asm_x64_inturbo_mode_nil_END:
-
-
-.globl asm_x64_inturbo_mode_imm
-.globl asm_x64_inturbo_mode_imm_END
-asm_x64_inturbo_mode_imm:
-
-  lea r10, [r10 + 2]
-
-asm_x64_inturbo_mode_imm_END:
-
-
 .globl asm_x64_inturbo_mode_zpg
 .globl asm_x64_inturbo_mode_zpg_END
 asm_x64_inturbo_mode_zpg:
 
   movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
-  lea REG_6502_PC, [REG_6502_PC + 2]
 
 asm_x64_inturbo_mode_zpg_END:
 
@@ -753,9 +844,124 @@ asm_x64_inturbo_mode_zpg_END:
 asm_x64_inturbo_mode_abs:
 
   movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
-  lea REG_6502_PC, [REG_6502_PC + 3]
 
 asm_x64_inturbo_mode_abs_END:
+
+
+.globl asm_x64_inturbo_mode_abx
+.globl asm_x64_inturbo_mode_abx_END
+asm_x64_inturbo_mode_abx:
+
+  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_X_64]
+
+asm_x64_inturbo_mode_abx_END:
+
+
+.globl asm_x64_inturbo_mode_aby
+.globl asm_x64_inturbo_mode_aby_END
+asm_x64_inturbo_mode_aby:
+
+  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
+
+asm_x64_inturbo_mode_aby_END:
+
+
+.globl asm_x64_inturbo_mode_zpx
+.globl asm_x64_inturbo_mode_zpx_END
+asm_x64_inturbo_mode_zpx:
+
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+
+asm_x64_inturbo_mode_zpx_END:
+
+
+.globl asm_x64_inturbo_mode_idx
+.globl asm_x64_inturbo_mode_idx_END
+asm_x64_inturbo_mode_idx:
+
+  # TODO: if two scratch registers were non-extended registers, we could
+  # compute the hi and low byte better in parallel dependency chains. The
+  # problem is we can't load into dh from extended registers.
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_X_64]
+  movzx REG_SCRATCH2_32, REG_SCRATCH2_8
+
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64 + 1]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+
+  mov REG_SCRATCH1_8_HI, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  mov REG_SCRATCH1_8, BYTE PTR [REG_SCRATCH2 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_inturbo_mode_idx_END:
+
+
+.globl asm_x64_inturbo_mode_idy
+.globl asm_x64_inturbo_mode_idy_END
+asm_x64_inturbo_mode_idy:
+
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+  mov REG_SCRATCH1_8, REG_SCRATCH2_8
+
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
+
+asm_x64_inturbo_mode_idy_END:
+
+
+.globl asm_x64_inturbo_JMP_scratch_plus_1_interp
+.globl asm_x64_inturbo_JMP_scratch_plus_1_interp_END
+asm_x64_inturbo_JMP_scratch_plus_1_interp:
+
+  lea REG_6502_PC_16, [REG_SCRATCH1 + 1]
+
+asm_x64_inturbo_JMP_scratch_plus_1_interp_END:
+
+
+.globl asm_x64_inturbo_load_pc_from_pc
+.globl asm_x64_inturbo_load_pc_from_pc_END
+asm_x64_inturbo_load_pc_from_pc:
+
+  mov REG_6502_PC_16, [REG_6502_PC + 1]
+
+asm_x64_inturbo_load_pc_from_pc_END:
+
+
+.globl asm_x64_inturbo_advance_pc_1
+.globl asm_x64_inturbo_advance_pc_1_END
+asm_x64_inturbo_advance_pc_1:
+
+  lea REG_6502_PC_32, [REG_6502_PC + 1]
+
+asm_x64_inturbo_advance_pc_1_END:
+
+
+.globl asm_x64_inturbo_advance_pc_2
+.globl asm_x64_inturbo_advance_pc_2_END
+asm_x64_inturbo_advance_pc_2:
+
+  lea REG_6502_PC_32, [REG_6502_PC + 2]
+
+asm_x64_inturbo_advance_pc_2_END:
+
+
+.globl asm_x64_inturbo_advance_pc_3
+.globl asm_x64_inturbo_advance_pc_3_END
+asm_x64_inturbo_advance_pc_3:
+
+  lea REG_6502_PC_32, [REG_6502_PC + 3]
+
+asm_x64_inturbo_advance_pc_3_END:
 
 
 .globl asm_x64_inturbo_next_opcode
@@ -778,13 +984,13 @@ asm_x64_inturbo_enter_debug:
 asm_x64_inturbo_enter_debug_END:
 
 
-.globl asm_x64_inturbo_pc_plus_1_to_scratch
-.globl asm_x64_inturbo_pc_plus_1_to_scratch_END
-asm_x64_inturbo_pc_plus_1_to_scratch:
+.globl asm_x64_inturbo_pc_plus_2_to_scratch
+.globl asm_x64_inturbo_pc_plus_2_to_scratch_END
+asm_x64_inturbo_pc_plus_2_to_scratch:
 
-  lea REG_SCRATCH1, [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_6502_PC + 2]
 
-asm_x64_inturbo_pc_plus_1_to_scratch_END:
+asm_x64_inturbo_pc_plus_2_to_scratch_END:
 
 
 .globl asm_x64_inturbo_interrupt_vector

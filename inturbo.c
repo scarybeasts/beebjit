@@ -9,6 +9,7 @@
 #include "state_6502.h"
 #include "util.h"
 
+#include <assert.h>
 #include <err.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -49,17 +50,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   }
 
   for (i = 0; i < 256; ++i) {
-    void* p_begin;
-    void* p_end;
     unsigned char opmode = g_opmodes[i];
     unsigned char optype = g_optypes[i];
     unsigned char opreg = g_optype_sets_register[optype];
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     if (debug) {
-      asm_x64_copy(p_buf,
-                   asm_x64_inturbo_enter_debug,
-                   asm_x64_inturbo_enter_debug_END);
+      asm_x64_emit_inturbo_enter_debug(p_buf);
     }
 
     switch (opmode) {
@@ -68,22 +65,37 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_imm:
     case k_rel:
     case 0:
-    default:
-      p_begin = NULL;
-      p_end = NULL;
       break;
     case k_zpg:
-      p_begin = asm_x64_inturbo_mode_zpg;
-      p_end = asm_x64_inturbo_mode_zpg_END;
+      asm_x64_emit_inturbo_mode_zpg(p_buf);
       break;
     case k_abs:
-      p_begin = asm_x64_inturbo_mode_abs;
-      p_end = asm_x64_inturbo_mode_abs_END;
+      /* JSR is handled differently for efficiency. */
+      if (optype != k_jsr) {
+        asm_x64_emit_inturbo_mode_abs(p_buf);
+      }
       break;
-    }
-
-    if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end);
+    case k_abx:
+      /* TODO: could run abx, aby, idy modes more efficiently by doing the
+       * address + register addition in a per-optype manner.
+       */
+      asm_x64_emit_inturbo_mode_abx(p_buf);
+      break;
+    case k_aby:
+      asm_x64_emit_inturbo_mode_aby(p_buf);
+      break;
+    case k_zpx:
+      asm_x64_emit_inturbo_mode_zpx(p_buf);
+      break;
+    case k_idx:
+      asm_x64_emit_inturbo_mode_idx(p_buf);
+      break;
+    case k_idy:
+      asm_x64_emit_inturbo_mode_idy(p_buf);
+      break;
+    default:
+      break;
+      //assert(0);
     }
 
     switch (optype) {
@@ -101,6 +113,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_AND_scratch_interp(p_buf);
       }
       break;
+    case k_asl:
+      if (opmode == k_acc) {
+        asm_x64_emit_instruction_ASL_acc_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_ASL_scratch_interp(p_buf);
+      }
+      break;
     case k_bcc:
       asm_x64_emit_instruction_BCC_interp(p_buf);
       break;
@@ -109,6 +128,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_beq:
       asm_x64_emit_instruction_BEQ_interp(p_buf);
+      break;
+    case k_bit:
+      asm_x64_emit_instruction_BIT_interp(p_buf);
       break;
     case k_bmi:
       asm_x64_emit_instruction_BMI_interp(p_buf);
@@ -121,8 +143,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_brk:
       asm_x64_emit_instruction_BRK_interp(p_buf);
-      /* Set the opmode to something that doesn't advance the PC below. */
-      opmode = k_zpg;
+      opmode = 0;
       break;
     case k_bvc:
       asm_x64_emit_instruction_BVC_interp(p_buf);
@@ -153,11 +174,28 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_CPX_scratch_interp(p_buf);
       }
       break;
+    case k_dex:
+      asm_x64_emit_instruction_DEX(p_buf);
+      break;
+    case k_dey:
+      asm_x64_emit_instruction_DEY(p_buf);
+      break;
     case k_inc:
       asm_x64_emit_instruction_INC_scratch_interp(p_buf);
       break;
+    case k_inx:
+      asm_x64_emit_instruction_INX(p_buf);
+      break;
+    case k_iny:
+      asm_x64_emit_instruction_INY(p_buf);
+      break;
     case k_jmp:
       asm_x64_emit_instruction_JMP_scratch_interp(p_buf);
+      opmode = 0;
+      break;
+    case k_jsr:
+      asm_x64_emit_instruction_JSR_scratch_interp(p_buf);
+      opmode = 0;
       break;
     case k_lda:
       if (opmode == k_imm) {
@@ -171,6 +209,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_LDX_imm_interp(p_buf);
       } else {
         asm_x64_emit_instruction_LDX_scratch_interp(p_buf);
+      }
+      break;
+    case k_ldy:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_LDY_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_LDY_scratch_interp(p_buf);
       }
       break;
     case k_nop:
@@ -193,6 +238,14 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_x64_emit_instruction_ROR_scratch_interp(p_buf);
       }
+      break;
+    case k_rti:
+      asm_x64_emit_instruction_RTI_interp(p_buf);
+      opmode = 0;
+      break;
+    case k_rts:
+      asm_x64_emit_instruction_RTS_interp(p_buf);
+      opmode = 0;
       break;
     case k_sbc:
       if (opmode == k_imm) {
@@ -239,27 +292,30 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (opmode) {
+    case 0:
+    case k_rel:
+      break;
     case k_nil:
     case k_acc:
-    case 0:
-      /* All this does is advance 6502 PC by 1. */
-      p_begin = asm_x64_inturbo_mode_nil;
-      p_end = asm_x64_inturbo_mode_nil_END;
+      asm_x64_emit_inturbo_advance_pc_1(p_buf);
       break;
     case k_imm:
-      /* All this does is advance 6502 PC by 2. */
-      p_begin = asm_x64_inturbo_mode_imm;
-      p_end = asm_x64_inturbo_mode_imm_END;
+    case k_zpg:
+    case k_zpx:
+    case k_zpy:
+    case k_idx:
+    case k_idy:
+      asm_x64_emit_inturbo_advance_pc_2(p_buf);
+      break;
+    case k_abs:
+    case k_abx:
+    case k_aby:
+    case k_ind:
+      asm_x64_emit_inturbo_advance_pc_3(p_buf);
       break;
     default:
-      /* Other modes have already done the PC advance. */
-      p_begin = NULL;
-      p_end = NULL;
+      assert(0);
       break;
-    }
-
-    if (p_begin) {
-      asm_x64_copy(p_buf, p_begin, p_end);
     }
 
     /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo

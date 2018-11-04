@@ -594,21 +594,6 @@ jit_emit_pull_to_scratch(unsigned char* p_jit, size_t index) {
 }
 
 static size_t
-jit_emit_pull_to_scratch_word(unsigned char* p_jit, size_t index) {
-  index = jit_emit_stack_inc(p_jit, index);
-  /* movzx edx, BYTE PTR [rsi] */
-  p_jit[index++] = 0x0f;
-  p_jit[index++] = 0xb6;
-  p_jit[index++] = 0x16;
-  index = jit_emit_stack_inc(p_jit, index);
-  /* mov dh, BYTE PTR [rsi] */
-  p_jit[index++] = 0x8a;
-  p_jit[index++] = 0x36;
-
-  return index;
-}
-
-static size_t
 jit_emit_push_constant(unsigned char* p_jit_buf,
                        size_t index,
                        unsigned char val) {
@@ -1867,13 +1852,13 @@ printf("ooh\n");
     asm_x64_copy(p_buf,
                  asm_x64_asm_set_intel_flags_from_scratch,
                  asm_x64_asm_set_intel_flags_from_scratch_END);
+    asm_x64_emit_pull_word_to_scratch(p_buf);
     index = util_buffer_get_pos(p_buf);
-    index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
     index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
     break;
   case k_rts:
-    /* RTS */
-    index = jit_emit_pull_to_scratch_word(p_jit_buf, index);
+    asm_x64_emit_pull_word_to_scratch(p_buf);
+    index = util_buffer_get_pos(p_buf);
     /* lea dx, [rdx + 1] */
     p_jit_buf[index++] = 0x66;
     p_jit_buf[index++] = 0x8d;
@@ -2074,10 +2059,8 @@ printf("ooh\n");
     }
     break;
   case k_dey:
-    /* DEY */
-    /* dec cl */
-    p_jit_buf[index++] = 0xfe;
-    p_jit_buf[index++] = 0xc9;
+    asm_x64_emit_instruction_DEY(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_txa:
     /* TXA */
@@ -2102,11 +2085,8 @@ printf("ooh\n");
     p_jit_buf[index++] = 0xc8;
     break;
   case k_txs:
-    /* TXS */
-    /* mov sil, bl */
-    p_jit_buf[index++] = 0x40;
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xde;
+    asm_x64_emit_instruction_TXS(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_ldy:
     /* LDY */
@@ -2293,11 +2273,8 @@ printf("ooh\n");
     p_jit_buf[index++] = 0x00;
     break;
   case k_tsx:
-    /* TSX */
-    /* mov bl, sil */
-    p_jit_buf[index++] = 0x40;
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xf3;
+    asm_x64_emit_instruction_TSX(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_cpy:
     /* CPY */
@@ -2345,16 +2322,12 @@ printf("ooh\n");
                               0);
     break;
   case k_iny:
-    /* INY */
-    /* inc cl */
-    p_jit_buf[index++] = 0xfe;
-    p_jit_buf[index++] = 0xc1;
+    asm_x64_emit_instruction_INY(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_dex:
-    /* DEX */
-    /* dec bl */
-    p_jit_buf[index++] = 0xfe;
-    p_jit_buf[index++] = 0xcb;
+    asm_x64_emit_instruction_DEX(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_bne:
     /* BNE */
@@ -2420,10 +2393,8 @@ printf("ooh\n");
                               0);
     break;
   case k_inx:
-    /* INX */
-    /* inc bl */
-    p_jit_buf[index++] = 0xfe;
-    p_jit_buf[index++] = 0xc3;
+    asm_x64_emit_instruction_INX(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_sbc:
     /* SBC */
