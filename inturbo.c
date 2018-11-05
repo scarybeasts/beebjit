@@ -87,6 +87,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_zpx:
       asm_x64_emit_inturbo_mode_zpx(p_buf);
       break;
+    case k_zpy:
+      asm_x64_emit_inturbo_mode_zpy(p_buf);
+      break;
     case k_idx:
       asm_x64_emit_inturbo_mode_idx(p_buf);
       break;
@@ -94,8 +97,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_idy(p_buf);
       break;
     default:
-      break;
       //assert(0);
+      break;
     }
 
     switch (optype) {

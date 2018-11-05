@@ -465,6 +465,13 @@ asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_mode_zpy,
+               asm_x64_inturbo_mode_zpy_END);
+}
+
+void
 asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idx,

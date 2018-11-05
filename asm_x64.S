@@ -879,6 +879,17 @@ asm_x64_inturbo_mode_zpx:
 asm_x64_inturbo_mode_zpx_END:
 
 
+.globl asm_x64_inturbo_mode_zpy
+.globl asm_x64_inturbo_mode_zpy_END
+asm_x64_inturbo_mode_zpy:
+
+  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
+
+asm_x64_inturbo_mode_zpy_END:
+
+
 .globl asm_x64_inturbo_mode_idx
 .globl asm_x64_inturbo_mode_idx_END
 asm_x64_inturbo_mode_idx:

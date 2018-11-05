@@ -84,6 +84,7 @@ void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf);
 
@@ -239,6 +240,8 @@ void asm_x64_inturbo_mode_aby();
 void asm_x64_inturbo_mode_aby_END();
 void asm_x64_inturbo_mode_zpx();
 void asm_x64_inturbo_mode_zpx_END();
+void asm_x64_inturbo_mode_zpy();
+void asm_x64_inturbo_mode_zpy_END();
 void asm_x64_inturbo_mode_idx();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();

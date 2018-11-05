@@ -213,17 +213,21 @@ main(int argc, const char* argv[]) {
 
   /* Test indexed zero page addressing. */
   util_buffer_set_pos(p_buf, 0x0200);
-  emit_LDA(p_buf, k_imm, 0xfd);
+  emit_LDA(p_buf, k_imm, 0xFD);
   emit_STA(p_buf, k_zpg, 0x07);
-  emit_LDA(p_buf, k_imm, 0xff);
+  emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_zpg, 0x08);
   emit_LDX(p_buf, k_imm, 0x02);
   emit_LDA(p_buf, k_zpx, 0x05);
-  emit_CMP(p_buf, k_imm, 0xfd);
+  emit_CMP(p_buf, k_imm, 0xFD);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_LDX(p_buf, k_imm, 0xd1);
+  emit_LDX(p_buf, k_imm, 0xD1);
   emit_LDA(p_buf, k_zpx, 0x37);   /* Zero page wrap. */ /* Addr: $08 */
-  emit_CMP(p_buf, k_imm, 0xff);
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDY(p_buf, k_imm, 0xD1);
+  emit_LDX(p_buf, k_zpy, 0x37);   /* Zero page wrap. */ /* Addr: $08 */
+  emit_CMP(p_buf, k_imm, 0xFF);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC240);
 
