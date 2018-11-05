@@ -511,7 +511,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->last_gettime_us = 0;
   p_bbc->next_gettime_us_vsync = 0;
 
-  if (strstr(p_opt_flags, "video:no-vsync-wait-for-render")) {
+  if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
   }
 

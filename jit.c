@@ -3371,27 +3371,27 @@ jit_create(struct state_6502* p_state_6502,
   jit_set_flag(p_jit, k_jit_flag_self_modifying_abs);
   jit_set_flag(p_jit, k_jit_flag_dynamic_operand);
   jit_set_flag(p_jit, k_jit_flag_batch_ops);
-  if (strstr(p_opt_flags, "jit:self-mod-all")) {
+  if (util_has_option(p_opt_flags, "jit:self-mod-all")) {
     jit_set_flag(p_jit, k_jit_flag_self_modifying_all);
   }
-  if (strstr(p_opt_flags, "jit:no-self-mod-abs")) {
+  if (util_has_option(p_opt_flags, "jit:no-self-mod-abs")) {
     jit_clear_flag(p_jit, k_jit_flag_self_modifying_abs);
   }
-  if (strstr(p_opt_flags, "jit:no-dynamic-operand")) {
+  if (util_has_option(p_opt_flags, "jit:no-dynamic-operand")) {
     jit_clear_flag(p_jit, k_jit_flag_dynamic_operand);
   }
-  if (strstr(p_opt_flags, "jit:no-merge-ops")) {
+  if (util_has_option(p_opt_flags, "jit:no-merge-ops")) {
     jit_clear_flag(p_jit, k_jit_flag_merge_ops);
   }
-  if (strstr(p_opt_flags, "jit:no-batch-ops")) {
+  if (util_has_option(p_opt_flags, "jit:no-batch-ops")) {
     jit_clear_flag(p_jit, k_jit_flag_batch_ops);
   }
 
   log_flags = 0;
-  if (strstr(p_log_flags, "jit:self-modify")) {
+  if (util_has_option(p_log_flags, "jit:self-modify")) {
     log_flags |= k_log_flag_self_modify;
   }
-  if (strstr(p_log_flags, "jit:compile")) {
+  if (util_has_option(p_log_flags, "jit:compile")) {
     log_flags |= k_log_flag_compile;
   }
   p_jit->log_flags = log_flags;

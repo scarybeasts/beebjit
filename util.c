@@ -446,3 +446,11 @@ util_get_int_option(int* p_opt_out,
   }
   return 1;
 }
+
+int
+util_has_option(const char* p_opt_str, const char* p_opt_name) {
+  if (strstr(p_opt_str, p_opt_name)) {
+    return 1;
+  }
+  return 0;
+}

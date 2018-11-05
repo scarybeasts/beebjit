@@ -19,6 +19,7 @@ enum {
 
 struct sound_struct {
   /* Configuration. */
+  int enabled;
   size_t sample_rate;
   size_t buffer_size;
   size_t host_frames_per_fill;
@@ -283,14 +284,18 @@ sound_create(struct bbc_options* p_options) {
   int option;
   short max_volume;
 
+  const char* p_opt_flags = p_options->p_opt_flags;
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
+
   if (p_sound == NULL) {
     errx(1, "couldn't allocate sound_struct");
   }
   (void) memset(p_sound, '\0', sizeof(struct sound_struct));
 
+  p_sound->enabled = !util_has_option(p_opt_flags, "sound:off");
+
   p_sound->sample_rate = 44100;
-  if (util_get_int_option(&option, p_options->p_opt_flags, "sound:rate=")) {
+  if (util_get_int_option(&option, p_opt_flags, "sound:rate=")) {
     p_sound->sample_rate = option;
   }
   p_sound->buffer_size = 512;
@@ -301,7 +306,7 @@ sound_create(struct bbc_options* p_options) {
   if (p_sound->sample_rate > 50000) {
     p_sound->buffer_size = 1024;
   }
-  if (util_get_int_option(&option, p_options->p_opt_flags, "sound:buffer=")) {
+  if (util_get_int_option(&option, p_opt_flags, "sound:buffer=")) {
     p_sound->buffer_size = option;
   }
   p_sound->host_frames_per_fill = (p_sound->buffer_size / 4);
@@ -379,6 +384,7 @@ void
 sound_destroy(struct sound_struct* p_sound) {
   if (p_sound->thread_running) {
     int ret;
+    assert(p_sound->enabled);
     assert(!p_sound->do_exit);
     p_sound->do_exit = 1;
     ret = pthread_join(p_sound->sound_thread, NULL);
@@ -393,10 +399,17 @@ sound_destroy(struct sound_struct* p_sound) {
 
 void
 sound_start_playing(struct sound_struct* p_sound) {
-  int ret = pthread_create(&p_sound->sound_thread,
-                           NULL,
-                           sound_play_thread,
-                           p_sound);
+  int ret;
+
+  if (!p_sound->enabled) {
+    return;
+  }
+
+  assert(!p_sound->thread_running);
+  ret = pthread_create(&p_sound->sound_thread,
+                       NULL,
+                       sound_play_thread,
+                       p_sound);
   if (ret != 0) {
     errx(1, "couldn't create sound thread");
   }

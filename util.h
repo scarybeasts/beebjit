@@ -71,5 +71,6 @@ void util_get_channel_fds(int* fd1, int* fd2);
 int util_get_int_option(int* p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);
+int util_has_option(const char* p_opt_str, const char* p_opt_name);
 
 #endif /* BEEBJIT_UTIL_H */
