@@ -979,7 +979,7 @@ asm_x64_inturbo_advance_pc_3_END:
 .globl asm_x64_inturbo_next_opcode_END
 asm_x64_inturbo_next_opcode:
 
-  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
   jmp [REG_SCRATCH1 * 8 + 0x3f000000]
 
 asm_x64_inturbo_next_opcode_END:
