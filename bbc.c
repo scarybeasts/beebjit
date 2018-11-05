@@ -1,7 +1,6 @@
 #include "bbc.h"
 
 #include "bbc_options.h"
-#include "bbc_timing.h"
 #include "debug.h"
 #include "defs_6502.h"
 #include "intel_fdc.h"
@@ -11,6 +10,7 @@
 #include "memory_access.h"
 #include "sound.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
@@ -26,8 +26,8 @@
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
 
-static const size_t k_us_per_timer_tick = 1000; /* 1ms / 1kHz */
-static const size_t k_us_per_vsync = 20000; /* 20ms / 50Hz */
+static const size_t k_bbc_us_per_timer_tick = 1000; /* 1ms / 1kHz */
+static const size_t k_bbc_us_per_vsync = 20000; /* 20ms / 50Hz */
 
 enum {
   k_addr_crtc = 0xFE00,
@@ -75,7 +75,7 @@ struct bbc_struct {
   /* Machine state. */
   struct state_6502 state_6502;
   struct memory_access memory_access;
-  struct bbc_timing timing;
+  struct timing_struct* p_timing;
   int mem_fd;
   unsigned char* p_mem_raw;
   unsigned char* p_mem_read;
@@ -90,8 +90,13 @@ struct bbc_struct {
   struct interp_struct* p_interp;
   struct inturbo_struct* p_inturbo;
   struct debug_struct* p_debug;
+  size_t timer_id;
+  /* Legacy timing support. */
   uint64_t time;
   uint64_t time_next_vsync;
+  /* Timing support. */
+  uint64_t last_gettime_us;
+  uint64_t next_gettime_us_vsync;
   unsigned int romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
 
@@ -431,27 +436,30 @@ bbc_cpu_receive_message(struct bbc_struct* p_bbc) {
 }
 
 static void
-bbc_sync_timer_tick(void* p) {
-  char message;
+bbc_do_vsync(struct bbc_struct* p_bbc) {
+  bbc_cpu_send_message(p_bbc, k_message_vsync);
+  if (bbc_get_vsync_wait_for_render(p_bbc)) {
+    uint8_t message = bbc_cpu_receive_message(p_bbc);
+    assert(message == k_message_render_done);
+  }
+  via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
+}
 
+static void
+bbc_sync_timer_tick(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   uint64_t time = p_bbc->time;
 
-  p_bbc->time += k_us_per_timer_tick;
+  p_bbc->time += k_bbc_us_per_timer_tick;
 
   /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
-  via_time_advance(p_bbc->p_system_via, k_us_per_timer_tick);
-  via_time_advance(p_bbc->p_user_via, k_us_per_timer_tick);
+  via_time_advance(p_bbc->p_system_via, k_bbc_us_per_timer_tick);
+  via_time_advance(p_bbc->p_user_via, k_bbc_us_per_timer_tick);
 
   /* Fire vsync at 50Hz. */
   if (time >= p_bbc->time_next_vsync) {
-    p_bbc->time_next_vsync += k_us_per_vsync;
-    bbc_cpu_send_message(p_bbc, k_message_vsync);
-    if (bbc_get_vsync_wait_for_render(p_bbc)) {
-      message = bbc_cpu_receive_message(p_bbc);
-      assert(message == k_message_render_done);
-    }
-    via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
+    p_bbc->time_next_vsync += k_bbc_us_per_vsync;
+    bbc_do_vsync(p_bbc);
   }
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
@@ -499,7 +507,9 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->vsync_wait_for_render = 1;
 
   p_bbc->time = 0;
-  p_bbc->time_next_vsync = k_us_per_vsync;
+  p_bbc->time_next_vsync = k_bbc_us_per_vsync;
+  p_bbc->last_gettime_us = 0;
+  p_bbc->next_gettime_us_vsync = 0;
 
   if (strstr(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
@@ -555,9 +565,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
 
-  p_bbc->timing.p_callback_obj = p_bbc;
-  p_bbc->timing.sync_tick_callback = bbc_sync_timer_tick;
-
   p_bbc->options.debug_subsystem_active = debug_subsystem_active;
   p_bbc->options.debug_active_at_addr = debug_active_at_addr;
   p_bbc->options.debug_counter_at_addr = debug_counter_at_addr;
@@ -565,6 +572,12 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;
   p_bbc->options.p_log_flags = p_log_flags;
+
+  p_bbc->p_timing = timing_create();
+  if (p_bbc->p_timing == NULL) {
+    errx(1, "timing_create failed");
+  }
+  timing_set_sync_tick_callback(p_bbc->p_timing, bbc_sync_timer_tick, p_bbc);
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
@@ -586,7 +599,7 @@ bbc_create(unsigned char* p_os_rom,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(&p_bbc->state_6502);
+  p_bbc->p_intel_fdc = intel_fdc_create(&p_bbc->state_6502, p_bbc->p_timing);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }
@@ -600,7 +613,7 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->p_jit = jit_create(&p_bbc->state_6502,
                             &p_bbc->memory_access,
-                            &p_bbc->timing,
+                            p_bbc->p_timing,
                             &p_bbc->options);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
@@ -608,7 +621,7 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->p_interp = interp_create(&p_bbc->state_6502,
                                   &p_bbc->memory_access,
-                                  &p_bbc->timing,
+                                  p_bbc->p_timing,
                                   &p_bbc->options);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
@@ -616,7 +629,7 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->p_inturbo = inturbo_create(&p_bbc->state_6502,
                                     &p_bbc->memory_access,
-                                    &p_bbc->timing,
+                                    p_bbc->p_timing,
                                     &p_bbc->options);
   if (p_bbc->p_inturbo == NULL) {
     errx(1, "inturbo_create failed");
@@ -648,6 +661,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   sound_destroy(p_bbc->p_sound);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
+  timing_destroy(p_bbc->p_timing);
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
@@ -865,11 +879,11 @@ bbc_timer_thread(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   volatile int* p_running = &p_bbc->running;
 
-  uint64_t time = util_gettime();
+  uint64_t time = util_gettime_us();
 
   while (1) {
-    time += k_us_per_timer_tick;
-    util_sleep_until(time);
+    time += k_bbc_us_per_timer_tick;
+    util_sleep_until_us(time);
     if (!*p_running) {
       break;
     }
@@ -880,10 +894,54 @@ bbc_timer_thread(void* p) {
 }
 
 static void
+bbc_cycles_timer_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct timing_struct* p_timing = p_bbc->p_timing;
+  uint64_t current_gettime_us = util_gettime_us();
+  uint64_t delta = (current_gettime_us - p_bbc->last_gettime_us);
+
+  int64_t refreshed_time = timing_increase_timer(p_timing,
+                                                 p_bbc->timer_id,
+                                                 200000);
+  assert(refreshed_time > 0);
+
+  p_bbc->last_gettime_us = current_gettime_us;
+
+  /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
+  via_time_advance(p_bbc->p_system_via, delta);
+  via_time_advance(p_bbc->p_user_via, delta);
+
+  /* Fire vsync at 50Hz. */
+  if (current_gettime_us >= p_bbc->next_gettime_us_vsync) {
+    while (p_bbc->next_gettime_us_vsync <= current_gettime_us) {
+      p_bbc->next_gettime_us_vsync += k_bbc_us_per_vsync;
+    }
+    bbc_do_vsync(p_bbc);
+  }
+
+  /* Read sysvia port A to update keyboard state and fire interrupts. */
+  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
+}
+
+static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
-  int ret = pthread_create(&p_bbc->timer_thread, NULL, bbc_timer_thread, p_bbc);
-  if (ret != 0) {
-    errx(1, "couldn't create timer thread");
+  if (p_bbc->mode == k_bbc_mode_jit) {
+    int ret = pthread_create(&p_bbc->timer_thread,
+                             NULL,
+                             bbc_timer_thread,
+                             p_bbc);
+    if (ret != 0) {
+      errx(1, "couldn't create timer thread");
+    }
+  } else {
+    struct timing_struct* p_timing = p_bbc->p_timing;
+    p_bbc->timer_id = timing_register_timer(p_timing,
+                                            bbc_cycles_timer_callback,
+                                            p_bbc);
+    (void) timing_start_timer(p_timing, p_bbc->timer_id, 200000);
+    p_bbc->last_gettime_us = util_gettime_us();
+    p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us +
+                                    k_bbc_us_per_vsync);
   }
 }
 
@@ -911,9 +969,11 @@ bbc_cpu_thread(void* p) {
 
   p_bbc->running = 0;
 
-  ret = pthread_join(p_bbc->timer_thread, NULL);
-  if (ret != 0) {
-    errx(1, "pthread_join failed");
+  if (p_bbc->mode == k_bbc_mode_jit) {
+    ret = pthread_join(p_bbc->timer_thread, NULL);
+    if (ret != 0) {
+      errx(1, "pthread_join failed");
+    }
   }
 
   bbc_cpu_send_message(p_bbc, k_message_exited);

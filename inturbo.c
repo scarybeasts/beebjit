@@ -350,7 +350,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 struct inturbo_struct*
 inturbo_create(struct state_6502* p_state_6502,
                struct memory_access* p_memory_access,
-               struct bbc_timing* p_timing,
+               struct timing_struct* p_timing,
                struct bbc_options* p_options) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 

@@ -6,10 +6,10 @@
 #include "asm_x64.h"
 #include "asm_x64_abi.h"
 #include "bbc_options.h"
-#include "bbc_timing.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
@@ -192,7 +192,7 @@ struct jit_struct {
 
   /* Fields not referenced by JIT'ed code. */
   struct memory_access* p_memory_access;
-  struct bbc_timing* p_timing;
+  struct timing_struct* p_timing;
   struct bbc_options* p_options;
   unsigned int jit_flags;
   unsigned int log_flags;
@@ -3068,8 +3068,8 @@ jit_async_timer_tick(struct jit_struct* p_jit) {
 
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
-  struct bbc_timing* p_timing = p_jit->p_timing;
-  p_timing->sync_tick_callback(p_timing->p_callback_obj);
+  struct timing_struct* p_timing = p_jit->p_timing;
+  timing_do_sync_tick_callback(p_timing);
 }
 
 static void
@@ -3300,7 +3300,7 @@ jit_enter(struct jit_struct* p_jit) {
 struct jit_struct*
 jit_create(struct state_6502* p_state_6502,
            struct memory_access* p_memory_access,
-           struct bbc_timing* p_timing,
+           struct timing_struct* p_timing,
            struct bbc_options* p_options) {
   size_t i;
   unsigned int log_flags;

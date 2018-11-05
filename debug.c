@@ -91,7 +91,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_running_slow = bbc_get_slow_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
-  p_debug->time_basis = util_gettime();
+  p_debug->time_basis = util_gettime_us();
   p_debug->next_cycles = 0;
 
   for (i = 0; i < k_max_break; ++i) {
@@ -564,7 +564,7 @@ debug_slow_down(struct debug_struct* p_debug) {
   size_t cycles = bbc_get_cycles(p_bbc);
 
   if (cycles >= p_debug->next_cycles) {
-    util_sleep_until(p_debug->time_basis + (cycles / 2));
+    util_sleep_until_us(p_debug->time_basis + (cycles / 2));
     p_debug->next_cycles += 2000;
   }
 }

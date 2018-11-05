@@ -5,10 +5,10 @@
 #include <stdint.h>
 
 struct bbc_options;
-struct bbc_timing;
 struct debug_struct;
 struct memory_access;
 struct state_6502;
+struct timing_struct;
 
 struct jit_struct;
 
@@ -22,7 +22,7 @@ enum {
 
 struct jit_struct* jit_create(struct state_6502* p_state_6502,
                               struct memory_access* p_memory_access,
-                              struct bbc_timing* p_timing,
+                              struct timing_struct* p_timing,
                               struct bbc_options* p_options);
 void jit_destroy(struct jit_struct* p_jit);
 

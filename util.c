@@ -374,24 +374,24 @@ util_file_write(const char* p_file_name,
 }
 
 uint64_t
-util_gettime() {
-  struct timeval tv;
+util_gettime_us() {
+  struct timespec ts;
 
-  int ret = gettimeofday(&tv, NULL);
+  int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
   if (ret != 0) {
-    errx(1, "gettimeofday failed");
+    errx(1, "clock_gettime failed");
   }
 
-  return ((tv.tv_sec * (uint64_t) 1000000) + tv.tv_usec);
+  return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
 }
 
 void
-util_sleep_until(uint64_t time) {
+util_sleep_until_us(uint64_t time) {
   struct timespec ts;
   uint64_t delta;
   int ret;
 
-  uint64_t curr_time = util_gettime();
+  uint64_t curr_time = util_gettime_us();
 
   if (time <= curr_time) {
     return;

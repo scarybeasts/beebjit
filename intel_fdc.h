@@ -6,8 +6,10 @@
 
 struct intel_fdc_struct;
 struct state_6502;
+struct timing_struct;
 
-struct intel_fdc_struct* intel_fdc_create(struct state_6502* p_state_6502);
+struct intel_fdc_struct* intel_fdc_create(struct state_6502* p_state_6502,
+                                          struct timing_struct* p_timing);
 void intel_fdc_destroy(struct intel_fdc_struct* p_fdc);
 void intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
                         int drive,

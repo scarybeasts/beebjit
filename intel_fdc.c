@@ -1,6 +1,7 @@
 #include "intel_fdc.h"
 
 #include "state_6502.h"
+#include "timing.h"
 
 #include <assert.h>
 #include <err.h>
@@ -44,6 +45,8 @@ enum {
 
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
+  struct timing_struct* p_timing;
+  size_t timer_id;
   uint8_t status;
   uint8_t result;
   uint8_t data;
@@ -65,7 +68,8 @@ struct intel_fdc_struct {
 };
 
 struct intel_fdc_struct*
-intel_fdc_create(struct state_6502* p_state_6502) {
+intel_fdc_create(struct state_6502* p_state_6502,
+                 struct timing_struct* p_timing) {
   struct intel_fdc_struct* p_intel_fdc =
       malloc(sizeof(struct intel_fdc_struct));
   if (p_intel_fdc == NULL) {
@@ -74,6 +78,7 @@ intel_fdc_create(struct state_6502* p_state_6502) {
   (void) memset(p_intel_fdc, '\0', sizeof(struct intel_fdc_struct));
 
   p_intel_fdc->p_state_6502 = p_state_6502;
+  p_intel_fdc->p_timing = p_timing;
 
   p_intel_fdc->status = 0;
   p_intel_fdc->result = 0;
@@ -89,6 +94,10 @@ intel_fdc_create(struct state_6502* p_state_6502) {
   p_intel_fdc->current_sectors_left = 0;
   p_intel_fdc->current_bytes_left = 0;
   p_intel_fdc->pending_success = 0;
+
+  p_intel_fdc->timer_id = timing_register_timer(p_timing,
+                                                intel_fdc_timer_tick,
+                                                p_intel_fdc);
 
   return p_intel_fdc;
 }
@@ -162,11 +171,16 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
 
   switch (p_intel_fdc->command) {
   case k_intel_fdc_command_read_sectors:
+    assert(p_intel_fdc->current_sectors_left == 0);
+    assert(p_intel_fdc->current_bytes_left == 0);
+
     p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1] = param0;
     p_intel_fdc->current_sector = param1;
     p_intel_fdc->current_sectors_left = (param2 & 0x1F);
     p_intel_fdc->current_bytes_left = k_intel_fdc_sector_size;
-    p_intel_fdc->data = 0;
+
+    timing_start_timer(p_intel_fdc->p_timing, p_intel_fdc->timer_id, 200);
+
     break;
   case k_intel_fdc_command_seek:
     p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1] = param0;
@@ -316,11 +330,17 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
 
+  struct timing_struct* p_timing = p_intel_fdc->p_timing;
+  size_t timer_id = p_intel_fdc->timer_id;
+
   if (p_intel_fdc->pending_success) {
     p_intel_fdc->pending_success = 0;
     intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
+    timing_stop_timer(p_timing, timer_id);
     return;
   }
+
+  timing_increase_timer(p_timing, timer_id, 200);
 
   current_bytes_left = p_intel_fdc->current_bytes_left;
 
@@ -331,11 +351,11 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   /* If our virtual controller is attempting to deliver a byte before the last
    * one was read, I presume that's data loss, otherwise what would all the
    * NMIs be about?
-   * TODO: see why this is happening.
+   * Shouldn't happen in the new timing model.
    * For now we'll be kind and give the 6502 a chance to catch up.
    */
   if (p_intel_fdc->status & 0x04) {
-    printf("6502 disk byte read too slow\n");
+    printf("WARNING: 6502 disk byte read too slow\n");
     return;
   }
 
