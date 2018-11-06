@@ -19,9 +19,15 @@ main(int argc, const char* argv[]) {
   int fd;
   int arg;
   ssize_t write_ret;
+
+  int fast = 0;
   size_t bytes = 0;
   uint8_t* p_mem = malloc(k_rom_size);
   struct util_buffer* p_buf = util_buffer_create();
+
+  if (p_mem == NULL) {
+    errx(1, "couldn't allocate ROM buffer");
+  }
 
   (void) memset(p_mem, '\xf2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
@@ -50,7 +56,10 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x31);
   for (arg = 1; arg < argc; ++arg) {
     int i;
-    if (sscanf(argv[arg], "%x", &i) == 1) {
+    if (!strcmp(argv[arg], "-f")) {
+      /* "Fast", does 2^24 iterations instead of 2^32. */
+      fast = 1;
+    } else if (sscanf(argv[arg], "%x", &i) == 1) {
       util_buffer_add_1b(p_buf, i);
       bytes++;
     }
@@ -61,8 +70,10 @@ main(int argc, const char* argv[]) {
   emit_BNE(p_buf, (0xfa - bytes));
   emit_INC(p_buf, k_zpg, 0x30);
   emit_BNE(p_buf, (0xf6 - bytes));
-  emit_INC(p_buf, k_zpg, 0x31);
-  emit_BNE(p_buf, (0xf2 - bytes));
+  if (!fast) {
+    emit_INC(p_buf, k_zpg, 0x31);
+    emit_BNE(p_buf, (0xf2 - bytes));
+  }
   emit_EXIT(p_buf);
 
   fd = open("perf.rom", O_CREAT | O_WRONLY, 0600);
