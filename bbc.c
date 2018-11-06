@@ -90,11 +90,12 @@ struct bbc_struct {
   struct interp_struct* p_interp;
   struct inturbo_struct* p_inturbo;
   struct debug_struct* p_debug;
-  size_t timer_id;
   /* Legacy timing support. */
   uint64_t time;
   uint64_t time_next_vsync;
   /* Timing support. */
+  size_t timer_id;
+  uint64_t cycles_per_run;
   uint64_t last_gettime_us;
   uint64_t next_gettime_us_vsync;
   unsigned int romsel;
@@ -840,11 +841,6 @@ bbc_get_print_flag(struct bbc_struct* p_bbc) {
 }
 
 int
-bbc_get_slow_flag(struct bbc_struct* p_bbc) {
-  return p_bbc->slow_flag;
-}
-
-int
 bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
   return p_bbc->vsync_wait_for_render;
 }
@@ -895,17 +891,36 @@ bbc_timer_thread(void* p) {
 
 static void
 bbc_cycles_timer_callback(void* p) {
+  uint64_t current_gettime_us;
+  uint64_t delta;
+  int64_t refreshed_time;
+
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
-  uint64_t current_gettime_us = util_gettime_us();
-  uint64_t delta = (current_gettime_us - p_bbc->last_gettime_us);
 
-  int64_t refreshed_time = timing_increase_timer(p_timing,
-                                                 p_bbc->timer_id,
-                                                 200000);
+  if (p_bbc->slow_flag) {
+    uint64_t pre_sleep_time;
+
+    current_gettime_us = (p_bbc->last_gettime_us + 1000);
+    pre_sleep_time = util_sleep_until_us(current_gettime_us);
+    if (pre_sleep_time > current_gettime_us) {
+      p_bbc->last_gettime_us = pre_sleep_time;
+      current_gettime_us = pre_sleep_time;
+    } else {
+      p_bbc->last_gettime_us = current_gettime_us;
+    }
+    delta = 1000;
+  } else {
+    current_gettime_us = util_gettime_us();
+    delta = (current_gettime_us - p_bbc->last_gettime_us);
+    p_bbc->last_gettime_us = current_gettime_us;
+  }
+
+  refreshed_time = timing_increase_timer(p_timing,
+                                         p_bbc->timer_id,
+                                         p_bbc->cycles_per_run);
+
   assert(refreshed_time > 0);
-
-  p_bbc->last_gettime_us = current_gettime_us;
 
   /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
   via_time_advance(p_bbc->p_system_via, delta);
@@ -934,11 +949,20 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
       errx(1, "couldn't create timer thread");
     }
   } else {
+    uint64_t cycles_per_run;
     struct timing_struct* p_timing = p_bbc->p_timing;
     p_bbc->timer_id = timing_register_timer(p_timing,
                                             bbc_cycles_timer_callback,
                                             p_bbc);
-    (void) timing_start_timer(p_timing, p_bbc->timer_id, 200000);
+
+    if (p_bbc->slow_flag) {
+      cycles_per_run = 2000;
+    } else {
+      cycles_per_run = 200000;
+    }
+    p_bbc->cycles_per_run = cycles_per_run;
+
+    (void) timing_start_timer(p_timing, p_bbc->timer_id, cycles_per_run);
     p_bbc->last_gettime_us = util_gettime_us();
     p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us +
                                     k_bbc_us_per_vsync);

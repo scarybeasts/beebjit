@@ -101,7 +101,6 @@ void bbc_memory_write(struct bbc_struct* p_bbc,
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
-int bbc_get_slow_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
 void bbc_key_pressed(struct bbc_struct* p_bbc, int key);

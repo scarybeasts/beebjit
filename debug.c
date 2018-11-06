@@ -35,7 +35,6 @@ struct debug_struct {
   int debug_active;
   int debug_running;
   int debug_running_print;
-  int debug_running_slow;
   /* Breakpointing. */
   uint16_t debug_stop_addr;
   uint16_t debug_counter_addr;
@@ -89,7 +88,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_active = debug_active;
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
-  p_debug->debug_running_slow = bbc_get_slow_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->time_basis = util_gettime_us();
   p_debug->next_cycles = 0;
@@ -559,17 +557,6 @@ debug_check_unusual(struct debug_struct* p_debug,
 }
 
 static void
-debug_slow_down(struct debug_struct* p_debug) {
-  struct bbc_struct* p_bbc = p_debug->p_bbc;
-  size_t cycles = bbc_get_cycles(p_bbc);
-
-  if (cycles >= p_debug->next_cycles) {
-    util_sleep_until_us(p_debug->time_basis + (cycles / 2));
-    p_debug->next_cycles += 2000;
-  }
-}
-
-static void
 debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
@@ -672,10 +659,6 @@ debug_callback(void* p) {
                              p_mem_read);
 
   debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
-
-  if (p_debug->debug_running_slow) {
-    debug_slow_down(p_debug);
-  }
 
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
 
