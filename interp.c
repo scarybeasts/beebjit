@@ -535,8 +535,3 @@ interp_enter(struct interp_struct* p_interp) {
     }
   }
 }
-
-void
-interp_async_timer_tick(struct interp_struct* p_interp) {
-  (void) p_interp;
-}

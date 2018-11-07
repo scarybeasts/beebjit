@@ -859,14 +859,9 @@ bbc_async_timer_tick(struct bbc_struct* p_bbc) {
   case k_bbc_mode_jit:
     jit_async_timer_tick(p_bbc->p_jit);
     break;
-  case k_bbc_mode_interp:
-    interp_async_timer_tick(p_bbc->p_interp);
-    break;
-  case k_bbc_mode_inturbo:
-    inturbo_async_timer_tick(p_bbc->p_inturbo);
-    break;
   default:
     assert(0);
+    break;
   }
 }
 

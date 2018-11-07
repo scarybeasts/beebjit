@@ -405,8 +405,3 @@ inturbo_enter(struct inturbo_struct* p_inturbo) {
 
   asm_x64_asm_enter(p_inturbo, p_start_address);
 }
-
-void
-inturbo_async_timer_tick(struct inturbo_struct* p_inturbo) {
-  (void) p_inturbo;
-}

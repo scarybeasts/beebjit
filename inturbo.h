@@ -14,6 +14,5 @@ struct inturbo_struct* inturbo_create(struct state_6502* p_state_6502,
 void inturbo_destroy(struct inturbo_struct* p_inturbo);
 
 void inturbo_enter(struct inturbo_struct* p_inturbo);
-void inturbo_async_timer_tick(struct inturbo_struct* p_inturbo);
 
 #endif /* BEEBJIT_INTURBO_H */
