@@ -653,10 +653,17 @@ asm_x64_asm_emit_intel_flags_to_scratch_END:
 .globl asm_x64_asm_set_intel_flags_from_scratch
 .globl asm_x64_asm_set_intel_flags_from_scratch_END
 asm_x64_asm_set_intel_flags_from_scratch:
-  mov REG_SCRATCH2_32, 0x0106
-  mov REG_SCRATCH3_32, 0x0100
-  bextr REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
-  bextr REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
+  mov REG_SCRATCH2_32, 0x40
+  mov REG_SCRATCH3_32, 0x01
+  # NOTE: in testing, pext is faster than bextr by about 10%.
+  # This is despite the Agner Fog tables as listing:
+  # pext : latency 3 throughput 1, port p1
+  # bextr: latency 2 thorughput 2, port 2p0156
+  # Interesting that bextr is listed as faster despite using 2uops vs. 1.
+  # But my guess is that because pext doesn't change flags, the mov ah / sahf
+  # can execute in parallel. bextr sets ZF.
+  pext REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
+  pext REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
   mov REG_6502_ID_F, [K_ASM_TABLE_6502_FLAGS_TO_MASK + REG_SCRATCH1]
   mov ah, [K_ASM_TABLE_6502_FLAGS_TO_X64 + REG_SCRATCH1]
   sahf
