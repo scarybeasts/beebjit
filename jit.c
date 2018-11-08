@@ -38,19 +38,14 @@ static const int k_jit_bytes_per_byte = 256;
 static const int k_jit_bytes_shift = 8;
 static const int k_jit_bytes_mask = 0xff;
 static void* k_jit_addr = (void*) 0x20000000;
-static void* k_utils_addr = (void*) 0x80000000;
 static void* k_semaphores_addr = (void*) 0x0e000000;
 static const size_t k_semaphore_block = 0;
 static const size_t k_semaphore_cli = 4096;
 static const size_t k_semaphore_cli_end_minus_4 = (4096 * 2) - 4;
 static const size_t k_semaphore_cli_read_only = 4096 * 2;
-static const size_t k_utils_size = 4096;
-static const size_t k_utils_do_interrupt_offset = 0x100;
 static const size_t k_tables_size = 4096;
 static const size_t k_semaphore_size = 4096;
 static const size_t k_semaphores_size = 4096 * 3;
-
-static const int k_offset_util_do_interrupt = k_asm_x64_abi_size;
 
 static const int k_offset_read_callback = (k_asm_x64_abi_size + 8);
 static const int k_offset_write_callback = (k_asm_x64_abi_size + 16);
@@ -177,7 +172,7 @@ static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
 struct jit_struct {
   struct asm_x64_abi abi;
 
-  unsigned char* p_util_do_interrupt;
+  unsigned char* p_dummy;
 
   /* C callbacks called by JIT code. */
   void* p_read_callback;
@@ -201,7 +196,6 @@ struct jit_struct {
   size_t read_to_write_offset;
 
   unsigned char* p_jit_base;
-  unsigned char* p_utils_base;
   unsigned char* p_semaphores;
 
   struct util_buffer* p_dest_buf;
@@ -657,20 +651,6 @@ jit_emit_jmp_indirect(struct jit_struct* p_jit,
 }
 
 static size_t
-jit_emit_jmp_double_indirect(struct jit_struct* p_jit,
-                             unsigned char* p_jit_buf,
-                             size_t index) {
-  /* movzx edx, WORD PTR [rdx + p_mem] */
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb7;
-  p_jit_buf[index++] = 0x92;
-  index = jit_emit_int(p_jit_buf, index, (size_t) p_jit->p_mem_read);
-  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
-
-  return index;
-}
-
-static size_t
 jit_emit_undefined(unsigned char* p_jit,
                    size_t index,
                    unsigned char opcode,
@@ -1100,73 +1080,32 @@ jit_emit_post_rotate(struct jit_struct* p_jit,
   return index;
 }
 
-static size_t
+static void
 jit_emit_do_brk(struct jit_struct* p_jit,
-                unsigned char* p_jit_buf,
-                size_t index,
+                struct util_buffer* p_buf,
                 uint16_t addr_6502) {
-  (void) p_jit;
+  size_t index;
+  uint8_t* p_jit_buf = util_buffer_get_ptr(p_buf);
 
   /* mov dx, addr_6502 */
-  p_jit_buf[index++] = 0x66;
-  p_jit_buf[index++] = 0xba;
-  p_jit_buf[index++] = (addr_6502 & 0xff);
-  p_jit_buf[index++] = (addr_6502 >> 8);
-  /* Magic constant, 0x0e == vector offset from 0xFFF0, 0x10 == BRK flag. */
-  /* mov r8, 0x0e10 */
-  p_jit_buf[index++] = 0x49;
-  p_jit_buf[index++] = 0xc7;
-  p_jit_buf[index++] = 0xc0;
-  index = jit_emit_int(p_jit_buf, index, 0x0e10);
-  /* jmp [rdi + k_offset_util_do_interrupt] */
-  p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x67;
-  p_jit_buf[index++] = k_offset_util_do_interrupt;
-
-  return index;
-}
-
-static void
-jit_emit_do_interrupt_util(struct jit_struct* p_jit,
-                           struct util_buffer* p_buf) {
-  size_t index = 0;
-  unsigned char* p_jit_buf = (util_buffer_get_ptr(p_buf) +
-                              util_buffer_get_pos(p_buf));
-
+  util_buffer_add_4b(p_buf, 0x66, 0xba, (addr_6502 & 0xff), (addr_6502 >> 8));
   asm_x64_emit_push_word_from_scratch(p_buf);
   asm_x64_copy(p_buf,
                asm_x64_asm_emit_intel_flags_to_scratch,
                asm_x64_asm_emit_intel_flags_to_scratch_END);
+  /* Add in the BRK flag to the processor flags. */
+  /* lea edx, [rdx + 0x10] */
+  util_buffer_add_3b(p_buf, 0x8d, 0x52, 0x10);
   index = util_buffer_get_pos(p_buf);
-  /* Mix in the BRK flag if we have to. */
-  /* movzx r9d, r8b */
-  p_jit_buf[index++] = 0x45;
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb6;
-  p_jit_buf[index++] = 0xc8;
-  /* lea edx, [rdx + r9] */
-  p_jit_buf[index++] = 0x42;
-  p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x14;
-  p_jit_buf[index++] = 0x0a;
   index = jit_emit_push_from_scratch(p_jit_buf, index);
   util_buffer_set_pos(p_buf, index);
   asm_x64_emit_instruction_SEI(p_buf);
+  /* movzx edx, WORD PTR [p_mem + k_6502_vector_irq] */
+  util_buffer_add_4b(p_buf, 0x0f, 0xb7, 0x14, 0x25);
+  util_buffer_add_int(p_buf, (size_t) (p_jit->p_mem_read + k_6502_vector_irq));
   index = util_buffer_get_pos(p_buf);
-  /* Extract the vector offset (distinguishes BRK / IRQ / NMI). */
-  /* rorx r8, r8, 8 */
-  p_jit_buf[index++] = 0xc4;
-  p_jit_buf[index++] = 0x43;
-  p_jit_buf[index++] = 0xfb;
-  p_jit_buf[index++] = 0xf0;
-  p_jit_buf[index++] = 0xc0;
-  p_jit_buf[index++] = 0x08;
-  /* lea edx, [r8 + 0xfff0]  */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x8d;
-  p_jit_buf[index++] = 0x90;
-  index = jit_emit_int(p_jit_buf, index, 0xfff0);
-  index = jit_emit_jmp_double_indirect(p_jit, p_jit_buf, index);
+  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
+  util_buffer_set_pos(p_buf, index);
 }
 
 static size_t
@@ -1576,7 +1515,8 @@ printf("ooh\n");
     }
     break;
   case k_brk:
-    index = jit_emit_do_brk(p_jit, p_jit_buf, index, addr_6502 + 2);
+    jit_emit_do_brk(p_jit, p_buf, addr_6502 + 2);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_ora:
     /* ORA */
@@ -3078,14 +3018,11 @@ sigsegv_reraise(unsigned char* p_rip, unsigned char* p_addr) {
 
 static void
 handle_sigsegv_fire_interrupt(ucontext_t* p_context,
-                              struct jit_struct* p_jit,
                               uint16_t addr_6502,
                               uint16_t vector) {
-  /* ABI is rdx for 6502 RTI address, r8 == 0x??00 for IRQ vector, BRK == 0. */
-  uint16_t r8 = ((vector & 0x000F) << 8);
   p_context->uc_mcontext.gregs[REG_RDX] = addr_6502;
-  p_context->uc_mcontext.gregs[REG_R8] = r8;
-  p_context->uc_mcontext.gregs[REG_RIP] = (size_t) p_jit->p_util_do_interrupt;
+  p_context->uc_mcontext.gregs[REG_R8] = vector;
+  p_context->uc_mcontext.gregs[REG_RIP] = (size_t) asm_x64_jit_do_interrupt;
 }
 
 static void
@@ -3124,7 +3061,7 @@ handle_semaphore_sigsegv_common(ucontext_t* p_context,
     return;
   }
 
-  handle_sigsegv_fire_interrupt(p_context, p_jit, addr_6502, vector);
+  handle_sigsegv_fire_interrupt(p_context, addr_6502, vector);
 }
 
 static void
@@ -3256,8 +3193,6 @@ jit_create(struct state_6502* p_state_6502,
   size_t i;
   unsigned int log_flags;
   unsigned char* p_jit_base;
-  unsigned char* p_utils_base;
-  unsigned char* p_util_do_interrupt;
 
   const char* p_opt_flags = p_options->p_opt_flags;
   const char* p_log_flags = p_options->p_log_flags;
@@ -3286,11 +3221,6 @@ jit_create(struct state_6502* p_state_6502,
   p_state_6502->reg_y = uint_mem_read;
   p_state_6502->reg_s = (uint_mem_read + k_6502_stack_addr);
 
-  /* This is the mapping that holds static little runtime code gadgets. */
-  p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size);
-  util_make_mapping_read_write_exec(p_utils_base, k_utils_size);
-  p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
-
   /* This is the mapping that is a semaphore to trigger JIT execution
    * interruption.
    */
@@ -3303,9 +3233,7 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_mem_write = p_mem_write;
   p_jit->read_to_write_offset = (p_mem_write - p_mem_read);
   p_jit->p_jit_base = p_jit_base;
-  p_jit->p_utils_base = p_utils_base;
   p_jit->abi.p_util_private = asm_x64_jit_do_compile;
-  p_jit->p_util_do_interrupt = p_util_do_interrupt;
   p_jit->p_counter = p_options->debug_get_counter_ptr(
       p_jit->abi.p_debug_object);
   p_jit->p_jit_callback = jit_callback;
@@ -3359,9 +3287,6 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_seq_buf = util_buffer_create();
   p_jit->p_single_buf = util_buffer_create();
 
-  util_buffer_setup(p_jit->p_dest_buf, p_util_do_interrupt, 0x100);
-  jit_emit_do_interrupt_util(p_jit, p_jit->p_dest_buf);
-
   return p_jit;
 }
 
@@ -3388,7 +3313,6 @@ jit_destroy(struct jit_struct* p_jit) {
   util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_6502_addr_space_size * k_jit_bytes_per_byte);
-  util_free_guarded_mapping(p_jit->p_utils_base, k_utils_size);
   util_buffer_destroy(p_jit->p_dest_buf);
   util_buffer_destroy(p_jit->p_seq_buf);
   util_buffer_destroy(p_jit->p_single_buf);

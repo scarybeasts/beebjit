@@ -143,6 +143,7 @@ asm_x64_instruction_SEI:
   bts REG_6502_ID_F_64, 2
 
 asm_x64_instruction_SEI_END:
+  ret
 
 
 .globl asm_x64_instruction_TAX
@@ -648,6 +649,7 @@ asm_x64_push_word_from_scratch:
   mov REG_6502_S, REG_SCRATCH3_8
 
 asm_x64_push_word_from_scratch_END:
+  ret
 
 
 .globl asm_x64_pull_to_scratch
