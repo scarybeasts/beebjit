@@ -1,4 +1,4 @@
-#include "asm_x64.h"
+#include "asm_x64_common.h"
 
 #include "util.h"
 

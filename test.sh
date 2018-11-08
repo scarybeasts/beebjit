@@ -4,8 +4,8 @@ set -e
 gcc -Wall -W -Werror -g -o 6502jit \
     main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
-    asm_x64.c asm_x64_abi.c asm_tables.c test.c \
-    asm_x64.S asm_x64_jit.S \
+    asm_x64_common.c asm_x64_abi.c asm_tables.c test.c \
+    asm_x64_common.S asm_x64_jit.S \
     -lm -lX11 -lXext -lpthread -lasound
 gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
     util.c defs_6502.c emit_6502.c

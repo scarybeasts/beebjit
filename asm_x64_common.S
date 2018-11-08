@@ -1,6 +1,6 @@
 #include "asm_x64_defs.h"
 
-.file "asm_x64.S"
+.file "asm_x64_common.S"
 .intel_syntax noprefix
 .section rodata
 .text

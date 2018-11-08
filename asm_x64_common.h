@@ -1,5 +1,5 @@
-#ifndef BEEBJIT_ASM_X64_H
-#define BEEBJIT_ASM_X64_H
+#ifndef BEEBJIT_ASM_X64_COMMON_H
+#define BEEBJIT_ASM_X64_COMMON_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -266,4 +266,4 @@ void asm_x64_inturbo_pc_plus_2_to_scratch_END();
 void asm_x64_inturbo_interrupt_vector();
 void asm_x64_inturbo_interrupt_vector_END();
 
-#endif /* BEEBJIT_ASM_X64_H */
+#endif /* BEEBJIT_ASM_X64_COMMON_H */

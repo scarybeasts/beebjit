@@ -1,6 +1,6 @@
 #include "asm_x64_abi.h"
 
-#include "asm_x64.h"
+#include "asm_x64_common.h"
 #include "bbc_options.h"
 
 #include <string.h>

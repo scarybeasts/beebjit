@@ -3,8 +3,8 @@
 #include "jit.h"
 
 #include "asm_tables.h"
-#include "asm_x64.h"
 #include "asm_x64_abi.h"
+#include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
