@@ -737,10 +737,10 @@ jit_is_special_read_address(struct jit_struct* p_jit,
                             uint16_t opcode_addr_6502,
                             uint16_t opcode_addr_6502_upper_range) {
   struct memory_access* p_memory_access = p_jit->p_memory_access;
-  uint16_t mask = p_memory_access->memory_read_needs_callback_mask(
+  uint16_t above = p_memory_access->memory_read_needs_callback_above(
       p_memory_access->p_callback_obj);
-  int lower_hit = ((opcode_addr_6502 & mask) == mask);
-  int upper_hit = ((opcode_addr_6502_upper_range & mask) == mask);
+  int lower_hit = (opcode_addr_6502 >= above);
+  int upper_hit = (opcode_addr_6502_upper_range >= above);
 
   return (lower_hit || upper_hit);
 }
@@ -750,10 +750,10 @@ jit_is_special_write_address(struct jit_struct* p_jit,
                              uint16_t opcode_addr_6502,
                              uint16_t opcode_addr_6502_upper_range) {
   struct memory_access* p_memory_access = p_jit->p_memory_access;
-  uint16_t mask = p_memory_access->memory_write_needs_callback_mask(
+  uint16_t above = p_memory_access->memory_write_needs_callback_above(
       p_memory_access->p_callback_obj);
-  int lower_hit = ((opcode_addr_6502 & mask) == mask);
-  int upper_hit = ((opcode_addr_6502_upper_range & mask) == mask);
+  int lower_hit = (opcode_addr_6502 >= above);
+  int upper_hit = (opcode_addr_6502_upper_range >= above);
 
   return (lower_hit || upper_hit);
 }

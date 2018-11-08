@@ -115,7 +115,7 @@ bbc_is_ram_address(void* p, uint16_t addr) {
 }
 
 static uint16_t
-bbc_read_needs_callback_mask(void* p) {
+bbc_read_needs_callback_above(void* p) {
   (void) p;
 
   /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF,
@@ -125,7 +125,7 @@ bbc_read_needs_callback_mask(void* p) {
 }
 
 static uint16_t
-bbc_write_needs_callback_mask(void* p) {
+bbc_write_needs_callback_above(void* p) {
   (void) p;
 
   /* Selects 0xFC00 - 0xFFFF. */
@@ -559,10 +559,10 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
   p_bbc->memory_access.p_callback_obj = p_bbc;
   p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
-  p_bbc->memory_access.memory_read_needs_callback_mask =
-      bbc_read_needs_callback_mask;
-  p_bbc->memory_access.memory_write_needs_callback_mask =
-      bbc_write_needs_callback_mask;
+  p_bbc->memory_access.memory_read_needs_callback_above =
+      bbc_read_needs_callback_above;
+  p_bbc->memory_access.memory_write_needs_callback_above =
+      bbc_write_needs_callback_above;
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
 

@@ -9,8 +9,8 @@ struct memory_access {
 
   void* p_callback_obj;
   int (*memory_is_ram)(void* p, uint16_t addr);
-  uint16_t (*memory_read_needs_callback_mask)(void* p);
-  uint16_t (*memory_write_needs_callback_mask)(void* p);
+  uint16_t (*memory_read_needs_callback_above)(void* p);
+  uint16_t (*memory_write_needs_callback_above)(void* p);
 
   unsigned char (*memory_read_callback)(void* p, uint16_t addr);
   void (*memory_write_callback)(void* p, uint16_t addr, unsigned char val);

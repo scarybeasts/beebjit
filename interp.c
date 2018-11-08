@@ -98,10 +98,10 @@ interp_read_mem(int64_t* p_next_event_cycles,
                 struct timing_struct* p_timing,
                 uint8_t* p_mem,
                 uint16_t addr,
-                uint16_t read_callback_mask) {
+                uint16_t read_callback_above) {
   uint8_t ret;
 
-  if ((addr & read_callback_mask) == read_callback_mask) {
+  if (addr >= read_callback_above) {
     ret = p_memory_access->memory_read_callback(
         p_memory_access->p_callback_obj,
         addr);
@@ -126,8 +126,8 @@ interp_write_mem(int64_t* p_next_event_cycles,
                  uint8_t* p_mem,
                  uint16_t addr,
                  uint8_t v,
-                 uint16_t write_callback_mask) {
-  if ((addr & write_callback_mask) == write_callback_mask) {
+                 uint16_t write_callback_above) {
+  if (addr >= write_callback_above) {
     p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
                                            addr,
                                            v);
@@ -178,11 +178,11 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char* p_mem_read = p_memory_access->p_mem_read;
   unsigned char* p_mem_write = p_memory_access->p_mem_write;
   unsigned char* p_stack = (p_mem_write + k_6502_stack_addr);
-  uint16_t read_callback_mask =
-      p_memory_access->memory_read_needs_callback_mask(
+  uint16_t read_callback_above =
+      p_memory_access->memory_read_needs_callback_above(
           p_memory_access->p_callback_obj);
-  uint16_t write_callback_mask =
-      p_memory_access->memory_write_needs_callback_mask(
+  uint16_t write_callback_above =
+      p_memory_access->memory_write_needs_callback_above(
           p_memory_access->p_callback_obj);
   unsigned int* p_irq = &p_state_6502->irq_fire;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
@@ -302,7 +302,7 @@ interp_enter(struct interp_struct* p_interp) {
                           p_timing,
                           p_mem_read,
                           addr,
-                          read_callback_mask);
+                          read_callback_above);
       if (opmem == k_rw) {
         opreg = k_v;
       }
@@ -465,7 +465,7 @@ interp_enter(struct interp_struct* p_interp) {
                        p_mem_write,
                        addr,
                        v,
-                       write_callback_mask);
+                       write_callback_above);
     }
     if (opmode == k_acc) {
       a = v;
