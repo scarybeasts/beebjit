@@ -5,6 +5,7 @@
 #include "asm_tables.h"
 #include "asm_x64.h"
 #include "asm_x64_abi.h"
+#include "asm_x64_jit.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
 #include "memory_access.h"
@@ -44,7 +45,6 @@ static const size_t k_semaphore_cli = 4096;
 static const size_t k_semaphore_cli_end_minus_4 = (4096 * 2) - 4;
 static const size_t k_semaphore_cli_read_only = 4096 * 2;
 static const size_t k_utils_size = 4096;
-static const size_t k_utils_jit_offset = 0;
 static const size_t k_utils_do_interrupt_offset = 0x100;
 static const size_t k_tables_size = 4096;
 static const size_t k_semaphore_size = 4096;
@@ -54,7 +54,6 @@ static const int k_offset_util_do_interrupt = k_asm_x64_abi_size;
 
 static const int k_offset_read_callback = (k_asm_x64_abi_size + 8);
 static const int k_offset_write_callback = (k_asm_x64_abi_size + 16);
-static const int k_offset_jit_callback = (k_asm_x64_abi_size + 24);
 
 static const int k_offset_memory_object = (k_asm_x64_abi_size + 32);
 static const int k_offset_counter_ptr = (k_asm_x64_abi_size + 40);
@@ -694,7 +693,7 @@ jit_emit_save_registers(unsigned char* p_jit, size_t index) {
    * lahf.
    */
   /* lahf */
-  p_jit[index++] = 0x9f;
+//  p_jit[index++] = 0x9f;
   /* No need to push rdx because it is a scratch registers. */
   /* push rax / rcx / rsi / rdi */
   p_jit[index++] = 0x50;
@@ -702,71 +701,23 @@ jit_emit_save_registers(unsigned char* p_jit, size_t index) {
   p_jit[index++] = 0x56;
   p_jit[index++] = 0x57;
 
+  p_jit[index++] = 0x9c;
+
   return index;
 }
 
 static size_t
 jit_emit_restore_registers(unsigned char* p_jit, size_t index) {
+  p_jit[index++] = 0x9d;
   /* pop rdi / rsi / rcx / rax */
   p_jit[index++] = 0x5f;
   p_jit[index++] = 0x5e;
   p_jit[index++] = 0x59;
   p_jit[index++] = 0x58;
   /* sahf */
-  p_jit[index++] = 0x9e;
+//  p_jit[index++] = 0x9e;
 
   return index;
-}
-
-static void
-jit_emit_jit_util(struct jit_struct* p_jit, unsigned char* p_jit_buf) {
-  size_t index = 0;
-
-  /* Save calling rip. */
-  /* mov rdx, [rsp] */
-  p_jit_buf[index++] = 0x48;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x14;
-  p_jit_buf[index++] = 0x24;
-
-  index = jit_emit_save_registers(p_jit_buf, index);
-
-  /* param1: jit_struct pointer. */
-  /* It's already in rdi. */
-
-  /* param2: x64 rip that call'ed here. */
-  /* mov rsi, rdx */
-  p_jit_buf[index++] = 0x48;
-  p_jit_buf[index++] = 0x89;
-  p_jit_buf[index++] = 0xd6;
-
-  /* call [rdi + k_offset_jit_callback] */
-  p_jit_buf[index++] = 0xff;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_offset_jit_callback;
-
-  index = jit_emit_restore_registers(p_jit_buf, index);
-
-  /* Get the pointer to the 6502 state. */
-  /* mov r15, [rdi + k_asm_x64_abi_offset_state_6502] */
-  p_jit_buf[index++] = 0x4c;
-  p_jit_buf[index++] = 0x8b;
-  p_jit_buf[index++] = 0x7f;
-  p_jit_buf[index++] = k_asm_x64_abi_offset_state_6502;
-
-  /* movzx edx, WORD PTR [r15 + k_state_6502_offset_reg_pc] */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x0f;
-  p_jit_buf[index++] = 0xb7;
-  p_jit_buf[index++] = 0x57;
-  p_jit_buf[index++] = k_state_6502_offset_reg_pc;
-
-  /* We are jumping out of a call, so need to pop the return value. */
-  /* pop r8 */
-  p_jit_buf[index++] = 0x41;
-  p_jit_buf[index++] = 0x58;
-
-  index = jit_emit_jmp_from_6502_scratch(p_jit, p_jit_buf, index);
 }
 
 static void
@@ -3024,7 +2975,7 @@ jit_at_addr(struct jit_struct* p_jit,
                                 0);
 }
 
-static void
+static size_t
 jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   unsigned char* p_jit_ptr;
   uint16_t addr_6502;
@@ -3057,7 +3008,7 @@ jit_callback(struct jit_struct* p_jit, unsigned char* intel_rip) {
   util_buffer_setup(p_jit->p_dest_buf, p_jit_ptr, k_jit_bytes_per_byte);
   util_buffer_append(p_jit->p_dest_buf, p_buf);
 
-  state_6502_set_pc(p_jit->abi.p_state_6502, addr_6502);
+  return (size_t) p_jit_ptr;
 }
 
 void
@@ -3306,7 +3257,6 @@ jit_create(struct state_6502* p_state_6502,
   unsigned int log_flags;
   unsigned char* p_jit_base;
   unsigned char* p_utils_base;
-  unsigned char* p_util_jit;
   unsigned char* p_util_do_interrupt;
 
   const char* p_opt_flags = p_options->p_opt_flags;
@@ -3339,7 +3289,6 @@ jit_create(struct state_6502* p_state_6502,
   /* This is the mapping that holds static little runtime code gadgets. */
   p_utils_base = util_get_guarded_mapping(k_utils_addr, k_utils_size);
   util_make_mapping_read_write_exec(p_utils_base, k_utils_size);
-  p_util_jit = p_utils_base + k_utils_jit_offset;
   p_util_do_interrupt = p_utils_base + k_utils_do_interrupt_offset;
 
   /* This is the mapping that is a semaphore to trigger JIT execution
@@ -3355,7 +3304,7 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->read_to_write_offset = (p_mem_write - p_mem_read);
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_utils_base = p_utils_base;
-  p_jit->abi.p_util_private = p_util_jit;
+  p_jit->abi.p_util_private = asm_x64_jit_do_compile;
   p_jit->p_util_do_interrupt = p_util_do_interrupt;
   p_jit->p_counter = p_options->debug_get_counter_ptr(
       p_jit->abi.p_debug_object);
@@ -3410,7 +3359,6 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_seq_buf = util_buffer_create();
   p_jit->p_single_buf = util_buffer_create();
 
-  jit_emit_jit_util(p_jit, p_util_jit);
   util_buffer_setup(p_jit->p_dest_buf, p_util_do_interrupt, 0x100);
   jit_emit_do_interrupt_util(p_jit, p_jit->p_dest_buf);
 
