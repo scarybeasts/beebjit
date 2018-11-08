@@ -2,10 +2,49 @@
 
 #include "util.h"
 
+#include <assert.h>
+#include <limits.h>
+
 void
 asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   size_t size = (p_end - p_start);
   util_buffer_add_chunk(p_buf, p_start, size);
+}
+
+void
+asm_x64_patch_int(struct util_buffer* p_buf,
+                  size_t offset,
+                  void* p_start,
+                  void* p_patch,
+                  int value) {
+  size_t original_pos = util_buffer_get_pos(p_buf);
+  ssize_t pos = (offset + (p_patch - p_start));
+
+  assert(pos >= (ssize_t) sizeof(int));
+
+  util_buffer_set_pos(p_buf, (pos - 4));
+  util_buffer_add_int(p_buf, value);
+  util_buffer_set_pos(p_buf, original_pos);
+}
+
+void
+asm_x64_patch_jump(struct util_buffer* p_buf,
+                   size_t offset,
+                   void* p_start,
+                   void* p_patch,
+                   void* p_jump_target) {
+  size_t original_pos = util_buffer_get_pos(p_buf);
+  ssize_t pos = (offset + (p_patch - p_start));
+  void* p_jump_pc = (util_buffer_get_ptr(p_buf) + pos);
+  ssize_t jump_delta = (p_jump_target - p_jump_pc);
+
+  assert(pos >= (ssize_t) sizeof(int));
+  assert(jump_delta <= INT_MAX);
+  assert(jump_delta >= INT_MIN);
+
+  util_buffer_set_pos(p_buf, (pos - 4));
+  util_buffer_add_int(p_buf, (int) jump_delta);
+  util_buffer_set_pos(p_buf, original_pos);
 }
 
 void

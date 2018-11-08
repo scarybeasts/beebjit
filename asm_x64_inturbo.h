@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_ASM_X64_INTURBO_H
 #define BEEBJIT_ASM_X64_INTURBO_H
 
+#include <stdint.h>
+
 struct util_buffer;
 
 void asm_x64_emit_inturbo_advance_pc_1(struct util_buffer* p_buf);
@@ -10,7 +12,8 @@ void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 
 void asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf,
+                                   uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf);
@@ -75,6 +78,7 @@ void asm_x64_inturbo_pc_plus_2_to_scratch();
 void asm_x64_inturbo_pc_plus_2_to_scratch_END();
 void asm_x64_inturbo_interrupt_vector();
 void asm_x64_inturbo_interrupt_vector_END();
+void asm_x64_inturbo_special_addr();
 
 void asm_x64_inturbo_mode_nil();
 void asm_x64_inturbo_mode_nil_END();
@@ -84,6 +88,8 @@ void asm_x64_inturbo_mode_zpg();
 void asm_x64_inturbo_mode_zpg_END();
 void asm_x64_inturbo_mode_abs();
 void asm_x64_inturbo_mode_abs_END();
+void asm_x64_inturbo_mode_abs_lea_patch();
+void asm_x64_inturbo_mode_abs_jb_patch();
 void asm_x64_inturbo_mode_abx();
 void asm_x64_inturbo_mode_abx_END();
 void asm_x64_inturbo_mode_aby();

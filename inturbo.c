@@ -6,6 +6,7 @@
 #include "asm_x64_inturbo.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
+#include "interp.h"
 #include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
@@ -25,6 +26,9 @@ static const size_t k_inturbo_jump_table_size = 4096;
 struct inturbo_struct {
   struct asm_x64_abi abi;
 
+  /* Inturbo ABI. */
+  void* p_util_instruction;
+
   struct memory_access* p_memory_access;
   struct bbc_options* p_options;
   unsigned char* p_inturbo_base;
@@ -34,6 +38,8 @@ struct inturbo_struct {
 static void
 inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   size_t i;
+  uint16_t special_addr_above;
+  uint16_t temp_u16;
 
   struct util_buffer* p_buf = util_buffer_create();
   unsigned char* p_inturbo_base = p_inturbo->p_inturbo_base;
@@ -43,6 +49,16 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct bbc_options* p_options = p_inturbo->p_options;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
   int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
+  struct memory_access* p_memory_access = p_inturbo->p_memory_access;
+  void* p_memory_object = p_memory_access->p_callback_obj;
+
+  special_addr_above = p_memory_access->memory_read_needs_callback_above(
+      p_memory_object);
+  temp_u16 = p_memory_access->memory_write_needs_callback_above(
+      p_memory_object);
+  if (temp_u16 < special_addr_above) {
+    special_addr_above = temp_u16;
+  }
 
   /* Opcode pointers for the "next opcode" jump table. */
   for (i = 0; i < 256; ++i) {
@@ -54,6 +70,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     unsigned char opmode = g_opmodes[i];
     unsigned char optype = g_optypes[i];
     unsigned char opreg = g_optype_sets_register[optype];
+
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     if (debug) {
@@ -71,10 +88,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_zpg(p_buf);
       break;
     case k_abs:
-      /* JSR is handled differently for efficiency. */
-      if (optype != k_jsr) {
-        asm_x64_emit_inturbo_mode_abs(p_buf);
+      /* JSR is handled differently. */
+      if (optype == k_jsr) {
+        break;
       }
+      asm_x64_emit_inturbo_mode_abs(p_buf, special_addr_above);
       break;
     case k_abx:
       /* TODO: could run abx, aby, idy modes more efficiently by doing the
@@ -370,6 +388,9 @@ inturbo_create(struct state_6502* p_state_6502,
   p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
 
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
+
+  p_inturbo->p_util_instruction = interp_single_instruction;
+
   p_inturbo->p_memory_access = p_memory_access;
   p_inturbo->p_options = p_options;
 

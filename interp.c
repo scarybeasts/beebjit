@@ -535,3 +535,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
   }
 }
+
+void
+interp_single_instruction() {
+}

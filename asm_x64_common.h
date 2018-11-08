@@ -1,11 +1,22 @@
 #ifndef BEEBJIT_ASM_X64_COMMON_H
 #define BEEBJIT_ASM_X64_COMMON_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct util_buffer;
 
 void asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
+void asm_x64_patch_int(struct util_buffer* p_buf,
+                       size_t offset,
+                       void* p_start,
+                       void* p_patch,
+                       int value);
+void asm_x64_patch_jump(struct util_buffer* p_buf,
+                        size_t offset,
+                        void* p_start,
+                        void* p_patch,
+                        void* p_jump_target);
 
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();

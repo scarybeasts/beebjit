@@ -11,6 +11,7 @@
 #define K_CONTEXT_OFFSET_STATE_6502         16
 #define K_CONTEXT_OFFSET_DEBUG_CALLBACK     24
 #define K_CONTEXT_OFFSET_DEBUG_OBJECT       32
+#define K_CONTEXT_OFFSET_ABI_END            40
 #define K_STATE_6502_OFFSET_REG_A           0
 #define K_STATE_6502_OFFSET_REG_X           4
 #define K_STATE_6502_OFFSET_REG_Y           8

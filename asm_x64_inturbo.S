@@ -1,5 +1,8 @@
 #include "asm_x64_defs.h"
 
+#define K_INTURBO_CONTEXT_OFFSET_INSTRUCTION_CALLBACK \
+    K_CONTEXT_OFFSET_ABI_END + 0
+
 .file "asm_x64_inturbo.S"
 .intel_syntax noprefix
 .section rodata
@@ -89,6 +92,14 @@ asm_x64_inturbo_interrupt_vector:
 asm_x64_inturbo_interrupt_vector_END:
 
 
+.globl asm_x64_inturbo_special_addr
+asm_x64_inturbo_special_addr:
+
+  call [REG_CONTEXT + K_INTURBO_CONTEXT_OFFSET_INSTRUCTION_CALLBACK]
+
+  int 3
+
+
 .globl asm_x64_inturbo_mode_zpg
 .globl asm_x64_inturbo_mode_zpg_END
 asm_x64_inturbo_mode_zpg:
@@ -100,9 +111,16 @@ asm_x64_inturbo_mode_zpg_END:
 
 .globl asm_x64_inturbo_mode_abs
 .globl asm_x64_inturbo_mode_abs_END
+.globl asm_x64_inturbo_mode_abs_lea_patch
+.globl asm_x64_inturbo_mode_abs_jb_patch
 asm_x64_inturbo_mode_abs:
 
   movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
+asm_x64_inturbo_mode_abs_lea_patch:
+  bt REG_SCRATCH2_32, 16
+  jb 0
+asm_x64_inturbo_mode_abs_jb_patch:
 
 asm_x64_inturbo_mode_abs_END:
 
