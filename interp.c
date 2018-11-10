@@ -170,7 +170,6 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t temp_addr;
   int tmp_int;
 
-  volatile unsigned char* p_crash_ptr = 0;
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct timing_struct* p_timing = p_interp->p_timing;
@@ -314,7 +313,10 @@ interp_enter(struct interp_struct* p_interp) {
       case 0x02: /* EXIT */
         return;
       case 0xf2: /* CRASH */
+      {
+        volatile unsigned char* p_crash_ptr = 0;
         (void) *p_crash_ptr;
+      }
       default:
         assert(0);
       }
@@ -537,5 +539,6 @@ interp_enter(struct interp_struct* p_interp) {
 }
 
 void
-interp_single_instruction() {
+interp_single_instruction(struct interp_struct* p_interp) {
+  (void) p_interp;
 }

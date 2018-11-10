@@ -6,7 +6,6 @@
 #include "asm_x64_inturbo.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
-#include "interp.h"
 #include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
@@ -27,7 +26,8 @@ struct inturbo_struct {
   struct asm_x64_abi abi;
 
   /* Inturbo ABI. */
-  void* p_util_instruction;
+  void* p_interp_callback;
+  void* p_interp_object;
 
   struct memory_access* p_memory_access;
   struct bbc_options* p_options;
@@ -373,7 +373,9 @@ struct inturbo_struct*
 inturbo_create(struct state_6502* p_state_6502,
                struct memory_access* p_memory_access,
                struct timing_struct* p_timing,
-               struct bbc_options* p_options) {
+               struct bbc_options* p_options,
+               void* p_interp_callback,
+               void* p_interp_object) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
   (void) p_timing;
@@ -389,7 +391,8 @@ inturbo_create(struct state_6502* p_state_6502,
 
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
 
-  p_inturbo->p_util_instruction = interp_single_instruction;
+  p_inturbo->p_interp_callback = p_interp_callback;
+  p_inturbo->p_interp_object = p_interp_object;
 
   p_inturbo->p_memory_access = p_memory_access;
   p_inturbo->p_options = p_options;

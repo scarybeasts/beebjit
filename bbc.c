@@ -631,7 +631,9 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->p_inturbo = inturbo_create(&p_bbc->state_6502,
                                     &p_bbc->memory_access,
                                     p_bbc->p_timing,
-                                    &p_bbc->options);
+                                    &p_bbc->options,
+                                    interp_single_instruction,
+                                    p_bbc->p_interp);
   if (p_bbc->p_inturbo == NULL) {
     errx(1, "inturbo_create failed");
   }
