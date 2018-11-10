@@ -20,6 +20,8 @@ void asm_x64_patch_jump(struct util_buffer* p_buf,
 
 void asm_x64_asm_enter(void* p_context, uint32_t jump_addr_x64);
 void asm_x64_asm_debug();
+void asm_x64_save_AXYS_PC_flags();
+void asm_x64_restore_AXYS_PC_flags();
 
 void asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_EXIT(struct util_buffer* p_buf);

@@ -208,6 +208,39 @@ asm_x64_instruction_Y_NZ_flags:
 
 asm_x64_instruction_Y_NZ_flags_END:
 
+.globl asm_x64_save_AXYS_PC_flags
+asm_x64_save_AXYS_PC_flags:
+  # Save 6502 IP.
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_SCRATCH1_32
+  # Save A, X, Y, S.
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_6502_Y_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_6502_S_32
+
+  call asm_x64_asm_emit_intel_flags_to_scratch
+
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS], REG_SCRATCH1_32
+
+  ret
+
+
+.globl asm_x64_restore_AXYS_PC_flags
+asm_x64_restore_AXYS_PC_flags:
+
+  # Restore A, X, Y, S.
+  mov REG_6502_A_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A]
+  mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
+  mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
+  mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
+  # Restore 6502 flags.
+  movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS]
+
+  call asm_x64_asm_set_intel_flags_from_scratch
+
+  ret
+
 
 .globl asm_x64_asm_emit_intel_flags_to_scratch
 .globl asm_x64_asm_emit_intel_flags_to_scratch_END
@@ -374,20 +407,12 @@ asm_x64_asm_debug:
   # Expectation: 6502 PC in REG_SCRATCH1.
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  # Save 6502 IP.
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_SCRATCH1_32
+
+  call asm_x64_save_AXYS_PC_flags
+
   # Save Intel IP.
   mov REG_SCRATCH1, [rsp]
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_HOST_PC], REG_SCRATCH1_32
-  # Save A, X, Y, S.
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_6502_Y_32
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_6502_S_32
-
-  call asm_x64_asm_emit_intel_flags_to_scratch
-
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS], REG_SCRATCH1_32
 
   mov REG_SCRATCH3, REG_CONTEXT
   push REG_CONTEXT
@@ -395,18 +420,9 @@ asm_x64_asm_debug:
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_DEBUG_CALLBACK]
   pop REG_CONTEXT
 
-  # Restore A, X, Y, S.
-  mov REG_SCRATCH1, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  mov REG_6502_A_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_A]
-  mov REG_6502_X_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_X]
-  mov REG_6502_Y_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_Y]
-  mov REG_6502_S_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_S]
-  mov REG_6502_PC_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_PC]
-  # Restore 6502 flags.
-  movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_FLAGS]
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
 
-  call asm_x64_asm_set_intel_flags_from_scratch
-
+  call asm_x64_restore_AXYS_PC_flags
   # TODO: handle different 6502 PC!
 
   ret
