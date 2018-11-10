@@ -421,7 +421,6 @@ asm_x64_asm_debug:
   pop REG_CONTEXT
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-
   call asm_x64_restore_AXYS_PC_flags
   # TODO: handle different 6502 PC!
 

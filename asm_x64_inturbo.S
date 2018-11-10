@@ -95,7 +95,18 @@ asm_x64_inturbo_interrupt_vector_END:
 .globl asm_x64_inturbo_special_addr
 asm_x64_inturbo_special_addr:
 
-  call [REG_CONTEXT + K_INTURBO_CONTEXT_OFFSET_INSTRUCTION_CALLBACK]
+  mov REG_SCRATCH1_32, REG_6502_PC_32
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  call asm_x64_save_AXYS_PC_flags
+
+  mov REG_SCRATCH3, REG_CONTEXT
+  push REG_CONTEXT
+  mov REG_PARAM1, REG_CONTEXT
+  call [REG_SCRATCH3 + K_INTURBO_CONTEXT_OFFSET_INSTRUCTION_CALLBACK]
+  pop REG_CONTEXT
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  call asm_x64_restore_AXYS_PC_flags
 
   int 3
 
