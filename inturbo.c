@@ -31,7 +31,7 @@ struct inturbo_struct {
 
   struct memory_access* p_memory_access;
   struct bbc_options* p_options;
-  unsigned char* p_inturbo_base;
+  uint8_t* p_inturbo_base;
   uint64_t* p_jump_table;
 };
 
@@ -42,8 +42,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint16_t temp_u16;
 
   struct util_buffer* p_buf = util_buffer_create();
-  unsigned char* p_inturbo_base = p_inturbo->p_inturbo_base;
-  unsigned char* p_inturbo_opcodes_ptr = p_inturbo_base;
+  uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
+  uint8_t* p_inturbo_opcodes_ptr = p_inturbo_base;
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
 
   struct bbc_options* p_options = p_inturbo->p_options;
@@ -67,9 +67,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   }
 
   for (i = 0; i < 256; ++i) {
-    unsigned char opmode = g_opmodes[i];
-    unsigned char optype = g_optypes[i];
-    unsigned char opreg = g_optype_sets_register[optype];
+    uint8_t opmode = g_opmodes[i];
+    uint8_t optype = g_optypes[i];
+    uint8_t opreg = g_optype_sets_register[optype];
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -434,8 +434,8 @@ void
 inturbo_enter(struct inturbo_struct* p_inturbo) {
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
   uint16_t addr_6502 = state_6502_get_pc(p_inturbo->abi.p_state_6502);
-  unsigned char* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
-  unsigned char opcode = p_mem_read[addr_6502];
+  uint8_t* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
+  uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address = p_jump_table[opcode];
 
   asm_x64_asm_enter(p_inturbo, p_start_address);
