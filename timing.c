@@ -15,6 +15,9 @@ struct timing_struct {
   void* p_objects[k_timing_num_timers];
   int64_t timings[k_timing_num_timers];
   uint8_t running[k_timing_num_timers];
+
+  int64_t next_timer;
+
   void* p_legacy_callback;
   void* p_legacy_object;
 };
@@ -29,6 +32,7 @@ timing_create() {
   (void) memset(p_timing, '\0', sizeof(struct timing_struct));
 
   p_timing->max_timer = 0;
+  p_timing->next_timer = INT64_MAX;
 
   return p_timing;
 }
@@ -42,18 +46,19 @@ static int64_t
 timing_recalculate(struct timing_struct* p_timing) {
   size_t i;
   /* Default is never. */
-  int64_t next_event = INT64_MAX;
+  int64_t next_timer = INT64_MAX;
   size_t max_timer = p_timing->max_timer;
   for (i = 0; i < max_timer; ++i) {
     if (!p_timing->running[i]) {
       continue;
     }
-    if (p_timing->timings[i] < next_event) {
-      next_event = p_timing->timings[i];
+    if (p_timing->timings[i] < next_timer) {
+      next_timer = p_timing->timings[i];
     }
   }
 
-  return next_event;
+  p_timing->next_timer = next_timer;
+  return next_timer;
 }
 
 size_t
@@ -87,7 +92,12 @@ timing_start_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
   p_timing->timings[id] = time;
   p_timing->running[id] = 1;
 
-  timing_recalculate(p_timing);
+  /* Don't need to do a full recalculate, can just see if the timer is expiring
+   * sooner than the current soonest.
+   */
+  if (time < p_timing->next_timer) {
+    p_timing->next_timer = time;
+  }
 }
 
 void
@@ -115,9 +125,14 @@ timing_increase_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
 }
 
 int64_t
+timing_next_timer(struct timing_struct* p_timing) {
+  return p_timing->next_timer;
+}
+
+int64_t
 timing_advance(struct timing_struct* p_timing, int64_t time) {
   size_t i;
-  int64_t next_event;
+  int64_t next_timer;
 
   size_t max_timer = p_timing->max_timer;
 
@@ -137,9 +152,9 @@ timing_advance(struct timing_struct* p_timing, int64_t time) {
     }
   }
 
-  next_event = timing_recalculate(p_timing);
+  next_timer = timing_recalculate(p_timing);
 
-  return next_event;
+  return next_timer;
 }
 
 void

@@ -22,7 +22,21 @@ struct interp_struct {
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
+
+  int debug_subsystem_active;
+
+  size_t short_instruction_run_timer_id;
+  int return_from_loop;
 };
+
+static void
+interp_instruction_run_timer_callback(void* p) {
+  struct interp_struct* p_interp = (struct interp_struct*) p;
+
+  timing_stop_timer(p_interp->p_timing,
+                    p_interp->short_instruction_run_timer_id);
+  p_interp->return_from_loop = 1;
+}
 
 struct interp_struct*
 interp_create(struct state_6502* p_state_6502,
@@ -39,6 +53,14 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->p_memory_access = p_memory_access;
   p_interp->p_timing = p_timing;
   p_interp->p_options = p_options;
+
+  p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
+      p_options->p_debug_callback_object);
+
+  p_interp->short_instruction_run_timer_id =
+      timing_register_timer(p_timing,
+                            interp_instruction_run_timer_callback,
+                            p_interp);
 
   return p_interp;
 }
@@ -82,18 +104,22 @@ interp_get_flags(unsigned char zf,
 }
 
 static inline void
-interp_update_timing_events(struct timing_struct* p_timing,
-                            int64_t* p_next_event_cycles,
-                            int64_t* p_last_next_event_cycles) {
-  int64_t delta = (*p_last_next_event_cycles - *p_next_event_cycles);
-  int64_t next_event_cycles = timing_advance(p_timing, delta);
-  *p_next_event_cycles = next_event_cycles;
-  *p_last_next_event_cycles = next_event_cycles;
+interp_update_timing_events(int64_t* p_next_timer_cycles,
+                            int64_t* p_last_next_timer_cycles,
+                            uint64_t* p_cycles_delta,
+                            struct timing_struct* p_timing) {
+  int64_t next_timer_cycles;
+
+  *p_cycles_delta += (*p_last_next_timer_cycles - *p_next_timer_cycles);
+  next_timer_cycles = timing_next_timer(p_timing);
+  *p_next_timer_cycles = next_timer_cycles;
+  *p_last_next_timer_cycles = next_timer_cycles;
 }
 
 static inline uint8_t
-interp_read_mem(int64_t* p_next_event_cycles,
-                int64_t* p_last_next_event_cycles,
+interp_read_mem(int64_t* p_next_timer_cycles,
+                int64_t* p_last_next_timer_cycles,
+                uint64_t* p_cycles_delta,
                 struct memory_access* p_memory_access,
                 struct timing_struct* p_timing,
                 uint8_t* p_mem,
@@ -105,12 +131,13 @@ interp_read_mem(int64_t* p_next_event_cycles,
     ret = p_memory_access->memory_read_callback(
         p_memory_access->p_callback_obj,
         addr);
-    /* The special memory callback may have modified when our next event is
-     * going to occur.
+    /* The special memory callback may modify when our next event is going to
+     * occur.
      */
-    interp_update_timing_events(p_timing,
-                                p_next_event_cycles,
-                                p_last_next_event_cycles);
+    interp_update_timing_events(p_next_timer_cycles,
+                                p_last_next_timer_cycles,
+                                p_cycles_delta,
+                                p_timing);
   } else {
     ret = p_mem[addr];
   }
@@ -119,8 +146,9 @@ interp_read_mem(int64_t* p_next_event_cycles,
 }
 
 static inline void
-interp_write_mem(int64_t* p_next_event_cycles,
-                 int64_t* p_last_next_event_cycles,
+interp_write_mem(int64_t* p_next_timer_cycles,
+                 int64_t* p_last_next_timer_cycles,
+                 uint64_t* p_cycles_delta,
                  struct memory_access* p_memory_access,
                  struct timing_struct* p_timing,
                  uint8_t* p_mem,
@@ -131,12 +159,13 @@ interp_write_mem(int64_t* p_next_event_cycles,
     p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
                                            addr,
                                            v);
-    /* The special memory callback may have modified when our next event is
-     * going to occur.
+    /* The special memory callback may modify when our next event is going to
+     * occur.
      */
-    interp_update_timing_events(p_timing,
-                                p_next_event_cycles,
-                                p_last_next_event_cycles);
+    interp_update_timing_events(p_next_timer_cycles,
+                                p_last_next_timer_cycles,
+                                p_cycles_delta,
+                                p_timing);
   } else {
     p_mem[addr] = v;
   }
@@ -169,11 +198,13 @@ interp_enter(struct interp_struct* p_interp) {
   int check_extra_read_cycle;
   uint16_t temp_addr;
   int tmp_int;
+  int64_t next_timer_cycles;
+  int64_t last_next_timer_cycles;
+  uint64_t cycles_delta;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct timing_struct* p_timing = p_interp->p_timing;
-  struct bbc_options* p_options = p_interp->p_options;
   unsigned char* p_mem_read = p_memory_access->p_mem_read;
   unsigned char* p_mem_write = p_memory_access->p_mem_write;
   unsigned char* p_stack = (p_mem_write + k_6502_stack_addr);
@@ -183,29 +214,32 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t write_callback_above =
       p_memory_access->memory_write_needs_callback_above(
           p_memory_access->p_callback_obj);
-  unsigned int* p_irq = &p_state_6502->irq_fire;
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
-  int debug_subsystem_active = p_options->debug_subsystem_active(
-      p_debug_callback_object);
-  size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
-      p_debug_callback_object);
-  void* (*debug_callback)(void*) = p_options->debug_callback;
-  int (*debug_active_at_addr)(void*, uint16_t) =
-      p_options->debug_active_at_addr;
-  int (*debug_counter_at_addr)(void*, uint16_t) =
-      p_options->debug_counter_at_addr;
-  int64_t next_event_cycles = timing_advance(p_timing, 0);
-  int64_t last_next_event_cycles = next_event_cycles;
+  int debug_subsystem_active = p_interp->debug_subsystem_active;
 
   v = 0;
   addr = 0;
+
+  p_interp->return_from_loop = 0;
+  next_timer_cycles = timing_next_timer(p_timing);
+  last_next_timer_cycles = next_timer_cycles;
+  cycles_delta = 0;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
   while (1) {
     if (debug_subsystem_active) {
+      struct bbc_options* p_options = p_interp->p_options;
+      int (*debug_counter_at_addr)(void*, uint16_t) =
+          p_options->debug_counter_at_addr;
+      int (*debug_active_at_addr)(void*, uint16_t) =
+          p_options->debug_active_at_addr;
+      void* p_debug_callback_object = p_options->p_debug_callback_object;
+
       if (debug_counter_at_addr(p_debug_callback_object, pc)) {
+        size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
+            p_debug_callback_object);
+
         if (!*p_debug_counter_ptr) {
           __builtin_trap();
         }
@@ -213,6 +247,8 @@ interp_enter(struct interp_struct* p_interp) {
       }
 
       if (debug_active_at_addr(p_debug_callback_object, pc)) {
+        void* (*debug_callback)(void*) = p_options->debug_callback;
+
         flags = interp_get_flags(zf, nf, cf, of, df, intf);
         state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
         /* TODO: set cycles. */
@@ -234,7 +270,7 @@ interp_enter(struct interp_struct* p_interp) {
 
     /* Cycles, except branch and page crossings. */
     check_extra_read_cycle = (opmem == k_read);
-    next_event_cycles -= g_opcycles[opcode];
+    next_timer_cycles -= g_opcycles[opcode];
 
     switch (opmode) {
     case k_nil:
@@ -252,14 +288,14 @@ interp_enter(struct interp_struct* p_interp) {
     case k_abx:
       addr = p_mem_read[pc];
       addr += x;
-      next_event_cycles -= ((addr >> 8) & check_extra_read_cycle);
+      next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
       addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
     case k_aby:
       addr = p_mem_read[pc];
       addr += y;
-      next_event_cycles -= ((addr >> 8) & check_extra_read_cycle);
+      next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
       addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
       pc += 2;
       break;
@@ -286,7 +322,7 @@ interp_enter(struct interp_struct* p_interp) {
       v = p_mem_read[pc++];
       addr = p_mem_read[v];
       addr += y;
-      next_event_cycles -= ((addr >> 8) & check_extra_read_cycle);
+      next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
       v++;
       addr += (p_mem_read[v] << 8);
       break;
@@ -295,8 +331,9 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_read || opmem == k_rw) {
-      v = interp_read_mem(&next_event_cycles,
-                          &last_next_event_cycles,
+      v = interp_read_mem(&next_timer_cycles,
+                          &last_next_timer_cycles,
+                          &cycles_delta,
                           p_memory_access,
                           p_timing,
                           p_mem_read,
@@ -460,8 +497,9 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_write || opmem == k_rw) {
-      interp_write_mem(&next_event_cycles,
-                       &last_next_event_cycles,
+      interp_write_mem(&next_timer_cycles,
+                       &last_next_timer_cycles,
+                       &cycles_delta,
                        p_memory_access,
                        p_timing,
                        p_mem_write,
@@ -484,22 +522,34 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (branch) {
-      next_event_cycles--;
+      /* Taken branches take a cycle longer. */
+      next_timer_cycles--;
       temp_addr = pc;
       pc = (pc + (char) v);
+      /* If the taken branch crosses a page boundary, it takes a further cycle
+       * longer.
+       */
       if ((pc ^ temp_addr) & 0x0100) {
-        next_event_cycles--;
+        next_timer_cycles--;
       }
     }
-    if (next_event_cycles <= 0) {
-      interp_update_timing_events(p_timing,
-                                  &next_event_cycles,
-                                  &last_next_event_cycles);
+    if (next_timer_cycles <= 0) {
+      interp_update_timing_events(&next_timer_cycles,
+                                  &last_next_timer_cycles,
+                                  &cycles_delta,
+                                  p_timing);
+      state_6502_add_cycles(p_state_6502, cycles_delta);
+      next_timer_cycles = timing_advance(p_timing, cycles_delta);
+      last_next_timer_cycles = next_timer_cycles;
+      cycles_delta = 0;
+      if (p_interp->return_from_loop) {
+        break;
+      }
     }
     /* TODO: only check IRQs after we've handled an event, or after a CLI /
      * PLP.
      */
-    if (*p_irq) {
+    if (p_state_6502->irq_fire) {
       uint16_t vector = 0;
       /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
        * the NMI should fire. This is confirmed via visual 6502; see:
@@ -527,18 +577,34 @@ interp_enter(struct interp_struct* p_interp) {
         p_stack[s--] = v;
         pc = (p_mem_read[vector] | (p_mem_read[(uint16_t) (vector + 1)] << 8));
         intf = 1;
-        next_event_cycles -= 7;
-        if (next_event_cycles <= 0) {
-          interp_update_timing_events(p_timing,
-                                      &next_event_cycles,
-                                      &last_next_event_cycles);
+        next_timer_cycles -= 7;
+        if (next_timer_cycles <= 0) {
+          interp_update_timing_events(&next_timer_cycles,
+                                      &last_next_timer_cycles,
+                                      &cycles_delta,
+                                      p_timing);
         }
       }
     }
   }
+
+  flags = interp_get_flags(zf, nf, cf, of, df, intf);
+  state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
 void
 interp_single_instruction(struct interp_struct* p_interp) {
-  (void) p_interp;
+  int old_debug_subsystem_active;
+
+  /* Set a timer to fire immediately and stop the interpreter loop. */
+  timing_start_timer(p_interp->p_timing,
+                     p_interp->short_instruction_run_timer_id,
+                     0);
+  /* The "client" will already have called into the debugger for this opcode. */
+  old_debug_subsystem_active = p_interp->debug_subsystem_active;
+  p_interp->debug_subsystem_active = 0;
+
+  interp_enter(p_interp);
+
+  p_interp->debug_subsystem_active = old_debug_subsystem_active;
 }

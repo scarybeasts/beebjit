@@ -1,7 +1,6 @@
 #ifndef BEEBJIT_STATE_6502_H
 #define BEEBJIT_STATE_6502_H
 
-#include <stddef.h>
 #include <stdint.h>
 
 enum {
@@ -39,22 +38,23 @@ struct state_6502 {
 void state_6502_reset(struct state_6502* p_state_6502);
 
 void state_6502_get_registers(struct state_6502* p_state_6502,
-                              unsigned char* a,
-                              unsigned char* x,
-                              unsigned char* y,
-                              unsigned char* s,
-                              unsigned char* flags,
+                              uint8_t* a,
+                              uint8_t* x,
+                              uint8_t* y,
+                              uint8_t* s,
+                              uint8_t* flags,
                               uint16_t* pc);
 void state_6502_set_registers(struct state_6502* p_state_6502,
-                              unsigned char a,
-                              unsigned char x,
-                              unsigned char y,
-                              unsigned char s,
-                              unsigned char flags,
+                              uint8_t a,
+                              uint8_t x,
+                              uint8_t y,
+                              uint8_t s,
+                              uint8_t flags,
                               uint16_t pc);
 
-size_t state_6502_get_cycles(struct state_6502* p_state_6502);
-void state_6502_set_cycles(struct state_6502* p_state_6502, size_t cycles);
+uint64_t state_6502_get_cycles(struct state_6502* p_state_6502);
+void state_6502_set_cycles(struct state_6502* p_state_6502, uint64_t cycles);
+void state_6502_add_cycles(struct state_6502* p_state_6502, uint64_t cycles);
 
 uint16_t state_6502_get_pc(struct state_6502* p_state_6502);
 void state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc);

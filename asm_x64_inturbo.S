@@ -101,14 +101,14 @@ asm_x64_inturbo_special_addr:
 
   mov REG_SCRATCH3, REG_CONTEXT
   push REG_CONTEXT
-  mov REG_PARAM1, REG_CONTEXT
-  call [REG_SCRATCH3 + K_INTURBO_CONTEXT_OFFSET_INSTRUCTION_CALLBACK]
+  mov REG_PARAM1, [REG_CONTEXT + K_INTURBO_CONTEXT_OFFSET_INTERP_OBJECT]
+  call [REG_SCRATCH3 + K_INTURBO_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 
-  int 3
+  jmp asm_x64_inturbo_next_opcode
 
 
 .globl asm_x64_inturbo_mode_zpg

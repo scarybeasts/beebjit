@@ -17,11 +17,11 @@ state_6502_reset(struct state_6502* p_state_6502) {
 
 void
 state_6502_get_registers(struct state_6502* p_state_6502,
-                         unsigned char* a,
-                         unsigned char* x,
-                         unsigned char* y,
-                         unsigned char* s,
-                         unsigned char* flags,
+                         uint8_t* a,
+                         uint8_t* x,
+                         uint8_t* y,
+                         uint8_t* s,
+                         uint8_t* flags,
                          uint16_t* pc) {
   *a = p_state_6502->reg_a;
   *x = p_state_6502->reg_x;
@@ -31,42 +31,47 @@ state_6502_get_registers(struct state_6502* p_state_6502,
   *pc = p_state_6502->reg_pc; 
 }
 
-size_t
+void
+state_6502_set_registers(struct state_6502* p_state_6502,
+                         uint8_t a,
+                         uint8_t x,
+                         uint8_t y,
+                         uint8_t s,
+                         uint8_t flags,
+                         uint16_t pc) {
+  *((uint8_t*) &p_state_6502->reg_a) = a;
+  *((uint8_t*) &p_state_6502->reg_x) = x;
+  *((uint8_t*) &p_state_6502->reg_y) = y;
+  *((uint8_t*) &p_state_6502->reg_s) = s;
+  *((uint8_t*) &p_state_6502->reg_flags) = flags;
+  state_6502_set_pc(p_state_6502, pc);
+}
+
+uint64_t
 state_6502_get_cycles(struct state_6502* p_state_6502) {
   return p_state_6502->cycles;
 }
 
 void
-state_6502_set_registers(struct state_6502* p_state_6502,
-                         unsigned char a,
-                         unsigned char x,
-                         unsigned char y,
-                         unsigned char s,
-                         unsigned char flags,
-                         uint16_t pc) {
-  *((unsigned char*) &p_state_6502->reg_a) = a;
-  *((unsigned char*) &p_state_6502->reg_x) = x;
-  *((unsigned char*) &p_state_6502->reg_y) = y;
-  *((unsigned char*) &p_state_6502->reg_s) = s;
-  *((unsigned char*) &p_state_6502->reg_flags) = flags;
-  state_6502_set_pc(p_state_6502, pc);
+state_6502_set_cycles(struct state_6502* p_state_6502, uint64_t cycles) {
+  p_state_6502->cycles = cycles;
+}
+
+void
+state_6502_add_cycles(struct state_6502* p_state_6502, uint64_t cycles) {
+  p_state_6502->cycles += cycles;
 }
 
 uint16_t
 state_6502_get_pc(struct state_6502* p_state_6502) {
-  unsigned int* p_pc = &p_state_6502->reg_pc;
+  uint32_t* p_pc = &p_state_6502->reg_pc;
   return *((uint16_t*) p_pc);
 }
 
 void
 state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc) {
-  unsigned int* p_pc = &p_state_6502->reg_pc;
+  uint32_t* p_pc = &p_state_6502->reg_pc;
   *((uint16_t*) p_pc) = pc;
-}
-
-void
-state_6502_set_cycles(struct state_6502* p_state_6502, size_t cycles) {
-  p_state_6502->cycles = cycles;
 }
 
 static int

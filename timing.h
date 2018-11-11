@@ -20,6 +20,7 @@ int64_t timing_increase_timer(struct timing_struct* p_timing,
                               size_t id,
                               int64_t time);
 
+int64_t timing_next_timer(struct timing_struct* p_timing);
 int64_t timing_advance(struct timing_struct* p_timing, int64_t time);
 
 /* Legacy APIs. */
