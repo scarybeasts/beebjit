@@ -289,6 +289,7 @@ interp_enter(struct interp_struct* p_interp) {
       }
     }
 
+  opcode_reenter:
     branch = 0;
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
@@ -458,7 +459,13 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bvs: branch = (of == 1); break;
     case k_clc: cf = 0; break;
     case k_cld: df = 0; break;
-    case k_cli: intf = 0; break;
+    case k_cli:
+      intf = 0;
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+      if (!opcode) {
+        goto opcode_reenter;
+      }
+      break;
     case k_clv: of = 0; break;
     case k_cmp: cf = (a >= v); v = (a - v); opreg = k_v; break;
     case k_cpx: cf = (x >= v); v = (x - v); opreg = k_v; break;
@@ -492,6 +499,10 @@ interp_enter(struct interp_struct* p_interp) {
     case k_plp:
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+      if (!opcode) {
+        goto opcode_reenter;
+      }
       break;
     case k_ora: a |= v; break;
     case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
@@ -589,20 +600,23 @@ interp_enter(struct interp_struct* p_interp) {
       }
     }
 
-    if (next_timer_cycles <= 0) {
-      interp_update_timing_events(&next_timer_cycles,
-                                  &last_next_timer_cycles,
-                                  &cycles_delta,
-                                  p_timing);
-      state_6502_add_cycles(p_state_6502, cycles_delta);
-      next_timer_cycles = timing_advance(p_timing, cycles_delta);
-      last_next_timer_cycles = next_timer_cycles;
-      cycles_delta = 0;
-      if (p_interp->return_from_loop) {
-        break;
-      }
-    }
     opcode = p_mem_read[pc];
+
+    if (next_timer_cycles > 0) {
+      continue;
+    }
+
+    interp_update_timing_events(&next_timer_cycles,
+                                &last_next_timer_cycles,
+                                &cycles_delta,
+                                p_timing);
+    state_6502_add_cycles(p_state_6502, cycles_delta);
+    next_timer_cycles = timing_advance(p_timing, cycles_delta);
+    last_next_timer_cycles = next_timer_cycles;
+    cycles_delta = 0;
+    if (p_interp->return_from_loop) {
+      break;
+    }
     interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
   }
 
