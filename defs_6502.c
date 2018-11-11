@@ -134,7 +134,7 @@ unsigned char g_optypes[k_6502_op_num_opcodes] =
 unsigned char g_opmodes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
-  k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, k_zpg,
+  k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, k_zpg,
   k_nil, k_imm, k_acc, 0    , 0    , k_abs, k_abs, 0    ,
   /* 0x10 */
   k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,

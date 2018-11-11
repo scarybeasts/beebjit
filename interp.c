@@ -391,9 +391,8 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
     case k_brk:
-      temp_addr = pc + 1;
-      p_stack[s--] = (temp_addr >> 8);
-      p_stack[s--] = (temp_addr & 0xff);
+      p_stack[s--] = (pc >> 8);
+      p_stack[s--] = (pc & 0xff);
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
       p_stack[s--] = v;
@@ -419,7 +418,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_iny: y++; break;
     case k_jmp: pc = addr; break;
     case k_jsr:
-      temp_addr = pc - 1;
+      temp_addr = (pc - 1);
       p_stack[s--] = (temp_addr >> 8);
       p_stack[s--] = (temp_addr & 0xff);
       pc = addr;
