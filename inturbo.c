@@ -95,13 +95,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_abs(p_buf, special_addr_above);
       break;
     case k_abx:
-      /* TODO: could run abx, aby, idy modes more efficiently by doing the
+      /* NOTE: could run abx, aby, idy modes more efficiently by doing the
        * address + register addition in a per-optype manner.
        */
-      asm_x64_emit_inturbo_mode_abx(p_buf);
+      asm_x64_emit_inturbo_mode_abx(p_buf, special_addr_above);
       break;
     case k_aby:
-      asm_x64_emit_inturbo_mode_aby(p_buf);
+      asm_x64_emit_inturbo_mode_aby(p_buf, special_addr_above);
       break;
     case k_zpx:
       asm_x64_emit_inturbo_mode_zpx(p_buf);

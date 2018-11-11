@@ -14,8 +14,10 @@ void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
-void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf,
+                                   uint16_t special_mode_above);
+void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf,
+                                   uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf);
@@ -78,7 +80,11 @@ void asm_x64_inturbo_pc_plus_2_to_scratch();
 void asm_x64_inturbo_pc_plus_2_to_scratch_END();
 void asm_x64_inturbo_interrupt_vector();
 void asm_x64_inturbo_interrupt_vector_END();
-void asm_x64_inturbo_special_addr();
+void asm_x64_inturbo_do_special_addr();
+void asm_x64_inturbo_check_special_addr();
+void asm_x64_inturbo_check_special_addr_END();
+void asm_x64_inturbo_check_special_addr_lea_patch();
+void asm_x64_inturbo_check_special_addr_jb_patch();
 
 void asm_x64_inturbo_mode_nil();
 void asm_x64_inturbo_mode_nil_END();
