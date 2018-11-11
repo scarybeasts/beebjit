@@ -12,6 +12,22 @@ asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
 }
 
 void
+asm_x64_patch_byte(struct util_buffer* p_buf,
+                   size_t offset,
+                   void* p_start,
+                   void* p_patch,
+                   uint8_t value) {
+  size_t original_pos = util_buffer_get_pos(p_buf);
+  ssize_t pos = (offset + (p_patch - p_start));
+
+  assert(pos >= 1);
+
+  util_buffer_set_pos(p_buf, (pos - 1));
+  util_buffer_add_1b(p_buf, value);
+  util_buffer_set_pos(p_buf, original_pos);
+}
+
+void
 asm_x64_patch_int(struct util_buffer* p_buf,
                   size_t offset,
                   void* p_start,

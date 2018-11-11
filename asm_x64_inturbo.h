@@ -8,7 +8,8 @@ struct util_buffer;
 void asm_x64_emit_inturbo_advance_pc_1(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_advance_pc_2(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_advance_pc_3(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf,
+                                      uint8_t cycles);
 void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 
 void asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
@@ -77,8 +78,12 @@ void asm_x64_inturbo_advance_pc_2();
 void asm_x64_inturbo_advance_pc_2_END();
 void asm_x64_inturbo_advance_pc_3();
 void asm_x64_inturbo_advance_pc_3_END();
+void asm_x64_inturbo_timer_expired();
 void asm_x64_inturbo_next_opcode();
 void asm_x64_inturbo_next_opcode_END();
+void asm_x64_inturbo_next_opcode_lea_patch();
+void asm_x64_inturbo_next_opcode_jb_patch();
+void asm_x64_inturbo_next_opcode_load_and_jump();
 void asm_x64_inturbo_enter_debug();
 void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_pc_plus_2_to_scratch();

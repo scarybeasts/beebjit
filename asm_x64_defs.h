@@ -1,26 +1,29 @@
 #ifndef BEEBJIT_ASM_X64_DEFS_H
 #define BEEBJIT_ASM_X64_DEFS_H
 
-#define K_BBC_MEM_READ_ADDR                 0x10000000
-#define K_BBC_MEM_WRITE_ADDR                0x11000000
-#define K_6502_VECTOR_IRQ                   0xFFFE
-#define K_ASM_TABLE_6502_FLAGS_TO_X64       0x50000000
-#define K_ASM_TABLE_6502_FLAGS_TO_MASK      0x50000100
-#define K_ASM_TABLE_X64_FLAGS_TO_6502       0x50000200
-#define K_CONTEXT_OFFSET_UTIL_DEBUG         8
-#define K_CONTEXT_OFFSET_STATE_6502         16
-#define K_CONTEXT_OFFSET_DEBUG_CALLBACK     24
-#define K_CONTEXT_OFFSET_DEBUG_OBJECT       32
-#define K_CONTEXT_OFFSET_ABI_END            40
-#define K_STATE_6502_OFFSET_REG_A           0
-#define K_STATE_6502_OFFSET_REG_X           4
-#define K_STATE_6502_OFFSET_REG_Y           8
-#define K_STATE_6502_OFFSET_REG_S           12
-#define K_STATE_6502_OFFSET_REG_PC          16
-#define K_STATE_6502_OFFSET_REG_FLAGS       20
-#define K_STATE_6502_OFFSET_REG_IRQ_FIRE    24
-#define K_STATE_6502_OFFSET_REG_HOST_PC     28
-#define K_STATE_6502_OFFSET_REG_HOST_FLAGS  32
+#define K_BBC_MEM_READ_ADDR                     0x10000000
+#define K_BBC_MEM_WRITE_ADDR                    0x11000000
+#define K_6502_VECTOR_IRQ                       0xFFFE
+#define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
+#define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100
+#define K_ASM_TABLE_X64_FLAGS_TO_6502           0x50000200
+#define K_CONTEXT_OFFSET_UTIL_DEBUG             8
+#define K_CONTEXT_OFFSET_STATE_6502             16
+#define K_CONTEXT_OFFSET_DEBUG_CALLBACK         24
+#define K_CONTEXT_OFFSET_DEBUG_OBJECT           32
+#define K_CONTEXT_OFFSET_TIMER_CYCLES           40
+#define K_CONTEXT_OFFSET_TIMER_CYCLES_CALLBACK  48
+#define K_CONTEXT_OFFSET_TIMER_CYCLES_OBJECT    56
+#define K_CONTEXT_OFFSET_ABI_END                64
+#define K_STATE_6502_OFFSET_REG_A               0
+#define K_STATE_6502_OFFSET_REG_X               4
+#define K_STATE_6502_OFFSET_REG_Y               8
+#define K_STATE_6502_OFFSET_REG_S               12
+#define K_STATE_6502_OFFSET_REG_PC              16
+#define K_STATE_6502_OFFSET_REG_FLAGS           20
+#define K_STATE_6502_OFFSET_REG_IRQ_FIRE        24
+#define K_STATE_6502_OFFSET_REG_HOST_PC         28
+#define K_STATE_6502_OFFSET_REG_HOST_FLAGS      32
 
 #define REG_6502_A         al
 #define REG_6502_A_32      eax
@@ -43,6 +46,7 @@
 #define REG_6502_CF_64     r14
 #define REG_6502_ID_F      r13b
 #define REG_6502_ID_F_64   r13
+#define REG_TIMER_CYCLES   r15
 
 #define REG_CONTEXT        rdi
 
@@ -61,5 +65,7 @@
 #define REG_RETURN         rax
 #define REG_PARAM1         rdi
 #define REG_PARAM2         rsi
+#define REG_PARAM3         rdx
+#define REG_PARAM4         rcx
 
 #endif /* BEEBJIT_ASM_X64_DEFS_H */

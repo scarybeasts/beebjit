@@ -54,10 +54,46 @@ asm_x64_inturbo_advance_pc_3:
 asm_x64_inturbo_advance_pc_3_END:
 
 
+.globl asm_x64_inturbo_timer_expired
+asm_x64_inturbo_timer_expired:
+
+  push rbp
+  mov rbp, rsp
+
+  push rax
+  push rcx
+  push rsi
+  push rdi
+  push r10
+
+  mov REG_SCRATCH1, REG_CONTEXT
+  mov REG_PARAM1, [REG_SCRATCH1 + K_CONTEXT_OFFSET_TIMER_CYCLES_OBJECT]
+  call [REG_SCRATCH1 + K_CONTEXT_OFFSET_TIMER_CYCLES_CALLBACK]
+
+  mov REG_TIMER_CYCLES, REG_RETURN
+
+  pop r10
+  pop rdi
+  pop rsi
+  pop rcx
+  pop rax
+
+  jmp asm_x64_inturbo_next_opcode_load_and_jump
+
+
 .globl asm_x64_inturbo_next_opcode
 .globl asm_x64_inturbo_next_opcode_END
+.globl asm_x64_inturbo_next_opcode_lea_patch
+.globl asm_x64_inturbo_next_opcode_jb_patch
+.globl asm_x64_inturbo_next_opcode_load_and_jump
 asm_x64_inturbo_next_opcode:
 
+  lea REG_TIMER_CYCLES, [REG_TIMER_CYCLES - 1]
+asm_x64_inturbo_next_opcode_lea_patch:
+  bt REG_TIMER_CYCLES, 63
+  jb 0
+asm_x64_inturbo_next_opcode_jb_patch:
+asm_x64_inturbo_next_opcode_load_and_jump:
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
   jmp [REG_SCRATCH1 * 8 + 0x3f000000]
 

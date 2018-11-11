@@ -8,6 +8,7 @@
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
@@ -30,6 +31,7 @@ struct inturbo_struct {
   void* p_interp_object;
 
   struct memory_access* p_memory_access;
+  struct timing_struct* p_timing;
   struct bbc_options* p_options;
   uint8_t* p_inturbo_base;
   uint64_t* p_jump_table;
@@ -70,6 +72,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
     uint8_t opreg = g_optype_sets_register[optype];
+    uint8_t opcycles = g_opcycles[i];
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -368,15 +371,23 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     }
 
-    /* Load next opcode from 6502 PC, jump to correct next asm opcode inturbo
-     * handler.
+    /* Check timer expiry, load next opcode from 6502 PC, jump to correct next
+     * asm opcode inturbo handler.
      */
-    asm_x64_emit_inturbo_next_opcode(p_buf);
+    asm_x64_emit_inturbo_next_opcode(p_buf, opcycles);
 
     p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode;
   }
 
   util_buffer_destroy(p_buf);
+}
+
+static void
+inturbo_timer_cycles_callback(void* p) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p;
+
+  (void) p_inturbo;
+  assert(0);
 }
 
 struct inturbo_struct*
@@ -388,8 +399,6 @@ inturbo_create(struct state_6502* p_state_6502,
                void* p_interp_object) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
-  (void) p_timing;
-
   if (p_inturbo == NULL) {
     errx(1, "couldn't allocate inturbo_struct");
   }
@@ -400,11 +409,14 @@ inturbo_create(struct state_6502* p_state_6502,
   p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
 
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
+  p_inturbo->abi.p_timer_cycles_callback = inturbo_timer_cycles_callback;
+  p_inturbo->abi.p_timer_cycles_object = p_inturbo;
 
   p_inturbo->p_interp_callback = p_interp_callback;
   p_inturbo->p_interp_object = p_interp_object;
 
   p_inturbo->p_memory_access = p_memory_access;
+  p_inturbo->p_timing = p_timing;
   p_inturbo->p_options = p_options;
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
@@ -437,6 +449,9 @@ inturbo_enter(struct inturbo_struct* p_inturbo) {
   uint8_t* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
   uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address = p_jump_table[opcode];
+
+  struct timing_struct* p_timing = p_inturbo->p_timing;
+  p_inturbo->abi.next_timer_cycles = timing_next_timer(p_timing);
 
   asm_x64_asm_enter(p_inturbo, p_start_address);
 }

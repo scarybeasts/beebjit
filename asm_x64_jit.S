@@ -1,7 +1,7 @@
 #include "asm_x64_defs.h"
 
 #define K_BBC_JIT_ADDR                     0x20000000
-#define K_JIT_CONTEXT_OFFSET_JIT_CALLBACK  (40 + 24)
+#define K_JIT_CONTEXT_OFFSET_JIT_CALLBACK  (K_CONTEXT_OFFSET_ABI_END + 24)
 
 .file "asm_x64_jit.S"
 .intel_syntax noprefix

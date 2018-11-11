@@ -25,10 +25,22 @@ asm_x64_emit_inturbo_advance_pc_3(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf, uint8_t cycles) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_inturbo_next_opcode,
                asm_x64_inturbo_next_opcode_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_inturbo_next_opcode,
+                     asm_x64_inturbo_next_opcode_lea_patch,
+                     (0x100 - cycles));
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_inturbo_next_opcode,
+                     asm_x64_inturbo_next_opcode_jb_patch,
+                     asm_x64_inturbo_timer_expired);
 }
 
 void

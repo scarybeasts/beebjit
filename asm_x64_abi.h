@@ -1,11 +1,13 @@
 #ifndef BEEBJIT_ASM_X64_ABI_H
 #define BEEBJIT_ASM_X64_ABI_H
 
+#include <stdint.h>
+
 struct bbc_options;
 struct state_6502;
 
 enum {
-  k_asm_x64_abi_size = (5 * 8),
+  k_asm_x64_abi_size = (8 * 8),
   k_asm_x64_abi_offset_util_private = 0,
   k_asm_x64_abi_offset_util_debug = 8,
   k_asm_x64_abi_offset_state_6502 = 16,
@@ -19,6 +21,10 @@ struct asm_x64_abi {
 
   void* p_debug_callback;
   void* p_debug_object;
+
+  int64_t next_timer_cycles;
+  void* p_timer_cycles_callback;
+  void* p_timer_cycles_object;
 };
 
 void asm_x64_abi_init(struct asm_x64_abi* p_abi,
