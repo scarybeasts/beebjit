@@ -192,12 +192,11 @@ interp_enter(struct interp_struct* p_interp) {
   unsigned char optype;
   unsigned char opmem;
   unsigned char opreg;
-  unsigned char v;
-  uint16_t addr;
   int branch;
   int check_extra_read_cycle;
   uint16_t temp_addr;
-  int tmp_int;
+  int temp_int;
+  uint8_t temp_u8;
   int64_t next_timer_cycles;
   int64_t last_next_timer_cycles;
   uint64_t cycles_delta;
@@ -215,9 +214,9 @@ interp_enter(struct interp_struct* p_interp) {
       p_memory_access->memory_write_needs_callback_above(
           p_memory_access->p_callback_obj);
   int debug_subsystem_active = p_interp->debug_subsystem_active;
-
-  v = 0;
-  addr = 0;
+  uint16_t do_irq_vector = 0;
+  unsigned char v = 0;
+  uint16_t addr = 0;
 
   p_interp->return_from_loop = 0;
   next_timer_cycles = timing_next_timer(p_timing);
@@ -226,6 +225,9 @@ interp_enter(struct interp_struct* p_interp) {
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+
+  /* TODO: opcode fetch doesn't consider hardware register access. */
+  opcode = p_mem_read[pc];
 
   while (1) {
     if (debug_subsystem_active) {
@@ -261,8 +263,6 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     branch = 0;
-    /* TODO: opcode fetch doesn't consider hardware register access. */
-    opcode = p_mem_read[pc++];
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
     opreg = g_optype_sets_register[optype];
@@ -274,34 +274,44 @@ interp_enter(struct interp_struct* p_interp) {
 
     switch (opmode) {
     case k_nil:
-    case 0: opmem = k_nomem; break;
-    case k_acc: opreg = k_a; opmem = k_nomem; v = a; break;
+    case 0: opmem = k_nomem; pc++; break;
+    case k_acc: opreg = k_a; opmem = k_nomem; v = a; pc++; break;
     case k_imm:
-    case k_rel: v = p_mem_read[pc++]; opmem = k_nomem; break;
-    case k_zpg: addr = p_mem_read[pc++]; break;
+    case k_rel: v = p_mem_read[pc + 1]; opmem = k_nomem; pc += 2; break;
+    case k_zpg: addr = p_mem_read[pc + 1]; pc += 2; break;
     case k_abs:
-      addr = (p_mem_read[pc] | (p_mem_read[(uint16_t) (pc + 1)] << 8));
+      addr = (p_mem_read[pc + 1] | (p_mem_read[(uint16_t) (pc + 2)] << 8));
+      pc += 3;
+      break;
+    case k_zpx:
+      addr = p_mem_read[pc + 1];
+      addr += x;
+      addr &= 0xff;
       pc += 2;
       break;
-    case k_zpx: addr = p_mem_read[pc++]; addr += x; addr &= 0xff; break;
-    case k_zpy: addr = p_mem_read[pc++]; addr += y; addr &= 0xff; break;
+    case k_zpy:
+      addr = p_mem_read[pc + 1];
+      addr += y;
+      addr &= 0xff;
+      pc += 2;
+      break;
     case k_abx:
-      addr = p_mem_read[pc];
+      addr = p_mem_read[pc + 1];
       addr += x;
       next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
-      pc += 2;
+      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
+      pc += 3;
       break;
     case k_aby:
-      addr = p_mem_read[pc];
+      addr = p_mem_read[pc + 1];
       addr += y;
       next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem_read[(uint16_t) (pc + 1)] << 8);
-      pc += 2;
+      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
+      pc += 3;
       break;
     case k_ind:
-      addr = (p_mem_read[pc] | (p_mem_read[(uint16_t) (pc + 1)] << 8));
-      pc += 2;
+      addr = (p_mem_read[pc + 1] | (p_mem_read[(uint16_t) (pc + 2)] << 8));
+      pc += 3;
       v = p_mem_read[addr];
       /* Indirect fetches wrap at page boundaries. */
       if ((addr & 0xff) == 0xff) {
@@ -312,19 +322,21 @@ interp_enter(struct interp_struct* p_interp) {
       addr = (v | (p_mem_read[addr] << 8));
       break;
     case k_idx:
-      v = p_mem_read[pc++];
+      v = p_mem_read[pc + 1];
       v += x;
       addr = p_mem_read[v];
       v++;
       addr |= (p_mem_read[v] << 8);
+      pc += 2;
       break;
     case k_idy:
-      v = p_mem_read[pc++];
+      v = p_mem_read[pc + 1];
       addr = p_mem_read[v];
       addr += y;
       next_timer_cycles -= ((addr >> 8) & check_extra_read_cycle);
       v++;
       addr += (p_mem_read[v] << 8);
+      pc += 2;
       break;
     default:
       assert(0);
@@ -359,26 +371,26 @@ interp_enter(struct interp_struct* p_interp) {
       }
       break;
     case k_adc:
-      tmp_int = (a + v + cf);
+      temp_int = (a + v + cf);
       if (df) {
         /* Fix up decimal carry on first nibble. */
         int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
         if (decimal_carry >= 0x0a) {
-          tmp_int += 0x06;
+          temp_int += 0x06;
         }
       }
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ tmp_int) & (v ^ tmp_int) & 0x80);
+      of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);
       if (df) {
         /* In decimal mode, NZ flags are based on this interim value. */
-        v = tmp_int;
+        v = temp_int;
         opreg = k_v;
-        if (tmp_int >= 0xa0) {
-          tmp_int += 0x60;
+        if (temp_int >= 0xa0) {
+          temp_int += 0x60;
         }
       }
-      a = tmp_int;
-      cf = !!(tmp_int & 0x100);
+      a = temp_int;
+      cf = !!(temp_int & 0x100);
       break;
     case k_alr: a &= v; cf = (a & 0x01); a >>= 1; break;
     case k_and: a &= v; break;
@@ -391,14 +403,27 @@ interp_enter(struct interp_struct* p_interp) {
     case k_bne: branch = (zf == 0); break;
     case k_bpl: branch = (nf == 0); break;
     case k_brk:
+      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
+       * sequence for a non-NMI interrupt, the NMI should take precendence.
+       * Probably not worth emulating unless we can come up with a
+       * deterministic way to fire an NMI to trigger this.
+       * (Need to investigate disc controller NMI timing on a real beeb.)
+       */
+      temp_u8 = 0;
+      if (!do_irq_vector) {
+        /* It's a BRK, not an IRQ. */
+        temp_u8 = (1 << k_flag_brk);
+        do_irq_vector = k_6502_vector_irq;
+      }
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xff);
       v = interp_get_flags(zf, nf, cf, of, df, intf);
-      v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
+      v |= (temp_u8 | (1 << k_flag_always_set));
       p_stack[s--] = v;
-      pc = (p_mem_read[k_6502_vector_irq] |
-            (p_mem_read[k_6502_vector_irq + 1] << 8));
+      pc = (p_mem_read[do_irq_vector] |
+            (p_mem_read[(uint16_t) (do_irq_vector + 1)] << 8));
       intf = 1;
+      do_irq_vector = 0;
       break;
     case k_bvc: branch = (of == 0); break;
     case k_bvs: branch = (of == 1); break;
@@ -455,25 +480,25 @@ interp_enter(struct interp_struct* p_interp) {
       /* "SBC simply takes the ones complement of the second value and then
        * performs an ADC"
        */
-      tmp_int = (a + (unsigned char) ~v + cf);
+      temp_int = (a + (unsigned char) ~v + cf);
       if (df) {
         /* Fix up decimal carry on first nibble. */
         if (((v & 0x0f) + !cf) > (a & 0x0f)) {
-          tmp_int -= 0x06;
+          temp_int -= 0x06;
         }
       }
       /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ tmp_int) & ((unsigned char) ~v ^ tmp_int) & 0x80);
+      of = !!((a ^ temp_int) & ((unsigned char) ~v ^ temp_int) & 0x80);
       if (df) {
         /* In decimal mode, NZ flags are based on this interim value. */
-        v = tmp_int;
+        v = temp_int;
         opreg = k_v;
         if ((v + !cf) > a) {
-          tmp_int -= 0x60;
+          temp_int -= 0x60;
         }
       }
-      a = tmp_int;
-      cf = !!(tmp_int & 0x100);
+      a = temp_int;
+      cf = !!(temp_int & 0x100);
       break;
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
@@ -532,6 +557,9 @@ interp_enter(struct interp_struct* p_interp) {
         next_timer_cycles--;
       }
     }
+
+    opcode = p_mem_read[pc];
+
     if (next_timer_cycles <= 0) {
       interp_update_timing_events(&next_timer_cycles,
                                   &last_next_timer_cycles,
@@ -549,7 +577,6 @@ interp_enter(struct interp_struct* p_interp) {
      * PLP.
      */
     if (p_state_6502->irq_fire) {
-      uint16_t vector = 0;
       /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
        * the NMI should fire. This is confirmed via visual 6502; see:
        * http://forum.6502.org/viewtopic.php?t=1797
@@ -559,30 +586,17 @@ interp_enter(struct interp_struct* p_interp) {
        * correct as it is a much more low level 6502 emulation.
        */
       if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
-        vector = k_6502_vector_nmi;
+        do_irq_vector = k_6502_vector_nmi;
       } else if (!intf) {
-        vector = k_6502_vector_irq;
+        do_irq_vector = k_6502_vector_irq;
       }
-      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt
-       * sequence for a non-NMI interrupt, the NMI should take precendence.
-       * Probably not worth emulating unless we can come up with a
-       * deterministic way to fire an NMI to trigger this.
+      /* If an IRQ is firing, pull the next opcode to 0 (BRK). This is how the
+       * actual 6502 processor works, see: https://www.pagetable.com/?p=410.
+       * That decision was made for silicon simplicity; we do the same here for
+       * code simplicity.
        */
-      if (vector) {
-        p_stack[s--] = (pc >> 8);
-        p_stack[s--] = (pc & 0xff);
-        v = interp_get_flags(zf, nf, cf, of, df, intf);
-        v |= (1 << k_flag_always_set);
-        p_stack[s--] = v;
-        pc = (p_mem_read[vector] | (p_mem_read[(uint16_t) (vector + 1)] << 8));
-        intf = 1;
-        next_timer_cycles -= 7;
-        if (next_timer_cycles <= 0) {
-          interp_update_timing_events(&next_timer_cycles,
-                                      &last_next_timer_cycles,
-                                      &cycles_delta,
-                                      p_timing);
-        }
+      if (do_irq_vector) {
+        opcode = 0;
       }
     }
   }
