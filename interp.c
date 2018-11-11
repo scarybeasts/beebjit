@@ -171,27 +171,59 @@ interp_write_mem(int64_t* p_next_timer_cycles,
   }
 }
 
+static void
+interp_check_irq(uint8_t* opcode,
+                 uint16_t* p_do_irq_vector,
+                 struct state_6502* p_state_6502,
+                 uint8_t intf) {
+  if (!p_state_6502->irq_fire) {
+    return;
+  }
+
+  /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
+   * the NMI should fire. This is confirmed via visual 6502; see:
+   * http://forum.6502.org/viewtopic.php?t=1797
+   * Note that jsbeeb, b-em and beebem all appear to get this wrong, they
+   * will run the 7 cycle interrupt sequence twice in a row, which would
+   * be visible as stack and timing artifacts. b2 looks likely to be
+   * correct as it is a much more low level 6502 emulation.
+   */
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    *p_do_irq_vector = k_6502_vector_nmi;
+  } else if (!intf) {
+    *p_do_irq_vector = k_6502_vector_irq;
+  }
+  /* If an IRQ is firing, pull the next opcode to 0 (BRK). This is how the
+   * actual 6502 processor works, see: https://www.pagetable.com/?p=410.
+   * That decision was made for silicon simplicity; we do the same here for
+   * code simplicity.
+   */
+  if (*p_do_irq_vector) {
+    *opcode = 0;
+  }
+}
+
 void
 interp_enter(struct interp_struct* p_interp) {
-  unsigned char a;
-  unsigned char x;
-  unsigned char y;
-  unsigned char s;
-  unsigned char flags;
+  uint8_t a;
+  uint8_t x;
+  uint8_t y;
+  uint8_t s;
+  uint8_t flags;
   uint16_t pc;
-  unsigned char zf;
-  unsigned char nf;
-  unsigned char cf;
-  unsigned char of;
-  unsigned char df;
-  unsigned char intf;
-  unsigned char tmpf;
+  uint8_t zf;
+  uint8_t nf;
+  uint8_t cf;
+  uint8_t of;
+  uint8_t df;
+  uint8_t intf;
+  uint8_t tmpf;
 
-  unsigned char opcode;
-  unsigned char opmode;
-  unsigned char optype;
-  unsigned char opmem;
-  unsigned char opreg;
+  uint8_t opcode;
+  uint8_t opmode;
+  uint8_t optype;
+  uint8_t opmem;
+  uint8_t opreg;
   int branch;
   int check_extra_read_cycle;
   uint16_t temp_addr;
@@ -204,9 +236,9 @@ interp_enter(struct interp_struct* p_interp) {
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct timing_struct* p_timing = p_interp->p_timing;
-  unsigned char* p_mem_read = p_memory_access->p_mem_read;
-  unsigned char* p_mem_write = p_memory_access->p_mem_write;
-  unsigned char* p_stack = (p_mem_write + k_6502_stack_addr);
+  uint8_t* p_mem_read = p_memory_access->p_mem_read;
+  uint8_t* p_mem_write = p_memory_access->p_mem_write;
+  uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t read_callback_above =
       p_memory_access->memory_read_needs_callback_above(
           p_memory_access->p_callback_obj);
@@ -558,8 +590,6 @@ interp_enter(struct interp_struct* p_interp) {
       }
     }
 
-    opcode = p_mem_read[pc];
-
     if (next_timer_cycles <= 0) {
       interp_update_timing_events(&next_timer_cycles,
                                   &last_next_timer_cycles,
@@ -573,32 +603,8 @@ interp_enter(struct interp_struct* p_interp) {
         break;
       }
     }
-    /* TODO: only check IRQs after we've handled an event, or after a CLI /
-     * PLP.
-     */
-    if (p_state_6502->irq_fire) {
-      /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
-       * the NMI should fire. This is confirmed via visual 6502; see:
-       * http://forum.6502.org/viewtopic.php?t=1797
-       * Note that jsbeeb, b-em and beebem all appear to get this wrong, they
-       * will run the 7 cycle interrupt sequence twice in a row, which would
-       * be visible as stack and timing artifacts. b2 looks likely to be
-       * correct as it is a much more low level 6502 emulation.
-       */
-      if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
-        do_irq_vector = k_6502_vector_nmi;
-      } else if (!intf) {
-        do_irq_vector = k_6502_vector_irq;
-      }
-      /* If an IRQ is firing, pull the next opcode to 0 (BRK). This is how the
-       * actual 6502 processor works, see: https://www.pagetable.com/?p=410.
-       * That decision was made for silicon simplicity; we do the same here for
-       * code simplicity.
-       */
-      if (do_irq_vector) {
-        opcode = 0;
-      }
-    }
+    opcode = p_mem_read[pc];
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
