@@ -110,10 +110,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_zpy(p_buf);
       break;
     case k_idx:
-      asm_x64_emit_inturbo_mode_idx(p_buf);
+      asm_x64_emit_inturbo_mode_idx(p_buf, special_addr_above);
       break;
     case k_idy:
-      asm_x64_emit_inturbo_mode_idy(p_buf);
+      asm_x64_emit_inturbo_mode_idy(p_buf, special_addr_above);
       break;
     default:
       //assert(0);
@@ -207,6 +207,16 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_x64_emit_instruction_CPX_scratch_interp(p_buf);
       }
+      break;
+    case k_cpy:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_CPY_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_CPY_scratch_interp(p_buf);
+      }
+      break;
+    case k_dec:
+      asm_x64_emit_instruction_DEC_scratch_interp(p_buf);
       break;
     case k_dex:
       asm_x64_emit_instruction_DEX(p_buf);

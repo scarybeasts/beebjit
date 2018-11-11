@@ -108,17 +108,21 @@ asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf,
+                              uint16_t special_addr_above) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idx,
                asm_x64_inturbo_mode_idx_END);
+  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
+                              uint16_t special_addr_above) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idy,
                asm_x64_inturbo_mode_idy_END);
+  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
@@ -265,6 +269,27 @@ asm_x64_emit_instruction_CPX_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_CPX_scratch_interp,
                asm_x64_instruction_CPX_scratch_interp_END);
+}
+
+void
+asm_x64_emit_instruction_CPY_imm_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_CPY_imm_interp,
+               asm_x64_instruction_CPY_imm_interp_END);
+}
+
+void
+asm_x64_emit_instruction_CPY_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_CPY_scratch_interp,
+               asm_x64_instruction_CPY_scratch_interp_END);
+}
+
+void
+asm_x64_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_DEC_scratch_interp,
+               asm_x64_instruction_DEC_scratch_interp_END);
 }
 
 void
