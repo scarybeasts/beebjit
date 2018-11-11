@@ -23,6 +23,10 @@ struct interp_struct {
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
 
+  uint8_t* p_mem_read;
+  uint8_t* p_mem_write;
+  uint16_t read_callback_above;
+  uint16_t write_callback_above;
   int debug_subsystem_active;
 
   size_t short_instruction_run_timer_id;
@@ -53,6 +57,15 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->p_memory_access = p_memory_access;
   p_interp->p_timing = p_timing;
   p_interp->p_options = p_options;
+
+  p_interp->p_mem_read = p_memory_access->p_mem_read;
+  p_interp->p_mem_write = p_memory_access->p_mem_write;
+  p_interp->read_callback_above =
+      p_memory_access->memory_read_needs_callback_above(
+          p_memory_access->p_callback_obj);
+  p_interp->write_callback_above =
+      p_memory_access->memory_write_needs_callback_above(
+          p_memory_access->p_callback_obj);
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_callback_object);
@@ -122,26 +135,18 @@ interp_read_mem(int64_t* p_next_timer_cycles,
                 uint64_t* p_cycles_delta,
                 struct memory_access* p_memory_access,
                 struct timing_struct* p_timing,
-                uint8_t* p_mem,
-                uint16_t addr,
-                uint16_t read_callback_above) {
+                uint16_t addr) {
   uint8_t ret;
 
-  if (addr >= read_callback_above) {
-    ret = p_memory_access->memory_read_callback(
-        p_memory_access->p_callback_obj,
-        addr);
-    /* The special memory callback may modify when our next event is going to
-     * occur.
-     */
-    interp_update_timing_events(p_next_timer_cycles,
-                                p_last_next_timer_cycles,
-                                p_cycles_delta,
-                                p_timing);
-  } else {
-    ret = p_mem[addr];
-  }
-
+  ret = p_memory_access->memory_read_callback(p_memory_access->p_callback_obj,
+                                              addr);
+  /* The special memory callback may modify when our next event is going to
+   * occur.
+   */
+  interp_update_timing_events(p_next_timer_cycles,
+                              p_last_next_timer_cycles,
+                              p_cycles_delta,
+                              p_timing);
   return ret;
 }
 
@@ -151,24 +156,18 @@ interp_write_mem(int64_t* p_next_timer_cycles,
                  uint64_t* p_cycles_delta,
                  struct memory_access* p_memory_access,
                  struct timing_struct* p_timing,
-                 uint8_t* p_mem,
                  uint16_t addr,
-                 uint8_t v,
-                 uint16_t write_callback_above) {
-  if (addr >= write_callback_above) {
-    p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
-                                           addr,
-                                           v);
-    /* The special memory callback may modify when our next event is going to
-     * occur.
-     */
-    interp_update_timing_events(p_next_timer_cycles,
-                                p_last_next_timer_cycles,
-                                p_cycles_delta,
-                                p_timing);
-  } else {
-    p_mem[addr] = v;
-  }
+                 uint8_t v) {
+  p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
+                                         addr,
+                                         v);
+  /* The special memory callback may modify when our next event is going to
+   * occur.
+   */
+  interp_update_timing_events(p_next_timer_cycles,
+                              p_last_next_timer_cycles,
+                              p_cycles_delta,
+                              p_timing);
 }
 
 static void
@@ -234,17 +233,13 @@ interp_enter(struct interp_struct* p_interp) {
   uint64_t cycles_delta;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
-  struct memory_access* p_memory_access = p_interp->p_memory_access;
   struct timing_struct* p_timing = p_interp->p_timing;
-  uint8_t* p_mem_read = p_memory_access->p_mem_read;
-  uint8_t* p_mem_write = p_memory_access->p_mem_write;
+  struct memory_access* p_memory_access = p_interp->p_memory_access;
+  uint8_t* p_mem_read = p_interp->p_mem_read;
+  uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
-  uint16_t read_callback_above =
-      p_memory_access->memory_read_needs_callback_above(
-          p_memory_access->p_callback_obj);
-  uint16_t write_callback_above =
-      p_memory_access->memory_write_needs_callback_above(
-          p_memory_access->p_callback_obj);
+  uint16_t read_callback_above = p_interp->read_callback_above;
+  uint16_t write_callback_above = p_interp->write_callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
   uint16_t do_irq_vector = 0;
   unsigned char v = 0;
@@ -375,14 +370,16 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_read || opmem == k_rw) {
-      v = interp_read_mem(&next_timer_cycles,
-                          &last_next_timer_cycles,
-                          &cycles_delta,
-                          p_memory_access,
-                          p_timing,
-                          p_mem_read,
-                          addr,
-                          read_callback_above);
+      if (addr < read_callback_above) {
+        v = p_mem_read[addr];
+      } else {
+        v = interp_read_mem(&next_timer_cycles,
+                            &last_next_timer_cycles,
+                            &cycles_delta,
+                            p_memory_access,
+                            p_timing,
+                            addr);
+      }
       if (opmem == k_rw) {
         opreg = k_v;
       }
@@ -553,15 +550,17 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_write || opmem == k_rw) {
-      interp_write_mem(&next_timer_cycles,
-                       &last_next_timer_cycles,
-                       &cycles_delta,
-                       p_memory_access,
-                       p_timing,
-                       p_mem_write,
-                       addr,
-                       v,
-                       write_callback_above);
+      if (addr < write_callback_above) {
+        p_mem_write[addr] = v;
+      } else {
+        interp_write_mem(&next_timer_cycles,
+                         &last_next_timer_cycles,
+                         &cycles_delta,
+                         p_memory_access,
+                         p_timing,
+                         addr,
+                         v);
+      }
     }
     if (opmode == k_acc) {
       a = v;
