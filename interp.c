@@ -202,6 +202,59 @@ interp_check_irq(uint8_t* opcode,
   }
 }
 
+static void
+interp_call_debugger(struct interp_struct* p_interp,
+                     uint8_t* p_a,
+                     uint8_t* p_x,
+                     uint8_t* p_y,
+                     uint8_t* p_s,
+                     uint16_t* p_pc,
+                     uint8_t* p_zf,
+                     uint8_t* p_nf,
+                     uint8_t* p_cf,
+                     uint8_t* p_of,
+                     uint8_t* p_df,
+                     uint8_t* p_intf) {
+  uint8_t flags;
+
+  struct state_6502* p_state_6502 = p_interp->p_state_6502;
+  struct bbc_options* p_options = p_interp->p_options;
+  int (*debug_counter_at_addr)(void*, uint16_t) =
+      p_options->debug_counter_at_addr;
+  int (*debug_active_at_addr)(void*, uint16_t) =
+      p_options->debug_active_at_addr;
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
+
+  if (debug_counter_at_addr(p_debug_callback_object, *p_pc)) {
+    size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
+        p_debug_callback_object);
+
+    if (!*p_debug_counter_ptr) {
+      __builtin_trap();
+    }
+    *p_debug_counter_ptr = (*p_debug_counter_ptr - 1);
+  }
+
+  if (debug_active_at_addr(p_debug_callback_object, *p_pc)) {
+    void* (*debug_callback)(void*) = p_options->debug_callback;
+
+    flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
+    state_6502_set_registers(p_state_6502,
+                             *p_a,
+                             *p_x,
+                             *p_y,
+                             *p_s,
+                             flags,
+                             *p_pc);
+    /* TODO: set cycles. */
+
+    debug_callback(p_options->p_debug_callback_object);
+
+    state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
+    interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);
+  }
+}
+
 void
 interp_enter(struct interp_struct* p_interp) {
   uint8_t a;
@@ -258,35 +311,18 @@ interp_enter(struct interp_struct* p_interp) {
 
   while (1) {
     if (debug_subsystem_active) {
-      struct bbc_options* p_options = p_interp->p_options;
-      int (*debug_counter_at_addr)(void*, uint16_t) =
-          p_options->debug_counter_at_addr;
-      int (*debug_active_at_addr)(void*, uint16_t) =
-          p_options->debug_active_at_addr;
-      void* p_debug_callback_object = p_options->p_debug_callback_object;
-
-      if (debug_counter_at_addr(p_debug_callback_object, pc)) {
-        size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
-            p_debug_callback_object);
-
-        if (!*p_debug_counter_ptr) {
-          __builtin_trap();
-        }
-        *p_debug_counter_ptr = (*p_debug_counter_ptr - 1);
-      }
-
-      if (debug_active_at_addr(p_debug_callback_object, pc)) {
-        void* (*debug_callback)(void*) = p_options->debug_callback;
-
-        flags = interp_get_flags(zf, nf, cf, of, df, intf);
-        state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
-        /* TODO: set cycles. */
-
-        debug_callback(p_options->p_debug_callback_object);
-
-        state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-        interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
-      }
+      interp_call_debugger(p_interp,
+                           &a,
+                           &x,
+                           &y,
+                           &s,
+                           &pc,
+                           &zf,
+                           &nf,
+                           &cf,
+                           &of,
+                           &df,
+                           &intf);
     }
 
   opcode_reenter:
