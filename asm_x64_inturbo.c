@@ -375,6 +375,20 @@ asm_x64_emit_instruction_LDY_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_ORA_imm_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_ORA_imm_interp,
+               asm_x64_instruction_ORA_imm_interp_END);
+}
+
+void
+asm_x64_emit_instruction_ORA_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_ORA_scratch_interp,
+               asm_x64_instruction_ORA_scratch_interp_END);
+}
+
+void
 asm_x64_emit_instruction_ROR_acc_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_ROR_acc_interp,

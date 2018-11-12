@@ -574,6 +574,24 @@ asm_x64_instruction_LDY_scratch_interp:
 asm_x64_instruction_LDY_scratch_interp_END:
 
 
+.globl asm_x64_instruction_ORA_imm_interp
+.globl asm_x64_instruction_ORA_imm_interp_END
+asm_x64_instruction_ORA_imm_interp:
+
+  or REG_6502_A, BYTE PTR [REG_6502_PC + 1]
+
+asm_x64_instruction_ORA_imm_interp_END:
+
+
+.globl asm_x64_instruction_ORA_scratch_interp
+.globl asm_x64_instruction_ORA_scratch_interp_END
+asm_x64_instruction_ORA_scratch_interp:
+
+  or REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_instruction_ORA_scratch_interp_END:
+
+
 .globl asm_x64_instruction_ROR_acc_interp
 .globl asm_x64_instruction_ROR_acc_interp_END
 asm_x64_instruction_ROR_acc_interp:

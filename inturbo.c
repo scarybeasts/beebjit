@@ -263,6 +263,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_nop:
       break;
+    case k_ora:
+      if (opmode == k_imm) {
+        asm_x64_emit_instruction_ORA_imm_interp(p_buf);
+      } else {
+        asm_x64_emit_instruction_ORA_scratch_interp(p_buf);
+      }
+      break;
     case k_pha:
       asm_x64_emit_instruction_PHA(p_buf);
       break;
