@@ -157,6 +157,32 @@ timing_advance(struct timing_struct* p_timing, int64_t time) {
   return next_timer;
 }
 
+int64_t
+timing_advance_no_callbacks(struct timing_struct* p_timing, int64_t time) {
+  size_t i;
+  int64_t next_timer = INT64_MAX;
+
+  size_t max_timer = p_timing->max_timer;
+
+  for (i = 0; i < max_timer; ++i) {
+    int64_t value;
+    uint8_t running = p_timing->running[i];
+
+    if (!running) {
+      continue;
+    }
+    value = p_timing->timings[i];
+    value -= time;
+    p_timing->timings[i] = value;
+    if (value < next_timer) {
+      next_timer = value;
+    }
+  }
+
+  p_timing->next_timer = next_timer;
+  return next_timer;
+}
+
 void
 timing_set_sync_tick_callback(struct timing_struct* p_timing,
                               void* p_callback,

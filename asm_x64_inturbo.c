@@ -40,7 +40,7 @@ asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf, uint8_t cycles) {
                      offset,
                      asm_x64_inturbo_next_opcode,
                      asm_x64_inturbo_next_opcode_jb_patch,
-                     asm_x64_inturbo_timer_expired);
+                     asm_x64_inturbo_call_interp);
 }
 
 void
@@ -64,11 +64,14 @@ asm_x64_emit_check_special_addr(struct util_buffer* p_buf,
                     asm_x64_inturbo_check_special_addr,
                     asm_x64_inturbo_check_special_addr_lea_patch,
                     lea_patch);
+  /* NOTE: could consider implementing very simple load / store abs mode to
+   * special registers inline. Calling out to the interpreter is expensive.
+   */
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_inturbo_check_special_addr,
                      asm_x64_inturbo_check_special_addr_jb_patch,
-                     asm_x64_inturbo_do_special_addr);
+                     asm_x64_inturbo_call_interp);
 }
 
 void

@@ -656,14 +656,19 @@ interp_enter(struct interp_struct* p_interp) {
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
-void
-interp_single_instruction(struct interp_struct* p_interp) {
+int64_t
+interp_single_instruction(struct interp_struct* p_interp, int64_t cycles_run) {
   int old_debug_subsystem_active;
+  int64_t next_timer_cycles;
 
-  /* Set a timer to fire immediately and stop the interpreter loop. */
-  timing_start_timer(p_interp->p_timing,
-                     p_interp->short_instruction_run_timer_id,
-                     0);
+  struct state_6502* p_state_6502 = p_interp->p_state_6502;
+  struct timing_struct* p_timing = p_interp->p_timing;
+
+  state_6502_add_cycles(p_state_6502, cycles_run);
+  timing_advance_no_callbacks(p_timing, cycles_run);
+
+  /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
+  timing_start_timer(p_timing, p_interp->short_instruction_run_timer_id, 1);
   /* The "client" will already have called into the debugger for this opcode. */
   old_debug_subsystem_active = p_interp->debug_subsystem_active;
   p_interp->debug_subsystem_active = 0;
@@ -671,4 +676,7 @@ interp_single_instruction(struct interp_struct* p_interp) {
   interp_enter(p_interp);
 
   p_interp->debug_subsystem_active = old_debug_subsystem_active;
+
+  next_timer_cycles = timing_next_timer(p_timing);
+  return next_timer_cycles;
 }

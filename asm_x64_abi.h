@@ -23,8 +23,8 @@ struct asm_x64_abi {
   void* p_debug_object;
 
   int64_t next_timer_cycles;
-  void* p_timer_cycles_callback;
-  void* p_timer_cycles_object;
+  void* p_interp_callback;
+  void* p_interp_object;
 };
 
 void asm_x64_abi_init(struct asm_x64_abi* p_abi,

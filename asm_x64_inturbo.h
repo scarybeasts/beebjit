@@ -78,7 +78,7 @@ void asm_x64_inturbo_advance_pc_2();
 void asm_x64_inturbo_advance_pc_2_END();
 void asm_x64_inturbo_advance_pc_3();
 void asm_x64_inturbo_advance_pc_3_END();
-void asm_x64_inturbo_timer_expired();
+void asm_x64_inturbo_call_interp();
 void asm_x64_inturbo_next_opcode();
 void asm_x64_inturbo_next_opcode_END();
 void asm_x64_inturbo_next_opcode_lea_patch();

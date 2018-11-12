@@ -26,10 +26,6 @@ static const size_t k_inturbo_jump_table_size = 4096;
 struct inturbo_struct {
   struct asm_x64_abi abi;
 
-  /* Inturbo ABI. */
-  void* p_interp_callback;
-  void* p_interp_object;
-
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
@@ -382,14 +378,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   util_buffer_destroy(p_buf);
 }
 
-static void
-inturbo_timer_cycles_callback(void* p) {
-  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p;
-
-  (void) p_inturbo;
-  assert(0);
-}
-
 struct inturbo_struct*
 inturbo_create(struct state_6502* p_state_6502,
                struct memory_access* p_memory_access,
@@ -409,11 +397,8 @@ inturbo_create(struct state_6502* p_state_6502,
   p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
 
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
-  p_inturbo->abi.p_timer_cycles_callback = inturbo_timer_cycles_callback;
-  p_inturbo->abi.p_timer_cycles_object = p_inturbo;
-
-  p_inturbo->p_interp_callback = p_interp_callback;
-  p_inturbo->p_interp_object = p_interp_object;
+  p_inturbo->abi.p_interp_callback = p_interp_callback;
+  p_inturbo->abi.p_interp_object = p_interp_object;
 
   p_inturbo->p_memory_access = p_memory_access;
   p_inturbo->p_timing = p_timing;

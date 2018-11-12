@@ -1,8 +1,5 @@
 #include "asm_x64_defs.h"
 
-#define K_INTURBO_CONTEXT_OFFSET_INTERP_CALLBACK  K_CONTEXT_OFFSET_ABI_END + 0
-#define K_INTURBO_CONTEXT_OFFSET_INTERP_OBJECT    K_CONTEXT_OFFSET_ABI_END + 8
-
 .file "asm_x64_inturbo.S"
 .intel_syntax noprefix
 .section rodata
@@ -54,33 +51,6 @@ asm_x64_inturbo_advance_pc_3:
 asm_x64_inturbo_advance_pc_3_END:
 
 
-.globl asm_x64_inturbo_timer_expired
-asm_x64_inturbo_timer_expired:
-
-  push rbp
-  mov rbp, rsp
-
-  push rax
-  push rcx
-  push rsi
-  push rdi
-  push r10
-
-  mov REG_SCRATCH1, REG_CONTEXT
-  mov REG_PARAM1, [REG_SCRATCH1 + K_CONTEXT_OFFSET_TIMER_CYCLES_OBJECT]
-  call [REG_SCRATCH1 + K_CONTEXT_OFFSET_TIMER_CYCLES_CALLBACK]
-
-  mov REG_TIMER_CYCLES, REG_RETURN
-
-  pop r10
-  pop rdi
-  pop rsi
-  pop rcx
-  pop rax
-
-  jmp asm_x64_inturbo_next_opcode_load_and_jump
-
-
 .globl asm_x64_inturbo_next_opcode
 .globl asm_x64_inturbo_next_opcode_END
 .globl asm_x64_inturbo_next_opcode_lea_patch
@@ -128,8 +98,8 @@ asm_x64_inturbo_interrupt_vector:
 asm_x64_inturbo_interrupt_vector_END:
 
 
-.globl asm_x64_inturbo_do_special_addr
-asm_x64_inturbo_do_special_addr:
+.globl asm_x64_inturbo_call_interp
+asm_x64_inturbo_call_interp:
 
   mov REG_SCRATCH1_32, REG_6502_PC_32
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
@@ -137,9 +107,18 @@ asm_x64_inturbo_do_special_addr:
 
   mov REG_SCRATCH3, REG_CONTEXT
   push REG_CONTEXT
-  mov REG_PARAM1, [REG_CONTEXT + K_INTURBO_CONTEXT_OFFSET_INTERP_OBJECT]
-  call [REG_SCRATCH3 + K_INTURBO_CONTEXT_OFFSET_INTERP_CALLBACK]
+  # param1 is interp object.
+  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  # param2 is cycles since last callout.
+  # NOTE: currently, responsibility to update cycles in the 6502 context rests
+  # within the callback.
+  mov REG_PARAM2, [REG_SCRATCH3 + K_CONTEXT_OFFSET_TIMER_CYCLES]
+  sub REG_PARAM2, REG_TIMER_CYCLES
+  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
+
+  mov [REG_CONTEXT + K_CONTEXT_OFFSET_TIMER_CYCLES], REG_RETURN
+  mov REG_TIMER_CYCLES, REG_RETURN
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
