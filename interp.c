@@ -306,9 +306,6 @@ interp_enter(struct interp_struct* p_interp) {
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
-  /* TODO: opcode fetch doesn't consider hardware register access. */
-  opcode = p_mem_read[pc];
-
   while (1) {
     if (debug_subsystem_active) {
       interp_call_debugger(p_interp,
@@ -325,7 +322,25 @@ interp_enter(struct interp_struct* p_interp) {
                            &intf);
     }
 
-  opcode_reenter:
+    /* TODO: opcode fetch doesn't consider hardware register access. */
+    opcode = p_mem_read[pc];
+
+  force_opcode:
+    if (next_timer_cycles <= 0) {
+      interp_update_timing_events(&next_timer_cycles,
+                                  &last_next_timer_cycles,
+                                  &cycles_delta,
+                                  p_timing);
+      state_6502_add_cycles(p_state_6502, cycles_delta);
+      next_timer_cycles = timing_advance(p_timing, cycles_delta);
+      last_next_timer_cycles = next_timer_cycles;
+      cycles_delta = 0;
+      if (p_interp->return_from_loop) {
+        break;
+      }
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+    }
+
     branch = 0;
     opmode = g_opmodes[opcode];
     optype = g_optypes[opcode];
@@ -499,7 +514,7 @@ interp_enter(struct interp_struct* p_interp) {
       intf = 0;
       interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
       if (!opcode) {
-        goto opcode_reenter;
+        goto force_opcode;
       }
       break;
     case k_clv: of = 0; break;
@@ -537,7 +552,7 @@ interp_enter(struct interp_struct* p_interp) {
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
       if (!opcode) {
-        goto opcode_reenter;
+        goto force_opcode;
       }
       break;
     case k_ora: a |= v; break;
@@ -635,25 +650,6 @@ interp_enter(struct interp_struct* p_interp) {
         next_timer_cycles--;
       }
     }
-
-    opcode = p_mem_read[pc];
-
-    if (next_timer_cycles > 0) {
-      continue;
-    }
-
-    interp_update_timing_events(&next_timer_cycles,
-                                &last_next_timer_cycles,
-                                &cycles_delta,
-                                p_timing);
-    state_6502_add_cycles(p_state_6502, cycles_delta);
-    next_timer_cycles = timing_advance(p_timing, cycles_delta);
-    last_next_timer_cycles = next_timer_cycles;
-    cycles_delta = 0;
-    if (p_interp->return_from_loop) {
-      break;
-    }
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
