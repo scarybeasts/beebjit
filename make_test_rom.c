@@ -792,6 +792,7 @@ main(int argc, const char* argv[]) {
 
   /* Tests triggering a simple NMI. */
   util_buffer_set_pos(p_buf, 0x0AC0);
+  emit_SEI(p_buf);
   emit_LDA(p_buf, k_imm, 0x00); /* 0 is an invalid command for the 8271. */
   emit_STA(p_buf, k_abs, 0xFE80);
   emit_TAY(p_buf);
@@ -810,7 +811,33 @@ main(int argc, const char* argv[]) {
   emit_CLI(p_buf);
   emit_JMP(p_buf, k_abs, 0xCB40);
 
+  /* Test a mixed bag of opcodes not otherwise covered and unearthed when
+   * adding inturbo mode.
+   */
   util_buffer_set_pos(p_buf, 0x0B40);
+  emit_LDX(p_buf, k_imm, 0xAA);
+  emit_TXA(p_buf);
+  emit_CMP(p_buf, k_imm, 0xAA);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDY(p_buf, k_imm, 0xBB);
+  emit_TYA(p_buf);
+  emit_CMP(p_buf, k_imm, 0xBB);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_EOR(p_buf, k_imm, 0x41);
+  emit_CMP(p_buf, k_imm, 0xFA);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_STY(p_buf, k_zpg, 0xFF);
+  emit_LDA(p_buf, k_zpg, 0xFF);
+  emit_CMP(p_buf, k_imm, 0xBB);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_abs, 0x7000);
+  emit_LDA(p_buf, k_imm, 0xCB);
+  emit_STA(p_buf, k_abs, 0x7001);
+  emit_JMP(p_buf, k_ind, 0x7000);
+  emit_CRASH(p_buf);
+
+  util_buffer_set_pos(p_buf, 0x0B80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

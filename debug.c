@@ -160,8 +160,7 @@ debug_print_opcode(char* buf,
     snprintf(buf, buf_len, "IRQ (NMI)");
     return;
   }
-  if (p_state_6502 &&
-      p_state_6502->irq_fire && !flag_i) {
+  if (p_state_6502 && p_state_6502->irq_fire && !flag_i) {
     snprintf(buf, buf_len, "IRQ (IRQ)");
     return;
   }

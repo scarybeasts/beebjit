@@ -25,6 +25,7 @@ void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
+void asm_x64_emit_inturbo_mode_ind(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_ADC_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ADC_scratch_interp(struct util_buffer* p_buf);
@@ -49,6 +50,8 @@ void asm_x64_emit_instruction_CPX_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CPY_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CPY_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_EOR_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_JMP_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_JSR_scratch_interp(struct util_buffer* p_buf);
@@ -58,8 +61,12 @@ void asm_x64_emit_instruction_LDX_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_LDX_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_LDY_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_LDY_scratch_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_LSR_acc_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_LSR_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ORA_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ORA_scratch_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_ROL_acc_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_ROL_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ROR_acc_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ROR_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_RTI_interp(struct util_buffer* p_buf);
@@ -68,6 +75,7 @@ void asm_x64_emit_instruction_SBC_imm_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_SBC_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_STA_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf);
+void asm_x64_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
 void asm_x64_inturbo_JMP_scratch_plus_1_interp();
@@ -120,6 +128,8 @@ void asm_x64_inturbo_mode_idx();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();
 void asm_x64_inturbo_mode_idy_END();
+void asm_x64_inturbo_mode_ind();
+void asm_x64_inturbo_mode_ind_END();
 
 void asm_x64_instruction_ADC_imm_interp();
 void asm_x64_instruction_ADC_imm_interp_END();
@@ -165,6 +175,10 @@ void asm_x64_instruction_CPY_scratch_interp();
 void asm_x64_instruction_CPY_scratch_interp_END();
 void asm_x64_instruction_DEC_scratch_interp();
 void asm_x64_instruction_DEC_scratch_interp_END();
+void asm_x64_instruction_EOR_imm_interp();
+void asm_x64_instruction_EOR_imm_interp_END();
+void asm_x64_instruction_EOR_scratch_interp();
+void asm_x64_instruction_EOR_scratch_interp_END();
 void asm_x64_instruction_INC_scratch_interp();
 void asm_x64_instruction_INC_scratch_interp_END();
 void asm_x64_instruction_JMP_scratch_interp();
@@ -183,10 +197,18 @@ void asm_x64_instruction_LDY_imm_interp();
 void asm_x64_instruction_LDY_imm_interp_END();
 void asm_x64_instruction_LDY_scratch_interp();
 void asm_x64_instruction_LDY_scratch_interp_END();
+void asm_x64_instruction_LSR_acc_interp();
+void asm_x64_instruction_LSR_acc_interp_END();
+void asm_x64_instruction_LSR_scratch_interp();
+void asm_x64_instruction_LSR_scratch_interp_END();
 void asm_x64_instruction_ORA_imm_interp();
 void asm_x64_instruction_ORA_imm_interp_END();
 void asm_x64_instruction_ORA_scratch_interp();
 void asm_x64_instruction_ORA_scratch_interp_END();
+void asm_x64_instruction_ROL_acc_interp();
+void asm_x64_instruction_ROL_acc_interp_END();
+void asm_x64_instruction_ROL_scratch_interp();
+void asm_x64_instruction_ROL_scratch_interp_END();
 void asm_x64_instruction_ROR_acc_interp();
 void asm_x64_instruction_ROR_acc_interp_END();
 void asm_x64_instruction_ROR_scratch_interp();
@@ -199,5 +221,7 @@ void asm_x64_instruction_STA_scratch_interp();
 void asm_x64_instruction_STA_scratch_interp_END();
 void asm_x64_instruction_STX_scratch_interp();
 void asm_x64_instruction_STX_scratch_interp_END();
+void asm_x64_instruction_STY_scratch_interp();
+void asm_x64_instruction_STY_scratch_interp_END();
 
 #endif /* BEEBJIT_ASM_X64_INTURBO_H */

@@ -141,6 +141,13 @@ asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_inturbo_mode_ind(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_mode_ind,
+               asm_x64_inturbo_mode_ind_END);
+}
+
+void
 asm_x64_emit_instruction_BCC_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_BCC_interp,
@@ -308,6 +315,20 @@ asm_x64_emit_instruction_DEC_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_EOR_imm_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_EOR_imm_interp,
+               asm_x64_instruction_EOR_imm_interp_END);
+}
+
+void
+asm_x64_emit_instruction_EOR_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_EOR_scratch_interp,
+               asm_x64_instruction_EOR_scratch_interp_END);
+}
+
+void
 asm_x64_emit_instruction_INC_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_INC_scratch_interp,
@@ -375,6 +396,20 @@ asm_x64_emit_instruction_LDY_scratch_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_LSR_acc_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_LSR_acc_interp,
+               asm_x64_instruction_LSR_acc_interp_END);
+}
+
+void
+asm_x64_emit_instruction_LSR_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_LSR_scratch_interp,
+               asm_x64_instruction_LSR_scratch_interp_END);
+}
+
+void
 asm_x64_emit_instruction_ORA_imm_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_ORA_imm_interp,
@@ -386,6 +421,20 @@ asm_x64_emit_instruction_ORA_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_ORA_scratch_interp,
                asm_x64_instruction_ORA_scratch_interp_END);
+}
+
+void
+asm_x64_emit_instruction_ROL_acc_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_ROL_acc_interp,
+               asm_x64_instruction_ROL_acc_interp_END);
+}
+
+void
+asm_x64_emit_instruction_ROL_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_ROL_scratch_interp,
+               asm_x64_instruction_ROL_scratch_interp_END);
 }
 
 void
@@ -443,4 +492,11 @@ asm_x64_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_STX_scratch_interp,
                asm_x64_instruction_STX_scratch_interp_END);
+}
+
+void
+asm_x64_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_STY_scratch_interp,
+               asm_x64_instruction_STY_scratch_interp_END);
 }

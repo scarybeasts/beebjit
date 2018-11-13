@@ -240,6 +240,21 @@ asm_x64_inturbo_mode_idy:
 asm_x64_inturbo_mode_idy_END:
 
 
+.globl asm_x64_inturbo_mode_ind
+.globl asm_x64_inturbo_mode_ind_END
+asm_x64_inturbo_mode_ind:
+
+  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  lea REG_SCRATCH3_32, [REG_SCRATCH1 + 1]
+  mov REG_SCRATCH1_8, REG_SCRATCH3_8
+  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  mov REG_SCRATCH1_8, REG_SCRATCH2_8
+
+asm_x64_inturbo_mode_ind_END:
+
+
 .globl asm_x64_instruction_ADC_imm_interp
 .globl asm_x64_instruction_ADC_imm_interp_END
 asm_x64_instruction_ADC_imm_interp:
@@ -287,6 +302,7 @@ asm_x64_instruction_AND_scratch_interp_END:
 asm_x64_instruction_ASL_acc_interp:
 
   shl REG_6502_A, 1
+  setb REG_6502_CF
 
 asm_x64_instruction_ASL_acc_interp_END:
 
@@ -297,6 +313,7 @@ asm_x64_instruction_ASL_scratch_interp:
 
   mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   shl REG_SCRATCH2_8, 1
+  setb REG_6502_CF
   mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
 
 asm_x64_instruction_ASL_scratch_interp_END:
@@ -429,7 +446,6 @@ asm_x64_instruction_CMP_imm_interp:
 
   cmp REG_6502_A, BYTE PTR [REG_6502_PC + 1]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CMP_imm_interp_END:
 
@@ -440,7 +456,6 @@ asm_x64_instruction_CMP_scratch_interp:
 
   cmp REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CMP_scratch_interp_END:
 
@@ -451,7 +466,6 @@ asm_x64_instruction_CPX_imm_interp:
 
   cmp REG_6502_X, BYTE PTR [REG_6502_PC + 1]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CPX_imm_interp_END:
 
@@ -462,7 +476,6 @@ asm_x64_instruction_CPX_scratch_interp:
 
   cmp REG_6502_X, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CPX_scratch_interp_END:
 
@@ -473,7 +486,6 @@ asm_x64_instruction_CPY_imm_interp:
 
   cmp REG_6502_Y, BYTE PTR [REG_6502_PC + 1]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CPY_imm_interp_END:
 
@@ -484,7 +496,6 @@ asm_x64_instruction_CPY_scratch_interp:
 
   cmp REG_6502_Y, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   setae REG_6502_CF
-  seto REG_6502_OF
 
 asm_x64_instruction_CPY_scratch_interp_END:
 
@@ -498,6 +509,24 @@ asm_x64_instruction_DEC_scratch_interp:
   mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
 
 asm_x64_instruction_DEC_scratch_interp_END:
+
+
+.globl asm_x64_instruction_EOR_imm_interp
+.globl asm_x64_instruction_EOR_imm_interp_END
+asm_x64_instruction_EOR_imm_interp:
+
+  xor REG_6502_A, BYTE PTR [REG_6502_PC + 1]
+
+asm_x64_instruction_EOR_imm_interp_END:
+
+
+.globl asm_x64_instruction_EOR_scratch_interp
+.globl asm_x64_instruction_EOR_scratch_interp_END
+asm_x64_instruction_EOR_scratch_interp:
+
+  xor REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_instruction_EOR_scratch_interp_END:
 
 
 .globl asm_x64_instruction_INC_scratch_interp
@@ -574,6 +603,28 @@ asm_x64_instruction_LDY_scratch_interp:
 asm_x64_instruction_LDY_scratch_interp_END:
 
 
+.globl asm_x64_instruction_LSR_acc_interp
+.globl asm_x64_instruction_LSR_acc_interp_END
+asm_x64_instruction_LSR_acc_interp:
+
+  shr REG_6502_A, 1
+  setb REG_6502_CF
+
+asm_x64_instruction_LSR_acc_interp_END:
+
+
+.globl asm_x64_instruction_LSR_scratch_interp
+.globl asm_x64_instruction_LSR_scratch_interp_END
+asm_x64_instruction_LSR_scratch_interp:
+
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  shr REG_SCRATCH2_8, 1
+  setb REG_6502_CF
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
+
+asm_x64_instruction_LSR_scratch_interp_END:
+
+
 .globl asm_x64_instruction_ORA_imm_interp
 .globl asm_x64_instruction_ORA_imm_interp_END
 asm_x64_instruction_ORA_imm_interp:
@@ -590,6 +641,32 @@ asm_x64_instruction_ORA_scratch_interp:
   or REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
 
 asm_x64_instruction_ORA_scratch_interp_END:
+
+
+.globl asm_x64_instruction_ROL_acc_interp
+.globl asm_x64_instruction_ROL_acc_interp_END
+asm_x64_instruction_ROL_acc_interp:
+
+  shr REG_6502_CF_64, 1
+  rcl REG_6502_A
+  setb REG_6502_CF
+  test REG_6502_A, REG_6502_A
+
+asm_x64_instruction_ROL_acc_interp_END:
+
+
+.globl asm_x64_instruction_ROL_scratch_interp
+.globl asm_x64_instruction_ROL_scratch_interp_END
+asm_x64_instruction_ROL_scratch_interp:
+
+  shr REG_6502_CF_64, 1
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  rcl REG_SCRATCH2_8
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
+  setb REG_6502_CF
+  test REG_SCRATCH2_8, REG_SCRATCH2_8
+
+asm_x64_instruction_ROL_scratch_interp_END:
 
 
 .globl asm_x64_instruction_ROR_acc_interp
@@ -658,3 +735,12 @@ asm_x64_instruction_STX_scratch_interp:
   mov BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_X
 
 asm_x64_instruction_STX_scratch_interp_END:
+
+
+.globl asm_x64_instruction_STY_scratch_interp
+.globl asm_x64_instruction_STY_scratch_interp_END
+asm_x64_instruction_STY_scratch_interp:
+
+  mov BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_Y
+
+asm_x64_instruction_STY_scratch_interp_END:

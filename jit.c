@@ -1959,10 +1959,8 @@ printf("ooh\n");
     index = util_buffer_get_pos(p_buf);
     break;
   case k_txa:
-    /* TXA */
-    /* mov al, bl */
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xd8;
+    asm_x64_emit_instruction_TXA(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_bcc:
     /* BCC */
@@ -1975,10 +1973,8 @@ printf("ooh\n");
                                    0x83);
     break;
   case k_tya:
-    /* TYA */
-    /* mov al, cl */
-    p_jit_buf[index++] = 0x88;
-    p_jit_buf[index++] = 0xc8;
+    asm_x64_emit_instruction_TYA(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_txs:
     asm_x64_emit_instruction_TXS(p_buf);
@@ -2160,11 +2156,8 @@ printf("ooh\n");
                                    0x82);
     break;
   case k_clv:
-    /* CLV */
-    /* mov r12b, 0 */
-    p_jit_buf[index++] = 0x41;
-    p_jit_buf[index++] = 0xb4;
-    p_jit_buf[index++] = 0x00;
+    asm_x64_emit_instruction_CLV(p_buf);
+    index = util_buffer_get_pos(p_buf);
     break;
   case k_tsx:
     asm_x64_emit_instruction_TSX(p_buf);

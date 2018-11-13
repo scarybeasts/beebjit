@@ -69,6 +69,15 @@ asm_x64_instruction_CLI:
 asm_x64_instruction_CLI_END:
 
 
+.globl asm_x64_instruction_CLV
+.globl asm_x64_instruction_CLV_END
+asm_x64_instruction_CLV:
+
+  mov REG_6502_OF, 0
+
+asm_x64_instruction_CLV_END:
+
+
 .globl asm_x64_instruction_DEX
 .globl asm_x64_instruction_DEX_END
 asm_x64_instruction_DEX:
@@ -173,6 +182,15 @@ asm_x64_instruction_TSX:
 asm_x64_instruction_TSX_END:
 
 
+.globl asm_x64_instruction_TXA
+.globl asm_x64_instruction_TXA_END
+asm_x64_instruction_TXA:
+
+  mov REG_6502_A, REG_6502_X
+
+asm_x64_instruction_TXA_END:
+
+
 .globl asm_x64_instruction_TXS
 .globl asm_x64_instruction_TXS_END
 asm_x64_instruction_TXS:
@@ -180,6 +198,15 @@ asm_x64_instruction_TXS:
   mov REG_6502_S, REG_6502_X
 
 asm_x64_instruction_TXS_END:
+
+
+.globl asm_x64_instruction_TYA
+.globl asm_x64_instruction_TYA_END
+asm_x64_instruction_TYA:
+
+  mov REG_6502_A, REG_6502_Y
+
+asm_x64_instruction_TYA_END:
 
 
 .globl asm_x64_instruction_A_NZ_flags

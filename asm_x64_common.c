@@ -101,6 +101,11 @@ asm_x64_emit_instruction_CLI(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_CLV(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_CLV, asm_x64_instruction_CLV_END);
+}
+
+void
 asm_x64_emit_instruction_DEX(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_DEX, asm_x64_instruction_DEX_END);
 }
@@ -175,8 +180,18 @@ asm_x64_emit_instruction_TSX(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_TXA(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_TXA, asm_x64_instruction_TXA_END);
+}
+
+void
 asm_x64_emit_instruction_TXS(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_TXS, asm_x64_instruction_TXS_END);
+}
+
+void
+asm_x64_emit_instruction_TYA(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_TYA, asm_x64_instruction_TYA_END);
 }
 
 void
