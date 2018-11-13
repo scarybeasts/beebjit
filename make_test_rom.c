@@ -586,15 +586,18 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
   emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
   emit_REQUIRE_ZF(p_buf, 1);
+  emit_CLV(p_buf);
   /* Loop again, starting here, with interrupts disabled.
    * Interrupt enable occurs briefly and within the block. Interrupt must still
    * fire :)
    */
   emit_CLI(p_buf);
+  emit_BVC(p_buf, 1);             /* Skip CRASH to test RTI PC miss bug. */
+  emit_CRASH(p_buf);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_zpg, 0x00);
   emit_CMP(p_buf, k_imm, 0x02);
-  emit_BNE(p_buf, -8);
+  emit_BNE(p_buf, -11);
   emit_LDA(p_buf, k_abs, 0xFE44); /* sysvia T1CL */ /* Clears TIMER1. */
   emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
   emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */

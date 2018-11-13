@@ -495,6 +495,9 @@ interp_enter(struct interp_struct* p_interp) {
         /* It's a BRK, not an IRQ. */
         temp_u8 = (1 << k_flag_brk);
         do_irq_vector = k_6502_vector_irq;
+      } else {
+        /* IRQ. Undo the PC increment. */
+        pc -= 2;
       }
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xff);
