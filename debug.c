@@ -7,6 +7,7 @@
 #include "jit.h"
 #include "defs_6502.h"
 #include "state.h"
+#include "state_6502.h"
 #include "util.h"
 #include "via.h"
 
@@ -144,13 +145,31 @@ debug_get_counter_ptr(void* p) {
 static void
 debug_print_opcode(char* buf,
                    size_t buf_len,
-                   unsigned char opcode,
-                   unsigned char operand1,
-                   unsigned char operand2,
-                   uint16_t reg_pc) {
-  unsigned char opmode = g_opmodes[opcode];
-  const char* opname = g_p_opnames[g_optypes[opcode]];
-  uint16_t addr = operand1 | (operand2 << 8);
+                   uint8_t opcode,
+                   uint8_t operand1,
+                   uint8_t operand2,
+                   uint16_t reg_pc,
+                   uint8_t flag_i,
+                   struct state_6502* p_state_6502) {
+  uint8_t opmode;
+  const char* opname;
+  uint16_t addr;
+
+  if (p_state_6502 &&
+      state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    snprintf(buf, buf_len, "IRQ (NMI)");
+    return;
+  }
+  if (p_state_6502 &&
+      p_state_6502->irq_fire && !flag_i) {
+    snprintf(buf, buf_len, "IRQ (IRQ)");
+    return;
+  }
+
+  opmode = g_opmodes[opcode];
+  opname = g_p_opnames[g_optypes[opcode]];
+  addr = (operand1 | (operand2 << 8));
+
   switch (opmode) {
   case k_nil:
     snprintf(buf, buf_len, "%s", opname);
@@ -335,7 +354,9 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        opcode,
                        operand1,
                        operand2,
-                       addr_6502);
+                       addr_6502,
+                       0,
+                       NULL);
     printf("[%.4x] %.4x: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
@@ -464,7 +485,14 @@ debug_dump_stats(struct debug_struct* p_debug) {
     if (!count) {
       continue;
     }
-    debug_print_opcode(opcode_buf, sizeof(opcode_buf), opcode, 0, 0, 0xfffe);
+    debug_print_opcode(opcode_buf,
+                       sizeof(opcode_buf),
+                       opcode,
+                       0,
+                       0,
+                       0xFFFE,
+                       0,
+                       NULL);
     printf("%14s: %zu\n", opcode_buf, count);
   }
 
@@ -617,9 +645,12 @@ debug_callback(void* p) {
   unsigned char flag_n;
   unsigned char flag_c;
   unsigned char flag_o;
+  unsigned char flag_i;
+  unsigned char flag_d;
   int wrapped;
   unsigned char opmode;
   size_t oplen;
+  struct state_6502* p_state_6502;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -637,8 +668,8 @@ debug_callback(void* p) {
   opcode = p_mem_read[reg_pc];
   opmode = g_opmodes[opcode];
   oplen = g_opmodelens[opmode];
-  reg_pc_plus_1 = reg_pc + 1;
-  reg_pc_plus_2 = reg_pc + 2;
+  reg_pc_plus_1 = (reg_pc + 1);
+  reg_pc_plus_2 = (reg_pc + 2);
   operand1 = p_mem_read[reg_pc_plus_1];
   operand2 = p_mem_read[reg_pc_plus_2];
 
@@ -688,12 +719,18 @@ debug_callback(void* p) {
                        flag_z);
   }
 
+  flag_i = !!(reg_flags & 0x04);
+  flag_d = !!(reg_flags & 0x08);
+  p_state_6502 = bbc_get_6502(p_bbc);
+
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
                      opcode,
                      operand1,
                      operand2,
-                     reg_pc);
+                     reg_pc,
+                     flag_i,
+                     p_state_6502);
 
   (void) memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
@@ -703,10 +740,10 @@ debug_callback(void* p) {
   if (flag_z) {
     flags_buf[1] = 'Z';
   }
-  if (reg_flags & 0x04) {
+  if (flag_i) {
     flags_buf[2] = 'I';
   }
-  if (reg_flags & 0x08) {
+  if (flag_d) {
     flags_buf[3] = 'D';
   }
   flags_buf[5] = '1';

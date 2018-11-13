@@ -307,21 +307,6 @@ interp_enter(struct interp_struct* p_interp) {
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
   while (1) {
-    if (debug_subsystem_active) {
-      interp_call_debugger(p_interp,
-                           &a,
-                           &x,
-                           &y,
-                           &s,
-                           &pc,
-                           &zf,
-                           &nf,
-                           &cf,
-                           &of,
-                           &df,
-                           &intf);
-    }
-
     /* TODO: opcode fetch doesn't consider hardware register access. */
     opcode = p_mem_read[pc];
 
@@ -339,6 +324,21 @@ interp_enter(struct interp_struct* p_interp) {
         break;
       }
       interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+    }
+
+    if (debug_subsystem_active) {
+      interp_call_debugger(p_interp,
+                           &a,
+                           &x,
+                           &y,
+                           &s,
+                           &pc,
+                           &zf,
+                           &nf,
+                           &cf,
+                           &of,
+                           &df,
+                           &intf);
     }
 
     branch = 0;
@@ -658,7 +658,6 @@ interp_enter(struct interp_struct* p_interp) {
 
 int64_t
 interp_single_instruction(struct interp_struct* p_interp, int64_t cycles_run) {
-  int old_debug_subsystem_active;
   int64_t next_timer_cycles;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
@@ -669,13 +668,8 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t cycles_run) {
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
   timing_start_timer(p_timing, p_interp->short_instruction_run_timer_id, 1);
-  /* The "client" will already have called into the debugger for this opcode. */
-  old_debug_subsystem_active = p_interp->debug_subsystem_active;
-  p_interp->debug_subsystem_active = 0;
 
   interp_enter(p_interp);
-
-  p_interp->debug_subsystem_active = old_debug_subsystem_active;
 
   next_timer_cycles = timing_next_timer(p_timing);
   return next_timer_cycles;
