@@ -63,5 +63,7 @@ void state_6502_set_irq_level(struct state_6502* p_state_6502,
                               int irq,
                               int level);
 int state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq);
+void state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502,
+                                         int irq);
 
 #endif /* BEEBJIT_STATE_6502_H */

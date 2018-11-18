@@ -3040,6 +3040,7 @@ handle_semaphore_sigsegv_common(ucontext_t* p_context,
 
   /* NMI takes precedence, or IRQ is fired iff interrupt disable is off. */
   if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
     vector = k_6502_vector_nmi;
   } else if (!(r13 & (1 << k_flag_interrupt))) {
     vector = k_6502_vector_irq;

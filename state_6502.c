@@ -1,5 +1,7 @@
 #include "state_6502.h"
 
+#include <assert.h>
+
 void
 state_6502_reset(struct state_6502* p_state_6502) {
   /* EMU: from https://www.pagetable.com/?p=410, initial 6502 state is not all
@@ -116,9 +118,16 @@ state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq) {
   int irq_value = (1 << irq);
   int fire = !!(p_state_6502->irq_fire & irq_value);
 
-  if (state_6502_irq_is_edge_triggered(irq)) {
-    p_state_6502->irq_fire &= ~irq_value;
-  }
-
   return fire;
+}
+
+void
+state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
+  int irq_value = (1 << irq);
+  int fire = !!(p_state_6502->irq_fire & irq_value);
+
+  assert(state_6502_irq_is_edge_triggered(irq));
+  assert(fire);
+
+  p_state_6502->irq_fire &= ~irq_value;
 }

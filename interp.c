@@ -202,6 +202,7 @@ interp_check_irq(uint8_t* opcode,
    * correct as it is a much more low level 6502 emulation.
    */
   if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
     *p_do_irq_vector = k_6502_vector_nmi;
   } else if (!intf) {
     *p_do_irq_vector = k_6502_vector_irq;
