@@ -24,6 +24,8 @@ echo 'Running JIT, opt, no-batch-ops.'
 ./6502jit -os test.rom -opt jit:self-mod-all,jit:no-batch-ops
 echo 'Running interpreter.'
 ./6502jit -os test.rom -mode interp
+echo 'Running interpreter, slow mode.'
+./6502jit -os test.rom -mode interp -s
 echo 'Running inturbo.'
 ./6502jit -os test.rom -mode inturbo
 

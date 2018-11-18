@@ -130,38 +130,10 @@ timing_next_timer(struct timing_struct* p_timing) {
 }
 
 int64_t
-timing_advance(struct timing_struct* p_timing, int64_t time) {
+timing_advance_time(struct timing_struct* p_timing, int64_t time) {
   size_t i;
-  int64_t next_timer;
 
-  size_t max_timer = p_timing->max_timer;
-
-  for (i = 0; i < max_timer; ++i) {
-    int64_t value;
-    uint8_t running = p_timing->running[i];
-    void (*p_callback)(void*) = p_timing->p_callbacks[i];
-
-    if (!running) {
-      continue;
-    }
-    value = p_timing->timings[i];
-    value -= time;
-    p_timing->timings[i] = value;
-    if (value <= 0) {
-      p_callback(p_timing->p_objects[i]);
-    }
-  }
-
-  next_timer = timing_recalculate(p_timing);
-
-  return next_timer;
-}
-
-int64_t
-timing_advance_no_callbacks(struct timing_struct* p_timing, int64_t time) {
-  size_t i;
   int64_t next_timer = INT64_MAX;
-
   size_t max_timer = p_timing->max_timer;
 
   for (i = 0; i < max_timer; ++i) {
@@ -180,6 +152,34 @@ timing_advance_no_callbacks(struct timing_struct* p_timing, int64_t time) {
   }
 
   p_timing->next_timer = next_timer;
+
+  return next_timer;
+}
+
+int64_t
+timing_trigger_callbacks(struct timing_struct* p_timing) {
+  size_t i;
+  int64_t next_timer;
+
+  size_t max_timer = p_timing->max_timer;
+
+  for (i = 0; i < max_timer; ++i) {
+    int64_t value;
+    uint8_t running = p_timing->running[i];
+
+    if (!running) {
+      continue;
+    }
+    value = p_timing->timings[i];
+    if (value <= 0) {
+      void (*p_callback)(void*) = p_timing->p_callbacks[i];
+      p_callback(p_timing->p_objects[i]);
+    }
+  }
+
+  next_timer = timing_recalculate(p_timing);
+  p_timing->next_timer = next_timer;
+
   return next_timer;
 }
 
