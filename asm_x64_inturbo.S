@@ -80,6 +80,21 @@ asm_x64_inturbo_enter_debug:
 asm_x64_inturbo_enter_debug_END:
 
 
+.globl asm_x64_inturbo_check_interrupt
+.globl asm_x64_inturbo_check_interrupt_END
+.globl asm_x64_inturbo_check_interrupt_jae_patch
+asm_x64_inturbo_check_interrupt:
+
+  mov REG_SCRATCH1, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH1_32, \
+      DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
+  bt REG_SCRATCH1_32, 31
+  jae 0
+asm_x64_inturbo_check_interrupt_jae_patch:
+asm_x64_inturbo_check_interrupt_END:
+
+
 .globl asm_x64_inturbo_pc_plus_2_to_scratch
 .globl asm_x64_inturbo_pc_plus_2_to_scratch_END
 asm_x64_inturbo_pc_plus_2_to_scratch:

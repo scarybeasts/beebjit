@@ -194,6 +194,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_instruction_CLD(p_buf);
       break;
     case k_cli:
+      /* If the CLI might enable a pending interrupt, we let the interpreter
+       * handle it.
+       */
+      asm_x64_emit_inturbo_check_interrupt(p_buf);
       asm_x64_emit_instruction_CLI(p_buf);
       break;
     case k_clv:
@@ -300,6 +304,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_instruction_PLA(p_buf);
       break;
     case k_plp:
+      /* If the PLP might enable a pending interrupt, we let the interpreter
+       * handle it.
+       */
+      asm_x64_emit_inturbo_check_interrupt(p_buf);
       asm_x64_emit_instruction_PLP(p_buf);
       break;
     case k_rol:
