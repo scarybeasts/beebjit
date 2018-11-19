@@ -13,6 +13,7 @@ asm_x64_instruction_CRASH:
   mov al, [0x0000dead]
 
 asm_x64_instruction_CRASH_END:
+  ret
 
 
 .globl asm_x64_instruction_EXIT
@@ -22,6 +23,7 @@ asm_x64_instruction_EXIT:
   ret
 
 asm_x64_instruction_EXIT_END:
+  ret
 
 
 .globl asm_x64_instruction_REAL_NOP
@@ -31,6 +33,7 @@ asm_x64_instruction_REAL_NOP:
   nop
 
 asm_x64_instruction_REAL_NOP_END:
+  ret
 
 
 .globl asm_x64_instruction_TRAP
@@ -40,6 +43,7 @@ asm_x64_instruction_TRAP:
   int 3
 
 asm_x64_instruction_TRAP_END:
+  ret
 
 
 .globl asm_x64_instruction_CLC
@@ -49,6 +53,7 @@ asm_x64_instruction_CLC:
   mov REG_6502_CF, 0
 
 asm_x64_instruction_CLC_END:
+  ret
 
 
 .globl asm_x64_instruction_CLD
@@ -58,6 +63,7 @@ asm_x64_instruction_CLD:
   btr REG_6502_ID_F_64, 3
 
 asm_x64_instruction_CLD_END:
+  ret
 
 
 .globl asm_x64_instruction_CLI
@@ -67,6 +73,7 @@ asm_x64_instruction_CLI:
   btr REG_6502_ID_F_64, 2
 
 asm_x64_instruction_CLI_END:
+  ret
 
 
 .globl asm_x64_instruction_CLV
@@ -76,6 +83,7 @@ asm_x64_instruction_CLV:
   mov REG_6502_OF, 0
 
 asm_x64_instruction_CLV_END:
+  ret
 
 
 .globl asm_x64_instruction_DEX
@@ -85,6 +93,7 @@ asm_x64_instruction_DEX:
   dec REG_6502_X
 
 asm_x64_instruction_DEX_END:
+  ret
 
 
 .globl asm_x64_instruction_DEY
@@ -94,6 +103,7 @@ asm_x64_instruction_DEY:
   dec REG_6502_Y
 
 asm_x64_instruction_DEY_END:
+  ret
 
 
 .globl asm_x64_instruction_INX
@@ -103,6 +113,7 @@ asm_x64_instruction_INX:
   inc REG_6502_X
 
 asm_x64_instruction_INX_END:
+  ret
 
 
 .globl asm_x64_instruction_INY
@@ -112,6 +123,7 @@ asm_x64_instruction_INY:
   inc REG_6502_Y
 
 asm_x64_instruction_INY_END:
+  ret
 
 
 .globl asm_x64_instruction_PHA
@@ -123,6 +135,7 @@ asm_x64_instruction_PHA:
   mov REG_6502_S, REG_SCRATCH3_8
 
 asm_x64_instruction_PHA_END:
+  ret
 
 
 .globl asm_x64_instruction_PLA
@@ -134,6 +147,7 @@ asm_x64_instruction_PLA:
   mov REG_6502_A, BYTE PTR [REG_6502_S_64]
 
 asm_x64_instruction_PLA_END:
+  ret
 
 
 .globl asm_x64_instruction_SEC
@@ -143,6 +157,7 @@ asm_x64_instruction_SEC:
   mov REG_6502_CF, 1
 
 asm_x64_instruction_SEC_END:
+  ret
 
 
 .globl asm_x64_instruction_SED
@@ -152,6 +167,7 @@ asm_x64_instruction_SED:
   bts REG_6502_ID_F_64, 3
 
 asm_x64_instruction_SED_END:
+  ret
 
 
 .globl asm_x64_instruction_SEI
@@ -171,6 +187,7 @@ asm_x64_instruction_TAX:
   mov REG_6502_X, REG_6502_A
 
 asm_x64_instruction_TAX_END:
+  ret
 
 
 .globl asm_x64_instruction_TAY
@@ -180,6 +197,7 @@ asm_x64_instruction_TAY:
   mov REG_6502_Y, REG_6502_A
 
 asm_x64_instruction_TAY_END:
+  ret
 
 
 .globl asm_x64_instruction_TSX
@@ -189,6 +207,7 @@ asm_x64_instruction_TSX:
   mov REG_6502_X, REG_6502_S
 
 asm_x64_instruction_TSX_END:
+  ret
 
 
 .globl asm_x64_instruction_TXA
@@ -198,6 +217,7 @@ asm_x64_instruction_TXA:
   mov REG_6502_A, REG_6502_X
 
 asm_x64_instruction_TXA_END:
+  ret
 
 
 .globl asm_x64_instruction_TXS
@@ -207,6 +227,7 @@ asm_x64_instruction_TXS:
   mov REG_6502_S, REG_6502_X
 
 asm_x64_instruction_TXS_END:
+  ret
 
 
 .globl asm_x64_instruction_TYA
@@ -216,6 +237,7 @@ asm_x64_instruction_TYA:
   mov REG_6502_A, REG_6502_Y
 
 asm_x64_instruction_TYA_END:
+  ret
 
 
 .globl asm_x64_instruction_A_NZ_flags
@@ -225,6 +247,7 @@ asm_x64_instruction_A_NZ_flags:
   test REG_6502_A, REG_6502_A
 
 asm_x64_instruction_A_NZ_flags_END:
+  ret
 
 
 .globl asm_x64_instruction_X_NZ_flags
@@ -234,6 +257,7 @@ asm_x64_instruction_X_NZ_flags:
   test REG_6502_X, REG_6502_X
 
 asm_x64_instruction_X_NZ_flags_END:
+  ret
 
 
 .globl asm_x64_instruction_Y_NZ_flags
@@ -243,6 +267,7 @@ asm_x64_instruction_Y_NZ_flags:
   test REG_6502_Y, REG_6502_Y
 
 asm_x64_instruction_Y_NZ_flags_END:
+  ret
 
 .globl asm_x64_save_AXYS_PC_flags
 asm_x64_save_AXYS_PC_flags:
@@ -323,6 +348,7 @@ asm_x64_set_brk_flag_in_scratch:
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x10]
 
 asm_x64_set_brk_flag_in_scratch_END:
+  ret
 
 
 .globl asm_x64_push_from_scratch
@@ -334,6 +360,7 @@ asm_x64_push_from_scratch:
   mov REG_6502_S, REG_SCRATCH3_8
 
 asm_x64_push_from_scratch_END:
+  ret
 
 
 .globl asm_x64_push_word_from_scratch
@@ -361,6 +388,7 @@ asm_x64_pull_to_scratch:
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_S_64]
 
 asm_x64_pull_to_scratch_END:
+  ret
 
 
 .globl asm_x64_pull_word_to_scratch
@@ -376,6 +404,7 @@ asm_x64_pull_word_to_scratch:
   mov REG_SCRATCH1_8_HI, BYTE PTR [REG_6502_S_64]
 
 asm_x64_pull_word_to_scratch_END:
+  ret
 
 
 .globl asm_x64_asm_enter
@@ -427,6 +456,7 @@ asm_x64_asm_enter:
   ret
 
 asm_x64_asm_enter_END:
+  ret
 
 
 .globl asm_x64_asm_debug
@@ -457,3 +487,4 @@ asm_x64_asm_debug:
   ret
 
 asm_x64_asm_debug_END:
+  ret
