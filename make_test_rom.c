@@ -837,7 +837,20 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_ind, 0x7000);
   emit_CRASH(p_buf);
 
+  /* Tests for a bug in inturbo mode where the upper bits of the carry flag
+   * register got corrupted.
+   */
   util_buffer_set_pos(p_buf, 0x0B80);
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_CLC(p_buf);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_CLC(p_buf);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_CMP(p_buf, k_imm, 0x03);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCBC0);
+
+  util_buffer_set_pos(p_buf, 0x0BC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
