@@ -239,16 +239,30 @@ asm_x64_emit_instruction_BVS_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_ADC_imm_interp(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_instruction_ADC_imm_interp,
                asm_x64_instruction_ADC_imm_interp_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_instruction_ADC_imm_interp,
+                     asm_x64_instruction_ADC_imm_interp_jb_patch,
+                     asm_x64_inturbo_call_interp);
 }
 
 void
 asm_x64_emit_instruction_ADC_scratch_interp(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_instruction_ADC_scratch_interp,
                asm_x64_instruction_ADC_scratch_interp_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_instruction_ADC_scratch_interp,
+                     asm_x64_instruction_ADC_scratch_interp_jb_patch,
+                     asm_x64_inturbo_call_interp);
 }
 
 void
@@ -482,16 +496,30 @@ asm_x64_emit_instruction_RTS_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_SBC_imm_interp(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_instruction_SBC_imm_interp,
                asm_x64_instruction_SBC_imm_interp_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_instruction_SBC_imm_interp,
+                     asm_x64_instruction_SBC_imm_interp_jb_patch,
+                     asm_x64_inturbo_call_interp);
 }
 
 void
 asm_x64_emit_instruction_SBC_scratch_interp(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_instruction_SBC_scratch_interp,
                asm_x64_instruction_SBC_scratch_interp_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_instruction_SBC_scratch_interp,
+                     asm_x64_instruction_SBC_scratch_interp_jb_patch,
+                     asm_x64_inturbo_call_interp);
 }
 
 void

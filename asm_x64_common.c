@@ -160,6 +160,11 @@ asm_x64_emit_instruction_SEC(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_SED(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_instruction_SED, asm_x64_instruction_SED_END);
+}
+
+void
 asm_x64_emit_instruction_SEI(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_SEI, asm_x64_instruction_SEI_END);
 }

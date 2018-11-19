@@ -395,6 +395,7 @@ interp_enter(struct interp_struct* p_interp) {
       temp_int = (a + v + cf);
       if (df) {
         /* Fix up decimal carry on first nibble. */
+        /* TODO: incorrect for invalid large BCD numbers, double carries? */
         int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
         if (decimal_carry >= 0x0a) {
           temp_int += 0x06;

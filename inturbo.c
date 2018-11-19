@@ -342,6 +342,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_sec:
       asm_x64_emit_instruction_SEC(p_buf);
       break;
+    case k_sed:
+      asm_x64_emit_instruction_SED(p_buf);
+      break;
     case k_sei:
       asm_x64_emit_instruction_SEI(p_buf);
       break;

@@ -145,6 +145,15 @@ asm_x64_instruction_SEC:
 asm_x64_instruction_SEC_END:
 
 
+.globl asm_x64_instruction_SED
+.globl asm_x64_instruction_SED_END
+asm_x64_instruction_SED:
+
+  bts REG_6502_ID_F_64, 3
+
+asm_x64_instruction_SED_END:
+
+
 .globl asm_x64_instruction_SEI
 .globl asm_x64_instruction_SEI_END
 asm_x64_instruction_SEI:
