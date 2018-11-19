@@ -3176,7 +3176,7 @@ jit_enter(struct jit_struct* p_jit) {
    */
   assert(((size_t) p_mem_read & 0xffff) == 0);
 
-  asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr);
+  asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr, 0);
 }
 
 struct jit_struct*

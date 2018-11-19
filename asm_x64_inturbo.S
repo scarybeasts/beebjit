@@ -58,9 +58,9 @@ asm_x64_inturbo_advance_pc_3_END:
 .globl asm_x64_inturbo_next_opcode_load_and_jump
 asm_x64_inturbo_next_opcode:
 
-  lea REG_TIMER_CYCLES, [REG_TIMER_CYCLES - 1]
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_x64_inturbo_next_opcode_lea_patch:
-  bt REG_TIMER_CYCLES, 63
+  bt REG_COUNTDOWN, 63
   jb 0
 asm_x64_inturbo_next_opcode_jb_patch:
 asm_x64_inturbo_next_opcode_load_and_jump:
@@ -109,16 +109,13 @@ asm_x64_inturbo_call_interp:
   push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
-  # param2 is cycles since last callout.
-  # NOTE: currently, responsibility to update cycles in the 6502 context rests
-  # within the callback.
-  mov REG_PARAM2, [REG_SCRATCH3 + K_CONTEXT_OFFSET_TIMER_CYCLES]
-  sub REG_PARAM2, REG_TIMER_CYCLES
+  # param2 is current countdown value.
+  mov REG_PARAM2, REG_COUNTDOWN
+
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
 
-  mov [REG_CONTEXT + K_CONTEXT_OFFSET_TIMER_CYCLES], REG_RETURN
-  mov REG_TIMER_CYCLES, REG_RETURN
+  mov REG_COUNTDOWN, REG_RETURN
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags

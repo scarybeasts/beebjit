@@ -472,14 +472,16 @@ inturbo_destroy(struct inturbo_struct* p_inturbo) {
 
 void
 inturbo_enter(struct inturbo_struct* p_inturbo) {
+  int64_t countdown;
+
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
   uint16_t addr_6502 = state_6502_get_pc(p_inturbo->abi.p_state_6502);
   uint8_t* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
   uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address = p_jump_table[opcode];
-
   struct timing_struct* p_timing = p_inturbo->p_timing;
-  p_inturbo->abi.next_timer_cycles = timing_next_timer(p_timing);
 
-  asm_x64_asm_enter(p_inturbo, p_start_address);
+  countdown = timing_get_countdown(p_timing);
+
+  asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
 }

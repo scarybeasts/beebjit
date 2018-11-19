@@ -11,10 +11,9 @@
 #define K_CONTEXT_OFFSET_STATE_6502             16
 #define K_CONTEXT_OFFSET_DEBUG_CALLBACK         24
 #define K_CONTEXT_OFFSET_DEBUG_OBJECT           32
-#define K_CONTEXT_OFFSET_TIMER_CYCLES           40
-#define K_CONTEXT_OFFSET_INTERP_CALLBACK        48
-#define K_CONTEXT_OFFSET_INTERP_OBJECT          56
-#define K_CONTEXT_OFFSET_ABI_END                64
+#define K_CONTEXT_OFFSET_INTERP_CALLBACK        40
+#define K_CONTEXT_OFFSET_INTERP_OBJECT          48
+#define K_CONTEXT_OFFSET_ABI_END                56
 #define K_STATE_6502_OFFSET_REG_A               0
 #define K_STATE_6502_OFFSET_REG_X               4
 #define K_STATE_6502_OFFSET_REG_Y               8
@@ -46,7 +45,7 @@
 #define REG_6502_CF_64     r14
 #define REG_6502_ID_F      r13b
 #define REG_6502_ID_F_64   r13
-#define REG_TIMER_CYCLES   r15
+#define REG_COUNTDOWN      r15
 
 #define REG_CONTEXT        rdi
 

@@ -16,7 +16,8 @@ struct timing_struct {
   int64_t timings[k_timing_num_timers];
   uint8_t running[k_timing_num_timers];
 
-  int64_t next_timer;
+  uint64_t total_timer_ticks;
+  int64_t countdown;
 
   void* p_legacy_callback;
   void* p_legacy_object;
@@ -32,7 +33,8 @@ timing_create() {
   (void) memset(p_timing, '\0', sizeof(struct timing_struct));
 
   p_timing->max_timer = 0;
-  p_timing->next_timer = INT64_MAX;
+  p_timing->total_timer_ticks = 0;
+  p_timing->countdown = INT64_MAX;
 
   return p_timing;
 }
@@ -42,23 +44,23 @@ timing_destroy(struct timing_struct* p_timing) {
   free(p_timing);
 }
 
-static int64_t
+static void
 timing_recalculate(struct timing_struct* p_timing) {
   size_t i;
   /* Default is never. */
-  int64_t next_timer = INT64_MAX;
+  int64_t countdown = INT64_MAX;
   size_t max_timer = p_timing->max_timer;
+
   for (i = 0; i < max_timer; ++i) {
     if (!p_timing->running[i]) {
       continue;
     }
-    if (p_timing->timings[i] < next_timer) {
-      next_timer = p_timing->timings[i];
+    if (p_timing->timings[i] < countdown) {
+      countdown = p_timing->timings[i];
     }
   }
 
-  p_timing->next_timer = next_timer;
-  return next_timer;
+  p_timing->countdown = countdown;
 }
 
 size_t
@@ -83,7 +85,7 @@ timing_register_timer(struct timing_struct* p_timing,
   return i;
 }
 
-void
+int64_t
 timing_start_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
@@ -95,12 +97,14 @@ timing_start_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
   /* Don't need to do a full recalculate, can just see if the timer is expiring
    * sooner than the current soonest.
    */
-  if (time < p_timing->next_timer) {
-    p_timing->next_timer = time;
+  if (time < p_timing->countdown) {
+    p_timing->countdown = time;
   }
+
+  return p_timing->countdown;
 }
 
-void
+int64_t
 timing_stop_timer(struct timing_struct* p_timing, size_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
@@ -109,32 +113,46 @@ timing_stop_timer(struct timing_struct* p_timing, size_t id) {
   p_timing->running[id] = 0;
 
   timing_recalculate(p_timing);
+
+  return p_timing->countdown;
 }
 
 int64_t
-timing_increase_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
+timing_increase_timer(int64_t* p_new_value,
+                      struct timing_struct* p_timing,
+                      size_t id,
+                      int64_t time) {
+  int64_t value = p_timing->timings[id];
+
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
 
-  p_timing->timings[id] += time;
+  value += time;
+  if (p_new_value) {
+    *p_new_value = value;
+  }
+  p_timing->timings[id] = value;
 
   timing_recalculate(p_timing);
 
-  return p_timing->timings[id];
+  return p_timing->countdown;
 }
 
 int64_t
-timing_next_timer(struct timing_struct* p_timing) {
-  return p_timing->next_timer;
+timing_get_countdown(struct timing_struct* p_timing) {
+  return p_timing->countdown;
 }
 
-int64_t
-timing_advance_time(struct timing_struct* p_timing, int64_t time) {
+uint64_t
+timing_update_countdown(struct timing_struct* p_timing, int64_t countdown) {
   size_t i;
 
-  int64_t next_timer = INT64_MAX;
   size_t max_timer = p_timing->max_timer;
+  uint64_t delta = (p_timing->countdown - countdown);
+
+  p_timing->total_timer_ticks += delta;
+  countdown = INT64_MAX;
 
   for (i = 0; i < max_timer; ++i) {
     int64_t value;
@@ -144,22 +162,21 @@ timing_advance_time(struct timing_struct* p_timing, int64_t time) {
       continue;
     }
     value = p_timing->timings[i];
-    value -= time;
+    value -= delta;
     p_timing->timings[i] = value;
-    if (value < next_timer) {
-      next_timer = value;
+    if (value < countdown) {
+      countdown = value;
     }
   }
 
-  p_timing->next_timer = next_timer;
+  p_timing->countdown = countdown;
 
-  return next_timer;
+  return delta;
 }
 
 int64_t
 timing_trigger_callbacks(struct timing_struct* p_timing) {
   size_t i;
-  int64_t next_timer;
 
   size_t max_timer = p_timing->max_timer;
 
@@ -177,10 +194,9 @@ timing_trigger_callbacks(struct timing_struct* p_timing) {
     }
   }
 
-  next_timer = timing_recalculate(p_timing);
-  p_timing->next_timer = next_timer;
+  timing_recalculate(p_timing);
 
-  return next_timer;
+  return p_timing->countdown;
 }
 
 void

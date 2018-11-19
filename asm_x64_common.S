@@ -375,6 +375,7 @@ asm_x64_asm_enter:
 
   # param1, rdi == context
   # param2, rsi == x64 start address
+  # param3, rdx == countdown
 
   push rbp
   mov rbp, rsp
@@ -384,13 +385,13 @@ asm_x64_asm_enter:
   push r14
   push r15
 
+  push REG_PARAM2
+  mov REG_CONTEXT, REG_PARAM1
+  mov REG_COUNTDOWN, REG_PARAM3
+
   mov REG_SCRATCH1, 0
   mov REG_SCRATCH2, 0
   mov REG_SCRATCH3, 0
-
-  mov REG_CONTEXT, REG_PARAM1
-  push REG_PARAM2
-  mov REG_TIMER_CYCLES, [REG_CONTEXT + K_CONTEXT_OFFSET_TIMER_CYCLES]
 
   # 6502 A, X, Y, S.
   mov REG_6502_A_64, 0

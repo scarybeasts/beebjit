@@ -7,7 +7,7 @@ struct bbc_options;
 struct state_6502;
 
 enum {
-  k_asm_x64_abi_size = (8 * 8),
+  k_asm_x64_abi_size = (7 * 8),
   k_asm_x64_abi_offset_util_private = 0,
   k_asm_x64_abi_offset_util_debug = 8,
   k_asm_x64_abi_offset_state_6502 = 16,
@@ -22,7 +22,6 @@ struct asm_x64_abi {
   void* p_debug_callback;
   void* p_debug_object;
 
-  int64_t next_timer_cycles;
   void* p_interp_callback;
   void* p_interp_object;
 };

@@ -913,9 +913,10 @@ bbc_cycles_timer_callback(void* p) {
     p_bbc->last_gettime_us = current_gettime_us;
   }
 
-  refreshed_time = timing_increase_timer(p_timing,
-                                         p_bbc->timer_id,
-                                         p_bbc->cycles_per_run);
+  (void) timing_increase_timer(&refreshed_time,
+                               p_timing,
+                               p_bbc->timer_id,
+                               p_bbc->cycles_per_run);
 
   assert(refreshed_time > 0);
 

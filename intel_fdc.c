@@ -340,7 +340,7 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
     return;
   }
 
-  timing_increase_timer(p_timing, timer_id, 200);
+  (void) timing_increase_timer(NULL, p_timing, timer_id, 200);
 
   current_bytes_left = p_intel_fdc->current_bytes_left;
 

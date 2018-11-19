@@ -12,16 +12,18 @@ void timing_destroy(struct timing_struct* p_timing);
 size_t timing_register_timer(struct timing_struct* p_timing,
                              void* p_callback,
                              void* p_object);
-void timing_start_timer(struct timing_struct* p_timing,
-                        size_t id,
-                        int64_t time);
-void timing_stop_timer(struct timing_struct* p_timing, size_t id);
-int64_t timing_increase_timer(struct timing_struct* p_timing,
+int64_t timing_start_timer(struct timing_struct* p_timing,
+                           size_t id,
+                           int64_t time);
+int64_t timing_stop_timer(struct timing_struct* p_timing, size_t id);
+int64_t timing_increase_timer(int64_t* p_new_value,
+                              struct timing_struct* p_timing,
                               size_t id,
                               int64_t time);
 
-int64_t timing_next_timer(struct timing_struct* p_timing);
-int64_t timing_advance_time(struct timing_struct* p_timing, int64_t time);
+int64_t timing_get_countdown(struct timing_struct* p_timing);
+uint64_t timing_update_countdown(struct timing_struct* p_timing,
+                                 int64_t countdown);
 int64_t timing_trigger_callbacks(struct timing_struct* p_timing);
 
 /* Legacy APIs. */
