@@ -179,7 +179,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
     p_intel_fdc->current_sectors_left = (param2 & 0x1F);
     p_intel_fdc->current_bytes_left = k_intel_fdc_sector_size;
 
-    timing_start_timer(p_intel_fdc->p_timing, p_intel_fdc->timer_id, 200);
+    (void) timing_start_timer(p_intel_fdc->p_timing,
+                              p_intel_fdc->timer_id,
+                              200);
 
     break;
   case k_intel_fdc_command_seek:
@@ -336,7 +338,7 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   if (p_intel_fdc->pending_success) {
     p_intel_fdc->pending_success = 0;
     intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
-    timing_stop_timer(p_timing, timer_id);
+    (void) timing_stop_timer(p_timing, timer_id);
     return;
   }
 
