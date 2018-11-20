@@ -3121,6 +3121,7 @@ uint32_t
 jit_enter(struct jit_struct* p_jit) {
   int ret;
   struct sigaction sa;
+  uint32_t run_result;
 
   unsigned char* p_mem_read = p_jit->p_mem_read;
   uint16_t pc_6502 = state_6502_get_pc(p_jit->abi.p_state_6502);
@@ -3143,9 +3144,9 @@ jit_enter(struct jit_struct* p_jit) {
    */
   assert(((size_t) p_mem_read & 0xffff) == 0);
 
-  asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr, 0);
+  run_result = asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr, 0);
 
-  return 1;
+  return run_result;
 }
 
 struct jit_struct*

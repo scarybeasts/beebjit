@@ -379,7 +379,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_kil:
       switch (opcode) {
       case 0x02: /* EXIT */
-        return 0;
+        return ((y << 16) | (x << 8) | a);
       case 0xf2: /* CRASH */
       {
         volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
@@ -602,7 +602,7 @@ interp_enter(struct interp_struct* p_interp) {
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 
-  return 1;
+  return (uint32_t) -1;
 }
 
 int64_t
@@ -621,7 +621,7 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
                             1);
 
   ret = interp_enter(p_interp);
-  assert(ret == 1);
+  assert(ret == (uint32_t) -1);
 
   countdown = timing_get_countdown(p_timing);
   return countdown;

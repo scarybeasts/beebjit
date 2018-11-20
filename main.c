@@ -25,6 +25,8 @@ main(int argc, const char* argv[]) {
   int x_fd;
   int bbc_fd;
   struct pollfd poll_fds[2];
+  uint32_t run_result;
+
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
 
@@ -42,6 +44,7 @@ main(int argc, const char* argv[]) {
   int pc = 0;
   int mode = k_bbc_mode_jit;
   uint64_t cycles = 0;
+  uint32_t expect = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_lang_rom_slot] = "roms/basic.rom";
@@ -105,6 +108,9 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (!strcmp(arg, "-cycles")) {
         (void) sscanf(val, "%ld", &cycles);
+        ++i;
+      } else if (!strcmp(arg, "-expect")) {
+        (void) sscanf(val, "%x", &expect);
         ++i;
       }
     }
@@ -232,6 +238,13 @@ main(int argc, const char* argv[]) {
      * in the socket queue.
      */
     x_event_check(p_x);
+  }
+
+  run_result = bbc_get_run_result(p_bbc);
+  if (expect) {
+    if (run_result != expect) {
+      errx(1, "run result %x is not as expected", run_result);
+    }
   }
 
   x_destroy(p_x);

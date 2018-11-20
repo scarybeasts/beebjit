@@ -20,7 +20,13 @@ asm_x64_instruction_CRASH_END:
 .globl asm_x64_instruction_EXIT_END
 asm_x64_instruction_EXIT:
 
-  mov REG_RETURN, 0xbeef
+  mov REG_SCRATCH1, 0xeeee
+  movzx REG_SCRATCH2, REG_6502_Y
+  shl REG_SCRATCH2, 8
+  mov REG_SCRATCH2_8, REG_6502_X
+  shl REG_SCRATCH2, 8
+  mov REG_SCRATCH2_8, REG_6502_A
+  mov REG_RETURN, REG_SCRATCH2
   ret
 
 asm_x64_instruction_EXIT_END:

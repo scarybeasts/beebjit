@@ -484,6 +484,7 @@ inturbo_destroy(struct inturbo_struct* p_inturbo) {
 uint32_t
 inturbo_enter(struct inturbo_struct* p_inturbo) {
   int64_t countdown;
+  uint32_t run_result;
 
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
   uint16_t addr_6502 = state_6502_get_pc(p_inturbo->abi.p_state_6502);
@@ -494,7 +495,7 @@ inturbo_enter(struct inturbo_struct* p_inturbo) {
 
   countdown = timing_get_countdown(p_timing);
 
-  asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
+  run_result = asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
 
-  return 1;
+  return run_result;
 }

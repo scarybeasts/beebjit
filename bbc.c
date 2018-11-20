@@ -90,6 +90,7 @@ struct bbc_struct {
   struct interp_struct* p_interp;
   struct inturbo_struct* p_inturbo;
   struct debug_struct* p_debug;
+  uint32_t run_result;
   /* Legacy timing support. */
   uint64_t time;
   uint64_t time_next_vsync;
@@ -506,6 +507,7 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
   p_bbc->vsync_wait_for_render = 1;
+  p_bbc->run_result = 0;
 
   p_bbc->time = 0;
   p_bbc->time_next_vsync = k_bbc_us_per_vsync;
@@ -968,6 +970,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 static void*
 bbc_cpu_thread(void* p) {
   int ret;
+  uint32_t run_result;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
@@ -975,19 +978,20 @@ bbc_cpu_thread(void* p) {
 
   switch (p_bbc->mode) {
   case k_bbc_mode_jit:
-    (void) jit_enter(p_bbc->p_jit);
+    run_result = jit_enter(p_bbc->p_jit);
     break;
   case k_bbc_mode_interp:
-    (void) interp_enter(p_bbc->p_interp);
+    run_result = interp_enter(p_bbc->p_interp);
     break;
   case k_bbc_mode_inturbo:
-    (void) inturbo_enter(p_bbc->p_inturbo);
+    run_result = inturbo_enter(p_bbc->p_inturbo);
     break;
   default:
     assert(0);
   }
 
   p_bbc->running = 0;
+  p_bbc->run_result = run_result;
 
   if (p_bbc->mode == k_bbc_mode_jit) {
     ret = pthread_join(p_bbc->timer_thread, NULL);
@@ -1015,6 +1019,15 @@ bbc_run_async(struct bbc_struct* p_bbc) {
   p_bbc->running = 1;
 
   sound_start_playing(p_bbc->p_sound);
+}
+
+uint32_t
+bbc_get_run_result(struct bbc_struct* p_bbc) {
+  volatile uint32_t* p_ret = &p_bbc->run_result;
+  volatile int* p_running = &p_bbc->running;
+  assert(!*p_running);
+
+  return *p_ret;
 }
 
 static void
