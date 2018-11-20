@@ -64,7 +64,9 @@ struct intel_fdc_struct {
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
-  uint8_t pending_success;
+  uint8_t has_pending;
+  uint8_t pending_status;
+  uint8_t pending_result;
 };
 
 struct intel_fdc_struct*
@@ -93,7 +95,9 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_intel_fdc->current_sector = 0;
   p_intel_fdc->current_sectors_left = 0;
   p_intel_fdc->current_bytes_left = 0;
-  p_intel_fdc->pending_success = 0;
+  p_intel_fdc->has_pending = 0;
+  p_intel_fdc->pending_status = 0;
+  p_intel_fdc->pending_result = 0;
 
   p_intel_fdc->timer_id = timing_register_timer(p_timing,
                                                 intel_fdc_timer_tick,
@@ -230,6 +234,9 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
                 uint16_t addr,
                 uint8_t val) {
   uint8_t num_params;
+
+  assert(!p_intel_fdc->has_pending);
+
   switch (addr & 0x07) {
   case k_intel_fdc_command:
     if (p_intel_fdc->status & 0x80) {
@@ -239,7 +246,6 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
 
     assert(!p_intel_fdc->current_bytes_left);
     assert(!p_intel_fdc->current_sectors_left);
-    assert(!p_intel_fdc->pending_success);
 
     p_intel_fdc->command = (val & 0x3F);
     p_intel_fdc->drive_select = (val >> 6);
@@ -335,9 +341,11 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   struct timing_struct* p_timing = p_intel_fdc->p_timing;
   size_t timer_id = p_intel_fdc->timer_id;
 
-  if (p_intel_fdc->pending_success) {
-    p_intel_fdc->pending_success = 0;
-    intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
+  if (p_intel_fdc->has_pending) {
+    p_intel_fdc->has_pending = 0;
+    intel_fdc_set_status_result(p_intel_fdc,
+                                p_intel_fdc->pending_status,
+                                p_intel_fdc->pending_result);
     (void) timing_stop_timer(p_timing, timer_id);
     return;
   }
@@ -385,7 +393,10 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   current_sectors_left--;
   p_intel_fdc->current_sectors_left = current_sectors_left;
   if (current_sectors_left == 0) {
-    p_intel_fdc->pending_success = 1;
+    assert(!p_intel_fdc->has_pending);
+    p_intel_fdc->has_pending = 1;
+    p_intel_fdc->pending_status = 0x18;
+    p_intel_fdc->pending_result = 0x00;
     return;
   }
 
