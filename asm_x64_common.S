@@ -20,6 +20,7 @@ asm_x64_instruction_CRASH_END:
 .globl asm_x64_instruction_EXIT_END
 asm_x64_instruction_EXIT:
 
+  mov REG_RETURN, 0xbeef
   ret
 
 asm_x64_instruction_EXIT_END:
