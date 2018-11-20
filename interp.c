@@ -382,7 +382,7 @@ interp_enter(struct interp_struct* p_interp) {
         return 0;
       case 0xf2: /* CRASH */
       {
-        volatile unsigned char* p_crash_ptr = 0;
+        volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
         (void) *p_crash_ptr;
       }
       default:
