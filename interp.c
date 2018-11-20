@@ -161,7 +161,8 @@ interp_call_debugger(struct interp_struct* p_interp,
                      uint8_t* p_cf,
                      uint8_t* p_of,
                      uint8_t* p_df,
-                     uint8_t* p_intf) {
+                     uint8_t* p_intf,
+                     uint16_t irq_vector) {
   uint8_t flags;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
@@ -171,7 +172,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   void* p_debug_callback_object = p_options->p_debug_callback_object;
 
   if (debug_active_at_addr(p_debug_callback_object, *p_pc)) {
-    void* (*debug_callback)(void*) = p_options->debug_callback;
+    void* (*debug_callback)(void*, uint16_t) = p_options->debug_callback;
 
     flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
     state_6502_set_registers(p_state_6502,
@@ -183,7 +184,7 @@ interp_call_debugger(struct interp_struct* p_interp,
                              *p_pc);
     /* TODO: set cycles. */
 
-    debug_callback(p_options->p_debug_callback_object);
+    debug_callback(p_options->p_debug_callback_object, irq_vector);
 
     state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
     interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);
@@ -267,7 +268,8 @@ interp_enter(struct interp_struct* p_interp) {
                            &cf,
                            &of,
                            &df,
-                           &intf);
+                           &intf,
+                           do_irq_vector);
     }
 
     branch = 0;

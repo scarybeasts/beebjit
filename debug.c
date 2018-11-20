@@ -130,18 +130,15 @@ debug_print_opcode(char* buf,
                    uint8_t operand1,
                    uint8_t operand2,
                    uint16_t reg_pc,
-                   uint8_t flag_i,
-                   struct state_6502* p_state_6502) {
+                   uint16_t irq_vector) {
   uint8_t opmode;
   const char* opname;
   uint16_t addr;
 
-  if (p_state_6502 &&
-      state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+  if (irq_vector == k_6502_vector_nmi) {
     snprintf(buf, buf_len, "IRQ (NMI)");
     return;
-  }
-  if (p_state_6502 && p_state_6502->irq_fire && !flag_i) {
+  } else if (irq_vector == k_6502_vector_irq) {
     snprintf(buf, buf_len, "IRQ (IRQ)");
     return;
   }
@@ -335,8 +332,7 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        operand1,
                        operand2,
                        addr_6502,
-                       0,
-                       NULL);
+                       0);
     printf("[%.4x] %.4x: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
@@ -471,8 +467,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
                        0,
                        0,
                        0xFFFE,
-                       0,
-                       NULL);
+                       0);
     printf("%14s: %zu\n", opcode_buf, count);
   }
 
@@ -601,7 +596,7 @@ debug_print_state(uint16_t block_6502,
 }
 
 void*
-debug_callback(void* p) {
+debug_callback(void* p, uint16_t irq_vector) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -630,7 +625,6 @@ debug_callback(void* p) {
   int wrapped;
   unsigned char opmode;
   size_t oplen;
-  struct state_6502* p_state_6502;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -701,7 +695,6 @@ debug_callback(void* p) {
 
   flag_i = !!(reg_flags & 0x04);
   flag_d = !!(reg_flags & 0x08);
-  p_state_6502 = bbc_get_6502(p_bbc);
 
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
@@ -709,8 +702,7 @@ debug_callback(void* p) {
                      operand1,
                      operand2,
                      reg_pc,
-                     flag_i,
-                     p_state_6502);
+                     irq_vector);
 
   (void) memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';
