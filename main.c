@@ -41,6 +41,7 @@ main(int argc, const char* argv[]) {
   int debug_stop_addr = 0;
   int pc = 0;
   int mode = k_bbc_mode_jit;
+  uint64_t cycles = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_lang_rom_slot] = "roms/basic.rom";
@@ -102,6 +103,9 @@ main(int argc, const char* argv[]) {
         }
         sideways_ram[bank] = 1;
         ++i;
+      } else if (!strcmp(arg, "-cycles")) {
+        (void) sscanf(val, "%ld", &cycles);
+        ++i;
       }
     }
     if (!strcmp(arg, "-d")) {
@@ -146,6 +150,9 @@ main(int argc, const char* argv[]) {
 
   if (pc != 0) {
     bbc_set_pc(p_bbc, pc);
+  }
+  if (cycles != 0) {
+    bbc_set_stop_cycles(p_bbc, cycles);
   }
 
   for (i = 0; i < k_bbc_num_roms; ++i) {

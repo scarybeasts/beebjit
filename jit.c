@@ -51,8 +51,7 @@ static const int k_offset_read_callback = (k_asm_x64_abi_size + 8);
 static const int k_offset_write_callback = (k_asm_x64_abi_size + 16);
 
 static const int k_offset_memory_object = (k_asm_x64_abi_size + 32);
-static const int k_offset_counter_ptr = (k_asm_x64_abi_size + 40);
-static const int k_offset_jit_ptrs = (k_asm_x64_abi_size + 48);
+static const int k_offset_jit_ptrs = (k_asm_x64_abi_size + 40);
 
 static const unsigned int k_log_flag_self_modify = 1;
 static const unsigned int k_log_flag_compile = 2;
@@ -181,8 +180,7 @@ struct jit_struct {
 
   /* Structures referenced by JIT code. */
   void* p_memory_object;
-  size_t* p_counter;
-  unsigned int jit_ptrs[k_6502_addr_space_size]; /* 96 */
+  unsigned int jit_ptrs[k_6502_addr_space_size]; /* 88 */
 
   /* Fields not referenced by JIT'ed code. */
   struct memory_access* p_memory_access;
@@ -706,30 +704,6 @@ jit_emit_debug_sequence(struct util_buffer* p_buf, uint16_t addr_6502) {
   util_buffer_add_2b_1w(p_buf, 0x66, 0xba, addr_6502);
   /* call [rdi + k_offset_util_debug] */
   util_buffer_add_3b(p_buf, 0xff, 0x57, k_asm_x64_abi_offset_util_debug);
-}
-
-static void
-jit_emit_counter_sequence(struct util_buffer* p_buf) {
-  /* Save rcx because we need it for jrcxz. */
-  /* mov r8, rcx */
-  util_buffer_add_3b(p_buf, 0x49, 0x89, 0xc8);
-  /* mov rdx, [rdi + k_offset_counter_ptr] */
-  util_buffer_add_4b(p_buf, 0x48, 0x8b, 0x57, k_offset_counter_ptr);
-  /* mov rcx, [rdx] */
-  util_buffer_add_3b(p_buf, 0x48, 0x8b, 0x0a);
-  /* Use jrcxz to do test / jump without flag updates. */
-  /* jrcxz + 2 */ /* Lands on int 3 */
-  util_buffer_add_2b(p_buf, 0xe3, 0x02);
-  /* jmp + 1 */ /* Jumps over int 3 */
-  util_buffer_add_2b(p_buf, 0xeb, 0x01);
-  /* int 3 */
-  util_buffer_add_1b(p_buf, 0xcc);
-  /* lea rcx, [rcx - 1] */
-  util_buffer_add_4b(p_buf, 0x48, 0x8d, 0x49, 0xff);
-  /* mov [rdx], rcx */
-  util_buffer_add_3b(p_buf, 0x48, 0x89, 0x0a);
-  /* mov rcx, r8 */
-  util_buffer_add_3b(p_buf, 0x4c, 0x89, 0xc1);
 }
 
 static int
@@ -2598,15 +2572,11 @@ jit_at_addr(struct jit_struct* p_jit,
                            util_buffer_get_pos(p_buf);
     int dynamic_operand = 0;
     int emit_debug = 0;
-    int emit_counter = 0;
 
     assert((size_t) p_dst < 0xffffffff);
 
     if (p_options->debug_active_at_addr(p_debug_object, addr_6502)) {
       emit_debug = 1;
-    }
-    if (p_options->debug_counter_at_addr(p_debug_object, addr_6502)) {
-      emit_counter = 1;
     }
 
     util_buffer_setup(p_single_buf, single_jit_buf, k_jit_bytes_per_byte);
@@ -2700,9 +2670,6 @@ jit_at_addr(struct jit_struct* p_jit,
 
     if (emit_debug) {
       jit_emit_debug_sequence(p_single_buf, addr_6502);
-    }
-    if (emit_counter) {
-      jit_emit_counter_sequence(p_single_buf);
     }
 
     carry_flag_expectation = k_flags;
@@ -3228,8 +3195,6 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->read_to_write_offset = (p_mem_write - p_mem_read);
   p_jit->p_jit_base = p_jit_base;
   p_jit->abi.p_util_private = asm_x64_jit_do_compile;
-  p_jit->p_counter = p_options->debug_get_counter_ptr(
-      p_jit->abi.p_debug_object);
   p_jit->p_jit_callback = jit_callback;
   p_jit->p_read_callback = p_memory_access->memory_read_callback;
   p_jit->p_write_callback = p_memory_access->memory_write_callback;

@@ -62,6 +62,8 @@ void bbc_load_rom(struct bbc_struct* p_bbc,
 void bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index);
 unsigned char bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index);
+void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
+void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
 void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* a,
@@ -70,7 +72,6 @@ void bbc_get_registers(struct bbc_struct* p_bbc,
                        unsigned char* s,
                        unsigned char* flags,
                        uint16_t* pc);
-size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char a,
                        unsigned char x,
@@ -78,8 +79,9 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        unsigned char s,
                        unsigned char flags,
                        uint16_t pc);
+size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
-uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
+
 void bbc_run_async(struct bbc_struct* p_bbc);
 
 struct state_6502* bbc_get_6502(struct bbc_struct* p_bbc);
@@ -89,6 +91,7 @@ struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
+uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 unsigned char* bbc_get_mem_read(struct bbc_struct* p_bbc);
 unsigned char* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
@@ -110,8 +113,6 @@ int bbc_is_key_pressed(struct bbc_struct* p_bbc,
                        unsigned char col);
 int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
 int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
-
-void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
 
 int bbc_get_client_fd(struct bbc_struct* p_bbc);
 void bbc_client_send_message(struct bbc_struct* p_bbc, char message);

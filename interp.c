@@ -166,21 +166,9 @@ interp_call_debugger(struct interp_struct* p_interp,
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct bbc_options* p_options = p_interp->p_options;
-  int (*debug_counter_at_addr)(void*, uint16_t) =
-      p_options->debug_counter_at_addr;
   int (*debug_active_at_addr)(void*, uint16_t) =
       p_options->debug_active_at_addr;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
-
-  if (debug_counter_at_addr(p_debug_callback_object, *p_pc)) {
-    size_t* p_debug_counter_ptr = p_options->debug_get_counter_ptr(
-        p_debug_callback_object);
-
-    if (!*p_debug_counter_ptr) {
-      __builtin_trap();
-    }
-    *p_debug_counter_ptr = (*p_debug_counter_ptr - 1);
-  }
 
   if (debug_active_at_addr(p_debug_callback_object, *p_pc)) {
     void* (*debug_callback)(void*) = p_options->debug_callback;

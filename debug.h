@@ -15,8 +15,6 @@ void debug_destroy(struct debug_struct* p_debug);
 
 int debug_subsystem_active(void* p);
 int debug_active_at_addr(void* p, uint16_t addr_6502);
-int debug_counter_at_addr(void* p, uint16_t addr_6502);
-size_t* debug_get_counter_ptr(void* p);
 
 void* debug_callback(void* p);
 

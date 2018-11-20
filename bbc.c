@@ -568,8 +568,6 @@ bbc_create(unsigned char* p_os_rom,
 
   p_bbc->options.debug_subsystem_active = debug_subsystem_active;
   p_bbc->options.debug_active_at_addr = debug_active_at_addr;
-  p_bbc->options.debug_counter_at_addr = debug_counter_at_addr;
-  p_bbc->options.debug_get_counter_ptr = debug_get_counter_ptr;
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;
   p_bbc->options.p_log_flags = p_log_flags;
@@ -1400,4 +1398,20 @@ bbc_get_client_fd(struct bbc_struct* p_bbc) {
 void
 bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length) {
   intel_fdc_load_ssd(p_bbc->p_intel_fdc, 0, p_data, length);
+}
+
+
+static void
+bbc_stop_cycles_timer_callback(void* p) {
+  (void) p;
+  __builtin_trap();
+}
+
+void
+bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
+  struct timing_struct* p_timing = p_bbc->p_timing;
+  size_t id = timing_register_timer(p_bbc->p_timing,
+                                    bbc_stop_cycles_timer_callback,
+                                    NULL);
+  (void) timing_start_timer(p_timing, id, cycles);
 }

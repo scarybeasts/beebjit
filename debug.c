@@ -38,7 +38,6 @@ struct debug_struct {
   int debug_running_print;
   /* Breakpointing. */
   uint16_t debug_stop_addr;
-  uint16_t debug_counter_addr;
   uint16_t next_or_finish_stop_addr;
   int debug_break_exec[k_max_break];
   int debug_break_mem_low[k_max_break];
@@ -55,7 +54,6 @@ struct debug_struct {
   uint64_t time_basis;
   size_t next_cycles;
   unsigned char warned_at_addr[k_6502_addr_space_size];
-  size_t counter;
   char debug_old_input_buf[k_max_input_len];
 };
 
@@ -110,9 +108,7 @@ debug_destroy(struct debug_struct* p_debug) {
 int
 debug_subsystem_active(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (p_debug->debug_active ||
-      p_debug->debug_stop_addr ||
-      p_debug->debug_counter_addr) {
+  if (p_debug->debug_active || p_debug->debug_stop_addr) {
     return 1;
   }
   return 0;
@@ -125,21 +121,6 @@ debug_active_at_addr(void* p, uint16_t addr_6502) {
     return 1;
   }
   return 0;
-}
-
-int
-debug_counter_at_addr(void* p, uint16_t addr_6502) {
-  struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (addr_6502 == p_debug->debug_counter_addr) {
-    return 1;
-  }
-  return 0;
-}
-
-size_t*
-debug_get_counter_ptr(void* p) {
-  struct debug_struct* p_debug = (struct debug_struct*) p;
-  return &p_debug->counter;
 }
 
 static void
@@ -897,13 +878,6 @@ debug_callback(void* p) {
                parse_int >= 0 &&
                parse_int < 65536) {
       p_debug->debug_stop_addr = parse_int;
-    } else if (sscanf(input_buf, "counterat %x", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < 65536) {
-      p_debug->debug_counter_addr = parse_int;
-    } else if (sscanf(input_buf, "counter %d", &parse_int) == 1 &&
-               parse_int > 0) {
-      p_debug->counter = parse_int;
     } else if (sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,
