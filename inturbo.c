@@ -376,7 +376,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_instruction_TYA(p_buf);
       break;
     default:
-      asm_x64_emit_instruction_TRAP(p_buf);
+      /* Let the interpreter crash out on unknown opcodes. This is also a way
+       * of handling the really weird opcodes by letting the interpreter deal
+       * with them.
+       */
+      asm_x64_emit_inturbo_call_interp(p_buf);
       break;
     }
 

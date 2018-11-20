@@ -64,6 +64,20 @@ asm_x64_emit_inturbo_check_interrupt(struct util_buffer* p_buf) {
                      asm_x64_inturbo_call_interp);
 }
 
+void
+asm_x64_emit_inturbo_call_interp(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_jump_call_interp,
+               asm_x64_inturbo_jump_call_interp_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_inturbo_jump_call_interp,
+                     asm_x64_inturbo_jump_call_interp_jmp_patch,
+                     asm_x64_inturbo_call_interp);
+}
+
 static void
 asm_x64_emit_check_special_addr(struct util_buffer* p_buf,
                                 uint16_t special_addr_above) {

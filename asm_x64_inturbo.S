@@ -104,6 +104,18 @@ asm_x64_inturbo_check_interrupt_END:
   ret
 
 
+.globl asm_x64_inturbo_jump_call_interp
+.globl asm_x64_inturbo_jump_call_interp_END
+.globl asm_x64_inturbo_jump_call_interp_jmp_patch
+asm_x64_inturbo_jump_call_interp:
+
+  jmp 0
+asm_x64_inturbo_jump_call_interp_jmp_patch:
+
+asm_x64_inturbo_jump_call_interp_END:
+  ret
+
+
 .globl asm_x64_inturbo_pc_plus_2_to_scratch
 .globl asm_x64_inturbo_pc_plus_2_to_scratch_END
 asm_x64_inturbo_pc_plus_2_to_scratch:

@@ -536,7 +536,9 @@ interp_enter(struct interp_struct* p_interp) {
     case k_sec: cf = 1; break;
     case k_sed: df = 1; break;
     case k_sei: intf = 1; break;
-    /* TODO: SHY also issues a read at the uncarried abx address. */
+    /* TODO: SHY also issues a read at the uncarried abx address. Also, it
+     * always takes 5 cycles (no extra cycle for abx mode calculation.
+     */
     case k_shy: v = (y & ((addr >> 8) + 1)); break;
     case k_slo: cf = !!(v & 0x80); v <<= 1; a |= v; break;
     case k_sta: v = a; break;

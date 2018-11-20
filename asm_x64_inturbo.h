@@ -12,6 +12,7 @@ void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf,
                                       uint8_t cycles);
 void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_check_interrupt(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_call_interp(struct util_buffer* p_buf);
 
 void asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf,
@@ -100,6 +101,9 @@ void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_check_interrupt();
 void asm_x64_inturbo_check_interrupt_END();
 void asm_x64_inturbo_check_interrupt_jae_patch();
+void asm_x64_inturbo_jump_call_interp();
+void asm_x64_inturbo_jump_call_interp_END();
+void asm_x64_inturbo_jump_call_interp_jmp_patch();
 void asm_x64_inturbo_pc_plus_2_to_scratch();
 void asm_x64_inturbo_pc_plus_2_to_scratch_END();
 void asm_x64_inturbo_interrupt_vector();
