@@ -345,10 +345,10 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   (void) timing_increase_timer(NULL, p_timing, timer_id, 200);
 
   current_bytes_left = p_intel_fdc->current_bytes_left;
+  current_sectors_left = p_intel_fdc->current_sectors_left;
 
-  if (!current_bytes_left) {
-    return;
-  }
+  assert(current_bytes_left);
+  assert(current_sectors_left);
 
   /* If our virtual controller is attempting to deliver a byte before the last
    * one was read, I presume that's data loss, otherwise what would all the
@@ -366,7 +366,6 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
 
   drive = p_intel_fdc->drive_0_or_1;
   current_sector = p_intel_fdc->current_sector;
-  current_sectors_left = p_intel_fdc->current_sectors_left;
 
   byte = intel_fdc_get_disc_byte(p_intel_fdc,
                                  drive,

@@ -469,7 +469,7 @@ bbc_sync_timer_tick(void* p) {
   /* Tick the floppy controller -- it may wish to raise an NMI if it's in
    * the middle of reading data from disc.
    */
-  intel_fdc_timer_tick(p_bbc->p_intel_fdc);
+  /*intel_fdc_timer_tick(p_bbc->p_intel_fdc);*/
 }
 
 struct bbc_struct*
