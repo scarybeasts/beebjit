@@ -917,6 +917,10 @@ main(int argc, const char* argv[]) {
 
   /* IRQ routine. */
   util_buffer_set_pos(p_buf, 0x3F00);
+  emit_INC(p_buf, k_zpg, 0x00);
+  emit_STA(p_buf, k_zpg, 0x04);
+  emit_STX(p_buf, k_zpg, 0x05);
+  emit_STY(p_buf, k_zpg, 0x06);
   emit_PLA(p_buf);
   emit_STA(p_buf, k_zpg, 0x01);
   emit_PHA(p_buf);
@@ -927,7 +931,6 @@ main(int argc, const char* argv[]) {
   emit_PLA(p_buf);
   emit_AND(p_buf, k_imm, 0x04);   /* Need I flag set. */
   emit_REQUIRE_ZF(p_buf, 0);
-  emit_INC(p_buf, k_zpg, 0x00);
   emit_PLA(p_buf);
   emit_PHA(p_buf);
   emit_AND(p_buf, k_imm, 0x10);
@@ -940,6 +943,10 @@ main(int argc, const char* argv[]) {
 
   /* NMI routine. */
   util_buffer_set_pos(p_buf, 0x3E00);
+  emit_INC(p_buf, k_zpg, 0x00);
+  emit_STA(p_buf, k_zpg, 0x04);
+  emit_STX(p_buf, k_zpg, 0x05);
+  emit_STY(p_buf, k_zpg, 0x06);
   emit_LDA(p_buf, k_imm, 0x42);
   emit_RTI(p_buf);
 
