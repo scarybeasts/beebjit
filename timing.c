@@ -117,6 +117,14 @@ timing_stop_timer(struct timing_struct* p_timing, size_t id) {
   return p_timing->countdown;
 }
 
+int
+timing_timer_is_running(struct timing_struct* p_timing, size_t id) {
+  assert(id < k_timing_num_timers);
+  assert(id < p_timing->max_timer);
+
+  return p_timing->running[id];
+}
+
 int64_t
 timing_increase_timer(int64_t* p_new_value,
                       struct timing_struct* p_timing,

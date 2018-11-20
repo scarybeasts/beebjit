@@ -128,14 +128,29 @@ static void
 intel_fdc_set_status_result(struct intel_fdc_struct* p_intel_fdc,
                             uint8_t status,
                             uint8_t result) {
+  struct state_6502* p_state_6502 = p_intel_fdc->p_state_6502;
   int level = !!(status & 0x08);
+  int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
 
   p_intel_fdc->status = status;
   p_intel_fdc->result = result;
 
+  if (firing && (level == 1)) {
+    printf("WARNING: edge triggered NMI already high\n");
+  }
+
   state_6502_set_irq_level(p_intel_fdc->p_state_6502,
                            k_state_6502_irq_nmi,
                            level);
+  if ((level == 1) && (p_intel_fdc->data_command_running == 0)) {
+    /* If we're asserting an NMI outside of a data loop, make sure there's a
+     * timer set to fire immediately to ensure the main loop looks for the NMI.
+     */
+    struct timing_struct* p_timing = p_intel_fdc->p_timing;
+    size_t timer_id = p_intel_fdc->timer_id;
+    assert(!timing_timer_is_running(p_timing, timer_id));
+    (void) timing_start_timer(p_timing, timer_id, 0);
+  }
 }
 
 uint8_t
@@ -341,10 +356,15 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   struct timing_struct* p_timing = p_intel_fdc->p_timing;
   size_t timer_id = p_intel_fdc->timer_id;
 
+  if (p_intel_fdc->data_command_running == 0) {
+    /* This is a standalone NMI outside a data command. */
+    (void) timing_stop_timer(p_timing, timer_id);
+    return;
+  }
+
   current_bytes_left = p_intel_fdc->current_bytes_left;
   current_sectors_left = p_intel_fdc->current_sectors_left;
 
-  assert(p_intel_fdc->data_command_running == 1);
   if (current_sectors_left == 0) {
     assert(current_bytes_left == 0);
     p_intel_fdc->data_command_running = 0;

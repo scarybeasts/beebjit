@@ -16,6 +16,7 @@ int64_t timing_start_timer(struct timing_struct* p_timing,
                            size_t id,
                            int64_t time);
 int64_t timing_stop_timer(struct timing_struct* p_timing, size_t id);
+int timing_timer_is_running(struct timing_struct* p_timing, size_t id);
 int64_t timing_increase_timer(int64_t* p_new_value,
                               struct timing_struct* p_timing,
                               size_t id,
