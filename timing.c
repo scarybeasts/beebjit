@@ -90,6 +90,7 @@ timing_start_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
+  assert(!p_timing->running[id]);
 
   p_timing->timings[id] = time;
   p_timing->running[id] = 1;
@@ -109,6 +110,7 @@ timing_stop_timer(struct timing_struct* p_timing, size_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
+  assert(p_timing->running[id]);
 
   p_timing->running[id] = 0;
 

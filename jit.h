@@ -50,7 +50,7 @@ unsigned char* jit_get_code_ptr(struct jit_struct* p_jit, uint16_t addr_6502);
 unsigned char* jit_get_jit_base_addr(struct jit_struct* p_jit,
                                      uint16_t addr_6502);
 
-void jit_enter(struct jit_struct* p_jit);
+uint32_t jit_enter(struct jit_struct* p_jit);
 
 void jit_async_timer_tick(struct jit_struct* p_jit);
 

@@ -975,13 +975,13 @@ bbc_cpu_thread(void* p) {
 
   switch (p_bbc->mode) {
   case k_bbc_mode_jit:
-    jit_enter(p_bbc->p_jit);
+    (void) jit_enter(p_bbc->p_jit);
     break;
   case k_bbc_mode_interp:
-    interp_enter(p_bbc->p_interp);
+    (void) interp_enter(p_bbc->p_interp);
     break;
   case k_bbc_mode_inturbo:
-    inturbo_enter(p_bbc->p_inturbo);
+    (void) inturbo_enter(p_bbc->p_inturbo);
     break;
   default:
     assert(0);

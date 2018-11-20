@@ -3117,7 +3117,7 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   p_context->uc_mcontext.gregs[REG_RIP] += rip_inc;
 }
 
-void
+uint32_t
 jit_enter(struct jit_struct* p_jit) {
   int ret;
   struct sigaction sa;
@@ -3144,6 +3144,8 @@ jit_enter(struct jit_struct* p_jit) {
   assert(((size_t) p_mem_read & 0xffff) == 0);
 
   asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr, 0);
+
+  return 1;
 }
 
 struct jit_struct*

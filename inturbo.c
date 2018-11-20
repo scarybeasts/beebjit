@@ -481,7 +481,7 @@ inturbo_destroy(struct inturbo_struct* p_inturbo) {
   free(p_inturbo);
 }
 
-void
+uint32_t
 inturbo_enter(struct inturbo_struct* p_inturbo) {
   int64_t countdown;
 
@@ -495,4 +495,6 @@ inturbo_enter(struct inturbo_struct* p_inturbo) {
   countdown = timing_get_countdown(p_timing);
 
   asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
+
+  return 1;
 }

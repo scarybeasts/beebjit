@@ -37,8 +37,8 @@ static void
 interp_instruction_run_timer_callback(void* p) {
   struct interp_struct* p_interp = (struct interp_struct*) p;
 
-  timing_stop_timer(p_interp->p_timing,
-                    p_interp->short_instruction_run_timer_id);
+  (void) timing_stop_timer(p_interp->p_timing,
+                           p_interp->short_instruction_run_timer_id);
   p_interp->return_from_loop = 1;
 }
 
@@ -191,7 +191,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   }
 }
 
-void
+uint32_t
 interp_enter(struct interp_struct* p_interp) {
   uint8_t a;
   uint8_t x;
@@ -250,10 +250,18 @@ interp_enter(struct interp_struct* p_interp) {
 
       countdown = timing_trigger_callbacks(p_timing);
 
-      if (p_interp->return_from_loop) {
-        break;
-      }
       interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+
+      /* Note that we stay in the interpreter loop to handle the IRQ if one
+       * has arisen, otherwise it would get lost.
+       */
+      if (p_interp->return_from_loop) {
+        size_t timer_id = p_interp->short_instruction_run_timer_id;
+        if (!do_irq_vector) {
+          break;
+        }
+        countdown = timing_start_timer(p_timing, timer_id, 0);
+      }
     }
 
     if (debug_subsystem_active) {
@@ -371,7 +379,7 @@ interp_enter(struct interp_struct* p_interp) {
     case k_kil:
       switch (opcode) {
       case 0x02: /* EXIT */
-        return;
+        return 0;
       case 0xf2: /* CRASH */
       {
         volatile unsigned char* p_crash_ptr = 0;
@@ -593,10 +601,14 @@ interp_enter(struct interp_struct* p_interp) {
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
+
+  return 1;
 }
 
 int64_t
 interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
+  uint32_t ret;
+
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct timing_struct* p_timing = p_interp->p_timing;
 
@@ -608,7 +620,8 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
                             p_interp->short_instruction_run_timer_id,
                             1);
 
-  interp_enter(p_interp);
+  ret = interp_enter(p_interp);
+  assert(ret == 1);
 
   countdown = timing_get_countdown(p_timing);
   return countdown;

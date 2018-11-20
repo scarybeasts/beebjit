@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_INTURBO_H
 #define BEEBJIT_INTURBO_H
 
+#include <stdint.h>
+
 struct bbc_options;
 struct inturbo_struct;
 struct memory_access;
@@ -15,6 +17,6 @@ struct inturbo_struct* inturbo_create(struct state_6502* p_state_6502,
                                       void* p_interp_object);
 void inturbo_destroy(struct inturbo_struct* p_inturbo);
 
-void inturbo_enter(struct inturbo_struct* p_inturbo);
+uint32_t inturbo_enter(struct inturbo_struct* p_inturbo);
 
 #endif /* BEEBJIT_INTURBO_H */
