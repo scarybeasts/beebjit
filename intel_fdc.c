@@ -64,9 +64,7 @@ struct intel_fdc_struct {
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
-  uint8_t has_pending;
-  uint8_t pending_status;
-  uint8_t pending_result;
+  uint8_t data_command_running;
 };
 
 struct intel_fdc_struct*
@@ -95,9 +93,7 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_intel_fdc->current_sector = 0;
   p_intel_fdc->current_sectors_left = 0;
   p_intel_fdc->current_bytes_left = 0;
-  p_intel_fdc->has_pending = 0;
-  p_intel_fdc->pending_status = 0;
-  p_intel_fdc->pending_result = 0;
+  p_intel_fdc->data_command_running = 0;
 
   p_intel_fdc->timer_id = timing_register_timer(p_timing,
                                                 intel_fdc_timer_tick,
@@ -172,16 +168,17 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
   uint8_t param2 = p_intel_fdc->parameters[2];
 
   assert(p_intel_fdc->parameters_needed == 0);
+  assert(p_intel_fdc->data_command_running == 0);
+  assert(p_intel_fdc->current_sectors_left == 0);
+  assert(p_intel_fdc->current_bytes_left == 0);
 
   switch (p_intel_fdc->command) {
   case k_intel_fdc_command_read_sectors:
-    assert(p_intel_fdc->current_sectors_left == 0);
-    assert(p_intel_fdc->current_bytes_left == 0);
-
     p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1] = param0;
     p_intel_fdc->current_sector = param1;
     p_intel_fdc->current_sectors_left = (param2 & 0x1F);
     p_intel_fdc->current_bytes_left = k_intel_fdc_sector_size;
+    p_intel_fdc->data_command_running = 1;
 
     (void) timing_start_timer(p_intel_fdc->p_timing,
                               p_intel_fdc->timer_id,
@@ -235,8 +232,6 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
                 uint8_t val) {
   uint8_t num_params;
 
-  assert(!p_intel_fdc->has_pending);
-
   switch (addr & 0x07) {
   case k_intel_fdc_command:
     if (p_intel_fdc->status & 0x80) {
@@ -244,8 +239,9 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
       return;
     }
 
-    assert(!p_intel_fdc->current_bytes_left);
-    assert(!p_intel_fdc->current_sectors_left);
+    assert(p_intel_fdc->data_command_running == 0);
+    assert(p_intel_fdc->current_bytes_left == 0);
+    assert(p_intel_fdc->current_sectors_left == 0);
 
     p_intel_fdc->command = (val & 0x3F);
     p_intel_fdc->drive_select = (val >> 6);
@@ -279,23 +275,27 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
       return;
     }
 
-    /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
-    intel_fdc_set_status_result(p_intel_fdc, 0x80, 0x00);
-
     p_intel_fdc->parameters_needed = num_params;
     p_intel_fdc->parameters_index = 0;
 
     if (p_intel_fdc->parameters_needed == 0) {
       intel_fdc_do_command(p_intel_fdc);
+    } else {
+      /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
+      intel_fdc_set_status_result(p_intel_fdc, 0x80, 0x00);
     }
     break;
   case k_intel_fdc_parameter:
     if (p_intel_fdc->parameters_needed > 0) {
+      assert(p_intel_fdc->data_command_running == 0);
+      assert(p_intel_fdc->current_bytes_left == 0);
+      assert(p_intel_fdc->current_sectors_left == 0);
+
       p_intel_fdc->parameters[p_intel_fdc->parameters_index] = val;
       p_intel_fdc->parameters_index++;
       p_intel_fdc->parameters_needed--;
     }
-    if (p_intel_fdc->parameters_needed == 0) {
+    if (p_intel_fdc->parameters_needed == 0 && p_intel_fdc->status == 0x80) {
       intel_fdc_do_command(p_intel_fdc);
     }
     break;
@@ -341,22 +341,19 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   struct timing_struct* p_timing = p_intel_fdc->p_timing;
   size_t timer_id = p_intel_fdc->timer_id;
 
-  if (p_intel_fdc->has_pending) {
-    p_intel_fdc->has_pending = 0;
-    intel_fdc_set_status_result(p_intel_fdc,
-                                p_intel_fdc->pending_status,
-                                p_intel_fdc->pending_result);
+  current_bytes_left = p_intel_fdc->current_bytes_left;
+  current_sectors_left = p_intel_fdc->current_sectors_left;
+
+  assert(p_intel_fdc->data_command_running == 1);
+  if (current_sectors_left == 0) {
+    assert(current_bytes_left == 0);
+    p_intel_fdc->data_command_running = 0;
     (void) timing_stop_timer(p_timing, timer_id);
+    intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
     return;
   }
 
   (void) timing_increase_timer(NULL, p_timing, timer_id, 200);
-
-  current_bytes_left = p_intel_fdc->current_bytes_left;
-  current_sectors_left = p_intel_fdc->current_sectors_left;
-
-  assert(current_bytes_left);
-  assert(current_sectors_left);
 
   /* If our virtual controller is attempting to deliver a byte before the last
    * one was read, I presume that's data loss, otherwise what would all the
@@ -393,10 +390,6 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   current_sectors_left--;
   p_intel_fdc->current_sectors_left = current_sectors_left;
   if (current_sectors_left == 0) {
-    assert(!p_intel_fdc->has_pending);
-    p_intel_fdc->has_pending = 1;
-    p_intel_fdc->pending_status = 0x18;
-    p_intel_fdc->pending_result = 0x00;
     return;
   }
 
