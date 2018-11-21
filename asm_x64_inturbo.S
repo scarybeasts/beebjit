@@ -335,6 +335,18 @@ asm_x64_instruction_ADC_scratch_interp_END:
   ret
 
 
+.globl asm_x64_instruction_ALR_imm_interp
+.globl asm_x64_instruction_ALR_imm_interp_END
+asm_x64_instruction_ALR_imm_interp:
+
+  and REG_6502_A, BYTE PTR [REG_6502_PC + 1]
+  shr REG_6502_A, 1
+  setb REG_6502_CF
+
+asm_x64_instruction_ALR_imm_interp_END:
+  ret
+
+
 .globl asm_x64_instruction_AND_imm_interp
 .globl asm_x64_instruction_AND_imm_interp_END
 asm_x64_instruction_AND_imm_interp:
@@ -789,6 +801,20 @@ asm_x64_instruction_ROR_scratch_interp_END:
   ret
 
 
+.globl asm_x64_instruction_SAX_scratch_interp
+.globl asm_x64_instruction_SAX_scratch_interp_END
+asm_x64_instruction_SAX_scratch_interp:
+
+  lahf
+  mov REG_SCRATCH2_8, REG_6502_X
+  and REG_SCRATCH2_8, REG_6502_A
+  sahf
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
+
+asm_x64_instruction_SAX_scratch_interp_END:
+  ret
+
+
 .globl asm_x64_instruction_SBC_imm_interp
 .globl asm_x64_instruction_SBC_imm_interp_END
 .globl asm_x64_instruction_SBC_imm_interp_jb_patch
@@ -820,6 +846,18 @@ asm_x64_instruction_SBC_scratch_interp_jb_patch:
   seto REG_6502_OF
 
 asm_x64_instruction_SBC_scratch_interp_END:
+  ret
+
+
+.globl asm_x64_instruction_SLO_scratch_interp
+.globl asm_x64_instruction_SLO_scratch_interp_END
+asm_x64_instruction_SLO_scratch_interp:
+
+  shl REG_SCRATCH1_8, 1
+  setb REG_6502_CF
+  or REG_6502_A, REG_SCRATCH1_8
+
+asm_x64_instruction_SLO_scratch_interp_END:
   ret
 
 

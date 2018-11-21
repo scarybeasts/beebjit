@@ -142,6 +142,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_ADC_scratch_interp(p_buf);
       }
       break;
+    case k_alr:
+      asm_x64_emit_instruction_ALR_imm_interp(p_buf);
+      break;
     case k_and:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_AND_imm_interp(p_buf);
@@ -332,6 +335,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_instruction_RTS_interp(p_buf);
       opmode = 0;
       break;
+    case k_sax:
+      asm_x64_emit_instruction_SAX_scratch_interp(p_buf);
+      break;
     case k_sbc:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_SBC_imm_interp(p_buf);
@@ -347,6 +353,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_sei:
       asm_x64_emit_instruction_SEI(p_buf);
+      break;
+    case k_slo:
+      asm_x64_emit_instruction_SLO_scratch_interp(p_buf);
       break;
     case k_sta:
       asm_x64_emit_instruction_STA_scratch_interp(p_buf);
