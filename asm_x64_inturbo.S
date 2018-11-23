@@ -853,9 +853,11 @@ asm_x64_instruction_SBC_scratch_interp_END:
 .globl asm_x64_instruction_SLO_scratch_interp_END
 asm_x64_instruction_SLO_scratch_interp:
 
-  shl REG_SCRATCH1_8, 1
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  shl REG_SCRATCH2_8, 1
   setb REG_6502_CF
-  or REG_6502_A, REG_SCRATCH1_8
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_SCRATCH2_8
+  or REG_6502_A, REG_SCRATCH2_8
 
 asm_x64_instruction_SLO_scratch_interp_END:
   ret
