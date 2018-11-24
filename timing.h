@@ -27,10 +27,4 @@ uint64_t timing_update_countdown(struct timing_struct* p_timing,
                                  int64_t countdown);
 int64_t timing_trigger_callbacks(struct timing_struct* p_timing);
 
-/* Legacy APIs. */
-void timing_set_sync_tick_callback(struct timing_struct* p_timing,
-                                   void* p_callback,
-                                   void* p_object);
-void timing_do_sync_tick_callback(struct timing_struct* p_timing);
-
 #endif /* BEEBJIT_TIMING_H */

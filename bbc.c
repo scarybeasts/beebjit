@@ -26,7 +26,6 @@
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
 
-static const size_t k_bbc_us_per_timer_tick = 1000; /* 1ms / 1kHz */
 static const size_t k_bbc_us_per_vsync = 20000; /* 20ms / 50Hz */
 
 enum {
@@ -56,7 +55,6 @@ enum {
 struct bbc_struct {
   /* Internal system mechanics. */
   pthread_t cpu_thread;
-  pthread_t timer_thread;
   int thread_allocated;
   int running;
   int message_cpu_fd;
@@ -91,9 +89,6 @@ struct bbc_struct {
   struct inturbo_struct* p_inturbo;
   struct debug_struct* p_debug;
   uint32_t run_result;
-  /* Legacy timing support. */
-  uint64_t time;
-  uint64_t time_next_vsync;
   /* Timing support. */
   size_t timer_id;
   uint64_t cycles_per_run;
@@ -447,32 +442,6 @@ bbc_do_vsync(struct bbc_struct* p_bbc) {
   via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
 }
 
-static void
-bbc_sync_timer_tick(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  uint64_t time = p_bbc->time;
-
-  p_bbc->time += k_bbc_us_per_timer_tick;
-
-  /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
-  via_time_advance(p_bbc->p_system_via, k_bbc_us_per_timer_tick);
-  via_time_advance(p_bbc->p_user_via, k_bbc_us_per_timer_tick);
-
-  /* Fire vsync at 50Hz. */
-  if (time >= p_bbc->time_next_vsync) {
-    p_bbc->time_next_vsync += k_bbc_us_per_vsync;
-    bbc_do_vsync(p_bbc);
-  }
-
-  /* Read sysvia port A to update keyboard state and fire interrupts. */
-  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
-
-  /* Tick the floppy controller -- it may wish to raise an NMI if it's in
-   * the middle of reading data from disc.
-   */
-  /*intel_fdc_timer_tick(p_bbc->p_intel_fdc);*/
-}
-
 struct bbc_struct*
 bbc_create(unsigned char* p_os_rom,
            int debug_flag,
@@ -509,8 +478,6 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->run_result = 0;
 
-  p_bbc->time = 0;
-  p_bbc->time_next_vsync = k_bbc_us_per_vsync;
   p_bbc->last_gettime_us = 0;
   p_bbc->next_gettime_us_vsync = 0;
 
@@ -578,7 +545,6 @@ bbc_create(unsigned char* p_os_rom,
   if (p_bbc->p_timing == NULL) {
     errx(1, "timing_create failed");
   }
-  timing_set_sync_tick_callback(p_bbc->p_timing, bbc_sync_timer_tick, p_bbc);
 
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
@@ -848,45 +814,6 @@ bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
 }
 
 static void
-bbc_async_timer_tick(struct bbc_struct* p_bbc) {
-  /* TODO: this timer ticks at 1kHz and interrupts the JIT process at the same
-   * rate. But we only need to interrupt the JIT process if there's something
-   * to do, which would improve performance.
-   * The "cost" would be needing to be very careful with the async nature of
-   * this thread.
-   * Alternatively: dynamically adjust the timer tick based on the suite of
-   * timers and when the next one is expected to expire.
-   */
-  switch (p_bbc->mode) {
-  case k_bbc_mode_jit:
-    jit_async_timer_tick(p_bbc->p_jit);
-    break;
-  default:
-    assert(0);
-    break;
-  }
-}
-
-static void*
-bbc_timer_thread(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  volatile int* p_running = &p_bbc->running;
-
-  uint64_t time = util_gettime_us();
-
-  while (1) {
-    time += k_bbc_us_per_timer_tick;
-    util_sleep_until_us(time);
-    if (!*p_running) {
-      break;
-    }
-    bbc_async_timer_tick(p_bbc);
-  }
-
-  return NULL;
-}
-
-static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t current_gettime_us;
   uint64_t delta;
@@ -938,38 +865,26 @@ bbc_cycles_timer_callback(void* p) {
 
 static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
-  if (p_bbc->mode == k_bbc_mode_jit) {
-    int ret = pthread_create(&p_bbc->timer_thread,
-                             NULL,
-                             bbc_timer_thread,
-                             p_bbc);
-    if (ret != 0) {
-      errx(1, "couldn't create timer thread");
-    }
+  uint64_t cycles_per_run;
+  struct timing_struct* p_timing = p_bbc->p_timing;
+  p_bbc->timer_id = timing_register_timer(p_timing,
+                                          bbc_cycles_timer_callback,
+                                          p_bbc);
+
+  if (p_bbc->slow_flag) {
+    cycles_per_run = 2000;
   } else {
-    uint64_t cycles_per_run;
-    struct timing_struct* p_timing = p_bbc->p_timing;
-    p_bbc->timer_id = timing_register_timer(p_timing,
-                                            bbc_cycles_timer_callback,
-                                            p_bbc);
-
-    if (p_bbc->slow_flag) {
-      cycles_per_run = 2000;
-    } else {
-      cycles_per_run = 200000;
-    }
-    p_bbc->cycles_per_run = cycles_per_run;
-
-    (void) timing_start_timer(p_timing, p_bbc->timer_id, cycles_per_run);
-    p_bbc->last_gettime_us = util_gettime_us();
-    p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us +
-                                    k_bbc_us_per_vsync);
+    cycles_per_run = 200000;
   }
+  p_bbc->cycles_per_run = cycles_per_run;
+
+  (void) timing_start_timer(p_timing, p_bbc->timer_id, cycles_per_run);
+  p_bbc->last_gettime_us = util_gettime_us();
+  p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us + k_bbc_us_per_vsync);
 }
 
 static void*
 bbc_cpu_thread(void* p) {
-  int ret;
   uint32_t run_result;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -992,13 +907,6 @@ bbc_cpu_thread(void* p) {
 
   p_bbc->running = 0;
   p_bbc->run_result = run_result;
-
-  if (p_bbc->mode == k_bbc_mode_jit) {
-    ret = pthread_join(p_bbc->timer_thread, NULL);
-    if (ret != 0) {
-      errx(1, "pthread_join failed");
-    }
-  }
 
   bbc_cpu_send_message(p_bbc, k_message_exited);
 

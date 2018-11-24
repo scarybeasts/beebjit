@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <err.h>
 #include <limits.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -195,6 +196,10 @@ struct jit_struct {
 
   unsigned char* p_jit_base;
   unsigned char* p_semaphores;
+
+  pthread_t timer_thread;
+  int timer_running;
+  int exiting;
 
   struct util_buffer* p_dest_buf;
   struct util_buffer* p_seq_buf;
@@ -2920,7 +2925,10 @@ jit_async_timer_tick(struct jit_struct* p_jit) {
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
   struct timing_struct* p_timing = p_jit->p_timing;
-  timing_do_sync_tick_callback(p_timing);
+  int64_t countdown = timing_get_countdown(p_timing);
+  countdown -= 200000;
+  (void) timing_update_countdown(p_timing, countdown);
+  (void) timing_trigger_callbacks(p_timing);
 }
 
 static void
@@ -3117,6 +3125,26 @@ handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   p_context->uc_mcontext.gregs[REG_RIP] += rip_inc;
 }
 
+static void*
+jit_timer_thread(void* p) {
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+  volatile int* p_exiting = &p_jit->exiting;
+
+  uint64_t time = util_gettime_us();
+
+  while (1) {
+    /* 1ms == 1kHz tick. */
+    time += 1000;
+    util_sleep_until_us(time);
+    if (*p_exiting) {
+      break;
+    }
+    jit_async_timer_tick(p_jit);
+  }
+
+  return NULL;
+}
+
 uint32_t
 jit_enter(struct jit_struct* p_jit) {
   int ret;
@@ -3126,6 +3154,14 @@ jit_enter(struct jit_struct* p_jit) {
   unsigned char* p_mem_read = p_jit->p_mem_read;
   uint16_t pc_6502 = state_6502_get_pc(p_jit->abi.p_state_6502);
   unsigned char* p_start_addr = jit_get_jit_base_addr(p_jit, pc_6502);
+
+  if (!p_jit->timer_running) {
+    p_jit->timer_running = 1;
+    ret = pthread_create(&p_jit->timer_thread, NULL, jit_timer_thread, p_jit);
+    if (ret != 0) {
+      errx(1, "couldn't create timer thread");
+    }
+  }
 
   /* Ah the horrors, a SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the
@@ -3272,6 +3308,16 @@ jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops) {
 
 void
 jit_destroy(struct jit_struct* p_jit) {
+  assert(!p_jit->exiting);
+  p_jit->exiting = 1;
+
+  if (p_jit->timer_running) {
+    int ret = pthread_join(p_jit->timer_thread, NULL);
+    if (ret != 0) {
+      errx(1, "pthread_join failed");
+    }
+  }
+
   util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
   util_free_guarded_mapping(p_jit->p_jit_base,
                             k_6502_addr_space_size * k_jit_bytes_per_byte);

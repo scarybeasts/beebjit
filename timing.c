@@ -18,9 +18,6 @@ struct timing_struct {
 
   uint64_t total_timer_ticks;
   int64_t countdown;
-
-  void* p_legacy_callback;
-  void* p_legacy_object;
 };
 
 struct timing_struct*
@@ -207,18 +204,4 @@ timing_trigger_callbacks(struct timing_struct* p_timing) {
   timing_recalculate(p_timing);
 
   return p_timing->countdown;
-}
-
-void
-timing_set_sync_tick_callback(struct timing_struct* p_timing,
-                              void* p_callback,
-                              void* p_object) {
-  p_timing->p_legacy_callback = p_callback;
-  p_timing->p_legacy_object = p_object;
-}
-
-void
-timing_do_sync_tick_callback(struct timing_struct* p_timing) {
-  void (*p_callback)(void*) = p_timing->p_legacy_callback;
-  p_callback(p_timing->p_legacy_object);
 }
