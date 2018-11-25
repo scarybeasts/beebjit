@@ -540,6 +540,9 @@ main(int argc, const char* argv[]) {
 
   /* Test a few simple VIA behaviors. */
   util_buffer_set_pos(p_buf, 0x0740);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
+  emit_STA(p_buf, k_abs, 0xFE62); /* User VIA DDRB */
   emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
   emit_CMP(p_buf, k_imm, 0xFF);
   emit_REQUIRE_ZF(p_buf, 1);

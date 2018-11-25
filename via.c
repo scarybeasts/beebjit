@@ -39,7 +39,7 @@ via_create(int id, struct bbc_struct* p_bbc) {
   if (p_via == NULL) {
     errx(1, "cannot allocate via_struct");
   }
-  memset(p_via, '\0', sizeof(struct via_struct));
+  (void) memset(p_via, '\0', sizeof(struct via_struct));
 
   p_via->id = id;
   p_via->p_bbc = p_bbc;
@@ -50,11 +50,18 @@ via_create(int id, struct bbc_struct* p_bbc) {
    * I think jsbeeb could be correct because it cites a 1977 data sheet,
    * http://archive.6502.org/datasheets/mos_6522_preliminary_nov_1977.pdf
    */
+  /* EMU TODO: temporarily setting to 0xFF to get Snapper to work while I work
+   * out what's going on with a real BBC.
+   */
+  p_via->DDRA = 0xFF;
+  p_via->DDRB = 0xFF;
+  p_via->ORA = 0xFF;
+  p_via->ORB = 0xFF;
 
-  p_via->T1C = 0xffff;
-  p_via->T1L = 0xffff;
-  p_via->T2C = 0xffff;
-  p_via->T2L = 0xffff;
+  p_via->T1C = 0xFFFF;
+  p_via->T1L = 0xFFFF;
+  p_via->T2C = 0xFFFF;
+  p_via->T2L = 0xFFFF;
 
   /* From the above data sheet:
    * "The interval timer one-shot mode allows generation of a single interrupt
