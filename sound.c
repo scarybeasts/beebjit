@@ -75,12 +75,24 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
       short sample_component = p_volumes[channel];
       uint16_t counter = p_counters[channel];
       char output = p_outputs[channel];
+      uint16_t noise_rng = *p_noise_rng;
+      int is_noise = 0;
+      if (channel == 3) {
+        is_noise = 1;
+      }
 
       counter = ((counter - 1) & 0x3ff);
       if (counter == 0) {
         counter = p_periods[channel];
-        if (channel == 3) {
-          uint16_t noise_rng = *p_noise_rng;
+        output = -output;
+        p_outputs[channel] = output;
+
+        /* NOTE: we do this like jsbeeb: we only update the random number
+         * every two counter expiries, and we have the period values half what
+         * they really are. This might mirror the real silicon? It avoids
+         * needing more than 10 bits to store the period.
+         */
+        if (is_noise && (output == 1)) {
           if (*p_noise_type == 0) {
             noise_rng >>= 1;
             if (noise_rng == 0) {
@@ -91,15 +103,16 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
             noise_rng = ((noise_rng >> 1) | (bit << 14));
           }
           *p_noise_rng = noise_rng;
-          output = 1;
-          if (!(noise_rng & 1)) {
-            output = -1;
-          }
-        } else {
-          output = -output;
         }
-        p_outputs[channel] = output;
       }
+
+      if (is_noise) {
+        output = 1;
+        if (!(noise_rng & 1)) {
+          output = -1;
+        }
+      }
+
       p_counters[channel] = counter;
 
       if (output == -1) {
@@ -447,13 +460,13 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
     int noise_frequency = (data & 0x03);
     p_sound->noise_frequency = noise_frequency;
     if (noise_frequency == 0) {
-      new_period = 0x20;
+      new_period = 0x10;
     } else if (noise_frequency == 1) {
-      new_period = 0x40;
+      new_period = 0x20;
     } else if (noise_frequency == 2) {
-      new_period = 0x80;
+      new_period = 0x40;
     } else {
-      new_period = (p_sound->period[2] << 1);
+      new_period = p_sound->period[2];
     }
     p_sound->noise_type = ((data & 0x04) >> 2);
     p_sound->noise_rng = (1 << 14);
@@ -470,7 +483,7 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
   if (new_period != -1) {
     p_sound->period[channel] = new_period;
     if (channel == 2 && p_sound->noise_frequency == 3) {
-      p_sound->period[3] = (new_period << 1);
+      p_sound->period[3] = new_period;
     }
   }
 }
