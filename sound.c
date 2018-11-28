@@ -381,8 +381,14 @@ sound_create(struct bbc_options* p_options) {
     p_sound->output[i] = -1;
   }
 
-  /* NOTE: b-em sets this to 3, selecting channel 2 period? */
   p_sound->noise_frequency = 0;
+  /* EMU NOTE: if we zero initialize noise_frequency, this implies a period of
+   * 0x10 on the noise channel.
+   * The original BBC startup noise does sound like a more complicated tone
+   * than just square waves so maybe that is correct:
+   * http://www.8bs.com/sounds/bbc.wav
+   */
+  p_sound->period[3] = 0x10;
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
