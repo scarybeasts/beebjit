@@ -365,6 +365,10 @@ sound_create(struct bbc_options* p_options) {
    * initialized. This leads to max volume, lowest tone in all channels, and
    * the noise channel is periodic.
    */
+  /* EMU: note that there are various sn76489 references that cite that chips
+   * seem to start with random register values, e.g.:
+   * http://www.smspower.org/Development/SN76489
+   */
   for (i = 0; i < 4; ++i) {
     /* NOTE: b-em uses volume of 8, mid-way volume. */
     p_sound->volume[i] = max_volume;
@@ -381,14 +385,17 @@ sound_create(struct bbc_options* p_options) {
     p_sound->output[i] = -1;
   }
 
-  p_sound->noise_frequency = 0;
   /* EMU NOTE: if we zero initialize noise_frequency, this implies a period of
    * 0x10 on the noise channel.
    * The original BBC startup noise does sound like a more complicated tone
    * than just square waves so maybe that is correct:
    * http://www.8bs.com/sounds/bbc.wav
+   * I'm deviating from my "zero intiialization" policy here to select a
+   * noise frequency register value of 2, which is period 0x40, which sounds
+   * closer to the BBC boot sound we all love!
    */
-  p_sound->period[3] = 0x10;
+  p_sound->noise_frequency = 2;
+  p_sound->period[3] = 0x40;
   p_sound->noise_type = 0;
   p_sound->last_channel = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
