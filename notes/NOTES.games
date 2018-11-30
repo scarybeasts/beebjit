@@ -132,6 +132,24 @@ SHA256: 388ce49e3efcb492e27572f440106be08e5fbe2ce888d2dcaec7feb31fb9edda
 3) Waits for uservia timer to fire at $0987.
 
 
+- Pipeline.zip
+SHA256: 1a52d9fb8acd6cd130aadd96a179e736845f45176202530df72c8e4f6c78acf2
+Notes:
+Possible bug?
+[2346] 2346: LDA #$0e
+[2348] 2348: LDX #$04
+[234a] 234a: JMP $fff4
+[234d] 234d: LDY #$dd
+[234f] 234f: LDA $7dce,Y
+[...]
+The JMP $FFF4 returns to the original sequence by jumping through an indirect vector at $220, which contains the value $2349. As you can see from the sequence, the correct value might well be $234d.
+But if we resume at $2349, we "accidentally"? get the same effect:
+[2349] 2349: NOP $4c
+[234b] 234b: NOP $ff,X
+[234d] 234d: LDY #$dd
+[234f] 234f: LDA $7dce,Y
+
+
 - RocketRaid.zip
 SHA256: 535731b6c03aa8a13b9828f657fe247041c1740ee4e1c2d04adbe0ec65a9f585
 Start PC: $3400
