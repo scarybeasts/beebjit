@@ -1,19 +1,14 @@
 Files from Stairway To Hell archive unless otherwise noted.
 
 
-- arcad.bem, a180c48b3ab3a0669c8cca0b0029350e
-Use: ./6502jit -load bems/arcad.bem -opt jit:self-mod-all
-Based on: 5921034898f6710bde6d22ac5532c8d9  Arcadians.zip
+- Arcadians.zip
+SHA256: ef37488dcac07cf19c60e4838ae37c2cf00cc09953cd515a32850f09b5adc4b8
 Commands to run game:
-*LOAD ARCAD1
-*TAPE
-?&2AF=0
-CALL &3F00
-Initial 6502 PC: $3F00
+Start PC: $3F00
 IRQ1V @ $0204: $4A9A
 EVNTV @ $0220: $FFA6 (default)
 Notes:
-1) $3F00 jumps to $60D0 which is relocation loops. $60EE writes over old code,
+1) $3F00 jumps to $60D0 which is a relocation loop. $60EE writes over old code,
 including $3F00, with new code, using the STA ($70),Y opcode. So -opt
 jit:self-mod-all is needed. Eventually, $60FB does JMP $49DA. I think a BEM
 file starting at $49DA wouldn't need the jit option.
@@ -28,10 +23,8 @@ read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
 
 
-- cit.bem, c324650a75e61634c59a789af3330bde
-Use: ./6502jit -load bems/cit.bem -opt jit:no-rom-fault
-Based on: 1e91b92780aac00ad3afff07af58c761  Citadel.zip
-Initial 6502 PC: $55E8
+- Citadel.zip
+SHA256: 741b4efd3b5be7092b09c63529e1104b428d0474b4556d8720a4110b31ec3863
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $2500
 Notes:
@@ -41,17 +34,12 @@ Notes:
 4) Need to load the loader first to select key layout for main game to work.
 5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
 $2500 simply does INC $0120; RTS.
+6) Trampoline bounce noise uses periodic white noise with very long period.
 
 
-- cq.bem, b10878532187493f25112f78e023e59c
-Use: ./6502jit -load bems/cq.bem <TODO>
-Based on: e26cb656d8318f51da80d293374bfe23  CastleQuest.zip
-Commands to run game:
-*LOAD CASTLE7
-*TAPE
-?&2AF=0
-A=INKEY(200):CALL &5460
-Initial 6502 PC: $5460
+- CastleQuest.zip
+SHA256: 78ee6b55a6fec679240abd576a83554ba374513d10bd5aff5de4824a114decb1
+Start PC: $5460
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $FFA6 (default)
 Notes:
@@ -68,11 +56,12 @@ The bug can be confirmed in other emulators by running the game via:
 *CASTLE7
 and holding down RETURN indefinitely. When the game starts, the keyboard won't
 work. Lovely!
-Worked around by saving a BEM file that has empty key down state, and keyboard
-interrupts enabled.
 
 
-- exile_loader.bem
+- Exile.zip
+SHA256: 67aac020f216178d8a89237faa86825611834fbaa79915c1604bd07b60d83268
+Start PC: $6075
+IRQ1V @ $0204: $12A6
 Notes:
 1) Routine at $2687 detects the presence of sideways RAM or not. It cycles
 through all values (0x0F - 0x00) of ROM select, checking for each whether the
@@ -80,42 +69,25 @@ full $8000 - $C000 range can reflect back reads for writes of #$AA and #$55.
 2) Sideways RAM detection routine writes to user VIA as well as $FE30 (ROM
 select) and $FE32 (ROM select alias). Maybe some old sideways RAM add-on was
 attached or controlled via the user VIA's port b?
-
-
-- exile_post_sed.bem, 03a4afdb0c75b987d1721176ed17f9cc
-Use: ./6502jit -load bems/exile_post_sed.bem
-Based on: cf9c81aa292f2a4c47175b02f301b3f5  Exile.zip
-Alt1 note: Patches out vsync wait for turbo speed.
-Alt1: echo -e 'sm 1f65 ea\nsm 1f66 ea\nstopat 0\nc\n' | ./6502jit -load bems/exile_post_sed.bem -stopat 6075
-Initial 6502 PC: $6075
-IRQ1V @ $0204: $12A6
+3) For turbo speed, patch out vsync with NOPs at $1F65, $1F66.
 Notes:
-1) Uses SED, at $6045, as part of checksumming the saved game file?
-2) Lots of self-modifying code.
-3) Seems to use zero-page wraparound for zero page X addressing mode at $223D
+4) Uses SED, at $6045, as part of checksumming the saved game file?
+5) Lots of self-modifying code.
+6) Seems to use zero-page wraparound for zero page X addressing mode at $223D
 with ADC $B6,X. And some further instances below.
 
 
-- ft.bem
+- Firetrack.zip
+SHA256: 0ca5cdb4bfe8f17eb5bb5328fe48e6b424d36c004101bcc9f7369fb5db64e5c0
 Notes:
 1) At $221D, uses OSBYTE 129 to read keyboard ($E713).
 This calls KEYV, stored at $0228, set to $219E, which calls through to a
 keyboard scan at $21A2 by jumping to $EF02.
 
 
-- galaforce.bem, d17b8e77b6a8ca311b099ad0bc65a275
-Use: ./6502jit -load bems/galaforce.bem -opt jit:no-rom-fault
-Based on: 2fd6a8499fe3f6120daf7e52d7be7c60  Galaforce.zip
-Alt1 note: Benchmark, patches out busy wait loop and renders 1000000 sprites
-before stopping. Had it at about 1.2s but something slowed it down, it's now
-1.5s
-Alt1: echo -ne 'sm 1209 ea\ncounterat b00\ncounter 1000000\nc\n' | time ./6502jit -load bems/galaforce.bem -opt jit:no-rom-fault -stopat bef
-Commands to run game:
-*LOAD GALA3
-*TAPE
-?&2AF=0
-CALL &4000
-Initial 6502 PC: $4000
+- Galaforce.zip
+SHA256: 923fa8a830bf80d5bc039d4ad328a9d499f4a7e3372e9b6a519f6be19111ce84
+Start PC: $4000
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $0D8F
 Notes:
@@ -131,75 +103,38 @@ the first being $C039?? That's ROM, not writeable.
 writes.
 
 
-- hopper.bem, e5daa3274e3e2729195fd80859efe516
-Use: ./6502jit -load bems/hopper.bem -opt jit:self-mod-all -d -r -s
-Based on: d2e7a0712d13b5c26d8cd0360551bfdf  Hopper.zip
+- Hopper.zip
+SHA256: 58075e601f23abaec1d8465da1fe09e8d770e1ab19d55afdd0c0e739ee639563
 Initial 6502 PC: $41D0
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $FFA6 (default)
 Notes:
 1) Uses SED.
 2) Self-modifies a drawing route at $1F8E using aby addressing mode:
-  STA $2004,Y. Routine starts at $1F7A. 8 bytes of code are written.
+STA $2004,Y. Routine starts at $1F7A. 8 bytes of code are written.
 3) Self-modified instructions are different opcodes, e.g. starts with
-  LDA ($72),Y vs. LDA #$30.
+LDA ($72),Y vs. LDA #$30.
 4) Doesn't sync to vsync so need to slow it down to play!
 
 
-- lab.bem
-Based on: f00b3c18c653ac639366579a59b81f41  Labyrinth.ssd
-Commands to run game:
-*LOAD LABRNTH
-CALL &5D00
-Initial 6502 PC: $5D00
-IRQ1V @ $0204: $DC93 (default)
-
-
-- meteor.bem
-(todo)
+- Meteors.zip
+SHA256: 176e00afc9a83a1b07b8ec711f822398b8f5e64c2b014dde1940f8a958388e7d
 Notes:
 1) Loads T1CH, LDA $FE65 at $1601, which is not super common.
 2) Seems to be using the user VIA timers, although the game seems to work well
 with the user VIA timer not wired up?
 
 
-- mree.bem, c25c41bb59855f25f293fb41d89c8c69
-Use: ./6502jit -load bems/mree.bem
-Based on: 4f1e5098d4fa8701d95f08b773245841  MrEe.zip
-Commands to run game:
-*LOAD MRE2
-*TAPE
-?&2AF=0
-CALL &4300
-Notes:
+- MrEe.zip
+SHA256: 388ce49e3efcb492e27572f440106be08e5fbe2ce888d2dcaec7feb31fb9edda
 1) Immediately, $4302 writes to ROM?! via STA $801B.
 2) Uses SED, ugh, first instance $0DB5. Unclear why.
 3) Waits for uservia timer to fire at $0987.
 
 
-- pom.bem, 7517be27b7a3d8d03babc4feec43ff31
-Use: ./6502jit -load bems/pom.bem -opt jit:no-self-mod-abs
-Based on: 24658bcd6bf33387637fc56467b1b821  PalaceOfMagic.zip
-Commands to run game:
-*LOAD POM2
-*TAPE
-?&2AF=0
-CALL &63A0
-Initial 6502 PC: $63A0
-IRQ1V @ $0204: $DC93 (default)
-EVNTV @ $0220: $FFA6 (default)
-Notes:
-1) Seems to work flawlessly(?) first time, although this is one of the later
-games tried.
-2) Must use vsync: runs at normal speed.
-3) Does not appear to use self-modifying code.
-4) Appears to have a non-self-modifying but unrolled sprite plot loop at $0700.
-
-
-- rocket.bem, ca67bdb32f47be3b2f54aae11c0b312c
-Use: Doesn't work.
-Based on: 80fe04ffb868db66892e8f87dca28e28  Acornsoft/RocketRaid.ssd
-Initial 6502 PC: $3400
+- RocketRaid.zip
+SHA256: 535731b6c03aa8a13b9828f657fe247041c1740ee4e1c2d04adbe0ec65a9f585
+Start PC: $3400
 IRQ1V @ $0204: $DC93 (default)
 EVNTV @ $0220: $FFA6 (default)
 Notes:
@@ -217,22 +152,9 @@ arriving in the last cycle of the LDA #$02 or the first three cycles of the
 BIT.
 
 
-- starship.bem, a30b2a6bc8153c71a006a6d843dabed6
-Use: ./6502jit -load bems/starship.bem -opt jit:no-self-mod-abs
-Based on: eb29752d2aaa1912772665a72822a616  StarshipCommand.zip
-Commands to run game:
-*LOAD COMMAND
-?&2AF=0
-CALL &62B1
-Initial 6502 PC: $62B1
-IRQ1V @ $0204: $DC93 (default)
-EVNTV @ $0220: $FFA6 (default)
-
-
-- sync.bem, fddb130a699225eea4b0bc4cd33ed3a9
-Use: echo -e 'sm 7427 ea\nc\n' | ./6502jit -load bems/sync.bem -stopat 7400
-Based on: 9301dd8a1a6986bf75c3a57fcc283238  Syncron.ssd
-Initial 6502 PC: $7400
+- Syncron.zip
+SHA256: 0bdec178a5b680715b0ac58e74eb3290e1427144f05ca5b47434d66afa782aa5
+Start PC: $7400
 IRQ1V @ $0204: $045C
 EVNTV @ $0220: $D9CD (??)
 Notes:
@@ -241,15 +163,9 @@ Calls BRK if the compare fails. Breaks an emulator that decrements timers
 asynchronously!
 
 
-- tarzan.bem, eb47d62dd4014aeb5a0a22d2850f013d
-Based on: 375166a3ff683347fd5b8a224741fc64  Tarzan-Alligata.zip
-Commands to run game:
-*LOAD TARZAN2
-CALL &4332
-Commands to run emulator:
-(Patches out vsync test and DFS ROM presence.)
-echo -e 'sm 2af 00\nsm 24dc ea\nsm 24dd ea\nstopat 0\nc\n' | ./6502jit -load bems/tarzan.bem -opt jit:no-self-mod-abs -stopat 2e11
-Initial 6502 PC: $4332
+- Tarzan-Alligata.zip
+SHA256: 31c18df44e7fa743a0cdfd7b20b4dd8fe89106d251eee6904f0076d203188cd8
+Start PC: $4332
 IRQ1V @ $0204: $DC93 (default)
 Notes:
 1) Initial relocation routine jumps to $2E11 at $438E.
@@ -258,19 +174,8 @@ nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
 
 
-- tkv.bem, 2de927001a7aec1c3ce03cd37bc87128
-Based on: 220ad878e83106e522a1c0bb1e83df97  TwinKingdomValley.ssd
-Commands to run game:
-*LOAD TKV
-CALL &7B00
-Initial 6502 PC: $7B00
-IRQ1V @ $0204: $DC93 (default)
-EVNTV @ $0220: $FFA6 (default)
-
-
-- Snapper
-Based on:
-7d801d30c56c27b61faaf9b6b7c3fa45  Snapper-v1.zip
+- Snapper-v1.zip
+SHA256: 0829a362d305ee3ec238882780c279d27f26e18e9d4408f830d4e7d9b0e29a68
 IRQ1V @ $0204: $DC93 (default)
 Notes:
 - Interesting wait loop at $10D3, which is simply polling $FE60 waiting for it
@@ -278,9 +183,12 @@ to change. This value automagically changes in the hardware as the user VIA
 timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
 the timer interrupt and indeed the IER for the user VIA is 0x00.
 
-- zalaga.bem
+
+- Zalaga.zip
+SHA256: 76b0a9c7fe4ff72b778c621bf044d3f3fc7f0bd46e6076de5e87ddc5ec0a44e9
 Notes:
 - Undocumented instruction NOP $32A5,X at $221A.
 - Undocumented instruction SAX $80 at $10B0.
 - Undocumented instruction ALR #$AA at $10B2.
 - Undocumented instruction SLO $80 at $10B4.
+
