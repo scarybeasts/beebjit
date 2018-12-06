@@ -661,6 +661,18 @@ bbc_load_rom(struct bbc_struct* p_bbc,
 }
 
 void
+bbc_save_rom(struct bbc_struct* p_bbc,
+             unsigned char index,
+             unsigned char* p_dest) {
+  unsigned char* p_rom_src = p_bbc->p_mem_sideways;
+
+  assert(index < k_bbc_num_roms);
+
+  p_rom_src += (index * k_bbc_rom_size);
+  (void) memcpy(p_dest, p_rom_src, k_bbc_rom_size);
+}
+
+void
 bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index) {
   assert(index < k_bbc_num_roms);
   p_bbc->is_sideways_ram_bank[index] = 1;

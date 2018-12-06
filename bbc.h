@@ -59,6 +59,9 @@ void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   unsigned char index,
                   unsigned char* p_rom_src);
+void bbc_save_rom(struct bbc_struct* p_bbc,
+                  unsigned char index,
+                  unsigned char* p_dest);
 void bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index);
 unsigned char bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index);

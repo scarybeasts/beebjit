@@ -173,7 +173,6 @@ main(int argc, const char* argv[]) {
     }
   }
 
-  /* Load the state after setting up the ROMs, so that ROM selection works. */
   if (load_name != NULL) {
     state_load(p_bbc, load_name);
   }

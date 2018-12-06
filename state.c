@@ -143,11 +143,6 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   p_bem = (struct bem_v2x*) snapshot;
 
-  if (p_bem->model == 4) {
-    /* TODO: load the actual sideways RAM from the save file. */
-    bbc_make_sideways_ram(p_bbc, 0);
-  }
-
   bbc_set_memory_block(p_bbc, 0, k_bbc_ram_size, p_bem->ram);
 
   for (i = 0; i < k_bbc_num_roms; ++i) {
@@ -252,6 +247,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
   unsigned char unused_char;
+  size_t i;
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
@@ -268,6 +264,10 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->fe34 = 0x00;
 
   (void) memcpy(p_bem->ram, p_mem_read, k_bbc_ram_size);
+
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    bbc_save_rom(p_bbc, i, (p_bem->rom + (i * k_bbc_rom_size)));
+  }
 
   bbc_get_registers(p_bbc,
                     &p_bem->a,
