@@ -2,6 +2,7 @@
 
 #include "bbc.h"
 #include "sound.h"
+#include "state_6502.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
@@ -138,6 +139,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
 
   state_read(snapshot, p_file_name);
 
@@ -151,13 +153,29 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 
   bbc_sideways_select(p_bbc, p_bem->fe30);
 
-  bbc_set_registers(p_bbc,
-                    p_bem->a,
-                    p_bem->x,
-                    p_bem->y,
-                    p_bem->s,
-                    p_bem->flags,
-                    p_bem->pc);
+  state_6502_set_registers(p_state_6502,
+                           p_bem->a,
+                           p_bem->x,
+                           p_bem->y,
+                           p_bem->s,
+                           p_bem->flags,
+                           p_bem->pc);
+  state_6502_set_cycles(p_state_6502, p_bem->cycles);
+  if (p_bem->nmi) {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, 1);
+  } else {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, 0);
+  }
+  if (p_bem->interrupt & 1) {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_1, 1);
+  } else {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_1, 0);
+  }
+  if (p_bem->interrupt & 2) {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_2, 1);
+  } else {
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_2, 0);
+  }
 
   video_set_ula_control(p_video, p_bem->ula_control);
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
@@ -252,6 +270,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
 
   (void) memset(snapshot, '\0', k_snapshot_size);
@@ -269,13 +288,27 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
     bbc_save_rom(p_bbc, i, (p_bem->rom + (i * k_bbc_rom_size)));
   }
 
-  bbc_get_registers(p_bbc,
-                    &p_bem->a,
-                    &p_bem->x,
-                    &p_bem->y,
-                    &p_bem->s,
-                    &p_bem->flags,
-                    &p_bem->pc);
+  state_6502_get_registers(p_state_6502,
+                           &p_bem->a,
+                           &p_bem->x,
+                           &p_bem->y,
+                           &p_bem->s,
+                           &p_bem->flags,
+                           &p_bem->pc);
+  /* NOTE: likely integer truncation as the b-em format is only 32-bit. */
+  p_bem->cycles = (uint32_t) state_6502_get_cycles(p_state_6502);
+  p_bem->interrupt = 0;
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_1)) {
+    p_bem->interrupt |= 1;
+  }
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_2)) {
+    p_bem->interrupt |= 2;
+  }
+  p_bem->nmi = 0;
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+    p_bem->nmi = 1;
+  }
+
   p_bem->ula_control = video_get_ula_control(p_video);
   video_get_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_get_crtc_registers(p_video, &p_bem->crtc_regs[0]);
@@ -324,5 +357,6 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->uservia_t1l <<= 1;
   p_bem->uservia_t2c <<= 1;
   p_bem->uservia_t2l <<= 1;
+
   util_file_write(p_file_name, snapshot, k_snapshot_size);
 }
