@@ -27,22 +27,22 @@ struct sound_struct {
   /* Calculated configuration. */
   double sn_ticks_per_host_tick;
   size_t sn_frames_per_fill;
-  short volumes[16];
+  int16_t volumes[16];
 
   /* Internal state. */
   int thread_running;
   int do_exit;
   pthread_t sound_thread;
   size_t cycles;
-  short* p_host_frames;
-  short* p_sn_frames;
+  int16_t* p_host_frames;
+  int16_t* p_sn_frames;
   uint16_t counter[k_sound_num_channels];
-  char output[k_sound_num_channels];
+  int8_t output[k_sound_num_channels];
   uint16_t noise_rng;
 
   /* Register values / interface from the host. */
   int write_status;
-  short volume[k_sound_num_channels];
+  int16_t volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
   /* 0 - low, 1 - medium, 2 - high, 3 -- use tone generator 1. */
   int noise_frequency;
@@ -57,22 +57,22 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
   size_t channel;
 
   size_t sn_frames_per_fill = p_sound->sn_frames_per_fill;
-  short* p_sn_frames = p_sound->p_sn_frames;
+  int16_t* p_sn_frames = p_sound->p_sn_frames;
   uint16_t* p_counters = &p_sound->counter[0];
-  char* p_outputs = &p_sound->output[0];
+  int8_t* p_outputs = &p_sound->output[0];
   /* These are written by another thread. */
-  volatile short* p_volumes = &p_sound->volume[0];
+  volatile int16_t* p_volumes = &p_sound->volume[0];
   volatile uint16_t* p_periods = &p_sound->period[0];
   volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
   volatile int* p_noise_type = &p_sound->noise_type;
 
   for (i = 0; i < sn_frames_per_fill; ++i) {
-    short sample = 0;
+    int16_t sample = 0;
     for (channel = 0; channel < 4; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
-      short sample_component = p_volumes[channel];
+      int16_t sample_component = p_volumes[channel];
       uint16_t counter = p_counters[channel];
       char output = p_outputs[channel];
       uint16_t noise_rng = *p_noise_rng;
@@ -128,8 +128,8 @@ static void
 sound_fill_buffer(struct sound_struct* p_sound) {
   size_t i;
 
-  short* p_host_frames = p_sound->p_host_frames;
-  short* p_sn_frames = p_sound->p_sn_frames;
+  int16_t* p_host_frames = p_sound->p_host_frames;
+  int16_t* p_sn_frames = p_sound->p_sn_frames;
   size_t host_frames_per_fill = p_sound->host_frames_per_fill;
   double resample_step = p_sound->sn_ticks_per_host_tick;
   double resample_index = 0;
@@ -295,7 +295,7 @@ sound_create(struct bbc_options* p_options) {
   size_t i;
   double volume;
   int option;
-  short max_volume;
+  int16_t max_volume;
 
   const char* p_opt_flags = p_options->p_opt_flags;
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
@@ -501,10 +501,62 @@ sound_apply_write_bit_and_data(struct sound_struct* p_sound,
   }
 }
 
+static uint8_t
+sound_inverse_volume_lookup(struct sound_struct* p_sound, int16_t volume) {
+  size_t i;
+  for (i = 0; i < 16; ++i) {
+    if (p_sound->volumes[i] == volume) {
+      return i;
+    }
+  }
+  assert(0);
+  return 0;
+}
+
 void
-sound_set_registers(struct sound_struct* p_sound, unsigned char* p_volumes) {
+sound_get_state(struct sound_struct* p_sound,
+                uint8_t* p_volumes,
+                uint16_t* p_periods,
+                uint16_t* p_counters,
+                int8_t* p_outputs,
+                uint8_t* p_last_channel,
+                int* p_noise_type,
+                uint8_t* p_noise_frequency,
+                uint16_t* p_noise_rng) {
+  size_t i;
+  for (i = 0; i < 4; ++i) {
+    p_volumes[i] = sound_inverse_volume_lookup(p_sound, p_sound->volume[i]);
+    p_periods[i] = p_sound->period[i];
+    p_counters[i] = p_sound->counter[i];
+    p_outputs[i] = p_sound->output[i];
+  }
+
+  *p_last_channel = p_sound->last_channel;
+  *p_noise_type = p_sound->noise_type;
+  *p_noise_frequency = p_sound->noise_frequency;
+  *p_noise_rng = p_sound->noise_rng;
+}
+
+void
+sound_set_state(struct sound_struct* p_sound,
+                uint8_t* p_volumes,
+                uint16_t* p_periods,
+                uint16_t* p_counters,
+                int8_t* p_outputs,
+                uint8_t last_channel,
+                int noise_type,
+                uint8_t noise_frequency,
+                uint16_t noise_rng) {
   size_t i;
   for (i = 0; i < 4; ++i) {
     p_sound->volume[i] = p_sound->volumes[p_volumes[i]];
+    p_sound->period[i] = p_periods[i];
+    p_sound->counter[i] = p_counters[i];
+    p_sound->output[i] = p_outputs[i];
   }
+
+  p_sound->last_channel = last_channel;
+  p_sound->noise_type = noise_type;
+  p_sound->noise_frequency = noise_frequency;
+  p_sound->noise_rng = noise_rng;
 }

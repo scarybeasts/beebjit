@@ -93,12 +93,12 @@ struct bem_v2x {
   unsigned char video_scry_high;
   unsigned char video_oddclock;
   int vidclocks;
-  /* Sound: sn76489 . */
+  /* Sound: sn76489. */
   uint32_t sn_latch[4];
   uint32_t sn_count[4];
   uint32_t sn_stat[4];
-  unsigned char sn_vol[4];
-  unsigned char sn_noise;
+  uint8_t sn_vol[4];
+  uint8_t sn_noise;
   uint16_t sn_shift;
 } __attribute__((packed));
 
@@ -131,8 +131,12 @@ state_read(unsigned char* p_buf, const char* p_file_name) {
 void
 state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
-  unsigned char snapshot[k_snapshot_size];
-  unsigned char volumes[4];
+  uint8_t snapshot[k_snapshot_size];
+  uint8_t volumes[4];
+  uint16_t periods[4];
+  uint16_t counters[4];
+  int8_t outputs[4];
+  uint8_t last_channel;
   size_t i;
 
   struct sound_struct* p_sound = bbc_get_sound(p_bbc);
@@ -233,14 +237,38 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   /* b-em stores channels in the inverse order: channel 0 is noise. We use
    * channel 3 is noise, matching the raw registers.
    */
-  for (i = 0; i <= 3; ++i) {
-    volumes[i] = p_bem->sn_vol[3 - i];
+  for (i = 0; i < 4; ++i) {
+    size_t sn_channel = (3 - i);
+    uint16_t period = (p_bem->sn_latch[sn_channel] >> 6);
+    uint16_t counter = (p_bem->sn_count[sn_channel] >> 6);
+    int8_t output = 1;
+    volumes[i] = p_bem->sn_vol[sn_channel];
+    /* b-em runs the noise rng twice as fast as we do, so half the timings. */
+    if (i == 0) {
+      period >>= 1;
+      counter >>= 1;
+    }
+    periods[i] = period;
+    counters[i] = counter;
+    if (p_bem->sn_stat[sn_channel] >= 16) {
+      output = -1;
+    }
+    outputs[i] = output;
   }
+
   /* NOTE: b-em doesn't serialize the "last channel updated" state, so it's not
    * possible to fully reconstruct state.
    */
-  /* TODO: restore more than just volumes. */
-  sound_set_registers(p_sound, &volumes[0]);
+  last_channel = 0;
+  sound_set_state(p_sound,
+                  &volumes[0],
+                  &periods[0],
+                  &counters[0],
+                  &outputs[0],
+                  last_channel,
+                  ((p_bem->sn_noise & 0x04) >> 2),
+                  (p_bem->sn_noise & 0x03),
+                  p_bem->sn_shift);
 }
 
 void
@@ -265,8 +293,17 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   unsigned char snapshot[k_snapshot_size];
   unsigned char unused_char;
+  uint8_t volumes[4];
+  uint16_t periods[4];
+  uint16_t counters[4];
+  int8_t outputs[4];
+  uint8_t last_channel;
+  int noise_type;
+  uint8_t noise_frequency;
+  uint16_t noise_rng;
   size_t i;
 
+  struct sound_struct* p_sound = bbc_get_sound(p_bbc);
   struct video_struct* p_video = bbc_get_video(p_bbc);
   struct via_struct* p_system_via = bbc_get_sysvia(p_bbc);
   struct via_struct* p_user_via = bbc_get_uservia(p_bbc);
@@ -357,6 +394,37 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->uservia_t1l <<= 1;
   p_bem->uservia_t2c <<= 1;
   p_bem->uservia_t2l <<= 1;
+
+  sound_get_state(p_sound,
+                  &volumes[0],
+                  &periods[0],
+                  &counters[0],
+                  &outputs[0],
+                  &last_channel,
+                  &noise_type,
+                  &noise_frequency,
+                  &noise_rng);
+  for (i = 0; i < 4; ++i) {
+    size_t sn_channel = (3 - i);
+    uint32_t period = periods[i];
+    uint32_t counter = counters[i];
+    uint32_t stat = 0;
+    p_bem->sn_vol[sn_channel] = volumes[i];
+    /* b-em runs the noise rng twice as fast as we do, so double the timings. */
+    if (i == 0) {
+      period <<= 1;
+      counter <<= 1;
+    }
+    p_bem->sn_latch[sn_channel] = (period << 6);
+    p_bem->sn_count[sn_channel] = (counter << 6);
+    if (outputs[i] == -1) {
+      stat = 16;
+    }
+    p_bem->sn_stat[sn_channel] = stat;
+  }
+  p_bem->sn_noise = (noise_type << 2);
+  p_bem->sn_noise |= noise_frequency;
+  p_bem->sn_shift = noise_rng;
 
   util_file_write(p_file_name, snapshot, k_snapshot_size);
 }

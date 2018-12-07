@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_SOUND_H
 #define BEEBJIT_SOUND_H
 
+#include <stdint.h>
+
 struct bbc_options;
 struct sound_struct;
 
@@ -8,11 +10,27 @@ struct sound_struct* sound_create(struct bbc_options* p_options);
 void sound_destroy(struct sound_struct* p_sound);
 void sound_start_playing(struct sound_struct* p_sound);
 
-void sound_set_registers(struct sound_struct* p_sound,
-                         unsigned char* p_volumes);
+void sound_get_state(struct sound_struct* p_sound,
+                     uint8_t* p_volumes,
+                     uint16_t* p_periods,
+                     uint16_t* p_counters,
+                     int8_t* p_outputs,
+                     uint8_t* p_last_channel,
+                     int* p_noise_type,
+                     uint8_t* p_noise_frequency,
+                     uint16_t* p_noise_rng);
+void sound_set_state(struct sound_struct* p_sound,
+                     uint8_t* p_volumes,
+                     uint16_t* p_periods,
+                     uint16_t* p_counters,
+                     int8_t* p_outputs,
+                     uint8_t last_channel,
+                     int noise_type,
+                     uint8_t noise_frequency,
+                     uint16_t noise_rng);
 
 void sound_apply_write_bit_and_data(struct sound_struct* p_sound,
                                     int write,
-                                    unsigned char data);
+                                    uint8_t data);
 
 #endif /* BEEBJIT_SOUND_H */
