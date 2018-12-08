@@ -386,8 +386,17 @@ main(int argc, const char* argv[]) {
   p_mem[index++] = 0xf2; */ /* FAIL */
   emit_JMP(p_buf, k_abs, 0xC540);
 
-  /* Test various simple hardware register read / writes. */
+  /* Test various simple hardware register read / writes and initial state. */
   util_buffer_set_pos(p_buf, 0x0540);
+  emit_LDA(p_buf, k_abs, 0xFE42); /* DDRB should initialize to 0, all inputs. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xFE40); /* Inputs should be all 1. */
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE42); /* Set DDRB to all outputs. */
+  emit_LDA(p_buf, k_abs, 0xFE40); /* Outputs should be all 0. */
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_STA(p_buf, k_abs, 0xFE4A);
   emit_LDA(p_buf, k_abs, 0xFE4A);
@@ -841,7 +850,7 @@ main(int argc, const char* argv[]) {
   emit_CRASH(p_buf);
 
   /* Tests for a bug in inturbo mode where the upper bits of the carry flag
-   * register got corrupted.
+   * register got corrupted in inturbo mode.
    */
   util_buffer_set_pos(p_buf, 0x0B80);
   emit_LDA(p_buf, k_imm, 0x07);
@@ -853,7 +862,44 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCBC0);
 
+  /* Test VIA PB7 handling works correctly. */
   util_buffer_set_pos(p_buf, 0x0BC0);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE6E); /* IER: turn off interrupts. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE62); /* DDRB: all outputs. */
+  emit_STA(p_buf, k_abs, 0xFE60); /* ORB: 0xFF */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE6B); /* ACR: PB7 output mode, continuous. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE6C); /* PCR: set to known value. */
+  emit_STA(p_buf, k_abs, 0xFE64); /* T1CL: 0 */
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0xFE65); /* T1CH: 0x10 */
+  emit_LDA(p_buf, k_abs, 0xFE60);
+  emit_CMP(p_buf, k_imm, 0x7F);   /* ORB: needs PB7 low. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE62); /* DDRB: all inputs. */
+  emit_LDA(p_buf, k_abs, 0xFE60);
+  emit_CMP(p_buf, k_imm, 0x7F);   /* IRB: needs PB7 low. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xFE60);
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_BNE(p_buf, -7);            /* Loop until PB7 flips. */
+  emit_LDA(p_buf, k_abs, 0xFE60);
+  emit_CMP(p_buf, k_imm, 0x7F);
+  emit_BNE(p_buf, -7);            /* Loop until PB7 flips back. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE6B); /* ACR: not PB7 output mode, one shot. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE62); /* DDRB: all outputs. */
+  emit_LDA(p_buf, k_abs, 0xFE60);
+  emit_CMP(p_buf, k_imm, 0xFF);   /* Make sure low PB7 doesn't trash ORB. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCC40);
+
+  util_buffer_set_pos(p_buf, 0x0C40);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
