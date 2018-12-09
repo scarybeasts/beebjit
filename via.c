@@ -72,8 +72,8 @@ via_create(int id, struct bbc_struct* p_bbc) {
   p_via->t1_oneshot_fired = 1;
   p_via->t2_oneshot_fired = 1;
 
-  /* EMU NOTE: differs from MAME, which sets to 1. */
-  p_via->t1_pb7 = 0;
+  /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
+  p_via->t1_pb7 = 1;
 
   return p_via;
 }
@@ -452,10 +452,10 @@ via_time_advance(struct via_struct* p_via, size_t us) {
   if (p_via->T1C < 0) {
     if (!p_via->t1_oneshot_fired) {
       via_raise_interrupt(p_via, k_int_TIMER1);
-      if (p_via->ACR & 0x80) {
-        /* If PB7 output mode is active, toggle PB7. */
-        p_via->t1_pb7 = !p_via->t1_pb7;
-      }
+      /* EMU TODO: is PB7 maintained regardless of whether PB7 mode is active?
+       * Unknown so just copy MAME for now and say it is.
+       */
+      p_via->t1_pb7 = !p_via->t1_pb7;
     }
     /* If we're in one-shot mode, flag the timer hit so we don't assert an
      * interrupt again until T1CH has been re-written.
