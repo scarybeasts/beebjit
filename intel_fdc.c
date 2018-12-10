@@ -171,9 +171,10 @@ intel_fdc_read(struct intel_fdc_struct* p_intel_fdc, uint16_t addr) {
                                 p_intel_fdc->result);
     return p_intel_fdc->data;
   default:
-    assert(0);
     break;
   }
+  assert(0);
+  return 0;
 }
 
 static void

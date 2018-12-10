@@ -126,6 +126,8 @@ state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
   int irq_value = (1 << irq);
   int fire = !!(p_state_6502->irq_fire & irq_value);
 
+  (void) fire;
+
   assert(state_6502_irq_is_edge_triggered(irq));
   assert(fire);
 

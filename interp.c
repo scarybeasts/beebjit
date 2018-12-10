@@ -623,6 +623,7 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
                             1);
 
   ret = interp_enter(p_interp);
+  (void) ret;
   assert(ret == (uint32_t) -1);
 
   countdown = timing_get_countdown(p_timing);

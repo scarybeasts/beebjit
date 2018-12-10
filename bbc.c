@@ -437,6 +437,7 @@ bbc_do_vsync(struct bbc_struct* p_bbc) {
   bbc_cpu_send_message(p_bbc, k_message_vsync);
   if (bbc_get_vsync_wait_for_render(p_bbc)) {
     uint8_t message = bbc_cpu_receive_message(p_bbc);
+    (void) message;
     assert(message == k_message_render_done);
   }
   via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
@@ -614,6 +615,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   int ret;
   volatile int* p_running = &p_bbc->running;
   volatile int* p_thread_allocated = &p_bbc->thread_allocated;
+
+  (void) p_running;
   assert(!*p_running);
 
   if (*p_thread_allocated) {
@@ -915,6 +918,7 @@ bbc_cpu_thread(void* p) {
     break;
   default:
     assert(0);
+    run_result = 0;
   }
 
   p_bbc->running = 0;
@@ -945,6 +949,8 @@ uint32_t
 bbc_get_run_result(struct bbc_struct* p_bbc) {
   volatile uint32_t* p_ret = &p_bbc->run_result;
   volatile int* p_running = &p_bbc->running;
+
+  (void) p_running;
   assert(!*p_running);
 
   return *p_ret;

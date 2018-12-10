@@ -367,6 +367,7 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
     p_via = bbc_get_uservia(p_bbc);
   } else {
     assert(0);
+    p_via = NULL;
   }
   via_get_registers(p_via,
                     &ORA,

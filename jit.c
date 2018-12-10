@@ -2348,6 +2348,7 @@ jit_6502_addr_from_intel(struct jit_struct* p_jit, unsigned char* intel_rip) {
       }
       addr_6502++;
     }
+    (void) found;
     assert(found);
   }
 
@@ -3178,6 +3179,7 @@ jit_enter(struct jit_struct* p_jit) {
   /* The memory must be aligned to at least 0x10000 so that our register access
    * tricks work.
    */
+  (void) p_mem_read;
   assert(((size_t) p_mem_read & 0xffff) == 0);
 
   run_result = asm_x64_asm_enter(p_jit, (uint32_t) (size_t) p_start_addr, 0);
