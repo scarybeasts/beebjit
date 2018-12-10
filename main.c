@@ -42,7 +42,7 @@ main(int argc, const char* argv[]) {
   int test_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
-  int mode = k_bbc_mode_jit;
+  int mode = k_bbc_mode_inturbo;
   uint64_t cycles = 0;
   uint32_t expect = 0;
 
