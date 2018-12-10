@@ -82,7 +82,7 @@ main(int argc, const char* argv[]) {
   p_mem[0x3FFE] = 0x00;
   p_mem[0x3FFF] = 0xFF;
 
-  /* Check PHP, including initial 6502 boot-up flags status. */
+  /* Check initial 6502 / VIA boot-up status. */
   util_buffer_set_pos(p_buf, 0x0000);
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x01FD);
@@ -99,6 +99,13 @@ main(int argc, const char* argv[]) {
   emit_CMP(p_buf, k_imm, 0xFF);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_CLD(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE62); /* User VIA DDRB. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_abs, 0xFE6B); /* User VIA ACR to PB7 mode. */
+  emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB. */
+  emit_CMP(p_buf, k_imm, 0xFF);   /* PB7 initial state should be 1. */
+  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
