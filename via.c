@@ -25,13 +25,13 @@ struct via_struct {
   uint8_t IER;
   uint8_t peripheral_b;
   uint8_t peripheral_a;
-  int T1C;
-  int T1L;
-  int T2C;
-  int T2L;
-  int t1_oneshot_fired;
-  int t2_oneshot_fired;
-  int t1_pb7;
+  int32_t T1C;
+  int32_t T1L;
+  int32_t T2C;
+  int32_t T2L;
+  uint8_t t1_oneshot_fired;
+  uint8_t t2_oneshot_fired;
+  uint8_t t1_pb7;
 };
 
 struct via_struct*
@@ -107,7 +107,7 @@ sysvia_update_port_a(struct via_struct* p_via) {
   }
 }
 
-static unsigned char
+static uint8_t
 via_read_port_a(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
     sysvia_update_port_a(p_via);
@@ -135,7 +135,7 @@ via_write_port_a(struct via_struct* p_via) {
   }
 }
 
-static unsigned char
+static uint8_t
 via_read_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
     /* Read is for joystick and CMOS. 0xFF means nothing. */
@@ -151,10 +151,10 @@ via_read_port_b(struct via_struct* p_via) {
 static void
 via_write_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
-    unsigned char orb = p_via->ORB;
-    unsigned char ddrb = p_via->DDRB;
-    unsigned char port_val = ((orb & ddrb) | ~ddrb);
-    unsigned char port_bit = (1 << (port_val & 7));
+    uint8_t orb = p_via->ORB;
+    uint8_t ddrb = p_via->DDRB;
+    uint8_t port_val = ((orb & ddrb) | ~ddrb);
+    uint8_t port_bit = (1 << (port_val & 7));
     int bit_set = ((port_val & 0x08) == 0x08);
     if (bit_set) {
       p_via->peripheral_b |= port_bit;
@@ -172,14 +172,14 @@ via_write_port_b(struct via_struct* p_via) {
   }
 }
 
-unsigned char
-via_read(struct via_struct* p_via, size_t reg) {
-  unsigned char ora;
-  unsigned char orb;
-  unsigned char ddra;
-  unsigned char ddrb;
-  unsigned char val;
-  unsigned char port_val;
+uint8_t
+via_read(struct via_struct* p_via, uint8_t reg) {
+  uint8_t ora;
+  uint8_t orb;
+  uint8_t ddra;
+  uint8_t ddrb;
+  uint8_t val;
+  uint8_t port_val;
 
   switch (reg) {
   case k_via_ORB:
@@ -241,7 +241,7 @@ via_read(struct via_struct* p_via, size_t reg) {
   case k_via_IER:
     return (p_via->IER | 0x80);
   default:
-    printf("unhandled VIA read %zu\n", reg);
+    printf("unhandled VIA read %u\n", reg);
     break;
   }
   assert(0);
@@ -249,7 +249,7 @@ via_read(struct via_struct* p_via, size_t reg) {
 }
 
 void
-via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
+via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   switch (reg) {
   case k_via_ORB:
     assert((p_via->PCR & 0xA0) != 0x20);
@@ -303,6 +303,7 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     break;
   case k_via_ACR:
     p_via->ACR = val;
+    /* EMU TODO: side effects to writing continuous bit? */
     /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
   case k_via_PCR:
@@ -327,21 +328,21 @@ via_write(struct via_struct* p_via, size_t reg, unsigned char val) {
     via_write_port_a(p_via);
     break;
   default:
-    printf("unhandled VIA write %zu\n", reg);
+    printf("unhandled VIA write %u\n", reg);
     assert(0);
     break;
   }
 }
 
 void
-via_raise_interrupt(struct via_struct* p_via, unsigned char val) {
+via_raise_interrupt(struct via_struct* p_via, uint8_t val) {
   assert(!(val & 0x80));
   p_via->IFR |= val;
   via_check_interrupt(p_via);
 }
 
 void
-via_clear_interrupt(struct via_struct* p_via, unsigned char val) {
+via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
   assert(!(val & 0x80));
   p_via->IFR &= ~val;
   via_check_interrupt(p_via);
@@ -372,60 +373,63 @@ via_check_interrupt(struct via_struct* p_via) {
 
 void
 via_get_registers(struct via_struct* p_via,
-                  unsigned char* ORA,
-                  unsigned char* ORB,
-                  unsigned char* DDRA,
-                  unsigned char* DDRB,
-                  unsigned char* SR,
-                  unsigned char* ACR,
-                  unsigned char* PCR,
-                  unsigned char* IFR,
-                  unsigned char* IER,
-                  unsigned char* peripheral_a,
-                  unsigned char* peripheral_b,
-                  int* T1C,
-                  int* T1L,
-                  int* T2C,
-                  int* T2L,
-                  unsigned char* t1_oneshot_fired,
-                  unsigned char* t2_oneshot_fired) {
-  *ORA = p_via->ORA;
-  *ORB = p_via->ORB;
-  *DDRA = p_via->DDRA;
-  *DDRB = p_via->DDRB;
-  *SR = p_via->SR;
-  *ACR = p_via->ACR;
-  *PCR = p_via->PCR;
-  *IFR = p_via->IFR;
-  *IER = p_via->IER;
-  *peripheral_a = p_via->peripheral_a;
-  *peripheral_b = p_via->peripheral_b;
-  *T1C = p_via->T1C;
-  *T1L = p_via->T1L;
-  *T2C = p_via->T2C;
-  *T2L = p_via->T2L;
-  *t1_oneshot_fired = p_via->t1_oneshot_fired;
-  *t2_oneshot_fired = p_via->t2_oneshot_fired;
+                  uint8_t* p_ORA,
+                  uint8_t* p_ORB,
+                  uint8_t* p_DDRA,
+                  uint8_t* p_DDRB,
+                  uint8_t* p_SR,
+                  uint8_t* p_ACR,
+                  uint8_t* p_PCR,
+                  uint8_t* p_IFR,
+                  uint8_t* p_IER,
+                  uint8_t* p_peripheral_a,
+                  uint8_t* p_peripheral_b,
+                  int32_t* p_T1C,
+                  int32_t* p_T1L,
+                  int32_t* p_T2C,
+                  int32_t* p_T2L,
+                  uint8_t* p_t1_oneshot_fired,
+                  uint8_t* p_t2_oneshot_fired,
+                  uint8_t* p_t1_pb7) {
+  *p_ORA = p_via->ORA;
+  *p_ORB = p_via->ORB;
+  *p_DDRA = p_via->DDRA;
+  *p_DDRB = p_via->DDRB;
+  *p_SR = p_via->SR;
+  *p_ACR = p_via->ACR;
+  *p_PCR = p_via->PCR;
+  *p_IFR = p_via->IFR;
+  *p_IER = p_via->IER;
+  *p_peripheral_a = p_via->peripheral_a;
+  *p_peripheral_b = p_via->peripheral_b;
+  *p_T1C = p_via->T1C;
+  *p_T1L = p_via->T1L;
+  *p_T2C = p_via->T2C;
+  *p_T2L = p_via->T2L;
+  *p_t1_oneshot_fired = p_via->t1_oneshot_fired;
+  *p_t2_oneshot_fired = p_via->t2_oneshot_fired;
+  *p_t1_pb7 = p_via->t1_pb7;
 }
 
 void via_set_registers(struct via_struct* p_via,
-                       unsigned char ORA,
-                       unsigned char ORB,
-                       unsigned char DDRA,
-                       unsigned char DDRB,
-                       unsigned char SR,
-                       unsigned char ACR,
-                       unsigned char PCR,
-                       unsigned char IFR,
-                       unsigned char IER,
-                       unsigned char peripheral_a,
-                       unsigned char peripheral_b,
-                       int T1C,
-                       int T1L,
-                       int T2C,
-                       int T2L,
-                       unsigned char t1_oneshot_fired,
-                       unsigned char t2_oneshot_fired) {
+                       uint8_t ORA,
+                       uint8_t ORB,
+                       uint8_t DDRA,
+                       uint8_t DDRB,
+                       uint8_t SR,
+                       uint8_t ACR,
+                       uint8_t PCR,
+                       uint8_t IFR,
+                       uint8_t IER,
+                       uint8_t peripheral_a,
+                       uint8_t peripheral_b,
+                       int32_t T1C,
+                       int32_t T1L,
+                       int32_t T2C,
+                       int32_t T2L,
+                       uint8_t t1_oneshot_fired,
+                       uint8_t t2_oneshot_fired,
+                       uint8_t t1_pb7) {
   p_via->ORA = ORA;
   p_via->ORB = ORB;
   p_via->DDRA = DDRA;
@@ -443,15 +447,16 @@ void via_set_registers(struct via_struct* p_via,
   p_via->T2L = T2L;
   p_via->t1_oneshot_fired = t1_oneshot_fired;
   p_via->t2_oneshot_fired = t2_oneshot_fired;
+  p_via->t1_pb7 = t1_pb7;
 }
 
-unsigned char*
+uint8_t*
 via_get_peripheral_b_ptr(struct via_struct* p_via) {
   return &p_via->peripheral_b;
 }
 
 void
-via_time_advance(struct via_struct* p_via, size_t us) {
+via_time_advance(struct via_struct* p_via, uint64_t us) {
   p_via->T1C -= us;
   if (p_via->T1C < 0) {
     if (!p_via->t1_oneshot_fired) {

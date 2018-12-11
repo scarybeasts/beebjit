@@ -13,85 +13,85 @@
 #include <string.h>
 
 struct bem_v2x {
-  unsigned char signature[8];
-  unsigned char model;
-  unsigned char a;
-  unsigned char x;
-  unsigned char y;
-  unsigned char flags;
-  unsigned char s;
+  uint8_t signature[8];
+  uint8_t model;
+  uint8_t a;
+  uint8_t x;
+  uint8_t y;
+  uint8_t flags;
+  uint8_t s;
   uint16_t pc;
-  unsigned char nmi;
-  unsigned char interrupt;
+  uint8_t nmi;
+  uint8_t interrupt;
   uint32_t cycles;
   /* RAM / ROM */
-  unsigned char fe30;
-  unsigned char fe34;
-  unsigned char ram[64 * 1024];
-  unsigned char rom[256 * 1024];
+  uint8_t fe30;
+  uint8_t fe34;
+  uint8_t ram[64 * 1024];
+  uint8_t rom[256 * 1024];
   /* System VIA. */
-  unsigned char sysvia_ora;
-  unsigned char sysvia_orb;
-  unsigned char sysvia_ira;
-  unsigned char sysvia_irb;
-  unsigned char sysvia_unused1;
-  unsigned char sysvia_unused2;
-  unsigned char sysvia_ddra;
-  unsigned char sysvia_ddrb;
-  unsigned char sysvia_sr;
-  unsigned char sysvia_acr;
-  unsigned char sysvia_pcr;
-  unsigned char sysvia_ifr;
-  unsigned char sysvia_ier;
+  uint8_t sysvia_ora;
+  uint8_t sysvia_orb;
+  uint8_t sysvia_ira;
+  uint8_t sysvia_irb;
+  uint8_t sysvia_unused1;
+  uint8_t sysvia_unused2;
+  uint8_t sysvia_ddra;
+  uint8_t sysvia_ddrb;
+  uint8_t sysvia_sr;
+  uint8_t sysvia_acr;
+  uint8_t sysvia_pcr;
+  uint8_t sysvia_ifr;
+  uint8_t sysvia_ier;
   int sysvia_t1l;
   int sysvia_t2l;
   int sysvia_t1c;
   int sysvia_t2c;
-  unsigned char sysvia_t1hit;
-  unsigned char sysvia_t2hit;
-  unsigned char sysvia_ca1;
-  unsigned char sysvia_ca2;
-  unsigned char sysvia_IC32;
+  uint8_t sysvia_t1hit;
+  uint8_t sysvia_t2hit;
+  uint8_t sysvia_ca1;
+  uint8_t sysvia_ca2;
+  uint8_t sysvia_IC32;
   /* User VIA. */
-  unsigned char uservia_ora;
-  unsigned char uservia_orb;
-  unsigned char uservia_ira;
-  unsigned char uservia_irb;
-  unsigned char uservia_unused1;
-  unsigned char uservia_unused2;
-  unsigned char uservia_ddra;
-  unsigned char uservia_ddrb;
-  unsigned char uservia_sr;
-  unsigned char uservia_acr;
-  unsigned char uservia_pcr;
-  unsigned char uservia_ifr;
-  unsigned char uservia_ier;
+  uint8_t uservia_ora;
+  uint8_t uservia_orb;
+  uint8_t uservia_ira;
+  uint8_t uservia_irb;
+  uint8_t uservia_unused1;
+  uint8_t uservia_unused2;
+  uint8_t uservia_ddra;
+  uint8_t uservia_ddrb;
+  uint8_t uservia_sr;
+  uint8_t uservia_acr;
+  uint8_t uservia_pcr;
+  uint8_t uservia_ifr;
+  uint8_t uservia_ier;
   int uservia_t1l;
   int uservia_t2l;
   int uservia_t1c;
   int uservia_t2c;
-  unsigned char uservia_t1hit;
-  unsigned char uservia_t2hit;
-  unsigned char uservia_ca1;
-  unsigned char uservia_ca2;
+  uint8_t uservia_t1hit;
+  uint8_t uservia_t2hit;
+  uint8_t uservia_ca1;
+  uint8_t uservia_ca2;
   /* Video ULA. */
-  unsigned char ula_control;
-  unsigned char ula_palette[16];
+  uint8_t ula_control;
+  uint8_t ula_palette[16];
   /* CRTC. */
-  unsigned char crtc_regs[18];
-  unsigned char crtc_vc;
-  unsigned char crtc_sc;
-  unsigned char crtc_hc;
-  unsigned char crtc_ma_low;
-  unsigned char crtc_ma_high;
-  unsigned char crtc_maback_low;
-  unsigned char crtc_maback_high;
+  uint8_t crtc_regs[18];
+  uint8_t crtc_vc;
+  uint8_t crtc_sc;
+  uint8_t crtc_hc;
+  uint8_t crtc_ma_low;
+  uint8_t crtc_ma_high;
+  uint8_t crtc_maback_low;
+  uint8_t crtc_maback_high;
   /* Video. */
-  unsigned char video_scrx_low;
-  unsigned char video_scrx_high;
-  unsigned char video_scry_low;
-  unsigned char video_scry_high;
-  unsigned char video_oddclock;
+  uint8_t video_scrx_low;
+  uint8_t video_scrx_high;
+  uint8_t video_scry_low;
+  uint8_t video_scry_high;
+  uint8_t video_oddclock;
   int vidclocks;
   /* Sound: sn76489. */
   uint32_t sn_latch[4];
@@ -137,6 +137,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   uint16_t counters[4];
   int8_t outputs[4];
   uint8_t last_channel;
+  uint8_t t1_pb7;
   size_t i;
 
   struct sound_struct* p_sound = bbc_get_sound(p_bbc);
@@ -184,6 +185,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   video_set_ula_control(p_video, p_bem->ula_control);
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_set_crtc_registers(p_video, &p_bem->crtc_regs[0]);
+
   /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Divide! */
   /* NOTE: b-em saves int-width negative values outside the expected
    * -2 -> 0xffff range for t2c.
@@ -197,6 +199,8 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->uservia_t1l >>= 1;
   p_bem->uservia_t2c >>= 1;
   p_bem->uservia_t2l >>= 1;
+  /* Separate PB7 state isn't saved by b-em so we approximate from ORB. */
+  t1_pb7 = !!(p_bem->sysvia_orb & 0x80);
   via_set_registers(p_system_via,
                     p_bem->sysvia_ora,
                     p_bem->sysvia_orb,
@@ -214,7 +218,10 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->sysvia_t2c,
                     p_bem->sysvia_t2l,
                     p_bem->sysvia_t1hit,
-                    p_bem->sysvia_t2hit);
+                    p_bem->sysvia_t2hit,
+                    t1_pb7);
+  /* Separate PB7 state isn't saved by b-em so we approximate from ORB. */
+  t1_pb7 = !!(p_bem->uservia_orb & 0x80);
   via_set_registers(p_user_via,
                     p_bem->uservia_ora,
                     p_bem->uservia_orb,
@@ -232,7 +239,8 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
                     p_bem->uservia_t2c,
                     p_bem->uservia_t2l,
                     p_bem->uservia_t1hit,
-                    p_bem->uservia_t2hit);
+                    p_bem->uservia_t2hit,
+                    t1_pb7);
 
   /* b-em stores channels in the inverse order: channel 0 is noise. We use
    * channel 3 is noise, matching the raw registers.
@@ -291,8 +299,8 @@ state_load_memory(struct bbc_struct* p_bbc,
 void
 state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
-  unsigned char snapshot[k_snapshot_size];
-  unsigned char unused_char;
+  uint8_t snapshot[k_snapshot_size];
+  uint8_t unused_u8;
   uint8_t volumes[4];
   uint16_t periods[4];
   uint16_t counters[4];
@@ -302,6 +310,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   uint8_t noise_frequency;
   uint16_t noise_rng;
   size_t i;
+  uint8_t t1_pb7;
 
   struct sound_struct* p_sound = bbc_get_sound(p_bbc);
   struct video_struct* p_video = bbc_get_video(p_bbc);
@@ -349,6 +358,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   p_bem->ula_control = video_get_ula_control(p_video);
   video_get_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_get_crtc_registers(p_video, &p_bem->crtc_regs[0]);
+
   via_get_registers(p_system_via,
                     &p_bem->sysvia_ora,
                     &p_bem->sysvia_orb,
@@ -359,14 +369,21 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->sysvia_pcr,
                     &p_bem->sysvia_ifr,
                     &p_bem->sysvia_ier,
-                    &unused_char,
+                    &unused_u8,
                     &p_bem->sysvia_IC32,
                     &p_bem->sysvia_t1c,
                     &p_bem->sysvia_t1l,
                     &p_bem->sysvia_t2c,
                     &p_bem->sysvia_t2l,
                     &p_bem->sysvia_t1hit,
-                    &p_bem->sysvia_t2hit);
+                    &p_bem->sysvia_t2hit,
+                    &t1_pb7);
+  /* PB7 not serialized distinctly so mix it in. */
+  if (p_bem->sysvia_acr & 0x80) {
+    p_bem->sysvia_orb &= 0x7F;
+    p_bem->sysvia_orb |= (t1_pb7 << 7);
+  }
+
   via_get_registers(p_user_via,
                     &p_bem->uservia_ora,
                     &p_bem->uservia_orb,
@@ -377,14 +394,21 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
                     &p_bem->uservia_pcr,
                     &p_bem->uservia_ifr,
                     &p_bem->uservia_ier,
-                    &unused_char,
-                    &unused_char,
+                    &unused_u8,
+                    &unused_u8,
                     &p_bem->uservia_t1c,
                     &p_bem->uservia_t1l,
                     &p_bem->uservia_t2c,
                     &p_bem->uservia_t2l,
                     &p_bem->uservia_t1hit,
-                    &p_bem->uservia_t2hit);
+                    &p_bem->uservia_t2hit,
+                    &t1_pb7);
+  /* PB7 not serialized distinctly so mix it in. */
+  if (p_bem->uservia_acr & 0x80) {
+    p_bem->uservia_orb &= 0x7F;
+    p_bem->uservia_orb |= (t1_pb7 << 7);
+  }
+
   /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Double up. */
   p_bem->sysvia_t1c <<= 1;
   p_bem->sysvia_t1l <<= 1;

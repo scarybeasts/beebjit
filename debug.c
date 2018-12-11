@@ -341,23 +341,24 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
 static void
 debug_dump_via(struct bbc_struct* p_bbc, int id) {
   struct via_struct* p_via;
-  unsigned char ORA;
-  unsigned char ORB;
-  unsigned char DDRA;
-  unsigned char DDRB;
-  unsigned char SR;
-  unsigned char ACR;
-  unsigned char PCR;
-  unsigned char IFR;
-  unsigned char IER;
-  unsigned char peripheral_a;
-  unsigned char peripheral_b;
-  int T1C;
-  int T1L;
-  int T2C;
-  int T2L;
-  unsigned char t1_oneshot_fired;
-  unsigned char t2_oneshot_fired;
+  uint8_t ORA;
+  uint8_t ORB;
+  uint8_t DDRA;
+  uint8_t DDRB;
+  uint8_t SR;
+  uint8_t ACR;
+  uint8_t PCR;
+  uint8_t IFR;
+  uint8_t IER;
+  uint8_t peripheral_a;
+  uint8_t peripheral_b;
+  int32_t T1C;
+  int32_t T1L;
+  int32_t T2C;
+  int32_t T2L;
+  uint8_t t1_oneshot_fired;
+  uint8_t t2_oneshot_fired;
+  uint8_t t1_pb7;
 
   if (id == k_via_system) {
     printf("System VIA\n");
@@ -386,12 +387,17 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &T2C,
                     &T2L,
                     &t1_oneshot_fired,
-                    &t2_oneshot_fired);
+                    &t2_oneshot_fired,
+                    &t1_pb7);
   printf("IFR %.2x IER %.2x\n", IFR, IER);
   printf("ORA %.2x DDRA %.2x periph %.2x\n", ORA, DDRA, peripheral_a);
   printf("ORB %.2x DDRB %.2x periph %.2x\n", ORB, DDRB, peripheral_b);
   printf("SR %.2x ACR %.2x PCR %.2x\n", SR, ACR, PCR);
-  printf("T1L %.4x T1C %.4x oneshot hit %d\n", T1L, T1C, t1_oneshot_fired);
+  printf("T1L %.4x T1C %.4x oneshot hit %d PB7 %d\n",
+         T1L,
+         T1C,
+         t1_oneshot_fired,
+         t1_pb7);
   printf("T2L %.4x T2C %.4x oneshot hit %d\n", T2L, T2C, t2_oneshot_fired);
 }
 
