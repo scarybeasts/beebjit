@@ -151,6 +151,7 @@ via_read_port_b(struct via_struct* p_via) {
 static void
 via_write_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
+    uint8_t old_peripheral_b = p_via->peripheral_b;
     uint8_t orb = p_via->ORB;
     uint8_t ddrb = p_via->DDRB;
     uint8_t port_val = ((orb & ddrb) | ~ddrb);
@@ -161,9 +162,12 @@ via_write_port_b(struct via_struct* p_via) {
     } else {
       p_via->peripheral_b &= ~port_bit;
     }
-    if (port_bit == 1) {
+    /* If we're pulling the sound write bit from low to high, send the data
+     * value in ORA along to the sound chip.
+     */
+    if ((port_bit == 1) && bit_set && !(old_peripheral_b & 1)) {
       struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
-      sound_apply_write_bit_and_data(p_sound, bit_set, p_via->peripheral_a);
+      sound_sn_write(p_sound, p_via->peripheral_a);
     }
   } else if (p_via->id == k_via_user) {
     /* User port. Ignore. */

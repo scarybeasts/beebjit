@@ -41,7 +41,6 @@ struct sound_struct {
   uint16_t noise_rng;
 
   /* Register values / interface from the host. */
-  int write_status;
   int16_t volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
   /* 0 - low, 1 - medium, 2 - high, 3 -- use tone generator 1. */
@@ -401,8 +400,6 @@ sound_create(struct bbc_options* p_options) {
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
   p_sound->noise_rng = 0;
 
-  p_sound->write_status = 0;
-
   return p_sound;
 }
 
@@ -444,18 +441,10 @@ sound_start_playing(struct sound_struct* p_sound) {
 }
 
 void
-sound_apply_write_bit_and_data(struct sound_struct* p_sound,
-                               int write,
-                               unsigned char data) {
+sound_sn_write(struct sound_struct* p_sound, unsigned char data) {
   int channel;
 
   int new_period = -1;
-  int old_write_status = p_sound->write_status;
-  p_sound->write_status = write;
-
-  if (p_sound->write_status == 0 || old_write_status == 1) {
-    return;
-  }
 
   if (data & 0x80) {
     channel = ((data >> 5) & 0x03);
