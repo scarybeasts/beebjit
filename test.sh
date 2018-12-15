@@ -17,9 +17,9 @@ gcc -Wall -W -Werror -g -o 6502jit \
     asm_x64_common.S asm_x64_jit.S asm_x64_inturbo.S \
     -lm -lX11 -lXext -lpthread -lasound
 
-gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
+gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c test_helper.c \
     util.c defs_6502.c emit_6502.c
-gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
+gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c test_helper.c \
     util.c defs_6502.c emit_6502.c
 ./make_test_rom
 
