@@ -17,27 +17,33 @@ gcc -Wall -W -Werror -g -o 6502jit \
     asm_x64_common.S asm_x64_jit.S asm_x64_inturbo.S \
     -lm -lX11 -lXext -lpthread -lasound
 
-gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c test_helper.c \
-    util.c defs_6502.c emit_6502.c
-gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c test_helper.c \
-    util.c defs_6502.c emit_6502.c
+gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
+    util.c defs_6502.c emit_6502.c test_helper.c
+gcc -Wall -W -Werror -g -o make_timing_rom make_timing_rom.c \
+    util.c defs_6502.c emit_6502.c test_helper.c
+gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
+    util.c defs_6502.c emit_6502.c test_helper.c
 ./make_test_rom
+./make_timing_rom
 
-echo 'Running JIT, debug.'
-./6502jit -os test.rom -expect 434241 -opt jit:self-mod-all -d -r
 echo 'Running built-in tests.'
 ./6502jit -t
-echo 'Running JIT, opt.'
+echo 'Running test.rom, JIT, debug.'
+./6502jit -os test.rom -expect 434241 -opt jit:self-mod-all -d -r
+echo 'Running test.rom, JIT, opt.'
 ./6502jit -os test.rom -expect 434241 -opt jit:self-mod-all
-echo 'Running JIT, opt, no-batch-ops.'
+echo 'Running test.rom, JIT, opt, no-batch-ops.'
 ./6502jit -os test.rom -expect 434241 -opt jit:self-mod-all,jit:no-batch-ops
-echo 'Running interpreter.'
+echo 'Running test.rom, interpreter.'
 ./6502jit -os test.rom -expect 434241 -mode interp
-echo 'Running interpreter, debug, print.'
+echo 'Running test.rom, interpreter, debug, print.'
 ./6502jit -os test.rom -expect 434241 -mode interp -d -r -p >/dev/null
-echo 'Running interpreter, slow mode.'
+echo 'Running test.rom, interpreter, slow mode.'
 ./6502jit -os test.rom -expect 434241 -mode interp -s
-echo 'Running inturbo.'
+echo 'Running test.rom, inturbo.'
 ./6502jit -os test.rom -expect 434241 -mode inturbo
+
+echo 'Running timing.rom, interpreter.'
+./6502jit -os timing.rom -expect C0C1C2 -mode interp
 
 echo 'All is well!'

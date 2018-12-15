@@ -62,6 +62,8 @@ void emit_TXS(struct util_buffer* p_buf);
 void emit_TYA(struct util_buffer* p_buf);
 
 void emit_CRASH(struct util_buffer* p_buf);
+void emit_CYCLES(struct util_buffer* p_buf);
+void emit_CYCLES_RESET(struct util_buffer* p_buf);
 void emit_EXIT(struct util_buffer* p_buf);
 
 #endif /* BEEBJIT_EMIT_6502_H */

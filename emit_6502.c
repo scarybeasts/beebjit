@@ -167,6 +167,16 @@ emit_CRASH(struct util_buffer* p_buf) {
 }
 
 void
+emit_CYCLES(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x12);
+}
+
+void
+emit_CYCLES_RESET(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x22);
+}
+
+void
 emit_EXIT(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x02);
 }

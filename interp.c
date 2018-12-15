@@ -380,6 +380,18 @@ interp_enter(struct interp_struct* p_interp) {
       switch (opcode) {
       case 0x02: /* EXIT */
         return ((y << 16) | (x << 8) | a);
+      case 0x12: /* CYCLES */
+      {
+        uint64_t delta = timing_update_countdown(p_timing, countdown);
+        state_6502_add_cycles(p_state_6502, delta);
+        a = (state_6502_get_cycles(p_state_6502) & 0xff);
+        opreg = k_a;
+        break;
+      }
+      case 0x22: /* CYCLES_RESET */
+        (void) timing_update_countdown(p_timing, countdown);
+        state_6502_set_cycles(p_state_6502, 0);
+        break;
       case 0xf2: /* CRASH */
       {
         volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
