@@ -1,5 +1,6 @@
 #include "test_helper.h"
 
+#include "defs_6502.h"
 #include "emit_6502.h"
 
 void
@@ -40,4 +41,10 @@ emit_REQUIRE_OF(struct util_buffer* p_buf, int require) {
     emit_BVC(p_buf, 1);
   }
   emit_CRASH(p_buf);
+}
+
+void
+emit_REQUIRE_EQ(struct util_buffer* p_buf, uint8_t val) {
+  emit_CMP(p_buf, k_imm, val);
+  emit_REQUIRE_ZF(p_buf, 1);
 }

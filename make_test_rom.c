@@ -47,8 +47,7 @@ main(int argc, const char* argv[]) {
   util_buffer_set_pos(p_buf, 0x0000);
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x01FD);
-  emit_CMP(p_buf, k_imm, 0x36);   /* 1, BRK, I, Z */
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x36);   /* 1, BRK, I, Z */
   emit_LDA(p_buf, k_imm, 0xFF);   /* Set all flags upon the PLP. */
   emit_STA(p_buf, k_abs, 0x01FD);
   emit_PLP(p_buf);
@@ -57,16 +56,14 @@ main(int argc, const char* argv[]) {
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x01FD);
   emit_PLP(p_buf);
-  emit_CMP(p_buf, k_imm, 0xFF);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_CLD(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE62); /* User VIA DDRB. */
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0x80);
   emit_STA(p_buf, k_abs, 0xFE6B); /* User VIA ACR to PB7 mode. */
   emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB. */
-  emit_CMP(p_buf, k_imm, 0xFF);   /* PB7 initial state should be 1. */
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0xFF);   /* PB7 initial state should be 1. */
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
