@@ -51,6 +51,14 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_abx, 0x1000); /* STA abx, no page crossing, 5 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 6);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_abx, 0x10FF); /* STA abx, page crossing, 5 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 6);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   util_buffer_set_pos(p_buf, 0x0040);

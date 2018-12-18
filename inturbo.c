@@ -68,6 +68,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   for (i = 0; i < 256; ++i) {
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
+    uint8_t opmem = g_opmem[optype];
     uint8_t opreg = g_optype_sets_register[optype];
     uint8_t opcycles = g_opcycles[i];
 
@@ -95,7 +96,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_abs(p_buf, special_addr_above);
       break;
     case k_abx:
-      if (accurate) {
+      if ((opmem == k_read) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_x64_emit_inturbo_mode_abx_accurate(p_buf, special_addr_above);
       } else {
@@ -103,7 +104,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       }
       break;
     case k_aby:
-      if (accurate) {
+      if ((opmem == k_read) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_x64_emit_inturbo_mode_aby_accurate(p_buf, special_addr_above);
       } else {
