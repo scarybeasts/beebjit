@@ -53,7 +53,7 @@ struct debug_struct {
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
-  unsigned char warned_at_addr[k_6502_addr_space_size];
+  uint8_t warned_at_addr[k_6502_addr_space_size];
   char debug_old_input_buf[k_max_input_len];
 };
 
@@ -196,13 +196,13 @@ debug_print_opcode(char* buf,
 
 static int
 debug_get_addr(int* wrapped,
-               unsigned char opcode,
-               unsigned char operand1,
-               unsigned char operand2,
-               unsigned char x_6502,
-               unsigned char y_6502,
-               unsigned char* p_mem) {
-  unsigned char opmode = g_opmodes[opcode];
+               uint8_t opcode,
+               uint8_t operand1,
+               uint8_t operand2,
+               uint8_t x_6502,
+               uint8_t y_6502,
+               uint8_t* p_mem) {
+  uint8_t opmode = g_opmodes[opcode];
   unsigned int addr;
   uint16_t trunc_addr;
   uint16_t addr_addr;
@@ -216,11 +216,11 @@ debug_get_addr(int* wrapped,
     break;
   case k_zpx:
     addr = (operand1 + x_6502);
-    trunc_addr = (unsigned char) addr;
+    trunc_addr = (uint8_t) addr;
     break;
   case k_zpy:
-    addr = (unsigned char) (operand1 + y_6502);
-    trunc_addr = (unsigned char) addr;
+    addr = (uint8_t) (operand1 + y_6502);
+    trunc_addr = (uint8_t) addr;
     break;
   case k_abs:
     addr = (uint16_t) (operand1 + (operand2 << 8));
@@ -236,20 +236,20 @@ debug_get_addr(int* wrapped,
     break;
   case k_idx:
     addr_addr = (operand1 + x_6502);
-    trunc_addr = (unsigned char) addr_addr;
-    if (trunc_addr != addr_addr || addr_addr == 0xff) {
+    trunc_addr = (uint8_t) addr_addr;
+    if ((trunc_addr != addr_addr) || (addr_addr == 0xFF)) {
       *wrapped = 1;
     }
-    addr = p_mem[(unsigned char) (addr_addr + 1)];
+    addr = p_mem[(uint8_t) (addr_addr + 1)];
     addr <<= 8;
-    addr |= p_mem[(unsigned char) addr_addr];
+    addr |= p_mem[(uint8_t) addr_addr];
     trunc_addr = addr;
     break;
   case k_idy:
-    if (operand1 == 0xff) {
+    if (operand1 == 0xFF) {
       *wrapped = 1;
     }
-    addr = p_mem[(unsigned char) (operand1 + 1)];
+    addr = p_mem[(uint8_t) (operand1 + 1)];
     addr <<= 8;
     addr |= p_mem[operand1];
     addr = (addr + y_6502);
@@ -269,11 +269,11 @@ debug_get_addr(int* wrapped,
 static void
 debug_print_branch(char* p_buf,
                    size_t buf_len,
-                   unsigned char opcode,
-                   unsigned char fn_6502,
-                   unsigned char fo_6502,
-                   unsigned char fc_6502,
-                   unsigned char fz_6502) {
+                   uint8_t opcode,
+                   uint8_t fn_6502,
+                   uint8_t fo_6502,
+                   uint8_t fc_6502,
+                   uint8_t fz_6502) {
   int taken = -1;
   switch (g_optypes[opcode]) {
   case k_bpl:
@@ -313,18 +313,18 @@ debug_print_branch(char* p_buf,
 static void
 debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
   size_t i;
-  unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
+  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
 
     uint16_t addr_plus_1 = addr_6502 + 1;
     uint16_t addr_plus_2 = addr_6502 + 2;
-    unsigned char opcode = p_mem_read[addr_6502];
-    unsigned char opmode = g_opmodes[opcode];
-    unsigned char oplen = g_opmodelens[opmode];
-    unsigned char operand1 = p_mem_read[addr_plus_1];
-    unsigned char operand2 = p_mem_read[addr_plus_2];
+    uint8_t opcode = p_mem_read[addr_6502];
+    uint8_t opmode = g_opmodes[opcode];
+    uint8_t oplen = g_opmodelens[opmode];
+    uint8_t operand1 = p_mem_read[addr_plus_1];
+    uint8_t operand2 = p_mem_read[addr_plus_2];
     uint16_t block_6502 = bbc_get_block(p_bbc, addr_6502);
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
@@ -405,7 +405,7 @@ static int
 debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
-                unsigned char opcode_6502) {
+                uint8_t opcode_6502) {
   size_t i;
   for (i = 0; i < k_max_break; ++i) {
     if (reg_pc == p_debug->debug_break_exec[i]) {
@@ -433,8 +433,8 @@ debug_hit_break(struct debug_struct* p_debug,
 static int
 debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
   struct debug_struct* p_debug = (struct debug_struct*) p_state;
-  unsigned char op1 = *(unsigned char*) p_op1;
-  unsigned char op2 = *(unsigned char*) p_op2;
+  uint8_t op1 = *(uint8_t*) p_op1;
+  uint8_t op2 = *(uint8_t*) p_op2;
   return (p_debug->count_opcode[op1] - p_debug->count_opcode[op2]);
 }
 
@@ -449,7 +449,7 @@ debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
 static void
 debug_dump_stats(struct debug_struct* p_debug) {
   size_t i;
-  unsigned char sorted_opcodes[k_6502_op_num_opcodes];
+  uint8_t sorted_opcodes[k_6502_op_num_opcodes];
   uint16_t sorted_addrs[k_6502_addr_space_size];
 
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
@@ -457,13 +457,13 @@ debug_dump_stats(struct debug_struct* p_debug) {
   }
   qsort_r(sorted_opcodes,
           k_6502_op_num_opcodes,
-          sizeof(unsigned char),
+          sizeof(uint8_t),
           debug_sort_opcodes,
           p_debug);
   printf("=== Opcodes ===\n");
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     char opcode_buf[k_max_opcode_len];
-    unsigned char opcode = sorted_opcodes[i];
+    uint8_t opcode = sorted_opcodes[i];
     size_t count = p_debug->count_opcode[opcode];
     if (!count) {
       continue;
@@ -500,7 +500,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
 
 static void
 debug_check_unusual(struct debug_struct* p_debug,
-                    unsigned char opcode,
+                    uint8_t opcode,
                     uint16_t reg_pc,
                     uint16_t addr_6502,
                     int wrapped) {
@@ -511,9 +511,9 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  unsigned char opmode = g_opmodes[opcode];
-  unsigned char optype = g_optypes[opcode];
-  unsigned char opmem = g_opmem[optype];
+  uint8_t opmode = g_opmodes[opcode];
+  uint8_t optype = g_optypes[opcode];
+  uint8_t opmem = g_opmem[optype];
 
   is_write = ((opmem == k_write || opmem == k_rw) &&
               opmode != k_nil &&
@@ -571,7 +571,7 @@ debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
   size_t len;
-  unsigned char buf[k_6502_addr_space_size];
+  uint8_t buf[k_6502_addr_space_size];
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
@@ -609,33 +609,33 @@ debug_callback(void* p, uint16_t irq_vector) {
   char input_buf[k_max_input_len];
   char flags_buf[9];
   /* NOTE: not correct for execution in hardware registers. */
-  unsigned char opcode;
-  unsigned char operand1;
-  unsigned char operand2;
+  uint8_t opcode;
+  uint8_t operand1;
+  uint8_t operand2;
   int addr_6502;
   int hit_break;
-  unsigned char reg_a;
-  unsigned char reg_x;
-  unsigned char reg_y;
-  unsigned char reg_s;
-  unsigned char reg_flags;
+  uint8_t reg_a;
+  uint8_t reg_x;
+  uint8_t reg_y;
+  uint8_t reg_s;
+  uint8_t reg_flags;
   uint16_t reg_pc;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
   uint16_t block_6502;
-  unsigned char flag_z;
-  unsigned char flag_n;
-  unsigned char flag_c;
-  unsigned char flag_o;
-  unsigned char flag_i;
-  unsigned char flag_d;
+  uint8_t flag_z;
+  uint8_t flag_n;
+  uint8_t flag_c;
+  uint8_t flag_o;
+  uint8_t flag_i;
+  uint8_t flag_d;
   int wrapped;
-  unsigned char opmode;
+  uint8_t opmode;
   size_t oplen;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
-  unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
+  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_sigint_received = &s_sigint_received;
@@ -655,7 +655,7 @@ debug_callback(void* p, uint16_t irq_vector) {
   operand2 = p_mem_read[reg_pc_plus_2];
 
   if (p_debug->stats) {
-    unsigned char optype = g_optypes[opcode];
+    uint8_t optype = g_optypes[opcode];
     p_debug->count_addr[reg_pc]++;
     p_debug->count_opcode[opcode]++;
     p_debug->count_optype[optype]++;
@@ -808,7 +808,7 @@ debug_callback(void* p, uint16_t irq_vector) {
       break;
     } else if (!strcmp(input_buf, "f")) {
       uint16_t finish_addr;
-      unsigned char stack = reg_s + 1;
+      uint8_t stack = reg_s + 1;
       finish_addr = p_mem_read[k_6502_stack_addr + stack];
       stack++;
       finish_addr |= (p_mem_read[k_6502_stack_addr + stack] << 8);
