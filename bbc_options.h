@@ -8,6 +8,7 @@ struct bbc_options {
   /* External options. */
   const char* p_opt_flags;
   const char* p_log_flags;
+  int accurate;
 
   /* Internal options, callbacks, etc. */
   void* p_debug_callback_object;

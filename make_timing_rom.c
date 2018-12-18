@@ -37,20 +37,20 @@ main(int argc, const char* argv[]) {
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
 
-  /* Check instruction timings for page crossings. */
+  /* Check load instruction timings for page crossings. */
   util_buffer_set_pos(p_buf, 0x0000);
   emit_CYCLES_RESET(p_buf);
   emit_CYCLES(p_buf);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 1);
   emit_LDX(p_buf, k_imm, 1);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abx, 0x1000); /* LDA abx, no page crossing, 4 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 4);
+  emit_REQUIRE_EQ(p_buf, 5);      /* Includes 1 cycle from CYCLES_RESET. */
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 5);
+  emit_REQUIRE_EQ(p_buf, 6);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   util_buffer_set_pos(p_buf, 0x0040);

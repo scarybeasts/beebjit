@@ -40,6 +40,7 @@ main(int argc, const char* argv[]) {
   int print_flag = 0;
   int slow_flag = 0;
   int test_flag = 0;
+  int accurate_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
   int mode = k_bbc_mode_inturbo;
@@ -124,6 +125,8 @@ main(int argc, const char* argv[]) {
       slow_flag = 1;
     } else if (!strcmp(arg, "-t")) {
       test_flag = 1;
+    } else if (!strcmp(arg, "-a")) {
+      accurate_flag = 1;
     }
   }
 
@@ -140,6 +143,7 @@ main(int argc, const char* argv[]) {
                      run_flag,
                      print_flag,
                      slow_flag,
+                     accurate_flag,
                      opt_flags,
                      log_flags,
                      debug_stop_addr);

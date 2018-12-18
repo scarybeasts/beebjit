@@ -392,7 +392,7 @@ interp_enter(struct interp_struct* p_interp) {
         (void) timing_update_countdown(p_timing, countdown);
         state_6502_set_cycles(p_state_6502, 0);
         break;
-      case 0xf2: /* CRASH */
+      case 0xF2: /* CRASH */
       {
         volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
         (void) *p_crash_ptr;

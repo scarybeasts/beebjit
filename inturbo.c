@@ -45,6 +45,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
 
   struct bbc_options* p_options = p_inturbo->p_options;
+  int accurate = p_options->accurate;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
   int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
   struct memory_access* p_memory_access = p_inturbo->p_memory_access;
@@ -94,13 +95,20 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_abs(p_buf, special_addr_above);
       break;
     case k_abx:
-      /* NOTE: could run abx, aby, idy modes more efficiently by doing the
-       * address + register addition in a per-optype manner.
-       */
-      asm_x64_emit_inturbo_mode_abx(p_buf, special_addr_above);
+      if (accurate) {
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_abx_accurate(p_buf, special_addr_above);
+      } else {
+        asm_x64_emit_inturbo_mode_abx(p_buf, special_addr_above);
+      }
       break;
     case k_aby:
-      asm_x64_emit_inturbo_mode_aby(p_buf, special_addr_above);
+      if (accurate) {
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_aby_accurate(p_buf, special_addr_above);
+      } else {
+        asm_x64_emit_inturbo_mode_aby(p_buf, special_addr_above);
+      }
       break;
     case k_zpx:
       asm_x64_emit_inturbo_mode_zpx(p_buf);
@@ -132,9 +140,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_x64_emit_instruction_CRASH(p_buf);
         break;
       default:
-        asm_x64_emit_instruction_TRAP(p_buf);
+        /* Let the interpreter handle more exotic special opcodes. */
+        asm_x64_emit_inturbo_call_interp(p_buf);
+        /* Interpreter dealt with cycle counting. */
+        opcycles = 0;
+        break;
       }
-      asm_x64_emit_instruction_TRAP(p_buf);
+      break;
     case k_adc:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_ADC_imm_interp(p_buf);
@@ -390,6 +402,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
        * with them.
        */
       asm_x64_emit_inturbo_call_interp(p_buf);
+      /* Interpreter dealt with cycle counting. */
+      opcycles = 0;
       break;
     }
 

@@ -153,7 +153,8 @@ asm_x64_inturbo_call_interp:
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
 
-  mov REG_COUNTDOWN, REG_RETURN
+  # The +1 is because asm_x64_inturbo_next_opcode is about to do a -1.
+  lea REG_COUNTDOWN, [REG_RETURN + 1]
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
@@ -197,14 +198,47 @@ asm_x64_inturbo_mode_abs_END:
   ret
 
 
+.globl asm_x64_inturbo_mode_accurate_post
+.globl asm_x64_inturbo_mode_accurate_post_END
+asm_x64_inturbo_mode_accurate_post:
+
+  # Adds in the extra cycle if the 8-bit address carried.
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
+
+asm_x64_inturbo_mode_accurate_post_END:
+  ret
+
+
 .globl asm_x64_inturbo_mode_abx
 .globl asm_x64_inturbo_mode_abx_END
 asm_x64_inturbo_mode_abx:
 
-  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
   lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_X_64]
 
 asm_x64_inturbo_mode_abx_END:
+  ret
+
+
+.globl asm_x64_inturbo_mode_abx_accurate
+.globl asm_x64_inturbo_mode_abx_accurate_END
+asm_x64_inturbo_mode_abx_accurate:
+
+  lahf
+  movzx REG_SCRATCH3_32, REG_6502_X
+  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
+
+  # Calculate if there's an 8-bit address carry.
+  # This incurs an extra cycle on the 6502.
+  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
+  add REG_SCRATCH3_8, REG_SCRATCH1_8
+  setae REG_SCRATCH3_8
+  sahf
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
+
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_X_64]
+
+asm_x64_inturbo_mode_abx_accurate_END:
   ret
 
 
@@ -212,10 +246,32 @@ asm_x64_inturbo_mode_abx_END:
 .globl asm_x64_inturbo_mode_aby_END
 asm_x64_inturbo_mode_aby:
 
-  movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
   lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
 
 asm_x64_inturbo_mode_aby_END:
+  ret
+
+
+.globl asm_x64_inturbo_mode_aby_accurate
+.globl asm_x64_inturbo_mode_aby_accurate_END
+asm_x64_inturbo_mode_aby_accurate:
+
+  lahf
+  movzx REG_SCRATCH3_32, REG_6502_Y
+  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
+
+  # Calculate if there's an 8-bit address carry.
+  # This incurs an extra cycle on the 6502.
+  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
+  add REG_SCRATCH3_8, REG_SCRATCH1_8
+  setae REG_SCRATCH3_8
+  sahf
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
+
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
+
+asm_x64_inturbo_mode_aby_accurate_END:
   ret
 
 

@@ -19,8 +19,12 @@ void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
+void asm_x64_emit_inturbo_mode_abx_accurate(struct util_buffer* p_buf,
+                                            uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
+void asm_x64_emit_inturbo_mode_aby_accurate(struct util_buffer* p_buf,
+                                            uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf,
@@ -127,10 +131,16 @@ void asm_x64_inturbo_mode_abs();
 void asm_x64_inturbo_mode_abs_END();
 void asm_x64_inturbo_mode_abs_lea_patch();
 void asm_x64_inturbo_mode_abs_jb_patch();
+void asm_x64_inturbo_mode_accurate_post();
+void asm_x64_inturbo_mode_accurate_post_END();
 void asm_x64_inturbo_mode_abx();
 void asm_x64_inturbo_mode_abx_END();
+void asm_x64_inturbo_mode_abx_accurate();
+void asm_x64_inturbo_mode_abx_accurate_END();
 void asm_x64_inturbo_mode_aby();
 void asm_x64_inturbo_mode_aby_END();
+void asm_x64_inturbo_mode_aby_accurate();
+void asm_x64_inturbo_mode_aby_accurate_END();
 void asm_x64_inturbo_mode_zpx();
 void asm_x64_inturbo_mode_zpx_END();
 void asm_x64_inturbo_mode_zpy();
