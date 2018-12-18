@@ -37,12 +37,12 @@ main(int argc, const char* argv[]) {
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
 
-  /* Check load instruction timings for page crossings. */
+  /* Check instruction timings for page crossings in abx mode. */
   util_buffer_set_pos(p_buf, 0x0000);
   emit_CYCLES_RESET(p_buf);
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 1);
-  emit_LDX(p_buf, k_imm, 1);
+  emit_LDX(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abx, 0x1000); /* LDA abx, no page crossing, 4 cycles. */
   emit_CYCLES(p_buf);
@@ -61,8 +61,35 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 6);
   emit_JMP(p_buf, k_abs, 0xC040);
 
+  /* Check instruction timings for page crossings in idy mode. */
   util_buffer_set_pos(p_buf, 0x0040);
   index = set_new_index(index, 0x40);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xB0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_abs, 0xB1);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_idy, 0xB0); /* LDA idy, no page crossing, 5 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 6);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_idy, 0xB0); /* STA idy, no page crossing, 6 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 7);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_idy, 0xB0); /* LDA idy, no page crossing, 6 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 7);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_idy, 0xB0); /* STA idy, page crossing, 6 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 7);
+  emit_JMP(p_buf, k_abs, 0xC080);
+
+  util_buffer_set_pos(p_buf, 0x0080);
+  index = set_new_index(index, 0x80);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

@@ -31,6 +31,8 @@ void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
                                    uint16_t special_mode_above);
+void asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf,
+                                            uint16_t special_mode_above);
 void asm_x64_emit_inturbo_mode_ind(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_ADC_imm_interp(struct util_buffer* p_buf);
@@ -149,6 +151,8 @@ void asm_x64_inturbo_mode_idx();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();
 void asm_x64_inturbo_mode_idy_END();
+void asm_x64_inturbo_mode_idy_accurate();
+void asm_x64_inturbo_mode_idy_accurate_END();
 void asm_x64_inturbo_mode_ind();
 void asm_x64_inturbo_mode_ind_END();
 

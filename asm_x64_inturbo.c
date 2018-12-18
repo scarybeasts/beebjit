@@ -193,6 +193,18 @@ asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf,
+                                       uint16_t special_addr_above) {
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_mode_idy_accurate,
+               asm_x64_inturbo_mode_idy_accurate_END);
+  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_mode_accurate_post,
+               asm_x64_inturbo_mode_accurate_post_END);
+}
+
+void
 asm_x64_emit_inturbo_mode_ind(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_ind,

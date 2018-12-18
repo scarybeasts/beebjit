@@ -306,7 +306,7 @@ asm_x64_inturbo_mode_idx:
   # TODO: if two scratch registers were non-extended registers, we could
   # compute the hi and low byte better in parallel dependency chains. The
   # problem is we can't load into dh from extended registers.
-  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
 
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_X_64]
   movzx REG_SCRATCH2_32, REG_SCRATCH2_8
@@ -325,9 +325,34 @@ asm_x64_inturbo_mode_idx_END:
 .globl asm_x64_inturbo_mode_idy_END
 asm_x64_inturbo_mode_idy:
 
-  movzx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  # This isn't accurate because it doesn't handle zero-page wrap around
+  # for e.g. LDA ($FF),Y, or any idy mode with $FF as the operand.
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
+
+asm_x64_inturbo_mode_idy_END:
+  ret
+
+
+.globl asm_x64_inturbo_mode_idy_accurate
+.globl asm_x64_inturbo_mode_idy_accurate_END
+asm_x64_inturbo_mode_idy_accurate:
+
+  lahf
+  movzx REG_SCRATCH3_32, REG_6502_Y
+
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
 
   movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+  # Calculate if there's an 8-bit address carry.
+  # This incurs an extra cycle on the 6502.
+  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
+  add REG_SCRATCH3_8, REG_SCRATCH2_8
+  setae REG_SCRATCH3_8
+  sahf
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
   movzx REG_SCRATCH1_32, REG_SCRATCH1_8
@@ -337,7 +362,7 @@ asm_x64_inturbo_mode_idy:
 
   lea REG_SCRATCH1_16, [REG_SCRATCH1 + REG_6502_Y_64]
 
-asm_x64_inturbo_mode_idy_END:
+asm_x64_inturbo_mode_idy_accurate_END:
   ret
 
 

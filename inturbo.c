@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_inturbo_bytes_per_opcode = 128;
+static const size_t k_inturbo_bytes_per_opcode = 256;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
 static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
 static const size_t k_inturbo_jump_table_size = 4096;
@@ -121,7 +121,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_idx(p_buf, special_addr_above);
       break;
     case k_idy:
-      asm_x64_emit_inturbo_mode_idy(p_buf, special_addr_above);
+      if ((opmem == k_read) && accurate) {
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_idy_accurate(p_buf, special_addr_above);
+      } else {
+        asm_x64_emit_inturbo_mode_idy(p_buf, special_addr_above);
+      }
       break;
     case k_ind:
       asm_x64_emit_inturbo_mode_ind(p_buf);
