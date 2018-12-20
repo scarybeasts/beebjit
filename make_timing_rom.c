@@ -12,19 +12,12 @@
 
 static const size_t k_rom_size = 16384;
 
-static size_t
-set_new_index(size_t index, size_t new_index) {
-  assert(new_index >= index);
-  return new_index;
-}
-
 int
 main(int argc, const char* argv[]) {
   int fd;
   ssize_t write_ret;
 
-  size_t index = 0;
-  unsigned char* p_mem = malloc(k_rom_size);
+  uint8_t* p_mem = malloc(k_rom_size);
   struct util_buffer* p_buf = util_buffer_create();
 
   (void) argc;
@@ -63,33 +56,52 @@ main(int argc, const char* argv[]) {
 
   /* Check instruction timings for page crossings in idy mode. */
   util_buffer_set_pos(p_buf, 0x0040);
-  index = set_new_index(index, 0x40);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0xB0);
   emit_LDA(p_buf, k_imm, 0x10);
   emit_STA(p_buf, k_abs, 0xB1);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_idy, 0xB0); /* LDA idy, no page crossing, 5 cycles. */
+  emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, no page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
   emit_CYCLES_RESET(p_buf);
-  emit_STA(p_buf, k_idy, 0xB0); /* STA idy, no page crossing, 6 cycles. */
+  emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, no page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 7);
   emit_LDY(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_idy, 0xB0); /* LDA idy, no page crossing, 6 cycles. */
+  emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, no page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 7);
   emit_CYCLES_RESET(p_buf);
-  emit_STA(p_buf, k_idy, 0xB0); /* STA idy, page crossing, 6 cycles. */
+  emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 7);
   emit_JMP(p_buf, k_abs, 0xC080);
 
+  /* Check instruction timings for branching. */
   util_buffer_set_pos(p_buf, 0x0080);
-  index = set_new_index(index, 0x80);
+  /* TODO: re-enable. */
+  emit_JMP(p_buf, k_abs, 0xC106);
+
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_CYCLES_RESET(p_buf);
+  emit_BNE(p_buf, -2);           /* Branch, not taken, 2 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 3);
+  emit_CYCLES_RESET(p_buf);
+  emit_BEQ(p_buf, 0);            /* Branch, taken, 3 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 4);
+  emit_CYCLES_RESET(p_buf);
+  emit_BEQ(p_buf, 0x69);         /* Branch, taken, page crossing, 4 cycles. */
+
+  util_buffer_set_pos(p_buf, 0x0100);
+  /* This is the landing point for the BEQ above. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 5);
+
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
