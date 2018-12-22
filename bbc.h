@@ -44,7 +44,7 @@ enum {
 
 struct bbc_struct;
 
-struct bbc_struct* bbc_create(unsigned char* p_os_rom,
+struct bbc_struct* bbc_create(uint8_t* p_os_rom,
                               int debug_flag,
                               int run_flag,
                               int print_flag,
@@ -58,30 +58,30 @@ void bbc_destroy(struct bbc_struct* p_bbc);
 void bbc_full_reset(struct bbc_struct* p_bbc);
 void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 void bbc_load_rom(struct bbc_struct* p_bbc,
-                  unsigned char index,
-                  unsigned char* p_rom_src);
+                  uint8_t index,
+                  uint8_t* p_rom_src);
 void bbc_save_rom(struct bbc_struct* p_bbc,
-                  unsigned char index,
-                  unsigned char* p_dest);
-void bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index);
-unsigned char bbc_get_romsel(struct bbc_struct* p_bbc);
-void bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index);
+                  uint8_t index,
+                  uint8_t* p_dest);
+void bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index);
+uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
+void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
 void bbc_get_registers(struct bbc_struct* p_bbc,
-                       unsigned char* a,
-                       unsigned char* x,
-                       unsigned char* y,
-                       unsigned char* s,
-                       unsigned char* flags,
+                       uint8_t* a,
+                       uint8_t* x,
+                       uint8_t* y,
+                       uint8_t* s,
+                       uint8_t* flags,
                        uint16_t* pc);
 void bbc_set_registers(struct bbc_struct* p_bbc,
-                       unsigned char a,
-                       unsigned char x,
-                       unsigned char y,
-                       unsigned char s,
-                       unsigned char flags,
+                       uint8_t a,
+                       uint8_t x,
+                       uint8_t y,
+                       uint8_t s,
+                       uint8_t flags,
                        uint16_t pc);
 size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
@@ -97,15 +97,15 @@ struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
-unsigned char* bbc_get_mem_read(struct bbc_struct* p_bbc);
-unsigned char* bbc_get_mem_write(struct bbc_struct* p_bbc);
+uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
+uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
                           uint16_t addr,
                           uint16_t len,
-                          unsigned char* p_src_mem);
+                          uint8_t* p_src_mem);
 void bbc_memory_write(struct bbc_struct* p_bbc,
                       uint16_t addr_6502,
-                      unsigned char val);
+                      uint8_t val);
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
@@ -114,9 +114,9 @@ int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 void bbc_key_pressed(struct bbc_struct* p_bbc, int key);
 void bbc_key_released(struct bbc_struct* p_bbc, int key);
 int bbc_is_key_pressed(struct bbc_struct* p_bbc,
-                       unsigned char row,
-                       unsigned char col);
-int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col);
+                       uint8_t row,
+                       uint8_t col);
+int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, uint8_t col);
 int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
 
 int bbc_get_client_fd(struct bbc_struct* p_bbc);

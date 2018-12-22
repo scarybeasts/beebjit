@@ -61,7 +61,7 @@ struct bbc_struct {
   int message_client_fd;
 
   /* Settings. */
-  unsigned char* p_os_rom;
+  uint8_t* p_os_rom;
   int mode;
   int debug_flag;
   int run_flag;
@@ -75,10 +75,10 @@ struct bbc_struct {
   struct memory_access memory_access;
   struct timing_struct* p_timing;
   int mem_fd;
-  unsigned char* p_mem_raw;
-  unsigned char* p_mem_read;
-  unsigned char* p_mem_write;
-  unsigned char* p_mem_sideways;
+  uint8_t* p_mem_raw;
+  uint8_t* p_mem_read;
+  uint8_t* p_mem_write;
+  uint8_t* p_mem_sideways;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
   struct sound_struct* p_sound;
@@ -94,13 +94,13 @@ struct bbc_struct {
   uint64_t cycles_per_run;
   uint64_t last_gettime_us;
   uint64_t next_gettime_us_vsync;
-  unsigned int romsel;
+  uint8_t romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
 
   /* Keyboard. */
-  unsigned char keys[16][16];
-  unsigned char keys_count;
-  unsigned char keys_count_col[16];
+  uint8_t keys[16][16];
+  uint8_t keys_count;
+  uint8_t keys_count_col[16];
 };
 
 static int
@@ -168,7 +168,7 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
   return 0;
 }
 
-unsigned char
+uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
@@ -177,7 +177,7 @@ bbc_read_callback(void* p, uint16_t addr) {
    */
   if (addr < k_bbc_registers_start ||
       addr >= k_bbc_registers_start + k_bbc_registers_len) {
-    unsigned char* p_mem_read = bbc_get_mem_read(p_bbc);
+    uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
     return p_mem_read[addr];
   }
 
@@ -221,7 +221,7 @@ bbc_read_callback(void* p, uint16_t addr) {
   return 0xFE;
 }
 
-unsigned char
+uint8_t
 bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
 }
@@ -259,7 +259,7 @@ bbc_memory_range_reset(struct bbc_struct* p_bbc,
 }
 
 void
-bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
+bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   /* The broad approach here is: slower sideways bank switching in order to
    * enable faster memory accesses at runtime.
    * Other emulators (jsbeeb, b-em) appear to make a different tradeoff: faster
@@ -270,9 +270,9 @@ bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
    */
   int curr_is_ram;
   int new_is_ram;
-  unsigned char* p_sideways_src = p_bbc->p_mem_sideways;
-  unsigned char* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
-  unsigned int curr_bank = p_bbc->romsel;
+  uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
+  uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  uint8_t curr_bank = p_bbc->romsel;
 
   assert(curr_bank < k_bbc_num_roms);
   assert(index < k_bbc_num_roms);
@@ -284,7 +284,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
 
   /* If current bank is RAM, save it. */
   if (p_bbc->is_sideways_ram_bank[curr_bank]) {
-    unsigned char* p_sideways_dest = p_bbc->p_mem_sideways;
+    uint8_t* p_sideways_dest = p_bbc->p_mem_sideways;
     p_sideways_dest += (curr_bank * k_bbc_rom_size);
     (void) memcpy(p_sideways_dest, p_mem_sideways, k_bbc_rom_size);
   }
@@ -315,7 +315,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, unsigned char index) {
 }
 
 void
-bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
+bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct video_struct* p_video = bbc_get_video(p_bbc);
 
@@ -324,7 +324,7 @@ bbc_write_callback(void* p, uint16_t addr, unsigned char val) {
    */
   if (addr < k_bbc_registers_start ||
       addr >= k_bbc_registers_start + k_bbc_registers_len) {
-    unsigned char* p_mem_write = bbc_get_mem_write(p_bbc);
+    uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
     if (addr >= k_bbc_os_rom_offset) {
       return;
     }
@@ -444,7 +444,7 @@ bbc_do_vsync(struct bbc_struct* p_bbc) {
 }
 
 struct bbc_struct*
-bbc_create(unsigned char* p_os_rom,
+bbc_create(uint8_t* p_os_rom,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -495,21 +495,21 @@ bbc_create(unsigned char* p_os_rom,
   p_bbc->p_mem_raw =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_raw_addr,
+          (uint8_t*) (size_t) k_bbc_mem_mmap_raw_addr,
           k_6502_addr_space_size);
 
   /* p_mem_read marks ROM regions as hardware read-only. */
   p_bbc->p_mem_read =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_read_addr,
+          (uint8_t*) (size_t) k_bbc_mem_mmap_read_addr,
           k_6502_addr_space_size);
 
   /* p_mem_write replaces ROM regions with dummy writebale regions. */
   p_bbc->p_mem_write =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (unsigned char*) (size_t) k_bbc_mem_mmap_write_addr,
+          (uint8_t*) (size_t) k_bbc_mem_mmap_write_addr,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
@@ -655,9 +655,9 @@ bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
 
 void
 bbc_load_rom(struct bbc_struct* p_bbc,
-             unsigned char index,
-             unsigned char* p_rom_src) {
-  unsigned char* p_rom_dest = p_bbc->p_mem_sideways;
+             uint8_t index,
+             uint8_t* p_rom_src) {
+  uint8_t* p_rom_dest = p_bbc->p_mem_sideways;
 
   assert(index < k_bbc_num_roms);
 
@@ -667,9 +667,9 @@ bbc_load_rom(struct bbc_struct* p_bbc,
 
 void
 bbc_save_rom(struct bbc_struct* p_bbc,
-             unsigned char index,
-             unsigned char* p_dest) {
-  unsigned char* p_rom_src = p_bbc->p_mem_sideways;
+             uint8_t index,
+             uint8_t* p_dest) {
+  uint8_t* p_rom_src = p_bbc->p_mem_sideways;
 
   assert(index < k_bbc_num_roms);
 
@@ -678,7 +678,7 @@ bbc_save_rom(struct bbc_struct* p_bbc,
 }
 
 void
-bbc_make_sideways_ram(struct bbc_struct* p_bbc, unsigned char index) {
+bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
   assert(index < k_bbc_num_roms);
   p_bbc->is_sideways_ram_bank[index] = 1;
 }
@@ -687,8 +687,8 @@ void
 bbc_full_reset(struct bbc_struct* p_bbc) {
   uint16_t init_pc;
 
-  unsigned char* p_mem_raw = p_bbc->p_mem_raw;
-  unsigned char* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
+  uint8_t* p_mem_raw = p_bbc->p_mem_raw;
+  uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
 
   /* Clear memory / ROMs. */
   (void) memset(p_mem_raw, '\0', k_6502_addr_space_size);
@@ -708,11 +708,11 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
 
 void
 bbc_get_registers(struct bbc_struct* p_bbc,
-                  unsigned char* a,
-                  unsigned char* x,
-                  unsigned char* y,
-                  unsigned char* s,
-                  unsigned char* flags,
+                  uint8_t* a,
+                  uint8_t* x,
+                  uint8_t* y,
+                  uint8_t* s,
+                  uint8_t* flags,
                   uint16_t* pc) {
   struct state_6502* p_state_6502 = &p_bbc->state_6502;
   state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
@@ -726,11 +726,11 @@ bbc_get_cycles(struct bbc_struct* p_bbc) {
 
 void
 bbc_set_registers(struct bbc_struct* p_bbc,
-                  unsigned char a,
-                  unsigned char x,
-                  unsigned char y,
-                  unsigned char s,
-                  unsigned char flags,
+                  uint8_t a,
+                  uint8_t x,
+                  uint8_t y,
+                  uint8_t s,
+                  uint8_t flags,
                   uint16_t pc) {
   struct state_6502* p_state_6502 = &p_bbc->state_6502;
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
@@ -778,12 +778,12 @@ bbc_get_video(struct bbc_struct* p_bbc) {
   return p_bbc->p_video;
 }
 
-unsigned char*
+uint8_t*
 bbc_get_mem_read(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem_read;
 }
 
-unsigned char*
+uint8_t*
 bbc_get_mem_write(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem_write;
 }
@@ -792,7 +792,7 @@ void
 bbc_set_memory_block(struct bbc_struct* p_bbc,
                      uint16_t addr,
                      uint16_t len,
-                     unsigned char* p_src_mem) {
+                     uint8_t* p_src_mem) {
   size_t count = 0;
   while (count < len) {
     bbc_memory_write(p_bbc, addr, p_src_mem[count]);
@@ -804,8 +804,8 @@ bbc_set_memory_block(struct bbc_struct* p_bbc,
 void
 bbc_memory_write(struct bbc_struct* p_bbc,
                  uint16_t addr_6502,
-                 unsigned char val) {
-  unsigned char* p_mem_raw = p_bbc->p_mem_raw;
+                 uint8_t val) {
+  uint8_t* p_mem_raw = p_bbc->p_mem_raw;
 
   /* Allow a forced write to ROM using this API -- use the fully read/write
    * mapping.
@@ -1304,21 +1304,21 @@ bbc_key_released(struct bbc_struct* p_bbc, int key) {
 
 int
 bbc_is_key_pressed(struct bbc_struct* p_bbc,
-                   unsigned char row,
-                   unsigned char col) {
+                   uint8_t row,
+                   uint8_t col) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile unsigned char* p_key = &p_bbc->keys[row][col];
+  volatile uint8_t* p_key = &p_bbc->keys[row][col];
   return *p_key;
 }
 
 int
-bbc_is_key_column_pressed(struct bbc_struct* p_bbc, unsigned char col) {
+bbc_is_key_column_pressed(struct bbc_struct* p_bbc, uint8_t col) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile unsigned char* p_count = &p_bbc->keys_count_col[col];
+  volatile uint8_t* p_count = &p_bbc->keys_count_col[col];
   return (*p_count > 0);
 }
 
@@ -1327,7 +1327,7 @@ bbc_is_any_key_pressed(struct bbc_struct* p_bbc) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile unsigned char* p_count = &p_bbc->keys_count;
+  volatile uint8_t* p_count = &p_bbc->keys_count;
   return (*p_count > 0);
 }
 
