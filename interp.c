@@ -318,7 +318,7 @@ interp_enter(struct interp_struct* p_interp) {
       pc += 3;
       break;
     case k_zpx:
-      addr = p_mem_read[pc + 1];
+      addr = p_mem_read[(uint16_t) (pc + 1)];
       addr += x;
       addr &= 0xFF;
       pc += 2;
