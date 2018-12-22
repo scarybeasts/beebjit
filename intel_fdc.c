@@ -58,7 +58,7 @@ struct intel_fdc_struct {
   uint8_t parameters_needed;
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
-  uint8_t disc_data[2][k_intel_fdc_num_tracks *
+  uint8_t disc_data[2][k_intel_fdc_sector_size *
                        k_intel_fdc_sectors_per_track *
                        k_intel_fdc_num_tracks];
   uint8_t current_sector;
