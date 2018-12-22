@@ -292,55 +292,72 @@ interp_enter(struct interp_struct* p_interp) {
 
     switch (opmode) {
     case k_nil:
-    case 0: opmem = k_nomem; pc++; break;
-    case k_acc: opreg = k_a; opmem = k_nomem; v = a; pc++; break;
+    case 0:
+      opmem = k_nomem;
+      pc++;
+      break;
+    case k_acc:
+      opreg = k_a;
+      opmem = k_nomem;
+      v = a;
+      pc++;
+      break;
     case k_imm:
-    case k_rel: v = p_mem_read[pc + 1]; opmem = k_nomem; pc += 2; break;
-    case k_zpg: addr = p_mem_read[pc + 1]; pc += 2; break;
+    case k_rel:
+      v = p_mem_read[(uint16_t) (pc + 1)];
+      opmem = k_nomem;
+      pc += 2;
+      break;
+    case k_zpg:
+      addr = p_mem_read[(uint16_t) (pc + 1)];
+      pc += 2;
+      break;
     case k_abs:
-      addr = (p_mem_read[pc + 1] | (p_mem_read[(uint16_t) (pc + 2)] << 8));
+      addr = (p_mem_read[(uint16_t) (pc + 1)] |
+              (p_mem_read[(uint16_t) (pc + 2)] << 8));
       pc += 3;
       break;
     case k_zpx:
       addr = p_mem_read[pc + 1];
       addr += x;
-      addr &= 0xff;
+      addr &= 0xFF;
       pc += 2;
       break;
     case k_zpy:
-      addr = p_mem_read[pc + 1];
+      addr = p_mem_read[(uint16_t) (pc + 1)];
       addr += y;
-      addr &= 0xff;
+      addr &= 0xFF;
       pc += 2;
       break;
     case k_abx:
-      addr = p_mem_read[pc + 1];
+      addr = p_mem_read[(uint16_t) (pc + 1)];
       addr += x;
       cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
       addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
       pc += 3;
       break;
     case k_aby:
-      addr = p_mem_read[pc + 1];
+      addr = p_mem_read[(uint16_t) (pc + 1)];
       addr += y;
       cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
       addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
       pc += 3;
       break;
     case k_ind:
-      addr = (p_mem_read[pc + 1] | (p_mem_read[(uint16_t) (pc + 2)] << 8));
+      addr = (p_mem_read[(uint16_t) (pc + 1)] |
+              (p_mem_read[(uint16_t) (pc + 2)] << 8));
       pc += 3;
       v = p_mem_read[addr];
       /* Indirect fetches wrap at page boundaries. */
-      if ((addr & 0xff) == 0xff) {
-        addr &= 0xff00;
+      if ((addr & 0xFF) == 0xFF) {
+        addr &= 0xFF00;
       } else {
         addr++;
       }
       addr = (v | (p_mem_read[addr] << 8));
       break;
     case k_idx:
-      v = p_mem_read[pc + 1];
+      v = p_mem_read[(uint16_t) (pc + 1)];
       v += x;
       addr = p_mem_read[v];
       v++;
@@ -348,7 +365,7 @@ interp_enter(struct interp_struct* p_interp) {
       pc += 2;
       break;
     case k_idy:
-      v = p_mem_read[pc + 1];
+      v = p_mem_read[(uint16_t) (pc + 1)];
       addr = p_mem_read[v];
       addr += y;
       cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
