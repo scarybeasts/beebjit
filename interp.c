@@ -27,6 +27,7 @@ struct interp_struct {
   uint8_t* p_mem_write;
   uint16_t read_callback_above;
   uint16_t write_callback_above;
+  uint16_t callback_above;
   int debug_subsystem_active;
 
   size_t short_instruction_run_timer_id;
@@ -66,6 +67,10 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->write_callback_above =
       p_memory_access->memory_write_needs_callback_above(
           p_memory_access->p_callback_obj);
+  p_interp->callback_above = p_interp->read_callback_above;
+  if (p_interp->write_callback_above < p_interp->read_callback_above) {
+    p_interp->callback_above = p_interp->write_callback_above;
+  }
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_callback_object);
@@ -226,8 +231,7 @@ interp_enter(struct interp_struct* p_interp) {
   uint8_t* p_mem_read = p_interp->p_mem_read;
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
-  uint16_t read_callback_above = p_interp->read_callback_above;
-  uint16_t write_callback_above = p_interp->write_callback_above;
+  uint16_t callback_above = p_interp->callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
   uint16_t do_irq_vector = 0;
   unsigned char v = 0;
@@ -378,7 +382,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_read || opmem == k_rw) {
-      if (addr < read_callback_above) {
+      if (addr < callback_above) {
         v = p_mem_read[addr];
       } else {
         uint64_t delta = timing_update_countdown(p_timing, countdown);
@@ -585,7 +589,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (opmem == k_write || opmem == k_rw) {
-      if (addr < write_callback_above) {
+      if (addr < callback_above) {
         p_mem_write[addr] = v;
       } else {
         uint64_t delta = timing_update_countdown(p_timing, countdown);

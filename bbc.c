@@ -28,7 +28,14 @@ static const size_t k_bbc_sideways_offset = 0x8000;
 
 static const size_t k_bbc_us_per_vsync = 20000; /* 20ms / 50Hz */
 
+/* This data is from b-em, thanks b-em! */
+static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
+
 enum {
+  k_addr_fred = 0xFC00,
+  k_addr_jim = 0xFD00,
+  k_addr_shiela = 0xFE00,
+  k_addr_shiela_end = 0xFEFF,
   k_addr_crtc = 0xFE00,
   k_addr_acia = 0xFE08,
   k_addr_serial_ula = 0xFE10,
@@ -168,6 +175,34 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
   return 0;
 }
 
+static int
+bbc_is_1mhz_address(uint16_t addr) {
+  if ((addr < k_addr_fred) || (addr > k_addr_shiela_end)) {
+    return 0;
+  }
+  if (addr < k_addr_shiela) {
+    return 1;
+  }
+
+  return k_FE_1mhz_array[((addr >> 5) & 7)];
+}
+
+static void
+bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+  int extra_cycles = 1;
+
+  if (!bbc_is_1mhz_address(addr)) {
+    return;
+  }
+
+  if (state_6502_get_cycles(p_state_6502) & 1) {
+    extra_cycles++;
+  }
+
+  state_6502_add_cycles(p_state_6502, extra_cycles);
+}
+
 uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -180,6 +215,8 @@ bbc_read_callback(void* p, uint16_t addr) {
     uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
     return p_mem_read[addr];
   }
+
+  bbc_advance_timing_if_1mhz_access(p_bbc, addr);
 
   if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
     return via_read(p_bbc->p_system_via, (addr & 0xf));
@@ -334,6 +371,8 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     p_mem_write[addr] = val;
     return;
   }
+
+  bbc_advance_timing_if_1mhz_access(p_bbc, addr);
 
   if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
     via_write(p_bbc->p_system_via, (addr & 0xf), val);
