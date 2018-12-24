@@ -71,6 +71,10 @@ interp_create(struct state_6502* p_state_6502,
   if (p_interp->write_callback_above < p_interp->read_callback_above) {
     p_interp->callback_above = p_interp->write_callback_above;
   }
+  /* The code assumes that zero page and stack accesses don't incur special
+   * handling.
+   */
+  assert(p_interp->callback_above >= 0x200);
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_callback_object);
@@ -244,7 +248,9 @@ interp_enter(struct interp_struct* p_interp) {
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
   while (1) {
-    /* TODO: opcode fetch doesn't consider hardware register access. */
+    /* TODO: opcode fetch doesn't consider hardware register access,
+     * i.e. JMP $FE6A will have incorrect timings.
+     */
     opcode = p_mem_read[pc];
 
   force_opcode:
