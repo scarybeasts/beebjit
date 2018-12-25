@@ -141,6 +141,7 @@ timing_increase_timer(int64_t* p_new_value,
   }
   p_timing->timings[id] = value;
 
+  /* TODO: can optimize this away under certain circumstances? */
   timing_recalculate(p_timing);
 
   return p_timing->countdown;
@@ -151,15 +152,18 @@ timing_get_countdown(struct timing_struct* p_timing) {
   return p_timing->countdown;
 }
 
-uint64_t
-timing_update_countdown(struct timing_struct* p_timing, int64_t countdown) {
+int64_t
+timing_advance_time(struct timing_struct* p_timing,
+                    uint64_t* p_delta,
+                    int64_t countdown) {
   size_t i;
 
   size_t max_timer = p_timing->max_timer;
   uint64_t delta = (p_timing->countdown - countdown);
 
+  /* TODO: optimization, can return right away if we know nothing expires. */
+
   p_timing->total_timer_ticks += delta;
-  countdown = INT64_MAX;
 
   for (i = 0; i < max_timer; ++i) {
     int64_t value;
@@ -171,30 +175,6 @@ timing_update_countdown(struct timing_struct* p_timing, int64_t countdown) {
     value = p_timing->timings[i];
     value -= delta;
     p_timing->timings[i] = value;
-    if (value < countdown) {
-      countdown = value;
-    }
-  }
-
-  p_timing->countdown = countdown;
-
-  return delta;
-}
-
-int64_t
-timing_trigger_callbacks(struct timing_struct* p_timing) {
-  size_t i;
-
-  size_t max_timer = p_timing->max_timer;
-
-  for (i = 0; i < max_timer; ++i) {
-    int64_t value;
-    uint8_t running = p_timing->running[i];
-
-    if (!running) {
-      continue;
-    }
-    value = p_timing->timings[i];
     if (value <= 0) {
       void (*p_callback)(void*) = p_timing->p_callbacks[i];
       p_callback(p_timing->p_objects[i]);
@@ -203,5 +183,6 @@ timing_trigger_callbacks(struct timing_struct* p_timing) {
 
   timing_recalculate(p_timing);
 
+  *p_delta = delta;
   return p_timing->countdown;
 }

@@ -82,9 +82,6 @@ main(int argc, const char* argv[]) {
 
   /* Check instruction timings for branching. */
   util_buffer_set_pos(p_buf, 0x0080);
-  /* TODO: re-enable. */
-  emit_JMP(p_buf, k_abs, 0xC106);
-
   emit_LDA(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
   emit_BNE(p_buf, -2);            /* Branch, not taken, 2 cycles. */
@@ -105,12 +102,15 @@ main(int argc, const char* argv[]) {
 
   /* Check simple instruction timings that hit 1Mhz peripherals. */
   util_buffer_set_pos(p_buf, 0x0140);
-  /* TODO: re-enable when it works. */
-  emit_JMP(p_buf, k_abs, 0xC180);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
+  emit_CYCLES_RESET(p_buf);
+  emit_CYCLES(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, even cycle start, 6 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xC180);
 
   util_buffer_set_pos(p_buf, 0x0180);

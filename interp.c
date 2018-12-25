@@ -200,46 +200,175 @@ interp_call_debugger(struct interp_struct* p_interp,
   }
 }
 
+#define INTERP_TIMING_ADVANCE(num_cycles)                                     \
+  countdown -= num_cycles;                                                    \
+  countdown = timing_advance_time(p_timing, &delta, countdown);               \
+  state_6502_add_cycles(p_state_6502, delta);
+
+#define INTERP_MEMORY_READ(addr_read)                                         \
+  v = memory_read_callback(p_memory_obj, addr_read);                          \
+  countdown = timing_get_countdown(p_timing);
+
+#define INTERP_MEMORY_WRITE(addr_write)                                       \
+  memory_write_callback(p_memory_obj, addr_write, v);                         \
+  countdown = timing_get_countdown(p_timing);
+
+#define INTERP_MODE_ABS_READ()                                                \
+  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  if (addr < callback_above) {                                                \
+    v = p_mem_read[addr];                                                     \
+    cycles_this_instruction = 4;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_READ(addr);                                                 \
+    cycles_this_instruction = 1;                                              \
+  }                                                                           \
+  pc += 3;
+
+#define INTERP_MODE_ABS_WRITE()                                               \
+  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  if (addr < callback_above) {                                                \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 4;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    cycles_this_instruction = 1;                                              \
+  }                                                                           \
+  pc += 3;
+
+#define INTERP_MODE_ABX_READ()                                                \
+  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr = (addr_temp + x);                                                     \
+  page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  if (addr < callback_above) {                                                \
+    v = p_mem_read[addr];                                                     \
+    cycles_this_instruction = 4;                                              \
+    cycles_this_instruction += page_crossing;                                 \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    if (page_crossing) {                                                      \
+      INTERP_MEMORY_READ(addr - 0x100);                                       \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    }                                                                         \
+    INTERP_MEMORY_READ(addr);                                                 \
+    cycles_this_instruction = 1;                                              \
+  }                                                                           \
+  pc += 3;
+
+#define INTERP_MODE_ABX_WRITE()                                               \
+  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr = (addr_temp + x);                                                     \
+  if (addr < callback_above) {                                                \
+    p_mem_write[addr] = v;                                                    \
+  } else {                                                                    \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_READ(addr_temp);                                            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    cycles_this_instruction = 1;                                              \
+  }                                                                           \
+  cycles_this_instruction = 5;                                                \
+  pc += 3;
+
+#define INTERP_MODE_IDY_READ()                                                \
+  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  if (addr < callback_above) {                                                \
+    v = p_mem_read[addr];                                                     \
+    cycles_this_instruction = 5;                                              \
+    cycles_this_instruction += page_crossing;                                 \
+  } else {                                                                    \
+    v = 0; cycles_this_instruction = 0; assert(0);                            \
+  }                                                                           \
+  pc += 2;
+
+#define INTERP_MODE_IDY_WRITE()                                               \
+  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  if (addr < callback_above) {                                                \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 6;                                              \
+  } else {                                                                    \
+    cycles_this_instruction = 0; assert(0);                                   \
+  }                                                                           \
+  pc += 2;
+
+#define INTERP_LOAD_NZ_FLAGS(reg_name)                                        \
+  nf = !!(reg_name & 0x80);                                                   \
+  zf = (reg_name == 0);
+
+#define INTERP_INSTR_BRANCH(condition)                                        \
+  v = p_mem_read[pc + 1];                                                     \
+  cycles_this_instruction = 2;                                                \
+  pc += 2;                                                                    \
+  if (condition) {                                                            \
+    addr_temp = pc;                                                           \
+    cycles_this_instruction++;                                                \
+    pc = (uint16_t) ((int) addr_temp + (int) v);                              \
+    /* Add a cycle if the branch crossed a page. */                           \
+    if ((pc >> 8) ^ (addr_temp >> 8)) {                                       \
+      cycles_this_instruction++;                                              \
+    }                                                                         \
+  }
+
+#define INTERP_INSTR_CMP(reg_name)                                            \
+  cf = (reg_name >= v);                                                       \
+  v = (reg_name - v);                                                         \
+  INTERP_LOAD_NZ_FLAGS(v);
+
 uint32_t
 interp_enter(struct interp_struct* p_interp) {
+  uint16_t pc;
   uint8_t a;
   uint8_t x;
   uint8_t y;
   uint8_t s;
   uint8_t flags;
-  uint16_t pc;
   uint8_t zf;
   uint8_t nf;
   uint8_t cf;
   uint8_t of;
   uint8_t df;
   uint8_t intf;
-  uint8_t tmpf;
+//  uint8_t tmpf;
 
-  uint8_t opcode;
-  uint8_t opmode;
-  uint8_t optype;
-  uint8_t opmem;
-  uint8_t opreg;
-  int branch;
-  int check_extra_read_cycle;
-  uint16_t temp_addr;
-  int temp_int;
-  uint8_t temp_u8;
+//  uint8_t opmode;
+//  uint8_t optype;
+//  uint8_t opmem;
+//  uint8_t opreg;
+//  int branch;
+//  int temp_int;
+//  uint8_t temp_u8;
   int64_t cycles_this_instruction;
   int64_t countdown;
+  uint64_t delta;
+  int page_crossing;
+  uint16_t addr;
+  uint16_t addr_temp;
+  uint8_t opcode;
+  uint8_t v;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct timing_struct* p_timing = p_interp->p_timing;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
+  uint8_t (*memory_read_callback)(void*, uint16_t) =
+      p_memory_access->memory_read_callback;
+  void (*memory_write_callback)(void*, uint16_t, uint8_t) =
+      p_memory_access->memory_write_callback;
+  void* p_memory_obj = p_memory_access->p_callback_obj;
   uint8_t* p_mem_read = p_interp->p_mem_read;
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t callback_above = p_interp->callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
   uint16_t do_irq_vector = 0;
-  unsigned char v = 0;
-  uint16_t addr = 0;
 
   p_interp->return_from_loop = 0;
   countdown = timing_get_countdown(p_timing);
@@ -253,12 +382,9 @@ interp_enter(struct interp_struct* p_interp) {
      */
     opcode = p_mem_read[pc];
 
-  force_opcode:
+//  force_opcode:
     if (countdown <= 0) {
-      uint64_t delta = timing_update_countdown(p_timing, countdown);
-      state_6502_add_cycles(p_state_6502, delta);
-
-      countdown = timing_trigger_callbacks(p_timing);
+      INTERP_TIMING_ADVANCE(0);
 
       interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
 
@@ -290,354 +416,442 @@ interp_enter(struct interp_struct* p_interp) {
                            do_irq_vector);
     }
 
-    branch = 0;
-    opmode = g_opmodes[opcode];
-    optype = g_optypes[opcode];
-    opreg = g_optype_sets_register[optype];
-    opmem = g_opmem[optype];
-
-    /* Cycles, except branch and page crossings. */
-    check_extra_read_cycle = (opmem == k_read);
-    cycles_this_instruction = g_opcycles[opcode];
-
-    switch (opmode) {
-    case k_nil:
-    case 0:
-      opmem = k_nomem;
-      pc++;
-      break;
-    case k_acc:
-      opreg = k_a;
-      opmem = k_nomem;
-      v = a;
-      pc++;
-      break;
-    case k_imm:
-    case k_rel:
-      v = p_mem_read[(uint16_t) (pc + 1)];
-      opmem = k_nomem;
-      pc += 2;
-      break;
-    case k_zpg:
-      addr = p_mem_read[(uint16_t) (pc + 1)];
-      pc += 2;
-      break;
-    case k_abs:
-      addr = (p_mem_read[(uint16_t) (pc + 1)] |
-              (p_mem_read[(uint16_t) (pc + 2)] << 8));
-      pc += 3;
-      break;
-    case k_zpx:
-      addr = p_mem_read[(uint16_t) (pc + 1)];
-      addr += x;
-      addr &= 0xFF;
-      pc += 2;
-      break;
-    case k_zpy:
-      addr = p_mem_read[(uint16_t) (pc + 1)];
-      addr += y;
-      addr &= 0xFF;
-      pc += 2;
-      break;
-    case k_abx:
-      addr = p_mem_read[(uint16_t) (pc + 1)];
-      addr += x;
-      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
-      pc += 3;
-      break;
-    case k_aby:
-      addr = p_mem_read[(uint16_t) (pc + 1)];
-      addr += y;
-      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
-      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
-      pc += 3;
-      break;
-    case k_ind:
-      addr = (p_mem_read[(uint16_t) (pc + 1)] |
-              (p_mem_read[(uint16_t) (pc + 2)] << 8));
-      pc += 3;
-      v = p_mem_read[addr];
-      /* Indirect fetches wrap at page boundaries. */
-      if ((addr & 0xFF) == 0xFF) {
-        addr &= 0xFF00;
-      } else {
-        addr++;
-      }
-      addr = (v | (p_mem_read[addr] << 8));
-      break;
-    case k_idx:
-      v = p_mem_read[(uint16_t) (pc + 1)];
-      v += x;
-      addr = p_mem_read[v];
-      v++;
-      addr |= (p_mem_read[v] << 8);
-      pc += 2;
-      break;
-    case k_idy:
-      v = p_mem_read[(uint16_t) (pc + 1)];
-      addr = p_mem_read[v];
-      addr += y;
-      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
-      v++;
-      addr += (p_mem_read[v] << 8);
-      pc += 2;
-      break;
-    default:
-      assert(0);
-    }
-
-    if (opmem == k_read || opmem == k_rw) {
-      if (addr < callback_above) {
-        v = p_mem_read[addr];
-      } else {
-        uint64_t delta = timing_update_countdown(p_timing, countdown);
-        state_6502_add_cycles(p_state_6502, delta);
-        v = p_memory_access->memory_read_callback(
-            p_memory_access->p_callback_obj, addr);
-        countdown = timing_get_countdown(p_timing);
-      }
-      if (opmem == k_rw) {
-        opreg = k_v;
-      }
-    }
-
-    switch (optype) {
-    case k_kil:
-      switch (opcode) {
-      case 0x02: /* EXIT */
-        return ((y << 16) | (x << 8) | a);
-      case 0x12: /* CYCLES */
-      {
-        uint64_t delta = timing_update_countdown(p_timing, countdown);
-        state_6502_add_cycles(p_state_6502, delta);
-        a = (state_6502_get_cycles(p_state_6502) & 0xff);
-        opreg = k_a;
-        break;
-      }
-      case 0x22: /* CYCLES_RESET */
-        (void) timing_update_countdown(p_timing, countdown);
-        state_6502_set_cycles(p_state_6502, 0);
-        break;
-      case 0xF2: /* CRASH */
-      {
-        volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
-        (void) *p_crash_ptr;
-      }
-      default:
-        assert(0);
-      }
-      break;
-    case k_adc:
-      temp_int = (a + v + cf);
-      if (df) {
-        /* Fix up decimal carry on first nibble. */
-        /* TODO: incorrect for invalid large BCD numbers, double carries? */
-        int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
-        if (decimal_carry >= 0x0a) {
-          temp_int += 0x06;
-        }
-      }
-      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);
-      if (df) {
-        /* In decimal mode, NZ flags are based on this interim value. */
-        v = temp_int;
-        opreg = k_v;
-        if (temp_int >= 0xa0) {
-          temp_int += 0x60;
-        }
-      }
-      a = temp_int;
-      cf = !!(temp_int & 0x100);
-      break;
-    case k_alr: a &= v; cf = (a & 0x01); a >>= 1; break;
-    case k_and: a &= v; break;
-    case k_asl: cf = !!(v & 0x80); v <<= 1; break;
-    case k_bcc: branch = (cf == 0); break;
-    case k_bcs: branch = (cf == 1); break;
-    case k_beq: branch = (zf == 1); break;
-    case k_bit: zf = !(a & v); nf = !!(v & 0x80); of = !!(v & 0x40); break;
-    case k_bmi: branch = (nf == 1); break;
-    case k_bne: branch = (zf == 0); break;
-    case k_bpl: branch = (nf == 0); break;
-    case k_brk:
-      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
-       * sequence for a non-NMI interrupt, the NMI should take precendence.
-       * Probably not worth emulating unless we can come up with a
-       * deterministic way to fire an NMI to trigger this.
-       * (Need to investigate disc controller NMI timing on a real beeb.)
-       */
-      temp_u8 = 0;
-      if (!do_irq_vector) {
-        /* It's a BRK, not an IRQ. */
-        temp_u8 = (1 << k_flag_brk);
-        do_irq_vector = k_6502_vector_irq;
-      } else {
-        /* IRQ. Undo the PC increment. */
-        pc -= 2;
-      }
-      p_stack[s--] = (pc >> 8);
-      p_stack[s--] = (pc & 0xff);
-      v = interp_get_flags(zf, nf, cf, of, df, intf);
-      v |= (temp_u8 | (1 << k_flag_always_set));
-      p_stack[s--] = v;
-      pc = (p_mem_read[do_irq_vector] |
-            (p_mem_read[(uint16_t) (do_irq_vector + 1)] << 8));
-      intf = 1;
-      do_irq_vector = 0;
-      break;
-    case k_bvc: branch = (of == 0); break;
-    case k_bvs: branch = (of == 1); break;
-    case k_clc: cf = 0; break;
-    case k_cld: df = 0; break;
-    case k_cli:
-      intf = 0;
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
-      if (!opcode) {
-        goto force_opcode;
-      }
-      break;
-    case k_clv: of = 0; break;
-    case k_cmp: cf = (a >= v); v = (a - v); opreg = k_v; break;
-    case k_cpx: cf = (x >= v); v = (x - v); opreg = k_v; break;
-    case k_cpy: cf = (y >= v); v = (y - v); opreg = k_v; break;
-    case k_dec: v--; break;
-    case k_dex: x--; break;
-    case k_dey: y--; break;
-    case k_eor: a ^= v; break;
-    case k_inc: v++; break;
-    case k_inx: x++; break;
-    case k_iny: y++; break;
-    case k_jmp: pc = addr; break;
-    case k_jsr:
-      temp_addr = (pc - 1);
-      p_stack[s--] = (temp_addr >> 8);
-      p_stack[s--] = (temp_addr & 0xff);
-      pc = addr;
-      break;
-    case k_lda: a = v; break;
-    case k_ldx: x = v; break;
-    case k_ldy: y = v; break;
-    case k_lsr: cf = (v & 0x01); v >>= 1; break;
-    case k_nop: break;
-    case k_pha: p_stack[s--] = a; break;
-    case k_php:
+    switch (opcode) {
+    case 0x02: /* Extension: EXIT */
+      return ((y << 16) | (x << 8) | a);
+    case 0x08: /* PHP */
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
       p_stack[s--] = v;
+      pc++;
+      cycles_this_instruction = 3;
       break;
-    case k_pla: a = p_stack[++s]; break;
-    case k_plp:
-      v = p_stack[++s];
-      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
-      if (!opcode) {
-        goto force_opcode;
-      }
+    case 0x12: /* Extension: CYCLES */
+      INTERP_TIMING_ADVANCE(0);
+      a = (state_6502_get_cycles(p_state_6502) & 0xFF);
+      pc++;
+      cycles_this_instruction = 1;
       break;
-    case k_ora: a |= v; break;
-    case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
-    case k_ror: tmpf = cf; cf = (v & 0x01); v >>= 1; v |= (tmpf << 7); break;
-    case k_rti:
-      v = p_stack[++s];
-      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
-      pc = p_stack[++s];
-      pc |= (p_stack[++s] << 8);
+    case 0x22: /* Extension: CYCLES_RESET */
+      INTERP_TIMING_ADVANCE(0);
+      state_6502_set_cycles(p_state_6502, 0);
+      pc++;
+      cycles_this_instruction = 1;
       break;
-    case k_rts: pc = p_stack[++s]; pc |= (p_stack[++s] << 8); pc++; break;
-    case k_sax: v = (a & x); break;
-    case k_sbc:
-      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      /* "SBC simply takes the ones complement of the second value and then
-       * performs an ADC"
-       */
-      temp_int = (a + (unsigned char) ~v + cf);
-      if (df) {
-        /* Fix up decimal carry on first nibble. */
-        if (((v & 0x0f) + !cf) > (a & 0x0f)) {
-          temp_int -= 0x06;
-        }
-      }
-      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
-      of = !!((a ^ temp_int) & ((unsigned char) ~v ^ temp_int) & 0x80);
-      if (df) {
-        /* In decimal mode, NZ flags are based on this interim value. */
-        v = temp_int;
-        opreg = k_v;
-        if ((v + !cf) > a) {
-          temp_int -= 0x60;
-        }
-      }
-      a = temp_int;
-      cf = !!(temp_int & 0x100);
+    case 0x4C: /* JMP */
+      pc = *(uint16_t*) &p_mem_read[pc + 1];
+      cycles_this_instruction = 3;
       break;
-    case k_sec: cf = 1; break;
-    case k_sed: df = 1; break;
-    case k_sei: intf = 1; break;
-    /* TODO: SHY also issues a read at the uncarried abx address. Also, it
-     * always takes 5 cycles (no extra cycle for abx mode calculation.
-     */
-    case k_shy: v = (y & ((addr >> 8) + 1)); break;
-    case k_slo: cf = !!(v & 0x80); v <<= 1; a |= v; break;
-    case k_sta: v = a; break;
-    case k_stx: v = x; break;
-    case k_sty: v = y; break;
-    case k_tax: x = a; break;
-    case k_tay: y = a; break;
-    case k_tsx: x = s; break;
-    case k_txa: a = x; break;
-    case k_txs: s = x; break;
-    case k_tya: a = y; break;
-    default:
-      printf("Unknown opcode: %x @ post-inc PC $%.4x\n", opcode, pc);
-      assert(0);
-    }
-
-    if (opmem == k_write || opmem == k_rw) {
-      if (addr < callback_above) {
-        p_mem_write[addr] = v;
-      } else {
-        uint64_t delta = timing_update_countdown(p_timing, countdown);
-        state_6502_add_cycles(p_state_6502, delta);
-        p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
-                                               addr,
-                                               v);
-        countdown = timing_get_countdown(p_timing);
-      }
-    }
-    if (opmode == k_acc) {
+    case 0xC9: /* CMP imm */
+      v = p_mem_read[pc + 1];
+      INTERP_INSTR_CMP(a);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
+    case 0x8D: /* STA abs */
+      v = a;
+      INTERP_MODE_ABS_WRITE();
+      break;
+    case 0x91: /* STA idy */
+      v = a;
+      INTERP_MODE_IDY_WRITE();
+      break;
+    case 0x9D: /* STA abx */
+      v = a;
+      INTERP_MODE_ABX_WRITE();
+      break;
+    case 0xA0: /* LDY imm */
+      y = p_mem_read[pc + 1];
+      INTERP_LOAD_NZ_FLAGS(y);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
+    case 0xA2: /* LDX imm */
+      x = p_mem_read[pc + 1];
+      INTERP_LOAD_NZ_FLAGS(x);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
+    case 0xA9: /* LDA imm */
+      a = p_mem_read[pc + 1];
+      INTERP_LOAD_NZ_FLAGS(a);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
+    case 0xAD: /* LDA abs */
+      INTERP_MODE_ABS_READ();
       a = v;
-    }
-
-    switch (opreg) {
-    case 0: break;
-    case k_a: zf = (a == 0); nf = !!(a & 0x80); break;
-    case k_x: zf = (x == 0); nf = !!(x & 0x80); break;
-    case k_y: zf = (y == 0); nf = !!(y & 0x80); break;
-    case k_v: zf = (v == 0); nf = !!(v & 0x80); break;
+      INTERP_LOAD_NZ_FLAGS(a);
+      break;
+    case 0xB1: /* LDA idy */
+      INTERP_MODE_IDY_READ();
+      a = v;
+      INTERP_LOAD_NZ_FLAGS(a);
+      break;
+    case 0xBD: /* LDA abx */
+      INTERP_MODE_ABX_READ();
+      a = v;
+      INTERP_LOAD_NZ_FLAGS(a);
+      break;
+    case 0xD0: /* BNE */
+      INTERP_INSTR_BRANCH(!zf);
+      break;
+    case 0xF0: /* BEQ */
+      INTERP_INSTR_BRANCH(zf);
+      break;
     default:
-      assert(0);
+      __builtin_trap();
     }
 
-    if (branch) {
-      /* Taken branches take a cycle longer. */
-      cycles_this_instruction++;
-      temp_addr = pc;
-      pc = (pc + (char) v);
-      /* If the taken branch crosses a page boundary, it takes a further cycle
-       * longer.
-       */
-      if ((pc ^ temp_addr) & 0x0100) {
-        cycles_this_instruction++;
-      }
-    }
-
-    /* Need to do this all at once, and last. This is so that we fire timer
-     * expiries only at the start of the loop and not while we're accessing
-     * hardware registers.
-     */
     countdown -= cycles_this_instruction;
+
+//    branch = 0;
+//    opmode = g_opmodes[opcode];
+//    optype = g_optypes[opcode];
+//    opreg = g_optype_sets_register[optype];
+//    opmem = g_opmem[optype];
+//
+//    /* Cycles, except branch and page crossings. */
+//    check_extra_read_cycle = (opmem == k_read);
+//    cycles_this_instruction = g_opcycles[opcode];
+//
+//    switch (opmode) {
+//    case k_nil:
+//    case 0:
+//      opmem = k_nomem;
+//      pc++;
+//      break;
+//    case k_acc:
+//      opreg = k_a;
+//      opmem = k_nomem;
+//      v = a;
+//      pc++;
+//      break;
+//    case k_imm:
+//    case k_rel:
+//      v = p_mem_read[(uint16_t) (pc + 1)];
+//      opmem = k_nomem;
+//      pc += 2;
+//      break;
+//    case k_zpg:
+//      addr = p_mem_read[(uint16_t) (pc + 1)];
+//      pc += 2;
+//      break;
+//    case k_abs:
+//      addr = (p_mem_read[(uint16_t) (pc + 1)] |
+//              (p_mem_read[(uint16_t) (pc + 2)] << 8));
+//      pc += 3;
+//      break;
+//    case k_zpx:
+//      addr = p_mem_read[(uint16_t) (pc + 1)];
+//      addr += x;
+//      addr &= 0xFF;
+//      pc += 2;
+//      break;
+//    case k_zpy:
+//      addr = p_mem_read[(uint16_t) (pc + 1)];
+//      addr += y;
+//      addr &= 0xFF;
+//      pc += 2;
+//      break;
+//    case k_abx:
+//      addr = p_mem_read[(uint16_t) (pc + 1)];
+//      addr += x;
+//      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
+//      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
+//      pc += 3;
+//      break;
+//    case k_aby:
+//      addr = p_mem_read[(uint16_t) (pc + 1)];
+//      addr += y;
+//      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
+//      addr += (p_mem_read[(uint16_t) (pc + 2)] << 8);
+//      pc += 3;
+//      break;
+//    case k_ind:
+//      addr = (p_mem_read[(uint16_t) (pc + 1)] |
+//              (p_mem_read[(uint16_t) (pc + 2)] << 8));
+//      pc += 3;
+//      v = p_mem_read[addr];
+//      /* Indirect fetches wrap at page boundaries. */
+//      if ((addr & 0xFF) == 0xFF) {
+//        addr &= 0xFF00;
+//      } else {
+//        addr++;
+//      }
+//      addr = (v | (p_mem_read[addr] << 8));
+//      break;
+//    case k_idx:
+//      v = p_mem_read[(uint16_t) (pc + 1)];
+//      v += x;
+//      addr = p_mem_read[v];
+//      v++;
+//      addr |= (p_mem_read[v] << 8);
+//      pc += 2;
+//      break;
+//    case k_idy:
+//      v = p_mem_read[(uint16_t) (pc + 1)];
+//      addr = p_mem_read[v];
+//      addr += y;
+//      cycles_this_instruction += ((addr >> 8) & check_extra_read_cycle);
+//      v++;
+//      addr += (p_mem_read[v] << 8);
+//      pc += 2;
+//      break;
+//    default:
+//      assert(0);
+//    }
+//
+//    if (opmem == k_read || opmem == k_rw) {
+//      if (addr < callback_above) {
+//        v = p_mem_read[addr];
+//      } else {
+//        uint64_t delta = timing_update_countdown(p_timing, countdown);
+//        state_6502_add_cycles(p_state_6502, delta);
+//        v = p_memory_access->memory_read_callback(
+//            p_memory_access->p_callback_obj, addr);
+//        countdown = timing_get_countdown(p_timing);
+//      }
+//      if (opmem == k_rw) {
+//        opreg = k_v;
+//      }
+//    }
+//
+//    switch (optype) {
+//    case k_kil:
+//      switch (opcode) {
+//      case 0x02: /* EXIT */
+//        return ((y << 16) | (x << 8) | a);
+//      case 0x12: /* CYCLES */
+//      {
+//        uint64_t delta = timing_update_countdown(p_timing, countdown);
+//        state_6502_add_cycles(p_state_6502, delta);
+//        a = (state_6502_get_cycles(p_state_6502) & 0xff);
+//        opreg = k_a;
+//        break;
+//      }
+//      case 0x22: /* CYCLES_RESET */
+//        (void) timing_update_countdown(p_timing, countdown);
+//        state_6502_set_cycles(p_state_6502, 0);
+//        break;
+//      case 0xF2: /* CRASH */
+//      {
+//        volatile unsigned char* p_crash_ptr = (volatile unsigned char*) 0xdead;
+//        (void) *p_crash_ptr;
+//      }
+//      default:
+//        assert(0);
+//      }
+//      break;
+//    case k_adc:
+//      temp_int = (a + v + cf);
+//      if (df) {
+//        /* Fix up decimal carry on first nibble. */
+//        /* TODO: incorrect for invalid large BCD numbers, double carries? */
+//        int decimal_carry = ((a & 0x0f) + (v & 0x0f) + cf);
+//        if (decimal_carry >= 0x0a) {
+//          temp_int += 0x06;
+//        }
+//      }
+//      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+//      of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);
+//      if (df) {
+//        /* In decimal mode, NZ flags are based on this interim value. */
+//        v = temp_int;
+//        opreg = k_v;
+//        if (temp_int >= 0xa0) {
+//          temp_int += 0x60;
+//        }
+//      }
+//      a = temp_int;
+//      cf = !!(temp_int & 0x100);
+//      break;
+//    case k_alr: a &= v; cf = (a & 0x01); a >>= 1; break;
+//    case k_and: a &= v; break;
+//    case k_asl: cf = !!(v & 0x80); v <<= 1; break;
+//    case k_bcc: branch = (cf == 0); break;
+//    case k_bcs: branch = (cf == 1); break;
+//    case k_beq: branch = (zf == 1); break;
+//    case k_bit: zf = !(a & v); nf = !!(v & 0x80); of = !!(v & 0x40); break;
+//    case k_bmi: branch = (nf == 1); break;
+//    case k_bne: branch = (zf == 0); break;
+//    case k_bpl: branch = (nf == 0); break;
+//    case k_brk:
+//      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
+//       * sequence for a non-NMI interrupt, the NMI should take precendence.
+//       * Probably not worth emulating unless we can come up with a
+//       * deterministic way to fire an NMI to trigger this.
+//       * (Need to investigate disc controller NMI timing on a real beeb.)
+//       */
+//      temp_u8 = 0;
+//      if (!do_irq_vector) {
+//        /* It's a BRK, not an IRQ. */
+//        temp_u8 = (1 << k_flag_brk);
+//        do_irq_vector = k_6502_vector_irq;
+//      } else {
+//        /* IRQ. Undo the PC increment. */
+//        pc -= 2;
+//      }
+//      p_stack[s--] = (pc >> 8);
+//      p_stack[s--] = (pc & 0xff);
+//      v = interp_get_flags(zf, nf, cf, of, df, intf);
+//      v |= (temp_u8 | (1 << k_flag_always_set));
+//      p_stack[s--] = v;
+//      pc = (p_mem_read[do_irq_vector] |
+//            (p_mem_read[(uint16_t) (do_irq_vector + 1)] << 8));
+//      intf = 1;
+//      do_irq_vector = 0;
+//      break;
+//    case k_bvc: branch = (of == 0); break;
+//    case k_bvs: branch = (of == 1); break;
+//    case k_clc: cf = 0; break;
+//    case k_cld: df = 0; break;
+//    case k_cli:
+//      intf = 0;
+//      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+//      if (!opcode) {
+//        goto force_opcode;
+//      }
+//      break;
+//    case k_clv: of = 0; break;
+//    case k_cmp: cf = (a >= v); v = (a - v); opreg = k_v; break;
+//    case k_cpx: cf = (x >= v); v = (x - v); opreg = k_v; break;
+//    case k_cpy: cf = (y >= v); v = (y - v); opreg = k_v; break;
+//    case k_dec: v--; break;
+//    case k_dex: x--; break;
+//    case k_dey: y--; break;
+//    case k_eor: a ^= v; break;
+//    case k_inc: v++; break;
+//    case k_inx: x++; break;
+//    case k_iny: y++; break;
+//    case k_jmp: pc = addr; break;
+//    case k_jsr:
+//      temp_addr = (pc - 1);
+//      p_stack[s--] = (temp_addr >> 8);
+//      p_stack[s--] = (temp_addr & 0xff);
+//      pc = addr;
+//      break;
+//    case k_lda: a = v; break;
+//    case k_ldx: x = v; break;
+//    case k_ldy: y = v; break;
+//    case k_lsr: cf = (v & 0x01); v >>= 1; break;
+//    case k_nop: break;
+//    case k_pha: p_stack[s--] = a; break;
+//    case k_php:
+//      v = interp_get_flags(zf, nf, cf, of, df, intf);
+//      v |= ((1 << k_flag_brk) | (1 << k_flag_always_set));
+//      p_stack[s--] = v;
+//      break;
+//    case k_pla: a = p_stack[++s]; break;
+//    case k_plp:
+//      v = p_stack[++s];
+//      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
+//      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+//      if (!opcode) {
+//        goto force_opcode;
+//      }
+//      break;
+//    case k_ora: a |= v; break;
+//    case k_rol: tmpf = cf; cf = !!(v & 0x80); v <<= 1; v |= tmpf; break;
+//    case k_ror: tmpf = cf; cf = (v & 0x01); v >>= 1; v |= (tmpf << 7); break;
+//    case k_rti:
+//      v = p_stack[++s];
+//      interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
+//      pc = p_stack[++s];
+//      pc |= (p_stack[++s] << 8);
+//      break;
+//    case k_rts: pc = p_stack[++s]; pc |= (p_stack[++s] << 8); pc++; break;
+//    case k_sax: v = (a & x); break;
+//    case k_sbc:
+//      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+//      /* "SBC simply takes the ones complement of the second value and then
+//       * performs an ADC"
+//       */
+//      temp_int = (a + (unsigned char) ~v + cf);
+//      if (df) {
+//        /* Fix up decimal carry on first nibble. */
+//        if (((v & 0x0f) + !cf) > (a & 0x0f)) {
+//          temp_int -= 0x06;
+//        }
+//      }
+//      /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */
+//      of = !!((a ^ temp_int) & ((unsigned char) ~v ^ temp_int) & 0x80);
+//      if (df) {
+//        /* In decimal mode, NZ flags are based on this interim value. */
+//        v = temp_int;
+//        opreg = k_v;
+//        if ((v + !cf) > a) {
+//          temp_int -= 0x60;
+//        }
+//      }
+//      a = temp_int;
+//      cf = !!(temp_int & 0x100);
+//      break;
+//    case k_sec: cf = 1; break;
+//    case k_sed: df = 1; break;
+//    case k_sei: intf = 1; break;
+//    /* TODO: SHY also issues a read at the uncarried abx address. Also, it
+//     * always takes 5 cycles (no extra cycle for abx mode calculation.
+//     */
+//    case k_shy: v = (y & ((addr >> 8) + 1)); break;
+//    case k_slo: cf = !!(v & 0x80); v <<= 1; a |= v; break;
+//    case k_sta: v = a; break;
+//    case k_stx: v = x; break;
+//    case k_sty: v = y; break;
+//    case k_tax: x = a; break;
+//    case k_tay: y = a; break;
+//    case k_tsx: x = s; break;
+//    case k_txa: a = x; break;
+//    case k_txs: s = x; break;
+//    case k_tya: a = y; break;
+//    default:
+//      printf("Unknown opcode: %x @ post-inc PC $%.4x\n", opcode, pc);
+//      assert(0);
+//    }
+//
+//    if (opmem == k_write || opmem == k_rw) {
+//      if (addr < callback_above) {
+//        p_mem_write[addr] = v;
+//      } else {
+//        uint64_t delta = timing_update_countdown(p_timing, countdown);
+//        state_6502_add_cycles(p_state_6502, delta);
+//        p_memory_access->memory_write_callback(p_memory_access->p_callback_obj,
+//                                               addr,
+//                                               v);
+//        countdown = timing_get_countdown(p_timing);
+//      }
+//    }
+//    if (opmode == k_acc) {
+//      a = v;
+//    }
+//
+//    switch (opreg) {
+//    case 0: break;
+//    case k_a: zf = (a == 0); nf = !!(a & 0x80); break;
+//    case k_x: zf = (x == 0); nf = !!(x & 0x80); break;
+//    case k_y: zf = (y == 0); nf = !!(y & 0x80); break;
+//    case k_v: zf = (v == 0); nf = !!(v & 0x80); break;
+//    default:
+//      assert(0);
+//    }
+//
+//    if (branch) {
+//      /* Taken branches take a cycle longer. */
+//      cycles_this_instruction++;
+//      temp_addr = pc;
+//      pc = (pc + (char) v);
+//      /* If the taken branch crosses a page boundary, it takes a further cycle
+//       * longer.
+//       */
+//      if ((pc ^ temp_addr) & 0x0100) {
+//        cycles_this_instruction++;
+//      }
+//    }
+//
+//    /* Need to do this all at once, and last. This is so that we fire timer
+//     * expiries only at the start of the loop and not while we're accessing
+//     * hardware registers.
+//     */
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
@@ -649,11 +863,12 @@ interp_enter(struct interp_struct* p_interp) {
 int64_t
 interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
   uint32_t ret;
+  uint64_t delta;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct timing_struct* p_timing = p_interp->p_timing;
 
-  uint64_t delta = timing_update_countdown(p_timing, countdown);
+  (void) timing_advance_time(p_timing, &delta, countdown);
   state_6502_add_cycles(p_state_6502, delta);
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */

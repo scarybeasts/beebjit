@@ -23,8 +23,8 @@ int64_t timing_increase_timer(int64_t* p_new_value,
                               int64_t time);
 
 int64_t timing_get_countdown(struct timing_struct* p_timing);
-uint64_t timing_update_countdown(struct timing_struct* p_timing,
-                                 int64_t countdown);
-int64_t timing_trigger_callbacks(struct timing_struct* p_timing);
+int64_t timing_advance_time(struct timing_struct* p_timing,
+                            uint64_t* p_delta,
+                            int64_t countdown);
 
 #endif /* BEEBJIT_TIMING_H */
