@@ -155,38 +155,38 @@ debug_print_opcode(char* buf,
     snprintf(buf, buf_len, "%s A", opname);
     break;
   case k_imm:
-    snprintf(buf, buf_len, "%s #$%.2x", opname, operand1);
+    snprintf(buf, buf_len, "%s #$%.2X", opname, operand1);
     break;
   case k_zpg:
-    snprintf(buf, buf_len, "%s $%.2x", opname, operand1);
+    snprintf(buf, buf_len, "%s $%.2X", opname, operand1);
     break;
   case k_abs:
-    snprintf(buf, buf_len, "%s $%.4x", opname, addr);
+    snprintf(buf, buf_len, "%s $%.4X", opname, addr);
     break;
   case k_zpx:
-    snprintf(buf, buf_len, "%s $%.2x,X", opname, operand1);
+    snprintf(buf, buf_len, "%s $%.2X,X", opname, operand1);
     break;
   case k_zpy:
-    snprintf(buf, buf_len, "%s $%.2x,Y", opname, operand1);
+    snprintf(buf, buf_len, "%s $%.2X,Y", opname, operand1);
     break;
   case k_abx:
-    snprintf(buf, buf_len, "%s $%.4x,X", opname, addr);
+    snprintf(buf, buf_len, "%s $%.4X,X", opname, addr);
     break;
   case k_aby:
-    snprintf(buf, buf_len, "%s $%.4x,Y", opname, addr);
+    snprintf(buf, buf_len, "%s $%.4X,Y", opname, addr);
     break;
   case k_idx:
-    snprintf(buf, buf_len, "%s ($%.2x,X)", opname, operand1);
+    snprintf(buf, buf_len, "%s ($%.2X,X)", opname, operand1);
     break;
   case k_idy:
-    snprintf(buf, buf_len, "%s ($%.2x),Y", opname, operand1);
+    snprintf(buf, buf_len, "%s ($%.2X),Y", opname, operand1);
     break;
   case k_ind:
-    snprintf(buf, buf_len, "%s ($%.4x)", opname, addr);
+    snprintf(buf, buf_len, "%s ($%.4X)", opname, addr);
     break;
   case k_rel:
-    addr = reg_pc + 2 + (char) operand1;
-    snprintf(buf, buf_len, "%s $%.4x", opname, addr);
+    addr = (reg_pc + 2 + (char) operand1);
+    snprintf(buf, buf_len, "%s $%.4X", opname, addr);
     break;
   default:
     snprintf(buf, buf_len, "%s: %.2x", opname, opcode);
@@ -333,7 +333,7 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        operand2,
                        addr_6502,
                        0);
-    printf("[%.4x] %.4x: %s\n", block_6502, addr_6502, opcode_buf);
+    printf("[%.4X] %.4X: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
 }
@@ -389,16 +389,16 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &t1_oneshot_fired,
                     &t2_oneshot_fired,
                     &t1_pb7);
-  printf("IFR %.2x IER %.2x\n", IFR, IER);
-  printf("ORA %.2x DDRA %.2x periph %.2x\n", ORA, DDRA, peripheral_a);
-  printf("ORB %.2x DDRB %.2x periph %.2x\n", ORB, DDRB, peripheral_b);
-  printf("SR %.2x ACR %.2x PCR %.2x\n", SR, ACR, PCR);
-  printf("T1L %.4x T1C %.4x oneshot hit %d PB7 %d\n",
+  printf("IFR %.2X IER %.2X\n", IFR, IER);
+  printf("ORA %.2X DDRA %.2X periph %.2X\n", ORA, DDRA, peripheral_a);
+  printf("ORB %.2X DDRB %.2X periph %.2X\n", ORB, DDRB, peripheral_b);
+  printf("SR %.2X ACR %.2X PCR %.2X\n", SR, ACR, PCR);
+  printf("T1L %.4X T1C %.4X oneshot hit %d PB7 %d\n",
          T1L,
          T1C,
          t1_oneshot_fired,
          t1_pb7);
-  printf("T2L %.4x T2C %.4x oneshot hit %d\n", T2L, T2C, t2_oneshot_fired);
+  printf("T2L %.4X T2C %.4X oneshot hit %d\n", T2L, T2C, t2_oneshot_fired);
 }
 
 static int
@@ -493,7 +493,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
     if (!count) {
       continue;
     }
-    printf("%4x: %zu\n", addr, count);
+    printf("%4X: %zu\n", addr, count);
   }
   printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
 }
@@ -527,14 +527,14 @@ debug_check_unusual(struct debug_struct* p_debug,
    * register space.
    */
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
-    printf("Indirect access to register %.4x at %.4x\n", addr_6502, reg_pc);
+    printf("Indirect access to register %.4X at %.4X\n", addr_6502, reg_pc);
     p_debug->debug_running = 0;
   }
 
   /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
   if (is_write && is_rom) {
     if (!p_debug->warned_at_addr[reg_pc]) {
-      printf("Code at %.4x is writing to ROM at %.4x\n", reg_pc, addr_6502);
+      printf("Code at %.4X is writing to ROM at %.4X\n", reg_pc, addr_6502);
       p_debug->warned_at_addr[reg_pc] = 1;
     }
     if (p_debug->stats && (opmode == k_idx || opmode == k_idy)) {
@@ -548,11 +548,11 @@ debug_check_unusual(struct debug_struct* p_debug,
    */
   if (is_write && has_code) {
     if (!p_debug->warned_at_addr[reg_pc]) {
-      printf("Code at %.4x modifying code at %.4x\n", reg_pc, addr_6502);
+      printf("Code at %.4X modifying code at %.4X\n", reg_pc, addr_6502);
       p_debug->warned_at_addr[reg_pc] = 1;
     }
     if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
-      printf("Indirect write at %.4x to %.4x\n", reg_pc, addr_6502);
+      printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
       p_debug->debug_running = 0;
     }
   }
@@ -561,7 +561,7 @@ debug_check_unusual(struct debug_struct* p_debug,
    * these are unusual to move to more fault-based fixups.
    */
   if (wrapped) {
-    printf("ADDRESS WRAP AROUND at %.4x to %.4x\n", reg_pc, addr_6502);
+    printf("ADDRESS WRAP AROUND at %.4X to %.4X\n", reg_pc, addr_6502);
     /*debug_running = 0;*/
   }
 }
@@ -590,7 +590,7 @@ debug_print_state(uint16_t block_6502,
                   uint8_t reg_s,
                   const char* flags_buf,
                   const char* extra_buf) {
-  printf("[%.4x] %.4x: %-14s [A=%.2x X=%.2x Y=%.2x S=%.2x F=%s] %s\n",
+  printf("[%.4X] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
          block_6502,
          reg_pc,
          opcode_buf,
@@ -687,7 +687,7 @@ debug_callback(void* p, uint16_t irq_vector) {
   if (addr_6502 != -1) {
     snprintf(extra_buf,
              sizeof(extra_buf),
-             "[addr=%.4x val=%.2x]",
+             "[addr=%.4X val=%.2X]",
              addr_6502,
              p_mem_read[addr_6502]);
   } else {
