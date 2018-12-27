@@ -252,8 +252,15 @@ bbc_read_callback(void* p, uint16_t addr) {
     /* Not present -- fall through to return 0xfe. */
     break;
   default:
-    printf("unknown read: %x\n", addr);
-    assert(0);
+    if (addr >= k_addr_shiela) {
+      printf("unknown read: %x\n", addr);
+      assert(0);
+    }
+  }
+  /* EMU NOTE: These return values copied from b-em / jsbeeb. */
+  /* EMU TODO: confirm on a real BBC. */
+  if (addr < k_addr_shiela) {
+    return 0xFF;
   }
   return 0xFE;
 }

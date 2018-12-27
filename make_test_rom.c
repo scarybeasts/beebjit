@@ -221,6 +221,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_REQUIRE_OF(p_buf, 1);
   emit_REQUIRE_NF(p_buf, 1);
+  emit_BIT(p_buf, k_abs, 0x0000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC300);
 
   /* Test RTI. */
@@ -382,10 +386,10 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE4A);
   emit_CMP(p_buf, k_imm, 0x9F);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xC580);
+  emit_JMP(p_buf, k_abs, 0xC5A0);
 
   /* Test writing to ROM memory. */
-  util_buffer_set_pos(p_buf, 0x0580);
+  util_buffer_set_pos(p_buf, 0x05A0);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_LDA(p_buf, k_imm, 0x39);
@@ -413,13 +417,13 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_idy, 0x02);
   emit_CMP(p_buf, k_zpg, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xC5C0);
+  emit_JMP(p_buf, k_abs, 0xC5E0);
 
   /* Test LDX with aby addressing, which was broken, oops! */
-  util_buffer_set_pos(p_buf, 0x05C0);
+  util_buffer_set_pos(p_buf, 0x05E0);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x04);
-  emit_LDX(p_buf, k_aby, 0xC5C0);
+  emit_LDX(p_buf, k_aby, 0xC5E0);
   emit_CPX(p_buf, k_imm, 0xBE);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC600);
@@ -640,7 +644,7 @@ main(int argc, const char* argv[]) {
   /* Tests for a bug where the NZ flags update was going missing if there
    * were a couple of STA instructions in a row.
    */
-  util_buffer_set_pos(p_buf, 0x0840);
+  util_buffer_set_pos(p_buf, 0x0880);
   emit_LDX(p_buf, k_imm, 0xFF);
   emit_INX(p_buf);
   /* ZF is now 1. This should clear ZF. */
