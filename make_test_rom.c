@@ -12,10 +12,11 @@
 
 static const size_t k_rom_size = 16384;
 
-static size_t
-set_new_index(size_t index, size_t new_index) {
-  assert(new_index >= index);
-  return new_index;
+static void
+set_new_index(struct util_buffer* p_buf, size_t new_index) {
+  size_t curr_index = util_buffer_get_pos(p_buf);
+  assert(new_index >= curr_index);
+  util_buffer_set_pos(p_buf, new_index);
 }
 
 int
@@ -23,7 +24,6 @@ main(int argc, const char* argv[]) {
   int fd;
   ssize_t write_ret;
 
-  size_t index = 0;
   unsigned char* p_mem = malloc(k_rom_size);
   struct util_buffer* p_buf = util_buffer_create();
 
@@ -44,7 +44,7 @@ main(int argc, const char* argv[]) {
   p_mem[0x3FFF] = 0xFF;
 
   /* Check initial 6502 / VIA boot-up status. */
-  util_buffer_set_pos(p_buf, 0x0000);
+  set_new_index(p_buf, 0x0000);
   emit_PHP(p_buf);
   emit_LDA(p_buf, k_abs, 0x01FD);
   emit_REQUIRE_EQ(p_buf, 0x36);   /* 1, BRK, I, Z */
@@ -67,8 +67,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check TSX / TXS stack setup. */
-  util_buffer_set_pos(p_buf, 0x0040);
-  index = set_new_index(index, 0x40);
+  set_new_index(p_buf, 0x0040);
   emit_TSX(p_buf);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_LDX(p_buf, k_imm, 0xFF);
@@ -78,7 +77,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC080);
 
   /* Check CMP vs. flags. */
-  util_buffer_set_pos(p_buf, 0x0080);
+  set_new_index(p_buf, 0x0080);
   emit_LDX(p_buf, k_imm, 0xEE);
   emit_CPX(p_buf, k_imm, 0xEE);
   emit_REQUIRE_ZF(p_buf, 1);
@@ -95,7 +94,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC0C0);
 
   /* Some ADC tests. */
-  util_buffer_set_pos(p_buf, 0x00c0);
+  set_new_index(p_buf, 0x00C0);
   emit_SEC(p_buf);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x01);
@@ -112,7 +111,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC100);
 
   /* Some SBC tests. */
-  util_buffer_set_pos(p_buf, 0x0100);
+  set_new_index(p_buf, 0x0100);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x02);
   emit_SBC(p_buf, k_imm, 0x01);
@@ -134,7 +133,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Some ROR / ROL tests. */
-  util_buffer_set_pos(p_buf, 0x0140);
+  set_new_index(p_buf, 0x0140);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_SEC(p_buf);
   emit_ROR(p_buf, k_acc, 0);
@@ -152,7 +151,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC180);
 
   /* Test BRK! */
-  util_buffer_set_pos(p_buf, 0x0180);
+  set_new_index(p_buf, 0x0180);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_STX(p_buf, k_zpg, 0x00);
   emit_LDX(p_buf, k_imm, 0xFF);
@@ -169,7 +168,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Test shift / rotate instuction coalescing. */
-  util_buffer_set_pos(p_buf, 0x01c0);
+  set_new_index(p_buf, 0x01C0);
   emit_LDA(p_buf, k_imm, 0x05);
   emit_ASL(p_buf, k_acc, 0);
   emit_ASL(p_buf, k_acc, 0);
@@ -185,7 +184,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC200);
 
   /* Test indexed zero page addressing. */
-  util_buffer_set_pos(p_buf, 0x0200);
+  set_new_index(p_buf, 0x0200);
   emit_LDA(p_buf, k_imm, 0xFD);
   emit_STA(p_buf, k_zpg, 0x07);
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -205,7 +204,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC240);
 
   /* Test indirect indexed zero page addressing. */
-  util_buffer_set_pos(p_buf, 0x0240);
+  set_new_index(p_buf, 0x0240);
   emit_LDX(p_buf, k_imm, 0xd1);
   emit_LDA(p_buf, k_idx, 0x36);   /* Zero page wrap. */
   emit_CMP(p_buf, k_imm, 0xc0);
@@ -213,13 +212,13 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC280);
 
   /* Test simple JSR / RTS pair. */
-  util_buffer_set_pos(p_buf, 0x0280);
+  set_new_index(p_buf, 0x0280);
   emit_JSR(p_buf,  0xC286);
   emit_JMP(p_buf, k_abs, 0xC2C0);
   emit_RTS(p_buf);
 
   /* Test BIT. */
-  util_buffer_set_pos(p_buf, 0x02c0);
+  set_new_index(p_buf, 0x02C0);
   emit_LDA(p_buf, k_imm, 0xC0);
   emit_STA(p_buf, k_zpg, 0x00);
   emit_LDA(p_buf, k_imm, 0x00);
@@ -236,7 +235,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC300);
 
   /* Test RTI. */
-  util_buffer_set_pos(p_buf, 0x0300);
+  set_new_index(p_buf, 0x0300);
   emit_LDA(p_buf, k_imm, 0xC3);
   emit_PHA(p_buf);
   emit_LDA(p_buf, k_imm, 0x40);
@@ -245,7 +244,7 @@ main(int argc, const char* argv[]) {
   emit_RTI(p_buf);
 
   /* Test most simple self-modifying code. */
-  util_buffer_set_pos(p_buf, 0x0340);
+  set_new_index(p_buf, 0x0340);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x2000);
   emit_JSR(p_buf, 0x2000);
@@ -259,7 +258,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC380);
 
   /* Test self-modifying an operand of an opcode. */
-  util_buffer_set_pos(p_buf, 0x0380);
+  set_new_index(p_buf, 0x0380);
   /* Stores LDA #$00; RTS at $1000. */
   emit_LDA(p_buf, k_imm, 0xA9);
   emit_STA(p_buf, k_abs, 0x1000);
@@ -280,7 +279,7 @@ main(int argc, const char* argv[]) {
    * This copy uses indirect Y addressing which wasn't actually previously
    * tested either.
    */
-  util_buffer_set_pos(p_buf, 0x03C0);
+  set_new_index(p_buf, 0x03C0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_zpg, 0xF0);
   emit_STA(p_buf, k_zpg, 0xF2);
@@ -296,7 +295,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC400);
 
   /* Test some more involved self-modifying code situations. */
-  util_buffer_set_pos(p_buf, 0x0400);
+  set_new_index(p_buf, 0x0400);
   emit_JSR(p_buf, 0x3000);        /* Sets X to 0, INX. */
   emit_JSR(p_buf, 0x3002);        /* INX */
   emit_CPX(p_buf, k_imm, 0x02);
@@ -317,7 +316,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC440);
 
   /* Tests a real self-modifying copy loop. */
-  util_buffer_set_pos(p_buf, 0x0440);
+  set_new_index(p_buf, 0x0440);
   emit_LDA(p_buf, k_imm, 0xE1);
   emit_STA(p_buf, k_abs, 0x1CCC);
   emit_JSR(p_buf, 0x3010);
@@ -329,7 +328,7 @@ main(int argc, const char* argv[]) {
   /* Tests a sequence of forwards / backwards jumps that confused the JIT
    * address tracking.
    */
-  util_buffer_set_pos(p_buf, 0x0480);
+  set_new_index(p_buf, 0x0480);
   emit_LDX(p_buf, k_imm, 0xFF);
   emit_LDY(p_buf, k_imm, 0x01);
   emit_JMP(p_buf, k_abs, 0xC488); /* L1 */
@@ -340,7 +339,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC4C0);
 
   /* Test self-modifying within a block. */
-  util_buffer_set_pos(p_buf, 0x04C0);
+  set_new_index(p_buf, 0x04C0);
   emit_JSR(p_buf, 0x3030);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC500);
@@ -348,7 +347,7 @@ main(int argc, const char* argv[]) {
   /* Test self-modifying code that may invalidate assumptions about instruction
    * flag optimizations.
    */
-  util_buffer_set_pos(p_buf, 0x0500);
+  set_new_index(p_buf, 0x0500);
   emit_JSR(p_buf, 0x3040);
   emit_LDA(p_buf, k_imm, 0x60);
   /* Store RTS at $3042. */
@@ -364,7 +363,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC540);
 
   /* Test various simple hardware register read / writes and initial state. */
-  util_buffer_set_pos(p_buf, 0x0540);
+  set_new_index(p_buf, 0x0540);
   emit_LDA(p_buf, k_abs, 0xFE42); /* DDRB should initialize to 0, all inputs. */
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_abs, 0xFE40); /* Inputs should be all 1. */
@@ -397,7 +396,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC5A0);
 
   /* Test writing to ROM memory. */
-  util_buffer_set_pos(p_buf, 0x05A0);
+  set_new_index(p_buf, 0x05A0);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_LDA(p_buf, k_imm, 0x39);
@@ -428,7 +427,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC5E0);
 
   /* Test LDX with aby addressing, which was broken, oops! */
-  util_buffer_set_pos(p_buf, 0x05E0);
+  set_new_index(p_buf, 0x05E0);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x04);
   emit_LDX(p_buf, k_aby, 0xC5E0);
@@ -437,7 +436,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC600);
 
   /* Test a variety of additional high-address reads and writes of interest. */
-  util_buffer_set_pos(p_buf, 0x0600);
+  set_new_index(p_buf, 0x0600);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDA(p_buf, k_abx, 0xFBFF);
   emit_CMP(p_buf, k_imm, 0x7D);
@@ -461,7 +460,7 @@ main(int argc, const char* argv[]) {
   /* Test an interesting bug we had with self-modifying code where two
    * adjacent instructions are clobbered.
    */
-  util_buffer_set_pos(p_buf, 0x0640);
+  set_new_index(p_buf, 0x0640);
   emit_NOP(p_buf);
   emit_JSR(p_buf, 0x3050);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
@@ -471,7 +470,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC680);
 
   /* Test JIT invalidation through different write modes. */
-  util_buffer_set_pos(p_buf, 0x0680);
+  set_new_index(p_buf, 0x0680);
   emit_JSR(p_buf, 0x3050);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x00);
@@ -488,7 +487,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC6C0);
 
   /* Test JIT invalidation through remaining write modes. */
-  util_buffer_set_pos(p_buf, 0x06C0);
+  set_new_index(p_buf, 0x06C0);
   emit_LDA(p_buf, k_imm, 0xea);   /* NOP */
   emit_STA(p_buf, k_abs, 0x3050);
   emit_JSR(p_buf, 0x3050);
@@ -515,7 +514,7 @@ main(int argc, const char* argv[]) {
    * Trigger condition is replacing an opcode resulting in short generated code
    * with one resulting in longer generated code.
    */
-  util_buffer_set_pos(p_buf, 0x0700);
+  set_new_index(p_buf, 0x0700);
   emit_JSR(p_buf, 0x3070);
   emit_LDA(p_buf, k_imm, 0x48);   /* PHA */
   emit_STA(p_buf, k_abs, 0x3070);
@@ -525,7 +524,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC740);
 
   /* Test a few simple VIA behaviors. */
-  util_buffer_set_pos(p_buf, 0x0740);
+  set_new_index(p_buf, 0x0740);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE60); /* User VIA ORB */
   emit_STA(p_buf, k_abs, 0xFE62); /* User VIA DDRB */
@@ -548,7 +547,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC780);
 
   /* Test the firing of a timer interrupt. */
-  util_buffer_set_pos(p_buf, 0x0780);
+  set_new_index(p_buf, 0x0780);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE4E); /* sysvia IER */
   emit_CMP(p_buf, k_imm, 0x80);
@@ -601,7 +600,7 @@ main(int argc, const char* argv[]) {
   /* Test the firing of a timer interrupt -- to be contrarian, let's now test
    * TIMER2 on the user VIA, using alternative registers.
    */
-  util_buffer_set_pos(p_buf, 0x0800);
+  set_new_index(p_buf, 0x0800);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_imm, 0x0E);
   emit_STA(p_buf, k_abs, 0xFE78); /* uservia T2CL */
@@ -632,7 +631,7 @@ main(int argc, const char* argv[]) {
   /* Test dynamic operands for a branch instruction, and a no-operands
    * instruction.
     */
-  util_buffer_set_pos(p_buf, 0x0840);
+  set_new_index(p_buf, 0x0840);
   emit_JSR(p_buf, 0x3080);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_STA(p_buf, k_abs, 0x3083);
@@ -652,7 +651,7 @@ main(int argc, const char* argv[]) {
   /* Tests for a bug where the NZ flags update was going missing if there
    * were a couple of STA instructions in a row.
    */
-  util_buffer_set_pos(p_buf, 0x0880);
+  set_new_index(p_buf, 0x0880);
   emit_LDX(p_buf, k_imm, 0xFF);
   emit_INX(p_buf);
   /* ZF is now 1. This should clear ZF. */
@@ -663,14 +662,14 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC8C0);
 
   /* Test that timers don't return the same value twice in a row. */
-  util_buffer_set_pos(p_buf, 0x08C0);
+  set_new_index(p_buf, 0x08C0);
   emit_LDA(p_buf, k_abs, 0xFE64);
   emit_CMP(p_buf, k_abs, 0xFE64);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC900);
 
   /* Test that the carry flag optimizations don't break anything. */
-  util_buffer_set_pos(p_buf, 0x0900);
+  set_new_index(p_buf, 0x0900);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_ADC(p_buf, k_imm, 0x01);
@@ -680,7 +679,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC940);
 
   /* Tests for a bug where the NZ flags were updated from the wrong register. */
-  util_buffer_set_pos(p_buf, 0x0940);
+  set_new_index(p_buf, 0x0940);
   emit_JSR(p_buf, 0xC965);      /* Create block boundary at the RTS. */
   emit_JSR(p_buf, 0xC960);
   emit_REQUIRE_NF(p_buf, 1);
@@ -692,7 +691,7 @@ main(int argc, const char* argv[]) {
   emit_RTS(p_buf);
 
   /* Give the carry flag tracking logic a good workout. */
-  util_buffer_set_pos(p_buf, 0x0980);
+  set_new_index(p_buf, 0x0980);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_LSR(p_buf, k_acc, 0);
@@ -711,7 +710,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC9C0);
 
   /* Give the overflow flag tracking logic a good workout. */
-  util_buffer_set_pos(p_buf, 0x09C0);
+  set_new_index(p_buf, 0x09C0);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x7F);   /* Sets OF=1 */
@@ -733,7 +732,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xCA00);
 
-  util_buffer_set_pos(p_buf, 0x0A00);
+  set_new_index(p_buf, 0x0A00);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0x7F01);
   emit_LDX(p_buf, k_imm, 0x00);
@@ -748,7 +747,7 @@ main(int argc, const char* argv[]) {
    * We can actually use the i8271 floppy controller for the simplest case of
    * a read having an observable side effect.
    */
-  util_buffer_set_pos(p_buf, 0x0A40);
+  set_new_index(p_buf, 0x0A40);
   emit_LDA(p_buf, k_imm, 0x2C);
   emit_STA(p_buf, k_abs, 0xFE80); /* Command: get drive status. */
   emit_STA(p_buf, k_abs, 0xFE81); /* Parameter: spurious, effective no-op. */
@@ -761,7 +760,7 @@ main(int argc, const char* argv[]) {
   /* Test that paging ROMs invalidates any previous artifcats, e.g. JIT
    * compilation.
    */
-  util_buffer_set_pos(p_buf, 0x0A80);
+  set_new_index(p_buf, 0x0A80);
   emit_LDA(p_buf, k_imm, 0x0F);
   emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
   emit_JSR(p_buf, 0x8000);        /* A != 1 so this just RTS's. */
@@ -780,7 +779,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xCAC0);
 
   /* Tests triggering a simple NMI. */
-  util_buffer_set_pos(p_buf, 0x0AC0);
+  set_new_index(p_buf, 0x0AC0);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_imm, 0x00); /* 0 is an invalid command for the 8271. */
   emit_STA(p_buf, k_abs, 0xFE80);
@@ -789,7 +788,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xCB00);
 
   /* Tests a bug where SEI clobbered the carry flag in JIT mode. */
-  util_buffer_set_pos(p_buf, 0x0B00);
+  set_new_index(p_buf, 0x0B00);
   emit_CLC(p_buf);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_ADC(p_buf, k_imm, 0x00);
@@ -803,7 +802,7 @@ main(int argc, const char* argv[]) {
   /* Test a mixed bag of opcodes not otherwise covered and unearthed when
    * adding inturbo mode.
    */
-  util_buffer_set_pos(p_buf, 0x0B40);
+  set_new_index(p_buf, 0x0B40);
   emit_LDX(p_buf, k_imm, 0xAA);
   emit_TXA(p_buf);
   emit_CMP(p_buf, k_imm, 0xAA);
@@ -829,7 +828,7 @@ main(int argc, const char* argv[]) {
   /* Tests for a bug in inturbo mode where the upper bits of the carry flag
    * register got corrupted in inturbo mode.
    */
-  util_buffer_set_pos(p_buf, 0x0B80);
+  set_new_index(p_buf, 0x0B80);
   emit_LDA(p_buf, k_imm, 0x07);
   emit_CLC(p_buf);
   emit_SBC(p_buf, k_imm, 0x01);
@@ -840,7 +839,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xCBC0);
 
   /* Test VIA PB7 handling works correctly. */
-  util_buffer_set_pos(p_buf, 0x0BC0);
+  set_new_index(p_buf, 0x0BC0);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE6E); /* IER: turn off interrupts. */
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -876,14 +875,14 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCC40);
 
-  util_buffer_set_pos(p_buf, 0x0C40);
+  set_new_index(p_buf, 0x0C40);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
-  util_buffer_set_pos(p_buf, 0x3000);
+  set_new_index(p_buf, 0x3000);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_INX(p_buf);
   emit_RTS(p_buf);
@@ -891,7 +890,7 @@ main(int argc, const char* argv[]) {
   /* This is close to one of the simplest self-modifying routines I found: the
    * Galaforce memory copy at first load.
    */
-  util_buffer_set_pos(p_buf, 0x3010);
+  set_new_index(p_buf, 0x3010);
   emit_LDY(p_buf, k_imm, 0x04);
   emit_LDA(p_buf, k_abx, 0x1A00); /* Jump target for both BNEs. */
   emit_STA(p_buf, k_abx, 0x0A00);
@@ -904,48 +903,57 @@ main(int argc, const char* argv[]) {
   emit_RTS(p_buf);
 
   /* A block that self-modifies within itself. */
-  util_buffer_set_pos(p_buf, 0x3030);
+  set_new_index(p_buf, 0x3030);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0x3036);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_RTS(p_buf);
 
   /* Another block for us to modify. */
-  util_buffer_set_pos(p_buf, 0x3040);
+  set_new_index(p_buf, 0x3040);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_RTS(p_buf);
 
   /* Yet another block for us to modify. */
-  util_buffer_set_pos(p_buf, 0x3050);
+  set_new_index(p_buf, 0x3050);
   emit_INX(p_buf);
   emit_INY(p_buf);
   emit_RTS(p_buf);
 
   /* etc... */
-  util_buffer_set_pos(p_buf, 0x3060);
+  set_new_index(p_buf, 0x3060);
   emit_NOP(p_buf);
   emit_RTS(p_buf);
 
   /* etc... */
-  util_buffer_set_pos(p_buf, 0x3070);
+  set_new_index(p_buf, 0x3070);
   emit_INX(p_buf);
   emit_INY(p_buf);
   emit_RTS(p_buf);
 
   /* For branch dynamic operands. */
-  util_buffer_set_pos(p_buf, 0x3080);
+  set_new_index(p_buf, 0x3080);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_BEQ(p_buf, 1);
   emit_INX(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
-  util_buffer_set_pos(p_buf, 0x3BFF);
+  set_new_index(p_buf, 0x3BFF);
   util_buffer_add_1b(p_buf, 0x7d);
 
+  /* NMI routine. */
+  set_new_index(p_buf, 0x3E00);
+  emit_INC(p_buf, k_zpg, 0x00);
+  emit_STA(p_buf, k_zpg, 0x04);
+  emit_STX(p_buf, k_zpg, 0x05);
+  emit_STY(p_buf, k_zpg, 0x06);
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_RTI(p_buf);
+
   /* IRQ routine. */
-  util_buffer_set_pos(p_buf, 0x3F00);
+  set_new_index(p_buf, 0x3F00);
   emit_INC(p_buf, k_zpg, 0x00);
   emit_STA(p_buf, k_zpg, 0x04);
   emit_STX(p_buf, k_zpg, 0x05);
@@ -968,15 +976,6 @@ main(int argc, const char* argv[]) {
   emit_PLA(p_buf);                /* For interrupts, RTI with I flag set. */
   emit_ORA(p_buf, k_imm, 0x04);
   emit_PHA(p_buf);
-  emit_RTI(p_buf);
-
-  /* NMI routine. */
-  util_buffer_set_pos(p_buf, 0x3E00);
-  emit_INC(p_buf, k_zpg, 0x00);
-  emit_STA(p_buf, k_zpg, 0x04);
-  emit_STX(p_buf, k_zpg, 0x05);
-  emit_STY(p_buf, k_zpg, 0x06);
-  emit_LDA(p_buf, k_imm, 0x42);
   emit_RTI(p_buf);
 
   fd = open("test.rom", O_CREAT | O_WRONLY, 0600);
