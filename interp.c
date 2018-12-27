@@ -479,6 +479,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   temp_int = cf;                                                              \
   cf = !!(v & 0x80);                                                          \
   v <<= 1;                                                                    \
+  v |= temp_int;                                                              \
   INTERP_LOAD_NZ_FLAGS(v);
 
 #define INTERP_INSTR_ROR()                                                    \

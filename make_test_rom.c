@@ -141,6 +141,14 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x80);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_SEC(p_buf);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x81);
   emit_JMP(p_buf, k_abs, 0xC180);
 
   /* Test BRK! */
