@@ -12,6 +12,13 @@
 
 static const size_t k_rom_size = 16384;
 
+static void
+set_new_index(struct util_buffer* p_buf, size_t new_index) {
+  size_t curr_index = util_buffer_get_pos(p_buf);
+  assert(new_index >= curr_index);
+  util_buffer_set_pos(p_buf, new_index);
+}
+
 int
 main(int argc, const char* argv[]) {
   int fd;
@@ -31,7 +38,7 @@ main(int argc, const char* argv[]) {
   p_mem[0x3FFD] = 0xC0;
 
   /* Check instruction timings for page crossings in abx mode. */
-  util_buffer_set_pos(p_buf, 0x0000);
+  set_new_index(p_buf, 0x0000);
   emit_CYCLES_RESET(p_buf);
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 1);
@@ -55,7 +62,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check instruction timings for page crossings in idy mode. */
-  util_buffer_set_pos(p_buf, 0x0040);
+  set_new_index(p_buf, 0x0040);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0xB0);
   emit_LDA(p_buf, k_imm, 0x10);
@@ -81,7 +88,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC080);
 
   /* Check instruction timings for branching. */
-  util_buffer_set_pos(p_buf, 0x0080);
+  set_new_index(p_buf, 0x0080);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
   emit_BNE(p_buf, -2);            /* Branch, not taken, 2 cycles. */
@@ -94,14 +101,14 @@ main(int argc, const char* argv[]) {
   emit_CYCLES_RESET(p_buf);
   emit_BEQ(p_buf, 0x69);          /* Branch, taken, page crossing, 4 cycles. */
 
-  util_buffer_set_pos(p_buf, 0x0100);
+  set_new_index(p_buf, 0x0100);
   /* This is the landing point for the BEQ above. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 5);
   emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Check simple instruction timings that hit 1Mhz peripherals. */
-  util_buffer_set_pos(p_buf, 0x0140);
+  set_new_index(p_buf, 0x0140);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
   emit_CYCLES(p_buf);
@@ -113,7 +120,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xC180);
 
-  util_buffer_set_pos(p_buf, 0x0180);
+  set_new_index(p_buf, 0x0180);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
