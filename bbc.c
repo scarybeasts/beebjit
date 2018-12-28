@@ -189,6 +189,10 @@ bbc_is_1mhz_address(uint16_t addr) {
 
 static void
 bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
+  int64_t countdown;
+  uint64_t delta;
+
+  struct timing_struct* p_timing = p_bbc->p_timing;
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   int extra_cycles = 1;
 
@@ -200,7 +204,10 @@ bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
     extra_cycles++;
   }
 
-  state_6502_add_cycles(p_state_6502, extra_cycles);
+  countdown = timing_get_countdown(p_timing);
+  countdown -= extra_cycles;
+  (void) timing_advance_time(p_timing, &delta, countdown);
+  state_6502_add_cycles(p_state_6502, delta);
 }
 
 uint8_t

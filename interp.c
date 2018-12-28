@@ -219,9 +219,13 @@ interp_call_debugger(struct interp_struct* p_interp,
     v = p_mem_read[addr];                                                     \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_TIMING_ADVANCE(2);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -231,9 +235,13 @@ interp_call_debugger(struct interp_struct* p_interp,
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_TIMING_ADVANCE(2);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -245,6 +253,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
     INTERP_MEMORY_WRITE(addr);                                                \
   }
 
@@ -256,7 +265,9 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -269,13 +280,20 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 4;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(3);                                                 \
     if (page_crossing) {                                                      \
+      INTERP_TIMING_ADVANCE(3);                                               \
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_TIMING_ADVANCE(2);                                               \
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -288,10 +306,13 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -307,6 +328,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
     INTERP_MEMORY_WRITE(addr);                                                \
   }
 
@@ -318,7 +340,9 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 3;
 
@@ -331,9 +355,13 @@ interp_call_debugger(struct interp_struct* p_interp,
     v = p_mem_read[addr];                                                     \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(5);                                                 \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 2;
 
@@ -346,9 +374,13 @@ interp_call_debugger(struct interp_struct* p_interp,
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(5);                                                 \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 2;
 
@@ -363,13 +395,20 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 5;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
-    INTERP_TIMING_ADVANCE(4);                                                 \
     if (page_crossing) {                                                      \
+      INTERP_TIMING_ADVANCE(4);                                               \
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      INTERP_TIMING_ADVANCE(3);                                               \
+      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 2;
 
@@ -384,10 +423,13 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
+    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
-    cycles_this_instruction = 1;                                              \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    cycles_this_instruction = 0;                                              \
+    if (do_irq_vector) goto force_opcode;                                     \
   }                                                                           \
   pc += 2;
 
