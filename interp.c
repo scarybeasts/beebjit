@@ -674,6 +674,10 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case 0x02: /* Extension: EXIT */
       return ((y << 16) | (x << 8) | a);
+    case 0x04: /* NOP zp */ /* Undocumented. */
+      pc += 2;
+      cycles_this_instruction = 3;
+      break;
     case 0x05: /* ORA zp */
       addr = p_mem_read[pc + 1];
       a |= p_mem_read[addr];
@@ -686,6 +690,17 @@ interp_enter(struct interp_struct* p_interp) {
       v = p_mem_read[addr];
       INTERP_INSTR_ASL();
       p_mem_write[addr] = v;
+      pc += 2;
+      cycles_this_instruction = 5;
+      break;
+    case 0x07: /* SLO zp */ /* Undocumented. */
+      addr = p_mem_read[pc + 1];
+      v = p_mem_read[addr];
+      cf = !!(v & 0x80);
+      v <<= 1;
+      p_mem_write[addr] = v;
+      a |= v;
+      INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 5;
       break;
@@ -926,6 +941,15 @@ interp_enter(struct interp_struct* p_interp) {
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0x4B: /* ALR imm */ /* Undocumented. */
+      v = p_mem_read[pc + 1];
+      a &= v;
+      cf = (a & 0x01);
+      a >>= 1;
+      INTERP_LOAD_NZ_FLAGS(a);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0x4C: /* JMP abs */
       pc = *(uint16_t*) &p_mem_read[pc + 1];
       cycles_this_instruction = 3;
@@ -1100,6 +1124,12 @@ interp_enter(struct interp_struct* p_interp) {
       pc += 2;
       cycles_this_instruction = 3;
       break;
+    case 0x87: /* SAX zp */ /* Undocumented. */
+      addr = p_mem_read[pc + 1];
+      p_mem_write[addr] = (a & x);
+      pc += 2;
+      cycles_this_instruction = 3;
+      break;
     case 0x88: /* DEY */
       y--;
       INTERP_LOAD_NZ_FLAGS(y);
@@ -1157,6 +1187,11 @@ interp_enter(struct interp_struct* p_interp) {
       s = x;
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0x9C: /* SHY abx */ /* Undocumented. */
+      addr = *(uint16_t*) &p_mem_read[pc + 1];
+      v = (y & ((addr >> 8) + 1));
+      INTERP_MODE_ABr_WRITE(x);
       break;
     case 0x9D: /* STA abx */
       v = a;
@@ -1377,6 +1412,9 @@ interp_enter(struct interp_struct* p_interp) {
       INTERP_MODE_ABr_READ(y);
       INTERP_INSTR_CMP(a);
       break;
+    case 0xDC: /* NOP abx */ /* Undocumented. */
+      INTERP_MODE_ABr_READ(x);
+      break;
     case 0xDD: /* CMP abx */
       INTERP_MODE_ABr_READ(x);
       INTERP_INSTR_CMP(a);
@@ -1454,6 +1492,10 @@ interp_enter(struct interp_struct* p_interp) {
     case 0xF1: /* SBC idy */
       INTERP_MODE_IDY_READ();
       INTERP_INSTR_SBC();
+      break;
+    case 0xF4: /* NOP zpx */ /* Undocumented. */
+      pc += 2;
+      cycles_this_instruction = 4;
       break;
     case 0xF5: /* SBC zpx */
       INTERP_MODE_ZPr_READ(x);

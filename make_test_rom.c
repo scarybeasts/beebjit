@@ -875,7 +875,25 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCC40);
 
+  /* Test a few undocumented opcodes used by games. */
   set_new_index(p_buf, 0x0C40);
+  /* NOP zp, used by Pipeline and Citadel. */
+  util_buffer_add_2b(p_buf, 0x04, 0x00);
+  /* NOP zpx, used by Pipeline. */
+  util_buffer_add_2b(p_buf, 0xF4, 0x00);
+  /* NOP abx, used by Zalaga. */
+  util_buffer_add_3b(p_buf, 0xDC, 0x00, 0x00);
+  /* SAX zp, used by Zalaga. */
+  util_buffer_add_2b(p_buf, 0x87, 0x00);
+  /* ALR imm, used by Zalaga. */
+  util_buffer_add_2b(p_buf, 0x4B, 0x00);
+  /* SLO zp, used by Zalaga. */
+  util_buffer_add_2b(p_buf, 0x07, 0x00);
+  /* SHY abx, used by Citadel. */
+  util_buffer_add_3b(p_buf, 0x9C, 0x00, 0x00);
+  emit_JMP(p_buf, k_abs, 0xCC80);
+
+  set_new_index(p_buf, 0x0C80);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
