@@ -1,3 +1,5 @@
+1) Galaforce, beebjit-0.6.
+
 On my oldish laptop, i5-5200U CPU @ 2.20GHz.
 beebjit-0.6 (may get slower) (or faster).
 Test case is Galaforce demo mode.
@@ -8,3 +10,12 @@ Test case is Galaforce demo mode.
 - beebjit, interp, debug   44.9Mhz
 - beebjit, interp         193  Mhz
 - beebjit, jit           8100  Mhz (8.1 Ghz)
+
+
+2) Clocksp, (new) interpreter, beebjit-0.8.
+
+- interp (-O3),           868  Mhz
+- interp (debug)          404  Mhz
+
+From my notes on the old interpreter, it was 310Mhz.
+
