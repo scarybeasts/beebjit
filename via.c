@@ -290,8 +290,15 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     via_clear_interrupt(p_via, k_int_TIMER1);
     break;
   case k_via_T1LH:
-    /* TODO: clear timer interrupt if acr & 0x40. */
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
+    /* EMU NOTE: clear interrupt as per 6522 data sheet.
+     * Behavior validated on a real BBC.
+     * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16251
+     * Other emulators (b-em, jsbeeb) were only clearing the interrupt when in
+     * timer continuous mode, but testing on a real BBC shows it should be
+     * cleared always.
+     */
+    via_clear_interrupt(p_via, k_int_TIMER1);
     break;
   case k_via_T2CL:
     p_via->T2L = ((p_via->T2L & 0xFF00) | val);
