@@ -314,7 +314,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_ACR:
     p_via->ACR = val;
-    /* EMU TODO: side effects to writing continuous bit? */
+    /* EMU NOTE: some emulators re-arm timers when ACR is written to certain
+     * modes but after some testing on a real beeb, we don't do anything
+     * special here.
+     * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16252
+     */
     /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
   case k_via_PCR:
@@ -472,8 +476,9 @@ via_time_advance(struct via_struct* p_via, uint64_t us) {
   if (p_via->T1C < 0) {
     if (!p_via->t1_oneshot_fired) {
       via_raise_interrupt(p_via, k_int_TIMER1);
-      /* EMU TODO: is PB7 maintained regardless of whether PB7 mode is active?
-       * Unknown so just copy MAME for now and say it is.
+      /* EMU NOTE: PB7 is maintained regardless of whether PB7 mode is active.
+       * Confirmed on a real beeb.
+       * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16263
        */
       p_via->t1_pb7 = !p_via->t1_pb7;
     }
