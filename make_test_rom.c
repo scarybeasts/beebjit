@@ -884,16 +884,32 @@ main(int argc, const char* argv[]) {
   /* NOP abx, used by Zalaga. */
   util_buffer_add_3b(p_buf, 0xDC, 0x00, 0x00);
   /* SAX zp, used by Zalaga. */
+  emit_LDA(p_buf, k_imm, 0xA9);
+  emit_LDX(p_buf, k_imm, 0x34);
   util_buffer_add_2b(p_buf, 0x87, 0x00);
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_REQUIRE_EQ(p_buf, 0x20);
   /* ALR imm, used by Zalaga. */
-  util_buffer_add_2b(p_buf, 0x4B, 0x00);
+  emit_LDA(p_buf, k_imm, 0xA9);
+  util_buffer_add_2b(p_buf, 0x4B, 0x34);
+  emit_REQUIRE_EQ(p_buf, 0x10);
   /* SLO zp, used by Zalaga. */
+  emit_LDA(p_buf, k_imm, 0xEE);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0x20);
   util_buffer_add_2b(p_buf, 0x07, 0x00);
+  emit_REQUIRE_EQ(p_buf, 0xFC);
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_REQUIRE_EQ(p_buf, 0xDC);
   /* SHY abx, used by Citadel. */
-  util_buffer_add_3b(p_buf, 0x9C, 0x00, 0x00);
-  emit_JMP(p_buf, k_abs, 0xCC80);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_LDY(p_buf, k_imm, 0x87);
+  util_buffer_add_3b(p_buf, 0x9C, 0x00, 0x7E);
+  emit_LDA(p_buf, k_abs, 0x7E01);
+  emit_REQUIRE_EQ(p_buf, 0x07);
+  emit_JMP(p_buf, k_abs, 0xCCC0);
 
-  set_new_index(p_buf, 0x0C80);
+  set_new_index(p_buf, 0x0CC0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
