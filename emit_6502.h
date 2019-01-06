@@ -50,6 +50,7 @@ void emit_RTI(struct util_buffer* p_buf);
 void emit_RTS(struct util_buffer* p_buf);
 void emit_SBC(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_SEC(struct util_buffer* p_buf);
+void emit_SED(struct util_buffer* p_buf);
 void emit_SEI(struct util_buffer* p_buf);
 void emit_STA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_STX(struct util_buffer* p_buf, int mode, uint16_t addr);

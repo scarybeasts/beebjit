@@ -356,6 +356,11 @@ emit_SEC(struct util_buffer* p_buf) {
 }
 
 void
+emit_SED(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xF8);
+}
+
+void
 emit_SEI(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x78);
 }

@@ -126,7 +126,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_SEC(p_buf);
   emit_LDA(p_buf, k_imm, 0x10);
-  emit_SBC(p_buf, k_imm, 0x7f);
+  emit_SBC(p_buf, k_imm, 0x7F);
   emit_REQUIRE_NF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 0);
   emit_REQUIRE_OF(p_buf, 0);
@@ -909,7 +909,36 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x07);
   emit_JMP(p_buf, k_abs, 0xCCC0);
 
+  /* Test some of the simpler BCD behavior. */
   set_new_index(p_buf, 0x0CC0);
+  emit_SED(p_buf);
+
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x15);
+  emit_ADC(p_buf, k_imm, 0x14);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x30);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_ADC(p_buf, k_imm, 0x21);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x30);
+  emit_SBC(p_buf, k_imm, 0x14);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x16);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x21);
+  emit_SBC(p_buf, k_imm, 0x80);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x40);
+
+  emit_CLD(p_buf);
+  emit_JMP(p_buf, k_abs, 0xCD00);
+
+  set_new_index(p_buf, 0x0D00);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
