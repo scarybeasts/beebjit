@@ -6,7 +6,7 @@
 
 struct timing_struct;
 
-struct timing_struct* timing_create();
+struct timing_struct* timing_create(size_t tick_rate);
 void timing_destroy(struct timing_struct* p_timing);
 
 size_t timing_register_timer(struct timing_struct* p_timing,

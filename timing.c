@@ -10,6 +10,7 @@ enum {
 };
 
 struct timing_struct {
+  size_t tick_rate;
   size_t max_timer;
   void (*p_callbacks[k_timing_num_timers])(void*);
   void* p_objects[k_timing_num_timers];
@@ -21,7 +22,7 @@ struct timing_struct {
 };
 
 struct timing_struct*
-timing_create() {
+timing_create(size_t tick_rate) {
   struct timing_struct* p_timing = malloc(sizeof(struct timing_struct));
   if (p_timing == NULL) {
     errx(1, "couldn't allocate timing_struct");
@@ -29,6 +30,7 @@ timing_create() {
 
   (void) memset(p_timing, '\0', sizeof(struct timing_struct));
 
+  p_timing->tick_rate = tick_rate;
   p_timing->max_timer = 0;
   p_timing->total_timer_ticks = 0;
   p_timing->countdown = INT64_MAX;

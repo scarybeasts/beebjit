@@ -28,6 +28,8 @@ static const size_t k_bbc_sideways_offset = 0x8000;
 
 static const size_t k_bbc_us_per_vsync = 20000; /* 20ms / 50Hz */
 
+static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz */
+
 /* This data is from b-em, thanks b-em! */
 static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
 
@@ -597,7 +599,7 @@ bbc_create(uint8_t* p_os_rom,
   p_bbc->options.p_log_flags = p_log_flags;
   p_bbc->options.accurate = accurate_flag;
 
-  p_bbc->p_timing = timing_create();
+  p_bbc->p_timing = timing_create(k_bbc_tick_rate);
   if (p_bbc->p_timing == NULL) {
     errx(1, "timing_create failed");
   }
