@@ -506,6 +506,7 @@ bbc_create(uint8_t* p_os_rom,
            const char* p_opt_flags,
            const char* p_log_flags,
            uint16_t debug_stop_addr) {
+  struct timing_struct* p_timing;
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
   int pipefd[2];
@@ -598,12 +599,13 @@ bbc_create(uint8_t* p_os_rom,
   p_bbc->options.p_log_flags = p_log_flags;
   p_bbc->options.accurate = accurate_flag;
 
-  p_bbc->p_timing = timing_create(k_bbc_tick_rate);
-  if (p_bbc->p_timing == NULL) {
+  p_timing = timing_create(k_bbc_tick_rate);
+  if (p_timing == NULL) {
     errx(1, "timing_create failed");
   }
+  p_bbc->p_timing = p_timing;
 
-  p_state_6502 = state_6502_create(p_bbc->p_timing);
+  p_state_6502 = state_6502_create(p_timing);
   if (p_state_6502 == NULL) {
     errx(1, "state_6502_create failed");
   }
@@ -629,7 +631,7 @@ bbc_create(uint8_t* p_os_rom,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, p_bbc->p_timing);
+  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, p_timing);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }
@@ -643,7 +645,7 @@ bbc_create(uint8_t* p_os_rom,
 
   p_bbc->p_jit = jit_create(p_state_6502,
                             &p_bbc->memory_access,
-                            p_bbc->p_timing,
+                            p_timing,
                             &p_bbc->options);
   if (p_bbc->p_jit == NULL) {
     errx(1, "jit_create failed");
@@ -651,7 +653,7 @@ bbc_create(uint8_t* p_os_rom,
 
   p_bbc->p_interp = interp_create(p_state_6502,
                                   &p_bbc->memory_access,
-                                  p_bbc->p_timing,
+                                  p_timing,
                                   &p_bbc->options);
   if (p_bbc->p_interp == NULL) {
     errx(1, "interp_create failed");
@@ -659,7 +661,7 @@ bbc_create(uint8_t* p_os_rom,
 
   p_bbc->p_inturbo = inturbo_create(p_state_6502,
                                     &p_bbc->memory_access,
-                                    p_bbc->p_timing,
+                                    p_timing,
                                     &p_bbc->options,
                                     interp_single_instruction,
                                     p_bbc->p_interp);
