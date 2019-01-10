@@ -136,10 +136,10 @@ debug_print_opcode(char* buf,
   uint16_t addr;
 
   if (irq_vector == k_6502_vector_nmi) {
-    snprintf(buf, buf_len, "IRQ (NMI)");
+    (void) snprintf(buf, buf_len, "IRQ (NMI)");
     return;
   } else if (irq_vector == k_6502_vector_irq) {
-    snprintf(buf, buf_len, "IRQ (IRQ)");
+    (void) snprintf(buf, buf_len, "IRQ (IRQ)");
     return;
   }
 
@@ -149,47 +149,47 @@ debug_print_opcode(char* buf,
 
   switch (opmode) {
   case k_nil:
-    snprintf(buf, buf_len, "%s", opname);
+    (void) snprintf(buf, buf_len, "%s", opname);
     break;
   case k_acc:
-    snprintf(buf, buf_len, "%s A", opname);
+    (void) snprintf(buf, buf_len, "%s A", opname);
     break;
   case k_imm:
-    snprintf(buf, buf_len, "%s #$%.2X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s #$%.2X", opname, operand1);
     break;
   case k_zpg:
-    snprintf(buf, buf_len, "%s $%.2X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2X", opname, operand1);
     break;
   case k_abs:
-    snprintf(buf, buf_len, "%s $%.4X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4X", opname, addr);
     break;
   case k_zpx:
-    snprintf(buf, buf_len, "%s $%.2X,X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2X,X", opname, operand1);
     break;
   case k_zpy:
-    snprintf(buf, buf_len, "%s $%.2X,Y", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2X,Y", opname, operand1);
     break;
   case k_abx:
-    snprintf(buf, buf_len, "%s $%.4X,X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4X,X", opname, addr);
     break;
   case k_aby:
-    snprintf(buf, buf_len, "%s $%.4X,Y", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4X,Y", opname, addr);
     break;
   case k_idx:
-    snprintf(buf, buf_len, "%s ($%.2X,X)", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s ($%.2X,X)", opname, operand1);
     break;
   case k_idy:
-    snprintf(buf, buf_len, "%s ($%.2X),Y", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s ($%.2X),Y", opname, operand1);
     break;
   case k_ind:
-    snprintf(buf, buf_len, "%s ($%.4X)", opname, addr);
+    (void) snprintf(buf, buf_len, "%s ($%.4X)", opname, addr);
     break;
   case k_rel:
     addr = (reg_pc + 2 + (char) operand1);
-    snprintf(buf, buf_len, "%s $%.4X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4X", opname, addr);
     break;
   default:
-    snprintf(buf, buf_len, "%s: %.2x", opname, opcode);
+    (void) snprintf(buf, buf_len, "%s: %.2x", opname, opcode);
     break;
   }
 }
@@ -304,9 +304,9 @@ debug_print_branch(char* p_buf,
     break;
   }
   if (taken == 0) {
-    snprintf(p_buf, buf_len, "[not taken]");
+    (void) snprintf(p_buf, buf_len, "[not taken]");
   } else if (taken == 1) {
-    snprintf(p_buf, buf_len, "[taken]");
+    (void) snprintf(p_buf, buf_len, "[taken]");
   }
 }
 
@@ -333,7 +333,7 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        operand2,
                        addr_6502,
                        0);
-    printf("[%.4X] %.4X: %s\n", block_6502, addr_6502, opcode_buf);
+    (void) printf("[%.4X] %.4X: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
 }
@@ -361,10 +361,10 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
   uint8_t t1_pb7;
 
   if (id == k_via_system) {
-    printf("System VIA\n");
+    (void) printf("System VIA\n");
     p_via = bbc_get_sysvia(p_bbc);
   } else if (id == k_via_user) {
-    printf("User VIA\n");
+    (void) printf("User VIA\n");
     p_via = bbc_get_uservia(p_bbc);
   } else {
     assert(0);
@@ -389,16 +389,19 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &t1_oneshot_fired,
                     &t2_oneshot_fired,
                     &t1_pb7);
-  printf("IFR %.2X IER %.2X\n", IFR, IER);
-  printf("ORA %.2X DDRA %.2X periph %.2X\n", ORA, DDRA, peripheral_a);
-  printf("ORB %.2X DDRB %.2X periph %.2X\n", ORB, DDRB, peripheral_b);
-  printf("SR %.2X ACR %.2X PCR %.2X\n", SR, ACR, PCR);
-  printf("T1L %.4X T1C %.4X oneshot hit %d PB7 %d\n",
-         T1L,
-         T1C,
-         t1_oneshot_fired,
-         t1_pb7);
-  printf("T2L %.4X T2C %.4X oneshot hit %d\n", T2L, T2C, t2_oneshot_fired);
+  (void) printf("IFR %.2X IER %.2X\n", IFR, IER);
+  (void) printf("ORA %.2X DDRA %.2X periph %.2X\n", ORA, DDRA, peripheral_a);
+  (void) printf("ORB %.2X DDRB %.2X periph %.2X\n", ORB, DDRB, peripheral_b);
+  (void) printf("SR %.2X ACR %.2X PCR %.2X\n", SR, ACR, PCR);
+  (void) printf("T1L %.4X T1C %.4X oneshot hit %d PB7 %d\n",
+                T1L,
+                T1C,
+                t1_oneshot_fired,
+                t1_pb7);
+  (void) printf("T2L %.4X T2C %.4X oneshot hit %d\n",
+                T2L,
+                T2C,
+                t2_oneshot_fired);
 }
 
 static int
@@ -460,7 +463,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
           sizeof(uint8_t),
           debug_sort_opcodes,
           p_debug);
-  printf("=== Opcodes ===\n");
+  (void) printf("=== Opcodes ===\n");
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     char opcode_buf[k_max_opcode_len];
     uint8_t opcode = sorted_opcodes[i];
@@ -475,7 +478,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
                        0,
                        0xFFFE,
                        0);
-    printf("%14s: %zu\n", opcode_buf, count);
+    (void) printf("%14s: %zu\n", opcode_buf, count);
   }
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
@@ -486,16 +489,16 @@ debug_dump_stats(struct debug_struct* p_debug) {
           sizeof(uint16_t),
           debug_sort_addrs,
           p_debug);
-  printf("=== Addrs ===\n");
+  (void) printf("=== Addrs ===\n");
   for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
     size_t count = p_debug->count_addr[addr];
     if (!count) {
       continue;
     }
-    printf("%4X: %zu\n", addr, count);
+    (void) printf("%4X: %zu\n", addr, count);
   }
-  printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
+  (void) printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
 }
 
 static void
@@ -527,14 +530,18 @@ debug_check_unusual(struct debug_struct* p_debug,
    * register space.
    */
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
-    printf("Indirect access to register %.4X at %.4X\n", addr_6502, reg_pc);
+    (void) printf("Indirect access to register %.4X at %.4X\n",
+                  addr_6502,
+                  reg_pc);
     p_debug->debug_running = 0;
   }
 
   /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
   if (is_write && is_rom) {
     if (!p_debug->warned_at_addr[reg_pc]) {
-      printf("Code at %.4X is writing to ROM at %.4X\n", reg_pc, addr_6502);
+      (void) printf("Code at %.4X is writing to ROM at %.4X\n",
+                    reg_pc,
+                    addr_6502);
       p_debug->warned_at_addr[reg_pc] = 1;
     }
     if (p_debug->stats && (opmode == k_idx || opmode == k_idy)) {
@@ -548,11 +555,13 @@ debug_check_unusual(struct debug_struct* p_debug,
    */
   if (is_write && has_code) {
     if (!p_debug->warned_at_addr[reg_pc]) {
-      printf("Code at %.4X modifying code at %.4X\n", reg_pc, addr_6502);
+      (void) printf("Code at %.4X modifying code at %.4X\n",
+                    reg_pc,
+                    addr_6502);
       p_debug->warned_at_addr[reg_pc] = 1;
     }
     if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
-      printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
+      (void) printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
       p_debug->debug_running = 0;
     }
   }
@@ -561,7 +570,7 @@ debug_check_unusual(struct debug_struct* p_debug,
    * these are unusual to move to more fault-based fixups.
    */
   if (wrapped) {
-    printf("ADDRESS WRAP AROUND at %.4X to %.4X\n", reg_pc, addr_6502);
+    (void) printf("ADDRESS WRAP AROUND at %.4X to %.4X\n", reg_pc, addr_6502);
     /*debug_running = 0;*/
   }
 }
@@ -590,16 +599,16 @@ debug_print_state(uint16_t block_6502,
                   uint8_t reg_s,
                   const char* flags_buf,
                   const char* extra_buf) {
-  printf("[%.4X] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
-         block_6502,
-         reg_pc,
-         opcode_buf,
-         reg_a,
-         reg_x,
-         reg_y,
-         reg_s,
-         flags_buf,
-         extra_buf);
+  (void) printf("[%.4X] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
+                block_6502,
+                reg_pc,
+                opcode_buf,
+                reg_a,
+                reg_x,
+                reg_y,
+                reg_s,
+                flags_buf,
+                extra_buf);
 }
 
 void*
@@ -685,11 +694,11 @@ debug_callback(void* p, uint16_t irq_vector) {
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
-    snprintf(extra_buf,
-             sizeof(extra_buf),
-             "[addr=%.4X val=%.2X]",
-             addr_6502,
-             p_mem_read[addr_6502]);
+    (void) snprintf(extra_buf,
+                    sizeof(extra_buf),
+                    "[addr=%.4X val=%.2X]",
+                    addr_6502,
+                    p_mem_read[addr_6502]);
   } else {
     debug_print_branch(extra_buf,
                        sizeof(extra_buf),
@@ -757,14 +766,19 @@ debug_callback(void* p, uint16_t irq_vector) {
   while (1) {
     char* input_ret;
     size_t i;
+    char parse_string[256];
+    uint16_t parse_addr;
+    int ret;
+
     int parse_int = -1;
     int parse_int2 = -1;
     int parse_int3 = -1;
-    char parse_string[256];
-    uint16_t parse_addr;
 
-    printf("(6502db) ");
-    fflush(stdout);
+    (void) printf("(6502db) ");
+    ret = fflush(stdout);
+    if (ret != 0) {
+      errx(1, "fflush() failed");
+    }
 
     input_ret = fgets(input_buf, sizeof(input_buf), stdin);
     if (input_ret == NULL) {
@@ -788,10 +802,10 @@ debug_callback(void* p, uint16_t irq_vector) {
       exit(0);
     } else if (!strcmp(input_buf, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
-      printf("print now: %d\n", p_debug->debug_running_print);
+      (void) printf("print now: %d\n", p_debug->debug_running_print);
     } else if (!strcmp(input_buf, "stats")) {
       p_debug->stats = !p_debug->stats;
-      printf("stats now: %d\n", p_debug->stats);
+      (void) printf("stats now: %d\n", p_debug->stats);
     } else if (!strcmp(input_buf, "ds")) {
       debug_dump_stats(p_debug);
     } else if (!strcmp(input_buf, "s")) {
@@ -818,22 +832,22 @@ debug_callback(void* p, uint16_t irq_vector) {
       break;
     } else if (sscanf(input_buf, "m %x", &parse_int) == 1) {
       parse_addr = parse_int;
-      printf("%04x:", parse_addr);
+      (void) printf("%04X:", parse_addr);
       for (i = 0; i < 16; ++i) {
-        printf(" %02x", p_mem_read[parse_addr]);
+        (void) printf(" %02X", p_mem_read[parse_addr]);
         parse_addr++;
       }
-      printf("  ");
+      (void) printf("  ");
       parse_addr = parse_int;
       for (i = 0; i < 16; ++i) {
         char c = p_mem_read[parse_addr];
         if (!isprint(c)) {
           c = '.';
         }
-        printf("%c", c);
+        (void) printf("%c", c);
         parse_addr++;
       }
-      printf("\n");
+      (void) printf("\n");
     } else if (sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
@@ -930,30 +944,34 @@ debug_callback(void* p, uint16_t irq_vector) {
                         flags_buf,
                         extra_buf);
     } else if (!strcmp(input_buf, "?")) {
-      printf("q                : quit\n");
-      printf("c                : continue\n");
-      printf("s                : step one 6502 instuction\n");
-      printf("d <addr>         : disassemble at <addr>\n");
-      printf("t                : trap into gdb\n");
-      printf("b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n");
-      printf("db <id>          : delete breakpoint <id>\n");
-      printf("bm <id> <lo> (hi): set memory breakpoint for 6502 range\n");
-      printf("dbm <id>         : delete memory breakpoint <id>\n");
-      printf("bop <op>         : break on opcode <op>\n");
-      printf("m <addr>         : show memory at <addr>\n");
-      printf("sm <addr> <val>  : write <val> to 6502 <addr>\n");
-      printf("lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n");
-      printf("lr <f> <addr>    : load memory at <addr> from raw file <f>\n");
-      printf("ss <f>           : save state to BEM file <f>\n");
-      printf("{a,x,y,pc}=<val> : set register to <val>\n");
-      printf("sys              : show system VIA registers\n");
-      printf("user             : show user VIA registers\n");
-      printf("r                : show regular registers\n");
+      (void) printf(
+          "q                : quit\n"
+          "c                : continue\n"
+          "s                : step one 6502 instuction\n"
+          "d <addr>         : disassemble at <addr>\n"
+          "t                : trap into gdb\n"
+          "b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n"
+          "db <id>          : delete breakpoint <id>\n"
+          "bm <id> <lo> (hi): set memory breakpoint for 6502 range\n"
+          "dbm <id>         : delete memory breakpoint <id>\n"
+          "bop <op>         : break on opcode <op>\n"
+          "m <addr>         : show memory at <addr>\n"
+          "sm <addr> <val>  : write <val> to 6502 <addr>\n"
+          "lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n"
+          "lr <f> <addr>    : load memory at <addr> from raw file <f>\n"
+          "ss <f>           : save state to BEM file <f>\n"
+          "{a,x,y,pc}=<val> : set register to <val>\n"
+          "sys              : show system VIA registers\n"
+          "user             : show user VIA registers\n"
+          "r                : show regular registers\n");
     } else {
-      printf("???\n");
+      (void) printf("???\n");
     }
     bbc_set_registers(p_bbc, reg_a, reg_x, reg_y, reg_s, reg_flags, reg_pc);
-    fflush(stdout);
+    ret = fflush(stdout);
+    if (ret != 0) {
+      errx(1, "fflush() failed");
+    }
   }
   if (do_trap) {
     int ret = raise(SIGTRAP);
