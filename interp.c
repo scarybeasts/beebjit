@@ -191,7 +191,6 @@ interp_call_debugger(struct interp_struct* p_interp,
                              *p_s,
                              flags,
                              *p_pc);
-    /* TODO: set cycles. */
 
     debug_callback(p_options->p_debug_callback_object, irq_vector);
 
@@ -625,6 +624,7 @@ interp_enter(struct interp_struct* p_interp) {
     }
 
     if (debug_subsystem_active) {
+      INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
                            &a,
                            &x,

@@ -590,6 +590,24 @@ debug_load_raw(struct debug_struct* p_debug,
 }
 
 static void
+debug_print_registers(uint8_t reg_a,
+                      uint8_t reg_x,
+                      uint8_t reg_y,
+                      uint8_t reg_s,
+                      const char* flags_buf,
+                      uint16_t reg_pc,
+                      uint64_t cycles) {
+  (void) printf("[A=%.2X X=%.2X Y=%.2X S=%.2X F=%s PC=%.4X cycles=%zu]\n",
+                reg_a,
+                reg_x,
+                reg_y,
+                reg_s,
+                flags_buf,
+                reg_pc,
+                cycles);
+}
+
+static void
 debug_print_state(uint16_t block_6502,
                   uint16_t reg_pc,
                   const char* opcode_buf,
@@ -638,12 +656,14 @@ debug_callback(void* p, uint16_t irq_vector) {
   uint8_t flag_o;
   uint8_t flag_i;
   uint8_t flag_d;
+  uint64_t cycles;
   int wrapped;
   uint8_t opmode;
   size_t oplen;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
@@ -691,6 +711,8 @@ debug_callback(void* p, uint16_t irq_vector) {
   if (p_debug->debug_running && !hit_break && !p_debug->debug_running_print) {
     return 0;
   }
+
+  cycles = state_6502_get_cycles(p_state_6502);
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
@@ -934,15 +956,13 @@ debug_callback(void* p, uint16_t irq_vector) {
     } else if (!strcmp(input_buf, "user")) {
       debug_dump_via(p_bbc, k_via_user);
     } else if (!strcmp(input_buf, "r")) {
-      debug_print_state(block_6502,
-                        reg_pc,
-                        opcode_buf,
-                        reg_a,
-                        reg_x,
-                        reg_y,
-                        reg_s,
-                        flags_buf,
-                        extra_buf);
+      debug_print_registers(reg_a,
+                            reg_x,
+                            reg_y,
+                            reg_s,
+                            flags_buf,
+                            reg_pc,
+                            cycles);
     } else if (!strcmp(input_buf, "?")) {
       (void) printf(
           "q                : quit\n"
