@@ -32,8 +32,13 @@ struct state_6502 {
   uint32_t reg_host_pc;
   uint32_t reg_host_flags;
   uint32_t irq_high;
-  uint64_t cycles;
+
+  struct timing_struct* p_timing;
+  uint64_t ticks_baseline;
 };
+
+struct state_6502* state_6502_create(struct timing_struct* p_timing);
+void state_6502_destroy(struct state_6502* p_state_6502);
 
 void state_6502_reset(struct state_6502* p_state_6502);
 
@@ -54,7 +59,6 @@ void state_6502_set_registers(struct state_6502* p_state_6502,
 
 uint64_t state_6502_get_cycles(struct state_6502* p_state_6502);
 void state_6502_set_cycles(struct state_6502* p_state_6502, uint64_t cycles);
-void state_6502_add_cycles(struct state_6502* p_state_6502, uint64_t cycles);
 
 uint16_t state_6502_get_pc(struct state_6502* p_state_6502);
 void state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc);

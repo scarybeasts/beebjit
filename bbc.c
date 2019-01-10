@@ -80,7 +80,7 @@ struct bbc_struct {
   struct bbc_options options;
 
   /* Machine state. */
-  struct state_6502 state_6502;
+  struct state_6502* p_state_6502;
   struct memory_access memory_access;
   struct timing_struct* p_timing;
   int mem_fd;
@@ -192,7 +192,6 @@ bbc_is_1mhz_address(uint16_t addr) {
 static void
 bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
   int64_t countdown;
-  uint64_t delta;
 
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
@@ -208,8 +207,7 @@ bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
 
   countdown = timing_get_countdown(p_timing);
   countdown -= extra_cycles;
-  (void) timing_advance_time(p_timing, &delta, countdown);
-  state_6502_add_cycles(p_state_6502, delta);
+  (void) timing_advance_time(p_timing, countdown);
 }
 
 uint8_t
@@ -508,6 +506,7 @@ bbc_create(uint8_t* p_os_rom,
            const char* p_opt_flags,
            const char* p_log_flags,
            uint16_t debug_stop_addr) {
+  struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
   int pipefd[2];
   int ret;
@@ -604,6 +603,12 @@ bbc_create(uint8_t* p_os_rom,
     errx(1, "timing_create failed");
   }
 
+  p_state_6502 = state_6502_create(p_bbc->p_timing);
+  if (p_state_6502 == NULL) {
+    errx(1, "state_6502_create failed");
+  }
+  p_bbc->p_state_6502 = p_state_6502;
+
   p_bbc->p_system_via = via_create(k_via_system, p_bbc);
   if (p_bbc->p_system_via == NULL) {
     errx(1, "via_create failed");
@@ -624,7 +629,7 @@ bbc_create(uint8_t* p_os_rom,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(&p_bbc->state_6502, p_bbc->p_timing);
+  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, p_bbc->p_timing);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }
@@ -636,7 +641,7 @@ bbc_create(uint8_t* p_os_rom,
 
   p_bbc->options.p_debug_callback_object = p_debug;
 
-  p_bbc->p_jit = jit_create(&p_bbc->state_6502,
+  p_bbc->p_jit = jit_create(p_state_6502,
                             &p_bbc->memory_access,
                             p_bbc->p_timing,
                             &p_bbc->options);
@@ -644,7 +649,7 @@ bbc_create(uint8_t* p_os_rom,
     errx(1, "jit_create failed");
   }
 
-  p_bbc->p_interp = interp_create(&p_bbc->state_6502,
+  p_bbc->p_interp = interp_create(p_state_6502,
                                   &p_bbc->memory_access,
                                   p_bbc->p_timing,
                                   &p_bbc->options);
@@ -652,7 +657,7 @@ bbc_create(uint8_t* p_os_rom,
     errx(1, "interp_create failed");
   }
 
-  p_bbc->p_inturbo = inturbo_create(&p_bbc->state_6502,
+  p_bbc->p_inturbo = inturbo_create(p_state_6502,
                                     &p_bbc->memory_access,
                                     p_bbc->p_timing,
                                     &p_bbc->options,
@@ -690,6 +695,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   sound_destroy(p_bbc->p_sound);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
+  state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
@@ -744,6 +750,7 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
 
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
   uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
 
   /* Clear memory / ROMs. */
   (void) memset(p_mem_raw, '\0', k_6502_addr_space_size);
@@ -753,12 +760,12 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
 
   bbc_sideways_select(p_bbc, 0);
 
-  state_6502_reset(&p_bbc->state_6502);
+  state_6502_reset(p_state_6502);
 
   /* Initial 6502 state. */
   init_pc = (p_mem_raw[k_6502_vector_reset] |
              (p_mem_raw[k_6502_vector_reset + 1] << 8));
-  state_6502_set_pc(&p_bbc->state_6502, init_pc);
+  state_6502_set_pc(p_state_6502, init_pc);
 }
 
 void
@@ -769,13 +776,13 @@ bbc_get_registers(struct bbc_struct* p_bbc,
                   uint8_t* s,
                   uint8_t* flags,
                   uint16_t* pc) {
-  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
 size_t
 bbc_get_cycles(struct bbc_struct* p_bbc) {
-  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   return state_6502_get_cycles(p_state_6502);
 }
 
@@ -787,13 +794,13 @@ bbc_set_registers(struct bbc_struct* p_bbc,
                   uint8_t s,
                   uint8_t flags,
                   uint16_t pc) {
-  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
 void
 bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc) {
-  struct state_6502* p_state_6502 = &p_bbc->state_6502;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_set_pc(p_state_6502, pc);
 }
 
@@ -805,7 +812,7 @@ bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
 
 struct state_6502*
 bbc_get_6502(struct bbc_struct* p_bbc) {
-  return &p_bbc->state_6502;
+  return p_bbc->p_state_6502;
 }
 
 struct via_struct*

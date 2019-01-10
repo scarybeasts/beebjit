@@ -202,8 +202,7 @@ interp_call_debugger(struct interp_struct* p_interp,
 
 #define INTERP_TIMING_ADVANCE(num_cycles)                                     \
   countdown -= num_cycles;                                                    \
-  countdown = timing_advance_time(p_timing, &delta, countdown);               \
-  state_6502_add_cycles(p_state_6502, delta);
+  countdown = timing_advance_time(p_timing, countdown);                       \
 
 #define INTERP_MEMORY_READ(addr_read)                                         \
   v = memory_read_callback(p_memory_obj, addr_read);                          \
@@ -574,7 +573,6 @@ interp_enter(struct interp_struct* p_interp) {
   uint8_t temp_u8;
   int64_t cycles_this_instruction;
   int64_t countdown;
-  uint64_t delta;
   int page_crossing;
   uint16_t addr;
   uint16_t addr_temp;
@@ -1541,13 +1539,10 @@ interp_enter(struct interp_struct* p_interp) {
 int64_t
 interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
   uint32_t ret;
-  uint64_t delta;
 
-  struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct timing_struct* p_timing = p_interp->p_timing;
 
-  (void) timing_advance_time(p_timing, &delta, countdown);
-  state_6502_add_cycles(p_state_6502, delta);
+  (void) timing_advance_time(p_timing, countdown);
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
   (void) timing_start_timer(p_timing,

@@ -2925,11 +2925,10 @@ jit_async_timer_tick(struct jit_struct* p_jit) {
 
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
-  uint64_t delta;
   struct timing_struct* p_timing = p_jit->p_timing;
   int64_t countdown = timing_get_countdown(p_timing);
   countdown -= 200000;
-  (void) timing_advance_time(p_timing, &delta, countdown);
+  (void) timing_advance_time(p_timing, countdown);
 }
 
 static void

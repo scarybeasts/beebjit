@@ -43,6 +43,11 @@ timing_destroy(struct timing_struct* p_timing) {
   free(p_timing);
 }
 
+uint64_t
+timing_get_total_timer_ticks(struct timing_struct* p_timing) {
+  return p_timing->total_timer_ticks;
+}
+
 static void
 timing_recalculate(struct timing_struct* p_timing) {
   size_t i;
@@ -155,9 +160,7 @@ timing_get_countdown(struct timing_struct* p_timing) {
 }
 
 int64_t
-timing_advance_time(struct timing_struct* p_timing,
-                    uint64_t* p_delta,
-                    int64_t countdown) {
+timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
   size_t i;
 
   size_t max_timer = p_timing->max_timer;
@@ -185,6 +188,5 @@ timing_advance_time(struct timing_struct* p_timing,
 
   timing_recalculate(p_timing);
 
-  *p_delta = delta;
   return p_timing->countdown;
 }

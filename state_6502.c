@@ -1,6 +1,30 @@
 #include "state_6502.h"
 
+#include "timing.h"
+
 #include <assert.h>
+#include <err.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct state_6502*
+state_6502_create(struct timing_struct* p_timing) {
+  struct state_6502* p_state_6502 = malloc(sizeof(struct state_6502));
+  if (p_state_6502 == NULL) {
+    errx(1, "couldn't allocate state_6502");
+  }
+
+  (void) memset(p_state_6502, '\0', sizeof(struct state_6502));
+
+  p_state_6502->p_timing = p_timing;
+
+  return p_state_6502;
+}
+
+void
+state_6502_destroy(struct state_6502* p_state_6502) {
+  free(p_state_6502);
+}
 
 void
 state_6502_reset(struct state_6502* p_state_6502) {
@@ -14,6 +38,10 @@ state_6502_reset(struct state_6502* p_state_6502) {
                            0xFD,
                            /* B, I, Z flags */ 0x16,
                            0);
+
+  /* A 6502 takes 8 cycles to reset. First instruction, the opcode at the
+   * reset vector, commences thereafter.
+   */
   state_6502_set_cycles(p_state_6502, 8);
 }
 
@@ -51,17 +79,15 @@ state_6502_set_registers(struct state_6502* p_state_6502,
 
 uint64_t
 state_6502_get_cycles(struct state_6502* p_state_6502) {
-  return p_state_6502->cycles;
+  uint64_t timer_ticks = timing_get_total_timer_ticks(p_state_6502->p_timing);
+
+  return (timer_ticks - p_state_6502->ticks_baseline);
 }
 
 void
 state_6502_set_cycles(struct state_6502* p_state_6502, uint64_t cycles) {
-  p_state_6502->cycles = cycles;
-}
-
-void
-state_6502_add_cycles(struct state_6502* p_state_6502, uint64_t cycles) {
-  p_state_6502->cycles += cycles;
+  uint64_t timer_ticks = timing_get_total_timer_ticks(p_state_6502->p_timing);
+  p_state_6502->ticks_baseline = (timer_ticks - cycles);
 }
 
 uint16_t
