@@ -12,7 +12,9 @@
 
 struct via_struct {
   int id;
+  int externally_clocked;
   struct bbc_struct* p_bbc;
+  struct timing_struct* p_timing;
 
   uint8_t ORB;
   uint8_t ORA;
@@ -35,7 +37,10 @@ struct via_struct {
 };
 
 struct via_struct*
-via_create(int id, struct bbc_struct* p_bbc) {
+via_create(int id,
+           int externally_clocked,
+           struct timing_struct* p_timing,
+           struct bbc_struct* p_bbc) {
   struct via_struct* p_via = malloc(sizeof(struct via_struct));
   if (p_via == NULL) {
     errx(1, "cannot allocate via_struct");
@@ -43,7 +48,9 @@ via_create(int id, struct bbc_struct* p_bbc) {
   (void) memset(p_via, '\0', sizeof(struct via_struct));
 
   p_via->id = id;
+  p_via->externally_clocked = externally_clocked;
   p_via->p_bbc = p_bbc;
+  p_via->p_timing = p_timing;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and

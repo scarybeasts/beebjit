@@ -512,6 +512,8 @@ bbc_create(uint8_t* p_os_rom,
   int pipefd[2];
   int ret;
 
+  int externally_clocked_via = 1;
+
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
     errx(1, "couldn't allocate bbc struct");
@@ -599,6 +601,10 @@ bbc_create(uint8_t* p_os_rom,
   p_bbc->options.p_log_flags = p_log_flags;
   p_bbc->options.accurate = accurate_flag;
 
+  if (accurate_flag) {
+    externally_clocked_via = 0;
+  }
+
   p_timing = timing_create(k_bbc_tick_rate);
   if (p_timing == NULL) {
     errx(1, "timing_create failed");
@@ -611,11 +617,17 @@ bbc_create(uint8_t* p_os_rom,
   }
   p_bbc->p_state_6502 = p_state_6502;
 
-  p_bbc->p_system_via = via_create(k_via_system, p_bbc);
+  p_bbc->p_system_via = via_create(k_via_system,
+                                   externally_clocked_via,
+                                   p_timing,
+                                   p_bbc);
   if (p_bbc->p_system_via == NULL) {
     errx(1, "via_create failed");
   }
-  p_bbc->p_user_via = via_create(k_via_user, p_bbc);
+  p_bbc->p_user_via = via_create(k_via_user,
+                                 externally_clocked_via,
+                                 p_timing,
+                                 p_bbc);
   if (p_bbc->p_system_via == NULL) {
     errx(1, "via_create failed");
   }

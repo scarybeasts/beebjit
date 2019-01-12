@@ -6,6 +6,7 @@
 struct via_struct;
 
 struct bbc_struct;
+struct timing_struct;
 
 enum {
   k_via_system = 0,
@@ -36,7 +37,10 @@ enum {
   k_int_TIMER2 = 0x20,
 };
 
-struct via_struct* via_create(int id, struct bbc_struct* p_bbc);
+struct via_struct* via_create(int id,
+                              int externally_clocked,
+                              struct timing_struct* p_timing,
+                              struct bbc_struct* p_bbc);
 void via_destroy(struct via_struct* p_via);
 
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
