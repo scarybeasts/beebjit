@@ -3,6 +3,7 @@
 #include "bbc.h"
 #include "sound.h"
 #include "state_6502.h"
+#include "timing.h"
 
 #include <assert.h>
 #include <err.h>
@@ -10,11 +11,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const size_t k_via_tick_rate = 1000000; /* 1Mhz */
+
 struct via_struct {
   int id;
   int externally_clocked;
   struct bbc_struct* p_bbc;
   struct timing_struct* p_timing;
+  size_t t1_timer_id;
+  size_t t2_timer_id;
 
   uint8_t ORB;
   uint8_t ORA;
@@ -27,14 +32,45 @@ struct via_struct {
   uint8_t IER;
   uint8_t peripheral_b;
   uint8_t peripheral_a;
-  int32_t T1C;
-  int32_t T1L;
-  int32_t T2C;
-  int32_t T2L;
+  uint16_t T1L;
+  uint16_t T2L;
   uint8_t t1_oneshot_fired;
   uint8_t t2_oneshot_fired;
   uint8_t t1_pb7;
 };
+
+static void
+via_timer_fired(void* p) {
+  (void) p;
+}
+
+static void
+via_set_t1c(struct via_struct* p_via, int32_t val) {
+  size_t id = p_via->t1_timer_id;
+  (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
+}
+
+static int32_t
+via_get_t1c(struct via_struct* p_via) {
+  size_t id = p_via->t1_timer_id;
+  int64_t val = timing_get_timer_value(p_via->p_timing, id);
+  assert(!(val & 1));
+  return (val >> 1);
+}
+
+static void
+via_set_t2c(struct via_struct* p_via, int32_t val) {
+  size_t id = p_via->t2_timer_id;
+  (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
+}
+
+static int32_t
+via_get_t2c(struct via_struct* p_via) {
+  size_t id = p_via->t2_timer_id;
+  int64_t val = timing_get_timer_value(p_via->p_timing, id);
+  assert(!(val & 1));
+  return (val >> 1);
+}
 
 struct via_struct*
 via_create(int id,
@@ -52,6 +88,12 @@ via_create(int id,
   p_via->p_bbc = p_bbc;
   p_via->p_timing = p_timing;
 
+  /* Hardcoded assumption that CPU is clocked 2x VIA (2Mhz vs. 1Mhz). */
+  assert((k_via_tick_rate * 2) == timing_get_tick_rate(p_timing));
+
+  p_via->t1_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+  p_via->t2_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
    * differs from b-em, which sets them to 0xFF.
@@ -65,11 +107,6 @@ via_create(int id,
   p_via->ORA = 0;
   p_via->ORB = 0;
 
-  p_via->T1C = 0xFFFF;
-  p_via->T1L = 0xFFFF;
-  p_via->T2C = 0xFFFF;
-  p_via->T2L = 0xFFFF;
-
   /* From the above data sheet:
    * "The interval timer one-shot mode allows generation of a single interrupt
    * for each timer load operation."
@@ -78,6 +115,11 @@ via_create(int id,
    */
   p_via->t1_oneshot_fired = 1;
   p_via->t2_oneshot_fired = 1;
+
+  via_set_t1c(p_via, 0xFFFF);
+  p_via->T1L = 0xFFFF;
+  via_set_t2c(p_via, 0xFFFF);
+  p_via->T2L = 0xFFFF;
 
   /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
   p_via->t1_pb7 = 1;
@@ -191,6 +233,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   uint8_t ddrb;
   uint8_t val;
   uint8_t port_val;
+  int32_t timer_val;
 
   switch (reg) {
   case k_via_ORB:
@@ -227,20 +270,22 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     return p_via->DDRB;
   case k_via_T1CL:
     via_clear_interrupt(p_via, k_int_TIMER1);
-    via_time_advance(p_via, 1);
-    return (p_via->T1C & 0xFF);
+    timer_val = via_get_t1c(p_via);
+    return (((uint16_t) timer_val) & 0xFF);
   case k_via_T1CH:
-    return (p_via->T1C >> 8);
+    timer_val = via_get_t1c(p_via);
+    return (((uint16_t) timer_val) >> 8);
   case k_via_T1LL:
     return (p_via->T1L & 0xFF);
   case k_via_T1LH:
     return (p_via->T1L >> 8);
   case k_via_T2CL:
     via_clear_interrupt(p_via, k_int_TIMER2);
-    via_time_advance(p_via, 1);
-    return (p_via->T2C & 0xFF);
+    timer_val = via_get_t2c(p_via);
+    return (((uint16_t) timer_val) & 0xFF);
   case k_via_T2CH:
-    return (p_via->T2C >> 8);
+    timer_val = via_get_t2c(p_via);
+    return (((uint16_t) timer_val) >> 8);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
@@ -290,14 +335,13 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     p_via->T1L = ((p_via->T1L & 0xFF00) | val);
     break;
   case k_via_T1CH:
+    via_clear_interrupt(p_via, k_int_TIMER1);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-    p_via->T1C = p_via->T1L;
+    via_set_t1c(p_via, p_via->T1L);
     p_via->t1_oneshot_fired = 0;
     p_via->t1_pb7 = 0;
-    via_clear_interrupt(p_via, k_int_TIMER1);
     break;
   case k_via_T1LH:
-    p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     /* EMU NOTE: clear interrupt as per 6522 data sheet.
      * Behavior validated on a real BBC.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16251
@@ -306,15 +350,16 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
      * cleared always.
      */
     via_clear_interrupt(p_via, k_int_TIMER1);
+    p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     break;
   case k_via_T2CL:
     p_via->T2L = ((p_via->T2L & 0xFF00) | val);
     break;
   case k_via_T2CH:
-    p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
-    p_via->T2C = p_via->T2L;
-    p_via->t2_oneshot_fired = 0;
     via_clear_interrupt(p_via, k_int_TIMER2);
+    p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
+    via_set_t2c(p_via, p_via->T2L);
+    p_via->t2_oneshot_fired = 0;
     break;
   case k_via_SR:
     p_via->SR = val;
@@ -424,9 +469,9 @@ via_get_registers(struct via_struct* p_via,
   *p_IER = p_via->IER;
   *p_peripheral_a = p_via->peripheral_a;
   *p_peripheral_b = p_via->peripheral_b;
-  *p_T1C = p_via->T1C;
+  *p_T1C = via_get_t1c(p_via);
   *p_T1L = p_via->T1L;
-  *p_T2C = p_via->T2C;
+  *p_T2C = via_get_t2c(p_via);
   *p_T2L = p_via->T2L;
   *p_t1_oneshot_fired = p_via->t1_oneshot_fired;
   *p_t2_oneshot_fired = p_via->t2_oneshot_fired;
@@ -463,9 +508,9 @@ void via_set_registers(struct via_struct* p_via,
   p_via->IER = IER;
   p_via->peripheral_a = peripheral_a;
   p_via->peripheral_b = peripheral_b;
-  p_via->T1C = T1C;
+  via_set_t1c(p_via, T1C);
   p_via->T1L = T1L;
-  p_via->T2C = T2C;
+  via_set_t2c(p_via, T2C);
   p_via->T2L = T2L;
   p_via->t1_oneshot_fired = t1_oneshot_fired;
   p_via->t2_oneshot_fired = t2_oneshot_fired;
@@ -478,9 +523,14 @@ via_get_peripheral_b_ptr(struct via_struct* p_via) {
 }
 
 void
-via_time_advance(struct via_struct* p_via, uint64_t us) {
-  p_via->T1C -= us;
-  if (p_via->T1C < 0) {
+via_time_advance(struct via_struct* p_via, uint64_t ticks) {
+  int32_t t1c;
+  int32_t t2c;
+
+  t1c = via_get_t1c(p_via);
+  t1c -= ticks;
+
+  if (t1c < 0) {
     if (!p_via->t1_oneshot_fired) {
       via_raise_interrupt(p_via, k_int_TIMER1);
       /* EMU NOTE: PB7 is maintained regardless of whether PB7 mode is active.
@@ -495,30 +545,30 @@ via_time_advance(struct via_struct* p_via, uint64_t us) {
     if (!(p_via->ACR & 0x40)) {
       p_via->t1_oneshot_fired = 1;
     }
-    while (p_via->T1C < 0) {
-      p_via->T1C += (p_via->T1L + 1);
+    /* T1 (latch 4) counts 4... 3... 2... 1... 0... -1... 4... */
+    while (t1c < -1) {
+      t1c += (p_via->T1L + 2);
     }
   }
+  via_set_t1c(p_via, t1c);
 
   /* If TIMER2 is in pulse counting mode, it doesn't decrement. */
   if (p_via->ACR & 0x20) {
     return;
   }
 
-  p_via->T2C -= us;
-  if (p_via->T2C < 0) {
+  t2c = via_get_t2c(p_via);
+  t2c -= ticks;
+
+  if (t2c < 0) {
     if (!p_via->t2_oneshot_fired) {
       via_raise_interrupt(p_via, k_int_TIMER2);
     }
     p_via->t2_oneshot_fired = 1;
-    while (p_via->T2C < 0) {
-      /* NOTE: I'm suspicious of this value's correctness. It's copied from
-       * jsbeeb and is effectively 65536us. I think corresponds to an effective
-       * TIMER2 latch value of 0xFFFF, and a symmetrical arrangement with
-       * jsbeeb's TIMER1 would involve an increment of "latch + 2us", or
-       * 0x10001. I don't have a real BBC to test.
-       */
-      p_via->T2C += 0x10000;
+    /* T2 counts 4... 3... 2... 1... 0... FFFF... FFFE... */
+    while (t2c < 0) {
+      t2c += 0x10000;
     }
   }
+  via_set_t2c(p_via, t2c);
 }

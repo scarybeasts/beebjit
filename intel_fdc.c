@@ -381,7 +381,7 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
     return;
   }
 
-  (void) timing_increase_timer(NULL, p_timing, timer_id, 200);
+  (void) timing_adjust_timer_value(p_timing, NULL, timer_id, 200);
 
   /* If our virtual controller is attempting to deliver a byte before the last
    * one was read, I presume that's data loss, otherwise what would all the

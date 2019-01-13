@@ -661,11 +661,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC8C0);
 
-  /* Test that timers don't return the same value twice in a row. */
+  /* Used to test that timers don't return the same value twice in a row, but
+   * that test is now only valid in accurate mode.
+   */
   set_new_index(p_buf, 0x08C0);
-  emit_LDA(p_buf, k_abs, 0xFE64);
-  emit_CMP(p_buf, k_abs, 0xFE64);
-  emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC900);
 
   /* Test that the carry flag optimizations don't break anything. */

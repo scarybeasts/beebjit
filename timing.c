@@ -10,7 +10,7 @@ enum {
 };
 
 struct timing_struct {
-  size_t tick_rate;
+  uint32_t tick_rate;
   size_t max_timer;
   void (*p_callbacks[k_timing_num_timers])(void*);
   void* p_objects[k_timing_num_timers];
@@ -22,7 +22,7 @@ struct timing_struct {
 };
 
 struct timing_struct*
-timing_create(size_t tick_rate) {
+timing_create(uint32_t tick_rate) {
   struct timing_struct* p_timing = malloc(sizeof(struct timing_struct));
   if (p_timing == NULL) {
     errx(1, "couldn't allocate timing_struct");
@@ -41,6 +41,11 @@ timing_create(size_t tick_rate) {
 void
 timing_destroy(struct timing_struct* p_timing) {
   free(p_timing);
+}
+
+uint32_t
+timing_get_tick_rate(struct timing_struct* p_timing) {
+  return p_timing->tick_rate;
 }
 
 uint64_t
@@ -77,7 +82,9 @@ timing_register_timer(struct timing_struct* p_timing,
       break;
     }
   }
-  assert(i < k_timing_num_timers);
+  if (i == k_timing_num_timers) {
+    errx(1, "out of timer ids");
+  }
 
   p_timing->max_timer = (i + 1);
 
@@ -132,10 +139,34 @@ timing_timer_is_running(struct timing_struct* p_timing, size_t id) {
 }
 
 int64_t
-timing_increase_timer(int64_t* p_new_value,
-                      struct timing_struct* p_timing,
-                      size_t id,
-                      int64_t time) {
+timing_get_timer_value(struct timing_struct* p_timing, size_t id) {
+  assert(id < k_timing_num_timers);
+  assert(id < p_timing->max_timer);
+
+  return p_timing->timings[id];
+}
+
+int64_t
+timing_set_timer_value(struct timing_struct* p_timing,
+                       size_t id,
+                       int64_t value) {
+  assert(id < k_timing_num_timers);
+  assert(id < p_timing->max_timer);
+  assert(p_timing->p_callbacks[id] != NULL);
+
+  p_timing->timings[id] = value;
+
+  /* TODO: can optimize this away under certain circumstances? */
+  timing_recalculate(p_timing);
+
+  return p_timing->countdown;
+}
+
+int64_t
+timing_adjust_timer_value(struct timing_struct* p_timing,
+                          int64_t* p_new_value,
+                          size_t id,
+                          int64_t time) {
   int64_t value = p_timing->timings[id];
 
   assert(id < k_timing_num_timers);
