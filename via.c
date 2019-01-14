@@ -55,7 +55,19 @@ via_get_t1c(struct via_struct* p_via) {
   size_t id = p_via->t1_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
   assert(!(val & 1));
-  return (val >> 1);
+  val >>= 1;
+  /* If interrupts aren't firing, the timer will decrement indefinitely so we
+   * have to fix it up with all of the re-latches.
+   */
+  if (val < -1) {
+    uint64_t delta = (-val - 2);
+    /* TODO: if T1L changed, this is incorrect. */
+    uint64_t relatch_cycles = (p_via->T1L + 2);
+    uint64_t relatches = (delta / relatch_cycles);
+    relatches++;
+    val += (relatches * relatch_cycles);
+  }
+  return val;
 }
 
 static void
@@ -69,7 +81,18 @@ via_get_t2c(struct via_struct* p_via) {
   size_t id = p_via->t2_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
   assert(!(val & 1));
-  return (val >> 1);
+  val >>= 1;
+  /* If interrupts aren't firing, the timer will decrement indefinitely so we
+   * have to fix it up with all of the re-latches.
+   */
+  if (val < -1) {
+    uint64_t delta = (-val - 2);
+    uint64_t relatch_cycles = 0x10000; /* -2 -> 0xFFFE */
+    uint64_t relatches = (delta / relatch_cycles);
+    relatches++;
+    val += (relatches * relatch_cycles);
+  }
+  return val;
 }
 
 struct via_struct*
@@ -77,7 +100,11 @@ via_create(int id,
            int externally_clocked,
            struct timing_struct* p_timing,
            struct bbc_struct* p_bbc) {
+  uint32_t t1_timer_id;
+  uint32_t t2_timer_id;
+
   struct via_struct* p_via = malloc(sizeof(struct via_struct));
+
   if (p_via == NULL) {
     errx(1, "cannot allocate via_struct");
   }
@@ -91,8 +118,10 @@ via_create(int id,
   /* Hardcoded assumption that CPU is clocked 2x VIA (2Mhz vs. 1Mhz). */
   assert((k_via_tick_rate * 2) == timing_get_tick_rate(p_timing));
 
-  p_via->t1_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
-  p_via->t2_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+  t1_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+  t2_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+  p_via->t1_timer_id = t1_timer_id;
+  p_via->t2_timer_id = t2_timer_id;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
@@ -123,6 +152,13 @@ via_create(int id,
 
   /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
   p_via->t1_pb7 = 1;
+
+  if (!externally_clocked) {
+    timing_start_timer(p_timing, t1_timer_id, via_get_t1c(p_via));
+    timing_set_firing(p_timing, t1_timer_id, 0);
+    timing_start_timer(p_timing, t2_timer_id, via_get_t2c(p_via));
+    timing_set_firing(p_timing, t2_timer_id, 0);
+  }
 
   return p_via;
 }
@@ -306,6 +342,8 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  int32_t timer_val;
+
   switch (reg) {
   case k_via_ORB:
     assert((p_via->PCR & 0xA0) != 0x20);
@@ -337,7 +375,10 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   case k_via_T1CH:
     via_clear_interrupt(p_via, k_int_TIMER1);
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-    via_set_t1c(p_via, p_via->T1L);
+    timer_val = p_via->T1L;
+    /* Increment the value because it must take effect in 1 tick. */
+    timer_val++;
+    via_set_t1c(p_via, timer_val);
     p_via->t1_oneshot_fired = 0;
     p_via->t1_pb7 = 0;
     break;
@@ -358,7 +399,10 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   case k_via_T2CH:
     via_clear_interrupt(p_via, k_int_TIMER2);
     p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
-    via_set_t2c(p_via, p_via->T2L);
+    timer_val = p_via->T2L;
+    /* Increment the value because it must take effect in 1 tick. */
+    timer_val++;
+    via_set_t2c(p_via, timer_val);
     p_via->t2_oneshot_fired = 0;
     break;
   case k_via_SR:
@@ -526,6 +570,8 @@ void
 via_time_advance(struct via_struct* p_via, uint64_t ticks) {
   int32_t t1c;
   int32_t t2c;
+
+  assert(p_via->externally_clocked);
 
   t1c = via_get_t1c(p_via);
   t1c -= ticks;

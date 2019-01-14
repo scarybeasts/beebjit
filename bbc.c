@@ -78,6 +78,7 @@ struct bbc_struct {
   int slow_flag;
   int vsync_wait_for_render;
   struct bbc_options options;
+  int externally_clocked_via;
 
   /* Machine state. */
   struct state_6502* p_state_6502;
@@ -604,6 +605,7 @@ bbc_create(uint8_t* p_os_rom,
   if (accurate_flag) {
     externally_clocked_via = 0;
   }
+  p_bbc->externally_clocked_via = externally_clocked_via;
 
   p_timing = timing_create(k_bbc_tick_rate);
   if (p_timing == NULL) {
@@ -940,9 +942,13 @@ bbc_cycles_timer_callback(void* p) {
 
   assert(refreshed_time > 0);
 
-  /* VIA timers advance. Externally clocked timing leads to jumpy resolution. */
-  via_time_advance(p_bbc->p_system_via, delta);
-  via_time_advance(p_bbc->p_user_via, delta);
+  if (p_bbc->externally_clocked_via) {
+    /* VIA timers advance.
+     * Externally clocked timing leads to jumpy resolution.
+     */
+    via_time_advance(p_bbc->p_system_via, delta);
+    via_time_advance(p_bbc->p_user_via, delta);
+  }
 
   /* Fire vsync at 50Hz. */
   if (current_gettime_us >= p_bbc->next_gettime_us_vsync) {

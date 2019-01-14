@@ -120,7 +120,55 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xC180);
 
+  /* Check T1 timer tick values. */
+  /* T1, latch (e.g.) 4, ticks 4... 3... 2... 1... 0... -1... 4... */
   set_new_index(p_buf, 0x0180);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 6. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* T1CL: should be 4. */
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_abs, 0xFE44); /* T1CL: should be -1. */
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_LDA(p_buf, k_abs, 0xFE44); /* T1CL: should be 2. */
+  emit_STA(p_buf, k_abs, 0x1002);
+
+  emit_LDA(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_LDA(p_buf, k_abs, 0x1001);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_abs, 0x1002);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xC1C0);
+
+  /* Check T2 timer tick values. */
+  /* T2 ticks (e.g.) 4... 3... 2... 1... 0... FFFF (-1)... FFFE */
+  set_new_index(p_buf, 0x01C0);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_STA(p_buf, k_abs, 0xFE48); /* T2CL: 6. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE49); /* T2CH: 0, timer starts. */
+  emit_LDA(p_buf, k_abs, 0xFE48); /* T2CL: should be 4. */
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_abs, 0xFE48); /* T2CL: should be -1 (0xFF) */
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_LDA(p_buf, k_abs, 0xFE48); /* T2CL: should be 0xFA */
+  emit_STA(p_buf, k_abs, 0x1002);
+
+  emit_LDA(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_LDA(p_buf, k_abs, 0x1001);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_abs, 0x1002);
+  emit_REQUIRE_EQ(p_buf, 0xFA);
+  emit_JMP(p_buf, k_abs, 0xC200);
+
+  set_new_index(p_buf, 0x0200);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

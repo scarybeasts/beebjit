@@ -28,6 +28,7 @@ int64_t timing_adjust_timer_value(struct timing_struct* p_timing,
                                   int64_t* p_new_value,
                                   size_t id,
                                   int64_t delta);
+void timing_set_firing(struct timing_struct* p_timing, size_t id, int firing);
 
 int64_t timing_get_countdown(struct timing_struct* p_timing);
 int64_t timing_advance_time(struct timing_struct* p_timing, int64_t countdown);
