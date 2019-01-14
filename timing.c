@@ -187,6 +187,14 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
   return p_timing->countdown;
 }
 
+int
+timing_get_firing(struct timing_struct* p_timing, size_t id) {
+  assert(id < k_timing_num_timers);
+  assert(id < p_timing->max_timer);
+
+  return p_timing->firing[id];
+}
+
 void
 timing_set_firing(struct timing_struct* p_timing, size_t id, int firing) {
   assert(id < k_timing_num_timers);

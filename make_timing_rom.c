@@ -36,6 +36,9 @@ main(int argc, const char* argv[]) {
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
+  /* IRQ vector. */
+  p_mem[0x3FFE] = 0x00;
+  p_mem[0x3FFF] = 0xFF;
 
   /* Check instruction timings for page crossings in abx mode. */
   set_new_index(p_buf, 0x0000);
@@ -168,11 +171,45 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFA);
   emit_JMP(p_buf, k_abs, 0xC200);
 
+  /* Check an interrupt fires immediately when T1 expires. */
   set_new_index(p_buf, 0x0200);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
+  emit_LDX(p_buf, k_imm, 0x42);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 1. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_CLI(p_buf);                /* 2 cycles. At timer value 1. */
+  emit_INC(p_buf, k_zpg, 0x00);   /* 5 cycles. At timer value 0, -1. */
+                                  /* Interrupt here. */
+  emit_INX(p_buf);                /* Used to check if interrupt is late. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x42);
+  emit_JMP(p_buf, k_abs, 0xC240);
+
+  set_new_index(p_buf, 0x0240);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
   emit_EXIT(p_buf);
+
+  /* IRQ routine. */
+  set_new_index(p_buf, 0x3F00);
+  emit_INC(p_buf, k_zpg, 0x10);
+  emit_STA(p_buf, k_zpg, 0x11);
+  emit_STX(p_buf, k_zpg, 0x12);
+  emit_STY(p_buf, k_zpg, 0x13);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_RTI(p_buf);
 
   fd = open("timing.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {

@@ -34,19 +34,14 @@ struct via_struct {
   uint8_t peripheral_a;
   uint16_t T1L;
   uint16_t T2L;
-  uint8_t t1_oneshot_fired;
-  uint8_t t2_oneshot_fired;
   uint8_t t1_pb7;
 };
 
 static void
-via_timer_fired(void* p) {
-  (void) p;
-}
-
-static void
 via_set_t1c(struct via_struct* p_via, int32_t val) {
   size_t id = p_via->t1_timer_id;
+  /* Add 1 to val because VIA timers fire at -1 and timing_* fires at 0. */
+  val++;
   (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
 }
 
@@ -56,10 +51,12 @@ via_get_t1c(struct via_struct* p_via) {
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
   assert(!(val & 1));
   val >>= 1;
+  val--;
   /* If interrupts aren't firing, the timer will decrement indefinitely so we
    * have to fix it up with all of the re-latches.
    */
   if (val < -1) {
+    /* T1 (latch 4) counts 4... 3... 2... 1... 0... -1... 4... */
     uint64_t delta = (-val - 2);
     /* TODO: if T1L changed, this is incorrect. */
     uint64_t relatch_cycles = (p_via->T1L + 2);
@@ -73,6 +70,8 @@ via_get_t1c(struct via_struct* p_via) {
 static void
 via_set_t2c(struct via_struct* p_via, int32_t val) {
   size_t id = p_via->t2_timer_id;
+  /* Add 1 to val because VIA timers fire at -1 and timing_* fires at 0. */
+  val++;
   (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
 }
 
@@ -82,10 +81,12 @@ via_get_t2c(struct via_struct* p_via) {
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
   assert(!(val & 1));
   val >>= 1;
+  val--;
   /* If interrupts aren't firing, the timer will decrement indefinitely so we
    * have to fix it up with all of the re-latches.
    */
   if (val < -1) {
+    /* T2 counts 4... 3... 2... 1... 0... FFFF... FFFE... */
     uint64_t delta = (-val - 2);
     uint64_t relatch_cycles = 0x10000; /* -2 -> 0xFFFE */
     uint64_t relatches = (delta / relatch_cycles);
@@ -93,6 +94,61 @@ via_get_t2c(struct via_struct* p_via) {
     val += (relatches * relatch_cycles);
   }
   return val;
+}
+
+
+static void
+via_do_fire_t1(struct via_struct* p_via) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t timer_id = p_via->t1_timer_id;
+  assert(timing_get_firing(p_timing, timer_id));
+
+  via_raise_interrupt(p_via, k_int_TIMER1);
+  /* EMU NOTE: PB7 is maintained regardless of whether PB7 mode is active.
+   * Confirmed on a real beeb.
+   * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16263
+   */
+  p_via->t1_pb7 = !p_via->t1_pb7;
+
+  /* If we're in one-shot mode, flag the timer hit so we don't assert an
+   * interrupt again until T1CH has been re-written.
+   */
+  if (!(p_via->ACR & 0x40)) {
+    timing_set_firing(p_timing, timer_id, 0);
+  }
+}
+
+static void
+via_do_fire_t2(struct via_struct* p_via) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t timer_id = p_via->t2_timer_id;
+  assert(timing_get_firing(p_timing, timer_id));
+
+  via_raise_interrupt(p_via, k_int_TIMER2);
+  timing_set_firing(p_timing, timer_id, 0);
+}
+
+static void
+via_t1_fired(void* p) {
+  struct via_struct* p_via = (struct via_struct*) p;
+  int64_t val = via_get_t1c(p_via);
+
+  (void) val;
+  assert(!p_via->externally_clocked);
+
+  via_do_fire_t1(p_via);
+}
+
+static void
+via_t2_fired(void* p) {
+  struct via_struct* p_via = (struct via_struct*) p;
+  int64_t val = via_get_t2c(p_via);
+
+  (void) val;
+  assert(!p_via->externally_clocked);
+  assert(!(p_via->ACR & 0x20)); /* Shouldn't fire in pulse counting mode. */
+
+  via_do_fire_t2(p_via);
 }
 
 struct via_struct*
@@ -118,8 +174,8 @@ via_create(int id,
   /* Hardcoded assumption that CPU is clocked 2x VIA (2Mhz vs. 1Mhz). */
   assert((k_via_tick_rate * 2) == timing_get_tick_rate(p_timing));
 
-  t1_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
-  t2_timer_id = timing_register_timer(p_timing, via_timer_fired, p_via);
+  t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
+  t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
   p_via->t1_timer_id = t1_timer_id;
   p_via->t2_timer_id = t2_timer_id;
 
@@ -136,15 +192,6 @@ via_create(int id,
   p_via->ORA = 0;
   p_via->ORB = 0;
 
-  /* From the above data sheet:
-   * "The interval timer one-shot mode allows generation of a single interrupt
-   * for each timer load operation."
-   * It's unclear whether "power on" / "reset" counts as an effective timer
-   * load or not. Let's copy jsbeeb and b-em and say that it does not.
-   */
-  p_via->t1_oneshot_fired = 1;
-  p_via->t2_oneshot_fired = 1;
-
   via_set_t1c(p_via, 0xFFFF);
   p_via->T1L = 0xFFFF;
   via_set_t2c(p_via, 0xFFFF);
@@ -155,10 +202,17 @@ via_create(int id,
 
   if (!externally_clocked) {
     timing_start_timer(p_timing, t1_timer_id, via_get_t1c(p_via));
-    timing_set_firing(p_timing, t1_timer_id, 0);
     timing_start_timer(p_timing, t2_timer_id, via_get_t2c(p_via));
-    timing_set_firing(p_timing, t2_timer_id, 0);
   }
+
+  /* From the above data sheet:
+   * "The interval timer one-shot mode allows generation of a single interrupt
+   * for each timer load operation."
+   * It's unclear whether "power on" / "reset" counts as an effective timer
+   * load or not. Let's copy jsbeeb and b-em and say that it does not.
+   */
+  timing_set_firing(p_timing, t1_timer_id, 0);
+  timing_set_firing(p_timing, t2_timer_id, 0);
 
   return p_via;
 }
@@ -379,7 +433,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     /* Increment the value because it must take effect in 1 tick. */
     timer_val++;
     via_set_t1c(p_via, timer_val);
-    p_via->t1_oneshot_fired = 0;
+    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
     p_via->t1_pb7 = 0;
     break;
   case k_via_T1LH:
@@ -403,7 +457,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     /* Increment the value because it must take effect in 1 tick. */
     timer_val++;
     via_set_t2c(p_via, timer_val);
-    p_via->t2_oneshot_fired = 0;
+    timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
     break;
   case k_via_SR:
     p_via->SR = val;
@@ -502,6 +556,8 @@ via_get_registers(struct via_struct* p_via,
                   uint8_t* p_t1_oneshot_fired,
                   uint8_t* p_t2_oneshot_fired,
                   uint8_t* p_t1_pb7) {
+  struct timing_struct* p_timing = p_via->p_timing;
+
   *p_ORA = p_via->ORA;
   *p_ORB = p_via->ORB;
   *p_DDRA = p_via->DDRA;
@@ -517,8 +573,8 @@ via_get_registers(struct via_struct* p_via,
   *p_T1L = p_via->T1L;
   *p_T2C = via_get_t2c(p_via);
   *p_T2L = p_via->T2L;
-  *p_t1_oneshot_fired = p_via->t1_oneshot_fired;
-  *p_t2_oneshot_fired = p_via->t2_oneshot_fired;
+  *p_t1_oneshot_fired = !timing_get_firing(p_timing, p_via->t1_timer_id);
+  *p_t2_oneshot_fired = !timing_get_firing(p_timing, p_via->t2_timer_id);
   *p_t1_pb7 = p_via->t1_pb7;
 }
 
@@ -541,6 +597,8 @@ void via_set_registers(struct via_struct* p_via,
                        uint8_t t1_oneshot_fired,
                        uint8_t t2_oneshot_fired,
                        uint8_t t1_pb7) {
+  struct timing_struct* p_timing = p_via->p_timing;
+
   p_via->ORA = ORA;
   p_via->ORB = ORB;
   p_via->DDRA = DDRA;
@@ -556,8 +614,8 @@ void via_set_registers(struct via_struct* p_via,
   p_via->T1L = T1L;
   via_set_t2c(p_via, T2C);
   p_via->T2L = T2L;
-  p_via->t1_oneshot_fired = t1_oneshot_fired;
-  p_via->t2_oneshot_fired = t2_oneshot_fired;
+  timing_set_firing(p_timing, p_via->t1_timer_id, !t1_oneshot_fired);
+  timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);
   p_via->t1_pb7 = t1_pb7;
 }
 
@@ -571,30 +629,18 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
   int32_t t1c;
   int32_t t2c;
 
+  struct timing_struct* p_timing = p_via->p_timing;
+
   assert(p_via->externally_clocked);
 
   t1c = via_get_t1c(p_via);
   t1c -= ticks;
 
   if (t1c < 0) {
-    if (!p_via->t1_oneshot_fired) {
-      via_raise_interrupt(p_via, k_int_TIMER1);
-      /* EMU NOTE: PB7 is maintained regardless of whether PB7 mode is active.
-       * Confirmed on a real beeb.
-       * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16263
-       */
-      p_via->t1_pb7 = !p_via->t1_pb7;
+    if (timing_get_firing(p_timing, p_via->t1_timer_id)) {
+      via_do_fire_t1(p_via);
     }
-    /* If we're in one-shot mode, flag the timer hit so we don't assert an
-     * interrupt again until T1CH has been re-written.
-     */
-    if (!(p_via->ACR & 0x40)) {
-      p_via->t1_oneshot_fired = 1;
-    }
-    /* T1 (latch 4) counts 4... 3... 2... 1... 0... -1... 4... */
-    while (t1c < -1) {
-      t1c += (p_via->T1L + 2);
-    }
+    t1c = via_get_t1c(p_via);
   }
   via_set_t1c(p_via, t1c);
 
@@ -607,14 +653,10 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
   t2c -= ticks;
 
   if (t2c < 0) {
-    if (!p_via->t2_oneshot_fired) {
-      via_raise_interrupt(p_via, k_int_TIMER2);
+    if (timing_get_firing(p_timing, p_via->t2_timer_id)) {
+      via_do_fire_t2(p_via);
     }
-    p_via->t2_oneshot_fired = 1;
-    /* T2 counts 4... 3... 2... 1... 0... FFFF... FFFE... */
-    while (t2c < 0) {
-      t2c += 0x10000;
-    }
+    t2c = via_get_t2c(p_via);
   }
   via_set_t2c(p_via, t2c);
 }
