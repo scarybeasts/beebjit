@@ -1155,9 +1155,17 @@ interp_enter(struct interp_struct* p_interp) {
       p_mem_write[addr] = v;
       break;
     case 0x78: /* SEI */
+      /* SEI fiddles with the interrupt disable flag so we need to tick it
+       * out to get the correct ordering.
+       */
+      INTERP_TIMING_ADVANCE(0);
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
       intf = 1;
       pc++;
       cycles_this_instruction = 2;
+      if (do_irq_vector) {
+        goto force_opcode;
+      }
       break;
     case 0x79: /* ADC aby */
       INTERP_MODE_ABr_READ(y);

@@ -269,8 +269,28 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x41);
   emit_JMP(p_buf, k_abs, 0xC300);
 
-  /* Exit sequence. */
+  /* Test that a pending interrupt fires between CLI / SEI. */
   set_new_index(p_buf, 0x0300);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 0. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_NOP(p_buf);                /* Timer value: 0. */
+  emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
+  emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
+  emit_SEI(p_buf);                /* IRQ should be raised after this SEI. */
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xC340);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0340);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
