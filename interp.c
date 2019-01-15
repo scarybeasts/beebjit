@@ -171,22 +171,24 @@ interp_check_irq_now(uint8_t* opcode,
   }
 }
 
-static void
+static int64_t
 interp_check_irq_deferred(struct timing_struct* p_timing,
                           uint32_t deferred_interrupt_timer_id,
                           uint16_t do_irq_vector,
                           struct state_6502* p_state_6502,
                           uint8_t intf) {
   if (!p_state_6502->irq_fire) {
-    return;
+    return timing_get_countdown(p_timing);
   }
   if (do_irq_vector) {
-    return;
+    return timing_get_countdown(p_timing);
   }
   if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
       !intf) {
     assert(!timing_timer_is_running(p_timing, deferred_interrupt_timer_id));
-    (void) timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
+    return timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
+  } else {
+    return timing_get_countdown(p_timing);
   }
 }
 
@@ -642,7 +644,7 @@ interp_enter(struct interp_struct* p_interp) {
     /* Account for the cycles of the instruction that just finished. */
     countdown -= cycles_this_instruction;
 
-    if (countdown <= 0) {
+    if (countdown <= 0 && cycles_this_instruction) {
       countdown += cycles_this_instruction;
       /* Instructions requiring full tick-by-tick execution -- notably,
        * hardware register accesses -- are handled separately.
@@ -652,23 +654,24 @@ interp_enter(struct interp_struct* p_interp) {
        * "Just before" means that we effectively need to check interrupts
        * before the penultimate cycle.
        */
+      /* TODO: handle 3-cycle branches correctly. */
       if (cycles_this_instruction > 2) {
         INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
         interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
-        interp_check_irq_deferred(p_timing,
-                                  deferred_interrupt_timer_id,
-                                  do_irq_vector,
-                                  p_state_6502,
-                                  intf);
+        countdown = interp_check_irq_deferred(p_timing,
+                                              deferred_interrupt_timer_id,
+                                              do_irq_vector,
+                                              p_state_6502,
+                                              intf);
       } else {
         interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
-        interp_check_irq_deferred(p_timing,
-                                  deferred_interrupt_timer_id,
-                                  do_irq_vector,
-                                  p_state_6502,
-                                  intf);
+        countdown = interp_check_irq_deferred(p_timing,
+                                              deferred_interrupt_timer_id,
+                                              do_irq_vector,
+                                              p_state_6502,
+                                              intf);
       }
 
       /* Note that we stay in the interpreter loop to handle the IRQ if one
@@ -679,10 +682,8 @@ interp_enter(struct interp_struct* p_interp) {
         if (!do_irq_vector) {
           break;
         }
-        (void) timing_start_timer(p_timing, timer_id, 0);
+        countdown = timing_start_timer(p_timing, timer_id, 0);
       }
-
-      countdown = timing_get_countdown(p_timing);
     }
 
     if (debug_subsystem_active) {
@@ -880,15 +881,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 5;
       break;
     case 0x28: /* PLP */
+      /* PLP fiddles with the interrupt disable flag so we need to tick it
+       * out to get the correct ordering.
+       */
+      INTERP_TIMING_ADVANCE(4);
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc++;
-      cycles_this_instruction = 4;
-      /* TODO: buggy. */
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
-      if (!opcode) {
-        goto force_opcode;
-      }
+      cycles_this_instruction = 0;
+      countdown = interp_check_irq_deferred(p_timing,
+                                            deferred_interrupt_timer_id,
+                                            0,
+                                            p_state_6502,
+                                            intf);
       break;
     case 0x29: /* AND imm */
       v = p_mem_read[pc + 1];
@@ -957,6 +962,7 @@ interp_enter(struct interp_struct* p_interp) {
       INTERP_MODE_ABX_READ_WRITE_POST();
       break;
     case 0x40: /* RTI */
+      /* TODO: changes I flag, need to handle. */
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc = p_stack[++s];
@@ -1043,14 +1049,18 @@ interp_enter(struct interp_struct* p_interp) {
       p_mem_write[addr] = v;
       break;
     case 0x58: /* CLI */
+      /* CLI fiddles with the interrupt disable flag so we need to tick it
+       * out to get the correct ordering.
+       */
+      INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
-      cycles_this_instruction = 2;
-      /* TODO: buggy. */
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
-      if (!opcode) {
-        goto force_opcode;
-      }
+      cycles_this_instruction = 0;
+      countdown = interp_check_irq_deferred(p_timing,
+                                            deferred_interrupt_timer_id,
+                                            0,
+                                            p_state_6502,
+                                            0);
       break;
     case 0x59: /* EOR aby */
       INTERP_MODE_ABr_READ(y);
