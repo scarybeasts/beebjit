@@ -62,7 +62,7 @@ timing_recalculate(struct timing_struct* p_timing) {
   size_t max_timer = p_timing->max_timer;
 
   for (i = 0; i < max_timer; ++i) {
-    if (!p_timing->ticking[i]) {
+    if (!p_timing->ticking[i] || !p_timing->firing[i]) {
       continue;
     }
     if (p_timing->timings[i] < countdown) {
@@ -208,34 +208,53 @@ timing_get_countdown(struct timing_struct* p_timing) {
   return p_timing->countdown;
 }
 
-int64_t
-timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
+static void
+timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
   size_t i;
 
   size_t max_timer = p_timing->max_timer;
-  uint64_t delta = (p_timing->countdown - countdown);
-
-  /* TODO: optimization, can return right away if we know nothing expires. */
-
-  p_timing->total_timer_ticks += delta;
 
   for (i = 0; i < max_timer; ++i) {
     int64_t value;
-    uint8_t ticking = p_timing->ticking[i];
 
-    if (!ticking) {
+    if (!p_timing->ticking[i]) {
       continue;
     }
     value = p_timing->timings[i];
     value -= delta;
     p_timing->timings[i] = value;
-    if (value <= 0 && p_timing->firing[i]) {
+    if (!p_timing->firing[i]) {
+      continue;
+    }
+    /* Callers of timing_do_advance_time() are required to expire active timers
+     * exactly on time.
+     */
+    assert(value >= 0);
+    if (value == 0 && p_timing->firing[i]) {
       void (*p_callback)(void*) = p_timing->p_callbacks[i];
       p_callback(p_timing->p_objects[i]);
     }
   }
 
+  p_timing->total_timer_ticks += delta;
+
   timing_recalculate(p_timing);
+}
+
+int64_t
+timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
+  uint64_t orig_delta = (p_timing->countdown - countdown);
+  uint64_t delta = orig_delta;
+
+  while (delta) {
+    uint64_t sub_delta = p_timing->countdown;
+    if (sub_delta > delta) {
+      /* TODO: optimization, can return if we know nothing expires. */
+      sub_delta = delta;
+    }
+    timing_do_advance_time(p_timing, sub_delta);
+    delta -= sub_delta;
+  }
 
   return p_timing->countdown;
 }

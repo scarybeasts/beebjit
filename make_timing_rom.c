@@ -195,7 +195,31 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x42);
   emit_JMP(p_buf, k_abs, 0xC240);
 
+  /* Check T1 reload in continuous mode. */
+  /* Also checks that IFR flag are visible the same VIA cycle the IRQ fires. */
   set_new_index(p_buf, 0x0240);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* Write ACR, TIMER1 continuous mode. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 4. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* T1CL read: clear IFR. */
+  emit_LDX(p_buf, k_abs, 0xFE4D); /* IFR. Should be TIMER1. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* T1CL read: clear IFR. */
+  emit_LDY(p_buf, k_abs, 0xFE4D); /* IFR. Should be TIMER1. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* Write ACR, TIMER1 one-shot mode. */
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x40);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x40);
+  emit_JMP(p_buf, k_abs, 0xC280);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0280);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

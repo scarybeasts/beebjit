@@ -115,6 +115,9 @@ via_do_fire_t1(struct via_struct* p_via) {
    */
   if (!(p_via->ACR & 0x40)) {
     timing_set_firing(p_timing, timer_id, 0);
+  } else {
+    int64_t delta = (p_via->T1L + 2);
+    (void) timing_adjust_timer_value(p_timing, NULL, timer_id, (delta << 1));
   }
 }
 
@@ -134,6 +137,7 @@ via_t1_fired(void* p) {
   int64_t val = via_get_t1c(p_via);
 
   (void) val;
+  assert(val == -1);
   assert(!p_via->externally_clocked);
 
   via_do_fire_t1(p_via);
@@ -145,6 +149,7 @@ via_t2_fired(void* p) {
   int64_t val = via_get_t2c(p_via);
 
   (void) val;
+  assert(val == -1);
   assert(!p_via->externally_clocked);
   assert(!(p_via->ACR & 0x20)); /* Shouldn't fire in pulse counting mode. */
 
