@@ -30,9 +30,18 @@ struct interp_struct {
   uint16_t callback_above;
   int debug_subsystem_active;
 
+  size_t deferred_interrupt_timer_id;
   size_t short_instruction_run_timer_id;
   int return_from_loop;
 };
+
+static void
+interp_deferred_interrupt_timer_callback(void* p) {
+  struct interp_struct* p_interp = (struct interp_struct*) p;
+
+  (void) timing_stop_timer(p_interp->p_timing,
+                           p_interp->deferred_interrupt_timer_id);
+}
 
 static void
 interp_instruction_run_timer_callback(void* p) {
@@ -79,6 +88,10 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_callback_object);
 
+  p_interp->deferred_interrupt_timer_id =
+      timing_register_timer(p_timing,
+                            interp_deferred_interrupt_timer_callback,
+                            p_interp);
   p_interp->short_instruction_run_timer_id =
       timing_register_timer(p_timing,
                             interp_instruction_run_timer_callback,
@@ -126,10 +139,10 @@ interp_get_flags(unsigned char zf,
 }
 
 static void
-interp_check_irq(uint8_t* opcode,
-                 uint16_t* p_do_irq_vector,
-                 struct state_6502* p_state_6502,
-                 uint8_t intf) {
+interp_check_irq_now(uint8_t* opcode,
+                     uint16_t* p_do_irq_vector,
+                     struct state_6502* p_state_6502,
+                     uint8_t intf) {
   if (!p_state_6502->irq_fire) {
     return;
   }
@@ -155,6 +168,25 @@ interp_check_irq(uint8_t* opcode,
    */
   if (*p_do_irq_vector) {
     *opcode = 0;
+  }
+}
+
+static void
+interp_check_irq_deferred(struct timing_struct* p_timing,
+                          uint32_t deferred_interrupt_timer_id,
+                          uint16_t do_irq_vector,
+                          struct state_6502* p_state_6502,
+                          uint8_t intf) {
+  if (!p_state_6502->irq_fire) {
+    return;
+  }
+  if (do_irq_vector) {
+    return;
+  }
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+      !intf) {
+    assert(!timing_timer_is_running(p_timing, deferred_interrupt_timer_id));
+    (void) timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
   }
 }
 
@@ -218,7 +250,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -234,7 +266,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -251,7 +283,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_WRITE(addr);                                                \
   }
 
@@ -280,12 +312,12 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
@@ -304,7 +336,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -326,7 +358,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_WRITE(addr);                                                \
   }
 
@@ -354,7 +386,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -373,7 +405,7 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -395,12 +427,12 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(4);                                               \
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);          \
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
@@ -421,7 +453,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);            \
+    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -570,7 +602,6 @@ interp_enter(struct interp_struct* p_interp) {
 
   int temp_int;
   uint8_t temp_u8;
-  int64_t cycles_this_instruction;
   int64_t countdown;
   int page_crossing;
   uint16_t addr;
@@ -580,6 +611,7 @@ interp_enter(struct interp_struct* p_interp) {
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
   struct timing_struct* p_timing = p_interp->p_timing;
+  uint32_t deferred_interrupt_timer_id = p_interp->deferred_interrupt_timer_id;
   struct memory_access* p_memory_access = p_interp->p_memory_access;
   uint8_t (*memory_read_callback)(void*, uint16_t) =
       p_memory_access->memory_read_callback;
@@ -592,6 +624,7 @@ interp_enter(struct interp_struct* p_interp) {
   uint16_t callback_above = p_interp->callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
   uint16_t do_irq_vector = 0;
+  int64_t cycles_this_instruction = 0;
 
   p_interp->return_from_loop = 0;
   countdown = timing_get_countdown(p_timing);
@@ -606,10 +639,37 @@ interp_enter(struct interp_struct* p_interp) {
     opcode = p_mem_read[pc];
 
   force_opcode:
-    if (countdown <= 0) {
-      INTERP_TIMING_ADVANCE(0);
+    /* Account for the cycles of the instruction that just finished. */
+    countdown -= cycles_this_instruction;
 
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+    if (countdown <= 0) {
+      countdown += cycles_this_instruction;
+      /* Instructions requiring full tick-by-tick execution -- notably,
+       * hardware register accesses -- are handled separately.
+       * For the remaining instructions, the only sub-instruction aspect which
+       * makes a difference is when the interrupt decision is made, which
+       * usually (but not always) occurs just before the last instuction cycle.
+       * "Just before" means that we effectively need to check interrupts
+       * before the penultimate cycle.
+       */
+      if (cycles_this_instruction > 2) {
+        INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
+        interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
+        INTERP_TIMING_ADVANCE(2);
+        interp_check_irq_deferred(p_timing,
+                                  deferred_interrupt_timer_id,
+                                  do_irq_vector,
+                                  p_state_6502,
+                                  intf);
+      } else {
+        interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
+        INTERP_TIMING_ADVANCE(cycles_this_instruction);
+        interp_check_irq_deferred(p_timing,
+                                  deferred_interrupt_timer_id,
+                                  do_irq_vector,
+                                  p_state_6502,
+                                  intf);
+      }
 
       /* Note that we stay in the interpreter loop to handle the IRQ if one
        * has arisen, otherwise it would get lost.
@@ -619,8 +679,10 @@ interp_enter(struct interp_struct* p_interp) {
         if (!do_irq_vector) {
           break;
         }
-        countdown = timing_start_timer(p_timing, timer_id, 0);
+        (void) timing_start_timer(p_timing, timer_id, 0);
       }
+
+      countdown = timing_get_countdown(p_timing);
     }
 
     if (debug_subsystem_active) {
@@ -823,7 +885,7 @@ interp_enter(struct interp_struct* p_interp) {
       pc++;
       cycles_this_instruction = 4;
       /* TODO: buggy. */
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
       if (!opcode) {
         goto force_opcode;
       }
@@ -985,7 +1047,7 @@ interp_enter(struct interp_struct* p_interp) {
       pc++;
       cycles_this_instruction = 2;
       /* TODO: buggy. */
-      interp_check_irq(&opcode, &do_irq_vector, p_state_6502, intf);
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
       if (!opcode) {
         goto force_opcode;
       }
@@ -1526,8 +1588,6 @@ interp_enter(struct interp_struct* p_interp) {
     default:
       __builtin_trap();
     }
-
-    countdown -= cycles_this_instruction;
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
