@@ -882,7 +882,7 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case 0x28: /* PLP */
       /* PLP fiddles with the interrupt disable flag so we need to tick it
-       * out to get the correct ordering.
+       * out to get the correct ordering and behavior.
        */
       INTERP_TIMING_ADVANCE(4);
       v = p_stack[++s];
@@ -962,12 +962,19 @@ interp_enter(struct interp_struct* p_interp) {
       INTERP_MODE_ABX_READ_WRITE_POST();
       break;
     case 0x40: /* RTI */
-      /* TODO: changes I flag, need to handle. */
+      /* RTI fiddles with the interrupt disable flag so we need to tick it
+       * out to get the correct ordering and behavior.
+       */
+      INTERP_TIMING_ADVANCE(4);
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
-      cycles_this_instruction = 6;
+      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
+      cycles_this_instruction = 2;
+      if (do_irq_vector) {
+        goto force_opcode;
+      }
       break;
     case 0x41: /* EOR idx */
       INTERP_MODE_IDX_READ();
@@ -1050,7 +1057,7 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case 0x58: /* CLI */
       /* CLI fiddles with the interrupt disable flag so we need to tick it
-       * out to get the correct ordering.
+       * out to get the correct ordering and behavior.
        */
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
@@ -1156,7 +1163,7 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     case 0x78: /* SEI */
       /* SEI fiddles with the interrupt disable flag so we need to tick it
-       * out to get the correct ordering.
+       * out to get the correct ordering and behavior.
        */
       INTERP_TIMING_ADVANCE(0);
       interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);

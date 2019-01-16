@@ -289,8 +289,38 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xC340);
 
-  /* Exit sequence. */
+  /* Test that a pending interrupt fires immediately after RTI. */
   set_new_index(p_buf, 0x0340);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
+  emit_LDX(p_buf, k_imm, 0xAA);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 0. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_LDA(p_buf, k_imm, 0xC3);   /* Push 0xC380 as RTI jump address. */
+  emit_PHA(p_buf);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_PHA(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Push 0x00 as RTI flags restore. */
+  emit_PHA(p_buf);
+  emit_RTI(p_buf);
+
+  set_new_index(p_buf, 0x0380);
+  emit_DEX(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0xAA);
+  emit_JMP(p_buf, k_abs, 0xC3C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x03C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
