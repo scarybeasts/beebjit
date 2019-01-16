@@ -173,17 +173,9 @@ main(int argc, const char* argv[]) {
 
   /* Check an interrupt fires immediately when T1 expires. */
   set_new_index(p_buf, 0x0200);
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
   emit_LDX(p_buf, k_imm, 0x42);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
-  emit_LDA(p_buf, k_imm, 0xC0);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
   emit_LDA(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 1. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_JSR(p_buf, 0xF000);
   emit_CLI(p_buf);                /* 2 cycles. At timer value 1. */
   emit_INC(p_buf, k_zpg, 0x00);   /* 5 cycles. At timer value 0, -1. */
                                   /* Interrupt here (3rd cycle of INC). */
@@ -220,17 +212,9 @@ main(int argc, const char* argv[]) {
 
   /* Check an interrupt is delayed when hitting too late in an instruction. */
   set_new_index(p_buf, 0x0280);
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
   emit_LDX(p_buf, k_imm, 0x42);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
-  emit_LDA(p_buf, k_imm, 0xC0);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
   emit_LDA(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 1. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_JSR(p_buf, 0xF000);
   emit_CLI(p_buf);                /* 2 cycles. At timer value 1. */
   emit_LDA(p_buf, k_abs, 0x0000); /* 4 cycles. At timer value 0, -1. */
                                   /* Interrupt here (3rd cycle of LDA). */
@@ -246,17 +230,9 @@ main(int argc, const char* argv[]) {
 
   /* Test that a pending interrupt fires the instruction after a CLI. */
   set_new_index(p_buf, 0x02C0);
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
   emit_LDX(p_buf, k_imm, 0x42);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
-  emit_LDA(p_buf, k_imm, 0xC0);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
   emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 0. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_JSR(p_buf, 0xF000);
   emit_NOP(p_buf);                /* Timer value: 0. */
   emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
   emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
@@ -272,15 +248,7 @@ main(int argc, const char* argv[]) {
   /* Test that a pending interrupt fires between CLI / SEI. */
   set_new_index(p_buf, 0x0300);
   emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
-  emit_LDA(p_buf, k_imm, 0xC0);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 0. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_JSR(p_buf, 0xF000);
   emit_NOP(p_buf);                /* Timer value: 0. */
   emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
   emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
@@ -292,16 +260,8 @@ main(int argc, const char* argv[]) {
   /* Test that a pending interrupt fires immediately after RTI. */
   set_new_index(p_buf, 0x0340);
   emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
   emit_LDX(p_buf, k_imm, 0xAA);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
-  emit_LDA(p_buf, k_imm, 0xC0);
-  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 0. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_JSR(p_buf, 0xF000);
   emit_LDA(p_buf, k_imm, 0xC3);   /* Push 0xC380 as RTI jump address. */
   emit_PHA(p_buf);
   emit_LDA(p_buf, k_imm, 0x80);
@@ -325,6 +285,24 @@ main(int argc, const char* argv[]) {
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
   emit_EXIT(p_buf);
+
+  /* Routine to arrange for an TIMER1 based IRQ at a specific time. */
+  /* Input: A is timer value desired at first post-RTS opcode. */
+  set_new_index(p_buf, 0x3000);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 3);      /* A += 3 to account for 6 cycle RTS. */
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: A + 3. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x10);   /* Clear IRQ count. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* Write ACR, one-shot T1. */
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, TIMER1 interrupt on. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts, IFR cleared. */
+  emit_RTS(p_buf);
 
   /* IRQ routine. */
   set_new_index(p_buf, 0x3F00);
