@@ -269,7 +269,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x00);   /* Push 0x00 as RTI flags restore. */
   emit_PHA(p_buf);
   emit_RTI(p_buf);
-
+  /* Continuation of RTI test case. */
   set_new_index(p_buf, 0x0380);
   emit_DEX(p_buf);
   emit_SEI(p_buf);
@@ -279,8 +279,25 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xAA);
   emit_JMP(p_buf, k_abs, 0xC3C0);
 
-  /* Exit sequence. */
+  /* Test an interrupt on the bounary between two "normal" instructions. */
   set_new_index(p_buf, 0x03C0);
+  emit_LDX(p_buf, k_imm, 0x07);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 2. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Timer value: 1, 0 (x0.5). */
+  emit_INX(p_buf);                /* Timer value: 0 (x0.5), -1 (x0.5). */
+  emit_INX(p_buf);                /* IFR at the start of this instruction. */
+  emit_INX(p_buf);                /* IRQ called instead of INX. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  emit_JMP(p_buf, k_abs, 0xC400);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0400);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
