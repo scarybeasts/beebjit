@@ -245,70 +245,87 @@ interp_call_debugger(struct interp_struct* p_interp,
   memory_write_callback(p_memory_obj, addr_write, v);                         \
   countdown = timing_get_countdown(p_timing);
 
-#define INTERP_MODE_ABS_READ()                                                \
+#define INTERP_MODE_ABS_READ(INSTR)                                           \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  pc += 3;                                                                    \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
+    INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     cycles_this_instruction = 0;                                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_ABS_WRITE()                                               \
+#define INTERP_MODE_ABS_WRITE(INSTR)                                          \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  pc += 3;                                                                    \
   if (addr < callback_above) {                                                \
+    INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_ABS_READ_WRITE_PRE()                                      \
+#define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  pc += 3;                                                                    \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_WRITE(addr);                                                \
-  }
-
-#define INTERP_MODE_ABS_READ_WRITE_POST()                                     \
-  INTERP_LOAD_NZ_FLAGS(v);                                                    \
-  if (addr < callback_above) {                                                \
-    p_mem_write[addr] = v;                                                    \
-    cycles_this_instruction = 6;                                              \
-  } else {                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_ABr_READ(reg_name)                                        \
+#define INTERP_MODE_ABr_READ(INSTR, reg_name)                                 \
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + reg_name);                                              \
+  pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
     cycles_this_instruction = 4;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
@@ -323,16 +340,23 @@ interp_call_debugger(struct interp_struct* p_interp,
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
+    INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_ABr_WRITE(reg_name)                                       \
+#define INTERP_MODE_ABr_WRITE(INSTR, reg_name)                                \
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + reg_name);                                              \
+  pc += 3;                                                                    \
   if (addr < callback_above) {                                                \
+    INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
@@ -341,18 +365,27 @@ interp_call_debugger(struct interp_struct* p_interp,
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_ABX_READ_WRITE_PRE()                                      \
+#define INTERP_MODE_ABX_READ_WRITE(INSTR)                                     \
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + x);                                                     \
+  pc += 3;                                                                    \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 7;                                              \
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
@@ -362,68 +395,81 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(1);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_WRITE(addr);                                                \
-  }
-
-#define INTERP_MODE_ABX_READ_WRITE_POST()                                     \
-  INTERP_LOAD_NZ_FLAGS(v);                                                    \
-  if (addr < callback_above) {                                                \
-    p_mem_write[addr] = v;                                                    \
-    cycles_this_instruction = 7;                                              \
-  } else {                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 3;
+  }
 
-#define INTERP_MODE_IDX_READ()                                                \
+#define INTERP_MODE_IDX_READ(INSTR)                                           \
   addr = p_mem_read[pc + 1];                                                  \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
+    INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 2;
+  }
 
-#define INTERP_MODE_IDX_WRITE()                                               \
+#define INTERP_MODE_IDX_WRITE(INSTR)                                          \
   addr = p_mem_read[pc + 1];                                                  \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
   if (addr < callback_above) {                                                \
+    INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 2;
+  }
 
-#define INTERP_MODE_IDY_READ()                                                \
+#define INTERP_MODE_IDY_READ(INSTR)                                           \
   addr_temp = p_mem_read[pc + 1];                                             \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  pc += 2;                                                                    \
   if (addr < callback_above) {                                                \
     v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
     cycles_this_instruction = 5;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
@@ -438,18 +484,25 @@ interp_call_debugger(struct interp_struct* p_interp,
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
+    INSTR;                                                                    \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 2;
+  }
 
-#define INTERP_MODE_IDY_WRITE()                                               \
+#define INTERP_MODE_IDY_WRITE(INSTR)                                          \
   addr_temp = p_mem_read[pc + 1];                                             \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
+  pc += 2;                                                                    \
   if (addr < callback_above) {                                                \
+    INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
@@ -458,12 +511,17 @@ interp_call_debugger(struct interp_struct* p_interp,
     interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     cycles_this_instruction = 0;                                              \
+    countdown = interp_check_irq_deferred(p_timing,                           \
+                                          deferred_interrupt_timer_id,        \
+                                          do_irq_vector,                      \
+                                          p_state_6502,                       \
+                                          intf);                              \
     if (do_irq_vector) goto force_opcode;                                     \
-  }                                                                           \
-  pc += 2;
+  }
 
 #define INTERP_MODE_ZPr_READ(reg_name)                                        \
   addr = p_mem_read[pc + 1];                                                  \
@@ -529,6 +587,10 @@ interp_call_debugger(struct interp_struct* p_interp,
   cf = !!(temp_int & 0x100);                                                  \
   a = temp_int;
 
+#define INTERP_INSTR_AND()                                                    \
+  a &= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
+
 #define INTERP_INSTR_ASL()                                                    \
   cf = !!(v & 0x80);                                                          \
   v <<= 1;                                                                    \
@@ -544,10 +606,40 @@ interp_call_debugger(struct interp_struct* p_interp,
   v = (reg_name - v);                                                         \
   INTERP_LOAD_NZ_FLAGS(v);
 
+#define INTERP_INSTR_DEC()                                                    \
+  v--;                                                                        \
+  INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_EOR()                                                    \
+  a ^= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
+
+#define INTERP_INSTR_INC()                                                    \
+  v++;                                                                        \
+  INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_LDA()                                                    \
+  a = v;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_LDX()                                                    \
+  x = v;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_LDY()                                                    \
+  y = v;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(v);
+
 #define INTERP_INSTR_LSR()                                                    \
   cf = (v & 0x01);                                                            \
   v >>= 1;                                                                    \
   INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_NOP()
+
+#define INTERP_INSTR_ORA()                                                    \
+  a |= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
 
 #define INTERP_INSTR_ROL()                                                    \
   temp_int = cf;                                                              \
@@ -586,6 +678,18 @@ interp_call_debugger(struct interp_struct* p_interp,
   }                                                                           \
   cf = !!(temp_int & 0x100);                                                  \
   a = temp_int;
+
+#define INTERP_INSTR_SHY()                                                    \
+  v = (y & ((addr_temp >> 8) + 1));
+
+#define INTERP_INSTR_STA()                                                    \
+  v = a;
+
+#define INTERP_INSTR_STX()                                                    \
+  v = x;
+
+#define INTERP_INSTR_STY()                                                    \
+  v = y;
 
 uint32_t
 interp_enter(struct interp_struct* p_interp) {
@@ -729,9 +833,7 @@ interp_enter(struct interp_struct* p_interp) {
       do_irq_vector = 0;
       break;
     case 0x01: /* ORA idx */
-      INTERP_MODE_IDX_READ();
-      a |= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
     case 0x02: /* Extension: EXIT */
       return ((y << 16) | (x << 8) | a);
@@ -786,22 +888,16 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x0D: /* ORA abs */
-      INTERP_MODE_ABS_READ();
-      a |= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_ORA());
       break;
     case 0x0E: /* ASL abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      INTERP_INSTR_ASL();
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ASL());
       break;
     case 0x10: /* BPL */
       INTERP_INSTR_BRANCH(!nf);
       break;
     case 0x11: /* ORA idy */
-      INTERP_MODE_IDY_READ();
-      a |= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDY_READ(INTERP_INSTR_ORA());
       break;
     case 0x12: /* Extension: CYCLES */
       INTERP_TIMING_ADVANCE(0);
@@ -825,19 +921,13 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x19: /* ORA aby */
-      INTERP_MODE_ABr_READ(y);
-      a |= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), y);
       break;
     case 0x1D: /* ORA abx */
-      INTERP_MODE_ABr_READ(x);
-      a |= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), x);
       break;
     case 0x1E: /* ASL abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      INTERP_INSTR_ASL();
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ASL());
       break;
     case 0x20: /* JSR */
       addr = *(uint16_t*) &p_mem_read[pc + 1];
@@ -848,9 +938,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 6;
       break;
     case 0x21: /* AND idx */
-      INTERP_MODE_IDX_READ();
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDX_READ(INTERP_INSTR_AND());
       break;
     case 0x22: /* Extension: CYCLES_RESET */
       INTERP_TIMING_ADVANCE(0);
@@ -910,26 +998,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x2C: /* BIT abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_BIT();
+      INTERP_MODE_ABS_READ(INTERP_INSTR_BIT());
       break;
     case 0x2D: /* AND abs */
-      INTERP_MODE_ABS_READ();
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_AND());
       break;
     case 0x2E: /* ROL abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      INTERP_INSTR_ROL();
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROL());
       break;
     case 0x30: /* BMI */
       INTERP_INSTR_BRANCH(nf);
       break;
     case 0x31: /* AND idy */
-      INTERP_MODE_IDY_READ();
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDY_READ(INTERP_INSTR_AND());
       break;
     case 0x35: /* AND zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -947,19 +1028,13 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x39: /* AND aby */
-      INTERP_MODE_ABr_READ(y);
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_AND(), y);
       break;
     case 0x3D: /* AND abx */
-      INTERP_MODE_ABr_READ(x);
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_AND(), x);
       break;
     case 0x3E: /* ROL abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      INTERP_INSTR_ROL();
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROL());
       break;
     case 0x40: /* RTI */
       /* RTI fiddles with the interrupt disable flag so we need to tick it
@@ -977,9 +1052,7 @@ interp_enter(struct interp_struct* p_interp) {
       }
       break;
     case 0x41: /* EOR idx */
-      INTERP_MODE_IDX_READ();
-      a ^= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDX_READ(INTERP_INSTR_EOR());
       break;
     case 0x45: /* EOR zp */
       addr = p_mem_read[pc + 1];
@@ -1028,22 +1101,16 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 3;
       break;
     case 0x4D: /* EOR abs */
-      INTERP_MODE_ABS_READ();
-      a ^= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_EOR());
       break;
     case 0x4E: /* LSR abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      INTERP_INSTR_LSR();
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_LSR());
       break;
     case 0x50: /* BVC */
       INTERP_INSTR_BRANCH(!of);
       break;
     case 0x51: /* EOR idy */
-      INTERP_MODE_IDY_READ();
-      a ^= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDY_READ(INTERP_INSTR_EOR());
       break;
     case 0x55: /* EOR zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -1070,19 +1137,13 @@ interp_enter(struct interp_struct* p_interp) {
                                             0);
       break;
     case 0x59: /* EOR aby */
-      INTERP_MODE_ABr_READ(y);
-      a ^= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), y);
       break;
     case 0x5D: /* EOR abx */
-      INTERP_MODE_ABr_READ(x);
-      a ^= v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), x);
       break;
     case 0x5E: /* LSR abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      INTERP_INSTR_LSR();
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_LSR());
       break;
     case 0x60: /* RTS */
       pc = p_stack[++s];
@@ -1091,8 +1152,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 6;
       break;
     case 0x61: /* ADC idx */
-      INTERP_MODE_IDX_READ();
-      INTERP_INSTR_ADC();
+      INTERP_MODE_IDX_READ(INTERP_INSTR_ADC());
       break;
     case 0x65: /* ADC zp */
       addr = p_mem_read[pc + 1];
@@ -1137,20 +1197,16 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 5;
       break;
     case 0x6D: /* ADC abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_ADC();
+      INTERP_MODE_ABS_READ(INTERP_INSTR_ADC());
       break;
     case 0x6E: /* ROR abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      INTERP_INSTR_ROR();
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROR());
       break;
     case 0x70: /* BVS */
       INTERP_INSTR_BRANCH(of);
       break;
     case 0x71: /* ADC idy */
-      INTERP_MODE_IDY_READ();
-      INTERP_INSTR_ADC();
+      INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
       break;
     case 0x75: /* ADC zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -1175,21 +1231,16 @@ interp_enter(struct interp_struct* p_interp) {
       }
       break;
     case 0x79: /* ADC aby */
-      INTERP_MODE_ABr_READ(y);
-      INTERP_INSTR_ADC();
+      INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
       break;
     case 0x7D: /* ADC abx */
-      INTERP_MODE_ABr_READ(x);
-      INTERP_INSTR_ADC();
+      INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
       break;
     case 0x7E: /* ROR abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      INTERP_INSTR_ROR();
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
       break;
     case 0x81: /* STA idx */
-      v = a;
-      INTERP_MODE_IDX_WRITE();
+      INTERP_MODE_IDX_WRITE(INTERP_INSTR_STA());
       break;
     case 0x84: /* STY zp */
       addr = p_mem_read[pc + 1];
@@ -1228,23 +1279,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x8C: /* STY abs */
-      v = y;
-      INTERP_MODE_ABS_WRITE();
+      INTERP_MODE_ABS_WRITE(INTERP_INSTR_STY());
       break;
     case 0x8D: /* STA abs */
-      v = a;
-      INTERP_MODE_ABS_WRITE();
+      INTERP_MODE_ABS_WRITE(INTERP_INSTR_STA());
       break;
     case 0x8E: /* STX abs */
-      v = x;
-      INTERP_MODE_ABS_WRITE();
+      INTERP_MODE_ABS_WRITE(INTERP_INSTR_STX());
       break;
     case 0x90: /* BCC */
       INTERP_INSTR_BRANCH(!cf);
       break;
     case 0x91: /* STA idy */
-      v = a;
-      INTERP_MODE_IDY_WRITE();
+      INTERP_MODE_IDY_WRITE(INTERP_INSTR_STA());
       break;
     case 0x94: /* STY zpx */
       v = y;
@@ -1265,8 +1312,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x99: /* STA aby */
-      v = a;
-      INTERP_MODE_ABr_WRITE(y);
+      INTERP_MODE_ABr_WRITE(INTERP_INSTR_STA(), y);
       break;
     case 0x9A: /* TXS */
       s = x;
@@ -1274,13 +1320,10 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */
-      addr = *(uint16_t*) &p_mem_read[pc + 1];
-      v = (y & ((addr >> 8) + 1));
-      INTERP_MODE_ABr_WRITE(x);
+      INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHY(), x);
       break;
     case 0x9D: /* STA abx */
-      v = a;
-      INTERP_MODE_ABr_WRITE(x);
+      INTERP_MODE_ABr_WRITE(INTERP_INSTR_STA(), x);
       break;
     case 0xA0: /* LDY imm */
       y = p_mem_read[pc + 1];
@@ -1289,9 +1332,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xA1: /* LDA idx */
-      INTERP_MODE_IDX_READ();
-      a = v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDX_READ(INTERP_INSTR_LDA());
       break;
     case 0xA2: /* LDX imm */
       x = p_mem_read[pc + 1];
@@ -1339,27 +1380,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xAC: /* LDY abs */
-      INTERP_MODE_ABS_READ();
-      y = v;
-      INTERP_LOAD_NZ_FLAGS(y);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_LDY());
       break;
     case 0xAD: /* LDA abs */
-      INTERP_MODE_ABS_READ();
-      a = v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_LDA());
       break;
     case 0xAE: /* LDX abs */
-      INTERP_MODE_ABS_READ();
-      x = v;
-      INTERP_LOAD_NZ_FLAGS(x);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_LDX());
       break;
     case 0xB0: /* BCS */
       INTERP_INSTR_BRANCH(cf);
       break;
     case 0xB1: /* LDA idy */
-      INTERP_MODE_IDY_READ();
-      a = v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_IDY_READ(INTERP_INSTR_LDA());
       break;
     case 0xB4: /* LDY zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -1382,9 +1415,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xB9: /* LDA aby */
-      INTERP_MODE_ABr_READ(y);
-      a = v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_LDA(), y);
       break;
     case 0xBA: /* TSX */
       x = s;
@@ -1393,19 +1424,13 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xBC: /* LDY abx */
-      INTERP_MODE_ABr_READ(x);
-      y = v;
-      INTERP_LOAD_NZ_FLAGS(y);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_LDY(), x);
       break;
     case 0xBD: /* LDA abx */
-      INTERP_MODE_ABr_READ(x);
-      a = v;
-      INTERP_LOAD_NZ_FLAGS(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_LDA(), x);
       break;
     case 0xBE: /* LDX aby */
-      INTERP_MODE_ABr_READ(y);
-      x = v;
-      INTERP_LOAD_NZ_FLAGS(x);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_LDX(), y);
       break;
     case 0xC0: /* CPY imm */
       v = p_mem_read[pc + 1];
@@ -1414,8 +1439,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xC1: /* CMP idx */
-      INTERP_MODE_IDX_READ();
-      INTERP_INSTR_CMP(a);
+      INTERP_MODE_IDX_READ(INTERP_INSTR_CMP(a));
       break;
     case 0xC4: /* CPY zp */
       addr = p_mem_read[pc + 1];
@@ -1459,24 +1483,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xCC: /* CPY abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_CMP(y);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(y));
       break;
     case 0xCD: /* CMP abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_CMP(a);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(a));
       break;
     case 0xCE: /* DEC abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      v--;
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_DEC());
       break;
     case 0xD0: /* BNE */
       INTERP_INSTR_BRANCH(!zf);
       break;
     case 0xD1: /* CMP idy */
-      INTERP_MODE_IDY_READ();
-      INTERP_INSTR_CMP(a);
+      INTERP_MODE_IDY_READ(INTERP_INSTR_CMP(a));
       break;
     case 0xD5: /* CMP zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -1494,20 +1513,16 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xD9: /* CMP aby */
-      INTERP_MODE_ABr_READ(y);
-      INTERP_INSTR_CMP(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), y);
       break;
     case 0xDC: /* NOP abx */ /* Undocumented. */
-      INTERP_MODE_ABr_READ(x);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
       break;
     case 0xDD: /* CMP abx */
-      INTERP_MODE_ABr_READ(x);
-      INTERP_INSTR_CMP(a);
+      INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), x);
       break;
     case 0xDE: /* DEC abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      v--;
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_DEC());
       break;
     case 0xE0: /* CPX imm */
       v = p_mem_read[pc + 1];
@@ -1516,8 +1531,7 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xE1: /* SBC idx */
-      INTERP_MODE_IDX_READ();
-      INTERP_INSTR_SBC();
+      INTERP_MODE_IDX_READ(INTERP_INSTR_SBC());
       break;
     case 0xE4: /* CPX zp */
       addr = p_mem_read[pc + 1];
@@ -1559,24 +1573,19 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xEC: /* CPX abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_CMP(x);
+      INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(x));
       break;
     case 0xED: /* SBC abs */
-      INTERP_MODE_ABS_READ();
-      INTERP_INSTR_SBC();
+      INTERP_MODE_ABS_READ(INTERP_INSTR_SBC());
       break;
     case 0xEE: /* INC abs */
-      INTERP_MODE_ABS_READ_WRITE_PRE();
-      v++;
-      INTERP_MODE_ABS_READ_WRITE_POST();
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_INC());
       break;
     case 0xF0: /* BEQ */
       INTERP_INSTR_BRANCH(zf);
       break;
     case 0xF1: /* SBC idy */
-      INTERP_MODE_IDY_READ();
-      INTERP_INSTR_SBC();
+      INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
       break;
     case 0xF4: /* NOP zpx */ /* Undocumented. */
       pc += 2;
@@ -1598,17 +1607,13 @@ interp_enter(struct interp_struct* p_interp) {
       cycles_this_instruction = 2;
       break;
     case 0xF9: /* SBC aby */
-      INTERP_MODE_ABr_READ(y);
-      INTERP_INSTR_SBC();
+      INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), y);
       break;
     case 0xFD: /* SBC abx */
-      INTERP_MODE_ABr_READ(x);
-      INTERP_INSTR_SBC();
+      INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);
       break;
     case 0xFE: /* INC abx */
-      INTERP_MODE_ABX_READ_WRITE_PRE();
-      v++;
-      INTERP_MODE_ABX_READ_WRITE_POST();
+      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_INC());
       break;
     default:
       __builtin_trap();

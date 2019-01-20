@@ -296,8 +296,39 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x09);
   emit_JMP(p_buf, k_abs, 0xC400);
 
-  /* Exit sequence. */
+  /* Test an interrupt after a hardware register load. */
   set_new_index(p_buf, 0x0400);
+  emit_LDY(p_buf, k_imm, 0xFF);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 0. */
+  emit_LDY(p_buf, k_abs, 0xFE4B); /* Timer value: -1 (int / IRQ), 0, -1. */
+  emit_INY(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x13);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_JMP(p_buf, k_abs, 0xC440);
+
+  /* Test a deferred interrupt after a hardware register load. */
+  set_new_index(p_buf, 0x0440);
+  emit_LDY(p_buf, k_imm, 0xFF);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 1. */
+  emit_LDY(p_buf, k_abs, 0xFE4B); /* Timer value: 0,  -1 (int), 1. */
+  emit_INY(p_buf);
+  emit_INY(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x13);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xC480);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0480);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
