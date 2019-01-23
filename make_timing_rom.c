@@ -325,10 +325,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_LDA(p_buf, k_zpg, 0x13);
   emit_REQUIRE_EQ(p_buf, 0x01);
-  emit_JMP(p_buf, k_abs, 0xC480);
+  /* Next test disabled. */
+  emit_JMP(p_buf, k_abs, 0xC4C0);
+
+  /* Test 3 cycle branches (taken, no page crossing). */
+  set_new_index(p_buf, 0x0480);
+  emit_LDX(p_buf, k_imm, 0x39);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0x00);   /* Timer value: 1. */
+  emit_CLI(p_buf);                /* Timer value: 0. */
+  emit_BEQ(p_buf, 0);             /* Timer value: -1 (int), 1 (x0.5). */
+  emit_INX(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x3A);
+  emit_JMP(p_buf, k_abs, 0xC4C0);
 
   /* Exit sequence. */
-  set_new_index(p_buf, 0x0480);
+  set_new_index(p_buf, 0x04C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
