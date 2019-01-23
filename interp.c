@@ -763,20 +763,15 @@ interp_enter(struct interp_struct* p_interp) {
         INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
         interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
-        countdown = interp_check_irq_deferred(p_timing,
-                                              deferred_interrupt_timer_id,
-                                              do_irq_vector,
-                                              p_state_6502,
-                                              intf);
       } else {
         interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
-        countdown = interp_check_irq_deferred(p_timing,
-                                              deferred_interrupt_timer_id,
-                                              do_irq_vector,
-                                              p_state_6502,
-                                              intf);
       }
+      countdown = interp_check_irq_deferred(p_timing,
+                                            deferred_interrupt_timer_id,
+                                            do_irq_vector,
+                                            p_state_6502,
+                                            intf);
 
       /* Note that we stay in the interpreter loop to handle the IRQ if one
        * has arisen, otherwise it would get lost.
