@@ -845,12 +845,12 @@ interp_enter(struct interp_struct* p_interp) {
       /* PLP fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
-      /* TODO: incorrect? */
-      INTERP_TIMING_ADVANCE(4);
+      INTERP_TIMING_ADVANCE(2);
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc++;
-      INTERP_END_INSTRUCTION(0);
+      INTERP_END_INSTRUCTION(2);
       break;
     case 0x29: /* AND imm */
       v = p_mem_read[pc + 1];
@@ -992,7 +992,7 @@ interp_enter(struct interp_struct* p_interp) {
       /* CLI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
-      /* TODO: misses irq if intf is already 0? */
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
@@ -1083,8 +1083,6 @@ interp_enter(struct interp_struct* p_interp) {
       /* SEI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
-      /* TODO: needed? */
-      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
       intf = 1;
       pc++;

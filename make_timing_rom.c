@@ -343,8 +343,42 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x3A);
   emit_JMP(p_buf, k_abs, 0xC4C0);
 
-  /* Exit sequence. */
+  /* Test IRQ poll point at beginning of CLI. */
   set_new_index(p_buf, 0x04C0);
+  emit_LDX(p_buf, k_imm, 0x7A);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 2. */
+  emit_INX(p_buf);                /* Timer value: 1. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Timer value: 0, -1 (x0.5). */ /* T1_INT */
+  emit_CLI(p_buf);                /* CLI, then IRQ. */
+  emit_INX(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x7B);
+  emit_JMP(p_buf, k_abs, 0xC500);
+
+  /* Test IRQ poll point in PLP. */
+  set_new_index(p_buf, 0x0500);
+  emit_LDA(p_buf, k_imm, 0x04);   /* I flag. */
+  emit_PHA(p_buf);
+  emit_LDX(p_buf, k_imm, 0xD3);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 0. */
+  emit_PLP(p_buf);                /* Timer value: -1 (T1_INT), 0. */
+  emit_INX(p_buf);                /* IRQ should fire first. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0xD3);
+  emit_JMP(p_buf, k_abs, 0xC540);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0540);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
