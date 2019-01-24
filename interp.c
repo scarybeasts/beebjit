@@ -209,6 +209,14 @@ interp_call_debugger(struct interp_struct* p_interp,
   }
 }
 
+static int
+interp_is_branch_opcode(uint8_t opcode) {
+  if ((!(opcode & 0x0F)) && (opcode & 0x10)) {
+    return 1;
+  }
+  return 0;
+}
+
 #define INTERP_TIMING_ADVANCE(num_cycles)                                     \
   countdown -= num_cycles;                                                    \
   countdown = timing_advance_time(p_timing, countdown);                       \
@@ -1471,15 +1479,19 @@ interp_enter(struct interp_struct* p_interp) {
       __builtin_trap();
     }
 
-    /* Fetch next opcode. If an IRQ was polled during the current opcode,
-     * that will be handled inside the "countdown expired" check below, and
-     * the next opcode will be forced to 0x00 (BRK).
+    /* Conceptually fetch next opcode here, although in code it's done in both
+     * branches of this if statement below.
+     * If an IRQ was polled during the just executed opcode, that will be
+     * handled inside the "countdown expired" check below, and the next opcode
+     * will be forced to 0x00 (BRK).
      */
-    opcode = p_mem_read[pc];
 
     countdown -= cycles_this_instruction;
 
     if (countdown <= 0) {
+      uint8_t prev_opcode = opcode;
+      opcode = p_mem_read[pc];
+
       countdown += cycles_this_instruction;
       /* Instructions requiring full tick-by-tick execution -- notably,
        * hardware register accesses -- are handled separately.
@@ -1487,9 +1499,9 @@ interp_enter(struct interp_struct* p_interp) {
        * makes a difference is when the interrupt decision is made, which
        * usually (but not always) occurs just before the last instuction cycle.
        * "Just before" means that we effectively need to check interrupts
-       * before the penultimate cycle.
+       * before the penultimate cycle because an interrupt that is asserted
+       * at the start of the last cycle is not soon enough to be detected.
        */
-      /* TODO: handle 3-cycle branches correctly. */
       if (!cycles_this_instruction) {
         /* Instruction was already run tick-by-tick including IRQ poll. Need
          * to make sure to consume the timer expiry that got us here though.
@@ -1500,6 +1512,26 @@ interp_enter(struct interp_struct* p_interp) {
         /* TODO: do we need timing advance here? */
         interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
+      } else if (interp_is_branch_opcode(prev_opcode)) {
+        /* EMU NOTE: Taken branches have a different interrupt poll location. */
+        if (cycles_this_instruction == 3) {
+          /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
+           * after first cycle, not second cycle. Given that the interrupt
+           * needs to be already asserted prior to polling, we poll interrupts
+           * at the start of the 3 cycle sequence.
+           */
+          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(3);
+        } else {
+          /* Branch taken page crossing, 4 cycles. Interrupt polling after
+           * first cycle _and_ after third cycle.
+           * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
+           */
+          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(2);
+          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(2);
+        }
       } else {
         INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
         interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
@@ -1533,6 +1565,9 @@ interp_enter(struct interp_struct* p_interp) {
         }
         countdown = timing_start_timer(p_timing, timer_id, 0);
       }
+    } else {
+      /* If no countdown expired, just fetch the next opcode without drama. */
+      opcode = p_mem_read[pc];
     }
   }
 

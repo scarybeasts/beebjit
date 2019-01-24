@@ -325,8 +325,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_LDA(p_buf, k_zpg, 0x13);
   emit_REQUIRE_EQ(p_buf, 0x01);
-  /* Next test disabled. */
-  emit_JMP(p_buf, k_abs, 0xC4C0);
+  emit_JMP(p_buf, k_abs, 0xC480);
 
   /* Test 3 cycle branches (taken, no page crossing). */
   set_new_index(p_buf, 0x0480);
@@ -336,7 +335,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x00);   /* Timer value: 1. */
   emit_CLI(p_buf);                /* Timer value: 0. */
   emit_BEQ(p_buf, 0);             /* Timer value: -1 (int), 1 (x0.5). */
-  emit_INX(p_buf);
+  emit_INX(p_buf);                /* INX should execute and then IRQ. */
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_zpg, 0x10);
   emit_REQUIRE_EQ(p_buf, 0x01);
