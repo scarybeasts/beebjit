@@ -138,11 +138,16 @@ interp_get_flags(unsigned char zf,
   return flags;
 }
 
+static inline int64_t
+interp_set_check_irqs(struct timing_struct* p_timing,
+                      uint32_t deferred_interrupt_timer_id) {
+  return timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
+}
+
 static void
-interp_check_irq_now(uint8_t* opcode,
-                     uint16_t* p_do_irq_vector,
-                     struct state_6502* p_state_6502,
-                     uint8_t intf) {
+interp_poll_irq_now(uint16_t* p_do_irq_vector,
+                    struct state_6502* p_state_6502,
+                    uint8_t intf) {
   if (!p_state_6502->irq_fire) {
     return;
   }
@@ -160,35 +165,6 @@ interp_check_irq_now(uint8_t* opcode,
     *p_do_irq_vector = k_6502_vector_nmi;
   } else if (!intf) {
     *p_do_irq_vector = k_6502_vector_irq;
-  }
-  /* If an IRQ is firing, pull the next opcode to 0 (BRK). This is how the
-   * actual 6502 processor works, see: https://www.pagetable.com/?p=410.
-   * That decision was made for silicon simplicity; we do the same here for
-   * code simplicity.
-   */
-  if (*p_do_irq_vector) {
-    *opcode = 0;
-  }
-}
-
-static int64_t
-interp_check_irq_deferred(struct timing_struct* p_timing,
-                          uint32_t deferred_interrupt_timer_id,
-                          uint16_t do_irq_vector,
-                          struct state_6502* p_state_6502,
-                          uint8_t intf) {
-  if (!p_state_6502->irq_fire) {
-    return timing_get_countdown(p_timing);
-  }
-  if (do_irq_vector) {
-    return timing_get_countdown(p_timing);
-  }
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-      !intf) {
-    assert(!timing_timer_is_running(p_timing, deferred_interrupt_timer_id));
-    return timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
-  } else {
-    return timing_get_countdown(p_timing);
   }
 }
 
@@ -245,6 +221,11 @@ interp_call_debugger(struct interp_struct* p_interp,
   memory_write_callback(p_memory_obj, addr_write, v);                         \
   countdown = timing_get_countdown(p_timing);
 
+#define INTERP_END_INSTRUCTION(cycles)                                        \
+  INTERP_TIMING_ADVANCE(cycles);                                              \
+  cycles_this_instruction = 0;                                                \
+  countdown = interp_set_check_irqs(p_timing, deferred_interrupt_timer_id);
+
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
@@ -254,18 +235,11 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    cycles_this_instruction = 0;                                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ABS_WRITE(INSTR)                                          \
@@ -277,18 +251,11 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
@@ -303,19 +270,12 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ABr_READ(INSTR, reg_name)                                 \
@@ -331,24 +291,17 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ABr_WRITE(INSTR, reg_name)                                \
@@ -362,19 +315,12 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ABX_READ_WRITE(INSTR)                                     \
@@ -393,19 +339,12 @@ interp_call_debugger(struct interp_struct* p_interp,
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_IDX_READ(INSTR)                                           \
@@ -420,18 +359,11 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_IDX_WRITE(INSTR)                                          \
@@ -446,18 +378,11 @@ interp_call_debugger(struct interp_struct* p_interp,
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_IDY_READ(INSTR)                                           \
@@ -475,24 +400,17 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(4);                                               \
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);      \
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
@@ -508,19 +426,12 @@ interp_call_debugger(struct interp_struct* p_interp,
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);        \
+    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_TIMING_ADVANCE(1);                                                 \
-    cycles_this_instruction = 0;                                              \
-    countdown = interp_check_irq_deferred(p_timing,                           \
-                                          deferred_interrupt_timer_id,        \
-                                          do_irq_vector,                      \
-                                          p_state_6502,                       \
-                                          intf);                              \
-    if (do_irq_vector) goto force_opcode;                                     \
+    INTERP_END_INSTRUCTION(1);                                                \
   }
 
 #define INTERP_MODE_ZPr_READ(reg_name)                                        \
@@ -738,53 +649,12 @@ interp_enter(struct interp_struct* p_interp) {
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
+  /* TODO: opcode fetch doesn't consider hardware register access,
+   * i.e. JMP $FE6A will have incorrect timings.
+   */
+  opcode = p_mem_read[pc];
+
   while (1) {
-    /* TODO: opcode fetch doesn't consider hardware register access,
-     * i.e. JMP $FE6A will have incorrect timings.
-     */
-    opcode = p_mem_read[pc];
-
-  force_opcode:
-    /* Account for the cycles of the instruction that just finished. */
-    countdown -= cycles_this_instruction;
-
-    if (countdown <= 0 && cycles_this_instruction) {
-      countdown += cycles_this_instruction;
-      /* Instructions requiring full tick-by-tick execution -- notably,
-       * hardware register accesses -- are handled separately.
-       * For the remaining instructions, the only sub-instruction aspect which
-       * makes a difference is when the interrupt decision is made, which
-       * usually (but not always) occurs just before the last instuction cycle.
-       * "Just before" means that we effectively need to check interrupts
-       * before the penultimate cycle.
-       */
-      /* TODO: handle 3-cycle branches correctly. */
-      if (cycles_this_instruction > 2) {
-        INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
-        interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
-        INTERP_TIMING_ADVANCE(2);
-      } else {
-        interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
-        INTERP_TIMING_ADVANCE(cycles_this_instruction);
-      }
-      countdown = interp_check_irq_deferred(p_timing,
-                                            deferred_interrupt_timer_id,
-                                            do_irq_vector,
-                                            p_state_6502,
-                                            intf);
-
-      /* Note that we stay in the interpreter loop to handle the IRQ if one
-       * has arisen, otherwise it would get lost.
-       */
-      if (p_interp->return_from_loop) {
-        size_t timer_id = p_interp->short_instruction_run_timer_id;
-        if (!do_irq_vector) {
-          break;
-        }
-        countdown = timing_start_timer(p_timing, timer_id, 0);
-      }
-    }
-
     if (debug_subsystem_active) {
       INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
@@ -967,16 +837,12 @@ interp_enter(struct interp_struct* p_interp) {
       /* PLP fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
+      /* TODO: incorrect? */
       INTERP_TIMING_ADVANCE(4);
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc++;
-      cycles_this_instruction = 0;
-      countdown = interp_check_irq_deferred(p_timing,
-                                            deferred_interrupt_timer_id,
-                                            0,
-                                            p_state_6502,
-                                            intf);
+      INTERP_END_INSTRUCTION(0);
       break;
     case 0x29: /* AND imm */
       v = p_mem_read[pc + 1];
@@ -1040,11 +906,8 @@ interp_enter(struct interp_struct* p_interp) {
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
-      cycles_this_instruction = 2;
-      if (do_irq_vector) {
-        goto force_opcode;
-      }
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+      INTERP_END_INSTRUCTION(2);
       break;
     case 0x41: /* EOR idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_EOR());
@@ -1121,15 +984,11 @@ interp_enter(struct interp_struct* p_interp) {
       /* CLI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
+      /* TODO: misses irq if intf is already 0? */
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
-      cycles_this_instruction = 0;
-      countdown = interp_check_irq_deferred(p_timing,
-                                            deferred_interrupt_timer_id,
-                                            0,
-                                            p_state_6502,
-                                            0);
+      INTERP_END_INSTRUCTION(0);
       break;
     case 0x59: /* EOR aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), y);
@@ -1216,14 +1075,12 @@ interp_enter(struct interp_struct* p_interp) {
       /* SEI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
+      /* TODO: needed? */
       INTERP_TIMING_ADVANCE(0);
-      interp_check_irq_now(&opcode, &do_irq_vector, p_state_6502, intf);
+      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
       intf = 1;
       pc++;
-      cycles_this_instruction = 2;
-      if (do_irq_vector) {
-        goto force_opcode;
-      }
+      INTERP_END_INSTRUCTION(2);
       break;
     case 0x79: /* ADC aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
@@ -1612,6 +1469,70 @@ interp_enter(struct interp_struct* p_interp) {
       break;
     default:
       __builtin_trap();
+    }
+
+    /* Fetch next opcode. If an IRQ was polled during the current opcode,
+     * that will be handled inside the "countdown expired" check below, and
+     * the next opcode will be forced to 0x00 (BRK).
+     */
+    opcode = p_mem_read[pc];
+
+    countdown -= cycles_this_instruction;
+
+    if (countdown <= 0) {
+      countdown += cycles_this_instruction;
+      /* Instructions requiring full tick-by-tick execution -- notably,
+       * hardware register accesses -- are handled separately.
+       * For the remaining instructions, the only sub-instruction aspect which
+       * makes a difference is when the interrupt decision is made, which
+       * usually (but not always) occurs just before the last instuction cycle.
+       * "Just before" means that we effectively need to check interrupts
+       * before the penultimate cycle.
+       */
+      /* TODO: handle 3-cycle branches correctly. */
+      if (!cycles_this_instruction) {
+        /* Instruction was already run tick-by-tick including IRQ poll. Need
+         * to make sure to consume the timer expiry that got us here though.
+         */
+        interp_deferred_interrupt_timer_callback(p_interp);
+        countdown = timing_get_countdown(p_timing);
+      } else if (cycles_this_instruction <= 2) {
+        /* TODO: do we need timing advance here? */
+        interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+        INTERP_TIMING_ADVANCE(cycles_this_instruction);
+      } else {
+        INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
+        interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+        INTERP_TIMING_ADVANCE(2);
+      }
+
+      /* If an IRQ was detected at the instruction poll point, force the next
+       * opcode to 0x00 (BRK).
+       */
+      if (do_irq_vector) {
+        opcode = 0x00;
+      } else {
+        /* An IRQ may have been raised after the poll point, in which case
+         * make sure to interrupt the countdown loop again next go around.
+         */
+        if (p_state_6502->irq_fire &&
+            (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+             !intf)) {
+          countdown = interp_set_check_irqs(p_timing,
+                                            deferred_interrupt_timer_id);
+        }
+      }
+
+      /* Note that we stay in the interpreter loop to handle the IRQ if one
+       * has arisen, otherwise it would get lost.
+       */
+      if (p_interp->return_from_loop) {
+        size_t timer_id = p_interp->short_instruction_run_timer_id;
+        if (!do_irq_vector) {
+          break;
+        }
+        countdown = timing_start_timer(p_timing, timer_id, 0);
+      }
     }
   }
 
