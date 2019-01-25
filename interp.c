@@ -144,27 +144,17 @@ interp_set_check_irqs(struct timing_struct* p_timing,
   return timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
 }
 
-static void
-interp_poll_irq_now(uint16_t* p_do_irq_vector,
+static inline void
+interp_poll_irq_now(int* p_do_irq,
                     struct state_6502* p_state_6502,
                     uint8_t intf) {
   if (!p_state_6502->irq_fire) {
     return;
   }
 
-  /* EMU: if both an NMI and normal IRQ are asserted at the same time, only
-   * the NMI should fire. This is confirmed via visual 6502; see:
-   * http://forum.6502.org/viewtopic.php?t=1797
-   * Note that jsbeeb, b-em and beebem all appear to get this wrong, they
-   * will run the 7 cycle interrupt sequence twice in a row, which would
-   * be visible as stack and timing artifacts. b2 looks likely to be
-   * correct as it is a much more low level 6502 emulation.
-   */
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
-    state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
-    *p_do_irq_vector = k_6502_vector_nmi;
-  } else if (!intf) {
-    *p_do_irq_vector = k_6502_vector_irq;
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+      !intf) {
+    *p_do_irq = 1;
   }
 }
 
@@ -243,7 +233,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
@@ -259,7 +249,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(2);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -278,7 +268,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
@@ -299,12 +289,12 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
@@ -323,7 +313,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
@@ -347,7 +337,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_WRITE(addr);                                                \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
@@ -367,7 +357,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
@@ -386,7 +376,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -408,12 +398,12 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(4);                                               \
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
@@ -434,7 +424,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);                  \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_READ(addr_temp);                                            \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
@@ -648,7 +638,8 @@ interp_enter(struct interp_struct* p_interp) {
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t callback_above = p_interp->callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
-  uint16_t do_irq_vector = 0;
+  uint16_t last_irq_vector = 0;
+  int do_irq = 0;
   int64_t cycles_this_instruction = 0;
 
   p_interp->return_from_loop = 0;
@@ -677,33 +668,46 @@ interp_enter(struct interp_struct* p_interp) {
                            &of,
                            &df,
                            &intf,
-                           do_irq_vector);
+                           last_irq_vector);
+      last_irq_vector = 0;
     }
 
     switch (opcode) {
     case 0x00: /* BRK */
-      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
-       * sequence for a non-NMI interrupt, the NMI should take precendence.
-       * Probably not worth emulating unless we can come up with a
-       * deterministic way to fire an NMI to trigger this.
-       * (Need to investigate disc controller NMI timing on a real beeb.)
+      /* EMU NOTE: if both an NMI and normal IRQ are asserted at the same time,        * only the NMI should fire. This is confirmed via visual 6502; see:
+       * http://forum.6502.org/viewtopic.php?t=1797
+       * Note that jsbeeb, b-em and beebem all appear to get this wrong, they
+       * will run the 7 cycle interrupt sequence twice in a row, which would
+       * be visible as stack and timing artifacts. b2 looks likely to be
+       * correct as it is a much more low level 6502 emulation.
        */
       temp_u8 = 0;
-      if (!do_irq_vector) {
+      addr = k_6502_vector_irq;
+      if (!do_irq) {
         /* It's a BRK, not an IRQ. */
         temp_u8 = (1 << k_flag_brk);
-        do_irq_vector = k_6502_vector_irq;
         pc += 2;
+      } else {
+        last_irq_vector = k_6502_vector_irq;
+      }
+      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
+       * sequence for a non-NMI interrupt, the NMI overrides and in the case of
+       * BRK the BRK can go missing!
+       */
+      INTERP_TIMING_ADVANCE(3);
+      if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+        state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
+        addr = k_6502_vector_nmi;
+        last_irq_vector = k_6502_vector_nmi;
       }
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xFF);
       v = interp_get_flags(zf, nf, cf, of, df, intf);
       v |= (temp_u8 | (1 << k_flag_always_set));
       p_stack[s--] = v;
-      pc = (p_mem_read[do_irq_vector] |
-          (p_mem_read[(uint16_t) (do_irq_vector + 1)] << 8));
+      pc = (p_mem_read[addr] | (p_mem_read[(uint16_t) (addr + 1)] << 8));
       intf = 1;
-      do_irq_vector = 0;
+      do_irq = 0;
       break;
     case 0x01: /* ORA idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
@@ -846,7 +850,7 @@ interp_enter(struct interp_struct* p_interp) {
        * out to get the correct ordering and behavior.
        */
       INTERP_TIMING_ADVANCE(2);
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc++;
@@ -914,7 +918,7 @@ interp_enter(struct interp_struct* p_interp) {
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_END_INSTRUCTION(2);
       break;
     case 0x41: /* EOR idx */
@@ -992,7 +996,7 @@ interp_enter(struct interp_struct* p_interp) {
       /* CLI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
@@ -1083,7 +1087,7 @@ interp_enter(struct interp_struct* p_interp) {
       /* SEI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
-      interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
       intf = 1;
       pc++;
       INTERP_END_INSTRUCTION(2);
@@ -1508,7 +1512,7 @@ interp_enter(struct interp_struct* p_interp) {
         countdown = timing_get_countdown(p_timing);
       } else if (cycles_this_instruction <= 2) {
         /* TODO: do we need timing advance here? */
-        interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
       } else if (interp_is_branch_opcode(prev_opcode)) {
         /* EMU NOTE: Taken branches have a different interrupt poll location. */
@@ -1518,28 +1522,28 @@ interp_enter(struct interp_struct* p_interp) {
            * needs to be already asserted prior to polling, we poll interrupts
            * at the start of the 3 cycle sequence.
            */
-          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
           INTERP_TIMING_ADVANCE(3);
         } else {
           /* Branch taken page crossing, 4 cycles. Interrupt polling after
            * first cycle _and_ after third cycle.
            * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
            */
-          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
           INTERP_TIMING_ADVANCE(2);
-          interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
           INTERP_TIMING_ADVANCE(2);
         }
       } else {
         INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
-        interp_poll_irq_now(&do_irq_vector, p_state_6502, intf);
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
 
       /* If an IRQ was detected at the instruction poll point, force the next
        * opcode to 0x00 (BRK).
        */
-      if (do_irq_vector) {
+      if (do_irq) {
         opcode = 0x00;
       } else {
         /* An IRQ may have been raised after the poll point, in which case
@@ -1558,7 +1562,7 @@ interp_enter(struct interp_struct* p_interp) {
        */
       if (p_interp->return_from_loop) {
         size_t timer_id = p_interp->short_instruction_run_timer_id;
-        if (!do_irq_vector) {
+        if (!do_irq) {
           break;
         }
         countdown = timing_start_timer(p_timing, timer_id, 0);

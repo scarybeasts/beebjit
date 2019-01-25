@@ -114,7 +114,6 @@ void
 state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
   int irq_value = (1 << irq);
   int old_level = !!(p_state_6502->irq_high & irq_value);
-  int fire;
 
   if (level) {
     p_state_6502->irq_high |= irq_value;
@@ -124,18 +123,14 @@ state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
 
   if (state_6502_irq_is_edge_triggered(irq)) {
     if (level && !old_level) {
-      fire = 1;
-    } else {
-      fire = 0;
+      p_state_6502->irq_fire |= irq_value;
     }
   } else {
-    fire = level;
-  }
-
-  if (fire) {
-    p_state_6502->irq_fire |= irq_value;
-  } else {
-    p_state_6502->irq_fire &= ~irq_value;
+    if (level) {
+      p_state_6502->irq_fire |= irq_value;
+    } else {
+      p_state_6502->irq_fire &= ~irq_value;
+    }
   }
 }
 
