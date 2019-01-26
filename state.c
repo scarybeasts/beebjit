@@ -186,18 +186,14 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   video_set_ula_full_palette(p_video, &p_bem->ula_palette[0]);
   video_set_crtc_registers(p_video, &p_bem->crtc_regs[0]);
 
-  /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Divide! */
+  /* BEM uses 2Mhz ticks for latches. Divide! */
   /* NOTE: b-em saves int-width negative values outside the expected
    * -2 -> 0xffff range for t2c.
    * Keeps decrementing an int-width negative counter.
    */
-  p_bem->sysvia_t1c >>= 1;
   p_bem->sysvia_t1l >>= 1;
-  p_bem->sysvia_t2c >>= 1;
   p_bem->sysvia_t2l >>= 1;
-  p_bem->uservia_t1c >>= 1;
   p_bem->uservia_t1l >>= 1;
-  p_bem->uservia_t2c >>= 1;
   p_bem->uservia_t2l >>= 1;
   /* Separate PB7 state isn't saved by b-em so we approximate from ORB. */
   t1_pb7 = !!(p_bem->sysvia_orb & 0x80);
@@ -409,14 +405,10 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
     p_bem->uservia_orb |= (t1_pb7 << 7);
   }
 
-  /* For now, we measure in 1Mhz ticks and BEM uses 2Mhz ticks. Double up. */
-  p_bem->sysvia_t1c <<= 1;
+  /* BEM uses 2Mhz ticks. Double up. */
   p_bem->sysvia_t1l <<= 1;
-  p_bem->sysvia_t2c <<= 1;
   p_bem->sysvia_t2l <<= 1;
-  p_bem->uservia_t1c <<= 1;
   p_bem->uservia_t1l <<= 1;
-  p_bem->uservia_t2c <<= 1;
   p_bem->uservia_t2l <<= 1;
 
   sound_get_state(p_sound,

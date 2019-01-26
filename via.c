@@ -45,25 +45,46 @@ via_set_t1c(struct via_struct* p_via, int32_t val) {
   (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
 }
 
+static void
+via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
+  size_t id = p_via->t1_timer_id;
+  /* Add 2 to val because VIA timers fire at -1 and timing_* fires at 0, and
+   * raw deals in 2Mhz cycles.
+   */
+  val += 2;
+  (void) timing_set_timer_value(p_via->p_timing, id, val);
+}
+
 static int32_t
-via_get_t1c(struct via_struct* p_via) {
+via_get_t1c_raw(struct via_struct* p_via) {
   size_t id = p_via->t1_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
-  assert(!(val & 1));
-  val >>= 1;
-  val--;
+
+  val -= 2;
+
   /* If interrupts aren't firing, the timer will decrement indefinitely so we
    * have to fix it up with all of the re-latches.
    */
-  if (val < -1) {
+  if (val < -2) {
     /* T1 (latch 4) counts 4... 3... 2... 1... 0... -1... 4... */
-    uint64_t delta = (-val - 2);
+    uint64_t delta = (-val - 4);
     /* TODO: if T1L changed, this is incorrect. */
-    uint64_t relatch_cycles = (p_via->T1L + 2);
+    uint64_t relatch_cycles = ((p_via->T1L + 2) << 1);
     uint64_t relatches = (delta / relatch_cycles);
     relatches++;
     val += (relatches * relatch_cycles);
+
+    via_set_t1c_raw(p_via, val);
   }
+
+  return val;
+}
+
+static int32_t
+via_get_t1c(struct via_struct* p_via) {
+  int32_t val = via_get_t1c_raw(p_via);
+  assert(!(val & 1));
+  val >>= 1;
   return val;
 }
 
@@ -75,27 +96,47 @@ via_set_t2c(struct via_struct* p_via, int32_t val) {
   (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
 }
 
+static void
+via_set_t2c_raw(struct via_struct* p_via, int32_t val) {
+  size_t id = p_via->t2_timer_id;
+  /* Add 2 to val because VIA timers fire at -1 and timing_* fires at 0, and
+   * raw deals in 2Mhz cycles.
+   */
+  val += 2;
+  (void) timing_set_timer_value(p_via->p_timing, id, val);
+}
+
 static int32_t
-via_get_t2c(struct via_struct* p_via) {
+via_get_t2c_raw(struct via_struct* p_via) {
   size_t id = p_via->t2_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
-  assert(!(val & 1));
-  val >>= 1;
-  val--;
+
+  val -= 2;
+
   /* If interrupts aren't firing, the timer will decrement indefinitely so we
    * have to fix it up with all of the re-latches.
    */
-  if (val < -1) {
+  if (val < -2) {
     /* T2 counts 4... 3... 2... 1... 0... FFFF... FFFE... */
-    uint64_t delta = (-val - 2);
-    uint64_t relatch_cycles = 0x10000; /* -2 -> 0xFFFE */
+    uint64_t delta = (-val - 4);
+    uint64_t relatch_cycles = (0x10000 << 1); /* -2 -> 0xFFFE */
     uint64_t relatches = (delta / relatch_cycles);
     relatches++;
     val += (relatches * relatch_cycles);
+
+    via_set_t2c_raw(p_via, val);
   }
+
   return val;
 }
 
+static int32_t
+via_get_t2c(struct via_struct* p_via) {
+  int32_t val = via_get_t2c_raw(p_via);
+  assert(!(val & 1));
+  val >>= 1;
+  return val;
+}
 
 static void
 via_do_fire_t1(struct via_struct* p_via) {
@@ -554,9 +595,9 @@ via_get_registers(struct via_struct* p_via,
                   uint8_t* p_IER,
                   uint8_t* p_peripheral_a,
                   uint8_t* p_peripheral_b,
-                  int32_t* p_T1C,
+                  int32_t* p_T1C_raw,
                   int32_t* p_T1L,
-                  int32_t* p_T2C,
+                  int32_t* p_T2C_raw,
                   int32_t* p_T2L,
                   uint8_t* p_t1_oneshot_fired,
                   uint8_t* p_t2_oneshot_fired,
@@ -574,9 +615,9 @@ via_get_registers(struct via_struct* p_via,
   *p_IER = p_via->IER;
   *p_peripheral_a = p_via->peripheral_a;
   *p_peripheral_b = p_via->peripheral_b;
-  *p_T1C = via_get_t1c(p_via);
+  *p_T1C_raw = via_get_t1c_raw(p_via);
   *p_T1L = p_via->T1L;
-  *p_T2C = via_get_t2c(p_via);
+  *p_T2C_raw = via_get_t2c_raw(p_via);
   *p_T2L = p_via->T2L;
   *p_t1_oneshot_fired = !timing_get_firing(p_timing, p_via->t1_timer_id);
   *p_t2_oneshot_fired = !timing_get_firing(p_timing, p_via->t2_timer_id);
@@ -595,9 +636,9 @@ void via_set_registers(struct via_struct* p_via,
                        uint8_t IER,
                        uint8_t peripheral_a,
                        uint8_t peripheral_b,
-                       int32_t T1C,
+                       int32_t T1C_raw,
                        int32_t T1L,
-                       int32_t T2C,
+                       int32_t T2C_raw,
                        int32_t T2L,
                        uint8_t t1_oneshot_fired,
                        uint8_t t2_oneshot_fired,
@@ -615,9 +656,9 @@ void via_set_registers(struct via_struct* p_via,
   p_via->IER = IER;
   p_via->peripheral_a = peripheral_a;
   p_via->peripheral_b = peripheral_b;
-  via_set_t1c(p_via, T1C);
+  via_set_t1c_raw(p_via, T1C_raw);
   p_via->T1L = T1L;
-  via_set_t2c(p_via, T2C);
+  via_set_t2c_raw(p_via, T2C_raw);
   p_via->T2L = T2L;
   timing_set_firing(p_timing, p_via->t1_timer_id, !t1_oneshot_fired);
   timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);

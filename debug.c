@@ -352,9 +352,9 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
   uint8_t IER;
   uint8_t peripheral_a;
   uint8_t peripheral_b;
-  int32_t T1C;
+  int32_t T1C_raw;
   int32_t T1L;
-  int32_t T2C;
+  int32_t T2C_raw;
   int32_t T2L;
   uint8_t t1_oneshot_fired;
   uint8_t t2_oneshot_fired;
@@ -382,9 +382,9 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &IER,
                     &peripheral_a,
                     &peripheral_b,
-                    &T1C,
+                    &T1C_raw,
                     &T1L,
-                    &T2C,
+                    &T2C_raw,
                     &T2L,
                     &t1_oneshot_fired,
                     &t2_oneshot_fired,
@@ -395,12 +395,12 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
   (void) printf("SR %.2X ACR %.2X PCR %.2X\n", SR, ACR, PCR);
   (void) printf("T1L %.4X T1C %.4X oneshot hit %d PB7 %d\n",
                 T1L,
-                T1C,
+                (uint16_t) (T1C_raw >> 1),
                 t1_oneshot_fired,
                 t1_pb7);
   (void) printf("T2L %.4X T2C %.4X oneshot hit %d\n",
                 T2L,
-                T2C,
+                (uint16_t) (T2C_raw >> 1),
                 t2_oneshot_fired);
 }
 
