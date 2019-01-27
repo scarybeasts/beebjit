@@ -395,8 +395,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xC580);
 
-  /* Exit sequence. */
+  /* Check T1 value is correct after expiry and a latch rewrite. */
   set_new_index(p_buf, 0x0580);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* T1 one shot. */
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: 6. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE45); /* T1CH: 0, timer starts. */
+  emit_LDA(p_buf, k_abs, 0x0000); /* 6, 5. */
+  emit_LDA(p_buf, k_abs, 0x0000); /* 4, 3. */
+  emit_LDA(p_buf, k_abs, 0x0000); /* 2, 1. */
+  emit_LDA(p_buf, k_abs, 0x0000); /* 0, -1. */
+  emit_LDA(p_buf, k_imm, 0xFF);   /* 6. */
+  emit_STA(p_buf, k_abs, 0xFE46); /* 5, 4, 3. */ /* T1LL */
+  emit_LDX(p_buf, k_abs, 0xFE44); /* 2, 1, 0. */ /* T1CL */
+  emit_LDY(p_buf, k_abs, 0xFE44); /* -1, 0xFF, 0xFE. */ /* T1CL */
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xFE);
+  emit_JMP(p_buf, k_abs, 0xC5C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x05C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

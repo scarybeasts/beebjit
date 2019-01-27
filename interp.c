@@ -141,7 +141,9 @@ interp_get_flags(unsigned char zf,
 static inline int64_t
 interp_set_check_irqs(struct timing_struct* p_timing,
                       uint32_t deferred_interrupt_timer_id) {
-  return timing_start_timer(p_timing, deferred_interrupt_timer_id, 0);
+  return timing_start_timer_with_value(p_timing,
+                                       deferred_interrupt_timer_id,
+                                       0);
 }
 
 static inline void
@@ -1566,7 +1568,7 @@ interp_enter(struct interp_struct* p_interp) {
         if (!do_irq) {
           break;
         }
-        countdown = timing_start_timer(p_timing, timer_id, 0);
+        countdown = timing_start_timer_with_value(p_timing, timer_id, 0);
       }
     } else {
       /* If no countdown expired, just fetch the next opcode without drama. */
@@ -1589,9 +1591,9 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
   (void) timing_advance_time(p_timing, countdown);
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
-  (void) timing_start_timer(p_timing,
-                            p_interp->short_instruction_run_timer_id,
-                            1);
+  (void) timing_start_timer_with_value(p_timing,
+                                       p_interp->short_instruction_run_timer_id,
+                                       1);
 
   ret = interp_enter(p_interp);
   (void) ret;

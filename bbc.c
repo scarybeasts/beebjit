@@ -979,7 +979,9 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   }
   p_bbc->cycles_per_run = cycles_per_run;
 
-  (void) timing_start_timer(p_timing, p_bbc->timer_id, cycles_per_run);
+  (void) timing_start_timer_with_value(p_timing,
+                                       p_bbc->timer_id,
+                                       cycles_per_run);
   p_bbc->last_gettime_us = util_gettime_us();
   p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us + k_bbc_us_per_vsync);
 }
@@ -1438,5 +1440,5 @@ bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
   size_t id = timing_register_timer(p_bbc->p_timing,
                                     bbc_stop_cycles_timer_callback,
                                     NULL);
-  (void) timing_start_timer(p_timing, id, cycles);
+  (void) timing_start_timer_with_value(p_timing, id, cycles);
 }

@@ -99,7 +99,19 @@ timing_register_timer(struct timing_struct* p_timing,
 }
 
 int64_t
-timing_start_timer(struct timing_struct* p_timing, size_t id, int64_t time) {
+timing_start_timer(struct timing_struct* p_timing, size_t id) {
+  assert(id < k_timing_num_timers);
+  assert(id < p_timing->max_timer);
+  assert(p_timing->p_callbacks[id] != NULL);
+  assert(!p_timing->ticking[id]);
+
+  return timing_start_timer_with_value(p_timing, id, p_timing->timings[id]);
+}
+
+int64_t
+timing_start_timer_with_value(struct timing_struct* p_timing,
+                              size_t id,
+                              int64_t time) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);

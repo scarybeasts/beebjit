@@ -38,14 +38,6 @@ struct via_struct {
 };
 
 static void
-via_set_t1c(struct via_struct* p_via, int32_t val) {
-  size_t id = p_via->t1_timer_id;
-  /* Add 1 to val because VIA timers fire at -1 and timing_* fires at 0. */
-  val++;
-  (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
-}
-
-static void
 via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
   size_t id = p_via->t1_timer_id;
   /* Add 2 to val because VIA timers fire at -1 and timing_* fires at 0, and
@@ -53,6 +45,11 @@ via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
    */
   val += 2;
   (void) timing_set_timer_value(p_via->p_timing, id, val);
+}
+
+static void
+via_set_t1c(struct via_struct* p_via, int32_t val) {
+  via_set_t1c_raw(p_via, (val << 1));
 }
 
 static int32_t
@@ -83,7 +80,7 @@ via_get_t1c_raw(struct via_struct* p_via) {
 static int32_t
 via_get_t1c(struct via_struct* p_via) {
   int32_t val = via_get_t1c_raw(p_via);
-  assert(!(val & 1));
+  /* TODO: add assert invariant that accesses are always done VIA mid cycle? */
   val >>= 1;
   return val;
 }
@@ -91,19 +88,7 @@ via_get_t1c(struct via_struct* p_via) {
 static int
 via_is_t1_firing(struct via_struct* p_via) {
   int32_t val = via_get_t1c_raw(p_via);
-  if (!p_via->externally_clocked) {
-    assert(val & 1);
-  }
-
   return (val == -1);
-}
-
-static void
-via_set_t2c(struct via_struct* p_via, int32_t val) {
-  size_t id = p_via->t2_timer_id;
-  /* Add 1 to val because VIA timers fire at -1 and timing_* fires at 0. */
-  val++;
-  (void) timing_set_timer_value(p_via->p_timing, id, (val << 1));
 }
 
 static void
@@ -114,6 +99,11 @@ via_set_t2c_raw(struct via_struct* p_via, int32_t val) {
    */
   val += 2;
   (void) timing_set_timer_value(p_via->p_timing, id, val);
+}
+
+static void
+via_set_t2c(struct via_struct* p_via, int32_t val) {
+  via_set_t2c_raw(p_via, (val << 1));
 }
 
 static int32_t
@@ -143,7 +133,6 @@ via_get_t2c_raw(struct via_struct* p_via) {
 static int32_t
 via_get_t2c(struct via_struct* p_via) {
   int32_t val = via_get_t2c_raw(p_via);
-  assert(!(val & 1));
   val >>= 1;
   return val;
 }
@@ -257,8 +246,8 @@ via_create(int id,
   p_via->t1_pb7 = 1;
 
   if (!externally_clocked) {
-    timing_start_timer(p_timing, t1_timer_id, via_get_t1c(p_via));
-    timing_start_timer(p_timing, t2_timer_id, via_get_t2c(p_via));
+    timing_start_timer(p_timing, t1_timer_id);
+    timing_start_timer(p_timing, t2_timer_id);
   }
 
   /* From the above data sheet:
@@ -476,12 +465,24 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t timer_val;
+  int32_t t1_val;
 
   /* Advance to the VIA mid-cycle. */
   struct timing_struct* p_timing = p_via->p_timing;
   int64_t countdown = timing_get_countdown(p_timing);
   countdown--;
   (void) timing_advance_time(p_timing, countdown);
+
+  /* This is a bit subtle but we need to read the T1C value in order to force
+   * the deferred calculation of timer value for one shot timers that have shot.
+   * Such a timer decrements indefinitely and negatively without timer events
+   * firing.
+   * The deferred calculation needs to know what the effective T1L value was
+   * during the run. Since via_write may change T1L, do the deferred
+   * calculation first.
+   */
+  t1_val = via_get_t1c(p_via);
+  (void) t1_val;
 
   switch (reg) {
   case k_via_ORB:

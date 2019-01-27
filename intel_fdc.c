@@ -150,7 +150,7 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_intel_fdc,
     size_t timer_id = p_intel_fdc->timer_id;
     /* TODO: this should be an assert but the JIT timing is still off. */
     if (!timing_timer_is_running(p_timing, timer_id)) {
-      (void) timing_start_timer(p_timing, timer_id, 0);
+      (void) timing_start_timer_with_value(p_timing, timer_id, 0);
     }
   }
 }
@@ -203,9 +203,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
       (void) timing_stop_timer(p_intel_fdc->p_timing, p_intel_fdc->timer_id);
     }
 
-    (void) timing_start_timer(p_intel_fdc->p_timing,
-                              p_intel_fdc->timer_id,
-                              200);
+    (void) timing_start_timer_with_value(p_intel_fdc->p_timing,
+                                         p_intel_fdc->timer_id,
+                                         200);
 
     break;
   case k_intel_fdc_command_seek:
