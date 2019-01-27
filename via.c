@@ -88,6 +88,16 @@ via_get_t1c(struct via_struct* p_via) {
   return val;
 }
 
+static int
+via_is_t1_firing(struct via_struct* p_via) {
+  int32_t val = via_get_t1c_raw(p_via);
+  if (!p_via->externally_clocked) {
+    assert(val & 1);
+  }
+
+  return (val == -1);
+}
+
 static void
 via_set_t2c(struct via_struct* p_via, int32_t val) {
   size_t id = p_via->t2_timer_id;
@@ -369,7 +379,34 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   uint8_t ddrb;
   uint8_t val;
   uint8_t port_val;
-  int32_t timer_val;
+  int32_t t1_val;
+  int32_t t2_val;
+
+  /* We're at the VIA start-cycle. Will T1 interrupt fire at the mid cycle?
+   * Work it out now because we can't tell after advancing the timing.
+   */
+  int t1_firing = via_is_t1_firing(p_via);
+
+  /* Advance to the VIA mid-cycle.
+   * EMU NOTE: do this first before processing the read. Interrupts fire at
+   * the mid-cycle and the read needs any results from that to be correct.
+   * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
+   * reflects the just-hit interrupt on a real BBC.
+   */
+  struct timing_struct* p_timing = p_via->p_timing;
+  int64_t countdown = timing_get_countdown(p_timing);
+  countdown--;
+  (void) timing_advance_time(p_timing, countdown);
+
+  t1_val = via_get_t1c(p_via);
+  if (t1_firing) {
+    /* If the timer is firing, return -1. Need to force this because the raw
+     * timer value is set to the relatch value plus one which must not be
+     * exposed.
+     */
+    t1_val = -1;
+  }
+  t2_val = via_get_t2c(p_via);
 
   switch (reg) {
   case k_via_ORB:
@@ -406,22 +443,18 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     return p_via->DDRB;
   case k_via_T1CL:
     via_clear_interrupt(p_via, k_int_TIMER1);
-    timer_val = via_get_t1c(p_via);
-    return (((uint16_t) timer_val) & 0xFF);
+    return (((uint16_t) t1_val) & 0xFF);
   case k_via_T1CH:
-    timer_val = via_get_t1c(p_via);
-    return (((uint16_t) timer_val) >> 8);
+    return (((uint16_t) t1_val) >> 8);
   case k_via_T1LL:
     return (p_via->T1L & 0xFF);
   case k_via_T1LH:
     return (p_via->T1L >> 8);
   case k_via_T2CL:
     via_clear_interrupt(p_via, k_int_TIMER2);
-    timer_val = via_get_t2c(p_via);
-    return (((uint16_t) timer_val) & 0xFF);
+    return (((uint16_t) t2_val) & 0xFF);
   case k_via_T2CH:
-    timer_val = via_get_t2c(p_via);
-    return (((uint16_t) timer_val) >> 8);
+    return (((uint16_t) t2_val) >> 8);
   case k_via_SR:
     return p_via->SR;
   case k_via_ACR:
@@ -443,6 +476,12 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t timer_val;
+
+  /* Advance to the VIA mid-cycle. */
+  struct timing_struct* p_timing = p_via->p_timing;
+  int64_t countdown = timing_get_countdown(p_timing);
+  countdown--;
+  (void) timing_advance_time(p_timing, countdown);
 
   switch (reg) {
   case k_via_ORB:

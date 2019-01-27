@@ -190,30 +190,10 @@ bbc_is_1mhz_address(uint16_t addr) {
   return k_FE_1mhz_array[((addr >> 5) & 7)];
 }
 
-static void
-bbc_advance_timing_if_1mhz_access(struct bbc_struct* p_bbc, uint16_t addr) {
-  int64_t countdown;
-
-  struct timing_struct* p_timing = p_bbc->p_timing;
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-  int extra_cycles = 1;
-
-  if (!bbc_is_1mhz_address(addr)) {
-    return;
-  }
-
-  if (state_6502_get_cycles(p_state_6502) & 1) {
-    extra_cycles++;
-  }
-
-  countdown = timing_get_countdown(p_timing);
-  countdown -= extra_cycles;
-  (void) timing_advance_time(p_timing, countdown);
-}
-
 uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct state_6502* p_state_6502;
 
   /* We have an imprecise match for abx and aby addressing modes so we may get
    * here with a non-registers address, or also for the 0xff00 - 0xffff range.
@@ -224,7 +204,17 @@ bbc_read_callback(void* p, uint16_t addr) {
     return p_mem_read[addr];
   }
 
-  bbc_advance_timing_if_1mhz_access(p_bbc, addr);
+  p_state_6502 = bbc_get_6502(p_bbc);
+
+  if (bbc_is_1mhz_address(addr) && (state_6502_get_cycles(p_state_6502) & 1)) {
+    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
+     * the 1Mhz train.
+     */
+    struct timing_struct* p_timing = p_bbc->p_timing;
+    int64_t countdown = timing_get_countdown(p_timing);
+    countdown--;
+    (void) timing_advance_time(p_timing, countdown);
+  }
 
   if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
     return via_read(p_bbc->p_system_via, (addr & 0xf));
@@ -368,6 +358,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 
 void
 bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
+  struct state_6502* p_state_6502;
+
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct video_struct* p_video = bbc_get_video(p_bbc);
 
@@ -387,7 +379,17 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     return;
   }
 
-  bbc_advance_timing_if_1mhz_access(p_bbc, addr);
+  p_state_6502 = bbc_get_6502(p_bbc);
+
+  if (bbc_is_1mhz_address(addr) && (state_6502_get_cycles(p_state_6502) & 1)) {
+    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
+     * the 1Mhz train.
+     */
+    struct timing_struct* p_timing = p_bbc->p_timing;
+    int64_t countdown = timing_get_countdown(p_timing);
+    countdown--;
+    (void) timing_advance_time(p_timing, countdown);
+  }
 
   if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
     via_write(p_bbc->p_system_via, (addr & 0xf), val);
