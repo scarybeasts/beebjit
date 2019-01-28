@@ -46,6 +46,9 @@ void via_destroy(struct via_struct* p_via);
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
+uint8_t via_read_port_a(struct via_struct* p_via);
+uint8_t via_read_port_b(struct via_struct* p_via);
+
 void via_raise_interrupt(struct via_struct* p_via, uint8_t val);
 void via_clear_interrupt(struct via_struct* p_via, uint8_t val);
 

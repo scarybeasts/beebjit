@@ -961,7 +961,7 @@ bbc_cycles_timer_callback(void* p) {
   }
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
-  (void) via_read(p_bbc->p_system_via, k_via_ORAnh);
+  (void) via_read_port_a(p_bbc->p_system_via);
 }
 
 static void

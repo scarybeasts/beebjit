@@ -311,7 +311,7 @@ sysvia_update_port_a(struct via_struct* p_via) {
   }
 }
 
-static uint8_t
+uint8_t
 via_read_port_a(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
     sysvia_update_port_a(p_via);
@@ -339,7 +339,7 @@ via_write_port_a(struct via_struct* p_via) {
   }
 }
 
-static uint8_t
+uint8_t
 via_read_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
     /* Read is for joystick and CMOS. 0xFF means nothing. */
@@ -407,6 +407,8 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   int64_t countdown = timing_get_countdown(p_timing);
   countdown--;
   (void) timing_advance_time(p_timing, countdown);
+
+  assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
 
   t1_val = via_get_t1c(p_via);
   if (t1_firing) {
@@ -503,6 +505,8 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int64_t countdown = timing_get_countdown(p_timing);
   countdown--;
   (void) timing_advance_time(p_timing, countdown);
+
+  assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
 
   /* This is a bit subtle but we need to read the T1C value in order to force
    * the deferred calculation of timer value for one shot timers that have shot.
