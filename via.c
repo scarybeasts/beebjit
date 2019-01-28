@@ -85,19 +85,6 @@ via_get_t1c(struct via_struct* p_via) {
   return val;
 }
 
-static int
-via_is_t1_firing(struct via_struct* p_via) {
-  int32_t val;
-  struct timing_struct* p_timing = p_via->p_timing;
-  uint32_t timer_id = p_via->t1_timer_id;
-  if (!timing_get_firing(p_timing, timer_id)) {
-    return 0;
-  }
-
-  val = via_get_t1c_raw(p_via);
-  return (val == -1);
-}
-
 static void
 via_set_t2c_raw(struct via_struct* p_via, int32_t val) {
   size_t id = p_via->t2_timer_id;
@@ -201,6 +188,32 @@ via_t2_fired(void* p) {
   assert(!(p_via->ACR & 0x20)); /* Shouldn't fire in pulse counting mode. */
 
   via_do_fire_t2(p_via);
+}
+
+static int
+via_is_t1_firing(struct via_struct* p_via) {
+  int32_t val;
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t timer_id = p_via->t1_timer_id;
+  if (!timing_get_firing(p_timing, timer_id)) {
+    return 0;
+  }
+
+  val = via_get_t1c_raw(p_via);
+  return (val == -1);
+}
+
+static int
+via_is_t2_firing(struct via_struct* p_via) {
+  int32_t val;
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t timer_id = p_via->t2_timer_id;
+  if (!timing_get_firing(p_timing, timer_id)) {
+    return 0;
+  }
+
+  val = via_get_t2c_raw(p_via);
+  return (val == -1);
 }
 
 struct via_struct*
@@ -378,10 +391,11 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   int32_t t1_val;
   int32_t t2_val;
 
-  /* We're at the VIA start-cycle. Will T1 interrupt fire at the mid cycle?
+  /* We're at the VIA start-cycle. Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
   int t1_firing = via_is_t1_firing(p_via);
+  int t2_firing = via_is_t2_firing(p_via);
 
   /* Advance to the VIA mid-cycle.
    * EMU NOTE: do this first before processing the read. Interrupts fire at
@@ -438,7 +452,9 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   case k_via_DDRB:
     return p_via->DDRB;
   case k_via_T1CL:
-    via_clear_interrupt(p_via, k_int_TIMER1);
+    if (!t1_firing) {
+      via_clear_interrupt(p_via, k_int_TIMER1);
+    }
     return (((uint16_t) t1_val) & 0xFF);
   case k_via_T1CH:
     return (((uint16_t) t1_val) >> 8);
@@ -447,7 +463,9 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   case k_via_T1LH:
     return (p_via->T1L >> 8);
   case k_via_T2CL:
-    via_clear_interrupt(p_via, k_int_TIMER2);
+    if (!t2_firing) {
+      via_clear_interrupt(p_via, k_int_TIMER2);
+    }
     return (((uint16_t) t2_val) & 0xFF);
   case k_via_T2CH:
     return (((uint16_t) t2_val) >> 8);
@@ -474,10 +492,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t timer_val;
   int32_t t1_val;
 
-  /* We're at the VIA start-cycle. Will T1 interrupt fire at the mid cycle?
+  /* We're at the VIA start-cycle. Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
   int t1_firing = via_is_t1_firing(p_via);
+  int t2_firing = via_is_t2_firing(p_via);
 
   /* Advance to the VIA mid-cycle. */
   struct timing_struct* p_timing = p_via->p_timing;
@@ -525,13 +544,16 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     p_via->T1L = ((p_via->T1L & 0xFF00) | val);
     break;
   case k_via_T1CH:
-    via_clear_interrupt(p_via, k_int_TIMER1);
+    if (!t1_firing) {
+      via_clear_interrupt(p_via, k_int_TIMER1);
+    }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     timer_val = p_via->T1L;
     /* Increment the value because it must take effect in 1 tick. */
     timer_val++;
     via_set_t1c(p_via, timer_val);
     timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
+    /* EMU TODO: does this behave differently if t1_firing as well? */
     p_via->t1_pb7 = 0;
     break;
   case k_via_T1LH:
@@ -542,14 +564,21 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
      * timer continuous mode, but testing on a real BBC shows it should be
      * cleared always.
      */
-    via_clear_interrupt(p_via, k_int_TIMER1);
+    /* EMU TODO: assuming the same logic of not canceling interrupts applies
+     * here for T1LH writes vs. IFR, but it's untest on a real BBC.
+     */
+    if (!t1_firing) {
+      via_clear_interrupt(p_via, k_int_TIMER1);
+    }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     break;
   case k_via_T2CL:
     p_via->T2L = ((p_via->T2L & 0xFF00) | val);
     break;
   case k_via_T2CH:
-    via_clear_interrupt(p_via, k_int_TIMER2);
+    if (!t2_firing) {
+      via_clear_interrupt(p_via, k_int_TIMER2);
+    }
     p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
     timer_val = p_via->T2L;
     /* Increment the value because it must take effect in 1 tick. */
@@ -578,6 +607,13 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     if (t1_firing) {
       /* Timer firing wins over a write to IFR. */
       p_via->IFR |= k_int_TIMER1;
+    }
+    /* EMU TODO: assuming the same logic applies for T2, although it's untested
+     * on a real BBC.
+     */
+    if (t2_firing) {
+      /* Timer firing wins over a write to IFR. */
+      p_via->IFR |= k_int_TIMER2;
     }
     via_check_interrupt(p_via);
     break;
