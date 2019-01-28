@@ -87,7 +87,14 @@ via_get_t1c(struct via_struct* p_via) {
 
 static int
 via_is_t1_firing(struct via_struct* p_via) {
-  int32_t val = via_get_t1c_raw(p_via);
+  int32_t val;
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t timer_id = p_via->t1_timer_id;
+  if (!timing_get_firing(p_timing, timer_id)) {
+    return 0;
+  }
+
+  val = via_get_t1c_raw(p_via);
   return (val == -1);
 }
 
@@ -467,6 +474,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t timer_val;
   int32_t t1_val;
 
+  /* We're at the VIA start-cycle. Will T1 interrupt fire at the mid cycle?
+   * Work it out now because we can't tell after advancing the timing.
+   */
+  int t1_firing = via_is_t1_firing(p_via);
+
   /* Advance to the VIA mid-cycle. */
   struct timing_struct* p_timing = p_via->p_timing;
   int64_t countdown = timing_get_countdown(p_timing);
@@ -563,6 +575,10 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_IFR:
     p_via->IFR &= ~(val & 0x7F);
+    if (t1_firing) {
+      /* Timer firing wins over a write to IFR. */
+      p_via->IFR |= k_int_TIMER1;
+    }
     via_check_interrupt(p_via);
     break;
   case k_via_IER:

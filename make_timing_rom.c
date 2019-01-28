@@ -419,8 +419,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFE);
   emit_JMP(p_buf, k_abs, 0xC5C0);
 
-  /* Exit sequence. */
+  /* Test T1 IFR vs. IFR write clearing IFR. */
   set_new_index(p_buf, 0x05C0);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0x7F);   /* 2. */
+  emit_STA(p_buf, k_abs, 0xFE4D); /* 1, 0, -1. */ /* IFR: clear all. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* 2, 1, 0. */
+  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_JMP(p_buf, k_abs, 0xC600);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0600);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
