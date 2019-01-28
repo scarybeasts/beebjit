@@ -425,12 +425,32 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0xF000);
   emit_LDA(p_buf, k_imm, 0x7F);   /* 2. */
   emit_STA(p_buf, k_abs, 0xFE4D); /* 1, 0, -1. */ /* IFR: clear all. */
-  emit_LDA(p_buf, k_abs, 0xFE4D); /* 2, 1, 0. */
-  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* 5, 4, 3. */
+  emit_REQUIRE_EQ(p_buf, 0xC0);   /* T1 IFR fired wins. */
   emit_JMP(p_buf, k_abs, 0xC600);
 
-  /* Exit sequence. */
+  /* Test T1 IFR vs. T1CL read clearing IFR. */
   set_new_index(p_buf, 0x0600);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_NOP(p_buf);                /* 2. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* 1, 0, -1 (IRQ). */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* 5, 4, 3. */ /* IFR. */
+  emit_REQUIRE_EQ(p_buf, 0xC0);   /* T1 IFR fired wins. */
+  emit_JMP(p_buf, k_abs, 0xC640);
+
+  /* Test T1 IFR vs. T1CH write clearing IFR. */
+  set_new_index(p_buf, 0x0640);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0x00);   /* 2. */
+  emit_STA(p_buf, k_abs, 0xFE45); /* 1, 0, -1 (IRQ). */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* 5, 4, 3. */ /* IFR. */
+  emit_REQUIRE_EQ(p_buf, 0xC0);   /* T1 IFR fired wins. */
+  emit_JMP(p_buf, k_abs, 0xC680);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0680);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
