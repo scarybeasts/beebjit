@@ -130,16 +130,22 @@ debug_print_opcode(char* buf,
                    uint8_t operand1,
                    uint8_t operand2,
                    uint16_t reg_pc,
-                   uint16_t irq_vector) {
+                   int do_irq,
+                   struct state_6502* p_state_6502) {
   uint8_t opmode;
   const char* opname;
   uint16_t addr;
 
-  if (irq_vector == k_6502_vector_nmi) {
-    (void) snprintf(buf, buf_len, "IRQ (NMI)");
-    return;
-  } else if (irq_vector == k_6502_vector_irq) {
-    (void) snprintf(buf, buf_len, "IRQ (IRQ)");
+  if (do_irq) {
+    /* Very close approximation. It's possible a non-NMI IRQ will be reported
+     * but then an NMI occurs if the NMI is raised within the first few cycles
+     * of the IRQ BRK.
+     */
+    if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+      (void) snprintf(buf, buf_len, "IRQ (NMI)");
+    } else {
+      (void) snprintf(buf, buf_len, "IRQ (IRQ)");
+    }
     return;
   }
 
@@ -332,7 +338,8 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        operand1,
                        operand2,
                        addr_6502,
-                       0);
+                       0,
+                       NULL);
     (void) printf("[%.4X] %.4X: %s\n", block_6502, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
@@ -477,7 +484,8 @@ debug_dump_stats(struct debug_struct* p_debug) {
                        0,
                        0,
                        0xFFFE,
-                       0);
+                       0,
+                       NULL);
     (void) printf("%14s: %zu\n", opcode_buf, count);
   }
 
@@ -630,7 +638,7 @@ debug_print_state(uint16_t block_6502,
 }
 
 void*
-debug_callback(void* p, uint16_t irq_vector) {
+debug_callback(void* p, int do_irq) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -740,7 +748,8 @@ debug_callback(void* p, uint16_t irq_vector) {
                      operand1,
                      operand2,
                      reg_pc,
-                     irq_vector);
+                     do_irq,
+                     p_state_6502);
 
   (void) memset(flags_buf, ' ', 8);
   flags_buf[8] = '\0';

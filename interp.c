@@ -183,7 +183,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   void* p_debug_callback_object = p_options->p_debug_callback_object;
 
   if (debug_active_at_addr(p_debug_callback_object, *p_pc)) {
-    void* (*debug_callback)(void*, uint16_t) = p_options->debug_callback;
+    void* (*debug_callback)(void*, int) = p_options->debug_callback;
 
     flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
     state_6502_set_registers(p_state_6502,
@@ -646,7 +646,6 @@ interp_enter(struct interp_struct* p_interp) {
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t callback_above = p_interp->callback_above;
   int debug_subsystem_active = p_interp->debug_subsystem_active;
-  uint16_t last_irq_vector = 0;
   int do_irq = 0;
   int64_t cycles_this_instruction = 0;
 
@@ -676,8 +675,7 @@ interp_enter(struct interp_struct* p_interp) {
                            &of,
                            &df,
                            &intf,
-                           last_irq_vector);
-      last_irq_vector = 0;
+                           do_irq);
     }
 
     switch (opcode) {
@@ -695,8 +693,6 @@ interp_enter(struct interp_struct* p_interp) {
         /* It's a BRK, not an IRQ. */
         temp_u8 = (1 << k_flag_brk);
         pc += 2;
-      } else {
-        last_irq_vector = k_6502_vector_irq;
       }
       /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
        * sequence for a non-NMI interrupt, the NMI overrides and in the case of
@@ -706,7 +702,6 @@ interp_enter(struct interp_struct* p_interp) {
       if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
         state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
         addr = k_6502_vector_nmi;
-        last_irq_vector = k_6502_vector_nmi;
       }
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xFF);

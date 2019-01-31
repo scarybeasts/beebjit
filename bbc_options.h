@@ -14,7 +14,7 @@ struct bbc_options {
   void* p_debug_callback_object;
   int (*debug_subsystem_active)(void* p);
   int (*debug_active_at_addr)(void* p, uint16_t addr);
-  void* (*debug_callback)(void* p, uint16_t irq_vector);
+  void* (*debug_callback)(void* p, int do_irq);
 };
 
 #endif /* BEEBJIT_BBC_OPTIONS_H */
