@@ -599,7 +599,18 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
      * modes but after some testing on a real beeb, we don't do anything
      * special here.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16252
+     * See: tests.ssd:VIA.AC1
      */
+    /* EMU NOTE: there's an very quirky special case if ACR if written to
+     * one-shot the same cycle there's a T1 expiry. The one-shot is applied
+     * to the just-expired timer. And the inverse is not true: turning on
+     * continuous mode the same cycle as a T1 expiry still results in one-shot.
+     * See: tests.ssd:VIA.AC3
+     * See: tests.ssd:VIA.AC2
+     */
+    if (t1_firing && (!(val & 0x40))) {
+      timing_set_firing(p_timing, p_via->t1_timer_id, 0);
+    }
     /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
   case k_via_PCR:

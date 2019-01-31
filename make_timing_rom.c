@@ -483,8 +483,30 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x91);
   emit_JMP(p_buf, k_abs, 0xC700);
 
-  /* Exit sequence. */
+  /* Test an ACR write 0x40 -> 0x00 colliding with a T1 expiry. */
   set_new_index(p_buf, 0x0700);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0x40);   /* 4. */
+  emit_STA(p_buf, k_abs, 0xFE4B); /* 3, 2, 1. */
+  emit_LDX(p_buf, k_abs, 0xFE4D); /* 0, -1, 7. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* 6, 5, 4. */
+  emit_NOP(p_buf);                /* 3. */
+  emit_LDA(p_buf, k_imm, 0x00);   /* 2. */
+  emit_STA(p_buf, k_abs, 0xFE4B); /* 1, 0, -1. */
+  emit_LDY(p_buf, k_abs, 0xFE4D); /* 7, 6, 5. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* 4, 3, 2. */
+  emit_NOP(p_buf);                /* 1. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* 0, -1, 7. */
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_JMP(p_buf, k_abs, 0xC740);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0740);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
