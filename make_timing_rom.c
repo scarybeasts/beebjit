@@ -449,8 +449,42 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xC0);   /* T1 IFR fired wins. */
   emit_JMP(p_buf, k_abs, 0xC680);
 
-  /* Exit sequence. */
+  /* Test IRQ raising just before the poll point of a stretched instruction. */
   set_new_index(p_buf, 0x0680);
+  emit_LDX(p_buf, k_imm, 0xD4);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 3. */
+  emit_INC(p_buf, k_abs, 0xFE62); /* User VIA DDRB, arbitrary 1Mhz address. */
+                                  /* 2, 1+, 0 (R), -1 (W) (T1) (I), 5 (W). */
+  emit_INX(p_buf);                /* IRQ should fire first. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0xD4);
+  emit_JMP(p_buf, k_abs, 0xC6C0);
+
+  /* Test existing IRQ just before the poll point of a stretched instruction,
+   * where that cycle lowers the IRQ at the end.
+   */
+  set_new_index(p_buf, 0x06C0);
+  emit_LDX(p_buf, k_imm, 0x91);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* Timer value: 2. */
+  emit_DEC(p_buf, k_abs, 0xFE45); /* T1CH. */
+                                  /* 1, 0+, -1 (R) (T1), 5 (W) (I), 0 (W). */
+  emit_INX(p_buf);                /* IRQ should fire first. */
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x91);
+  emit_JMP(p_buf, k_abs, 0xC700);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0700);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

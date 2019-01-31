@@ -272,6 +272,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_WRITE(addr);                                                \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -293,6 +294,7 @@ interp_is_branch_opcode(uint8_t opcode) {
       INTERP_TIMING_ADVANCE(3);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
@@ -317,6 +319,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_READ(addr_temp);                                            \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -341,6 +344,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_WRITE(addr);                                                \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -402,6 +406,7 @@ interp_is_branch_opcode(uint8_t opcode) {
       INTERP_TIMING_ADVANCE(4);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_MEMORY_READ(addr - 0x100);                                       \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
@@ -428,6 +433,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(4);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_MEMORY_READ(addr_temp);                                            \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
