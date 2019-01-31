@@ -505,8 +505,36 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xC0);
   emit_JMP(p_buf, k_abs, 0xC740);
 
-  /* Exit sequence. */
+  /* Test T2 freezing (putting into pulse count mode) and restarting. */
   set_new_index(p_buf, 0x0740);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* ACR: T2 running. */
+  emit_LDA(p_buf, k_imm, 0x0A);
+  emit_STA(p_buf, k_abs, 0xFE48); /* T2CL: 10. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE49); /* T2CH: 0. */
+  emit_LDA(p_buf, k_imm, 0x20);   /* 10. */
+  emit_STA(p_buf, k_abs, 0xFE4B); /* 9, 8, 7. */ /* ACR: T2 freezes at 6. */
+  emit_LDX(p_buf, k_abs, 0xFE48);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* ACR: T2 running. */
+  emit_LDY(p_buf, k_abs, 0xFE48); /* 6, 5, 4. */
+  emit_LDA(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* Freeze. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE49);
+  emit_LDA(p_buf, k_abs, 0xFE48);
+  emit_REQUIRE_EQ(p_buf, 0x0A);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE4B); /* ACR: T2 running. */
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x06);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_JMP(p_buf, k_abs, 0xC7C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x07C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

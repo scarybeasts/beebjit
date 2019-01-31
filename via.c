@@ -491,8 +491,10 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  uint32_t t2_timer_id;
   int32_t timer_val;
   int32_t t1_val;
+  int32_t t2_val;
 
   /* We're at the VIA start-cycle. Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
@@ -586,7 +588,9 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     p_via->T2L = ((val << 8) | (p_via->T2L & 0xFF));
     timer_val = p_via->T2L;
     /* Increment the value because it must take effect in 1 tick. */
-    timer_val++;
+    if (!(p_via->ACR & 0x20)) {
+      timer_val++;
+    }
     via_set_t2c(p_via, timer_val);
     timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
     break;
@@ -610,6 +614,27 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
      */
     if (t1_firing && (!(val & 0x40))) {
       timing_set_firing(p_timing, p_via->t1_timer_id, 0);
+    }
+
+    if (!p_via->externally_clocked) {
+      t2_timer_id = p_via->t2_timer_id;
+      if (val & 0x20) {
+        /* Stop T2 if that bit is set. */
+        if (timing_timer_is_running(p_timing, t2_timer_id)) {
+          t2_val = via_get_t2c(p_via);
+          /* The value freezes after ticking one more time. */
+          via_set_t2c(p_via, (t2_val - 1));
+          (void) timing_stop_timer(p_timing, t2_timer_id);
+        }
+      } else {
+        /* Otherwise start it. */
+        if (!(timing_timer_is_running(p_timing, t2_timer_id))) {
+          t2_val = via_get_t2c(p_via);
+          /* The value starts ticking next cycle. */
+          via_set_t2c(p_via, (t2_val + 1));
+          (void) timing_start_timer(p_timing, t2_timer_id);
+        }
+      }
     }
     /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
