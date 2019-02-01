@@ -684,6 +684,9 @@ debug_callback(void* p, int do_irq) {
   flag_o = !!(reg_flags & 0x40);
 
   opcode = p_mem_read[reg_pc];
+  if (do_irq) {
+    opcode = 0;
+  }
   opmode = g_opmodes[opcode];
   oplen = g_opmodelens[opmode];
   reg_pc_plus_1 = (reg_pc + 1);
