@@ -676,6 +676,10 @@ interp_enter(struct interp_struct* p_interp) {
                            &df,
                            &intf,
                            do_irq);
+      /* The debugger could have changed all sorts of state, so reload
+       * countdown.
+       */
+      countdown = timing_get_countdown(p_timing);
     }
 
     switch (opcode) {
