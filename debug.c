@@ -53,7 +53,7 @@ struct debug_struct {
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
-  uint8_t warned_at_addr[k_6502_addr_space_size];
+  uint8_t warn_at_addr_count[k_6502_addr_space_size];
   char debug_old_input_buf[k_max_input_len];
 };
 
@@ -95,6 +95,10 @@ debug_create(struct bbc_struct* p_bbc,
     p_debug->debug_break_exec[i] = -1;
     p_debug->debug_break_mem_low[i] = -1;
     p_debug->debug_break_mem_high[i] = -1;
+  }
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    p_debug->warn_at_addr_count[i] = 1;
   }
 
   return p_debug;
@@ -201,7 +205,8 @@ debug_print_opcode(char* buf,
 }
 
 static int
-debug_get_addr(int* wrapped,
+debug_get_addr(int* wrapped_8bit,
+               int* wrapped_16bit,
                uint8_t opcode,
                uint8_t operand1,
                uint8_t operand2,
@@ -213,7 +218,10 @@ debug_get_addr(int* wrapped,
   uint16_t trunc_addr;
   uint16_t addr_addr;
 
-  *wrapped = 0;
+  int check_wrap_8bit = 1;
+
+  *wrapped_8bit = 0;
+  *wrapped_16bit = 0;
 
   switch (opmode) {
   case k_zpg:
@@ -230,35 +238,40 @@ debug_get_addr(int* wrapped,
     break;
   case k_abs:
     addr = (uint16_t) (operand1 + (operand2 << 8));
+    check_wrap_8bit = 0;
     trunc_addr = addr;
     break;
   case k_abx:
     addr = (operand1 + (operand2 << 8) + x_6502);
+    check_wrap_8bit = 0;
     trunc_addr = (uint16_t) addr;
     break;
   case k_aby:
     addr = (operand1 + (operand2 << 8) + y_6502);
+    check_wrap_8bit = 0;
     trunc_addr = (uint16_t) addr;
     break;
   case k_idx:
     addr_addr = (operand1 + x_6502);
     trunc_addr = (uint8_t) addr_addr;
     if ((trunc_addr != addr_addr) || (addr_addr == 0xFF)) {
-      *wrapped = 1;
+      *wrapped_8bit = 1;
     }
     addr = p_mem[(uint8_t) (addr_addr + 1)];
     addr <<= 8;
     addr |= p_mem[(uint8_t) addr_addr];
+    check_wrap_8bit = 0;
     trunc_addr = addr;
     break;
   case k_idy:
     if (operand1 == 0xFF) {
-      *wrapped = 1;
+      *wrapped_8bit = 1;
     }
     addr = p_mem[(uint8_t) (operand1 + 1)];
     addr <<= 8;
     addr |= p_mem[operand1];
     addr = (addr + y_6502);
+    check_wrap_8bit = 0;
     trunc_addr = (uint16_t) addr;
     break;
   default:
@@ -267,7 +280,11 @@ debug_get_addr(int* wrapped,
   }
 
   if (trunc_addr != addr) {
-    *wrapped = 1;
+    if (check_wrap_8bit) {
+      *wrapped_8bit = 1;
+    } else {
+      *wrapped_16bit = 1;
+    }
   }
   return trunc_addr;
 }
@@ -514,7 +531,8 @@ debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t opcode,
                     uint16_t reg_pc,
                     uint16_t addr_6502,
-                    int wrapped) {
+                    int wrapped_8bit,
+                    int wrapped_16bit) {
   int is_write;
   int is_register;
   int is_rom;
@@ -546,11 +564,11 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
   if (is_write && is_rom) {
-    if (!p_debug->warned_at_addr[reg_pc]) {
-      (void) printf("Code at %.4X is writing to ROM at %.4X\n",
+    if (p_debug->warn_at_addr_count[reg_pc]) {
+      (void) printf("UNUSUAL: Code at %.4X is writing to ROM at %.4X\n",
                     reg_pc,
                     addr_6502);
-      p_debug->warned_at_addr[reg_pc] = 1;
+      p_debug->warn_at_addr_count[reg_pc]--;
     }
     if (p_debug->stats && (opmode == k_idx || opmode == k_idy)) {
       p_debug->rom_write_faults++;
@@ -562,11 +580,11 @@ debug_check_unusual(struct debug_struct* p_debug,
    * it in so we can find such a game and write some notes about it.
    */
   if (is_write && has_code) {
-    if (!p_debug->warned_at_addr[reg_pc]) {
+    if (p_debug->warn_at_addr_count[reg_pc]) {
       (void) printf("Code at %.4X modifying code at %.4X\n",
                     reg_pc,
                     addr_6502);
-      p_debug->warned_at_addr[reg_pc] = 1;
+      p_debug->warn_at_addr_count[reg_pc]--;
     }
     if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
       (void) printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
@@ -577,9 +595,21 @@ debug_check_unusual(struct debug_struct* p_debug,
   /* Look for zero page wrap or full address space wraps. We want to prove
    * these are unusual to move to more fault-based fixups.
    */
-  if (wrapped) {
-    (void) printf("ADDRESS WRAP AROUND at %.4X to %.4X\n", reg_pc, addr_6502);
-    /*debug_running = 0;*/
+  if (wrapped_8bit) {
+    if (p_debug->warn_at_addr_count[reg_pc]) {
+      (void) printf("UNUSUAL: 8-bit ADDRESS WRAP at %.4X to %.4X\n",
+                    reg_pc,
+                    addr_6502);
+      p_debug->warn_at_addr_count[reg_pc]--;
+    }
+  }
+  if (wrapped_16bit) {
+    if (p_debug->warn_at_addr_count[reg_pc]) {
+      (void) printf("VERY UNUSUAL: 16-bit ADDRESS WRAP at %.4X to %.4X\n",
+                    reg_pc,
+                    addr_6502);
+      p_debug->warn_at_addr_count[reg_pc]--;
+    }
   }
 }
 
@@ -665,7 +695,8 @@ debug_callback(void* p, int do_irq) {
   uint8_t flag_i;
   uint8_t flag_d;
   uint64_t cycles;
-  int wrapped;
+  int wrapped_8bit;
+  int wrapped_16bit;
   uint8_t opmode;
   size_t oplen;
 
@@ -702,7 +733,8 @@ debug_callback(void* p, int do_irq) {
     p_debug->count_opmode[opmode]++;
   }
 
-  addr_6502 = debug_get_addr(&wrapped,
+  addr_6502 = debug_get_addr(&wrapped_8bit,
+                             &wrapped_16bit,
                              opcode,
                              operand1,
                              operand2,
@@ -710,7 +742,12 @@ debug_callback(void* p, int do_irq) {
                              reg_y,
                              p_mem_read);
 
-  debug_check_unusual(p_debug, opcode, reg_pc, addr_6502, wrapped);
+  debug_check_unusual(p_debug,
+                      opcode,
+                      reg_pc,
+                      addr_6502,
+                      wrapped_8bit,
+                      wrapped_16bit);
 
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
 
