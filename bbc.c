@@ -1353,6 +1353,10 @@ bbc_key_pressed(struct bbc_struct* p_bbc, int key) {
     return;
   }
   p_bbc->keys[row][col] = 1;
+  if (row == 0) {
+    /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
+    return;
+  }
   p_bbc->keys_count_col[col]++;
   p_bbc->keys_count++;
 }
@@ -1380,6 +1384,10 @@ bbc_key_released(struct bbc_struct* p_bbc, int key) {
   assert(col < 16);
   was_pressed = p_bbc->keys[row][col];
   p_bbc->keys[row][col] = 0;
+  if (row == 0) {
+    /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
+    return;
+  }
   if (was_pressed) {
     assert(p_bbc->keys_count_col[col] > 0);
     p_bbc->keys_count_col[col]--;

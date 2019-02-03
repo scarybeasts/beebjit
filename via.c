@@ -308,6 +308,8 @@ sysvia_update_port_a(struct via_struct* p_via) {
   }
   if (fire) {
     via_raise_interrupt(p_via, k_int_CA2);
+  } else {
+    via_clear_interrupt(p_via, k_int_CA2);
   }
 }
 
