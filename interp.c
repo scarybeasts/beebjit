@@ -1593,6 +1593,8 @@ interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
 
   struct timing_struct* p_timing = p_interp->p_timing;
 
+assert(0);
+
   (void) timing_advance_time(p_timing, countdown);
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */

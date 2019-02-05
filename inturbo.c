@@ -66,6 +66,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   }
 
   for (i = 0; i < 256; ++i) {
+    uint8_t pc_advance;
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
     uint8_t opmem = g_opmem[optype];
@@ -73,10 +74,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opcycles = g_opcycles[i];
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
-
-    if (debug) {
-      asm_x64_emit_inturbo_enter_debug(p_buf);
-    }
 
     switch (opmode) {
     case k_nil:
@@ -134,6 +131,18 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     default:
       assert(0);
       break;
+    }
+
+    /* Check for countdown expiry. */
+    asm_x64_emit_inturbo_check_countdown(p_buf, opcycles);
+
+    /* If active, call into the debugger now. By the time we get here, we know
+     * we're not going to bounce into the interpreter, because we've done
+     * the address calculation for special memory accesses and the countdown
+     * calculation for timer expiry.
+     */
+    if (debug) {
+      asm_x64_emit_inturbo_enter_debug(p_buf);
     }
 
     switch (optype) {
@@ -430,10 +439,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     switch (opmode) {
     case 0:
     case k_rel:
+      pc_advance = 0;
       break;
     case k_nil:
     case k_acc:
-      asm_x64_emit_inturbo_advance_pc_1(p_buf);
+      pc_advance = 1;
       break;
     case k_imm:
     case k_zpg:
@@ -441,23 +451,22 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_zpy:
     case k_idx:
     case k_idy:
-      asm_x64_emit_inturbo_advance_pc_2(p_buf);
+      pc_advance = 2;
       break;
     case k_abs:
     case k_abx:
     case k_aby:
     case k_ind:
-      asm_x64_emit_inturbo_advance_pc_3(p_buf);
+      pc_advance = 3;
       break;
     default:
+      pc_advance = 0;
       assert(0);
       break;
     }
 
-    /* Check timer expiry, load next opcode from 6502 PC, jump to correct next
-     * asm opcode inturbo handler.
-     */
-    asm_x64_emit_inturbo_next_opcode(p_buf, opcycles);
+    /* Advance PC, load next opcode, jump to correct opcode handler. */
+    asm_x64_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
 
     p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode;
   }

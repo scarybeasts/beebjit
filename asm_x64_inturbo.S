@@ -26,53 +26,52 @@ asm_x64_inturbo_load_pc_from_pc_END:
   ret
 
 
-.globl asm_x64_inturbo_advance_pc_1
-.globl asm_x64_inturbo_advance_pc_1_END
-asm_x64_inturbo_advance_pc_1:
-
-  lea REG_6502_PC_32, [REG_6502_PC + 1]
-
-asm_x64_inturbo_advance_pc_1_END:
-  ret
-
-
-.globl asm_x64_inturbo_advance_pc_2
-.globl asm_x64_inturbo_advance_pc_2_END
-asm_x64_inturbo_advance_pc_2:
-
-  lea REG_6502_PC_32, [REG_6502_PC + 2]
-
-asm_x64_inturbo_advance_pc_2_END:
-  ret
-
-
-.globl asm_x64_inturbo_advance_pc_3
-.globl asm_x64_inturbo_advance_pc_3_END
-asm_x64_inturbo_advance_pc_3:
-
-  lea REG_6502_PC_32, [REG_6502_PC + 3]
-
-asm_x64_inturbo_advance_pc_3_END:
-  ret
-
-
-.globl asm_x64_inturbo_next_opcode
-.globl asm_x64_inturbo_next_opcode_END
-.globl asm_x64_inturbo_next_opcode_lea_patch
-.globl asm_x64_inturbo_next_opcode_jb_patch
-.globl asm_x64_inturbo_next_opcode_load_and_jump
-asm_x64_inturbo_next_opcode:
-
+.globl asm_x64_inturbo_check_countdown
+.globl asm_x64_inturbo_check_countdown_END
+.globl asm_x64_inturbo_check_countdown_lea_patch
+.globl asm_x64_inturbo_check_countdown_jb_patch
+asm_x64_inturbo_check_countdown:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
-asm_x64_inturbo_next_opcode_lea_patch:
+asm_x64_inturbo_check_countdown_lea_patch:
   bt REG_COUNTDOWN, 63
   jb 0
-asm_x64_inturbo_next_opcode_jb_patch:
-asm_x64_inturbo_next_opcode_load_and_jump:
-  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
-  jmp [REG_SCRATCH1 * 8 + 0x3f000000]
+asm_x64_inturbo_check_countdown_jb_patch:
 
-asm_x64_inturbo_next_opcode_END:
+asm_x64_inturbo_check_countdown_END:
+  ret
+
+
+.globl asm_x64_inturbo_load_opcode
+.globl asm_x64_inturbo_load_opcode_END
+.globl asm_x64_inturbo_load_opcode_mov_patch
+asm_x64_inturbo_load_opcode:
+
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 1]
+asm_x64_inturbo_load_opcode_mov_patch:
+
+asm_x64_inturbo_load_opcode_END:
+  ret
+
+
+.globl asm_x64_inturbo_advance_pc
+.globl asm_x64_inturbo_advance_pc_END
+.globl asm_x64_inturbo_advance_pc_lea_patch
+asm_x64_inturbo_advance_pc:
+
+  lea REG_6502_PC_32, [REG_6502_PC + 1]
+asm_x64_inturbo_advance_pc_lea_patch:
+
+asm_x64_inturbo_advance_pc_END:
+  ret
+
+
+.globl asm_x64_inturbo_jump_opcode
+.globl asm_x64_inturbo_jump_opcode_END
+asm_x64_inturbo_jump_opcode:
+
+  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+
+asm_x64_inturbo_jump_opcode_END:
   ret
 
 
@@ -159,7 +158,8 @@ asm_x64_inturbo_call_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 
-  jmp asm_x64_inturbo_next_opcode
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
+  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
 
 
 .globl asm_x64_inturbo_check_special_addr

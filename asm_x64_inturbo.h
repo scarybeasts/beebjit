@@ -5,11 +5,10 @@
 
 struct util_buffer;
 
-void asm_x64_emit_inturbo_advance_pc_1(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_advance_pc_2(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_advance_pc_3(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf,
-                                      uint8_t cycles);
+void asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
+                                          uint8_t opcycles);
+void asm_x64_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
+                                              uint8_t advance);
 void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_check_interrupt(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_call_interp(struct util_buffer* p_buf);
@@ -89,22 +88,24 @@ void asm_x64_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
+void asm_x64_inturbo_check_countdown();
+void asm_x64_inturbo_check_countdown_END();
+void asm_x64_inturbo_check_countdown_lea_patch();
+void asm_x64_inturbo_check_countdown_jb_patch();
+void asm_x64_inturbo_load_opcode();
+void asm_x64_inturbo_load_opcode_END();
+void asm_x64_inturbo_load_opcode_mov_patch();
+void asm_x64_inturbo_advance_pc();
+void asm_x64_inturbo_advance_pc_END();
+void asm_x64_inturbo_advance_pc_lea_patch();
+void asm_x64_inturbo_jump_opcode();
+void asm_x64_inturbo_jump_opcode_END();
+
 void asm_x64_inturbo_JMP_scratch_plus_1_interp();
 void asm_x64_inturbo_JMP_scratch_plus_1_interp_END();
 void asm_x64_inturbo_load_pc_from_pc();
 void asm_x64_inturbo_load_pc_from_pc_END();
-void asm_x64_inturbo_advance_pc_1();
-void asm_x64_inturbo_advance_pc_1_END();
-void asm_x64_inturbo_advance_pc_2();
-void asm_x64_inturbo_advance_pc_2_END();
-void asm_x64_inturbo_advance_pc_3();
-void asm_x64_inturbo_advance_pc_3_END();
 void asm_x64_inturbo_call_interp();
-void asm_x64_inturbo_next_opcode();
-void asm_x64_inturbo_next_opcode_END();
-void asm_x64_inturbo_next_opcode_lea_patch();
-void asm_x64_inturbo_next_opcode_jb_patch();
-void asm_x64_inturbo_next_opcode_load_and_jump();
 void asm_x64_inturbo_enter_debug();
 void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_check_interrupt();

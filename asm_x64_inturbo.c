@@ -4,43 +4,54 @@
 #include "util.h"
 
 void
-asm_x64_emit_inturbo_advance_pc_1(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_advance_pc_1,
-               asm_x64_inturbo_advance_pc_1_END);
-}
-
-void
-asm_x64_emit_inturbo_advance_pc_2(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_advance_pc_2,
-               asm_x64_inturbo_advance_pc_2_END);
-}
-
-void
-asm_x64_emit_inturbo_advance_pc_3(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_advance_pc_3,
-               asm_x64_inturbo_advance_pc_3_END);
-}
-
-void
-asm_x64_emit_inturbo_next_opcode(struct util_buffer* p_buf, uint8_t cycles) {
+asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
+                                     uint8_t opcycles) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf,
-               asm_x64_inturbo_next_opcode,
-               asm_x64_inturbo_next_opcode_END);
+               asm_x64_inturbo_check_countdown,
+               asm_x64_inturbo_check_countdown_END);
   asm_x64_patch_byte(p_buf,
                      offset,
-                     asm_x64_inturbo_next_opcode,
-                     asm_x64_inturbo_next_opcode_lea_patch,
-                     (0x100 - cycles));
+                     asm_x64_inturbo_check_countdown,
+                     asm_x64_inturbo_check_countdown_lea_patch,
+                     (0x100 - opcycles));
   asm_x64_patch_jump(p_buf,
                      offset,
-                     asm_x64_inturbo_next_opcode,
-                     asm_x64_inturbo_next_opcode_jb_patch,
+                     asm_x64_inturbo_check_countdown,
+                     asm_x64_inturbo_check_countdown_jb_patch,
                      asm_x64_inturbo_call_interp);
+}
+
+void
+asm_x64_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
+                                         uint8_t advance) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_load_opcode,
+               asm_x64_inturbo_load_opcode_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_inturbo_load_opcode,
+                     asm_x64_inturbo_load_opcode_mov_patch,
+                     advance);
+
+  if (advance) {
+    offset = util_buffer_get_pos(p_buf);
+    asm_x64_copy(p_buf,
+                 asm_x64_inturbo_advance_pc,
+                 asm_x64_inturbo_advance_pc_END);
+    asm_x64_patch_byte(p_buf,
+                       offset,
+                       asm_x64_inturbo_advance_pc,
+                       asm_x64_inturbo_advance_pc_lea_patch,
+                       advance);
+  }
+
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_jump_opcode,
+               asm_x64_inturbo_jump_opcode_END);
 }
 
 void
