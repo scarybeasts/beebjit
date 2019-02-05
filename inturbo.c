@@ -6,6 +6,7 @@
 #include "asm_x64_inturbo.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
+#include "interp.h"
 #include "memory_access.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -29,8 +30,10 @@ struct inturbo_struct {
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
+  struct interp_struct* p_interp;
   uint8_t* p_inturbo_base;
   uint64_t* p_jump_table;
+  uint32_t short_instruction_run_timer_id;
 };
 
 static void
@@ -479,13 +482,47 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   util_buffer_destroy(p_buf);
 }
 
+static void
+inturbo_short_instruction_run_timer_callback(void* p) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p;
+  struct interp_struct* p_interp = p_inturbo->p_interp;
+
+  (void) timing_stop_timer(p_inturbo->p_timing,
+                           p_inturbo->short_instruction_run_timer_id);
+  interp_set_loop_exit(p_interp);
+}
+
+static int64_t
+inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
+  uint32_t ret;
+
+  struct timing_struct* p_timing = p_inturbo->p_timing;
+  struct interp_struct* p_interp = p_inturbo->p_interp;
+
+assert(0);
+
+  (void) timing_advance_time(p_timing, countdown);
+
+  /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
+  (void) timing_start_timer_with_value(
+      p_timing,
+      p_inturbo->short_instruction_run_timer_id,
+      0);
+
+  ret = interp_enter(p_interp);
+  (void) ret;
+  assert(ret == (uint32_t) -1);
+
+  countdown = timing_get_countdown(p_timing);
+  return countdown;
+}
+
 struct inturbo_struct*
 inturbo_create(struct state_6502* p_state_6502,
                struct memory_access* p_memory_access,
                struct timing_struct* p_timing,
                struct bbc_options* p_options,
-               void* p_interp_callback,
-               void* p_interp_object) {
+               struct interp_struct* p_interp) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
   if (p_inturbo == NULL) {
@@ -498,12 +535,18 @@ inturbo_create(struct state_6502* p_state_6502,
   p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
 
   asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
-  p_inturbo->abi.p_interp_callback = p_interp_callback;
-  p_inturbo->abi.p_interp_object = p_interp_object;
+  p_inturbo->abi.p_interp_callback = inturbo_enter_interp;
+  p_inturbo->abi.p_interp_object = p_inturbo;
 
   p_inturbo->p_memory_access = p_memory_access;
   p_inturbo->p_timing = p_timing;
   p_inturbo->p_options = p_options;
+  p_inturbo->p_interp = p_interp;
+
+  p_inturbo->short_instruction_run_timer_id =
+      timing_register_timer(p_timing,
+                            inturbo_short_instruction_run_timer_callback,
+                            p_inturbo);
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
       k_inturbo_opcodes_addr,

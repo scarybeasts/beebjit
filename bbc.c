@@ -679,7 +679,6 @@ bbc_create(uint8_t* p_os_rom,
                                     &p_bbc->memory_access,
                                     p_timing,
                                     &p_bbc->options,
-                                    interp_single_instruction,
                                     p_bbc->p_interp);
   if (p_bbc->p_inturbo == NULL) {
     errx(1, "inturbo_create failed");

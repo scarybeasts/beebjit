@@ -30,8 +30,7 @@ struct interp_struct {
   uint16_t callback_above;
   int debug_subsystem_active;
 
-  size_t deferred_interrupt_timer_id;
-  size_t short_instruction_run_timer_id;
+  uint32_t deferred_interrupt_timer_id;
   int return_from_loop;
 };
 
@@ -41,15 +40,6 @@ interp_deferred_interrupt_timer_callback(void* p) {
 
   (void) timing_stop_timer(p_interp->p_timing,
                            p_interp->deferred_interrupt_timer_id);
-}
-
-static void
-interp_instruction_run_timer_callback(void* p) {
-  struct interp_struct* p_interp = (struct interp_struct*) p;
-
-  (void) timing_stop_timer(p_interp->p_timing,
-                           p_interp->short_instruction_run_timer_id);
-  p_interp->return_from_loop = 1;
 }
 
 struct interp_struct*
@@ -91,10 +81,6 @@ interp_create(struct state_6502* p_state_6502,
   p_interp->deferred_interrupt_timer_id =
       timing_register_timer(p_timing,
                             interp_deferred_interrupt_timer_callback,
-                            p_interp);
-  p_interp->short_instruction_run_timer_id =
-      timing_register_timer(p_timing,
-                            interp_instruction_run_timer_callback,
                             p_interp);
 
   return p_interp;
@@ -1568,12 +1554,8 @@ interp_enter(struct interp_struct* p_interp) {
       /* Note that we stay in the interpreter loop to handle the IRQ if one
        * has arisen, otherwise it would get lost.
        */
-      if (p_interp->return_from_loop) {
-        size_t timer_id = p_interp->short_instruction_run_timer_id;
-        if (!do_irq) {
-          break;
-        }
-        countdown = timing_start_timer_with_value(p_timing, timer_id, 0);
+      if (p_interp->return_from_loop && !do_irq) {
+        break;
       }
     } else {
       /* If no countdown expired, just fetch the next opcode without drama. */
@@ -1587,25 +1569,7 @@ interp_enter(struct interp_struct* p_interp) {
   return (uint32_t) -1;
 }
 
-int64_t
-interp_single_instruction(struct interp_struct* p_interp, int64_t countdown) {
-  uint32_t ret;
-
-  struct timing_struct* p_timing = p_interp->p_timing;
-
-assert(0);
-
-  (void) timing_advance_time(p_timing, countdown);
-
-  /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
-  (void) timing_start_timer_with_value(p_timing,
-                                       p_interp->short_instruction_run_timer_id,
-                                       1);
-
-  ret = interp_enter(p_interp);
-  (void) ret;
-  assert(ret == (uint32_t) -1);
-
-  countdown = timing_get_countdown(p_timing);
-  return countdown;
+void
+interp_set_loop_exit(struct interp_struct* p_interp) {
+  p_interp->return_from_loop = 1;
 }

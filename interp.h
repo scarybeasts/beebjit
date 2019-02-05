@@ -16,7 +16,6 @@ struct interp_struct* interp_create(struct state_6502* p_state_6502,
 void interp_destroy(struct interp_struct* p_interp);
 
 uint32_t interp_enter(struct interp_struct* p_interp);
-int64_t interp_single_instruction(struct interp_struct* p_interp,
-                                  int64_t cycles_run);
+void interp_set_loop_exit(struct interp_struct* p_interp);
 
 #endif /* BEEBJIT_INTERP_H */
