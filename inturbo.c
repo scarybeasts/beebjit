@@ -90,23 +90,26 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       if (optype == k_jsr) {
         break;
       }
-      asm_x64_emit_inturbo_mode_abs(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_mode_abs(p_buf);
+      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_abx:
       if ((opmem == k_read) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_abx_accurate(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_abx_accurate(p_buf);
       } else {
-        asm_x64_emit_inturbo_mode_abx(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_abx(p_buf);
       }
+      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_aby:
       if ((opmem == k_read) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_aby_accurate(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_aby_accurate(p_buf);
       } else {
-        asm_x64_emit_inturbo_mode_aby(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_aby(p_buf);
       }
+      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_zpx:
       asm_x64_emit_inturbo_mode_zpx(p_buf);
@@ -115,15 +118,17 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_mode_zpy(p_buf);
       break;
     case k_idx:
-      asm_x64_emit_inturbo_mode_idx(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_mode_idx(p_buf);
+      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_idy:
       if ((opmem == k_read) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_idy_accurate(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_idy_accurate(p_buf);
       } else {
-        asm_x64_emit_inturbo_mode_idy(p_buf, special_addr_above);
+        asm_x64_emit_inturbo_mode_idy(p_buf);
       }
+      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_ind:
       asm_x64_emit_inturbo_mode_ind(p_buf);

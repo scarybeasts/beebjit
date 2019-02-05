@@ -26,6 +26,22 @@ asm_x64_inturbo_load_pc_from_pc_END:
   ret
 
 
+.globl asm_x64_inturbo_check_special_address
+.globl asm_x64_inturbo_check_special_address_END
+.globl asm_x64_inturbo_check_special_address_lea_patch
+.globl asm_x64_inturbo_check_special_address_jb_patch
+asm_x64_inturbo_check_special_address:
+
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
+asm_x64_inturbo_check_special_address_lea_patch:
+  bt REG_SCRATCH2_32, 16
+  jb 0
+asm_x64_inturbo_check_special_address_jb_patch:
+
+asm_x64_inturbo_check_special_address_END:
+  ret
+
+
 .globl asm_x64_inturbo_check_countdown
 .globl asm_x64_inturbo_check_countdown_END
 .globl asm_x64_inturbo_check_countdown_lea_patch
@@ -160,22 +176,6 @@ asm_x64_inturbo_call_interp:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
   jmp [REG_SCRATCH3 * 8 + 0x3f000000]
-
-
-.globl asm_x64_inturbo_check_special_addr
-.globl asm_x64_inturbo_check_special_addr_END
-.globl asm_x64_inturbo_check_special_addr_lea_patch
-.globl asm_x64_inturbo_check_special_addr_jb_patch
-asm_x64_inturbo_check_special_addr:
-
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
-asm_x64_inturbo_check_special_addr_lea_patch:
-  bt REG_SCRATCH2_32, 16
-  jb 0
-asm_x64_inturbo_check_special_addr_jb_patch:
-
-asm_x64_inturbo_check_special_addr_END:
-  ret
 
 
 .globl asm_x64_inturbo_mode_zpg

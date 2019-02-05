@@ -4,6 +4,30 @@
 #include "util.h"
 
 void
+asm_x64_emit_inturbo_check_special_address(struct util_buffer* p_buf,
+                                           uint16_t special_addr_above) {
+  int lea_patch = (0x10000 - special_addr_above);
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_check_special_address,
+               asm_x64_inturbo_check_special_address_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_inturbo_check_special_address,
+                    asm_x64_inturbo_check_special_address_lea_patch,
+                    lea_patch);
+  /* NOTE: could consider implementing very simple load / store abs mode to
+   * special registers inline. Calling out to the interpreter is expensive.
+   */
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_inturbo_check_special_address,
+                     asm_x64_inturbo_check_special_address_jb_patch,
+                     asm_x64_inturbo_call_interp);
+}
+
+void
 asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
                                      uint8_t opcycles) {
   size_t offset = util_buffer_get_pos(p_buf);
@@ -89,30 +113,6 @@ asm_x64_emit_inturbo_call_interp(struct util_buffer* p_buf) {
                      asm_x64_inturbo_call_interp);
 }
 
-static void
-asm_x64_emit_check_special_addr(struct util_buffer* p_buf,
-                                uint16_t special_addr_above) {
-  int lea_patch = (0x10000 - special_addr_above);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_check_special_addr,
-               asm_x64_inturbo_check_special_addr_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_inturbo_check_special_addr,
-                    asm_x64_inturbo_check_special_addr_lea_patch,
-                    lea_patch);
-  /* NOTE: could consider implementing very simple load / store abs mode to
-   * special registers inline. Calling out to the interpreter is expensive.
-   */
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_inturbo_check_special_addr,
-                     asm_x64_inturbo_check_special_addr_jb_patch,
-                     asm_x64_inturbo_call_interp);
-}
-
 void
 asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
@@ -121,51 +121,41 @@ asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf,
-                              uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_abs,
                asm_x64_inturbo_mode_abs_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf,
-                              uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_abx,
                asm_x64_inturbo_mode_abx_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_abx_accurate(struct util_buffer* p_buf,
-                                       uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_abx_accurate(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_abx_accurate,
                asm_x64_inturbo_mode_abx_accurate_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_accurate_post,
                asm_x64_inturbo_mode_accurate_post_END);
 }
 
 void
-asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf,
-                              uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_aby,
                asm_x64_inturbo_mode_aby_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_aby_accurate(struct util_buffer* p_buf,
-                                       uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_aby_accurate(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_aby_accurate,
                asm_x64_inturbo_mode_aby_accurate_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_accurate_post,
                asm_x64_inturbo_mode_accurate_post_END);
@@ -186,30 +176,24 @@ asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf,
-                              uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idx,
                asm_x64_inturbo_mode_idx_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf,
-                              uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idy,
                asm_x64_inturbo_mode_idy_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
 }
 
 void
-asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf,
-                                       uint16_t special_addr_above) {
+asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idy_accurate,
                asm_x64_inturbo_mode_idy_accurate_END);
-  asm_x64_emit_check_special_addr(p_buf, special_addr_above);
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_accurate_post,
                asm_x64_inturbo_mode_accurate_post_END);
