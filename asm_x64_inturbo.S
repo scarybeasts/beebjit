@@ -168,8 +168,7 @@ asm_x64_inturbo_call_interp:
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
 
-  # The +1 is because asm_x64_inturbo_next_opcode is about to do a -1.
-  lea REG_COUNTDOWN, [REG_RETURN + 1]
+  mov REG_COUNTDOWN, REG_RETURN
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags

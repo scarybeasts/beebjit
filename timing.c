@@ -258,6 +258,8 @@ timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
   uint64_t orig_delta = (p_timing->countdown - countdown);
   uint64_t delta = orig_delta;
 
+  assert(countdown <= p_timing->countdown);
+
   while (delta) {
     uint64_t sub_delta = p_timing->countdown;
     if (sub_delta > delta) {

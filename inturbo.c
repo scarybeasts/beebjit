@@ -499,8 +499,7 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
   struct timing_struct* p_timing = p_inturbo->p_timing;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-assert(0);
-
+  /* TODO: pass this straight into interp_enter. */
   (void) timing_advance_time(p_timing, countdown);
 
   /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
