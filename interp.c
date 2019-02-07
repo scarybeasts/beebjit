@@ -596,6 +596,13 @@ interp_is_branch_opcode(uint8_t opcode) {
 
 uint32_t
 interp_enter(struct interp_struct* p_interp) {
+  int64_t countdown = timing_get_countdown(p_interp->p_timing);
+
+  return interp_enter_with_countdown(p_interp, countdown);
+}
+
+uint32_t
+interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t pc;
   uint8_t a;
   uint8_t x;
@@ -611,7 +618,6 @@ interp_enter(struct interp_struct* p_interp) {
 
   int temp_int;
   uint8_t temp_u8;
-  int64_t countdown;
   int page_crossing;
   uint16_t addr;
   uint16_t addr_temp;
@@ -636,7 +642,6 @@ interp_enter(struct interp_struct* p_interp) {
   int64_t cycles_this_instruction = 0;
 
   p_interp->return_from_loop = 0;
-  countdown = timing_get_countdown(p_timing);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
