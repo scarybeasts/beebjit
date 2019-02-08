@@ -31,6 +31,7 @@ struct interp_struct {
   int debug_subsystem_active;
 
   uint32_t deferred_interrupt_timer_id;
+  uint32_t debug_timer_id;
   int return_from_loop;
 };
 
@@ -40,6 +41,15 @@ interp_deferred_interrupt_timer_callback(void* p) {
 
   (void) timing_stop_timer(p_interp->p_timing,
                            p_interp->deferred_interrupt_timer_id);
+}
+
+static void
+interp_debug_timer_callback(void* p) {
+  struct interp_struct* p_interp = (struct interp_struct*) p;
+
+  (void) timing_set_timer_value(p_interp->p_timing,
+                                p_interp->debug_timer_id,
+                                1);
 }
 
 struct interp_struct*
@@ -82,6 +92,18 @@ interp_create(struct state_6502* p_state_6502,
       timing_register_timer(p_timing,
                             interp_deferred_interrupt_timer_callback,
                             p_interp);
+
+  if (p_interp->debug_subsystem_active) {
+    p_interp->debug_timer_id =
+      timing_register_timer(p_timing,
+                            interp_debug_timer_callback,
+                            p_interp);
+    /* If debug is active, just leave a timer expiring after every instruction.
+     */
+    (void) timing_start_timer_with_value(p_timing,
+                                         p_interp->debug_timer_id,
+                                         1);
+  }
 
   return p_interp;
 }
@@ -615,13 +637,13 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint8_t of;
   uint8_t df;
   uint8_t intf;
+  uint8_t opcode;
 
   int temp_int;
   uint8_t temp_u8;
   int page_crossing;
   uint16_t addr;
   uint16_t addr_temp;
-  uint8_t opcode;
   uint8_t v;
 
   struct state_6502* p_state_6502 = p_interp->p_state_6502;
@@ -637,7 +659,6 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t callback_above = p_interp->callback_above;
-  int debug_subsystem_active = p_interp->debug_subsystem_active;
   int do_irq = 0;
   int64_t cycles_this_instruction = 0;
 
@@ -651,28 +672,28 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
    */
   opcode = p_mem_read[pc];
 
-  while (1) {
-    if (debug_subsystem_active) {
-      INTERP_TIMING_ADVANCE(0);
-      interp_call_debugger(p_interp,
-                           &a,
-                           &x,
-                           &y,
-                           &s,
-                           &pc,
-                           &zf,
-                           &nf,
-                           &cf,
-                           &of,
-                           &df,
-                           &intf,
-                           do_irq);
-      /* The debugger could have changed all sorts of state, so reload
-       * countdown.
-       */
-      countdown = timing_get_countdown(p_timing);
-    }
+  if (p_interp->debug_subsystem_active) {
+    INTERP_TIMING_ADVANCE(0);
+    interp_call_debugger(p_interp,
+                         &a,
+                         &x,
+                         &y,
+                         &s,
+                         &pc,
+                         &zf,
+                         &nf,
+                         &cf,
+                         &of,
+                         &df,
+                         &intf,
+                         do_irq);
+    /* The debugger could have changed all sorts of state, so reload
+     * countdown.
+     */
+    countdown = timing_get_countdown(p_timing);
+  }
 
+  while (1) {
     switch (opcode) {
     case 0x00: /* BRK */
       /* EMU NOTE: if both an NMI and normal IRQ are asserted at the same time,        * only the NMI should fire. This is confirmed via visual 6502; see:
@@ -1561,6 +1582,27 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
        */
       if (p_interp->return_from_loop && !do_irq) {
         break;
+      }
+
+      if (p_interp->debug_subsystem_active) {
+        INTERP_TIMING_ADVANCE(0);
+        interp_call_debugger(p_interp,
+                             &a,
+                             &x,
+                             &y,
+                             &s,
+                             &pc,
+                             &zf,
+                             &nf,
+                             &cf,
+                             &of,
+                             &df,
+                             &intf,
+                             do_irq);
+        /* The debugger could have changed all sorts of state, so reload
+         * countdown.
+         */
+        countdown = timing_get_countdown(p_timing);
       }
     } else {
       /* If no countdown expired, just fetch the next opcode without drama. */

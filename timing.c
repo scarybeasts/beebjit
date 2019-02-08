@@ -6,7 +6,7 @@
 #include <string.h>
 
 enum {
-  k_timing_num_timers = 8,
+  k_timing_num_timers = 16,
 };
 
 struct timing_struct {
@@ -244,6 +244,9 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
     if (value == 0 && p_timing->firing[i]) {
       void (*p_callback)(void*) = p_timing->p_callbacks[i];
       p_callback(p_timing->p_objects[i]);
+      assert(!p_timing->ticking[i] ||
+             !p_timing->firing[i] ||
+             p_timing->timings[i] > 0);
     }
   }
 
@@ -254,19 +257,25 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
 
 int64_t
 timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
+  uint64_t sub_delta;
+
   uint64_t orig_delta = (p_timing->countdown - countdown);
   uint64_t delta = orig_delta;
 
   assert(countdown <= p_timing->countdown);
 
+  sub_delta = p_timing->countdown;
+
   while (delta) {
-    uint64_t sub_delta = p_timing->countdown;
     if (sub_delta > delta) {
       /* TODO: optimization, can return if we know nothing expires. */
       sub_delta = delta;
     }
     timing_do_advance_time(p_timing, sub_delta);
     delta -= sub_delta;
+
+    sub_delta = p_timing->countdown;
+    assert(((int64_t) sub_delta) > 0);
   }
 
   return p_timing->countdown;

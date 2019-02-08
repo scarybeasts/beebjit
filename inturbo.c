@@ -501,11 +501,11 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
 
   (void) timing_advance_time(p_timing, countdown);
 
-  /* Set a timer to fire after 1 instruction and stop the interpreter loop. */
+  /* Set a timer to fire immediately and stop the interpreter loop. */
   countdown = timing_start_timer_with_value(
       p_timing,
       p_inturbo->short_instruction_run_timer_id,
-      0);
+      1);
 
   ret = interp_enter_with_countdown(p_interp, countdown);
   (void) ret;
