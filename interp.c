@@ -638,6 +638,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint8_t df;
   uint8_t intf;
   uint8_t opcode;
+  uint8_t prev_opcode;
 
   int temp_int;
   uint8_t temp_u8;
@@ -1504,109 +1505,110 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
     /* Conceptually fetch next opcode here, although in code it's done in both
      * branches of this if statement below.
      * If an IRQ was polled during the just executed opcode, that will be
-     * handled inside the "countdown expired" check below, and the next opcode
+     * handled inside the "countdown expired" fork below, and the next opcode
      * will be forced to 0x00 (BRK).
      */
 
     countdown -= cycles_this_instruction;
 
-    if (countdown <= 0) {
-      uint8_t prev_opcode = opcode;
+    if (countdown > 0) {
+      /* No countdown expired, just fetch the next opcode without drama. */
       opcode = p_mem_read[pc];
+      continue;
+    }
 
-      countdown += cycles_this_instruction;
-      /* Instructions requiring full tick-by-tick execution -- notably,
-       * hardware register accesses -- are handled separately.
-       * For the remaining instructions, the only sub-instruction aspect which
-       * makes a difference is when the interrupt decision is made, which
-       * usually (but not always) occurs just before the last instuction cycle.
-       * "Just before" means that we effectively need to check interrupts
-       * before the penultimate cycle because an interrupt that is asserted
-       * at the start of the last cycle is not soon enough to be detected.
+    prev_opcode = opcode;
+    opcode = p_mem_read[pc];
+
+    countdown += cycles_this_instruction;
+    /* Instructions requiring full tick-by-tick execution -- notably,
+     * hardware register accesses -- are handled separately.
+     * For the remaining instructions, the only sub-instruction aspect which
+     * makes a difference is when the interrupt decision is made, which
+     * usually (but not always) occurs just before the last instuction cycle.
+     * "Just before" means that we effectively need to check interrupts
+     * before the penultimate cycle because an interrupt that is asserted
+     * at the start of the last cycle is not soon enough to be detected.
+     */
+    if (!cycles_this_instruction) {
+      /* Instruction was already run tick-by-tick including IRQ poll. Need
+       * to make sure to consume the timer expiry that got us here though.
        */
-      if (!cycles_this_instruction) {
-        /* Instruction was already run tick-by-tick including IRQ poll. Need
-         * to make sure to consume the timer expiry that got us here though.
+      interp_deferred_interrupt_timer_callback(p_interp);
+      countdown = timing_get_countdown(p_timing);
+    } else if (cycles_this_instruction <= 2) {
+      /* TODO: do we need timing advance here? */
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
+      INTERP_TIMING_ADVANCE(cycles_this_instruction);
+    } else if (interp_is_branch_opcode(prev_opcode)) {
+      /* EMU NOTE: Taken branches have a different interrupt poll location. */
+      if (cycles_this_instruction == 3) {
+        /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
+         * after first cycle, not second cycle. Given that the interrupt
+         * needs to be already asserted prior to polling, we poll interrupts
+         * at the start of the 3 cycle sequence.
          */
-        interp_deferred_interrupt_timer_callback(p_interp);
-        countdown = timing_get_countdown(p_timing);
-      } else if (cycles_this_instruction <= 2) {
-        /* TODO: do we need timing advance here? */
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
-        INTERP_TIMING_ADVANCE(cycles_this_instruction);
-      } else if (interp_is_branch_opcode(prev_opcode)) {
-        /* EMU NOTE: Taken branches have a different interrupt poll location. */
-        if (cycles_this_instruction == 3) {
-          /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
-           * after first cycle, not second cycle. Given that the interrupt
-           * needs to be already asserted prior to polling, we poll interrupts
-           * at the start of the 3 cycle sequence.
-           */
-          interp_poll_irq_now(&do_irq, p_state_6502, intf);
-          INTERP_TIMING_ADVANCE(3);
-        } else {
-          /* Branch taken page crossing, 4 cycles. Interrupt polling after
-           * first cycle _and_ after third cycle.
-           * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
-           */
-          interp_poll_irq_now(&do_irq, p_state_6502, intf);
-          INTERP_TIMING_ADVANCE(2);
-          interp_poll_irq_now(&do_irq, p_state_6502, intf);
-          INTERP_TIMING_ADVANCE(2);
-        }
+        INTERP_TIMING_ADVANCE(3);
       } else {
-        INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
+        /* Branch taken page crossing, 4 cycles. Interrupt polling after
+         * first cycle _and_ after third cycle.
+         * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
+         */
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);
+        INTERP_TIMING_ADVANCE(2);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
-
-      /* If an IRQ was detected at the instruction poll point, force the next
-       * opcode to 0x00 (BRK).
-       */
-      if (do_irq) {
-        opcode = 0x00;
-      } else {
-        /* An IRQ may have been raised after the poll point, in which case
-         * make sure to interrupt the countdown loop again next go around.
-         */
-        if (p_state_6502->irq_fire &&
-            (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-             !intf)) {
-          countdown = interp_set_check_irqs(p_timing,
-                                            deferred_interrupt_timer_id);
-        }
-      }
-
-      /* Note that we stay in the interpreter loop to handle the IRQ if one
-       * has arisen, otherwise it would get lost.
-       */
-      if (p_interp->return_from_loop && !do_irq) {
-        break;
-      }
-
-      if (p_interp->debug_subsystem_active) {
-        INTERP_TIMING_ADVANCE(0);
-        interp_call_debugger(p_interp,
-                             &a,
-                             &x,
-                             &y,
-                             &s,
-                             &pc,
-                             &zf,
-                             &nf,
-                             &cf,
-                             &of,
-                             &df,
-                             &intf,
-                             do_irq);
-        /* The debugger could have changed all sorts of state, so reload
-         * countdown.
-         */
-        countdown = timing_get_countdown(p_timing);
-      }
     } else {
-      /* If no countdown expired, just fetch the next opcode without drama. */
-      opcode = p_mem_read[pc];
+      INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);
+      INTERP_TIMING_ADVANCE(2);
+    }
+
+    /* If an IRQ was detected at the instruction poll point, force the next
+     * opcode to 0x00 (BRK).
+     */
+    if (do_irq) {
+      opcode = 0x00;
+    } else {
+      /* An IRQ may have been raised after the poll point, in which case
+       * make sure to interrupt the countdown loop again next go around.
+       */
+      if (p_state_6502->irq_fire &&
+          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+           !intf)) {
+        countdown = interp_set_check_irqs(p_timing,
+                                          deferred_interrupt_timer_id);
+      }
+    }
+
+    /* Note that we stay in the interpreter loop to handle the IRQ if one
+     * has arisen, otherwise it would get lost.
+     */
+    if (p_interp->return_from_loop && !do_irq) {
+      break;
+    }
+
+    if (p_interp->debug_subsystem_active) {
+      INTERP_TIMING_ADVANCE(0);
+      interp_call_debugger(p_interp,
+                           &a,
+                           &x,
+                           &y,
+                           &s,
+                           &pc,
+                           &zf,
+                           &nf,
+                           &cf,
+                           &of,
+                           &df,
+                           &intf,
+                           do_irq);
+      /* The debugger could have changed all sorts of state, so reload
+       * countdown.
+       */
+      countdown = timing_get_countdown(p_timing);
     }
   }
 
