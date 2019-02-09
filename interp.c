@@ -229,11 +229,6 @@ interp_is_branch_opcode(uint8_t opcode) {
   memory_write_callback(p_memory_obj, addr_write, v);                         \
   countdown = timing_get_countdown(p_timing);
 
-#define INTERP_END_INSTRUCTION(cycles)                                        \
-  INTERP_TIMING_ADVANCE(cycles);                                              \
-  cycles_this_instruction = 0;                                                \
-  countdown = interp_set_check_irqs(p_timing, deferred_interrupt_timer_id);
-
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
@@ -247,7 +242,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ABS_WRITE(INSTR)                                          \
@@ -263,7 +259,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
@@ -284,7 +281,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ABr_READ(INSTR, reg_name)                                 \
@@ -311,7 +309,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ABr_WRITE(INSTR, reg_name)                                \
@@ -331,7 +330,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ABX_READ_WRITE(INSTR)                                     \
@@ -356,7 +356,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDX_READ(INSTR)                                           \
@@ -375,7 +376,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDX_WRITE(INSTR)                                          \
@@ -394,7 +396,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDY_READ(INSTR)                                           \
@@ -423,7 +426,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
@@ -445,7 +449,8 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
-    INTERP_END_INSTRUCTION(1);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
   }
 
 #define INTERP_MODE_ZPr_READ(reg_name)                                        \
@@ -875,8 +880,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       v = p_stack[++s];
       interp_set_flags(v, &zf, &nf, &cf, &of, &df, &intf);
       pc++;
-      INTERP_END_INSTRUCTION(2);
-      break;
+      INTERP_TIMING_ADVANCE(2);
+      goto check_irq;
     case 0x29: /* AND imm */
       v = p_mem_read[pc + 1];
       a &= v;
@@ -940,8 +945,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
-      INTERP_END_INSTRUCTION(2);
-      break;
+      INTERP_TIMING_ADVANCE(2);
+      goto check_irq;
     case 0x41: /* EOR idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_EOR());
       break;
@@ -1021,8 +1026,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
-      INTERP_END_INSTRUCTION(0);
-      break;
+      goto check_irq;
     case 0x59: /* EOR aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), y);
       break;
@@ -1111,8 +1115,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       intf = 1;
       pc++;
-      INTERP_END_INSTRUCTION(2);
-      break;
+      INTERP_TIMING_ADVANCE(2);
+      goto check_irq;
     case 0x79: /* ADC aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
       break;
@@ -1518,9 +1522,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
     }
 
     prev_opcode = opcode;
-    opcode = p_mem_read[pc];
-
     countdown += cycles_this_instruction;
+
     /* Instructions requiring full tick-by-tick execution -- notably,
      * hardware register accesses -- are handled separately.
      * For the remaining instructions, the only sub-instruction aspect which
@@ -1530,13 +1533,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
      * before the penultimate cycle because an interrupt that is asserted
      * at the start of the last cycle is not soon enough to be detected.
      */
-    if (!cycles_this_instruction) {
-      /* Instruction was already run tick-by-tick including IRQ poll. Need
-       * to make sure to consume the timer expiry that got us here though.
-       */
-      interp_deferred_interrupt_timer_callback(p_interp);
-      countdown = timing_get_countdown(p_timing);
-    } else if (cycles_this_instruction <= 2) {
+    if (cycles_this_instruction <= 2) {
       /* TODO: do we need timing advance here? */
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(cycles_this_instruction);
@@ -1565,6 +1562,9 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(2);
     }
+
+check_irq:
+    opcode = p_mem_read[pc];
 
     /* If an IRQ was detected at the instruction poll point, force the next
      * opcode to 0x00 (BRK).
