@@ -673,31 +673,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
-  /* TODO: opcode fetch doesn't consider hardware register access,
-   * i.e. JMP $FE6A will have incorrect timings.
-   */
-  opcode = p_mem_read[pc];
-
-  if (p_interp->debug_subsystem_active) {
-    INTERP_TIMING_ADVANCE(0);
-    interp_call_debugger(p_interp,
-                         &a,
-                         &x,
-                         &y,
-                         &s,
-                         &pc,
-                         &zf,
-                         &nf,
-                         &cf,
-                         &of,
-                         &df,
-                         &intf,
-                         do_irq);
-    /* The debugger could have changed all sorts of state, so reload
-     * countdown.
-     */
-    countdown = timing_get_countdown(p_timing);
-  }
+  goto check_irq;
 
   while (1) {
     switch (opcode) {
@@ -1564,6 +1540,9 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
     }
 
 check_irq:
+    /* TODO: opcode fetch doesn't consider hardware register access,
+     * i.e. JMP $FE6A will have incorrect timings.
+     */
     opcode = p_mem_read[pc];
 
     /* If an IRQ was detected at the instruction poll point, force the next
