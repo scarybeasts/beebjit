@@ -43,6 +43,8 @@ echo 'Running test.rom, interpreter, slow mode.'
 ./6502jit -os test.rom -expect 434241 -mode interp -s
 echo 'Running test.rom, inturbo.'
 ./6502jit -os test.rom -expect 434241 -mode inturbo
+echo 'Running test.rom, inturbo, debug.'
+./6502jit -os test.rom -expect 434241 -mode inturbo -d -r
 
 echo 'Running timing.rom, interpreter.'
 ./6502jit -os timing.rom -expect C0C1C2 -mode interp -a
