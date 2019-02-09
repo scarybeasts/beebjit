@@ -31,6 +31,7 @@ struct inturbo_struct {
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
   struct interp_struct* p_interp;
+  int debug_subsystem_active;
   uint8_t* p_inturbo_base;
   uint64_t* p_jump_table;
   uint32_t short_instruction_run_timer_id;
@@ -49,8 +50,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
   struct bbc_options* p_options = p_inturbo->p_options;
   int accurate = p_options->accurate;
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
-  int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
+  int debug = p_inturbo->debug_subsystem_active;
   struct memory_access* p_memory_access = p_inturbo->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
@@ -522,6 +522,9 @@ inturbo_create(struct state_6502* p_state_6502,
                struct timing_struct* p_timing,
                struct bbc_options* p_options,
                struct interp_struct* p_interp) {
+  int debug_subsystem_active;
+
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
 
   if (p_inturbo == NULL) {
@@ -556,6 +559,14 @@ inturbo_create(struct state_6502* p_state_6502,
 
   p_inturbo->p_jump_table = util_get_guarded_mapping(k_inturbo_jump_table_addr,
                                                      k_inturbo_jump_table_size);
+
+  debug_subsystem_active = p_options->debug_active_at_addr(
+      p_debug_callback_object, 0xFFFF);
+  p_inturbo->debug_subsystem_active = debug_subsystem_active;
+
+  if (debug_subsystem_active) {
+    interp_disable_debug_timer(p_interp);
+  }
 
   inturbo_fill_tables(p_inturbo);
 

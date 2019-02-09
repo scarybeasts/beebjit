@@ -1601,3 +1601,9 @@ void
 interp_set_loop_exit(struct interp_struct* p_interp) {
   p_interp->return_from_loop = 1;
 }
+
+
+void
+interp_disable_debug_timer(struct interp_struct* p_interp) {
+  (void) timing_stop_timer(p_interp->p_timing, p_interp->debug_timer_id);
+}
