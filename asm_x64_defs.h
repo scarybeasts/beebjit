@@ -3,6 +3,7 @@
 
 #define K_BBC_MEM_READ_ADDR                     0x10000000
 #define K_BBC_MEM_WRITE_ADDR                    0x11000000
+#define K_BBC_MEM_READ_TO_WRITE_OFFSET          0x01000000
 #define K_6502_VECTOR_IRQ                       0xFFFE
 #define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100
