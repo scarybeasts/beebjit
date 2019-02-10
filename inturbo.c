@@ -165,8 +165,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       default:
         /* Let the interpreter handle more exotic special opcodes. */
         asm_x64_emit_inturbo_call_interp(p_buf);
-        /* Interpreter dealt with cycle counting. */
-        opcycles = 0;
         break;
       }
       break;
@@ -463,8 +461,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
        * with them.
        */
       asm_x64_emit_inturbo_call_interp(p_buf);
-      /* Interpreter dealt with cycle counting. */
-      opcycles = 0;
       break;
     }
 
