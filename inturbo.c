@@ -68,7 +68,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         (uint64_t) (p_inturbo_base + (i * k_inturbo_bytes_per_opcode));
   }
 
-  for (i = 0; i < 256; ++i) {
+  for (i = 0;
+       i < 256;
+       (p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode), ++i) {
     uint8_t pc_advance;
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
@@ -77,6 +79,21 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opcycles = g_opcycles[i];
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
+
+    /* Preflight checks. Some opcodes or situations are tricky enough we want
+     * to go straight to the interpreter.
+     */
+    switch (optype) {
+    case k_kil:
+      if (i != 0x02) {
+        /* Not EXIT. Use interpreter. */
+        asm_x64_emit_inturbo_call_interp(p_buf);
+        continue;
+      }
+      break;
+    default:
+      break;
+    }
 
     switch (opmode) {
     case k_nil:
@@ -159,12 +176,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       case 0x02: /* EXIT */
         asm_x64_emit_instruction_EXIT(p_buf);
         break;
-      case 0xF2: /* CRASH */
-        asm_x64_emit_instruction_CRASH(p_buf);
-        break;
       default:
-        /* Let the interpreter handle more exotic special opcodes. */
-        asm_x64_emit_inturbo_call_interp(p_buf);
+        assert(0);
         break;
       }
       break;
@@ -509,8 +522,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     /* Advance PC, load next opcode, jump to correct opcode handler. */
     asm_x64_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
-
-    p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode;
   }
 
   util_buffer_destroy(p_buf);
