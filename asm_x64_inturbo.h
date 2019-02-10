@@ -9,6 +9,7 @@ void asm_x64_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                                 uint16_t special_mode_above);
 void asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
                                           uint8_t opcycles);
+void asm_x64_emit_inturbo_check_decimal(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
                                               uint8_t advance);
 void asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf);
@@ -122,6 +123,9 @@ void asm_x64_inturbo_check_countdown();
 void asm_x64_inturbo_check_countdown_END();
 void asm_x64_inturbo_check_countdown_lea_patch();
 void asm_x64_inturbo_check_countdown_jb_patch();
+void asm_x64_inturbo_check_decimal();
+void asm_x64_inturbo_check_decimal_END();
+void asm_x64_inturbo_check_decimal_jb_patch();
 void asm_x64_inturbo_load_opcode();
 void asm_x64_inturbo_load_opcode_END();
 void asm_x64_inturbo_load_opcode_mov_patch();
@@ -185,13 +189,10 @@ void asm_x64_inturbo_mode_ind_END();
 
 void asm_x64_instruction_ADC_imm_interp();
 void asm_x64_instruction_ADC_imm_interp_END();
-void asm_x64_instruction_ADC_imm_interp_jb_patch();
 void asm_x64_instruction_ADC_scratch_interp();
 void asm_x64_instruction_ADC_scratch_interp_END();
-void asm_x64_instruction_ADC_scratch_interp_jb_patch();
 void asm_x64_instruction_ADC_scratch_interp_based();
 void asm_x64_instruction_ADC_scratch_interp_based_END();
-void asm_x64_instruction_ADC_scratch_interp_based_jb_patch();
 void asm_x64_instruction_ALR_imm_interp();
 void asm_x64_instruction_ALR_imm_interp_END();
 void asm_x64_instruction_AND_imm_interp();
@@ -302,13 +303,10 @@ void asm_x64_instruction_SAX_scratch_interp();
 void asm_x64_instruction_SAX_scratch_interp_END();
 void asm_x64_instruction_SBC_imm_interp();
 void asm_x64_instruction_SBC_imm_interp_END();
-void asm_x64_instruction_SBC_imm_interp_jb_patch();
 void asm_x64_instruction_SBC_scratch_interp();
 void asm_x64_instruction_SBC_scratch_interp_END();
-void asm_x64_instruction_SBC_scratch_interp_jb_patch();
 void asm_x64_instruction_SBC_scratch_interp_based();
 void asm_x64_instruction_SBC_scratch_interp_based_END();
-void asm_x64_instruction_SBC_scratch_interp_based_jb_patch();
 void asm_x64_instruction_SLO_scratch_interp();
 void asm_x64_instruction_SLO_scratch_interp_END();
 void asm_x64_instruction_STA_scratch_interp();

@@ -57,6 +57,19 @@ asm_x64_inturbo_check_countdown_END:
   ret
 
 
+.globl asm_x64_inturbo_check_decimal
+.globl asm_x64_inturbo_check_decimal_END
+.globl asm_x64_inturbo_check_decimal_jb_patch
+asm_x64_inturbo_check_decimal:
+
+  bt REG_6502_ID_F_64, 3
+  jb 0
+asm_x64_inturbo_check_decimal_jb_patch:
+
+asm_x64_inturbo_check_decimal_END:
+  ret
+
+
 .globl asm_x64_inturbo_load_opcode
 .globl asm_x64_inturbo_load_opcode_END
 .globl asm_x64_inturbo_load_opcode_mov_patch
@@ -385,12 +398,8 @@ asm_x64_inturbo_mode_ind_END:
 
 .globl asm_x64_instruction_ADC_imm_interp
 .globl asm_x64_instruction_ADC_imm_interp_END
-.globl asm_x64_instruction_ADC_imm_interp_jb_patch
 asm_x64_instruction_ADC_imm_interp:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_ADC_imm_interp_jb_patch:
   shr REG_6502_CF_64, 1
   adc REG_6502_A, BYTE PTR [REG_6502_PC + 1]
   setb REG_6502_CF
@@ -402,12 +411,8 @@ asm_x64_instruction_ADC_imm_interp_END:
 
 .globl asm_x64_instruction_ADC_scratch_interp
 .globl asm_x64_instruction_ADC_scratch_interp_END
-.globl asm_x64_instruction_ADC_scratch_interp_jb_patch
 asm_x64_instruction_ADC_scratch_interp:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_ADC_scratch_interp_jb_patch:
   shr REG_6502_CF_64, 1
   adc REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   setb REG_6502_CF
@@ -419,12 +424,8 @@ asm_x64_instruction_ADC_scratch_interp_END:
 
 .globl asm_x64_instruction_ADC_scratch_interp_based
 .globl asm_x64_instruction_ADC_scratch_interp_based_END
-.globl asm_x64_instruction_ADC_scratch_interp_based_jb_patch
 asm_x64_instruction_ADC_scratch_interp_based:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_ADC_scratch_interp_based_jb_patch:
   shr REG_6502_CF_64, 1
   adc REG_6502_A, BYTE PTR [REG_SCRATCH1]
   setb REG_6502_CF
@@ -1067,12 +1068,8 @@ asm_x64_instruction_SAX_scratch_interp_END:
 
 .globl asm_x64_instruction_SBC_imm_interp
 .globl asm_x64_instruction_SBC_imm_interp_END
-.globl asm_x64_instruction_SBC_imm_interp_jb_patch
 asm_x64_instruction_SBC_imm_interp:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_SBC_imm_interp_jb_patch:
   sub REG_6502_CF, 1
   sbb REG_6502_A, BYTE PTR [REG_6502_PC + 1]
   setae REG_6502_CF
@@ -1084,12 +1081,8 @@ asm_x64_instruction_SBC_imm_interp_END:
 
 .globl asm_x64_instruction_SBC_scratch_interp
 .globl asm_x64_instruction_SBC_scratch_interp_END
-.globl asm_x64_instruction_SBC_scratch_interp_jb_patch
 asm_x64_instruction_SBC_scratch_interp:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_SBC_scratch_interp_jb_patch:
   sub REG_6502_CF, 1
   sbb REG_6502_A, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   setae REG_6502_CF
@@ -1101,12 +1094,8 @@ asm_x64_instruction_SBC_scratch_interp_END:
 
 .globl asm_x64_instruction_SBC_scratch_interp_based
 .globl asm_x64_instruction_SBC_scratch_interp_based_END
-.globl asm_x64_instruction_SBC_scratch_interp_based_jb_patch
 asm_x64_instruction_SBC_scratch_interp_based:
 
-  bt REG_6502_ID_F_64, 3
-  jb 0
-asm_x64_instruction_SBC_scratch_interp_based_jb_patch:
   sub REG_6502_CF, 1
   sbb REG_6502_A, BYTE PTR [REG_SCRATCH1]
   setae REG_6502_CF

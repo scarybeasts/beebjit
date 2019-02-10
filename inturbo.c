@@ -91,6 +91,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         continue;
       }
       break;
+    case k_adc:
+    case k_sbc:
+      /* TODO: very lazy / slow to bounce to interpreter for BCD. */
+      asm_x64_emit_inturbo_check_decimal(p_buf);
+      break;
     default:
       break;
     }
