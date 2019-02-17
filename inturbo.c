@@ -72,11 +72,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
        i < 256;
        (p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode), ++i) {
     uint8_t pc_advance;
+
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
     uint8_t opmem = g_opmem[optype];
     uint8_t opreg = g_optype_sets_register[optype];
     uint8_t opcycles = g_opcycles[i];
+    int check_page_crossing_read = 0;
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -125,22 +127,22 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_abx:
-      if ((opmem == k_read) && accurate) {
-        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_abx_accurate(p_buf);
-      } else {
-        asm_x64_emit_inturbo_mode_abx(p_buf);
-      }
+      asm_x64_emit_inturbo_mode_abx(p_buf);
       asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      if ((opmem == k_read) && accurate) {
+        check_page_crossing_read = 1;
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_abx_check_page_crossing(p_buf);
+      }
       break;
     case k_aby:
-      if ((opmem == k_read) && accurate) {
-        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_aby_accurate(p_buf);
-      } else {
-        asm_x64_emit_inturbo_mode_aby(p_buf);
-      }
+      asm_x64_emit_inturbo_mode_aby(p_buf);
       asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      if ((opmem == k_read) && accurate) {
+        check_page_crossing_read = 1;
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_aby_check_page_crossing(p_buf);
+      }
       break;
     case k_zpx:
       asm_x64_emit_inturbo_mode_zpx(p_buf);
@@ -153,13 +155,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
       break;
     case k_idy:
-      if ((opmem == k_read) && accurate) {
-        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_idy_accurate(p_buf);
-      } else {
-        asm_x64_emit_inturbo_mode_idy(p_buf);
-      }
+      asm_x64_emit_inturbo_mode_idy(p_buf);
       asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      if ((opmem == k_read) && accurate) {
+        check_page_crossing_read = 1;
+        /* Accurate checks for the +1 cycle if a page boundary is crossed. */
+        asm_x64_emit_inturbo_mode_idy_check_page_crossing(p_buf);
+      }
       break;
     case k_ind:
       asm_x64_emit_inturbo_mode_ind(p_buf);
@@ -170,7 +172,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     /* Check for countdown expiry. */
-    asm_x64_emit_inturbo_check_countdown(p_buf, opcycles);
+    if (check_page_crossing_read) {
+      asm_x64_emit_inturbo_check_countdown_with_page_crossing(p_buf, opcycles);
+    } else {
+      asm_x64_emit_inturbo_check_countdown(p_buf, opcycles);
+    }
 
     /* If active, call into the debugger now. By the time we get here, we know
      * we're not going to bounce into the interpreter, because we've done

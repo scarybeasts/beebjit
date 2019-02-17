@@ -57,6 +57,22 @@ asm_x64_inturbo_check_countdown_END:
   ret
 
 
+.globl asm_x64_inturbo_check_countdown_with_page_crossing
+.globl asm_x64_inturbo_check_countdown_with_page_crossing_END
+.globl asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch
+.globl asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch
+asm_x64_inturbo_check_countdown_with_page_crossing:
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
+asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch:
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
+  bt REG_COUNTDOWN, 63
+  jb 0
+asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch:
+
+asm_x64_inturbo_check_countdown_with_page_crossing_END:
+  ret
+
+
 .globl asm_x64_inturbo_check_decimal
 .globl asm_x64_inturbo_check_decimal_END
 .globl asm_x64_inturbo_check_decimal_jb_patch
@@ -212,17 +228,6 @@ asm_x64_inturbo_mode_abs_END:
   ret
 
 
-.globl asm_x64_inturbo_mode_accurate_post
-.globl asm_x64_inturbo_mode_accurate_post_END
-asm_x64_inturbo_mode_accurate_post:
-
-  # Adds in the extra cycle if the 8-bit address carried.
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
-
-asm_x64_inturbo_mode_accurate_post_END:
-  ret
-
-
 .globl asm_x64_inturbo_mode_abx
 .globl asm_x64_inturbo_mode_abx_END
 asm_x64_inturbo_mode_abx:
@@ -234,25 +239,19 @@ asm_x64_inturbo_mode_abx_END:
   ret
 
 
-.globl asm_x64_inturbo_mode_abx_accurate
-.globl asm_x64_inturbo_mode_abx_accurate_END
-asm_x64_inturbo_mode_abx_accurate:
+.globl asm_x64_inturbo_mode_abx_check_page_crossing
+.globl asm_x64_inturbo_mode_abx_check_page_crossing_END
+asm_x64_inturbo_mode_abx_check_page_crossing:
 
-  lahf
-  movzx REG_SCRATCH3_32, REG_6502_X
-  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
 
-  # Calculate if there's an 8-bit address carry.
-  # This incurs an extra cycle on the 6502.
-  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
-  add REG_SCRATCH3_8, REG_SCRATCH1_8
+  mov REG_SCRATCH3_32, 0
+  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_X_64]
+  bt REG_SCRATCH2_32, 8
+  # TODO: time replace with cmov to avoid partial register write?
   setae REG_SCRATCH3_8
-  sahf
-  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64]
-
-asm_x64_inturbo_mode_abx_accurate_END:
+asm_x64_inturbo_mode_abx_check_page_crossing_END:
   ret
 
 
@@ -267,25 +266,19 @@ asm_x64_inturbo_mode_aby_END:
   ret
 
 
-.globl asm_x64_inturbo_mode_aby_accurate
-.globl asm_x64_inturbo_mode_aby_accurate_END
-asm_x64_inturbo_mode_aby_accurate:
+.globl asm_x64_inturbo_mode_aby_check_page_crossing
+.globl asm_x64_inturbo_mode_aby_check_page_crossing_END
+asm_x64_inturbo_mode_aby_check_page_crossing:
 
-  lahf
-  movzx REG_SCRATCH3_32, REG_6502_Y
-  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
 
-  # Calculate if there's an 8-bit address carry.
-  # This incurs an extra cycle on the 6502.
-  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
-  add REG_SCRATCH3_8, REG_SCRATCH1_8
+  mov REG_SCRATCH3_32, 0
+  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
+  bt REG_SCRATCH2_32, 8
+  # TODO: time replace with cmov to avoid partial register write?
   setae REG_SCRATCH3_8
-  sahf
-  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
-
-asm_x64_inturbo_mode_aby_accurate_END:
+asm_x64_inturbo_mode_aby_check_page_crossing_END:
   ret
 
 
@@ -349,34 +342,20 @@ asm_x64_inturbo_mode_idy_END:
   ret
 
 
-.globl asm_x64_inturbo_mode_idy_accurate
-.globl asm_x64_inturbo_mode_idy_accurate_END
-asm_x64_inturbo_mode_idy_accurate:
+.globl asm_x64_inturbo_mode_idy_check_page_crossing
+.globl asm_x64_inturbo_mode_idy_check_page_crossing_END
+asm_x64_inturbo_mode_idy_check_page_crossing:
 
-  lahf
-  movzx REG_SCRATCH3_32, REG_6502_Y
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + K_BBC_MEM_READ_ADDR]
 
-  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
-
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-
-  # Calculate if there's an 8-bit address carry.
-  # This incurs an extra cycle on the 6502.
-  # Leave -1 in REG_SCRATCH3 if carry, 0 otherwise.
-  add REG_SCRATCH3_8, REG_SCRATCH2_8
+  mov REG_SCRATCH3_32, 0
+  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
+  bt REG_SCRATCH2_32, 8
+  # TODO: time replace with cmov to avoid partial register write?
   setae REG_SCRATCH3_8
-  sahf
-  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
-  movzx REG_SCRATCH1_32, REG_SCRATCH1_8
-  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-
-  mov REG_SCRATCH1_8, REG_SCRATCH2_8
-
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
-
-asm_x64_inturbo_mode_idy_accurate_END:
+asm_x64_inturbo_mode_idy_check_page_crossing_END:
   ret
 
 

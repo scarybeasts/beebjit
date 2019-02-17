@@ -48,6 +48,28 @@ asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_inturbo_check_countdown_with_page_crossing(
+    struct util_buffer* p_buf, uint8_t opcycles) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_inturbo_check_countdown_with_page_crossing,
+               asm_x64_inturbo_check_countdown_with_page_crossing_END);
+  asm_x64_patch_byte(
+      p_buf,
+      offset,
+      asm_x64_inturbo_check_countdown_with_page_crossing,
+      asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch,
+      (0x100 - (opcycles + 1)));
+  asm_x64_patch_jump(
+      p_buf,
+      offset,
+      asm_x64_inturbo_check_countdown_with_page_crossing,
+      asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch,
+      asm_x64_inturbo_call_interp);
+}
+
+void
 asm_x64_emit_inturbo_check_decimal(struct util_buffer* p_buf) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -149,13 +171,10 @@ asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_abx_accurate(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_mode_abx_check_page_crossing(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_abx_accurate,
-               asm_x64_inturbo_mode_abx_accurate_END);
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_accurate_post,
-               asm_x64_inturbo_mode_accurate_post_END);
+               asm_x64_inturbo_mode_abx_check_page_crossing,
+               asm_x64_inturbo_mode_abx_check_page_crossing_END);
 }
 
 void
@@ -166,13 +185,10 @@ asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_aby_accurate(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_mode_aby_check_page_crossing(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_aby_accurate,
-               asm_x64_inturbo_mode_aby_accurate_END);
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_accurate_post,
-               asm_x64_inturbo_mode_accurate_post_END);
+               asm_x64_inturbo_mode_aby_check_page_crossing,
+               asm_x64_inturbo_mode_aby_check_page_crossing_END);
 }
 
 void
@@ -204,13 +220,10 @@ asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf) {
+asm_x64_emit_inturbo_mode_idy_check_page_crossing(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_idy_accurate,
-               asm_x64_inturbo_mode_idy_accurate_END);
-  asm_x64_copy(p_buf,
-               asm_x64_inturbo_mode_accurate_post,
-               asm_x64_inturbo_mode_accurate_post_END);
+               asm_x64_inturbo_mode_idy_check_page_crossing,
+               asm_x64_inturbo_mode_idy_check_page_crossing_END);
 }
 
 void

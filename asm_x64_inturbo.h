@@ -9,6 +9,8 @@ void asm_x64_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                                 uint16_t special_mode_above);
 void asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
                                           uint8_t opcycles);
+void asm_x64_emit_inturbo_check_countdown_with_page_crossing(
+    struct util_buffer* p_buf, uint8_t opcycles);
 void asm_x64_emit_inturbo_check_decimal(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_check_interrupt(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
@@ -19,14 +21,17 @@ void asm_x64_emit_inturbo_call_interp(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_abs(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_abx(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_mode_abx_accurate(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_abx_check_page_crossing(
+    struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_aby(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_mode_aby_accurate(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_aby_check_page_crossing(
+    struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_idy(struct util_buffer* p_buf);
-void asm_x64_emit_inturbo_mode_idy_accurate(struct util_buffer* p_buf);
+void asm_x64_emit_inturbo_mode_idy_check_page_crossing(
+    struct util_buffer* p_buf);
 void asm_x64_emit_inturbo_mode_ind(struct util_buffer* p_buf);
 
 void asm_x64_emit_instruction_ADC_imm_interp(struct util_buffer* p_buf);
@@ -123,6 +128,10 @@ void asm_x64_inturbo_check_countdown();
 void asm_x64_inturbo_check_countdown_END();
 void asm_x64_inturbo_check_countdown_lea_patch();
 void asm_x64_inturbo_check_countdown_jb_patch();
+void asm_x64_inturbo_check_countdown_with_page_crossing();
+void asm_x64_inturbo_check_countdown_with_page_crossing_END();
+void asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch();
+void asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch();
 void asm_x64_inturbo_check_decimal();
 void asm_x64_inturbo_check_decimal_END();
 void asm_x64_inturbo_check_decimal_jb_patch();
@@ -164,16 +173,14 @@ void asm_x64_inturbo_mode_abs();
 void asm_x64_inturbo_mode_abs_END();
 void asm_x64_inturbo_mode_abs_lea_patch();
 void asm_x64_inturbo_mode_abs_jb_patch();
-void asm_x64_inturbo_mode_accurate_post();
-void asm_x64_inturbo_mode_accurate_post_END();
 void asm_x64_inturbo_mode_abx();
 void asm_x64_inturbo_mode_abx_END();
-void asm_x64_inturbo_mode_abx_accurate();
-void asm_x64_inturbo_mode_abx_accurate_END();
+void asm_x64_inturbo_mode_abx_check_page_crossing();
+void asm_x64_inturbo_mode_abx_check_page_crossing_END();
 void asm_x64_inturbo_mode_aby();
 void asm_x64_inturbo_mode_aby_END();
-void asm_x64_inturbo_mode_aby_accurate();
-void asm_x64_inturbo_mode_aby_accurate_END();
+void asm_x64_inturbo_mode_aby_check_page_crossing();
+void asm_x64_inturbo_mode_aby_check_page_crossing_END();
 void asm_x64_inturbo_mode_zpx();
 void asm_x64_inturbo_mode_zpx_END();
 void asm_x64_inturbo_mode_zpy();
@@ -182,8 +189,8 @@ void asm_x64_inturbo_mode_idx();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();
 void asm_x64_inturbo_mode_idy_END();
-void asm_x64_inturbo_mode_idy_accurate();
-void asm_x64_inturbo_mode_idy_accurate_END();
+void asm_x64_inturbo_mode_idy_check_page_crossing();
+void asm_x64_inturbo_mode_idy_check_page_crossing_END();
 void asm_x64_inturbo_mode_ind();
 void asm_x64_inturbo_mode_ind_END();
 
