@@ -318,6 +318,7 @@ asm_x64_inturbo_mode_idx:
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_X_64]
   movzx REG_SCRATCH2_32, REG_SCRATCH2_8
 
+  # TODO: 3 component lea slow!
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64 + 1]
   movzx REG_SCRATCH1_32, REG_SCRATCH1_8
 
