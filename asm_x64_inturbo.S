@@ -497,11 +497,12 @@ asm_x64_instruction_ASL_scratch_interp_based_END:
 .globl asm_x64_instruction_BCC_interp_END
 asm_x64_instruction_BCC_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   bt REG_6502_CF_64, 0
   cmovb REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BCC_interp_END:
   ret
@@ -511,11 +512,12 @@ asm_x64_instruction_BCC_interp_END:
 .globl asm_x64_instruction_BCS_interp_END
 asm_x64_instruction_BCS_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   bt REG_6502_CF_64, 0
   cmovae REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BCS_interp_END:
   ret
@@ -525,10 +527,11 @@ asm_x64_instruction_BCS_interp_END:
 .globl asm_x64_instruction_BEQ_interp_END
 asm_x64_instruction_BEQ_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   cmovne REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BEQ_interp_END:
   ret
@@ -560,10 +563,11 @@ asm_x64_instruction_BIT_interp_END:
 .globl asm_x64_instruction_BMI_interp_END
 asm_x64_instruction_BMI_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   cmovns REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BMI_interp_END:
   ret
@@ -573,10 +577,11 @@ asm_x64_instruction_BMI_interp_END:
 .globl asm_x64_instruction_BNE_interp_END
 asm_x64_instruction_BNE_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   cmove REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BNE_interp_END:
   ret
@@ -586,10 +591,11 @@ asm_x64_instruction_BNE_interp_END:
 .globl asm_x64_instruction_BPL_interp_END
 asm_x64_instruction_BPL_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   cmovs REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BPL_interp_END:
   ret
@@ -599,11 +605,12 @@ asm_x64_instruction_BPL_interp_END:
 .globl asm_x64_instruction_BVC_interp_END
 asm_x64_instruction_BVC_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   bt REG_6502_OF_64, 0
   cmovb REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BVC_interp_END:
   ret
@@ -613,11 +620,12 @@ asm_x64_instruction_BVC_interp_END:
 .globl asm_x64_instruction_BVS_interp_END
 asm_x64_instruction_BVS_interp:
 
-  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH2, 2
   movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
   bt REG_6502_OF_64, 0
   cmovae REG_SCRATCH1, REG_SCRATCH2
-  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1 + 2]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BVS_interp_END:
   ret
