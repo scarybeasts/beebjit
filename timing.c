@@ -91,7 +91,7 @@ timing_register_timer(struct timing_struct* p_timing,
 
   p_timing->p_callbacks[i] = p_callback;
   p_timing->p_objects[i] = p_object;
-  p_timing->timings[i] = 0;
+  p_timing->timings[i] = INT64_MAX;
   p_timing->ticking[i] = 0;
   p_timing->firing[i] = 1;
 
