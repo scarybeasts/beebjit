@@ -310,20 +310,13 @@ asm_x64_inturbo_mode_zpy_END:
 .globl asm_x64_inturbo_mode_idx_END
 asm_x64_inturbo_mode_idx:
 
-  # TODO: if two scratch registers were non-extended registers, we could
-  # compute the hi and low byte better in parallel dependency chains. The
-  # problem is we can't load into dh from extended registers.
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
 
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_X_64]
-  movzx REG_SCRATCH2_32, REG_SCRATCH2_8
-
-  # TODO: 3 component lea slow!
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64 + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64]
   movzx REG_SCRATCH1_32, REG_SCRATCH1_8
 
-  mov REG_SCRATCH1_8_HI, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-  mov REG_SCRATCH1_8, BYTE PTR [REG_SCRATCH2 + K_BBC_MEM_READ_ADDR]
+  # TODO: doesn't handle 0xFF.
+  movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
 
 asm_x64_inturbo_mode_idx_END:
   ret
@@ -333,9 +326,8 @@ asm_x64_inturbo_mode_idx_END:
 .globl asm_x64_inturbo_mode_idy_END
 asm_x64_inturbo_mode_idy:
 
-  # This isn't accurate because it doesn't handle zero-page wrap around
-  # for e.g. LDA ($FF),Y, or any idy mode with $FF as the operand.
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
+  # TODO: doesn't handle 0xFF.
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
 
