@@ -248,7 +248,7 @@ asm_x64_inturbo_mode_abx_check_page_crossing:
   mov REG_SCRATCH3_32, 0
   lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_X_64]
   bt REG_SCRATCH2_32, 8
-  # TODO: time replace with cmov to avoid partial register write?
+  # NOTE: tried cmov here, it's slower.
   setae REG_SCRATCH3_8
 
 asm_x64_inturbo_mode_abx_check_page_crossing_END:
@@ -275,7 +275,7 @@ asm_x64_inturbo_mode_aby_check_page_crossing:
   mov REG_SCRATCH3_32, 0
   lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
-  # TODO: time replace with cmov to avoid partial register write?
+  # NOTE: tried cmov here, it's slower.
   setae REG_SCRATCH3_8
 
 asm_x64_inturbo_mode_aby_check_page_crossing_END:
@@ -353,7 +353,7 @@ asm_x64_inturbo_mode_idy_check_page_crossing:
   mov REG_SCRATCH3_32, 0
   lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
-  # TODO: time replace with cmov to avoid partial register write?
+  # NOTE: tried cmov here, it's slower.
   setae REG_SCRATCH3_8
 
 asm_x64_inturbo_mode_idy_check_page_crossing_END:
