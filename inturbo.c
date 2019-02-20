@@ -574,8 +574,8 @@ struct inturbo_struct*
 inturbo_create(struct state_6502* p_state_6502,
                struct memory_access* p_memory_access,
                struct timing_struct* p_timing,
-               struct bbc_options* p_options,
-               struct interp_struct* p_interp) {
+               struct bbc_options* p_options) {
+  struct interp_struct* p_interp;
   int debug_subsystem_active;
 
   void* p_debug_callback_object = p_options->p_debug_callback_object;
@@ -585,6 +585,23 @@ inturbo_create(struct state_6502* p_state_6502,
     errx(1, "couldn't allocate inturbo_struct");
   }
   (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+
+  debug_subsystem_active = p_options->debug_active_at_addr(
+      p_debug_callback_object, 0xFFFF);
+  p_inturbo->debug_subsystem_active = debug_subsystem_active;
+
+  /* The inturbo mode uses an interpreter to handle complicated situations,
+   * such as IRQs, hardware accesses, etc.
+   */
+  p_interp = interp_create(p_state_6502, p_memory_access, p_timing, p_options);
+  if (p_interp == NULL) {
+    errx(1, "couldn't allocate interp_struct");
+  }
+  p_inturbo->p_interp = p_interp;
+
+  if (debug_subsystem_active) {
+    interp_disable_debug_timer(p_interp);
+  }
 
   asm_tables_init();
 
@@ -614,14 +631,6 @@ inturbo_create(struct state_6502* p_state_6502,
   p_inturbo->p_jump_table = util_get_guarded_mapping(k_inturbo_jump_table_addr,
                                                      k_inturbo_jump_table_size);
 
-  debug_subsystem_active = p_options->debug_active_at_addr(
-      p_debug_callback_object, 0xFFFF);
-  p_inturbo->debug_subsystem_active = debug_subsystem_active;
-
-  if (debug_subsystem_active) {
-    interp_disable_debug_timer(p_interp);
-  }
-
   inturbo_fill_tables(p_inturbo);
 
   return p_inturbo;
@@ -629,6 +638,7 @@ inturbo_create(struct state_6502* p_state_6502,
 
 void
 inturbo_destroy(struct inturbo_struct* p_inturbo) {
+  interp_destroy(p_inturbo->p_interp);
   util_free_guarded_mapping(p_inturbo->p_inturbo_base,
                             256 * k_inturbo_bytes_per_opcode);
   util_free_guarded_mapping(p_inturbo->p_jump_table, k_inturbo_jump_table_size);
