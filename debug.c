@@ -45,11 +45,14 @@ struct debug_struct {
   int debug_break_opcodes[256];
   /* Stats. */
   int stats;
-  size_t count_addr[k_6502_addr_space_size];
-  size_t count_opcode[k_6502_op_num_opcodes];
-  size_t count_optype[k_6502_op_num_types];
-  size_t count_opmode[k_6502_op_num_modes];
-  size_t rom_write_faults;
+  uint64_t count_addr[k_6502_addr_space_size];
+  uint64_t count_opcode[k_6502_op_num_opcodes];
+  uint64_t count_optype[k_6502_op_num_types];
+  uint64_t count_opmode[k_6502_op_num_modes];
+  uint64_t rom_write_faults;
+  uint64_t branch_not_taken;
+  uint64_t branch_taken;
+  uint64_t branch_taken_page_crossing;
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
@@ -204,132 +207,133 @@ debug_print_opcode(char* buf,
   }
 }
 
-static int
-debug_get_addr(int* wrapped_8bit,
-               int* wrapped_16bit,
-               uint8_t opcode,
-               uint8_t operand1,
-               uint8_t operand2,
-               uint8_t x_6502,
-               uint8_t y_6502,
-               uint8_t* p_mem) {
+static inline void
+debug_get_details(int* p_addr_6502,
+                  int* p_branch_taken,
+                  int* p_wrapped_8bit,
+                  int* p_wrapped_16bit,
+                  uint16_t reg_pc,
+                  uint8_t opcode,
+                  uint8_t operand1,
+                  uint8_t operand2,
+                  uint8_t x_6502,
+                  uint8_t y_6502,
+                  uint8_t flag_n,
+                  uint8_t flag_o,
+                  uint8_t flag_c,
+                  uint8_t flag_z,
+                  uint8_t* p_mem) {
   uint8_t opmode = g_opmodes[opcode];
-  unsigned int addr;
-  uint16_t trunc_addr;
   uint16_t addr_addr;
 
+  int addr = -1;
   int check_wrap_8bit = 1;
 
-  *wrapped_8bit = 0;
-  *wrapped_16bit = 0;
+  *p_addr_6502 = -1;
+  *p_branch_taken = -1;
+  *p_wrapped_8bit = 0;
+  *p_wrapped_16bit = 0;
 
   switch (opmode) {
   case k_zpg:
     addr = operand1;
-    trunc_addr = addr;
+    *p_addr_6502 = addr;
     break;
   case k_zpx:
     addr = (operand1 + x_6502);
-    trunc_addr = (uint8_t) addr;
+    *p_addr_6502 = (uint8_t) addr;
     break;
   case k_zpy:
-    addr = (uint8_t) (operand1 + y_6502);
-    trunc_addr = (uint8_t) addr;
+    addr = (operand1 + y_6502);
+    *p_addr_6502 = (uint8_t) addr;
     break;
   case k_abs:
-    addr = (uint16_t) (operand1 + (operand2 << 8));
+    addr = (operand1 + (operand2 << 8));
     check_wrap_8bit = 0;
-    trunc_addr = addr;
+    *p_addr_6502 = addr;
     break;
   case k_abx:
     addr = (operand1 + (operand2 << 8) + x_6502);
     check_wrap_8bit = 0;
-    trunc_addr = (uint16_t) addr;
+    *p_addr_6502 = (uint16_t) addr;
     break;
   case k_aby:
     addr = (operand1 + (operand2 << 8) + y_6502);
     check_wrap_8bit = 0;
-    trunc_addr = (uint16_t) addr;
+    *p_addr_6502 = (uint16_t) addr;
     break;
   case k_idx:
     addr_addr = (operand1 + x_6502);
-    trunc_addr = (uint8_t) addr_addr;
-    if ((trunc_addr != addr_addr) || (addr_addr == 0xFF)) {
-      *wrapped_8bit = 1;
+    addr = (uint8_t) addr_addr;
+    if ((addr != addr_addr) || (addr == 0xFF)) {
+      *p_wrapped_8bit = 1;
     }
-    addr = p_mem[(uint8_t) (addr_addr + 1)];
-    addr <<= 8;
-    addr |= p_mem[(uint8_t) addr_addr];
+    *p_addr_6502 = p_mem[(uint8_t) (addr + 1)];
+    *p_addr_6502 <<= 8;
+    *p_addr_6502 |= p_mem[addr];
+    addr = *p_addr_6502;
     check_wrap_8bit = 0;
-    trunc_addr = addr;
     break;
   case k_idy:
     if (operand1 == 0xFF) {
-      *wrapped_8bit = 1;
+      *p_wrapped_8bit = 1;
     }
     addr = p_mem[(uint8_t) (operand1 + 1)];
     addr <<= 8;
     addr |= p_mem[operand1];
     addr = (addr + y_6502);
     check_wrap_8bit = 0;
-    trunc_addr = (uint16_t) addr;
+    *p_addr_6502 = (uint16_t) addr;
     break;
-  default:
-    return -1;
-    break;
-  }
+  case k_rel:
+    addr_addr = (reg_pc + 2);
+    addr = (uint16_t) (addr_addr + (char) operand1);
 
-  if (trunc_addr != addr) {
-    if (check_wrap_8bit) {
-      *wrapped_8bit = 1;
-    } else {
-      *wrapped_16bit = 1;
+    switch (g_optypes[opcode]) {
+    case k_bpl:
+      *p_branch_taken = !flag_n;
+      break;
+    case k_bmi:
+      *p_branch_taken = flag_n;
+      break;
+    case k_bvc:
+      *p_branch_taken = !flag_o;
+      break;
+    case k_bvs:
+      *p_branch_taken = flag_o;
+      break;
+    case k_bcc:
+      *p_branch_taken = !flag_c;
+      break;
+    case k_bcs:
+      *p_branch_taken = flag_c;
+      break;
+    case k_bne:
+      *p_branch_taken = !flag_z;
+      break;
+    case k_beq:
+      *p_branch_taken = flag_z;
+      break;
+    default:
+      assert(0);
+      break;
     }
-  }
-  return trunc_addr;
-}
-
-static void
-debug_print_branch(char* p_buf,
-                   size_t buf_len,
-                   uint8_t opcode,
-                   uint8_t fn_6502,
-                   uint8_t fo_6502,
-                   uint8_t fc_6502,
-                   uint8_t fz_6502) {
-  int taken = -1;
-  switch (g_optypes[opcode]) {
-  case k_bpl:
-    taken = !fn_6502;
-    break;
-  case k_bmi:
-    taken = fn_6502;
-    break;
-  case k_bvc:
-    taken = !fo_6502;
-    break;
-  case k_bvs:
-    taken = fo_6502;
-    break;
-  case k_bcc:
-    taken = !fc_6502;
-    break;
-  case k_bcs:
-    taken = fc_6502;
-    break;
-  case k_bne:
-    taken = !fz_6502;
-    break;
-  case k_beq:
-    taken = fz_6502;
+    if (*p_branch_taken) {
+      if ((addr_addr & 0x100) ^ (addr & 0x100)) {
+        *p_wrapped_8bit = 1;
+      }
+    }
     break;
   default:
     break;
   }
-  if (taken == 0) {
-    (void) snprintf(p_buf, buf_len, "[not taken]");
-  } else if (taken == 1) {
-    (void) snprintf(p_buf, buf_len, "[taken]");
+
+  if ((opmode != k_rel) && (addr != *p_addr_6502)) {
+    if (check_wrap_8bit) {
+      *p_wrapped_8bit = 1;
+    } else {
+      *p_wrapped_16bit = 1;
+    }
   }
 }
 
@@ -428,7 +432,7 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                 t2_oneshot_fired);
 }
 
-static int
+static inline int
 debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
@@ -524,9 +528,13 @@ debug_dump_stats(struct debug_struct* p_debug) {
     (void) printf("%4X: %zu\n", addr, count);
   }
   (void) printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
+  (void) printf("--> branch (not taken, taken, page cross): %zu, %zu, %zu\n",
+                p_debug->branch_not_taken,
+                p_debug->branch_taken,
+                p_debug->branch_taken_page_crossing);
 }
 
-static void
+static inline void
 debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t opcode,
                     uint16_t reg_pc,
@@ -595,7 +603,7 @@ debug_check_unusual(struct debug_struct* p_debug,
   /* Look for zero page wrap or full address space wraps. We want to prove
    * these are unusual to move to more fault-based fixups.
    */
-  if (wrapped_8bit) {
+  if ((opmode != k_rel) && wrapped_8bit) {
     if (p_debug->warn_at_addr_count[reg_pc]) {
       (void) printf("UNUSUAL: 8-bit ADDRESS WRAP at %.4X to %.4X\n",
                     reg_pc,
@@ -678,6 +686,7 @@ debug_callback(void* p, int do_irq) {
   uint8_t operand1;
   uint8_t operand2;
   int addr_6502;
+  int branch_taken;
   int hit_break;
   uint8_t reg_a;
   uint8_t reg_x;
@@ -698,7 +707,7 @@ debug_callback(void* p, int do_irq) {
   int wrapped_8bit;
   int wrapped_16bit;
   uint8_t opmode;
-  size_t oplen;
+  uint8_t oplen;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -725,22 +734,37 @@ debug_callback(void* p, int do_irq) {
   operand1 = p_mem_read[reg_pc_plus_1];
   operand2 = p_mem_read[reg_pc_plus_2];
 
+  debug_get_details(&addr_6502,
+                    &branch_taken,
+                    &wrapped_8bit,
+                    &wrapped_16bit,
+                    reg_pc,
+                    opcode,
+                    operand1,
+                    operand2,
+                    reg_x,
+                    reg_y,
+                    flag_n,
+                    flag_o,
+                    flag_c,
+                    flag_z,
+                    p_mem_read);
+
   if (p_debug->stats) {
     uint8_t optype = g_optypes[opcode];
     p_debug->count_addr[reg_pc]++;
     p_debug->count_opcode[opcode]++;
     p_debug->count_optype[optype]++;
     p_debug->count_opmode[opmode]++;
+    if (branch_taken == 0) {
+      p_debug->branch_not_taken++;
+    } else if (branch_taken == 1) {
+      p_debug->branch_taken++;
+      if (wrapped_8bit) {
+        p_debug->branch_taken_page_crossing++;
+      }
+    }
   }
-
-  addr_6502 = debug_get_addr(&wrapped_8bit,
-                             &wrapped_16bit,
-                             opcode,
-                             operand1,
-                             operand2,
-                             reg_x,
-                             reg_y,
-                             p_mem_read);
 
   debug_check_unusual(p_debug,
                       opcode,
@@ -769,14 +793,12 @@ debug_callback(void* p, int do_irq) {
                     "[addr=%.4X val=%.2X]",
                     addr_6502,
                     p_mem_read[addr_6502]);
-  } else {
-    debug_print_branch(extra_buf,
-                       sizeof(extra_buf),
-                       opcode,
-                       flag_n,
-                       flag_o,
-                       flag_c,
-                       flag_z);
+  } else if (branch_taken != -1) {
+    if (branch_taken == 0) {
+      (void) snprintf(extra_buf, sizeof(extra_buf), "[not taken]");
+    } else {
+      (void) snprintf(extra_buf, sizeof(extra_buf), "[taken]");
+    }
   }
 
   flag_i = !!(reg_flags & 0x04);
