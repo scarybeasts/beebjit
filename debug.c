@@ -213,7 +213,8 @@ debug_get_details(int* p_addr_6502,
                   int* p_wrapped_8bit,
                   int* p_wrapped_16bit,
                   uint16_t reg_pc,
-                  uint8_t opcode,
+                  uint8_t opmode,
+                  uint8_t optype,
                   uint8_t operand1,
                   uint8_t operand2,
                   uint8_t x_6502,
@@ -223,7 +224,6 @@ debug_get_details(int* p_addr_6502,
                   uint8_t flag_c,
                   uint8_t flag_z,
                   uint8_t* p_mem) {
-  uint8_t opmode = g_opmodes[opcode];
   uint16_t addr_addr;
 
   int addr = -1;
@@ -289,7 +289,7 @@ debug_get_details(int* p_addr_6502,
     addr_addr = (reg_pc + 2);
     addr = (uint16_t) (addr_addr + (char) operand1);
 
-    switch (g_optypes[opcode]) {
+    switch (optype) {
     case k_bpl:
       *p_branch_taken = !flag_n;
       break;
@@ -536,7 +536,8 @@ debug_dump_stats(struct debug_struct* p_debug) {
 
 static inline void
 debug_check_unusual(struct debug_struct* p_debug,
-                    uint8_t opcode,
+                    uint8_t opmode,
+                    uint8_t optype,
                     uint16_t reg_pc,
                     uint16_t addr_6502,
                     int wrapped_8bit,
@@ -548,8 +549,6 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  uint8_t opmode = g_opmodes[opcode];
-  uint8_t optype = g_optypes[opcode];
   uint8_t opmem = g_opmem[optype];
 
   is_write = ((opmem == k_write || opmem == k_rw) &&
@@ -707,6 +706,7 @@ debug_callback(void* p, int do_irq) {
   int wrapped_8bit;
   int wrapped_16bit;
   uint8_t opmode;
+  uint8_t optype;
   uint8_t oplen;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
@@ -728,7 +728,7 @@ debug_callback(void* p, int do_irq) {
     opcode = 0;
   }
   opmode = g_opmodes[opcode];
-  oplen = g_opmodelens[opmode];
+  optype = g_optypes[opcode];
   reg_pc_plus_1 = (reg_pc + 1);
   reg_pc_plus_2 = (reg_pc + 2);
   operand1 = p_mem_read[reg_pc_plus_1];
@@ -739,7 +739,8 @@ debug_callback(void* p, int do_irq) {
                     &wrapped_8bit,
                     &wrapped_16bit,
                     reg_pc,
-                    opcode,
+                    opmode,
+                    optype,
                     operand1,
                     operand2,
                     reg_x,
@@ -751,7 +752,6 @@ debug_callback(void* p, int do_irq) {
                     p_mem_read);
 
   if (p_debug->stats) {
-    uint8_t optype = g_optypes[opcode];
     p_debug->count_addr[reg_pc]++;
     p_debug->count_opcode[opcode]++;
     p_debug->count_optype[optype]++;
@@ -767,7 +767,8 @@ debug_callback(void* p, int do_irq) {
   }
 
   debug_check_unusual(p_debug,
-                      opcode,
+                      opmode,
+                      optype,
                       reg_pc,
                       addr_6502,
                       wrapped_8bit,
@@ -851,10 +852,13 @@ debug_callback(void* p, int do_irq) {
   if (p_debug->debug_running && !hit_break) {
     return 0;
   }
+
   p_debug->debug_running = 0;
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
     p_debug->next_or_finish_stop_addr = 0;
   }
+
+  oplen = g_opmodelens[opmode];
 
   while (1) {
     char* input_ret;
@@ -910,7 +914,7 @@ debug_callback(void* p, int do_irq) {
       p_debug->debug_running = 1;
       break;
     } else if (!strcmp(input_buf, "n")) {
-      p_debug->next_or_finish_stop_addr = reg_pc + oplen;
+      p_debug->next_or_finish_stop_addr = (reg_pc + oplen);
       p_debug->debug_running = 1;
       break;
     } else if (!strcmp(input_buf, "f")) {
