@@ -210,6 +210,9 @@ debug_print_opcode(char* buf,
 static inline void
 debug_get_details(int* p_addr_6502,
                   int* p_branch_taken,
+                  int* p_is_write,
+                  int* p_is_rom,
+                  int* p_is_register,
                   int* p_wrapped_8bit,
                   int* p_wrapped_16bit,
                   uint16_t reg_pc,
@@ -228,6 +231,7 @@ debug_get_details(int* p_addr_6502,
 
   int addr = -1;
   int check_wrap_8bit = 1;
+  uint8_t opmem = g_opmem[optype];
 
   *p_addr_6502 = -1;
   *p_branch_taken = -1;
@@ -335,6 +339,14 @@ debug_get_details(int* p_addr_6502,
       *p_wrapped_16bit = 1;
     }
   }
+
+  *p_is_write = ((opmem == k_write || opmem == k_rw) &&
+                 opmode != k_nil &&
+                 opmode != k_acc);
+  *p_is_register = (*p_addr_6502 >= k_bbc_registers_start &&
+                    *p_addr_6502 <
+                        (k_bbc_registers_start + k_bbc_registers_len));
+  *p_is_rom = (!*p_is_register && (*p_addr_6502 >= k_bbc_ram_size));
 }
 
 static void
@@ -537,26 +549,18 @@ debug_dump_stats(struct debug_struct* p_debug) {
 static inline void
 debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t opmode,
-                    uint8_t optype,
                     uint16_t reg_pc,
                     uint16_t addr_6502,
+                    int is_write,
+                    int is_rom,
+                    int is_register,
                     int wrapped_8bit,
                     int wrapped_16bit) {
-  int is_write;
-  int is_register;
-  int is_rom;
   int has_code;
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
-  uint8_t opmem = g_opmem[optype];
 
-  is_write = ((opmem == k_write || opmem == k_rw) &&
-              opmode != k_nil &&
-              opmode != k_acc);
-  is_register = (addr_6502 >= k_bbc_registers_start &&
-                 addr_6502 < k_bbc_registers_start + k_bbc_registers_len);
-  is_rom = (!is_register && addr_6502 >= k_bbc_ram_size);
   has_code = jit_has_code(p_jit, addr_6502);
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
@@ -576,9 +580,6 @@ debug_check_unusual(struct debug_struct* p_debug,
                     reg_pc,
                     addr_6502);
       p_debug->warn_at_addr_count[reg_pc]--;
-    }
-    if (p_debug->stats && (opmode == k_idx || opmode == k_idy)) {
-      p_debug->rom_write_faults++;
     }
   }
 
@@ -708,6 +709,9 @@ debug_callback(void* p, int do_irq) {
   uint8_t opmode;
   uint8_t optype;
   uint8_t oplen;
+  int is_write;
+  int is_rom;
+  int is_register;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -736,6 +740,9 @@ debug_callback(void* p, int do_irq) {
 
   debug_get_details(&addr_6502,
                     &branch_taken,
+                    &is_write,
+                    &is_rom,
+                    &is_register,
                     &wrapped_8bit,
                     &wrapped_16bit,
                     reg_pc,
@@ -764,13 +771,18 @@ debug_callback(void* p, int do_irq) {
         p_debug->branch_taken_page_crossing++;
       }
     }
+    if (is_write && is_rom) {
+      p_debug->rom_write_faults++;
+    }
   }
 
   debug_check_unusual(p_debug,
                       opmode,
-                      optype,
                       reg_pc,
                       addr_6502,
+                      is_write,
+                      is_rom,
+                      is_register,
                       wrapped_8bit,
                       wrapped_16bit);
 
