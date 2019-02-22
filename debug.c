@@ -548,6 +548,8 @@ debug_dump_stats(struct debug_struct* p_debug) {
 
 static inline void
 debug_check_unusual(struct debug_struct* p_debug,
+                    uint8_t operand1,
+                    uint8_t reg_x,
                     uint8_t opmode,
                     uint16_t reg_pc,
                     uint16_t addr_6502,
@@ -618,6 +620,21 @@ debug_check_unusual(struct debug_struct* p_debug,
                     addr_6502);
       p_debug->warn_at_addr_count[reg_pc]--;
     }
+    p_debug->debug_running = 0;
+  }
+
+  if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
+    if (p_debug->warn_at_addr_count[reg_pc]) {
+      (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
+      p_debug->warn_at_addr_count[reg_pc]--;
+    }
+    p_debug->debug_running = 0;
+  } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
+    if (p_debug->warn_at_addr_count[reg_pc]) {
+      (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
+      p_debug->warn_at_addr_count[reg_pc]--;
+    }
+    p_debug->debug_running = 0;
   }
 }
 
@@ -777,6 +794,8 @@ debug_callback(void* p, int do_irq) {
   }
 
   debug_check_unusual(p_debug,
+                      operand1,
+                      reg_x,
                       opmode,
                       reg_pc,
                       addr_6502,
