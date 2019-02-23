@@ -578,6 +578,9 @@ debug_check_unusual(struct debug_struct* p_debug,
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
+  uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
+  int warned = 0;
+
   has_code = jit_has_code(p_jit, addr_6502);
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
@@ -592,11 +595,11 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
   if (is_write && is_rom) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
+    if (warn_count) {
       (void) printf("UNUSUAL: Code at %.4X is writing to ROM at %.4X\n",
                     reg_pc,
                     addr_6502);
-      p_debug->warn_at_addr_count[reg_pc]--;
+      warned = 1;
     }
   }
 
@@ -605,11 +608,11 @@ debug_check_unusual(struct debug_struct* p_debug,
    * it in so we can find such a game and write some notes about it.
    */
   if (is_write && has_code) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
+    if (warn_count) {
       (void) printf("Code at %.4X modifying code at %.4X\n",
                     reg_pc,
                     addr_6502);
-      p_debug->warn_at_addr_count[reg_pc]--;
+      warned = 1;
     }
     if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
       (void) printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
@@ -621,35 +624,45 @@ debug_check_unusual(struct debug_struct* p_debug,
    * these are unusual to move to more fault-based fixups.
    */
   if ((opmode != k_rel) && wrapped_8bit) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
-      (void) printf("UNUSUAL: 8-bit ADDRESS WRAP at %.4X to %.4X\n",
-                    reg_pc,
-                    addr_6502);
-      p_debug->warn_at_addr_count[reg_pc]--;
+    if (warn_count) {
+      if (opmode == k_idx) {
+        (void) printf("VERY UNUSUAL: 8-bit IDX ADDRESS WRAP at %.4X to %.4X\n",
+                      reg_pc,
+                      ((uint8_t) (operand1 + reg_x)));
+      } else {
+        (void) printf("UNUSUAL: 8-bit ADDRESS WRAP at %.4X to %.4X\n",
+                      reg_pc,
+                      addr_6502);
+      }
+      warned = 1;
     }
   }
   if (wrapped_16bit) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
+    if (warn_count) {
       (void) printf("VERY UNUSUAL: 16-bit ADDRESS WRAP at %.4X to %.4X\n",
                     reg_pc,
                     addr_6502);
-      p_debug->warn_at_addr_count[reg_pc]--;
+      warned = 1;
     }
     p_debug->debug_running = 0;
   }
 
   if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
+    if (warn_count) {
       (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
-      p_debug->warn_at_addr_count[reg_pc]--;
+      warned = 1;
     }
     p_debug->debug_running = 0;
   } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
-    if (p_debug->warn_at_addr_count[reg_pc]) {
+    if (warn_count) {
       (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
-      p_debug->warn_at_addr_count[reg_pc]--;
+      warned = 1;
     }
     p_debug->debug_running = 0;
+  }
+
+  if (warned) {
+    p_debug->warn_at_addr_count[reg_pc]--;
   }
 }
 
