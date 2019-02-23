@@ -59,6 +59,8 @@ struct debug_struct {
   uint64_t idy_reads_with_page_crossing;
   uint64_t adc_sbc_count;
   uint64_t adc_sbc_with_decimal_count;
+  uint64_t register_reads;
+  uint64_t register_writes;
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
@@ -559,6 +561,9 @@ debug_dump_stats(struct debug_struct* p_debug) {
   (void) printf("--> abc/sbc (total, with decimal flag): %zu, %zu\n",
                 p_debug->adc_sbc_count,
                 p_debug->adc_sbc_with_decimal_count);
+  (void) printf("--> register hits (read / write): %zu, %zu\n",
+                p_debug->register_reads,
+                p_debug->register_writes);
 }
 
 static inline void
@@ -837,6 +842,13 @@ debug_callback(void* p, int do_irq) {
       p_debug->adc_sbc_count++;
       if (flag_d) {
         p_debug->adc_sbc_with_decimal_count++;
+      }
+    }
+    if (is_register) {
+      if (is_write) {
+        p_debug->register_writes++;
+      } else {
+        p_debug->register_reads++;
       }
     }
   }
