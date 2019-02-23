@@ -53,6 +53,10 @@ struct debug_struct {
   uint64_t branch_not_taken;
   uint64_t branch_taken;
   uint64_t branch_taken_page_crossing;
+  uint64_t abn_reads;
+  uint64_t abn_reads_with_page_crossing;
+  uint64_t idy_reads;
+  uint64_t idy_reads_with_page_crossing;
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
@@ -544,6 +548,12 @@ debug_dump_stats(struct debug_struct* p_debug) {
                 p_debug->branch_not_taken,
                 p_debug->branch_taken,
                 p_debug->branch_taken_page_crossing);
+  (void) printf("--> abn reads (total, page crossing): %zu, %zu\n",
+                p_debug->abn_reads,
+                p_debug->abn_reads_with_page_crossing);
+  (void) printf("--> idy reads (total, page crossing): %zu, %zu\n",
+                p_debug->idy_reads,
+                p_debug->idy_reads_with_page_crossing);
 }
 
 static inline void
@@ -790,6 +800,19 @@ debug_callback(void* p, int do_irq) {
     }
     if (is_write && is_rom) {
       p_debug->rom_write_faults++;
+    }
+    if (!is_write) {
+      if (opmode == k_abx || opmode == k_aby) {
+        p_debug->abn_reads++;
+        if ((addr_6502 >> 8) != operand2) {
+          p_debug->abn_reads_with_page_crossing++;
+        }
+      } else if (opmode == k_idy) {
+        p_debug->idy_reads++;
+        if ((addr_6502 >> 8) != (((uint16_t) (addr_6502 - reg_y)) >> 8)) {
+          p_debug->idy_reads_with_page_crossing++;
+        }
+      }
     }
   }
 
