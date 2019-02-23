@@ -57,6 +57,8 @@ struct debug_struct {
   uint64_t abn_reads_with_page_crossing;
   uint64_t idy_reads;
   uint64_t idy_reads_with_page_crossing;
+  uint64_t adc_sbc_count;
+  uint64_t adc_sbc_with_decimal_count;
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
@@ -554,6 +556,9 @@ debug_dump_stats(struct debug_struct* p_debug) {
   (void) printf("--> idy reads (total, page crossing): %zu, %zu\n",
                 p_debug->idy_reads,
                 p_debug->idy_reads_with_page_crossing);
+  (void) printf("--> abc/sbc (total, with decimal flag): %zu, %zu\n",
+                p_debug->adc_sbc_count,
+                p_debug->adc_sbc_with_decimal_count);
 }
 
 static inline void
@@ -753,6 +758,7 @@ debug_callback(void* p, int do_irq) {
   flag_n = !!(reg_flags & 0x80);
   flag_c = !!(reg_flags & 0x01);
   flag_o = !!(reg_flags & 0x40);
+  flag_d = !!(reg_flags & 0x08);
 
   opcode = p_mem_read[reg_pc];
   if (do_irq) {
@@ -814,6 +820,12 @@ debug_callback(void* p, int do_irq) {
         }
       }
     }
+    if (optype == k_adc || optype == k_sbc) {
+      p_debug->adc_sbc_count++;
+      if (flag_d) {
+        p_debug->adc_sbc_with_decimal_count++;
+      }
+    }
   }
 
   debug_check_unusual(p_debug,
@@ -857,7 +869,6 @@ debug_callback(void* p, int do_irq) {
   }
 
   flag_i = !!(reg_flags & 0x04);
-  flag_d = !!(reg_flags & 0x08);
 
   debug_print_opcode(opcode_buf,
                      sizeof(opcode_buf),
