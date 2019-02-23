@@ -810,7 +810,15 @@ debug_callback(void* p, int do_irq) {
                     p_mem_read);
 
   if (p_debug->stats) {
-    p_debug->count_addr[reg_pc]++;
+    /* Don't log the address as hit if it was an IRQ. That led to double
+     * counting of the address (the second time after RTI). Upon consideration,
+     * the stats results are less confusing this way. Specifically, runs of
+     * consecutive instructions won't have a surprising double count in the
+     * middle.
+     */
+    if (!do_irq) {
+      p_debug->count_addr[reg_pc]++;
+    }
     p_debug->count_opcode[opcode]++;
     p_debug->count_optype[optype]++;
     p_debug->count_opmode[opmode]++;
