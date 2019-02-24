@@ -44,7 +44,8 @@ enum {
 
 struct bbc_struct;
 
-struct bbc_struct* bbc_create(uint8_t* p_os_rom,
+struct bbc_struct* bbc_create(int mode,
+                              uint8_t* p_os_rom,
                               int debug_flag,
                               int run_flag,
                               int print_flag,
@@ -56,7 +57,6 @@ struct bbc_struct* bbc_create(uint8_t* p_os_rom,
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_full_reset(struct bbc_struct* p_bbc);
-void bbc_set_mode(struct bbc_struct* p_bbc, int mode);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   uint8_t index,
                   uint8_t* p_rom_src);
@@ -96,7 +96,6 @@ struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
 struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
-uint16_t bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc);
 uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,

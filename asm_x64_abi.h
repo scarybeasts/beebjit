@@ -27,6 +27,7 @@ struct asm_x64_abi {
 };
 
 void asm_x64_abi_init(struct asm_x64_abi* p_abi,
+                      uint8_t* p_memory_read,
                       struct bbc_options* p_options,
                       struct state_6502* p_state_6502);
 

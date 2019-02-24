@@ -500,7 +500,8 @@ bbc_do_vsync(struct bbc_struct* p_bbc) {
 }
 
 struct bbc_struct*
-bbc_create(uint8_t* p_os_rom,
+bbc_create(int mode,
+           uint8_t* p_os_rom,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -530,7 +531,7 @@ bbc_create(uint8_t* p_os_rom,
 
   util_get_channel_fds(&p_bbc->message_cpu_fd, &p_bbc->message_client_fd);
 
-  p_bbc->mode = k_bbc_mode_jit;
+  p_bbc->mode = mode;
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -659,28 +660,37 @@ bbc_create(uint8_t* p_os_rom,
 
   p_bbc->options.p_debug_callback_object = p_debug;
 
-  p_bbc->p_jit = jit_create(p_state_6502,
-                            &p_bbc->memory_access,
-                            p_timing,
-                            &p_bbc->options);
-  if (p_bbc->p_jit == NULL) {
-    errx(1, "jit_create failed");
-  }
-
-  p_bbc->p_interp = interp_create(p_state_6502,
-                                  &p_bbc->memory_access,
-                                  p_timing,
-                                  &p_bbc->options);
-  if (p_bbc->p_interp == NULL) {
-    errx(1, "interp_create failed");
-  }
-
-  p_bbc->p_inturbo = inturbo_create(p_state_6502,
+  switch (mode) {
+  case k_bbc_mode_jit:
+    p_bbc->p_jit = jit_create(p_state_6502,
+                              &p_bbc->memory_access,
+                              p_timing,
+                              &p_bbc->options);
+    if (p_bbc->p_jit == NULL) {
+      errx(1, "jit_create failed");
+    }
+    break;
+  case k_bbc_mode_interp:
+    p_bbc->p_interp = interp_create(p_state_6502,
                                     &p_bbc->memory_access,
                                     p_timing,
                                     &p_bbc->options);
-  if (p_bbc->p_inturbo == NULL) {
-    errx(1, "inturbo_create failed");
+    if (p_bbc->p_interp == NULL) {
+      errx(1, "interp_create failed");
+    }
+    break;
+  case k_bbc_mode_inturbo:
+    p_bbc->p_inturbo = inturbo_create(p_state_6502,
+                                      &p_bbc->memory_access,
+                                      p_timing,
+                                      &p_bbc->options);
+    if (p_bbc->p_inturbo == NULL) {
+      errx(1, "inturbo_create failed");
+    }
+    break;
+  default:
+    assert(0);
+    break;
   }
 
   bbc_full_reset(p_bbc);
@@ -704,8 +714,15 @@ bbc_destroy(struct bbc_struct* p_bbc) {
     }
   }
 
-  jit_destroy(p_bbc->p_jit);
-  interp_destroy(p_bbc->p_interp);
+  if (p_bbc->p_interp != NULL) {
+    interp_destroy(p_bbc->p_interp);
+  }
+  if (p_bbc->p_inturbo != NULL) {
+    inturbo_destroy(p_bbc->p_inturbo);
+  }
+  if (p_bbc->p_jit != NULL) {
+    jit_destroy(p_bbc->p_jit);
+  }
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
   sound_destroy(p_bbc->p_sound);
@@ -723,11 +740,6 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   }
 
   free(p_bbc);
-}
-
-void
-bbc_set_mode(struct bbc_struct* p_bbc, int mode) {
-  p_bbc->mode = mode;
 }
 
 void
@@ -818,12 +830,6 @@ void
 bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc) {
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_set_pc(p_state_6502, pc);
-}
-
-uint16_t
-bbc_get_block(struct bbc_struct* p_bbc, uint16_t reg_pc) {
-  struct jit_struct* p_jit = p_bbc->p_jit;
-  return jit_block_from_6502(p_jit, reg_pc);
 }
 
 struct state_6502*

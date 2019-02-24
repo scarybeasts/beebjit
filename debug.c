@@ -361,18 +361,24 @@ static void
 debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
   size_t i;
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
 
-    uint16_t addr_plus_1 = addr_6502 + 1;
-    uint16_t addr_plus_2 = addr_6502 + 2;
+    uint16_t addr_plus_1 = (addr_6502 + 1);
+    uint16_t addr_plus_2 = (addr_6502 + 2);
     uint8_t opcode = p_mem_read[addr_6502];
     uint8_t opmode = g_opmodes[opcode];
     uint8_t oplen = g_opmodelens[opmode];
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
-    uint16_t block_6502 = bbc_get_block(p_bbc, addr_6502);
+    uint16_t block_6502 = 0;
+
+    if (p_jit != NULL) {
+      block_6502 = jit_block_from_6502(p_jit, addr_6502);
+    }
+
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
                        opcode,
@@ -578,15 +584,16 @@ debug_check_unusual(struct debug_struct* p_debug,
                     int is_register,
                     int wrapped_8bit,
                     int wrapped_16bit) {
-  int has_code;
-
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct jit_struct* p_jit = bbc_get_jit(p_bbc);
 
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
   int warned = 0;
+  int has_code = 0;
 
-  has_code = jit_has_code(p_jit, addr_6502);
+  if (p_jit != NULL) {
+    has_code = jit_has_code(p_jit, addr_6502);
+  }
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
    * register space.
@@ -746,7 +753,6 @@ debug_callback(void* p, int do_irq) {
   uint16_t reg_pc;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
-  uint16_t block_6502;
   uint8_t flag_z;
   uint8_t flag_n;
   uint8_t flag_c;
@@ -762,6 +768,7 @@ debug_callback(void* p, int do_irq) {
   int is_write;
   int is_rom;
   int is_register;
+  struct jit_struct* p_jit;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -770,6 +777,7 @@ debug_callback(void* p, int do_irq) {
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_sigint_received = &s_sigint_received;
+  uint16_t block_6502 = 0;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -934,7 +942,10 @@ debug_callback(void* p, int do_irq) {
     flags_buf[7] = 'N';
   }
 
-  block_6502 = bbc_get_block(p_bbc, reg_pc);
+  p_jit = bbc_get_jit(p_bbc);
+  if (p_jit != NULL) {
+    block_6502 = jit_block_from_6502(p_jit, reg_pc);
+  }
 
   debug_print_state(block_6502,
                     reg_pc,
@@ -1119,7 +1130,9 @@ debug_callback(void* p, int do_irq) {
       reg_s = parse_int;
     } else if (sscanf(input_buf, "pc=%x", &parse_int) == 1) {
       reg_pc = parse_int;
-      ret_intel_pc = jit_get_jit_base_addr(bbc_get_jit(p_bbc), reg_pc);
+      if (p_jit != NULL) {
+        ret_intel_pc = jit_get_jit_base_addr(p_jit, reg_pc);
+      }
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_bbc, parse_int);
     } else if (!strcmp(input_buf, "d")) {

@@ -3152,8 +3152,8 @@ jit_enter(struct jit_struct* p_jit) {
   uint32_t run_result;
 
   unsigned char* p_mem_read = p_jit->p_mem_read;
-  uint16_t pc_6502 = state_6502_get_pc(p_jit->abi.p_state_6502);
-  unsigned char* p_start_addr = jit_get_jit_base_addr(p_jit, pc_6502);
+  uint16_t reg_pc = state_6502_get_pc(p_jit->abi.p_state_6502);
+  unsigned char* p_start_addr = jit_get_jit_base_addr(p_jit, reg_pc);
 
   if (!p_jit->timer_running) {
     p_jit->timer_running = 1;
@@ -3199,7 +3199,6 @@ jit_create(struct state_6502* p_state_6502,
   const char* p_log_flags = p_options->p_log_flags;
   unsigned char* p_mem_read = p_memory_access->p_mem_read;
   unsigned char* p_mem_write = p_memory_access->p_mem_write;
-  unsigned int uint_mem_read = (unsigned int) (size_t) p_mem_read;
 
   struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
   if (p_jit == NULL) {
@@ -3208,7 +3207,7 @@ jit_create(struct state_6502* p_state_6502,
   (void) memset(p_jit, '\0', sizeof(struct jit_struct));
 
   asm_tables_init();
-  asm_x64_abi_init(&p_jit->abi, p_options, p_state_6502);
+  asm_x64_abi_init(&p_jit->abi, p_mem_read, p_options, p_state_6502);
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
@@ -3217,10 +3216,6 @@ jit_create(struct state_6502* p_state_6502,
   util_make_mapping_read_write_exec(
       p_jit_base,
       k_6502_addr_space_size * k_jit_bytes_per_byte);
-
-  p_state_6502->reg_x = uint_mem_read;
-  p_state_6502->reg_y = uint_mem_read;
-  p_state_6502->reg_s = (uint_mem_read + k_6502_stack_addr);
 
   /* This is the mapping that is a semaphore to trigger JIT execution
    * interruption.

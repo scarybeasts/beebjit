@@ -43,7 +43,7 @@ main(int argc, const char* argv[]) {
   int accurate_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
-  int mode = k_bbc_mode_inturbo;
+  int mode = k_bbc_mode_interp;
   uint64_t cycles = 0;
   uint32_t expect = 0;
 
@@ -138,7 +138,12 @@ main(int argc, const char* argv[]) {
     errx(1, "can't load OS rom");
   }
 
-  p_bbc = bbc_create(os_rom,
+  if (test_flag) {
+    mode = k_bbc_mode_jit;
+  }
+
+  p_bbc = bbc_create(mode,
+                     os_rom,
                      debug_flag,
                      run_flag,
                      print_flag,
@@ -155,8 +160,6 @@ main(int argc, const char* argv[]) {
     test_do_tests(p_bbc);
     return 0;
   }
-
-  bbc_set_mode(p_bbc, mode);
 
   if (pc != 0) {
     bbc_set_pc(p_bbc, pc);

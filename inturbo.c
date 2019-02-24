@@ -604,10 +604,11 @@ inturbo_create(struct state_6502* p_state_6502,
   }
 
   asm_tables_init();
+  asm_x64_abi_init(&p_inturbo->abi,
+                   p_memory_access->p_mem_read,
+                   p_options,
+                   p_state_6502);
 
-  p_state_6502->reg_pc = (uint32_t) (size_t) p_memory_access->p_mem_read;
-
-  asm_x64_abi_init(&p_inturbo->abi, p_options, p_state_6502);
   p_inturbo->abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->abi.p_interp_object = p_inturbo;
 
