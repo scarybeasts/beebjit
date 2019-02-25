@@ -82,6 +82,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
+    if (debug) {
+      asm_x64_emit_inturbo_enter_debug(p_buf);
+    }
+
     /* Preflight checks. Some opcodes or situations are tricky enough we want
      * to go straight to the interpreter.
      */
@@ -176,15 +180,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_x64_emit_inturbo_check_countdown_with_page_crossing(p_buf, opcycles);
     } else {
       asm_x64_emit_inturbo_check_countdown(p_buf, opcycles);
-    }
-
-    /* If active, call into the debugger now. By the time we get here, we know
-     * we're not going to bounce into the interpreter, because we've done
-     * the address calculation for special memory accesses and the countdown
-     * calculation for timer expiry.
-     */
-    if (debug) {
-      asm_x64_emit_inturbo_enter_debug(p_buf);
     }
 
     switch (optype) {
@@ -600,7 +595,7 @@ inturbo_create(struct state_6502* p_state_6502,
   p_inturbo->p_interp = p_interp;
 
   if (debug_subsystem_active) {
-    interp_disable_debug_timer(p_interp);
+    interp_set_debug(p_interp, 0);
   }
 
   asm_tables_init();

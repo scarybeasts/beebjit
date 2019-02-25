@@ -1604,6 +1604,8 @@ interp_set_loop_exit(struct interp_struct* p_interp) {
 
 
 void
-interp_disable_debug_timer(struct interp_struct* p_interp) {
+interp_set_debug(struct interp_struct* p_interp, int debug) {
+  assert(!debug);
   (void) timing_stop_timer(p_interp->p_timing, p_interp->debug_timer_id);
+  p_interp->debug_subsystem_active = debug;
 }
