@@ -368,6 +368,45 @@ asm_x64_inturbo_mode_ind_END:
   ret
 
 
+.globl asm_x64_instruction_Bxx_interp_accurate
+.globl asm_x64_instruction_Bxx_interp_accurate_END
+.globl asm_x64_instruction_Bxx_interp_accurate_jb_patch
+.globl asm_x64_instruction_Bxx_interp_accurate_not_taken_target
+asm_x64_instruction_Bxx_interp_accurate:
+
+  movsx REG_SCRATCH1, BYTE PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH2, [REG_6502_PC + 2]
+  lea REG_SCRATCH3, [REG_SCRATCH2 + REG_SCRATCH1]
+  lea REG_SCRATCH1, [REG_SCRATCH1 + 2]
+  mov REG_SCRATCH2_8, 0
+  mov REG_SCRATCH3_8, 0
+  lea REG_SCRATCH2, [REG_SCRATCH2 + REG_SCRATCH3]
+  bt REG_SCRATCH2, 8
+  mov REG_SCRATCH2_32, 1
+  mov REG_SCRATCH3_32, 0
+  cmovb REG_SCRATCH2_32, REG_SCRATCH3_32
+
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
+  bt REG_COUNTDOWN, 63
+  jb 0
+asm_x64_instruction_Bxx_interp_accurate_jb_patch:
+
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + REG_SCRATCH1]
+  lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
+  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+
+asm_x64_instruction_Bxx_interp_accurate_not_taken_target:
+
+  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 2]
+  lea REG_6502_PC, [REG_6502_PC + 2]
+  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+
+
+asm_x64_instruction_Bxx_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_ADC_imm_interp
 .globl asm_x64_instruction_ADC_imm_interp_END
 asm_x64_instruction_ADC_imm_interp:
@@ -501,6 +540,19 @@ asm_x64_instruction_BCC_interp_END:
   ret
 
 
+.globl asm_x64_instruction_BCC_interp_accurate
+.globl asm_x64_instruction_BCC_interp_accurate_END
+.globl asm_x64_instruction_BCC_interp_accurate_jump_patch
+asm_x64_instruction_BCC_interp_accurate:
+
+  bt REG_6502_CF_64, 0
+  jb 0
+asm_x64_instruction_BCC_interp_accurate_jump_patch:
+
+asm_x64_instruction_BCC_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_BCS_interp
 .globl asm_x64_instruction_BCS_interp_END
 asm_x64_instruction_BCS_interp:
@@ -516,6 +568,19 @@ asm_x64_instruction_BCS_interp_END:
   ret
 
 
+.globl asm_x64_instruction_BCS_interp_accurate
+.globl asm_x64_instruction_BCS_interp_accurate_END
+.globl asm_x64_instruction_BCS_interp_accurate_jump_patch
+asm_x64_instruction_BCS_interp_accurate:
+
+  bt REG_6502_CF_64, 0
+  jae 0
+asm_x64_instruction_BCS_interp_accurate_jump_patch:
+
+asm_x64_instruction_BCS_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_BEQ_interp
 .globl asm_x64_instruction_BEQ_interp_END
 asm_x64_instruction_BEQ_interp:
@@ -527,6 +592,18 @@ asm_x64_instruction_BEQ_interp:
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BEQ_interp_END:
+  ret
+
+
+.globl asm_x64_instruction_BEQ_interp_accurate
+.globl asm_x64_instruction_BEQ_interp_accurate_END
+.globl asm_x64_instruction_BEQ_interp_accurate_jump_patch
+asm_x64_instruction_BEQ_interp_accurate:
+
+  jne 0
+asm_x64_instruction_BEQ_interp_accurate_jump_patch:
+
+asm_x64_instruction_BEQ_interp_accurate_END:
   ret
 
 
@@ -566,6 +643,18 @@ asm_x64_instruction_BMI_interp_END:
   ret
 
 
+.globl asm_x64_instruction_BMI_interp_accurate
+.globl asm_x64_instruction_BMI_interp_accurate_END
+.globl asm_x64_instruction_BMI_interp_accurate_jump_patch
+asm_x64_instruction_BMI_interp_accurate:
+
+  jns 0
+asm_x64_instruction_BMI_interp_accurate_jump_patch:
+
+asm_x64_instruction_BMI_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_BNE_interp
 .globl asm_x64_instruction_BNE_interp_END
 asm_x64_instruction_BNE_interp:
@@ -580,6 +669,18 @@ asm_x64_instruction_BNE_interp_END:
   ret
 
 
+.globl asm_x64_instruction_BNE_interp_accurate
+.globl asm_x64_instruction_BNE_interp_accurate_END
+.globl asm_x64_instruction_BNE_interp_accurate_jump_patch
+asm_x64_instruction_BNE_interp_accurate:
+
+  je 0
+asm_x64_instruction_BNE_interp_accurate_jump_patch:
+
+asm_x64_instruction_BNE_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_BPL_interp
 .globl asm_x64_instruction_BPL_interp_END
 asm_x64_instruction_BPL_interp:
@@ -591,6 +692,18 @@ asm_x64_instruction_BPL_interp:
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BPL_interp_END:
+  ret
+
+
+.globl asm_x64_instruction_BPL_interp_accurate
+.globl asm_x64_instruction_BPL_interp_accurate_END
+.globl asm_x64_instruction_BPL_interp_accurate_jump_patch
+asm_x64_instruction_BPL_interp_accurate:
+
+  js 0
+asm_x64_instruction_BPL_interp_accurate_jump_patch:
+
+asm_x64_instruction_BPL_interp_accurate_END:
   ret
 
 
@@ -609,6 +722,19 @@ asm_x64_instruction_BVC_interp_END:
   ret
 
 
+.globl asm_x64_instruction_BVC_interp_accurate
+.globl asm_x64_instruction_BVC_interp_accurate_END
+.globl asm_x64_instruction_BVC_interp_accurate_jump_patch
+asm_x64_instruction_BVC_interp_accurate:
+
+  bt REG_6502_OF_64, 0
+  jb 0
+asm_x64_instruction_BVC_interp_accurate_jump_patch:
+
+asm_x64_instruction_BVC_interp_accurate_END:
+  ret
+
+
 .globl asm_x64_instruction_BVS_interp
 .globl asm_x64_instruction_BVS_interp_END
 asm_x64_instruction_BVS_interp:
@@ -621,6 +747,19 @@ asm_x64_instruction_BVS_interp:
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
 
 asm_x64_instruction_BVS_interp_END:
+  ret
+
+
+.globl asm_x64_instruction_BVS_interp_accurate
+.globl asm_x64_instruction_BVS_interp_accurate_END
+.globl asm_x64_instruction_BVS_interp_accurate_jump_patch
+asm_x64_instruction_BVS_interp_accurate:
+
+  bt REG_6502_OF_64, 0
+  jae 0
+asm_x64_instruction_BVS_interp_accurate_jump_patch:
+
+asm_x64_instruction_BVS_interp_accurate_END:
   ret
 
 

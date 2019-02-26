@@ -224,35 +224,67 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       }
       break;
     case k_bcc:
-      asm_x64_emit_instruction_BCC_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BCC_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BCC_interp(p_buf);
+      }
       break;
     case k_bcs:
-      asm_x64_emit_instruction_BCS_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BCS_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BCS_interp(p_buf);
+      }
       break;
     case k_beq:
-      asm_x64_emit_instruction_BEQ_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BEQ_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BEQ_interp(p_buf);
+      }
       break;
     case k_bit:
       asm_x64_emit_instruction_BIT_interp(p_buf);
       break;
     case k_bmi:
-      asm_x64_emit_instruction_BMI_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BMI_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BMI_interp(p_buf);
+      }
       break;
     case k_bne:
-      asm_x64_emit_instruction_BNE_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BNE_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BNE_interp(p_buf);
+      }
       break;
     case k_bpl:
-      asm_x64_emit_instruction_BPL_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BPL_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BPL_interp(p_buf);
+      }
       break;
     case k_brk:
       asm_x64_emit_instruction_BRK_interp(p_buf);
       opmode = 0;
       break;
     case k_bvc:
-      asm_x64_emit_instruction_BVC_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BVC_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BVC_interp(p_buf);
+      }
       break;
     case k_bvs:
-      asm_x64_emit_instruction_BVS_interp(p_buf);
+      if (accurate) {
+        asm_x64_emit_instruction_BVS_interp_accurate(p_buf);
+      } else {
+        asm_x64_emit_instruction_BVS_interp(p_buf);
+      }
       break;
     case k_clc:
       asm_x64_emit_instruction_CLC(p_buf);
