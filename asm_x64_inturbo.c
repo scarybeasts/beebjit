@@ -3,6 +3,42 @@
 #include "asm_x64_common.h"
 #include "util.h"
 
+static void
+asm_x64_emit_instruction_Bxx_interp_accurate(
+    struct util_buffer* p_buf,
+    void* p_Bxx_interp_accurate,
+    void* p_Bxx_interp_accurate_END,
+    void* p_Bxx_interp_accurate_jump_patch) {
+  uint8_t* p_jump_target;
+
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, p_Bxx_interp_accurate, p_Bxx_interp_accurate_END);
+
+  p_jump_target = util_buffer_get_ptr(p_buf);
+  p_jump_target += util_buffer_get_pos(p_buf);
+  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
+                    asm_x64_instruction_Bxx_interp_accurate);
+
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     p_Bxx_interp_accurate,
+                     p_Bxx_interp_accurate_jump_patch,
+                     p_jump_target);
+
+  offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_Bxx_interp_accurate,
+               asm_x64_instruction_Bxx_interp_accurate_END);
+
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_instruction_Bxx_interp_accurate,
+                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
+                     asm_x64_inturbo_call_interp);
+}
+
 void
 asm_x64_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                            uint16_t special_addr_above) {
@@ -242,36 +278,11 @@ asm_x64_emit_instruction_BCC_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BCC_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BCC_interp_accurate,
-               asm_x64_instruction_BCC_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BCC_interp_accurate,
-                     asm_x64_instruction_BCC_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BCC_interp_accurate,
+      asm_x64_instruction_BCC_interp_accurate_END,
+      asm_x64_instruction_BCC_interp_accurate_jump_patch);
 }
 
 void
@@ -283,36 +294,11 @@ asm_x64_emit_instruction_BCS_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BCS_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BCS_interp_accurate,
-               asm_x64_instruction_BCS_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BCS_interp_accurate,
-                     asm_x64_instruction_BCS_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BCS_interp_accurate,
+      asm_x64_instruction_BCS_interp_accurate_END,
+      asm_x64_instruction_BCS_interp_accurate_jump_patch);
 }
 
 void
@@ -324,37 +310,11 @@ asm_x64_emit_instruction_BEQ_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BEQ_interp_accurate(struct util_buffer* p_buf) {
-  /* TODO: too much code duplication vs. other accurate jumps. */
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BEQ_interp_accurate,
-               asm_x64_instruction_BEQ_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BEQ_interp_accurate,
-                     asm_x64_instruction_BEQ_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BEQ_interp_accurate,
+      asm_x64_instruction_BEQ_interp_accurate_END,
+      asm_x64_instruction_BEQ_interp_accurate_jump_patch);
 }
 
 void
@@ -373,36 +333,11 @@ asm_x64_emit_instruction_BMI_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BMI_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BMI_interp_accurate,
-               asm_x64_instruction_BMI_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BMI_interp_accurate,
-                     asm_x64_instruction_BMI_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BMI_interp_accurate,
+      asm_x64_instruction_BMI_interp_accurate_END,
+      asm_x64_instruction_BMI_interp_accurate_jump_patch);
 }
 
 void
@@ -414,36 +349,11 @@ asm_x64_emit_instruction_BNE_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BNE_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BNE_interp_accurate,
-               asm_x64_instruction_BNE_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BNE_interp_accurate,
-                     asm_x64_instruction_BNE_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BNE_interp_accurate,
+      asm_x64_instruction_BNE_interp_accurate_END,
+      asm_x64_instruction_BNE_interp_accurate_jump_patch);
 }
 
 void
@@ -455,36 +365,11 @@ asm_x64_emit_instruction_BPL_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BPL_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BPL_interp_accurate,
-               asm_x64_instruction_BPL_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BPL_interp_accurate,
-                     asm_x64_instruction_BPL_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BPL_interp_accurate,
+      asm_x64_instruction_BPL_interp_accurate_END,
+      asm_x64_instruction_BPL_interp_accurate_jump_patch);
 }
 
 void
@@ -509,36 +394,11 @@ asm_x64_emit_instruction_BVC_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BVC_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BVC_interp_accurate,
-               asm_x64_instruction_BVC_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BVC_interp_accurate,
-                     asm_x64_instruction_BVC_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BVC_interp_accurate,
+      asm_x64_instruction_BVC_interp_accurate_END,
+      asm_x64_instruction_BVC_interp_accurate_jump_patch);
 }
 
 void
@@ -550,36 +410,11 @@ asm_x64_emit_instruction_BVS_interp(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_instruction_BVS_interp_accurate(struct util_buffer* p_buf) {
-  uint8_t* p_jump_target;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_BVS_interp_accurate,
-               asm_x64_instruction_BVS_interp_accurate_END);
-
-  p_jump_target = util_buffer_get_ptr(p_buf);
-  p_jump_target += util_buffer_get_pos(p_buf);
-  p_jump_target += (asm_x64_instruction_Bxx_interp_accurate_not_taken_target -
-                    asm_x64_instruction_Bxx_interp_accurate);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_BVS_interp_accurate,
-                     asm_x64_instruction_BVS_interp_accurate_jump_patch,
-                     p_jump_target);
-
-  offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_instruction_Bxx_interp_accurate,
-               asm_x64_instruction_Bxx_interp_accurate_END);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_instruction_Bxx_interp_accurate,
-                     asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+  asm_x64_emit_instruction_Bxx_interp_accurate(
+      p_buf,
+      asm_x64_instruction_BVS_interp_accurate,
+      asm_x64_instruction_BVS_interp_accurate_END,
+      asm_x64_instruction_BVS_interp_accurate_jump_patch);
 }
 
 void
