@@ -100,9 +100,7 @@ interp_create(struct state_6502* p_state_6502,
                             p_interp);
     /* If debug is active, just leave a timer expiring after every instruction.
      */
-    (void) timing_start_timer_with_value(p_timing,
-                                         p_interp->debug_timer_id,
-                                         1);
+    interp_set_debug(p_interp, 1);
   }
 
   return p_interp;
@@ -1605,7 +1603,13 @@ interp_set_loop_exit(struct interp_struct* p_interp) {
 
 void
 interp_set_debug(struct interp_struct* p_interp, int debug) {
-  assert(!debug);
-  (void) timing_stop_timer(p_interp->p_timing, p_interp->debug_timer_id);
+  struct timing_struct* p_timing = p_interp->p_timing;
+  uint32_t debug_timer_id = p_interp->debug_timer_id;
+
+  if (!debug) {
+    (void) timing_stop_timer(p_timing, debug_timer_id);
+  } else {
+    (void) timing_start_timer_with_value(p_timing, debug_timer_id, 1);
+  }
   p_interp->debug_subsystem_active = debug;
 }

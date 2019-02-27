@@ -571,6 +571,10 @@ inturbo_short_instruction_run_timer_callback(void* p) {
   (void) timing_stop_timer(p_inturbo->p_timing,
                            p_inturbo->short_instruction_run_timer_id);
   interp_set_loop_exit(p_interp);
+
+  if (p_inturbo->debug_subsystem_active) {
+    interp_set_debug(p_interp, 1);
+  }
 }
 
 static int64_t
@@ -587,6 +591,19 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
       p_timing,
       p_inturbo->short_instruction_run_timer_id,
       1);
+
+  if (p_inturbo->debug_subsystem_active) {
+    /* A little subtle: when we first bounce in to the interpreter, the inturbo
+     * code already called into the debugger for the instruction in question.
+     * So we disable interp debug to avoid calling into the debugger twice for
+     * the same opcode.
+     * Sometimes, interp will have to handle more than one opcode in a row.
+     * inturbo_short_instruction_run_timer_callback() turns interp debug back
+     * on and handles this case such that every opcode calls the debugger
+     * exactly once.
+     */
+    interp_set_debug(p_interp, 0);
+  }
 
   ret = interp_enter_with_countdown(p_interp, countdown);
   (void) ret;
@@ -625,10 +642,6 @@ inturbo_create(struct state_6502* p_state_6502,
     errx(1, "couldn't allocate interp_struct");
   }
   p_inturbo->p_interp = p_interp;
-
-  if (debug_subsystem_active) {
-    interp_set_debug(p_interp, 0);
-  }
 
   asm_tables_init();
   asm_x64_abi_init(&p_inturbo->abi,
