@@ -36,7 +36,7 @@ asm_x64_emit_instruction_Bxx_interp_accurate(
                      offset,
                      asm_x64_instruction_Bxx_interp_accurate,
                      asm_x64_instruction_Bxx_interp_accurate_jb_patch,
-                     asm_x64_inturbo_call_interp);
+                     asm_x64_inturbo_call_interp_countdown);
 }
 
 void
@@ -80,7 +80,7 @@ asm_x64_emit_inturbo_check_countdown(struct util_buffer* p_buf,
                      offset,
                      asm_x64_inturbo_check_countdown,
                      asm_x64_inturbo_check_countdown_jb_patch,
-                     asm_x64_inturbo_call_interp);
+                     asm_x64_inturbo_call_interp_countdown);
 }
 
 void
@@ -102,7 +102,7 @@ asm_x64_emit_inturbo_check_countdown_with_page_crossing(
       offset,
       asm_x64_inturbo_check_countdown_with_page_crossing,
       asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch,
-      asm_x64_inturbo_call_interp);
+      asm_x64_inturbo_call_interp_countdown);
 }
 
 void

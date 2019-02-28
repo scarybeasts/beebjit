@@ -527,6 +527,8 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0A);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE4B); /* ACR: T2 running. */
+  emit_LDA(p_buf, k_abs, 0xFE4D); /* IFR, wait until hit. */
+  emit_BEQ(p_buf, -5);
   emit_TXA(p_buf);
   emit_REQUIRE_EQ(p_buf, 0x06);
   emit_TYA(p_buf);

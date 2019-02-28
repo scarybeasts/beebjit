@@ -61,6 +61,9 @@
 #define REG_SCRATCH3       r9
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_32    r9d
+#define REG_SCRATCH4       r11
+#define REG_SCRATCH4_8     r11b
+#define REG_SCRATCH4_32    r11d
 
 #define REG_RETURN         rax
 #define REG_PARAM1         rdi

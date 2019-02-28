@@ -157,6 +157,7 @@ void asm_x64_inturbo_JMP_scratch_plus_1_interp_END();
 void asm_x64_inturbo_load_pc_from_pc();
 void asm_x64_inturbo_load_pc_from_pc_END();
 void asm_x64_inturbo_call_interp();
+void asm_x64_inturbo_call_interp_countdown();
 void asm_x64_inturbo_enter_debug();
 void asm_x64_inturbo_enter_debug_END();
 void asm_x64_inturbo_check_interrupt();

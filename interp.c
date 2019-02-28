@@ -149,7 +149,7 @@ interp_set_check_irqs(struct timing_struct* p_timing,
                       uint32_t deferred_interrupt_timer_id) {
   return timing_start_timer_with_value(p_timing,
                                        deferred_interrupt_timer_id,
-                                       0);
+                                       1);
 }
 
 static inline void
@@ -671,7 +671,8 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
-  goto check_irq;
+  opcode = p_mem_read[pc];
+  goto check_debug;
 
   while (1) {
     switch (opcode) {
@@ -1567,6 +1568,7 @@ check_irq:
       break;
     }
 
+check_debug:
     if (p_interp->debug_subsystem_active) {
       INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
