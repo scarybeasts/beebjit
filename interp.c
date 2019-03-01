@@ -1498,6 +1498,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
 
     prev_opcode = opcode;
     countdown += cycles_this_instruction;
+    assert(countdown > 0);
 
     /* Instructions requiring full tick-by-tick execution -- notably,
      * hardware register accesses -- are handled separately.
@@ -1509,7 +1510,6 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
      * at the start of the last cycle is not soon enough to be detected.
      */
     if (cycles_this_instruction <= 2) {
-      /* TODO: do we need timing advance here? */
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(cycles_this_instruction);
     } else if (interp_is_branch_opcode(prev_opcode)) {
