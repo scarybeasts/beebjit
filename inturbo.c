@@ -76,7 +76,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opmode = g_opmodes[i];
     uint8_t optype = g_optypes[i];
     uint8_t opmem = g_opmem[optype];
-    uint8_t opreg = g_optype_sets_register[optype];
+    uint8_t opreg = 0;
     uint8_t opcycles = g_opcycles[i];
     int check_page_crossing_read = 0;
 
@@ -372,6 +372,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_x64_emit_instruction_LDA_scratch_interp(p_buf);
       }
+      opreg = k_a;
       break;
     case k_ldx:
       if (opmode == k_imm) {
@@ -381,6 +382,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_x64_emit_instruction_LDX_scratch_interp(p_buf);
       }
+      opreg = k_x;
       break;
     case k_ldy:
       if (opmode == k_imm) {
@@ -390,6 +392,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_x64_emit_instruction_LDY_scratch_interp(p_buf);
       }
+      opreg = k_y;
       break;
     case k_lsr:
       if (opmode == k_acc) {
@@ -419,6 +422,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_pla:
       asm_x64_emit_instruction_PLA(p_buf);
+      opreg = k_a;
       break;
     case k_plp:
       asm_x64_emit_instruction_PLP(p_buf);
@@ -488,21 +492,26 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_tax:
       asm_x64_emit_instruction_TAX(p_buf);
+      opreg = k_x;
       break;
     case k_tay:
       asm_x64_emit_instruction_TAY(p_buf);
+      opreg = k_y;
       break;
     case k_tsx:
       asm_x64_emit_instruction_TSX(p_buf);
+      opreg = k_x;
       break;
     case k_txa:
       asm_x64_emit_instruction_TXA(p_buf);
+      opreg = k_a;
       break;
     case k_txs:
       asm_x64_emit_instruction_TXS(p_buf);
       break;
     case k_tya:
       asm_x64_emit_instruction_TYA(p_buf);
+      opreg = k_a;
       break;
     default:
       /* Let the interpreter crash out on unknown opcodes. This is also a way
