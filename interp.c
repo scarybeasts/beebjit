@@ -1562,9 +1562,13 @@ check_irq:
     }
 
     /* Note that we stay in the interpreter loop to handle the IRQ if one
-     * has arisen, otherwise it would get lost.
+     * has arisen, otherwise it would get lost. We also stay in the loop if
+     * there's a pending IRQ check to avoid bouncing between execution engines
+     * in this common case.
      */
-    if (p_interp->return_from_loop && !do_irq) {
+    if (p_interp->return_from_loop &&
+        !do_irq &&
+        !timing_timer_is_running(p_timing, deferred_interrupt_timer_id)) {
       break;
     }
 
