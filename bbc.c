@@ -1,12 +1,10 @@
 #include "bbc.h"
 
 #include "bbc_options.h"
+#include "cpu_driver.h"
 #include "debug.h"
 #include "defs_6502.h"
 #include "intel_fdc.h"
-#include "interp.h"
-#include "inturbo.h"
-#include "jit.h"
 #include "memory_access.h"
 #include "sound.h"
 #include "state_6502.h"
@@ -71,7 +69,6 @@ struct bbc_struct {
 
   /* Settings. */
   uint8_t* p_os_rom;
-  int mode;
   int debug_flag;
   int run_flag;
   int print_flag;
@@ -94,9 +91,7 @@ struct bbc_struct {
   struct sound_struct* p_sound;
   struct video_struct* p_video;
   struct intel_fdc_struct* p_intel_fdc;
-  struct jit_struct* p_jit;
-  struct interp_struct* p_interp;
-  struct inturbo_struct* p_inturbo;
+  struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
   uint32_t run_result;
   /* Timing support. */
@@ -268,38 +263,6 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
 }
 
-static void
-bbc_memory_range_written(struct bbc_struct* p_bbc,
-                         uint16_t addr_6502,
-                         uint16_t len) {
-  switch (p_bbc->mode) {
-  case k_bbc_mode_jit:
-    jit_memory_range_written(p_bbc->p_jit, addr_6502, len);
-    break;
-  case k_bbc_mode_interp:
-  case k_bbc_mode_inturbo:
-    break;
-  default:
-    assert(0);
-  }
-}
-
-static void
-bbc_memory_range_reset(struct bbc_struct* p_bbc,
-                       uint16_t addr_6502,
-                       uint16_t len) {
-  switch (p_bbc->mode) {
-  case k_bbc_mode_jit:
-    jit_memory_range_reset(p_bbc->p_jit, addr_6502, len);
-    break;
-  case k_bbc_mode_interp:
-  case k_bbc_mode_inturbo:
-    break;
-  default:
-    assert(0);
-  }
-}
-
 void
 bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   /* The broad approach here is: slower sideways bank switching in order to
@@ -312,6 +275,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
    */
   int curr_is_ram;
   int new_is_ram;
+
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
   uint8_t curr_bank = p_bbc->romsel;
@@ -332,7 +297,11 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   }
 
   (void) memcpy(p_mem_sideways, p_sideways_src, k_bbc_rom_size);
-  bbc_memory_range_reset(p_bbc, k_bbc_sideways_offset, k_bbc_rom_size);
+
+  /* TODO: can we collapse this into memory_range_written? */
+  p_cpu_driver->memory_range_reset(p_cpu_driver,
+                                   k_bbc_sideways_offset,
+                                   k_bbc_rom_size);
 
   /* If we flipped from ROM to RAM or visa versa, we need to update the write
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
@@ -531,7 +500,6 @@ bbc_create(int mode,
 
   util_get_channel_fds(&p_bbc->message_cpu_fd, &p_bbc->message_client_fd);
 
-  p_bbc->mode = mode;
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -660,37 +628,13 @@ bbc_create(int mode,
 
   p_bbc->options.p_debug_callback_object = p_debug;
 
-  switch (mode) {
-  case k_bbc_mode_jit:
-    p_bbc->p_jit = jit_create(p_state_6502,
-                              &p_bbc->memory_access,
-                              p_timing,
-                              &p_bbc->options);
-    if (p_bbc->p_jit == NULL) {
-      errx(1, "jit_create failed");
-    }
-    break;
-  case k_bbc_mode_interp:
-    p_bbc->p_interp = interp_create(p_state_6502,
-                                    &p_bbc->memory_access,
-                                    p_timing,
-                                    &p_bbc->options);
-    if (p_bbc->p_interp == NULL) {
-      errx(1, "interp_create failed");
-    }
-    break;
-  case k_bbc_mode_inturbo:
-    p_bbc->p_inturbo = inturbo_create(p_state_6502,
-                                      &p_bbc->memory_access,
-                                      p_timing,
-                                      &p_bbc->options);
-    if (p_bbc->p_inturbo == NULL) {
-      errx(1, "inturbo_create failed");
-    }
-    break;
-  default:
-    assert(0);
-    break;
+  p_bbc->p_cpu_driver = cpu_driver_alloc(mode,
+                                         p_state_6502,
+                                         &p_bbc->memory_access,
+                                         p_timing,
+                                         &p_bbc->options);
+  if (p_bbc->p_cpu_driver == NULL) {
+    errx(1, "cpu_driver_alloc failed");
   }
 
   bbc_full_reset(p_bbc);
@@ -701,6 +645,8 @@ bbc_create(int mode,
 void
 bbc_destroy(struct bbc_struct* p_bbc) {
   int ret;
+
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   volatile int* p_running = &p_bbc->running;
   volatile int* p_thread_allocated = &p_bbc->thread_allocated;
 
@@ -714,15 +660,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
     }
   }
 
-  if (p_bbc->p_interp != NULL) {
-    interp_destroy(p_bbc->p_interp);
-  }
-  if (p_bbc->p_inturbo != NULL) {
-    inturbo_destroy(p_bbc->p_inturbo);
-  }
-  if (p_bbc->p_jit != NULL) {
-    jit_destroy(p_bbc->p_jit);
-  }
+  p_cpu_driver->destroy(p_cpu_driver);
+
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
   sound_destroy(p_bbc->p_sound);
@@ -796,6 +735,11 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
   state_6502_set_pc(p_state_6502, init_pc);
 }
 
+struct cpu_driver*
+bbc_get_cpu_driver(struct bbc_struct* p_bbc) {
+  return p_bbc->p_cpu_driver;
+}
+
 void
 bbc_get_registers(struct bbc_struct* p_bbc,
                   uint8_t* a,
@@ -847,11 +791,6 @@ bbc_get_uservia(struct bbc_struct* p_bbc) {
   return p_bbc->p_user_via;
 }
 
-struct jit_struct*
-bbc_get_jit(struct bbc_struct* p_bbc) {
-  return p_bbc->p_jit;
-}
-
 struct sound_struct*
 bbc_get_sound(struct bbc_struct* p_bbc) {
   return p_bbc->p_sound;
@@ -889,6 +828,7 @@ void
 bbc_memory_write(struct bbc_struct* p_bbc,
                  uint16_t addr_6502,
                  uint8_t val) {
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
 
   /* Allow a forced write to ROM using this API -- use the fully read/write
@@ -896,7 +836,7 @@ bbc_memory_write(struct bbc_struct* p_bbc,
    */
   p_mem_raw[addr_6502] = val;
 
-  bbc_memory_range_written(p_bbc, addr_6502, 1);
+  p_cpu_driver->memory_range_written(p_cpu_driver, addr_6502, 1);
 }
 
 int
@@ -995,23 +935,11 @@ bbc_cpu_thread(void* p) {
   uint32_t run_result;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   bbc_start_timer_tick(p_bbc);
 
-  switch (p_bbc->mode) {
-  case k_bbc_mode_jit:
-    run_result = jit_enter(p_bbc->p_jit);
-    break;
-  case k_bbc_mode_interp:
-    run_result = interp_enter(p_bbc->p_interp);
-    break;
-  case k_bbc_mode_inturbo:
-    run_result = inturbo_enter(p_bbc->p_inturbo);
-    break;
-  default:
-    assert(0);
-    run_result = 0;
-  }
+  run_result = p_cpu_driver->enter(p_cpu_driver);
 
   p_bbc->running = 0;
   p_bbc->run_result = run_result;

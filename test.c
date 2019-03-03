@@ -1,6 +1,7 @@
 #include "test.h"
 
 #include "bbc.h"
+#include "cpu_driver.h"
 #include "jit.h"
 
 #include <assert.h>
@@ -10,11 +11,12 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem_write(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
 
   jit_init_addr(p_jit, 0x1000);
 
-  assert(!jit_has_code(p_jit, 0x1000));
+  assert(!jit_has_code(p_cpu_driver, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1000));
   assert(jit_jump_target_is_invalidated(p_jit, 0x1000));
   assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
@@ -28,12 +30,12 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
 
   /* Run at $1000. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1000);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
-  assert(jit_has_code(p_jit, 0x1000));
-  assert(jit_has_code(p_jit, 0x1001));
-  assert(jit_has_code(p_jit, 0x1002));
-  assert(!jit_has_code(p_jit, 0x1003));
+  assert(jit_has_code(p_cpu_driver, 0x1000));
+  assert(jit_has_code(p_cpu_driver, 0x1001));
+  assert(jit_has_code(p_cpu_driver, 0x1002));
+  assert(!jit_has_code(p_cpu_driver, 0x1003));
   assert(!jit_has_self_modify_optimize(p_jit, 0x1000));
 
   assert(jit_is_block_start(p_jit, 0x1000));
@@ -47,7 +49,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   /* Split the existing block. */
   /* Run at $1002. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1002);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
   assert(jit_is_block_start(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1001));
@@ -60,7 +62,7 @@ do_basic_jit_tests(struct bbc_struct* p_bbc) {
   /* Recompile start of fractured block. */
   /* Run at $1000. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x1000);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
   assert(jit_is_block_start(p_jit, 0x1000));
   assert(!jit_is_block_start(p_jit, 0x1001));
@@ -75,7 +77,11 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem_write(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+
+  /* TODO: tests don't run in optimized build because assert() compiled out! */
+  (void) p_jit;
 
   index = 0x2000;
   p_mem[index++] = 0xe8; /* INX */
@@ -88,7 +94,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* Run at $2000. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x2002] == 0x01);
 
   assert(jit_has_invalidated_code(p_jit, 0x2001));
@@ -100,7 +106,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   /* Run / compile the invalidated opcode. */
   /* Run at $2000. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x2002] == 0x02);
 
   assert(jit_is_block_start(p_jit, 0x2000));
@@ -116,7 +122,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
   /* Executing at $2000 again will therefore recompile the block. */
   /* Run at $2000. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2000);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x2002] == 0x03);
 
   assert(jit_is_block_start(p_jit, 0x2000));
@@ -135,7 +141,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* Run at $2001. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2001);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
   assert(jit_has_self_modify_optimize(p_jit, 0x2001));
 
@@ -145,7 +151,7 @@ do_totally_lit_jit_test_1(struct bbc_struct* p_bbc) {
 
   /* Run at $2001. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2001);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
   assert(!jit_has_self_modify_optimize(p_jit, 0x2001));
 }
@@ -155,7 +161,11 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem_write(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+
+  /* TODO: tests don't run in optimized build because assert() compiled out! */
+  (void) p_jit;
 
   index = 0x2100;
   p_mem[index++] = 0xa9; /* LDA #$06 */
@@ -170,7 +180,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
 
   /* Run at $2100. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2100);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x60);
 
   assert(jit_is_block_start(p_jit, 0x2100));
@@ -189,7 +199,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
    */
   /* Run at $2103. */
   bbc_set_registers(p_bbc, 0x06, 0, 0, 0, 0, 0x2103);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x30);
 
   assert(jit_is_block_start(p_jit, 0x2100));
@@ -206,7 +216,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
 
   /* Run at $2100 again. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2100);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x60);
 
   assert(jit_is_block_start(p_jit, 0x2100));
@@ -218,7 +228,7 @@ do_totally_lit_jit_test_2(struct bbc_struct* p_bbc) {
   bbc_memory_write(p_bbc, 0x2103, 0xEA);
   /* Run at $2103 again. */
   bbc_set_registers(p_bbc, 0x06, 0, 0, 0, 0, 0x2103);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x18);
 }
 
@@ -227,7 +237,8 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem_write(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
 
   index = 0x2200;
   p_mem[index++] = 0xa9; /* LDA #$CE */
@@ -246,7 +257,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
 
   /* Run at $2200. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2200);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0xce);
 
   assert(!jit_is_compilation_pending(p_jit, 0x2200));
@@ -266,7 +277,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
 
   /* Run at $2200. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2200);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
 
   assert(jit_is_block_start(p_jit, 0x2200));
   assert(!jit_is_block_start(p_jit, 0x2201));
@@ -278,7 +289,7 @@ do_totally_lit_jit_test_3(struct bbc_struct* p_bbc) {
 
   /* Run at $2204. */
   bbc_set_registers(p_bbc, 0xce, 1, 0, 0, 0, 0x2204);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0001] == 0xce);
 
   assert(jit_is_block_start(p_jit, 0x2200));
@@ -295,7 +306,8 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
   size_t index;
 
   unsigned char* p_mem = bbc_get_mem_write(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
 
   jit_set_max_compile_ops(p_jit, 2);
 
@@ -316,7 +328,7 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
 
   /* Run at $2300. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2300);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x01);
 
   assert(!jit_jump_target_is_invalidated(p_jit, 0x2300));
@@ -351,7 +363,7 @@ do_totally_lit_jit_test_4(struct bbc_struct* p_bbc) {
 
   /* Run at $2300 again. */
   bbc_set_registers(p_bbc, 0, 0, 0, 0, 0, 0x2300);
-  jit_enter(p_jit);
+  p_cpu_driver->enter(p_cpu_driver);
   assert(p_mem[0x0000] == 0x01);
 
   assert(jit_jump_target_is_invalidated(p_jit, 0x2300));

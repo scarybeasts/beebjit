@@ -2,11 +2,10 @@
 
 #include "jit.h"
 
-#include "asm_tables.h"
-#include "asm_x64_abi.h"
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "bbc_options.h"
+#include "cpu_driver.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
@@ -170,9 +169,7 @@ static const unsigned char g_inverted_carry_flag_used[k_6502_op_num_types] = {
 };
 
 struct jit_struct {
-  struct asm_x64_abi abi;
-
-  unsigned char* p_dummy;
+  struct cpu_driver driver;
 
   /* C callbacks called by JIT code. */
   void* p_read_callback;
@@ -181,12 +178,9 @@ struct jit_struct {
 
   /* Structures referenced by JIT code. */
   void* p_memory_object;
-  unsigned int jit_ptrs[k_6502_addr_space_size]; /* 88 */
+  uint32_t jit_ptrs[k_6502_addr_space_size];
 
   /* Fields not referenced by JIT'ed code. */
-  struct memory_access* p_memory_access;
-  struct timing_struct* p_timing;
-  struct bbc_options* p_options;
   unsigned int jit_flags;
   unsigned int log_flags;
   size_t max_num_ops;
@@ -205,10 +199,10 @@ struct jit_struct {
   struct util_buffer* p_seq_buf;
   struct util_buffer* p_single_buf;
 
-  unsigned char is_block_start[k_6502_addr_space_size];
-  unsigned char compiled_opcode[k_6502_addr_space_size];
-  unsigned char self_modify_optimize[k_6502_addr_space_size];
-  unsigned char compilation_pending[k_6502_addr_space_size];
+  uint8_t is_block_start[k_6502_addr_space_size];
+  uint8_t compiled_opcode[k_6502_addr_space_size];
+  uint8_t self_modify_optimize[k_6502_addr_space_size];
+  uint8_t compilation_pending[k_6502_addr_space_size];
 };
 
 static size_t
@@ -715,7 +709,7 @@ static int
 jit_is_special_read_address(struct jit_struct* p_jit,
                             uint16_t opcode_addr_6502,
                             uint16_t opcode_addr_6502_upper_range) {
-  struct memory_access* p_memory_access = p_jit->p_memory_access;
+  struct memory_access* p_memory_access = p_jit->driver.p_memory_access;
   uint16_t above = p_memory_access->memory_read_needs_callback_above(
       p_memory_access->p_callback_obj);
   int lower_hit = (opcode_addr_6502 >= above);
@@ -728,7 +722,7 @@ static int
 jit_is_special_write_address(struct jit_struct* p_jit,
                              uint16_t opcode_addr_6502,
                              uint16_t opcode_addr_6502_upper_range) {
-  struct memory_access* p_memory_access = p_jit->p_memory_access;
+  struct memory_access* p_memory_access = p_jit->driver.p_memory_access;
   uint16_t above = p_memory_access->memory_write_needs_callback_above(
       p_memory_access->p_callback_obj);
   int lower_hit = (opcode_addr_6502 >= above);
@@ -2387,7 +2381,8 @@ jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 int
-jit_has_code(struct jit_struct* p_jit, uint16_t addr_6502) {
+jit_has_code(struct cpu_driver* p_cpu_driver, uint16_t addr_6502) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   unsigned char* p_jit_ptr = jit_get_code_ptr(p_jit, addr_6502);
   /* The "no code" state is the initial state, which is the code pointer
    * pointing at the block prolog of a block.
@@ -2450,12 +2445,14 @@ jit_invalidate_jump_target(struct jit_struct* p_jit, uint16_t addr_6502) {
   (void) jit_emit_do_jit(p_jit_ptr, 0);
 }
 
-void
-jit_memory_range_written(struct jit_struct* p_jit,
+static void
+jit_memory_range_written(struct cpu_driver* p_cpu_driver,
                          uint16_t addr_6502,
                          uint16_t len) {
   size_t i;
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   size_t addr_6502_end = (addr_6502 + len);
+
   assert(addr_6502_end < k_6502_addr_space_size);
 
   for (i = addr_6502; i < addr_6502_end; ++i) {
@@ -2465,15 +2462,16 @@ jit_memory_range_written(struct jit_struct* p_jit,
   }
 }
 
-void
-jit_memory_range_reset(struct jit_struct* p_jit,
+static void
+jit_memory_range_reset(struct cpu_driver* p_cpu_driver,
                        uint16_t addr_6502,
                        uint16_t len) {
   size_t i;
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   size_t addr_6502_end = (addr_6502 + len);
   assert(addr_6502_end < k_6502_addr_space_size);
 
-  jit_memory_range_written(p_jit, addr_6502, len);
+  jit_memory_range_written(p_cpu_driver, addr_6502, len);
 
   for (i = 0; i < addr_6502_end; ++i) {
     jit_init_addr(p_jit, i);
@@ -2489,6 +2487,7 @@ static void
 jit_at_addr(struct jit_struct* p_jit,
             struct util_buffer* p_buf,
             uint16_t addr_6502) {
+  struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_jit;
   unsigned char single_jit_buf[k_jit_bytes_per_byte];
   uint16_t block_addr_6502;
 
@@ -2530,7 +2529,7 @@ jit_at_addr(struct jit_struct* p_jit,
   block_addr_6502 = jit_block_from_6502(p_jit, start_addr_6502);
 
   is_compilation_pending = jit_is_compilation_pending(p_jit, start_addr_6502);
-  has_code = jit_has_code(p_jit, start_addr_6502);
+  has_code = jit_has_code(p_cpu_driver, start_addr_6502);
   is_invalidated_code = jit_has_invalidated_code(p_jit, start_addr_6502);
   is_invalidated_block = jit_jump_target_is_invalidated(p_jit, start_addr_6502);
 
@@ -2572,8 +2571,8 @@ jit_at_addr(struct jit_struct* p_jit,
     int carry_flag_expectation;
     int effective_carry_flag_location;
 
-    void* p_debug_object = p_jit->abi.p_debug_object;
-    struct bbc_options* p_options = p_jit->p_options;
+    void* p_debug_object = p_jit->driver.abi.p_debug_object;
+    struct bbc_options* p_options = p_jit->driver.p_options;
     unsigned char* p_dst = util_buffer_get_base_address(p_buf) +
                            util_buffer_get_pos(p_buf);
     int dynamic_operand = 0;
@@ -2925,7 +2924,7 @@ jit_async_timer_tick(struct jit_struct* p_jit) {
 
 static void
 jit_sync_timer_tick(struct jit_struct* p_jit) {
-  struct timing_struct* p_timing = p_jit->p_timing;
+  struct timing_struct* p_timing = p_jit->driver.p_timing;
   int64_t countdown = timing_get_countdown(p_timing);
   countdown -= 200000;
   (void) timing_advance_time(p_timing, countdown);
@@ -2999,7 +2998,7 @@ handle_semaphore_sigsegv_common(ucontext_t* p_context,
                                 uint16_t addr_6502,
                                 size_t r13) {
   uint16_t vector = 0;
-  struct state_6502* p_state_6502 = p_jit->abi.p_state_6502;
+  struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
 
   /* Lower both the block and cli semaphores -- both could potentially be
    * raised.
@@ -3145,14 +3144,38 @@ jit_timer_thread(void* p) {
   return NULL;
 }
 
-uint32_t
-jit_enter(struct jit_struct* p_jit) {
+static void
+jit_destroy(struct cpu_driver* p_cpu_driver) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+
+  assert(!p_jit->exiting);
+  p_jit->exiting = 1;
+
+  if (p_jit->timer_running) {
+    int ret = pthread_join(p_jit->timer_thread, NULL);
+    if (ret != 0) {
+      errx(1, "pthread_join failed");
+    }
+  }
+
+  util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
+  util_free_guarded_mapping(p_jit->p_jit_base,
+                            k_6502_addr_space_size * k_jit_bytes_per_byte);
+  util_buffer_destroy(p_jit->p_dest_buf);
+  util_buffer_destroy(p_jit->p_seq_buf);
+  util_buffer_destroy(p_jit->p_single_buf);
+  free(p_jit);
+}
+
+static uint32_t
+jit_enter(struct cpu_driver* p_cpu_driver) {
   int ret;
   struct sigaction sa;
   uint32_t run_result;
 
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   unsigned char* p_mem_read = p_jit->p_mem_read;
-  uint16_t reg_pc = state_6502_get_pc(p_jit->abi.p_state_6502);
+  uint16_t reg_pc = state_6502_get_pc(p_jit->driver.abi.p_state_6502);
   unsigned char* p_start_addr = jit_get_jit_base_addr(p_jit, reg_pc);
 
   if (!p_jit->timer_running) {
@@ -3186,36 +3209,42 @@ jit_enter(struct jit_struct* p_jit) {
   return run_result;
 }
 
-struct jit_struct*
-jit_create(struct state_6502* p_state_6502,
-           struct memory_access* p_memory_access,
-           struct timing_struct* p_timing,
-           struct bbc_options* p_options) {
+static char*
+jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr_6502) {
+  (void) p_cpu_driver;
+  (void) addr_6502;
+
+  return "JIT ";
+}
+
+static void
+jit_init(struct cpu_driver* p_cpu_driver) {
   size_t i;
   unsigned int log_flags;
   unsigned char* p_jit_base;
 
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct bbc_options* p_options = p_jit->driver.p_options;
+  struct memory_access* p_memory_access = p_jit->driver.p_memory_access;
   const char* p_opt_flags = p_options->p_opt_flags;
   const char* p_log_flags = p_options->p_log_flags;
   unsigned char* p_mem_read = p_memory_access->p_mem_read;
   unsigned char* p_mem_write = p_memory_access->p_mem_write;
 
-  struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
-  if (p_jit == NULL) {
-    errx(1, "cannot allocate jit_struct");
-  }
-  (void) memset(p_jit, '\0', sizeof(struct jit_struct));
-
-  asm_tables_init();
-  asm_x64_abi_init(&p_jit->abi, p_mem_read, p_options, p_state_6502);
+  p_jit->driver.destroy = jit_destroy;
+  p_jit->driver.enter = jit_enter;
+  p_jit->driver.memory_range_written = jit_memory_range_written;
+  p_jit->driver.memory_range_reset = jit_memory_range_reset;
+  p_jit->driver.get_address_info = jit_get_address_info;
+  p_jit->driver.address_has_code = jit_has_code;
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   p_jit_base = util_get_guarded_mapping(
       k_jit_addr,
-      k_6502_addr_space_size * k_jit_bytes_per_byte);
+      (k_6502_addr_space_size * k_jit_bytes_per_byte));
   util_make_mapping_read_write_exec(
       p_jit_base,
-      k_6502_addr_space_size * k_jit_bytes_per_byte);
+      (k_6502_addr_space_size * k_jit_bytes_per_byte));
 
   /* This is the mapping that is a semaphore to trigger JIT execution
    * interruption.
@@ -3224,18 +3253,15 @@ jit_create(struct state_6502* p_state_6502,
                                                  k_semaphores_size);
   util_make_mapping_read_only(p_jit->p_semaphores, k_semaphores_size);
 
-  p_jit->p_options = p_options;
   p_jit->p_mem_read = p_mem_read;
   p_jit->p_mem_write = p_mem_write;
   p_jit->read_to_write_offset = (p_mem_write - p_mem_read);
   p_jit->p_jit_base = p_jit_base;
-  p_jit->abi.p_util_private = asm_x64_jit_do_compile;
+  p_jit->driver.abi.p_util_private = asm_x64_jit_do_compile;
   p_jit->p_jit_callback = jit_callback;
   p_jit->p_read_callback = p_memory_access->memory_read_callback;
   p_jit->p_write_callback = p_memory_access->memory_write_callback;
   p_jit->p_memory_object = p_memory_access->p_callback_obj;
-  p_jit->p_memory_access = p_memory_access;
-  p_jit->p_timing = p_timing;
 
   p_jit->jit_flags = 0;
   jit_set_flag(p_jit, k_jit_flag_merge_ops);
@@ -3280,6 +3306,17 @@ jit_create(struct state_6502* p_state_6502,
   p_jit->p_dest_buf = util_buffer_create();
   p_jit->p_seq_buf = util_buffer_create();
   p_jit->p_single_buf = util_buffer_create();
+}
+
+struct jit_struct*
+jit_create() {
+  struct jit_struct* p_jit = malloc(sizeof(struct jit_struct));
+  if (p_jit == NULL) {
+    errx(1, "cannot allocate jit_struct");
+  }
+  (void) memset(p_jit, '\0', sizeof(struct jit_struct));
+
+  p_jit->driver.init = jit_init;
 
   return p_jit;
 }
@@ -3300,25 +3337,4 @@ jit_set_max_compile_ops(struct jit_struct* p_jit, size_t max_num_ops) {
     max_num_ops = ~0;
   }
   p_jit->max_num_ops = max_num_ops;
-}
-
-void
-jit_destroy(struct jit_struct* p_jit) {
-  assert(!p_jit->exiting);
-  p_jit->exiting = 1;
-
-  if (p_jit->timer_running) {
-    int ret = pthread_join(p_jit->timer_thread, NULL);
-    if (ret != 0) {
-      errx(1, "pthread_join failed");
-    }
-  }
-
-  util_free_guarded_mapping(p_jit->p_semaphores, k_semaphores_size);
-  util_free_guarded_mapping(p_jit->p_jit_base,
-                            k_6502_addr_space_size * k_jit_bytes_per_byte);
-  util_buffer_destroy(p_jit->p_dest_buf);
-  util_buffer_destroy(p_jit->p_seq_buf);
-  util_buffer_destroy(p_jit->p_single_buf);
-  free(p_jit);
 }

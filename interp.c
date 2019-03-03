@@ -1,6 +1,7 @@
 #include "interp.h"
 
 #include "bbc_options.h"
+#include "cpu_driver.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "state_6502.h"
@@ -18,10 +19,7 @@ enum {
 };
 
 struct interp_struct {
-  struct state_6502* p_state_6502;
-  struct memory_access* p_memory_access;
-  struct timing_struct* p_timing;
-  struct bbc_options* p_options;
+  struct cpu_driver driver;
 
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -39,7 +37,7 @@ static void
 interp_deferred_interrupt_timer_callback(void* p) {
   struct interp_struct* p_interp = (struct interp_struct*) p;
 
-  (void) timing_stop_timer(p_interp->p_timing,
+  (void) timing_stop_timer(p_interp->driver.p_timing,
                            p_interp->deferred_interrupt_timer_id);
 }
 
@@ -47,26 +45,42 @@ static void
 interp_debug_timer_callback(void* p) {
   struct interp_struct* p_interp = (struct interp_struct*) p;
 
-  (void) timing_set_timer_value(p_interp->p_timing,
+  (void) timing_set_timer_value(p_interp->driver.p_timing,
                                 p_interp->debug_timer_id,
                                 1);
 }
 
-struct interp_struct*
-interp_create(struct state_6502* p_state_6502,
-              struct memory_access* p_memory_access,
-              struct timing_struct* p_timing,
-              struct bbc_options* p_options) {
-  struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
-  if (p_interp == NULL) {
-    errx(1, "couldn't allocate interp_struct");
-  }
-  (void) memset(p_interp, '\0', sizeof(struct interp_struct));
+static void
+interp_destroy(struct cpu_driver* p_cpu_driver) {
+  free(p_cpu_driver);
+}
 
-  p_interp->p_state_6502 = p_state_6502;
-  p_interp->p_memory_access = p_memory_access;
-  p_interp->p_timing = p_timing;
-  p_interp->p_options = p_options;
+static uint32_t
+interp_enter(struct cpu_driver* p_cpu_driver) {
+  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
+  int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
+
+  return interp_enter_with_countdown(p_interp, countdown);
+}
+
+static char*
+interp_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
+  (void) p_cpu_driver;
+  (void) addr;
+
+  return "ITRP";
+}
+
+static void
+interp_init(struct cpu_driver* p_cpu_driver) {
+  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
+  struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
+  struct bbc_options* p_options = p_interp->driver.p_options;
+  struct timing_struct* p_timing = p_interp->driver.p_timing;
+
+  p_interp->driver.destroy = interp_destroy;
+  p_interp->driver.enter = interp_enter;
+  p_interp->driver.get_address_info = interp_get_address_info;
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
   p_interp->p_mem_write = p_memory_access->p_mem_write;
@@ -102,13 +116,19 @@ interp_create(struct state_6502* p_state_6502,
      */
     interp_set_debug(p_interp, 1);
   }
-
-  return p_interp;
 }
 
-void
-interp_destroy(struct interp_struct* p_interp) {
-  free(p_interp);
+struct interp_struct*
+interp_create() {
+  struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
+  if (p_interp == NULL) {
+    errx(1, "couldn't allocate interp_struct");
+  }
+  (void) memset(p_interp, '\0', sizeof(struct interp_struct));
+
+  p_interp->driver.init = interp_init;
+
+  return p_interp;
 }
 
 static inline void
@@ -182,8 +202,8 @@ interp_call_debugger(struct interp_struct* p_interp,
                      uint16_t irq_vector) {
   uint8_t flags;
 
-  struct state_6502* p_state_6502 = p_interp->p_state_6502;
-  struct bbc_options* p_options = p_interp->p_options;
+  struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
+  struct bbc_options* p_options = p_interp->driver.p_options;
   int (*debug_active_at_addr)(void*, uint16_t) =
       p_options->debug_active_at_addr;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
@@ -620,13 +640,6 @@ interp_is_branch_opcode(uint8_t opcode) {
   v = y;
 
 uint32_t
-interp_enter(struct interp_struct* p_interp) {
-  int64_t countdown = timing_get_countdown(p_interp->p_timing);
-
-  return interp_enter_with_countdown(p_interp, countdown);
-}
-
-uint32_t
 interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t pc;
   uint8_t a;
@@ -650,10 +663,10 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t addr_temp;
   uint8_t v;
 
-  struct state_6502* p_state_6502 = p_interp->p_state_6502;
-  struct timing_struct* p_timing = p_interp->p_timing;
+  struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
+  struct timing_struct* p_timing = p_interp->driver.p_timing;
   uint32_t deferred_interrupt_timer_id = p_interp->deferred_interrupt_timer_id;
-  struct memory_access* p_memory_access = p_interp->p_memory_access;
+  struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
   uint8_t (*memory_read_callback)(void*, uint16_t) =
       p_memory_access->memory_read_callback;
   void (*memory_write_callback)(void*, uint16_t, uint8_t) =
@@ -1609,7 +1622,7 @@ interp_set_loop_exit(struct interp_struct* p_interp) {
 
 void
 interp_set_debug(struct interp_struct* p_interp, int debug) {
-  struct timing_struct* p_timing = p_interp->p_timing;
+  struct timing_struct* p_timing = p_interp->driver.p_timing;
   uint32_t debug_timer_id = p_interp->debug_timer_id;
 
   if (!debug) {

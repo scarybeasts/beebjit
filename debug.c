@@ -3,8 +3,7 @@
 #include "debug.h"
 
 #include "bbc.h"
-/* TODO: get rid of. */
-#include "jit.h"
+#include "cpu_driver.h"
 #include "defs_6502.h"
 #include "state.h"
 #include "state_6502.h"
@@ -360,8 +359,9 @@ debug_get_details(int* p_addr_6502,
 static void
 debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
   size_t i;
+
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
@@ -373,11 +373,9 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
     uint8_t oplen = g_opmodelens[opmode];
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
-    uint16_t block_6502 = 0;
 
-    if (p_jit != NULL) {
-      block_6502 = jit_block_from_6502(p_jit, addr_6502);
-    }
+    char* p_address_info = p_cpu_driver->get_address_info(p_cpu_driver,
+                                                          addr_6502);
 
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
@@ -387,7 +385,7 @@ debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
                        addr_6502,
                        0,
                        NULL);
-    (void) printf("[%.4X] %.4X: %s\n", block_6502, addr_6502, opcode_buf);
+    (void) printf("[%s] %.4X: %s\n", p_address_info, addr_6502, opcode_buf);
     addr_6502 += oplen;
   }
 }
@@ -585,15 +583,11 @@ debug_check_unusual(struct debug_struct* p_debug,
                     int wrapped_8bit,
                     int wrapped_16bit) {
   struct bbc_struct* p_bbc = p_debug->p_bbc;
-  struct jit_struct* p_jit = bbc_get_jit(p_bbc);
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
 
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
   int warned = 0;
-  int has_code = 0;
-
-  if (p_jit != NULL) {
-    has_code = jit_has_code(p_jit, addr_6502);
-  }
+  int has_code = p_cpu_driver->address_has_code(p_cpu_driver, addr_6502);
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
    * register space.
@@ -711,7 +705,7 @@ debug_print_registers(uint8_t reg_a,
 }
 
 static void
-debug_print_state(uint16_t block_6502,
+debug_print_state(char* p_address_info,
                   uint16_t reg_pc,
                   const char* opcode_buf,
                   uint8_t reg_a,
@@ -720,8 +714,8 @@ debug_print_state(uint16_t block_6502,
                   uint8_t reg_s,
                   const char* flags_buf,
                   const char* extra_buf) {
-  (void) printf("[%.4X] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
-                block_6502,
+  (void) printf("[%s] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
+                p_address_info,
                 reg_pc,
                 opcode_buf,
                 reg_a,
@@ -768,7 +762,8 @@ debug_callback(void* p, int do_irq) {
   int is_write;
   int is_rom;
   int is_register;
-  struct jit_struct* p_jit;
+  struct cpu_driver* p_cpu_driver;
+  char* p_address_info;
 
   struct debug_struct* p_debug = (struct debug_struct*) p;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
@@ -777,7 +772,6 @@ debug_callback(void* p, int do_irq) {
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_sigint_received = &s_sigint_received;
-  uint16_t block_6502 = 0;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -942,12 +936,10 @@ debug_callback(void* p, int do_irq) {
     flags_buf[7] = 'N';
   }
 
-  p_jit = bbc_get_jit(p_bbc);
-  if (p_jit != NULL) {
-    block_6502 = jit_block_from_6502(p_jit, reg_pc);
-  }
+  p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  p_address_info = p_cpu_driver->get_address_info(p_cpu_driver, reg_pc);
 
-  debug_print_state(block_6502,
+  debug_print_state(p_address_info,
                     reg_pc,
                     opcode_buf,
                     reg_a,
@@ -1130,9 +1122,7 @@ debug_callback(void* p, int do_irq) {
       reg_s = parse_int;
     } else if (sscanf(input_buf, "pc=%x", &parse_int) == 1) {
       reg_pc = parse_int;
-      if (p_jit != NULL) {
-        ret_intel_pc = jit_get_jit_base_addr(p_jit, reg_pc);
-      }
+      /* TODO: setting PC broken in JIT mode? */
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
       debug_disass(p_bbc, parse_int);
     } else if (!strcmp(input_buf, "d")) {

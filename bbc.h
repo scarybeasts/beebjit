@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct cpu_driver;
 struct sound_struct;
 struct state_6502;
 struct via_struct;
@@ -27,11 +28,6 @@ enum {
   k_bbc_mem_mmap_write_addr = 0x11000000,
   k_bbc_mem_mmap_write_addr_ro = 0x1100f000,
   k_bbc_mem_mmap_raw_addr = 0x12000000,
-};
-enum {
-  k_bbc_mode_jit = 1,
-  k_bbc_mode_interp = 2,
-  k_bbc_mode_inturbo = 3,
 };
 enum {
   k_message_exited = 1,
@@ -69,6 +65,7 @@ void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
+struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);
 void bbc_get_registers(struct bbc_struct* p_bbc,
                        uint8_t* a,
                        uint8_t* x,
@@ -95,7 +92,6 @@ struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
-struct jit_struct* bbc_get_jit(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,

@@ -1,4 +1,5 @@
 #include "bbc.h"
+#include "cpu_driver.h"
 #include "state.h"
 #include "test.h"
 #include "util.h"
@@ -43,7 +44,7 @@ main(int argc, const char* argv[]) {
   int accurate_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
-  int mode = k_bbc_mode_interp;
+  int mode = k_cpu_mode_interp;
   uint64_t cycles = 0;
   uint32_t expect = 0;
 
@@ -90,11 +91,11 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (!strcmp(arg, "-mode")) {
         if (!strcmp(val, "jit")) {
-          mode = k_bbc_mode_jit;
+          mode = k_cpu_mode_jit;
         } else if (!strcmp(val, "interp")) {
-          mode = k_bbc_mode_interp;
+          mode = k_cpu_mode_interp;
         } else if (!strcmp(val, "inturbo")) {
-          mode = k_bbc_mode_inturbo;
+          mode = k_cpu_mode_inturbo;
         } else {
           errx(1, "unknown mode");
         }
@@ -139,7 +140,7 @@ main(int argc, const char* argv[]) {
   }
 
   if (test_flag) {
-    mode = k_bbc_mode_jit;
+    mode = k_cpu_mode_jit;
   }
 
   p_bbc = bbc_create(mode,

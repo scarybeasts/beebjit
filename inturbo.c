@@ -1,10 +1,10 @@
 #include "inturbo.h"
 
-#include "asm_tables.h"
 #include "asm_x64_abi.h"
 #include "asm_x64_common.h"
 #include "asm_x64_inturbo.h"
 #include "bbc_options.h"
+#include "cpu_driver.h"
 #include "defs_6502.h"
 #include "interp.h"
 #include "memory_access.h"
@@ -25,11 +25,8 @@ static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
 static const size_t k_inturbo_jump_table_size = 4096;
 
 struct inturbo_struct {
-  struct asm_x64_abi abi;
+  struct cpu_driver driver;
 
-  struct memory_access* p_memory_access;
-  struct timing_struct* p_timing;
-  struct bbc_options* p_options;
   struct interp_struct* p_interp;
   int debug_subsystem_active;
   uint8_t* p_inturbo_base;
@@ -48,10 +45,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint8_t* p_inturbo_opcodes_ptr = p_inturbo_base;
   uint64_t* p_jump_table = p_inturbo->p_jump_table;
 
-  struct bbc_options* p_options = p_inturbo->p_options;
+  struct bbc_options* p_options = p_inturbo->driver.p_options;
   int accurate = p_options->accurate;
   int debug = p_inturbo->debug_subsystem_active;
-  struct memory_access* p_memory_access = p_inturbo->p_memory_access;
+  struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
   special_addr_above = p_memory_access->memory_read_needs_callback_above(
@@ -577,7 +574,7 @@ inturbo_short_instruction_run_timer_callback(void* p) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-  (void) timing_stop_timer(p_inturbo->p_timing,
+  (void) timing_stop_timer(p_inturbo->driver.p_timing,
                            p_inturbo->short_instruction_run_timer_id);
   interp_set_loop_exit(p_interp);
 
@@ -590,7 +587,7 @@ static int64_t
 inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
   uint32_t ret;
 
-  struct timing_struct* p_timing = p_inturbo->p_timing;
+  struct timing_struct* p_timing = p_inturbo->driver.p_timing;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
   (void) timing_advance_time(p_timing, countdown);
@@ -624,21 +621,65 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
   return countdown;
 }
 
-struct inturbo_struct*
-inturbo_create(struct state_6502* p_state_6502,
-               struct memory_access* p_memory_access,
-               struct timing_struct* p_timing,
-               struct bbc_options* p_options) {
+static void
+inturbo_destroy(struct cpu_driver* p_cpu_driver) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+
+  struct cpu_driver* p_interp_cpu_driver =
+      (struct cpu_driver*) p_inturbo->p_interp;
+
+  p_interp_cpu_driver->destroy(p_interp_cpu_driver);
+
+  util_free_guarded_mapping(p_inturbo->p_inturbo_base,
+                            (256 * k_inturbo_bytes_per_opcode));
+  util_free_guarded_mapping(p_inturbo->p_jump_table, k_inturbo_jump_table_size);
+  free(p_inturbo);
+}
+
+static uint32_t
+inturbo_enter(struct cpu_driver* p_cpu_driver) {
+  int64_t countdown;
+  uint32_t run_result;
+
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  uint64_t* p_jump_table = p_inturbo->p_jump_table;
+  uint16_t addr_6502 = state_6502_get_pc(p_inturbo->driver.abi.p_state_6502);
+  uint8_t* p_mem_read = p_inturbo->driver.p_memory_access->p_mem_read;
+  uint8_t opcode = p_mem_read[addr_6502];
+  uint32_t p_start_address = p_jump_table[opcode];
+  struct timing_struct* p_timing = p_inturbo->driver.p_timing;
+
+  countdown = timing_get_countdown(p_timing);
+
+  run_result = asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
+
+  return run_result;
+}
+
+static char*
+inturbo_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
+  (void) p_cpu_driver;
+  (void) addr;
+
+  return "TRBO";
+}
+
+static void
+inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
 
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
-  struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
-  if (p_inturbo == NULL) {
-    errx(1, "couldn't allocate inturbo_struct");
-  }
-  (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+  struct state_6502* p_state_6502 = p_inturbo->driver.abi.p_state_6502;
+  struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
+  struct timing_struct* p_timing = p_inturbo->driver.p_timing;
+  struct bbc_options* p_options = p_inturbo->driver.p_options;
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
+
+  p_inturbo->driver.destroy = inturbo_destroy;
+  p_inturbo->driver.enter = inturbo_enter;
+  p_inturbo->driver.get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
       p_debug_callback_object, 0xFFFF);
@@ -647,7 +688,11 @@ inturbo_create(struct state_6502* p_state_6502,
   /* The inturbo mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.
    */
-  p_interp = interp_create(p_state_6502, p_memory_access, p_timing, p_options);
+  p_interp = (struct interp_struct*) cpu_driver_alloc(k_cpu_mode_interp,
+                                                      p_state_6502,
+                                                      p_memory_access,
+                                                      p_timing,
+                                                      p_options);
   if (p_interp == NULL) {
     errx(1, "couldn't allocate interp_struct");
   }
@@ -657,19 +702,8 @@ inturbo_create(struct state_6502* p_state_6502,
     interp_set_debug(p_interp, 0);
   }
 
-  asm_tables_init();
-  asm_x64_abi_init(&p_inturbo->abi,
-                   p_memory_access->p_mem_read,
-                   p_options,
-                   p_state_6502);
-
-  p_inturbo->abi.p_interp_callback = inturbo_enter_interp;
-  p_inturbo->abi.p_interp_object = p_inturbo;
-
-  p_inturbo->p_memory_access = p_memory_access;
-  p_inturbo->p_timing = p_timing;
-  p_inturbo->p_options = p_options;
-  p_inturbo->p_interp = p_interp;
+  p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
+  p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
   p_inturbo->short_instruction_run_timer_id =
       timing_register_timer(p_timing,
@@ -678,43 +712,26 @@ inturbo_create(struct state_6502* p_state_6502,
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
       k_inturbo_opcodes_addr,
-      256 * k_inturbo_bytes_per_opcode);
+      (256 * k_inturbo_bytes_per_opcode));
   util_make_mapping_read_write_exec(
       p_inturbo->p_inturbo_base,
-      256 * k_inturbo_bytes_per_opcode);
+      (256 * k_inturbo_bytes_per_opcode));
 
   p_inturbo->p_jump_table = util_get_guarded_mapping(k_inturbo_jump_table_addr,
                                                      k_inturbo_jump_table_size);
 
   inturbo_fill_tables(p_inturbo);
+}
+
+struct inturbo_struct*
+inturbo_create() {
+  struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
+  if (p_inturbo == NULL) {
+    errx(1, "couldn't allocate inturbo_struct");
+  }
+  (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+
+  p_inturbo->driver.init = inturbo_init;
 
   return p_inturbo;
-}
-
-void
-inturbo_destroy(struct inturbo_struct* p_inturbo) {
-  interp_destroy(p_inturbo->p_interp);
-  util_free_guarded_mapping(p_inturbo->p_inturbo_base,
-                            256 * k_inturbo_bytes_per_opcode);
-  util_free_guarded_mapping(p_inturbo->p_jump_table, k_inturbo_jump_table_size);
-  free(p_inturbo);
-}
-
-uint32_t
-inturbo_enter(struct inturbo_struct* p_inturbo) {
-  int64_t countdown;
-  uint32_t run_result;
-
-  uint64_t* p_jump_table = p_inturbo->p_jump_table;
-  uint16_t addr_6502 = state_6502_get_pc(p_inturbo->abi.p_state_6502);
-  uint8_t* p_mem_read = p_inturbo->p_memory_access->p_mem_read;
-  uint8_t opcode = p_mem_read[addr_6502];
-  uint32_t p_start_address = p_jump_table[opcode];
-  struct timing_struct* p_timing = p_inturbo->p_timing;
-
-  countdown = timing_get_countdown(p_timing);
-
-  run_result = asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
-
-  return run_result;
 }

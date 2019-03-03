@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct bbc_options;
+struct memory_access;
 struct state_6502;
 
 enum {
@@ -27,7 +28,7 @@ struct asm_x64_abi {
 };
 
 void asm_x64_abi_init(struct asm_x64_abi* p_abi,
-                      uint8_t* p_memory_read,
+                      struct memory_access* p_memory_access,
                       struct bbc_options* p_options,
                       struct state_6502* p_state_6502);
 
