@@ -4,7 +4,7 @@ set -e
 gcc -O3 -DNDEBUG -Wall -W -Werror -g -o 6502jit \
     main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
-    cpu_driver.c asm_x64_abi.c asm_tables.c test.c \
+    cpu_driver.c asm_x64_abi.c asm_tables.c \
     asm_x64_common.c asm_x64_inturbo.c \
     asm_x64_common.S asm_x64_jit.S asm_x64_inturbo.S \
     -lm -lX11 -lXext -lpthread -lasound
@@ -12,7 +12,7 @@ gcc -O3 -DNDEBUG -Wall -W -Werror -g -o 6502jit \
 gcc -Wall -W -Werror -g -o 6502jit \
     main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
-    cpu_driver.c asm_x64_abi.c asm_tables.c test.c \
+    cpu_driver.c asm_x64_abi.c asm_tables.c \
     asm_x64_common.c asm_x64_inturbo.c \
     asm_x64_common.S asm_x64_jit.S asm_x64_inturbo.S \
     -lm -lX11 -lXext -lpthread -lasound

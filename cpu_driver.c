@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stddef.h>
 
 static void
 cpu_driver_memory_range_dummy(struct cpu_driver* p_cpu_driver,
