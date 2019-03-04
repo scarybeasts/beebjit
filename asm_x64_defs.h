@@ -8,6 +8,7 @@
 #define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100
 #define K_ASM_TABLE_X64_FLAGS_TO_6502           0x50000200
+
 #define K_CONTEXT_OFFSET_UTIL_DEBUG             8
 #define K_CONTEXT_OFFSET_STATE_6502             16
 #define K_CONTEXT_OFFSET_DEBUG_CALLBACK         24
@@ -15,6 +16,8 @@
 #define K_CONTEXT_OFFSET_INTERP_CALLBACK        40
 #define K_CONTEXT_OFFSET_INTERP_OBJECT          48
 #define K_CONTEXT_OFFSET_ABI_END                56
+#define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 80)
+
 #define K_STATE_6502_OFFSET_REG_A               0
 #define K_STATE_6502_OFFSET_REG_X               4
 #define K_STATE_6502_OFFSET_REG_Y               8

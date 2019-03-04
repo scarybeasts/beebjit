@@ -1,8 +1,11 @@
 #include "jit.h"
 
 #include "asm_x64_common.h"
+#include "asm_x64_jit.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
+#include "memory_access.h"
+#include "jit_compiler.h"
 #include "state_6502.h"
 #include "util.h"
 
@@ -18,11 +21,60 @@ struct jit_struct {
   struct cpu_driver driver;
 
   /* C callbacks called by JIT code. */
-  void* p_jit_callback;
+  void* p_compile_callback;
 
   /* Fields not referenced by JIT'ed code. */
   uint8_t* p_jit_base;
+  struct jit_compiler* p_compiler;
+  struct util_buffer* p_temp_buf;
+  struct util_buffer* p_compile_buf;
 };
+
+static uint8_t*
+jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  uint8_t* p_jit_ptr = (p_jit->p_jit_base +
+                        (addr_6502 * k_jit_bytes_per_byte));
+  return p_jit_ptr;
+}
+
+static uint16_t
+jit_6502_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+  size_t block_addr_6502;
+
+  uint8_t* p_jit_base = p_jit->p_jit_base;
+
+  block_addr_6502 = (p_intel_rip - p_jit_base);
+  block_addr_6502 /= k_jit_bytes_per_byte;
+
+  assert(block_addr_6502 < k_6502_addr_space_size);
+
+  return (uint16_t) block_addr_6502;
+}
+
+static void
+jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  struct util_buffer* p_buf = p_jit->p_temp_buf;
+  uint8_t* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+
+  util_buffer_setup(p_buf, p_jit_ptr, 2);
+  asm_x64_emit_jit_call_compile_trampoline(p_buf);
+}
+
+static void*
+jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+  uint8_t* p_jit_ptr;
+
+  struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
+  uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_intel_rip);
+
+  p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+
+  util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
+
+  jit_compiler_compile_block(p_jit->p_compiler, p_compile_buf, addr_6502);
+
+  return p_jit_ptr;
+}
 
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
@@ -36,9 +88,8 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   uint32_t uint_start_addr;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  uint16_t reg_pc = state_6502_get_pc(p_jit->driver.abi.p_state_6502);
-  uint8_t* p_start_addr = p_jit->p_jit_base;
-  p_start_addr += (reg_pc * k_jit_bytes_per_byte);
+  uint16_t addr_6502 = state_6502_get_pc(p_jit->driver.abi.p_state_6502);
+  uint8_t* p_start_addr = jit_get_jit_base_addr(p_jit, addr_6502);
   uint_start_addr = (uint32_t) (size_t) p_start_addr;
 
   ret = asm_x64_asm_enter(p_jit, uint_start_addr, 0);
@@ -48,23 +99,35 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
 
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
+  size_t i;
   size_t mapping_size;
   uint8_t* p_jit_base;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
 
   p_cpu_driver->destroy = jit_destroy;
   p_cpu_driver->enter = jit_enter;
 
+  p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
+  p_jit->p_compile_callback = jit_compile;
+
   /* This is the mapping that holds the dynamically JIT'ed code. */
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  p_jit_base = util_get_guarded_mapping( k_jit_addr, mapping_size);
+  p_jit_base = util_get_guarded_mapping(k_jit_addr, mapping_size);
   util_make_mapping_read_write_exec(p_jit_base, mapping_size);
 
   p_jit->p_jit_base = p_jit_base;
+  p_jit->p_compiler = jit_compiler_create(p_mem_read);
+  p_jit->p_temp_buf = util_buffer_create();
+  p_jit->p_compile_buf = util_buffer_create();
 
   /* Fill with int3. */
   (void) memset(p_jit_base, '\xcc', mapping_size);
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    jit_init_addr(p_jit, i);
+  }
 }
 
 struct cpu_driver*
