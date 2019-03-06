@@ -49,3 +49,30 @@ asm_x64_jit_compile_trampoline:
   pop REG_SCRATCH2
 
   jmp REG_SCRATCH1
+
+
+.globl asm_x64_jit_FLAGA
+.globl asm_x64_jit_FLAGA_END
+asm_x64_jit_FLAGA:
+  test al, al
+
+asm_x64_jit_FLAGA_END:
+  ret
+
+
+.globl asm_x64_jit_LODA_IMM
+.globl asm_x64_jit_LODA_IMM_END
+asm_x64_jit_LODA_IMM:
+  mov al, 0
+
+asm_x64_jit_LODA_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_STOA_IMM
+.globl asm_x64_jit_STOA_IMM_END
+asm_x64_jit_STOA_IMM:
+  mov BYTE PTR [0x7fffffff], 0
+
+asm_x64_jit_STOA_IMM_END:
+  ret
