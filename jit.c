@@ -37,6 +37,12 @@ jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit_ptr;
 }
 
+static void*
+jit_get_jit_base_addr_callback(void* p, uint16_t addr_6502) {
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+  return jit_get_jit_base_addr(p_jit, addr_6502);
+}
+
 static uint16_t
 jit_6502_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   size_t block_addr_6502;
@@ -118,7 +124,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   util_make_mapping_read_write_exec(p_jit_base, mapping_size);
 
   p_jit->p_jit_base = p_jit_base;
-  p_jit->p_compiler = jit_compiler_create(p_mem_read);
+  p_jit->p_compiler = jit_compiler_create(p_mem_read,
+                                          jit_get_jit_base_addr_callback,
+                                          p_jit);
   p_jit->p_temp_buf = util_buffer_create();
   p_jit->p_compile_buf = util_buffer_create();
 

@@ -53,6 +53,16 @@ asm_x64_instruction_TRAP_END:
   ret
 
 
+.globl asm_x64_instruction_ILLEGAL
+.globl asm_x64_instruction_ILLEGAL_END
+asm_x64_instruction_ILLEGAL:
+
+  ud2
+
+asm_x64_instruction_ILLEGAL_END:
+  ret
+
+
 .globl asm_x64_instruction_CLC
 .globl asm_x64_instruction_CLC_END
 asm_x64_instruction_CLC:

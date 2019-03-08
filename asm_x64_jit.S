@@ -54,18 +54,27 @@ asm_x64_jit_compile_trampoline:
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:
-  test al, al
+  test REG_6502_A, REG_6502_A
 
 asm_x64_jit_FLAGA_END:
   ret
 
 
-.globl asm_x64_jit_LODA_IMM
-.globl asm_x64_jit_LODA_IMM_END
-asm_x64_jit_LODA_IMM:
-  mov al, 0
+.globl asm_x64_jit_FLAGX
+.globl asm_x64_jit_FLAGX_END
+asm_x64_jit_FLAGX:
+  test REG_6502_X, REG_6502_X
 
-asm_x64_jit_LODA_IMM_END:
+asm_x64_jit_FLAGX_END:
+  ret
+
+
+.globl asm_x64_jit_FLAGY
+.globl asm_x64_jit_FLAGY_END
+asm_x64_jit_FLAGY:
+  test REG_6502_Y, REG_6502_Y
+
+asm_x64_jit_FLAGY_END:
   ret
 
 
@@ -75,4 +84,66 @@ asm_x64_jit_STOA_IMM:
   mov BYTE PTR [0x7fffffff], 0
 
 asm_x64_jit_STOA_IMM_END:
+  ret
+
+.globl asm_x64_jit_BNE
+.globl asm_x64_jit_BNE_END
+asm_x64_jit_BNE:
+  jne 0
+
+asm_x64_jit_BNE_END:
+  ret
+
+
+.globl asm_x64_jit_JMP
+.globl asm_x64_jit_JMP_END
+asm_x64_jit_JMP:
+  jmp 0
+
+asm_x64_jit_JMP_END:
+  ret
+
+
+.globl asm_x64_jit_LDA_IMM
+.globl asm_x64_jit_LDA_IMM_END
+asm_x64_jit_LDA_IMM:
+  mov REG_6502_A, 0
+
+asm_x64_jit_LDA_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_LDA_ABX
+.globl asm_x64_jit_LDA_ABX_END
+asm_x64_jit_LDA_ABX:
+  mov REG_6502_A, [REG_6502_X_64 + 0xFFFF]
+
+asm_x64_jit_LDA_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_LDX_IMM
+.globl asm_x64_jit_LDX_IMM_END
+asm_x64_jit_LDX_IMM:
+  mov REG_6502_X, 0
+
+asm_x64_jit_LDX_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_LDY_IMM
+.globl asm_x64_jit_LDY_IMM_END
+asm_x64_jit_LDY_IMM:
+  mov REG_6502_Y, 0
+
+asm_x64_jit_LDY_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_STA_ABX
+.globl asm_x64_jit_STA_ABX_END
+asm_x64_jit_STA_ABX:
+  mov [REG_6502_X_64 + 0xFFFF], REG_6502_A
+
+asm_x64_jit_STA_ABX_END:
   ret
