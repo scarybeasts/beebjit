@@ -8,15 +8,13 @@ struct memory_access;
 struct state_6502;
 
 enum {
-  k_asm_x64_abi_size = (7 * 8),
+  k_asm_x64_abi_size = (6 * 8),
   k_asm_x64_abi_offset_util_private = 0,
-  k_asm_x64_abi_offset_util_debug = 8,
-  k_asm_x64_abi_offset_state_6502 = 16,
+  k_asm_x64_abi_offset_state_6502 = 8,
 };
 
 struct asm_x64_abi {
   void* p_util_private;
-  void* p_util_debug;
 
   struct state_6502* p_state_6502;
 

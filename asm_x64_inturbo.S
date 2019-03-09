@@ -143,11 +143,7 @@ asm_x64_inturbo_jump_opcode_END:
 .globl asm_x64_inturbo_enter_debug_END
 asm_x64_inturbo_enter_debug:
 
-  push REG_SCRATCH1
-  mov REG_SCRATCH1, REG_6502_PC
-  call [REG_CONTEXT + K_CONTEXT_OFFSET_UTIL_DEBUG]
-  pop REG_SCRATCH1
-
+  call 0
 asm_x64_inturbo_enter_debug_END:
   ret
 

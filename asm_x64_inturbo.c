@@ -166,9 +166,16 @@ asm_x64_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 
 void
 asm_x64_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_inturbo_enter_debug,
                asm_x64_inturbo_enter_debug_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_inturbo_enter_debug,
+                     asm_x64_inturbo_enter_debug_END,
+                     asm_x64_asm_debug);
 }
 
 void

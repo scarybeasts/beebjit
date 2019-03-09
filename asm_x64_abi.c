@@ -25,8 +25,6 @@ void asm_x64_abi_init(struct asm_x64_abi* p_abi,
 
   (void) memset(p_abi, '\0', sizeof(struct asm_x64_abi));
 
-  p_abi->p_util_debug = asm_x64_asm_debug;
-
   p_abi->p_state_6502 = p_state_6502;
 
   p_abi->p_debug_callback = p_options->debug_callback;

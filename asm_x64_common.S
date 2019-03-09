@@ -289,7 +289,7 @@ asm_x64_instruction_Y_NZ_flags_END:
 .globl asm_x64_save_AXYS_PC_flags
 asm_x64_save_AXYS_PC_flags:
   # Save 6502 IP.
-  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_SCRATCH1_32
+  mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_6502_PC_32
   # Save A, X, Y, S.
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_6502_X_32
@@ -311,6 +311,7 @@ asm_x64_restore_AXYS_PC_flags:
   mov REG_6502_X_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X]
   mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
   mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
+  # Restore 6502 IP.
   mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
   # Restore 6502 flags.
   movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS]
@@ -479,9 +480,6 @@ asm_x64_asm_enter_END:
 .globl asm_x64_asm_debug
 .globl asm_x64_asm_debug_END
 asm_x64_asm_debug:
-
-  # Expectation: Context object in REG_CONTEXT.
-  # Expectation: 6502 PC in REG_SCRATCH1.
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
 
