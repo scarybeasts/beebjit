@@ -104,6 +104,15 @@ asm_x64_jit_BNE_8bit_END:
   ret
 
 
+.globl asm_x64_jit_INC_ZPG
+.globl asm_x64_jit_INC_ZPG_END
+asm_x64_jit_INC_ZPG:
+  inc BYTE PTR [0x7fffffff]
+
+asm_x64_jit_INC_ZPG_END:
+  ret
+
+
 .globl asm_x64_jit_JMP
 .globl asm_x64_jit_JMP_END
 asm_x64_jit_JMP:

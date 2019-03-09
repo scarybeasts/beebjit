@@ -17,6 +17,7 @@ void asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
 void asm_x64_emit_jit_BNE(struct util_buffer* p_buf,
                           int32_t value1,
                           int32_t value2);
+void asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_JMP(struct util_buffer* p_buf,
                           int32_t value1,
                           int32_t value2);
@@ -46,6 +47,8 @@ void asm_x64_jit_BNE();
 void asm_x64_jit_BNE_END();
 void asm_x64_jit_BNE_8bit();
 void asm_x64_jit_BNE_8bit_END();
+void asm_x64_jit_INC_ZPG();
+void asm_x64_jit_INC_ZPG_END();
 void asm_x64_jit_JMP();
 void asm_x64_jit_JMP_END();
 void asm_x64_jit_JMP_8bit();

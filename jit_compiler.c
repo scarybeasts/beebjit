@@ -28,6 +28,8 @@ struct jit_opcode {
   int32_t opcode;
   int32_t value1;
   int32_t value2;
+  int32_t optype;
+  int32_t opmode;
 };
 
 struct jit_opcode_details {
@@ -97,13 +99,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->branches = g_opbranch[optype];
 
   p_details->first_uop.opcode = opcode_6502;
+  p_details->first_uop.optype = optype;
+  p_details->first_uop.opmode = opmode;
   p_details->second_uop.opcode = -1;
 
   switch (opmode) {
+  case 0:
   case k_nil:
   case k_acc:
     break;
   case k_imm:
+  case k_zpg:
+  case k_zpx:
+  case k_zpy:
     p_details->first_uop.value1 = p_mem_read[addr_plus_1];
     break;
   case k_rel:
@@ -130,15 +138,21 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_tya:
   case k_pla:
     p_details->second_uop.opcode = k_opcode_FLAGA;
+    p_details->second_uop.optype = -1;
+    p_details->second_uop.opmode = -1;
     break;
   case k_ldx:
   case k_tax:
   case k_tsx:
     p_details->second_uop.opcode = k_opcode_FLAGX;
+    p_details->second_uop.optype = -1;
+    p_details->second_uop.opmode = -1;
     break;
   case k_ldy:
   case k_tay:
     p_details->second_uop.opcode = k_opcode_FLAGY;
+    p_details->second_uop.optype = -1;
+    p_details->second_uop.opmode = -1;
     break;
   case k_jmp:
   case k_jsr:
@@ -179,6 +193,9 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
+  case 0x02:
+    asm_x64_emit_instruction_EXIT(p_dest_buf);
+    break;
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, value1, value2);
     break;
@@ -194,8 +211,14 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case 0xA2:
     asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xA8:
+    asm_x64_emit_instruction_TAY(p_dest_buf);
+    break;
   case 0xA9:
     asm_x64_emit_jit_LDA_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0xAA:
+    asm_x64_emit_instruction_TAX(p_dest_buf);
     break;
   case 0xBD:
     asm_x64_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
@@ -209,8 +232,14 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, value1, value2);
     break;
+  case 0xE6:
+    asm_x64_emit_jit_INC_ZPG(p_dest_buf, (uint8_t) value1);
+    break;
   case 0xE8:
     asm_x64_emit_instruction_INX(p_dest_buf);
+    break;
+  case 0xF2:
+    asm_x64_emit_instruction_CRASH(p_dest_buf);
     break;
   default:
     asm_x64_emit_instruction_ILLEGAL(p_dest_buf);
@@ -223,18 +252,39 @@ jit_compiler_process_opcode(struct jit_compiler* p_compiler,
                             struct util_buffer* p_dest_buf,
                             struct jit_opcode* p_opcode) {
   int32_t opcode = p_opcode->opcode;
+  int32_t optype = p_opcode->optype;
   int32_t value1 = p_opcode->value1;
+  int32_t opreg = -1;
+
+  if (optype != -1) {
+    opreg = g_optype_sets_register[optype];
+  }
+
+  switch (opreg) {
+  case k_a:
+    p_compiler->reg_a = k_value_unknown;
+    break;
+  case k_x:
+    p_compiler->reg_x = k_value_unknown;
+    break;
+  case k_y:
+    p_compiler->reg_y = k_value_unknown;
+    break;
+  default:
+    break;
+  }
 
   switch (opcode) {
-  case 0xA0:
+  case 0xA0: /* LDY imm */
     p_compiler->reg_y = value1;
     break;
-  case 0xA2:
+  case 0xA2: /* LDX imm */
     p_compiler->reg_x = value1;
     break;
-  case 0xA9:
+  case 0xA9: /* LDA imm */
     p_compiler->reg_a = value1;
     break;
+  case 0x85: /* STA zpg */
   case 0x8D: /* STA abs */
     if (p_compiler->reg_a != k_value_unknown) {
       p_opcode->opcode = k_opcode_STOA_IMM;

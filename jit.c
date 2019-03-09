@@ -84,8 +84,15 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
-  (void) p_cpu_driver;
-  assert(0);
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  size_t mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
+
+  util_buffer_destroy(p_jit->p_compile_buf);
+  util_buffer_destroy(p_jit->p_temp_buf);
+
+  jit_compiler_destroy(p_jit->p_compiler);
+
+  util_free_guarded_mapping(k_jit_addr, mapping_size);
 }
 
 static uint32_t

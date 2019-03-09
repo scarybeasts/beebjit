@@ -93,6 +93,18 @@ asm_x64_emit_jit_BNE(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_INC_ZPG, asm_x64_jit_INC_ZPG_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_INC_ZPG,
+                    asm_x64_jit_INC_ZPG_END,
+                    (K_BBC_MEM_READ_ADDR + value));
+}
+
+void
 asm_x64_emit_jit_JMP(struct util_buffer* p_buf,
                      int32_t value1,
                      int32_t value2) {
