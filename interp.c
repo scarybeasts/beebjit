@@ -1462,6 +1462,9 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
     case 0xF1: /* SBC idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
       break;
+    case 0xF2: /* Extension: CRASH */
+      *((volatile uint8_t*) 0xdead) = '\x41';
+      break;
     case 0xF4: /* NOP zpx */ /* Undocumented. */
       pc += 2;
       cycles_this_instruction = 4;
