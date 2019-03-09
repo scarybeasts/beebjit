@@ -95,12 +95,29 @@ asm_x64_jit_BNE_END:
   ret
 
 
+.globl asm_x64_jit_BNE_8bit
+.globl asm_x64_jit_BNE_8bit_END
+asm_x64_jit_BNE_8bit:
+  jne asm_x64_jit_BNE_8bit
+
+asm_x64_jit_BNE_8bit_END:
+  ret
+
+
 .globl asm_x64_jit_JMP
 .globl asm_x64_jit_JMP_END
 asm_x64_jit_JMP:
   jmp 0
 
 asm_x64_jit_JMP_END:
+  ret
+
+.globl asm_x64_jit_JMP_8bit
+.globl asm_x64_jit_JMP_8bit_END
+asm_x64_jit_JMP_8bit:
+  jmp asm_x64_jit_JMP_8bit
+
+asm_x64_jit_JMP_8bit_END:
   ret
 
 

@@ -44,8 +44,12 @@ void asm_x64_jit_STOA_IMM_END();
 
 void asm_x64_jit_BNE();
 void asm_x64_jit_BNE_END();
+void asm_x64_jit_BNE_8bit();
+void asm_x64_jit_BNE_8bit_END();
 void asm_x64_jit_JMP();
 void asm_x64_jit_JMP_END();
+void asm_x64_jit_JMP_8bit();
+void asm_x64_jit_JMP_8bit_END();
 void asm_x64_jit_LDA_IMM();
 void asm_x64_jit_LDA_IMM_END();
 void asm_x64_jit_LDA_ABX();
