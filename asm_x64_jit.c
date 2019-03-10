@@ -8,26 +8,26 @@
 
 static void
 asm_x64_emit_jit_jump(struct util_buffer* p_buf,
-                      int32_t value1,
-                      int32_t value2,
+                      void* p_target,
                       void* p_jmp_32bit,
                       void* p_jmp_end_32bit,
                       void* p_jmp_8bit,
                       void* p_jmp_end_8bit) {
   int32_t len_x64;
-  int32_t delta;
+  ssize_t delta;
 
   size_t offset = util_buffer_get_pos(p_buf);
+  void* p_source = (util_buffer_get_base_address(p_buf) + offset);
 
   len_x64 = (p_jmp_end_8bit - p_jmp_8bit);
-  delta = (value2 - (value1 + len_x64));
+  delta = (p_target - (p_source + len_x64));
 
   if (delta <= INT8_MAX && delta >= INT8_MIN) {
     asm_x64_copy(p_buf, p_jmp_8bit, p_jmp_end_8bit);
     asm_x64_patch_byte(p_buf, offset, p_jmp_8bit, p_jmp_end_8bit, delta);
   } else {
     len_x64 = (p_jmp_end_32bit - p_jmp_32bit);
-    delta = (value2 - (value1 + len_x64));
+    delta = (p_target - (p_source + len_x64));
     assert(delta <= INT32_MAX && delta >= INT32_MIN);
     asm_x64_copy(p_buf, p_jmp_32bit, p_jmp_end_32bit);
     asm_x64_patch_int(p_buf, offset, p_jmp_32bit, p_jmp_end_32bit, delta);
@@ -43,6 +43,27 @@ asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_jit_call_compile_trampoline,
                asm_x64_jit_call_compile_trampoline_END);
+}
+
+void
+asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_call_debug,
+               asm_x64_jit_call_debug_END);
+
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_call_debug,
+                    asm_x64_jit_call_debug_pc_patch,
+                    addr);
+
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_call_debug,
+                     asm_x64_jit_call_debug_call_patch,
+                     asm_x64_asm_debug);
 }
 
 void
@@ -80,12 +101,9 @@ asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
 }
 
 void
-asm_x64_emit_jit_BNE(struct util_buffer* p_buf,
-                     int32_t value1,
-                     int32_t value2) {
+asm_x64_emit_jit_BNE(struct util_buffer* p_buf, void* p_target) {
   asm_x64_emit_jit_jump(p_buf,
-                        value1,
-                        value2,
+                        p_target,
                         asm_x64_jit_BNE,
                         asm_x64_jit_BNE_END,
                         asm_x64_jit_BNE_8bit,
@@ -105,12 +123,9 @@ asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_x64_emit_jit_JMP(struct util_buffer* p_buf,
-                     int32_t value1,
-                     int32_t value2) {
+asm_x64_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
   asm_x64_emit_jit_jump(p_buf,
-                        value1,
-                        value2,
+                        p_target,
                         asm_x64_jit_JMP,
                         asm_x64_jit_JMP_END,
                         asm_x64_jit_JMP_8bit,

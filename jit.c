@@ -2,6 +2,7 @@
 
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
+#include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "memory_access.h"
@@ -118,6 +119,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
+  struct bbc_options* p_options = p_cpu_driver->p_options;
+  void* p_debug_callback_object = p_options->p_debug_callback_object;
+  int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
 
   p_cpu_driver->destroy = jit_destroy;
   p_cpu_driver->enter = jit_enter;
@@ -133,7 +137,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_compiler = jit_compiler_create(p_mem_read,
                                           jit_get_jit_base_addr_callback,
-                                          p_jit);
+                                          p_jit,
+                                          debug);
   p_jit->p_temp_buf = util_buffer_create();
   p_jit->p_compile_buf = util_buffer_create();
 

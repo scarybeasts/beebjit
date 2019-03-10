@@ -174,10 +174,10 @@ util_make_mapping_none(void* p_addr, size_t size) {
 }
 
 struct util_buffer {
-  unsigned char* p_mem;
+  uint8_t* p_mem;
   size_t length;
   size_t pos;
-  unsigned char* p_base;
+  uint8_t* p_base;
 };
 
 struct util_buffer*
@@ -200,14 +200,14 @@ util_buffer_destroy(struct util_buffer* p_buf) {
 }
 
 void
-util_buffer_setup(struct util_buffer* p_buf, unsigned char* p_mem, size_t len) {
+util_buffer_setup(struct util_buffer* p_buf, uint8_t* p_mem, size_t len) {
   p_buf->p_mem = p_mem;
   p_buf->length = len;
   p_buf->pos = 0;
-  p_buf->p_base = NULL;
+  p_buf->p_base = p_mem;
 }
 
-unsigned char*
+uint8_t*
 util_buffer_get_ptr(struct util_buffer* p_buf) {
   return p_buf->p_mem;
 }
@@ -238,11 +238,11 @@ util_buffer_append(struct util_buffer* p_buf, struct util_buffer* p_src_buf) {
 }
 
 void
-util_buffer_set_base_address(struct util_buffer* p_buf, unsigned char* p_base) {
+util_buffer_set_base_address(struct util_buffer* p_buf, uint8_t* p_base) {
   p_buf->p_base = p_base;
 }
 
-unsigned char*
+uint8_t*
 util_buffer_get_base_address(struct util_buffer* p_buf) {
   return p_buf->p_base;
 }
@@ -325,7 +325,7 @@ util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size) {
 }
 
 size_t
-util_file_read(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
+util_file_read(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
   int ret;
   ssize_t read_ret;
 
@@ -349,7 +349,7 @@ util_file_read(unsigned char* p_buf, size_t max_size, const char* p_file_name) {
 
 void
 util_file_write(const char* p_file_name,
-                const unsigned char* p_buf,
+                const uint8_t* p_buf,
                 size_t size) {
   int ret;
   ssize_t write_ret;

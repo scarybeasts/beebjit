@@ -20,18 +20,15 @@ void* util_get_fixed_mapping_from_fd(int fd, void* p_addr, size_t size);
 struct util_buffer;
 struct util_buffer* util_buffer_create();
 void util_buffer_destroy(struct util_buffer* p_buf);
-void util_buffer_setup(struct util_buffer* p_buf,
-                       unsigned char* p_mem,
-                       size_t len);
-unsigned char* util_buffer_get_ptr(struct util_buffer* p_buf);
+void util_buffer_setup(struct util_buffer* p_buf, uint8_t* p_mem, size_t len);
+uint8_t* util_buffer_get_ptr(struct util_buffer* p_buf);
 size_t util_buffer_get_pos(struct util_buffer* p_buf);
 void util_buffer_set_pos(struct util_buffer* p_buf, size_t len);
 size_t util_buffer_remaining(struct util_buffer* p_buf);
 void util_buffer_append(struct util_buffer* p_buf,
                         struct util_buffer* p_src_buf);
-void util_buffer_set_base_address(struct util_buffer* p_buf,
-                                  unsigned char* p_base);
-unsigned char* util_buffer_get_base_address(struct util_buffer* p_buf);
+void util_buffer_set_base_address(struct util_buffer* p_buf, uint8_t* p_base);
+uint8_t* util_buffer_get_base_address(struct util_buffer* p_buf);
 
 void util_buffer_add_1b(struct util_buffer* p_buf, int b1);
 void util_buffer_add_2b(struct util_buffer* p_buf, int b1, int b2);
@@ -52,11 +49,11 @@ void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
 void util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size);
 
 /* File. */
-size_t util_file_read(unsigned char* p_buf,
+size_t util_file_read(uint8_t* p_buf,
                       size_t max_size,
                       const char* p_file_name);
 void util_file_write(const char* p_file_name,
-                     const unsigned char* p_buf,
+                     const uint8_t* p_buf,
                      size_t size);
 
 /* Timing. */

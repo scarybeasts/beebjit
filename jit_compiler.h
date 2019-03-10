@@ -9,7 +9,8 @@ struct util_buffer;
 struct jit_compiler* jit_compiler_create(
     uint8_t* p_read_mem,
     void* (*host_address_resolver)(void*, uint16_t),
-    void* p_host_address_object);
+    void* p_host_address_object,
+    int debug);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
 void jit_compiler_compile_block(struct jit_compiler* p_compiler,

@@ -51,7 +51,7 @@ asm_x64_patch_jump(struct util_buffer* p_buf,
                    void* p_jump_target) {
   size_t original_pos = util_buffer_get_pos(p_buf);
   ssize_t pos = (offset + (p_patch - p_start));
-  void* p_jump_pc = (util_buffer_get_ptr(p_buf) + pos);
+  void* p_jump_pc = (util_buffer_get_base_address(p_buf) + pos);
   ssize_t jump_delta = (p_jump_target - p_jump_pc);
 
   assert(pos >= (ssize_t) sizeof(int));

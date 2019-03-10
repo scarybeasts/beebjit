@@ -14,10 +14,9 @@ struct jit_compiler {
   uint8_t* p_mem_read;
   void* (*host_address_resolver)(void*, uint16_t);
   void* p_host_address_object;
-  struct util_buffer* p_single_opcode_buf;
+  int debug;
 
-  void* p_block_base_host_address;
-  void* p_block_curr_host_address;
+  struct util_buffer* p_single_opcode_buf;
 
   int32_t reg_a;
   int32_t reg_x;
@@ -54,7 +53,8 @@ enum {
 struct jit_compiler*
 jit_compiler_create(uint8_t* p_mem_read,
                     void* (*host_address_resolver)(void*, uint16_t),
-                    void* p_host_address_object) {
+                    void* p_host_address_object,
+                    int debug) {
   struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
   if (p_compiler == NULL) {
     errx(1, "cannot alloc jit_compiler");
@@ -64,6 +64,7 @@ jit_compiler_create(uint8_t* p_mem_read,
   p_compiler->p_mem_read = p_mem_read;
   p_compiler->host_address_resolver = host_address_resolver;
   p_compiler->p_host_address_object = p_host_address_object;
+  p_compiler->debug = debug;
 
   p_compiler->p_single_opcode_buf = util_buffer_create();
 
@@ -165,8 +166,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   if (could_jump) {
     p_details->first_uop.value1 =
-        (int32_t) (size_t) p_compiler->p_block_curr_host_address;
-    p_details->first_uop.value2 =
         (int32_t) (size_t) p_compiler->host_address_resolver(
             p_compiler->p_host_address_object,
             could_jump_target);
@@ -197,7 +196,7 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
     asm_x64_emit_instruction_EXIT(p_dest_buf);
     break;
   case 0x4C:
-    asm_x64_emit_jit_JMP(p_dest_buf, value1, value2);
+    asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x88:
     asm_x64_emit_instruction_DEY(p_dest_buf);
@@ -230,7 +229,7 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
     asm_x64_emit_instruction_DEX(p_dest_buf);
     break;
   case 0xD0:
-    asm_x64_emit_jit_BNE(p_dest_buf, value1, value2);
+    asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xE6:
     asm_x64_emit_jit_INC_ZPG(p_dest_buf, (uint8_t) value1);
@@ -303,10 +302,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
 
-  p_compiler->p_block_base_host_address =
-      p_compiler->host_address_resolver(p_compiler->p_host_address_object,
-                                        addr_6502);
-
   p_compiler->reg_a = k_value_unknown;
   p_compiler->reg_x = k_value_unknown;
   p_compiler->reg_y = k_value_unknown;
@@ -316,18 +311,23 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     int branches_always = 0;
 
-    p_compiler->p_block_curr_host_address =
-        (p_compiler->p_block_base_host_address + util_buffer_get_pos(p_buf));
+    util_buffer_setup(p_single_opcode_buf,
+                      &single_opcode_buffer[0],
+                      sizeof(single_opcode_buffer));
+
+    util_buffer_set_base_address(p_single_opcode_buf,
+                                 (util_buffer_get_base_address(p_buf) +
+                                     util_buffer_get_pos(p_buf)));
+
+    if (p_compiler->debug) {
+      asm_x64_emit_jit_call_debug(p_single_opcode_buf, addr_6502);
+    }
 
     jit_compiler_get_opcode_details(p_compiler, &opcode_details, addr_6502);
 
     if (opcode_details.branches == k_bra_y) {
       branches_always = 1;
     }
-
-    util_buffer_setup(p_single_opcode_buf,
-                      &single_opcode_buffer[0],
-                      sizeof(single_opcode_buffer));
 
     jit_compiler_process_opcode(p_compiler,
                                 p_single_opcode_buf,

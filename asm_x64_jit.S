@@ -51,6 +51,20 @@ asm_x64_jit_compile_trampoline:
   jmp REG_SCRATCH1
 
 
+.globl asm_x64_jit_call_debug
+.globl asm_x64_jit_call_debug_pc_patch
+.globl asm_x64_jit_call_debug_call_patch
+.globl asm_x64_jit_call_debug_END
+asm_x64_jit_call_debug:
+  mov REG_6502_PC_32, 0xFFFF
+asm_x64_jit_call_debug_pc_patch:
+  call 0
+asm_x64_jit_call_debug_call_patch:
+
+asm_x64_jit_call_debug_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:
