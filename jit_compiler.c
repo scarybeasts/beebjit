@@ -21,6 +21,8 @@ struct jit_compiler {
   int32_t reg_a;
   int32_t reg_x;
   int32_t reg_y;
+  int32_t flag_carry;
+  int32_t flag_decimal;
 };
 
 struct jit_opcode {
@@ -47,6 +49,9 @@ enum {
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
+  k_opcode_ADD_IMM,
+  k_opcode_SAVE_CARRY,
+  k_opcode_SAVE_OVERFLOW,
   k_opcode_STOA_IMM,
 };
 
@@ -160,6 +165,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     could_jump_target = p_details->first_uop.value1;
     could_jump = 1;
     break;
+  case k_cmp:
+  case k_cpx:
+  case k_cpy:
+    p_details->second_uop.opcode = k_opcode_SAVE_CARRY;
+    p_details->second_uop.optype = -1;
+    p_details->second_uop.opmode = -1;
+    break;
   default:
     break;
   }
@@ -180,6 +192,9 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   int value2 = p_opcode->value2;
 
   switch (opcode) {
+  case k_opcode_ADD_IMM:
+    asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
     break;
@@ -189,17 +204,47 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
     break;
+  case k_opcode_SAVE_CARRY:
+    asm_x64_emit_jit_SAVE_CARRY(p_dest_buf);
+    break;
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
   case 0x02:
     asm_x64_emit_instruction_EXIT(p_dest_buf);
     break;
+  case 0x08:
+    asm_x64_emit_instruction_PHP(p_dest_buf);
+    break;
+  case 0x10:
+    asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0x18:
+    asm_x64_emit_instruction_CLC(p_dest_buf);
+    break;
+  case 0x28:
+    asm_x64_emit_instruction_PLP(p_dest_buf);
+    break;
+  case 0x30:
+    asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0x38:
+    asm_x64_emit_instruction_SEC(p_dest_buf);
+    break;
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x69:
+    asm_x64_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0x88:
     asm_x64_emit_instruction_DEY(p_dest_buf);
+    break;
+  case 0x90:
+    asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0x9A:
+    asm_x64_emit_instruction_TXS(p_dest_buf);
     break;
   case 0x9D:
     asm_x64_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1);
@@ -219,11 +264,29 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case 0xAA:
     asm_x64_emit_instruction_TAX(p_dest_buf);
     break;
+  case 0xAD:
+    asm_x64_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0xB0:
+    asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0xB8:
+    asm_x64_emit_instruction_CLV(p_dest_buf);
+    break;
+  case 0xBA:
+    asm_x64_emit_instruction_TSX(p_dest_buf);
+    break;
   case 0xBD:
     asm_x64_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
     break;
+  case 0xC0:
+    asm_x64_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0xC8:
     asm_x64_emit_instruction_INY(p_dest_buf);
+    break;
+  case 0xC9:
+    asm_x64_emit_jit_CMP_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xCA:
     asm_x64_emit_instruction_DEX(p_dest_buf);
@@ -231,14 +294,26 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0xD8:
+    asm_x64_emit_instruction_CLD(p_dest_buf);
+    break;
+  case 0xE0:
+    asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0xE6:
     asm_x64_emit_jit_INC_ZPG(p_dest_buf, (uint8_t) value1);
     break;
   case 0xE8:
     asm_x64_emit_instruction_INX(p_dest_buf);
     break;
+  case 0xF0:
+    asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
+    break;
   case 0xF2:
     asm_x64_emit_instruction_CRASH(p_dest_buf);
+    break;
+  case 0xF8:
+    asm_x64_emit_instruction_SED(p_dest_buf);
     break;
   default:
     asm_x64_emit_instruction_ILLEGAL(p_dest_buf);
@@ -254,11 +329,34 @@ jit_compiler_process_opcode(struct jit_compiler* p_compiler,
   int32_t optype = p_opcode->optype;
   int32_t value1 = p_opcode->value1;
   int32_t opreg = -1;
+  int32_t changes_carry = 0;
 
   if (optype != -1) {
     opreg = g_optype_sets_register[optype];
+    changes_carry = g_optype_changes_carry[optype];
   }
 
+  /* Re-write the opcode if we have an optimization opportunity. */
+  switch (opcode) {
+  case 0x69: /* ADC imm */
+    if (p_compiler->flag_carry == 0) {
+      p_opcode->opcode = k_opcode_ADD_IMM;
+    }
+    break;
+  case 0x85: /* STA zpg */
+  case 0x8D: /* STA abs */
+    if (p_compiler->reg_a != k_value_unknown) {
+      p_opcode->opcode = k_opcode_STOA_IMM;
+      p_opcode->value2 = p_compiler->reg_a;
+    }
+    break;
+  default:
+    break;
+  }
+
+  jit_compiler_emit_opcode(p_dest_buf, p_opcode);
+
+  /* Update known state of registers, flags, etc. */
   switch (opreg) {
   case k_a:
     p_compiler->reg_a = k_value_unknown;
@@ -273,7 +371,17 @@ jit_compiler_process_opcode(struct jit_compiler* p_compiler,
     break;
   }
 
+  if (changes_carry) {
+    p_compiler->flag_carry = k_value_unknown;
+  }
+
   switch (opcode) {
+  case 0x18: /* CLC */
+    p_compiler->flag_carry = 0;
+    break;
+  case 0x38: /* SEC */
+    p_compiler->flag_carry = 1;
+    break;
   case 0xA0: /* LDY imm */
     p_compiler->reg_y = value1;
     break;
@@ -283,15 +391,15 @@ jit_compiler_process_opcode(struct jit_compiler* p_compiler,
   case 0xA9: /* LDA imm */
     p_compiler->reg_a = value1;
     break;
-  case 0x85: /* STA zpg */
-  case 0x8D: /* STA abs */
-    if (p_compiler->reg_a != k_value_unknown) {
-      p_opcode->opcode = k_opcode_STOA_IMM;
-      p_opcode->value2 = p_compiler->reg_a;
-    }
+  case 0xD8: /* CLD */
+    p_compiler->flag_decimal = 0;
+    break;
+  case 0xF8: /* SED */
+    p_compiler->flag_decimal = 1;
+    break;
+  default:
     break;
   }
-  jit_compiler_emit_opcode(p_dest_buf, p_opcode);
 }
 
 void
@@ -305,9 +413,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_compiler->reg_a = k_value_unknown;
   p_compiler->reg_x = k_value_unknown;
   p_compiler->reg_y = k_value_unknown;
+  p_compiler->flag_carry = k_value_unknown;
+  p_compiler->flag_decimal = k_value_unknown;
 
   while (1) {
-    uint8_t single_opcode_buffer[32];
+    uint8_t single_opcode_buffer[64];
 
     int branches_always = 0;
 

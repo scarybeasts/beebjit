@@ -65,6 +65,15 @@ asm_x64_jit_call_debug_END:
   ret
 
 
+.globl asm_x64_jit_ADD_IMM
+.globl asm_x64_jit_ADD_IMM_END
+asm_x64_jit_ADD_IMM:
+  add REG_6502_A, 0
+
+asm_x64_jit_ADD_IMM_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:
@@ -92,6 +101,15 @@ asm_x64_jit_FLAGY_END:
   ret
 
 
+.globl asm_x64_jit_SAVE_CARRY
+.globl asm_x64_jit_SAVE_CARRY_END
+asm_x64_jit_SAVE_CARRY:
+  setae REG_6502_CF
+
+asm_x64_jit_SAVE_CARRY_END:
+  ret
+
+
 .globl asm_x64_jit_STOA_IMM
 .globl asm_x64_jit_STOA_IMM_END
 asm_x64_jit_STOA_IMM:
@@ -99,6 +117,92 @@ asm_x64_jit_STOA_IMM:
 
 asm_x64_jit_STOA_IMM_END:
   ret
+
+
+.globl asm_x64_jit_ADC_IMM
+.globl asm_x64_jit_ADC_IMM_END
+asm_x64_jit_ADC_IMM:
+  adc REG_6502_A, 0
+
+asm_x64_jit_ADC_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_BCC
+.globl asm_x64_jit_BCC_END
+asm_x64_jit_BCC:
+  bt REG_6502_CF_64, 0
+  jae 0
+
+asm_x64_jit_BCC_END:
+  ret
+
+
+.globl asm_x64_jit_BCC_8bit
+.globl asm_x64_jit_BCC_8bit_END
+asm_x64_jit_BCC_8bit:
+  bt REG_6502_CF_64, 0
+  jae asm_x64_jit_BCC_8bit
+
+asm_x64_jit_BCC_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BCS
+.globl asm_x64_jit_BCS_END
+asm_x64_jit_BCS:
+  bt REG_6502_CF_64, 0
+  jb 0
+
+asm_x64_jit_BCS_END:
+  ret
+
+
+.globl asm_x64_jit_BCS_8bit
+.globl asm_x64_jit_BCS_8bit_END
+asm_x64_jit_BCS_8bit:
+  bt REG_6502_CF_64, 0
+  jb asm_x64_jit_BCS_8bit
+
+asm_x64_jit_BCS_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BEQ
+.globl asm_x64_jit_BEQ_END
+asm_x64_jit_BEQ:
+  je 0
+
+asm_x64_jit_BEQ_END:
+  ret
+
+
+.globl asm_x64_jit_BEQ_8bit
+.globl asm_x64_jit_BEQ_8bit_END
+asm_x64_jit_BEQ_8bit:
+  je asm_x64_jit_BEQ_8bit
+
+asm_x64_jit_BEQ_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BMI
+.globl asm_x64_jit_BMI_END
+asm_x64_jit_BMI:
+  js 0
+
+asm_x64_jit_BMI_END:
+  ret
+
+
+.globl asm_x64_jit_BMI_8bit
+.globl asm_x64_jit_BMI_8bit_END
+asm_x64_jit_BMI_8bit:
+  js asm_x64_jit_BMI_8bit
+
+asm_x64_jit_BMI_8bit_END:
+  ret
+
 
 .globl asm_x64_jit_BNE
 .globl asm_x64_jit_BNE_END
@@ -115,6 +219,51 @@ asm_x64_jit_BNE_8bit:
   jne asm_x64_jit_BNE_8bit
 
 asm_x64_jit_BNE_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BPL
+.globl asm_x64_jit_BPL_END
+asm_x64_jit_BPL:
+  jns 0
+
+asm_x64_jit_BPL_END:
+  ret
+
+
+.globl asm_x64_jit_BPL_8bit
+.globl asm_x64_jit_BPL_8bit_END
+asm_x64_jit_BPL_8bit:
+  jns asm_x64_jit_BPL_8bit
+
+asm_x64_jit_BPL_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_CMP_IMM
+.globl asm_x64_jit_CMP_IMM_END
+asm_x64_jit_CMP_IMM:
+  cmp REG_6502_A, 0
+
+asm_x64_jit_CMP_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_CPX_IMM
+.globl asm_x64_jit_CPX_IMM_END
+asm_x64_jit_CPX_IMM:
+  cmp REG_6502_X, 0
+
+asm_x64_jit_CPX_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_CPY_IMM
+.globl asm_x64_jit_CPY_IMM_END
+asm_x64_jit_CPY_IMM:
+  cmp REG_6502_Y, 0
+
+asm_x64_jit_CPY_IMM_END:
   ret
 
 
@@ -150,6 +299,15 @@ asm_x64_jit_LDA_IMM:
   mov REG_6502_A, 0
 
 asm_x64_jit_LDA_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_LDA_ABS
+.globl asm_x64_jit_LDA_ABS_END
+asm_x64_jit_LDA_ABS:
+  mov REG_6502_A, [0x7fffffff]
+
+asm_x64_jit_LDA_ABS_END:
   ret
 
 

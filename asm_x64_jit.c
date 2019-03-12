@@ -67,6 +67,18 @@ asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_ADD_IMM, asm_x64_jit_ADD_IMM_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_ADD_IMM,
+                     asm_x64_jit_ADD_IMM_END,
+                     value);
+}
+
+void
 asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_FLAGA, asm_x64_jit_FLAGA_END);
 }
@@ -79,6 +91,11 @@ asm_x64_emit_jit_FLAGX(struct util_buffer* p_buf) {
 void
 asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_FLAGY, asm_x64_jit_FLAGY_END);
+}
+
+void
+asm_x64_emit_jit_SAVE_CARRY(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_SAVE_CARRY, asm_x64_jit_SAVE_CARRY_END);
 }
 
 void
@@ -101,6 +118,58 @@ asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_ADC_IMM(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_ADC_IMM, asm_x64_jit_ADC_IMM_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_ADC_IMM,
+                     asm_x64_jit_ADC_IMM_END,
+                     value);
+}
+
+void
+asm_x64_emit_jit_BCC(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BCC,
+                        asm_x64_jit_BCC_END,
+                        asm_x64_jit_BCC_8bit,
+                        asm_x64_jit_BCC_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BCS(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BCS,
+                        asm_x64_jit_BCS_END,
+                        asm_x64_jit_BCS_8bit,
+                        asm_x64_jit_BCS_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BEQ(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BEQ,
+                        asm_x64_jit_BEQ_END,
+                        asm_x64_jit_BEQ_8bit,
+                        asm_x64_jit_BEQ_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BMI(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BMI,
+                        asm_x64_jit_BMI_END,
+                        asm_x64_jit_BMI_8bit,
+                        asm_x64_jit_BMI_8bit_END);
+}
+
+void
 asm_x64_emit_jit_BNE(struct util_buffer* p_buf, void* p_target) {
   asm_x64_emit_jit_jump(p_buf,
                         p_target,
@@ -108,6 +177,52 @@ asm_x64_emit_jit_BNE(struct util_buffer* p_buf, void* p_target) {
                         asm_x64_jit_BNE_END,
                         asm_x64_jit_BNE_8bit,
                         asm_x64_jit_BNE_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BPL(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BPL,
+                        asm_x64_jit_BPL_END,
+                        asm_x64_jit_BPL_8bit,
+                        asm_x64_jit_BPL_8bit_END);
+}
+
+void
+asm_x64_emit_jit_CMP_IMM(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_CMP_IMM, asm_x64_jit_CMP_IMM_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_CMP_IMM,
+                     asm_x64_jit_CMP_IMM_END,
+                     value);
+}
+
+void
+asm_x64_emit_jit_CPX_IMM(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_CPX_IMM, asm_x64_jit_CPX_IMM_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_CPX_IMM,
+                     asm_x64_jit_CPX_IMM_END,
+                     value);
+}
+
+void
+asm_x64_emit_jit_CPY_IMM(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_CPY_IMM, asm_x64_jit_CPY_IMM_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_CPY_IMM,
+                     asm_x64_jit_CPY_IMM_END,
+                     value);
 }
 
 void
@@ -142,6 +257,18 @@ asm_x64_emit_jit_LDA_IMM(struct util_buffer* p_buf, uint8_t value) {
                      asm_x64_jit_LDA_IMM,
                      asm_x64_jit_LDA_IMM_END,
                      value);
+}
+
+void
+asm_x64_emit_jit_LDA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_LDA_ABS, asm_x64_jit_LDA_ABS_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_LDA_ABS,
+                    asm_x64_jit_LDA_ABS_END,
+                    (K_BBC_MEM_READ_ADDR + addr));
 }
 
 void
