@@ -110,6 +110,15 @@ asm_x64_jit_LOAD_CARRY_END:
   ret
 
 
+.globl asm_x64_jit_LOAD_OVERFLOW
+.globl asm_x64_jit_LOAD_OVERFLOW_END
+asm_x64_jit_LOAD_OVERFLOW:
+  bt REG_6502_OF_64, 0
+
+asm_x64_jit_LOAD_OVERFLOW_END:
+  ret
+
+
 .globl asm_x64_jit_SAVE_CARRY
 .globl asm_x64_jit_SAVE_CARRY_END
 asm_x64_jit_SAVE_CARRY:
@@ -158,7 +167,6 @@ asm_x64_jit_ADC_IMM_END:
 .globl asm_x64_jit_BCC
 .globl asm_x64_jit_BCC_END
 asm_x64_jit_BCC:
-  bt REG_6502_CF_64, 0
   jae 0
 
 asm_x64_jit_BCC_END:
@@ -168,7 +176,6 @@ asm_x64_jit_BCC_END:
 .globl asm_x64_jit_BCC_8bit
 .globl asm_x64_jit_BCC_8bit_END
 asm_x64_jit_BCC_8bit:
-  bt REG_6502_CF_64, 0
   jae asm_x64_jit_BCC_8bit
 
 asm_x64_jit_BCC_8bit_END:
@@ -178,7 +185,6 @@ asm_x64_jit_BCC_8bit_END:
 .globl asm_x64_jit_BCS
 .globl asm_x64_jit_BCS_END
 asm_x64_jit_BCS:
-  bt REG_6502_CF_64, 0
   jb 0
 
 asm_x64_jit_BCS_END:
@@ -188,7 +194,6 @@ asm_x64_jit_BCS_END:
 .globl asm_x64_jit_BCS_8bit
 .globl asm_x64_jit_BCS_8bit_END
 asm_x64_jit_BCS_8bit:
-  bt REG_6502_CF_64, 0
   jb asm_x64_jit_BCS_8bit
 
 asm_x64_jit_BCS_8bit_END:
@@ -264,6 +269,42 @@ asm_x64_jit_BPL_8bit:
   jns asm_x64_jit_BPL_8bit
 
 asm_x64_jit_BPL_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BVC
+.globl asm_x64_jit_BVC_END
+asm_x64_jit_BVC:
+  jae 0
+
+asm_x64_jit_BVC_END:
+  ret
+
+
+.globl asm_x64_jit_BVC_8bit
+.globl asm_x64_jit_BVC_8bit_END
+asm_x64_jit_BVC_8bit:
+  jae asm_x64_jit_BVC_8bit
+
+asm_x64_jit_BVC_8bit_END:
+  ret
+
+
+.globl asm_x64_jit_BVS
+.globl asm_x64_jit_BVS_END
+asm_x64_jit_BVS:
+  jb 0
+
+asm_x64_jit_BVS_END:
+  ret
+
+
+.globl asm_x64_jit_BVS_8bit
+.globl asm_x64_jit_BVS_8bit_END
+asm_x64_jit_BVS_8bit:
+  jb asm_x64_jit_BVS_8bit
+
+asm_x64_jit_BVS_8bit_END:
   ret
 
 

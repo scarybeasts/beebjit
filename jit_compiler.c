@@ -125,6 +125,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop++;
     break;
+  case k_bvc:
+  case k_bvs:
+    p_uop->opcode = k_opcode_LOAD_OVERFLOW;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
   default:
     break;
   }
@@ -263,6 +269,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_LOAD_CARRY:
     asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
     break;
+  case k_opcode_LOAD_OVERFLOW:
+    asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
+    break;
   case k_opcode_SAVE_CARRY:
     asm_x64_emit_jit_SAVE_CARRY(p_dest_buf);
     break;
@@ -299,8 +308,14 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x50:
+    asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
+    break;
   case 0x69:
     asm_x64_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0x70:
+    asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x88:
     asm_x64_emit_instruction_DEY(p_dest_buf);

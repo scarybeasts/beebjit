@@ -99,6 +99,11 @@ asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LOAD_OVERFLOW, asm_x64_jit_LOAD_OVERFLOW_END);
+}
+
+void
 asm_x64_emit_jit_SAVE_CARRY(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_SAVE_CARRY, asm_x64_jit_SAVE_CARRY_END);
 }
@@ -204,6 +209,26 @@ asm_x64_emit_jit_BPL(struct util_buffer* p_buf, void* p_target) {
                         asm_x64_jit_BPL_END,
                         asm_x64_jit_BPL_8bit,
                         asm_x64_jit_BPL_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BVC(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BVC,
+                        asm_x64_jit_BVC_END,
+                        asm_x64_jit_BVC_8bit,
+                        asm_x64_jit_BVC_8bit_END);
+}
+
+void
+asm_x64_emit_jit_BVS(struct util_buffer* p_buf, void* p_target) {
+  asm_x64_emit_jit_jump(p_buf,
+                        p_target,
+                        asm_x64_jit_BVS,
+                        asm_x64_jit_BVS_END,
+                        asm_x64_jit_BVS_8bit,
+                        asm_x64_jit_BVS_8bit_END);
 }
 
 void
