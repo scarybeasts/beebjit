@@ -101,12 +101,39 @@ asm_x64_jit_FLAGY_END:
   ret
 
 
+.globl asm_x64_jit_LOAD_CARRY
+.globl asm_x64_jit_LOAD_CARRY_END
+asm_x64_jit_LOAD_CARRY:
+  bt REG_6502_CF_64, 0
+
+asm_x64_jit_LOAD_CARRY_END:
+  ret
+
+
 .globl asm_x64_jit_SAVE_CARRY
 .globl asm_x64_jit_SAVE_CARRY_END
 asm_x64_jit_SAVE_CARRY:
-  setae REG_6502_CF
+  setb REG_6502_CF
 
 asm_x64_jit_SAVE_CARRY_END:
+  ret
+
+
+.globl asm_x64_jit_SAVE_CARRY_INV
+.globl asm_x64_jit_SAVE_CARRY_INV_END
+asm_x64_jit_SAVE_CARRY_INV:
+  setae REG_6502_CF
+
+asm_x64_jit_SAVE_CARRY_INV_END:
+  ret
+
+
+.globl asm_x64_jit_SAVE_OVERFLOW
+.globl asm_x64_jit_SAVE_OVERFLOW_END
+asm_x64_jit_SAVE_OVERFLOW:
+  seto REG_6502_OF
+
+asm_x64_jit_SAVE_OVERFLOW_END:
   ret
 
 

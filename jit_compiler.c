@@ -25,32 +25,33 @@ struct jit_compiler {
   int32_t flag_decimal;
 };
 
-struct jit_opcode {
+struct jit_uop {
   int32_t opcode;
   int32_t value1;
   int32_t value2;
   int32_t optype;
-  int32_t opmode;
 };
 
 struct jit_opcode_details {
   uint8_t opcode_6502;
   uint8_t len;
   int branches;
-  uint16_t branch_target;
-  struct jit_opcode first_uop;
-  struct jit_opcode second_uop;
+  struct jit_uop uops[8];
 };
 
 static const int32_t k_value_unknown = -1;
 
 enum {
   k_opcode_countdown = 0x100,
+  k_opcode_debug,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
   k_opcode_ADD_IMM,
+  k_opcode_LOAD_CARRY,
+  k_opcode_LOAD_OVERFLOW,
   k_opcode_SAVE_CARRY,
+  k_opcode_SAVE_CARRY_INV,
   k_opcode_SAVE_OVERFLOW,
   k_opcode_STOA_IMM,
 };
@@ -82,19 +83,20 @@ jit_compiler_destroy(struct jit_compiler* p_compiler) {
   free(p_compiler);
 }
 
-static void
+static uint8_t
 jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
                                 struct jit_opcode_details* p_details,
                                 uint16_t addr_6502) {
   uint8_t opcode_6502;
   uint8_t optype;
   uint8_t opmode;
-  uint16_t could_jump_target;
+  struct jit_uop* p_main_uop;
 
   uint8_t* p_mem_read = p_compiler->p_mem_read;
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
-  int could_jump = 0;
+  int jump_fixup = 0;
+  struct jit_uop* p_uop = &p_details->uops[0];
 
   opcode_6502 = p_mem_read[addr_6502];
   optype = g_optypes[opcode_6502];
@@ -104,10 +106,33 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->len = g_opmodelens[opmode];
   p_details->branches = g_opbranch[optype];
 
-  p_details->first_uop.opcode = opcode_6502;
-  p_details->first_uop.optype = optype;
-  p_details->first_uop.opmode = opmode;
-  p_details->second_uop.opcode = -1;
+  if (p_compiler->debug) {
+    p_uop->opcode = k_opcode_debug;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop++;
+  }
+
+  /* Pre-main uops. */
+  switch (optype) {
+  case k_adc:
+  case k_bcc:
+  case k_bcs:
+  case k_rol:
+  case k_ror:
+  case k_sbc:
+    p_uop->opcode = k_opcode_LOAD_CARRY;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  default:
+    break;
+  }
+
+  /* Main uop. */
+  p_main_uop = p_uop;
+  p_main_uop->opcode = opcode_6502;
+  p_main_uop->optype = optype;
 
   switch (opmode) {
   case 0:
@@ -118,80 +143,111 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_zpg:
   case k_zpx:
   case k_zpy:
-    p_details->first_uop.value1 = p_mem_read[addr_plus_1];
+    p_main_uop->value1 = p_mem_read[addr_plus_1];
     break;
   case k_rel:
-    could_jump_target = ((int) addr_6502 +
-                         2 +
-                         (int8_t) p_mem_read[addr_plus_1]);
-    p_details->branch_target = could_jump_target;
-    could_jump = 1;
+    p_main_uop->value1 = ((int) addr_6502 +
+                          2 +
+                          (int8_t) p_mem_read[addr_plus_1]);
+    jump_fixup = 1;
     break;
   case k_abs:
   case k_abx:
   case k_aby:
-    p_details->first_uop.value1 = ((p_mem_read[addr_plus_2] << 8) |
-                                   p_mem_read[addr_plus_1]);
+    p_main_uop->value1 = ((p_mem_read[addr_plus_2] << 8) |
+                          p_mem_read[addr_plus_1]);
+    if (optype == k_jmp || optype == k_jsr) {
+      jump_fixup = 1;
+    }
     break;
   default:
     assert(0);
     break;
   }
 
+  p_uop++;
+
+  /* Post-main uops. */
   switch (optype) {
-  case k_lda:
-  case k_txa:
-  case k_tya:
-  case k_pla:
-    p_details->second_uop.opcode = k_opcode_FLAGA;
-    p_details->second_uop.optype = -1;
-    p_details->second_uop.opmode = -1;
+  case k_adc:
+    p_uop->opcode = k_opcode_SAVE_CARRY;
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
+    p_uop->optype = -1;
+    p_uop++;
     break;
-  case k_ldx:
-  case k_tax:
-  case k_tsx:
-    p_details->second_uop.opcode = k_opcode_FLAGX;
-    p_details->second_uop.optype = -1;
-    p_details->second_uop.opmode = -1;
+  case k_sbc:
+    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
+    p_uop->optype = -1;
+    p_uop++;
     break;
-  case k_ldy:
-  case k_tay:
-    p_details->second_uop.opcode = k_opcode_FLAGY;
-    p_details->second_uop.optype = -1;
-    p_details->second_uop.opmode = -1;
-    break;
-  case k_jmp:
-  case k_jsr:
-    could_jump_target = p_details->first_uop.value1;
-    could_jump = 1;
+  case k_alr:
+  case k_asl:
+  case k_lsr:
+  case k_rol:
+  case k_ror:
+  case k_slo:
+    p_uop->opcode = k_opcode_SAVE_CARRY;
+    p_uop->optype = -1;
+    p_uop++;
     break;
   case k_cmp:
   case k_cpx:
   case k_cpy:
-    p_details->second_uop.opcode = k_opcode_SAVE_CARRY;
-    p_details->second_uop.optype = -1;
-    p_details->second_uop.opmode = -1;
+    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_lda:
+  case k_txa:
+  case k_tya:
+  case k_pla:
+    p_uop->opcode = k_opcode_FLAGA;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_ldx:
+  case k_tax:
+  case k_tsx:
+    p_uop->opcode = k_opcode_FLAGX;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_ldy:
+  case k_tay:
+    p_uop->opcode = k_opcode_FLAGY;
+    p_uop->optype = -1;
+    p_uop++;
     break;
   default:
     break;
   }
 
-  if (could_jump) {
-    p_details->first_uop.value1 =
+  if (jump_fixup) {
+    p_main_uop->value1 =
         (int32_t) (size_t) p_compiler->host_address_resolver(
             p_compiler->p_host_address_object,
-            could_jump_target);
+            p_main_uop->value1);
   }
+
+  return (p_uop - &p_details->uops[0]);
 }
 
 static void
-jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
-                         struct jit_opcode* p_opcode) {
-  int opcode = p_opcode->opcode;
-  int value1 = p_opcode->value1;
-  int value2 = p_opcode->value2;
+jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
+                      struct jit_uop* p_uop) {
+  int opcode = p_uop->opcode;
+  int value1 = p_uop->value1;
+  int value2 = p_uop->value2;
 
   switch (opcode) {
+  case k_opcode_debug:
+    asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_ADD_IMM:
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
     break;
@@ -204,8 +260,17 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
     break;
+  case k_opcode_LOAD_CARRY:
+    asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
+    break;
   case k_opcode_SAVE_CARRY:
     asm_x64_emit_jit_SAVE_CARRY(p_dest_buf);
+    break;
+  case k_opcode_SAVE_CARRY_INV:
+    asm_x64_emit_jit_SAVE_CARRY_INV(p_dest_buf);
+    break;
+  case k_opcode_SAVE_OVERFLOW:
+    asm_x64_emit_jit_SAVE_OVERFLOW(p_dest_buf);
     break;
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
@@ -322,12 +387,12 @@ jit_compiler_emit_opcode(struct util_buffer* p_dest_buf,
 }
 
 static void
-jit_compiler_process_opcode(struct jit_compiler* p_compiler,
-                            struct util_buffer* p_dest_buf,
-                            struct jit_opcode* p_opcode) {
-  int32_t opcode = p_opcode->opcode;
-  int32_t optype = p_opcode->optype;
-  int32_t value1 = p_opcode->value1;
+jit_compiler_process_uop(struct jit_compiler* p_compiler,
+                         struct util_buffer* p_dest_buf,
+                         struct jit_uop* p_uop) {
+  int32_t opcode = p_uop->opcode;
+  int32_t optype = p_uop->optype;
+  int32_t value1 = p_uop->value1;
   int32_t opreg = -1;
   int32_t changes_carry = 0;
 
@@ -340,21 +405,21 @@ jit_compiler_process_opcode(struct jit_compiler* p_compiler,
   switch (opcode) {
   case 0x69: /* ADC imm */
     if (p_compiler->flag_carry == 0) {
-      p_opcode->opcode = k_opcode_ADD_IMM;
+      p_uop->opcode = k_opcode_ADD_IMM;
     }
     break;
   case 0x85: /* STA zpg */
   case 0x8D: /* STA abs */
     if (p_compiler->reg_a != k_value_unknown) {
-      p_opcode->opcode = k_opcode_STOA_IMM;
-      p_opcode->value2 = p_compiler->reg_a;
+      p_uop->opcode = k_opcode_STOA_IMM;
+      p_uop->value2 = p_compiler->reg_a;
     }
     break;
   default:
     break;
   }
 
-  jit_compiler_emit_opcode(p_dest_buf, p_opcode);
+  jit_compiler_emit_uop(p_dest_buf, p_uop);
 
   /* Update known state of registers, flags, etc. */
   switch (opreg) {
@@ -418,8 +483,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   while (1) {
     uint8_t single_opcode_buffer[64];
-
-    int branches_always = 0;
+    uint8_t num_uops;
+    uint8_t i_uops;
 
     util_buffer_setup(p_single_opcode_buf,
                       &single_opcode_buffer[0],
@@ -429,28 +494,19 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                  (util_buffer_get_base_address(p_buf) +
                                      util_buffer_get_pos(p_buf)));
 
-    if (p_compiler->debug) {
-      asm_x64_emit_jit_call_debug(p_single_opcode_buf, addr_6502);
-    }
+    num_uops = jit_compiler_get_opcode_details(p_compiler,
+                                               &opcode_details,
+                                               addr_6502);
 
-    jit_compiler_get_opcode_details(p_compiler, &opcode_details, addr_6502);
-
-    if (opcode_details.branches == k_bra_y) {
-      branches_always = 1;
-    }
-
-    jit_compiler_process_opcode(p_compiler,
-                                p_single_opcode_buf,
-                                &opcode_details.first_uop);
-    if (opcode_details.second_uop.opcode != -1) {
-      jit_compiler_process_opcode(p_compiler,
-                                  p_single_opcode_buf,
-                                  &opcode_details.second_uop);
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      jit_compiler_process_uop(p_compiler,
+                               p_single_opcode_buf,
+                               &opcode_details.uops[i_uops]);
     }
 
     util_buffer_append(p_buf, p_single_opcode_buf);
 
-    if (branches_always) {
+    if (opcode_details.branches == k_bra_y) {
       break;
     }
 

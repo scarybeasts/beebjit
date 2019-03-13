@@ -94,8 +94,25 @@ asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LOAD_CARRY, asm_x64_jit_LOAD_CARRY_END);
+}
+
+void
 asm_x64_emit_jit_SAVE_CARRY(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_SAVE_CARRY, asm_x64_jit_SAVE_CARRY_END);
+}
+
+void
+asm_x64_emit_jit_SAVE_CARRY_INV(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_SAVE_CARRY_INV,
+               asm_x64_jit_SAVE_CARRY_INV_END);
+}
+
+void
+asm_x64_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_SAVE_OVERFLOW, asm_x64_jit_SAVE_OVERFLOW_END);
 }
 
 void

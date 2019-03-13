@@ -12,7 +12,10 @@ void asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGX(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf);
+void asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf);
 void asm_x64_emit_jit_SAVE_CARRY(struct util_buffer* p_buf);
+void asm_x64_emit_jit_SAVE_CARRY_INV(struct util_buffer* p_buf);
+void asm_x64_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf);
 void asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
                                uint16_t addr,
                                uint8_t value);
@@ -55,8 +58,14 @@ void asm_x64_jit_FLAGX();
 void asm_x64_jit_FLAGX_END();
 void asm_x64_jit_FLAGY();
 void asm_x64_jit_FLAGY_END();
+void asm_x64_jit_LOAD_CARRY();
+void asm_x64_jit_LOAD_CARRY_END();
 void asm_x64_jit_SAVE_CARRY();
 void asm_x64_jit_SAVE_CARRY_END();
+void asm_x64_jit_SAVE_CARRY_INV();
+void asm_x64_jit_SAVE_CARRY_INV_END();
+void asm_x64_jit_SAVE_OVERFLOW();
+void asm_x64_jit_SAVE_OVERFLOW_END();
 void asm_x64_jit_STOA_IMM();
 void asm_x64_jit_STOA_IMM_END();
 
