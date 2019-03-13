@@ -100,12 +100,12 @@ main(int argc, const char* argv[]) {
   emit_ADC(p_buf, k_imm, 0x01);
   emit_CMP(p_buf, k_imm, 0x03);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_ADC(p_buf, k_imm, 0x7f);
+  emit_ADC(p_buf, k_imm, 0x7F);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 0);
   emit_REQUIRE_OF(p_buf, 1);
-  emit_ADC(p_buf, k_imm, 0x7f);
+  emit_ADC(p_buf, k_imm, 0x7F);
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_OF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC100);
@@ -357,9 +357,9 @@ main(int argc, const char* argv[]) {
   /* Test to see if the flags update went missing due to the self modifying
    * code changing flag expectations within the block.
    */
-/*  p_mem[index++] = 0xd0; */ /* BNE (should be ZF=0) */
+/*  p_mem[index++] = 0xD0; */ /* BNE (should be ZF=0) */
 /*  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xf2; */ /* FAIL */
+  p_mem[index++] = 0xF2; */ /* FAIL */
   emit_JMP(p_buf, k_abs, 0xC540);
 
   /* Test various simple hardware register read / writes and initial state. */
