@@ -110,12 +110,41 @@ asm_x64_jit_LOAD_CARRY_END:
   ret
 
 
+.globl asm_x64_jit_LOAD_CARRY_INV
+.globl asm_x64_jit_LOAD_CARRY_INV_END
+asm_x64_jit_LOAD_CARRY_INV:
+  bt REG_6502_CF_64, 0
+  cmc
+
+asm_x64_jit_LOAD_CARRY_INV_END:
+  ret
+
+
 .globl asm_x64_jit_LOAD_OVERFLOW
 .globl asm_x64_jit_LOAD_OVERFLOW_END
 asm_x64_jit_LOAD_OVERFLOW:
   bt REG_6502_OF_64, 0
 
 asm_x64_jit_LOAD_OVERFLOW_END:
+  ret
+
+
+.globl asm_x64_jit_PUSH_16
+.globl asm_x64_jit_PUSH_16_byte1_patch
+.globl asm_x64_jit_PUSH_16_byte2_patch
+.globl asm_x64_jit_PUSH_16_END
+asm_x64_jit_PUSH_16:
+  mov BYTE PTR [REG_6502_S_64], 0xff
+asm_x64_jit_PUSH_16_byte1_patch:
+  lea REG_SCRATCH1_32, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH1_8
+
+  mov BYTE PTR [REG_6502_S_64], 0xff
+asm_x64_jit_PUSH_16_byte2_patch:
+  lea REG_SCRATCH1_32, [REG_6502_S_64 - 1]
+  mov REG_6502_S, REG_SCRATCH1_8
+
+asm_x64_jit_PUSH_16_END:
   ret
 
 
@@ -155,12 +184,30 @@ asm_x64_jit_STOA_IMM_END:
   ret
 
 
+.globl asm_x64_jit_SUB_IMM
+.globl asm_x64_jit_SUB_IMM_END
+asm_x64_jit_SUB_IMM:
+  sub REG_6502_A, 0
+
+asm_x64_jit_SUB_IMM_END:
+  ret
+
+
 .globl asm_x64_jit_ADC_IMM
 .globl asm_x64_jit_ADC_IMM_END
 asm_x64_jit_ADC_IMM:
   adc REG_6502_A, 0
 
 asm_x64_jit_ADC_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_AND_IMM
+.globl asm_x64_jit_AND_IMM_END
+asm_x64_jit_AND_IMM:
+  and REG_6502_A, 0
+
+asm_x64_jit_AND_IMM_END:
   ret
 
 
@@ -361,6 +408,20 @@ asm_x64_jit_JMP_8bit_END:
   ret
 
 
+.globl asm_x64_jit_JMP_IND
+.globl asm_x64_jit_JMP_IND_addr_patch
+.globl asm_x64_jit_JMP_IND_END
+asm_x64_jit_JMP_IND:
+  movzx REG_SCRATCH1_32, WORD PTR [0x7fffffff]
+asm_x64_jit_JMP_IND_addr_patch:
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, 56
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
+  jmp REG_SCRATCH1
+
+asm_x64_jit_JMP_IND_END:
+  ret
+
+
 .globl asm_x64_jit_LDA_IMM
 .globl asm_x64_jit_LDA_IMM_END
 asm_x64_jit_LDA_IMM:
@@ -388,6 +449,15 @@ asm_x64_jit_LDA_ABX_END:
   ret
 
 
+.globl asm_x64_jit_LDX_ABS
+.globl asm_x64_jit_LDX_ABS_END
+asm_x64_jit_LDX_ABS:
+  mov REG_6502_X, [0x7fffffff]
+
+asm_x64_jit_LDX_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_LDX_IMM
 .globl asm_x64_jit_LDX_IMM_END
 asm_x64_jit_LDX_IMM:
@@ -406,10 +476,66 @@ asm_x64_jit_LDY_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ROL_ACC
+.globl asm_x64_jit_ROL_ACC_END
+asm_x64_jit_ROL_ACC:
+  rcl al, 1
+
+asm_x64_jit_ROL_ACC_END:
+  ret
+
+
+.globl asm_x64_jit_ROR_ACC
+.globl asm_x64_jit_ROR_ACC_END
+asm_x64_jit_ROR_ACC:
+  rcr al, 1
+
+asm_x64_jit_ROR_ACC_END:
+  ret
+
+
+.globl asm_x64_jit_SBC_IMM
+.globl asm_x64_jit_SBC_IMM_END
+asm_x64_jit_SBC_IMM:
+  # NOTE: Intel has subtract with borrow, not subtract with carry, so
+  # appropriate carry flag management also needs to be used.
+  sbb REG_6502_A, 0
+
+asm_x64_jit_SBC_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_STA_ABS
+.globl asm_x64_jit_STA_ABS_END
+asm_x64_jit_STA_ABS:
+  mov [0x7fffffff], REG_6502_A
+
+asm_x64_jit_STA_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_STA_ABX
 .globl asm_x64_jit_STA_ABX_END
 asm_x64_jit_STA_ABX:
   mov [REG_6502_X_64 + 0xFFFF], REG_6502_A
 
 asm_x64_jit_STA_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_STX_ABS
+.globl asm_x64_jit_STX_ABS_END
+asm_x64_jit_STX_ABS:
+  mov [0x7fffffff], REG_6502_X
+
+asm_x64_jit_STX_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_STY_ABS
+.globl asm_x64_jit_STY_ABS_END
+asm_x64_jit_STY_ABS:
+  mov [0x7fffffff], REG_6502_Y
+
+asm_x64_jit_STY_ABS_END:
   ret

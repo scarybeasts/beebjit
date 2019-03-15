@@ -49,11 +49,14 @@ enum {
   k_opcode_FLAGY,
   k_opcode_ADD_IMM,
   k_opcode_LOAD_CARRY,
+  k_opcode_LOAD_CARRY_INV,
   k_opcode_LOAD_OVERFLOW,
+  k_opcode_PUSH_16,
   k_opcode_SAVE_CARRY,
   k_opcode_SAVE_CARRY_INV,
   k_opcode_SAVE_OVERFLOW,
   k_opcode_STOA_IMM,
+  k_opcode_SUB_IMM,
 };
 
 struct jit_compiler*
@@ -120,7 +123,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bcs:
   case k_rol:
   case k_ror:
-  case k_sbc:
     p_uop->opcode = k_opcode_LOAD_CARRY;
     p_uop->optype = -1;
     p_uop++;
@@ -128,6 +130,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bvc:
   case k_bvs:
     p_uop->opcode = k_opcode_LOAD_OVERFLOW;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_sbc:
+    p_uop->opcode = k_opcode_LOAD_CARRY_INV;
     p_uop->optype = -1;
     p_uop++;
     break;
@@ -166,6 +173,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jump_fixup = 1;
     }
     break;
+  case k_ind:
+    p_main_uop->value1 = ((p_mem_read[addr_plus_2] << 8) |
+                          p_mem_read[addr_plus_1]);
+    break;
   default:
     assert(0);
     break;
@@ -183,22 +194,30 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop++;
     break;
-  case k_sbc:
-    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
-    p_uop->optype = -1;
-    p_uop++;
-    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
-    p_uop->optype = -1;
-    p_uop++;
-    break;
   case k_alr:
   case k_asl:
   case k_lsr:
-  case k_rol:
-  case k_ror:
   case k_slo:
     p_uop->opcode = k_opcode_SAVE_CARRY;
     p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_brk:
+    p_main_uop->opcode = k_opcode_PUSH_16;
+    p_main_uop->optype = -1;
+    p_main_uop->value1 = (uint16_t) (addr_6502 + 2);
+    /* PHP */
+    p_uop->opcode = 0x08;
+    p_uop->optype = k_php;
+    p_uop++;
+    /* SEI */
+    p_uop->opcode = 0x78;
+    p_uop->optype = k_sei;
+    p_uop++;
+    /* JMP ind */
+    p_uop->opcode = 0x6C;
+    p_uop->optype = k_jmp;
+    p_uop->value1 = k_6502_vector_irq;
     p_uop++;
     break;
   case k_cmp:
@@ -226,6 +245,25 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_ldy:
   case k_tay:
     p_uop->opcode = k_opcode_FLAGY;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_rol:
+  case k_ror:
+    p_uop->opcode = k_opcode_SAVE_CARRY;
+    p_uop->optype = -1;
+    p_uop++;
+    if (opmode == k_acc) {
+      p_uop->opcode = k_opcode_FLAGA;
+      p_uop->optype = -1;
+      p_uop++;
+    }
+    break;
+  case k_sbc:
+    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
     p_uop->optype = -1;
     p_uop++;
     break;
@@ -269,8 +307,14 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_LOAD_CARRY:
     asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
     break;
+  case k_opcode_LOAD_CARRY_INV:
+    asm_x64_emit_jit_LOAD_CARRY_INV(p_dest_buf);
+    break;
   case k_opcode_LOAD_OVERFLOW:
     asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
+    break;
+  case k_opcode_PUSH_16:
+    asm_x64_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_SAVE_CARRY:
     asm_x64_emit_jit_SAVE_CARRY(p_dest_buf);
@@ -283,6 +327,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
+    break;
+  case k_opcode_SUB_IMM:
+    asm_x64_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x02:
     asm_x64_emit_instruction_EXIT(p_dest_buf);
@@ -299,11 +346,20 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x28:
     asm_x64_emit_instruction_PLP(p_dest_buf);
     break;
+  case 0x29:
+    asm_x64_emit_jit_AND_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0x2A:
+    asm_x64_emit_jit_ROL_ACC(p_dest_buf);
+    break;
   case 0x30:
     asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
+    break;
+  case 0x48:
+    asm_x64_emit_instruction_PHA(p_dest_buf);
     break;
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
@@ -311,11 +367,41 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x50:
     asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x58:
+    asm_x64_emit_instruction_CLI(p_dest_buf);
+    break;
+  case 0x68:
+    asm_x64_emit_instruction_PLA(p_dest_buf);
+    break;
   case 0x69:
     asm_x64_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0x6A:
+    asm_x64_emit_jit_ROR_ACC(p_dest_buf);
+    break;
+  case 0x6C:
+    asm_x64_emit_jit_JMP_IND(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0x78:
+    asm_x64_emit_instruction_SEI(p_dest_buf);
+    break;
+  case 0x84:
+  case 0x8C:
+    /* Used for STY zpg (0x84) as well as STY abs. */
+    asm_x64_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x85:
+  case 0x8D:
+    /* Used for STA zpg (0x85) as well as STA abs. */
+    asm_x64_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x86:
+  case 0x8E:
+    /* Used for STX zpg (0x86) as well as STX abs. */
+    asm_x64_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x88:
     asm_x64_emit_instruction_DEY(p_dest_buf);
@@ -334,6 +420,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xA2:
     asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0xA6:
+    /* Actually LDX zpg but re-using LDX abs code. */
+    asm_x64_emit_jit_LDX_ABS(p_dest_buf, (uint8_t) value1);
     break;
   case 0xA8:
     asm_x64_emit_instruction_TAY(p_dest_buf);
@@ -386,6 +476,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xE8:
     asm_x64_emit_instruction_INX(p_dest_buf);
     break;
+  case 0xE9:
+    asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
     break;
@@ -423,11 +516,30 @@ jit_compiler_process_uop(struct jit_compiler* p_compiler,
       p_uop->opcode = k_opcode_ADD_IMM;
     }
     break;
+  case 0x84: /* STY zpg */
+  case 0x8C: /* STY abs */
+    if (p_compiler->reg_y != k_value_unknown) {
+      p_uop->opcode = k_opcode_STOA_IMM;
+      p_uop->value2 = p_compiler->reg_y;
+    }
+    break;
   case 0x85: /* STA zpg */
   case 0x8D: /* STA abs */
     if (p_compiler->reg_a != k_value_unknown) {
       p_uop->opcode = k_opcode_STOA_IMM;
       p_uop->value2 = p_compiler->reg_a;
+    }
+    break;
+  case 0x86: /* STX zpg */
+  case 0x8E: /* STX abs */
+    if (p_compiler->reg_x != k_value_unknown) {
+      p_uop->opcode = k_opcode_STOA_IMM;
+      p_uop->value2 = p_compiler->reg_x;
+    }
+    break;
+  case 0xE9: /* SBC imm */
+    if (p_compiler->flag_carry == 1) {
+      p_uop->opcode = k_opcode_SUB_IMM;
     }
     break;
   default:
@@ -497,7 +609,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_compiler->flag_decimal = k_value_unknown;
 
   while (1) {
-    uint8_t single_opcode_buffer[64];
+    uint8_t single_opcode_buffer[128];
     uint8_t num_uops;
     uint8_t i_uops;
 
