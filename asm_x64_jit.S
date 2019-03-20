@@ -368,6 +368,31 @@ asm_x64_jit_BEQ_8bit_END:
   ret
 
 
+.globl asm_x64_jit_BIT
+.globl asm_x64_jit_BIT_mov_patch
+.globl asm_x64_jit_BIT_END
+asm_x64_jit_BIT:
+  mov ah, [0x7fffffff]
+asm_x64_jit_BIT_mov_patch:
+  # Load OF.
+  # TODO: faster with pext, avoids dependency?
+  # TODO: share code with inturbo.
+  bt REG_6502_A_32, 14
+  setb REG_6502_OF
+  # Load ZF.
+  test ah, REG_6502_A
+  sete REG_SCRATCH1_8
+  shl REG_SCRATCH1_8, 6
+  # Load NF.
+  and ah, 0x80
+  # Put ZF / NF together.
+  or ah, REG_SCRATCH1_8
+  sahf
+
+asm_x64_jit_BIT_END:
+  ret
+
+
 .globl asm_x64_jit_BMI
 .globl asm_x64_jit_BMI_END
 asm_x64_jit_BMI:

@@ -438,6 +438,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x18:
     asm_x64_emit_instruction_CLC(p_dest_buf);
     break;
+  case 0x24: /* BIT zpg */
+  case 0x2C: /* BIT abs */
+    asm_x64_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x28:
     asm_x64_emit_instruction_PLP(p_dest_buf);
     break;
@@ -483,19 +487,16 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x78:
     asm_x64_emit_instruction_SEI(p_dest_buf);
     break;
-  case 0x84:
-  case 0x8C:
-    /* Used for STY zpg (0x84) as well as STY abs. */
+  case 0x84: /* STY zpg */
+  case 0x8C: /* STY abs */
     asm_x64_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
     break;
-  case 0x85:
-  case 0x8D:
-    /* Used for STA zpg (0x85) as well as STA abs. */
+  case 0x85: /* STA zpg */
+  case 0x8D: /* STA abs */
     asm_x64_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1);
     break;
-  case 0x86:
-  case 0x8E:
-    /* Used for STX zpg (0x86) as well as STX abs. */
+  case 0x86: /* STX zpg */
+  case 0x8E: /* STX abs */
     asm_x64_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x88:
