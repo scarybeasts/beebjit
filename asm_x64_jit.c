@@ -133,6 +133,20 @@ asm_x64_emit_jit_MODE_IND(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_MODE_IND_SCRATCH,
+               asm_x64_jit_MODE_IND_SCRATCH_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_MODE_IND_SCRATCH,
+                     asm_x64_jit_MODE_IND_SCRATCH_jump_patch,
+                     asm_x64_instruction_ILLEGAL);
+}
+
+void
 asm_x64_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 

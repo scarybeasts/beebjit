@@ -149,6 +149,23 @@ asm_x64_jit_MODE_IND_END:
   ret
 
 
+.globl asm_x64_jit_MODE_IND_SCRATCH
+.globl asm_x64_jit_MODE_IND_SCRATCH_jump_patch
+.globl asm_x64_jit_MODE_IND_SCRATCH_END
+asm_x64_jit_MODE_IND_SCRATCH:
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
+  movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  # This jumps if the indirect address was 0xFF.
+  # Pretty much never happens so we optimize for full word fetches from zero
+  # page addresses 0x00 -> 0xFE.
+  bt REG_SCRATCH2_32, 8
+  jb 0
+asm_x64_jit_MODE_IND_SCRATCH_jump_patch:
+
+asm_x64_jit_MODE_IND_SCRATCH_END:
+  ret
+
+
 .globl asm_x64_jit_MODE_ZPX
 .globl asm_x64_jit_MODE_ZPX_lea_patch
 .globl asm_x64_jit_MODE_ZPX_END

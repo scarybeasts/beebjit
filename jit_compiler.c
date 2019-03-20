@@ -53,6 +53,7 @@ enum {
   k_opcode_LOAD_CARRY_INV,
   k_opcode_LOAD_OVERFLOW,
   k_opcode_MODE_IND,
+  k_opcode_MODE_IND_SCRATCH,
   k_opcode_MODE_ZPX,
   k_opcode_MODE_ZPY,
   k_opcode_PULL_16,
@@ -158,6 +159,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ind:
     main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    break;
+  case k_idx:
+    p_uop->opcode = k_opcode_MODE_ZPX;
+    p_uop->value1 = p_mem_read[addr_plus_1];
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_MODE_IND_SCRATCH;
+    p_uop->optype = -1;
+    p_uop++;
     break;
   default:
     assert(0);
@@ -348,6 +358,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_MODE_IND:
     asm_x64_emit_jit_MODE_IND(p_dest_buf, (uint16_t) value1);
     break;
+  case k_opcode_MODE_IND_SCRATCH:
+    asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);
+    break;
   case k_opcode_MODE_ZPX:
     asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
     break;
@@ -477,6 +490,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xA0:
     asm_x64_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xA1: /* LDA idx */
+  case 0xB5: /* LDA zpx */
+    asm_x64_emit_jit_LDA_scratch(p_dest_buf);
+    break;
   case 0xA2:
     asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
     break;
@@ -498,9 +515,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xB0:
     asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case 0xB5: /* LDA zpx */
-    asm_x64_emit_jit_LDA_scratch(p_dest_buf);
     break;
   case 0xB6: /* LDX zpy */
     asm_x64_emit_jit_LDX_scratch(p_dest_buf);
