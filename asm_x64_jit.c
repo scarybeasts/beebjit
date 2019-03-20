@@ -95,6 +95,11 @@ asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_JMP_SCRATCH, asm_x64_jit_JMP_SCRATCH_END);
+}
+
+void
 asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_LOAD_CARRY, asm_x64_jit_LOAD_CARRY_END);
 }
@@ -109,6 +114,68 @@ asm_x64_emit_jit_LOAD_CARRY_INV(struct util_buffer* p_buf) {
 void
 asm_x64_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_LOAD_OVERFLOW, asm_x64_jit_LOAD_OVERFLOW_END);
+}
+
+void
+asm_x64_emit_jit_MODE_IND(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  if ((addr & 0xFF) == 0xFF) {
+    errx(1, "MODE_IND: page crossing");
+  }
+
+  asm_x64_copy(p_buf, asm_x64_jit_MODE_IND, asm_x64_jit_MODE_IND_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_MODE_IND,
+                    asm_x64_jit_MODE_IND_END,
+                    (K_BBC_MEM_READ_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  if (value <= 0x7F) {
+    asm_x64_copy(p_buf,
+                 asm_x64_jit_MODE_ZPX_8bit,
+                 asm_x64_jit_MODE_ZPX_8bit_END);
+    asm_x64_patch_byte(p_buf,
+                       offset,
+                       asm_x64_jit_MODE_ZPX_8bit,
+                       asm_x64_jit_MODE_ZPX_8bit_lea_patch,
+                       value);
+  } else {
+    asm_x64_copy(p_buf, asm_x64_jit_MODE_ZPX, asm_x64_jit_MODE_ZPX_END);
+    asm_x64_patch_int(p_buf,
+                      offset,
+                      asm_x64_jit_MODE_ZPX,
+                      asm_x64_jit_MODE_ZPX_lea_patch,
+                      value);
+  }
+}
+
+void
+asm_x64_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  if (value <= 0x7F) {
+    asm_x64_copy(p_buf,
+                 asm_x64_jit_MODE_ZPY_8bit,
+                 asm_x64_jit_MODE_ZPY_8bit_END);
+    asm_x64_patch_byte(p_buf,
+                       offset,
+                       asm_x64_jit_MODE_ZPY_8bit,
+                       asm_x64_jit_MODE_ZPY_8bit_lea_patch,
+                       value);
+  } else {
+    asm_x64_copy(p_buf, asm_x64_jit_MODE_ZPY, asm_x64_jit_MODE_ZPY_END);
+    asm_x64_patch_int(p_buf,
+                      offset,
+                      asm_x64_jit_MODE_ZPY,
+                      asm_x64_jit_MODE_ZPY_lea_patch,
+                      value);
+  }
 }
 
 void
@@ -198,6 +265,11 @@ asm_x64_emit_jit_AND_IMM(struct util_buffer* p_buf, uint8_t value) {
                      asm_x64_jit_AND_IMM,
                      asm_x64_jit_AND_IMM_END,
                      value);
+}
+
+void
+asm_x64_emit_jit_ASL_ACC(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ASL_ACC, asm_x64_jit_ASL_ACC_END);
 }
 
 void
@@ -339,22 +411,6 @@ asm_x64_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
 }
 
 void
-asm_x64_emit_jit_JMP_IND(struct util_buffer* p_buf, uint16_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  if ((addr & 0xFF) == 0xFF) {
-    errx(1, "JMP_IND: page crossing");
-  }
-
-  asm_x64_copy(p_buf, asm_x64_jit_JMP_IND, asm_x64_jit_JMP_IND_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_JMP_IND,
-                    asm_x64_jit_JMP_IND_addr_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
-}
-
-void
 asm_x64_emit_jit_LDA_IMM(struct util_buffer* p_buf, uint8_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -391,6 +447,11 @@ asm_x64_emit_jit_LDA_ABX(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_LDA_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDA_scratch, asm_x64_jit_LDA_scratch_END);
+}
+
+void
 asm_x64_emit_jit_LDX_ABS(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -415,6 +476,11 @@ asm_x64_emit_jit_LDX_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_LDX_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDX_scratch, asm_x64_jit_LDX_scratch_END);
+}
+
+void
 asm_x64_emit_jit_LDY_IMM(struct util_buffer* p_buf, uint8_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -424,6 +490,11 @@ asm_x64_emit_jit_LDY_IMM(struct util_buffer* p_buf, uint8_t value) {
                      asm_x64_jit_LDY_IMM,
                      asm_x64_jit_LDY_IMM_END,
                      value);
+}
+
+void
+asm_x64_emit_jit_LSR_ACC(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LSR_ACC, asm_x64_jit_LSR_ACC_END);
 }
 
 void

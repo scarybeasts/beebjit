@@ -48,9 +48,14 @@ enum {
   k_opcode_FLAGX,
   k_opcode_FLAGY,
   k_opcode_ADD_IMM,
+  k_opcode_JMP_SCRATCH,
   k_opcode_LOAD_CARRY,
   k_opcode_LOAD_CARRY_INV,
   k_opcode_LOAD_OVERFLOW,
+  k_opcode_MODE_IND,
+  k_opcode_MODE_ZPX,
+  k_opcode_MODE_ZPY,
+  k_opcode_PULL_16,
   k_opcode_PUSH_16,
   k_opcode_SAVE_CARRY,
   k_opcode_SAVE_CARRY_INV,
@@ -99,6 +104,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
   int jump_fixup = 0;
+  int32_t main_value1 = -1;
   struct jit_uop* p_uop = &p_details->uops[0];
 
   opcode_6502 = p_mem_read[addr_6502];
@@ -114,6 +120,48 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
+  }
+
+  /* Mode resolution and possibly per-mode uops. */
+  switch (opmode) {
+  case 0:
+  case k_nil:
+  case k_acc:
+    break;
+  case k_imm:
+  case k_zpg:
+    main_value1 = p_mem_read[addr_plus_1];
+    break;
+  case k_zpx:
+    p_uop->opcode = k_opcode_MODE_ZPX;
+    p_uop->value1 = p_mem_read[addr_plus_1];
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_zpy:
+    p_uop->opcode = k_opcode_MODE_ZPY;
+    p_uop->value1 = p_mem_read[addr_plus_1];
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_rel:
+    main_value1 = ((int) addr_6502 + 2 + (int8_t) p_mem_read[addr_plus_1]);
+    jump_fixup = 1;
+    break;
+  case k_abs:
+  case k_abx:
+  case k_aby:
+    main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    if (optype == k_jmp || optype == k_jsr) {
+      jump_fixup = 1;
+    }
+    break;
+  case k_ind:
+    main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    break;
+  default:
+    assert(0);
+    break;
   }
 
   /* Pre-main uops. */
@@ -146,41 +194,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_main_uop = p_uop;
   p_main_uop->opcode = opcode_6502;
   p_main_uop->optype = optype;
-
-  switch (opmode) {
-  case 0:
-  case k_nil:
-  case k_acc:
-    break;
-  case k_imm:
-  case k_zpg:
-  case k_zpx:
-  case k_zpy:
-    p_main_uop->value1 = p_mem_read[addr_plus_1];
-    break;
-  case k_rel:
-    p_main_uop->value1 = ((int) addr_6502 +
-                          2 +
-                          (int8_t) p_mem_read[addr_plus_1]);
-    jump_fixup = 1;
-    break;
-  case k_abs:
-  case k_abx:
-  case k_aby:
-    p_main_uop->value1 = ((p_mem_read[addr_plus_2] << 8) |
-                          p_mem_read[addr_plus_1]);
-    if (optype == k_jmp || optype == k_jsr) {
-      jump_fixup = 1;
-    }
-    break;
-  case k_ind:
-    p_main_uop->value1 = ((p_mem_read[addr_plus_2] << 8) |
-                          p_mem_read[addr_plus_1]);
-    break;
-  default:
-    assert(0);
-    break;
-  }
+  p_main_uop->value1 = main_value1;
 
   p_uop++;
 
@@ -203,6 +217,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_brk:
+    /* Replace main uop with sequence. */
     p_main_uop->opcode = k_opcode_PUSH_16;
     p_main_uop->optype = -1;
     p_main_uop->value1 = (uint16_t) (addr_6502 + 2);
@@ -214,10 +229,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->opcode = 0x78;
     p_uop->optype = k_sei;
     p_uop++;
-    /* JMP ind */
-    p_uop->opcode = 0x6C;
-    p_uop->optype = k_jmp;
-    p_uop->value1 = k_6502_vector_irq;
+    /* MODE_IND */
+    p_uop->opcode = k_opcode_MODE_IND;
+    p_uop->optype = -1;
+    p_uop->value1 = (uint16_t) k_6502_vector_irq;
+    p_uop++;
+    /* JMP_SCRATCH */
+    p_uop->opcode = k_opcode_JMP_SCRATCH;
+    p_uop->optype = -1;
     p_uop++;
     break;
   case k_cmp:
@@ -226,6 +245,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->opcode = k_opcode_SAVE_CARRY_INV;
     p_uop->optype = -1;
     p_uop++;
+    break;
+  case k_jmp:
+    if (opmode == k_ind) {
+      /* Replace main uop with sequence. */
+      p_main_uop->opcode = k_opcode_MODE_IND;
+      p_main_uop->optype = -1;
+      p_main_uop->value1 = (uint16_t) addr_6502;
+      p_uop->opcode = k_opcode_JMP_SCRATCH;
+      p_uop->optype = -1;
+      p_uop++;
+    }
     break;
   case k_lda:
   case k_txa:
@@ -258,6 +288,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop->optype = -1;
       p_uop++;
     }
+    break;
+  case k_rti:
+    /* PLP */
+    p_main_uop->opcode = 0x28;
+    p_main_uop->optype = k_plp;
+    p_uop->opcode = k_opcode_PULL_16;
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_JMP_SCRATCH;
+    p_uop->optype = -1;
+    p_uop++;
     break;
   case k_sbc:
     p_uop->opcode = k_opcode_SAVE_CARRY_INV;
@@ -304,6 +345,18 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
     break;
+  case k_opcode_MODE_IND:
+    asm_x64_emit_jit_MODE_IND(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_MODE_ZPX:
+    asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_MODE_ZPY:
+    asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_JMP_SCRATCH:
+    asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
+    break;
   case k_opcode_LOAD_CARRY:
     asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
     break;
@@ -312,6 +365,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_LOAD_OVERFLOW:
     asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
+    break;
+  case k_opcode_PULL_16:
+    asm_x64_emit_pull_word_to_scratch(p_dest_buf);
     break;
   case k_opcode_PUSH_16:
     asm_x64_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
@@ -337,6 +393,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x08:
     asm_x64_emit_instruction_PHP(p_dest_buf);
     break;
+  case 0x0A:
+    asm_x64_emit_jit_ASL_ACC(p_dest_buf);
+    break;
   case 0x10:
     asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
     break;
@@ -361,6 +420,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x48:
     asm_x64_emit_instruction_PHA(p_dest_buf);
     break;
+  case 0x4A:
+    asm_x64_emit_jit_LSR_ACC(p_dest_buf);
+    break;
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
@@ -378,9 +440,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x6A:
     asm_x64_emit_jit_ROR_ACC(p_dest_buf);
-    break;
-  case 0x6C:
-    asm_x64_emit_jit_JMP_IND(p_dest_buf, (uint16_t) value1);
     break;
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
@@ -439,6 +498,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xB0:
     asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0xB5: /* LDA zpx */
+    asm_x64_emit_jit_LDA_scratch(p_dest_buf);
+    break;
+  case 0xB6: /* LDX zpy */
+    asm_x64_emit_jit_LDX_scratch(p_dest_buf);
     break;
   case 0xB8:
     asm_x64_emit_instruction_CLV(p_dest_buf);
