@@ -205,7 +205,7 @@ main(int argc, const char* argv[]) {
 
   /* Test indirect indexed zero page addressing. */
   set_new_index(p_buf, 0x0240);
-  emit_LDX(p_buf, k_imm, 0xd1);
+  emit_LDX(p_buf, k_imm, 0xD1);
   emit_LDA(p_buf, k_idx, 0x36);   /* Zero page wrap. */
   emit_CMP(p_buf, k_imm, 0xc0);
   emit_REQUIRE_ZF(p_buf, 1);
