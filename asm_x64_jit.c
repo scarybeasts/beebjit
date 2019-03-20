@@ -95,6 +95,11 @@ asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_INC_SCRATCH(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_INC_SCRATCH, asm_x64_jit_INC_SCRATCH_END);
+}
+
+void
 asm_x64_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_JMP_SCRATCH, asm_x64_jit_JMP_SCRATCH_END);
 }

@@ -101,6 +101,15 @@ asm_x64_jit_FLAGY_END:
   ret
 
 
+.globl asm_x64_jit_INC_SCRATCH
+.globl asm_x64_jit_INC_SCRATCH_END
+asm_x64_jit_INC_SCRATCH:
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
+
+asm_x64_jit_INC_SCRATCH_END:
+  ret
+
+
 .globl asm_x64_jit_JMP_SCRATCH
 .globl asm_x64_jit_JMP_SCRATCH_END
 asm_x64_jit_JMP_SCRATCH:

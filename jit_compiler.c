@@ -48,6 +48,7 @@ enum {
   k_opcode_FLAGX,
   k_opcode_FLAGY,
   k_opcode_ADD_IMM,
+  k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,
   k_opcode_LOAD_CARRY,
   k_opcode_LOAD_CARRY_INV,
@@ -158,7 +159,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
     break;
   case k_ind:
-    main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    p_uop->opcode = k_opcode_MODE_IND;
+    p_uop->optype = -1;
+    p_uop->value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    p_uop++;
     break;
   case k_idx:
     p_uop->opcode = k_opcode_MODE_ZPX;
@@ -188,6 +192,30 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bvc:
   case k_bvs:
     p_uop->opcode = k_opcode_LOAD_OVERFLOW;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_jsr:
+    p_uop->opcode = k_opcode_PUSH_16;
+    p_uop->optype = -1;
+    p_uop->value1 = (uint16_t) (addr_6502 + 2);
+    p_uop++;
+    break;
+  case k_rti:
+    /* PLP */
+    p_uop->opcode = 0x28;
+    p_uop->optype = k_plp;
+    p_uop++;
+    p_uop->opcode = k_opcode_PULL_16;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_rts:
+    p_uop->opcode = k_opcode_PULL_16;
+    p_uop->optype = -1;
+    p_uop++;
+    /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
+    p_uop->opcode = k_opcode_INC_SCRATCH;
     p_uop->optype = -1;
     p_uop++;
     break;
@@ -258,14 +286,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_jmp:
     if (opmode == k_ind) {
-      /* Replace main uop with sequence. */
-      p_main_uop->opcode = k_opcode_MODE_IND;
+      p_main_uop->opcode = k_opcode_JMP_SCRATCH;
       p_main_uop->optype = -1;
-      p_main_uop->value1 = (uint16_t) addr_6502;
-      p_uop->opcode = k_opcode_JMP_SCRATCH;
-      p_uop->optype = -1;
-      p_uop++;
     }
+    break;
+  case k_jsr:
+    p_main_uop->opcode = 0x4C; /* JMP abs */
     break;
   case k_lda:
   case k_txa:
@@ -300,15 +326,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
     break;
   case k_rti:
-    /* PLP */
-    p_main_uop->opcode = 0x28;
-    p_main_uop->optype = k_plp;
-    p_uop->opcode = k_opcode_PULL_16;
-    p_uop->optype = -1;
-    p_uop++;
-    p_uop->opcode = k_opcode_JMP_SCRATCH;
-    p_uop->optype = -1;
-    p_uop++;
+  case k_rts:
+    p_main_uop->opcode = k_opcode_JMP_SCRATCH;
+    p_main_uop->optype = -1;
     break;
   case k_sbc:
     p_uop->opcode = k_opcode_SAVE_CARRY_INV;
@@ -366,6 +386,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_MODE_ZPY:
     asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_INC_SCRATCH:
+    asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
     break;
   case k_opcode_JMP_SCRATCH:
     asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
