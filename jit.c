@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,7 +46,7 @@ jit_get_jit_base_addr_callback(void* p, uint16_t addr_6502) {
 }
 
 static uint16_t
-jit_6502_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+jit_6502_block_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   size_t block_addr_6502;
 
   uint8_t* p_jit_base = p_jit->p_jit_base;
@@ -72,7 +73,7 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   uint8_t* p_jit_ptr;
 
   struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
-  uint16_t addr_6502 = jit_6502_addr_from_intel(p_jit, p_intel_rip);
+  uint16_t addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
 
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
@@ -111,6 +112,18 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   return ret;
 }
 
+static char*
+jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
+  static char block_addr_buf[5];
+
+  (void) p_cpu_driver;
+  (void) addr;
+
+  (void) snprintf(block_addr_buf, sizeof(block_addr_buf), "????");
+
+  return block_addr_buf;
+}
+
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   size_t i;
@@ -125,6 +138,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_cpu_driver->destroy = jit_destroy;
   p_cpu_driver->enter = jit_enter;
+  p_cpu_driver->get_address_info = jit_get_address_info;
 
   p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;

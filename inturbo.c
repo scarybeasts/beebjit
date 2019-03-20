@@ -677,9 +677,9 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct bbc_options* p_options = p_inturbo->driver.p_options;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
 
-  p_inturbo->driver.destroy = inturbo_destroy;
-  p_inturbo->driver.enter = inturbo_enter;
-  p_inturbo->driver.get_address_info = inturbo_get_address_info;
+  p_cpu_driver->destroy = inturbo_destroy;
+  p_cpu_driver->enter = inturbo_enter;
+  p_cpu_driver->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
       p_debug_callback_object, 0xFFFF);
