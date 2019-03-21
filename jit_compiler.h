@@ -10,6 +10,7 @@ struct jit_compiler* jit_compiler_create(
     uint8_t* p_read_mem,
     void* (*host_address_resolver)(void*, uint16_t),
     void* p_host_address_object,
+    uint32_t* p_jit_ptrs,
     int debug);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 

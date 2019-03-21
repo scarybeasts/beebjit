@@ -29,6 +29,7 @@ void asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
                                uint16_t addr,
                                uint8_t value);
 void asm_x64_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value);
+void asm_x64_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr);
 
 void asm_x64_emit_jit_ADC_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_AND_IMM(struct util_buffer* p_buf, uint8_t value);
@@ -125,6 +126,9 @@ void asm_x64_jit_STOA_IMM();
 void asm_x64_jit_STOA_IMM_END();
 void asm_x64_jit_SUB_IMM();
 void asm_x64_jit_SUB_IMM_END();
+void asm_x64_jit_WRITE_INV_ABS();
+void asm_x64_jit_WRITE_INV_ABS_offset_patch();
+void asm_x64_jit_WRITE_INV_ABS_END();
 
 void asm_x64_jit_ADC_IMM();
 void asm_x64_jit_ADC_IMM_END();

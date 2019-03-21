@@ -14,9 +14,12 @@ struct jit_compiler {
   uint8_t* p_mem_read;
   void* (*host_address_resolver)(void*, uint16_t);
   void* p_host_address_object;
+  uint32_t* p_jit_ptrs;
   int debug;
 
   struct util_buffer* p_single_opcode_buf;
+  struct util_buffer* p_tmp_buf;
+  uint32_t no_code_jit_ptr;
 
   int32_t reg_a;
   int32_t reg_x;
@@ -64,13 +67,31 @@ enum {
   k_opcode_SAVE_OVERFLOW,
   k_opcode_STOA_IMM,
   k_opcode_SUB_IMM,
+  k_opcode_WRITE_INV_ABS,
 };
+
+static void
+jit_set_jit_ptr_no_code(struct jit_compiler* p_compiler, uint16_t addr) {
+  p_compiler->p_jit_ptrs[addr] = p_compiler->no_code_jit_ptr;
+}
+
+static void
+jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
+  void* p_host_ptr =
+      p_compiler->host_address_resolver(p_compiler->p_host_address_object,
+                                        addr);
+  util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
+  asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
+}
 
 struct jit_compiler*
 jit_compiler_create(uint8_t* p_mem_read,
                     void* (*host_address_resolver)(void*, uint16_t),
                     void* p_host_address_object,
+                    uint32_t* p_jit_ptrs,
                     int debug) {
+  size_t i;
+
   struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
   if (p_compiler == NULL) {
     errx(1, "cannot alloc jit_compiler");
@@ -80,9 +101,19 @@ jit_compiler_create(uint8_t* p_mem_read,
   p_compiler->p_mem_read = p_mem_read;
   p_compiler->host_address_resolver = host_address_resolver;
   p_compiler->p_host_address_object = p_host_address_object;
+  p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
 
   p_compiler->p_single_opcode_buf = util_buffer_create();
+  p_compiler->p_tmp_buf = util_buffer_create();
+
+  p_compiler->no_code_jit_ptr = 
+      (uint32_t) (size_t) host_address_resolver(p_host_address_object,
+                                                (k_6502_addr_space_size - 1));
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    jit_set_jit_ptr_no_code(p_compiler, i);
+  }
 
   return p_compiler;
 }
@@ -90,6 +121,7 @@ jit_compiler_create(uint8_t* p_mem_read,
 void
 jit_compiler_destroy(struct jit_compiler* p_compiler) {
   util_buffer_destroy(p_compiler->p_single_opcode_buf);
+  util_buffer_destroy(p_compiler->p_tmp_buf);
   free(p_compiler);
 }
 
@@ -100,6 +132,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opcode_6502;
   uint8_t optype;
   uint8_t opmode;
+  uint8_t opmem;
   struct jit_uop* p_main_uop;
 
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -112,6 +145,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   opcode_6502 = p_mem_read[addr_6502];
   optype = g_optypes[opcode_6502];
   opmode = g_opmodes[opcode_6502];
+  opmem = g_opmem[optype];
 
   p_details->opcode_6502 = opcode_6502;
   p_details->len = g_opmodelens[opmode];
@@ -176,6 +210,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   default:
     assert(0);
     break;
+  }
+
+  /* Code invalidation for writes, aka. self-modifying code. */
+  if (opmem == k_write || opmem == k_rw) {
+    switch (opmode) {
+    case k_abs:
+      p_uop->opcode = k_opcode_WRITE_INV_ABS;
+      p_uop->value1 = main_value1;
+      p_uop->optype = -1;
+      p_uop++;
+    default:
+      break;
+    }
   }
 
   /* Pre-main uops. */
@@ -422,6 +469,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_SUB_IMM:
     asm_x64_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_WRITE_INV_ABS:
+    asm_x64_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
     break;
   case 0x02:
     asm_x64_emit_instruction_EXIT(p_dest_buf);
@@ -714,24 +764,35 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   while (1) {
     uint8_t single_opcode_buffer[128];
     uint8_t num_uops;
-    uint8_t i_uops;
+    uint8_t num_bytes_6502;
+    uint8_t i;
+    void* p_host_address;
+    uint32_t jit_ptr;
 
     util_buffer_setup(p_single_opcode_buf,
                       &single_opcode_buffer[0],
                       sizeof(single_opcode_buffer));
 
-    util_buffer_set_base_address(p_single_opcode_buf,
-                                 (util_buffer_get_base_address(p_buf) +
-                                     util_buffer_get_pos(p_buf)));
+    p_host_address = (util_buffer_get_base_address(p_buf) +
+                      util_buffer_get_pos(p_buf));
+    util_buffer_set_base_address(p_single_opcode_buf, p_host_address);
 
     num_uops = jit_compiler_get_opcode_details(p_compiler,
                                                &opcode_details,
                                                addr_6502);
 
-    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+    for (i = 0; i < num_uops; ++i) {
       jit_compiler_process_uop(p_compiler,
                                p_single_opcode_buf,
-                               &opcode_details.uops[i_uops]);
+                               &opcode_details.uops[i]);
+    }
+
+    num_bytes_6502 = opcode_details.len;
+    jit_ptr = (uint32_t) (size_t) p_host_address;
+    for (i = 0; i < num_bytes_6502; ++i) {
+      jit_invalidate_jump_target(p_compiler, addr_6502);
+      p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
+      addr_6502++;
     }
 
     util_buffer_append(p_buf, p_single_opcode_buf);
@@ -739,7 +800,5 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     if (opcode_details.branches == k_bra_y) {
       break;
     }
-
-    addr_6502 += opcode_details.len;
   }
 }

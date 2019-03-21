@@ -1,7 +1,5 @@
 #include "asm_x64_defs.h"
-
-#define K_BBC_JIT_ADDR                     0x20000000
-#define K_JIT_CONTEXT_OFFSET_JIT_CALLBACK  (K_CONTEXT_OFFSET_DRIVER_END + 0)
+#include "asm_x64_jit_defs.h"
 
 .file "asm_x64_jit.S"
 .intel_syntax noprefix
@@ -284,6 +282,19 @@ asm_x64_jit_SUB_IMM:
   sub REG_6502_A, 0
 
 asm_x64_jit_SUB_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_WRITE_INV_ABS
+.globl asm_x64_jit_WRITE_INV_ABS_offset_patch
+.globl asm_x64_jit_WRITE_INV_ABS_END
+asm_x64_jit_WRITE_INV_ABS:
+  mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
+asm_x64_jit_WRITE_INV_ABS_offset_patch:
+  # TODO: is this an LCP stall?
+  mov WORD PTR [REG_SCRATCH2], 0x17ff
+
+asm_x64_jit_WRITE_INV_ABS_END:
   ret
 
 

@@ -2,6 +2,7 @@
 
 #include "asm_x64_common.h"
 #include "asm_x64_defs.h"
+#include "asm_x64_jit_defs.h"
 #include "util.h"
 
 #include <assert.h>
@@ -260,6 +261,19 @@ asm_x64_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
                      asm_x64_jit_SUB_IMM,
                      asm_x64_jit_SUB_IMM_END,
                      value);
+}
+
+void
+asm_x64_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_WRITE_INV_ABS, asm_x64_jit_WRITE_INV_ABS_END);
+  asm_x64_patch_int(
+      p_buf,
+      offset,
+      asm_x64_jit_WRITE_INV_ABS,
+      asm_x64_jit_WRITE_INV_ABS_offset_patch,
+      (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (addr * sizeof(uint32_t))));
 }
 
 void

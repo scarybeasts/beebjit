@@ -25,6 +25,9 @@ struct jit_struct {
   /* C callbacks called by JIT code. */
   void* p_compile_callback;
 
+  /* 6502 address -> JIT code pointers. */
+  uint32_t jit_ptrs[k_6502_addr_space_size];
+
   /* Fields not referenced by JIT'ed code. */
   uint8_t* p_jit_base;
   struct jit_compiler* p_compiler;
@@ -152,6 +155,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->p_compiler = jit_compiler_create(p_mem_read,
                                           jit_get_jit_base_addr_callback,
                                           p_jit,
+                                          &p_jit->jit_ptrs[0],
                                           debug);
   p_jit->p_temp_buf = util_buffer_create();
   p_jit->p_compile_buf = util_buffer_create();
