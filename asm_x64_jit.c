@@ -81,6 +81,11 @@ asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ADD_Y_SCRATCH, asm_x64_jit_ADD_Y_SCRATCH_END);
+}
+
+void
 asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_FLAGA, asm_x64_jit_FLAGA_END);
 }
@@ -586,6 +591,11 @@ asm_x64_emit_jit_STA_ABX(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_STA_ABX,
                     asm_x64_jit_STA_ABX_END,
                     (K_BBC_MEM_READ_TO_WRITE_OFFSET + addr));
+}
+
+void
+asm_x64_emit_jit_STA_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_STA_scratch, asm_x64_jit_STA_scratch_END);
 }
 
 void

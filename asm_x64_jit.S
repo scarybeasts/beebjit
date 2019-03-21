@@ -72,6 +72,16 @@ asm_x64_jit_ADD_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ADD_Y_SCRATCH
+.globl asm_x64_jit_ADD_Y_SCRATCH_END
+asm_x64_jit_ADD_Y_SCRATCH:
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_16
+
+asm_x64_jit_ADD_Y_SCRATCH_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:
@@ -672,6 +682,15 @@ asm_x64_jit_STA_ABX:
   mov [REG_6502_X_64 + 0xFFFF], REG_6502_A
 
 asm_x64_jit_STA_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_STA_scratch
+.globl asm_x64_jit_STA_scratch_END
+asm_x64_jit_STA_scratch:
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_A
+
+asm_x64_jit_STA_scratch_END:
   ret
 
 

@@ -51,6 +51,7 @@ enum {
   k_opcode_FLAGX,
   k_opcode_FLAGY,
   k_opcode_ADD_IMM,
+  k_opcode_ADD_Y_SCRATCH,
   k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,
   k_opcode_LOAD_CARRY,
@@ -204,6 +205,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop++;
     p_uop->opcode = k_opcode_MODE_IND_SCRATCH;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_idy:
+    p_uop->opcode = k_opcode_MODE_IND;
+    p_uop->value1 = (uint16_t) p_mem_read[addr_plus_1];
+    p_uop->optype = -1;
+    p_uop++;
+    p_uop->opcode = k_opcode_ADD_Y_SCRATCH;
     p_uop->optype = -1;
     p_uop++;
     break;
@@ -410,6 +420,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_debug:
     asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
     break;
+  case k_opcode_ADD_Y_SCRATCH:
+    asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);
+    break;
   case k_opcode_ADD_IMM:
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
     break;
@@ -555,6 +568,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x90:
     asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x91: /* STA idy */
+    asm_x64_emit_jit_STA_scratch(p_dest_buf);
+    break;
   case 0x9A:
     asm_x64_emit_instruction_TXS(p_dest_buf);
     break;
@@ -565,6 +581,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xA1: /* LDA idx */
+  case 0xB1: /* LDA idy */
   case 0xB5: /* LDA zpx */
     asm_x64_emit_jit_LDA_scratch(p_dest_buf);
     break;
