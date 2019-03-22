@@ -47,6 +47,7 @@ void util_buffer_add_5b(struct util_buffer* p_buf,
                         int b5);
 void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
 void util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size);
+void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 
 /* File. */
 size_t util_file_read(uint8_t* p_buf,

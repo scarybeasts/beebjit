@@ -318,10 +318,16 @@ util_buffer_add_int(struct util_buffer* p_buf, ssize_t i) {
 
 void
 util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size) {
-  assert(p_buf->pos + size > p_buf->pos);
-  assert(p_buf->pos + size <= p_buf->length);
-  (void) memcpy(p_buf->p_mem + p_buf->pos, p_src, size);
+  assert((p_buf->pos + size) > p_buf->pos);
+  assert((p_buf->pos + size) <= p_buf->length);
+  (void) memcpy((p_buf->p_mem + p_buf->pos), p_src, size);
   p_buf->pos += size;
+}
+
+void
+util_buffer_fill_to_end(struct util_buffer* p_buf, char value) {
+  size_t len = (p_buf->length - p_buf->pos);
+  (void) memset((p_buf->p_mem + p_buf->pos), value, len);
 }
 
 size_t

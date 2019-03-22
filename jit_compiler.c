@@ -835,4 +835,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       break;
     }
   }
+
+  /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
+   * There are a few good reasons for this:
+   * 1) Clarity: see where a code block ends, especially if there was
+   * previously a larger code block at this address.
+   * 2) Bug detection: better chance of a clean crash if something does a bad
+   * jump.
+   * 3) Performance. int3 will stop the Intel instruction decoder.
+   */
+  util_buffer_fill_to_end(p_buf, '\xcc');
 }
