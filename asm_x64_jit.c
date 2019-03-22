@@ -439,7 +439,24 @@ asm_x64_emit_jit_CPY_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t value) {
+asm_x64_emit_jit_INC_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_INC_ABS, asm_x64_jit_INC_ABS_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_INC_ABS,
+                    asm_x64_jit_INC_ABS_mov1_patch,
+                    (K_BBC_MEM_READ_ADDR + addr));
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_INC_ABS,
+                    asm_x64_jit_INC_ABS_mov2_patch,
+                    (K_BBC_MEM_WRITE_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf, asm_x64_jit_INC_ZPG, asm_x64_jit_INC_ZPG_END);
@@ -447,7 +464,7 @@ asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t value) {
                     offset,
                     asm_x64_jit_INC_ZPG,
                     asm_x64_jit_INC_ZPG_END,
-                    (K_BBC_MEM_READ_ADDR + value));
+                    (K_BBC_MEM_READ_ADDR + addr));
 }
 
 void

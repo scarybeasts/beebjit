@@ -660,6 +660,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xE9:
     asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xEE:
+    /* TODO: use the zpg mode version if we know we're hitting RAM. */
+    asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
     break;

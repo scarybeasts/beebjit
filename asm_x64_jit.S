@@ -534,6 +534,21 @@ asm_x64_jit_CPY_IMM_END:
   ret
 
 
+.globl asm_x64_jit_INC_ABS
+.globl asm_x64_jit_INC_ABS_mov1_patch
+.globl asm_x64_jit_INC_ABS_mov2_patch
+.globl asm_x64_jit_INC_ABS_END
+asm_x64_jit_INC_ABS:
+  mov dl, [0x7fffffff]
+asm_x64_jit_INC_ABS_mov1_patch:
+  inc dl
+  mov [0x7fffffff], dl
+asm_x64_jit_INC_ABS_mov2_patch:
+
+asm_x64_jit_INC_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_INC_ZPG
 .globl asm_x64_jit_INC_ZPG_END
 asm_x64_jit_INC_ZPG:
