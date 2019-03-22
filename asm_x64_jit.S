@@ -21,6 +21,9 @@ asm_x64_jit_compile_trampoline:
 
   # We got here with a raw call instruction so the calling rip is in [rsp].
   mov REG_SCRATCH1, [rsp]
+  # The actual instruction address of interest is the call itself, so
+  # subtract two to get that.
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 - 2]
 
   lahf
   push rax

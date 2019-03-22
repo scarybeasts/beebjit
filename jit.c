@@ -62,6 +62,12 @@ jit_6502_block_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   return (uint16_t) block_addr_6502;
 }
 
+static uint16_t
+jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
+  void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr];
+  return jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
+}
+
 static void
 jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   struct util_buffer* p_buf = p_jit->p_temp_buf;
@@ -119,10 +125,13 @@ static char*
 jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   static char block_addr_buf[5];
 
-  (void) p_cpu_driver;
-  (void) addr;
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  uint16_t block_addr_6502 = jit_6502_block_addr_from_6502(p_jit, addr);
 
-  (void) snprintf(block_addr_buf, sizeof(block_addr_buf), "????");
+  (void) snprintf(block_addr_buf,
+                  sizeof(block_addr_buf),
+                  "%.4X",
+                  block_addr_6502);
 
   return block_addr_buf;
 }
