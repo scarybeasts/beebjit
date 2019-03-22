@@ -403,24 +403,24 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x02);
   emit_LDA(p_buf, k_imm, 0xC0);
   emit_STA(p_buf, k_zpg, 0x03);
-  emit_LDA(p_buf, k_idy, 0x02); /* $C039 */
+  emit_LDA(p_buf, k_idy, 0x02);   /* $C039 */
   emit_STA(p_buf, k_zpg, 0x04);
   emit_CLC(p_buf);
   emit_ADC(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_idy, 0x02); /* $C039 */
+  emit_STA(p_buf, k_idy, 0x02);   /* $C039 */
   emit_LDA(p_buf, k_idy, 0x02);
   emit_CMP(p_buf, k_zpg, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_STA(p_buf, k_idx, 0x02); /* $C039 */
+  emit_STA(p_buf, k_idx, 0x02);   /* $C039 */
   emit_LDA(p_buf, k_imm, 0x1B);
   emit_STA(p_buf, k_zpg, 0x02);
   emit_LDA(p_buf, k_imm, 0x80);
   emit_STA(p_buf, k_zpg, 0x03);
-  emit_LDA(p_buf, k_idy, 0x02); /* $801B */
+  emit_LDA(p_buf, k_idy, 0x02);   /* $801B */
   emit_STA(p_buf, k_zpg, 0x04);
   emit_CLC(p_buf);
   emit_ADC(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_idy, 0x02); /* $801B */
+  emit_STA(p_buf, k_idy, 0x02);   /* $801B */
   emit_LDA(p_buf, k_idy, 0x02);
   emit_CMP(p_buf, k_zpg, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
@@ -454,7 +454,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_zpg, 0x02);
   emit_STA(p_buf, k_zpg, 0x03);
-  emit_STA(p_buf, k_idy, 0x02); /* $FFFF */
+  emit_STA(p_buf, k_idy, 0x02);   /* $FFFF */
   emit_JMP(p_buf, k_abs, 0xC640);
 
   /* Test an interesting bug we had with self-modifying code where two
@@ -1003,7 +1003,7 @@ main(int argc, const char* argv[]) {
 
   /* Need this byte here for a specific test. */
   set_new_index(p_buf, 0x3BFF);
-  util_buffer_add_1b(p_buf, 0x7d);
+  util_buffer_add_1b(p_buf, 0x7D);
 
   /* NMI routine. */
   set_new_index(p_buf, 0x3E00);
