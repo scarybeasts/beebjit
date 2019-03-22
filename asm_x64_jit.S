@@ -396,7 +396,7 @@ asm_x64_jit_BEQ_8bit_END:
 .globl asm_x64_jit_BIT_mov_patch
 .globl asm_x64_jit_BIT_END
 asm_x64_jit_BIT:
-  mov ah, [0x7fffffff]
+  movzx REG_SCRATCH1_32, BYTE PTR [0x7fffffff]
 asm_x64_jit_BIT_mov_patch:
 
 asm_x64_jit_BIT_END:

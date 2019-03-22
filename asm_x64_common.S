@@ -67,18 +67,20 @@ asm_x64_instruction_ILLEGAL_END:
 .globl asm_x64_instruction_BIT_common_END
 asm_x64_instruction_BIT_common:
 
+  # NOTE: tried alternatives here with pdep, bextr, cmov, but this turned out
+  # to be fastest.
   # Load OF.
-  # TODO: faster with pext, avoids dependency?
-  bt REG_6502_A_32, 14
+  bt REG_SCRATCH1_32, 6
   setb REG_6502_OF
   # Load ZF.
-  test ah, REG_6502_A
-  sete REG_SCRATCH1_8
-  shl REG_SCRATCH1_8, 6
+  test REG_SCRATCH1_8, REG_6502_A
+  sete REG_SCRATCH2_8
+  shl REG_SCRATCH2_8, 6
   # Load NF.
-  and ah, 0x80
+  and REG_SCRATCH1_8, 0x80
   # Put ZF / NF together.
-  or ah, REG_SCRATCH1_8
+  or REG_SCRATCH1_8, REG_SCRATCH2_8
+  mov ah, REG_SCRATCH1_8
   sahf
 
 asm_x64_instruction_BIT_common_END:

@@ -616,7 +616,7 @@ asm_x64_instruction_BEQ_interp_accurate_END:
 .globl asm_x64_instruction_BIT_interp_END
 asm_x64_instruction_BIT_interp:
 
-  mov ah, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
 
 asm_x64_instruction_BIT_interp_END:
   ret
