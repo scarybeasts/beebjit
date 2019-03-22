@@ -63,6 +63,28 @@ asm_x64_instruction_ILLEGAL_END:
   ret
 
 
+.globl asm_x64_instruction_BIT_common
+.globl asm_x64_instruction_BIT_common_END
+asm_x64_instruction_BIT_common:
+
+  # Load OF.
+  # TODO: faster with pext, avoids dependency?
+  bt REG_6502_A_32, 14
+  setb REG_6502_OF
+  # Load ZF.
+  test ah, REG_6502_A
+  sete REG_SCRATCH1_8
+  shl REG_SCRATCH1_8, 6
+  # Load NF.
+  and ah, 0x80
+  # Put ZF / NF together.
+  or ah, REG_SCRATCH1_8
+  sahf
+
+asm_x64_instruction_BIT_common_END:
+  ret
+
+
 .globl asm_x64_instruction_CLC
 .globl asm_x64_instruction_CLC_END
 asm_x64_instruction_CLC:

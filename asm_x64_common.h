@@ -36,6 +36,7 @@ void asm_x64_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_TRAP(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_ILLEGAL(struct util_buffer* p_buf);
 
+void asm_x64_emit_instruction_BIT_common(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CLC(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CLD(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_CLI(struct util_buffer* p_buf);
@@ -77,6 +78,8 @@ void asm_x64_instruction_TRAP_END();
 void asm_x64_instruction_ILLEGAL();
 void asm_x64_instruction_ILLEGAL_END();
 
+void asm_x64_instruction_BIT_common();
+void asm_x64_instruction_BIT_common_END();
 void asm_x64_instruction_CLC();
 void asm_x64_instruction_CLC_END();
 void asm_x64_instruction_CLD();

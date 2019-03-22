@@ -350,6 +350,7 @@ asm_x64_emit_jit_BIT(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_BIT,
                     asm_x64_jit_BIT_mov_patch,
                     (K_BBC_MEM_READ_ADDR + addr));
+  asm_x64_emit_instruction_BIT_common(p_buf);
 }
 
 void

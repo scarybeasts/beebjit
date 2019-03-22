@@ -329,6 +329,9 @@ asm_x64_emit_instruction_BIT_interp(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_BIT_interp,
                asm_x64_instruction_BIT_interp_END);
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BIT_common,
+               asm_x64_instruction_BIT_common_END);
 }
 
 void

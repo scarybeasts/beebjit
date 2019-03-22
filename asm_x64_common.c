@@ -93,6 +93,13 @@ asm_x64_emit_instruction_ILLEGAL(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_instruction_BIT_common(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_instruction_BIT_common,
+               asm_x64_instruction_BIT_common_END);
+}
+
+void
 asm_x64_emit_instruction_CLC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_CLC, asm_x64_instruction_CLC_END);
 }

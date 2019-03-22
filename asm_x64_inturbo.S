@@ -617,18 +617,6 @@ asm_x64_instruction_BEQ_interp_accurate_END:
 asm_x64_instruction_BIT_interp:
 
   mov ah, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-  # Load OF.
-  bt REG_6502_A_32, 14
-  setb REG_6502_OF
-  # Load ZF.
-  test ah, REG_6502_A
-  sete REG_SCRATCH1_8
-  shl REG_SCRATCH1_8, 6
-  # Load NF.
-  and ah, 0x80
-  # Put ZF / NF together.
-  or ah, REG_SCRATCH1_8
-  sahf
 
 asm_x64_instruction_BIT_interp_END:
   ret
