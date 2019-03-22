@@ -357,9 +357,7 @@ main(int argc, const char* argv[]) {
   /* Test to see if the flags update went missing due to the self modifying
    * code changing flag expectations within the block.
    */
-/*  p_mem[index++] = 0xD0; */ /* BNE (should be ZF=0) */
-/*  p_mem[index++] = 0x01;
-  p_mem[index++] = 0xF2; */ /* FAIL */
+  emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC540);
 
   /* Test various simple hardware register read / writes and initial state. */
