@@ -45,9 +45,25 @@ jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static void*
-jit_get_jit_base_addr_callback(void* p, uint16_t addr_6502) {
+jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
   return jit_get_jit_base_addr(p_jit, addr_6502);
+}
+
+static uint16_t
+jit_get_jit_ptr_block_callback(void* p, uint32_t jit_ptr) {
+  size_t ret;
+  uint8_t* p_jit_ptr;
+
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+
+  p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
+
+  ret = ((p_jit_ptr - p_jit->p_jit_base) / k_jit_bytes_per_byte);
+
+  assert(ret < k_6502_addr_space_size);
+
+  return ret;
 }
 
 static uint16_t
@@ -170,7 +186,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_compiler = jit_compiler_create(p_mem_read,
-                                          jit_get_jit_base_addr_callback,
+                                          jit_get_block_host_address_callback,
+                                          jit_get_jit_ptr_block_callback,
                                           p_jit,
                                           &p_jit->jit_ptrs[0],
                                           debug);

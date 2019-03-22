@@ -12,7 +12,8 @@
 
 struct jit_compiler {
   uint8_t* p_mem_read;
-  void* (*host_address_resolver)(void*, uint16_t);
+  void* (*get_block_host_address)(void*, uint16_t);
+  uint16_t (*get_jit_ptr_block)(void*, uint32_t);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
@@ -79,15 +80,24 @@ jit_set_jit_ptr_no_code(struct jit_compiler* p_compiler, uint16_t addr) {
 static void
 jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   void* p_host_ptr =
-      p_compiler->host_address_resolver(p_compiler->p_host_address_object,
-                                        addr);
+      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
+                                         addr);
   util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
   asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
 }
 
+static void
+jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
+  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
+  uint16_t block_addr_6502 =
+      p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
+  jit_invalidate_jump_target(p_compiler, block_addr_6502);
+}
+
 struct jit_compiler*
 jit_compiler_create(uint8_t* p_mem_read,
-                    void* (*host_address_resolver)(void*, uint16_t),
+                    void* (*get_block_host_address)(void*, uint16_t),
+                    uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     int debug) {
@@ -100,7 +110,8 @@ jit_compiler_create(uint8_t* p_mem_read,
   (void) memset(p_compiler, '\0', sizeof(struct jit_compiler));
 
   p_compiler->p_mem_read = p_mem_read;
-  p_compiler->host_address_resolver = host_address_resolver;
+  p_compiler->get_block_host_address = get_block_host_address;
+  p_compiler->get_jit_ptr_block = get_jit_ptr_block;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
@@ -109,8 +120,8 @@ jit_compiler_create(uint8_t* p_mem_read,
   p_compiler->p_tmp_buf = util_buffer_create();
 
   p_compiler->no_code_jit_ptr = 
-      (uint32_t) (size_t) host_address_resolver(p_host_address_object,
-                                                (k_6502_addr_space_size - 1));
+      (uint32_t) (size_t) get_block_host_address(p_host_address_object,
+                                                 (k_6502_addr_space_size - 1));
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     jit_set_jit_ptr_no_code(p_compiler, i);
@@ -401,7 +412,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   if (jump_fixup) {
     p_main_uop->value1 =
-        (int32_t) (size_t) p_compiler->host_address_resolver(
+        (int32_t) (size_t) p_compiler->get_block_host_address(
             p_compiler->p_host_address_object,
             p_main_uop->value1);
   }
@@ -777,6 +788,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_compiler->reg_y = k_value_unknown;
   p_compiler->flag_carry = k_value_unknown;
   p_compiler->flag_decimal = k_value_unknown;
+
+  jit_invalidate_block_with_addr(p_compiler, addr_6502);
 
   while (1) {
     uint8_t single_opcode_buffer[128];
