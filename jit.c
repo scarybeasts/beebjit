@@ -33,6 +33,8 @@ struct jit_struct {
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
+
+  int log_compile;
 };
 
 static uint8_t*
@@ -87,6 +89,10 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
   util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
+
+  if (p_jit->log_compile) {
+    printf("LOG:JIT:compile @ %.4X\n", addr_6502);
+  }
 
   jit_compiler_compile_block(p_jit->p_compiler, p_compile_buf, addr_6502);
 
@@ -147,6 +153,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   struct bbc_options* p_options = p_cpu_driver->p_options;
   void* p_debug_callback_object = p_options->p_debug_callback_object;
   int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
+
+  p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
 
   p_cpu_driver->destroy = jit_destroy;
   p_cpu_driver->enter = jit_enter;
