@@ -133,7 +133,9 @@ asm_x64_inturbo_advance_pc_END:
 .globl asm_x64_inturbo_jump_opcode_END
 asm_x64_inturbo_jump_opcode:
 
-  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+  rorx REG_SCRATCH3, REG_SCRATCH3, 56
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  jmp REG_SCRATCH3
 
 asm_x64_inturbo_jump_opcode_END:
   ret
@@ -210,7 +212,9 @@ asm_x64_inturbo_call_interp:
   call asm_x64_restore_AXYS_PC_flags
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
-  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+  rorx REG_SCRATCH3, REG_SCRATCH3, 56
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  jmp REG_SCRATCH3
 
 
 .globl asm_x64_inturbo_mode_zpg
@@ -399,14 +403,17 @@ asm_x64_instruction_Bxx_interp_accurate_jb_patch:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + REG_SCRATCH1]
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
-  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
+  rorx REG_SCRATCH3, REG_SCRATCH3, 56
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_not_taken_target:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 2]
   lea REG_6502_PC, [REG_6502_PC + 2]
-  jmp [REG_SCRATCH3 * 8 + 0x3f000000]
-
+  rorx REG_SCRATCH3, REG_SCRATCH3, 56
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_END:
   ret

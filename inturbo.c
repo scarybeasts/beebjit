@@ -21,8 +21,6 @@
 
 static const size_t k_inturbo_bytes_per_opcode = 256;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
-static void* k_inturbo_jump_table_addr = (void*) 0x3f000000;
-static const size_t k_inturbo_jump_table_size = 4096;
 
 struct inturbo_struct {
   struct cpu_driver driver;
@@ -30,7 +28,6 @@ struct inturbo_struct {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
   uint8_t* p_inturbo_base;
-  uint64_t* p_jump_table;
   uint32_t short_instruction_run_timer_id;
 };
 
@@ -43,7 +40,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
   uint8_t* p_inturbo_opcodes_ptr = p_inturbo_base;
-  uint64_t* p_jump_table = p_inturbo->p_jump_table;
 
   struct bbc_options* p_options = p_inturbo->driver.p_options;
   int accurate = p_options->accurate;
@@ -57,12 +53,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       p_memory_object);
   if (temp_u16 < special_addr_above) {
     special_addr_above = temp_u16;
-  }
-
-  /* Opcode pointers for the "next opcode" jump table. */
-  for (i = 0; i < 256; ++i) {
-    p_jump_table[i] =
-        (uint64_t) (p_inturbo_base + (i * k_inturbo_bytes_per_opcode));
   }
 
   for (i = 0;
@@ -632,7 +622,6 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
 
   util_free_guarded_mapping(p_inturbo->p_inturbo_base,
                             (256 * k_inturbo_bytes_per_opcode));
-  util_free_guarded_mapping(p_inturbo->p_jump_table, k_inturbo_jump_table_size);
   free(p_inturbo);
 }
 
@@ -642,12 +631,13 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   uint32_t run_result;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
-  uint64_t* p_jump_table = p_inturbo->p_jump_table;
   uint16_t addr_6502 = state_6502_get_pc(p_inturbo->driver.abi.p_state_6502);
   uint8_t* p_mem_read = p_inturbo->driver.p_memory_access->p_mem_read;
-  uint8_t opcode = p_mem_read[addr_6502];
-  uint32_t p_start_address = p_jump_table[opcode];
   struct timing_struct* p_timing = p_inturbo->driver.p_timing;
+  uint8_t opcode = p_mem_read[addr_6502];
+  uint32_t p_start_address =
+      (uint32_t) (size_t) (k_inturbo_opcodes_addr +
+                           (opcode * k_inturbo_bytes_per_opcode));
 
   countdown = timing_get_countdown(p_timing);
 
@@ -716,9 +706,6 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   util_make_mapping_read_write_exec(
       p_inturbo->p_inturbo_base,
       (256 * k_inturbo_bytes_per_opcode));
-
-  p_inturbo->p_jump_table = util_get_guarded_mapping(k_inturbo_jump_table_addr,
-                                                     k_inturbo_jump_table_size);
 
   inturbo_fill_tables(p_inturbo);
 }
