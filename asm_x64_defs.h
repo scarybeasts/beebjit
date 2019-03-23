@@ -59,9 +59,11 @@
 #define REG_SCRATCH1_32    edx
 #define REG_SCRATCH2       r8
 #define REG_SCRATCH2_8     r8b
+#define REG_SCRATCH2_16    r8w
 #define REG_SCRATCH2_32    r8d
 #define REG_SCRATCH3       r9
 #define REG_SCRATCH3_8     r9b
+#define REG_SCRATCH3_16    r9w
 #define REG_SCRATCH3_32    r9d
 #define REG_SCRATCH4       r11
 #define REG_SCRATCH4_8     r11b
