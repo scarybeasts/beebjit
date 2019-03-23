@@ -304,7 +304,8 @@ asm_x64_jit_SUB_IMM_END:
 asm_x64_jit_WRITE_INV_ABS:
   mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
 asm_x64_jit_WRITE_INV_ABS_offset_patch:
-  # TODO: is this an LCP stall?
+  # NOTE: 16-bit imm contant may case LCP stall but quick tests didn't show any
+  # problems vs. using a 16-bit register.
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
 asm_x64_jit_WRITE_INV_ABS_END:
