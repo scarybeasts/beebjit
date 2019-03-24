@@ -637,7 +637,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t df;
   uint8_t intf;
   uint8_t opcode;
-  uint8_t prev_opcode;
 
   int temp_int;
   uint8_t temp_u8;
@@ -1498,7 +1497,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
       continue;
     }
 
-    prev_opcode = opcode;
     countdown += cycles_this_instruction;
     assert(countdown > 0);
 
@@ -1514,7 +1512,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     if (cycles_this_instruction <= 2) {
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(cycles_this_instruction);
-    } else if (interp_is_branch_opcode(prev_opcode)) {
+    } else if (interp_is_branch_opcode(opcode)) {
       /* EMU NOTE: Taken branches have a different interrupt poll location. */
       if (cycles_this_instruction == 3) {
         /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
