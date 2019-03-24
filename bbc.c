@@ -137,6 +137,25 @@ bbc_write_needs_callback_above(void* p) {
   return 0xFC00;
 }
 
+static int
+bbc_read_needs_callback(void* p, uint16_t addr) {
+  (void) p;
+
+  if (addr >= 0xFC00 && addr < 0xFF00) {
+    return 1;
+  }
+
+  return 0;
+}
+
+static int
+bbc_write_needs_callback(void* p, uint16_t addr) {
+  (void) p;
+
+  /* Same range as for reads. */
+  return bbc_read_needs_callback(p, addr);
+}
+
 int
 bbc_is_special_read_address(struct bbc_struct* p_bbc,
                             uint16_t addr_low,
@@ -563,6 +582,8 @@ bbc_create(int mode,
       bbc_read_needs_callback_above;
   p_bbc->memory_access.memory_write_needs_callback_above =
       bbc_write_needs_callback_above;
+  p_bbc->memory_access.memory_read_needs_callback = bbc_read_needs_callback;
+  p_bbc->memory_access.memory_write_needs_callback = bbc_write_needs_callback;
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
 

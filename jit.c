@@ -184,7 +184,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_jit_base;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
+  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
   struct bbc_options* p_options = p_cpu_driver->p_options;
   void* p_debug_object = p_options->p_debug_object;
   int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
@@ -204,7 +204,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   util_make_mapping_read_write_exec(p_jit_base, mapping_size);
 
   p_jit->p_jit_base = p_jit_base;
-  p_jit->p_compiler = jit_compiler_create(p_mem_read,
+  p_jit->p_compiler = jit_compiler_create(p_memory_access,
                                           jit_get_block_host_address_callback,
                                           jit_get_jit_ptr_block_callback,
                                           p_jit,

@@ -7,15 +7,6 @@
 .text
 
 
-.globl asm_x64_jit_call_compile_trampoline
-.globl asm_x64_jit_call_compile_trampoline_END
-asm_x64_jit_call_compile_trampoline:
-  call [REG_CONTEXT]
-
-asm_x64_jit_call_compile_trampoline_END:
-  ret
-
-
 .globl asm_x64_jit_compile_trampoline
 asm_x64_jit_compile_trampoline:
 
@@ -52,17 +43,32 @@ asm_x64_jit_compile_trampoline:
   jmp REG_SCRATCH1
 
 
-.globl asm_x64_jit_call_debug
-.globl asm_x64_jit_call_debug_pc_patch
-.globl asm_x64_jit_call_debug_call_patch
-.globl asm_x64_jit_call_debug_END
-asm_x64_jit_call_debug:
-  mov REG_6502_PC_32, 0xFFFF
-asm_x64_jit_call_debug_pc_patch:
-  call 0
-asm_x64_jit_call_debug_call_patch:
+.globl asm_x64_jit_interp
+asm_x64_jit_interp:
+  int 3
+  ret
 
-asm_x64_jit_call_debug_END:
+
+.globl asm_x64_jit_call_compile_trampoline
+.globl asm_x64_jit_call_compile_trampoline_END
+asm_x64_jit_call_compile_trampoline:
+  call [REG_CONTEXT]
+
+asm_x64_jit_call_compile_trampoline_END:
+  ret
+
+
+.globl asm_x64_jit_set_pc_and_call
+.globl asm_x64_jit_set_pc_and_call_pc_patch
+.globl asm_x64_jit_set_pc_and_call_call_patch
+.globl asm_x64_jit_set_pc_and_call_END
+asm_x64_jit_set_pc_and_call:
+  mov REG_6502_PC_32, 0xFFFF
+asm_x64_jit_set_pc_and_call_pc_patch:
+  call 0
+asm_x64_jit_set_pc_and_call_call_patch:
+
+asm_x64_jit_set_pc_and_call_END:
   ret
 
 

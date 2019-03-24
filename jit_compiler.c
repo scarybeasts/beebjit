@@ -3,6 +3,7 @@
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "defs_6502.h"
+#include "memory_access.h"
 #include "util.h"
 
 #include <assert.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 
 struct jit_compiler {
+  struct memory_access* p_memory_access;
   uint8_t* p_mem_read;
   void* (*get_block_host_address)(void*, uint16_t);
   uint16_t (*get_jit_ptr_block)(void*, uint32_t);
@@ -48,6 +50,7 @@ static const int32_t k_value_unknown = -1;
 enum {
   k_opcode_countdown = 0x100,
   k_opcode_debug,
+  k_opcode_interp,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
@@ -95,7 +98,7 @@ jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
 }
 
 struct jit_compiler*
-jit_compiler_create(uint8_t* p_mem_read,
+jit_compiler_create(struct memory_access* p_memory_access,
                     void* (*get_block_host_address)(void*, uint16_t),
                     uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
@@ -109,7 +112,8 @@ jit_compiler_create(uint8_t* p_mem_read,
   }
   (void) memset(p_compiler, '\0', sizeof(struct jit_compiler));
 
-  p_compiler->p_mem_read = p_mem_read;
+  p_compiler->p_memory_access = p_memory_access;
+  p_compiler->p_mem_read = p_memory_access->p_mem_read;
   p_compiler->get_block_host_address = get_block_host_address;
   p_compiler->get_jit_ptr_block = get_jit_ptr_block;
   p_compiler->p_host_address_object = p_host_address_object;
@@ -147,12 +151,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opmem;
   struct jit_uop* p_main_uop;
 
+  struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
+  void* p_memory_callback = p_memory_access->p_callback_obj;
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
   int jump_fixup = 0;
   int32_t main_value1 = -1;
   struct jit_uop* p_uop = &p_details->uops[0];
+  int use_interp = 0;
 
   opcode_6502 = p_mem_read[addr_6502];
   optype = g_optypes[opcode_6502];
@@ -203,6 +210,20 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (optype == k_jmp || optype == k_jsr) {
       jump_fixup = 1;
     }
+    if (opmode == k_abs) {
+      if (opmem == k_read || opmem == k_rw) {
+        if (p_memory_access->memory_read_needs_callback(p_memory_callback,
+                                                        main_value1)) {
+          use_interp = 1;
+        }
+      }
+      if (opmem == k_write || opmem == k_rw) {
+        if (p_memory_access->memory_write_needs_callback(p_memory_callback,
+                                                         main_value1)) {
+          use_interp = 1;
+        }
+      }
+    }
     break;
   case k_ind:
     p_uop->opcode = k_opcode_MODE_IND;
@@ -231,6 +252,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   default:
     assert(0);
     break;
+  }
+
+  if (use_interp) {
+    p_uop->opcode = k_opcode_interp;
+    p_uop->value1 = addr_6502;
+    p_uop->optype = -1;
+    p_uop++;
+    return (p_uop - &p_details->uops[0]);
   }
 
   /* Code invalidation for writes, aka. self-modifying code. */
@@ -430,6 +459,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   switch (opcode) {
   case k_opcode_debug:
     asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_interp:
+    asm_x64_emit_jit_call_interp(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_Y_SCRATCH:
     asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);

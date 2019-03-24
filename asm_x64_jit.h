@@ -7,6 +7,7 @@ struct util_buffer;
 
 void asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf);
 void asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr);
+void asm_x64_emit_jit_call_interp(struct util_buffer* p_buf, uint16_t addr);
 
 void asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf);
@@ -70,14 +71,14 @@ void asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr);
 
 /* Symbols pointing directly to ASM bytes. */
 void asm_x64_jit_compile_trampoline();
-void asm_x64_jit_do_interrupt();
+void asm_x64_jit_interp();
 
 void asm_x64_jit_call_compile_trampoline();
 void asm_x64_jit_call_compile_trampoline_END();
-void asm_x64_jit_call_debug();
-void asm_x64_jit_call_debug_pc_patch();
-void asm_x64_jit_call_debug_call_patch();
-void asm_x64_jit_call_debug_END();
+void asm_x64_jit_set_pc_and_call();
+void asm_x64_jit_set_pc_and_call_pc_patch();
+void asm_x64_jit_set_pc_and_call_call_patch();
+void asm_x64_jit_set_pc_and_call_END();
 
 void asm_x64_jit_ADD_IMM();
 void asm_x64_jit_ADD_IMM_END();

@@ -4,10 +4,11 @@
 #include <stdint.h>
 
 struct jit_compiler;
+struct memory_access;
 struct util_buffer;
 
 struct jit_compiler* jit_compiler_create(
-    uint8_t* p_read_mem,
+    struct memory_access* p_memory_access,
     void* (*get_block_host_address)(void*, uint16_t),
     uint16_t (*get_jit_ptr_block)(void*, uint32_t),
     void* p_host_address_object,

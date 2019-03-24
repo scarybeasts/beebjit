@@ -11,6 +11,8 @@ struct memory_access {
   int (*memory_is_ram)(void* p, uint16_t addr);
   uint16_t (*memory_read_needs_callback_above)(void* p);
   uint16_t (*memory_write_needs_callback_above)(void* p);
+  int (*memory_read_needs_callback)(void* p, uint16_t addr);
+  int (*memory_write_needs_callback)(void* p, uint16_t addr);
 
   uint8_t (*memory_read_callback)(void* p, uint16_t addr);
   void (*memory_write_callback)(void* p, uint16_t addr, uint8_t val);
