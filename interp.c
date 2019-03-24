@@ -29,7 +29,6 @@ struct interp_struct {
   int debug_subsystem_active;
 
   uint32_t deferred_interrupt_timer_id;
-  int return_from_loop;
 };
 
 static void
@@ -50,7 +49,7 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
 
-  return interp_enter_with_countdown(p_interp, countdown);
+  return interp_enter_with_details(p_interp, countdown, NULL);
 }
 
 static char*
@@ -622,7 +621,9 @@ interp_is_branch_opcode(uint8_t opcode) {
   v = y;
 
 uint32_t
-interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
+interp_enter_with_details(struct interp_struct* p_interp,
+                          int64_t countdown,
+                          int (*instruction_callback)(uint8_t, int, int)) {
   uint16_t pc;
   uint8_t a;
   uint8_t x;
@@ -661,8 +662,6 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t callback_above = p_interp->callback_above;
   int do_irq = 0;
   int64_t cycles_this_instruction = 0;
-
-  p_interp->return_from_loop = 0;
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -1564,15 +1563,15 @@ check_irq:
       }
     }
 
-    /* Note that we stay in the interpreter loop to handle the IRQ if one
-     * has arisen, otherwise it would get lost. We also stay in the loop if
-     * there's a pending IRQ check to avoid bouncing between execution engines
-     * in this common case.
-     */
-    if (p_interp->return_from_loop &&
-        !do_irq &&
-        !timing_timer_is_running(p_timing, deferred_interrupt_timer_id)) {
-      break;
+    if (instruction_callback) {
+      int irq_pending = timing_timer_is_running(p_timing,
+                                                deferred_interrupt_timer_id);
+      /* The instruction callback can elect to bounce out of the
+       * interpreter.
+       */
+      if (instruction_callback(opcode, do_irq, irq_pending)) {
+        break;
+      }
     }
 
 check_debug:
@@ -1597,16 +1596,12 @@ check_debug:
       countdown = timing_get_countdown(p_timing);
     }
 
-    do_special_checks = p_interp->debug_subsystem_active;
+    do_special_checks = (p_interp->debug_subsystem_active ||
+                         instruction_callback);
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 
   return (uint32_t) -1;
-}
-
-void
-interp_set_loop_exit(struct interp_struct* p_interp) {
-  p_interp->return_from_loop = 1;
 }

@@ -28,7 +28,6 @@ struct inturbo_struct {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
   uint8_t* p_inturbo_base;
-  uint32_t short_instruction_run_timer_id;
 };
 
 static void
@@ -559,32 +558,35 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   util_buffer_destroy(p_buf);
 }
 
-static void
-inturbo_short_instruction_run_timer_callback(void* p) {
-  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p;
-  struct interp_struct* p_interp = p_inturbo->p_interp;
+static int
+inturbo_interp_instruction_callback(uint8_t opcode,
+                                    int is_irq,
+                                    int irq_pending) {
+  (void) opcode;
 
-  (void) timing_stop_timer(p_inturbo->driver.p_timing,
-                           p_inturbo->short_instruction_run_timer_id);
-  interp_set_loop_exit(p_interp);
+  if (is_irq || irq_pending) {
+    /* Keep interpreting to handle the IRQ. */
+    return 0;
+  }
+
+  /* Stop interpreting, i.e. bounce back to inturbo. */
+  return 1;
 }
 
 static int64_t
 inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
-  uint32_t ret;
-
   struct timing_struct* p_timing = p_inturbo->driver.p_timing;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-  (void) timing_advance_time(p_timing, countdown);
+  /* TODO: get rid of this. */
+  if (countdown <= 0) {
+    countdown = timing_advance_time(p_timing, countdown);
+  }
 
-  /* Set a timer to fire immediately and stop the interpreter loop. */
-  countdown = timing_start_timer_with_value(
-      p_timing,
-      p_inturbo->short_instruction_run_timer_id,
-      1);
+  uint32_t ret = interp_enter_with_details(p_interp,
+                                           countdown,
+                                           inturbo_interp_instruction_callback);
 
-  ret = interp_enter_with_countdown(p_interp, countdown);
   (void) ret;
   assert(ret == (uint32_t) -1);
 
@@ -672,11 +674,6 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
-
-  p_inturbo->short_instruction_run_timer_id =
-      timing_register_timer(p_timing,
-                            inturbo_short_instruction_run_timer_callback,
-                            p_inturbo);
 
   p_inturbo->p_inturbo_base = util_get_guarded_mapping(
       k_inturbo_opcodes_addr,
