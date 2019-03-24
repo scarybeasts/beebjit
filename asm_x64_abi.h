@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct bbc_options;
+struct debug_struct;
 struct memory_access;
 struct state_6502;
 
@@ -19,7 +20,7 @@ struct asm_x64_abi {
   struct state_6502* p_state_6502;
 
   void* p_debug_callback;
-  void* p_debug_object;
+  struct debug_struct* p_debug_object;
 
   void* p_interp_callback;
   void* p_interp_object;

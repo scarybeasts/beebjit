@@ -28,7 +28,7 @@ void asm_x64_abi_init(struct asm_x64_abi* p_abi,
   p_abi->p_state_6502 = p_state_6502;
 
   p_abi->p_debug_callback = p_options->debug_callback;
-  p_abi->p_debug_object = p_options->p_debug_callback_object;
+  p_abi->p_debug_object = p_options->p_debug_object;
 
   uint_mem_read = (uint32_t) (uintptr_t) p_mem_read;
   p_state_6502->reg_x = uint_mem_read;

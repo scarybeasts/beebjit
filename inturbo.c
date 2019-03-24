@@ -665,14 +665,14 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
   struct timing_struct* p_timing = p_inturbo->driver.p_timing;
   struct bbc_options* p_options = p_inturbo->driver.p_options;
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
+  struct debug_struct* p_debug_object = p_options->p_debug_object;
 
   p_cpu_driver->destroy = inturbo_destroy;
   p_cpu_driver->enter = inturbo_enter;
   p_cpu_driver->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
-      p_debug_callback_object, 0xFFFF);
+      p_debug_object, 0xFFFF);
   p_inturbo->debug_subsystem_active = debug_subsystem_active;
 
   /* The inturbo mode uses an interpreter to handle complicated situations,

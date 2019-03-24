@@ -186,8 +186,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
   struct bbc_options* p_options = p_cpu_driver->p_options;
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
-  int debug = p_options->debug_active_at_addr(p_debug_callback_object, 0xFFFF);
+  void* p_debug_object = p_options->p_debug_object;
+  int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
 

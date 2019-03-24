@@ -357,11 +357,12 @@ debug_get_details(int* p_addr_6502,
 }
 
 static void
-debug_disass(struct bbc_struct* p_bbc, uint16_t addr_6502) {
+debug_disass(struct cpu_driver* p_cpu_driver,
+             struct bbc_struct* p_bbc,
+             uint16_t addr_6502) {
   size_t i;
 
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
@@ -571,7 +572,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
 }
 
 static inline void
-debug_check_unusual(struct debug_struct* p_debug,
+debug_check_unusual(struct cpu_driver* p_cpu_driver,
                     uint8_t operand1,
                     uint8_t reg_x,
                     uint8_t opmode,
@@ -582,8 +583,7 @@ debug_check_unusual(struct debug_struct* p_debug,
                     int is_register,
                     int wrapped_8bit,
                     int wrapped_16bit) {
-  struct bbc_struct* p_bbc = p_debug->p_bbc;
-  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
 
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
   int warned = 0;
@@ -727,7 +727,7 @@ debug_print_state(char* p_address_info,
 }
 
 void*
-debug_callback(void* p, int do_irq) {
+debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -762,10 +762,9 @@ debug_callback(void* p, int do_irq) {
   int is_write;
   int is_rom;
   int is_register;
-  struct cpu_driver* p_cpu_driver;
   char* p_address_info;
 
-  struct debug_struct* p_debug = (struct debug_struct*) p;
+  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
@@ -863,7 +862,7 @@ debug_callback(void* p, int do_irq) {
     }
   }
 
-  debug_check_unusual(p_debug,
+  debug_check_unusual(p_cpu_driver,
                       operand1,
                       reg_x,
                       opmode,
@@ -936,7 +935,6 @@ debug_callback(void* p, int do_irq) {
     flags_buf[7] = 'N';
   }
 
-  p_cpu_driver = bbc_get_cpu_driver(p_bbc);
   p_address_info = p_cpu_driver->get_address_info(p_cpu_driver, reg_pc);
 
   debug_print_state(p_address_info,
@@ -1124,9 +1122,9 @@ debug_callback(void* p, int do_irq) {
       reg_pc = parse_int;
       /* TODO: setting PC broken in JIT mode? */
     } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
-      debug_disass(p_bbc, parse_int);
+      debug_disass(p_cpu_driver, p_bbc, parse_int);
     } else if (!strcmp(input_buf, "d")) {
-      debug_disass(p_bbc, reg_pc);
+      debug_disass(p_cpu_driver, p_bbc, reg_pc);
     } else if (!strcmp(input_buf, "sys")) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {

@@ -100,7 +100,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   assert(p_interp->callback_above >= 0x200);
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
-      p_options->p_debug_callback_object);
+      p_options->p_debug_object);
 
   p_interp->deferred_interrupt_timer_id =
       timing_register_timer(p_timing,
@@ -206,10 +206,12 @@ interp_call_debugger(struct interp_struct* p_interp,
   struct bbc_options* p_options = p_interp->driver.p_options;
   int (*debug_active_at_addr)(void*, uint16_t) =
       p_options->debug_active_at_addr;
-  void* p_debug_callback_object = p_options->p_debug_callback_object;
+  struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_interp;
+  struct debug_struct* p_debug_object = p_cpu_driver->abi.p_debug_object;
 
-  if (debug_active_at_addr(p_debug_callback_object, *p_pc)) {
-    void* (*debug_callback)(void*, int) = p_options->debug_callback;
+  if (debug_active_at_addr(p_debug_object, *p_pc)) {
+    void* (*debug_callback)(struct cpu_driver*, int) =
+        p_cpu_driver->abi.p_debug_callback;
 
     flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
     state_6502_set_registers(p_state_6502,
@@ -220,7 +222,7 @@ interp_call_debugger(struct interp_struct* p_interp,
                              flags,
                              *p_pc);
 
-    debug_callback(p_options->p_debug_callback_object, irq_vector);
+    debug_callback(p_cpu_driver, irq_vector);
 
     state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
     interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);
