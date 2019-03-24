@@ -5,6 +5,7 @@
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
+#include "interp.h"
 #include "memory_access.h"
 #include "jit_compiler.h"
 #include "state_6502.h"
@@ -33,6 +34,7 @@ struct jit_struct {
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
+  struct interp_struct* p_interp;
 
   int log_compile;
 };
@@ -134,10 +136,21 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   return p_jit_ptr;
 }
 
+static int64_t
+jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
+  (void) p_jit;
+  (void) countdown;
+  assert(0);
+  return 0;
+}
+
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   size_t mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
+  struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  p_interp_cpu_driver->destroy(p_interp_cpu_driver);
 
   util_buffer_destroy(p_jit->p_compile_buf);
   util_buffer_destroy(p_jit->p_temp_buf);
@@ -179,12 +192,15 @@ jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
 
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
+  struct interp_struct* p_interp;
   size_t i;
   size_t mapping_size;
   uint8_t* p_jit_base;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_timing;
   struct bbc_options* p_options = p_cpu_driver->p_options;
   void* p_debug_object = p_options->p_debug_object;
   int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
@@ -197,6 +213,22 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;
+
+  /* The JIT mode uses an interpreter to handle complicated situations,
+   * such as IRQs, hardware accesses, etc.
+   */
+  p_interp = (struct interp_struct*) cpu_driver_alloc(k_cpu_mode_interp,
+                                                      p_state_6502,
+                                                      p_memory_access,
+                                                      p_timing,
+                                                      p_options);
+  if (p_interp == NULL) {
+    errx(1, "couldn't allocate interp_struct");
+  }
+  p_jit->p_interp = p_interp;
+
+  p_jit->driver.abi.p_interp_callback = jit_enter_interp;
+  p_jit->driver.abi.p_interp_object = p_jit;
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);

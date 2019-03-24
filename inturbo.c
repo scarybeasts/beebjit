@@ -598,7 +598,6 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
 static void
 inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
-
   struct cpu_driver* p_interp_cpu_driver =
       (struct cpu_driver*) p_inturbo->p_interp;
 
@@ -645,10 +644,10 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
-  struct state_6502* p_state_6502 = p_inturbo->driver.abi.p_state_6502;
-  struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
-  struct timing_struct* p_timing = p_inturbo->driver.p_timing;
-  struct bbc_options* p_options = p_inturbo->driver.p_options;
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  struct bbc_options* p_options = p_cpu_driver->p_options;
   struct debug_struct* p_debug_object = p_options->p_debug_object;
 
   p_cpu_driver->destroy = inturbo_destroy;
