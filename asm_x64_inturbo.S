@@ -196,6 +196,8 @@ asm_x64_inturbo_call_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_save_AXYS_PC_flags
 
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
+  # overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
   push REG_CONTEXT
   # param1 is interp object.
