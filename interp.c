@@ -29,7 +29,6 @@ struct interp_struct {
   int debug_subsystem_active;
 
   uint32_t deferred_interrupt_timer_id;
-  uint32_t debug_timer_id;
   int return_from_loop;
 };
 
@@ -39,15 +38,6 @@ interp_deferred_interrupt_timer_callback(void* p) {
 
   (void) timing_stop_timer(p_interp->driver.p_timing,
                            p_interp->deferred_interrupt_timer_id);
-}
-
-static void
-interp_debug_timer_callback(void* p) {
-  struct interp_struct* p_interp = (struct interp_struct*) p;
-
-  (void) timing_set_timer_value(p_interp->driver.p_timing,
-                                p_interp->debug_timer_id,
-                                1);
 }
 
 static void
@@ -106,16 +96,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
       timing_register_timer(p_timing,
                             interp_deferred_interrupt_timer_callback,
                             p_interp);
-
-  if (p_interp->debug_subsystem_active) {
-    p_interp->debug_timer_id =
-      timing_register_timer(p_timing,
-                            interp_debug_timer_callback,
-                            p_interp);
-    /* If debug is active, just leave a timer expiring after every instruction.
-     */
-    interp_set_debug(p_interp, 1);
-  }
 }
 
 struct interp_struct*
@@ -664,6 +644,7 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
   uint16_t addr;
   uint16_t addr_temp;
   uint8_t v;
+  int do_special_checks;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
@@ -1508,8 +1489,12 @@ interp_enter_with_countdown(struct interp_struct* p_interp, int64_t countdown) {
 
     countdown -= cycles_this_instruction;
 
-    if (countdown > 0) {
-      /* No countdown expired, just fetch the next opcode without drama. */
+    do_special_checks |= (countdown <= 0);
+
+    if (!do_special_checks) {
+      /* No countdown expired or other special situation, just fetch the next
+       * opcode without drama.
+       */
       opcode = p_mem_read[pc];
       continue;
     }
@@ -1611,6 +1596,8 @@ check_debug:
        */
       countdown = timing_get_countdown(p_timing);
     }
+
+    do_special_checks = p_interp->debug_subsystem_active;
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
@@ -1622,18 +1609,4 @@ check_debug:
 void
 interp_set_loop_exit(struct interp_struct* p_interp) {
   p_interp->return_from_loop = 1;
-}
-
-
-void
-interp_set_debug(struct interp_struct* p_interp, int debug) {
-  struct timing_struct* p_timing = p_interp->driver.p_timing;
-  uint32_t debug_timer_id = p_interp->debug_timer_id;
-
-  if (!debug) {
-    (void) timing_stop_timer(p_timing, debug_timer_id);
-  } else {
-    (void) timing_start_timer_with_value(p_timing, debug_timer_id, 1);
-  }
-  p_interp->debug_subsystem_active = debug;
 }

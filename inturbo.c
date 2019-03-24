@@ -567,10 +567,6 @@ inturbo_short_instruction_run_timer_callback(void* p) {
   (void) timing_stop_timer(p_inturbo->driver.p_timing,
                            p_inturbo->short_instruction_run_timer_id);
   interp_set_loop_exit(p_interp);
-
-  if (p_inturbo->debug_subsystem_active) {
-    interp_set_debug(p_interp, 1);
-  }
 }
 
 static int64_t
@@ -591,20 +587,6 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
   ret = interp_enter_with_countdown(p_interp, countdown);
   (void) ret;
   assert(ret == (uint32_t) -1);
-
-  if (p_inturbo->debug_subsystem_active) {
-    /* A little subtle: when we first bounce in to the interpreter, the inturbo
-     * code already called into the debugger for the instruction in question.
-     * So we disable interp debug to avoid calling into the debugger twice for
-     * the same opcode.
-     * The call to inturbo_short_instruction_run_timer_callback() turns interp
-     * debug back on to handle the case where more than one opcode runs in the
-     * interp.
-     * So interp debug will always be on when we get here. Turn it off ready
-     * for next time and also so that the countdown value below is correct.
-     */
-    interp_set_debug(p_interp, 0);
-  }
 
   countdown = timing_get_countdown(p_timing);
 
@@ -687,10 +669,6 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
     errx(1, "couldn't allocate interp_struct");
   }
   p_inturbo->p_interp = p_interp;
-
-  if (p_inturbo->debug_subsystem_active) {
-    interp_set_debug(p_interp, 0);
-  }
 
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
