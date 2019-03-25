@@ -225,15 +225,15 @@ util_buffer_set_pos(struct util_buffer* p_buf, size_t pos) {
 
 size_t
 util_buffer_remaining(struct util_buffer* p_buf) {
-  return p_buf->length - p_buf->pos;
+  return (p_buf->length - p_buf->pos);
 }
 
 void
 util_buffer_append(struct util_buffer* p_buf, struct util_buffer* p_src_buf) {
-  assert(p_buf->pos + p_src_buf->pos >= p_buf->pos);
-  assert(p_buf->pos + p_src_buf->pos <= p_buf->length);
+  assert((p_buf->pos + p_src_buf->pos) >= p_buf->pos);
+  assert((p_buf->pos + p_src_buf->pos) <= p_buf->length);
 
-  memcpy(p_buf->p_mem + p_buf->pos, p_src_buf->p_mem, p_src_buf->pos);
+  memcpy((p_buf->p_mem + p_buf->pos), p_src_buf->p_mem, p_src_buf->pos);
   p_buf->pos += p_src_buf->pos;
 }
 

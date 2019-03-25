@@ -29,6 +29,8 @@ struct jit_compiler {
   int32_t reg_y;
   int32_t flag_carry;
   int32_t flag_decimal;
+
+  uint32_t len_x64_jmp;
 };
 
 struct jit_uop {
@@ -105,6 +107,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     uint32_t* p_jit_ptrs,
                     int debug) {
   size_t i;
+  struct util_buffer* p_tmp_buf;
+  uint8_t opcode_buffer[128];
 
   struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
   if (p_compiler == NULL) {
@@ -121,7 +125,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->debug = debug;
 
   p_compiler->p_single_opcode_buf = util_buffer_create();
-  p_compiler->p_tmp_buf = util_buffer_create();
+  p_tmp_buf = util_buffer_create();
+  p_compiler->p_tmp_buf = p_tmp_buf;
 
   p_compiler->no_code_jit_ptr = 
       (uint32_t) (size_t) get_block_host_address(p_host_address_object,
@@ -130,6 +135,11 @@ jit_compiler_create(struct memory_access* p_memory_access,
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     jit_set_jit_ptr_no_code(p_compiler, i);
   }
+
+  /* Calculate lengths of sequences we need to know. */
+  util_buffer_setup(p_tmp_buf, &opcode_buffer[0], sizeof(opcode_buffer));
+  asm_x64_copy(p_tmp_buf, asm_x64_jit_JMP, asm_x64_jit_JMP_END);
+  p_compiler->len_x64_jmp = (uint32_t) util_buffer_get_pos(p_tmp_buf);
 
   return p_compiler;
 }
@@ -847,6 +857,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     uint8_t i;
     void* p_host_address;
     uint32_t jit_ptr;
+    size_t buf_needed;
+    int ends_block = 0;
 
     util_buffer_setup(p_single_opcode_buf,
                       &single_opcode_buffer[0],
@@ -866,6 +878,31 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                &opcode_details.uops[i]);
     }
 
+    if (opcode_details.branches == k_bra_y) {
+      ends_block = 1;
+    }
+
+    buf_needed = util_buffer_get_pos(p_single_opcode_buf);
+    if (!ends_block) {
+      buf_needed += p_compiler->len_x64_jmp;
+    }
+
+    if (util_buffer_remaining(p_buf) < buf_needed) {
+      /* Not enough space; need to end this block with a jump to the next
+       * address, effectively splitting the block.
+       */
+      util_buffer_set_pos(p_single_opcode_buf, 0);
+      opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
+      opcode_details.uops[0].value1 =
+          (int32_t) (size_t) p_compiler->get_block_host_address(
+              p_compiler->p_host_address_object, addr_6502);
+      jit_compiler_process_uop(p_compiler,
+                               p_single_opcode_buf,
+                               &opcode_details.uops[0]);
+      opcode_details.len = 0;
+      ends_block = 1;
+    }
+
     num_bytes_6502 = opcode_details.len;
     jit_ptr = (uint32_t) (size_t) p_host_address;
     for (i = 0; i < num_bytes_6502; ++i) {
@@ -876,7 +913,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     util_buffer_append(p_buf, p_single_opcode_buf);
 
-    if (opcode_details.branches == k_bra_y) {
+    if (ends_block) {
       break;
     }
   }
