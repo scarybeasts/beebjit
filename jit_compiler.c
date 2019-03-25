@@ -150,6 +150,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opmode;
   uint8_t opmem;
   struct jit_uop* p_main_uop;
+  uint16_t addr_range_start;
+  uint16_t addr_range_end;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -210,18 +212,29 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (optype == k_jmp || optype == k_jsr) {
       jump_fixup = 1;
     }
-    if (opmode == k_abs) {
-      if (opmem == k_read || opmem == k_rw) {
-        if (p_memory_access->memory_read_needs_callback(p_memory_callback,
-                                                        main_value1)) {
-          use_interp = 1;
-        }
+    addr_range_start = main_value1;
+    addr_range_end = main_value1;
+    if (opmode == k_abx || opmode == k_aby) {
+      addr_range_end += 0xFF;
+    }
+    if (opmem == k_read || opmem == k_rw) {
+      if (p_memory_access->memory_read_needs_callback(p_memory_callback,
+                                                      addr_range_start)) {
+        use_interp = 1;
       }
-      if (opmem == k_write || opmem == k_rw) {
-        if (p_memory_access->memory_write_needs_callback(p_memory_callback,
-                                                         main_value1)) {
-          use_interp = 1;
-        }
+      if (p_memory_access->memory_read_needs_callback(p_memory_callback,
+                                                      addr_range_end)) {
+        use_interp = 1;
+      }
+    }
+    if (opmem == k_write || opmem == k_rw) {
+      if (p_memory_access->memory_write_needs_callback(p_memory_callback,
+                                                       addr_range_start)) {
+        use_interp = 1;
+      }
+      if (p_memory_access->memory_write_needs_callback(p_memory_callback,
+                                                       addr_range_end)) {
+        use_interp = 1;
       }
     }
     break;
