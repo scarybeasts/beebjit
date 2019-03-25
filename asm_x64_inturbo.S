@@ -191,8 +191,6 @@ asm_x64_inturbo_call_interp_countdown:
 
 .globl asm_x64_inturbo_call_interp
 asm_x64_inturbo_call_interp:
-
-  mov REG_SCRATCH1_32, REG_6502_PC_32
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_save_AXYS_PC_flags
 

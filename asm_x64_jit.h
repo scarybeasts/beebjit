@@ -71,7 +71,7 @@ void asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr);
 
 /* Symbols pointing directly to ASM bytes. */
 void asm_x64_jit_compile_trampoline();
-void asm_x64_jit_interp();
+void asm_x64_jit_call_interp();
 
 void asm_x64_jit_call_compile_trampoline();
 void asm_x64_jit_call_compile_trampoline_END();

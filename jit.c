@@ -2,6 +2,7 @@
 
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
+#include "asm_x64_jit_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
@@ -9,6 +10,7 @@
 #include "memory_access.h"
 #include "jit_compiler.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
@@ -17,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void* k_jit_addr = (void*) 0x20000000;
+static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
 static const int k_jit_bytes_per_byte = 256;
 
 struct jit_struct {
@@ -136,12 +138,34 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   return p_jit_ptr;
 }
 
+static int
+jit_interp_instruction_callback(uint8_t opcode, int is_irq, int irq_pending) {
+  (void) opcode;
+
+  if (is_irq || irq_pending) {
+    /* Keep interpreting to handle the IRQ. */
+    return 0;
+  }
+
+  /* Stop interpreting, i.e. bounce back to JIT. */
+  return 1;
+}
+
 static int64_t
 jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
-  (void) p_jit;
-  (void) countdown;
-  assert(0);
-  return 0;
+  struct timing_struct* p_timing = p_jit->driver.p_timing;
+  struct interp_struct* p_interp = p_jit->p_interp;
+
+  uint32_t ret = interp_enter_with_details(p_interp,
+                                           countdown,
+                                           jit_interp_instruction_callback);
+
+  (void) ret;
+  assert(ret == (uint32_t) -1);
+
+  countdown = timing_get_countdown(p_timing);
+
+  return countdown;
 }
 
 static void

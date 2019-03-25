@@ -77,7 +77,7 @@ asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_x64_emit_jit_call_interp(struct util_buffer* p_buf, uint16_t addr) {
-  asm_x64_emit_jit_set_pc_and_call(p_buf, addr, asm_x64_jit_interp);
+  asm_x64_emit_jit_set_pc_and_call(p_buf, addr, asm_x64_jit_call_interp);
 }
 
 void

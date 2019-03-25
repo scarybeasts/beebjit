@@ -9,7 +9,6 @@
 
 .globl asm_x64_jit_compile_trampoline
 asm_x64_jit_compile_trampoline:
-
   # We got here with a raw call instruction so the calling rip is in [rsp].
   mov REG_SCRATCH1, [rsp]
   # The actual instruction address of interest is the call itself, so
@@ -43,10 +42,33 @@ asm_x64_jit_compile_trampoline:
   jmp REG_SCRATCH1
 
 
-.globl asm_x64_jit_interp
-asm_x64_jit_interp:
-  int 3
-  ret
+.globl asm_x64_jit_call_interp
+asm_x64_jit_call_interp:
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  call asm_x64_save_AXYS_PC_flags
+
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
+  # overwritten below.
+  mov REG_SCRATCH3, REG_CONTEXT
+  push REG_CONTEXT
+  # param1 is interp object.
+  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  # param2 is current countdown value.
+  mov REG_PARAM2, REG_COUNTDOWN
+
+  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  pop REG_CONTEXT
+
+  mov REG_COUNTDOWN, REG_RETURN
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  call asm_x64_restore_AXYS_PC_flags
+
+  mov REG_SCRATCH1_32, REG_6502_PC_32
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, 24
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
+
+  jmp REG_SCRATCH1
 
 
 .globl asm_x64_jit_call_compile_trampoline
