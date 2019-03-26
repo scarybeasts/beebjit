@@ -365,14 +365,10 @@ asm_x64_emit_jit_BEQ(struct util_buffer* p_buf, void* p_target) {
 
 void
 asm_x64_emit_jit_BIT(struct util_buffer* p_buf, uint16_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf, asm_x64_jit_BIT, asm_x64_jit_BIT_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_BIT,
-                    asm_x64_jit_BIT_mov_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_BIT,
+                         asm_x64_jit_BIT_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
   asm_x64_emit_instruction_BIT_common(p_buf);
 }
 
@@ -428,14 +424,10 @@ asm_x64_emit_jit_BVS(struct util_buffer* p_buf, void* p_target) {
 
 void
 asm_x64_emit_jit_CMP_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf, asm_x64_jit_CMP_ABS, asm_x64_jit_CMP_ABS_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_CMP_ABS,
-                    asm_x64_jit_CMP_ABS_END,
-                    (K_BBC_MEM_READ_ADDR + addr));
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_CMP_ABS,
+                         asm_x64_jit_CMP_ABS_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
 }
 
 void
@@ -498,14 +490,10 @@ asm_x64_emit_jit_INC_ABS(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_x64_emit_jit_INC_ZPG(struct util_buffer* p_buf, uint8_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf, asm_x64_jit_INC_ZPG, asm_x64_jit_INC_ZPG_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_INC_ZPG,
-                    asm_x64_jit_INC_ZPG_END,
-                    (K_BBC_MEM_READ_ADDR + addr));
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_INC_ZPG,
+                         asm_x64_jit_INC_ZPG_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
 }
 
 void
