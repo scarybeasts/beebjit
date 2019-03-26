@@ -486,7 +486,7 @@ main(int argc, const char* argv[]) {
 
   /* Test JIT invalidation through remaining write modes. */
   set_new_index(p_buf, 0x06C0);
-  emit_LDA(p_buf, k_imm, 0xea);   /* NOP */
+  emit_LDA(p_buf, k_imm, 0xEA);   /* NOP */
   emit_STA(p_buf, k_abs, 0x3050);
   emit_JSR(p_buf, 0x3050);
   emit_LDA(p_buf, k_imm, 0x50);
@@ -495,13 +495,13 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x90);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_LDX(p_buf, k_imm, 0x00);
-  emit_LDA(p_buf, k_imm, 0xe8);   /* INX */
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
   emit_STA(p_buf, k_idy, 0x8F);
   emit_JSR(p_buf, 0x3050);
   emit_CPX(p_buf, k_imm, 0x01);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDX(p_buf, k_imm, 0x00);
-  emit_LDA(p_buf, k_imm, 0xc8);   /* INY */
+  emit_LDA(p_buf, k_imm, 0xC8);   /* INY */
   emit_STA(p_buf, k_idx, 0x8F);
   emit_JSR(p_buf, 0x3050);
   emit_CPY(p_buf, k_imm, 0x01);
