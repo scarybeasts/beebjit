@@ -259,9 +259,11 @@ debug_get_details(int* p_addr_6502,
     *p_addr_6502 = (uint8_t) addr;
     break;
   case k_abs:
-    addr = (operand1 + (operand2 << 8));
     check_wrap_8bit = 0;
-    *p_addr_6502 = addr;
+    if (optype != k_jsr && optype != k_jmp) {
+      addr = (operand1 + (operand2 << 8));
+      *p_addr_6502 = addr;
+    }
     break;
   case k_abx:
     addr = (operand1 + (operand2 << 8) + x_6502);
@@ -1055,7 +1057,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       "bm %d %x %x",
                       &parse_int,
                       &parse_int2,
-                      &parse_int3) >=2 &&
+                      &parse_int3) >= 2 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
       parse_addr = parse_int2;
