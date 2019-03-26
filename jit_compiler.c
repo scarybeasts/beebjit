@@ -178,6 +178,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int jump_fixup = 0;
   int32_t main_value1 = -1;
   struct jit_uop* p_uop = &p_details->uops[0];
+  struct jit_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
 
   opcode_6502 = p_mem_read[addr_6502];
@@ -194,6 +195,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
+    p_first_post_debug_uop = p_uop;
   }
 
   /* Mode resolution and possibly per-mode uops. */
@@ -285,7 +287,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   if (use_interp) {
-    /* TODO: should always be first opcode after debug! */
+    p_uop = p_first_post_debug_uop;
+
     p_uop->opcode = k_opcode_interp;
     p_uop->value1 = addr_6502;
     p_uop->optype = -1;
