@@ -63,13 +63,14 @@ interp_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
 static void
 interp_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
-  struct bbc_options* p_options = p_interp->driver.p_options;
-  struct timing_struct* p_timing = p_interp->driver.p_timing;
+  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
+  struct bbc_options* p_options = p_cpu_driver->p_options;
+  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
-  p_interp->driver.destroy = interp_destroy;
-  p_interp->driver.enter = interp_enter;
-  p_interp->driver.get_address_info = interp_get_address_info;
+  p_funcs->destroy = interp_destroy;
+  p_funcs->enter = interp_enter;
+  p_funcs->get_address_info = interp_get_address_info;
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
   p_interp->p_mem_write = p_memory_access->p_mem_write;
@@ -97,17 +98,17 @@ interp_init(struct cpu_driver* p_cpu_driver) {
                             p_interp);
 }
 
-struct interp_struct*
-interp_create() {
+struct cpu_driver*
+interp_create(struct cpu_driver_funcs* p_funcs) {
   struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
   if (p_interp == NULL) {
     errx(1, "couldn't allocate interp_struct");
   }
   (void) memset(p_interp, '\0', sizeof(struct interp_struct));
 
-  p_interp->driver.init = interp_init;
+  p_funcs->init = interp_init;
 
-  return p_interp;
+  return &p_interp->driver;
 }
 
 static inline void

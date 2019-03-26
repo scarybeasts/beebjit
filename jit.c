@@ -174,7 +174,7 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   size_t mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
-  p_interp_cpu_driver->destroy(p_interp_cpu_driver);
+  p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
   util_buffer_destroy(p_jit->p_compile_buf);
   util_buffer_destroy(p_jit->p_temp_buf);
@@ -228,12 +228,13 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   struct bbc_options* p_options = p_cpu_driver->p_options;
   void* p_debug_object = p_options->p_debug_object;
   int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
+  struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
 
-  p_cpu_driver->destroy = jit_destroy;
-  p_cpu_driver->enter = jit_enter;
-  p_cpu_driver->get_address_info = jit_get_address_info;
+  p_funcs->destroy = jit_destroy;
+  p_funcs->enter = jit_enter;
+  p_funcs->get_address_info = jit_get_address_info;
 
   p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;
@@ -278,14 +279,14 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 }
 
 struct cpu_driver*
-jit_create() {
+jit_create(struct cpu_driver_funcs* p_funcs) {
   struct cpu_driver* p_cpu_driver = malloc(sizeof(struct jit_struct));
   if (p_cpu_driver == NULL) {
     errx(1, "cannot allocate jit_struct");
   }
   (void) memset(p_cpu_driver, '\0', sizeof(struct jit_struct));
 
-  p_cpu_driver->init = jit_init;
+  p_funcs->init = jit_init;
 
   return p_cpu_driver;
 }

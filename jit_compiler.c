@@ -2,6 +2,7 @@
 
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
+#include "asm_x64_jit_defs.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "util.h"
@@ -112,6 +113,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
   size_t i;
   struct util_buffer* p_tmp_buf;
   uint8_t opcode_buffer[128];
+
+  /* Check invariants required for compact code generation. */
+  assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
 
   struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
   if (p_compiler == NULL) {

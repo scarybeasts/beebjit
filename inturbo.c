@@ -601,7 +601,7 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver* p_interp_cpu_driver =
       (struct cpu_driver*) p_inturbo->p_interp;
 
-  p_interp_cpu_driver->destroy(p_interp_cpu_driver);
+  p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
   util_free_guarded_mapping(p_inturbo->p_inturbo_base,
                             (256 * k_inturbo_bytes_per_opcode));
@@ -649,10 +649,11 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct timing_struct* p_timing = p_cpu_driver->p_timing;
   struct bbc_options* p_options = p_cpu_driver->p_options;
   struct debug_struct* p_debug_object = p_options->p_debug_object;
+  struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
-  p_cpu_driver->destroy = inturbo_destroy;
-  p_cpu_driver->enter = inturbo_enter;
-  p_cpu_driver->get_address_info = inturbo_get_address_info;
+  p_funcs->destroy = inturbo_destroy;
+  p_funcs->enter = inturbo_enter;
+  p_funcs->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
       p_debug_object, 0xFFFF);
@@ -684,15 +685,15 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   inturbo_fill_tables(p_inturbo);
 }
 
-struct inturbo_struct*
-inturbo_create() {
+struct cpu_driver*
+inturbo_create(struct cpu_driver_funcs* p_funcs) {
   struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
   if (p_inturbo == NULL) {
     errx(1, "couldn't allocate inturbo_struct");
   }
   (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
 
-  p_inturbo->driver.init = inturbo_init;
+  p_funcs->init = inturbo_init;
 
-  return p_inturbo;
+  return &p_inturbo->driver;
 }

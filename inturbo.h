@@ -1,8 +1,9 @@
 #ifndef BEEBJIT_INTURBO_H
 #define BEEBJIT_INTURBO_H
 
-struct inturbo_struct;
+struct cpu_driver;
+struct cpu_driver_funcs;
 
-struct inturbo_struct* inturbo_create();
+struct cpu_driver* inturbo_create(struct cpu_driver_funcs* p_funcs);
 
 #endif /* BEEBJIT_INTURBO_H */

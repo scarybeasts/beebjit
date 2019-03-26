@@ -15,7 +15,7 @@
 #define K_CONTEXT_OFFSET_INTERP_CALLBACK        32
 #define K_CONTEXT_OFFSET_INTERP_OBJECT          40
 #define K_CONTEXT_OFFSET_ABI_END                48
-#define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 80)
+#define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 32)
 
 #define K_STATE_6502_OFFSET_REG_A               0
 #define K_STATE_6502_OFFSET_REG_X               4

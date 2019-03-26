@@ -375,8 +375,8 @@ debug_disass(struct cpu_driver* p_cpu_driver,
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
 
-    char* p_address_info = p_cpu_driver->get_address_info(p_cpu_driver,
-                                                          addr_6502);
+    char* p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
+                                                                   addr_6502);
 
     debug_print_opcode(opcode_buf,
                        sizeof(opcode_buf),
@@ -587,7 +587,8 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
 
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
   int warned = 0;
-  int has_code = p_cpu_driver->address_has_code(p_cpu_driver, addr_6502);
+  int has_code = p_cpu_driver->p_funcs->address_has_code(p_cpu_driver,
+                                                         addr_6502);
 
   /* Currently unimplemented and untrapped: indirect reads into the hardware
    * register space.
@@ -935,7 +936,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     flags_buf[7] = 'N';
   }
 
-  p_address_info = p_cpu_driver->get_address_info(p_cpu_driver, reg_pc);
+  p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
+                                                           reg_pc);
 
   debug_print_state(p_address_info,
                     reg_pc,

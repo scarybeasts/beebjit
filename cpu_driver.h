@@ -5,10 +5,11 @@
 
 #include <stdint.h>
 
-struct state_6502;
-struct memory_access;
-struct timing_struct;
 struct bbc_options;
+struct cpu_driver;
+struct memory_access;
+struct state_6502;
+struct timing_struct;
 
 enum {
   k_cpu_mode_interp = 1,
@@ -16,13 +17,7 @@ enum {
   k_cpu_mode_jit = 3,
 };
 
-struct cpu_driver {
-  struct asm_x64_abi abi;
-
-  struct memory_access* p_memory_access;
-  struct timing_struct* p_timing;
-  struct bbc_options* p_options;
-
+struct cpu_driver_funcs {
   void (*init)(struct cpu_driver* p_cpu_driver);
   void (*destroy)(struct cpu_driver* p_cpu_driver);
   uint32_t (*enter)(struct cpu_driver* p_cpu_driver);
@@ -35,6 +30,16 @@ struct cpu_driver {
                              uint16_t len);
   char* (*get_address_info)(struct cpu_driver* p_cpu_driver, uint16_t addr);
   int (*address_has_code)(struct cpu_driver* p_cpu_driver, uint16_t addr);
+};
+
+struct cpu_driver {
+  struct asm_x64_abi abi;
+
+  struct memory_access* p_memory_access;
+  struct timing_struct* p_timing;
+  struct bbc_options* p_options;
+
+  struct cpu_driver_funcs* p_funcs;
 };
 
 struct cpu_driver* cpu_driver_alloc(int mode,

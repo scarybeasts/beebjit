@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
+struct cpu_driver;
+struct cpu_driver_funcs;
 struct interp_struct;
 
-struct interp_struct* interp_create();
+struct cpu_driver* interp_create(struct cpu_driver_funcs* p_funcs);
 
 uint32_t interp_enter_with_details(
     struct interp_struct* p_interp,
