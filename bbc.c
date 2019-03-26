@@ -1394,7 +1394,6 @@ bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length) {
   intel_fdc_load_ssd(p_bbc->p_intel_fdc, 0, p_data, length);
 }
 
-
 static void
 bbc_stop_cycles_timer_callback(void* p) {
   (void) p;
