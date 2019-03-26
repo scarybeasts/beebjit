@@ -330,14 +330,15 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
       (void) util_get_fixed_mapping_from_fd(
           p_bbc->mem_fd,
           p_bbc->p_mem_write,
-          k_bbc_sideways_offset + k_bbc_rom_size);
+          (k_bbc_sideways_offset + k_bbc_rom_size));
     } else {
       (void) util_get_fixed_anonymous_mapping(
-          p_bbc->p_mem_write + k_bbc_sideways_offset,
-          k_6502_addr_space_size - k_bbc_sideways_offset);
+          (p_bbc->p_mem_write + k_bbc_sideways_offset),
+          (k_6502_addr_space_size - k_bbc_sideways_offset));
       /* Make the registers page inaccessible. Typical ROM faults happen lower.
-       */
+       * TODO, see above.
       util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
+       */
     }
   }
 
@@ -568,7 +569,12 @@ bbc_create(int mode,
       p_bbc->p_mem_write + k_bbc_ram_size,
       k_6502_addr_space_size - k_bbc_ram_size);
   /* Make the registers page inaccessible. Typical ROM faults happen lower. */
+  /* TODO: consider re-enabling. Decision is whether we want to handle indirect
+   * writes (and maybe reads) to 0xF000 -> 0xFFFF via a fault or via extra
+   * inline x64 instructions. Unclear if the performance benefit would be worth
+   * the complexity.
   util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
+   */
 
   /* Make the ROM readonly in the main mapping used at runtime. */
   util_make_mapping_read_only(p_bbc->p_mem_read + k_bbc_ram_size,

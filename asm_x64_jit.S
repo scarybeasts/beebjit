@@ -188,6 +188,30 @@ asm_x64_jit_LOAD_OVERFLOW_END:
   ret
 
 
+.globl asm_x64_jit_MODE_ABX
+.globl asm_x64_jit_MODE_ABX_lea_patch
+.globl asm_x64_jit_MODE_ABX_END
+asm_x64_jit_MODE_ABX:
+  lea REG_SCRATCH1_32, [REG_6502_X_64 + 0xFFFF]
+asm_x64_jit_MODE_ABX_lea_patch:
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_16
+
+asm_x64_jit_MODE_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_MODE_ABY
+.globl asm_x64_jit_MODE_ABY_lea_patch
+.globl asm_x64_jit_MODE_ABY_END
+asm_x64_jit_MODE_ABY:
+  lea REG_SCRATCH1_32, [REG_6502_Y_64 + 0xFFFF]
+asm_x64_jit_MODE_ABY_lea_patch:
+  movzx REG_SCRATCH1_32, REG_SCRATCH1_16
+
+asm_x64_jit_MODE_ABY_END:
+  ret
+
+
 .globl asm_x64_jit_MODE_IND
 .globl asm_x64_jit_MODE_IND_END
 asm_x64_jit_MODE_IND:
@@ -337,6 +361,18 @@ asm_x64_jit_WRITE_INV_ABS_offset_patch:
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
 asm_x64_jit_WRITE_INV_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_WRITE_INV_SCRATCH
+.globl asm_x64_jit_WRITE_INV_SCRATCH_END
+asm_x64_jit_WRITE_INV_SCRATCH:
+  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
+                        REG_SCRATCH1 * 4]
+  mov WORD PTR [REG_SCRATCH2], 0x17ff
+
+asm_x64_jit_WRITE_INV_SCRATCH_END:
   ret
 
 
@@ -522,6 +558,15 @@ asm_x64_jit_BVS_8bit_END:
   ret
 
 
+.globl asm_x64_jit_CMP_ABS
+.globl asm_x64_jit_CMP_ABS_END
+asm_x64_jit_CMP_ABS:
+  cmp REG_6502_A, [0x7fffffff]
+
+asm_x64_jit_CMP_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_CMP_IMM
 .globl asm_x64_jit_CMP_IMM_END
 asm_x64_jit_CMP_IMM:
@@ -546,6 +591,21 @@ asm_x64_jit_CPY_IMM:
   cmp REG_6502_Y, 0
 
 asm_x64_jit_CPY_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_DEC_ABS
+.globl asm_x64_jit_DEC_ABS_mov1_patch
+.globl asm_x64_jit_DEC_ABS_mov2_patch
+.globl asm_x64_jit_DEC_ABS_END
+asm_x64_jit_DEC_ABS:
+  mov dl, [0x7fffffff]
+asm_x64_jit_DEC_ABS_mov1_patch:
+  dec dl
+  mov [0x7fffffff], dl
+asm_x64_jit_DEC_ABS_mov2_patch:
+
+asm_x64_jit_DEC_ABS_END:
   ret
 
 
@@ -635,6 +695,15 @@ asm_x64_jit_LDX_ABS_END:
   ret
 
 
+.globl asm_x64_jit_LDX_ABY
+.globl asm_x64_jit_LDX_ABY_END
+asm_x64_jit_LDX_ABY:
+  mov REG_6502_X, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_LDX_ABY_END:
+  ret
+
+
 .globl asm_x64_jit_LDX_IMM
 .globl asm_x64_jit_LDX_IMM_END
 asm_x64_jit_LDX_IMM:
@@ -680,6 +749,21 @@ asm_x64_jit_ROL_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ROR_ABS
+.globl asm_x64_jit_ROR_ABS_mov1_patch
+.globl asm_x64_jit_ROR_ABS_mov2_patch
+.globl asm_x64_jit_ROR_ABS_END
+asm_x64_jit_ROR_ABS:
+  mov dl, [0x7fffffff]
+asm_x64_jit_ROR_ABS_mov1_patch:
+  rcr dl, 1
+  mov [0x7fffffff], dl
+asm_x64_jit_ROR_ABS_mov2_patch:
+
+asm_x64_jit_ROR_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_ROR_ACC
 .globl asm_x64_jit_ROR_ACC_END
 asm_x64_jit_ROR_ACC:
@@ -715,6 +799,15 @@ asm_x64_jit_STA_ABX:
   mov [REG_6502_X_64 + 0xFFFF], REG_6502_A
 
 asm_x64_jit_STA_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_STA_ABY
+.globl asm_x64_jit_STA_ABY_END
+asm_x64_jit_STA_ABY:
+  mov [REG_6502_Y_64 + 0xFFFF], REG_6502_A
+
+asm_x64_jit_STA_ABY_END:
   ret
 
 

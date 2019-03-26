@@ -63,6 +63,8 @@ enum {
   k_opcode_LOAD_CARRY,
   k_opcode_LOAD_CARRY_INV,
   k_opcode_LOAD_OVERFLOW,
+  k_opcode_MODE_ABX,
+  k_opcode_MODE_ABY,
   k_opcode_MODE_IND,
   k_opcode_MODE_IND_SCRATCH,
   k_opcode_MODE_ZPX,
@@ -75,6 +77,7 @@ enum {
   k_opcode_STOA_IMM,
   k_opcode_SUB_IMM,
   k_opcode_WRITE_INV_ABS,
+  k_opcode_WRITE_INV_SCRATCH,
 };
 
 static void
@@ -278,6 +281,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   if (use_interp) {
+    /* TODO: should always be first opcode after debug! */
     p_uop->opcode = k_opcode_interp;
     p_uop->value1 = addr_6502;
     p_uop->optype = -1;
@@ -293,6 +297,31 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop->value1 = main_value1;
       p_uop->optype = -1;
       p_uop++;
+      break;
+    case k_abx:
+      p_uop->opcode = k_opcode_MODE_ABX;
+      p_uop->value1 = main_value1;
+      p_uop->optype = -1;
+      p_uop++;
+      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->optype = -1;
+      p_uop++;
+      break;
+    case k_aby:
+      p_uop->opcode = k_opcode_MODE_ABY;
+      p_uop->value1 = main_value1;
+      p_uop->optype = -1;
+      p_uop++;
+      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->optype = -1;
+      p_uop++;
+      break;
+    case k_idx:
+    case k_idy:
+      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->optype = -1;
+      p_uop++;
+      break;
     default:
       break;
     }
@@ -439,6 +468,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->opcode = k_opcode_SAVE_CARRY;
     p_uop->optype = -1;
     p_uop++;
+    /* TODO: bug for non-acc modes. */
     if (opmode == k_acc) {
       p_uop->opcode = k_opcode_FLAGA;
       p_uop->optype = -1;
@@ -501,6 +531,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
     break;
+  case k_opcode_MODE_ABX:
+    asm_x64_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_MODE_ABY:
+    asm_x64_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_MODE_IND:
     asm_x64_emit_jit_MODE_IND(p_dest_buf, (uint16_t) value1);
     break;
@@ -551,6 +587,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_WRITE_INV_ABS:
     asm_x64_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
+    break;
+  case k_opcode_WRITE_INV_SCRATCH:
+    asm_x64_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
     break;
   case 0x02:
     asm_x64_emit_instruction_EXIT(p_dest_buf);
@@ -610,11 +649,19 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x6A:
     asm_x64_emit_jit_ROR_ACC(p_dest_buf);
     break;
+  case 0x6E:
+    /* TODO: use the zpg mode version if we know we're hitting RAM. */
+    asm_x64_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x78:
     asm_x64_emit_instruction_SEI(p_dest_buf);
+    break;
+  case 0x81: /* STA idx */
+  case 0x91: /* STA idy */
+    asm_x64_emit_jit_STA_scratch(p_dest_buf);
     break;
   case 0x84: /* STY zpg */
   case 0x8C: /* STY abs */
@@ -634,8 +681,8 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x90:
     asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
     break;
-  case 0x91: /* STA idy */
-    asm_x64_emit_jit_STA_scratch(p_dest_buf);
+  case 0x99:
+    asm_x64_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x9A:
     asm_x64_emit_instruction_TXS(p_dest_buf);
@@ -654,6 +701,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xA2:
     asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xA5: /* LDA zpg */
+  case 0xAD: /* LDA abs */
+    asm_x64_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xA6:
     /* Actually LDX zpg but re-using LDX abs code. */
     asm_x64_emit_jit_LDX_ABS(p_dest_buf, (uint8_t) value1);
@@ -666,9 +717,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xAA:
     asm_x64_emit_instruction_TAX(p_dest_buf);
-    break;
-  case 0xAD:
-    asm_x64_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xB0:
     asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
@@ -685,8 +733,15 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xBD:
     asm_x64_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
     break;
+  case 0xBE:
+    asm_x64_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xC0:
     asm_x64_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0xC5: /* CMP zpg */
+  case 0xCD: /* CMP abs */
+    asm_x64_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xC8:
     asm_x64_emit_instruction_INY(p_dest_buf);
@@ -696,6 +751,10 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xCA:
     asm_x64_emit_instruction_DEX(p_dest_buf);
+    break;
+  case 0xCE:
+    /* TODO: use the zpg mode version if we know we're hitting RAM. */
+    asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
@@ -714,6 +773,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xE9:
     asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case 0xEA:
+    /* We don't really have to emit anything for a NOP, but for now and for
+     * good readability, we'll emit a host NOP.
+     */
+    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
     break;
   case 0xEE:
     /* TODO: use the zpg mode version if we know we're hitting RAM. */
