@@ -64,6 +64,26 @@ asm_x64_patch_jump(struct util_buffer* p_buf,
 }
 
 void
+asm_x86_copy_patch_byte(struct util_buffer* p_buf,
+                        void* p_start,
+                        void* p_end,
+                        uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+  asm_x64_copy(p_buf, p_start, p_end);
+  asm_x64_patch_byte(p_buf, offset, p_start, p_end, value);
+}
+
+void
+asm_x86_copy_patch_u32(struct util_buffer* p_buf,
+                       void* p_start,
+                       void* p_end,
+                       uint32_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+  asm_x64_copy(p_buf, p_start, p_end);
+  asm_x64_patch_int(p_buf, offset, p_start, p_end, value);
+}
+
+void
 asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_instruction_CRASH, asm_x64_instruction_CRASH_END);
 }

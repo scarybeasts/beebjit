@@ -22,6 +22,14 @@ void asm_x64_patch_jump(struct util_buffer* p_buf,
                         void* p_start,
                         void* p_patch,
                         void* p_jump_target);
+void asm_x86_copy_patch_byte(struct util_buffer* p_buf,
+                             void* p_start,
+                             void* p_end,
+                             uint8_t value);
+void asm_x86_copy_patch_u32(struct util_buffer* p_buf,
+                            void* p_start,
+                            void* p_end,
+                            uint32_t value);
 
 uint32_t asm_x64_asm_enter(void* p_context,
                            uint32_t jump_addr_x64,
