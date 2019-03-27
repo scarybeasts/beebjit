@@ -608,6 +608,14 @@ asm_x64_emit_jit_LSR_ACC(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_ORA_IMM(struct util_buffer* p_buf, uint8_t value) {
+  asm_x86_copy_patch_byte(p_buf,
+                          asm_x64_jit_ORA_IMM,
+                          asm_x64_jit_ORA_IMM_END,
+                          value);
+}
+
+void
 asm_x64_emit_jit_ROL_ACC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_ROL_ACC, asm_x64_jit_ROL_ACC_END);
 }

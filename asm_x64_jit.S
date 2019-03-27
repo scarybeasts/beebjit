@@ -765,6 +765,15 @@ asm_x64_jit_LSR_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ORA_IMM
+.globl asm_x64_jit_ORA_IMM_END
+asm_x64_jit_ORA_IMM:
+  or REG_6502_A, 0
+
+asm_x64_jit_ORA_IMM_END:
+  ret
+
+
 .globl asm_x64_jit_ROL_ACC
 .globl asm_x64_jit_ROL_ACC_END
 asm_x64_jit_ROL_ACC:

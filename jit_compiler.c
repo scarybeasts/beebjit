@@ -611,6 +611,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x08:
     asm_x64_emit_instruction_PHP(p_dest_buf);
     break;
+  case 0x09:
+    asm_x64_emit_jit_ORA_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0x0A:
     asm_x64_emit_jit_ASL_ACC(p_dest_buf);
     break;
