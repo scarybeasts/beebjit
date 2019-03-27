@@ -32,6 +32,7 @@ struct jit_compiler {
   int32_t flag_decimal;
 
   uint32_t len_x64_jmp;
+  uint32_t len_x64_countdown;
 };
 
 struct jit_uop {
@@ -44,6 +45,7 @@ struct jit_uop {
 struct jit_opcode_details {
   uint8_t opcode_6502;
   uint8_t len;
+  uint8_t cycles;
   int branches;
   struct jit_uop uops[8];
 };
@@ -112,7 +114,6 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     int debug) {
   size_t i;
   struct util_buffer* p_tmp_buf;
-  uint8_t opcode_buffer[128];
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
@@ -144,9 +145,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
   }
 
   /* Calculate lengths of sequences we need to know. */
-  util_buffer_setup(p_tmp_buf, &opcode_buffer[0], sizeof(opcode_buffer));
-  asm_x64_copy(p_tmp_buf, asm_x64_jit_JMP, asm_x64_jit_JMP_END);
-  p_compiler->len_x64_jmp = (uint32_t) util_buffer_get_pos(p_tmp_buf);
+  p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
+  p_compiler->len_x64_countdown = (asm_x64_jit_check_countdown_END -
+                                   asm_x64_jit_check_countdown);
 
   return p_compiler;
 }
@@ -188,6 +189,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->opcode_6502 = opcode_6502;
   p_details->len = g_opmodelens[opmode];
+  p_details->cycles = g_opcycles[opcode_6502];
   p_details->branches = g_opbranch[optype];
 
   if (p_compiler->debug) {
@@ -517,6 +519,11 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   int value2 = p_uop->value2;
 
   switch (opcode) {
+  case k_opcode_countdown:
+    asm_x64_emit_jit_check_countdown(p_dest_buf,
+                                     (uint16_t) value1,
+                                     (uint32_t) value2);
+    break;
   case k_opcode_debug:
     asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
     break;
@@ -909,10 +916,13 @@ jit_compiler_process_uop(struct jit_compiler* p_compiler,
 void
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            struct util_buffer* p_buf,
-                           uint16_t addr_6502) {
+                           uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details = {};
-
+  uint32_t block_max_cycles = 0;
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
+  uint16_t addr_6502 = start_addr_6502;
+
+  assert(!util_buffer_get_pos(p_buf));
 
   p_compiler->reg_a = k_value_unknown;
   p_compiler->reg_x = k_value_unknown;
@@ -921,6 +931,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_compiler->flag_decimal = k_value_unknown;
 
   jit_invalidate_block_with_addr(p_compiler, addr_6502);
+
+  /* Prepend space for countdown check. We can't fill it in yet because we
+   * don't know how many cycles the block will be.
+   */
+  util_buffer_fill(p_buf, '\xcc', p_compiler->len_x64_countdown);
 
   while (1) {
     uint8_t single_opcode_buffer[128];
@@ -950,8 +965,18 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                &opcode_details.uops[i]);
     }
 
-    if (opcode_details.branches == k_bra_y) {
+    /* TODO: continue the block after conditional branches. */
+    if (opcode_details.branches != k_bra_n) {
       ends_block = 1;
+      if (opcode_details.branches == k_bra_m) {
+        opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
+        opcode_details.uops[0].value1 =
+            (int32_t) (size_t) p_compiler->get_block_host_address(
+                p_compiler->p_host_address_object, (addr_6502 + 2));
+        jit_compiler_process_uop(p_compiler,
+                                 p_single_opcode_buf,
+                                 &opcode_details.uops[0]);
+      }
     }
 
     buf_needed = util_buffer_get_pos(p_single_opcode_buf);
@@ -972,6 +997,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                p_single_opcode_buf,
                                &opcode_details.uops[0]);
       opcode_details.len = 0;
+      opcode_details.cycles = 0;
       ends_block = 1;
     }
 
@@ -982,6 +1008,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
       addr_6502++;
     }
+
+    block_max_cycles += opcode_details.cycles;
 
     util_buffer_append(p_buf, p_single_opcode_buf);
 
@@ -999,4 +1027,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * 3) Performance. int3 will stop the Intel instruction decoder.
    */
   util_buffer_fill_to_end(p_buf, '\xcc');
+
+  /* Fill in block header countdown check. */
+  util_buffer_set_pos(p_buf, 0);
+  opcode_details.uops[0].opcode = k_opcode_countdown;
+  /* TODO: have the 6502 address implied by the jump target. */
+  opcode_details.uops[0].value1 = start_addr_6502;
+  opcode_details.uops[0].value2 = block_max_cycles;
+  opcode_details.uops[0].optype = -1;
+  jit_compiler_process_uop(p_compiler, p_buf, &opcode_details.uops[0]);
 }

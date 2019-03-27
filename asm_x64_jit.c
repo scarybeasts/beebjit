@@ -71,6 +71,36 @@ asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
+                                 uint16_t addr,
+                                 uint32_t count) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  if (count > 128) {
+    errx(1, "check_countdown: countdown too large");
+  }
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_check_countdown,
+               asm_x64_jit_check_countdown_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_check_countdown,
+                    asm_x64_jit_check_countdown_pc_patch,
+                    addr);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_check_countdown,
+                     asm_x64_jit_check_countdown_count_patch,
+                     -count);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_check_countdown,
+                     asm_x64_jit_check_countdown_jump_patch,
+                     asm_x64_jit_countdown_expired);
+}
+
+void
 asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
   asm_x64_emit_jit_set_pc_and_call(p_buf, addr, asm_x64_asm_debug);
 }

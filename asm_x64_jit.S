@@ -71,12 +71,37 @@ asm_x64_jit_call_interp:
   jmp REG_SCRATCH1
 
 
+.globl asm_x64_jit_countdown_expired
+asm_x64_jit_countdown_expired:
+  mov REG_COUNTDOWN, REG_SCRATCH1
+  jmp asm_x64_jit_call_interp
+
+
 .globl asm_x64_jit_call_compile_trampoline
 .globl asm_x64_jit_call_compile_trampoline_END
 asm_x64_jit_call_compile_trampoline:
   call [REG_CONTEXT]
 
 asm_x64_jit_call_compile_trampoline_END:
+  ret
+
+
+.globl asm_x64_jit_check_countdown
+.globl asm_x64_jit_check_countdown_pc_patch
+.globl asm_x64_jit_check_countdown_count_patch
+.globl asm_x64_jit_check_countdown_jump_patch
+.globl asm_x64_jit_check_countdown_END
+asm_x64_jit_check_countdown:
+  mov REG_6502_PC_32, 0xFFFF
+asm_x64_jit_check_countdown_pc_patch:
+  mov REG_SCRATCH1, REG_COUNTDOWN
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
+asm_x64_jit_check_countdown_count_patch:
+  bt REG_COUNTDOWN, 15
+  jb 0
+asm_x64_jit_check_countdown_jump_patch:
+
+asm_x64_jit_check_countdown_END:
   ret
 
 

@@ -6,6 +6,9 @@
 struct util_buffer;
 
 void asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf);
+void asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
+                                      uint16_t addr,
+                                      uint32_t count);
 void asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_call_interp(struct util_buffer* p_buf, uint16_t addr);
 
@@ -80,9 +83,15 @@ void asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr);
 /* Symbols pointing directly to ASM bytes. */
 void asm_x64_jit_compile_trampoline();
 void asm_x64_jit_call_interp();
+void asm_x64_jit_countdown_expired();
 
 void asm_x64_jit_call_compile_trampoline();
 void asm_x64_jit_call_compile_trampoline_END();
+void asm_x64_jit_check_countdown();
+void asm_x64_jit_check_countdown_pc_patch();
+void asm_x64_jit_check_countdown_count_patch();
+void asm_x64_jit_check_countdown_jump_patch();
+void asm_x64_jit_check_countdown_END();
 void asm_x64_jit_set_pc_and_call();
 void asm_x64_jit_set_pc_and_call_pc_patch();
 void asm_x64_jit_set_pc_and_call_call_patch();
