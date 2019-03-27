@@ -199,6 +199,26 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   return ret;
 }
 
+static void
+jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
+                            uint16_t addr,
+                            uint16_t len) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct util_buffer* p_buf = p_jit->p_temp_buf;
+  uint32_t addr_end = (addr + len);
+  uint32_t i;
+
+  assert(addr_end >= addr);
+
+  for (i = addr; i < addr_end; ++i) {
+    void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr];
+    util_buffer_setup(p_buf, p_intel_rip, 2);
+    asm_x64_emit_jit_call_compile_trampoline(p_buf);
+
+    jit_init_addr(p_jit, addr);
+  }
+}
+
 static char*
 jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   static char block_addr_buf[5];
@@ -234,6 +254,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
+  p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
 
   p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;

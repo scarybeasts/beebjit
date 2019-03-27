@@ -11,9 +11,9 @@
 #include <string.h>
 
 static void
-cpu_driver_memory_range_dummy(struct cpu_driver* p_cpu_driver,
-                              uint16_t addr,
-                              uint16_t len) {
+cpu_driver_memory_range_invalidate_dummy(struct cpu_driver* p_cpu_driver,
+                                         uint16_t addr,
+                                         uint16_t len) {
   (void) p_cpu_driver;
   (void) addr;
   (void) len;
@@ -86,8 +86,7 @@ cpu_driver_alloc(int mode,
   p_cpu_driver->p_options = p_options;
   p_cpu_driver->p_funcs = p_funcs;
 
-  p_funcs->memory_range_written = cpu_driver_memory_range_dummy;
-  p_funcs->memory_range_reset = cpu_driver_memory_range_dummy;
+  p_funcs->memory_range_invalidate = cpu_driver_memory_range_invalidate_dummy;
   p_funcs->get_address_info = cpu_driver_get_address_info_dummy;
   p_funcs->address_has_code = cpu_driver_address_has_code_dummy;
 

@@ -317,10 +317,9 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 
   (void) memcpy(p_mem_sideways, p_sideways_src, k_bbc_rom_size);
 
-  /* TODO: can we collapse this into memory_range_written? */
-  p_cpu_driver->p_funcs->memory_range_reset(p_cpu_driver,
-                                            k_bbc_sideways_offset,
-                                            k_bbc_rom_size);
+  p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver,
+                                                 k_bbc_sideways_offset,
+                                                 k_bbc_rom_size);
 
   /* If we flipped from ROM to RAM or visa versa, we need to update the write
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
@@ -863,7 +862,7 @@ bbc_memory_write(struct bbc_struct* p_bbc,
    */
   p_mem_raw[addr_6502] = val;
 
-  p_cpu_driver->p_funcs->memory_range_written(p_cpu_driver, addr_6502, 1);
+  p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver, addr_6502, 1);
 }
 
 int

@@ -22,12 +22,9 @@ struct cpu_driver_funcs {
   void (*destroy)(struct cpu_driver* p_cpu_driver);
   uint32_t (*enter)(struct cpu_driver* p_cpu_driver);
 
-  void (*memory_range_written)(struct cpu_driver* p_cpu_driver,
-                               uint16_t addr,
-                               uint16_t len);
-  void (*memory_range_reset)(struct cpu_driver* p_cpu_driver,
-                             uint16_t addr,
-                             uint16_t len);
+  void (*memory_range_invalidate)(struct cpu_driver* p_cpu_driver,
+                                  uint16_t addr,
+                                  uint16_t len);
   char* (*get_address_info)(struct cpu_driver* p_cpu_driver, uint16_t addr);
   int (*address_has_code)(struct cpu_driver* p_cpu_driver, uint16_t addr);
 };
