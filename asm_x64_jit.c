@@ -36,29 +36,6 @@ asm_x64_emit_jit_jump(struct util_buffer* p_buf,
   }
 }
 
-static void
-asm_x64_emit_jit_set_pc_and_call(struct util_buffer* p_buf,
-                                 uint16_t pc,
-                                 void* p_call_target) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_jit_set_pc_and_call,
-               asm_x64_jit_set_pc_and_call_END);
-
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_set_pc_and_call,
-                    asm_x64_jit_set_pc_and_call_pc_patch,
-                    pc);
-
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_jit_set_pc_and_call,
-                     asm_x64_jit_set_pc_and_call_call_patch,
-                     p_call_target);
-}
-
 void
 asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   /* To work correctly this sequence needs to be no more than 2 bytes. */
@@ -102,12 +79,36 @@ asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
 
 void
 asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
-  asm_x64_emit_jit_set_pc_and_call(p_buf, addr, asm_x64_asm_debug);
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_call_debug, asm_x64_jit_call_debug_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_call_debug,
+                    asm_x64_jit_call_debug_pc_patch,
+                    addr);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_call_debug,
+                     asm_x64_jit_call_debug_call_patch,
+                     asm_x64_asm_debug);
 }
 
 void
-asm_x64_emit_jit_call_interp(struct util_buffer* p_buf, uint16_t addr) {
-  asm_x64_emit_jit_set_pc_and_call(p_buf, addr, asm_x64_jit_call_interp);
+asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_jump_interp, asm_x64_jit_jump_interp_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_jump_interp,
+                    asm_x64_jit_jump_interp_pc_patch,
+                    addr);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_jump_interp,
+                     asm_x64_jit_jump_interp_jump_patch,
+                     asm_x64_jit_interp);
 }
 
 void
@@ -135,7 +136,7 @@ asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, uint16_t addr) {
                      offset,
                      asm_x64_jit_CHECK_BCD,
                      asm_x64_jit_CHECK_BCD_jump_patch,
-                     asm_x64_jit_call_interp);
+                     asm_x64_jit_interp);
 }
 
 void

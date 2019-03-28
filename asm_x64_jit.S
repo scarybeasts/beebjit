@@ -42,8 +42,8 @@ asm_x64_jit_compile_trampoline:
   jmp REG_SCRATCH1
 
 
-.globl asm_x64_jit_call_interp
-asm_x64_jit_call_interp:
+.globl asm_x64_jit_interp
+asm_x64_jit_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_save_AXYS_PC_flags
 
@@ -74,7 +74,7 @@ asm_x64_jit_call_interp:
 .globl asm_x64_jit_countdown_expired
 asm_x64_jit_countdown_expired:
   mov REG_COUNTDOWN, REG_SCRATCH1
-  jmp asm_x64_jit_call_interp
+  jmp asm_x64_jit_interp
 
 
 .globl asm_x64_jit_call_compile_trampoline
@@ -105,17 +105,31 @@ asm_x64_jit_check_countdown_END:
   ret
 
 
-.globl asm_x64_jit_set_pc_and_call
-.globl asm_x64_jit_set_pc_and_call_pc_patch
-.globl asm_x64_jit_set_pc_and_call_call_patch
-.globl asm_x64_jit_set_pc_and_call_END
-asm_x64_jit_set_pc_and_call:
+.globl asm_x64_jit_call_debug
+.globl asm_x64_jit_call_debug_pc_patch
+.globl asm_x64_jit_call_debug_call_patch
+.globl asm_x64_jit_call_debug_END
+asm_x64_jit_call_debug:
   mov REG_6502_PC_32, 0xFFFF
-asm_x64_jit_set_pc_and_call_pc_patch:
+asm_x64_jit_call_debug_pc_patch:
   call 0
-asm_x64_jit_set_pc_and_call_call_patch:
+asm_x64_jit_call_debug_call_patch:
 
-asm_x64_jit_set_pc_and_call_END:
+asm_x64_jit_call_debug_END:
+  ret
+
+
+.globl asm_x64_jit_jump_interp
+.globl asm_x64_jit_jump_interp_pc_patch
+.globl asm_x64_jit_jump_interp_jump_patch
+.globl asm_x64_jit_jump_interp_END
+asm_x64_jit_jump_interp:
+  mov REG_6502_PC_32, 0xFFFF
+asm_x64_jit_jump_interp_pc_patch:
+  jmp 0
+asm_x64_jit_jump_interp_jump_patch:
+
+asm_x64_jit_jump_interp_END:
   ret
 
 

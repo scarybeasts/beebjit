@@ -541,7 +541,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_interp:
-    asm_x64_emit_jit_call_interp(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_Y_SCRATCH:
     asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);
