@@ -945,6 +945,13 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 0);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_ROR(p_buf, k_abs, 0x1001);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCD40);
 
   set_new_index(p_buf, 0x0D40);

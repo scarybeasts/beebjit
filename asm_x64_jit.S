@@ -723,6 +723,15 @@ asm_x64_jit_CPX_IMM_END:
   ret
 
 
+.globl asm_x64_jit_CPY_ABS
+.globl asm_x64_jit_CPY_ABS_END
+asm_x64_jit_CPY_ABS:
+  cmp REG_6502_Y, [0x7fffffff]
+
+asm_x64_jit_CPY_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_CPY_IMM
 .globl asm_x64_jit_CPY_IMM_END
 asm_x64_jit_CPY_IMM:
@@ -777,6 +786,15 @@ asm_x64_jit_EOR_ABS:
   xor REG_6502_A, [0x7fffffff]
 
 asm_x64_jit_EOR_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_EOR_ABY
+.globl asm_x64_jit_EOR_ABY_END
+asm_x64_jit_EOR_ABY:
+  xor REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_EOR_ABY_END:
   ret
 
 
@@ -1013,6 +1031,24 @@ asm_x64_jit_ORA_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ROL_ABS_RMW
+.globl asm_x64_jit_ROL_ABS_RMW_mov1_patch
+.globl asm_x64_jit_ROL_ABS_RMW_mov2_patch
+.globl asm_x64_jit_ROL_ABS_RMW_END
+asm_x64_jit_ROL_ABS_RMW:
+  mov REG_SCRATCH1_8, [0x7fffffff]
+asm_x64_jit_ROL_ABS_RMW_mov1_patch:
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
+  rcl REG_SCRATCH1_8, 1
+  test REG_SCRATCH1_8, REG_SCRATCH1_8
+  bt REG_SCRATCH2_32, 7
+  mov [0x7fffffff], REG_SCRATCH1_8
+asm_x64_jit_ROL_ABS_RMW_mov2_patch:
+
+asm_x64_jit_ROL_ABS_RMW_END:
+  ret
+
+
 .globl asm_x64_jit_ROL_ACC
 .globl asm_x64_jit_ROL_ACC_END
 asm_x64_jit_ROL_ACC:
@@ -1032,7 +1068,7 @@ asm_x64_jit_ROR_ABS_RMW_mov1_patch:
   movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   rcr REG_SCRATCH1_8, 1
   test REG_SCRATCH1_8, REG_SCRATCH1_8
-  bt REG_SCRATCH2_32, 7
+  bt REG_SCRATCH2_32, 0
   mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_ROR_ABS_RMW_mov2_patch:
 
@@ -1050,7 +1086,7 @@ asm_x64_jit_ROR_ABX_RMW_mov1_patch:
   movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   rcr REG_SCRATCH1_8, 1
   test REG_SCRATCH1_8, REG_SCRATCH1_8
-  bt REG_SCRATCH2_32, 7
+  bt REG_SCRATCH2_32, 0
   mov [REG_6502_X_64 + 0xFFFF], REG_SCRATCH1_8
 asm_x64_jit_ROR_ABX_RMW_mov2_patch:
 
@@ -1080,12 +1116,30 @@ asm_x64_jit_SAX_ABS_END:
   ret
 
 
+.globl asm_x64_jit_SBC_ABS
+.globl asm_x64_jit_SBC_ABS_END
+asm_x64_jit_SBC_ABS:
+  sbb REG_6502_A, [0x7fffffff]
+
+asm_x64_jit_SBC_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_SBC_ABX
 .globl asm_x64_jit_SBC_ABX_END
 asm_x64_jit_SBC_ABX:
   sbb REG_6502_A, [REG_6502_X_64 + 0xFFFF]
 
 asm_x64_jit_SBC_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_SBC_ABY
+.globl asm_x64_jit_SBC_ABY_END
+asm_x64_jit_SBC_ABY:
+  sbb REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_SBC_ABY_END:
   ret
 
 
