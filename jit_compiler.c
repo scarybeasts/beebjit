@@ -645,15 +645,25 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x0A:
     asm_x64_emit_jit_ASL_ACC(p_dest_buf);
     break;
+  case 0x0D: /* ORA abs */
+    asm_x64_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x10:
     asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x18:
     asm_x64_emit_instruction_CLC(p_dest_buf);
     break;
+  case 0x1D:
+    asm_x64_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x24: /* BIT zpg */
   case 0x2C: /* BIT abs */
     asm_x64_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x25: /* AND zpg */
+  case 0x2D: /* AND abs */
+    asm_x64_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x28:
     asm_x64_emit_instruction_PLP(p_dest_buf);
@@ -670,6 +680,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
     break;
+  case 0x46: /* LSR zpg */
+    asm_x64_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x48:
     asm_x64_emit_instruction_PHA(p_dest_buf);
     break;
@@ -685,11 +698,22 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x4D: /* EOR abs */
+    asm_x64_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x4E:
+    /* TODO: use the zpg mode version if we know we're hitting RAM. */
+    asm_x64_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x50:
     asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x58:
     asm_x64_emit_instruction_CLI(p_dest_buf);
+    break;
+  case 0x65: /* ADC zpg */
+  case 0x6D: /* ADC abs */
+    asm_x64_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x68:
     asm_x64_emit_instruction_PLA(p_dest_buf);
@@ -702,13 +726,23 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x6E:
     /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x78:
     asm_x64_emit_instruction_SEI(p_dest_buf);
+    break;
+  case 0x79:
+    asm_x64_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x7D:
+    asm_x64_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x7E:
+    /* TODO: use non-RMW version if we know we're hitting RAM. */
+    asm_x64_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x81: /* STA idx */
   case 0x91: /* STA idy */
@@ -764,13 +798,17 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xA2:
     asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xA4: /* LDY zpg */
+  case 0xAC: /* LDY abs */
+    asm_x64_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xA5: /* LDA zpg */
   case 0xAD: /* LDA abs */
     asm_x64_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
     break;
-  case 0xA6:
-    /* Actually LDX zpg but re-using LDX abs code. */
-    asm_x64_emit_jit_LDX_ABS(p_dest_buf, (uint8_t) value1);
+  case 0xA6: /* LDX zpg */
+  case 0xAE: /* LDX abs */
+    asm_x64_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xA8:
     asm_x64_emit_instruction_TAY(p_dest_buf);
@@ -790,8 +828,14 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xB8:
     asm_x64_emit_instruction_CLV(p_dest_buf);
     break;
+  case 0xB9:
+    asm_x64_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xBA:
     asm_x64_emit_instruction_TSX(p_dest_buf);
+    break;
+  case 0xBC:
+    asm_x64_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xBD:
     asm_x64_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
@@ -806,6 +850,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xCD: /* CMP abs */
     asm_x64_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1);
     break;
+  case 0xC6: /* DEC zpg */
+    asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xC8:
     asm_x64_emit_instruction_INY(p_dest_buf);
     break;
@@ -817,19 +864,32 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xCE:
     /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0xD1: /* CMP idy */
+    asm_x64_emit_jit_CMP_scratch(p_dest_buf);
+    break;
   case 0xD8:
     asm_x64_emit_instruction_CLD(p_dest_buf);
+    break;
+  case 0xD9:
+    asm_x64_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0xDD:
+    asm_x64_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0xDE:
+    /* TODO: use non-RMW version if we know we're hitting RAM. */
+    asm_x64_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0xE0:
     asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
     break;
-  case 0xE6:
-    asm_x64_emit_jit_INC_ZPG(p_dest_buf, (uint8_t) value1);
+  case 0xE6: /* INC zpg */
+    asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xE8:
     asm_x64_emit_instruction_INX(p_dest_buf);
@@ -837,9 +897,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xE9:
     asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xEC: /* CPX abs */
+    asm_x64_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0xEE:
     /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
@@ -849,6 +912,13 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xF8:
     asm_x64_emit_instruction_SED(p_dest_buf);
+    break;
+  case 0xFD:
+    asm_x64_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0xFE:
+    /* TODO: use non-RMW version if we know we're hitting RAM. */
+    asm_x64_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   default:
     asm_x64_emit_instruction_ILLEGAL(p_dest_buf);
