@@ -301,7 +301,15 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t curr_bank = p_bbc->romsel;
 
   assert(curr_bank < k_bbc_num_roms);
+  /* NOTE: this assert isn't really valid as setting the romsel to e.g. 0xFF
+   * likely just masks with 0x0F in hardware.
+   * Still, crazy romsel values would be a novelty so we'll leave the assert
+   * in to see if it fires. Safety for optimized builds is provided by the mask
+   * directly below.
+   */
   assert(index < k_bbc_num_roms);
+
+  index &= 0x0F;
 
   curr_is_ram = (p_bbc->is_sideways_ram_bank[curr_bank] != 0);
   new_is_ram = (p_bbc->is_sideways_ram_bank[index] != 0);
