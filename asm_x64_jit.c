@@ -119,6 +119,26 @@ asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_CHECK_BCD, asm_x64_jit_CHECK_BCD_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_CHECK_BCD,
+                    asm_x64_jit_CHECK_BCD_pc_patch,
+                    addr);
+  /* TODO: usually calls interp with an overly subtracted countdown because of
+   * the mid-block bail.
+   */
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_CHECK_BCD,
+                     asm_x64_jit_CHECK_BCD_jump_patch,
+                     asm_x64_jit_call_interp);
+}
+
+void
 asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_ADD_Y_SCRATCH, asm_x64_jit_ADD_Y_SCRATCH_END);
 }

@@ -138,6 +138,21 @@ asm_x64_jit_ADD_Y_SCRATCH_END:
   ret
 
 
+.globl asm_x64_jit_CHECK_BCD
+.globl asm_x64_jit_CHECK_BCD_pc_patch
+.globl asm_x64_jit_CHECK_BCD_jump_patch
+.globl asm_x64_jit_CHECK_BCD_END
+asm_x64_jit_CHECK_BCD:
+  mov REG_6502_PC, 0xFFFF
+asm_x64_jit_CHECK_BCD_pc_patch:
+  bt REG_6502_ID_F_32, 3
+  jb 0
+asm_x64_jit_CHECK_BCD_jump_patch:
+
+asm_x64_jit_CHECK_BCD_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:

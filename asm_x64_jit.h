@@ -14,6 +14,7 @@ void asm_x64_emit_jit_call_interp(struct util_buffer* p_buf, uint16_t addr);
 
 void asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf);
+void asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGX(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf);
@@ -107,6 +108,10 @@ void asm_x64_jit_ADD_IMM();
 void asm_x64_jit_ADD_IMM_END();
 void asm_x64_jit_ADD_Y_SCRATCH();
 void asm_x64_jit_ADD_Y_SCRATCH_END();
+void asm_x64_jit_CHECK_BCD();
+void asm_x64_jit_CHECK_BCD_pc_patch();
+void asm_x64_jit_CHECK_BCD_jump_patch();
+void asm_x64_jit_CHECK_BCD_END();
 void asm_x64_jit_FLAGA();
 void asm_x64_jit_FLAGA_END();
 void asm_x64_jit_FLAGX();

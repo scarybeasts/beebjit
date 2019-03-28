@@ -56,11 +56,12 @@ enum {
   k_opcode_countdown = 0x100,
   k_opcode_debug,
   k_opcode_interp,
+  k_opcode_ADD_IMM,
+  k_opcode_ADD_Y_SCRATCH,
+  k_opcode_CHECK_BCD,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
-  k_opcode_ADD_IMM,
-  k_opcode_ADD_Y_SCRATCH,
   k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,
   k_opcode_LOAD_CARRY,
@@ -339,6 +340,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Pre-main uops. */
   switch (optype) {
   case k_adc:
+    p_uop->opcode = k_opcode_CHECK_BCD;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop++;
+    p_uop->opcode = k_opcode_LOAD_CARRY;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
   case k_bcc:
   case k_bcs:
   case k_rol:
@@ -378,6 +387,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_sbc:
+    p_uop->opcode = k_opcode_CHECK_BCD;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop++;
     p_uop->opcode = k_opcode_LOAD_CARRY_INV;
     p_uop->optype = -1;
     p_uop++;
@@ -535,6 +548,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case k_opcode_ADD_IMM:
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_CHECK_BCD:
+    asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
