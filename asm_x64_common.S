@@ -101,7 +101,7 @@ asm_x64_instruction_CLC_END:
 .globl asm_x64_instruction_CLD_END
 asm_x64_instruction_CLD:
 
-  btr REG_6502_ID_F_64, 3
+  btr REG_6502_ID_F_32, 3
 
 asm_x64_instruction_CLD_END:
   ret
@@ -111,7 +111,7 @@ asm_x64_instruction_CLD_END:
 .globl asm_x64_instruction_CLI_END
 asm_x64_instruction_CLI:
 
-  btr REG_6502_ID_F_64, 2
+  btr REG_6502_ID_F_32, 2
 
 asm_x64_instruction_CLI_END:
   ret
@@ -205,7 +205,7 @@ asm_x64_instruction_SEC_END:
 .globl asm_x64_instruction_SED_END
 asm_x64_instruction_SED:
 
-  bts REG_6502_ID_F_64, 3
+  bts REG_6502_ID_F_32, 3
 
 asm_x64_instruction_SED_END:
   ret
@@ -215,7 +215,7 @@ asm_x64_instruction_SED_END:
 .globl asm_x64_instruction_SEI_END
 asm_x64_instruction_SEI:
 
-  bts REG_6502_ID_F_64, 2
+  bts REG_6502_ID_F_32, 2
 
 asm_x64_instruction_SEI_END:
   ret

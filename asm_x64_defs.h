@@ -47,6 +47,7 @@
 #define REG_6502_CF        r14b
 #define REG_6502_CF_64     r14
 #define REG_6502_ID_F      r13b
+#define REG_6502_ID_F_32   r13d
 #define REG_6502_ID_F_64   r13
 #define REG_COUNTDOWN      r15
 
