@@ -1029,7 +1029,10 @@ asm_x64_jit_ROL_ACC_END:
 asm_x64_jit_ROR_ABS_RMW:
   mov REG_SCRATCH1_8, [0x7fffffff]
 asm_x64_jit_ROR_ABS_RMW_mov1_patch:
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   rcr REG_SCRATCH1_8, 1
+  test REG_SCRATCH1_8, REG_SCRATCH1_8
+  bt REG_SCRATCH2_32, 7
   mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_ROR_ABS_RMW_mov2_patch:
 
@@ -1044,7 +1047,10 @@ asm_x64_jit_ROR_ABS_RMW_END:
 asm_x64_jit_ROR_ABX_RMW:
   mov REG_SCRATCH1_8, [REG_6502_X_64 + 0xFFFF]
 asm_x64_jit_ROR_ABX_RMW_mov1_patch:
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   rcr REG_SCRATCH1_8, 1
+  test REG_SCRATCH1_8, REG_SCRATCH1_8
+  bt REG_SCRATCH2_32, 7
   mov [REG_6502_X_64 + 0xFFFF], REG_SCRATCH1_8
 asm_x64_jit_ROR_ABX_RMW_mov2_patch:
 
@@ -1123,7 +1129,7 @@ asm_x64_jit_SLO_ABS_mov1_patch:
   mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_SLO_ABS_mov2_patch:
   or REG_6502_A, REG_SCRATCH1_8
-  bt REG_SCRATCH2, 7
+  bt REG_SCRATCH2_32, 7
 
 asm_x64_jit_SLO_ABS_END:
   ret

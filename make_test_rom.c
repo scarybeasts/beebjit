@@ -935,7 +935,19 @@ main(int argc, const char* argv[]) {
   emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xCD00);
 
+  /* Test ROR flags for memory-based RORs. */
   set_new_index(p_buf, 0x0D00);
+  emit_CLC(p_buf);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_LDA(p_buf, k_imm, 0x81);   /* Sets NF, spotting failure to clear it. */
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_ROR(p_buf, k_abx, 0x1000);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xCD40);
+
+  set_new_index(p_buf, 0x0D40);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

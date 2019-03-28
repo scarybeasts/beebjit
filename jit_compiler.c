@@ -490,7 +490,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->opcode = k_opcode_SAVE_CARRY;
     p_uop->optype = -1;
     p_uop++;
-    /* TODO: bug for non-acc modes. */
+    /* TODO: come up with viable optimization for non-acc modes. */
     if (opmode == k_acc) {
       p_uop->opcode = k_opcode_FLAGA;
       p_uop->optype = -1;
