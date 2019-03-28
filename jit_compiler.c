@@ -608,6 +608,18 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x02:
     asm_x64_emit_instruction_EXIT(p_dest_buf);
     break;
+  case 0x04: /* NOP zpg */ /* Undocumented. */
+  case 0xDC: /* NOP abx */ /* Undocumented. */
+  case 0xEA: /* NOP */
+  case 0xF4: /* NOP zpx */ /* Undocumented. */
+    /* We don't really have to emit anything for a NOP, but for now and for
+     * good readability, we'll emit a host NOP.
+     */
+    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
+    break;
+  case 0x07: /* SLO zpg */ /* Undocumented. */
+    asm_x64_emit_jit_SLO_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x08:
     asm_x64_emit_instruction_PHP(p_dest_buf);
     break;
@@ -645,8 +657,14 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x48:
     asm_x64_emit_instruction_PHA(p_dest_buf);
     break;
+  case 0x49:
+    asm_x64_emit_jit_EOR_IMM(p_dest_buf, (uint8_t) value1);
+    break;
   case 0x4A:
     asm_x64_emit_jit_LSR_ACC(p_dest_buf);
+    break;
+  case 0x4B: /* ALR imm */ /* Undocumented. */
+    asm_x64_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
@@ -680,6 +698,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x91: /* STA idy */
     asm_x64_emit_jit_STA_scratch(p_dest_buf);
     break;
+  case 0x98:
+    asm_x64_emit_instruction_TYA(p_dest_buf);
+    break;
   case 0x84: /* STY zpg */
   case 0x8C: /* STY abs */
     asm_x64_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
@@ -692,8 +713,14 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x8E: /* STX abs */
     asm_x64_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
     break;
+  case 0x87: /* SAX zpg */ /* Undocumented. */
+    asm_x64_emit_jit_SAX_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x88:
     asm_x64_emit_instruction_DEY(p_dest_buf);
+    break;
+  case 0x8A:
+    asm_x64_emit_instruction_TXA(p_dest_buf);
     break;
   case 0x90:
     asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
@@ -703,6 +730,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x9A:
     asm_x64_emit_instruction_TXS(p_dest_buf);
+    break;
+  case 0x9C:
+    asm_x64_emit_jit_SHY_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x9D:
     asm_x64_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1);
@@ -790,12 +820,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xE9:
     asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xEA:
-    /* We don't really have to emit anything for a NOP, but for now and for
-     * good readability, we'll emit a host NOP.
-     */
-    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
     break;
   case 0xEE:
     /* TODO: use the zpg mode version if we know we're hitting RAM. */

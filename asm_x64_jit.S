@@ -410,6 +410,18 @@ asm_x64_jit_ADC_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ALR_IMM
+.globl asm_x64_jit_ALR_IMM_patch_byte
+.globl asm_x64_jit_ALR_IMM_END
+asm_x64_jit_ALR_IMM:
+  and REG_6502_A, 0xff
+asm_x64_jit_ALR_IMM_patch_byte:
+  shr REG_6502_A, 1
+
+asm_x64_jit_ALR_IMM_END:
+  ret
+
+
 .globl asm_x64_jit_AND_IMM
 .globl asm_x64_jit_AND_IMM_END
 asm_x64_jit_AND_IMM:
@@ -624,13 +636,22 @@ asm_x64_jit_CPY_IMM_END:
 .globl asm_x64_jit_DEC_ABS_mov2_patch
 .globl asm_x64_jit_DEC_ABS_END
 asm_x64_jit_DEC_ABS:
-  mov dl, [0x7fffffff]
+  mov REG_SCRATCH1_8, [0x7fffffff]
 asm_x64_jit_DEC_ABS_mov1_patch:
-  dec dl
-  mov [0x7fffffff], dl
+  dec REG_SCRATCH1_8
+  mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_DEC_ABS_mov2_patch:
 
 asm_x64_jit_DEC_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_EOR_IMM
+.globl asm_x64_jit_EOR_IMM_END
+asm_x64_jit_EOR_IMM:
+  xor REG_6502_A, 0
+
+asm_x64_jit_EOR_IMM_END:
   ret
 
 
@@ -639,10 +660,10 @@ asm_x64_jit_DEC_ABS_END:
 .globl asm_x64_jit_INC_ABS_mov2_patch
 .globl asm_x64_jit_INC_ABS_END
 asm_x64_jit_INC_ABS:
-  mov dl, [0x7fffffff]
+  mov REG_SCRATCH1_8, [0x7fffffff]
 asm_x64_jit_INC_ABS_mov1_patch:
-  inc dl
-  mov [0x7fffffff], dl
+  inc REG_SCRATCH1_8
+  mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_INC_ABS_mov2_patch:
 
 asm_x64_jit_INC_ABS_END:
@@ -788,10 +809,10 @@ asm_x64_jit_ROL_ACC_END:
 .globl asm_x64_jit_ROR_ABS_mov2_patch
 .globl asm_x64_jit_ROR_ABS_END
 asm_x64_jit_ROR_ABS:
-  mov dl, [0x7fffffff]
+  mov REG_SCRATCH1_8, [0x7fffffff]
 asm_x64_jit_ROR_ABS_mov1_patch:
-  rcr dl, 1
-  mov [0x7fffffff], dl
+  rcr REG_SCRATCH1_8, 1
+  mov [0x7fffffff], REG_SCRATCH1_8
 asm_x64_jit_ROR_ABS_mov2_patch:
 
 asm_x64_jit_ROR_ABS_END:
@@ -807,6 +828,19 @@ asm_x64_jit_ROR_ACC_END:
   ret
 
 
+.globl asm_x64_jit_SAX_ABS
+.globl asm_x64_jit_SAX_ABS_END
+asm_x64_jit_SAX_ABS:
+  lahf
+  mov REG_SCRATCH1_8, REG_6502_X
+  and REG_SCRATCH1_8, REG_6502_A
+  sahf
+  mov [0x7fffffff], REG_SCRATCH1_8
+
+asm_x64_jit_SAX_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_SBC_IMM
 .globl asm_x64_jit_SBC_IMM_END
 asm_x64_jit_SBC_IMM:
@@ -815,6 +849,41 @@ asm_x64_jit_SBC_IMM:
   sbb REG_6502_A, 0
 
 asm_x64_jit_SBC_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_SHY_ABX
+.globl asm_x64_jit_SHY_ABX_byte_patch
+.globl asm_x64_jit_SHY_ABX_mov_patch
+.globl asm_x64_jit_SHY_ABX_END
+asm_x64_jit_SHY_ABX:
+  lahf
+  mov REG_SCRATCH1_8, REG_6502_Y
+  and REG_SCRATCH1_8, 0xff
+asm_x64_jit_SHY_ABX_byte_patch:
+  sahf
+  mov [REG_6502_X_64 + 0xFFFF], REG_SCRATCH1_8
+asm_x64_jit_SHY_ABX_mov_patch:
+
+asm_x64_jit_SHY_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_SLO_ABS
+.globl asm_x64_jit_SLO_ABS_mov1_patch
+.globl asm_x64_jit_SLO_ABS_mov2_patch
+.globl asm_x64_jit_SLO_ABS_END
+asm_x64_jit_SLO_ABS:
+  mov REG_SCRATCH1_8, [0x7fffffff]
+asm_x64_jit_SLO_ABS_mov1_patch:
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
+  shl REG_SCRATCH1_8, 1
+  mov [0x7fffffff], REG_SCRATCH1_8
+asm_x64_jit_SLO_ABS_mov2_patch:
+  or REG_6502_A, REG_SCRATCH1_8
+  bt REG_SCRATCH2, 7
+
+asm_x64_jit_SLO_ABS_END:
   ret
 
 
