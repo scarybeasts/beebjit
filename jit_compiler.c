@@ -698,6 +698,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
     break;
+  case 0x3E:
+    asm_x64_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x45: /* EOR zpg */
   case 0x4D: /* EOR abs */
     asm_x64_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1);
@@ -735,6 +738,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x59:
     asm_x64_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x5D:
+    asm_x64_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x65: /* ADC zpg */
   case 0x6D: /* ADC abs */

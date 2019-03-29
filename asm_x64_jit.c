@@ -672,6 +672,14 @@ asm_x64_emit_jit_EOR_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_EOR_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_EOR_ABX,
+                         asm_x64_jit_EOR_ABX_END,
+                         addr);
+}
+
+void
 asm_x64_emit_jit_EOR_ABY(struct util_buffer* p_buf, uint16_t addr) {
   asm_x86_copy_patch_u32(p_buf,
                          asm_x64_jit_EOR_ABY,
@@ -908,6 +916,23 @@ asm_x64_emit_jit_ROL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_ROL_ABS_RMW,
                     asm_x64_jit_ROL_ABS_RMW_mov2_patch,
                     (K_BBC_MEM_WRITE_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_ROL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_ROL_ABX_RMW, asm_x64_jit_ROL_ABX_RMW_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_ROL_ABX_RMW,
+                    asm_x64_jit_ROL_ABX_RMW_mov1_patch,
+                    addr);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_ROL_ABX_RMW,
+                    asm_x64_jit_ROL_ABX_RMW_mov2_patch,
+                    (K_BBC_MEM_READ_TO_WRITE_OFFSET + addr));
 }
 
 void
