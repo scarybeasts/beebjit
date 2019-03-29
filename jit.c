@@ -211,11 +211,11 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   assert(addr_end >= addr);
 
   for (i = addr; i < addr_end; ++i) {
-    void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr];
+    void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[i];
     util_buffer_setup(p_buf, p_intel_rip, 2);
     asm_x64_emit_jit_call_compile_trampoline(p_buf);
 
-    jit_init_addr(p_jit, addr);
+    jit_init_addr(p_jit, i);
   }
 }
 

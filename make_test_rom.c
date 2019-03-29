@@ -770,13 +770,23 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0x8000);        /* Should hit BRK. */
   emit_CRASH(p_buf);
   util_buffer_set_pos(p_buf, 0x0AA0);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
+  emit_JSR(p_buf, 0x8002);        /* ZF == 0 so this just RTS's. */
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_STA(p_buf, k_abs, 0xFE30); /* Page in DFS. */
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0x4040);
+  emit_JSR(p_buf, 0x8002);        /* Another BRK. */
+  emit_CRASH(p_buf);
+  util_buffer_set_pos(p_buf, 0x0AC0);
   emit_LDA(p_buf, k_imm, 0x00);   /* Unset BRK vector. */
   emit_STA(p_buf, k_abs, 0x4040);
   emit_STA(p_buf, k_abs, 0x4041);
-  emit_JMP(p_buf, k_abs, 0xCAC0);
+  emit_JMP(p_buf, k_abs, 0xCAE0);
 
   /* Tests triggering a simple NMI. */
-  set_new_index(p_buf, 0x0AC0);
+  set_new_index(p_buf, 0x0AE0);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_imm, 0x00); /* 0 is an invalid command for the 8271. */
   emit_STA(p_buf, k_abs, 0xFE80);
