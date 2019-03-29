@@ -466,6 +466,15 @@ asm_x64_jit_ADC_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ADC_scratch
+.globl asm_x64_jit_ADC_scratch_END
+asm_x64_jit_ADC_scratch:
+  adc REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_ADC_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_ALR_IMM
 .globl asm_x64_jit_ALR_IMM_patch_byte
 .globl asm_x64_jit_ALR_IMM_END
@@ -493,6 +502,39 @@ asm_x64_jit_AND_IMM:
   and REG_6502_A, 0
 
 asm_x64_jit_AND_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_AND_scratch
+.globl asm_x64_jit_AND_scratch_END
+asm_x64_jit_AND_scratch:
+  and REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_AND_scratch_END:
+  ret
+
+
+.globl asm_x64_jit_ASL_ABS
+.globl asm_x64_jit_ASL_ABS_END
+asm_x64_jit_ASL_ABS:
+  shl BYTE PTR [0x7fffffff], 1
+
+asm_x64_jit_ASL_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_ASL_ABS_RMW
+.globl asm_x64_jit_ASL_ABS_RMW_mov1_patch
+.globl asm_x64_jit_ASL_ABS_RMW_mov2_patch
+.globl asm_x64_jit_ASL_ABS_RMW_END
+asm_x64_jit_ASL_ABS_RMW:
+  mov REG_SCRATCH1_8, [0x7fffffff]
+asm_x64_jit_ASL_ABS_RMW_mov1_patch:
+  shl REG_SCRATCH1_8, 1
+  mov [0x7fffffff], REG_SCRATCH1_8
+asm_x64_jit_ASL_ABS_RMW_mov2_patch:
+
+asm_x64_jit_ASL_ABS_RMW_END:
   ret
 
 
@@ -807,6 +849,15 @@ asm_x64_jit_EOR_IMM_END:
   ret
 
 
+.globl asm_x64_jit_EOR_scratch
+.globl asm_x64_jit_EOR_scratch_END
+asm_x64_jit_EOR_scratch:
+  xor REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_EOR_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_INC_ABS
 .globl asm_x64_jit_INC_ABS_END
 asm_x64_jit_INC_ABS:
@@ -1031,6 +1082,15 @@ asm_x64_jit_ORA_IMM_END:
   ret
 
 
+.globl asm_x64_jit_ORA_scratch
+.globl asm_x64_jit_ORA_scratch_END
+asm_x64_jit_ORA_scratch:
+  or REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_ORA_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_ROL_ABS_RMW
 .globl asm_x64_jit_ROL_ABS_RMW_mov1_patch
 .globl asm_x64_jit_ROL_ABS_RMW_mov2_patch
@@ -1151,6 +1211,15 @@ asm_x64_jit_SBC_IMM:
   sbb REG_6502_A, 0
 
 asm_x64_jit_SBC_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_SBC_scratch
+.globl asm_x64_jit_SBC_scratch_END
+asm_x64_jit_SBC_scratch:
+  sbb REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_SBC_scratch_END:
   ret
 
 
