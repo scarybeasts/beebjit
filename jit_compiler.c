@@ -909,6 +909,11 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xC0:
     asm_x64_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xC1: /* CMP idx */
+  case 0xD1: /* CMP idy */
+  case 0xD5: /* CMP zpx */
+    asm_x64_emit_jit_CMP_scratch(p_dest_buf);
+    break;
   case 0xC4: /* CPY zpg */
   case 0xCC: /* CPY abs */
     asm_x64_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1);
@@ -935,10 +940,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case 0xD1: /* CMP idy */
-  case 0xD5: /* CMP zpx */
-    asm_x64_emit_jit_CMP_scratch(p_dest_buf);
     break;
   case 0xD6:
     asm_x64_emit_jit_DEC_scratch(p_dest_buf);
