@@ -1058,6 +1058,11 @@ asm_x64_emit_jit_ROR_ACC(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_ROR_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ROR_scratch, asm_x64_jit_ROR_scratch_END);
+}
+
+void
 asm_x64_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
   asm_x86_copy_patch_u32(p_buf,
                          asm_x64_jit_SAX_ABS,

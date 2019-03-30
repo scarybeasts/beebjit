@@ -1286,6 +1286,20 @@ asm_x64_jit_ROR_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ROR_scratch
+.globl asm_x64_jit_ROR_scratch_END
+asm_x64_jit_ROR_scratch:
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  movzx REG_SCRATCH3_32, REG_SCRATCH2_8
+  rcr REG_SCRATCH2_8, 1
+  test REG_SCRATCH2_8, REG_SCRATCH2_8
+  bt REG_SCRATCH3_32, 0
+  mov [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR], REG_SCRATCH2_8
+
+asm_x64_jit_ROR_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_SAX_ABS
 .globl asm_x64_jit_SAX_ABS_END
 asm_x64_jit_SAX_ABS:
