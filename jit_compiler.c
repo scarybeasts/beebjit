@@ -660,6 +660,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x11: /* ORA idy */
+  case 0x15: /* ORA zpx */
     asm_x64_emit_jit_ORA_scratch(p_dest_buf);
     break;
   case 0x18:
@@ -670,6 +671,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x1D:
     asm_x64_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x1E:
+    asm_x64_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x24: /* BIT zpg */
   case 0x2C: /* BIT abs */
@@ -700,6 +704,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
+    break;
+  case 0x39:
+    asm_x64_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x3E:
     asm_x64_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -817,6 +824,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x94: /* STY zpx */
     asm_x64_emit_jit_STY_scratch(p_dest_buf);
     break;
+  case 0x96: /* STX zpy */
+    asm_x64_emit_jit_STX_scratch(p_dest_buf);
+    break;
   case 0x99:
     asm_x64_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
     break;
@@ -863,6 +873,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xB0:
     asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0xB4: /* LDY zpx */
+    asm_x64_emit_jit_LDY_scratch(p_dest_buf);
     break;
   case 0xB6: /* LDX zpy */
     asm_x64_emit_jit_LDX_scratch(p_dest_buf);
@@ -916,6 +929,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xD1: /* CMP idy */
+  case 0xD5: /* CMP zpx */
     asm_x64_emit_jit_CMP_scratch(p_dest_buf);
     break;
   case 0xD6:
@@ -962,6 +976,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xF1: /* SBC idy */
+  case 0xF5: /* SBC zpx */
     asm_x64_emit_jit_SBC_scratch(p_dest_buf);
     break;
   case 0xF2:

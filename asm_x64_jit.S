@@ -496,6 +496,15 @@ asm_x64_jit_AND_ABS_END:
   ret
 
 
+.globl asm_x64_jit_AND_ABY
+.globl asm_x64_jit_AND_ABY_END
+asm_x64_jit_AND_ABY:
+  and REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_AND_ABY_END:
+  ret
+
+
 .globl asm_x64_jit_AND_IMM
 .globl asm_x64_jit_AND_IMM_END
 asm_x64_jit_AND_IMM:
@@ -535,6 +544,21 @@ asm_x64_jit_ASL_ABS_RMW_mov1_patch:
 asm_x64_jit_ASL_ABS_RMW_mov2_patch:
 
 asm_x64_jit_ASL_ABS_RMW_END:
+  ret
+
+
+.globl asm_x64_jit_ASL_ABX_RMW
+.globl asm_x64_jit_ASL_ABX_RMW_mov1_patch
+.globl asm_x64_jit_ASL_ABX_RMW_mov2_patch
+.globl asm_x64_jit_ASL_ABX_RMW_END
+asm_x64_jit_ASL_ABX_RMW:
+  mov REG_SCRATCH1_8, [REG_6502_X_64 + 0xFFFF]
+asm_x64_jit_ASL_ABX_RMW_mov1_patch:
+  shl REG_SCRATCH1_8, 1
+  mov [REG_6502_X_64 + 0xFFFF], REG_SCRATCH1_8
+asm_x64_jit_ASL_ABX_RMW_mov2_patch:
+
+asm_x64_jit_ASL_ABX_RMW_END:
   ret
 
 
@@ -1051,6 +1075,15 @@ asm_x64_jit_LDY_IMM_END:
   ret
 
 
+.globl asm_x64_jit_LDY_scratch
+.globl asm_x64_jit_LDY_scratch_END
+asm_x64_jit_LDY_scratch:
+  mov REG_6502_Y, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_LDY_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_LSR_ABS
 .globl asm_x64_jit_LSR_ABS_END
 asm_x64_jit_LSR_ABS:
@@ -1356,6 +1389,15 @@ asm_x64_jit_STX_ABS:
   mov [0x7fffffff], REG_6502_X
 
 asm_x64_jit_STX_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_STX_scratch
+.globl asm_x64_jit_STX_scratch_END
+asm_x64_jit_STX_scratch:
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_X
+
+asm_x64_jit_STX_scratch_END:
   ret
 
 
