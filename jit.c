@@ -91,11 +91,20 @@ jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
 }
 
 static void
-jit_init_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+jit_invalidate_block_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   struct util_buffer* p_buf = p_jit->p_temp_buf;
   uint8_t* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
   util_buffer_setup(p_buf, p_jit_ptr, 2);
+  asm_x64_emit_jit_call_compile_trampoline(p_buf);
+}
+
+static void
+jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
+  struct util_buffer* p_buf = p_jit->p_temp_buf;
+  void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr_6502];
+
+  util_buffer_setup(p_buf, p_intel_rip, 2);
   asm_x64_emit_jit_call_compile_trampoline(p_buf);
 }
 
@@ -139,8 +148,26 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 }
 
 static int
-jit_interp_instruction_callback(uint8_t opcode, int is_irq, int irq_pending) {
-  (void) opcode;
+jit_interp_instruction_callback(void* p,
+                                uint16_t pc,
+                                uint8_t opcode,
+                                uint16_t addr,
+                                int is_irq,
+                                int irq_pending) {
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+  uint8_t optype = g_optypes[opcode];
+  uint8_t opmode = g_opmodes[opcode];
+  uint8_t opmem = g_opmem[optype];
+
+  (void) pc;
+
+  if ((opmem == k_write || opmem == k_rw) && (opmode != k_acc)) {
+    /* Any memory writes executed by the interpreter need to invalidate
+     * compiled JIT code if they're self-modifying writes.
+     */
+    /* TODO: a little subtle so add a test to timing.rom. */
+    jit_invalidate_code_at_address(p_jit, addr);
+  }
 
   if (is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */
@@ -158,7 +185,8 @@ jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
 
   uint32_t ret = interp_enter_with_details(p_interp,
                                            countdown,
-                                           jit_interp_instruction_callback);
+                                           jit_interp_instruction_callback,
+                                           p_jit);
 
   (void) ret;
   assert(ret == (uint32_t) -1);
@@ -204,18 +232,14 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                             uint16_t addr,
                             uint16_t len) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  struct util_buffer* p_buf = p_jit->p_temp_buf;
   uint32_t addr_end = (addr + len);
   uint32_t i;
 
   assert(addr_end >= addr);
 
   for (i = addr; i < addr_end; ++i) {
-    void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[i];
-    util_buffer_setup(p_buf, p_intel_rip, 2);
-    asm_x64_emit_jit_call_compile_trampoline(p_buf);
-
-    jit_init_addr(p_jit, i);
+    jit_invalidate_code_at_address(p_jit, i);
+    jit_invalidate_block_address(p_jit, i);
   }
 }
 
@@ -295,7 +319,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   (void) memset(p_jit_base, '\xcc', mapping_size);
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
-    jit_init_addr(p_jit, i);
+    jit_invalidate_block_address(p_jit, i);
   }
 }
 
@@ -311,4 +335,3 @@ jit_create(struct cpu_driver_funcs* p_funcs) {
 
   return p_cpu_driver;
 }
-

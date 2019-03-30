@@ -49,7 +49,7 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
 
-  return interp_enter_with_details(p_interp, countdown, NULL);
+  return interp_enter_with_details(p_interp, countdown, NULL, NULL);
 }
 
 static char*
@@ -624,7 +624,13 @@ interp_is_branch_opcode(uint8_t opcode) {
 uint32_t
 interp_enter_with_details(struct interp_struct* p_interp,
                           int64_t countdown,
-                          int (*instruction_callback)(uint8_t, int, int)) {
+                          int (*instruction_callback)(void* p,
+                                                      uint16_t pc,
+                                                      uint8_t opcode,
+                                                      uint16_t addr,
+                                                      int is_irq,
+                                                      int irq_pending),
+                          void* p_callback_context) {
   uint16_t pc;
   uint8_t a;
   uint8_t x;
@@ -1540,17 +1546,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
     }
 
 check_irq:
-    /* TODO: opcode fetch doesn't consider hardware register access,
-     * i.e. JMP $FE6A will have incorrect timings.
-     */
-    opcode = p_mem_read[pc];
 
-    /* If an IRQ was detected at the instruction poll point, force the next
-     * opcode to 0x00 (BRK).
-     */
-    if (do_irq) {
-      opcode = 0x00;
-    } else {
+    if (!do_irq) {
       /* An IRQ may have been raised after the poll point, in which case
        * make sure to interrupt the countdown loop again next go around.
        */
@@ -1562,18 +1559,36 @@ check_irq:
       }
     }
 
+    /* The instruction callback fires after the instruction is done. */
     if (instruction_callback) {
       int irq_pending = timing_timer_is_running(p_timing,
                                                 deferred_interrupt_timer_id);
+      uint8_t opmode = g_opmodes[opcode];
+      uint16_t orig_pc = (pc - g_opmodelens[opmode]);
       /* The instruction callback can elect to bounce out of the
        * interpreter.
        */
-      if (instruction_callback(opcode, do_irq, irq_pending)) {
+      if (instruction_callback(p_callback_context,
+                               orig_pc,
+                               opcode,
+                               addr,
+                               do_irq,
+                               irq_pending)) {
         break;
       }
     }
 
+    if (do_irq) {
+      opcode = 0x00;
+    } else {
+      /* TODO: opcode fetch doesn't consider hardware register access,
+       * i.e. JMP $FE6A will have incorrect timings.
+       */
+      opcode = p_mem_read[pc];
+    }
+
 check_debug:
+    /* The debug callout fires before the instruction executes. */
     if (p_interp->debug_subsystem_active) {
       INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,

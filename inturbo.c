@@ -559,10 +559,16 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 }
 
 static int
-inturbo_interp_instruction_callback(uint8_t opcode,
+inturbo_interp_instruction_callback(void* p,
+                                    uint16_t pc,
+                                    uint8_t opcode,
+                                    uint16_t addr,
                                     int is_irq,
                                     int irq_pending) {
+  (void) p;
+  (void) pc;
   (void) opcode;
+  (void) addr;
 
   if (is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */
@@ -585,7 +591,8 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
 
   uint32_t ret = interp_enter_with_details(p_interp,
                                            countdown,
-                                           inturbo_interp_instruction_callback);
+                                           inturbo_interp_instruction_callback,
+                                           NULL);
 
   (void) ret;
   assert(ret == (uint32_t) -1);
