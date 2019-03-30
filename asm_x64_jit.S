@@ -822,6 +822,16 @@ asm_x64_jit_DEC_ABX_RMW_END:
   ret
 
 
+.globl asm_x64_jit_DEC_scratch
+.globl asm_x64_jit_DEC_scratch_END
+asm_x64_jit_DEC_scratch:
+  # NOTE: only used for mode zpx so it's safe to assume RAM.
+  dec BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_DEC_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_EOR_ABS
 .globl asm_x64_jit_EOR_ABS_END
 asm_x64_jit_EOR_ABS:
@@ -903,6 +913,16 @@ asm_x64_jit_INC_ABX_RMW_mov1_patch:
 asm_x64_jit_INC_ABX_RMW_mov2_patch:
 
 asm_x64_jit_INC_ABX_RMW_END:
+  ret
+
+
+.globl asm_x64_jit_INC_scratch
+.globl asm_x64_jit_INC_scratch_END
+asm_x64_jit_INC_scratch:
+  # NOTE: only used for mode zpx so it's safe to assume RAM.
+  inc BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+
+asm_x64_jit_INC_scratch_END:
   ret
 
 
@@ -1070,6 +1090,15 @@ asm_x64_jit_ORA_ABX:
   or REG_6502_A, [REG_6502_X_64 + 0xFFFF]
 
 asm_x64_jit_ORA_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_ORA_ABY
+.globl asm_x64_jit_ORA_ABY_END
+asm_x64_jit_ORA_ABY:
+  or REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_ORA_ABY_END:
   ret
 
 
