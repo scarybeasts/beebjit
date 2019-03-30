@@ -809,6 +809,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x90:
     asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x94: /* STY zpx */
+    asm_x64_emit_jit_STY_scratch(p_dest_buf);
+    break;
   case 0x99:
     asm_x64_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
     break;

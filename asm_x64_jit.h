@@ -121,6 +121,7 @@ void asm_x64_emit_jit_STA_ABY(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_STA_scratch(struct util_buffer* p_buf);
 void asm_x64_emit_jit_STX_ABS(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr);
+void asm_x64_emit_jit_STY_scratch(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
 void asm_x64_jit_compile_trampoline();
@@ -417,5 +418,7 @@ void asm_x64_jit_STX_ABS();
 void asm_x64_jit_STX_ABS_END();
 void asm_x64_jit_STY_ABS();
 void asm_x64_jit_STY_ABS_END();
+void asm_x64_jit_STY_scratch();
+void asm_x64_jit_STY_scratch_END();
 
 #endif /* BEEBJIT_ASM_X64_JIT_H */

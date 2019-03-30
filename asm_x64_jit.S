@@ -1337,3 +1337,12 @@ asm_x64_jit_STY_ABS:
 
 asm_x64_jit_STY_ABS_END:
   ret
+
+
+.globl asm_x64_jit_STY_scratch
+.globl asm_x64_jit_STY_scratch_END
+asm_x64_jit_STY_scratch:
+  mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_ADDR], REG_6502_Y
+
+asm_x64_jit_STY_scratch_END:
+  ret

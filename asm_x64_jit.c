@@ -1103,3 +1103,8 @@ asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr) {
                          asm_x64_jit_STY_ABS_END,
                          (K_BBC_MEM_WRITE_ADDR + addr));
 }
+
+void
+asm_x64_emit_jit_STY_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_STY_scratch, asm_x64_jit_STY_scratch_END);
+}
