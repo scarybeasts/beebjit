@@ -580,6 +580,16 @@ asm_x64_jit_ASL_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ASL_scratch
+.globl asm_x64_jit_ASL_scratch_END
+asm_x64_jit_ASL_scratch:
+  # NOTE: only used for mode zpx so it's safe to assume RAM.
+  shl BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR], 1
+
+asm_x64_jit_ASL_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_BCC
 .globl asm_x64_jit_BCC_END
 asm_x64_jit_BCC:

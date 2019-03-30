@@ -663,6 +663,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x15: /* ORA zpx */
     asm_x64_emit_jit_ORA_scratch(p_dest_buf);
     break;
+  case 0x16: /* ASL zpx */
+    asm_x64_emit_jit_ASL_scratch(p_dest_buf);
+    break;
   case 0x18:
     asm_x64_emit_instruction_CLC(p_dest_buf);
     break;
@@ -941,7 +944,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
-  case 0xD6:
+  case 0xD6: /* DEC zpx */
     asm_x64_emit_jit_DEC_scratch(p_dest_buf);
     break;
   case 0xD8:
@@ -991,7 +994,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xF2:
     asm_x64_emit_instruction_CRASH(p_dest_buf);
     break;
-  case 0xF6:
+  case 0xF6: /* INC zpx */
     asm_x64_emit_jit_INC_scratch(p_dest_buf);
     break;
   case 0xF8:

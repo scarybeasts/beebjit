@@ -497,6 +497,11 @@ asm_x64_emit_jit_ASL_ACC(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_ASL_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ASL_scratch, asm_x64_jit_ASL_scratch_END);
+}
+
+void
 asm_x64_emit_jit_BCC(struct util_buffer* p_buf, void* p_target) {
   asm_x64_emit_jit_jump(p_buf,
                         p_target,
