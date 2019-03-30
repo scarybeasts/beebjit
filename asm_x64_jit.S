@@ -1117,6 +1117,21 @@ asm_x64_jit_LSR_ABS_RMW_END:
   ret
 
 
+.globl asm_x64_jit_LSR_ABX_RMW
+.globl asm_x64_jit_LSR_ABX_RMW_mov1_patch
+.globl asm_x64_jit_LSR_ABX_RMW_mov2_patch
+.globl asm_x64_jit_LSR_ABX_RMW_END
+asm_x64_jit_LSR_ABX_RMW:
+  mov REG_SCRATCH1_8, [REG_6502_X_64 + 0xFFFF]
+asm_x64_jit_LSR_ABX_RMW_mov1_patch:
+  shr REG_SCRATCH1_8, 1
+  mov [REG_6502_X_64 + 0xFFFF], REG_SCRATCH1_8
+asm_x64_jit_LSR_ABX_RMW_mov2_patch:
+
+asm_x64_jit_LSR_ABX_RMW_END:
+  ret
+
+
 .globl asm_x64_jit_LSR_ACC
 .globl asm_x64_jit_LSR_ACC_END
 asm_x64_jit_LSR_ACC:

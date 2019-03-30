@@ -916,6 +916,23 @@ asm_x64_emit_jit_LSR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_LSR_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_LSR_ABX_RMW, asm_x64_jit_LSR_ABX_RMW_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_LSR_ABX_RMW,
+                    asm_x64_jit_LSR_ABX_RMW_mov1_patch,
+                    addr);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_LSR_ABX_RMW,
+                    asm_x64_jit_LSR_ABX_RMW_mov2_patch,
+                    (K_BBC_MEM_READ_TO_WRITE_OFFSET + addr));
+}
+
+void
 asm_x64_emit_jit_LSR_ACC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_LSR_ACC, asm_x64_jit_LSR_ACC_END);
 }

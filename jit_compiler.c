@@ -700,6 +700,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x31: /* AND idy */
+  case 0x35: /* AND zpx */
     asm_x64_emit_jit_AND_scratch(p_dest_buf);
     break;
   case 0x38:
@@ -716,6 +717,7 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x41: /* EOR idx */
   case 0x51: /* EOR idy */
+  case 0x55: /* EOR zpx */
     asm_x64_emit_jit_EOR_scratch(p_dest_buf);
     break;
   case 0x45: /* EOR zpg */
@@ -755,6 +757,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x5D:
     asm_x64_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x5E:
+    asm_x64_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x65: /* ADC zpg */
   case 0x6D: /* ADC abs */
