@@ -678,6 +678,11 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x1E:
     asm_x64_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
+  case 0x21: /* AND idx */
+  case 0x31: /* AND idy */
+  case 0x35: /* AND zpx */
+    asm_x64_emit_jit_AND_scratch(p_dest_buf);
+    break;
   case 0x24: /* BIT zpg */
   case 0x2C: /* BIT abs */
     asm_x64_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
@@ -701,10 +706,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x30:
     asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case 0x31: /* AND idy */
-  case 0x35: /* AND zpx */
-    asm_x64_emit_jit_AND_scratch(p_dest_buf);
     break;
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
