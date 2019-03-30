@@ -708,6 +708,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x39:
     asm_x64_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1);
     break;
+  case 0x3D:
+    asm_x64_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1);
+    break;
   case 0x3E:
     asm_x64_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;

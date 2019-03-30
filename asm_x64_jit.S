@@ -496,6 +496,15 @@ asm_x64_jit_AND_ABS_END:
   ret
 
 
+.globl asm_x64_jit_AND_ABX
+.globl asm_x64_jit_AND_ABX_END
+asm_x64_jit_AND_ABX:
+  and REG_6502_A, [REG_6502_X_64 + 0xFFFF]
+
+asm_x64_jit_AND_ABX_END:
+  ret
+
+
 .globl asm_x64_jit_AND_ABY
 .globl asm_x64_jit_AND_ABY_END
 asm_x64_jit_AND_ABY:

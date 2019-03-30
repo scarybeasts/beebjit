@@ -421,6 +421,14 @@ asm_x64_emit_jit_AND_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_AND_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_AND_ABX,
+                         asm_x64_jit_AND_ABX_END,
+                         addr);
+}
+
+void
 asm_x64_emit_jit_AND_ABY(struct util_buffer* p_buf, uint16_t addr) {
   asm_x86_copy_patch_u32(p_buf,
                          asm_x64_jit_AND_ABY,
