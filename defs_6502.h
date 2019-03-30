@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_DEFS_6502_H
 #define BEEBJIT_DEFS_6502_H
 
+#include <stdint.h>
+
 enum {
   k_6502_addr_space_size = 0x10000,
   k_6502_vector_nmi = 0xFFFA,
@@ -16,16 +18,16 @@ enum {
 };
 
 const char* g_p_opnames[k_6502_op_num_types];
-unsigned char g_optypes[k_6502_op_num_opcodes];
-unsigned char g_opmodes[k_6502_op_num_opcodes];
-unsigned char g_opcycles[k_6502_op_num_opcodes];
-unsigned char g_opmodelens[k_6502_op_num_modes];
-unsigned char g_opmem[k_6502_op_num_types];
-unsigned char g_opbranch[k_6502_op_num_types];
-unsigned char g_optype_uses_carry[k_6502_op_num_types];
-unsigned char g_optype_changes_carry[k_6502_op_num_types];
-unsigned char g_optype_changes_overflow[k_6502_op_num_types];
-unsigned char g_optype_sets_register[k_6502_op_num_types];
+uint8_t g_optypes[k_6502_op_num_opcodes];
+uint8_t g_opmodes[k_6502_op_num_opcodes];
+uint8_t g_opcycles[k_6502_op_num_opcodes];
+uint8_t g_opmodelens[k_6502_op_num_modes];
+uint8_t g_opmem[k_6502_op_num_types];
+uint8_t g_opbranch[k_6502_op_num_types];
+uint8_t g_optype_uses_carry[k_6502_op_num_types];
+uint8_t g_optype_changes_carry[k_6502_op_num_types];
+uint8_t g_optype_changes_overflow[k_6502_op_num_types];
+uint8_t g_optype_sets_register[k_6502_op_num_types];
 
 enum {
   k_kil = 0,

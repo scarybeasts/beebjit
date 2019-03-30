@@ -12,7 +12,7 @@ const char* g_p_opnames[k_6502_op_num_types] =
   "BEQ", "SED", "SAX", "ALR", "SLO", "SHY"
 };
 
-unsigned char g_opmem[k_6502_op_num_types] = {
+uint8_t g_opmem[k_6502_op_num_types] = {
   k_nomem, k_nomem, k_nomem, k_read , k_rw   , k_nomem, k_nomem, k_nomem,
   k_nomem, k_read , k_read , k_nomem, k_rw   , k_nomem, k_nomem, k_nomem,
   k_read , k_rw   , k_nomem, k_nomem, k_nomem, k_nomem, k_nomem, k_read ,
@@ -23,7 +23,7 @@ unsigned char g_opmem[k_6502_op_num_types] = {
   k_nomem, k_nomem, k_write, k_nomem, k_rw   , k_write,
 };
 
-unsigned char g_opbranch[k_6502_op_num_types] = {
+uint8_t g_opbranch[k_6502_op_num_types] = {
   k_bra_y, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
   k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_y,
   k_bra_n, k_bra_n, k_bra_n, k_bra_y, k_bra_m, k_bra_n, k_bra_y, k_bra_n,
@@ -34,7 +34,7 @@ unsigned char g_opbranch[k_6502_op_num_types] = {
   k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
 };
 
-unsigned char g_optype_uses_carry[k_6502_op_num_types] = {
+uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 1, 0, 0, /* PHP */
   0, 0, 0, 0, 1, 0, 0, 0, /* ROL */
   0, 0, 0, 0, 0, 0, 0, 1, /* ADC */
@@ -45,7 +45,7 @@ unsigned char g_optype_uses_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0,
 };
 
-unsigned char g_optype_changes_carry[k_6502_op_num_types] = {
+uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 1, 0, 0, 1, /* ASL, CLC */
   0, 0, 0, 1, 1, 0, 1, 1, /* PLP, ROL, SEC, RTI */
   0, 1, 0, 0, 0, 0, 0, 1, /* LSR, ADC */
@@ -56,7 +56,7 @@ unsigned char g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 1, 1, 0,       /* ALR, SLO */
 };
 
-unsigned char g_optype_changes_overflow[k_6502_op_num_types] = {
+uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 1, 1, 0, 0, 0, 1, /* BIT, PLP, RTI */
   0, 0, 0, 0, 0, 0, 0, 1, /* ADC */
@@ -67,7 +67,7 @@ unsigned char g_optype_changes_overflow[k_6502_op_num_types] = {
   0, 0, 0, 0, 0, 0,
 };
 
-unsigned char g_optype_sets_register[k_6502_op_num_types] =
+uint8_t g_optype_sets_register[k_6502_op_num_types] =
 {
   0  , 0  , 0  , k_a, 0  , 0  , 0  , 0  ,
   0  , k_a, 0  , 0  , 0  , 0  , 0  , 0  ,
@@ -79,7 +79,7 @@ unsigned char g_optype_sets_register[k_6502_op_num_types] =
   0  , 0  , 0  , k_a, k_a, 0  ,
 };
 
-unsigned char g_optypes[k_6502_op_num_opcodes] =
+uint8_t g_optypes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_brk, k_ora, k_kil, k_unk, k_nop, k_ora, k_asl, k_slo,
@@ -131,7 +131,7 @@ unsigned char g_optypes[k_6502_op_num_opcodes] =
   k_sed, k_sbc, k_unk, k_unk, k_unk, k_sbc, k_inc, k_unk,
 };
 
-unsigned char g_opmodes[k_6502_op_num_opcodes] =
+uint8_t g_opmodes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, k_zpg,
@@ -183,7 +183,7 @@ unsigned char g_opmodes[k_6502_op_num_opcodes] =
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
 };
 
-unsigned char g_opcycles[k_6502_op_num_opcodes] =
+uint8_t g_opcycles[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   7, 6, 1, 0, 3, 3, 5, 5,
@@ -236,7 +236,7 @@ unsigned char g_opcycles[k_6502_op_num_opcodes] =
 };
 
 
-unsigned char g_opmodelens[k_6502_op_num_modes] =
+uint8_t g_opmodelens[k_6502_op_num_modes] =
 {
   1, /* ??? */
   1, /* nil */
