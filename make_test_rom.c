@@ -964,7 +964,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCD40);
 
+  /* Test for a JIT optimization bug that missed ROL A changing A. */
   set_new_index(p_buf, 0x0D40);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_SEC(p_buf);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_CMP(p_buf, k_zpg, 0x00);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCD80);
+
+  set_new_index(p_buf, 0x0D80);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

@@ -1032,7 +1032,12 @@ jit_compiler_process_uop(struct jit_compiler* p_compiler,
   int32_t changes_carry = 0;
 
   if (optype != -1) {
+    assert(opcode < 256);
+    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
     opreg = g_optype_sets_register[optype];
+    if (g_opmodes[opcode] == k_acc) {
+      opreg = k_a;
+    }
     changes_carry = g_optype_changes_carry[optype];
   }
 
