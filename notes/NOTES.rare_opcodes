@@ -1,0 +1,28 @@
+Some 6502 opcodes are used more often than others.
+For reference, here are some 6502 opcodes used least commonly. These opcodes
+weren't readily seen in running basic tests and starting up games, including:
+
+- CLOCKSP
+- Exile
+- Galaforce
+- Zalaga
+- Citadel
+- Frak
+- Maze
+- Thrust
+- Palace of Magic
+- Pipeline
+- Monsters
+- Planetoid
+- Hopper
+- Meteors
+- Starship Command
+- Mr. Ee
+- Castle Quest
+- Micropower Chess
+
+0x36: ROL $00,X
+0x56: LSR $00,X
+0x61: ADC ($00,X)
+0xE1: SBC ($00,X)
+

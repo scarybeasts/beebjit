@@ -1151,6 +1151,16 @@ asm_x64_jit_LSR_ACC_END:
   ret
 
 
+.globl asm_x64_jit_LSR_scratch
+.globl asm_x64_jit_LSR_scratch_END
+asm_x64_jit_LSR_scratch:
+  # NOTE: only used for mode zpx so it's safe to assume RAM.
+  shr BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR], 1
+
+asm_x64_jit_LSR_scratch_END:
+  ret
+
+
 .globl asm_x64_jit_ORA_ABX
 .globl asm_x64_jit_ORA_ABX_END
 asm_x64_jit_ORA_ABX:
@@ -1238,6 +1248,20 @@ asm_x64_jit_ROL_ACC:
   rcl al, 1
 
 asm_x64_jit_ROL_ACC_END:
+  ret
+
+
+.globl asm_x64_jit_ROL_scratch
+.globl asm_x64_jit_ROL_scratch_END
+asm_x64_jit_ROL_scratch:
+  mov REG_SCRATCH2_8, [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+  movzx REG_SCRATCH3_32, REG_SCRATCH2_8
+  rcl REG_SCRATCH2_8, 1
+  test REG_SCRATCH2_8, REG_SCRATCH2_8
+  bt REG_SCRATCH3_32, 7
+  mov [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR], REG_SCRATCH2_8
+
+asm_x64_jit_ROL_scratch_END:
   ret
 
 

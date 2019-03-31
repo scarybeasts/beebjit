@@ -708,6 +708,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x30:
     asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x36: /* ROL zpx */
+    asm_x64_emit_jit_ROL_scratch(p_dest_buf);
+    break;
   case 0x38:
     asm_x64_emit_instruction_SEC(p_dest_buf);
     break;
@@ -754,6 +757,9 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x50:
     asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x56: /* LSR zpx */
+    asm_x64_emit_jit_LSR_scratch(p_dest_buf);
+    break;
   case 0x58:
     asm_x64_emit_instruction_CLI(p_dest_buf);
     break;
@@ -765,6 +771,11 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x5E:
     asm_x64_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    break;
+  case 0x61: /* ADC idx */
+  case 0x71: /* ADC idy */
+  case 0x75: /* ADC zpx */
+    asm_x64_emit_jit_ADC_scratch(p_dest_buf);
     break;
   case 0x65: /* ADC zpg */
   case 0x6D: /* ADC abs */
@@ -785,10 +796,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case 0x71: /* ADC idy */
-  case 0x75: /* ADC zpx */
-    asm_x64_emit_jit_ADC_scratch(p_dest_buf);
     break;
   case 0x76: /* ROR zpx */
     asm_x64_emit_jit_ROR_scratch(p_dest_buf);
@@ -968,6 +975,11 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xE0:
     asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
     break;
+  case 0xE1: /* SBC idx */
+  case 0xF1: /* SBC idy */
+  case 0xF5: /* SBC zpx */
+    asm_x64_emit_jit_SBC_scratch(p_dest_buf);
+    break;
   case 0xE4: /* CPX zpg */
   case 0xEC: /* CPX abs */
     asm_x64_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1);
@@ -991,10 +1003,6 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
     break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case 0xF1: /* SBC idy */
-  case 0xF5: /* SBC zpx */
-    asm_x64_emit_jit_SBC_scratch(p_dest_buf);
     break;
   case 0xF2:
     asm_x64_emit_instruction_CRASH(p_dest_buf);

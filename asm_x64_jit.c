@@ -943,6 +943,11 @@ asm_x64_emit_jit_LSR_ACC(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_LSR_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LSR_scratch, asm_x64_jit_LSR_scratch_END);
+}
+
+void
 asm_x64_emit_jit_ORA_ABS(struct util_buffer* p_buf, uint16_t addr) {
   asm_x86_copy_patch_u32(p_buf,
                          asm_x64_jit_ORA_ABS,
@@ -1016,6 +1021,11 @@ asm_x64_emit_jit_ROL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
 void
 asm_x64_emit_jit_ROL_ACC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_ROL_ACC, asm_x64_jit_ROL_ACC_END);
+}
+
+void
+asm_x64_emit_jit_ROL_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ROL_scratch, asm_x64_jit_ROL_scratch_END);
 }
 
 void
