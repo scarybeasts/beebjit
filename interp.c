@@ -998,6 +998,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       /* CLI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
+      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
@@ -1088,6 +1089,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       /* SEI fiddles with the interrupt disable flag so we need to tick it
        * out to get the correct ordering and behavior.
        */
+      /* TODO: this tick it out approach is slow in the common case of
+       * nothing interesting going on. Improve?
+       */
+      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       intf = 1;
       pc++;
@@ -1494,7 +1499,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
 
     countdown -= cycles_this_instruction;
 
-    do_special_checks |= (countdown <= 0);
+    do_special_checks |= (countdown < 0);
 
     if (!do_special_checks) {
       /* No countdown expired or other special situation, just fetch the next
@@ -1504,8 +1509,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       continue;
     }
 
+    /* TODO: if no countdown expired, skip this? */
+
     countdown += cycles_this_instruction;
-    assert(countdown > 0);
+    assert(countdown >= 0);
 
     /* Instructions requiring full tick-by-tick execution -- notably,
      * hardware register accesses -- are handled separately.
@@ -1517,9 +1524,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
      * at the start of the last cycle is not soon enough to be detected.
      */
     if (cycles_this_instruction <= 2) {
+      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(cycles_this_instruction);
     } else if (interp_is_branch_opcode(opcode)) {
+      INTERP_TIMING_ADVANCE(0);
       /* EMU NOTE: Taken branches have a different interrupt poll location. */
       if (cycles_this_instruction == 3) {
         /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
@@ -1548,8 +1557,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
 check_irq:
 
     if (!do_irq) {
-      /* An IRQ may have been raised after the poll point, in which case
-       * make sure to interrupt the countdown loop again next go around.
+      /* An IRQ may have been raised or unblocked after the poll point, in
+       * which case make sure to interrupt the countdown loop again next go
+       * around.
        */
       if (p_state_6502->irq_fire &&
           (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||

@@ -535,8 +535,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x04);
   emit_JMP(p_buf, k_abs, 0xC7C0);
 
-  /* Exit sequence. */
+  /* Test an interrupt landing exactly on the boundary of CLI / SEI pair. */
   set_new_index(p_buf, 0x07C0);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Timer value: 1, 0 (x0.5). */
+  emit_CLI(p_buf);                /* Timer value: 0 (x0.5), -1 (x0.5). */
+  emit_SEI(p_buf);                /* IRQ should be raised after this SEI. */
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xC800);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0800);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

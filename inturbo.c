@@ -584,11 +584,6 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
   struct timing_struct* p_timing = p_inturbo->driver.p_timing;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-  /* TODO: get rid of this. */
-  if (countdown <= 0) {
-    countdown = timing_advance_time(p_timing, countdown);
-  }
-
   uint32_t ret = interp_enter_with_details(p_interp,
                                            countdown,
                                            inturbo_interp_instruction_callback,
