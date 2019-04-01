@@ -300,9 +300,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Code invalidation for writes, aka. self-modifying code. */
+  /* TODO: only do zero page invalidations if the program needs it. */
+  /* TODO: stack page invalidations. */
   if (opmem == k_write || opmem == k_rw) {
     switch (opmode) {
     case k_abs:
+    case k_zpg:
       p_uop->opcode = k_opcode_WRITE_INV_ABS;
       p_uop->value1 = main_value1;
       p_uop->optype = -1;
@@ -328,6 +331,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       break;
     case k_idx:
     case k_idy:
+    case k_zpx:
+    case k_zpy:
       p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
       p_uop->optype = -1;
       p_uop++;

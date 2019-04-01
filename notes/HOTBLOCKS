@@ -143,3 +143,37 @@ Notes on hot 6502 instruction sequences for various programs.
 [ITRP] 0F92: STA ($70),Y
 [ITRP] 0F94: RTS
 
+
+- Stryker's Run
+1) Delay loop on T2CH
+[ITRP] 2B2C: LDA $FE49
+[ITRP] 2B2F: CMP #$70
+[ITRP] 2B31: BCS $2B2C
+
+2) Unclear, something that relies on T2CH, randomness?
+[ITRP] 2FD6: LDA $FE69
+[ITRP] 2FD9: EOR #$FF
+[ITRP] 2FDB: STA $CF
+[ITRP] 2FDD: LDA $1B05,Y
+[ITRP] 2FE0: CMP $CF
+[ITRP] 2FE2: BCS $2FEC
+[ITRP] 2FE4: ADC #$08
+[ITRP] 2FE6: CMP $CF
+[ITRP] 2FE8: BCC $2FEC
+[ITRP] 2FEA: CLC
+[ITRP] 2FEB: RTS
+[ITRP] 2FEC: SEC
+[ITRP] 2FED: RTS
+
+3) Plotting
+[ITRP] 0038: LDA ($3F),Y
+[ITRP] 003A: AND #$FF
+[ITRP] 003C: EOR #$28
+[ITRP] 003E: STA $7323
+[ITRP] 0041: LDA $3F
+[ITRP] 0043: AND #$07
+[ITRP] 0045: BEQ $0050
+[ITRP] 0047: DEC $3F
+[ITRP] 0049: DEX
+[ITRP] 004A: BNE $0038
+

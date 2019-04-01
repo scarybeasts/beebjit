@@ -170,6 +170,36 @@ arriving in the last cycle of the LDA #$02 or the first three cycles of the
 BIT.
 
 
+- Snapper-v1.zip
+SHA256: 0829a362d305ee3ec238882780c279d27f26e18e9d4408f830d4e7d9b0e29a68
+IRQ1V @ $0204: $DC93 (default)
+Notes:
+- Interesting wait loop at $10D3, which is simply polling $FE60 waiting for it
+to change. This value automagically changes in the hardware as the user VIA
+timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
+the timer interrupt and indeed the IER for the user VIA is 0x00.
+
+
+- StrykersRun.zip
+SHA256: 28fd9fe27a55d5ddecee840c0f9b7a28b22a137f25ae5c91c18aae6a4e2c3c36
+Notes:
+- Interesting wait loop at $2B2C, waiting for sysvia T2CH to hit a certain
+value.
+- Some form of screen plotting loop at $0038 (yes, zero page). Looks to be
+hosted there in order for speed; uses a self-modifying DEC $3F in a tight loop,
+where the DEC influences both an LDA idy and STA abs:
+[ITRP] 0038: LDA ($3F),Y
+[ITRP] 003A: AND #$55
+[ITRP] 003C: EOR #$28
+[ITRP] 003E: STA $7363
+[ITRP] 0041: LDA $3F
+[ITRP] 0043: AND #$07
+[ITRP] 0045: BEQ $0050
+[ITRP] 0047: DEC $3F
+[ITRP] 0049: DEX
+[ITRP] 004A: BNE $0038
+
+
 - Syncron.zip
 SHA256: 0bdec178a5b680715b0ac58e74eb3290e1427144f05ca5b47434d66afa782aa5
 Start PC: $7400
@@ -190,16 +220,6 @@ Notes:
 2) There's test for vsync: BIT $FE4D at $24D9. The followed BEQ at $24DC can be
 nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
-
-
-- Snapper-v1.zip
-SHA256: 0829a362d305ee3ec238882780c279d27f26e18e9d4408f830d4e7d9b0e29a68
-IRQ1V @ $0204: $DC93 (default)
-Notes:
-- Interesting wait loop at $10D3, which is simply polling $FE60 waiting for it
-to change. This value automagically changes in the hardware as the user VIA
-timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
-the timer interrupt and indeed the IER for the user VIA is 0x00.
 
 
 - Zalaga.zip
