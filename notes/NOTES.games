@@ -222,6 +222,21 @@ nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
 
 
+- Wizadore.zip
+SHA256: 5811de44e405c1cbd2ec8272e6eb58d12ef384368edd59bab602fa0c3a500274
+Notes:
+1) Same zero page plotting routing as Stryker's Run above (same author), but at
+$006C.
+2) Possible bug in vsync wait loop at $1ED1?
+[ITRP] 1ED1: BIT $FE4D
+[ITRP] 1ED4: BEQ $1ED1
+[ITRP] 1ED6: LDA #$82
+[ITRP] 1ED8: STA $FE4E
+[ITRP] 1EDB: RTS
+The loop will exit for non-vsync interrupts, depending on timings. This
+includes T1 and keyboard.
+
+
 - Zalaga.zip
 SHA256: 76b0a9c7fe4ff72b778c621bf044d3f3fc7f0bd46e6076de5e87ddc5ec0a44e9
 Notes:
