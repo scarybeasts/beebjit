@@ -556,6 +556,15 @@ asm_x64_jit_ASL_ABS_RMW_END:
   ret
 
 
+.globl asm_x64_jit_ASL_ABX
+.globl asm_x64_jit_ASL_ABX_END
+asm_x64_jit_ASL_ABX:
+  shl BYTE PTR [REG_6502_X_64 + 0xFFFF], 1
+
+asm_x64_jit_ASL_ABX_END:
+  ret
+
+
 .globl asm_x64_jit_ASL_ABX_RMW
 .globl asm_x64_jit_ASL_ABX_RMW_mov1_patch
 .globl asm_x64_jit_ASL_ABX_RMW_mov2_patch
@@ -850,6 +859,15 @@ asm_x64_jit_DEC_ABS_RMW_END:
   ret
 
 
+.globl asm_x64_jit_DEC_ABX
+.globl asm_x64_jit_DEC_ABX_END
+asm_x64_jit_DEC_ABX:
+  dec BYTE PTR [REG_6502_X_64 + 0xFFFF]
+
+asm_x64_jit_DEC_ABX_END:
+  ret
+
+
 .globl asm_x64_jit_DEC_ABX_RMW
 .globl asm_x64_jit_DEC_ABX_RMW_mov1_patch
 .globl asm_x64_jit_DEC_ABX_RMW_mov2_patch
@@ -941,6 +959,15 @@ asm_x64_jit_INC_ABS_RMW_mov1_patch:
 asm_x64_jit_INC_ABS_RMW_mov2_patch:
 
 asm_x64_jit_INC_ABS_RMW_END:
+ ret
+
+
+.globl asm_x64_jit_INC_ABX
+.globl asm_x64_jit_INC_ABX_END
+asm_x64_jit_INC_ABX:
+  inc BYTE PTR [REG_6502_X_64 + 0xFFFF]
+
+asm_x64_jit_INC_ABX_END:
   ret
 
 
@@ -1124,6 +1151,15 @@ asm_x64_jit_LSR_ABS_RMW_mov1_patch:
 asm_x64_jit_LSR_ABS_RMW_mov2_patch:
 
 asm_x64_jit_LSR_ABS_RMW_END:
+  ret
+
+
+.globl asm_x64_jit_LSR_ABX
+.globl asm_x64_jit_LSR_ABX_END
+asm_x64_jit_LSR_ABX:
+  shr BYTE PTR [REG_6502_X_64 + 0xFFFF], 1
+
+asm_x64_jit_LSR_ABX_END:
   ret
 
 

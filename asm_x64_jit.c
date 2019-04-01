@@ -475,6 +475,14 @@ asm_x64_emit_jit_ASL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_ASL_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_ASL_ABX,
+                         asm_x64_jit_ASL_ABX_END,
+                         addr);
+}
+
+void
 asm_x64_emit_jit_ASL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -685,6 +693,14 @@ asm_x64_emit_jit_DEC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_DEC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_DEC_ABX,
+                         asm_x64_jit_DEC_ABX_END,
+                         addr);
+}
+
+void
 asm_x64_emit_jit_DEC_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -766,6 +782,14 @@ asm_x64_emit_jit_INC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_INC_ABS_RMW,
                     asm_x64_jit_INC_ABS_RMW_mov2_patch,
                     (K_BBC_MEM_WRITE_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_INC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_INC_ABX,
+                         asm_x64_jit_INC_ABX_END,
+                         addr);
 }
 
 void
@@ -918,6 +942,14 @@ asm_x64_emit_jit_LSR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_LSR_ABS_RMW,
                     asm_x64_jit_LSR_ABS_RMW_mov2_patch,
                     (K_BBC_MEM_WRITE_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_LSR_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_LSR_ABX,
+                         asm_x64_jit_LSR_ABX_END,
+                         addr);
 }
 
 void

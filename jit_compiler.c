@@ -682,8 +682,14 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x1D:
     asm_x64_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
     break;
-  case 0x1E:
-    asm_x64_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
+  case 0x1E: /* ASL abx */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
+        p_memory_access->memory_is_always_ram(p_memory_object,
+                                              (value1 + 0xFF))) {
+      asm_x64_emit_jit_ASL_ABX(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x21: /* AND idx */
   case 0x31: /* AND idy */
@@ -778,8 +784,14 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x5D:
     asm_x64_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
     break;
-  case 0x5E:
-    asm_x64_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
+  case 0x5E: /* LSR abx */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
+        p_memory_access->memory_is_always_ram(p_memory_object,
+                                              (value1 + 0xFF))) {
+      asm_x64_emit_jit_LSR_ABX(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x61: /* ADC idx */
   case 0x71: /* ADC idy */
@@ -980,9 +992,14 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xDD:
     asm_x64_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1);
     break;
-  case 0xDE:
-    /* TODO: use non-RMW version if we know we're hitting RAM. */
-    asm_x64_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+  case 0xDE: /* DEC abx */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
+        p_memory_access->memory_is_always_ram(p_memory_object,
+                                              (value1 + 0xFF))) {
+      asm_x64_emit_jit_DEC_ABX(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0xE0:
     asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
@@ -1034,9 +1051,14 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xFD:
     asm_x64_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1);
     break;
-  case 0xFE:
-    /* TODO: use non-RMW version if we know we're hitting RAM. */
-    asm_x64_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+  case 0xFE: /* INC abx */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
+        p_memory_access->memory_is_always_ram(p_memory_object,
+                                              (value1 + 0xFF))) {
+      asm_x64_emit_jit_INC_ABX(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   default:
     asm_x64_emit_instruction_ILLEGAL(p_dest_buf);
