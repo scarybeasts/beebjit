@@ -26,15 +26,12 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
 ./make_test_rom
 ./make_timing_rom
 
-echo 'Running built-in tests.'
+#echo 'Running built-in tests.'
 #./6502jit -t
-#echo 'Running test.rom, JIT, debug.'
-#./6502jit -os test.rom -expect 434241 -mode jit -opt jit:self-mod-all -d -r
-#echo 'Running test.rom, JIT, opt.'
-#./6502jit -os test.rom -expect 434241 -mode jit -opt jit:self-mod-all
-#echo 'Running test.rom, JIT, opt, no-batch-ops.'
-#./6502jit -os test.rom -expect 434241 -mode jit \
-#          -opt jit:self-mod-all,jit:no-batch-ops
+echo 'Running test.rom, JIT.'
+./6502jit -os test.rom -expect 434241 -mode jit
+echo 'Running test.rom, JIT, debug.'
+./6502jit -os test.rom -expect 434241 -mode jit -d -r
 echo 'Running test.rom, interpreter.'
 ./6502jit -os test.rom -expect 434241 -mode interp
 echo 'Running test.rom, interpreter, debug, print.'
