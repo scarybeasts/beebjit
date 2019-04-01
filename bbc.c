@@ -109,7 +109,7 @@ struct bbc_struct {
 };
 
 static int
-bbc_is_ram_address(void* p, uint16_t addr) {
+bbc_is_always_ram_address(void* p, uint16_t addr) {
   (void) p;
 
   return (addr < k_bbc_ram_size);
@@ -569,12 +569,12 @@ bbc_create(int mode,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
-  (void) memset(p_bbc->p_mem_sideways, '\0', k_bbc_rom_size * k_bbc_num_roms);
+  (void) memset(p_bbc->p_mem_sideways, '\0', (k_bbc_rom_size * k_bbc_num_roms));
 
   /* Install the dummy writeable ROM region. */
   (void) util_get_fixed_anonymous_mapping(
-      p_bbc->p_mem_write + k_bbc_ram_size,
-      k_6502_addr_space_size - k_bbc_ram_size);
+      (p_bbc->p_mem_write + k_bbc_ram_size),
+      (k_6502_addr_space_size - k_bbc_ram_size));
   /* Make the registers page inaccessible. Typical ROM faults happen lower. */
   /* TODO: consider re-enabling. Decision is whether we want to handle indirect
    * writes (and maybe reads) to 0xF000 -> 0xFFFF via a fault or via extra
@@ -590,7 +590,7 @@ bbc_create(int mode,
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
   p_bbc->memory_access.p_callback_obj = p_bbc;
-  p_bbc->memory_access.memory_is_ram = bbc_is_ram_address;
+  p_bbc->memory_access.memory_is_always_ram = bbc_is_always_ram_address;
   p_bbc->memory_access.memory_read_needs_callback_above =
       bbc_read_needs_callback_above;
   p_bbc->memory_access.memory_write_needs_callback_above =

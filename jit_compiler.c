@@ -525,11 +525,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 }
 
 static void
-jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
+jit_compiler_emit_uop(struct jit_compiler* p_compiler,
+                      struct util_buffer* p_dest_buf,
                       struct jit_uop* p_uop) {
   int opcode = p_uop->opcode;
   int value1 = p_uop->value1;
   int value2 = p_uop->value2;
+  struct memory_access* p_memory_access = p_compiler->p_memory_access;
+  void* p_memory_object = p_memory_access->p_callback_obj;
 
   switch (opcode) {
   case k_opcode_countdown:
@@ -657,9 +660,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x0A:
     asm_x64_emit_jit_ASL_ACC(p_dest_buf);
     break;
-  case 0x0E:
-    /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+  case 0x0E: /* ASL abs */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x10:
     asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
@@ -750,9 +756,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0x4C:
     asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
-  case 0x4E:
-    /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+  case 0x4E: /* LSR abs */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x50:
     asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
@@ -949,9 +958,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xCA:
     asm_x64_emit_instruction_DEX(p_dest_buf);
     break;
-  case 0xCE:
-    /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+  case 0xCE: /* DEC abs */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
@@ -997,9 +1009,12 @@ jit_compiler_emit_uop(struct util_buffer* p_dest_buf,
   case 0xE9:
     asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
     break;
-  case 0xEE:
-    /* TODO: use the zpg mode version if we know we're hitting RAM. */
-    asm_x64_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+  case 0xEE: /* INC abs */
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
@@ -1086,7 +1101,7 @@ jit_compiler_process_uop(struct jit_compiler* p_compiler,
     break;
   }
 
-  jit_compiler_emit_uop(p_dest_buf, p_uop);
+  jit_compiler_emit_uop(p_compiler, p_dest_buf, p_uop);
 
   /* Update known state of registers, flags, etc. */
   switch (opreg) {
