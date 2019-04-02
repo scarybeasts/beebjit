@@ -108,7 +108,7 @@ debug_create(struct bbc_struct* p_bbc,
   }
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
-    p_debug->warn_at_addr_count[i] = 1;
+    p_debug->warn_at_addr_count[i] = 10;
   }
 
   return p_debug;
@@ -585,94 +585,71 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
                     int is_register,
                     int wrapped_8bit,
                     int wrapped_16bit) {
+  int warned;
   struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
-
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
-  int warned = 0;
-  int has_code = p_cpu_driver->p_funcs->address_has_code(p_cpu_driver,
-                                                         addr_6502);
 
-  /* Currently unimplemented and untrapped: indirect reads into the hardware
-   * register space.
-   */
+  if (!warn_count) {
+    return;
+  }
+
+  warned = 0;
+
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
-    (void) printf("Indirect access to register %.4X at %.4X\n",
+    (void) printf("DEBUG (UNUSUAL): Indirect access to register %.4X at %.4X\n",
                   addr_6502,
                   reg_pc);
-    p_debug->debug_running = 0;
+    warned = 1;
   }
 
-  /* Handled via various means (sometimes SIGSEGV handler!) but worth noting. */
+  /* Handled via various means but worth noting. */
   if (is_write && is_rom) {
-    if (warn_count) {
-      (void) printf("UNUSUAL: Code at %.4X is writing to ROM at %.4X\n",
-                    reg_pc,
-                    addr_6502);
-      warned = 1;
-    }
+    (void) printf("DEBUG: Code at %.4X is writing to ROM at %.4X\n",
+                  reg_pc,
+                  addr_6502);
+    warned = 1;
   }
 
-  /* Currently unimplemented and untrapped.
-   * NOTE: this is now implmented but I've never seen a game use it, so keeping
-   * it in so we can find such a game and write some notes about it.
-   */
-  if (is_write && has_code) {
-    if (warn_count) {
-      (void) printf("Code at %.4X modifying code at %.4X\n",
-                    reg_pc,
-                    addr_6502);
-      warned = 1;
-    }
-    if (addr_6502 < 0x3000 && (opmode == k_idx || opmode == k_idy)) {
-      (void) printf("Indirect write at %.4X to %.4X\n", reg_pc, addr_6502);
-      p_debug->debug_running = 0;
-    }
-  }
-
-  /* Look for zero page wrap or full address space wraps. We want to prove
-   * these are unusual to move to more fault-based fixups.
-   */
+  /* Look for zero page wrap or full address space wraps. */
   if ((opmode != k_rel) && wrapped_8bit) {
-    if (warn_count) {
-      if (opmode == k_idx) {
-        (void) printf("VERY UNUSUAL: 8-bit IDX ADDRESS WRAP at %.4X to %.4X\n",
-                      reg_pc,
-                      ((uint8_t) (operand1 + reg_x)));
-      } else {
-        (void) printf("UNUSUAL: 8-bit ADDRESS WRAP at %.4X to %.4X\n",
-                      reg_pc,
-                      addr_6502);
-      }
+    if (opmode == k_idx) {
+      (void) printf("DEBUG (VERY UNUSUAL): "
+                    "8-bit IDX ADDRESS WRAP at %.4X to %.4X\n",
+                    reg_pc,
+                    ((uint8_t) (operand1 + reg_x)));
+      warned = 1;
+    } else {
+      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at %.4X to %.4X\n",
+                    reg_pc,
+                    addr_6502);
       warned = 1;
     }
   }
   if (wrapped_16bit) {
-    if (warn_count) {
-      (void) printf("VERY UNUSUAL: 16-bit ADDRESS WRAP at %.4X to %.4X\n",
-                    reg_pc,
-                    addr_6502);
-      warned = 1;
-    }
-    p_debug->debug_running = 0;
+    (void) printf("DEBUG (VERY UNUSUAL): 16-bit ADDRESS WRAP at %.4X to %.4X\n",
+                  reg_pc,
+                  addr_6502);
+    warned = 1;
   }
 
   if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
-    if (warn_count) {
-      (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
-      warned = 1;
-    }
-    p_debug->debug_running = 0;
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at %.4X\n", reg_pc);
+    warned = 1;
   } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
-    if (warn_count) {
-      (void) printf("VERY UNUSUAL: $FF ADDRESS FETCH at %.4X\n", reg_pc);
-      warned = 1;
-    }
-    p_debug->debug_running = 0;
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at %.4X\n", reg_pc);
+    warned = 1;
   }
 
-  if (warned) {
-    p_debug->warn_at_addr_count[reg_pc]--;
+  if (!warned) {
+    return;
   }
+
+  warn_count--;
+  if (!warn_count) {
+    (void) printf("DEBUG: log suppressed for this address\n");
+  }
+
+  p_debug->warn_at_addr_count[reg_pc] = warn_count;
 }
 
 static void
