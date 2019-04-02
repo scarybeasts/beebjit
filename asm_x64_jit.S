@@ -97,7 +97,7 @@ asm_x64_jit_check_countdown_pc_patch:
   mov REG_SCRATCH1, REG_COUNTDOWN
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 asm_x64_jit_check_countdown_count_patch:
-  bt REG_COUNTDOWN, 15
+  bt REG_COUNTDOWN, 63
   jb 0
 asm_x64_jit_check_countdown_jump_patch:
 
