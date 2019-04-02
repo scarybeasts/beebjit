@@ -21,6 +21,8 @@
 
 static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
 static const int k_jit_bytes_per_byte = 256;
+static void* k_jit_trampolines_addr = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
+static const int k_jit_trampoline_bytes_per_byte = 16;
 
 struct jit_struct {
   struct cpu_driver driver;
@@ -33,6 +35,7 @@ struct jit_struct {
 
   /* Fields not referenced by JIT'ed code. */
   uint8_t* p_jit_base;
+  uint8_t* p_jit_trampolines;
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
@@ -198,8 +201,9 @@ jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
 
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
+  size_t mapping_size;
+
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  size_t mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
@@ -209,7 +213,10 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
 
   jit_compiler_destroy(p_jit->p_compiler);
 
+  mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
   util_free_guarded_mapping(k_jit_addr, mapping_size);
+  mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
+  util_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
 }
 
 static uint32_t
@@ -264,6 +271,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   size_t i;
   size_t mapping_size;
   uint8_t* p_jit_base;
+  uint8_t* p_jit_trampolines;
+  struct util_buffer* p_temp_buf;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
@@ -304,8 +313,23 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
   p_jit_base = util_get_guarded_mapping(k_jit_addr, mapping_size);
   util_make_mapping_read_write_exec(p_jit_base, mapping_size);
+  /* Fill with int3. */
+  (void) memset(p_jit_base, '\xcc', mapping_size);
+
+  /* This is the mapping that holds trampolines to jump out of JIT. These
+   * one-per-6502-address trampolines enable the core JIT code to be simpler
+   * and smaller, at the expense of more complicated bridging between JIT and
+   * interp.
+   */
+  mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
+  p_jit_trampolines = util_get_guarded_mapping(k_jit_trampolines_addr,
+                                               mapping_size);
+  util_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
+  /* Fill with int3. */
+  (void) memset(p_jit_trampolines, '\xcc', mapping_size);
 
   p_jit->p_jit_base = p_jit_base;
+  p_jit->p_jit_trampolines = p_jit_trampolines;
   p_jit->p_compiler = jit_compiler_create(p_memory_access,
                                           jit_get_block_host_address_callback,
                                           jit_get_jit_ptr_block_callback,
@@ -313,14 +337,19 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                           &p_jit->jit_ptrs[0],
                                           p_options,
                                           debug);
-  p_jit->p_temp_buf = util_buffer_create();
+  p_temp_buf = util_buffer_create();
+  p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();
 
-  /* Fill with int3. */
-  (void) memset(p_jit_base, '\xcc', mapping_size);
-
   for (i = 0; i < k_6502_addr_space_size; ++i) {
+    /* Initialize JIT code. */
     jit_invalidate_block_address(p_jit, i);
+    /* Initialize JIT trampoline. */
+    util_buffer_setup(
+        p_temp_buf,
+        (p_jit_trampolines + (i * k_jit_trampoline_bytes_per_byte)),
+        k_jit_trampoline_bytes_per_byte);
+    asm_x64_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
 }
 

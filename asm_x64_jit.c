@@ -48,6 +48,26 @@ asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
+                                        uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_jump_interp_trampoline,
+               asm_x64_jit_jump_interp_trampoline_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_jump_interp_trampoline,
+                    asm_x64_jit_jump_interp_trampoline_pc_patch,
+                    addr);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_jump_interp_trampoline,
+                     asm_x64_jit_jump_interp_trampoline_jump_patch,
+                     asm_x64_jit_interp);
+}
+
+void
 asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
                                  uint16_t addr,
                                  uint32_t count) {
@@ -97,6 +117,12 @@ asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
 void
 asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
+
+  /* Require the trampolines to be hosted above the main JIT code in virtual
+   * memory. This ensures that the (uncommon) jumps out of JIT are forward
+   * jumps, which may help on some CPUs.
+   */
+  assert(K_BBC_JIT_TRAMPOLINES_ADDR > K_BBC_JIT_ADDR);
 
   asm_x64_copy(p_buf, asm_x64_jit_jump_interp, asm_x64_jit_jump_interp_END);
   asm_x64_patch_int(p_buf,

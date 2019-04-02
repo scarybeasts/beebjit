@@ -6,6 +6,8 @@
 struct util_buffer;
 
 void asm_x64_emit_jit_call_compile_trampoline(struct util_buffer* p_buf);
+void asm_x64_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
+                                             uint16_t addr);
 void asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
                                       uint16_t addr,
                                       uint32_t count);
@@ -149,6 +151,10 @@ void asm_x64_jit_countdown_expired();
 
 void asm_x64_jit_call_compile_trampoline();
 void asm_x64_jit_call_compile_trampoline_END();
+void asm_x64_jit_jump_interp_trampoline();
+void asm_x64_jit_jump_interp_trampoline_pc_patch();
+void asm_x64_jit_jump_interp_trampoline_jump_patch();
+void asm_x64_jit_jump_interp_trampoline_END();
 void asm_x64_jit_check_countdown();
 void asm_x64_jit_check_countdown_pc_patch();
 void asm_x64_jit_check_countdown_count_patch();

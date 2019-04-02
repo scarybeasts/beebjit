@@ -86,6 +86,20 @@ asm_x64_jit_call_compile_trampoline_END:
   ret
 
 
+.globl asm_x64_jit_jump_interp_trampoline
+.globl asm_x64_jit_jump_interp_trampoline_pc_patch
+.globl asm_x64_jit_jump_interp_trampoline_jump_patch
+.globl asm_x64_jit_jump_interp_trampoline_END
+asm_x64_jit_jump_interp_trampoline:
+  mov REG_6502_PC_32, 0xFFFF
+asm_x64_jit_jump_interp_trampoline_pc_patch:
+  jmp 0
+asm_x64_jit_jump_interp_trampoline_jump_patch:
+
+asm_x64_jit_jump_interp_trampoline_END:
+  ret
+
+
 .globl asm_x64_jit_check_countdown
 .globl asm_x64_jit_check_countdown_pc_patch
 .globl asm_x64_jit_check_countdown_count_patch
