@@ -3,6 +3,7 @@
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "asm_x64_jit_defs.h"
+#include "bbc_options.h"
 #include "defs_6502.h"
 #include "memory_access.h"
 #include "util.h"
@@ -20,6 +21,7 @@ struct jit_compiler {
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
+  uint32_t max_opcodes_per_block;
 
   struct util_buffer* p_single_opcode_buf;
   struct util_buffer* p_tmp_buf;
@@ -112,9 +114,11 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
+                    struct bbc_options* p_options,
                     int debug) {
   size_t i;
   struct util_buffer* p_tmp_buf;
+  int max_opcodes_per_block = 1;
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
@@ -132,6 +136,14 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
+
+  (void) util_get_int_option(&max_opcodes_per_block,
+                             p_options->p_opt_flags,
+                             "jit:max-ops");
+  if (max_opcodes_per_block < 1) {
+    max_opcodes_per_block = 1;
+  }
+  p_compiler->max_opcodes_per_block = max_opcodes_per_block;
 
   p_compiler->p_single_opcode_buf = util_buffer_create();
   p_tmp_buf = util_buffer_create();
@@ -1184,6 +1196,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t block_max_cycles = 0;
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
   uint16_t addr_6502 = start_addr_6502;
+  uint32_t total_num_opcodes = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
@@ -1228,6 +1241,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                &opcode_details.uops[i]);
     }
 
+    total_num_opcodes++;
+
     /* TODO: continue the block after conditional branches. */
     if (opcode_details.branches != k_bra_n) {
       ends_block = 1;
@@ -1247,7 +1262,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       buf_needed += p_compiler->len_x64_jmp;
     }
 
-    if (util_buffer_remaining(p_buf) < buf_needed) {
+    if ((util_buffer_remaining(p_buf) < buf_needed) ||
+        (total_num_opcodes > p_compiler->max_opcodes_per_block)) {
       /* Not enough space; need to end this block with a jump to the next
        * address, effectively splitting the block.
        */

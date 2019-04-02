@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+struct bbc_options;
 struct jit_compiler;
 struct memory_access;
 struct util_buffer;
@@ -13,6 +14,7 @@ struct jit_compiler* jit_compiler_create(
     uint16_t (*get_jit_ptr_block)(void*, uint32_t),
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
+    struct bbc_options* p_options,
     int debug);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 

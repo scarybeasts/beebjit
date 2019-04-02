@@ -311,6 +311,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                           jit_get_jit_ptr_block_callback,
                                           p_jit,
                                           &p_jit->jit_ptrs[0],
+                                          p_options,
                                           debug);
   p_jit->p_temp_buf = util_buffer_create();
   p_jit->p_compile_buf = util_buffer_create();
