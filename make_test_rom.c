@@ -975,7 +975,16 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCD80);
 
+  /* Test for 16-bit wrap of aby mode. */
   set_new_index(p_buf, 0x0D80);
+  emit_LDA(p_buf, k_imm, 0x65);
+  emit_STA(p_buf, k_zpg, 0x5E);
+  emit_LDY(p_buf, k_imm, 0xFB);
+  emit_LDA(p_buf, k_aby, 0xFF63);
+  emit_REQUIRE_EQ(p_buf, 0x65);
+  emit_JMP(p_buf, k_abs, 0xCDC0);
+
+  set_new_index(p_buf, 0x0DC0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

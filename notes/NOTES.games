@@ -75,6 +75,12 @@ Notes:
 5) Lots of self-modifying code.
 6) Seems to use zero-page wraparound for zero page X addressing mode at $223D
 with ADC $B6,X. And some further instances below.
+7) Loader routine at $2CE2 is doing some unusual 16-bit wraps:
+[ITRP] 2CE2: LDA $FF63,Y
+[ITRP] 2CE5: SBC $FF6C,Y
+[ITRP] 2CE8: INY
+[ITRP] 2CE9: BNE $2CE2
+[...]
 
 
 - Firetrack.zip

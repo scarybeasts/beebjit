@@ -252,6 +252,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (opmode == k_abx || opmode == k_aby) {
       addr_range_end += 0xFF;
     }
+    /* Use the interpreter for address space wraps. Otherwise the JIT code
+     * will do an out-of-bounds access. Longer term, this could be addressed,
+     * with performance maintained, by mapping a wrap-around page.
+     */
+    if (addr_range_start > addr_range_end) {
+      use_interp = 1;
+    }
     if (opmem == k_read || opmem == k_rw) {
       if (p_memory_access->memory_read_needs_callback(p_memory_callback,
                                                       addr_range_start)) {
