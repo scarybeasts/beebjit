@@ -167,6 +167,26 @@ asm_x64_jit_CHECK_BCD_END:
   ret
 
 
+.globl asm_x64_jit_CHECK_PENDING_IRQ
+.globl asm_x64_jit_CHECK_PENDING_IRQ_pc_patch
+.globl asm_x64_jit_CHECK_PENDING_IRQ_jump_patch
+.globl asm_x64_jit_CHECK_PENDING_IRQ_END
+asm_x64_jit_CHECK_PENDING_IRQ:
+  mov REG_6502_PC, 0xFFFF
+asm_x64_jit_CHECK_PENDING_IRQ_pc_patch:
+  # TODO: could use a register for IRQ_FIRE, if CLI / PLP is common?
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH2_32, \
+      DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+  lea REG_SCRATCH2_32, [REG_SCRATCH2 - 1]
+  bt REG_SCRATCH2_32, 31
+  jae 0
+asm_x64_jit_CHECK_PENDING_IRQ_jump_patch:
+
+asm_x64_jit_CHECK_PENDING_IRQ_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:

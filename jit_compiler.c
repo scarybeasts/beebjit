@@ -61,6 +61,7 @@ enum {
   k_opcode_ADD_IMM,
   k_opcode_ADD_Y_SCRATCH,
   k_opcode_CHECK_BCD,
+  k_opcode_CHECK_PENDING_IRQ,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
@@ -379,6 +380,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop++;
     break;
+  case k_cli:
+  case k_plp:
+    p_uop->opcode = k_opcode_CHECK_PENDING_IRQ;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop++;
+    break;
   case k_jsr:
     p_uop->opcode = k_opcode_PUSH_16;
     p_uop->optype = -1;
@@ -386,6 +394,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_rti:
+    p_uop->opcode = k_opcode_CHECK_PENDING_IRQ;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop++;
     /* PLP */
     p_uop->opcode = 0x28;
     p_uop->optype = k_plp;
@@ -571,6 +583,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_CHECK_BCD:
     asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_CHECK_PENDING_IRQ:
+    asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
