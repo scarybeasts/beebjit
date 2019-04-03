@@ -302,6 +302,7 @@ asm_x64_jit_MODE_IND_SCRATCH:
   # This jumps if the indirect address was 0xFF.
   # Pretty much never happens so we optimize for full word fetches from zero
   # page addresses 0x00 -> 0xFE.
+  # TODO: benchmark to confirm this is faster.
   bt REG_SCRATCH2_32, 8
   jb 0
 asm_x64_jit_MODE_IND_SCRATCH_jump_patch:

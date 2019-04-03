@@ -195,6 +195,7 @@ void asm_x64_inturbo_mode_zpx_END();
 void asm_x64_inturbo_mode_zpy();
 void asm_x64_inturbo_mode_zpy_END();
 void asm_x64_inturbo_mode_idx();
+void asm_x64_inturbo_mode_idx_jump_patch();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();
 void asm_x64_inturbo_mode_idy_END();

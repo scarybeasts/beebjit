@@ -250,9 +250,16 @@ asm_x64_emit_inturbo_mode_zpy(struct util_buffer* p_buf) {
 
 void
 asm_x64_emit_inturbo_mode_idx(struct util_buffer* p_buf) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   asm_x64_copy(p_buf,
                asm_x64_inturbo_mode_idx,
                asm_x64_inturbo_mode_idx_END);
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_inturbo_mode_idx,
+                     asm_x64_inturbo_mode_idx_jump_patch,
+                     asm_x64_inturbo_call_interp);
 }
 
 void

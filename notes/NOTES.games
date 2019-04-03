@@ -23,20 +23,6 @@ read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
 
 
-- Citadel.zip
-SHA256: 741b4efd3b5be7092b09c63529e1104b428d0474b4556d8720a4110b31ec3863
-IRQ1V @ $0204: $DC93 (default)
-EVNTV @ $0220: $2500
-Notes:
-1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
-2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
-3) Breaking at $55E8 is where the main game has finished loading from disk.
-4) Need to load the loader first to select key layout for main game to work.
-5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
-$2500 simply does INC $0120; RTS.
-6) Trampoline bounce noise uses periodic white noise with very long period.
-
-
 - CastleQuest.zip
 SHA256: 78ee6b55a6fec679240abd576a83554ba374513d10bd5aff5de4824a114decb1
 Start PC: $5460
@@ -56,6 +42,37 @@ The bug can be confirmed in other emulators by running the game via:
 *CASTLE7
 and holding down RETURN indefinitely. When the game starts, the keyboard won't
 work. Lovely!
+
+
+- Camelot.zip
+SHA256: d8c2766fb6385ce22efaa5b3d4e2b70863c4a908b24c17709cbc576dfa3c1474
+Notes:
+1) Crazy loop that runs when an enemy dies (have to be touching as dies).
+[ITRP] 2A72: LDX #$01
+[ITRP] 2A74: STX $24
+[ITRP] 2A76: DEX
+[ITRP] 2A77: LDA ($70,X)
+[ITRP] 2A79: LDA ($70,X)
+[ITRP] 2A7B: DEX
+[ITRP] 2A7C: BNE $2A77
+That reads from tons of quasi-random pointers which may well have side effects
+for those in the hardware register space.
+Also does one read where X == 0x8F, leading to a 16-bit pointer being fetched
+from $FF and (wrapped) $00, which is very rare.
+
+
+- Citadel.zip
+SHA256: 741b4efd3b5be7092b09c63529e1104b428d0474b4556d8720a4110b31ec3863
+IRQ1V @ $0204: $DC93 (default)
+EVNTV @ $0220: $2500
+Notes:
+1) Opcode 0x04, NOP zp undocumented instruction used in loader at $549D.
+2) Opcode 0x9C, SHY abx undocumented instruction at $55CB.
+3) Breaking at $55E8 is where the main game has finished loading from disk.
+4) Need to load the loader first to select key layout for main game to work.
+5) Loops at $4110 waiting for 4 vsync ticks, read from $0120. Event handler at
+$2500 simply does INC $0120; RTS.
+6) Trampoline bounce noise uses periodic white noise with very long period.
 
 
 - Exile.zip

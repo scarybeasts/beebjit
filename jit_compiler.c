@@ -295,6 +295,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     p_uop->opcode = k_opcode_MODE_IND_SCRATCH;
     p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
     p_uop++;
     break;
   case k_idy:
@@ -571,6 +572,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_countdown:
   case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
+  case k_opcode_MODE_IND_SCRATCH:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
     break;
@@ -634,7 +636,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_MODE_IND(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_MODE_IND_SCRATCH:
-    asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);
+    asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf, (void*) (size_t) value1);
     break;
   case k_opcode_MODE_ZPX:
     asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
