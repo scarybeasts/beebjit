@@ -197,7 +197,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   void* p_memory_callback = p_memory_access->p_callback_obj;
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
-  int jump_fixup = 0;
   int32_t main_value1 = -1;
   struct jit_uop* p_uop = &p_details->uops[0];
   struct jit_uop* p_first_post_debug_uop = p_uop;
@@ -245,15 +244,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_rel:
     main_value1 = ((int) addr_6502 + 2 + (int8_t) p_mem_read[addr_plus_1]);
-    jump_fixup = 1;
     break;
   case k_abs:
   case k_abx:
   case k_aby:
     main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
-    if (optype == k_jmp || optype == k_jsr) {
-      jump_fixup = 1;
-    }
     addr_range_start = main_value1;
     addr_range_end = main_value1;
     if (opmode == k_abx || opmode == k_aby) {
@@ -557,13 +552,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
 
-  if (jump_fixup) {
-    p_main_uop->value1 =
-        (int32_t) (size_t) p_compiler->get_block_host_address(
-            p_compiler->p_host_address_object,
-            p_main_uop->value1);
-  }
-
   return (p_uop - &p_details->uops[0]);
 }
 
@@ -584,8 +572,19 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
-        p_host_address_object,
-        (uint16_t) value1);
+        p_host_address_object, (uint16_t) value1);
+    break;
+  case 0x4C: /* JMP abs */
+  case 0x10: /* All of the conditional branches. */
+  case 0x30:
+  case 0x50:
+  case 0x70:
+  case 0x90:
+  case 0xB0:
+  case 0xD0:
+  case 0xF0:
+    value1 = (uint32_t) (size_t) p_compiler->get_block_host_address(
+        p_host_address_object, (uint16_t) value1);
     break;
   default:
     break;
@@ -1292,9 +1291,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       ends_block = 1;
       if (opcode_details.branches == k_bra_m) {
         opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
-        opcode_details.uops[0].value1 =
-            (int32_t) (size_t) p_compiler->get_block_host_address(
-                p_compiler->p_host_address_object, (addr_6502 + 2));
+        opcode_details.uops[0].value1 = (addr_6502 + 2);
         jit_compiler_process_uop(p_compiler,
                                  p_single_opcode_buf,
                                  &opcode_details.uops[0]);
@@ -1313,9 +1310,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
        */
       util_buffer_set_pos(p_single_opcode_buf, 0);
       opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
-      opcode_details.uops[0].value1 =
-          (int32_t) (size_t) p_compiler->get_block_host_address(
-              p_compiler->p_host_address_object, addr_6502);
+      opcode_details.uops[0].value1 = addr_6502;
       jit_compiler_process_uop(p_compiler,
                                p_single_opcode_buf,
                                &opcode_details.uops[0]);
