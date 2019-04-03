@@ -57,6 +57,13 @@ jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   return jit_get_jit_base_addr(p_jit, addr_6502);
 }
 
+static void*
+jit_get_trampoline_host_address_callback(void* p, uint16_t addr_6502) {
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+  return (p_jit->p_jit_trampolines +
+          (addr_6502 * k_jit_trampoline_bytes_per_byte));
+}
+
 static uint16_t
 jit_get_jit_ptr_block_callback(void* p, uint32_t jit_ptr) {
   size_t ret;
@@ -183,8 +190,15 @@ jit_interp_instruction_callback(void* p,
 
 static int64_t
 jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
+  struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct timing_struct* p_timing = p_jit->driver.p_timing;
   struct interp_struct* p_interp = p_jit->p_interp;
+  struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
+
+  /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
+   * that was temporarily stale due to optimizations.
+   */
+  countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
 
   uint32_t ret = interp_enter_with_details(p_interp,
                                            countdown,
@@ -223,13 +237,18 @@ static uint32_t
 jit_enter(struct cpu_driver* p_cpu_driver) {
   uint32_t ret;
   uint32_t uint_start_addr;
+  int64_t countdown;
 
+  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  uint16_t addr_6502 = state_6502_get_pc(p_cpu_driver->abi.p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  uint16_t addr_6502 = state_6502_get_pc(p_jit->driver.abi.p_state_6502);
   uint8_t* p_start_addr = jit_get_jit_base_addr(p_jit, addr_6502);
+
   uint_start_addr = (uint32_t) (size_t) p_start_addr;
 
-  ret = asm_x64_asm_enter(p_jit, uint_start_addr, 0);
+  countdown = timing_get_countdown(p_timing);
+
+  ret = asm_x64_asm_enter(p_jit, uint_start_addr, countdown);
 
   return ret;
 }
@@ -330,13 +349,15 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_jit_trampolines = p_jit_trampolines;
-  p_jit->p_compiler = jit_compiler_create(p_memory_access,
-                                          jit_get_block_host_address_callback,
-                                          jit_get_jit_ptr_block_callback,
-                                          p_jit,
-                                          &p_jit->jit_ptrs[0],
-                                          p_options,
-                                          debug);
+  p_jit->p_compiler = jit_compiler_create(
+      p_memory_access,
+      jit_get_block_host_address_callback,
+      jit_get_trampoline_host_address_callback,
+      jit_get_jit_ptr_block_callback,
+      p_jit,
+      &p_jit->jit_ptrs[0],
+      p_options,
+      debug);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();

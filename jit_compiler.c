@@ -6,6 +6,7 @@
 #include "bbc_options.h"
 #include "defs_6502.h"
 #include "memory_access.h"
+#include "state_6502.h"
 #include "util.h"
 
 #include <assert.h>
@@ -16,8 +17,9 @@
 struct jit_compiler {
   struct memory_access* p_memory_access;
   uint8_t* p_mem_read;
-  void* (*get_block_host_address)(void*, uint16_t);
-  uint16_t (*get_jit_ptr_block)(void*, uint32_t);
+  void* (*get_block_host_address)(void* p, uint16_t addr);
+  void* (*get_trampoline_host_address)(void* p, uint16_t addr);
+  uint16_t (*get_jit_ptr_block)(void* p, uint32_t jit_ptr);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
@@ -35,6 +37,9 @@ struct jit_compiler {
 
   uint32_t len_x64_jmp;
   uint32_t len_x64_countdown;
+
+  int32_t addr_opcode[k_6502_addr_space_size];
+  int32_t addr_cycles_fixup[k_6502_addr_space_size];
 };
 
 struct jit_uop {
@@ -112,6 +117,7 @@ jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
 struct jit_compiler*
 jit_compiler_create(struct memory_access* p_memory_access,
                     void* (*get_block_host_address)(void*, uint16_t),
+                    void* (*get_trampoline_host_address)(void*, uint16_t),
                     uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
@@ -133,6 +139,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_memory_access = p_memory_access;
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
   p_compiler->get_block_host_address = get_block_host_address;
+  p_compiler->get_trampoline_host_address = get_trampoline_host_address;
   p_compiler->get_jit_ptr_block = get_jit_ptr_block;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
@@ -565,16 +572,31 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct jit_uop* p_uop) {
   int opcode = p_uop->opcode;
-  int value1 = p_uop->value1;
-  int value2 = p_uop->value2;
+  int32_t value1 = p_uop->value1;
+  int32_t value2 = p_uop->value2;
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
+  void* p_host_address_object = p_compiler->p_host_address_object;
 
+  /* Resolve any addresses to real pointers. */
+  switch (opcode) {
+  case k_opcode_countdown:
+  case k_opcode_CHECK_BCD:
+  case k_opcode_CHECK_PENDING_IRQ:
+    value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
+        p_host_address_object,
+        (uint16_t) value1);
+    break;
+  default:
+    break;
+  }
+
+  /* Emit the opcode. */
   switch (opcode) {
   case k_opcode_countdown:
     asm_x64_emit_jit_check_countdown(p_dest_buf,
-                                     (uint16_t) value1,
-                                     (uint32_t) value2);
+                                     (uint32_t) value2,
+                                     (void*) (size_t) value1);
     break;
   case k_opcode_debug:
     asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
@@ -589,10 +611,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_CHECK_BCD:
-    asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (void*) (size_t) value1);
     break;
   case k_opcode_CHECK_PENDING_IRQ:
-    asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
     break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
@@ -1307,6 +1329,18 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     for (i = 0; i < num_bytes_6502; ++i) {
       jit_invalidate_jump_target(p_compiler, addr_6502);
       p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
+
+      /* This is filled in properly later, once the total number of cycles
+       * for the block is known.
+       */
+      p_compiler->addr_cycles_fixup[addr_6502] = -1;
+
+      if (i == 0) {
+        p_compiler->addr_opcode[addr_6502] = opcode_details.opcode_6502;
+      } else {
+        p_compiler->addr_opcode[addr_6502] = -1;
+      }
+
       addr_6502++;
     }
 
@@ -1318,6 +1352,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       break;
     }
   }
+
+  assert(addr_6502 > start_addr_6502);
 
   /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
    * There are a few good reasons for this:
@@ -1332,9 +1368,27 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   /* Fill in block header countdown check. */
   util_buffer_set_pos(p_buf, 0);
   opcode_details.uops[0].opcode = k_opcode_countdown;
-  /* TODO: have the 6502 address implied by the jump target. */
   opcode_details.uops[0].value1 = start_addr_6502;
   opcode_details.uops[0].value2 = block_max_cycles;
   opcode_details.uops[0].optype = -1;
   jit_compiler_process_uop(p_compiler, p_buf, &opcode_details.uops[0]);
+
+  /* Fill in the fixup cycles values. These are needed if we need to bail out
+   * of the JIT. For each 6502 address, we need to know how many cycles were
+   * assumed executed at that address.
+   */
+  p_compiler->addr_cycles_fixup[start_addr_6502] = block_max_cycles;
+}
+
+int64_t
+jit_compiler_fixup_state(struct jit_compiler* p_compiler,
+                         struct state_6502* p_state_6502,
+                         int64_t countdown) {
+  uint16_t pc_6502 = p_state_6502->reg_pc;
+  int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
+
+  assert(cycles_fixup > 0);
+  countdown += cycles_fixup;
+
+  return countdown;
 }

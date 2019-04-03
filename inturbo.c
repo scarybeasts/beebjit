@@ -615,10 +615,9 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   int64_t countdown;
   uint32_t run_result;
 
-  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
-  uint16_t addr_6502 = state_6502_get_pc(p_inturbo->driver.abi.p_state_6502);
-  uint8_t* p_mem_read = p_inturbo->driver.p_memory_access->p_mem_read;
-  struct timing_struct* p_timing = p_inturbo->driver.p_timing;
+  uint16_t addr_6502 = state_6502_get_pc(p_cpu_driver->abi.p_state_6502);
+  uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
+  struct timing_struct* p_timing = p_cpu_driver->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address =
       (uint32_t) (size_t) (k_inturbo_opcodes_addr +
@@ -626,7 +625,7 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 
   countdown = timing_get_countdown(p_timing);
 
-  run_result = asm_x64_asm_enter(p_inturbo, p_start_address, countdown);
+  run_result = asm_x64_asm_enter(p_cpu_driver, p_start_address, countdown);
 
   return run_result;
 }

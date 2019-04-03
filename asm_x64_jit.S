@@ -71,12 +71,6 @@ asm_x64_jit_interp:
   jmp REG_SCRATCH1
 
 
-.globl asm_x64_jit_countdown_expired
-asm_x64_jit_countdown_expired:
-  mov REG_COUNTDOWN, REG_SCRATCH1
-  jmp asm_x64_jit_interp
-
-
 .globl asm_x64_jit_call_compile_trampoline
 .globl asm_x64_jit_call_compile_trampoline_END
 asm_x64_jit_call_compile_trampoline:
@@ -101,14 +95,10 @@ asm_x64_jit_jump_interp_trampoline_END:
 
 
 .globl asm_x64_jit_check_countdown
-.globl asm_x64_jit_check_countdown_pc_patch
 .globl asm_x64_jit_check_countdown_count_patch
 .globl asm_x64_jit_check_countdown_jump_patch
 .globl asm_x64_jit_check_countdown_END
 asm_x64_jit_check_countdown:
-  mov REG_6502_PC_32, 0xFFFF
-asm_x64_jit_check_countdown_pc_patch:
-  mov REG_SCRATCH1, REG_COUNTDOWN
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 asm_x64_jit_check_countdown_count_patch:
   bt REG_COUNTDOWN, 63
@@ -167,12 +157,9 @@ asm_x64_jit_ADD_Y_SCRATCH_END:
 
 
 .globl asm_x64_jit_CHECK_BCD
-.globl asm_x64_jit_CHECK_BCD_pc_patch
 .globl asm_x64_jit_CHECK_BCD_jump_patch
 .globl asm_x64_jit_CHECK_BCD_END
 asm_x64_jit_CHECK_BCD:
-  mov REG_6502_PC, 0xFFFF
-asm_x64_jit_CHECK_BCD_pc_patch:
   bt REG_6502_ID_F_32, 3
   jb 0
 asm_x64_jit_CHECK_BCD_jump_patch:
@@ -182,18 +169,15 @@ asm_x64_jit_CHECK_BCD_END:
 
 
 .globl asm_x64_jit_CHECK_PENDING_IRQ
-.globl asm_x64_jit_CHECK_PENDING_IRQ_pc_patch
 .globl asm_x64_jit_CHECK_PENDING_IRQ_jump_patch
 .globl asm_x64_jit_CHECK_PENDING_IRQ_END
 asm_x64_jit_CHECK_PENDING_IRQ:
-  mov REG_6502_PC, 0xFFFF
-asm_x64_jit_CHECK_PENDING_IRQ_pc_patch:
   # TODO: could use a register for IRQ_FIRE, if CLI / PLP is common?
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  mov REG_SCRATCH2_32, \
-      DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 - 1]
-  bt REG_SCRATCH2_32, 31
+  mov REG_SCRATCH1, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH1_32, \
+      DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
+  bt REG_SCRATCH1_32, 31
   jae 0
 asm_x64_jit_CHECK_PENDING_IRQ_jump_patch:
 

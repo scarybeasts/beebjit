@@ -669,6 +669,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int do_irq = 0;
   int64_t cycles_this_instruction = 0;
 
+  assert(countdown >= 0);
+
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 

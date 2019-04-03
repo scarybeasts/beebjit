@@ -69,8 +69,8 @@ asm_x64_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
 
 void
 asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
-                                 uint16_t addr,
-                                 uint32_t count) {
+                                 uint32_t count,
+                                 void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   if (count > 128) {
@@ -80,11 +80,6 @@ asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
   asm_x64_copy(p_buf,
                asm_x64_jit_check_countdown,
                asm_x64_jit_check_countdown_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_check_countdown,
-                    asm_x64_jit_check_countdown_pc_patch,
-                    addr);
   asm_x64_patch_byte(p_buf,
                      offset,
                      asm_x64_jit_check_countdown,
@@ -94,7 +89,7 @@ asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
                      offset,
                      asm_x64_jit_check_countdown,
                      asm_x64_jit_check_countdown_jump_patch,
-                     asm_x64_jit_countdown_expired);
+                     p_trampoline);
 }
 
 void
@@ -146,41 +141,30 @@ asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, uint16_t addr) {
+asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf, asm_x64_jit_CHECK_BCD, asm_x64_jit_CHECK_BCD_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_CHECK_BCD,
-                    asm_x64_jit_CHECK_BCD_pc_patch,
-                    addr);
-  /* TODO: need to fix up countdown. */
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_jit_CHECK_BCD,
                      asm_x64_jit_CHECK_BCD_jump_patch,
-                     asm_x64_jit_interp);
+                     p_trampoline);
 }
 
 void
-asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, uint16_t addr) {
+asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
+                                   void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf,
                asm_x64_jit_CHECK_PENDING_IRQ,
                asm_x64_jit_CHECK_PENDING_IRQ_END);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_CHECK_PENDING_IRQ,
-                    asm_x64_jit_CHECK_PENDING_IRQ_pc_patch,
-                    addr);
-  /* TODO: need to fix up countdown. */
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_jit_CHECK_PENDING_IRQ,
                      asm_x64_jit_CHECK_PENDING_IRQ_jump_patch,
-                     asm_x64_jit_interp);
+                     p_trampoline);
 }
 
 void
