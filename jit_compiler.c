@@ -197,10 +197,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   void* p_memory_callback = p_memory_access->p_callback_obj;
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
-  int32_t main_value1 = -1;
   struct jit_uop* p_uop = &p_details->uops[0];
   struct jit_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
+  /* Default main value1 to the address, so unknown opcodes have it. */
+  int32_t main_value1 = addr_6502;
 
   opcode_6502 = p_mem_read[addr_6502];
   optype = g_optypes[opcode_6502];
@@ -1123,7 +1124,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   default:
-    asm_x64_emit_instruction_ILLEGAL(p_dest_buf);
+    /* Use the interpreter for unknown opcodes. These could be either the
+     * special re-purposed opcodes (e.g. CYCLES) or genuinely unused opcodes.
+     */
+    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
     break;
   }
 }
