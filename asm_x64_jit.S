@@ -137,6 +137,15 @@ asm_x64_jit_jump_interp_END:
   ret
 
 
+.globl asm_x64_jit_ADD_CYCLES
+.globl asm_x64_jit_ADD_CYCLES_END
+asm_x64_jit_ADD_CYCLES:
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + 0x7f]
+
+asm_x64_jit_ADD_CYCLES_END:
+  ret
+
+
 .globl asm_x64_jit_ADD_IMM
 .globl asm_x64_jit_ADD_IMM_END
 asm_x64_jit_ADD_IMM:

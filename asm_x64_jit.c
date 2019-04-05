@@ -177,6 +177,14 @@ asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
+  asm_x86_copy_patch_byte(p_buf,
+                          asm_x64_jit_ADD_CYCLES,
+                          asm_x64_jit_ADD_CYCLES_END,
+                          value);
+}
+
+void
 asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
   asm_x86_copy_patch_byte(p_buf,
                           asm_x64_jit_ADD_IMM,

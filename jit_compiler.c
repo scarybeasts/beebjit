@@ -66,6 +66,7 @@ enum {
   k_opcode_interp,
   k_opcode_ABX_CHECK_PAGE_CROSSING,
   k_opcode_ABY_CHECK_PAGE_CROSSING,
+  k_opcode_ADD_CYCLES,
   k_opcode_ADD_IMM,
   k_opcode_ADD_Y_SCRATCH,
   k_opcode_CHECK_BCD,
@@ -217,13 +218,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->len = g_opmodelens[opmode];
   p_details->branches = g_opbranch[optype];
 
-  p_details->max_cycles = g_opcycles[opcode_6502];
-  if (p_compiler->option_accurate_timings && (opmem == k_read)) {
-    if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-      p_details->max_cycles++;
-    }
-  }
-
   if (p_compiler->debug) {
     p_uop->opcode = k_opcode_debug;
     p_uop->optype = -1;
@@ -256,6 +250,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_rel:
     main_value1 = ((int) addr_6502 + 2 + (int8_t) p_mem_read[addr_plus_1]);
+    main_value1 = (uint16_t) main_value1;
     break;
   case k_abs:
   case k_abx:
@@ -341,6 +336,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   default:
     assert(0);
     break;
+  }
+
+  p_details->max_cycles = g_opcycles[opcode_6502];
+  if (p_compiler->option_accurate_timings) {
+    if ((opmem == k_read) &&
+        (opmode == k_abx || opmode == k_aby || opmode == k_idy)) {
+      p_details->max_cycles++;
+    } else if (opmode == k_rel) {
+      /* Taken branches take 1 cycles longer, or 2 cycles longer if there's
+       * also a page crossing.
+       */
+      if (((addr_6502 + 2) >> 8) ^ (main_value1 >> 8)) {
+        p_details->max_cycles += 2;
+      } else {
+        p_details->max_cycles++;
+      }
+    }
   }
 
   if (use_interp) {
@@ -495,6 +507,22 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop++;
     break;
+  case k_bcc:
+  case k_bcs:
+  case k_beq:
+  case k_bmi:
+  case k_bne:
+  case k_bpl:
+  case k_bvc:
+  case k_bvs:
+    if (p_compiler->option_accurate_timings) {
+      /* Fixup countdown if a branch wasn't taken. */
+      p_uop->opcode = k_opcode_ADD_CYCLES;
+      p_uop->optype = -1;
+      p_uop->value1 = (uint8_t) (p_details->max_cycles - 2);
+      p_uop++;
+    }
+    break;
   case k_brk:
     /* Replace main uop with sequence. */
     p_main_uop->opcode = k_opcode_PUSH_16;
@@ -644,6 +672,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_ADD_Y_SCRATCH:
     asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_ADD_CYCLES:
+    asm_x64_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ADD_IMM:
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
