@@ -116,8 +116,8 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
-  emit_CYCLES_RESET(p_buf);
-  emit_CYCLES(p_buf);
+  emit_CYCLES_RESET(p_buf);       /* Cycles == 1 after this opcode. */
+  emit_CYCLES(p_buf);             /* Cycles == 2 after this opcode. */
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 8);
