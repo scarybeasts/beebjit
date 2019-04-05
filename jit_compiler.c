@@ -23,6 +23,7 @@ struct jit_compiler {
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
+  int option_accurate_timings;
   uint32_t max_opcodes_per_block;
 
   struct util_buffer* p_single_opcode_buf;
@@ -52,7 +53,7 @@ struct jit_uop {
 struct jit_opcode_details {
   uint8_t opcode_6502;
   uint8_t len;
-  uint8_t cycles;
+  uint8_t max_cycles;
   int branches;
   struct jit_uop uops[8];
 };
@@ -63,6 +64,8 @@ enum {
   k_opcode_countdown = 0x100,
   k_opcode_debug,
   k_opcode_interp,
+  k_opcode_ABX_CHECK_PAGE_CROSSING,
+  k_opcode_ABY_CHECK_PAGE_CROSSING,
   k_opcode_ADD_IMM,
   k_opcode_ADD_Y_SCRATCH,
   k_opcode_CHECK_BCD,
@@ -144,6 +147,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
+  p_compiler->option_accurate_timings = 1;
 
   (void) util_get_int_option(&max_opcodes_per_block,
                              p_options->p_opt_flags,
@@ -210,8 +214,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->opcode_6502 = opcode_6502;
   p_details->len = g_opmodelens[opmode];
-  p_details->cycles = g_opcycles[opcode_6502];
   p_details->branches = g_opbranch[optype];
+
+  p_details->max_cycles = g_opcycles[opcode_6502];
+  if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+    if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
+      p_details->max_cycles++;
+    }
+  }
 
   if (p_compiler->debug) {
     p_uop->opcode = k_opcode_debug;
@@ -255,6 +265,20 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (opmode == k_abx || opmode == k_aby) {
       addr_range_end += 0xFF;
     }
+    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+      if (opmode == k_abx) {
+        p_uop->opcode = k_opcode_ABX_CHECK_PAGE_CROSSING;
+        p_uop->optype = -1;
+        p_uop->value1 = main_value1;
+        p_uop++;
+      } else if (opmode == k_aby) {
+        p_uop->opcode = k_opcode_ABY_CHECK_PAGE_CROSSING;
+        p_uop->optype = -1;
+        p_uop->value1 = main_value1;
+        p_uop++;
+      }
+    }
+
     /* Use the interpreter for address space wraps. Otherwise the JIT code
      * will do an out-of-bounds access. Longer term, this could be addressed,
      * with performance maintained, by mapping a wrap-around page.
@@ -605,6 +629,12 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_interp:
     asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_ABX_CHECK_PAGE_CROSSING:
+    asm_x64_emit_jit_ABX_CHECK_PAGE_CROSSING(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_ABY_CHECK_PAGE_CROSSING:
+    asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_Y_SCRATCH:
     asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);
@@ -1321,7 +1351,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                p_single_opcode_buf,
                                &opcode_details.uops[0]);
       opcode_details.len = 0;
-      opcode_details.cycles = 0;
+      opcode_details.max_cycles = 0;
       ends_block = 1;
     }
 
@@ -1345,7 +1375,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       addr_6502++;
     }
 
-    block_max_cycles += opcode_details.cycles;
+    block_max_cycles += opcode_details.max_cycles;
 
     util_buffer_append(p_buf, p_single_opcode_buf);
 

@@ -14,6 +14,10 @@ void asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
 void asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr);
 
+void asm_x64_emit_jit_ABX_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
+                                              uint16_t addr);
+void asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
+                                              uint16_t addr);
 void asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf);
 void asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, void* p_trampoline);
@@ -168,6 +172,12 @@ void asm_x64_jit_jump_interp_pc_patch();
 void asm_x64_jit_jump_interp_jump_patch();
 void asm_x64_jit_jump_interp_END();
 
+void asm_x64_jit_ABX_CHECK_PAGE_CROSSING();
+void asm_x64_jit_ABX_CHECK_PAGE_CROSSING_lea_patch();
+void asm_x64_jit_ABX_CHECK_PAGE_CROSSING_END();
+void asm_x64_jit_ABY_CHECK_PAGE_CROSSING();
+void asm_x64_jit_ABY_CHECK_PAGE_CROSSING_lea_patch();
+void asm_x64_jit_ABY_CHECK_PAGE_CROSSING_END();
 void asm_x64_jit_ADD_IMM();
 void asm_x64_jit_ADD_IMM_END();
 void asm_x64_jit_ADD_Y_SCRATCH();
