@@ -26,6 +26,7 @@ void asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
 void asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGX(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf);
+void asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf);
 void asm_x64_emit_jit_INC_SCRATCH(struct util_buffer* p_buf);
 void asm_x64_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf);
 void asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf);
@@ -194,6 +195,8 @@ void asm_x64_jit_FLAGX();
 void asm_x64_jit_FLAGX_END();
 void asm_x64_jit_FLAGY();
 void asm_x64_jit_FLAGY_END();
+void asm_x64_jit_IDY_CHECK_PAGE_CROSSING();
+void asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END();
 void asm_x64_jit_INC_SCRATCH();
 void asm_x64_jit_INC_SCRATCH_END();
 void asm_x64_jit_JMP_SCRATCH();

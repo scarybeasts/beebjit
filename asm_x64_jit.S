@@ -178,6 +178,7 @@ asm_x64_jit_ABY_CHECK_PAGE_CROSSING_END:
 .globl asm_x64_jit_ADD_Y_SCRATCH_END
 asm_x64_jit_ADD_Y_SCRATCH:
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+  # TODO: should be able to eliminate this movzx.
   movzx REG_SCRATCH1_32, REG_SCRATCH1_16
 
 asm_x64_jit_ADD_Y_SCRATCH_END:
@@ -213,6 +214,29 @@ asm_x64_jit_CHECK_PENDING_IRQ_END:
   ret
 
 
+.globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING
+.globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END
+asm_x64_jit_IDY_CHECK_PAGE_CROSSING:
+  lea REG_SCRATCH2_32, [REG_6502_Y_64 - 0x10000100]
+  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
+  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_SCRATCH3]
+  mov REG_SCRATCH3_32, 31
+  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
+
+asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END:
+  ret
+
+
+.globl asm_x64_jit_INC_SCRATCH
+.globl asm_x64_jit_INC_SCRATCH_END
+asm_x64_jit_INC_SCRATCH:
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
+
+asm_x64_jit_INC_SCRATCH_END:
+  ret
+
+
 .globl asm_x64_jit_FLAGA
 .globl asm_x64_jit_FLAGA_END
 asm_x64_jit_FLAGA:
@@ -237,15 +261,6 @@ asm_x64_jit_FLAGY:
   test REG_6502_Y, REG_6502_Y
 
 asm_x64_jit_FLAGY_END:
-  ret
-
-
-.globl asm_x64_jit_INC_SCRATCH
-.globl asm_x64_jit_INC_SCRATCH_END
-asm_x64_jit_INC_SCRATCH:
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
-
-asm_x64_jit_INC_SCRATCH_END:
   ret
 
 

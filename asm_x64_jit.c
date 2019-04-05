@@ -232,6 +232,13 @@ asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_IDY_CHECK_PAGE_CROSSING,
+               asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END);
+}
+
+void
 asm_x64_emit_jit_INC_SCRATCH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_INC_SCRATCH, asm_x64_jit_INC_SCRATCH_END);
 }

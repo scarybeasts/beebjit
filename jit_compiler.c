@@ -73,6 +73,7 @@ enum {
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
+  k_opcode_IDY_CHECK_PAGE_CROSSING,
   k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,
   k_opcode_LOAD_CARRY,
@@ -328,6 +329,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->value1 = (uint16_t) p_mem_read[addr_plus_1];
     p_uop->optype = -1;
     p_uop++;
+    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+      p_uop->opcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
+      p_uop->optype = -1;
+      p_uop++;
+    }
     p_uop->opcode = k_opcode_ADD_Y_SCRATCH;
     p_uop->optype = -1;
     p_uop++;
@@ -657,6 +663,12 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
     break;
+  case k_opcode_IDY_CHECK_PAGE_CROSSING:
+    asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(p_dest_buf);
+    break;
+  case k_opcode_INC_SCRATCH:
+    asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
+    break;
   case k_opcode_MODE_ABX:
     asm_x64_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
     break;
@@ -674,9 +686,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_MODE_ZPY:
     asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_INC_SCRATCH:
-    asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
     break;
   case k_opcode_JMP_SCRATCH:
     asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
