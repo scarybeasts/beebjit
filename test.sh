@@ -49,5 +49,9 @@ echo 'Running timing.rom, interpreter.'
 ./6502jit -os timing.rom -expect C0C1C2 -mode interp -a
 echo 'Running timing.rom, inturbo.'
 ./6502jit -os timing.rom -expect C0C1C2 -mode inturbo -a
+echo 'Running timing.rom, jit.'
+./6502jit -os timing.rom -expect C0C1C2 -mode jit -a
+echo 'Running timing.rom, jit, debug.'
+./6502jit -os timing.rom -expect C0C1C2 -mode jit -a -d -r
 
 echo 'All is well!'
