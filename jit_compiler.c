@@ -40,6 +40,7 @@ struct jit_compiler {
   uint32_t len_x64_countdown;
 
   int32_t addr_opcode[k_6502_addr_space_size];
+  int32_t addr_max_cycles[k_6502_addr_space_size];
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
 };
 
@@ -130,7 +131,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     int debug) {
   size_t i;
   struct util_buffer* p_tmp_buf;
-  int max_opcodes_per_block = 1;
+  int max_opcodes_per_block = 65536;
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
@@ -1311,6 +1312,9 @@ void
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            struct util_buffer* p_buf,
                            uint16_t start_addr_6502) {
+  uint16_t end_addr_6502;
+  uint32_t cycles;
+
   struct jit_opcode_details opcode_details = {};
   uint32_t block_max_cycles = 0;
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
@@ -1408,8 +1412,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
       if (i == 0) {
         p_compiler->addr_opcode[addr_6502] = opcode_details.opcode_6502;
+        p_compiler->addr_max_cycles[addr_6502] = opcode_details.max_cycles;
       } else {
         p_compiler->addr_opcode[addr_6502] = -1;
+        p_compiler->addr_max_cycles[addr_6502] = -1;
       }
 
       addr_6502++;
@@ -1424,7 +1430,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
   }
 
-  assert(addr_6502 > start_addr_6502);
+  end_addr_6502 = addr_6502;
+  assert(end_addr_6502 > start_addr_6502);
 
   /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
    * There are a few good reasons for this:
@@ -1448,7 +1455,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * of the JIT. For each 6502 address, we need to know how many cycles were
    * assumed executed at that address.
    */
-  p_compiler->addr_cycles_fixup[start_addr_6502] = block_max_cycles;
+  cycles = block_max_cycles;
+  for (addr_6502 = start_addr_6502; addr_6502 < end_addr_6502; ++addr_6502) {
+    if (p_compiler->addr_opcode[addr_6502] != -1) {
+      p_compiler->addr_cycles_fixup[addr_6502] = cycles;
+      assert(p_compiler->addr_max_cycles[addr_6502] != -1);
+      cycles -= p_compiler->addr_max_cycles[addr_6502];
+    }
+  }
 }
 
 int64_t
