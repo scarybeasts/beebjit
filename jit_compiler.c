@@ -56,6 +56,7 @@ struct jit_opcode_details {
   uint8_t len;
   uint8_t max_cycles;
   int branches;
+  int ends_block;
   struct jit_uop uops[8];
 };
 
@@ -218,6 +219,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->opcode_6502 = opcode_6502;
   p_details->len = g_opmodelens[opmode];
   p_details->branches = g_opbranch[optype];
+  p_details->ends_block = 0;
+  if (p_details->branches != k_bra_n) {
+    p_details->ends_block = 1;
+  }
 
   if (p_compiler->debug) {
     p_uop->opcode = k_opcode_debug;
@@ -363,6 +368,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->value1 = addr_6502;
     p_uop->optype = -1;
     p_uop++;
+    p_details->ends_block = 1;
     return (p_uop - &p_details->uops[0]);
   }
 
@@ -1344,7 +1350,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     void* p_host_address;
     uint32_t jit_ptr;
     size_t buf_needed;
-    int ends_block = 0;
+    int ends_block;
 
     util_buffer_setup(p_single_opcode_buf,
                       &single_opcode_buffer[0],
@@ -1357,6 +1363,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     num_uops = jit_compiler_get_opcode_details(p_compiler,
                                                &opcode_details,
                                                addr_6502);
+    ends_block = opcode_details.ends_block;
 
     for (i = 0; i < num_uops; ++i) {
       jit_compiler_process_uop(p_compiler,
@@ -1367,15 +1374,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     total_num_opcodes++;
 
     /* TODO: continue the block after conditional branches. */
-    if (opcode_details.branches != k_bra_n) {
-      ends_block = 1;
-      if (opcode_details.branches == k_bra_m) {
-        opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
-        opcode_details.uops[0].value1 = (addr_6502 + 2);
-        jit_compiler_process_uop(p_compiler,
-                                 p_single_opcode_buf,
-                                 &opcode_details.uops[0]);
-      }
+    if (opcode_details.branches == k_bra_m) {
+      opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
+      opcode_details.uops[0].value1 = (addr_6502 + 2);
+      jit_compiler_process_uop(p_compiler,
+                               p_single_opcode_buf,
+                               &opcode_details.uops[0]);
     }
 
     buf_needed = util_buffer_get_pos(p_single_opcode_buf);
