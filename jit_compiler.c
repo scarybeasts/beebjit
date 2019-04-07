@@ -42,6 +42,8 @@ struct jit_compiler {
   int32_t addr_opcode[k_6502_addr_space_size];
   int32_t addr_max_cycles[k_6502_addr_space_size];
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
+  uint8_t addr_is_block_start[k_6502_addr_space_size];
+  uint8_t addr_is_block_continuation[k_6502_addr_space_size];
 };
 
 struct jit_uop {
@@ -172,6 +174,10 @@ jit_compiler_create(struct memory_access* p_memory_access,
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     jit_set_jit_ptr_no_code(p_compiler, i);
   }
+
+  jit_compiler_memory_range_invalidate(p_compiler,
+                                       0,
+                                       (k_6502_addr_space_size - 1));
 
   /* Calculate lengths of sequences we need to know. */
   p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
@@ -359,6 +365,16 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         p_details->max_cycles++;
       }
     }
+  }
+
+  if (optype == k_rti) {
+    /* Bounce to the interpreter for RTI. The problem with RTI is that it
+     * might jump all over the place without any particular pattern, because
+     * interrupts will happen all over the place. If we are not careful, over
+     * time, RTI will split all of the JIT blocks into 1-instruction blocks,
+     * which will be super slow.
+     */
+    use_interp = 1;
   }
 
   if (use_interp) {
@@ -1320,12 +1336,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            uint16_t start_addr_6502) {
   uint16_t end_addr_6502;
   uint32_t cycles;
+  void* p_host_address;
 
   struct jit_opcode_details opcode_details = {};
   uint32_t block_max_cycles = 0;
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
   uint16_t addr_6502 = start_addr_6502;
   uint32_t total_num_opcodes = 0;
+  int block_ended = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
@@ -1337,6 +1355,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   jit_invalidate_block_with_addr(p_compiler, addr_6502);
 
+  if (!p_compiler->addr_is_block_continuation[addr_6502]) {
+    p_compiler->addr_is_block_start[addr_6502] = 1;
+  } else {
+    p_compiler->addr_is_block_start[addr_6502] = 0;
+  }
+
   /* Prepend space for countdown check. We can't fill it in yet because we
    * don't know how many cycles the block will be.
    */
@@ -1347,10 +1371,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     uint8_t num_uops;
     uint8_t num_bytes_6502;
     uint8_t i;
-    void* p_host_address;
     uint32_t jit_ptr;
     size_t buf_needed;
-    int ends_block;
+    int ends_block_if_fits;
 
     util_buffer_setup(p_single_opcode_buf,
                       &single_opcode_buffer[0],
@@ -1363,7 +1386,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     num_uops = jit_compiler_get_opcode_details(p_compiler,
                                                &opcode_details,
                                                addr_6502);
-    ends_block = opcode_details.ends_block;
+    ends_block_if_fits = opcode_details.ends_block;
 
     for (i = 0; i < num_uops; ++i) {
       jit_compiler_process_uop(p_compiler,
@@ -1383,24 +1406,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
 
     buf_needed = util_buffer_get_pos(p_single_opcode_buf);
-    if (!ends_block) {
+    if (!ends_block_if_fits) {
       buf_needed += p_compiler->len_x64_jmp;
     }
 
     if ((util_buffer_remaining(p_buf) < buf_needed) ||
         (total_num_opcodes > p_compiler->max_opcodes_per_block)) {
-      /* Not enough space; need to end this block with a jump to the next
-       * address, effectively splitting the block.
-       */
-      util_buffer_set_pos(p_single_opcode_buf, 0);
-      opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
-      opcode_details.uops[0].value1 = addr_6502;
-      jit_compiler_process_uop(p_compiler,
-                               p_single_opcode_buf,
-                               &opcode_details.uops[0]);
-      opcode_details.len = 0;
-      opcode_details.max_cycles = 0;
-      ends_block = 1;
+      p_compiler->addr_is_block_continuation[addr_6502] = 1;
+      break;
     }
 
     num_bytes_6502 = opcode_details.len;
@@ -1413,6 +1426,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
        * for the block is known.
        */
       p_compiler->addr_cycles_fixup[addr_6502] = -1;
+
+      p_compiler->addr_is_block_continuation[addr_6502] = 0;
+
+      if (addr_6502 != start_addr_6502) {
+        p_compiler->addr_is_block_start[addr_6502] = 0;
+      }
 
       if (i == 0) {
         p_compiler->addr_opcode[addr_6502] = opcode_details.opcode_6502;
@@ -1429,9 +1448,29 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     util_buffer_append(p_buf, p_single_opcode_buf);
 
-    if (ends_block) {
+    if (ends_block_if_fits) {
+      block_ended = 1;
+    }
+    if (block_ended || p_compiler->addr_is_block_start[addr_6502]) {
       break;
     }
+  }
+
+  if (!block_ended) {
+    /* Need to end this block with a jump to the next address, effectively
+     * splitting the block.
+     */
+    p_host_address = (util_buffer_get_base_address(p_buf) +
+                      util_buffer_get_pos(p_buf));
+    util_buffer_set_base_address(p_single_opcode_buf, p_host_address);
+    util_buffer_set_pos(p_single_opcode_buf, 0);
+
+    opcode_details.uops[0].opcode = 0x4C; /* JMP abs */
+    opcode_details.uops[0].value1 = addr_6502;
+    jit_compiler_process_uop(p_compiler,
+                             p_single_opcode_buf,
+                             &opcode_details.uops[0]);
+    util_buffer_append(p_buf, p_single_opcode_buf);
   }
 
   end_addr_6502 = addr_6502;
@@ -1480,4 +1519,23 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   countdown += cycles_fixup;
 
   return countdown;
+}
+
+void
+jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
+                                     uint16_t addr,
+                                     uint16_t len) {
+  uint32_t i;
+
+  uint32_t addr_end = (addr + len);
+
+  assert(addr_end >= addr);
+
+  for (i = addr; i < addr_end; ++i) {
+    p_compiler->addr_opcode[i] = -1;
+    p_compiler->addr_max_cycles[i] = -1;
+    p_compiler->addr_cycles_fixup[i] = -1;
+    p_compiler->addr_is_block_start[i] = 0;
+    p_compiler->addr_is_block_continuation[i] = 0;
+  }
 }

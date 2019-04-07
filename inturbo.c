@@ -560,17 +560,17 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
 static int
 inturbo_interp_instruction_callback(void* p,
-                                    uint16_t pc,
-                                    uint8_t opcode,
-                                    uint16_t addr,
-                                    int is_irq,
+                                    uint16_t next_pc,
+                                    uint8_t done_opcode,
+                                    uint16_t done_addr,
+                                    int next_is_irq,
                                     int irq_pending) {
   (void) p;
-  (void) pc;
-  (void) opcode;
-  (void) addr;
+  (void) next_pc;
+  (void) done_opcode;
+  (void) done_addr;
 
-  if (is_irq || irq_pending) {
+  if (next_is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */
     return 0;
   }

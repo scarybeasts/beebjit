@@ -13,10 +13,10 @@ uint32_t interp_enter_with_details(
     struct interp_struct* p_interp,
     int64_t countdown,
     int (*instruction_callback)(void* p,
-                                uint16_t pc,
-                                uint8_t opcode,
-                                uint16_t addr,
-                                int is_irq,
+                                uint16_t next_pc,
+                                uint8_t done_opcode,
+                                uint16_t done_addr,
+                                int next_is_irq,
                                 int irq_pending),
     void* p_callback_context);
 

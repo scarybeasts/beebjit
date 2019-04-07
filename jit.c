@@ -40,6 +40,8 @@ struct jit_struct {
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
   struct interp_struct* p_interp;
+  uint16_t interp_pc_start;
+  uint16_t interp_block_start;
 
   int log_compile;
 };
@@ -159,28 +161,53 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 
 static int
 jit_interp_instruction_callback(void* p,
-                                uint16_t pc,
-                                uint8_t opcode,
-                                uint16_t addr,
-                                int is_irq,
+                                uint16_t next_pc,
+                                uint8_t done_opcode,
+                                uint16_t done_addr,
+                                int next_is_irq,
                                 int irq_pending) {
-  struct jit_struct* p_jit = (struct jit_struct*) p;
-  uint8_t optype = g_optypes[opcode];
-  uint8_t opmode = g_opmodes[opcode];
-  uint8_t opmem = g_opmem[optype];
+  uint16_t next_block;
 
-  (void) pc;
+  struct jit_struct* p_jit = (struct jit_struct*) p;
+  uint8_t optype = g_optypes[done_opcode];
+  uint8_t opmode = g_opmodes[done_opcode];
+  uint8_t opmem = g_opmem[optype];
 
   if ((opmem == k_write || opmem == k_rw) && (opmode != k_acc)) {
     /* Any memory writes executed by the interpreter need to invalidate
      * compiled JIT code if they're self-modifying writes.
      */
     /* TODO: a little subtle so add a test to timing.rom. */
-    jit_invalidate_code_at_address(p_jit, addr);
+    jit_invalidate_code_at_address(p_jit, done_addr);
   }
 
-  if (is_irq || irq_pending) {
+  if (optype == k_rti) {
+    /* After an RTI, we need to run to the next block boundary _after_ the RTI
+     * return target. This will prevent RTI from splitting blocks in a
+     * quasi-random fashion.
+     */
+    p_jit->interp_block_start = jit_6502_block_addr_from_6502(p_jit, next_pc);
+  }
+
+  if (next_is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */
+    return 0;
+  }
+
+  next_block = jit_6502_block_addr_from_6502(p_jit, next_pc);
+  if (next_block == 0xFFFF) {
+    /* Always consider an address with no JIT code to be a new block
+     * boundary. Without this, an RTI to an uncompiled region will stay stuck
+     * in the interpreter.
+     */
+    return 1;
+  }
+  if (next_block == p_jit->interp_block_start) {
+    /* Keep interpreting until we cross a block boundary. The JIT engine will
+     * handle us bouncing back into the middle of a block, but this will split
+     * the block, cause a recompile and longer term lead to block
+     * fragmentation.
+     */
     return 0;
   }
 
@@ -190,20 +217,26 @@ jit_interp_instruction_callback(void* p,
 
 static int64_t
 jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
+  uint32_t ret;
+
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct timing_struct* p_timing = p_jit->driver.p_timing;
   struct interp_struct* p_interp = p_jit->p_interp;
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
+  uint16_t pc = p_state_6502->reg_pc;
+
+  p_jit->interp_pc_start = pc;
+  p_jit->interp_block_start = jit_6502_block_addr_from_6502(p_jit, pc);
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
   countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
 
-  uint32_t ret = interp_enter_with_details(p_interp,
-                                           countdown,
-                                           jit_interp_instruction_callback,
-                                           p_jit);
+  ret = interp_enter_with_details(p_interp,
+                                  countdown,
+                                  jit_interp_instruction_callback,
+                                  p_jit);
 
   (void) ret;
   assert(ret == (uint32_t) -1);
@@ -257,9 +290,10 @@ static void
 jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                             uint16_t addr,
                             uint16_t len) {
+  uint32_t i;
+
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint32_t addr_end = (addr + len);
-  uint32_t i;
 
   assert(addr_end >= addr);
 
@@ -267,6 +301,8 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
     jit_invalidate_code_at_address(p_jit, i);
     jit_invalidate_block_address(p_jit, i);
   }
+
+  jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr, len);
 }
 
 static char*

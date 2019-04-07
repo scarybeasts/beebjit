@@ -625,10 +625,10 @@ uint32_t
 interp_enter_with_details(struct interp_struct* p_interp,
                           int64_t countdown,
                           int (*instruction_callback)(void* p,
-                                                      uint16_t pc,
-                                                      uint8_t opcode,
-                                                      uint16_t addr,
-                                                      int is_irq,
+                                                      uint16_t next_pc,
+                                                      uint8_t done_opcode,
+                                                      uint16_t done_addr,
+                                                      int next_is_irq,
                                                       int irq_pending),
                           void* p_callback_context) {
   uint16_t pc;
@@ -1575,13 +1575,11 @@ check_irq:
     if (instruction_callback) {
       int irq_pending = timing_timer_is_running(p_timing,
                                                 deferred_interrupt_timer_id);
-      uint8_t opmode = g_opmodes[opcode];
-      uint16_t orig_pc = (pc - g_opmodelens[opmode]);
       /* The instruction callback can elect to bounce out of the
        * interpreter.
        */
       if (instruction_callback(p_callback_context,
-                               orig_pc,
+                               pc,
                                opcode,
                                addr,
                                do_irq,

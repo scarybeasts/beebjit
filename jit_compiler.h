@@ -28,4 +28,8 @@ int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                                  struct state_6502* p_state_6502,
                                  int64_t countdown);
 
+void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
+                                          uint16_t addr,
+                                          uint16_t len);
+
 #endif /* BEEJIT_JIT_COMPILER_H */
