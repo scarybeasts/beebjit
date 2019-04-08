@@ -596,7 +596,8 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
   warned = 0;
 
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
-    (void) printf("DEBUG (UNUSUAL): Indirect access to register %.4X at %.4X\n",
+    (void) printf("DEBUG (UNUSUAL): "
+                  "Indirect access to register $%.4X at $%.4X\n",
                   addr_6502,
                   reg_pc);
     warned = 1;
@@ -604,7 +605,7 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
 
   /* Handled via various means but worth noting. */
   if (is_write && is_rom) {
-    (void) printf("DEBUG: Code at %.4X is writing to ROM at %.4X\n",
+    (void) printf("DEBUG: Code at $%.4X is writing to ROM at $%.4X\n",
                   reg_pc,
                   addr_6502);
     warned = 1;
@@ -614,29 +615,30 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
   if ((opmode != k_rel) && wrapped_8bit) {
     if (opmode == k_idx) {
       (void) printf("DEBUG (VERY UNUSUAL): "
-                    "8-bit IDX ADDRESS WRAP at %.4X to %.4X\n",
+                    "8-bit IDX ADDRESS WRAP at $%.4X to $%.4X\n",
                     reg_pc,
                     ((uint8_t) (operand1 + reg_x)));
       warned = 1;
     } else {
-      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at %.4X to %.4X\n",
+      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at $%.4X to $%.4X\n",
                     reg_pc,
                     addr_6502);
       warned = 1;
     }
   }
   if (wrapped_16bit) {
-    (void) printf("DEBUG (VERY UNUSUAL): 16-bit ADDRESS WRAP at %.4X to %.4X\n",
+    (void) printf("DEBUG (VERY UNUSUAL): "
+                  "16-bit ADDRESS WRAP at $%.4X to $%.4X\n",
                   reg_pc,
                   addr_6502);
     warned = 1;
   }
 
   if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at %.4X\n", reg_pc);
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4X\n", reg_pc);
     warned = 1;
   } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at %.4X\n", reg_pc);
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4X\n", reg_pc);
     warned = 1;
   }
 
