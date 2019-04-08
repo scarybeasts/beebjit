@@ -120,45 +120,6 @@ jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   asm_x64_emit_jit_call_compile_trampoline(p_buf);
 }
 
-static void*
-jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
-  uint8_t* p_jit_ptr;
-  uint8_t* p_block_ptr;
-  uint16_t addr_6502;
-
-  struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
-  uint16_t block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
-
-  p_block_ptr = jit_get_jit_base_addr(p_jit, block_addr_6502);
-  if (p_block_ptr == p_intel_rip) {
-    addr_6502 = block_addr_6502;
-  } else {
-    /* Host IP is inside a code block; find the corresponding 6502 address. */
-    addr_6502 = block_addr_6502;
-    while (1) {
-      p_jit_ptr = (uint8_t*) (size_t) p_jit->jit_ptrs[addr_6502];
-      assert(jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
-             block_addr_6502);
-      if (p_jit_ptr == p_intel_rip) {
-        break;
-      }
-      addr_6502++;
-    }
-  }
-
-  p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
-
-  util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
-
-  if (p_jit->log_compile) {
-    printf("LOG:JIT:compile @$%.4X [host @%p]\n", addr_6502, p_intel_rip);
-  }
-
-  jit_compiler_compile_block(p_jit->p_compiler, p_compile_buf, addr_6502);
-
-  return p_jit_ptr;
-}
-
 static int
 jit_interp_instruction_callback(void* p,
                                 uint16_t next_pc,
@@ -317,6 +278,65 @@ jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
                   block_addr_6502);
 
   return block_addr_buf;
+}
+
+static void*
+jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+  uint8_t* p_jit_ptr;
+  uint8_t* p_block_ptr;
+  uint16_t addr_6502;
+
+  struct jit_compiler* p_compiler = p_jit->p_compiler;
+  struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
+  uint16_t block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
+
+  p_block_ptr = jit_get_jit_base_addr(p_jit, block_addr_6502);
+  if (p_block_ptr == p_intel_rip) {
+    addr_6502 = block_addr_6502;
+  } else {
+    /* Host IP is inside a code block; find the corresponding 6502 address. */
+    addr_6502 = block_addr_6502;
+    while (1) {
+      p_jit_ptr = (uint8_t*) (size_t) p_jit->jit_ptrs[addr_6502];
+      assert(jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
+             block_addr_6502);
+      if (p_jit_ptr == p_intel_rip) {
+        break;
+      }
+      addr_6502++;
+    }
+  }
+
+  p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+
+  util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
+
+  if (p_jit->log_compile) {
+    printf("LOG:JIT:compile @$%.4X [host @%p]\n", addr_6502, p_intel_rip);
+  }
+
+  if ((addr_6502 < 0xFF) &&
+      !jit_compiler_is_compiling_for_code_in_zero_page(p_compiler)) {
+    printf("LOG:JIT:compiling zero page code; handled but slightly slower\n");
+
+    /* Invalidate all existing compiled code because if it writes to the zero
+     * page, it isn't doing self-modified code correctly.
+     */
+    jit_memory_range_invalidate(&p_jit->driver, 0, (k_6502_addr_space_size - 1));
+
+    jit_compiler_set_compiling_for_code_in_zero_page(p_compiler, 1);
+  } else if ((addr_6502 >= 0x100) && (addr_6502 <= 0x1FF)) {
+    /* TODO: doesn't handle case where zero page code spills into stack page
+     * code.
+     */
+    printf("LOG:JIT:compiling stack page code; self-modify here not handled\n");
+    printf("LOG:JIT:if this is Exile or Wizadore, should work anyway\n");
+    printf("LOG:JIT:if not those, it may still work, let me know what it is\n");
+  }
+
+  jit_compiler_compile_block(p_compiler, p_compile_buf, addr_6502);
+
+  return p_jit_ptr;
 }
 
 static void

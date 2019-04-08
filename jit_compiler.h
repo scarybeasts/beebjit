@@ -32,4 +32,9 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
                                           uint16_t len);
 
+int jit_compiler_is_compiling_for_code_in_zero_page(
+    struct jit_compiler* p_compiler);
+void jit_compiler_set_compiling_for_code_in_zero_page(
+    struct jit_compiler* p_compiler, int value);
+
 #endif /* BEEJIT_JIT_COMPILER_H */

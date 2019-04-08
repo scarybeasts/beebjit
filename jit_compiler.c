@@ -39,6 +39,8 @@ struct jit_compiler {
   uint32_t len_x64_jmp;
   uint32_t len_x64_countdown;
 
+  int compile_for_code_in_zero_page;
+
   int32_t addr_opcode[k_6502_addr_space_size];
   int32_t addr_max_cycles[k_6502_addr_space_size];
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
@@ -162,6 +164,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
     max_opcodes_per_block = 1;
   }
   p_compiler->max_opcodes_per_block = max_opcodes_per_block;
+
+  p_compiler->compile_for_code_in_zero_page = 0;
 
   p_compiler->p_single_opcode_buf = util_buffer_create();
   p_tmp_buf = util_buffer_create();
@@ -394,7 +398,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (opmem == k_write || opmem == k_rw) {
     switch (opmode) {
     case k_abs:
-    case k_zpg:
       p_uop->opcode = k_opcode_WRITE_INV_ABS;
       p_uop->value1 = main_value1;
       p_uop->optype = -1;
@@ -420,11 +423,25 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       break;
     case k_idx:
     case k_idy:
-    case k_zpx:
-    case k_zpy:
       p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
       p_uop->optype = -1;
       p_uop++;
+      break;
+    case k_zpg:
+      if (p_compiler->compile_for_code_in_zero_page) {
+        p_uop->opcode = k_opcode_WRITE_INV_ABS;
+        p_uop->value1 = main_value1;
+        p_uop->optype = -1;
+        p_uop++;
+      }
+      break;
+    case k_zpx:
+    case k_zpy:
+      if (p_compiler->compile_for_code_in_zero_page) {
+        p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
+        p_uop->optype = -1;
+        p_uop++;
+      }
       break;
     default:
       break;
@@ -1538,4 +1555,16 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     p_compiler->addr_is_block_start[i] = 0;
     p_compiler->addr_is_block_continuation[i] = 0;
   }
+}
+
+int
+jit_compiler_is_compiling_for_code_in_zero_page(
+    struct jit_compiler* p_compiler) {
+  return p_compiler->compile_for_code_in_zero_page;
+}
+
+void
+jit_compiler_set_compiling_for_code_in_zero_page(
+    struct jit_compiler* p_compiler, int value) {
+  p_compiler->compile_for_code_in_zero_page = value;
 }
