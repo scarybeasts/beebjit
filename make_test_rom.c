@@ -997,7 +997,25 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x7D);
   emit_JMP(p_buf, k_abs, 0xCE00);
 
+  /* Test hardware register access via the indirect modes. */
   set_new_index(p_buf, 0x0E00);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0x21);
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_zpg, 0x20);
+  emit_LDA(p_buf, k_imm, 0xA3);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_idx, 0x20);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_idy, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0xA3);
+  emit_LDA(p_buf, k_imm, 0);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_idy, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0xA3);
+  emit_JMP(p_buf, k_abs, 0xCE40);
+
+  set_new_index(p_buf, 0x0E40);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

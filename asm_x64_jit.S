@@ -223,6 +223,21 @@ asm_x64_jit_CHECK_PENDING_IRQ_END:
   ret
 
 
+.globl asm_x64_jit_CHECK_SCRATCH_ABOVE
+.globl asm_x64_jit_CHECK_SCRATCH_ABOVE_lea_patch
+.globl asm_x64_jit_CHECK_SCRATCH_ABOVE_jump_patch
+.globl asm_x64_jit_CHECK_SCRATCH_ABOVE_END
+asm_x64_jit_CHECK_SCRATCH_ABOVE:
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
+asm_x64_jit_CHECK_SCRATCH_ABOVE_lea_patch:
+  bt REG_SCRATCH2_32, 16
+  jb 0
+asm_x64_jit_CHECK_SCRATCH_ABOVE_jump_patch:
+
+asm_x64_jit_CHECK_SCRATCH_ABOVE_END:
+  ret
+
+
 .globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING
 .globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END
 asm_x64_jit_IDY_CHECK_PAGE_CROSSING:

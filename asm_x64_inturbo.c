@@ -1,6 +1,7 @@
 #include "asm_x64_inturbo.h"
 
 #include "asm_x64_common.h"
+#include "defs_6502.h"
 #include "util.h"
 
 static void
@@ -42,7 +43,7 @@ asm_x64_emit_instruction_Bxx_interp_accurate(
 void
 asm_x64_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                            uint16_t special_addr_above) {
-  int lea_patch = (0x10000 - special_addr_above);
+  int lea_patch = (k_6502_addr_space_size - special_addr_above);
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf,

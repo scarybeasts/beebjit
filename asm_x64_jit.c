@@ -3,6 +3,7 @@
 #include "asm_x64_common.h"
 #include "asm_x64_defs.h"
 #include "asm_x64_jit_defs.h"
+#include "defs_6502.h"
 #include "util.h"
 
 #include <assert.h>
@@ -193,6 +194,11 @@ asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ADD_Y_SCRATCH, asm_x64_jit_ADD_Y_SCRATCH_END);
+}
+
+void
 asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -220,8 +226,24 @@ asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
 }
 
 void
-asm_x64_emit_jit_ADD_Y_SCRATCH(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf, asm_x64_jit_ADD_Y_SCRATCH, asm_x64_jit_ADD_Y_SCRATCH_END);
+asm_x64_emit_jit_CHECK_SCRATCH_ABOVE(struct util_buffer* p_buf,
+                                     uint16_t addr,
+                                     void* p_trampoline) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_SCRATCH_ABOVE,
+               asm_x64_jit_CHECK_SCRATCH_ABOVE_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_CHECK_SCRATCH_ABOVE,
+                    asm_x64_jit_CHECK_SCRATCH_ABOVE_lea_patch,
+                    (k_6502_addr_space_size - addr));
+  asm_x64_patch_jump(p_buf,
+                     offset,
+                     asm_x64_jit_CHECK_SCRATCH_ABOVE,
+                     asm_x64_jit_CHECK_SCRATCH_ABOVE_jump_patch,
+                     p_trampoline);
 }
 
 void

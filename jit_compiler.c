@@ -25,6 +25,7 @@ struct jit_compiler {
   int debug;
   int option_accurate_timings;
   uint32_t max_opcodes_per_block;
+  uint16_t needs_callback_above;
 
   struct util_buffer* p_single_opcode_buf;
   struct util_buffer* p_tmp_buf;
@@ -55,13 +56,17 @@ struct jit_uop {
   int32_t optype;
 };
 
+enum {
+  k_max_uops_per_opcode = 16,
+};
+
 struct jit_opcode_details {
   uint8_t opcode_6502;
   uint8_t len;
   uint8_t max_cycles;
   int branches;
   int ends_block;
-  struct jit_uop uops[8];
+  struct jit_uop uops[k_max_uops_per_opcode];
 };
 
 static const int32_t k_value_unknown = -1;
@@ -77,6 +82,7 @@ enum {
   k_opcode_ADD_Y_SCRATCH,
   k_opcode_CHECK_BCD,
   k_opcode_CHECK_PENDING_IRQ,
+  k_opcode_CHECK_SCRATCH_ABOVE,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
@@ -136,6 +142,10 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     int debug) {
   size_t i;
   struct util_buffer* p_tmp_buf;
+  uint16_t needs_callback_above;
+  uint16_t temp_u16;
+
+  void* p_memory_object = p_memory_access->p_callback_obj;
   int max_opcodes_per_block = 65536;
 
   /* Check invariants required for compact code generation. */
@@ -164,6 +174,15 @@ jit_compiler_create(struct memory_access* p_memory_access,
     max_opcodes_per_block = 1;
   }
   p_compiler->max_opcodes_per_block = max_opcodes_per_block;
+
+  needs_callback_above = p_memory_access->memory_read_needs_callback_above(
+      p_memory_object);
+  temp_u16 = p_memory_access->memory_write_needs_callback_above(
+      p_memory_object);
+  if (temp_u16 < needs_callback_above) {
+    needs_callback_above = temp_u16;
+  }
+  p_compiler->needs_callback_above = needs_callback_above;
 
   p_compiler->compile_for_code_in_zero_page = 0;
 
@@ -209,6 +228,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct jit_uop* p_main_uop;
   uint16_t addr_range_start;
   uint16_t addr_range_end;
+  uint32_t num_uops;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -334,11 +354,28 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
+    p_uop->opcode = k_opcode_CHECK_SCRATCH_ABOVE;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop->value2 = p_compiler->needs_callback_above;
+    p_uop++;
     break;
   case k_idy:
     p_uop->opcode = k_opcode_MODE_IND;
     p_uop->value1 = (uint16_t) p_mem_read[addr_plus_1];
     p_uop->optype = -1;
+    p_uop++;
+    /* NOTE: we run the check for special addresses before the check for page
+     * crossings, otherwise we might account for a page crossing only to jump
+     * into the interpreter to handle a special address.
+     * This ordering also means we haven't added Y to the indirect base
+     * address yet, so we need to subtract the maximum value of Y (0xFF) from
+     * the special address base.
+     */
+    p_uop->opcode = k_opcode_CHECK_SCRATCH_ABOVE;
+    p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
+    p_uop->value2 = (p_compiler->needs_callback_above - 0xFF);
     p_uop++;
     if (p_compiler->option_accurate_timings && (opmem == k_read)) {
       p_uop->opcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
@@ -393,7 +430,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Code invalidation for writes, aka. self-modifying code. */
-  /* TODO: only do zero page invalidations if the program needs it. */
   /* TODO: stack page invalidations. */
   if (opmem == k_write || opmem == k_rw) {
     switch (opmode) {
@@ -652,7 +688,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
 
-  return (p_uop - &p_details->uops[0]);
+  num_uops = (p_uop - &p_details->uops[0]);
+  assert(num_uops <= k_max_uops_per_opcode);
+  return num_uops;
 }
 
 static void
@@ -671,6 +709,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_countdown:
   case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
+  case k_opcode_CHECK_SCRATCH_ABOVE:
   case k_opcode_MODE_IND_SCRATCH:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
@@ -724,6 +763,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_CHECK_PENDING_IRQ:
     asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case k_opcode_CHECK_SCRATCH_ABOVE:
+    asm_x64_emit_jit_CHECK_SCRATCH_ABOVE(p_dest_buf,
+                                         (uint16_t) value2,
+                                         (void*) (size_t) value1);
     break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
