@@ -177,7 +177,6 @@ jit_interp_instruction_callback(void* p,
     /* Any memory writes executed by the interpreter need to invalidate
      * compiled JIT code if they're self-modifying writes.
      */
-    /* TODO: a little subtle so add a test to timing.rom. */
     jit_invalidate_code_at_address(p_jit, done_addr);
   }
 

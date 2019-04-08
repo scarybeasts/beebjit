@@ -67,9 +67,9 @@ main(int argc, const char* argv[]) {
   /* Check instruction timings for page crossings in idy mode. */
   set_new_index(p_buf, 0x0040);
   emit_LDA(p_buf, k_imm, 0xFF);
-  emit_STA(p_buf, k_abs, 0xB0);
+  emit_STA(p_buf, k_abs, 0x00B0);
   emit_LDA(p_buf, k_imm, 0x10);
-  emit_STA(p_buf, k_abs, 0xB1);
+  emit_STA(p_buf, k_abs, 0x00B1);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, no page crossing, 5 cycles. */
@@ -546,8 +546,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xC800);
 
-  /* Exit sequence. */
+  /* Test that a self-modifying write still occurs if it co-incides with an
+   * interrupt. Relevant to JIT mode.
+   */
   set_new_index(p_buf, 0x0800);
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_JSR(p_buf, 0x1000);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0xCA);   /* DEX */ /* Timer value: 1. */
+  emit_STA(p_buf, k_abs, 0x1000); /* Timer value: 0, -1, self-modifies. */
+  emit_LDX(p_buf, k_imm, 0x05);
+  emit_JSR(p_buf, 0x1000);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_JMP(p_buf, k_abs, 0xC840);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0840);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -556,6 +575,7 @@ main(int argc, const char* argv[]) {
   /* Routine to arrange for an TIMER1 based IRQ at a specific time. */
   /* Input: A is timer value desired at first post-RTS opcode. */
   set_new_index(p_buf, 0x3000);
+  emit_SEI(p_buf);
   emit_CLC(p_buf);
   emit_ADC(p_buf, k_imm, 3);      /* A += 3 to account for 6 cycle RTS. */
   emit_STA(p_buf, k_abs, 0xFE44); /* T1CL: A + 3. */
