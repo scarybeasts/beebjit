@@ -530,6 +530,7 @@ bbc_create(int mode,
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
+  p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
@@ -953,8 +954,27 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   if (p_bbc->slow_flag) {
     cycles_per_run = 2000;
   } else {
-    cycles_per_run = 200000;
+    uint64_t speed;
+    /* We're going as fast as we can; check in every so often, about 1000 times
+     * per second so that keyboard response is excellent and timer resolution
+     * reasonable.
+     * Depending on mode, 1000 times a second approximates to a different
+     * number of cycles.
+     */
+    if (p_bbc->debug_flag) {
+      /* Assume 20Mhz speed or so. */
+      speed = (20ull * 1000 * 1000);
+    } else {
+      /* 500Mhz for now. Something like JIT is much much faster but I think
+       * there's a problem with tight hardware register poll loops (e.g.
+       * vsync wait) being much slower.
+       */
+      speed = (500ull * 1000 * 1000);
+    }
+
+    cycles_per_run = (speed / 1000);
   }
+
   p_bbc->cycles_per_run = cycles_per_run;
 
   (void) timing_start_timer_with_value(p_timing,
