@@ -106,7 +106,7 @@ asm_x64_jit_jump_interp_trampoline_END:
 .globl asm_x64_jit_check_countdown_jump_patch
 .globl asm_x64_jit_check_countdown_END
 asm_x64_jit_check_countdown:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 asm_x64_jit_check_countdown_count_patch:
   bt REG_COUNTDOWN, 63
   jb 0
