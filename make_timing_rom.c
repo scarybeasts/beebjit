@@ -54,18 +54,24 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, no page crossing, 4 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 5);
   emit_CYCLES_RESET(p_buf);
   emit_STA(p_buf, k_abx, 0x1000); /* STA abx, no page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
+  emit_LDX(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
   emit_STA(p_buf, k_abx, 0x10FF); /* STA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 6);
-  emit_JMP(p_buf, k_abs, 0xC040);
+  emit_JMP(p_buf, k_abs, 0xC050);
 
   /* Check instruction timings for page crossings in idy mode. */
-  set_new_index(p_buf, 0x0040);
+  set_new_index(p_buf, 0x0050);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0x00B0);
   emit_LDA(p_buf, k_imm, 0x10);
@@ -88,10 +94,10 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 7);
-  emit_JMP(p_buf, k_abs, 0xC080);
+  emit_JMP(p_buf, k_abs, 0xC090);
 
   /* Check instruction timings for branching. */
-  set_new_index(p_buf, 0x0080);
+  set_new_index(p_buf, 0x0090);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
   emit_BNE(p_buf, -2);            /* Branch, not taken, 2 cycles. */
@@ -102,7 +108,7 @@ main(int argc, const char* argv[]) {
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 4);
   emit_CYCLES_RESET(p_buf);
-  emit_BEQ(p_buf, 0x69);          /* Branch, taken, page crossing, 4 cycles. */
+  emit_BEQ(p_buf, 0x59);          /* Branch, taken, page crossing, 4 cycles. */
 
   set_new_index(p_buf, 0x0100);
   /* This is the landing point for the BEQ above. */

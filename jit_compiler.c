@@ -238,6 +238,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct jit_uop* p_uop = &p_details->uops[0];
   struct jit_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
+  int could_page_cross = 1;
   /* Default main value1 to the address, so unknown opcodes have it. */
   int32_t main_value1 = addr_6502;
 
@@ -292,12 +293,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_abx:
   case k_aby:
     main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    if ((main_value1 & 0xFF) == 0x00) {
+      could_page_cross = 0;
+    }
     addr_range_start = main_value1;
     addr_range_end = main_value1;
     if (opmode == k_abx || opmode == k_aby) {
       addr_range_end += 0xFF;
     }
-    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+    if (p_compiler->option_accurate_timings &&
+        (opmem == k_read) &&
+        could_page_cross) {
       if (opmode == k_abx) {
         p_uop->opcode = k_opcode_ABX_CHECK_PAGE_CROSSING;
         p_uop->optype = -1;
@@ -394,7 +400,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->max_cycles = g_opcycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
     if ((opmem == k_read) &&
-        (opmode == k_abx || opmode == k_aby || opmode == k_idy)) {
+        (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
+        could_page_cross) {
       p_details->max_cycles++;
     } else if (opmode == k_rel) {
       /* Taken branches take 1 cycles longer, or 2 cycles longer if there's
