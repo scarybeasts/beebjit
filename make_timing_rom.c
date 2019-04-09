@@ -547,7 +547,7 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0xC800);
 
   /* Test that a self-modifying write still occurs if it co-incides with an
-   * interrupt. Relevant to JIT mode.
+   * interrupt. Also test the timing in this case. Relevant to JIT mode.
    */
   set_new_index(p_buf, 0x0800);
   emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
@@ -559,10 +559,13 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0xF000);
   emit_LDA(p_buf, k_imm, 0xCA);   /* DEX */ /* Timer value: 1. */
   emit_STA(p_buf, k_abs, 0x1000); /* Timer value: 0, -1, self-modifies. */
-  emit_LDX(p_buf, k_imm, 0x05);
-  emit_JSR(p_buf, 0x1000);
+  emit_LDX(p_buf, k_imm, 0x05);   /* Timer value: 4. */
+  emit_JSR(p_buf, 0x1000);        /* Timer value: 3, 2, 1, 0, -1, 4, 3. */
+  emit_LDY(p_buf, k_abs, 0xFE44); /* Timer value: 2, 1, 0. */
   emit_TXA(p_buf);
   emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x00);
   emit_JMP(p_buf, k_abs, 0xC840);
 
   /* Exit sequence. */

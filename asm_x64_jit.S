@@ -25,10 +25,12 @@ asm_x64_jit_compile_trampoline:
   mov REG_PARAM1, REG_CONTEXT
   # param2: x64 rip that called here.
   mov REG_PARAM2, REG_SCRATCH1
+  # param3: countdown
+  mov REG_PARAM3, REG_COUNTDOWN
 
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
 
-  mov REG_SCRATCH1, REG_RETURN
+  mov REG_COUNTDOWN, REG_RETURN
 
   pop rdi
   pop rsi
@@ -37,7 +39,12 @@ asm_x64_jit_compile_trampoline:
   sahf
 
   # We're jumping out of a call so pop the return address.
-  pop REG_SCRATCH2
+  pop REG_SCRATCH1
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  mov REG_SCRATCH1_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
+  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, 24
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
 
   jmp REG_SCRATCH1
 

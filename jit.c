@@ -280,12 +280,13 @@ jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   return block_addr_buf;
 }
 
-static void*
-jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+static int64_t
+jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
   uint8_t* p_jit_ptr;
   uint8_t* p_block_ptr;
   uint16_t addr_6502;
 
+  struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
   uint16_t block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
@@ -307,7 +308,15 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
     }
   }
 
+  /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
+   * that was temporarily stale due to optimizations.
+   */
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+  p_state_6502->reg_pc = addr_6502;
+  if (p_intel_rip != p_jit_ptr) {
+    /* TODO: other 6502 state isn't setup correctly yet. */
+    countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
+  }
 
   util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
 
@@ -322,7 +331,9 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
     /* Invalidate all existing compiled code because if it writes to the zero
      * page, it isn't doing self-modified code correctly.
      */
-    jit_memory_range_invalidate(&p_jit->driver, 0, (k_6502_addr_space_size - 1));
+    jit_memory_range_invalidate(&p_jit->driver,
+                                0,
+                                (k_6502_addr_space_size - 1));
 
     jit_compiler_set_compiling_for_code_in_zero_page(p_compiler, 1);
   } else if ((addr_6502 >= 0x100) && (addr_6502 <= 0x1FF)) {
@@ -336,7 +347,7 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 
   jit_compiler_compile_block(p_compiler, p_compile_buf, addr_6502);
 
-  return p_jit_ptr;
+  return countdown;
 }
 
 static void
