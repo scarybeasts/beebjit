@@ -116,6 +116,21 @@ asm_x64_jit_check_countdown_END:
   ret
 
 
+.globl asm_x64_jit_check_countdown_8bit
+.globl asm_x64_jit_check_countdown_8bit_count_patch
+.globl asm_x64_jit_check_countdown_8bit_jump_patch
+.globl asm_x64_jit_check_countdown_8bit_END
+asm_x64_jit_check_countdown_8bit:
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
+asm_x64_jit_check_countdown_8bit_count_patch:
+  bt REG_COUNTDOWN, 63
+  jb 0
+asm_x64_jit_check_countdown_8bit_jump_patch:
+
+asm_x64_jit_check_countdown_8bit_END:
+  ret
+
+
 .globl asm_x64_jit_call_debug
 .globl asm_x64_jit_call_debug_pc_patch
 .globl asm_x64_jit_call_debug_call_patch
