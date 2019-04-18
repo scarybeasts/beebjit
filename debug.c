@@ -41,6 +41,8 @@ struct debug_struct {
   int debug_break_exec[k_max_break];
   int debug_break_mem_low[k_max_break];
   int debug_break_mem_high[k_max_break];
+  uint8_t debug_break_mem_read[k_max_break];
+  uint8_t debug_break_mem_write[k_max_break];
   int debug_break_opcodes[256];
   /* Stats. */
   int stats;
@@ -105,6 +107,8 @@ debug_create(struct bbc_struct* p_bbc,
     p_debug->debug_break_exec[i] = -1;
     p_debug->debug_break_mem_low[i] = -1;
     p_debug->debug_break_mem_high[i] = -1;
+    p_debug->debug_break_mem_read[i] = 0;
+    p_debug->debug_break_mem_write[i] = 0;
   }
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
@@ -465,14 +469,23 @@ debug_hit_break(struct debug_struct* p_debug,
                 int addr_6502,
                 uint8_t opcode_6502) {
   size_t i;
-  for (i = 0; i < k_max_break; ++i) {
+  for (i = 0; (i < k_max_break); ++i) {
     if (reg_pc == p_debug->debug_break_exec[i]) {
       return 1;
     }
-    if (addr_6502 != -1 &&
-        p_debug->debug_break_mem_low[i] <= addr_6502 &&
-        p_debug->debug_break_mem_high[i] >= addr_6502) {
-      return 1;
+    if ((addr_6502 != -1) &&
+        (p_debug->debug_break_mem_low[i] <= addr_6502) &&
+        (p_debug->debug_break_mem_high[i] >= addr_6502)) {
+      uint8_t optype = g_optypes[opcode_6502];
+      uint8_t opmem = g_opmem[optype];
+      if (((opmem == k_read) || (opmem == k_rw)) &&
+          p_debug->debug_break_mem_read[i]) {
+        return 1;
+      }
+      if (((opmem == k_write) || (opmem == k_rw)) &&
+          p_debug->debug_break_mem_write[i]) {
+        return 1;
+      }
     }
   }
   if (p_debug->debug_break_opcodes[opcode_6502]) {
@@ -1045,6 +1058,38 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr = parse_int3;
       }
       p_debug->debug_break_mem_high[parse_int] = parse_addr;
+      p_debug->debug_break_mem_read[parse_int] = 1;
+      p_debug->debug_break_mem_write[parse_int] = 1;
+    } else if (sscanf(input_buf,
+                      "bmr %d %x %x",
+                      &parse_int,
+                      &parse_int2,
+                      &parse_int3) >= 2 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      parse_addr = parse_int2;
+      p_debug->debug_break_mem_low[parse_int] = parse_addr;
+      if (parse_int3 != -1) {
+        parse_addr = parse_int3;
+      }
+      p_debug->debug_break_mem_high[parse_int] = parse_addr;
+      p_debug->debug_break_mem_read[parse_int] = 1;
+      p_debug->debug_break_mem_write[parse_int] = 0;
+    } else if (sscanf(input_buf,
+                      "bmw %d %x %x",
+                      &parse_int,
+                      &parse_int2,
+                      &parse_int3) >= 2 &&
+               parse_int >= 0 &&
+               parse_int < k_max_break) {
+      parse_addr = parse_int2;
+      p_debug->debug_break_mem_low[parse_int] = parse_addr;
+      if (parse_int3 != -1) {
+        parse_addr = parse_int3;
+      }
+      p_debug->debug_break_mem_high[parse_int] = parse_addr;
+      p_debug->debug_break_mem_read[parse_int] = 0;
+      p_debug->debug_break_mem_write[parse_int] = 1;
     } else if (sscanf(input_buf, "db %d", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < k_max_break) {
@@ -1122,25 +1167,27 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             cycles);
     } else if (!strcmp(input_buf, "?")) {
       (void) printf(
-          "q                : quit\n"
-          "c                : continue\n"
-          "s                : step one 6502 instuction\n"
-          "d <addr>         : disassemble at <addr>\n"
-          "t                : trap into gdb\n"
-          "b <id> <addr>    : set breakpoint <id> at 6502 address <addr>\n"
-          "db <id>          : delete breakpoint <id>\n"
-          "bm <id> <lo> (hi): set memory breakpoint for 6502 range\n"
-          "dbm <id>         : delete memory breakpoint <id>\n"
-          "bop <op>         : break on opcode <op>\n"
-          "m <addr>         : show memory at <addr>\n"
-          "sm <addr> <val>  : write <val> to 6502 <addr>\n"
-          "lm <f> <addr> <l>: load <l> memory at <addr> from state <f>\n"
-          "lr <f> <addr>    : load memory at <addr> from raw file <f>\n"
-          "ss <f>           : save state to BEM file <f>\n"
-          "{a,x,y,pc}=<val> : set register to <val>\n"
-          "sys              : show system VIA registers\n"
-          "user             : show user VIA registers\n"
-          "r                : show regular registers\n");
+  "q                 : quit\n"
+  "c                 : continue\n"
+  "s                 : step one 6502 instuction\n"
+  "d <addr>          : disassemble at <addr>\n"
+  "t                 : trap into gdb\n"
+  "b <id> <addr>     : set breakpoint <id> at 6502 address <addr>\n"
+  "db <id>           : delete breakpoint <id>\n"
+  "bm <id> <lo> (hi) : set read/write memory breakpoint for 6502 range\n"
+  "bmr <id> <lo> (hi): set read memory breakpoint for 6502 range\n"
+  "bmw <id> <lo> (hi): set write memory breakpoint for 6502 range\n"
+  "dbm <id>          : delete memory breakpoint <id>\n"
+  "bop <op>          : break on opcode <op>\n"
+  "m <addr>          : show memory at <addr>\n"
+  "sm <addr> <val>   : write <val> to 6502 <addr>\n"
+  "lm <f> <addr> <l> : load <l> memory at <addr> from state <f>\n"
+  "lr <f> <addr>     : load memory at <addr> from raw file <f>\n"
+  "ss <f>            : save state to BEM file <f>\n"
+  "{a,x,y,pc}=<val>  : set register to <val>\n"
+  "sys               : show system VIA registers\n"
+  "user              : show user VIA registers\n"
+  "r                 : show regular registers\n");
     } else {
       (void) printf("???\n");
     }
