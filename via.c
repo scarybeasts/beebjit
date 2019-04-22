@@ -815,6 +815,7 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
 
   t1c = via_get_t1c(p_via);
   t1c -= ticks;
+  via_set_t1c(p_via, t1c);
 
   if (t1c < 0) {
     if (timing_get_firing(p_timing, p_via->t1_timer_id)) {
@@ -822,7 +823,6 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
     }
     t1c = via_get_t1c(p_via);
   }
-  via_set_t1c(p_via, t1c);
 
   /* If TIMER2 is in pulse counting mode, it doesn't decrement. */
   if (p_via->ACR & 0x20) {
@@ -831,6 +831,7 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
 
   t2c = via_get_t2c(p_via);
   t2c -= ticks;
+  via_set_t2c(p_via, t2c);
 
   if (t2c < 0) {
     if (timing_get_firing(p_timing, p_via->t2_timer_id)) {
@@ -838,5 +839,4 @@ via_time_advance(struct via_struct* p_via, uint64_t ticks) {
     }
     t2c = via_get_t2c(p_via);
   }
-  via_set_t2c(p_via, t2c);
 }
