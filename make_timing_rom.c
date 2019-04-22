@@ -574,8 +574,34 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x00);
   emit_JMP(p_buf, k_abs, 0xC840);
 
-  /* Exit sequence. */
+  /* Test that a large block (in terms of binary size) that is likely split
+   * does not mess up timings.
+   */
   set_new_index(p_buf, 0x0840);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_JSR(p_buf, 0xF000);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_PHP(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE44);
+  emit_REQUIRE_EQ(p_buf, 0xD6);
+  emit_JMP(p_buf, k_abs, 0xC880);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0880);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

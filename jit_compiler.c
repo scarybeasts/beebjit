@@ -49,10 +49,14 @@ struct jit_compiler {
 };
 
 struct jit_uop {
+  /* Static details. */
   int32_t opcode;
   int32_t value1;
   int32_t value2;
   int32_t optype;
+
+  /* Dynamic details that are calculated as compilation proceeds. */
+  uint32_t len_x64;
 };
 
 enum {
@@ -61,15 +65,21 @@ enum {
 };
 
 struct jit_opcode_details {
+  /* Static details. */
   uint16_t addr_6502;
   uint8_t opcode_6502;
   uint8_t len;
   uint8_t max_cycles;
   int branches;
   int ends_block;
+
+  /* Partially dynamic details that may be changed by optimization. */
   uint8_t num_uops;
   struct jit_uop uops[k_max_uops_per_opcode];
+
+  /* Dynamic details that are calculated as compilation proceeds. */
   void* p_host_address;
+  int32_t cycles_run_start;
 };
 
 static const int32_t k_value_unknown = -1;
@@ -259,7 +269,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (p_details->branches == k_bra_y) {
     p_details->ends_block = 1;
   }
+
   p_details->p_host_address = NULL;
+  p_details->cycles_run_start = -1;
 
   if (p_compiler->debug) {
     p_uop->opcode = k_opcode_debug;
@@ -1415,7 +1427,9 @@ jit_compiler_prepend_uop(struct jit_opcode_details* p_details,
   struct jit_uop* p_uop = &p_details->uops[0];
   assert(num_uops < k_max_uops_per_opcode);
 
-  (void) memcpy(&p_details->uops[1], p_uop, (sizeof(struct jit_uop) * num_uops));
+  (void) memcpy(&p_details->uops[1],
+                p_uop,
+                (sizeof(struct jit_uop) * num_uops));
   p_uop->opcode = opcode;
   p_uop->optype = -1;
   p_uop->value1 = value1;
@@ -1446,17 +1460,19 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            struct util_buffer* p_buf,
                            uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
+  uint8_t single_opcode_buffer[128];
 
   uint32_t i_opcodes;
   uint32_t i_uops;
   uint16_t addr_6502;
-  uint32_t cycles;
   struct jit_opcode_details* p_details;
+  struct jit_opcode_details* p_details_fixup;
+  struct jit_uop* p_uop;
 
-  uint32_t block_max_cycles = 0;
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
   uint32_t total_num_opcodes = 0;
   int block_ended = 0;
+  uint32_t cycles = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
@@ -1474,7 +1490,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_compiler->addr_is_block_start[start_addr_6502] = 0;
   }
 
-  /* First break all the opcodes for this run into uops. */
+  /* First break all the opcodes for this run into uops.
+   * This defines maximum possible bounds for the block and respects existing
+   * known block boundaries.
+   */
   addr_6502 = start_addr_6502;
   while (1) {
     p_details = &opcode_details[total_num_opcodes];
@@ -1520,13 +1539,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     p_details->uops[0].value2 += opcode_details[i_opcodes].max_cycles;
   }
-  block_max_cycles = p_details->uops[0].value2;
+  p_details->cycles_run_start = p_details->uops[0].value2;
 
-  /* Third, emit the uop stream to the output buffer, possibly optimizing along
-   * the way.
+  /* Third, emit the uop stream to the output buffer. This finalizes the number
+   * of opcodes compiled, which may get smaller if we run out of space in the
+   * binary output buffer.
    */
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    uint8_t single_opcode_buffer[128];
     uint8_t num_uops;
     size_t buf_needed;
     void* p_host_address;
@@ -1544,9 +1563,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     num_uops = p_details->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      jit_compiler_process_uop(p_compiler,
-                               p_single_opcode_buf,
-                               &p_details->uops[i_uops]);
+      size_t len_x64 = util_buffer_get_pos(p_single_opcode_buf);
+      p_uop = &p_details->uops[i_uops];
+      jit_compiler_process_uop(p_compiler, p_single_opcode_buf, p_uop);
+      len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
+      p_uop->len_x64 = len_x64;
     }
 
     buf_needed = util_buffer_get_pos(p_single_opcode_buf);
@@ -1562,7 +1583,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                p_single_opcode_buf,
                                &p_details->uops[0]);
       util_buffer_append(p_buf, p_single_opcode_buf);
-      /* TODO: need to fix up max cycles again. */
       break;
     }
 
@@ -1573,8 +1593,35 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   total_num_opcodes = i_opcodes;
 
-  /* Fourth, update compiler metadata. */
-  cycles = block_max_cycles;
+  /* Fourth, update any values (metadata and/or binary) that may have changed
+   * now we know the full extent of the emitted binary.
+   */
+  p_details_fixup = NULL;
+  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
+    p_details = &opcode_details[i_opcodes];
+    if (p_details->cycles_run_start != -1) {
+      p_details_fixup = p_details;
+      p_details_fixup->cycles_run_start = 0;
+    }
+    p_details_fixup->cycles_run_start += p_details->max_cycles;
+  }
+  assert(p_details_fixup->num_uops >= 2);
+  p_uop = &p_details_fixup->uops[0];
+  assert(p_uop->opcode == k_opcode_countdown);
+  p_uop->value2 = p_details_fixup->cycles_run_start;
+  util_buffer_setup(p_single_opcode_buf,
+                    p_details_fixup->p_host_address,
+                    p_uop->len_x64);
+  /* The replacement uop could be shorter (e.g. 4-byte length -> 1-byte) but
+   * never longer so fill with nop.
+   */
+  util_buffer_fill_to_end(p_single_opcode_buf, '\x90');
+  util_buffer_set_pos(p_single_opcode_buf, 0);
+  jit_compiler_process_uop(p_compiler,
+                           p_single_opcode_buf,
+                           &p_details_fixup->uops[0]);
+
+  /* Fifth, update compiler metadata. */
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     uint8_t num_bytes_6502;
     uint8_t i;
@@ -1583,6 +1630,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     p_details = &opcode_details[i_opcodes];
     addr_6502 = p_details->addr_6502;
+    if (p_details->cycles_run_start != -1) {
+      cycles = p_details->cycles_run_start;
+    }
 
     num_bytes_6502 = p_details->len;
     jit_ptr = (uint32_t) (size_t) p_details->p_host_address;
