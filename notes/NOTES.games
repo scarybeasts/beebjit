@@ -23,6 +23,39 @@ read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
 
 
+- Camelot.zip
+SHA256: d8c2766fb6385ce22efaa5b3d4e2b70863c4a908b24c17709cbc576dfa3c1474
+Notes:
+1) Crazy loop that runs when an enemy dies (have to be touching as dies).
+[ITRP] 2A72: LDX #$01
+[ITRP] 2A74: STX $24
+[ITRP] 2A76: DEX
+[ITRP] 2A77: LDA ($70,X)
+[ITRP] 2A79: LDA ($70,X)
+[ITRP] 2A7B: DEX
+[ITRP] 2A7C: BNE $2A77
+That reads from tons of quasi-random pointers which may well have side effects
+for those in the hardware register space.
+Also does one read where X == 0x8F, leading to a 16-bit pointer being fetched
+from $FF and (wrapped) $00, which is very rare.
+2) QUEST23 executes $2A43, which immediately executes code in the stack page
+(loaded from QUEST21), via JSR $015F.
+3) Game start screen, "PRESS SPACE TO START", is looping at $0BE8, which passes
+keycode $9D to routine $39A5, which just calls OSBYTE 129 (read key with time
+limit).
+4) After pressing space, $3876 disables the keyboard interrupt by writing
+$3D to $FE4E.
+5) Disabling the keyboard interrupt isn't sufficient to disable the MOS
+interrupt driven keyboard handling, if the interrupt is already disabled. This
+state is possible if there's a key down, in which case MOS is polling every
+10ms to see if it's been released. MOS will re-enable the interrupt when the
+key is detected as released.
+6) With the keyboard interrupt back on again, normal MOS keyboard handling
+proceeds and the keyboard buffer at $03E0 is filled up with key presses.
+Unfortunately, $03E0 is used to store one of the sprite frames for walking
+right, which gets corrupted!
+
+
 - CastleQuest.zip
 SHA256: 78ee6b55a6fec679240abd576a83554ba374513d10bd5aff5de4824a114decb1
 Start PC: $5460
@@ -42,23 +75,6 @@ The bug can be confirmed in other emulators by running the game via:
 *CASTLE7
 and holding down RETURN indefinitely. When the game starts, the keyboard won't
 work. Lovely!
-
-
-- Camelot.zip
-SHA256: d8c2766fb6385ce22efaa5b3d4e2b70863c4a908b24c17709cbc576dfa3c1474
-Notes:
-1) Crazy loop that runs when an enemy dies (have to be touching as dies).
-[ITRP] 2A72: LDX #$01
-[ITRP] 2A74: STX $24
-[ITRP] 2A76: DEX
-[ITRP] 2A77: LDA ($70,X)
-[ITRP] 2A79: LDA ($70,X)
-[ITRP] 2A7B: DEX
-[ITRP] 2A7C: BNE $2A77
-That reads from tons of quasi-random pointers which may well have side effects
-for those in the hardware register space.
-Also does one read where X == 0x8F, leading to a 16-bit pointer being fetched
-from $FF and (wrapped) $00, which is very rare.
 
 
 - Citadel.zip
