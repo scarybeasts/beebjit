@@ -44,6 +44,8 @@ struct jit_struct {
   uint16_t interp_block_start;
 
   int log_compile;
+
+  int option_accurate_timings;
 };
 
 static uint8_t*
@@ -370,6 +372,12 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
 
+  p_jit->option_accurate_timings = util_has_option(p_options->p_opt_flags,
+                                                   "jit:accurate-timings");
+  if (p_options->accurate) {
+    p_jit->option_accurate_timings = 1;
+  }
+
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
@@ -423,7 +431,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit,
       &p_jit->jit_ptrs[0],
       p_options,
-      debug);
+      debug,
+      p_jit->option_accurate_timings);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();

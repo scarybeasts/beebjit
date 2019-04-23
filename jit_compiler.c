@@ -152,7 +152,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
-                    int debug) {
+                    int debug,
+                    int option_accurate_timings) {
   size_t i;
   struct util_buffer* p_tmp_buf;
   uint16_t needs_callback_above;
@@ -178,7 +179,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
-  p_compiler->option_accurate_timings = 1;
+  p_compiler->option_accurate_timings = option_accurate_timings;
 
   (void) util_get_int_option(&max_opcodes_per_block,
                              p_options->p_opt_flags,
