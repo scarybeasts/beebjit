@@ -92,7 +92,6 @@ enum {
   k_opcode_ABY_CHECK_PAGE_CROSSING,
   k_opcode_ADD_CYCLES,
   k_opcode_ADD_IMM,
-  k_opcode_ADD_Y_SCRATCH,
   k_opcode_CHECK_BCD,
   k_opcode_CHECK_PENDING_IRQ,
   k_opcode_CHECK_SCRATCH_ABOVE,
@@ -407,9 +406,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop->optype = -1;
       p_uop++;
     }
-    p_uop->opcode = k_opcode_ADD_Y_SCRATCH;
-    p_uop->optype = -1;
-    p_uop++;
     break;
   default:
     assert(0);
@@ -777,9 +773,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_ABY_CHECK_PAGE_CROSSING:
     asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_ADD_Y_SCRATCH:
-    asm_x64_emit_jit_ADD_Y_SCRATCH(p_dest_buf);
-    break;
   case k_opcode_ADD_CYCLES:
     asm_x64_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
@@ -870,7 +863,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
     break;
   case 0x01: /* ORA idx */
-  case 0x11: /* ORA idy */
   case 0x15: /* ORA zpx */
     asm_x64_emit_jit_ORA_scratch(p_dest_buf);
     break;
@@ -915,6 +907,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x10:
     asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x11: /* ORA idy */
+    asm_x64_emit_jit_ORA_scratch_Y(p_dest_buf);
+    break;
   case 0x16: /* ASL zpx */
     asm_x64_emit_jit_ASL_scratch(p_dest_buf);
     break;
@@ -937,7 +932,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0x21: /* AND idx */
-  case 0x31: /* AND idy */
   case 0x35: /* AND zpx */
     asm_x64_emit_jit_AND_scratch(p_dest_buf);
     break;
@@ -965,6 +959,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x30:
     asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x31: /* AND idy */
+    asm_x64_emit_jit_AND_scratch_Y(p_dest_buf);
+    break;
   case 0x36: /* ROL zpx */
     asm_x64_emit_jit_ROL_scratch(p_dest_buf);
     break;
@@ -981,7 +978,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x41: /* EOR idx */
-  case 0x51: /* EOR idy */
   case 0x55: /* EOR zpx */
     asm_x64_emit_jit_EOR_scratch(p_dest_buf);
     break;
@@ -1017,6 +1013,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x50:
     asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x51: /* EOR idy */
+    asm_x64_emit_jit_EOR_scratch_Y(p_dest_buf);
+    break;
   case 0x56: /* LSR zpx */
     asm_x64_emit_jit_LSR_scratch(p_dest_buf);
     break;
@@ -1039,7 +1038,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0x61: /* ADC idx */
-  case 0x71: /* ADC idy */
   case 0x75: /* ADC zpx */
     asm_x64_emit_jit_ADC_scratch(p_dest_buf);
     break;
@@ -1063,6 +1061,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x70:
     asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x71: /* ADC idy */
+    asm_x64_emit_jit_ADC_scratch_Y(p_dest_buf);
+    break;
   case 0x76: /* ROR zpx */
     asm_x64_emit_jit_ROR_scratch(p_dest_buf);
     break;
@@ -1079,7 +1080,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x81: /* STA idx */
-  case 0x91: /* STA idy */
   case 0x95: /* STA zpx */
     asm_x64_emit_jit_STA_scratch(p_dest_buf);
     break;
@@ -1110,6 +1110,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x90:
     asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0x91: /* STA idy */
+    asm_x64_emit_jit_STA_scratch_Y(p_dest_buf);
+    break;
   case 0x94: /* STY zpx */
     asm_x64_emit_jit_STY_scratch(p_dest_buf);
     break;
@@ -1132,7 +1135,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xA1: /* LDA idx */
-  case 0xB1: /* LDA idy */
   case 0xB5: /* LDA zpx */
     asm_x64_emit_jit_LDA_scratch(p_dest_buf);
     break;
@@ -1163,6 +1165,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xB0:
     asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0xB1: /* LDA idy */
+    asm_x64_emit_jit_LDA_scratch_Y(p_dest_buf);
+    break;
   case 0xB4: /* LDY zpx */
     asm_x64_emit_jit_LDY_scratch(p_dest_buf);
     break;
@@ -1191,7 +1196,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xC1: /* CMP idx */
-  case 0xD1: /* CMP idy */
   case 0xD5: /* CMP zpx */
     asm_x64_emit_jit_CMP_scratch(p_dest_buf);
     break;
@@ -1225,6 +1229,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xD0:
     asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
+  case 0xD1: /* CMP idy */
+    asm_x64_emit_jit_CMP_scratch_Y(p_dest_buf);
+    break;
   case 0xD6: /* DEC zpx */
     asm_x64_emit_jit_DEC_scratch(p_dest_buf);
     break;
@@ -1250,7 +1257,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xE1: /* SBC idx */
-  case 0xF1: /* SBC idy */
   case 0xF5: /* SBC zpx */
     asm_x64_emit_jit_SBC_scratch(p_dest_buf);
     break;
@@ -1280,6 +1286,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0xF0:
     asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
+    break;
+  case 0xF1: /* SBC idy */
+    asm_x64_emit_jit_SBC_scratch_Y(p_dest_buf);
     break;
   case 0xF2:
     asm_x64_emit_instruction_CRASH(p_dest_buf);
