@@ -20,7 +20,7 @@
 #include <string.h>
 
 static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
-static const int k_jit_bytes_per_byte = 256;
+static const int k_jit_bytes_per_byte = K_BBC_JIT_BYTES_PER_BYTE;
 static void* k_jit_trampolines_addr = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
 static const int k_jit_trampoline_bytes_per_byte = 16;
 
