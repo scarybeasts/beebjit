@@ -24,12 +24,6 @@ enum {
   k_bbc_registers_len = 0x300,
 };
 enum {
-  k_bbc_mem_mmap_read_addr = 0x10000000,
-  k_bbc_mem_mmap_write_addr = 0x11000000,
-  k_bbc_mem_mmap_write_addr_ro = 0x1100f000,
-  k_bbc_mem_mmap_raw_addr = 0x12000000,
-};
-enum {
   k_message_exited = 1,
   k_message_vsync = 2,
   k_message_render_done = 3,

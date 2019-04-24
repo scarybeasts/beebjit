@@ -1,3 +1,5 @@
+#define _GNU_SOURCE /* For REG_RIP */
+
 #include "jit.h"
 
 #include "asm_x64_common.h"
@@ -15,14 +17,17 @@
 
 #include <assert.h>
 #include <err.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ucontext.h>
+#include <unistd.h>
 
 static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
 static const int k_jit_bytes_per_byte = K_BBC_JIT_BYTES_PER_BYTE;
 static void* k_jit_trampolines_addr = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
-static const int k_jit_trampoline_bytes_per_byte = 16;
+static const int k_jit_trampoline_bytes_per_byte = K_BBC_JIT_TRAMPOLINE_BYTES;
 
 struct jit_struct {
   struct cpu_driver driver;
@@ -353,6 +358,143 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
 }
 
 static void
+jit_safe_hex_convert(char* p_buf, void* p_ptr) {
+  size_t i;
+  size_t val = (size_t) p_ptr;
+  for (i = 0; i < 8; ++i) {
+    char c1 = (val & 0x0f);
+    char c2 = ((val & 0xf0) >> 4);
+
+    if (c1 < 10) {
+      c1 = '0' + c1;
+    } else {
+      c1 = 'a' + (c1 - 10);
+    }
+    if (c2 < 10) {
+      c2 = '0' + c2;
+    } else {
+      c2 = 'a' + (c2 - 10);
+    }
+
+    p_buf[16 - 2 - (i * 2) + 1] = c1;
+    p_buf[16 - 2 - (i * 2) ] = c2;
+
+    val >>= 8;
+  }
+}
+
+static void
+sigsegv_reraise(void* p_rip, void* p_addr) {
+  int ret;
+  struct sigaction sa;
+  char hex_buf[16];
+
+  static const char* p_msg = "SIGSEGV: rip ";
+  static const char* p_msg2 = ", addr ";
+  static const char* p_msg3 = "\n";
+
+  (void) memset(&sa, '\0', sizeof(sa));
+  sa.sa_handler = SIG_DFL;
+  (void) sigaction(SIGSEGV, &sa, NULL);
+
+  ret = write(2, p_msg, strlen(p_msg));
+  jit_safe_hex_convert(&hex_buf[0], p_rip);
+  ret = write(2, hex_buf, sizeof(hex_buf));
+  ret = write(2, p_msg2, strlen(p_msg2));
+  jit_safe_hex_convert(&hex_buf[0], p_addr);
+  ret = write(2, hex_buf, sizeof(hex_buf));
+  ret = write(2, p_msg3, strlen(p_msg3));
+  (void) ret;
+
+  (void) raise(SIGSEGV);
+  _exit(1);
+}
+
+static void
+jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
+  int inaccessible_page;
+  struct jit_struct* p_jit;
+  uint16_t block_addr_6502;
+  uint16_t addr_6502;
+  uint16_t i_addr_6502;
+  void* p_last_jit_ptr;
+
+  void* p_addr = p_siginfo->si_addr;
+  ucontext_t* p_context = (ucontext_t*) p_void;
+  void* p_rip = (void*) p_context->uc_mcontext.gregs[REG_RIP];
+  void* p_jit_end = (k_jit_addr +
+                     (k_6502_addr_space_size * k_jit_bytes_per_byte));
+
+  /* Crash unless it's fault we clearly recognize. */
+  if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  /* Crash unless the faulting instruction is in the JIT region. */
+  if ((p_rip < k_jit_addr) || (p_rip >= p_jit_end)) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  /* Bail unless it's a fault reading / writing the inaccessible page. */
+  inaccessible_page = 0;
+  if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
+                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + k_6502_addr_space_size))) {
+    inaccessible_page = 1;
+  }
+  if ((p_addr >= ((void*) K_BBC_MEM_WRITE_IND_ADDR +
+                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + k_6502_addr_space_size))) {
+    inaccessible_page = 1;
+  }
+
+  if (!inaccessible_page) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  p_jit = (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+  /* Sanity check it is really a jit struct. */
+  if (p_jit->p_compile_callback != jit_compile) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+  if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  /* NOTE -- may call assert() which isn't async safe but faulting context is
+   * raw asm, shouldn't be a disaster.
+   */
+  block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_rip);
+
+  /* Walk the code pointers in the block and do a non-exact match because the
+   * faulting instruction won't be the start of the 6502 opcode. (That may
+   * be e.g. the MODE_IND uop as part of the idy addressin mode.
+   */
+  addr_6502 = 0;
+  i_addr_6502 = block_addr_6502;
+  p_last_jit_ptr = NULL;
+  while (1) {
+    void* p_jit_ptr;
+    if (!i_addr_6502) {
+      sigsegv_reraise(p_rip, p_addr);
+    }
+    p_jit_ptr = (void*) (size_t) p_jit->jit_ptrs[i_addr_6502];
+    if (p_jit_ptr > p_rip) {
+      break;
+    }
+    if (p_jit_ptr != p_last_jit_ptr) {
+      p_last_jit_ptr = p_jit_ptr;
+      addr_6502 = i_addr_6502;
+    }
+    i_addr_6502++;
+  }
+
+  /* Bounce into the interpreter via the trampolines. */
+  p_context->uc_mcontext.gregs[REG_RIP] =
+      (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
+}
+
+static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   size_t i;
@@ -360,6 +502,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_jit_base;
   uint8_t* p_jit_trampolines;
   struct util_buffer* p_temp_buf;
+  struct sigaction sa;
+  int ret;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
@@ -446,6 +590,21 @@ jit_init(struct cpu_driver* p_cpu_driver) {
         (p_jit_trampolines + (i * k_jit_trampoline_bytes_per_byte)),
         k_jit_trampoline_bytes_per_byte);
     asm_x64_emit_jit_jump_interp_trampoline(p_temp_buf, i);
+  }
+
+  /* Ah the horrors, a SIGSEGV handler! This actually enables a ton of
+   * optimizations by using faults for very uncommon conditions, such that the
+   * fast path doesn't need certain checks.
+   */
+  (void) memset(&sa, '\0', sizeof(sa));
+  sa.sa_sigaction = jit_handle_sigsegv;
+  sa.sa_flags = (SA_SIGINFO | SA_NODEFER);
+  ret = sigaction(SIGSEGV, &sa, &sa);
+  if (ret != 0) {
+    errx(1, "sigaction failed");
+  }
+  if (sa.sa_sigaction != NULL && sa.sa_sigaction != jit_handle_sigsegv) {
+    errx(1, "conflicting SIGSEGV handler");
   }
 }
 

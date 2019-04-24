@@ -1,5 +1,6 @@
 #include "bbc.h"
 
+#include "asm_x64_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "debug.h"
@@ -85,6 +86,8 @@ struct bbc_struct {
   uint8_t* p_mem_raw;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
+  uint8_t* p_mem_read_ind;
+  uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -338,9 +341,16 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
           p_bbc->mem_fd,
           p_bbc->p_mem_write,
           (k_bbc_sideways_offset + k_bbc_rom_size));
+      (void) util_get_fixed_mapping_from_fd(
+          p_bbc->mem_fd,
+          p_bbc->p_mem_write_ind,
+          (k_bbc_sideways_offset + k_bbc_rom_size));
     } else {
       (void) util_get_fixed_anonymous_mapping(
           (p_bbc->p_mem_write + k_bbc_sideways_offset),
+          k_bbc_rom_size);
+      (void) util_get_fixed_anonymous_mapping(
+          (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
           k_bbc_rom_size);
     }
   }
@@ -548,41 +558,63 @@ bbc_create(int mode,
   p_bbc->p_mem_raw =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (uint8_t*) (size_t) k_bbc_mem_mmap_raw_addr,
+          (void*) (size_t) K_BBC_MEM_RAW_ADDR,
           k_6502_addr_space_size);
 
   /* p_mem_read marks ROM regions as hardware read-only. */
   p_bbc->p_mem_read =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (uint8_t*) (size_t) k_bbc_mem_mmap_read_addr,
+          (void*) (size_t) K_BBC_MEM_READ_ADDR,
           k_6502_addr_space_size);
 
   /* p_mem_write replaces ROM regions with dummy writebale regions. */
   p_bbc->p_mem_write =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
-          (uint8_t*) (size_t) k_bbc_mem_mmap_write_addr,
+          (void*) (size_t) K_BBC_MEM_WRITE_ADDR,
+          k_6502_addr_space_size);
+
+  /* ... */
+  p_bbc->p_mem_read_ind =
+      util_get_guarded_mapping_from_fd(
+          p_bbc->mem_fd,
+          (void*) (size_t) K_BBC_MEM_READ_IND_ADDR,
+          k_6502_addr_space_size);
+  p_bbc->p_mem_write_ind =
+      util_get_guarded_mapping_from_fd(
+          p_bbc->mem_fd,
+          (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
   (void) memset(p_bbc->p_mem_sideways, '\0', (k_bbc_rom_size * k_bbc_num_roms));
 
-  /* Install the dummy writeable ROM region. */
+  /* Install the dummy writeable ROM regions. */
   (void) util_get_fixed_anonymous_mapping(
       (p_bbc->p_mem_write + k_bbc_ram_size),
       (k_6502_addr_space_size - k_bbc_ram_size));
-  /* Make the registers page inaccessible. Typical ROM faults happen lower. */
-  /* TODO: consider re-enabling. Decision is whether we want to handle indirect
-   * writes (and maybe reads) to 0xF000 -> 0xFFFF via a fault or via extra
-   * inline x64 instructions. Unclear if the performance benefit would be worth
-   * the complexity.
-  util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
-   */
+  (void) util_get_fixed_anonymous_mapping(
+      (p_bbc->p_mem_write_ind + k_bbc_ram_size),
+      (k_6502_addr_space_size - k_bbc_ram_size));
 
-  /* Make the ROM readonly in the main read mapping used at runtime. */
+  /* Make the ROM readonly in the read mappings used at runtime. */
   util_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
                               (k_6502_addr_space_size - k_bbc_ram_size));
+  util_make_mapping_read_only((p_bbc->p_mem_read_ind + k_bbc_ram_size),
+                              (k_6502_addr_space_size - k_bbc_ram_size));
+
+  /* Make the registers page inaccessible in the indirect read / write
+   * mappings. This enables an optimization: indirect reads and writes can
+   * avoid expensive checks for hitting registers, which is rare, and rely
+   * instead on a fault + fixup.
+   */
+  util_make_mapping_none(
+      (p_bbc->p_mem_read_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+      K_BBC_MEM_INACCESSIBLE_LEN);
+  util_make_mapping_none(
+      (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+      K_BBC_MEM_INACCESSIBLE_LEN);
 
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
@@ -703,6 +735,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
+  util_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
 
   ret = close(p_bbc->mem_fd);
   if (ret != 0) {

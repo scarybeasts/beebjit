@@ -94,7 +94,6 @@ enum {
   k_opcode_ADD_IMM,
   k_opcode_CHECK_BCD,
   k_opcode_CHECK_PENDING_IRQ,
-  k_opcode_CHECK_SCRATCH_ABOVE,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
@@ -378,11 +377,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->optype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
-    p_uop->opcode = k_opcode_CHECK_SCRATCH_ABOVE;
-    p_uop->optype = -1;
-    p_uop->value1 = addr_6502;
-    p_uop->value2 = p_compiler->needs_callback_above;
-    p_uop++;
     break;
   case k_idy:
     p_uop->opcode = k_opcode_MODE_IND;
@@ -396,11 +390,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      * address yet, so we need to subtract the maximum value of Y (0xFF) from
      * the special address base.
      */
-    p_uop->opcode = k_opcode_CHECK_SCRATCH_ABOVE;
-    p_uop->optype = -1;
-    p_uop->value1 = addr_6502;
-    p_uop->value2 = (p_compiler->needs_callback_above - 0xFF);
-    p_uop++;
+    /* TODO: this happens too soon if we hit a register page fault? */
     if (p_compiler->option_accurate_timings && (opmem == k_read)) {
       p_uop->opcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
       p_uop->optype = -1;
@@ -733,7 +723,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_countdown:
   case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
-  case k_opcode_CHECK_SCRATCH_ABOVE:
   case k_opcode_MODE_IND_SCRATCH:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
@@ -784,11 +773,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_CHECK_PENDING_IRQ:
     asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
-    break;
-  case k_opcode_CHECK_SCRATCH_ABOVE:
-    asm_x64_emit_jit_CHECK_SCRATCH_ABOVE(p_dest_buf,
-                                         (uint16_t) value2,
-                                         (void*) (size_t) value1);
     break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
