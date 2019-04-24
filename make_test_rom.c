@@ -1005,13 +1005,13 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x20);
   emit_LDA(p_buf, k_imm, 0xA3);
   emit_LDX(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_idx, 0x20);
+  emit_STA(p_buf, k_idx, 0x20);   /* idx mode write to $FE4A. */
   emit_LDY(p_buf, k_imm, 0x00);
-  emit_LDA(p_buf, k_idy, 0x20);
+  emit_LDA(p_buf, k_idy, 0x20);   /* idy mode read to $FE4A. */
   emit_REQUIRE_EQ(p_buf, 0xA3);
   emit_LDA(p_buf, k_imm, 0);
   emit_CLC(p_buf);
-  emit_ADC(p_buf, k_idy, 0x20);
+  emit_ADC(p_buf, k_idy, 0x20);   /* idy mode read to $FE4A. */
   emit_REQUIRE_EQ(p_buf, 0xA3);
   emit_JMP(p_buf, k_abs, 0xCE40);
 
