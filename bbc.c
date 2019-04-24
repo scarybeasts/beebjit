@@ -341,11 +341,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
     } else {
       (void) util_get_fixed_anonymous_mapping(
           (p_bbc->p_mem_write + k_bbc_sideways_offset),
-          (k_6502_addr_space_size - k_bbc_sideways_offset));
-      /* Make the registers page inaccessible. Typical ROM faults happen lower.
-       * TODO, see above.
-      util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
-       */
+          k_bbc_rom_size);
     }
   }
 
@@ -584,9 +580,9 @@ bbc_create(int mode,
   util_make_mapping_none((void*) k_bbc_mem_mmap_write_addr_ro, 4096);
    */
 
-  /* Make the ROM readonly in the main mapping used at runtime. */
-  util_make_mapping_read_only(p_bbc->p_mem_read + k_bbc_ram_size,
-                              k_6502_addr_space_size - k_bbc_ram_size);
+  /* Make the ROM readonly in the main read mapping used at runtime. */
+  util_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
+                              (k_6502_addr_space_size - k_bbc_ram_size));
 
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
