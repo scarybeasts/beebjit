@@ -237,7 +237,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t optype;
   uint8_t opmode;
   uint8_t opmem;
-  struct jit_uop* p_main_uop;
   uint16_t addr_range_start;
   uint16_t addr_range_end;
 
@@ -572,13 +571,61 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
 
-  /* Main uop. */
-  p_main_uop = p_uop;
-  p_main_uop->opcode = opcode_6502;
-  p_main_uop->optype = optype;
-  p_main_uop->value1 = main_value1;
-
-  p_uop++;
+  /* Main uop, or a replacement thereof. */
+  switch (optype) {
+  case k_brk:
+    p_uop->opcode = k_opcode_PUSH_16;
+    p_uop->optype = -1;
+    p_uop->value1 = (uint16_t) (addr_6502 + 2);
+    p_uop++;
+    /* PHP */
+    p_uop->opcode = 0x08;
+    p_uop->optype = k_php;
+    p_uop++;
+    /* SEI */
+    p_uop->opcode = 0x78;
+    p_uop->optype = k_sei;
+    p_uop++;
+    /* MODE_IND */
+    p_uop->opcode = k_opcode_MODE_IND;
+    p_uop->optype = -1;
+    p_uop->value1 = (uint16_t) k_6502_vector_irq;
+    p_uop++;
+    /* JMP_SCRATCH */
+    p_uop->opcode = k_opcode_JMP_SCRATCH;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  case k_jmp:
+    if (opmode == k_ind) {
+      p_uop->opcode = k_opcode_JMP_SCRATCH;
+      p_uop->optype = -1;
+    } else {
+      p_uop->opcode = 0x4C; /* JMP abs */
+      p_uop->optype = k_jmp;
+      p_uop->value1 = main_value1;
+    }
+    p_uop++;
+    break;
+  case k_jsr:
+    p_uop->opcode = 0x4C; /* JMP abs */
+    p_uop->optype = k_jmp;
+    p_uop->value1 = main_value1;
+    p_uop++;
+    break;
+  case k_rti:
+  case k_rts:
+    p_uop->opcode = k_opcode_JMP_SCRATCH;
+    p_uop->optype = -1;
+    p_uop++;
+    break;
+  default:
+    p_uop->opcode = opcode_6502;
+    p_uop->optype = optype;
+    p_uop->value1 = main_value1;
+    p_uop++;
+    break;
+  }
 
   /* Post-main uops. */
   switch (optype) {
@@ -614,44 +661,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop++;
     }
     break;
-  case k_brk:
-    /* Replace main uop with sequence. */
-    p_main_uop->opcode = k_opcode_PUSH_16;
-    p_main_uop->optype = -1;
-    p_main_uop->value1 = (uint16_t) (addr_6502 + 2);
-    /* PHP */
-    p_uop->opcode = 0x08;
-    p_uop->optype = k_php;
-    p_uop++;
-    /* SEI */
-    p_uop->opcode = 0x78;
-    p_uop->optype = k_sei;
-    p_uop++;
-    /* MODE_IND */
-    p_uop->opcode = k_opcode_MODE_IND;
-    p_uop->optype = -1;
-    p_uop->value1 = (uint16_t) k_6502_vector_irq;
-    p_uop++;
-    /* JMP_SCRATCH */
-    p_uop->opcode = k_opcode_JMP_SCRATCH;
-    p_uop->optype = -1;
-    p_uop++;
-    break;
   case k_cmp:
   case k_cpx:
   case k_cpy:
     p_uop->opcode = k_opcode_SAVE_CARRY_INV;
     p_uop->optype = -1;
     p_uop++;
-    break;
-  case k_jmp:
-    if (opmode == k_ind) {
-      p_main_uop->opcode = k_opcode_JMP_SCRATCH;
-      p_main_uop->optype = -1;
-    }
-    break;
-  case k_jsr:
-    p_main_uop->opcode = 0x4C; /* JMP abs */
     break;
   case k_lda:
   case k_txa:
@@ -685,11 +700,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop->optype = -1;
       p_uop++;
     }
-    break;
-  case k_rti:
-  case k_rts:
-    p_main_uop->opcode = k_opcode_JMP_SCRATCH;
-    p_main_uop->optype = -1;
     break;
   case k_sbc:
     p_uop->opcode = k_opcode_SAVE_CARRY_INV;
