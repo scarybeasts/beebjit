@@ -265,6 +265,21 @@ asm_x64_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_LDA_Z(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDA_Z, asm_x64_jit_LDA_Z_END);
+}
+
+void
+asm_x64_emit_jit_LDX_Z(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDX_Z, asm_x64_jit_LDX_Z_END);
+}
+
+void
+asm_x64_emit_jit_LDY_Z(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDY_Z, asm_x64_jit_LDY_Z_END);
+}
+
+void
 asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_LOAD_CARRY, asm_x64_jit_LOAD_CARRY_END);
 }

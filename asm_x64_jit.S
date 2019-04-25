@@ -295,6 +295,33 @@ asm_x64_jit_JMP_SCRATCH_END:
   ret
 
 
+.globl asm_x64_jit_LDA_Z
+.globl asm_x64_jit_LDA_Z_END
+asm_x64_jit_LDA_Z:
+  xor REG_6502_A, REG_6502_A
+
+asm_x64_jit_LDA_Z_END:
+  ret
+
+
+.globl asm_x64_jit_LDX_Z
+.globl asm_x64_jit_LDX_Z_END
+asm_x64_jit_LDX_Z:
+  xor REG_6502_X, REG_6502_X
+
+asm_x64_jit_LDX_Z_END:
+  ret
+
+
+.globl asm_x64_jit_LDY_Z
+.globl asm_x64_jit_LDY_Z_END
+asm_x64_jit_LDY_Z:
+  xor REG_6502_Y, REG_6502_Y
+
+asm_x64_jit_LDY_Z_END:
+  ret
+
+
 .globl asm_x64_jit_LOAD_CARRY
 .globl asm_x64_jit_LOAD_CARRY_END
 asm_x64_jit_LOAD_CARRY:

@@ -1,0 +1,11 @@
+1) Simple 6502 register zeroing optimization.
+6502:
+  LDA #$00
+  RTS
+Unoptimized:
+  mov al, 0
+  test al, al
+  <rts code>
+Optimized:
+  xor al, al
+  <rts code>

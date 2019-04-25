@@ -100,6 +100,9 @@ enum {
   k_opcode_IDY_CHECK_PAGE_CROSSING,
   k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,
+  k_opcode_LDA_Z,
+  k_opcode_LDX_Z,
+  k_opcode_LDY_Z,
   k_opcode_LOAD_CARRY,
   k_opcode_LOAD_CARRY_INV,
   k_opcode_LOAD_OVERFLOW,
@@ -239,6 +242,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t opmem;
   uint16_t addr_range_start;
   uint16_t addr_range_end;
+  int main_written;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -249,6 +253,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct jit_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
   int could_page_cross = 1;
+  int emit_flag_load = 1;
   /* Default main value1 to the address, so unknown opcodes have it. */
   int32_t main_value1 = addr_6502;
 
@@ -572,6 +577,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Main uop, or a replacement thereof. */
+  main_written = 1;
   switch (optype) {
   case k_brk:
     p_uop->opcode = k_opcode_PUSH_16;
@@ -600,18 +606,46 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (opmode == k_ind) {
       p_uop->opcode = k_opcode_JMP_SCRATCH;
       p_uop->optype = -1;
+      p_uop++;
     } else {
-      p_uop->opcode = 0x4C; /* JMP abs */
-      p_uop->optype = k_jmp;
-      p_uop->value1 = main_value1;
+      main_written = 0;
     }
-    p_uop++;
     break;
   case k_jsr:
     p_uop->opcode = 0x4C; /* JMP abs */
     p_uop->optype = k_jmp;
     p_uop->value1 = main_value1;
     p_uop++;
+    break;
+  case k_lda:
+    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+      p_uop->opcode = k_opcode_LDA_Z;
+      p_uop->optype = -1;
+      p_uop++;
+      emit_flag_load = 0;
+    } else {
+      main_written = 0;
+    }
+    break;
+  case k_ldx:
+    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+      p_uop->opcode = k_opcode_LDX_Z;
+      p_uop->optype = -1;
+      p_uop++;
+      emit_flag_load = 0;
+    } else {
+      main_written = 0;
+    }
+    break;
+  case k_ldy:
+    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+      p_uop->opcode = k_opcode_LDY_Z;
+      p_uop->optype = -1;
+      p_uop++;
+      emit_flag_load = 0;
+    } else {
+      main_written = 0;
+    }
     break;
   case k_rti:
   case k_rts:
@@ -620,11 +654,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   default:
+    main_written = 0;
+    break;
+  }
+  if (!main_written) {
     p_uop->opcode = opcode_6502;
     p_uop->optype = optype;
     p_uop->value1 = main_value1;
     p_uop++;
-    break;
   }
 
   /* Post-main uops. */
@@ -672,22 +709,28 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_txa:
   case k_tya:
   case k_pla:
-    p_uop->opcode = k_opcode_FLAGA;
-    p_uop->optype = -1;
-    p_uop++;
+    if (emit_flag_load) {
+      p_uop->opcode = k_opcode_FLAGA;
+      p_uop->optype = -1;
+      p_uop++;
+    }
     break;
   case k_ldx:
   case k_tax:
   case k_tsx:
-    p_uop->opcode = k_opcode_FLAGX;
-    p_uop->optype = -1;
-    p_uop++;
+    if (emit_flag_load) {
+      p_uop->opcode = k_opcode_FLAGX;
+      p_uop->optype = -1;
+      p_uop++;
+    }
     break;
   case k_ldy:
   case k_tay:
-    p_uop->opcode = k_opcode_FLAGY;
-    p_uop->optype = -1;
-    p_uop++;
+    if (emit_flag_load) {
+      p_uop->opcode = k_opcode_FLAGY;
+      p_uop->optype = -1;
+      p_uop++;
+    }
     break;
   case k_rol:
   case k_ror:
@@ -799,6 +842,27 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_INC_SCRATCH:
     asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
     break;
+  case k_opcode_JMP_SCRATCH:
+    asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_LDA_Z:
+    asm_x64_emit_jit_LDA_Z(p_dest_buf);
+    break;
+  case k_opcode_LDX_Z:
+    asm_x64_emit_jit_LDX_Z(p_dest_buf);
+    break;
+  case k_opcode_LDY_Z:
+    asm_x64_emit_jit_LDY_Z(p_dest_buf);
+    break;
+  case k_opcode_LOAD_CARRY:
+    asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
+    break;
+  case k_opcode_LOAD_CARRY_INV:
+    asm_x64_emit_jit_LOAD_CARRY_INV(p_dest_buf);
+    break;
+  case k_opcode_LOAD_OVERFLOW:
+    asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
+    break;
   case k_opcode_MODE_ABX:
     asm_x64_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
     break;
@@ -816,18 +880,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_MODE_ZPY:
     asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_JMP_SCRATCH:
-    asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY:
-    asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_INV:
-    asm_x64_emit_jit_LOAD_CARRY_INV(p_dest_buf);
-    break;
-  case k_opcode_LOAD_OVERFLOW:
-    asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
     break;
   case k_opcode_PULL_16:
     asm_x64_emit_pull_word_to_scratch(p_dest_buf);
@@ -1396,6 +1448,15 @@ jit_compiler_process_uop(struct jit_compiler* p_compiler,
   }
 
   switch (opcode) {
+  case k_opcode_LDA_Z:
+    p_compiler->reg_a = 0;
+    break;
+  case k_opcode_LDX_Z:
+    p_compiler->reg_x = 0;
+    break;
+  case k_opcode_LDY_Z:
+    p_compiler->reg_y = 0;
+    break;
   case 0x18: /* CLC */
     p_compiler->flag_carry = 0;
     break;
