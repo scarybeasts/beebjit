@@ -44,10 +44,10 @@ struct jit_compiler {
 
 struct jit_uop {
   /* Static details. */
-  int32_t opcode;
+  int32_t uopcode;
+  int32_t uoptype;
   int32_t value1;
   int32_t value2;
-  int32_t optype;
 
   /* Dynamic details that are calculated as compilation proceeds. */
   uint32_t len_x64;
@@ -277,8 +277,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->cycles_run_start = -1;
 
   if (p_compiler->debug) {
-    p_uop->opcode = k_opcode_debug;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_debug;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
     p_first_post_debug_uop = p_uop;
@@ -299,15 +299,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_zpx:
     operand_6502 = p_mem_read[addr_plus_1];
-    p_uop->opcode = k_opcode_MODE_ZPX;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_ZPX;
+    p_uop->uoptype = -1;
     p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_zpy:
     operand_6502 = p_mem_read[addr_plus_1];
-    p_uop->opcode = k_opcode_MODE_ZPY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_ZPY;
+    p_uop->uoptype = -1;
     p_uop->value1 = operand_6502;
     p_uop++;
     break;
@@ -331,13 +331,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         (opmem == k_read) &&
         could_page_cross) {
       if (opmode == k_abx) {
-        p_uop->opcode = k_opcode_ABX_CHECK_PAGE_CROSSING;
-        p_uop->optype = -1;
+        p_uop->uopcode = k_opcode_ABX_CHECK_PAGE_CROSSING;
+        p_uop->uoptype = -1;
         p_uop->value1 = operand_6502;
         p_uop++;
       } else if (opmode == k_aby) {
-        p_uop->opcode = k_opcode_ABY_CHECK_PAGE_CROSSING;
-        p_uop->optype = -1;
+        p_uop->uopcode = k_opcode_ABY_CHECK_PAGE_CROSSING;
+        p_uop->uoptype = -1;
         p_uop->value1 = operand_6502;
         p_uop++;
       }
@@ -373,26 +373,26 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ind:
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
-    p_uop->opcode = k_opcode_MODE_IND;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_IND;
+    p_uop->uoptype = -1;
     p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_idx:
     operand_6502 = p_mem_read[addr_plus_1];
-    p_uop->opcode = k_opcode_MODE_ZPX;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_ZPX;
+    p_uop->uoptype = -1;
     p_uop->value1 = operand_6502;
     p_uop++;
-    p_uop->opcode = k_opcode_MODE_IND_SCRATCH;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_IND_SCRATCH;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
-    p_uop->opcode = k_opcode_MODE_IND;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_IND;
+    p_uop->uoptype = -1;
     p_uop->value1 = (uint16_t) operand_6502;
     p_uop++;
     /* NOTE: we run the check for special addresses before the check for page
@@ -404,8 +404,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      */
     /* TODO: this happens too soon if we hit a register page fault? */
     if (p_compiler->option_accurate_timings && (opmem == k_read)) {
-      p_uop->opcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
+      p_uop->uoptype = -1;
       p_uop++;
     }
     break;
@@ -448,8 +448,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (use_interp) {
     p_uop = p_first_post_debug_uop;
 
-    p_uop->opcode = k_opcode_interp;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_interp;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
     p_details->ends_block = 1;
@@ -464,39 +464,39 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (opmem == k_write || opmem == k_rw) {
     switch (opmode) {
     case k_abs:
-      p_uop->opcode = k_opcode_WRITE_INV_ABS;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_WRITE_INV_ABS;
+      p_uop->uoptype = -1;
       p_uop->value1 = operand_6502;
       p_uop++;
       break;
     case k_abx:
-      p_uop->opcode = k_opcode_MODE_ABX;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_MODE_ABX;
+      p_uop->uoptype = -1;
       p_uop->value1 = operand_6502;
       p_uop++;
-      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->uoptype = -1;
       p_uop++;
       break;
     case k_aby:
-      p_uop->opcode = k_opcode_MODE_ABY;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_MODE_ABY;
+      p_uop->uoptype = -1;
       p_uop->value1 = operand_6502;
       p_uop++;
-      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->uoptype = -1;
       p_uop++;
       break;
     case k_idx:
     case k_idy:
-      p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->uoptype = -1;
       p_uop++;
       break;
     case k_zpg:
       if (p_compiler->compile_for_code_in_zero_page) {
-        p_uop->opcode = k_opcode_WRITE_INV_ABS;
-        p_uop->optype = -1;
+        p_uop->uopcode = k_opcode_WRITE_INV_ABS;
+        p_uop->uoptype = -1;
         p_uop->value1 = operand_6502;
         p_uop++;
       }
@@ -504,8 +504,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     case k_zpx:
     case k_zpy:
       if (p_compiler->compile_for_code_in_zero_page) {
-        p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
-        p_uop->optype = -1;
+        p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH;
+        p_uop->uoptype = -1;
         p_uop++;
       }
       break;
@@ -517,70 +517,70 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Pre-main uops. */
   switch (optype) {
   case k_adc:
-    p_uop->opcode = k_opcode_CHECK_BCD;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_CHECK_BCD;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
-    p_uop->opcode = k_opcode_LOAD_CARRY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_LOAD_CARRY;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_bcc:
   case k_bcs:
   case k_rol:
   case k_ror:
-    p_uop->opcode = k_opcode_LOAD_CARRY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_LOAD_CARRY;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_bvc:
   case k_bvs:
-    p_uop->opcode = k_opcode_LOAD_OVERFLOW;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_LOAD_OVERFLOW;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_cli:
   case k_plp:
-    p_uop->opcode = k_opcode_CHECK_PENDING_IRQ;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_CHECK_PENDING_IRQ;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
     break;
   case k_jsr:
-    p_uop->opcode = k_opcode_PUSH_16;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_PUSH_16;
+    p_uop->uoptype = -1;
     p_uop->value1 = (uint16_t) (addr_6502 + 2);
     p_uop++;
     break;
   case k_rti:
-    p_uop->opcode = k_opcode_CHECK_PENDING_IRQ;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_CHECK_PENDING_IRQ;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
     /* PLP */
-    p_uop->opcode = 0x28;
-    p_uop->optype = k_plp;
+    p_uop->uopcode = 0x28;
+    p_uop->uoptype = k_plp;
     p_uop++;
-    p_uop->opcode = k_opcode_PULL_16;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_PULL_16;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_rts:
-    p_uop->opcode = k_opcode_PULL_16;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_PULL_16;
+    p_uop->uoptype = -1;
     p_uop++;
     /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
-    p_uop->opcode = k_opcode_INC_SCRATCH;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_INC_SCRATCH;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_sbc:
-    p_uop->opcode = k_opcode_CHECK_BCD;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_CHECK_BCD;
+    p_uop->uoptype = -1;
     p_uop->value1 = addr_6502;
     p_uop++;
-    p_uop->opcode = k_opcode_LOAD_CARRY_INV;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_LOAD_CARRY_INV;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   default:
@@ -598,53 +598,53 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bpl:
   case k_bvc:
   case k_bvs:
-    p_uop->opcode = opcode_6502;
-    p_uop->optype = optype;
+    p_uop->uopcode = opcode_6502;
+    p_uop->uoptype = optype;
     p_uop->value1 = rel_target_6502;
     p_uop++;
     break;
   case k_brk:
-    p_uop->opcode = k_opcode_PUSH_16;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_PUSH_16;
+    p_uop->uoptype = -1;
     p_uop->value1 = (uint16_t) (addr_6502 + 2);
     p_uop++;
     /* PHP */
-    p_uop->opcode = 0x08;
-    p_uop->optype = k_php;
+    p_uop->uopcode = 0x08;
+    p_uop->uoptype = k_php;
     p_uop++;
     /* SEI */
-    p_uop->opcode = 0x78;
-    p_uop->optype = k_sei;
+    p_uop->uopcode = 0x78;
+    p_uop->uoptype = k_sei;
     p_uop++;
     /* MODE_IND */
-    p_uop->opcode = k_opcode_MODE_IND;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_MODE_IND;
+    p_uop->uoptype = -1;
     p_uop->value1 = (uint16_t) k_6502_vector_irq;
     p_uop++;
     /* JMP_SCRATCH */
-    p_uop->opcode = k_opcode_JMP_SCRATCH;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_JMP_SCRATCH;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_jmp:
     if (opmode == k_ind) {
-      p_uop->opcode = k_opcode_JMP_SCRATCH;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_JMP_SCRATCH;
+      p_uop->uoptype = -1;
       p_uop++;
     } else {
       main_written = 0;
     }
     break;
   case k_jsr:
-    p_uop->opcode = 0x4C; /* JMP abs */
-    p_uop->optype = k_jmp;
+    p_uop->uopcode = 0x4C; /* JMP abs */
+    p_uop->uoptype = k_jmp;
     p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_lda:
     if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      p_uop->opcode = k_opcode_LDA_Z;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_LDA_Z;
+      p_uop->uoptype = -1;
       p_uop++;
       emit_flag_load = 0;
     } else {
@@ -653,8 +653,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ldx:
     if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      p_uop->opcode = k_opcode_LDX_Z;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_LDX_Z;
+      p_uop->uoptype = -1;
       p_uop++;
       emit_flag_load = 0;
     } else {
@@ -663,8 +663,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ldy:
     if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      p_uop->opcode = k_opcode_LDY_Z;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_LDY_Z;
+      p_uop->uoptype = -1;
       p_uop++;
       emit_flag_load = 0;
     } else {
@@ -673,8 +673,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_rti:
   case k_rts:
-    p_uop->opcode = k_opcode_JMP_SCRATCH;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_JMP_SCRATCH;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   default:
@@ -682,8 +682,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
   if (!main_written) {
-    p_uop->opcode = opcode_6502;
-    p_uop->optype = optype;
+    p_uop->uopcode = opcode_6502;
+    p_uop->uoptype = optype;
     p_uop->value1 = operand_6502;
     p_uop++;
   }
@@ -691,19 +691,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Post-main uops. */
   switch (optype) {
   case k_adc:
-    p_uop->opcode = k_opcode_SAVE_CARRY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_CARRY;
+    p_uop->uoptype = -1;
     p_uop++;
-    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_OVERFLOW;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_alr:
   case k_asl:
   case k_lsr:
   case k_slo:
-    p_uop->opcode = k_opcode_SAVE_CARRY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_CARRY;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_bcc:
@@ -716,8 +716,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bvs:
     if (p_compiler->option_accurate_timings) {
       /* Fixup countdown if a branch wasn't taken. */
-      p_uop->opcode = k_opcode_ADD_CYCLES;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_ADD_CYCLES;
+      p_uop->uoptype = -1;
       p_uop->value1 = (uint8_t) (p_details->max_cycles - 2);
       p_uop++;
     }
@@ -725,8 +725,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_cmp:
   case k_cpx:
   case k_cpy:
-    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_CARRY_INV;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   case k_lda:
@@ -734,8 +734,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_tya:
   case k_pla:
     if (emit_flag_load) {
-      p_uop->opcode = k_opcode_FLAGA;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_FLAGA;
+      p_uop->uoptype = -1;
       p_uop++;
     }
     break;
@@ -743,37 +743,37 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_tax:
   case k_tsx:
     if (emit_flag_load) {
-      p_uop->opcode = k_opcode_FLAGX;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_FLAGX;
+      p_uop->uoptype = -1;
       p_uop++;
     }
     break;
   case k_ldy:
   case k_tay:
     if (emit_flag_load) {
-      p_uop->opcode = k_opcode_FLAGY;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_FLAGY;
+      p_uop->uoptype = -1;
       p_uop++;
     }
     break;
   case k_rol:
   case k_ror:
-    p_uop->opcode = k_opcode_SAVE_CARRY;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_CARRY;
+    p_uop->uoptype = -1;
     p_uop++;
     /* TODO: come up with viable optimization for non-acc modes. */
     if (opmode == k_acc) {
-      p_uop->opcode = k_opcode_FLAGA;
-      p_uop->optype = -1;
+      p_uop->uopcode = k_opcode_FLAGA;
+      p_uop->uoptype = -1;
       p_uop++;
     }
     break;
   case k_sbc:
-    p_uop->opcode = k_opcode_SAVE_CARRY_INV;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_CARRY_INV;
+    p_uop->uoptype = -1;
     p_uop++;
-    p_uop->opcode = k_opcode_SAVE_OVERFLOW;
-    p_uop->optype = -1;
+    p_uop->uopcode = k_opcode_SAVE_OVERFLOW;
+    p_uop->uoptype = -1;
     p_uop++;
     break;
   default:
@@ -788,7 +788,7 @@ static void
 jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct jit_uop* p_uop) {
-  int opcode = p_uop->opcode;
+  int uopcode = p_uop->uopcode;
   int32_t value1 = p_uop->value1;
   int32_t value2 = p_uop->value2;
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
@@ -796,7 +796,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   void* p_host_address_object = p_compiler->p_host_address_object;
 
   /* Resolve any addresses to real pointers. */
-  switch (opcode) {
+  switch (uopcode) {
   case k_opcode_countdown:
   case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
@@ -821,7 +821,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   }
 
   /* Emit the opcode. */
-  switch (opcode) {
+  switch (uopcode) {
   case k_opcode_countdown:
     asm_x64_emit_jit_check_countdown(p_dest_buf,
                                      (uint32_t) value2,
@@ -1435,39 +1435,39 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
     num_uops = p_details->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_details->uops[i_uops];
-      int32_t uopcode = p_uop->opcode;
+      int32_t uopcode = p_uop->uopcode;
 
       /* Re-write the opcode if we have an optimization opportunity. */
       switch (uopcode) {
       case 0x69: /* ADC imm */
         if (flag_carry == 0) {
-          p_uop->opcode = k_opcode_ADD_IMM;
+          p_uop->uopcode = k_opcode_ADD_IMM;
         }
         break;
       case 0x84: /* STY zpg */
       case 0x8C: /* STY abs */
         if (reg_y != k_value_unknown) {
-          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_y;
         }
         break;
       case 0x85: /* STA zpg */
       case 0x8D: /* STA abs */
         if (reg_a != k_value_unknown) {
-          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_a;
         }
         break;
       case 0x86: /* STX zpg */
       case 0x8E: /* STX abs */
         if (reg_x != k_value_unknown) {
-          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_x;
         }
         break;
       case 0xE9: /* SBC imm */
         if (flag_carry == 1) {
-          p_uop->opcode = k_opcode_SUB_IMM;
+          p_uop->uopcode = k_opcode_SUB_IMM;
         }
         break;
       default:
@@ -1524,7 +1524,7 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
 
 static void
 jit_compiler_prepend_uop(struct jit_opcode_details* p_details,
-                         int opcode,
+                         int uopcode,
                          int32_t value1,
                          int32_t value2) {
   uint8_t num_uops = p_details->num_uops;
@@ -1534,8 +1534,8 @@ jit_compiler_prepend_uop(struct jit_opcode_details* p_details,
   (void) memmove(&p_details->uops[1],
                  p_uop,
                  (sizeof(struct jit_uop) * num_uops));
-  p_uop->opcode = opcode;
-  p_uop->optype = -1;
+  p_uop->uopcode = uopcode;
+  p_uop->uoptype = -1;
   p_uop->value1 = value1;
   p_uop->value2 = value2;
 
@@ -1544,15 +1544,15 @@ jit_compiler_prepend_uop(struct jit_opcode_details* p_details,
 
 static void
 jit_compiler_append_uop(struct jit_opcode_details* p_details,
-                        int opcode,
+                        int uopcode,
                         int32_t value1,
                         int32_t value2) {
   uint8_t num_uops = p_details->num_uops;
   struct jit_uop* p_uop = &p_details->uops[num_uops];
   assert(num_uops < k_max_uops_per_opcode);
 
-  p_uop->opcode = opcode;
-  p_uop->optype = -1;
+  p_uop->uopcode = uopcode;
+  p_uop->uoptype = -1;
   p_uop->value1 = value1;
   p_uop->value2 = value2;
 
@@ -1648,7 +1648,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       assert(p_details_fixup->num_uops >= 2);
       assert(p_details_fixup->cycles_run_start == 0);
       p_uop = &p_details_fixup->uops[0];
-      assert(p_uop->opcode == k_opcode_countdown);
+      assert(p_uop->uopcode == k_opcode_countdown);
       assert(p_uop->value2 == 0);
     }
     p_details_fixup->cycles_run_start += p_details->max_cycles;
@@ -1721,7 +1721,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_details_fixup = p_details;
       p_uop = &p_details_fixup->uops[0];
       assert(p_details_fixup->num_uops >= 2);
-      assert(p_uop->opcode == k_opcode_countdown);
+      assert(p_uop->uopcode == k_opcode_countdown);
       p_details_fixup->cycles_run_start = 0;
       p_uop->value2 = 0;
 
