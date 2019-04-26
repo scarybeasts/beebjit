@@ -31,12 +31,6 @@ struct jit_compiler {
   struct util_buffer* p_tmp_buf;
   uint32_t no_code_jit_ptr;
 
-  int32_t reg_a;
-  int32_t reg_x;
-  int32_t reg_y;
-  int32_t flag_carry;
-  int32_t flag_decimal;
-
   uint32_t len_x64_jmp;
   uint32_t len_x64_countdown;
 
@@ -68,6 +62,7 @@ struct jit_opcode_details {
   /* Static details. */
   uint16_t addr_6502;
   uint8_t opcode_6502;
+  uint16_t operand_6502;
   uint8_t len;
   uint8_t max_cycles;
   int branches;
@@ -80,6 +75,11 @@ struct jit_opcode_details {
   int ends_block;
   void* p_host_address;
   int32_t cycles_run_start;
+  int32_t reg_a;
+  int32_t reg_x;
+  int32_t reg_y;
+  int32_t flag_carry;
+  int32_t flag_decimal;
 };
 
 static const int32_t k_value_unknown = -1;
@@ -405,6 +405,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     assert(0);
     break;
   }
+
+  p_details->operand_6502 = main_value1;
 
   p_details->max_cycles = g_opcycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
@@ -1370,116 +1372,131 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
 }
 
 static void
-jit_compiler_process_uop(struct jit_compiler* p_compiler,
-                         struct util_buffer* p_dest_buf,
-                         struct jit_uop* p_uop) {
-  int32_t opcode = p_uop->opcode;
-  int32_t optype = p_uop->optype;
-  int32_t value1 = p_uop->value1;
-  int32_t opreg = -1;
-  int32_t changes_carry = 0;
+jit_compiler_optimize(struct jit_compiler* p_compiler,
+                      struct jit_opcode_details* p_opcodes,
+                      uint32_t num_opcodes) {
+  uint32_t i_opcodes;
 
-  if (optype != -1) {
-    assert(opcode < 256);
+  int32_t reg_a = k_value_unknown;
+  int32_t reg_x = k_value_unknown;
+  int32_t reg_y = k_value_unknown;
+  int32_t flag_carry = k_value_unknown;
+  int32_t flag_decimal = k_value_unknown;
+
+  (void) p_compiler;
+  (void) flag_decimal;
+
+  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+    uint32_t i_uops;
+    uint32_t num_uops;
+    uint8_t opreg;
+    int32_t changes_carry;
+
+    struct jit_opcode_details* p_details = &p_opcodes[i_opcodes];
+    uint8_t opcode_6502 = p_details->opcode_6502;
+    uint16_t operand_6502 = p_details->operand_6502;
+    uint8_t optype = g_optypes[opcode_6502];
+
+    p_details->reg_a = reg_a;
+    p_details->reg_x = reg_x;
+    p_details->reg_y = reg_y;
+    p_details->flag_carry = flag_carry;
+    p_details->flag_decimal = flag_carry;
+
     /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
     opreg = g_optype_sets_register[optype];
-    if (g_opmodes[opcode] == k_acc) {
+    if (g_opmodes[opcode_6502] == k_acc) {
       opreg = k_a;
     }
     changes_carry = g_optype_changes_carry[optype];
-  }
 
-  /* Re-write the opcode if we have an optimization opportunity. */
-  switch (opcode) {
-  case 0x69: /* ADC imm */
-    if (p_compiler->flag_carry == 0) {
-      p_uop->opcode = k_opcode_ADD_IMM;
-    }
-    break;
-  case 0x84: /* STY zpg */
-  case 0x8C: /* STY abs */
-    if (p_compiler->reg_y != k_value_unknown) {
-      p_uop->opcode = k_opcode_STOA_IMM;
-      p_uop->value2 = p_compiler->reg_y;
-    }
-    break;
-  case 0x85: /* STA zpg */
-  case 0x8D: /* STA abs */
-    if (p_compiler->reg_a != k_value_unknown) {
-      p_uop->opcode = k_opcode_STOA_IMM;
-      p_uop->value2 = p_compiler->reg_a;
-    }
-    break;
-  case 0x86: /* STX zpg */
-  case 0x8E: /* STX abs */
-    if (p_compiler->reg_x != k_value_unknown) {
-      p_uop->opcode = k_opcode_STOA_IMM;
-      p_uop->value2 = p_compiler->reg_x;
-    }
-    break;
-  case 0xE9: /* SBC imm */
-    if (p_compiler->flag_carry == 1) {
-      p_uop->opcode = k_opcode_SUB_IMM;
-    }
-    break;
-  default:
-    break;
-  }
+    num_uops = p_details->num_uops;
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct jit_uop* p_uop = &p_details->uops[i_uops];
+      int32_t uopcode = p_uop->opcode;
 
-  jit_compiler_emit_uop(p_compiler, p_dest_buf, p_uop);
+      /* Re-write the opcode if we have an optimization opportunity. */
+      switch (uopcode) {
+      case 0x69: /* ADC imm */
+        if (flag_carry == 0) {
+          p_uop->opcode = k_opcode_ADD_IMM;
+        }
+        break;
+      case 0x84: /* STY zpg */
+      case 0x8C: /* STY abs */
+        if (reg_y != k_value_unknown) {
+          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->value2 = reg_y;
+        }
+        break;
+      case 0x85: /* STA zpg */
+      case 0x8D: /* STA abs */
+        if (reg_a != k_value_unknown) {
+          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->value2 = reg_a;
+        }
+        break;
+      case 0x86: /* STX zpg */
+      case 0x8E: /* STX abs */
+        if (reg_x != k_value_unknown) {
+          p_uop->opcode = k_opcode_STOA_IMM;
+          p_uop->value2 = reg_x;
+        }
+        break;
+      case 0xE9: /* SBC imm */
+        if (flag_carry == 1) {
+          p_uop->opcode = k_opcode_SUB_IMM;
+        }
+        break;
+      default:
+        break;
+      }
+    }
 
-  /* Update known state of registers, flags, etc. */
-  switch (opreg) {
-  case k_a:
-    p_compiler->reg_a = k_value_unknown;
-    break;
-  case k_x:
-    p_compiler->reg_x = k_value_unknown;
-    break;
-  case k_y:
-    p_compiler->reg_y = k_value_unknown;
-    break;
-  default:
-    break;
-  }
+    /* Update known state of registers, flags, etc. for next opcode. */
+    switch (opreg) {
+    case k_a:
+      reg_a = k_value_unknown;
+      break;
+    case k_x:
+      reg_x = k_value_unknown;
+      break;
+    case k_y:
+      reg_y = k_value_unknown;
+      break;
+    default:
+      break;
+    }
 
-  if (changes_carry) {
-    p_compiler->flag_carry = k_value_unknown;
-  }
+    if (changes_carry) {
+      flag_carry = k_value_unknown;
+    }
 
-  switch (opcode) {
-  case k_opcode_LDA_Z:
-    p_compiler->reg_a = 0;
-    break;
-  case k_opcode_LDX_Z:
-    p_compiler->reg_x = 0;
-    break;
-  case k_opcode_LDY_Z:
-    p_compiler->reg_y = 0;
-    break;
-  case 0x18: /* CLC */
-    p_compiler->flag_carry = 0;
-    break;
-  case 0x38: /* SEC */
-    p_compiler->flag_carry = 1;
-    break;
-  case 0xA0: /* LDY imm */
-    p_compiler->reg_y = value1;
-    break;
-  case 0xA2: /* LDX imm */
-    p_compiler->reg_x = value1;
-    break;
-  case 0xA9: /* LDA imm */
-    p_compiler->reg_a = value1;
-    break;
-  case 0xD8: /* CLD */
-    p_compiler->flag_decimal = 0;
-    break;
-  case 0xF8: /* SED */
-    p_compiler->flag_decimal = 1;
-    break;
-  default:
-    break;
+    switch (opcode_6502) {
+    case 0x18: /* CLC */
+      flag_carry = 0;
+      break;
+    case 0x38: /* SEC */
+      flag_carry = 1;
+      break;
+    case 0xA0: /* LDY imm */
+      reg_y = operand_6502;
+      break;
+    case 0xA2: /* LDX imm */
+      reg_x = operand_6502;
+      break;
+    case 0xA9: /* LDA imm */
+      reg_a = operand_6502;
+      break;
+    case 0xD8: /* CLD */
+      flag_decimal = 0;
+      break;
+    case 0xF8: /* SED */
+      flag_decimal = 1;
+      break;
+    default:
+      break;
+    }
   }
 }
 
@@ -1541,12 +1558,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   int block_ended = 0;
 
   assert(!util_buffer_get_pos(p_buf));
-
-  p_compiler->reg_a = k_value_unknown;
-  p_compiler->reg_x = k_value_unknown;
-  p_compiler->reg_y = k_value_unknown;
-  p_compiler->flag_carry = k_value_unknown;
-  p_compiler->flag_decimal = k_value_unknown;
 
   jit_invalidate_block_with_addr(p_compiler, start_addr_6502);
 
@@ -1622,7 +1633,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_uop->value2 = p_details_fixup->cycles_run_start;
   }
 
-  /* Third, emit the uop stream to the output buffer. This finalizes the number
+  /* Third, run the optimizer across the list of opcodes. */
+  jit_compiler_optimize(p_compiler, &opcode_details[0], total_num_opcodes);
+
+  /* Fourth, emit the uop stream to the output buffer. This finalizes the number
    * of opcodes compiled, which may get smaller if we run out of space in the
    * binary output buffer.
    */
@@ -1646,7 +1660,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       size_t len_x64 = util_buffer_get_pos(p_single_opcode_buf);
       p_uop = &p_details->uops[i_uops];
-      jit_compiler_process_uop(p_compiler, p_single_opcode_buf, p_uop);
+      jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
       p_uop->len_x64 = len_x64;
     }
@@ -1660,9 +1674,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->addr_is_block_continuation[addr_6502] = 1;
       jit_compiler_prepend_uop(p_details, 0x4C, addr_6502, 0);
       util_buffer_set_pos(p_single_opcode_buf, 0);
-      jit_compiler_process_uop(p_compiler,
-                               p_single_opcode_buf,
-                               &p_details->uops[0]);
+      jit_compiler_emit_uop(p_compiler,
+                            p_single_opcode_buf,
+                            &p_details->uops[0]);
       util_buffer_append(p_buf, p_single_opcode_buf);
       break;
     }
@@ -1674,7 +1688,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   total_num_opcodes = i_opcodes;
 
-  /* Fourth, update any values (metadata and/or binary) that may have changed
+  /* Fifth, update any values (metadata and/or binary) that may have changed
    * now we know the full extent of the emitted binary.
    */
   p_uop = NULL;
@@ -1701,10 +1715,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details_fixup->cycles_run_start += p_details->max_cycles;
     p_uop->value2 = p_details_fixup->cycles_run_start;
     util_buffer_set_pos(p_single_opcode_buf, 0);
-    jit_compiler_process_uop(p_compiler, p_single_opcode_buf, p_uop);
+    jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
   }
 
-  /* Fifth, update compiler metadata. */
+  /* Sixth, update compiler metadata. */
   cycles = 0;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     uint8_t num_bytes_6502;
