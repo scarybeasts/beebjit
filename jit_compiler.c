@@ -237,6 +237,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
                                 struct jit_opcode_details* p_details,
                                 uint16_t addr_6502) {
   uint8_t opcode_6502;
+  uint16_t operand_6502;
   uint8_t optype;
   uint8_t opmode;
   uint8_t opmem;
@@ -254,8 +255,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int use_interp = 0;
   int could_page_cross = 1;
   int emit_flag_load = 1;
-  /* Default main value1 to the address, so unknown opcodes have it. */
-  int32_t main_value1 = addr_6502;
+  uint16_t rel_target_6502 = 0;
 
   p_details->addr_6502 = addr_6502;
   p_details->num_uops = 0;
@@ -287,38 +287,43 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Mode resolution and possibly per-mode uops. */
   switch (opmode) {
   case 0:
+    operand_6502 = addr_6502;
+    break;
   case k_nil:
   case k_acc:
+    operand_6502 = 0;
     break;
   case k_imm:
   case k_zpg:
-    main_value1 = p_mem_read[addr_plus_1];
+    operand_6502 = p_mem_read[addr_plus_1];
     break;
   case k_zpx:
+    operand_6502 = p_mem_read[addr_plus_1];
     p_uop->opcode = k_opcode_MODE_ZPX;
-    p_uop->value1 = p_mem_read[addr_plus_1];
     p_uop->optype = -1;
+    p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_zpy:
+    operand_6502 = p_mem_read[addr_plus_1];
     p_uop->opcode = k_opcode_MODE_ZPY;
-    p_uop->value1 = p_mem_read[addr_plus_1];
     p_uop->optype = -1;
+    p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_rel:
-    main_value1 = ((int) addr_6502 + 2 + (int8_t) p_mem_read[addr_plus_1]);
-    main_value1 = (uint16_t) main_value1;
+    operand_6502 = p_mem_read[addr_plus_1];
+    rel_target_6502 = ((int) addr_6502 + 2 + (int8_t) operand_6502);
     break;
   case k_abs:
   case k_abx:
   case k_aby:
-    main_value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
-    if ((main_value1 & 0xFF) == 0x00) {
+    operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    if ((operand_6502 & 0xFF) == 0x00) {
       could_page_cross = 0;
     }
-    addr_range_start = main_value1;
-    addr_range_end = main_value1;
+    addr_range_start = operand_6502;
+    addr_range_end = operand_6502;
     if (opmode == k_abx || opmode == k_aby) {
       addr_range_end += 0xFF;
     }
@@ -328,12 +333,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       if (opmode == k_abx) {
         p_uop->opcode = k_opcode_ABX_CHECK_PAGE_CROSSING;
         p_uop->optype = -1;
-        p_uop->value1 = main_value1;
+        p_uop->value1 = operand_6502;
         p_uop++;
       } else if (opmode == k_aby) {
         p_uop->opcode = k_opcode_ABY_CHECK_PAGE_CROSSING;
         p_uop->optype = -1;
-        p_uop->value1 = main_value1;
+        p_uop->value1 = operand_6502;
         p_uop++;
       }
     }
@@ -367,15 +372,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
     break;
   case k_ind:
+    operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
     p_uop->opcode = k_opcode_MODE_IND;
     p_uop->optype = -1;
-    p_uop->value1 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_idx:
+    operand_6502 = p_mem_read[addr_plus_1];
     p_uop->opcode = k_opcode_MODE_ZPX;
-    p_uop->value1 = p_mem_read[addr_plus_1];
     p_uop->optype = -1;
+    p_uop->value1 = operand_6502;
     p_uop++;
     p_uop->opcode = k_opcode_MODE_IND_SCRATCH;
     p_uop->optype = -1;
@@ -383,9 +390,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_idy:
+    operand_6502 = p_mem_read[addr_plus_1];
     p_uop->opcode = k_opcode_MODE_IND;
-    p_uop->value1 = (uint16_t) p_mem_read[addr_plus_1];
     p_uop->optype = -1;
+    p_uop->value1 = (uint16_t) operand_6502;
     p_uop++;
     /* NOTE: we run the check for special addresses before the check for page
      * crossings, otherwise we might account for a page crossing only to jump
@@ -403,10 +411,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   default:
     assert(0);
+    operand_6502 = 0;
     break;
   }
 
-  p_details->operand_6502 = main_value1;
+  p_details->operand_6502 = operand_6502;
 
   p_details->max_cycles = g_opcycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
@@ -418,7 +427,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       /* Taken branches take 1 cycles longer, or 2 cycles longer if there's
        * also a page crossing.
        */
-      if (((addr_6502 + 2) >> 8) ^ (main_value1 >> 8)) {
+      if (((addr_6502 + 2) >> 8) ^ (rel_target_6502 >> 8)) {
         p_details->max_cycles += 2;
       } else {
         p_details->max_cycles++;
@@ -440,8 +449,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop = p_first_post_debug_uop;
 
     p_uop->opcode = k_opcode_interp;
-    p_uop->value1 = addr_6502;
     p_uop->optype = -1;
+    p_uop->value1 = addr_6502;
     p_uop++;
     p_details->ends_block = 1;
 
@@ -456,14 +465,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     switch (opmode) {
     case k_abs:
       p_uop->opcode = k_opcode_WRITE_INV_ABS;
-      p_uop->value1 = main_value1;
       p_uop->optype = -1;
+      p_uop->value1 = operand_6502;
       p_uop++;
       break;
     case k_abx:
       p_uop->opcode = k_opcode_MODE_ABX;
-      p_uop->value1 = main_value1;
       p_uop->optype = -1;
+      p_uop->value1 = operand_6502;
       p_uop++;
       p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
       p_uop->optype = -1;
@@ -471,8 +480,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       break;
     case k_aby:
       p_uop->opcode = k_opcode_MODE_ABY;
-      p_uop->value1 = main_value1;
       p_uop->optype = -1;
+      p_uop->value1 = operand_6502;
       p_uop++;
       p_uop->opcode = k_opcode_WRITE_INV_SCRATCH;
       p_uop->optype = -1;
@@ -487,8 +496,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     case k_zpg:
       if (p_compiler->compile_for_code_in_zero_page) {
         p_uop->opcode = k_opcode_WRITE_INV_ABS;
-        p_uop->value1 = main_value1;
         p_uop->optype = -1;
+        p_uop->value1 = operand_6502;
         p_uop++;
       }
       break;
@@ -581,6 +590,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Main uop, or a replacement thereof. */
   main_written = 1;
   switch (optype) {
+  case k_bcc:
+  case k_bcs:
+  case k_beq:
+  case k_bne:
+  case k_bmi:
+  case k_bpl:
+  case k_bvc:
+  case k_bvs:
+    p_uop->opcode = opcode_6502;
+    p_uop->optype = optype;
+    p_uop->value1 = rel_target_6502;
+    p_uop++;
+    break;
   case k_brk:
     p_uop->opcode = k_opcode_PUSH_16;
     p_uop->optype = -1;
@@ -616,11 +638,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_jsr:
     p_uop->opcode = 0x4C; /* JMP abs */
     p_uop->optype = k_jmp;
-    p_uop->value1 = main_value1;
+    p_uop->value1 = operand_6502;
     p_uop++;
     break;
   case k_lda:
-    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
       p_uop->opcode = k_opcode_LDA_Z;
       p_uop->optype = -1;
       p_uop++;
@@ -630,7 +652,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
     break;
   case k_ldx:
-    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
       p_uop->opcode = k_opcode_LDX_Z;
       p_uop->optype = -1;
       p_uop++;
@@ -640,7 +662,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
     break;
   case k_ldy:
-    if ((opmode == k_imm) && (main_value1 == 0x00)) {
+    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
       p_uop->opcode = k_opcode_LDY_Z;
       p_uop->optype = -1;
       p_uop++;
@@ -662,7 +684,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (!main_written) {
     p_uop->opcode = opcode_6502;
     p_uop->optype = optype;
-    p_uop->value1 = main_value1;
+    p_uop->value1 = operand_6502;
     p_uop++;
   }
 
