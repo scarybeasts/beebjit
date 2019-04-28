@@ -79,8 +79,12 @@
 
 #define REG_RETURN         rax
 #define REG_PARAM1         rdi
+#define REG_PARAM1_32      edi
 #define REG_PARAM2         rsi
+#define REG_PARAM2_32      esi
 #define REG_PARAM3         rdx
+#define REG_PARAM3_32      edx
 #define REG_PARAM4         rcx
+#define REG_PARAM4_32      ecx
 
 #endif /* BEEBJIT_ASM_X64_DEFS_H */

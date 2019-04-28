@@ -321,7 +321,6 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
   p_state_6502->reg_pc = addr_6502;
   if (p_intel_rip != p_jit_ptr) {
-    /* TODO: other 6502 state isn't setup correctly yet. */
     countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
   }
 
@@ -348,8 +347,7 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
      * code.
      */
     printf("LOG:JIT:compiling stack page code; self-modify here not handled\n");
-    printf("LOG:JIT:if this is Exile or Wizadore, should work anyway\n");
-    printf("LOG:JIT:if not those, it may still work, let me know what it is\n");
+    printf("LOG:JIT:happens a lot (including Exile); will probably work ok\n");
   }
 
   jit_compiler_compile_block(p_compiler, p_compile_buf, addr_6502);

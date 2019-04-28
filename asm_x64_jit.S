@@ -9,42 +9,39 @@
 
 .globl asm_x64_jit_compile_trampoline
 asm_x64_jit_compile_trampoline:
-  # We got here with a raw call instruction so the calling rip is in [rsp].
-  mov REG_SCRATCH1, [rsp]
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  # Trashes REG_SCRATCH1, REG_SCRATCH3
+  call asm_x64_save_AXYS_PC_flags
+
   # The actual instruction address of interest is the call itself, so
   # subtract two to get that.
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 2]
 
-  lahf
-  push rax
-  push rcx
-  push rsi
-  push rdi
-
   # param1: context object.
   mov REG_PARAM1, REG_CONTEXT
   # param2: x64 rip that called here.
-  mov REG_PARAM2, REG_SCRATCH1
+  mov REG_PARAM2, [rsp]
+  # The actual instruction address of interest is the call itself, so
+  # subtract two to get that.
+  lea REG_PARAM2_32, [REG_PARAM2 - 2]
   # param3: countdown
   mov REG_PARAM3, REG_COUNTDOWN
 
+  push REG_CONTEXT
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
+  pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
 
-  pop rdi
-  pop rsi
-  pop rcx
-  pop rax
-  sahf
-
-  # We're jumping out of a call so pop the return address.
-  pop REG_SCRATCH1
-
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  mov REG_SCRATCH1_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
+  call asm_x64_restore_AXYS_PC_flags
+
+  mov REG_SCRATCH1_32, REG_6502_PC_32
   rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
+
+  # We're jumping out of a call so pop the return address.
+  pop REG_SCRATCH2
 
   jmp REG_SCRATCH1
 
@@ -52,17 +49,18 @@ asm_x64_jit_compile_trampoline:
 .globl asm_x64_jit_interp
 asm_x64_jit_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  # Trashes REG_SCRATCH1, REG_SCRATCH3
   call asm_x64_save_AXYS_PC_flags
 
   # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
   # overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
-  push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
   # param2 is current countdown value.
   mov REG_PARAM2, REG_COUNTDOWN
 
+  push REG_SCRATCH3
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   pop REG_CONTEXT
 

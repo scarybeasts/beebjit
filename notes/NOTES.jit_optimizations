@@ -9,3 +9,23 @@ Unoptimized:
 Optimized:
   xor al, al
   <rts code>
+
+2) NZ flag setting elimination.
+6502:
+  LDA #$01
+  LDX #$02
+  LDY #$03
+  ORA #$EE
+Unoptimized:
+  mov al, 1
+  test al, al
+  mov bl, 2
+  test bl, bl
+  mov cl, 3
+  test cl, cl
+  or al, 0xee
+Optimized:
+  mov al, 1
+  mov bl, 2
+  mov cl, 3
+  or al, 0xee

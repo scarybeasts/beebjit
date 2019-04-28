@@ -25,6 +25,7 @@ uint8_t g_opmodelens[k_6502_op_num_modes];
 uint8_t g_opmem[k_6502_op_num_types];
 uint8_t g_opbranch[k_6502_op_num_types];
 uint8_t g_optype_uses_carry[k_6502_op_num_types];
+uint8_t g_optype_changes_nz_flags[k_6502_op_num_types];
 uint8_t g_optype_changes_carry[k_6502_op_num_types];
 uint8_t g_optype_changes_overflow[k_6502_op_num_types];
 uint8_t g_optype_sets_register[k_6502_op_num_types];

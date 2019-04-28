@@ -69,14 +69,26 @@ uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
 
 uint8_t g_optype_sets_register[k_6502_op_num_types] =
 {
-  0  , 0  , 0  , k_a, 0  , 0  , 0  , 0  ,
-  0  , k_a, 0  , 0  , 0  , 0  , 0  , 0  ,
-  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_a,
-  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_y,
-  k_a, 0  , k_a, 0  , k_y, k_a, k_x, k_y,
-  k_x, 0  , 0  , k_x, 0  , 0  , 0  , 0  ,
-  k_y, k_x, 0  , 0  , k_a, k_x, 0  , 0  ,
-  0  , 0  , 0  , k_a, k_a, 0  ,
+  0  , 0  , 0  , k_a, 0  , 0  , 0  , 0  , /* ORA */
+  0  , k_a, 0  , 0  , 0  , 0  , 0  , 0  , /* AND */
+  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_a, /* EOR, ADC */
+  k_a, 0  , 0  , 0  , 0  , 0  , 0  , k_y, /* PLA, DEY */
+  k_a, 0  , k_a, 0  , k_y, k_a, k_x, k_y, /* TXA, TYA, LDY, LDA, LDX, TAY */
+  k_x, 0  , 0  , k_x, 0  , 0  , 0  , 0  , /* TAX, TSX */
+  k_y, k_x, 0  , 0  , k_a, k_x, 0  , 0  , /* INY, DEX, SBC, INX */
+  0  , 0  , 0  , k_a, k_a, 0  ,           /* ALR, SLO */
+};
+
+uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
+{
+  0, 0, 0, 1, 1, 0, 0, 0, /* ORA, ASL */
+  0, 1, 1, 1, 1, 0, 0, 1, /* AND, BIT, PLP, ROL, RTI */
+  1, 1, 0, 0, 0, 0, 0, 1, /* EOR, LSR, ADC */
+  1, 1, 0, 0, 0, 0, 0, 1, /* PLA, ROR, DEY */
+  1, 0, 1, 0, 1, 1, 1, 1, /* TXA, TYA, LDY, LDA, LDX, TAY */
+  1, 0, 0, 1, 1, 1, 1, 1, /* TAX, TSX, CPY, CMP, CPX, DEC */
+  1, 1, 0, 0, 1, 1, 0, 1, /* INY, DEX, SBC, INX, INC */
+  0, 0, 0, 1, 1, 0,       /* ALR, SLO */
 };
 
 uint8_t g_optypes[k_6502_op_num_opcodes] =

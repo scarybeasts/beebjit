@@ -33,13 +33,18 @@ struct jit_compiler {
 
   uint32_t len_x64_jmp;
   uint32_t len_x64_countdown;
+  uint32_t len_x64_FLAGA;
+  uint32_t len_x64_FLAGX;
+  uint32_t len_x64_FLAGY;
 
   int compile_for_code_in_zero_page;
 
   int32_t addr_opcode[k_6502_addr_space_size];
-  int32_t addr_cycles_fixup[k_6502_addr_space_size];
   uint8_t addr_is_block_start[k_6502_addr_space_size];
   uint8_t addr_is_block_continuation[k_6502_addr_space_size];
+
+  int32_t addr_cycles_fixup[k_6502_addr_space_size];
+  uint8_t addr_reg_fixup[k_6502_addr_space_size];
 };
 
 struct jit_uop {
@@ -51,6 +56,7 @@ struct jit_uop {
 
   /* Dynamic details that are calculated as compilation proceeds. */
   uint32_t len_x64;
+  int eliminated;
 };
 
 enum {
@@ -80,6 +86,8 @@ struct jit_opcode_details {
   int32_t reg_y;
   int32_t flag_carry;
   int32_t flag_decimal;
+  uint8_t num_fixup_uops;
+  struct jit_uop* fixup_uops[k_max_uops_per_opcode];
 };
 
 static const int32_t k_value_unknown = -1;
@@ -221,6 +229,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
   p_compiler->len_x64_countdown = (asm_x64_jit_check_countdown_END -
                                    asm_x64_jit_check_countdown);
+  p_compiler->len_x64_FLAGA = (asm_x64_jit_FLAGA_END - asm_x64_jit_FLAGA);
+  p_compiler->len_x64_FLAGX = (asm_x64_jit_FLAGX_END - asm_x64_jit_FLAGX);
+  p_compiler->len_x64_FLAGY = (asm_x64_jit_FLAGY_END - asm_x64_jit_FLAGY);
 
   return p_compiler;
 }
@@ -1405,6 +1416,9 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
   int32_t flag_carry = k_value_unknown;
   int32_t flag_decimal = k_value_unknown;
 
+  struct jit_opcode_details* p_flags_opcode = NULL;
+  struct jit_uop* p_flags_uop = NULL;
+
   (void) p_compiler;
   (void) flag_decimal;
 
@@ -1412,32 +1426,73 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
     uint32_t i_uops;
     uint32_t num_uops;
     uint8_t opreg;
-    int32_t changes_carry;
 
-    struct jit_opcode_details* p_details = &p_opcodes[i_opcodes];
-    uint8_t opcode_6502 = p_details->opcode_6502;
-    uint16_t operand_6502 = p_details->operand_6502;
+    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    uint8_t opcode_6502 = p_opcode->opcode_6502;
+    uint16_t operand_6502 = p_opcode->operand_6502;
     uint8_t optype = g_optypes[opcode_6502];
+    uint8_t opbranch = g_opbranch[optype];
+    int changes_nz = g_optype_changes_nz_flags[optype];
+    int changes_carry = g_optype_changes_carry[optype];
 
-    p_details->reg_a = reg_a;
-    p_details->reg_x = reg_x;
-    p_details->reg_y = reg_y;
-    p_details->flag_carry = flag_carry;
-    p_details->flag_decimal = flag_carry;
+    p_opcode->reg_a = reg_a;
+    p_opcode->reg_x = reg_x;
+    p_opcode->reg_y = reg_y;
+    p_opcode->flag_carry = flag_carry;
+    p_opcode->flag_decimal = flag_carry;
+    p_opcode->num_fixup_uops = 0;
 
     /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
     opreg = g_optype_sets_register[optype];
     if (g_opmodes[opcode_6502] == k_acc) {
       opreg = k_a;
     }
-    changes_carry = g_optype_changes_carry[optype];
 
-    num_uops = p_details->num_uops;
+    /* Cancel pending optimizations that can't cross this opcode. */
+    if (opbranch != k_bra_n) {
+      p_flags_opcode = NULL;
+      p_flags_uop = NULL;
+    }
+    if (optype == k_php) {
+      p_flags_opcode = NULL;
+      p_flags_uop = NULL;
+    }
+
+    /* Optimize out useless flag updates. */
+    if (changes_nz && (p_flags_opcode != NULL)) {
+      p_flags_uop->eliminated = 1;
+      while (p_flags_opcode != p_opcode) {
+        assert(p_flags_opcode->num_fixup_uops < k_max_uops_per_opcode);
+        p_flags_opcode->fixup_uops[p_flags_opcode->num_fixup_uops++] =
+            p_flags_uop;
+        p_flags_opcode++;
+      }
+      p_flags_opcode = NULL;
+      p_flags_uop = NULL;
+    }
+
+    num_uops = p_opcode->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_details->uops[i_uops];
+      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
 
-      /* Re-write the opcode if we have an optimization opportunity. */
+      p_uop->eliminated = 0;
+
+      /* Optimize out unneccessary NZ flag updates from LDA / LDX / LDY. */
+      switch (uopcode) {
+      case k_opcode_FLAGA:
+      case k_opcode_FLAGX:
+      case k_opcode_FLAGY:
+        p_flags_opcode = p_opcode;
+        p_flags_uop = p_uop;
+        break;
+      default:
+        break;
+      }
+
+      /* Optimize uopcodes that can be directly replaced based on knowledge of
+       * current register / flag values.
+       */
       switch (uopcode) {
       case 0x69: /* ADC imm */
         if (flag_carry == 0) {
@@ -1565,6 +1620,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
   uint8_t single_opcode_buffer[128];
+  struct jit_uop temp_uop;
 
   uint32_t i_opcodes;
   uint32_t i_uops;
@@ -1573,6 +1629,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   int needs_countdown;
   struct jit_opcode_details* p_details;
   struct jit_opcode_details* p_details_fixup;
+  struct jit_opcode_details* p_prev_opcode;
   struct jit_uop* p_uop;
 
   struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
@@ -1662,6 +1719,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * of opcodes compiled, which may get smaller if we run out of space in the
    * binary output buffer.
    */
+  p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     uint8_t num_uops;
     size_t buf_needed;
@@ -1682,23 +1740,57 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       size_t len_x64 = util_buffer_get_pos(p_single_opcode_buf);
       p_uop = &p_details->uops[i_uops];
+      if (p_uop->eliminated) {
+        continue;
+      }
       jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
       p_uop->len_x64 = len_x64;
     }
 
+    /* Calculate if this opcode fits. In order to fit, not only must the opcode
+     * itself fit, but there must be space to commit any eliminated uops plus
+     * space for a possible final jump to the block continuation.
+     */
     buf_needed = util_buffer_get_pos(p_single_opcode_buf);
     if (!p_details->ends_block) {
       buf_needed += p_compiler->len_x64_jmp;
     }
+    for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
+      p_uop = p_details->fixup_uops[i_uops];
+      assert(p_uop->eliminated);
+      switch (p_uop->uopcode) {
+      case k_opcode_FLAGA:
+        buf_needed += p_compiler->len_x64_FLAGA;
+        break;
+      case k_opcode_FLAGX:
+        buf_needed += p_compiler->len_x64_FLAGX;
+        break;
+      case k_opcode_FLAGY:
+        buf_needed += p_compiler->len_x64_FLAGY;
+        break;
+      default:
+        assert(0);
+        break;
+      }
+    }
 
+    /* If the opcode doesn't fit, execute any uops that are eliminated at the
+     * current position, and execute a jump to the block continuation.
+     */
     if (util_buffer_remaining(p_buf) < buf_needed) {
       p_compiler->addr_is_block_continuation[addr_6502] = 1;
-      jit_compiler_prepend_uop(p_details, 0x4C, addr_6502, 0);
       util_buffer_set_pos(p_single_opcode_buf, 0);
-      jit_compiler_emit_uop(p_compiler,
-                            p_single_opcode_buf,
-                            &p_details->uops[0]);
+      assert(p_prev_opcode != NULL);
+      for (i_uops = 0; i_uops < p_prev_opcode->num_fixup_uops; ++i_uops) {
+        p_uop = p_prev_opcode->fixup_uops[i_uops];
+        jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
+      }
+      temp_uop.uopcode = 0x4C; /* JMP abs */
+      temp_uop.value1 = addr_6502;
+      temp_uop.value2 = 0;
+      jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, &temp_uop);
+
       util_buffer_append(p_buf, p_single_opcode_buf);
       break;
     }
@@ -1706,6 +1798,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     util_buffer_append(p_buf, p_single_opcode_buf);
 
     p_details->p_host_address = p_host_address;
+    p_prev_opcode = p_details;
   }
 
   total_num_opcodes = i_opcodes;
@@ -1742,6 +1835,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* Sixth, update compiler metadata. */
   cycles = 0;
+  p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     uint8_t num_bytes_6502;
     uint8_t i;
@@ -1766,17 +1860,41 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
       p_compiler->addr_is_block_continuation[addr_6502] = 0;
 
+      p_compiler->addr_reg_fixup[addr_6502] = 0;
+
       if (i == 0) {
         p_compiler->addr_opcode[addr_6502] = p_details->opcode_6502;
+
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
+        if (p_prev_opcode != NULL) {
+          for (i_uops = 0; i_uops < p_prev_opcode->num_fixup_uops; ++i_uops) {
+            p_uop = p_prev_opcode->fixup_uops[i_uops];
+            switch (p_uop->uopcode) {
+            case k_opcode_FLAGA:
+              p_compiler->addr_reg_fixup[addr_6502] = k_a;
+              break;
+            case k_opcode_FLAGX:
+              p_compiler->addr_reg_fixup[addr_6502] = k_x;
+              break;
+            case k_opcode_FLAGY:
+              p_compiler->addr_reg_fixup[addr_6502] = k_y;
+              break;
+            default:
+              assert(0);
+              break;
+            }
+          }
+        }
       } else {
         p_compiler->addr_opcode[addr_6502] = -1;
+
         p_compiler->addr_cycles_fixup[addr_6502] = -1;
       }
 
       addr_6502++;
     }
     cycles -= p_details->max_cycles;
+    p_prev_opcode = p_details;
   }
 
   /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
@@ -1796,9 +1914,39 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          int64_t countdown) {
   uint16_t pc_6502 = p_state_6502->reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
+  uint8_t reg_fixup = p_compiler->addr_reg_fixup[pc_6502];
 
   assert(cycles_fixup > 0);
   countdown += cycles_fixup;
+
+  if (reg_fixup != 0) {
+    uint8_t reg_val = 0;
+    uint8_t flag_n;
+    uint8_t flag_z;
+    uint8_t flags_new;
+    switch (reg_fixup) {
+    case k_a:
+      reg_val = p_state_6502->reg_a;
+      break;
+    case k_x:
+      reg_val = p_state_6502->reg_x;
+      break;
+    case k_y:
+      reg_val = p_state_6502->reg_y;
+      break;
+    default:
+      assert(0);
+      break;
+    }
+
+    flag_n = !!(reg_val & 0x80);
+    flag_z = (reg_val == 0);
+    flags_new = 0;
+    flags_new |= (flag_n << k_flag_negative);
+    flags_new |= (flag_z << k_flag_zero);
+    p_state_6502->reg_flags &= ~((1 << k_flag_negative) | (1 << k_flag_zero));
+    p_state_6502->reg_flags |= flags_new;
+  }
 
   return countdown;
 }
