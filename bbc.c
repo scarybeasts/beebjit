@@ -975,6 +975,7 @@ bbc_cycles_timer_callback(void* p) {
 
 static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
+  int option_cycles_per_run;
   uint64_t cycles_per_run;
   struct timing_struct* p_timing = p_bbc->p_timing;
   p_bbc->timer_id = timing_register_timer(p_timing,
@@ -1003,6 +1004,11 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
     }
 
     cycles_per_run = (speed / 1000);
+  }
+  if (util_get_int_option(&option_cycles_per_run,
+                          p_bbc->options.p_opt_flags,
+                          "bbc:cycles-per-run=")) {
+    cycles_per_run = option_cycles_per_run;
   }
 
   p_bbc->cycles_per_run = cycles_per_run;
