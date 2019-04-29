@@ -11,8 +11,11 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <stdio.h>
 
 struct jit_compiler {
   struct memory_access* p_memory_access;
@@ -99,7 +102,12 @@ enum {
   k_opcode_ABX_CHECK_PAGE_CROSSING,
   k_opcode_ABY_CHECK_PAGE_CROSSING,
   k_opcode_ADD_CYCLES,
+  k_opcode_ADD_ABS,
+  k_opcode_ADD_ABX,
+  k_opcode_ADD_ABY,
   k_opcode_ADD_IMM,
+  k_opcode_ADD_scratch,
+  k_opcode_ADD_scratch_Y,
   k_opcode_CHECK_BCD,
   k_opcode_CHECK_PENDING_IRQ,
   k_opcode_FLAGA,
@@ -853,8 +861,23 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_ADD_CYCLES:
     asm_x64_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
+  case k_opcode_ADD_ABS:
+    asm_x64_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_ADD_ABX:
+    asm_x64_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_ADD_ABY:
+    asm_x64_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_ADD_IMM:
     asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_ADD_scratch:
+    asm_x64_emit_jit_ADD_scratch(p_dest_buf);
+    break;
+  case k_opcode_ADD_scratch_Y:
+    asm_x64_emit_jit_ADD_scratch_Y(p_dest_buf);
     break;
   case k_opcode_CHECK_BCD:
     asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (void*) (size_t) value1);
@@ -1494,9 +1517,39 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
        * current register / flag values.
        */
       switch (uopcode) {
+      case 0x61: /* ADC idx */
+      case 0x75: /* ADC zpx */
+        if (flag_carry == 0) {
+          p_uop->uopcode = k_opcode_ADD_scratch;
+        }
+        break;
+      case 0x65: /* ADC zpg */
+      case 0x6D: /* ADC abs */
+        if (flag_carry == 0) {
+          p_uop->uopcode = k_opcode_ADD_ABS;
+        }
+        break;
       case 0x69: /* ADC imm */
         if (flag_carry == 0) {
           p_uop->uopcode = k_opcode_ADD_IMM;
+        } else if (flag_carry == 1) {
+          /* NOTE: if this is common, we can optimize this case. */
+          printf("LOG:JIT:optimizer sees ADC #$imm with C==1\n");
+        }
+        break;
+      case 0x71: /* ADC idy */
+        if (flag_carry == 0) {
+          p_uop->uopcode = k_opcode_ADD_scratch_Y;
+        }
+        break;
+      case 0x79: /* ADC aby */
+        if (flag_carry == 0) {
+          p_uop->uopcode = k_opcode_ADD_ABY;
+        }
+        break;
+      case 0x7D: /* ADC abx */
+        if (flag_carry == 0) {
+          p_uop->uopcode = k_opcode_ADD_ABX;
         }
         break;
       case 0x84: /* STY zpg */

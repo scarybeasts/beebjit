@@ -198,11 +198,45 @@ asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_ADD_ABS,
+                         asm_x64_jit_ADD_ABS_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
+}
+
+void
+asm_x64_emit_jit_ADD_ABX(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_ADD_ABX,
+                         asm_x64_jit_ADD_ABX_END,
+                         addr);
+}
+
+void
+asm_x64_emit_jit_ADD_ABY(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x86_copy_patch_u32(p_buf,
+                         asm_x64_jit_ADD_ABY,
+                         asm_x64_jit_ADD_ABY_END,
+                         addr);
+}
+
+void
 asm_x64_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
   asm_x86_copy_patch_byte(p_buf,
                           asm_x64_jit_ADD_IMM,
                           asm_x64_jit_ADD_IMM_END,
                           value);
+}
+
+void
+asm_x64_emit_jit_ADD_scratch(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ADD_scratch, asm_x64_jit_ADD_scratch_END);
+}
+
+void
+asm_x64_emit_jit_ADD_scratch_Y(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_ADD_scratch_Y, asm_x64_jit_ADD_scratch_Y_END);
 }
 
 void

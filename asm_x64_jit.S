@@ -166,12 +166,58 @@ asm_x64_jit_ADD_CYCLES_END:
   ret
 
 
+.globl asm_x64_jit_ADD_ABS
+.globl asm_x64_jit_ADD_ABS_END
+asm_x64_jit_ADD_ABS:
+  add REG_6502_A, [0x7fffffff]
+
+asm_x64_jit_ADD_ABS_END:
+  ret
+
+
+.globl asm_x64_jit_ADD_ABX
+.globl asm_x64_jit_ADD_ABX_END
+asm_x64_jit_ADD_ABX:
+  add REG_6502_A, [REG_6502_X_64 + 0xFFFF]
+
+asm_x64_jit_ADD_ABX_END:
+  ret
+
+
+.globl asm_x64_jit_ADD_ABY
+.globl asm_x64_jit_ADD_ABY_END
+asm_x64_jit_ADD_ABY:
+  add REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+
+asm_x64_jit_ADD_ABY_END:
+  ret
+
+
 .globl asm_x64_jit_ADD_IMM
 .globl asm_x64_jit_ADD_IMM_END
 asm_x64_jit_ADD_IMM:
   add REG_6502_A, 0
 
 asm_x64_jit_ADD_IMM_END:
+  ret
+
+
+.globl asm_x64_jit_ADD_scratch
+.globl asm_x64_jit_ADD_scratch_END
+asm_x64_jit_ADD_scratch:
+  add REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_x64_jit_ADD_scratch_END:
+  ret
+
+
+.globl asm_x64_jit_ADD_scratch_Y
+.globl asm_x64_jit_ADD_scratch_Y_END
+asm_x64_jit_ADD_scratch_Y:
+  add REG_6502_A, \
+      [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_TO_IND_READ_OFFSET]
+
+asm_x64_jit_ADD_scratch_Y_END:
   ret
 
 
