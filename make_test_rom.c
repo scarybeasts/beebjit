@@ -1015,7 +1015,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xA3);
   emit_JMP(p_buf, k_abs, 0xCE40);
 
+  /* Test idy mode load with a known Y value. This is a JIT optimization
+   * scenario.
+   */
   set_new_index(p_buf, 0x0E40);
+  emit_LDY(p_buf, k_imm, 0xFF);
+  emit_STY(p_buf, k_zpg, 0x21);
+  emit_LDY(p_buf, k_imm, 0xFD);
+  emit_STY(p_buf, k_zpg, 0x20);
+  emit_JMP(p_buf, k_abs, 0xCE50);
+  set_new_index(p_buf, 0x0E50);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_idy, 0x20);   /* idy mode read to $FFFD. */
+  emit_LDY(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_EQ(p_buf, 0xC0);
+  emit_JMP(p_buf, k_abs, 0xCE80);
+
+  set_new_index(p_buf, 0x0E80);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

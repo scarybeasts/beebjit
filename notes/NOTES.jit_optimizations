@@ -29,3 +29,25 @@ Optimized:
   mov bl, 2
   mov cl, 3
   or al, 0xee
+
+3) Immediate store optimization.
+6502:
+  LDA #$01
+  STA $70
+Unoptimized: (optimization 2) included)
+  mov al, 1
+  mov 0x10000070, al
+Optimized:
+  mov al, 1
+  mov BYTE PTR 0x10000070, 1
+
+4) Register write elimination.
+6502:
+  LDA #$01
+  STA $70
+  LDA #$02
+Unoptimized: (optimization 2) and 3) included)
+  mov al, 1
+  mov BYTE PTR 0x10000070, 1
+Optimized:
+  mov BYTE PTR 0x10000070, 1
