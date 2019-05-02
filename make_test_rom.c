@@ -1031,7 +1031,22 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xC0);
   emit_JMP(p_buf, k_abs, 0xCE80);
 
+  /* Test for a JIT bug that existed with merged opcodes up against block
+   * boundaries.
+   */
   set_new_index(p_buf, 0x0E80);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_LDX(p_buf, k_imm, 0xFE);
+  emit_JMP(p_buf, k_abs, 0xCE8A); /* Start a new block after the 3 LSR. */
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_INX(p_buf);
+  emit_BNE(p_buf, -6);
+  emit_REQUIRE_EQ(p_buf, 0x1F);
+  emit_JMP(p_buf, k_abs, 0xCEC0);
+
+  set_new_index(p_buf, 0x0EC0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

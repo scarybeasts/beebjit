@@ -762,6 +762,15 @@ asm_x64_jit_ASL_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ASL_ACC_n
+.globl asm_x64_jit_ASL_ACC_n_END
+asm_x64_jit_ASL_ACC_n:
+  shl al, 2
+
+asm_x64_jit_ASL_ACC_n_END:
+  ret
+
+
 .globl asm_x64_jit_ASL_scratch
 .globl asm_x64_jit_ASL_scratch_END
 asm_x64_jit_ASL_scratch:
@@ -1390,6 +1399,15 @@ asm_x64_jit_LSR_ACC_END:
   ret
 
 
+.globl asm_x64_jit_LSR_ACC_n
+.globl asm_x64_jit_LSR_ACC_n_END
+asm_x64_jit_LSR_ACC_n:
+  shr al, 2
+
+asm_x64_jit_LSR_ACC_n_END:
+  ret
+
+
 .globl asm_x64_jit_LSR_scratch
 .globl asm_x64_jit_LSR_scratch_END
 asm_x64_jit_LSR_scratch:
@@ -1500,6 +1518,15 @@ asm_x64_jit_ROL_ACC_END:
   ret
 
 
+.globl asm_x64_jit_ROL_ACC_n
+.globl asm_x64_jit_ROL_ACC_n_END
+asm_x64_jit_ROL_ACC_n:
+  rcl al, 2
+
+asm_x64_jit_ROL_ACC_n_END:
+  ret
+
+
 .globl asm_x64_jit_ROL_scratch
 .globl asm_x64_jit_ROL_scratch_END
 asm_x64_jit_ROL_scratch:
@@ -1556,6 +1583,15 @@ asm_x64_jit_ROR_ACC:
   rcr al, 1
 
 asm_x64_jit_ROR_ACC_END:
+  ret
+
+
+.globl asm_x64_jit_ROR_ACC_n
+.globl asm_x64_jit_ROR_ACC_n_END
+asm_x64_jit_ROR_ACC_n:
+  rcr al, 2
+
+asm_x64_jit_ROR_ACC_n_END:
   ret
 
 
