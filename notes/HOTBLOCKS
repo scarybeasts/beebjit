@@ -22,6 +22,173 @@ Notes on hot 6502 instruction sequences for various programs.
 [ITRP] 3398: BNE $3382
 
 
+- CLOCKSP, Real REPEAT loop
+1) Interesting block with a lot of "known Y".
+[ITRP] 947D: LDY #$00
+[ITRP] 947F: LDA ($3A),Y
+[ITRP] 9481: STA $3C
+[ITRP] 9483: INY
+[ITRP] 9484: LDA ($3A),Y
+[ITRP] 9486: STA $3D
+[ITRP] 9488: INY
+[ITRP] 9489: LDA ($3A),Y
+[ITRP] 948B: BNE $949A
+[ITRP] 948D: DEY
+[ITRP] 948E: CPY $39
+[ITRP] 9490: BNE $94B3
+[ITRP] 9492: INY
+[ITRP] 9493: BCS $94A7
+
+2) More "known Y".
+[ITRP] BD51: LDA $04
+[ITRP] BD53: SEC
+[ITRP] BD54: SBC #$05
+[ITRP] BD56: JSR $BE2E
+[ITRP] BD59: LDY #$00
+[ITRP] BD5B: LDA $30
+[ITRP] BD5D: STA ($04),Y
+[ITRP] BD5F: INY
+[ITRP] BD60: LDA $2E
+[ITRP] BD62: AND #$80
+[ITRP] BD64: STA $2E
+[ITRP] BD66: LDA $31
+[ITRP] BD68: AND #$7F
+[ITRP] BD6A: ORA $2E
+[ITRP] BD6C: STA ($04),Y
+[ITRP] BD6E: INY
+[ITRP] BD6F: LDA $32
+[ITRP] BD71: STA ($04),Y
+
+
+- CLOCKSP, Integer REPEAT loop
+1) Sequence with "known Y" and ADC chain.
+[ITRP] 9C5B: LDY #$00
+[ITRP] 9C5D: CLC
+[ITRP] 9C5E: LDA ($04),Y
+[ITRP] 9C60: ADC $2A
+[ITRP] 9C62: STA $2A
+[ITRP] 9C64: INY
+[ITRP] 9C65: LDA ($04),Y
+[ITRP] 9C67: ADC $2B
+[ITRP] 9C69: STA $2B
+[ITRP] 9C6B: INY
+[ITRP] 9C6C: LDA ($04),Y
+[ITRP] 9C6E: ADC $2C
+[ITRP] 9C70: STA $2C
+[ITRP] 9C72: INY
+[ITRP] 9C73: LDA ($04),Y
+[ITRP] 9C75: ADC $2D
+[ITRP] 9C77: STA $2D
+[ITRP] 9C79: CLC
+[ITRP] 9C7A: LDA $04
+[ITRP] 9C7C: ADC #$04
+
+
+- CLOCKSP, Real FOR loop
+1) Tight sequence of LSR / ROR, no NZ flags observed.
+[ITRP] A543: LSR $3E
+[ITRP] A545: ROR $3F
+[ITRP] A547: ROR $40
+[ITRP] A549: ROR $41
+[ITRP] A54B: ROR $42
+[ITRP] A54D: DEX
+[ITRP] A54E: BNE $A543
+
+2) Yet another "known Y" loop.
+[ITRP] A34E: LDY #$04
+[ITRP] A350: LDA ($4B),Y
+[ITRP] A352: STA $41
+[ITRP] A354: DEY
+[ITRP] A355: LDA ($4B),Y
+[ITRP] A357: STA $40
+[ITRP] A359: DEY
+[ITRP] A35A: LDA ($4B),Y
+[ITRP] A35C: STA $3F
+[ITRP] A35E: DEY
+[ITRP] A35F: LDA ($4B),Y
+[ITRP] A361: STA $3B
+[ITRP] A363: DEY
+[ITRP] A364: STY $42
+[ITRP] A366: STY $3C
+
+
+- CLOCKSP, Integer FOR loop
+1) Interesting load / inc situation:
+[ITRP] 8BA3: LDY $0A
+[ITRP] 8BA5: INC $0A
+[ITRP] 8BA7: LDA ($0B),Y
+[ITRP] 8BA9: CMP #$20
+[ITRP] 8BAB: BEQ $8BA3
+[ITRP] 8BAD: CMP #$CF
+[ITRP] 8BAF: BCC $8BBF
+[ITRP] 8BB1: TAX
+[ITRP] 8BB2: LDA $82DF,X
+[ITRP] 8BB5: STA $37
+[ITRP] 8BB7: LDA $8351,X
+[ITRP] 8BBA: STA $38
+[ITRP] 8BBC: JMP ($0037)
+
+2) ADC chain with "known Y" and repeated idy with same index address:
+[ITRP] B6E8: LDY #$00
+[ITRP] B6EA: LDA ($2A),Y
+[ITRP] B6EC: ADC $04F4,X
+[ITRP] B6EF: STA ($2A),Y
+[ITRP] B6F1: STA $37
+[ITRP] B6F3: INY
+[ITRP] B6F4: LDA ($2A),Y
+[ITRP] B6F6: ADC $04F5,X
+[ITRP] B6F9: STA ($2A),Y
+[ITRP] B6FB: STA $38
+[ITRP] B6FD: INY
+[ITRP] B6FE: LDA ($2A),Y
+[ITRP] B700: ADC $04F6,X
+
+
+- CLOCKSP, Trig/Log test
+1) Big ROL sequence
+[ITRP] A73F: ROL $46
+[ITRP] A741: ROL $45
+[ITRP] A743: ROL $44
+[ITRP] A745: ROL $43
+[ITRP] A747: ASL $34
+[ITRP] A749: ROL $33
+[ITRP] A74B: ROL $32
+[ITRP] A74D: ROL $31
+[ITRP] A74F: DEX
+[ITRP] A750: BNE $A70C
+
+
+- CLOCKSP, String manipulation
+1) Tight loop, may be possible to cache idy deference across loop.
+[ITRP] BDD4: LDA ($04),Y
+[ITRP] BDD6: STA $05FF,Y
+[ITRP] BDD9: DEY
+[ITRP] BDDA: BNE $BDD4
+
+2) Moving 4 bytes, may be possible to do in 1 4-byte load / store.
+[ITRP] A319: LDX $32
+[ITRP] A31B: STX $31
+[ITRP] A31D: LDX $33
+[ITRP] A31F: STX $32
+[ITRP] A321: LDX $34
+[ITRP] A323: STX $33
+[ITRP] A325: LDX $35
+[ITRP] A327: STX $34
+
+
+- CLOCKSP, Procedure call
+1) Lot of CMP + BCx
+[ITRP] 955B: LDA ($37),Y
+[ITRP] 955D: CMP #$30
+[ITRP] 955F: BCC $9579
+[ITRP] 9561: CMP #$40
+[ITRP] 9563: BCS $9571
+
+
+- CLOCKSP, GOSUB call
+Nothing significant to note beyond other CLOCKSP tests.
+
+
 - Galaforce
 1) Delay loop.
 [ITRP] 1207: LDY #$00
