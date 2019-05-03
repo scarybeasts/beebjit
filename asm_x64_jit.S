@@ -13,10 +13,6 @@ asm_x64_jit_compile_trampoline:
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   call asm_x64_save_AXYS_PC_flags
 
-  # The actual instruction address of interest is the call itself, so
-  # subtract two to get that.
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 - 2]
-
   # param1: context object.
   mov REG_PARAM1, REG_CONTEXT
   # param2: x64 rip that called here.
