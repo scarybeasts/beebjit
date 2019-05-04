@@ -207,7 +207,12 @@ asm_x64_inturbo_call_interp:
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
+  test REG_RETURN2, REG_RETURN2
+  je not_exiting
+  mov REG_RETURN, REG_RETURN2
+  ret
 
+not_exiting:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 

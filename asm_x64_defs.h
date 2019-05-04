@@ -78,6 +78,7 @@
 #define REG_SCRATCH4_32    r11d
 
 #define REG_RETURN         rax
+#define REG_RETURN2        rdx
 #define REG_PARAM1         rdi
 #define REG_PARAM1_32      edi
 #define REG_PARAM2         rsi

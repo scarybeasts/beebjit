@@ -182,9 +182,15 @@ jit_interp_instruction_callback(void* p,
   return 1;
 }
 
-static int64_t
+struct jit_enter_interp_ret {
+  int64_t countdown;
+  int64_t exited;
+};
+
+static struct jit_enter_interp_ret
 jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
-  uint32_t ret;
+  struct jit_enter_interp_ret ret;
+  int exited;
 
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct timing_struct* p_timing = p_jit->driver.p_timing;
@@ -200,17 +206,15 @@ jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
    */
   countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
 
-  ret = interp_enter_with_details(p_interp,
-                                  countdown,
-                                  jit_interp_instruction_callback,
-                                  p_jit);
+  exited = interp_enter_with_details(p_interp,
+                                     countdown,
+                                     jit_interp_instruction_callback,
+                                     p_jit);
 
-  (void) ret;
-  assert(ret == (uint32_t) -1);
+  ret.countdown = timing_get_countdown(p_timing);
+  ret.exited = exited;
 
-  countdown = timing_get_countdown(p_timing);
-
-  return countdown;
+  return ret;
 }
 
 static void
@@ -233,9 +237,9 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   util_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
 }
 
-static uint32_t
+static int
 jit_enter(struct cpu_driver* p_cpu_driver) {
-  uint32_t ret;
+  int exited;
   uint32_t uint_start_addr;
   int64_t countdown;
 
@@ -248,9 +252,18 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
 
   countdown = timing_get_countdown(p_timing);
 
-  ret = asm_x64_asm_enter(p_jit, uint_start_addr, countdown);
+  exited = asm_x64_asm_enter(p_jit, uint_start_addr, countdown);
+  assert(exited == 1);
 
-  return ret;
+  return exited;
+}
+
+static uint32_t
+jit_get_exit_value(struct cpu_driver* p_cpu_driver) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  return p_interp_driver->p_funcs->get_exit_value(p_interp_driver);
 }
 
 static void
@@ -522,6 +535,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
+  p_funcs->get_exit_value = jit_get_exit_value;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
 

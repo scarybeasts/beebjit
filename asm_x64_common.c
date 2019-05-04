@@ -89,11 +89,6 @@ asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_instruction_EXIT(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf, asm_x64_instruction_EXIT, asm_x64_instruction_EXIT_END);
-}
-
-void
 asm_x64_emit_instruction_REAL_NOP(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_instruction_REAL_NOP,

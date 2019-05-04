@@ -1004,9 +1004,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0x15: /* ORA zpx */
     asm_x64_emit_jit_ORA_scratch(p_dest_buf);
     break;
-  case 0x02:
-    asm_x64_emit_instruction_EXIT(p_dest_buf);
-    break;
   case 0x04: /* NOP zpg */ /* Undocumented. */
   case 0xDC: /* NOP abx */ /* Undocumented. */
   case 0xEA: /* NOP */

@@ -96,7 +96,7 @@ struct bbc_struct {
   struct intel_fdc_struct* p_intel_fdc;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
-  uint32_t run_result;
+  uint32_t exit_value;
   /* Timing support. */
   size_t timer_id;
   uint64_t cycles_per_run;
@@ -541,7 +541,7 @@ bbc_create(int mode,
   p_bbc->print_flag = print_flag;
   p_bbc->slow_flag = slow_flag;
   p_bbc->vsync_wait_for_render = 1;
-  p_bbc->run_result = 0;
+  p_bbc->exit_value = 0;
 
   p_bbc->last_gettime_us = 0;
   p_bbc->next_gettime_us_vsync = 0;
@@ -1022,17 +1022,19 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 
 static void*
 bbc_cpu_thread(void* p) {
-  uint32_t run_result;
+  int exited;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   bbc_start_timer_tick(p_bbc);
 
-  run_result = p_cpu_driver->p_funcs->enter(p_cpu_driver);
+  exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
+  (void) exited;
+  assert(exited == 1);
 
   p_bbc->running = 0;
-  p_bbc->run_result = run_result;
+  p_bbc->exit_value = p_cpu_driver->p_funcs->get_exit_value(p_cpu_driver);
 
   bbc_cpu_send_message(p_bbc, k_message_exited);
 
@@ -1057,7 +1059,7 @@ bbc_run_async(struct bbc_struct* p_bbc) {
 
 uint32_t
 bbc_get_run_result(struct bbc_struct* p_bbc) {
-  volatile uint32_t* p_ret = &p_bbc->run_result;
+  volatile uint32_t* p_ret = &p_bbc->exit_value;
   volatile int* p_running = &p_bbc->running;
 
   (void) p_running;

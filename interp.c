@@ -20,6 +20,8 @@ enum {
 
 struct interp_struct {
   struct cpu_driver driver;
+  int exited;
+  uint32_t exit_value;
 
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -44,12 +46,19 @@ interp_destroy(struct cpu_driver* p_cpu_driver) {
   free(p_cpu_driver);
 }
 
-static uint32_t
+static int
 interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
 
   return interp_enter_with_details(p_interp, countdown, NULL, NULL);
+}
+
+static uint32_t
+interp_get_exit_value(struct cpu_driver* p_cpu_driver) {
+  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
+  assert(p_interp->exited);
+  return p_interp->exit_value;
 }
 
 static char*
@@ -70,6 +79,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = interp_destroy;
   p_funcs->enter = interp_enter;
+  p_funcs->get_exit_value = interp_get_exit_value;
   p_funcs->get_address_info = interp_get_address_info;
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
@@ -96,6 +106,9 @@ interp_init(struct cpu_driver* p_cpu_driver) {
       timing_register_timer(p_timing,
                             interp_deferred_interrupt_timer_callback,
                             p_interp);
+
+  p_interp->exited = 0;
+  p_interp->exit_value = 0;
 }
 
 struct cpu_driver*
@@ -621,7 +634,7 @@ interp_is_branch_opcode(uint8_t opcode) {
 #define INTERP_INSTR_STY()                                                    \
   v = y;
 
-uint32_t
+int
 interp_enter_with_details(struct interp_struct* p_interp,
                           int64_t countdown,
                           int (*instruction_callback)(void* p,
@@ -670,6 +683,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int64_t cycles_this_instruction = 0;
 
   assert(countdown >= 0);
+  assert(!p_interp->exited);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -717,7 +731,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
     case 0x02: /* Extension: EXIT */
-      return ((y << 16) | (x << 8) | a);
+      p_interp->exited = 1;
+      p_interp->exit_value = ((y << 16) | (x << 8) | a);
+      return 1;
     case 0x04: /* NOP zp */ /* Undocumented. */
       pc += 2;
       cycles_this_instruction = 3;
@@ -1627,5 +1643,5 @@ check_debug:
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 
-  return (uint32_t) -1;
+  return 0;
 }

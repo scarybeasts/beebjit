@@ -77,11 +77,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
      */
     switch (optype) {
     case k_kil:
-      if (i != 0x02) {
-        /* Not EXIT. Use interpreter. */
-        asm_x64_emit_inturbo_call_interp(p_buf);
-        continue;
-      }
+      asm_x64_emit_inturbo_call_interp(p_buf);
       break;
     case k_adc:
     case k_sbc:
@@ -169,16 +165,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     switch (optype) {
-    case k_kil:
-      switch (i) {
-      case 0x02: /* EXIT */
-        asm_x64_emit_instruction_EXIT(p_buf);
-        break;
-      default:
-        assert(0);
-        break;
-      }
-      break;
     case k_adc:
       if (opmode == k_imm) {
         asm_x64_emit_instruction_ADC_imm_interp(p_buf);
@@ -579,22 +565,28 @@ inturbo_interp_instruction_callback(void* p,
   return 1;
 }
 
-static int64_t
+struct inturbo_enter_interp_ret {
+  int64_t countdown;
+  int64_t exited;
+};
+
+static struct inturbo_enter_interp_ret
 inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
+  struct inturbo_enter_interp_ret ret;
+  int exited;
+
   struct timing_struct* p_timing = p_inturbo->driver.p_timing;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
-  uint32_t ret = interp_enter_with_details(p_interp,
-                                           countdown,
-                                           inturbo_interp_instruction_callback,
-                                           NULL);
+  exited = interp_enter_with_details(p_interp,
+                                     countdown,
+                                     inturbo_interp_instruction_callback,
+                                     NULL);
 
-  (void) ret;
-  assert(ret == (uint32_t) -1);
+  ret.countdown = timing_get_countdown(p_timing);
+  ret.exited = exited;
 
-  countdown = timing_get_countdown(p_timing);
-
-  return countdown;
+  return ret;
 }
 
 static void
@@ -610,10 +602,10 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   free(p_inturbo);
 }
 
-static uint32_t
+static int
 inturbo_enter(struct cpu_driver* p_cpu_driver) {
   int64_t countdown;
-  uint32_t run_result;
+  int exited;
 
   uint16_t addr_6502 = state_6502_get_pc(p_cpu_driver->abi.p_state_6502);
   uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
@@ -625,9 +617,18 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 
   countdown = timing_get_countdown(p_timing);
 
-  run_result = asm_x64_asm_enter(p_cpu_driver, p_start_address, countdown);
+  exited = asm_x64_asm_enter(p_cpu_driver, p_start_address, countdown);
+  assert(exited == 1);
 
-  return run_result;
+  return exited;
+}
+
+static uint32_t
+inturbo_get_exit_value(struct cpu_driver* p_cpu_driver) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  return p_interp_driver->p_funcs->get_exit_value(p_interp_driver);
 }
 
 static char*
@@ -654,6 +655,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = inturbo_destroy;
   p_funcs->enter = inturbo_enter;
+  p_funcs->get_exit_value = inturbo_get_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
