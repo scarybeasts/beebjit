@@ -689,7 +689,25 @@ interp_enter_with_details(struct interp_struct* p_interp,
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
   opcode = p_mem_read[pc];
-  goto check_debug;
+  if (p_interp->debug_subsystem_active) {
+    INTERP_TIMING_ADVANCE(0);
+    interp_call_debugger(p_interp,
+                         &a,
+                         &x,
+                         &y,
+                         &s,
+                         &pc,
+                         &zf,
+                         &nf,
+                         &cf,
+                         &of,
+                         &df,
+                         &intf,
+                         do_irq);
+  }
+
+  do_special_checks = (p_interp->debug_subsystem_active ||
+                       instruction_callback);
 
   while (1) {
     switch (opcode) {
@@ -1613,10 +1631,8 @@ check_irq:
       opcode = p_mem_read[pc];
     }
 
-check_debug:
-    /* The debug callout fires before the instruction executes. */
+    /* The debug callout fires before the next instruction executes. */
     if (p_interp->debug_subsystem_active) {
-      INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
                            &a,
                            &x,
@@ -1630,10 +1646,6 @@ check_debug:
                            &df,
                            &intf,
                            do_irq);
-      /* The debugger could have changed all sorts of state, so reload
-       * countdown.
-       */
-      countdown = timing_get_countdown(p_timing);
     }
 
     do_special_checks = (p_interp->debug_subsystem_active ||
