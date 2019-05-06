@@ -135,10 +135,11 @@ jit_interp_instruction_callback(void* p,
                                 int next_is_irq,
                                 int irq_pending) {
   uint16_t next_block;
+  uint16_t next_block_prev;
 
   struct jit_struct* p_jit = (struct jit_struct*) p;
-  uint8_t optype = g_optypes[done_opcode];
   uint8_t opmode = g_opmodes[done_opcode];
+  uint8_t optype = g_optypes[done_opcode];
   uint8_t opmem = g_opmem[optype];
 
   if ((opmem == k_write || opmem == k_rw) && (opmode != k_acc)) {
@@ -146,14 +147,6 @@ jit_interp_instruction_callback(void* p,
      * compiled JIT code if they're self-modifying writes.
      */
     jit_invalidate_code_at_address(p_jit, done_addr);
-  }
-
-  if (optype == k_rti) {
-    /* After an RTI, we need to run to the next block boundary _after_ the RTI
-     * return target. This will prevent RTI from splitting blocks in a
-     * quasi-random fashion.
-     */
-    p_jit->interp_block_start = jit_6502_block_addr_from_6502(p_jit, next_pc);
   }
 
   if (next_is_irq || irq_pending) {
@@ -169,17 +162,17 @@ jit_interp_instruction_callback(void* p,
      */
     return 1;
   }
-  if (next_block == p_jit->interp_block_start) {
-    /* Keep interpreting until we cross a block boundary. The JIT engine will
-     * handle us bouncing back into the middle of a block, but this will split
-     * the block, cause a recompile and longer term lead to block
-     * fragmentation.
+
+  next_block_prev = jit_6502_block_addr_from_6502(p_jit, (next_pc - 1));
+  if (next_block != next_block_prev) {
+    /* If the instruction we're about to execute is at the start of a JIT
+     * block, bounce back into JIT at this clean boundary.
      */
-    return 0;
+    return 1;
   }
 
-  /* Stop interpreting, i.e. bounce back to JIT. */
-  return 1;
+  /* Keep interpreting. */
+  return 0;
 }
 
 struct jit_enter_interp_ret {
