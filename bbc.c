@@ -1032,6 +1032,7 @@ bbc_cpu_thread(void* p) {
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;
   assert(exited == 1);
+  assert(p_cpu_driver->p_funcs->has_exited(p_cpu_driver) == 1);
 
   p_bbc->running = 0;
   p_bbc->exit_value = p_cpu_driver->p_funcs->get_exit_value(p_cpu_driver);

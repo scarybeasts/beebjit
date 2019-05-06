@@ -21,6 +21,7 @@ struct cpu_driver_funcs {
   void (*init)(struct cpu_driver* p_cpu_driver);
   void (*destroy)(struct cpu_driver* p_cpu_driver);
   int (*enter)(struct cpu_driver* p_cpu_driver);
+  int (*has_exited)(struct cpu_driver* p_cpu_driver);
   uint32_t (*get_exit_value)(struct cpu_driver* p_cpu_driver);
 
   void (*memory_range_invalidate)(struct cpu_driver* p_cpu_driver,

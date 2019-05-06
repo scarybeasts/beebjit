@@ -190,12 +190,11 @@ struct jit_enter_interp_ret {
 static struct jit_enter_interp_ret
 jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
   struct jit_enter_interp_ret ret;
-  int exited;
 
+  struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
-  struct timing_struct* p_timing = p_jit->driver.p_timing;
   struct interp_struct* p_interp = p_jit->p_interp;
-  struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
+  struct state_6502* p_state_6502 = p_jit_cpu_driver->abi.p_state_6502;
   uint16_t pc = p_state_6502->reg_pc;
 
   p_jit->interp_pc_start = pc;
@@ -206,13 +205,13 @@ jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
    */
   countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
 
-  exited = interp_enter_with_details(p_interp,
-                                     countdown,
-                                     jit_interp_instruction_callback,
-                                     p_jit);
+  countdown = interp_enter_with_details(p_interp,
+                                        countdown,
+                                        jit_interp_instruction_callback,
+                                        p_jit);
 
-  ret.countdown = timing_get_countdown(p_timing);
-  ret.exited = exited;
+  ret.countdown = countdown;
+  ret.exited = p_jit_cpu_driver->p_funcs->has_exited(p_jit_cpu_driver);
 
   return ret;
 }
@@ -256,6 +255,14 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   assert(exited == 1);
 
   return exited;
+}
+
+static int
+jit_has_exited(struct cpu_driver* p_cpu_driver) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  return p_interp_driver->p_funcs->has_exited(p_interp_driver);
 }
 
 static uint32_t
@@ -535,6 +542,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
+  p_funcs->has_exited = jit_has_exited;
   p_funcs->get_exit_value = jit_get_exit_value;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;

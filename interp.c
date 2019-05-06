@@ -51,7 +51,16 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
 
-  return interp_enter_with_details(p_interp, countdown, NULL, NULL);
+  countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
+  (void) countdown;
+
+  return p_interp->exited;
+}
+
+static int
+interp_has_exited(struct cpu_driver* p_cpu_driver) {
+  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
+  return p_interp->exited;
 }
 
 static uint32_t
@@ -79,6 +88,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = interp_destroy;
   p_funcs->enter = interp_enter;
+  p_funcs->has_exited = interp_has_exited;
   p_funcs->get_exit_value = interp_get_exit_value;
   p_funcs->get_address_info = interp_get_address_info;
 
@@ -634,7 +644,7 @@ interp_is_branch_opcode(uint8_t opcode) {
 #define INTERP_INSTR_STY()                                                    \
   v = y;
 
-int
+int64_t
 interp_enter_with_details(struct interp_struct* p_interp,
                           int64_t countdown,
                           int (*instruction_callback)(void* p,
@@ -751,7 +761,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x02: /* Extension: EXIT */
       p_interp->exited = 1;
       p_interp->exit_value = ((y << 16) | (x << 8) | a);
-      return 1;
+      return countdown;
     case 0x04: /* NOP zp */ /* Undocumented. */
       pc += 2;
       cycles_this_instruction = 3;
@@ -1545,63 +1555,64 @@ interp_enter_with_details(struct interp_struct* p_interp,
       continue;
     }
 
-    /* TODO: if no countdown expired, skip this? */
+    do_irq = 0;
+    if ((countdown < 0) || p_interp->debug_subsystem_active) {
+      countdown += cycles_this_instruction;
+      assert(countdown >= 0);
 
-    countdown += cycles_this_instruction;
-    assert(countdown >= 0);
-
-    /* Instructions requiring full tick-by-tick execution -- notably,
-     * hardware register accesses -- are handled separately.
-     * For the remaining instructions, the only sub-instruction aspect which
-     * makes a difference is when the interrupt decision is made, which
-     * usually (but not always) occurs just before the last instuction cycle.
-     * "Just before" means that we effectively need to check interrupts
-     * before the penultimate cycle because an interrupt that is asserted
-     * at the start of the last cycle is not soon enough to be detected.
-     */
-    if (cycles_this_instruction <= 2) {
-      INTERP_TIMING_ADVANCE(0);
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);
-      INTERP_TIMING_ADVANCE(cycles_this_instruction);
-    } else if (interp_is_branch_opcode(opcode)) {
-      INTERP_TIMING_ADVANCE(0);
-      /* EMU NOTE: Taken branches have a different interrupt poll location. */
-      if (cycles_this_instruction == 3) {
-        /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
-         * after first cycle, not second cycle. Given that the interrupt
-         * needs to be already asserted prior to polling, we poll interrupts
-         * at the start of the 3 cycle sequence.
-         */
+      /* Instructions requiring full tick-by-tick execution -- notably,
+       * hardware register accesses -- are handled separately.
+       * For the remaining instructions, the only sub-instruction aspect which
+       * makes a difference is when the interrupt decision is made, which
+       * usually (but not always) occurs just before the last instuction cycle.
+       * "Just before" means that we effectively need to check interrupts
+       * before the penultimate cycle because an interrupt that is asserted
+       * at the start of the last cycle is not soon enough to be detected.
+       */
+      if (cycles_this_instruction <= 2) {
+        INTERP_TIMING_ADVANCE(0);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
-        INTERP_TIMING_ADVANCE(3);
+        INTERP_TIMING_ADVANCE(cycles_this_instruction);
+      } else if (interp_is_branch_opcode(opcode)) {
+        INTERP_TIMING_ADVANCE(0);
+        /* EMU NOTE: Taken branches have a different interrupt poll location. */
+        if (cycles_this_instruction == 3) {
+          /* Branch taken, no page crossing, 3 cycles. Interrupt polling done
+           * after first cycle, not second cycle. Given that the interrupt
+           * needs to be already asserted prior to polling, we poll interrupts
+           * at the start of the 3 cycle sequence.
+           */
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(3);
+        } else {
+          /* Branch taken page crossing, 4 cycles. Interrupt polling after
+           * first cycle _and_ after third cycle.
+           * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
+           */
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(2);
+          interp_poll_irq_now(&do_irq, p_state_6502, intf);
+          INTERP_TIMING_ADVANCE(2);
+        }
       } else {
-        /* Branch taken page crossing, 4 cycles. Interrupt polling after
-         * first cycle _and_ after third cycle.
-         * Reference: https://wiki.nesdev.com/w/index.php/CPU_interrupts
-         */
-        interp_poll_irq_now(&do_irq, p_state_6502, intf);
-        INTERP_TIMING_ADVANCE(2);
+        INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
-    } else {
-      INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);
-      INTERP_TIMING_ADVANCE(2);
-    }
 
 check_irq:
 
-    if (!do_irq) {
-      /* An IRQ may have been raised or unblocked after the poll point, in
-       * which case make sure to interrupt the countdown loop again next go
-       * around.
-       */
-      if (p_state_6502->irq_fire &&
-          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-           !intf)) {
-        countdown = interp_set_check_irqs(p_timing,
-                                          deferred_interrupt_timer_id);
+      if (!do_irq) {
+        /* An IRQ may have been raised or unblocked after the poll point, in
+         * which case make sure to interrupt the countdown loop again next go
+         * around.
+         */
+        if (p_state_6502->irq_fire &&
+            (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+             !intf)) {
+          countdown = interp_set_check_irqs(p_timing,
+                                            deferred_interrupt_timer_id);
+        }
       }
     }
 
@@ -1655,5 +1666,5 @@ check_irq:
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 
-  return 0;
+  return countdown;
 }
