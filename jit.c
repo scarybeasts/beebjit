@@ -305,6 +305,7 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
   uint8_t* p_jit_ptr;
   uint8_t* p_block_ptr;
   uint16_t addr_6502;
+  int is_new;
 
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
@@ -313,8 +314,10 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
 
   p_block_ptr = jit_get_jit_base_addr(p_jit, block_addr_6502);
   if (p_block_ptr == p_intel_rip) {
+    is_new = 1;
     addr_6502 = block_addr_6502;
   } else {
+    is_new = 0;
     /* Host IP is inside a code block; find the corresponding 6502 address. */
     addr_6502 = block_addr_6502;
     while (1) {
@@ -333,14 +336,23 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
    */
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
   p_state_6502->reg_pc = addr_6502;
-  if (p_intel_rip != p_jit_ptr) {
+  if (!is_new) {
     countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
   }
 
   util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
 
   if (p_jit->log_compile) {
-    printf("LOG:JIT:compile @$%.4X [host @%p]\n", addr_6502, p_intel_rip);
+    const char* p_new_or_inval;
+    if (is_new) {
+      p_new_or_inval = "new";
+    } else {
+      p_new_or_inval = "inval";
+    }
+    printf("LOG:JIT:compile @$%.4X [rip @%p], %s\n",
+           addr_6502,
+           p_intel_rip,
+           p_new_or_inval);
   }
 
   if ((addr_6502 < 0xFF) &&
