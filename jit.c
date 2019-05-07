@@ -423,7 +423,8 @@ sigsegv_reraise(void* p_rip, void* p_addr) {
 
 static void
 jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
-  int inaccessible_page;
+  int inaccessible_indirect_page;
+  int ff_page_wrap;
   struct jit_struct* p_jit;
   uint16_t block_addr_6502;
   uint16_t addr_6502;
@@ -446,20 +447,34 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
-  /* Bail unless it's a fault reading / writing the inaccessible page. */
-  inaccessible_page = 0;
+  /* Bail unless it's a clearly recognized fault. */
+  /* The indirect page fault occurs when an indirect addressing mode is used
+   * to access 0xF000 - 0xFFFF, primarily of interest due to the hardware
+   * registers. Using a fault + fixup here is a good performance boost for the
+   * common case.
+   */
+  inaccessible_indirect_page = 0;
+  /* The 0xFF page wrap fault occurs when a word fetch is performed at the end
+   * of a page, where that page wraps. e.g. idx mode fetching the address from
+   * 0xFF. Using a fault + fixup here makes the code footprint for idx mode
+   * addressing smaller.
+   */
+  ff_page_wrap = 0;
   if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
       (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + k_6502_addr_space_size))) {
-    inaccessible_page = 1;
+    inaccessible_indirect_page = 1;
   }
   if ((p_addr >= ((void*) K_BBC_MEM_WRITE_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
       (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + k_6502_addr_space_size))) {
-    inaccessible_page = 1;
+    inaccessible_indirect_page = 1;
+  }
+  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE)) {
+    ff_page_wrap = 1;
   }
 
-  if (!inaccessible_page) {
+  if (!inaccessible_indirect_page && !ff_page_wrap) {
     sigsegv_reraise(p_rip, p_addr);
   }
 

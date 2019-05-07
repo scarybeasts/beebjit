@@ -11,6 +11,7 @@
 #define K_BBC_MEM_READ_TO_IND_WRITE_OFFSET      0x03000000
 #define K_BBC_MEM_INACCESSIBLE_OFFSET           0xF000
 #define K_BBC_MEM_INACCESSIBLE_LEN              0x1000
+#define K_6502_ADDR_SPACE_SIZE                  0x10000
 #define K_6502_VECTOR_IRQ                       0xFFFE
 #define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100

@@ -432,15 +432,11 @@ asm_x64_jit_MODE_IND_END:
 .globl asm_x64_jit_MODE_IND_SCRATCH_jump_patch
 .globl asm_x64_jit_MODE_IND_SCRATCH_END
 asm_x64_jit_MODE_IND_SCRATCH:
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
+  # This faults (with a fixup handler) if we're trying to load from 0xFF,
+  # which is highly unusual.
+  mov REG_SCRATCH2_8, \
+      [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
-  # This jumps if the indirect address was 0xFF.
-  # Pretty much never happens so we optimize for full word fetches from zero
-  # page addresses 0x00 -> 0xFE.
-  # TODO: benchmark to confirm this is faster.
-  bt REG_SCRATCH2_32, 8
-  jb 0
-asm_x64_jit_MODE_IND_SCRATCH_jump_patch:
 
 asm_x64_jit_MODE_IND_SCRATCH_END:
   ret

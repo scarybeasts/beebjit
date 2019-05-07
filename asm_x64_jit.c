@@ -367,18 +367,10 @@ asm_x64_emit_jit_MODE_IND(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf,
-                                  void* p_trampoline) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
+asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_jit_MODE_IND_SCRATCH,
                asm_x64_jit_MODE_IND_SCRATCH_END);
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_jit_MODE_IND_SCRATCH,
-                     asm_x64_jit_MODE_IND_SCRATCH_jump_patch,
-                     p_trampoline);
 }
 
 void
