@@ -1009,7 +1009,12 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xF4: /* NOP zpx */ /* Undocumented. */
     /* We don't really have to emit anything for a NOP, but for now and for
      * good readability, we'll emit a host NOP.
+     * (The correct place to change if we wanted to not emit anything would be
+     * to eliminate the 6502 opcode in the optimized.)
+     * We have a minimum of 2 bytes of x64 code per uop because that's the size
+     * of the self-modified marker, so we'll need 2 1-byte x64 nops.
      */
+    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
     asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
     break;
   case 0x05: /* ORA zpg */
@@ -1999,6 +2004,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
       p_uop->len_x64 = len_x64;
+
+      /* Need at least 2 bytes because that the length of the self-modification
+       * overwrite.
+       */
+      assert(len_x64 >= 2);
     }
 
     /* Calculate if this opcode fits. In order to fit, not only must the opcode

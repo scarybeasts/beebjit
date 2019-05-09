@@ -213,7 +213,7 @@ main(int argc, const char* argv[]) {
 
   /* Test simple JSR / RTS pair. */
   set_new_index(p_buf, 0x0280);
-  emit_JSR(p_buf,  0xC286);
+  emit_JSR(p_buf, 0xC286);
   emit_JMP(p_buf, k_abs, 0xC2C0);
   emit_RTS(p_buf);
 
@@ -1046,7 +1046,20 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x1F);
   emit_JMP(p_buf, k_abs, 0xCEC0);
 
+  /* Test for a JIT bug with self-modification of a NOP and following
+   * instruction.
+   */
   set_new_index(p_buf, 0x0EC0);
+  emit_JSR(p_buf, 0x3090);
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
+  emit_STA(p_buf, k_abs, 0x3091);
+  emit_STA(p_buf, k_abs, 0x3092);
+  emit_LDX(p_buf, k_imm, 0xFE);
+  emit_JSR(p_buf, 0x3090);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCF00);
+
+  set_new_index(p_buf, 0x0F00);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1108,6 +1121,13 @@ main(int argc, const char* argv[]) {
   emit_LDX(p_buf, k_imm, 0x00);
   emit_BEQ(p_buf, 1);
   emit_INX(p_buf);
+  emit_RTS(p_buf);
+
+  /* For a JIT test. */
+  set_new_index(p_buf, 0x3090);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
