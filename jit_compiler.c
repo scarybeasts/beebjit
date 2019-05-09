@@ -153,6 +153,7 @@ enum {
   k_opcode_SUB_IMM,
   k_opcode_WRITE_INV_ABS,
   k_opcode_WRITE_INV_SCRATCH,
+  k_opcode_WRITE_INV_SCRATCH_Y,
 };
 
 static void
@@ -529,8 +530,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       p_uop++;
       break;
     case k_idx:
-    case k_idy:
       p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH;
+      p_uop->uoptype = -1;
+      p_uop++;
+      break;
+    case k_idy:
+      p_uop->uopcode = k_opcode_WRITE_INV_SCRATCH_Y;
       p_uop->uoptype = -1;
       p_uop++;
       break;
@@ -998,6 +1003,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_WRITE_INV_SCRATCH:
     asm_x64_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_WRITE_INV_SCRATCH_Y:
+    asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);
     break;
   case 0x01: /* ORA idx */
   case 0x15: /* ORA zpx */

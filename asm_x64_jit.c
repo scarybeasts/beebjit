@@ -501,6 +501,13 @@ asm_x64_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_WRITE_INV_SCRATCH_Y,
+               asm_x64_jit_WRITE_INV_SCRATCH_Y_END);
+}
+
+void
 asm_x64_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr) {
   asm_x86_copy_patch_u32(p_buf,
                          asm_x64_jit_ADC_ABS,
