@@ -600,8 +600,24 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xD6);
   emit_JMP(p_buf, k_abs, 0xC880);
 
-  /* Exit sequence. */
+  /* Test a corner case with indirect access hitting a hardware register. */
   set_new_index(p_buf, 0x0880);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0x41);
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDY(p_buf, k_imm, 0x00);   /* Timer value: 14. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Timer value: 13, 12 (0.5). */
+  emit_LDA(p_buf, k_idy, 0x40);   /* Timer value: 12 (0.5), 11, 10 (0.5), 9s. */
+  emit_LDA(p_buf, k_abs, 0xFE44); /* Timer value: 8, 7 (0.5), 6 (s) */
+  emit_REQUIRE_EQ(p_buf, 0x06);
+  emit_JMP(p_buf, k_abs, 0xC8C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x08C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

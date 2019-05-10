@@ -437,19 +437,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->uoptype = -1;
     p_uop->value1 = (uint16_t) operand_6502;
     p_uop++;
-    /* NOTE: we run the check for special addresses before the check for page
-     * crossings, otherwise we might account for a page crossing only to jump
-     * into the interpreter to handle a special address.
-     * This ordering also means we haven't added Y to the indirect base
-     * address yet, so we need to subtract the maximum value of Y (0xFF) from
-     * the special address base.
-     */
-    /* TODO: this happens too soon if we hit a register page fault? */
-    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
-      p_uop->uopcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
-      p_uop->uoptype = -1;
-      p_uop++;
-    }
     break;
   default:
     assert(0);
@@ -732,6 +719,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->uoptype = optype;
     p_uop->value1 = operand_6502;
     p_uop++;
+  }
+
+  /* Post-main per-mode uops. */
+  switch (opmode) {
+  case k_idy:
+    /* NOTE: must do page crossing cycles fixup after the main uop, because it
+     * may fault (e.g. for hardware register access) and then fixup. We're
+     * only guaranteed that the JIT handled the uop if we get here.
+     */
+    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+      p_uop->uopcode = k_opcode_IDY_CHECK_PAGE_CROSSING;
+      p_uop->uoptype = -1;
+      p_uop++;
+    }
+    break;
+  default:
+    break;
   }
 
   /* Post-main uops. */
