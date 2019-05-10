@@ -1842,26 +1842,6 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
 }
 
 static void
-jit_compiler_prepend_uop(struct jit_opcode_details* p_details,
-                         int uopcode,
-                         int32_t value1,
-                         int32_t value2) {
-  uint8_t num_uops = p_details->num_uops;
-  struct jit_uop* p_uop = &p_details->uops[0];
-  assert(num_uops < k_max_uops_per_opcode);
-
-  (void) memmove(&p_details->uops[1],
-                 p_uop,
-                 (sizeof(struct jit_uop) * num_uops));
-  p_uop->uopcode = uopcode;
-  p_uop->uoptype = -1;
-  p_uop->value1 = value1;
-  p_uop->value2 = value2;
-
-  p_details->num_uops++;
-}
-
-static void
 jit_compiler_set_internal_opcode(struct jit_opcode_details* p_details,
                                  int32_t uopcode,
                                  int32_t value1) {
@@ -1920,35 +1900,62 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   while (1) {
     p_details = &opcode_details[total_num_opcodes];
 
-    jit_compiler_get_opcode_details(p_compiler, p_details, addr_6502);
-
     if (needs_countdown) {
+      jit_compiler_set_internal_opcode(p_details,
+                                       k_opcode_countdown,
+                                       addr_6502);
       p_details->cycles_run_start = 0;
-      /* TODO: use a separate internal opcode, not a prepend. */
-      jit_compiler_prepend_uop(p_details, k_opcode_countdown, addr_6502, 0);
       needs_countdown = 0;
+      total_num_opcodes++;
+      p_details = &opcode_details[total_num_opcodes];
     }
+
+    assert(total_num_opcodes < k_max_opcodes_per_compile);
+
+    jit_compiler_get_opcode_details(p_compiler, p_details, addr_6502);
 
     addr_6502 += p_details->len_bytes_6502_orig;
     total_num_opcodes++;
     total_num_6502_opcodes++;
 
+    if (p_details->branches == k_bra_m) {
+      needs_countdown = 1;
+    }
+
+    /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
     if (p_details->ends_block) {
       block_ended = 1;
       break;
     }
 
+    /* Exit loop condition: next opcode is the start of a block boundary. */
     if (p_compiler->addr_is_block_start[addr_6502]) {
       break;
     }
 
-    if ((total_num_opcodes == (k_max_opcodes_per_compile - 1)) ||
-        (total_num_6502_opcodes == p_compiler->max_6502_opcodes_per_block)) {
+    /* Exit loop condition: we've compiled the configurable max number of 6502
+     * opcodes.
+     */
+    if (total_num_6502_opcodes == p_compiler->max_6502_opcodes_per_block) {
       break;
     }
 
-    if (p_details->branches == k_bra_m) {
-      needs_countdown = 1;
+    /* Exit loop condition: we're out of space in our opcode buffer. The -1 is
+     * because we need to reserve space for a final internal opcode we may need
+     * to jump out of a block when the block doesn't fit.
+     */
+    if (total_num_opcodes == (k_max_opcodes_per_compile - 1)) {
+      break;
+    }
+
+    if (needs_countdown) {
+      /* Exit loop condition: only useful to emit a countdown opcode if there's
+       * also space for an opcode that does real work, and of course the
+       * possibly needed opcode to jump out of a block that doesn't fit.
+       */
+      if (total_num_opcodes >= (k_max_opcodes_per_compile - 2)) {
+        break;
+      }
     }
   }
 
@@ -1969,7 +1976,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details = &opcode_details[i_opcodes];
     if (p_details->cycles_run_start != -1) {
       p_details_fixup = p_details;
-      assert(p_details_fixup->num_uops >= 2);
+      assert(p_details_fixup->num_uops == 1);
       assert(p_details_fixup->cycles_run_start == 0);
       p_uop = &p_details_fixup->uops[0];
       assert(p_uop->uopcode == k_opcode_countdown);
@@ -2108,8 +2115,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
     if (p_details->cycles_run_start != -1) {
       p_details_fixup = p_details;
+      assert(p_details_fixup->num_uops == 1);
       p_uop = &p_details_fixup->uops[0];
-      assert(p_details_fixup->num_uops >= 2);
       assert(p_uop->uopcode == k_opcode_countdown);
       p_details_fixup->cycles_run_start = 0;
       p_uop->value2 = 0;
