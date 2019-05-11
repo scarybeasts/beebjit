@@ -78,6 +78,7 @@ enum {
 
 struct jit_opcode_details {
   /* Static details. */
+  int internal;
   uint16_t addr_6502;
   uint8_t opcode_6502;
   uint16_t operand_6502;
@@ -299,6 +300,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int emit_flag_load = 1;
   uint16_t rel_target_6502 = 0;
 
+  p_details->internal = 0;
   p_details->addr_6502 = addr_6502;
   p_details->num_uops = 0;
 
@@ -1843,9 +1845,12 @@ jit_compiler_optimize(struct jit_compiler* p_compiler,
 
 static void
 jit_compiler_set_internal_opcode(struct jit_opcode_details* p_details,
+                                 uint16_t addr_6502,
                                  int32_t uopcode,
                                  int32_t value1) {
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
+  p_details->internal = 1;
+  p_details->addr_6502 = addr_6502;
   p_details->cycles_run_start = -1;
   p_details->num_uops = 1;
   p_details->uops[0].uopcode = uopcode;
@@ -1902,6 +1907,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     if (needs_countdown) {
       jit_compiler_set_internal_opcode(p_details,
+                                       addr_6502,
                                        k_opcode_countdown,
                                        addr_6502);
       p_details->cycles_run_start = 0;
@@ -1965,7 +1971,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details = &opcode_details[total_num_opcodes];
     total_num_opcodes++;
 
-    jit_compiler_set_internal_opcode(p_details, 0x4C, addr_6502);
+    jit_compiler_set_internal_opcode(p_details, addr_6502, 0x4C, addr_6502);
     p_details->ends_block = 1;
   }
 
