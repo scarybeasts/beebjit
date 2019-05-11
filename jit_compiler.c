@@ -1865,7 +1865,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
   uint8_t single_opcode_buffer[128];
-  struct jit_uop temp_uop;
 
   uint32_t i_opcodes;
   uint32_t i_uops;
@@ -2092,13 +2091,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         p_uop = p_prev_opcode->fixup_uops[i_uops];
         jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       }
-      temp_uop.uopcode = 0x4C; /* JMP abs */
-      temp_uop.value1 = addr_6502;
-      temp_uop.value2 = 0;
-      jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, &temp_uop);
 
-      util_buffer_append(p_buf, p_single_opcode_buf);
-      break;
+      jit_compiler_set_internal_opcode(p_details, addr_6502, 0x4C, addr_6502);
+      p_details->ends_block = 1;
+      jit_compiler_emit_uop(p_compiler,
+                            p_single_opcode_buf,
+                            &p_details->uops[0]);
+      p_host_address = NULL;
+      /* This ends the loop immediately. */
+      total_num_opcodes = i_opcodes;
     }
 
     util_buffer_append(p_buf, p_single_opcode_buf);
@@ -2106,8 +2107,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->p_host_address = p_host_address;
     p_prev_opcode = p_details;
   }
-
-  total_num_opcodes = i_opcodes;
 
   /* Fifth, update any values (metadata and/or binary) that may have changed
    * now we know the full extent of the emitted binary.
