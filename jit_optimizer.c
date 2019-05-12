@@ -124,7 +124,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case 0x61: /* ADC idx */
       case 0x75: /* ADC zpx */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_scratch;
+          p_uop->uopcode = k_opcode_ADD_SCRATCH;
         }
         break;
       case 0x65: /* ADC zpg */
@@ -143,7 +143,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       case 0x71: /* ADC idy */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_scratch_Y;
+          p_uop->uopcode = k_opcode_ADD_SCRATCH_Y;
         }
         break;
       case 0x79: /* ADC aby */
