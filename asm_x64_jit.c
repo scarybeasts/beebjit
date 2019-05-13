@@ -255,6 +255,21 @@ asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, void* p_trampoline) {
 }
 
 void
+asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
+                                               uint8_t n) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch,
+                    ((uint32_t) -0x100 + n));
+}
+
+void
 asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                                    void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);

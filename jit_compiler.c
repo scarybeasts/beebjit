@@ -823,6 +823,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_CHECK_BCD:
     asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (void*) (size_t) value1);
     break;
+  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf,
+                                                   (uint8_t) value1);
+    break;
   case k_opcode_CHECK_PENDING_IRQ:
     asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
     break;
@@ -843,6 +847,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_JMP_SCRATCH:
     asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_LDA_SCRATCH_n:
+    asm_x64_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_LDA_Z:
     asm_x64_emit_jit_LDA_Z(p_dest_buf);

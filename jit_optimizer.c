@@ -9,12 +9,8 @@
 static const int32_t k_value_unknown = -1;
 
 static struct jit_uop*
-jit_optimizer_find_uop(struct jit_compiler* p_compiler,
-                       struct jit_opcode_details* p_opcode,
-                       int32_t uopcode) {
+jit_optimizer_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
   uint32_t i_uops;
-
-  (void) p_compiler;
 
   for (i_uops = 0; i_uops < p_opcode->num_uops; ++i_uops) {
     struct jit_uop* p_uop = &p_opcode->uops[i_uops];
@@ -124,18 +120,18 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case 0x61: /* ADC idx */
       case 0x75: /* ADC zpx */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_SCRATCH;
+          uopcode = k_opcode_ADD_SCRATCH;
         }
         break;
       case 0x65: /* ADC zpg */
       case 0x6D: /* ADC abs */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_ABS;
+          uopcode = k_opcode_ADD_ABS;
         }
         break;
       case 0x69: /* ADC imm */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_IMM;
+          uopcode = k_opcode_ADD_IMM;
         } else if (flag_carry == 1) {
           /* NOTE: if this is common, we can optimize this case. */
           printf("LOG:JIT:optimizer sees ADC #$imm with C==1\n");
@@ -143,48 +139,73 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       case 0x71: /* ADC idy */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_SCRATCH_Y;
+          uopcode = k_opcode_ADD_SCRATCH_Y;
         }
         break;
       case 0x79: /* ADC aby */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_ABY;
+          uopcode = k_opcode_ADD_ABY;
         }
         break;
       case 0x7D: /* ADC abx */
         if (flag_carry == 0) {
-          p_uop->uopcode = k_opcode_ADD_ABX;
+          uopcode = k_opcode_ADD_ABX;
         }
         break;
       case 0x84: /* STY zpg */
       case 0x8C: /* STY abs */
         if (reg_y != k_value_unknown) {
-          p_uop->uopcode = k_opcode_STOA_IMM;
+          uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_y;
         }
         break;
       case 0x85: /* STA zpg */
       case 0x8D: /* STA abs */
         if (reg_a != k_value_unknown) {
-          p_uop->uopcode = k_opcode_STOA_IMM;
+          uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_a;
         }
         break;
       case 0x86: /* STX zpg */
       case 0x8E: /* STX abs */
         if (reg_x != k_value_unknown) {
-          p_uop->uopcode = k_opcode_STOA_IMM;
+          uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_x;
         }
         break;
       case 0xE9: /* SBC imm */
         if (flag_carry == 1) {
-          p_uop->uopcode = k_opcode_SUB_IMM;
+          uopcode = k_opcode_SUB_IMM;
         }
         break;
       default:
         break;
       }
+
+      if (reg_y != k_value_unknown) {
+        int replaced = 0;
+        switch (uopcode) {
+        case 0xB1: /* LDA idy */
+          uopcode = k_opcode_LDA_SCRATCH_n;
+          p_uop->value1 = reg_y;
+          replaced = 1;
+          break;
+        default:
+          break;
+        }
+
+        if (replaced) {
+          struct jit_uop* p_crossing_uop =
+              jit_optimizer_find_uop(p_opcode,
+                                     k_opcode_IDY_CHECK_PAGE_CROSSING);
+          if (p_crossing_uop != NULL) {
+            p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
+            p_crossing_uop->value1 = reg_y;
+          }
+        }
+      }
+
+      p_uop->uopcode = uopcode;
     }
 
     /* Update known state of registers, flags, etc. for next opcode. */
@@ -272,16 +293,13 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
 
       if (old_uopcode != -1) {
-        struct jit_uop* p_modify_uop = jit_optimizer_find_uop(p_compiler,
-                                                              p_prev_opcode,
+        struct jit_uop* p_modify_uop = jit_optimizer_find_uop(p_prev_opcode,
                                                               old_uopcode);
         if (p_modify_uop != NULL) {
           p_modify_uop->uopcode = new_uopcode;
           p_modify_uop->value1 = 1;
         } else {
-          p_modify_uop = jit_optimizer_find_uop(p_compiler,
-                                                p_prev_opcode,
-                                                new_uopcode);
+          p_modify_uop = jit_optimizer_find_uop(p_prev_opcode, new_uopcode);
         }
         assert(p_modify_uop != NULL);
         p_opcode->eliminated = 1;
