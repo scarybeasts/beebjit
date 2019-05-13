@@ -56,7 +56,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   int32_t flag_carry;
   int32_t flag_decimal;
 
-  struct jit_opcode_details* p_prev_opcode = NULL;
+  struct jit_opcode_details* p_prev_opcode;
 
   struct jit_opcode_details* p_flags_opcode = NULL;
   struct jit_uop* p_flags_uop = NULL;
@@ -292,17 +292,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 2: eliminate and merge opcodes as we can. */
+  /* Pass 2: merge 6502 opcodes as we can. */
+  p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    uint32_t i_uops;
-    uint32_t num_uops;
-
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+
     uint8_t opcode_6502 = p_opcode->opcode_6502;
-    uint8_t optype = g_optypes[opcode_6502];
-    uint8_t opmode = g_opmodes[opcode_6502];
-    uint8_t opbranch = g_opbranch[optype];
-    int changes_nz = g_optype_changes_nz_flags[optype];
 
     /* Merge opcode into previous if supported. */
     if ((p_prev_opcode != NULL) &&
@@ -348,6 +343,21 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         continue;
       }
     }
+
+    p_prev_opcode = p_opcode;
+  }
+
+  /* Pass 3: eliminate uopcodes as we can. */
+  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+    uint32_t i_uops;
+    uint32_t num_uops;
+
+    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    uint8_t opcode_6502 = p_opcode->opcode_6502;
+    uint8_t optype = g_optypes[opcode_6502];
+    uint8_t opmode = g_opmodes[opcode_6502];
+    uint8_t opbranch = g_opbranch[optype];
+    int changes_nz = g_optype_changes_nz_flags[optype];
 
     /* Cancel pending optimizations that can't cross this opcode. */
     if (opbranch != k_bra_n) {
@@ -451,7 +461,5 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       }
     }
-
-    p_prev_opcode = p_opcode;
   }
 }
