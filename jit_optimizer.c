@@ -55,14 +55,14 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
   struct jit_opcode_details* p_prev_opcode;
 
-  struct jit_opcode_details* p_flags_opcode = NULL;
-  struct jit_uop* p_flags_uop = NULL;
-  struct jit_opcode_details* p_lda_opcode = NULL;
-  struct jit_uop* p_lda_uop = NULL;
-  struct jit_opcode_details* p_ldx_opcode = NULL;
-  struct jit_uop* p_ldx_uop = NULL;
-  struct jit_opcode_details* p_ldy_opcode = NULL;
-  struct jit_uop* p_ldy_uop = NULL;
+  struct jit_opcode_details* p_flags_opcode;
+  struct jit_uop* p_flags_uop;
+  struct jit_opcode_details* p_lda_opcode;
+  struct jit_uop* p_lda_uop;
+  struct jit_opcode_details* p_ldx_opcode;
+  struct jit_uop* p_ldx_uop;
+  struct jit_opcode_details* p_ldy_opcode;
+  struct jit_uop* p_ldy_uop;
 
   (void) p_compiler;
   (void) flag_decimal;
@@ -345,6 +345,14 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   }
 
   /* Pass 3: eliminate uopcodes as we can. */
+  p_flags_opcode = NULL;
+  p_flags_uop = NULL;
+  p_lda_opcode = NULL;
+  p_lda_uop = NULL;
+  p_ldx_opcode = NULL;
+  p_ldx_uop = NULL;
+  p_ldy_opcode = NULL;
+  p_ldy_uop = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t i_uops;
     uint32_t num_uops;
@@ -437,17 +445,17 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_flags_uop = p_uop;
         break;
       case k_opcode_LDA_Z:
-      case 0xA9:
+      case 0xA9: /* LDA imm */
         p_lda_opcode = p_opcode;
         p_lda_uop = p_uop;
         break;
       case k_opcode_LDX_Z:
-      case 0xA2:
+      case 0xA2: /* LDX imm */
         p_ldx_opcode = p_opcode;
         p_ldx_uop = p_uop;
         break;
       case k_opcode_LDY_Z:
-      case 0xA0:
+      case 0xA0: /* LDY imm */
         p_ldy_opcode = p_opcode;
         p_ldy_uop = p_uop;
         break;
