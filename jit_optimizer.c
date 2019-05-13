@@ -23,14 +23,11 @@ jit_optimizer_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
 }
 
 static void
-jit_optimizer_eliminate(struct jit_compiler* p_compiler,
-                        struct jit_opcode_details** pp_elim_opcode,
+jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
                         struct jit_uop** pp_elim_uop,
                         struct jit_opcode_details* p_curr_opcode) {
   struct jit_opcode_details* p_elim_opcode = *pp_elim_opcode;
   struct jit_uop* p_elim_uop = *pp_elim_uop;
-
-  (void) p_compiler;
 
   *pp_elim_opcode = NULL;
   *pp_elim_uop = NULL;
@@ -408,25 +405,22 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
     /* Eliminate useless NZ flag updates. */
     if ((p_flags_opcode != NULL) && changes_nz) {
-      jit_optimizer_eliminate(p_compiler,
-                              &p_flags_opcode,
-                              &p_flags_uop,
-                              p_opcode);
+      jit_optimizer_eliminate(&p_flags_opcode, &p_flags_uop, p_opcode);
     }
     /* Eliminate constant loads that are folded into other opcodes. */
     if ((p_lda_opcode != NULL) && ((optype == k_lda) ||
                                    (optype == k_pla) ||
                                    (optype == k_txa) ||
                                    (optype == k_tya))) {
-      jit_optimizer_eliminate(p_compiler, &p_lda_opcode, &p_lda_uop, p_opcode);
+      jit_optimizer_eliminate(&p_lda_opcode, &p_lda_uop, p_opcode);
     }
     if ((p_ldx_opcode != NULL) && ((optype == k_ldx) ||
                                    (optype == k_tax) ||
                                    (optype == k_tsx))) {
-      jit_optimizer_eliminate(p_compiler, &p_ldx_opcode, &p_ldx_uop, p_opcode);
+      jit_optimizer_eliminate(&p_ldx_opcode, &p_ldx_uop, p_opcode);
     }
     if ((p_ldy_opcode != NULL) && ((optype == k_ldy) || (optype == k_tay))) {
-      jit_optimizer_eliminate(p_compiler, &p_ldy_opcode, &p_ldy_uop, p_opcode);
+      jit_optimizer_eliminate(&p_ldy_opcode, &p_ldy_uop, p_opcode);
     }
 
     num_uops = p_opcode->num_uops;
