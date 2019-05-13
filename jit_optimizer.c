@@ -209,24 +209,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
 
     /* Update known state of registers, flags, etc. for next opcode. */
-    switch (opreg) {
-    case k_a:
-      reg_a = k_value_unknown;
-      break;
-    case k_x:
-      reg_x = k_value_unknown;
-      break;
-    case k_y:
-      reg_y = k_value_unknown;
-      break;
-    default:
-      break;
-    }
-
-    if (changes_carry) {
-      flag_carry = k_value_unknown;
-    }
-
     switch (opcode_6502) {
     case 0x18: /* CLC */
       flag_carry = 0;
@@ -234,22 +216,78 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     case 0x38: /* SEC */
       flag_carry = 1;
       break;
+    case 0x88: /* DEY */
+      if (reg_y != k_value_unknown) {
+        reg_y = (uint8_t) (reg_y - 1);
+      }
+      break;
+    case 0x8A: /* TXA */
+      if (reg_x != k_value_unknown) {
+        reg_a = reg_x;
+      }
+      break;
+    case 0x98: /* TYA */
+      if (reg_y != k_value_unknown) {
+        reg_a = reg_y;
+      }
+      break;
     case 0xA0: /* LDY imm */
       reg_y = operand_6502;
       break;
     case 0xA2: /* LDX imm */
       reg_x = operand_6502;
       break;
+    case 0xA8: /* TAY */
+      if (reg_a != k_value_unknown) {
+        reg_y = reg_a;
+      }
+      break;
     case 0xA9: /* LDA imm */
       reg_a = operand_6502;
       break;
+    case 0xAA: /* TAX */
+      if (reg_a != k_value_unknown) {
+        reg_x = reg_a;
+      }
+      break;
+    case 0xC8: /* INY */
+      if (reg_y != k_value_unknown) {
+        reg_y = (uint8_t) (reg_y + 1);
+      }
+      break;
+    case 0xCA: /* DEX */
+      if (reg_x != k_value_unknown) {
+        reg_x = (uint8_t) (reg_x - 1);
+      }
+      break;
     case 0xD8: /* CLD */
       flag_decimal = 0;
+      break;
+    case 0xE8: /* INX */
+      if (reg_x != k_value_unknown) {
+        reg_x = (uint8_t) (reg_x + 1);
+      }
       break;
     case 0xF8: /* SED */
       flag_decimal = 1;
       break;
     default:
+      switch (opreg) {
+      case k_a:
+        reg_a = k_value_unknown;
+        break;
+      case k_x:
+        reg_x = k_value_unknown;
+        break;
+      case k_y:
+        reg_y = k_value_unknown;
+        break;
+      default:
+        break;
+      }
+      if (changes_carry) {
+        flag_carry = k_value_unknown;
+      }
       break;
     }
   }
