@@ -24,13 +24,11 @@ jit_optimizer_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
 
 static void
 jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
-                        struct jit_uop** pp_elim_uop,
+                        struct jit_uop* p_elim_uop,
                         struct jit_opcode_details* p_curr_opcode) {
   struct jit_opcode_details* p_elim_opcode = *pp_elim_opcode;
-  struct jit_uop* p_elim_uop = *pp_elim_uop;
 
   *pp_elim_opcode = NULL;
-  *pp_elim_uop = NULL;
 
   p_elim_uop->eliminated = 1;
 
@@ -39,6 +37,297 @@ jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
     p_elim_opcode->fixup_uops[p_elim_opcode->num_fixup_uops++] = p_elim_uop;
     p_elim_opcode++;
   }
+}
+
+static int
+jit_optimizer_uopcode_can_jump(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    uint8_t opbranch = g_opbranch[optype];
+    if (opbranch != k_bra_n) {
+      ret = 1;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_JMP_SCRATCH:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
+  int ret;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    ret = g_optype_changes_nz_flags[optype];
+  } else {
+    switch (uopcode) {
+    case k_opcode_ADD_ABS:
+    case k_opcode_ADD_ABX:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_IMM:
+    case k_opcode_ADD_SCRATCH:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_ASL_ACC_n:
+    case k_opcode_FLAGA:
+    case k_opcode_FLAGX:
+    case k_opcode_FLAGY:
+    case k_opcode_LDA_SCRATCH_n:
+    case k_opcode_LDA_Z:
+    case k_opcode_LDX_Z:
+    case k_opcode_LDY_Z:
+    case k_opcode_LSR_ACC_n:
+    case k_opcode_SUB_IMM:
+      ret = 1;
+      break;
+    default:
+      ret = 0;
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_needs_nz_flags(int32_t uopcode) {
+  switch (uopcode) {
+  case 0x08: /* PHP */
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+static int
+jit_optimizer_uopcode_overwrites_a(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_lda:
+    case k_pla:
+    case k_txa:
+    case k_tya:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_LDA_SCRATCH_n:
+    case k_opcode_LDA_Z:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_needs_a(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    uint8_t opmode = g_opmodes[uopcode];
+    switch (optype) {
+    case k_ora:
+    case k_and:
+    case k_bit:
+    case k_eor:
+    case k_pha:
+    case k_adc:
+    case k_sta:
+    case k_tay:
+    case k_tax:
+    case k_cmp:
+    case k_sbc:
+    case k_sax:
+    case k_alr:
+    case k_slo:
+      ret = 1;
+      break;
+    case k_asl:
+    case k_rol:
+    case k_lsr:
+    case k_ror:
+      if (opmode == k_acc) {
+        ret = 1;
+      }
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_ADD_ABS:
+    case k_opcode_ADD_ABX:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_IMM:
+    case k_opcode_ADD_SCRATCH:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_ASL_ACC_n:
+    case k_opcode_FLAGA:
+    case k_opcode_LSR_ACC_n:
+    case k_opcode_ROL_ACC_n:
+    case k_opcode_ROR_ACC_n:
+    case k_opcode_SUB_IMM:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_overwrites_x(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_ldx:
+    case k_tax:
+    case k_tsx:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_LDX_Z:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_needs_x(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    uint8_t opmode = g_opmodes[uopcode];
+    switch (optype) {
+    case k_stx:
+    case k_txa:
+    case k_txs:
+    case k_cpx:
+    case k_dex:
+    case k_inx:
+    case k_sax:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+    switch (opmode) {
+    case k_zpx:
+    case k_abx:
+    case k_idx:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_ABX_CHECK_PAGE_CROSSING:
+    case k_opcode_ADD_ABX:
+    case k_opcode_FLAGX:
+    case k_opcode_MODE_ABX:
+    case k_opcode_MODE_ZPX:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_overwrites_y(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_ldy:
+    case k_tay:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_LDY_Z:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
+static int
+jit_optimizer_uopcode_needs_y(int32_t uopcode) {
+  int ret = 0;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    uint8_t opmode = g_opmodes[uopcode];
+    switch (optype) {
+    case k_sty:
+    case k_dey:
+    case k_tya:
+    case k_cpy:
+    case k_iny:
+    case k_shy:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+    switch (opmode) {
+    case k_zpy:
+    case k_aby:
+    case k_idy:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_ABY_CHECK_PAGE_CROSSING:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_FLAGY:
+    case k_opcode_IDY_CHECK_PAGE_CROSSING:
+    case k_opcode_MODE_ABY:
+    case k_opcode_MODE_ZPY:
+    case k_opcode_WRITE_INV_SCRATCH_Y:
+      ret = 1;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
 }
 
 void
@@ -55,8 +344,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
   struct jit_opcode_details* p_prev_opcode;
 
-  struct jit_opcode_details* p_flags_opcode;
-  struct jit_uop* p_flags_uop;
+  struct jit_opcode_details* p_nz_flags_opcode;
+  struct jit_uop* p_nz_flags_uop;
   struct jit_opcode_details* p_lda_opcode;
   struct jit_uop* p_lda_uop;
   struct jit_opcode_details* p_ldx_opcode;
@@ -289,7 +578,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 2: merge 6502 opcodes as we can. */
+  /* Pass 2: merge 6502 macro opcodes as we can. */
   p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
@@ -345,8 +634,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   }
 
   /* Pass 3: eliminate uopcodes as we can. */
-  p_flags_opcode = NULL;
-  p_flags_uop = NULL;
+  p_nz_flags_opcode = NULL;
+  p_nz_flags_uop = NULL;
   p_lda_opcode = NULL;
   p_lda_uop = NULL;
   p_ldx_opcode = NULL;
@@ -358,91 +647,80 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint32_t num_uops;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
-    uint8_t optype = g_optypes[opcode_6502];
-    uint8_t opmode = g_opmodes[opcode_6502];
-    uint8_t opbranch = g_opbranch[optype];
-    int changes_nz = g_optype_changes_nz_flags[optype];
-
-    /* Cancel pending optimizations that can't cross this opcode. */
-    if (opbranch != k_bra_n) {
-      p_flags_opcode = NULL;
-      p_flags_uop = NULL;
-    }
-    if (optype == k_php) {
-      p_flags_opcode = NULL;
-      p_flags_uop = NULL;
-    }
-    if ((optype != k_sta) &&
-        (optype != k_stx) &&
-        (optype != k_sty) &&
-        (optype != k_lda) &&
-        (optype != k_ldx) &&
-        (optype != k_ldy)) {
-      /* NOTE: can widen the optypes above if we wanted to. */
-      p_lda_opcode = NULL;
-      p_lda_uop = NULL;
-      p_ldx_opcode = NULL;
-      p_ldx_uop = NULL;
-      p_ldy_opcode = NULL;
-      p_ldy_uop = NULL;
-    }
-    /* NOTE: currently don't optimize immediate stores other than zpg and abs
-     * modes.
-     */
-    if ((optype == k_sta) && (opmode != k_zpg) && (opmode != k_abs)) {
-      p_lda_opcode = NULL;
-      p_lda_uop = NULL;
-    }
-    if ((optype == k_stx) && (opmode != k_zpg) && (opmode != k_abs)) {
-      p_ldx_opcode = NULL;
-      p_ldx_uop = NULL;
-    }
-    if ((optype == k_sty) && (opmode != k_zpg) && (opmode != k_abs)) {
-      p_ldy_opcode = NULL;
-      p_ldy_uop = NULL;
-    }
-    if (opmode == k_idx || opmode == k_zpx || opmode == k_abx) {
-      p_ldx_opcode = NULL;
-      p_ldx_uop = NULL;
-    }
-    if (opmode == k_idy || opmode == k_zpy || opmode == k_aby) {
-      p_ldy_opcode = NULL;
-      p_ldy_uop = NULL;
-    }
-
-    /* Eliminate useless NZ flag updates. */
-    if ((p_flags_opcode != NULL) && changes_nz) {
-      jit_optimizer_eliminate(&p_flags_opcode, &p_flags_uop, p_opcode);
-    }
-    /* Eliminate constant loads that are folded into other opcodes. */
-    if ((p_lda_opcode != NULL) && ((optype == k_lda) ||
-                                   (optype == k_pla) ||
-                                   (optype == k_txa) ||
-                                   (optype == k_tya))) {
-      jit_optimizer_eliminate(&p_lda_opcode, &p_lda_uop, p_opcode);
-    }
-    if ((p_ldx_opcode != NULL) && ((optype == k_ldx) ||
-                                   (optype == k_tax) ||
-                                   (optype == k_tsx))) {
-      jit_optimizer_eliminate(&p_ldx_opcode, &p_ldx_uop, p_opcode);
-    }
-    if ((p_ldy_opcode != NULL) && ((optype == k_ldy) || (optype == k_tay))) {
-      jit_optimizer_eliminate(&p_ldy_opcode, &p_ldy_uop, p_opcode);
+    if (p_opcode->eliminated) {
+      continue;
     }
 
     num_uops = p_opcode->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
+      assert(!p_uop->eliminated);
+
+      /* Finalize eliminations. */
+      /* NZ flag load. */
+      if ((p_nz_flags_opcode != NULL) &&
+          jit_optimizer_uopcode_sets_nz_flags(uopcode)) {
+        jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
+      }
+      /* LDA A load. */
+      if ((p_lda_opcode != NULL) &&
+          jit_optimizer_uopcode_overwrites_a(uopcode)) {
+        jit_optimizer_eliminate(&p_lda_opcode, p_lda_uop, p_opcode);
+      }
+      /* LDX X load. */
+      if ((p_ldx_opcode != NULL) &&
+          jit_optimizer_uopcode_overwrites_x(uopcode)) {
+        jit_optimizer_eliminate(&p_ldx_opcode, p_ldx_uop, p_opcode);
+      }
+      /* LDY Y load. */
+      if ((p_ldy_opcode != NULL) &&
+          jit_optimizer_uopcode_overwrites_y(uopcode)) {
+        jit_optimizer_eliminate(&p_ldy_opcode, p_ldy_uop, p_opcode);
+      }
+
+      /* Cancel eliminations. */
+      /* TODO: the FLAGn predicates are a bit hacky but shouldn't cause
+       * trouble because we shouldn't eliminate e.g. LDA without also
+       * eliminating the FLAGA. Without the predicates, the FLAGA would always
+       * prevent the LDA from eliminating.
+       * The correct way to do this is probably to have a first pass where flag        * updates are eliminated and then eliminate register writes in a
+       * subsequent pass.
+       */
+      /* NZ flag load. */
+      if (jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
+        p_nz_flags_opcode = NULL;
+      }
+      /* LDA A load. */
+      if (jit_optimizer_uopcode_needs_a(uopcode) &&
+          (uopcode != k_opcode_FLAGA)) {
+        p_lda_opcode = NULL;
+      }
+      /* LDX X load. */
+      if (jit_optimizer_uopcode_needs_x(uopcode) &&
+          (uopcode != k_opcode_FLAGX)) {
+        p_ldx_opcode = NULL;
+      }
+      /* LDX Y load. */
+      if (jit_optimizer_uopcode_needs_y(uopcode) &&
+          (uopcode != k_opcode_FLAGY)) {
+        p_ldy_opcode = NULL;
+      }
+      /* Many eliminations can't cross branches. */
+      if (jit_optimizer_uopcode_can_jump(uopcode)) {
+        p_nz_flags_opcode = NULL;
+        p_lda_opcode = NULL;
+        p_ldx_opcode = NULL;
+        p_ldy_opcode = NULL;
+      }
 
       /* Keep track of uops we may be able to eliminate. */
       switch (uopcode) {
       case k_opcode_FLAGA:
       case k_opcode_FLAGX:
       case k_opcode_FLAGY:
-        p_flags_opcode = p_opcode;
-        p_flags_uop = p_uop;
+        p_nz_flags_opcode = p_opcode;
+        p_nz_flags_uop = p_uop;
         break;
       case k_opcode_LDA_Z:
       case 0xA9: /* LDA imm */

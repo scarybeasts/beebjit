@@ -1061,7 +1061,34 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCF00);
 
+  /* Test for a JIT bug with lost NZ flags update after merged ROL. */
   set_new_index(p_buf, 0x0F00);
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_ORA(p_buf, k_imm, 0x08);
+  emit_CLC(p_buf);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_ROL(p_buf, k_acc, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCF40);
+
+  /* Test for a JIT bug with incorrect elimination over a branch boundary. */
+  set_new_index(p_buf, 0x0F40);
+  emit_LDA(p_buf, k_imm, 0x41);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LDA(p_buf, k_imm, 0x71);
+  emit_BCS(p_buf, 5);
+  emit_LDA(p_buf, k_imm, 0x91);
+  emit_JMP(p_buf, k_abs, 0x0000);
+  emit_REQUIRE_EQ(p_buf, 0x71);
+  emit_JMP(p_buf, k_abs, 0xCF80);
+
+  set_new_index(p_buf, 0x0F80);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
