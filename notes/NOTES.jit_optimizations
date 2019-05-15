@@ -51,3 +51,46 @@ Unoptimized: (optimization 2) and 3) included)
   mov BYTE PTR 0x10000070, 1
 Optimized:
   mov BYTE PTR 0x10000070, 1
+
+5) Known-Y optimization for idy mode addressing
+6502:
+  LDY #$AA
+  LDA ($40),Y
+  LDY #$02
+Unoptimized:
+  mov cl, 0xaa
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + rcx + 0x02000000]
+  mov cl, 2
+Optimized (optimization 4) included)
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + 0x120000AA]
+  mov cl, 2
+
+6) Known-Y propagation across INY, etc.
+6502:
+  LDY #$01
+  LDA ($40),Y
+  STA $30
+  INY
+  LDA ($40),Y
+  STA $32
+  INY
+Unoptimized:
+  mov cl, 1
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + rcx + 0x02000000]
+  mov [0x21000030], al
+  inc cl
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + rcx + 0x02000000]
+  mov [0x21000032], al
+  inc cl
+Optimized (optimization 4) and 5) included)
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + 0x12000001]
+  mov [0x21000030], al
+  movzx edx, BYTE PTR [0x10000040]
+  mov al, [rdx + 0x12000002]
+  mov [0x21000032], al
+  mov cl, 3

@@ -330,6 +330,20 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
   return ret;
 }
 
+static void
+jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
+                         int32_t uopcode) {
+  uint8_t num_uops = p_opcode->num_uops;
+  struct jit_uop* p_uop = &p_opcode->uops[num_uops];
+  assert(num_uops < k_max_uops_per_opcode);
+  p_opcode->num_uops++;
+  p_uop->uopcode = uopcode;
+  p_uop->uoptype = -1;
+  p_uop->value1 = 0;
+  p_uop->value2 = 0;
+  p_uop->eliminated = 0;
+}
+
 void
 jit_optimizer_optimize(struct jit_compiler* p_compiler,
                        struct jit_opcode_details* p_opcodes,
@@ -457,6 +471,34 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         if (reg_x != k_value_unknown) {
           uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_x;
+        }
+        break;
+      case 0x88: /* DEY */
+        if (reg_y != k_value_unknown) {
+          uopcode = 0xA0; /* LDY imm */
+          p_uop->value1 = (uint8_t) (reg_y - 1);
+          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
+        }
+        break;
+      case 0xC8: /* INY */
+        if (reg_y != k_value_unknown) {
+          uopcode = 0xA0; /* LDY imm */
+          p_uop->value1 = (uint8_t) (reg_y + 1);
+          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
+        }
+        break;
+      case 0xCA: /* DEX */
+        if (reg_x != k_value_unknown) {
+          uopcode = 0xA2; /* LDX imm */
+          p_uop->value1 = (uint8_t) (reg_x - 1);
+          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
+        }
+        break;
+      case 0xE8: /* INX */
+        if (reg_x != k_value_unknown) {
+          uopcode = 0xA2; /* LDX imm */
+          p_uop->value1 = (uint8_t) (reg_x + 1);
+          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
         }
         break;
       case 0xE9: /* SBC imm */

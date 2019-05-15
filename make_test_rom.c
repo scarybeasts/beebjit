@@ -1088,7 +1088,15 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x71);
   emit_JMP(p_buf, k_abs, 0xCF80);
 
+  /* Test for a JIT bug with loss of NZ flags after INY -> LDY optimization. */
   set_new_index(p_buf, 0x0F80);
+  emit_LDY(p_buf, k_imm, 0x7F);
+  emit_INY(p_buf);
+  emit_JSR(p_buf, 0xF0A0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xCFC0);
+
+  set_new_index(p_buf, 0x0FC0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1157,6 +1165,10 @@ main(int argc, const char* argv[]) {
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
+  emit_RTS(p_buf);
+
+  /* Statically placed RTS. */
+  set_new_index(p_buf, 0x30A0);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
