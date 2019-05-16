@@ -94,3 +94,17 @@ Optimized (optimization 4) and 5) included)
   mov al, [rdx + 0x12000002]
   mov [0x21000032], al
   mov cl, 3
+
+7) Indirect load elimination
+6502:
+  EOR ($70),Y
+  STA ($70),Y
+Unoptimized:
+  movzx edx, BYTE PTR [0x10000070]
+  xor al, [rdx + rcx + 0x02000000]
+  movzx edx, BYTE PTR [0x10000070]
+  mov [rdx + rcx + 0x03000000], al
+Optimized:
+  movzx edx, BYTE PTR [0x10000070]
+  xor al, [rdx + rcx + 0x02000000]
+  mov [rdx + rcx + 0x03000000], al

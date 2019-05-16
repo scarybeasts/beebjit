@@ -61,6 +61,57 @@ jit_optimizer_uopcode_can_jump(int32_t uopcode) {
 }
 
 static int
+jit_optimizer_uop_could_write(struct jit_uop* p_uop, uint16_t addr) {
+  int32_t write_addr_start = -1;
+  int32_t write_addr_end = -1;
+
+  int32_t uopcode = p_uop->uopcode;
+
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    uint8_t opmode = g_opmodes[uopcode];
+    uint8_t opmem = g_opmem[optype];
+    if ((opmem == k_write) || (opmem == k_rw)) {
+      switch (opmode) {
+      case k_zpg:
+      case k_abs:
+        write_addr_start = p_uop->value1;
+        write_addr_end = p_uop->value1;
+        break;
+      case k_abx:
+      case k_aby:
+      case k_idx:
+      case k_idy:
+      case k_zpx:
+      case k_zpy:
+        /* NOTE: could be more refined with at least abx, aby. */
+        write_addr_start = 0;
+        write_addr_end = (k_6502_addr_space_size - 1);
+      default:
+        break;
+      }
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_STOA_IMM:
+      write_addr_start = p_uop->value1;
+      write_addr_end = p_uop->value1;
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (write_addr_start == -1) {
+    return 0;
+  }
+  if (addr >= write_addr_start && addr <= write_addr_end) {
+    return 1;
+  }
+  return 0;
+}
+
+static int
 jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
   int ret;
   if (uopcode <= 0xFF) {
@@ -330,6 +381,91 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
   return ret;
 }
 
+static int
+jit_optimizer_uop_idy_match(struct jit_uop* p_uop, struct jit_uop* p_idy_uop) {
+  if ((p_uop->uopcode == k_opcode_MODE_IND) &&
+      (p_uop->value1 == p_idy_uop->value1)) {
+    return 1;
+  }
+  return 0;
+}
+
+static int
+jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
+                                  struct jit_uop* p_idy_uop) {
+  int ret = 1;
+  int32_t uopcode = p_uop->uopcode;
+
+  /* If this opcode could write to the idy indirect address, we must
+   * invalidate.
+   */
+  if (jit_optimizer_uop_could_write(p_uop, p_idy_uop->value1) ||
+      jit_optimizer_uop_could_write(p_uop, (uint8_t) (p_idy_uop->value1 + 1))) {
+    return 1;
+  }
+
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_adc:
+    case k_and:
+    case k_cmp:
+    case k_eor:
+    case k_ora:
+    case k_lda:
+    case k_ldx:
+    case k_ldy:
+    case k_sbc:
+    case k_sta:
+    case k_stx:
+    case k_sty:
+    case k_inx:
+    case k_dex:
+    case k_iny:
+    case k_dey:
+    case k_tax:
+    case k_txa:
+    case k_tay:
+    case k_tya:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_debug:
+    case k_opcode_ADD_ABS:
+    case k_opcode_ADD_ABX:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_IMM:
+    case k_opcode_ADD_SCRATCH:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_CHECK_BCD:
+    case k_opcode_FLAGA:
+    case k_opcode_FLAGX:
+    case k_opcode_FLAGY:
+    case k_opcode_LDA_SCRATCH_n:
+    case k_opcode_LDA_Z:
+    case k_opcode_LDX_Z:
+    case k_opcode_LDY_Z:
+    case k_opcode_LOAD_CARRY:
+    case k_opcode_LOAD_CARRY_INV:
+    case k_opcode_LOAD_OVERFLOW:
+    case k_opcode_SAVE_CARRY:
+    case k_opcode_SAVE_CARRY_INV:
+    case k_opcode_SAVE_OVERFLOW:
+    case k_opcode_STOA_IMM:
+    case k_opcode_SUB_IMM:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
 static void
 jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
                          int32_t uopcode) {
@@ -366,6 +502,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_ldx_uop;
   struct jit_opcode_details* p_ldy_opcode;
   struct jit_uop* p_ldy_uop;
+  struct jit_opcode_details* p_idy_opcode;
+  struct jit_uop* p_idy_uop;
 
   (void) p_compiler;
   (void) flag_decimal;
@@ -684,6 +822,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   p_ldx_uop = NULL;
   p_ldy_opcode = NULL;
   p_ldy_uop = NULL;
+  p_idy_opcode = NULL;
+  p_idy_uop = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t i_uops;
     uint32_t num_uops;
@@ -720,6 +860,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_uopcode_overwrites_y(uopcode)) {
         jit_optimizer_eliminate(&p_ldy_opcode, p_ldy_uop, p_opcode);
       }
+      /* idy indirect load. */
+      if ((p_idy_opcode != NULL) &&
+          jit_optimizer_uop_idy_match(p_uop, p_idy_uop)) {
+        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
+        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, p_opcode);
+      }
 
       /* Cancel eliminations. */
       /* TODO: the FLAGn predicates are a bit hacky but shouldn't cause
@@ -730,23 +876,32 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
        * subsequent pass.
        */
       /* NZ flag load. */
-      if (jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
+      if ((p_nz_flags_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
         p_nz_flags_opcode = NULL;
       }
       /* LDA A load. */
-      if (jit_optimizer_uopcode_needs_a(uopcode) &&
+      if ((p_lda_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_a(uopcode) &&
           (uopcode != k_opcode_FLAGA)) {
         p_lda_opcode = NULL;
       }
       /* LDX X load. */
-      if (jit_optimizer_uopcode_needs_x(uopcode) &&
+      if ((p_ldx_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_x(uopcode) &&
           (uopcode != k_opcode_FLAGX)) {
         p_ldx_opcode = NULL;
       }
       /* LDX Y load. */
-      if (jit_optimizer_uopcode_needs_y(uopcode) &&
+      if ((p_ldy_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_y(uopcode) &&
           (uopcode != k_opcode_FLAGY)) {
         p_ldy_opcode = NULL;
+      }
+      /* idy indirect load. */
+      if ((p_idy_opcode != NULL) &&
+          jit_optimizer_uop_invalidates_idy(p_uop, p_idy_uop)) {
+        p_idy_opcode = NULL;
       }
       /* Many eliminations can't cross branches. */
       if (jit_optimizer_uopcode_can_jump(uopcode)) {
@@ -754,6 +909,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_lda_opcode = NULL;
         p_ldx_opcode = NULL;
         p_ldy_opcode = NULL;
+        p_idy_opcode = NULL;
       }
 
       /* Keep track of uops we may be able to eliminate. */
@@ -778,6 +934,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case 0xA0: /* LDY imm */
         p_ldy_opcode = p_opcode;
         p_ldy_uop = p_uop;
+        break;
+      case k_opcode_MODE_IND:
+        p_idy_opcode = p_opcode;
+        p_idy_uop = p_uop;
         break;
       default:
         break;
