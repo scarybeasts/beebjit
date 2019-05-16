@@ -27,6 +27,7 @@ struct jit_compiler {
   uint32_t* p_jit_ptrs;
   int debug;
   int option_accurate_timings;
+  int option_no_optimize;
   uint32_t max_6502_opcodes_per_block;
   uint16_t needs_callback_above;
 
@@ -93,8 +94,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
-                    int debug,
-                    int option_accurate_timings) {
+                    int debug) {
   size_t i;
   struct util_buffer* p_tmp_buf;
   uint16_t needs_callback_above;
@@ -120,7 +120,14 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
-  p_compiler->option_accurate_timings = option_accurate_timings;
+
+  p_compiler->option_accurate_timings = util_has_option(p_options->p_opt_flags,
+                                                        "jit:accurate-timings");
+  if (p_options->accurate) {
+    p_compiler->option_accurate_timings = 1;
+  }
+  p_compiler->option_no_optimize = util_has_option(p_options->p_opt_flags,
+                                                   "jit:no-optimize");
 
   (void) util_get_int_option(&max_6502_opcodes_per_block,
                              p_options->p_opt_flags,
@@ -223,6 +230,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
+  p_details->num_fixup_uops = 0;
+  p_details->len_bytes_6502_merged = p_details->len_bytes_6502_orig;
+  p_details->max_cycles_merged = p_details->max_cycles_orig;
+  p_details->eliminated = 0;
   p_details->p_host_address = NULL;
   p_details->cycles_run_start = -1;
 
@@ -1538,7 +1549,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   /* Third, run the optimizer across the list of opcodes. */
-  jit_optimizer_optimize(p_compiler, &opcode_details[0], total_num_opcodes);
+  if (!p_compiler->option_no_optimize) {
+    jit_optimizer_optimize(p_compiler, &opcode_details[0], total_num_opcodes);
+  }
 
   /* Fourth, emit the uop stream to the output buffer. This finalizes the number
    * of opcodes compiled, which may get smaller if we run out of space in the

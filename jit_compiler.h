@@ -17,8 +17,7 @@ struct jit_compiler* jit_compiler_create(
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
     struct bbc_options* p_options,
-    int debug,
-    int option_accurate_timings);
+    int debug);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
 void jit_compiler_compile_block(struct jit_compiler* p_compiler,
