@@ -1113,7 +1113,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xC0);
   emit_JMP(p_buf, k_abs, 0xD000);
 
+  /* Tests for a JIT bug with incorrect propagation over TXA. */
   set_new_index(p_buf, 0x1000);
+  emit_LDX(p_buf, k_imm, 0x33);
+  emit_JMP(p_buf, k_abs, 0xD020);
+  set_new_index(p_buf, 0x1020);
+  emit_LDA(p_buf, k_imm, 0x44);
+  emit_TXA(p_buf);
+  emit_STA(p_buf, k_zpg, 0x34);
+  emit_LDA(p_buf, k_zpx, 0x01);
+  emit_REQUIRE_EQ(p_buf, 0x33);
+  emit_JMP(p_buf, k_abs, 0xD040);
+
+  set_new_index(p_buf, 0x1040);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

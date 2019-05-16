@@ -687,14 +687,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
       break;
     case 0x8A: /* TXA */
-      if (reg_x != k_value_unknown) {
-        reg_a = reg_x;
-      }
+      reg_a = reg_x;
       break;
     case 0x98: /* TYA */
-      if (reg_y != k_value_unknown) {
-        reg_a = reg_y;
-      }
+      reg_a = reg_y;
       break;
     case 0xA0: /* LDY imm */
       reg_y = operand_6502;
@@ -703,17 +699,13 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       reg_x = operand_6502;
       break;
     case 0xA8: /* TAY */
-      if (reg_a != k_value_unknown) {
-        reg_y = reg_a;
-      }
+      reg_y = reg_a;
       break;
     case 0xA9: /* LDA imm */
       reg_a = operand_6502;
       break;
     case 0xAA: /* TAX */
-      if (reg_a != k_value_unknown) {
-        reg_x = reg_a;
-      }
+      reg_x = reg_a;
       break;
     case 0xC8: /* INY */
       if (reg_y != k_value_unknown) {
