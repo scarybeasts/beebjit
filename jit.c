@@ -275,6 +275,10 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint32_t addr_end = (addr + len);
 
+  if (p_jit->log_compile) {
+    printf("LOG:JIT:invalidate range $%.4X-$%.4X\n", addr, (addr_end - 1));
+  }
+
   assert(addr_end >= addr);
 
   for (i = addr; i < addr_end; ++i) {
