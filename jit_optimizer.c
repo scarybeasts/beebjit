@@ -477,6 +477,8 @@ jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
   p_uop->uoptype = -1;
   p_uop->value1 = 0;
   p_uop->value2 = 0;
+
+  p_uop->len_x64 = 0;
   p_uop->eliminated = 0;
 }
 
@@ -530,10 +532,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint8_t opmode = g_opmodes[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
 
-    p_opcode->num_fixup_uops = 0;
-    p_opcode->len_bytes_6502_merged = p_opcode->len_bytes_6502_orig;
-    p_opcode->max_cycles_merged = p_opcode->max_cycles_orig;
-    p_opcode->eliminated = 0;
+    assert(!p_opcode->eliminated);
 
     p_opcode->reg_a = reg_a;
     p_opcode->reg_x = reg_x;
@@ -552,7 +551,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
 
-      p_uop->eliminated = 0;
+      assert(!p_uop->eliminated);
 
       switch (uopcode) {
       case 0x61: /* ADC idx */

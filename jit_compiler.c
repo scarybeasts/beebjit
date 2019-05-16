@@ -256,7 +256,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->num_fixup_uops = 0;
   p_details->len_bytes_6502_merged = p_details->len_bytes_6502_orig;
-  p_details->max_cycles_merged = p_details->max_cycles_orig;
   p_details->eliminated = 0;
   p_details->p_host_address = NULL;
   p_details->cycles_run_start = -1;
@@ -392,6 +391,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       }
     }
   }
+  p_details->max_cycles_merged = p_details->max_cycles_orig;
 
   if (optype == k_rti) {
     /* Bounce to the interpreter for RTI. The problem with RTI is that it
