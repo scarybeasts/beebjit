@@ -179,7 +179,9 @@ struct jit_enter_interp_ret {
 };
 
 static struct jit_enter_interp_ret
-jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
+jit_enter_interp(struct jit_struct* p_jit,
+                 int64_t countdown,
+                 uint64_t intel_rflags) {
   struct jit_enter_interp_ret ret;
 
   struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
@@ -194,7 +196,10 @@ jit_enter_interp(struct jit_struct* p_jit, int64_t countdown) {
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
-  countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
+  countdown = jit_compiler_fixup_state(p_compiler,
+                                       p_state_6502,
+                                       countdown,
+                                       intel_rflags);
 
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
@@ -303,7 +308,10 @@ jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
 }
 
 static int64_t
-jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
+jit_compile(struct jit_struct* p_jit,
+            uint8_t* p_intel_rip,
+            int64_t countdown,
+            uint64_t intel_rflags) {
   uint8_t* p_jit_ptr;
   uint8_t* p_block_ptr;
   uint16_t addr_6502;
@@ -339,7 +347,10 @@ jit_compile(struct jit_struct* p_jit, uint8_t* p_intel_rip, int64_t countdown) {
   p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
   p_state_6502->reg_pc = addr_6502;
   if (!is_new) {
-    countdown = jit_compiler_fixup_state(p_compiler, p_state_6502, countdown);
+    countdown = jit_compiler_fixup_state(p_compiler,
+                                         p_state_6502,
+                                         countdown,
+                                         intel_rflags);
   }
 
   util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);

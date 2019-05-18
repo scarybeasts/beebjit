@@ -26,7 +26,8 @@ void jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
 int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                                  struct state_6502* p_state_6502,
-                                 int64_t countdown);
+                                 int64_t countdown,
+                                 uint64_t host_rflags);
 
 void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,

@@ -46,6 +46,7 @@ struct jit_compiler {
   uint32_t len_x64_0xA2;
   uint32_t len_x64_LDY_Z;
   uint32_t len_x64_0xA0;
+  uint32_t len_x64_SAVE_OVERFLOW;
 
   int compile_for_code_in_zero_page;
 
@@ -55,6 +56,7 @@ struct jit_compiler {
 
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
   uint8_t addr_nz_fixup[k_6502_addr_space_size];
+  uint8_t addr_o_fixup[k_6502_addr_space_size];
   int32_t addr_a_fixup[k_6502_addr_space_size];
   int32_t addr_x_fixup[k_6502_addr_space_size];
   int32_t addr_y_fixup[k_6502_addr_space_size];
@@ -177,6 +179,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->len_x64_0xA2 = (asm_x64_jit_LDX_IMM_END - asm_x64_jit_LDX_IMM);
   p_compiler->len_x64_LDY_Z = (asm_x64_jit_LDY_Z_END - asm_x64_jit_LDY_Z);
   p_compiler->len_x64_0xA0 = (asm_x64_jit_LDY_IMM_END - asm_x64_jit_LDY_IMM);
+  p_compiler->len_x64_SAVE_OVERFLOW = (asm_x64_jit_SAVE_OVERFLOW_END -
+                                       asm_x64_jit_SAVE_OVERFLOW);
 
   return p_compiler;
 }
@@ -1571,6 +1575,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       case 0xA0: /* LDY imm */
         buf_needed += p_compiler->len_x64_0xA0;
         break;
+      case k_opcode_SAVE_OVERFLOW:
+        buf_needed += p_compiler->len_x64_SAVE_OVERFLOW;
+        break;
       default:
         assert(0);
         break;
@@ -1669,6 +1676,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->addr_is_block_continuation[addr_6502] = 0;
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
+      p_compiler->addr_o_fixup[addr_6502] = 0;
       p_compiler->addr_a_fixup[addr_6502] = -1;
       p_compiler->addr_x_fixup[addr_6502] = -1;
       p_compiler->addr_y_fixup[addr_6502] = -1;
@@ -1708,6 +1716,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
             case 0xA0: /* LDY imm */
               p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
               break;
+            case k_opcode_SAVE_OVERFLOW:
+              p_compiler->addr_o_fixup[addr_6502] = 1;
+              break;
             default:
               assert(0);
               break;
@@ -1740,10 +1751,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 int64_t
 jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          struct state_6502* p_state_6502,
-                         int64_t countdown) {
+                         int64_t countdown,
+                         uint64_t host_rflags) {
   uint16_t pc_6502 = p_state_6502->reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   uint8_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
+  uint8_t o_fixup = p_compiler->addr_o_fixup[pc_6502];
   int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
@@ -1752,13 +1765,13 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   countdown += cycles_fixup;
 
   if (a_fixup != -1) {
-    p_state_6502->reg_a = a_fixup;
+    state_6502_set_a(p_state_6502, a_fixup);
   }
   if (x_fixup != -1) {
-    p_state_6502->reg_x = x_fixup;
+    state_6502_set_x(p_state_6502, x_fixup);
   }
   if (y_fixup != -1) {
-    p_state_6502->reg_y = y_fixup;
+    state_6502_set_y(p_state_6502, y_fixup);
   }
   if (nz_fixup != 0) {
     uint8_t reg_val = 0;
@@ -1788,6 +1801,11 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags &= ~((1 << k_flag_negative) | (1 << k_flag_zero));
     p_state_6502->reg_flags |= flags_new;
   }
+  if (o_fixup) {
+    int host_overflow_flag = !!(host_rflags & 0x0800);
+    p_state_6502->reg_flags &= ~(1 << k_flag_overflow);
+    p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
+  }
 
   return countdown;
 }
@@ -1809,6 +1827,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
     p_compiler->addr_cycles_fixup[i] = -1;
     p_compiler->addr_nz_fixup[i] = 0;
+    p_compiler->addr_o_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;
     p_compiler->addr_x_fixup[i] = -1;
     p_compiler->addr_y_fixup[i] = -1;

@@ -407,6 +407,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
   if (uopcode <= 0xFF) {
     uint8_t optype = g_optypes[uopcode];
     switch (optype) {
+    case k_nop:
     case k_adc:
     case k_and:
     case k_cmp:
@@ -466,6 +467,80 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
   return ret;
 }
 
+static int
+jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
+  /* Many things need or trash overflow so we'll just enumerate what's safe. */
+  int ret = 1;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_nop:
+    case k_adc:
+    case k_sbc:
+    case k_bit:
+    case k_clv:
+    case k_lda:
+    case k_ldx:
+    case k_ldy:
+    case k_sta:
+    case k_stx:
+    case k_sty:
+    case k_sec:
+    case k_clc:
+    case k_pla:
+    case k_pha:
+    case k_tax:
+    case k_tay:
+    case k_txa:
+    case k_tya:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_ABX_CHECK_PAGE_CROSSING:
+    case k_opcode_ABY_CHECK_PAGE_CROSSING:
+    case k_opcode_ADD_ABS:
+    case k_opcode_ADD_ABX:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_IMM:
+    case k_opcode_ADD_SCRATCH:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_CHECK_BCD:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    case k_opcode_CHECK_PENDING_IRQ:
+    case k_opcode_IDY_CHECK_PAGE_CROSSING:
+    case k_opcode_LDA_SCRATCH_n:
+    case k_opcode_LDA_Z:
+    case k_opcode_LDX_Z:
+    case k_opcode_LDY_Z:
+    case k_opcode_LOAD_CARRY:
+    case k_opcode_LOAD_CARRY_INV:
+    case k_opcode_MODE_ABX:
+    case k_opcode_MODE_ABY:
+    case k_opcode_MODE_IND:
+    case k_opcode_MODE_IND_SCRATCH:
+    case k_opcode_MODE_ZPX:
+    case k_opcode_MODE_ZPY:
+    case k_opcode_SAVE_CARRY:
+    case k_opcode_SAVE_CARRY_INV:
+    case k_opcode_SAVE_OVERFLOW:
+    case k_opcode_STOA_IMM:
+    case k_opcode_SUB_IMM:
+    case k_opcode_WRITE_INV_ABS:
+    case k_opcode_WRITE_INV_SCRATCH:
+    case k_opcode_WRITE_INV_SCRATCH_Y:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
 static void
 jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
                          int32_t uopcode) {
@@ -506,6 +581,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_ldy_uop;
   struct jit_opcode_details* p_idy_opcode;
   struct jit_uop* p_idy_uop;
+  struct jit_opcode_details* p_overflow_opcode;
+  struct jit_uop* p_overflow_uop;
 
   (void) p_compiler;
   (void) flag_decimal;
@@ -804,15 +881,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     p_prev_opcode = p_opcode;
   }
 
-  /* Pass 3: eliminate uopcodes as we can. */
+  /* Pass 3: first uopcode elimination pass, particularly FLAGn. */
   p_nz_flags_opcode = NULL;
   p_nz_flags_uop = NULL;
-  p_lda_opcode = NULL;
-  p_lda_uop = NULL;
-  p_ldx_opcode = NULL;
-  p_ldx_uop = NULL;
-  p_ldy_opcode = NULL;
-  p_ldy_uop = NULL;
   p_idy_opcode = NULL;
   p_idy_uop = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
@@ -836,6 +907,77 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_uopcode_sets_nz_flags(uopcode)) {
         jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
       }
+      /* idy indirect load. */
+      if ((p_idy_opcode != NULL) &&
+          jit_optimizer_uop_idy_match(p_uop, p_idy_uop)) {
+        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
+        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, p_opcode);
+      }
+
+      /* Cancel eliminations. */
+      /* NZ flag load. */
+      if ((p_nz_flags_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
+        p_nz_flags_opcode = NULL;
+      }
+      /* idy indirect load. */
+      if ((p_idy_opcode != NULL) &&
+          jit_optimizer_uop_invalidates_idy(p_uop, p_idy_uop)) {
+        p_idy_opcode = NULL;
+      }
+      /* Many eliminations can't cross branches. */
+      if (jit_optimizer_uopcode_can_jump(uopcode)) {
+        p_nz_flags_opcode = NULL;
+        p_idy_opcode = NULL;
+      }
+
+      /* Keep track of uops we may be able to eliminate. */
+      switch (uopcode) {
+      case k_opcode_FLAGA:
+      case k_opcode_FLAGX:
+      case k_opcode_FLAGY:
+        p_nz_flags_opcode = p_opcode;
+        p_nz_flags_uop = p_uop;
+        break;
+      case k_opcode_MODE_IND:
+        p_idy_opcode = p_opcode;
+        p_idy_uop = p_uop;
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  /* Pass 4: second uopcode elimination pass, particularly those eliminations
+   * that only occur well after FLAGn has been eliminated.
+   */
+  p_lda_opcode = NULL;
+  p_lda_uop = NULL;
+  p_ldx_opcode = NULL;
+  p_ldx_uop = NULL;
+  p_ldy_opcode = NULL;
+  p_ldy_uop = NULL;
+  p_overflow_opcode = NULL;
+  p_overflow_uop = NULL;
+  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+    uint32_t i_uops;
+    uint32_t num_uops;
+
+    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    if (p_opcode->eliminated) {
+      continue;
+    }
+
+    num_uops = p_opcode->num_uops;
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t uopcode = p_uop->uopcode;
+      if (p_uop->eliminated) {
+        continue;
+      }
+
+      /* Finalize eliminations. */
       /* LDA A load. */
       if ((p_lda_opcode != NULL) &&
           jit_optimizer_uopcode_overwrites_a(uopcode)) {
@@ -851,66 +993,39 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_uopcode_overwrites_y(uopcode)) {
         jit_optimizer_eliminate(&p_ldy_opcode, p_ldy_uop, p_opcode);
       }
-      /* idy indirect load. */
-      if ((p_idy_opcode != NULL) &&
-          jit_optimizer_uop_idy_match(p_uop, p_idy_uop)) {
-        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
-        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, p_opcode);
+      /* Overflow flag save elimination. */
+      if ((p_overflow_opcode != NULL) && (uopcode == k_opcode_SAVE_OVERFLOW)) {
+        jit_optimizer_eliminate(&p_overflow_opcode, p_overflow_uop, p_opcode);
       }
 
       /* Cancel eliminations. */
-      /* TODO: the FLAGn predicates are a bit hacky but shouldn't cause
-       * trouble because we shouldn't eliminate e.g. LDA without also
-       * eliminating the FLAGA. Without the predicates, the FLAGA would always
-       * prevent the LDA from eliminating.
-       * The correct way to do this is probably to have a first pass where flag        * updates are eliminated and then eliminate register writes in a
-       * subsequent pass.
-       */
-      /* NZ flag load. */
-      if ((p_nz_flags_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
-        p_nz_flags_opcode = NULL;
-      }
       /* LDA A load. */
-      if ((p_lda_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_a(uopcode) &&
-          (uopcode != k_opcode_FLAGA)) {
+      if ((p_lda_opcode != NULL) && jit_optimizer_uopcode_needs_a(uopcode)) {
         p_lda_opcode = NULL;
       }
       /* LDX X load. */
-      if ((p_ldx_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_x(uopcode) &&
-          (uopcode != k_opcode_FLAGX)) {
+      if ((p_ldx_opcode != NULL) && jit_optimizer_uopcode_needs_x(uopcode)) {
         p_ldx_opcode = NULL;
       }
       /* LDX Y load. */
-      if ((p_ldy_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_y(uopcode) &&
-          (uopcode != k_opcode_FLAGY)) {
+      if ((p_ldy_opcode != NULL) && jit_optimizer_uopcode_needs_y(uopcode)) {
         p_ldy_opcode = NULL;
       }
-      /* idy indirect load. */
-      if ((p_idy_opcode != NULL) &&
-          jit_optimizer_uop_invalidates_idy(p_uop, p_idy_uop)) {
-        p_idy_opcode = NULL;
+      /* Overflow flag save elimination. */
+      if ((p_overflow_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_or_trashes_overflow(uopcode)) {
+        p_overflow_opcode = NULL;
       }
       /* Many eliminations can't cross branches. */
       if (jit_optimizer_uopcode_can_jump(uopcode)) {
-        p_nz_flags_opcode = NULL;
         p_lda_opcode = NULL;
         p_ldx_opcode = NULL;
         p_ldy_opcode = NULL;
-        p_idy_opcode = NULL;
+        p_overflow_opcode = NULL;
       }
 
       /* Keep track of uops we may be able to eliminate. */
       switch (uopcode) {
-      case k_opcode_FLAGA:
-      case k_opcode_FLAGX:
-      case k_opcode_FLAGY:
-        p_nz_flags_opcode = p_opcode;
-        p_nz_flags_uop = p_uop;
-        break;
       case k_opcode_LDA_Z:
       case 0xA9: /* LDA imm */
         p_lda_opcode = p_opcode;
@@ -926,9 +1041,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_ldy_opcode = p_opcode;
         p_ldy_uop = p_uop;
         break;
-      case k_opcode_MODE_IND:
-        p_idy_opcode = p_opcode;
-        p_idy_uop = p_uop;
+      case k_opcode_SAVE_OVERFLOW:
+        p_overflow_opcode = p_opcode;
+        p_overflow_uop = p_uop;
         break;
       default:
         break;

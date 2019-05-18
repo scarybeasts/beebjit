@@ -11,6 +11,7 @@
 asm_x64_jit_compile_trampoline:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
+  # Preserves RFLAGS
   call asm_x64_save_AXYS_PC_flags
 
   # param1: context object.
@@ -22,6 +23,11 @@ asm_x64_jit_compile_trampoline:
   lea REG_PARAM2_32, [REG_PARAM2 - 2]
   # param3: countdown
   mov REG_PARAM3, REG_COUNTDOWN
+  # param4: Intel rflags
+  # Needed because carry / overflow flags state could be here in certain
+  # optimization conditions.
+  pushf
+  pop REG_PARAM4
 
   push REG_CONTEXT
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
@@ -46,6 +52,7 @@ asm_x64_jit_compile_trampoline:
 asm_x64_jit_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
+  # Preserves RFLAGS
   call asm_x64_save_AXYS_PC_flags
 
   # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
@@ -55,6 +62,11 @@ asm_x64_jit_interp:
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
   # param2 is current countdown value.
   mov REG_PARAM2, REG_COUNTDOWN
+  # param3: Intel rflags
+  # Needed because carry / overflow flags state could be here in certain
+  # optimization conditions.
+  pushf
+  pop REG_PARAM3
 
   push REG_SCRATCH3
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]

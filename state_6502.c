@@ -102,6 +102,24 @@ state_6502_set_pc(struct state_6502* p_state_6502, uint16_t pc) {
   *((uint16_t*) p_pc) = pc;
 }
 
+void
+state_6502_set_a(struct state_6502* p_state_6502, uint8_t val) {
+  uint32_t* p_a = &p_state_6502->reg_a;
+  *((uint8_t*) p_a) = val;
+}
+
+void
+state_6502_set_x(struct state_6502* p_state_6502, uint8_t val) {
+  uint32_t* p_x = &p_state_6502->reg_x;
+  *((uint8_t*) p_x) = val;
+}
+
+void
+state_6502_set_y(struct state_6502* p_state_6502, uint8_t val) {
+  uint32_t* p_y = &p_state_6502->reg_y;
+  *((uint8_t*) p_y) = val;
+}
+
 static int
 state_6502_irq_is_edge_triggered(int irq) {
   if (irq == k_state_6502_irq_nmi) {

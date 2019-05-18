@@ -1125,7 +1125,28 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x33);
   emit_JMP(p_buf, k_abs, 0xD040);
 
+  /* Test for correct overflow flag recovery after tricky situations. */
   set_new_index(p_buf, 0x1040);
+  /* Setup for the idy load. */
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_zpg, 0xC0);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0xC1);
+  /* Part 1: Self modifying code. */
+  emit_JSR(p_buf, 0x30B0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x30B7);
+  emit_JSR(p_buf, 0x30B0);
+  emit_REQUIRE_OF(p_buf, 1);
+  /* Part 2: Fault + fixup + self modifying code. */
+  emit_JSR(p_buf, 0x30C0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x30C9);
+  emit_JSR(p_buf, 0x30C0);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD080);
+
+  set_new_index(p_buf, 0x1080);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1198,6 +1219,31 @@ main(int argc, const char* argv[]) {
 
   /* Statically placed RTS. */
   set_new_index(p_buf, 0x30A0);
+  emit_RTS(p_buf);
+
+  /* For a JIT overflag flag fixup test, part 1. */
+  set_new_index(p_buf, 0x30B0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xE0);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_RTS(p_buf);
+
+  /* For a JIT overflag flag fixup test, part 2. */
+  set_new_index(p_buf, 0x30C0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xE0);
+  emit_LDA(p_buf, k_idy, 0xC0);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_REQUIRE_OF(p_buf, 1);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
