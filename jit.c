@@ -45,8 +45,6 @@ struct jit_struct {
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
   struct interp_struct* p_interp;
-  uint16_t interp_pc_start;
-  uint16_t interp_block_start;
 
   int log_compile;
 };
@@ -188,10 +186,6 @@ jit_enter_interp(struct jit_struct* p_jit,
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct interp_struct* p_interp = p_jit->p_interp;
   struct state_6502* p_state_6502 = p_jit_cpu_driver->abi.p_state_6502;
-  uint16_t pc = p_state_6502->reg_pc;
-
-  p_jit->interp_pc_start = pc;
-  p_jit->interp_block_start = jit_6502_block_addr_from_6502(p_jit, pc);
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
