@@ -443,7 +443,8 @@ sigsegv_reraise(void* p_rip, void* p_addr) {
 static void
 jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   int inaccessible_indirect_page;
-  int ff_page_wrap;
+  int ff_fault_fixup;
+  int bcd_fault_fixup;
   struct jit_struct* p_jit;
   uint16_t block_addr_6502;
   uint16_t addr_6502;
@@ -478,7 +479,12 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
    * 0xFF. Using a fault + fixup here makes the code footprint for idx mode
    * addressing smaller.
    */
-  ff_page_wrap = 0;
+  ff_fault_fixup = 0;
+  /* The BCD fault occurs when the BCD flag is unknown and set at the start of
+   * a block with ADC / SBC instructions.
+   */
+  bcd_fault_fixup = 0;
+
   if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
       (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + k_6502_addr_space_size))) {
@@ -490,10 +496,18 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     inaccessible_indirect_page = 1;
   }
   if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE)) {
-    ff_page_wrap = 1;
+    ff_fault_fixup = 1;
+  }
+  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
+    /* D flag alone. */
+    bcd_fault_fixup = 1;
+  }
+  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
+    /* D flag and I flag. */
+    bcd_fault_fixup = 1;
   }
 
-  if (!inaccessible_indirect_page && !ff_page_wrap) {
+  if (!inaccessible_indirect_page && !ff_fault_fixup && !bcd_fault_fixup) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
@@ -515,15 +529,11 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
    * faulting instruction won't be the start of the 6502 opcode. (That may
    * be e.g. the MODE_IND uop as part of the idy addressin mode.
    */
-  addr_6502 = 0;
+  addr_6502 = block_addr_6502;
   i_addr_6502 = block_addr_6502;
   p_last_jit_ptr = NULL;
   while (1) {
-    void* p_jit_ptr;
-    if (!i_addr_6502) {
-      sigsegv_reraise(p_rip, p_addr);
-    }
-    p_jit_ptr = (void*) (size_t) p_jit->jit_ptrs[i_addr_6502];
+    void* p_jit_ptr = (void*) (size_t) p_jit->jit_ptrs[i_addr_6502];
     if (p_jit_ptr > p_rip) {
       break;
     }
@@ -532,6 +542,9 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       addr_6502 = i_addr_6502;
     }
     i_addr_6502++;
+    if (!i_addr_6502) {
+      sigsegv_reraise(p_rip, p_addr);
+    }
   }
 
   /* Bounce into the interpreter via the trampolines. */

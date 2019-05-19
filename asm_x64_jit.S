@@ -267,12 +267,11 @@ asm_x64_jit_ABY_CHECK_PAGE_CROSSING_END:
 
 
 .globl asm_x64_jit_CHECK_BCD
-.globl asm_x64_jit_CHECK_BCD_jump_patch
 .globl asm_x64_jit_CHECK_BCD_END
 asm_x64_jit_CHECK_BCD:
-  bt REG_6502_ID_F_32, 3
-  jb 0
-asm_x64_jit_CHECK_BCD_jump_patch:
+  # This is fault fixup, i.e. it faults if the 6502 D flag is set.
+  mov REG_SCRATCH2_8, \
+      [REG_6502_ID_F_64 + K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE - 6]
 
 asm_x64_jit_CHECK_BCD_END:
   ret

@@ -557,7 +557,7 @@ jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
   p_uop->eliminated = 0;
 }
 
-void
+uint32_t
 jit_optimizer_optimize(struct jit_compiler* p_compiler,
                        struct jit_opcode_details* p_opcodes,
                        uint32_t num_opcodes) {
@@ -584,8 +584,17 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_opcode_details* p_overflow_opcode;
   struct jit_uop* p_overflow_uop;
 
+  struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
+
   (void) p_compiler;
-  (void) flag_decimal;
+
+  /* Use a compiler-provide scratch opcode to eliminate all BCD checks and do
+   * it just once at the start of the block, if any ADC / SBC are present.
+   */
+  assert(num_opcodes > 2);
+  assert(p_bcd_opcode->eliminated);
+  assert(p_bcd_opcode->num_uops == 1);
+  p_bcd_opcode->uops[0].uopcode = k_opcode_CHECK_BCD;
 
   /* Pass 1: tag opcodes with any known register and flag values. Also replace
    * single uops with replacements if known registers offer better alternatives.
@@ -609,13 +618,15 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint8_t opmode = g_opmodes[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
 
-    assert(!p_opcode->eliminated);
+    if (p_opcode == p_bcd_opcode) {
+      continue;
+    }
 
     p_opcode->reg_a = reg_a;
     p_opcode->reg_x = reg_x;
     p_opcode->reg_y = reg_y;
     p_opcode->flag_carry = flag_carry;
-    p_opcode->flag_decimal = flag_carry;
+    p_opcode->flag_decimal = flag_decimal;
 
     /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
     opreg = g_optype_sets_register[optype];
@@ -627,8 +638,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
-
-      assert(!p_uop->eliminated);
 
       switch (uopcode) {
       case 0x61: /* ADC idx */
@@ -708,6 +717,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
         }
         break;
+      case 0xD8: /* CLD */
+        flag_decimal = 0;
+        break;
       case 0xE8: /* INX */
         if (reg_x != k_value_unknown) {
           uopcode = 0xA2; /* LDX imm */
@@ -718,6 +730,28 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case 0xE9: /* SBC imm */
         if (flag_carry == 1) {
           uopcode = k_opcode_SUB_IMM;
+        }
+        break;
+      case 0xF8: /* SED */
+        flag_decimal = 1;
+        break;
+      case k_opcode_CHECK_BCD:
+        if (flag_decimal == k_value_unknown) {
+          p_uop->eliminated = 1;
+          p_bcd_opcode->eliminated = 0;
+        } else if (flag_decimal == 0) {
+          p_uop->eliminated = 1;
+        } else {
+          p_opcode->num_uops = 1;
+          p_uop = &p_opcode->uops[0];
+          /* TODO: make jit_compiler_set_uop a usable helper function. */
+          uopcode = k_opcode_interp;
+          p_uop->uoptype = -1;
+          p_uop->value1 = p_opcode->addr_6502;
+          p_uop->value2 = 0;
+          p_uop->eliminated = 0;
+          p_opcode->ends_block = 1;
+          num_opcodes = (i_opcodes + 1);
         }
         break;
       default:
@@ -899,7 +933,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
-      assert(!p_uop->eliminated);
 
       /* Finalize eliminations. */
       /* NZ flag load. */
@@ -1050,4 +1083,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
     }
   }
+
+  return num_opcodes;
 }

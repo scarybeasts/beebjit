@@ -468,7 +468,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Pre-main uops. */
   switch (optype) {
   case k_adc:
-    jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, addr_6502);
+    jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, 0);
     p_uop++;
     jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY, 0);
     p_uop++;
@@ -512,7 +512,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_sbc:
-    jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, addr_6502);
+    jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, 0);
     p_uop++;
     jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_INV, 0);
     p_uop++;
@@ -725,7 +725,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
   case k_opcode_countdown:
-  case k_opcode_CHECK_BCD:
   case k_opcode_CHECK_PENDING_IRQ:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
@@ -790,7 +789,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_CHECK_BCD:
-    asm_x64_emit_jit_CHECK_BCD(p_dest_buf, (void*) (size_t) value1);
+    asm_x64_emit_jit_CHECK_BCD(p_dest_buf);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
     asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf,
@@ -1394,12 +1393,27 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_compiler->addr_is_block_start[start_addr_6502] = 0;
   }
 
+  /* Prepend opcodes at the start of every block. */
+  addr_6502 = start_addr_6502;
+  /* 1) Every block starts with a countdown check. */
+  p_details = &opcode_details[total_num_opcodes];
+  jit_compiler_set_internal_opcode(p_details,
+                                   addr_6502,
+                                   k_opcode_countdown,
+                                   addr_6502);
+  p_details->cycles_run_start = 0;
+  total_num_opcodes++;
+  /* 2) An unused opcode for the optimizer to use if it wants. */
+  p_details = &opcode_details[total_num_opcodes];
+  jit_compiler_set_internal_opcode(p_details, addr_6502, 0xEA, 0);
+  p_details->eliminated = 1;
+  total_num_opcodes++;
+
   /* First break all the opcodes for this run into uops.
    * This defines maximum possible bounds for the block and respects existing
    * known block boundaries.
    */
-  addr_6502 = start_addr_6502;
-  needs_countdown = 1;
+  needs_countdown = 0;
   while (1) {
     p_details = &opcode_details[total_num_opcodes];
 
@@ -1486,13 +1500,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       assert(p_uop->uopcode == k_opcode_countdown);
       assert(p_uop->value2 == 0);
     }
+
     p_details_fixup->cycles_run_start += p_details->max_cycles_orig;
     p_uop->value2 = p_details_fixup->cycles_run_start;
   }
 
   /* Third, run the optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
-    jit_optimizer_optimize(p_compiler, &opcode_details[0], total_num_opcodes);
+    total_num_opcodes = jit_optimizer_optimize(p_compiler,
+                                               &opcode_details[0],
+                                               total_num_opcodes);
   }
 
   /* Fourth, emit the uop stream to the output buffer. This finalizes the number
@@ -1509,6 +1526,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     if (p_details->eliminated) {
       continue;
     }
+    if (i_opcodes == (total_num_opcodes - 1)) {
+      assert(p_details->ends_block);
+    } else {
+      assert(!p_details->ends_block);
+    }
+
     addr_6502 = p_details->addr_6502;
 
     util_buffer_setup(p_single_opcode_buf,

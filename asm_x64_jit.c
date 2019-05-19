@@ -243,15 +243,8 @@ asm_x64_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf, void* p_trampoline) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
+asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_CHECK_BCD, asm_x64_jit_CHECK_BCD_END);
-  asm_x64_patch_jump(p_buf,
-                     offset,
-                     asm_x64_jit_CHECK_BCD,
-                     asm_x64_jit_CHECK_BCD_jump_patch,
-                     p_trampoline);
 }
 
 void

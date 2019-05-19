@@ -921,7 +921,6 @@ main(int argc, const char* argv[]) {
   /* Test some of the simpler BCD behavior. */
   set_new_index(p_buf, 0x0CC0);
   emit_SED(p_buf);
-
   emit_SEC(p_buf);
   emit_LDA(p_buf, k_imm, 0x15);
   emit_ADC(p_buf, k_imm, 0x14);
@@ -1146,7 +1145,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD080);
 
+  /* Test for a JIT crash in the fault + fixup BCD handling. */
   set_new_index(p_buf, 0x1080);
+  emit_SEI(p_buf);
+  emit_SED(p_buf);
+  emit_JMP(p_buf, k_abs, 0xD085);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_ADC(p_buf, k_imm, 0x89);
+  emit_REQUIRE_EQ(p_buf, 0x91);
+  emit_JMP(p_buf, k_abs, 0xD0C0);
+
+  set_new_index(p_buf, 0x10C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

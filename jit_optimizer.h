@@ -6,7 +6,7 @@
 struct jit_opcode_details;
 struct jit_compiler;
 
-void
+uint32_t
 jit_optimizer_optimize(struct jit_compiler* p_compiler,
                        struct jit_opcode_details* p_opcodes,
                        uint32_t num_opcodes);
