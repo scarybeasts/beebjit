@@ -1165,13 +1165,16 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         jit_optimizer_eliminate(&p_overflow_opcode, p_overflow_uop, p_opcode);
       }
       /* Carry flag save elimination. */
-      if ((p_carry_opcode != NULL) && (uopcode == k_opcode_LOAD_CARRY)) {
-        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
-        p_eliminated_save_carry_opcode = p_carry_opcode;
-        /* Eliminate load. */
-        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-        /* Eliminate unfinalized save. */
-        jit_optimizer_eliminate(&p_carry_opcode, p_carry_uop, p_opcode);
+      if (p_carry_opcode != NULL) {
+        if ((uopcode == k_opcode_LOAD_CARRY) &&
+            (p_carry_uop->uopcode == k_opcode_SAVE_CARRY)) {
+          struct jit_opcode_details* p_eliminate_opcode = p_opcode;
+          p_eliminated_save_carry_opcode = p_carry_opcode;
+          /* Eliminate load. */
+          jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
+          /* Eliminate unfinalized save. */
+          jit_optimizer_eliminate(&p_carry_opcode, p_carry_uop, p_opcode);
+        }
       }
 
       /* Cancel eliminations. */
@@ -1233,6 +1236,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_overflow_uop = p_uop;
         break;
       case k_opcode_SAVE_CARRY:
+      case k_opcode_SAVE_CARRY_INV:
         p_carry_opcode = p_opcode;
         p_carry_uop = p_uop;
         p_eliminated_save_carry_opcode = NULL;

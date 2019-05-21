@@ -1224,7 +1224,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD180);
 
+  /* Test for a JIT bug messing up a CMP + BCS combo after an ADC. */
   set_new_index(p_buf, 0x1180);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x12);
+  emit_JMP(p_buf, k_abs, 0xD186);
+  emit_ADC(p_buf, k_imm, 0x34);
+  emit_CMP(p_buf, k_imm, 0x40);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD1C0);
+
+  set_new_index(p_buf, 0x11C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
