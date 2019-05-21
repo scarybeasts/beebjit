@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 static const int32_t k_value_unknown = -1;
 
@@ -30,12 +31,55 @@ jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
 
   *pp_elim_opcode = NULL;
 
+  assert(!p_elim_uop->eliminated);
   p_elim_uop->eliminated = 1;
 
-  while (p_elim_opcode != p_curr_opcode) {
-    assert(p_elim_opcode->num_fixup_uops < k_max_uops_per_opcode);
-    p_elim_opcode->fixup_uops[p_elim_opcode->num_fixup_uops++] = p_elim_uop;
+  p_elim_opcode++;
+  while (p_elim_opcode <= p_curr_opcode) {
+    uint32_t num_fixup_uops = p_elim_opcode->num_fixup_uops;
+    assert(num_fixup_uops < k_max_uops_per_opcode);
+    /* Prepend the elimination so that fixups are applied in order of last
+     * fixup first. This is important because some fixups trash each other,
+     * such as FLAGX trashing any pending SAVE_CARRY.
+     */
+    (void) memmove(&p_elim_opcode->fixup_uops[1],
+                   &p_elim_opcode->fixup_uops[0],
+                   (sizeof(struct jit_uop*) * num_fixup_uops));
+    p_elim_opcode->fixup_uops[0] = p_elim_uop;
+    p_elim_opcode->num_fixup_uops++;
     p_elim_opcode++;
+  }
+}
+
+static void
+jit_optimizer_uneliminate(struct jit_opcode_details** pp_unelim_opcode,
+                          int32_t uopcode,
+                          struct jit_opcode_details* p_curr_opcode) {
+  struct jit_uop* p_unelim_uop;
+
+  struct jit_opcode_details* p_unelim_opcode = *pp_unelim_opcode;
+
+  *pp_unelim_opcode = NULL;
+  p_unelim_uop = jit_optimizer_find_uop(p_unelim_opcode, uopcode);
+
+  assert(p_unelim_uop->eliminated);
+  p_unelim_uop->eliminated = 0;
+
+  p_unelim_opcode++;
+  while (p_unelim_opcode <= p_curr_opcode) {
+    uint32_t i_fixup_uops;
+    int found = 0;
+    for (i_fixup_uops = 0;
+         i_fixup_uops < p_unelim_opcode->num_fixup_uops;
+         ++i_fixup_uops) {
+      if (p_unelim_opcode->fixup_uops[i_fixup_uops]->uopcode == uopcode) {
+        found = 1;
+        p_unelim_opcode->fixup_uops[i_fixup_uops] = NULL;
+      }
+    }
+    (void) found;
+    assert(found);
+    p_unelim_opcode++;
   }
 }
 
@@ -467,6 +511,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
   return ret;
 }
 
+/* TODO: these lists are duplicative and awful. Improve. */
 static int
 jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
   /* Many things need or trash overflow so we'll just enumerate what's safe. */
@@ -541,6 +586,87 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
   return ret;
 }
 
+static int
+jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
+  /* Many things need or trash carry so we'll just enumerate what's safe. */
+  int ret = 1;
+  if (uopcode <= 0xFF) {
+    uint8_t optype = g_optypes[uopcode];
+    switch (optype) {
+    case k_nop:
+    case k_cmp:
+    case k_cpx:
+    case k_cpy:
+    case k_inx:
+    case k_dex:
+    case k_iny:
+    case k_dey:
+    case k_asl:
+    case k_lsr:
+    case k_lda:
+    case k_ldx:
+    case k_ldy:
+    case k_sta:
+    case k_stx:
+    case k_sty:
+    case k_sec:
+    case k_clc:
+    case k_pla:
+    case k_pha:
+    case k_tax:
+    case k_tay:
+    case k_txa:
+    case k_tya:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  } else {
+    switch (uopcode) {
+    case k_opcode_ABX_CHECK_PAGE_CROSSING:
+    case k_opcode_ABY_CHECK_PAGE_CROSSING:
+    case k_opcode_ADD_ABS:
+    case k_opcode_ADD_ABX:
+    case k_opcode_ADD_ABY:
+    case k_opcode_ADD_IMM:
+    case k_opcode_ADD_SCRATCH:
+    case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_ASL_ACC_n:
+    case k_opcode_CHECK_BCD:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    case k_opcode_CHECK_PENDING_IRQ:
+    case k_opcode_IDY_CHECK_PAGE_CROSSING:
+    case k_opcode_LDA_SCRATCH_n:
+    case k_opcode_LDA_Z:
+    case k_opcode_LDX_Z:
+    case k_opcode_LDY_Z:
+    case k_opcode_LOAD_CARRY:
+    case k_opcode_LOAD_CARRY_INV:
+    case k_opcode_LSR_ACC_n:
+    case k_opcode_MODE_ABX:
+    case k_opcode_MODE_ABY:
+    case k_opcode_MODE_IND:
+    case k_opcode_MODE_IND_SCRATCH:
+    case k_opcode_MODE_ZPX:
+    case k_opcode_MODE_ZPY:
+    case k_opcode_SAVE_CARRY:
+    case k_opcode_SAVE_CARRY_INV:
+    case k_opcode_SAVE_OVERFLOW:
+    case k_opcode_STOA_IMM:
+    case k_opcode_SUB_IMM:
+    case k_opcode_WRITE_INV_ABS:
+    case k_opcode_WRITE_INV_SCRATCH:
+    case k_opcode_WRITE_INV_SCRATCH_Y:
+      ret = 0;
+      break;
+    default:
+      break;
+    }
+  }
+  return ret;
+}
+
 static void
 jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
                          int32_t uopcode) {
@@ -583,6 +709,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_idy_uop;
   struct jit_opcode_details* p_overflow_opcode;
   struct jit_uop* p_overflow_uop;
+  struct jit_opcode_details* p_carry_opcode;
+  struct jit_uop* p_carry_uop;
+  struct jit_opcode_details* p_eliminated_save_carry_opcode;
 
   struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
 
@@ -944,7 +1073,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       if ((p_idy_opcode != NULL) &&
           jit_optimizer_uop_idy_match(p_uop, p_idy_uop)) {
         struct jit_opcode_details* p_eliminate_opcode = p_opcode;
-        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, p_opcode);
+        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
       }
 
       /* Cancel eliminations. */
@@ -993,6 +1122,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   p_ldy_uop = NULL;
   p_overflow_opcode = NULL;
   p_overflow_uop = NULL;
+  p_carry_opcode = NULL;
+  p_carry_uop = NULL;
+  p_eliminated_save_carry_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t i_uops;
     uint32_t num_uops;
@@ -1030,6 +1162,15 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       if ((p_overflow_opcode != NULL) && (uopcode == k_opcode_SAVE_OVERFLOW)) {
         jit_optimizer_eliminate(&p_overflow_opcode, p_overflow_uop, p_opcode);
       }
+      /* Carry flag save elimination. */
+      if ((p_carry_opcode != NULL) && (uopcode == k_opcode_LOAD_CARRY)) {
+        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
+        p_eliminated_save_carry_opcode = p_carry_opcode;
+        /* Eliminate load. */
+        jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
+        /* Eliminate unfinalized save. */
+        jit_optimizer_eliminate(&p_carry_opcode, p_carry_uop, p_opcode);
+      }
 
       /* Cancel eliminations. */
       /* LDA A load. */
@@ -1049,12 +1190,23 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_uopcode_needs_or_trashes_overflow(uopcode)) {
         p_overflow_opcode = NULL;
       }
-      /* Many eliminations can't cross branches. */
+      /* Carry flag save elimination. */
+      if ((p_carry_opcode != NULL) &&
+          jit_optimizer_uopcode_needs_or_trashes_carry(uopcode)) {
+        p_carry_opcode = NULL;
+      }
+      /* Many eliminations can't cross branches, or need modifications. */
       if (jit_optimizer_uopcode_can_jump(uopcode)) {
         p_lda_opcode = NULL;
         p_ldx_opcode = NULL;
         p_ldy_opcode = NULL;
         p_overflow_opcode = NULL;
+        p_carry_opcode = NULL;
+        if (p_eliminated_save_carry_opcode != NULL) {
+          jit_optimizer_uneliminate(&p_eliminated_save_carry_opcode,
+                                    k_opcode_SAVE_CARRY,
+                                    p_opcode);
+        }
       }
 
       /* Keep track of uops we may be able to eliminate. */
@@ -1077,6 +1229,11 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case k_opcode_SAVE_OVERFLOW:
         p_overflow_opcode = p_opcode;
         p_overflow_uop = p_uop;
+        break;
+      case k_opcode_SAVE_CARRY:
+        p_carry_opcode = p_opcode;
+        p_carry_uop = p_uop;
+        p_eliminated_save_carry_opcode = NULL;
         break;
       default:
         break;

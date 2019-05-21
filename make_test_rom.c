@@ -1137,6 +1137,7 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x30B7);
   emit_JSR(p_buf, 0x30B0);
   emit_REQUIRE_OF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
   /* Part 2: Fault + fixup + self modifying code. */
   emit_JSR(p_buf, 0x30C0);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
@@ -1154,9 +1155,76 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x02);
   emit_ADC(p_buf, k_imm, 0x89);
   emit_REQUIRE_EQ(p_buf, 0x91);
+  emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xD0C0);
 
+  /* Test for a JIT bug in carry flag + branch handling. */
   set_new_index(p_buf, 0x10C0);
+  emit_CLC(p_buf);
+  emit_JMP(p_buf, k_abs, 0xD0C4);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_INX(p_buf);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD100);
+
+  /* Test for a JIT bug in the ordering of fixup application. */
+  set_new_index(p_buf, 0x1100);
+  emit_CLC(p_buf);
+  emit_JMP(p_buf, k_abs, 0xD104);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_ADC(p_buf, k_imm, 0x7F);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_STX(p_buf, k_zpg, 0xC0);
+  emit_PHA(p_buf);                /* Try and run the buffer out of space. */
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_PHA(p_buf);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STX(p_buf, k_zpg, 0xC1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_REQUIRE_EQ(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD140);
+
+  /* Test for a JIT bug applying an incorrect fixup at an off-by-one address. */
+  set_new_index(p_buf, 0x1140);
+  emit_JSR(p_buf, 0x30E0); /* Sets OF to 1. */
+  emit_ORA(p_buf, k_imm, 0xEE);   /* Clears host OF, not 6502 OF. */
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x30E6);
+  emit_JSR(p_buf, 0x30E0);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD180);
+
+  set_new_index(p_buf, 0x1180);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1234,8 +1302,8 @@ main(int argc, const char* argv[]) {
   /* For a JIT overflag flag fixup test, part 1. */
   set_new_index(p_buf, 0x30B0);
   emit_CLC(p_buf);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_ADC(p_buf, k_imm, 0x01);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_ADC(p_buf, k_imm, 0x80);
   emit_STA(p_buf, k_zpg, 0xE0);
   emit_NOP(p_buf);
   emit_LDA(p_buf, k_imm, 0x7F);
@@ -1254,6 +1322,15 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_ADC(p_buf, k_imm, 0x01);
   emit_REQUIRE_OF(p_buf, 1);
+  emit_RTS(p_buf);
+
+  /* For another JIT overflow flag fixup test. */
+  set_new_index(p_buf, 0x30E0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7E);
+  emit_JMP(p_buf, k_abs, 0x30E6);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_imm, 0x01);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
