@@ -149,12 +149,15 @@ asm_x64_jit_check_countdown_8bit_END:
 asm_x64_jit_call_debug:
   mov REG_6502_PC_32, 0xFFFF
 asm_x64_jit_call_debug_pc_patch:
-  # Some optimizations cache values across opcodes in REG_SCRATCH1.
-  # So it must be saved.
+  # Some optimizations cache values across opcodes in REG_SCRATCH1 or host
+  # flags.
+  # So they must be saved.
+  pushf
   push REG_SCRATCH1
   call 0
 asm_x64_jit_call_debug_call_patch:
   pop REG_SCRATCH1
+  popf
 
 asm_x64_jit_call_debug_END:
   ret

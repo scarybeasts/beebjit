@@ -545,6 +545,7 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
+    case k_opcode_debug:
     case k_opcode_ABX_CHECK_PAGE_CROSSING:
     case k_opcode_ABY_CHECK_PAGE_CROSSING:
     case k_opcode_ADD_ABS:
@@ -624,6 +625,7 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
+    case k_opcode_debug:
     case k_opcode_ABX_CHECK_PAGE_CROSSING:
     case k_opcode_ABY_CHECK_PAGE_CROSSING:
     case k_opcode_ADD_ABS:
