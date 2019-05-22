@@ -108,3 +108,24 @@ Optimized:
   movzx edx, BYTE PTR [0x10000070]
   xor al, [rdx + rcx + 0x02000000]
   mov [rdx + rcx + 0x03000000], al
+
+8) Carry and overflow flag setting elimination
+6502:
+  ADC #$10
+  ADC #$20
+  <some jump>
+Unoptimized:
+  bt r14, 0
+  adc al, 0x10
+  setb r14b
+  seto r12b
+  bt r14, 0
+  adc al, 0x20
+  setb r14b
+  seto r12b
+Optimized:
+  bt r14, 0
+  adc al, 0x10
+  adc al, 0x20
+  setb r14b
+  seto r12b
