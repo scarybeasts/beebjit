@@ -191,6 +191,9 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
 
 static int
 jit_optimizer_uopcode_needs_nz_flags(int32_t uopcode) {
+  if (jit_optimizer_uopcode_can_jump(uopcode)) {
+    return 1;
+  }
   switch (uopcode) {
   case 0x08: /* PHP */
     return 1;
@@ -559,9 +562,6 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_CHECK_PENDING_IRQ:
     case k_opcode_IDY_CHECK_PAGE_CROSSING:
     case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
     case k_opcode_LOAD_CARRY:
     case k_opcode_LOAD_CARRY_INV:
     case k_opcode_MODE_ABX:
@@ -640,9 +640,6 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_CHECK_PENDING_IRQ:
     case k_opcode_IDY_CHECK_PAGE_CROSSING:
     case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
     case k_opcode_LOAD_CARRY:
     case k_opcode_LOAD_CARRY_INV:
     case k_opcode_LSR_ACC_n:
@@ -1082,16 +1079,41 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       /* NZ flag load. */
       if ((p_nz_flags_opcode != NULL) &&
           jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
+        /* If we can't eliminate a flag load, there's a special case of loading
+         * 0 into a register where we can collapse the register load and flag
+         * load.
+         */
+        int32_t find_uopcode = -1;
+        int32_t replace_uopcode = -1;
+        struct jit_uop* p_find_uop;
+        switch (p_nz_flags_uop->uopcode) {
+        case k_opcode_FLAGA:
+          find_uopcode = 0xA9; /* LDA imm */
+          replace_uopcode = k_opcode_LDA_Z;
+          break;
+        case k_opcode_FLAGX:
+          find_uopcode = 0xA2; /* LDX imm */
+          replace_uopcode = k_opcode_LDX_Z;
+          break;
+        case k_opcode_FLAGY:
+          find_uopcode = 0xA0; /* LDY imm */
+          replace_uopcode = k_opcode_LDY_Z;
+          break;
+        default:
+          assert(0);
+          break;
+        }
+        p_find_uop = jit_optimizer_find_uop(p_nz_flags_opcode, find_uopcode);
+        if ((p_find_uop != NULL) && (p_find_uop->value1 == 0x00)) {
+          p_find_uop->uopcode = replace_uopcode;
+          p_find_uop->uoptype = -1;
+          p_nz_flags_uop->eliminated = 1;
+        }
         p_nz_flags_opcode = NULL;
       }
       /* idy indirect load. */
       if ((p_idy_opcode != NULL) &&
           jit_optimizer_uop_invalidates_idy(p_uop, p_idy_uop)) {
-        p_idy_opcode = NULL;
-      }
-      /* Many eliminations can't cross branches. */
-      if (jit_optimizer_uopcode_can_jump(uopcode)) {
-        p_nz_flags_opcode = NULL;
         p_idy_opcode = NULL;
       }
 
@@ -1216,17 +1238,14 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
       /* Keep track of uops we may be able to eliminate. */
       switch (uopcode) {
-      case k_opcode_LDA_Z:
       case 0xA9: /* LDA imm */
         p_lda_opcode = p_opcode;
         p_lda_uop = p_uop;
         break;
-      case k_opcode_LDX_Z:
       case 0xA2: /* LDX imm */
         p_ldx_opcode = p_opcode;
         p_ldx_uop = p_uop;
         break;
-      case k_opcode_LDY_Z:
       case 0xA0: /* LDY imm */
         p_ldy_opcode = p_opcode;
         p_ldy_uop = p_uop;

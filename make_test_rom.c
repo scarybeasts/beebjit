@@ -1234,7 +1234,20 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD1C0);
 
+  /* Test for a JIT bug optimizing a register zero that broke carry. */
   set_new_index(p_buf, 0x11C0);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_LDA(p_buf, k_imm, 0xDD);
+  emit_JMP(p_buf, k_abs, 0xD1CA);
+  emit_ADC(p_buf, k_imm, 0x55);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_ADC(p_buf, k_zpg, 0x40);
+  emit_REQUIRE_EQ(p_buf, 0xF1);
+  emit_JMP(p_buf, k_abs, 0xD200);
+
+  set_new_index(p_buf, 0x1200);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

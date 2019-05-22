@@ -40,11 +40,8 @@ struct jit_compiler {
   uint32_t len_x64_FLAGA;
   uint32_t len_x64_FLAGX;
   uint32_t len_x64_FLAGY;
-  uint32_t len_x64_LDA_Z;
   uint32_t len_x64_0xA9;
-  uint32_t len_x64_LDX_Z;
   uint32_t len_x64_0xA2;
-  uint32_t len_x64_LDY_Z;
   uint32_t len_x64_0xA0;
   uint32_t len_x64_SAVE_OVERFLOW;
   uint32_t len_x64_SAVE_CARRY;
@@ -175,11 +172,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->len_x64_FLAGA = (asm_x64_jit_FLAGA_END - asm_x64_jit_FLAGA);
   p_compiler->len_x64_FLAGX = (asm_x64_jit_FLAGX_END - asm_x64_jit_FLAGX);
   p_compiler->len_x64_FLAGY = (asm_x64_jit_FLAGY_END - asm_x64_jit_FLAGY);
-  p_compiler->len_x64_LDA_Z = (asm_x64_jit_LDA_Z_END - asm_x64_jit_LDA_Z);
   p_compiler->len_x64_0xA9 = (asm_x64_jit_LDA_IMM_END - asm_x64_jit_LDA_IMM);
-  p_compiler->len_x64_LDX_Z = (asm_x64_jit_LDX_Z_END - asm_x64_jit_LDX_Z);
   p_compiler->len_x64_0xA2 = (asm_x64_jit_LDX_IMM_END - asm_x64_jit_LDX_IMM);
-  p_compiler->len_x64_LDY_Z = (asm_x64_jit_LDY_Z_END - asm_x64_jit_LDY_Z);
   p_compiler->len_x64_0xA0 = (asm_x64_jit_LDY_IMM_END - asm_x64_jit_LDY_IMM);
   p_compiler->len_x64_SAVE_OVERFLOW = (asm_x64_jit_SAVE_OVERFLOW_END -
                                        asm_x64_jit_SAVE_OVERFLOW);
@@ -571,33 +565,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_compiler_set_uop(p_uop, 0x4C, operand_6502);
     p_uop->uoptype = k_jmp;
     p_uop++;
-    break;
-  case k_lda:
-    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      jit_compiler_set_uop(p_uop, k_opcode_LDA_Z, 0);
-      p_uop++;
-      emit_flag_load = 0;
-    } else {
-      main_written = 0;
-    }
-    break;
-  case k_ldx:
-    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      jit_compiler_set_uop(p_uop, k_opcode_LDX_Z, 0);
-      p_uop++;
-      emit_flag_load = 0;
-    } else {
-      main_written = 0;
-    }
-    break;
-  case k_ldy:
-    if ((opmode == k_imm) && (operand_6502 == 0x00)) {
-      jit_compiler_set_uop(p_uop, k_opcode_LDY_Z, 0);
-      p_uop++;
-      emit_flag_load = 0;
-    } else {
-      main_written = 0;
-    }
     break;
   case k_rti:
   case k_rts:
@@ -1593,20 +1560,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       case k_opcode_FLAGY:
         buf_needed += p_compiler->len_x64_FLAGY;
         break;
-      case k_opcode_LDA_Z:
-        buf_needed += p_compiler->len_x64_LDA_Z;
-        break;
       case 0xA9: /* LDA imm */
         buf_needed += p_compiler->len_x64_0xA9;
         break;
-      case k_opcode_LDX_Z:
-        buf_needed += p_compiler->len_x64_LDX_Z;
-        break;
       case 0xA2: /* LDX imm */
         buf_needed += p_compiler->len_x64_0xA2;
-        break;
-      case k_opcode_LDY_Z:
-        buf_needed += p_compiler->len_x64_LDY_Z;
         break;
       case 0xA0: /* LDY imm */
         buf_needed += p_compiler->len_x64_0xA0;
@@ -1740,20 +1698,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
           case k_opcode_FLAGY:
             p_compiler->addr_nz_fixup[addr_6502] = k_y;
             break;
-          case k_opcode_LDA_Z:
-            p_compiler->addr_a_fixup[addr_6502] = 0;
-            break;
           case 0xA9: /* LDA imm */
             p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->value1;
             break;
-          case k_opcode_LDX_Z:
-            p_compiler->addr_x_fixup[addr_6502] = 0;
-            break;
           case 0xA2: /* LDX imm */
             p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->value1;
-            break;
-          case k_opcode_LDY_Z:
-            p_compiler->addr_y_fixup[addr_6502] = 0;
             break;
           case 0xA0: /* LDY imm */
             p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
