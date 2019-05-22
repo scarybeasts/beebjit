@@ -745,6 +745,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint8_t optype = g_optypes[opcode_6502];
     uint8_t opmode = g_opmodes[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
+    int use_interp = 0;
 
     if (p_opcode == p_bcd_opcode) {
       continue;
@@ -766,42 +767,34 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
       int32_t uopcode = p_uop->uopcode;
+      int32_t new_add_uopcode = -1;
+      int32_t new_sub_uopcode = -1;
 
       switch (uopcode) {
       case 0x61: /* ADC idx */
       case 0x75: /* ADC zpx */
-        if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_SCRATCH;
-        }
+        new_add_uopcode = k_opcode_ADD_SCRATCH;
         break;
       case 0x65: /* ADC zpg */
       case 0x6D: /* ADC abs */
-        if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_ABS;
-        }
+        new_add_uopcode = k_opcode_ADD_ABS;
         break;
       case 0x69: /* ADC imm */
         if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_IMM;
+          new_add_uopcode = k_opcode_ADD_IMM;
         } else if (flag_carry == 1) {
           /* NOTE: if this is common, we can optimize this case. */
           printf("LOG:JIT:optimizer sees ADC #$imm with C==1\n");
         }
         break;
       case 0x71: /* ADC idy */
-        if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_SCRATCH_Y;
-        }
+        new_add_uopcode = k_opcode_ADD_SCRATCH_Y;
         break;
       case 0x79: /* ADC aby */
-        if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_ABY;
-        }
+        new_add_uopcode = k_opcode_ADD_ABY;
         break;
       case 0x7D: /* ADC abx */
-        if (flag_carry == 0) {
-          uopcode = k_opcode_ADD_ABX;
-        }
+        new_add_uopcode = k_opcode_ADD_ABX;
         break;
       case 0x84: /* STY zpg */
       case 0x8C: /* STY abs */
@@ -856,9 +849,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         }
         break;
       case 0xE9: /* SBC imm */
-        if (flag_carry == 1) {
-          uopcode = k_opcode_SUB_IMM;
-        }
+        new_sub_uopcode = k_opcode_SUB_IMM;
         break;
       case 0xF8: /* SED */
         flag_decimal = 1;
@@ -870,20 +861,28 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
         } else {
-          p_opcode->num_uops = 1;
-          p_uop = &p_opcode->uops[0];
-          /* TODO: make jit_compiler_set_uop a usable helper function. */
-          uopcode = k_opcode_interp;
-          p_uop->uoptype = -1;
-          p_uop->value1 = p_opcode->addr_6502;
-          p_uop->value2 = 0;
-          p_uop->eliminated = 0;
-          p_opcode->ends_block = 1;
-          num_opcodes = (i_opcodes + 1);
+          use_interp = 1;
         }
         break;
       default:
         break;
+      }
+
+      if ((new_add_uopcode != -1) && (flag_carry == 0)) {
+        /* Eliminate LOAD_CARRY, flip ADC to ADD. */
+        struct jit_uop* p_elim_uop;
+        uopcode = new_add_uopcode;
+        p_elim_uop = jit_optimizer_find_uop(p_opcode, k_opcode_LOAD_CARRY);
+        assert(p_elim_uop != NULL);
+        p_elim_uop->eliminated = 1;
+      }
+      if ((new_sub_uopcode != -1) && (flag_carry == 1)) {
+        /* Eliminate LOAD_CARRY_INV, flip SBC to SUB. */
+        struct jit_uop* p_elim_uop;
+        uopcode = new_sub_uopcode;
+        p_elim_uop = jit_optimizer_find_uop(p_opcode, k_opcode_LOAD_CARRY_INV);
+        assert(p_elim_uop != NULL);
+        p_elim_uop->eliminated = 1;
       }
 
       if (reg_y != k_value_unknown) {
@@ -984,6 +983,21 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       if (changes_carry) {
         flag_carry = k_value_unknown;
       }
+      break;
+    }
+
+    if (use_interp) {
+      struct jit_uop* p_uop;
+      p_opcode->num_uops = 1;
+      p_uop = &p_opcode->uops[0];
+      /* TODO: make jit_compiler_set_uop a usable helper function. */
+      p_uop->uopcode = k_opcode_interp;
+      p_uop->uoptype = -1;
+      p_uop->value1 = p_opcode->addr_6502;
+      p_uop->value2 = 0;
+      p_uop->eliminated = 0;
+      p_opcode->ends_block = 1;
+      num_opcodes = (i_opcodes + 1);
       break;
     }
   }

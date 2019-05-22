@@ -45,6 +45,7 @@ struct jit_compiler {
   uint32_t len_x64_0xA0;
   uint32_t len_x64_SAVE_OVERFLOW;
   uint32_t len_x64_SAVE_CARRY;
+  uint32_t len_x64_CLC;
 
   int compile_for_code_in_zero_page;
 
@@ -179,6 +180,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
                                        asm_x64_jit_SAVE_OVERFLOW);
   p_compiler->len_x64_SAVE_CARRY = (asm_x64_jit_SAVE_CARRY_END -
                                     asm_x64_jit_SAVE_CARRY);
+  p_compiler->len_x64_CLC = (asm_x64_instruction_CLC_END -
+                             asm_x64_instruction_CLC);
 
   return p_compiler;
 }
@@ -1575,6 +1578,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       case k_opcode_SAVE_CARRY:
         buf_needed += p_compiler->len_x64_SAVE_CARRY;
         break;
+      case 0x18:
+        buf_needed += p_compiler->len_x64_CLC;
+        break;
       default:
         assert(0);
         break;
@@ -1713,6 +1719,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
           case k_opcode_SAVE_CARRY:
             p_compiler->addr_c_fixup[addr_6502] = 1;
             break;
+          case 0x18: /* CLC */
+            p_compiler->addr_c_fixup[addr_6502] = 2;
+            break;
           default:
             assert(0);
             break;
@@ -1749,7 +1758,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   uint8_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
   uint8_t o_fixup = p_compiler->addr_o_fixup[pc_6502];
-  uint8_t c_fixup = p_compiler->addr_o_fixup[pc_6502];
+  uint8_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
   int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
@@ -1800,9 +1809,17 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
   }
   if (c_fixup) {
-    int host_carry_flag = !!(host_rflags & 0x0001);
+    int new_carry;
+    if (c_fixup == 1) {
+      new_carry = !!(host_rflags & 0x0001);
+    } else if (c_fixup == 2) {
+      new_carry = 0;
+    } else {
+      assert(c_fixup == 3);
+      new_carry = 1;
+    }
     p_state_6502->reg_flags &= ~(1 << k_flag_carry);
-    p_state_6502->reg_flags |= (host_carry_flag << k_flag_carry);
+    p_state_6502->reg_flags |= (new_carry << k_flag_carry);
   }
 
   return countdown;

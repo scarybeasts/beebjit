@@ -1247,7 +1247,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xF1);
   emit_JMP(p_buf, k_abs, 0xD200);
 
+  /* Test for a JIT optimizer bug with SED + CLC + ADC. */
   set_new_index(p_buf, 0x1200);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JMP(p_buf, k_abs, 0xD205);
+  emit_CLC(p_buf);
+  emit_SED(p_buf);
+  emit_ADC(p_buf, k_imm, 0x10);
+  emit_REQUIRE_EQ(p_buf, 0x11);
+  emit_JMP(p_buf, k_abs, 0xD240);
+
+  set_new_index(p_buf, 0x1240);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
