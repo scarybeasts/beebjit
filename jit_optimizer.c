@@ -173,6 +173,7 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
+    case k_opcode_FLAG_MEM:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LDA_Z:
     case k_opcode_LDX_Z:
@@ -493,6 +494,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
+    case k_opcode_FLAG_MEM:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LDA_Z:
     case k_opcode_LDX_Z:

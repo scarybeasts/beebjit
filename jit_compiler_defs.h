@@ -67,6 +67,7 @@ enum {
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
+  k_opcode_FLAG_MEM,
   k_opcode_IDY_CHECK_PAGE_CROSSING,
   k_opcode_INC_SCRATCH,
   k_opcode_JMP_SCRATCH,

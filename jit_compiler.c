@@ -665,10 +665,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_ror:
     jit_compiler_set_uop(p_uop, k_opcode_SAVE_CARRY, 0);
     p_uop++;
-    /* TODO: come up with viable optimization for non-acc modes. */
-    if (opmode == k_acc) {
+    switch (opmode) {
+    case k_acc:
       jit_compiler_set_uop(p_uop, k_opcode_FLAGA, 0);
       p_uop++;
+      break;
+    case k_zpg:
+    case k_abs:
+      jit_compiler_set_uop(p_uop, k_opcode_FLAG_MEM, operand_6502);
+      p_uop++;
+    default:
+      break;
     }
     break;
   case k_sbc:
@@ -780,6 +787,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_FLAGY:
     asm_x64_emit_jit_FLAGY(p_dest_buf);
+    break;
+  case k_opcode_FLAG_MEM:
+    asm_x64_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_IDY_CHECK_PAGE_CROSSING:
     asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(p_dest_buf);
@@ -953,7 +963,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x26: /* ROL zpg */
   case 0x2E: /* ROL abs */
-    asm_x64_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_ROL_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x28:
     asm_x64_emit_instruction_PLP(p_dest_buf);
@@ -1055,7 +1069,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x66: /* ROR zpg */
   case 0x6E: /* ROR abs */
-    asm_x64_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+      asm_x64_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
+    } else {
+      asm_x64_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+    }
     break;
   case 0x68:
     asm_x64_emit_instruction_PLA(p_dest_buf);

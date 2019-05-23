@@ -362,6 +362,15 @@ asm_x64_jit_FLAGY_END:
   ret
 
 
+.globl asm_x64_jit_FLAG_MEM
+.globl asm_x64_jit_FLAG_MEM_END
+asm_x64_jit_FLAG_MEM:
+  test BYTE PTR [0x7fffffff], 0xff
+
+asm_x64_jit_FLAG_MEM_END:
+  ret
+
+
 .globl asm_x64_jit_JMP_SCRATCH
 .globl asm_x64_jit_JMP_SCRATCH_END
 asm_x64_jit_JMP_SCRATCH:
@@ -1517,18 +1526,24 @@ asm_x64_jit_ORA_SCRATCH_Y_END:
   ret
 
 
+.globl asm_x64_jit_ROL_ABS
+.globl asm_x64_jit_ROL_ABS_END
+asm_x64_jit_ROL_ABS:
+  rcl BYTE PTR [0x7fffffff]
+
+asm_x64_jit_ROL_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_ROL_ABS_RMW
 .globl asm_x64_jit_ROL_ABS_RMW_mov1_patch
 .globl asm_x64_jit_ROL_ABS_RMW_mov2_patch
 .globl asm_x64_jit_ROL_ABS_RMW_END
 asm_x64_jit_ROL_ABS_RMW:
-  mov REG_SCRATCH1_8, [0x7fffffff]
+  mov REG_SCRATCH2_8, [0x7fffffff]
 asm_x64_jit_ROL_ABS_RMW_mov1_patch:
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  rcl REG_SCRATCH1_8, 1
-  test REG_SCRATCH1_8, REG_SCRATCH1_8
-  bt REG_SCRATCH2_32, 7
-  mov [0x7fffffff], REG_SCRATCH1_8
+  rcl REG_SCRATCH2_8, 1
+  mov [0x7fffffff], REG_SCRATCH2_8
 asm_x64_jit_ROL_ABS_RMW_mov2_patch:
 
 asm_x64_jit_ROL_ABS_RMW_END:
@@ -1585,18 +1600,24 @@ asm_x64_jit_ROL_scratch_END:
   ret
 
 
+.globl asm_x64_jit_ROR_ABS
+.globl asm_x64_jit_ROR_ABS_END
+asm_x64_jit_ROR_ABS:
+  rcr BYTE PTR [0x7fffffff]
+
+asm_x64_jit_ROR_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_ROR_ABS_RMW
 .globl asm_x64_jit_ROR_ABS_RMW_mov1_patch
 .globl asm_x64_jit_ROR_ABS_RMW_mov2_patch
 .globl asm_x64_jit_ROR_ABS_RMW_END
 asm_x64_jit_ROR_ABS_RMW:
-  mov REG_SCRATCH1_8, [0x7fffffff]
+  mov REG_SCRATCH2_8, [0x7fffffff]
 asm_x64_jit_ROR_ABS_RMW_mov1_patch:
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  rcr REG_SCRATCH1_8, 1
-  test REG_SCRATCH1_8, REG_SCRATCH1_8
-  bt REG_SCRATCH2_32, 0
-  mov [0x7fffffff], REG_SCRATCH1_8
+  rcr REG_SCRATCH2_8, 1
+  mov [0x7fffffff], REG_SCRATCH2_8
 asm_x64_jit_ROR_ABS_RMW_mov2_patch:
 
 asm_x64_jit_ROR_ABS_RMW_END:

@@ -293,6 +293,18 @@ asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_FLAG_MEM, asm_x64_jit_FLAG_MEM_END);
+  asm_x64_patch_int(p_buf,
+                    (offset - 1),
+                    asm_x64_jit_FLAG_MEM,
+                    asm_x64_jit_FLAG_MEM_END,
+                    (K_BBC_MEM_READ_ADDR + addr));
+}
+
+void
 asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_jit_IDY_CHECK_PAGE_CROSSING,
@@ -1236,6 +1248,14 @@ asm_x64_emit_jit_ORA_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_ROL_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x64_copy_patch_u32(p_buf,
+                         asm_x64_jit_ROL_ABS,
+                         asm_x64_jit_ROL_ABS_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
+}
+
+void
 asm_x64_emit_jit_ROL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
@@ -1285,6 +1305,14 @@ asm_x64_emit_jit_ROL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
 void
 asm_x64_emit_jit_ROL_scratch(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_ROL_scratch, asm_x64_jit_ROL_scratch_END);
+}
+
+void
+asm_x64_emit_jit_ROR_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x64_copy_patch_u32(p_buf,
+                         asm_x64_jit_ROR_ABS,
+                         asm_x64_jit_ROR_ABS_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
 }
 
 void
