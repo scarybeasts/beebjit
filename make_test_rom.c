@@ -1257,7 +1257,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x11);
   emit_JMP(p_buf, k_abs, 0xD240);
 
+  /* Test optimization of ROR zpg + flag eliminations. */
   set_new_index(p_buf, 0x1240);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_SEC(p_buf);
+  emit_ROR(p_buf, k_zpg, 0x40);
+  emit_ROR(p_buf, k_zpg, 0x40);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xD280);
+
+  set_new_index(p_buf, 0x1280);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

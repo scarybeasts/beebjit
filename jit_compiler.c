@@ -40,6 +40,7 @@ struct jit_compiler {
   uint32_t len_x64_FLAGA;
   uint32_t len_x64_FLAGX;
   uint32_t len_x64_FLAGY;
+  uint32_t len_x64_FLAG_MEM;
   uint32_t len_x64_0xA9;
   uint32_t len_x64_0xA2;
   uint32_t len_x64_0xA0;
@@ -55,6 +56,7 @@ struct jit_compiler {
 
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
   uint8_t addr_nz_fixup[k_6502_addr_space_size];
+  int32_t addr_nz_mem_fixup[k_6502_addr_space_size];
   uint8_t addr_o_fixup[k_6502_addr_space_size];
   uint8_t addr_c_fixup[k_6502_addr_space_size];
   int32_t addr_a_fixup[k_6502_addr_space_size];
@@ -173,6 +175,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->len_x64_FLAGA = (asm_x64_jit_FLAGA_END - asm_x64_jit_FLAGA);
   p_compiler->len_x64_FLAGX = (asm_x64_jit_FLAGX_END - asm_x64_jit_FLAGX);
   p_compiler->len_x64_FLAGY = (asm_x64_jit_FLAGY_END - asm_x64_jit_FLAGY);
+  p_compiler->len_x64_FLAG_MEM = (asm_x64_jit_FLAG_MEM_END -
+                                  asm_x64_jit_FLAG_MEM);
   p_compiler->len_x64_0xA9 = (asm_x64_jit_LDA_IMM_END - asm_x64_jit_LDA_IMM);
   p_compiler->len_x64_0xA2 = (asm_x64_jit_LDX_IMM_END - asm_x64_jit_LDX_IMM);
   p_compiler->len_x64_0xA0 = (asm_x64_jit_LDY_IMM_END - asm_x64_jit_LDY_IMM);
@@ -1581,6 +1585,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       case k_opcode_FLAGY:
         buf_needed += p_compiler->len_x64_FLAGY;
         break;
+      case k_opcode_FLAG_MEM:
+        buf_needed += p_compiler->len_x64_FLAG_MEM;
+        break;
       case 0xA9: /* LDA imm */
         buf_needed += p_compiler->len_x64_0xA9;
         break;
@@ -1697,6 +1704,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->addr_is_block_continuation[addr_6502] = 0;
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
+      p_compiler->addr_nz_mem_fixup[addr_6502] = -1;
       p_compiler->addr_o_fixup[addr_6502] = 0;
       p_compiler->addr_c_fixup[addr_6502] = 0;
       p_compiler->addr_a_fixup[addr_6502] = -1;
@@ -1721,6 +1729,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
             break;
           case k_opcode_FLAGY:
             p_compiler->addr_nz_fixup[addr_6502] = k_y;
+            break;
+          case k_opcode_FLAG_MEM:
+            p_compiler->addr_nz_mem_fixup[addr_6502] = (uint16_t) p_uop->value1;
             break;
           case 0xA9: /* LDA imm */
             p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->value1;
@@ -1775,6 +1786,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   uint16_t pc_6502 = p_state_6502->reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   uint8_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
+  int32_t nz_mem_fixup = p_compiler->addr_nz_mem_fixup[pc_6502];
   uint8_t o_fixup = p_compiler->addr_o_fixup[pc_6502];
   uint8_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
   int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
@@ -1793,28 +1805,32 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   if (y_fixup != -1) {
     state_6502_set_y(p_state_6502, y_fixup);
   }
-  if (nz_fixup != 0) {
-    uint8_t reg_val = 0;
+  if ((nz_fixup != 0) || (nz_mem_fixup != -1)) {
+    uint8_t nz_val = 0;
     uint8_t flag_n;
     uint8_t flag_z;
     uint8_t flags_new;
     switch (nz_fixup) {
+    case 0:
+      assert(nz_mem_fixup != -1);
+      nz_val = p_compiler->p_mem_read[nz_mem_fixup];
+      break;
     case k_a:
-      reg_val = p_state_6502->reg_a;
+      nz_val = p_state_6502->reg_a;
       break;
     case k_x:
-      reg_val = p_state_6502->reg_x;
+      nz_val = p_state_6502->reg_x;
       break;
     case k_y:
-      reg_val = p_state_6502->reg_y;
+      nz_val = p_state_6502->reg_y;
       break;
     default:
       assert(0);
       break;
     }
 
-    flag_n = !!(reg_val & 0x80);
-    flag_z = (reg_val == 0);
+    flag_n = !!(nz_val & 0x80);
+    flag_z = (nz_val == 0);
     flags_new = 0;
     flags_new |= (flag_n << k_flag_negative);
     flags_new |= (flag_z << k_flag_zero);
@@ -1860,6 +1876,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
     p_compiler->addr_cycles_fixup[i] = -1;
     p_compiler->addr_nz_fixup[i] = 0;
+    p_compiler->addr_nz_mem_fixup[i] = -1;
     p_compiler->addr_o_fixup[i] = 0;
     p_compiler->addr_c_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;

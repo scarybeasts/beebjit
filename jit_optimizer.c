@@ -1115,6 +1115,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           find_uopcode = 0xA0; /* LDY imm */
           replace_uopcode = k_opcode_LDY_Z;
           break;
+        case k_opcode_FLAG_MEM:
+          break;
         default:
           assert(0);
           break;
@@ -1138,6 +1140,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case k_opcode_FLAGA:
       case k_opcode_FLAGX:
       case k_opcode_FLAGY:
+      case k_opcode_FLAG_MEM:
         p_nz_flags_opcode = p_opcode;
         p_nz_flags_uop = p_uop;
         break;
