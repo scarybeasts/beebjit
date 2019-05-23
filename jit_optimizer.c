@@ -1216,6 +1216,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
             p_eliminated_save_carry_opcode = p_carry_opcode;
             /* Eliminate unfinalized save. */
             jit_optimizer_eliminate(&p_carry_opcode, p_carry_uop, p_opcode);
+          } else if (p_carry_uop->uopcode == 0x18) {
+            /* Unneccessary CLC. */
+            jit_optimizer_eliminate(&p_carry_opcode, p_carry_uop, p_opcode);
           }
         }
       }
@@ -1277,6 +1280,11 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       case k_opcode_SAVE_CARRY:
       case k_opcode_SAVE_CARRY_INV:
+        p_carry_opcode = p_opcode;
+        p_carry_uop = p_uop;
+        p_eliminated_save_carry_opcode = NULL;
+        break;
+      case 0x18: /* CLC */
         p_carry_opcode = p_opcode;
         p_carry_uop = p_uop;
         p_eliminated_save_carry_opcode = NULL;

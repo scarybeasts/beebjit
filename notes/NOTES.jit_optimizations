@@ -129,3 +129,14 @@ Optimized:
   adc al, 0x20
   setb r14b
   seto r12b
+
+9) CLC + ADC optimizations
+6502:
+  CLC
+  ADC #$44
+Unoptimized:
+  mov r14b, 0
+  bt r14, 0
+  adc al, 0x44
+Optimized:
+  add al, 0x44
