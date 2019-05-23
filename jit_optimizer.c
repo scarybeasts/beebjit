@@ -1093,41 +1093,45 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
       /* Cancel eliminations. */
       /* NZ flag load. */
-      if ((p_nz_flags_opcode != NULL) &&
-          jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
-        /* If we can't eliminate a flag load, there's a special case of loading
-         * 0 into a register where we can collapse the register load and flag
-         * load.
-         */
-        int32_t find_uopcode = -1;
-        int32_t replace_uopcode = -1;
-        struct jit_uop* p_find_uop;
-        switch (p_nz_flags_uop->uopcode) {
-        case k_opcode_FLAGA:
-          find_uopcode = 0xA9; /* LDA imm */
-          replace_uopcode = k_opcode_LDA_Z;
-          break;
-        case k_opcode_FLAGX:
-          find_uopcode = 0xA2; /* LDX imm */
-          replace_uopcode = k_opcode_LDX_Z;
-          break;
-        case k_opcode_FLAGY:
-          find_uopcode = 0xA0; /* LDY imm */
-          replace_uopcode = k_opcode_LDY_Z;
-          break;
-        case k_opcode_FLAG_MEM:
-          break;
-        default:
-          assert(0);
-          break;
+      if (p_nz_flags_opcode != NULL) {
+        int32_t nz_flags_uopcode = p_nz_flags_uop->uopcode;
+        if (jit_optimizer_uopcode_needs_nz_flags(uopcode) ||
+            ((nz_flags_uopcode == k_opcode_FLAG_MEM) &&
+             jit_optimizer_uop_could_write(p_uop, p_nz_flags_uop->value1))) {
+          /* If we can't eliminate a flag load, there's a special case of
+           * loading 0 into a register where we can collapse the register load
+           * and flag load.
+           */
+          int32_t find_uopcode = -1;
+          int32_t replace_uopcode = -1;
+          struct jit_uop* p_find_uop;
+          switch (nz_flags_uopcode) {
+          case k_opcode_FLAGA:
+            find_uopcode = 0xA9; /* LDA imm */
+            replace_uopcode = k_opcode_LDA_Z;
+            break;
+          case k_opcode_FLAGX:
+            find_uopcode = 0xA2; /* LDX imm */
+            replace_uopcode = k_opcode_LDX_Z;
+            break;
+          case k_opcode_FLAGY:
+            find_uopcode = 0xA0; /* LDY imm */
+            replace_uopcode = k_opcode_LDY_Z;
+            break;
+          case k_opcode_FLAG_MEM:
+            break;
+          default:
+            assert(0);
+            break;
+          }
+          p_find_uop = jit_optimizer_find_uop(p_nz_flags_opcode, find_uopcode);
+          if ((p_find_uop != NULL) && (p_find_uop->value1 == 0x00)) {
+            p_find_uop->uopcode = replace_uopcode;
+            p_find_uop->uoptype = -1;
+            p_nz_flags_uop->eliminated = 1;
+          }
+          p_nz_flags_opcode = NULL;
         }
-        p_find_uop = jit_optimizer_find_uop(p_nz_flags_opcode, find_uopcode);
-        if ((p_find_uop != NULL) && (p_find_uop->value1 == 0x00)) {
-          p_find_uop->uopcode = replace_uopcode;
-          p_find_uop->uoptype = -1;
-          p_nz_flags_uop->eliminated = 1;
-        }
-        p_nz_flags_opcode = NULL;
       }
       /* idy indirect load. */
       if ((p_idy_opcode != NULL) &&

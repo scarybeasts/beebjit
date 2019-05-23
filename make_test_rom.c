@@ -292,6 +292,12 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_idy, 0xF2);
   emit_INY(p_buf);
   emit_BNE(p_buf, -7);
+  emit_INC(p_buf, k_zpg, 0xF1);
+  emit_INC(p_buf, k_zpg, 0xF3);
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_STA(p_buf, k_idy, 0xF2);
+  emit_INY(p_buf);
+  emit_BNE(p_buf, -7);
   emit_JMP(p_buf, k_abs, 0xC400);
 
   /* Test some more involved self-modifying code situations. */
@@ -1268,7 +1274,26 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xD280);
 
+  /* Test JIT NZ flag recovery from memory. */
   set_new_index(p_buf, 0x1280);
+  emit_JSR(p_buf, 0x30F0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x30F7);
+  emit_JSR(p_buf, 0x30F0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD2C0);
+
+  /* Test JIT ROR NZ flag optimization corner case. */
+  set_new_index(p_buf, 0x12C0);
+  emit_JSR(p_buf, 0x3100);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x3109);
+  emit_JSR(p_buf, 0x3100);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD300);
+
+  set_new_index(p_buf, 0x1300);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1375,6 +1400,27 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0x30E6);
   emit_ADC(p_buf, k_imm, 0x01);
   emit_ADC(p_buf, k_imm, 0x01);
+  emit_RTS(p_buf);
+
+  /* For JIT flag fixup recovery from ROL zpg. */
+  set_new_index(p_buf, 0x30F0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_zpg, 0xA0);
+  emit_ROL(p_buf, k_zpg, 0xA0);
+  emit_ROL(p_buf, k_zpg, 0xA0);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_RTS(p_buf);
+
+  /* For JIT ROR zpg flag optimization corner case. */
+  set_new_index(p_buf, 0x3100);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xA0);
+  emit_ROR(p_buf, k_zpg, 0xA0);
+  emit_STA(p_buf, k_zpg, 0xA0);
+  emit_ROR(p_buf, k_zpg, 0xA0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
