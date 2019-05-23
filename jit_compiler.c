@@ -879,7 +879,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     /* We don't really have to emit anything for a NOP, but for now and for
      * good readability, we'll emit a host NOP.
      * (The correct place to change if we wanted to not emit anything would be
-     * to eliminate the 6502 opcode in the optimized.)
+     * to eliminate the 6502 opcode in the optimizer.)
      * We have a minimum of 2 bytes of x64 code per uop because that's the size
      * of the self-modified marker, so we'll need 2 1-byte x64 nops.
      */
@@ -1843,6 +1843,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     p_compiler->addr_cycles_fixup[i] = -1;
     p_compiler->addr_nz_fixup[i] = 0;
     p_compiler->addr_o_fixup[i] = 0;
+    p_compiler->addr_c_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;
     p_compiler->addr_x_fixup[i] = -1;
     p_compiler->addr_y_fixup[i] = -1;
