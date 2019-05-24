@@ -179,6 +179,7 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
     case k_opcode_LDX_Z:
     case k_opcode_LDY_Z:
     case k_opcode_LSR_ACC_n:
+    case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
       ret = 1;
       break;
@@ -278,6 +279,7 @@ jit_optimizer_uopcode_needs_a(int32_t uopcode) {
     case k_opcode_LSR_ACC_n:
     case k_opcode_ROL_ACC_n:
     case k_opcode_ROR_ACC_n:
+    case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
       ret = 1;
       break;
@@ -506,6 +508,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
     case k_opcode_STOA_IMM:
+    case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
       ret = 0;
       break;
@@ -576,6 +579,7 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
     case k_opcode_STOA_IMM:
+    case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
@@ -655,6 +659,7 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
     case k_opcode_STOA_IMM:
+    case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
@@ -842,6 +847,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       case 0xD8: /* CLD */
         flag_decimal = 0;
+        break;
+      case 0xE5: /* SUB zpg */
+      case 0xED: /* SUB abs */
+        new_sub_uopcode = k_opcode_SUB_ABS;
         break;
       case 0xE8: /* INX */
         if (reg_x != k_value_unknown) {

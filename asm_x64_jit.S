@@ -596,6 +596,15 @@ asm_x64_jit_STOA_IMM_END:
   ret
 
 
+.globl asm_x64_jit_SUB_ABS
+.globl asm_x64_jit_SUB_ABS_END
+asm_x64_jit_SUB_ABS:
+  sub REG_6502_A, [0x7fffffff]
+
+asm_x64_jit_SUB_ABS_END:
+  ret
+
+
 .globl asm_x64_jit_SUB_IMM
 .globl asm_x64_jit_SUB_IMM_END
 asm_x64_jit_SUB_IMM:

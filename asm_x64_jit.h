@@ -57,6 +57,7 @@ void asm_x64_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf);
 void asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
                                uint16_t addr,
                                uint8_t value);
+void asm_x64_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t value);
 void asm_x64_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf);
@@ -293,6 +294,8 @@ void asm_x64_jit_SAVE_OVERFLOW();
 void asm_x64_jit_SAVE_OVERFLOW_END();
 void asm_x64_jit_STOA_IMM();
 void asm_x64_jit_STOA_IMM_END();
+void asm_x64_jit_SUB_ABS();
+void asm_x64_jit_SUB_ABS_END();
 void asm_x64_jit_SUB_IMM();
 void asm_x64_jit_SUB_IMM_END();
 void asm_x64_jit_WRITE_INV_ABS();

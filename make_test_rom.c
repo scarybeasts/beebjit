@@ -1261,6 +1261,7 @@ main(int argc, const char* argv[]) {
   emit_SED(p_buf);
   emit_ADC(p_buf, k_imm, 0x10);
   emit_REQUIRE_EQ(p_buf, 0x11);
+  emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xD240);
 
   /* Test optimization of ROR zpg + flag eliminations. */
@@ -1293,7 +1294,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD300);
 
+  /* Test SBC zpg plus optimizations. */
   set_new_index(p_buf, 0x1300);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_JMP(p_buf, k_abs, 0xD307);
+  emit_SEC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_SBC(p_buf, k_zpg, 0x40);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0xF7);
+  emit_JMP(p_buf, k_abs, 0xD340);
+
+  set_new_index(p_buf, 0x1340);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

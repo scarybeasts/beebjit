@@ -870,6 +870,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
+  case k_opcode_SUB_ABS:
+    asm_x64_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_SUB_IMM:
     asm_x64_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
     break;

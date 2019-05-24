@@ -93,6 +93,7 @@ enum {
   k_opcode_SAVE_CARRY_INV,
   k_opcode_SAVE_OVERFLOW,
   k_opcode_STOA_IMM,
+  k_opcode_SUB_ABS,
   k_opcode_SUB_IMM,
   k_opcode_WRITE_INV_ABS,
   k_opcode_WRITE_INV_SCRATCH,

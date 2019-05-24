@@ -496,6 +496,14 @@ asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x64_copy_patch_u32(p_buf,
+                         asm_x64_jit_SUB_ABS,
+                         asm_x64_jit_SUB_ABS_END,
+                         (K_BBC_MEM_READ_ADDR + addr));
+}
+
+void
 asm_x64_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
   asm_x64_copy_patch_byte(p_buf,
                           asm_x64_jit_SUB_IMM,
