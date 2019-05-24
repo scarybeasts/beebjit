@@ -443,20 +443,20 @@ asm_x64_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
+asm_x64_emit_jit_PULL_16(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_PULL_16, asm_x64_jit_PULL_16_END);
+}
+
+void
 asm_x64_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   asm_x64_copy(p_buf, asm_x64_jit_PUSH_16, asm_x64_jit_PUSH_16_END);
-  asm_x64_patch_byte(p_buf,
-                     offset,
-                     asm_x64_jit_PUSH_16,
-                     asm_x64_jit_PUSH_16_byte1_patch,
-                     (value >> 8));
-  asm_x64_patch_byte(p_buf,
-                     offset,
-                     asm_x64_jit_PUSH_16,
-                     asm_x64_jit_PUSH_16_byte2_patch,
-                     (value & 0xFF));
+  asm_x64_patch_u16(p_buf,
+                    offset,
+                    asm_x64_jit_PUSH_16,
+                    asm_x64_jit_PUSH_16_word_patch,
+                    value);
 }
 
 void

@@ -12,6 +12,11 @@ void asm_x64_patch_byte(struct util_buffer* p_buf,
                         void* p_start,
                         void* p_patch,
                         uint8_t value);
+void asm_x64_patch_u16(struct util_buffer* p_buf,
+                       size_t offset,
+                       void* p_start,
+                       void* p_patch,
+                       uint16_t value);
 void asm_x64_patch_int(struct util_buffer* p_buf,
                        size_t offset,
                        void* p_start,

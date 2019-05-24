@@ -847,7 +847,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_PULL_16:
-    asm_x64_emit_pull_word_to_scratch(p_dest_buf);
+    asm_x64_emit_jit_PULL_16(p_dest_buf);
     break;
   case k_opcode_PUSH_16:
     asm_x64_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);

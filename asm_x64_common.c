@@ -28,6 +28,22 @@ asm_x64_patch_byte(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_patch_u16(struct util_buffer* p_buf,
+                  size_t offset,
+                  void* p_start,
+                  void* p_patch,
+                  uint16_t value) {
+  size_t original_pos = util_buffer_get_pos(p_buf);
+  ssize_t pos = (offset + (p_patch - p_start));
+
+  assert(pos >= (ssize_t) sizeof(uint16_t));
+
+  util_buffer_set_pos(p_buf, (pos - 2));
+  util_buffer_add_2b(p_buf, (value & 0xff), (value >> 8));
+  util_buffer_set_pos(p_buf, original_pos);
+}
+
+void
 asm_x64_patch_int(struct util_buffer* p_buf,
                   size_t offset,
                   void* p_start,
