@@ -1220,10 +1220,19 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
       /* Carry flag save elimination. */
       if (p_carry_write_opcode != NULL) {
+        struct jit_opcode_details* p_eliminate_opcode = p_opcode;
         int32_t carry_write_uopcode = p_carry_write_uop->uopcode;
-        if (uopcode == k_opcode_LOAD_CARRY) {
+        switch (uopcode) {
+        case k_opcode_SAVE_CARRY:
+        case k_opcode_SAVE_CARRY_INV:
+        case 0x18: /* CLC */
+        case 0x38: /* SEC */
+          jit_optimizer_eliminate(&p_carry_write_opcode,
+                                  p_carry_write_uop,
+                                  p_opcode);
+          break;
+        case k_opcode_LOAD_CARRY:
           if (carry_write_uopcode == k_opcode_SAVE_CARRY) {
-            struct jit_opcode_details* p_eliminate_opcode = p_opcode;
             p_eliminated_save_carry_opcode = p_carry_write_opcode;
             /* Eliminate load. */
             jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
@@ -1232,19 +1241,20 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                     p_carry_write_uop,
                                     p_opcode);
           }
-        } else if (uopcode == k_opcode_SAVE_CARRY) {
-          if (carry_write_uopcode == k_opcode_SAVE_CARRY) {
+          break;
+        case k_opcode_LOAD_CARRY_INV:
+          if (carry_write_uopcode == k_opcode_SAVE_CARRY_INV) {
             p_eliminated_save_carry_opcode = p_carry_write_opcode;
+            /* Eliminate load. */
+            jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
             /* Eliminate unfinalized save. */
             jit_optimizer_eliminate(&p_carry_write_opcode,
                                     p_carry_write_uop,
                                     p_opcode);
-          } else if (carry_write_uopcode == 0x18) {
-            /* Unneccessary CLC. */
-            jit_optimizer_eliminate(&p_carry_write_opcode,
-                                    p_carry_write_uop,
-                                    p_opcode);
           }
+          break;
+        default:
+          break;
         }
       }
 
