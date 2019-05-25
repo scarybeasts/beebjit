@@ -717,7 +717,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_overflow_uop;
   struct jit_opcode_details* p_carry_write_opcode;
   struct jit_uop* p_carry_write_uop;
-  struct jit_opcode_details* p_eliminated_save_carry_opcode;
+  struct jit_opcode_details* p_eliminated_write_carry_opcode;
+  struct jit_uop* p_eliminated_write_carry_uop;
 
   struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
 
@@ -1180,7 +1181,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   p_overflow_uop = NULL;
   p_carry_write_opcode = NULL;
   p_carry_write_uop = NULL;
-  p_eliminated_save_carry_opcode = NULL;
+  p_eliminated_write_carry_opcode = NULL;
+  p_eliminated_write_carry_uop = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t i_uops;
     uint32_t num_uops;
@@ -1222,6 +1224,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       if (p_carry_write_opcode != NULL) {
         struct jit_opcode_details* p_eliminate_opcode = p_opcode;
         int32_t carry_write_uopcode = p_carry_write_uop->uopcode;
+        int inversion = 0;
         switch (uopcode) {
         case k_opcode_SAVE_CARRY:
         case k_opcode_SAVE_CARRY_INV:
@@ -1232,25 +1235,39 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                   p_opcode);
           break;
         case k_opcode_LOAD_CARRY:
-          if (carry_write_uopcode == k_opcode_SAVE_CARRY) {
-            p_eliminated_save_carry_opcode = p_carry_write_opcode;
-            /* Eliminate load. */
-            jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-            /* Eliminate unfinalized save. */
-            jit_optimizer_eliminate(&p_carry_write_opcode,
-                                    p_carry_write_uop,
-                                    p_opcode);
-          }
-          break;
         case k_opcode_LOAD_CARRY_INV:
-          if (carry_write_uopcode == k_opcode_SAVE_CARRY_INV) {
-            p_eliminated_save_carry_opcode = p_carry_write_opcode;
-            /* Eliminate load. */
-            jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
-            /* Eliminate unfinalized save. */
-            jit_optimizer_eliminate(&p_carry_write_opcode,
-                                    p_carry_write_uop,
-                                    p_opcode);
+          p_eliminated_write_carry_opcode = p_carry_write_opcode;
+          p_eliminated_write_carry_uop = p_carry_write_uop;
+          /* Eliminate unfinalized write. */
+          jit_optimizer_eliminate(&p_carry_write_opcode,
+                                  p_carry_write_uop,
+                                  p_opcode);
+          /* Eliminate load or replace with direct host carry flag change. */
+          inversion ^= (uopcode == k_opcode_LOAD_CARRY_INV);
+          switch (carry_write_uopcode) {
+          case k_opcode_SAVE_CARRY:
+          case k_opcode_SAVE_CARRY_INV:
+            inversion ^= (carry_write_uopcode == k_opcode_SAVE_CARRY_INV);
+            if (inversion) {
+              p_eliminate_opcode = NULL;
+              p_uop->uopcode = k_opcode_INVERT_CARRY;
+            } else {
+              jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
+            }
+            break;
+          case 0x18: /* CLC */
+          case 0x38: /* SEC */
+            p_eliminate_opcode = NULL;
+            inversion ^= (carry_write_uopcode == 0x38); /* SEC */
+            if (inversion) {
+              p_uop->uopcode = k_opcode_SET_CARRY;
+            } else {
+              p_uop->uopcode = k_opcode_CLEAR_CARRY;
+            }
+            break;
+          default:
+            assert(0);
+            break;
           }
           break;
         default:
@@ -1288,9 +1305,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_ldy_opcode = NULL;
         p_overflow_opcode = NULL;
         p_carry_write_opcode = NULL;
-        if (p_eliminated_save_carry_opcode != NULL) {
-          jit_optimizer_uneliminate(&p_eliminated_save_carry_opcode,
-                                    k_opcode_SAVE_CARRY,
+        if (p_eliminated_write_carry_opcode != NULL) {
+          jit_optimizer_uneliminate(&p_eliminated_write_carry_opcode,
+                                    p_eliminated_write_carry_uop->uopcode,
                                     p_opcode);
         }
       }
@@ -1319,7 +1336,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       case 0x38: /* SEC */
         p_carry_write_opcode = p_opcode;
         p_carry_write_uop = p_uop;
-        p_eliminated_save_carry_opcode = NULL;
+        p_eliminated_write_carry_opcode = NULL;
         break;
       default:
         break;

@@ -312,6 +312,15 @@ asm_x64_jit_CHECK_PENDING_IRQ_END:
   ret
 
 
+.globl asm_x64_jit_CLEAR_CARRY
+.globl asm_x64_jit_CLEAR_CARRY_END
+asm_x64_jit_CLEAR_CARRY:
+  clc
+
+asm_x64_jit_CLEAR_CARRY_END:
+  ret
+
+
 .globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING
 .globl asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END
 asm_x64_jit_IDY_CHECK_PAGE_CROSSING:
@@ -332,6 +341,15 @@ asm_x64_jit_INC_SCRATCH:
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
 
 asm_x64_jit_INC_SCRATCH_END:
+  ret
+
+
+.globl asm_x64_jit_INVERT_CARRY
+.globl asm_x64_jit_INVERT_CARRY_END
+asm_x64_jit_INVERT_CARRY:
+  cmc
+
+asm_x64_jit_INVERT_CARRY_END:
   ret
 
 
@@ -584,6 +602,15 @@ asm_x64_jit_SAVE_OVERFLOW:
   seto REG_6502_OF
 
 asm_x64_jit_SAVE_OVERFLOW_END:
+  ret
+
+
+.globl asm_x64_jit_SET_CARRY
+.globl asm_x64_jit_SET_CARRY_END
+asm_x64_jit_SET_CARRY:
+  stc
+
+asm_x64_jit_SET_CARRY_END:
   ret
 
 

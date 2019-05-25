@@ -789,6 +789,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_CHECK_PENDING_IRQ:
     asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
     break;
+  case k_opcode_CLEAR_CARRY:
+    asm_x64_emit_jit_CLEAR_CARRY(p_dest_buf);
+    break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
     break;
@@ -806,6 +809,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_INC_SCRATCH:
     asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_INVERT_CARRY:
+    asm_x64_emit_jit_INVERT_CARRY(p_dest_buf);
     break;
   case k_opcode_JMP_SCRATCH:
     asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
@@ -872,6 +878,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_SAVE_OVERFLOW:
     asm_x64_emit_jit_SAVE_OVERFLOW(p_dest_buf);
+    break;
+  case k_opcode_SET_CARRY:
+    asm_x64_emit_jit_SET_CARRY(p_dest_buf);
     break;
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
@@ -1557,12 +1566,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
       p_uop->len_x64 = len_x64;
-
-      /* Need at least 2 bytes because that the length of the self-modification
-       * overwrite.
-       */
-      assert(len_x64 >= 2);
     }
+
+    /* If there's any output, need at least 2 bytes because that the length of
+     * the self-modification overwrite.
+     */
+    assert((util_buffer_get_pos(p_single_opcode_buf) == 0) ||
+           (util_buffer_get_pos(p_single_opcode_buf) >= 2));
 
     /* Calculate if this opcode fits. In order to fit, not only must the opcode
      * itself fit, but there must be space to commit any fixups plus

@@ -278,6 +278,11 @@ asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_CLEAR_CARRY, asm_x64_jit_CLEAR_CARRY_END);
+}
+
+void
 asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_FLAGA, asm_x64_jit_FLAGA_END);
 }
@@ -314,6 +319,11 @@ asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf) {
 void
 asm_x64_emit_jit_INC_SCRATCH(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_INC_SCRATCH, asm_x64_jit_INC_SCRATCH_END);
+}
+
+void
+asm_x64_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_INVERT_CARRY, asm_x64_jit_INVERT_CARRY_END);
 }
 
 void
@@ -474,6 +484,11 @@ asm_x64_emit_jit_SAVE_CARRY_INV(struct util_buffer* p_buf) {
 void
 asm_x64_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_SAVE_OVERFLOW, asm_x64_jit_SAVE_OVERFLOW_END);
+}
+
+void
+asm_x64_emit_jit_SET_CARRY(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_SET_CARRY, asm_x64_jit_SET_CARRY_END);
 }
 
 void
