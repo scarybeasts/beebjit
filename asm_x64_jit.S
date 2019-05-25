@@ -427,22 +427,30 @@ asm_x64_jit_LDY_Z_END:
   ret
 
 
-.globl asm_x64_jit_LOAD_CARRY
-.globl asm_x64_jit_LOAD_CARRY_END
-asm_x64_jit_LOAD_CARRY:
+.globl asm_x64_jit_LOAD_CARRY_FOR_BRANCH
+.globl asm_x64_jit_LOAD_CARRY_FOR_BRANCH_END
+asm_x64_jit_LOAD_CARRY_FOR_BRANCH:
   bt REG_6502_CF_64, 0
 
-asm_x64_jit_LOAD_CARRY_END:
+asm_x64_jit_LOAD_CARRY_FOR_BRANCH_END:
   ret
 
 
-.globl asm_x64_jit_LOAD_CARRY_INV
-.globl asm_x64_jit_LOAD_CARRY_INV_END
-asm_x64_jit_LOAD_CARRY_INV:
-  bt REG_6502_CF_64, 0
-  cmc
+.globl asm_x64_jit_LOAD_CARRY_FOR_CALC
+.globl asm_x64_jit_LOAD_CARRY_FOR_CALC_END
+asm_x64_jit_LOAD_CARRY_FOR_CALC:
+  shr REG_6502_CF, 1
 
-asm_x64_jit_LOAD_CARRY_INV_END:
+asm_x64_jit_LOAD_CARRY_FOR_CALC_END:
+  ret
+
+
+.globl asm_x64_jit_LOAD_CARRY_INV_FOR_CALC
+.globl asm_x64_jit_LOAD_CARRY_INV_FOR_CALC_END
+asm_x64_jit_LOAD_CARRY_INV_FOR_CALC:
+  sub REG_6502_CF, 1
+
+asm_x64_jit_LOAD_CARRY_INV_FOR_CALC_END:
   ret
 
 

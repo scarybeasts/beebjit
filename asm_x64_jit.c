@@ -347,15 +347,24 @@ asm_x64_emit_jit_LDY_Z(struct util_buffer* p_buf) {
 }
 
 void
-asm_x64_emit_jit_LOAD_CARRY(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf, asm_x64_jit_LOAD_CARRY, asm_x64_jit_LOAD_CARRY_END);
+asm_x64_emit_jit_LOAD_CARRY_FOR_BRANCH(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_LOAD_CARRY_FOR_BRANCH,
+               asm_x64_jit_LOAD_CARRY_FOR_BRANCH_END);
 }
 
 void
-asm_x64_emit_jit_LOAD_CARRY_INV(struct util_buffer* p_buf) {
+asm_x64_emit_jit_LOAD_CARRY_FOR_CALC(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_jit_LOAD_CARRY_INV,
-               asm_x64_jit_LOAD_CARRY_INV_END);
+               asm_x64_jit_LOAD_CARRY_FOR_CALC,
+               asm_x64_jit_LOAD_CARRY_FOR_CALC_END);
+}
+
+void
+asm_x64_emit_jit_LOAD_CARRY_INV_FOR_CALC(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_LOAD_CARRY_INV_FOR_CALC,
+               asm_x64_jit_LOAD_CARRY_INV_FOR_CALC_END);
 }
 
 void

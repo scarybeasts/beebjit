@@ -481,14 +481,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_adc:
     jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, 0);
     p_uop++;
-    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY, 0);
+    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_FOR_CALC, 0);
     p_uop++;
     break;
   case k_bcc:
   case k_bcs:
-  case k_rol:
-  case k_ror:
-    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY, 0);
+    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH, 0);
     p_uop++;
     break;
   case k_bvc:
@@ -503,6 +501,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_jsr:
     jit_compiler_set_uop(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
+    p_uop++;
+    break;
+  case k_rol:
+  case k_ror:
+    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_FOR_CALC, 0);
     p_uop++;
     break;
   case k_rti:
@@ -525,7 +528,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_sbc:
     jit_compiler_set_uop(p_uop, k_opcode_CHECK_BCD, 0);
     p_uop++;
-    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_INV, 0);
+    jit_compiler_set_uop(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC, 0);
     p_uop++;
     break;
   default:
@@ -828,11 +831,14 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_LDY_Z:
     asm_x64_emit_jit_LDY_Z(p_dest_buf);
     break;
-  case k_opcode_LOAD_CARRY:
-    asm_x64_emit_jit_LOAD_CARRY(p_dest_buf);
+  case k_opcode_LOAD_CARRY_FOR_BRANCH:
+    asm_x64_emit_jit_LOAD_CARRY_FOR_BRANCH(p_dest_buf);
     break;
-  case k_opcode_LOAD_CARRY_INV:
-    asm_x64_emit_jit_LOAD_CARRY_INV(p_dest_buf);
+  case k_opcode_LOAD_CARRY_FOR_CALC:
+    asm_x64_emit_jit_LOAD_CARRY_FOR_CALC(p_dest_buf);
+    break;
+  case k_opcode_LOAD_CARRY_INV_FOR_CALC:
+    asm_x64_emit_jit_LOAD_CARRY_INV_FOR_CALC(p_dest_buf);
     break;
   case k_opcode_LOAD_OVERFLOW:
     asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
