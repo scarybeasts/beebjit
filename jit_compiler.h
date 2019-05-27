@@ -33,6 +33,9 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
                                           uint16_t len);
 
+int32_t jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
+                                          uint16_t addr_6502);
+
 int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);
 void jit_compiler_set_compiling_for_code_in_zero_page(

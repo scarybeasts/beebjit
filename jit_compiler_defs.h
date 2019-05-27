@@ -45,6 +45,8 @@ struct jit_opcode_details {
   uint8_t len_bytes_6502_merged;
   uint8_t max_cycles_merged;
   int eliminated;
+  int self_modify_invalidated;
+  int dynamic_operand;
 };
 
 enum {

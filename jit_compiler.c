@@ -53,6 +53,7 @@ struct jit_compiler {
   int compile_for_code_in_zero_page;
 
   int32_t addr_opcode[k_6502_addr_space_size];
+  int32_t addr_revalidate_count[k_6502_addr_space_size];
   uint8_t addr_is_block_start[k_6502_addr_space_size];
   uint8_t addr_is_block_continuation[k_6502_addr_space_size];
 
@@ -90,6 +91,28 @@ jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
   uint16_t block_addr_6502 =
       p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
   jit_invalidate_jump_target(p_compiler, block_addr_6502);
+}
+
+static int
+jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
+  uint8_t* p_raw_ptr;
+  void* p_host_ptr =
+      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
+                                         addr_6502);
+  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502];
+  (void) p_host_ptr;
+  assert(jit_ptr != (uint32_t) (size_t) p_host_ptr);
+
+  if (jit_ptr == p_compiler->no_code_jit_ptr) {
+    return 0;
+  }
+
+  p_raw_ptr = (uint8_t*) (size_t) jit_ptr;
+  /* TODO: don't hard code this? */
+  if ((p_raw_ptr[0] == 0xff) && (p_raw_ptr[1] == 0x17)) {
+    return 1;
+  }
+  return 0;
 }
 
 struct jit_compiler*
@@ -252,6 +275,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int emit_flag_load = 1;
   uint16_t rel_target_6502 = 0;
 
+  (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->internal = 0;
   p_details->addr_6502 = addr_6502;
   p_details->num_uops = 0;
@@ -1511,6 +1535,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_details_fixup = NULL;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     p_details = &opcode_details[i_opcodes];
+    addr_6502 = p_details->addr_6502;
+
+    /* Calculate cycle count at each opcode. */
     if (p_details->cycles_run_start != -1) {
       p_details_fixup = p_details;
       assert(p_details_fixup->num_uops == 1);
@@ -1518,6 +1545,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_uop = &p_details_fixup->uops[0];
       assert(p_uop->uopcode == k_opcode_countdown);
       assert(p_uop->value2 == 0);
+    }
+
+    /* Check self-modified status for each opcode. Need to do this before we
+     * start overwriting the existing host binary in the fourth step below.
+     */
+    if (jit_has_invalidated_code(p_compiler, addr_6502)) {
+      p_details->self_modify_invalidated = 1;
     }
 
     p_details_fixup->cycles_run_start += p_details->max_cycles_orig;
@@ -1743,7 +1777,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->addr_y_fixup[addr_6502] = -1;
 
       if (i == 0) {
-        p_compiler->addr_opcode[addr_6502] = p_details->opcode_6502;
+        uint8_t opcode_6502 = p_details->opcode_6502;
+        int32_t revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
+        if (opcode_6502 != p_compiler->addr_opcode[addr_6502]) {
+          revalidate_count = 0;
+        } else if (p_details->self_modify_invalidated) {
+          revalidate_count++;
+        }
+        p_compiler->addr_opcode[addr_6502] = opcode_6502;
+        p_compiler->addr_revalidate_count[addr_6502] = revalidate_count;
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
@@ -1795,8 +1837,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         }
       } else {
         p_compiler->addr_opcode[addr_6502] = -1;
+        p_compiler->addr_revalidate_count[addr_6502] = -1;
 
         p_compiler->addr_cycles_fixup[addr_6502] = -1;
+
+        if (p_details->dynamic_operand) {
+          p_compiler->p_jit_ptrs[addr_6502] = p_compiler->no_code_jit_ptr;
+        }
       }
 
       addr_6502++;
@@ -1910,6 +1957,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
   for (i = addr; i < addr_end; ++i) {
     p_compiler->addr_opcode[i] = -1;
+    p_compiler->addr_revalidate_count[i] = -1;
     p_compiler->addr_is_block_start[i] = 0;
     p_compiler->addr_is_block_continuation[i] = 0;
 
@@ -1922,6 +1970,12 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     p_compiler->addr_x_fixup[i] = -1;
     p_compiler->addr_y_fixup[i] = -1;
   }
+}
+
+int32_t
+jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
+                                  uint16_t addr_6502) {
+  return p_compiler->addr_revalidate_count[addr_6502];
 }
 
 int

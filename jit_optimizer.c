@@ -1,6 +1,7 @@
 #include "jit_optimizer.h"
 
 #include "defs_6502.h"
+#include "jit_compiler.h"
 #include "jit_compiler_defs.h"
 
 #include <assert.h>
@@ -706,6 +707,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
    * single uops with replacements if known registers offer better alternatives.
    * Classic example is CLC; ADC. At the ADC instruction, it is known that
    * CF==0 so the ADC can become just an ADD.
+   * In the case of self-modifying code, this loop can also replace uopcodes
+   * with equivalents that load operands dynamically, to prevent continual
+   * recompilation.
    */
   reg_a = k_value_unknown;
   reg_x = k_value_unknown;
@@ -716,8 +720,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint32_t num_uops;
     uint32_t i_uops;
     uint8_t opreg;
+    int32_t revalidate_count;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    uint16_t addr_6502 = p_opcode->addr_6502;
     uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
     uint8_t optype = g_optypes[opcode_6502];
@@ -739,6 +745,23 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     opreg = g_optype_sets_register[optype];
     if (opmode == k_acc) {
       opreg = k_a;
+    }
+
+    revalidate_count = jit_compiler_get_revalidate_count(p_compiler, addr_6502);
+    if (revalidate_count >= 4) {
+      struct jit_uop* p_rewrite_uop;
+
+      switch (opcode_6502) {
+      case 0xA9: /* LDA imm */
+        p_rewrite_uop = jit_optimizer_find_uop(p_opcode, 0xA9);
+        assert(p_rewrite_uop != NULL);
+        p_rewrite_uop->uopcode = 0xAD; /* LDA abs */
+        p_rewrite_uop->value1 = (addr_6502 + 1);
+        p_opcode->dynamic_operand = 1;
+        break;
+      default:
+        break;
+      }
     }
 
     num_uops = p_opcode->num_uops;
