@@ -825,6 +825,30 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
         }
         break;
+      case 0x8A: /* TXA */
+        if (reg_x != k_value_unknown) {
+          uopcode = 0xA9; /* LDA imm */
+          p_uop->value1 = reg_x;
+        }
+        break;
+      case 0x98: /* TYA */
+        if (reg_y != k_value_unknown) {
+          uopcode = 0xA9; /* LDA imm */
+          p_uop->value1 = reg_y;
+        }
+        break;
+      case 0xA8: /* TAY */
+        if (reg_a != k_value_unknown) {
+          uopcode = 0xA0; /* LDY imm */
+          p_uop->value1 = reg_a;
+        }
+        break;
+      case 0xAA: /* TAX */
+        if (reg_a != k_value_unknown) {
+          uopcode = 0xA2; /* LDX imm */
+          p_uop->value1 = reg_a;
+        }
+        break;
       case 0xC8: /* INY */
         if (reg_y != k_value_unknown) {
           uopcode = 0xA0; /* LDY imm */
