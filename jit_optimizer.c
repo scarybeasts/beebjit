@@ -863,9 +863,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
         }
         break;
-      case 0xD8: /* CLD */
-        flag_decimal = 0;
-        break;
       case 0xE5: /* SUB zpg */
       case 0xED: /* SUB abs */
         new_sub_uopcode = k_opcode_SUB_ABS;
@@ -879,9 +876,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       case 0xE9: /* SBC imm */
         new_sub_uopcode = k_opcode_SUB_IMM;
-        break;
-      case 0xF8: /* SED */
-        flag_decimal = 1;
         break;
       case k_opcode_CHECK_BCD:
         if (flag_decimal == k_value_unknown) {
