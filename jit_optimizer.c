@@ -945,9 +945,11 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     /* Update known state of registers, flags, etc. for next opcode. */
     switch (opcode_6502) {
     case 0x18: /* CLC */
+    case 0xB0: /* BCS */
       flag_carry = 0;
       break;
     case 0x38: /* SEC */
+    case 0x90: /* BCC */
       flag_carry = 1;
       break;
     case 0x88: /* DEY */
