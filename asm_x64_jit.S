@@ -448,7 +448,7 @@ asm_x64_jit_LOAD_CARRY_FOR_CALC_END:
 .globl asm_x64_jit_LOAD_CARRY_INV_FOR_CALC
 .globl asm_x64_jit_LOAD_CARRY_INV_FOR_CALC_END
 asm_x64_jit_LOAD_CARRY_INV_FOR_CALC:
-  sub REG_6502_CF, 1
+  cmp REG_6502_CF, 1
 
 asm_x64_jit_LOAD_CARRY_INV_FOR_CALC_END:
   ret

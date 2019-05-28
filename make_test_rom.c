@@ -1318,7 +1318,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x80);
   emit_JMP(p_buf, k_abs, 0xD380);
 
+  /* Test for a JIT bug leaving CF in bad state if self-modify hits. */
   set_new_index(p_buf, 0x1380);
+  emit_JSR(p_buf, 0x3110);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x3118);
+  emit_JSR(p_buf, 0x3110);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xD3C0);
+
+  set_new_index(p_buf, 0x13C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1446,6 +1456,15 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0xA0);
   emit_ROR(p_buf, k_zpg, 0xA0);
   emit_REQUIRE_NF(p_buf, 1);
+  emit_RTS(p_buf);
+
+  /* For JIT SBC optimization vs. self-modify. */
+  set_new_index(p_buf, 0x3110);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x15);
+  emit_JMP(p_buf, k_abs, 0x3116);
+  emit_SBC(p_buf, k_imm, 0x01);
+  emit_SBC(p_buf, k_imm, 0x01);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

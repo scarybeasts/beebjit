@@ -863,8 +863,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
         }
         break;
-      case 0xE5: /* SUB zpg */
-      case 0xED: /* SUB abs */
+      case 0xE5: /* SBC zpg */
+      case 0xED: /* SBC abs */
         new_sub_uopcode = k_opcode_SUB_ABS;
         break;
       case 0xE8: /* INX */
