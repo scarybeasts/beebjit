@@ -2,7 +2,7 @@
 
 #include "defs_6502.h"
 #include "jit_compiler.h"
-#include "jit_compiler_defs.h"
+#include "jit_opcode.h"
 
 #include <assert.h>
 #include <stdio.h>

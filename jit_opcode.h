@@ -1,5 +1,5 @@
-#ifndef JIT_COMPILER_DEFS_H
-#define JIT_COMPILER_DEFS_H
+#ifndef JIT_OPCODE_H
+#define JIT_OPCODE_H
 
 struct jit_uop {
   /* Static details. */
@@ -106,4 +106,4 @@ enum {
   k_opcode_WRITE_INV_SCRATCH_Y,
 };
 
-#endif /* JIT_COMPILER_DEFS_H */
+#endif /* JIT_OPCODE_H */

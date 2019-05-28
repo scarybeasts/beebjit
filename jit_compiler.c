@@ -5,7 +5,7 @@
 #include "asm_x64_jit_defs.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
-#include "jit_compiler_defs.h"
+#include "jit_opcode.h"
 #include "jit_optimizer.h"
 #include "memory_access.h"
 #include "state_6502.h"
