@@ -1,6 +1,8 @@
 #ifndef JIT_OPCODE_H
 #define JIT_OPCODE_H
 
+#include <stdint.h>
+
 struct jit_uop {
   /* Static details. */
   int32_t uopcode;
@@ -105,5 +107,8 @@ enum {
   k_opcode_WRITE_INV_SCRATCH,
   k_opcode_WRITE_INV_SCRATCH_Y,
 };
+
+struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
+                                    int32_t uopcode);
 
 #endif /* JIT_OPCODE_H */

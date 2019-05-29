@@ -10,20 +10,6 @@
 
 static const int32_t k_value_unknown = -1;
 
-static struct jit_uop*
-jit_optimizer_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
-  uint32_t i_uops;
-
-  for (i_uops = 0; i_uops < p_opcode->num_uops; ++i_uops) {
-    struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-    if (p_uop->uopcode == uopcode) {
-      return p_uop;
-    }
-  }
-
-  return NULL;
-}
-
 static void
 jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
                         struct jit_uop* p_elim_uop,
@@ -753,7 +739,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
       switch (opcode_6502) {
       case 0xA9: /* LDA imm */
-        p_rewrite_uop = jit_optimizer_find_uop(p_opcode, 0xA9);
+        p_rewrite_uop = jit_opcode_find_uop(p_opcode, 0xA9);
         assert(p_rewrite_uop != NULL);
         p_rewrite_uop->uopcode = 0xAD; /* LDA abs */
         p_rewrite_uop->value1 = (addr_6502 + 1);
@@ -895,8 +881,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         /* Eliminate LOAD_CARRY_FOR_CALC, flip ADC to ADD. */
         struct jit_uop* p_elim_uop;
         uopcode = new_add_uopcode;
-        p_elim_uop = jit_optimizer_find_uop(p_opcode,
-                                            k_opcode_LOAD_CARRY_FOR_CALC);
+        p_elim_uop = jit_opcode_find_uop(p_opcode,
+                                         k_opcode_LOAD_CARRY_FOR_CALC);
         assert(p_elim_uop != NULL);
         p_elim_uop->eliminated = 1;
       }
@@ -904,8 +890,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         /* Eliminate LOAD_CARRY_INV_FOR_CALC, flip SBC to SUB. */
         struct jit_uop* p_elim_uop;
         uopcode = new_sub_uopcode;
-        p_elim_uop = jit_optimizer_find_uop(p_opcode,
-                                            k_opcode_LOAD_CARRY_INV_FOR_CALC);
+        p_elim_uop = jit_opcode_find_uop(p_opcode,
+                                         k_opcode_LOAD_CARRY_INV_FOR_CALC);
         assert(p_elim_uop != NULL);
         p_elim_uop->eliminated = 1;
       }
@@ -924,8 +910,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
         if (replaced) {
           struct jit_uop* p_crossing_uop =
-              jit_optimizer_find_uop(p_opcode,
-                                     k_opcode_IDY_CHECK_PAGE_CROSSING);
+              jit_opcode_find_uop(p_opcode, k_opcode_IDY_CHECK_PAGE_CROSSING);
           if (p_crossing_uop != NULL) {
             p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
             p_crossing_uop->value1 = reg_y;
@@ -1063,13 +1048,13 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
 
       if (old_uopcode != -1) {
-        struct jit_uop* p_modify_uop = jit_optimizer_find_uop(p_prev_opcode,
-                                                              old_uopcode);
+        struct jit_uop* p_modify_uop = jit_opcode_find_uop(p_prev_opcode,
+                                                           old_uopcode);
         if (p_modify_uop != NULL) {
           p_modify_uop->uopcode = new_uopcode;
           p_modify_uop->value1 = 1;
         } else {
-          p_modify_uop = jit_optimizer_find_uop(p_prev_opcode, new_uopcode);
+          p_modify_uop = jit_opcode_find_uop(p_prev_opcode, new_uopcode);
         }
         assert(p_modify_uop != NULL);
         p_opcode->eliminated = 1;
@@ -1149,7 +1134,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
             assert(0);
             break;
           }
-          p_find_uop = jit_optimizer_find_uop(p_nz_flags_opcode, find_uopcode);
+          p_find_uop = jit_opcode_find_uop(p_nz_flags_opcode, find_uopcode);
           if ((p_find_uop != NULL) && (p_find_uop->value1 == 0x00)) {
             p_find_uop->uopcode = replace_uopcode;
             p_find_uop->uoptype = -1;
