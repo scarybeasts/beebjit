@@ -2,9 +2,42 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <string.h>
 
-struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
-                                    int32_t uopcode) {
+void
+jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
+                                 uint16_t addr_6502,
+                                 int32_t uopcode,
+                                 int32_t value1) {
+  (void) memset(p_opcode, '\0', sizeof(struct jit_opcode_details));
+  /* It's covered by the memset() and "internal" opcodes have
+   * len_bytes_6502_orig == 0.
+   */
+  p_opcode->addr_6502 = addr_6502;
+  p_opcode->cycles_run_start = -1;
+  p_opcode->num_uops = 1;
+  jit_opcode_make_uop1(&p_opcode->uops[0], uopcode, value1);
+}
+
+void
+jit_opcode_replace1(struct jit_opcode_details* p_opcode,
+                    int32_t uopcode,
+                    int32_t value1) {
+  p_opcode->num_uops = 1;
+  jit_opcode_make_uop1(&p_opcode->uops[0], uopcode, value1);
+}
+
+void
+jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1) {
+  (void) memset(p_uop, '\0', sizeof(struct jit_uop));
+  p_uop->uopcode = uopcode;
+  /* TODO: get rid of? */
+  p_uop->uoptype = -1;
+  p_uop->value1 = value1;
+}
+
+struct jit_uop*
+jit_opcode_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
   uint32_t i_uops;
   struct jit_uop* p_ret = NULL;
 

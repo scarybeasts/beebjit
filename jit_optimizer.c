@@ -999,15 +999,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
 
     if (use_interp) {
-      struct jit_uop* p_uop;
-      p_opcode->num_uops = 1;
-      p_uop = &p_opcode->uops[0];
-      /* TODO: make jit_compiler_set_uop a usable helper function. */
-      p_uop->uopcode = k_opcode_interp;
-      p_uop->uoptype = -1;
-      p_uop->value1 = p_opcode->addr_6502;
-      p_uop->value2 = 0;
-      p_uop->eliminated = 0;
+      jit_opcode_replace1(p_opcode, k_opcode_interp, addr_6502);
       p_opcode->ends_block = 1;
       num_opcodes = (i_opcodes + 1);
       break;

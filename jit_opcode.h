@@ -21,7 +21,6 @@ enum {
 
 struct jit_opcode_details {
   /* Static details. */
-  int internal;
   uint16_t addr_6502;
   uint8_t opcode_6502;
   uint16_t operand_6502;
@@ -107,6 +106,17 @@ enum {
   k_opcode_WRITE_INV_SCRATCH,
   k_opcode_WRITE_INV_SCRATCH_Y,
 };
+
+void jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
+                                      uint16_t addr_6502,
+                                      int32_t uopcode,
+                                      int32_t value1);
+
+void jit_opcode_replace1(struct jit_opcode_details* p_opcode,
+                         int32_t uopcode,
+                         int32_t value1);
+
+void jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1);
 
 struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);
