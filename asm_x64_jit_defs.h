@@ -3,6 +3,10 @@
 
 #include "asm_x64_defs.h"
 
+/* NOTE: this affects performance significantly.
+ * 9 == -8% and 10 == -23%.
+ * 7 may be a tiny shade faster (<1%), needs more tests. <= 6 is not viable.
+ */
 #define K_BBC_JIT_BYTES_SHIFT              8
 #define K_BBC_JIT_BYTES_PER_BYTE           (1 << K_BBC_JIT_BYTES_SHIFT)
 #define K_BBC_JIT_ADDR                     0x20000000
