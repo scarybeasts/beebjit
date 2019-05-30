@@ -518,6 +518,35 @@ debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
 }
 
 static void
+debug_clear_stats(struct debug_struct* p_debug) {
+  uint32_t i;
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    p_debug->count_addr[i] = 0;
+  }
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    p_debug->count_opcode[i] = 0;
+  }
+  for (i = 0; i < k_6502_op_num_types; ++i) {
+    p_debug->count_optype[i] = 0;
+  }
+  for (i = 0; i < k_6502_op_num_modes; ++i) {
+    p_debug->count_opmode[i] = 0;
+  }
+  p_debug->rom_write_faults = 0;
+  p_debug->branch_not_taken = 0;
+  p_debug->branch_taken = 0;
+  p_debug->branch_taken_page_crossing = 0;
+  p_debug->abn_reads = 0;
+  p_debug->abn_reads_with_page_crossing = 0;
+  p_debug->idy_reads = 0;
+  p_debug->idy_reads_with_page_crossing = 0;
+  p_debug->adc_sbc_count = 0;
+  p_debug->adc_sbc_with_decimal_count = 0;
+  p_debug->register_reads = 0;
+  p_debug->register_writes = 0;
+}
+
+static void
 debug_dump_stats(struct debug_struct* p_debug) {
   size_t i;
   uint8_t sorted_opcodes[k_6502_op_num_opcodes];
@@ -1000,6 +1029,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       (void) printf("stats now: %d\n", p_debug->stats);
     } else if (!strcmp(input_buf, "ds")) {
       debug_dump_stats(p_debug);
+    } else if (!strcmp(input_buf, "cs")) {
+      debug_clear_stats(p_debug);
     } else if (!strcmp(input_buf, "s")) {
       break;
     } else if (!strcmp(input_buf, "t")) {
@@ -1187,7 +1218,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "{a,x,y,pc}=<val>  : set register to <val>\n"
   "sys               : show system VIA registers\n"
   "user              : show user VIA registers\n"
-  "r                 : show regular registers\n");
+  "r                 : show regular registers\n"
+  "stats             : toggle stats collection (default: off)\n"
+  "ds                : dump stats collected\n"
+  "cs                : clear stats collected\n"
+  );
     } else {
       (void) printf("???\n");
     }
