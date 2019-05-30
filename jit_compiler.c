@@ -365,7 +365,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ind:
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, operand_6502);
     p_uop++;
     break;
   case k_idx:
@@ -377,7 +377,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_8, operand_6502);
     p_uop++;
     break;
   default:
@@ -561,7 +561,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->uoptype = k_sei;
     p_uop++;
     /* MODE_IND */
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND, k_6502_vector_irq);
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
     p_uop++;
     /* JMP_SCRATCH */
     jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH, 0);
@@ -851,8 +851,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_MODE_ABY:
     asm_x64_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_MODE_IND:
-    asm_x64_emit_jit_MODE_IND(p_dest_buf, (uint16_t) value1);
+  case k_opcode_MODE_IND_8:
+    asm_x64_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_MODE_IND_16:
+    asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_MODE_IND_SCRATCH:
     asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);

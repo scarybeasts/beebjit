@@ -466,6 +466,10 @@ asm_x64_asm_enter:
   mov REG_6502_CF_64, 0
   mov REG_6502_ID_F_64, 0
 
+  # This register points to offset 0x80 in the zero page. This enables us to
+  # use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
+  mov REG_MEM, K_BBC_MEM_READ_ADDR + 0x80
+
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 

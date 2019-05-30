@@ -388,7 +388,7 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
 
 static int
 jit_optimizer_uop_idy_match(struct jit_uop* p_uop, struct jit_uop* p_idy_uop) {
-  if ((p_uop->uopcode == k_opcode_MODE_IND) &&
+  if ((p_uop->uopcode == k_opcode_MODE_IND_8) &&
       (p_uop->value1 == p_idy_uop->value1)) {
     return 1;
   }
@@ -528,7 +528,8 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND:
+    case k_opcode_MODE_IND_8:
+    case k_opcode_MODE_IND_16:
     case k_opcode_MODE_IND_SCRATCH:
     case k_opcode_MODE_ZPX:
     case k_opcode_MODE_ZPY:
@@ -609,7 +610,8 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_LSR_ACC_n:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND:
+    case k_opcode_MODE_IND_8:
+    case k_opcode_MODE_IND_16:
     case k_opcode_MODE_IND_SCRATCH:
     case k_opcode_MODE_ZPX:
     case k_opcode_MODE_ZPY:
@@ -1150,7 +1152,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         p_nz_flags_opcode = p_opcode;
         p_nz_flags_uop = p_uop;
         break;
-      case k_opcode_MODE_IND:
+      case k_opcode_MODE_IND_8:
         p_idy_opcode = p_opcode;
         p_idy_uop = p_uop;
         break;

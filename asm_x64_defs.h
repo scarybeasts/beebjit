@@ -60,6 +60,7 @@
 #define REG_COUNTDOWN      r15
 
 #define REG_CONTEXT        rdi
+#define REG_MEM            rbp
 
 #define REG_SCRATCH1       rdx
 #define REG_SCRATCH1_8     dl
