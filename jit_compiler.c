@@ -248,7 +248,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   struct jit_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
   int could_page_cross = 1;
-  int emit_flag_load = 1;
   uint16_t rel_target_6502 = 0;
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
@@ -653,25 +652,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_txa:
   case k_tya:
   case k_pla:
-    if (emit_flag_load) {
-      jit_opcode_make_uop1(p_uop, k_opcode_FLAGA, 0);
-      p_uop++;
-    }
+    jit_opcode_make_uop1(p_uop, k_opcode_FLAGA, 0);
+    p_uop++;
     break;
   case k_ldx:
   case k_tax:
   case k_tsx:
-    if (emit_flag_load) {
-      jit_opcode_make_uop1(p_uop, k_opcode_FLAGX, 0);
-      p_uop++;
-    }
+    jit_opcode_make_uop1(p_uop, k_opcode_FLAGX, 0);
+    p_uop++;
     break;
   case k_ldy:
   case k_tay:
-    if (emit_flag_load) {
-      jit_opcode_make_uop1(p_uop, k_opcode_FLAGY, 0);
-      p_uop++;
-    }
+    jit_opcode_make_uop1(p_uop, k_opcode_FLAGY, 0);
+    p_uop++;
     break;
   case k_rol:
   case k_ror:
