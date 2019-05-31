@@ -301,7 +301,8 @@ jit_optimizer_uopcode_needs_x(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_ABX_CHECK_PAGE_CROSSING:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
+    case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_ADD_ABX:
     case k_opcode_FLAGX:
     case k_opcode_MODE_ABX:
@@ -369,11 +370,11 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_ABY_CHECK_PAGE_CROSSING:
     case k_opcode_ADD_ABY:
     case k_opcode_ADD_SCRATCH_Y:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
+    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_FLAGY:
-    case k_opcode_IDY_CHECK_PAGE_CROSSING:
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_ZPY:
     case k_opcode_WRITE_INV_SCRATCH_Y:
@@ -448,6 +449,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_CHECK_BCD:
+    /* TODO: add page crossings once they don't smash REG_SCRATCH1. */
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
@@ -510,8 +512,6 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
   } else {
     switch (uopcode) {
     case k_opcode_debug:
-    case k_opcode_ABX_CHECK_PAGE_CROSSING:
-    case k_opcode_ABY_CHECK_PAGE_CROSSING:
     case k_opcode_ADD_ABS:
     case k_opcode_ADD_ABX:
     case k_opcode_ADD_ABY:
@@ -520,8 +520,11 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_CHECK_BCD:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
+    case k_opcode_CHECK_PAGE_CROSSING_X_n:
+    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_CHECK_PENDING_IRQ:
-    case k_opcode_IDY_CHECK_PAGE_CROSSING:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
@@ -590,8 +593,6 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
   } else {
     switch (uopcode) {
     case k_opcode_debug:
-    case k_opcode_ABX_CHECK_PAGE_CROSSING:
-    case k_opcode_ABY_CHECK_PAGE_CROSSING:
     case k_opcode_ADD_ABS:
     case k_opcode_ADD_ABX:
     case k_opcode_ADD_ABY:
@@ -601,8 +602,11 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_ASL_ACC_n:
     case k_opcode_CHECK_BCD:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
+    case k_opcode_CHECK_PAGE_CROSSING_X_n:
+    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_CHECK_PENDING_IRQ:
-    case k_opcode_IDY_CHECK_PAGE_CROSSING:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
@@ -735,18 +739,19 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
     revalidate_count = jit_compiler_get_revalidate_count(p_compiler, addr_6502);
     if (revalidate_count >= 4) {
+      int replaced = 0;
       switch (opcode_6502) {
       case 0xA9: /* LDA imm */
         jit_opcode_find_replace1(p_opcode,
                                  0xA9,
                                  0xAD, /* LDA abs */
                                  (uint16_t) (addr_6502 + 1));
-        p_opcode->dynamic_operand = 1;
+        replaced = 1;
         break;
       case 0xB9: /* LDA aby */
         /* TODO: fix. */
         assert(
-            jit_opcode_find_uop(p_opcode, k_opcode_ABY_CHECK_PAGE_CROSSING) ==
+            jit_opcode_find_uop(p_opcode, k_opcode_CHECK_PAGE_CROSSING_Y_n) ==
             NULL);
         jit_opcode_find_replace2(p_opcode,
                                  0xB9,
@@ -754,12 +759,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                  (uint16_t) (addr_6502 + 1),
                                  0xB1, /* LDA idy */
                                  0);
-        p_opcode->dynamic_operand = 1;
+        replaced = 1;
         break;
       case 0xBD: /* LDA abx */
         /* TODO: fix. */
         assert(
-            jit_opcode_find_uop(p_opcode, k_opcode_ABX_CHECK_PAGE_CROSSING) ==
+            jit_opcode_find_uop(p_opcode, k_opcode_CHECK_PAGE_CROSSING_X_n) ==
             NULL);
         jit_opcode_find_replace2(p_opcode,
                                  0xBD,
@@ -767,10 +772,13 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                  (uint16_t) (addr_6502 + 1),
                                  k_opcode_LDA_SCRATCH_X,
                                  0);
-        p_opcode->dynamic_operand = 1;
+        replaced = 1;
         break;
       default:
         break;
+      }
+      if (replaced) {
+        p_opcode->dynamic_operand = 1;
       }
     }
 
@@ -934,7 +942,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
         if (replaced) {
           struct jit_uop* p_crossing_uop =
-              jit_opcode_find_uop(p_opcode, k_opcode_IDY_CHECK_PAGE_CROSSING);
+              jit_opcode_find_uop(p_opcode,
+                                  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
           if (p_crossing_uop != NULL) {
             p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
             p_crossing_uop->value1 = reg_y;

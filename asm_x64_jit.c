@@ -146,50 +146,6 @@ asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_x64_emit_jit_ABX_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
-                                         uint16_t addr) {
-  uint32_t value;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_jit_ABX_CHECK_PAGE_CROSSING,
-               asm_x64_jit_ABX_CHECK_PAGE_CROSSING_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_ABX_CHECK_PAGE_CROSSING,
-                    asm_x64_jit_ABX_CHECK_PAGE_CROSSING_lea_patch,
-                    value);
-}
-
-void
-asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
-                                         uint16_t addr) {
-  uint32_t value;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_x64_copy(p_buf,
-               asm_x64_jit_ABY_CHECK_PAGE_CROSSING,
-               asm_x64_jit_ABY_CHECK_PAGE_CROSSING_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
-  asm_x64_patch_int(p_buf,
-                    offset,
-                    asm_x64_jit_ABY_CHECK_PAGE_CROSSING,
-                    asm_x64_jit_ABY_CHECK_PAGE_CROSSING_lea_patch,
-                    value);
-}
-
-void
 asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
   asm_x64_copy_patch_byte(p_buf,
                           asm_x64_jit_ADD_CYCLES,
@@ -270,6 +226,64 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
 }
 
 void
+asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END);
+}
+
+void
+asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y,
+               asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END);
+}
+
+void
+asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
+                                         uint16_t addr) {
+  uint32_t value;
+
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
+               asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END);
+  /* This chicanery ensures a 32-bit integer overflow if there's a page
+   * crossing, leaving a 0 in the most significant bit.
+   */
+  value = (~K_BBC_MEM_READ_ADDR & 0xFFFFFF00);
+  value |= (addr & 0xFF);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch,
+                    value);
+}
+
+void
+asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf,
+                                         uint16_t addr) {
+  uint32_t value;
+
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
+               asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END);
+  /* This chicanery ensures a 32-bit integer overflow if there's a page
+   * crossing, leaving a 0 in the most significant bit.
+   */
+  value = (~K_BBC_MEM_READ_ADDR & 0xFFFFFF00);
+  value |= (addr & 0xFF);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch,
+                    value);
+}
+
+void
 asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                                    void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
@@ -314,13 +328,6 @@ asm_x64_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
                     asm_x64_jit_FLAG_MEM,
                     asm_x64_jit_FLAG_MEM_END,
                     (K_BBC_MEM_READ_ADDR + addr));
-}
-
-void
-asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf) {
-  asm_x64_copy(p_buf,
-               asm_x64_jit_IDY_CHECK_PAGE_CROSSING,
-               asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END);
 }
 
 void

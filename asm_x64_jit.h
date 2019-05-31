@@ -14,10 +14,6 @@ void asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
 void asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr);
 
-void asm_x64_emit_jit_ABX_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
-                                              uint16_t addr);
-void asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf,
-                                              uint16_t addr);
 void asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t value);
 void asm_x64_emit_jit_ADD_ABX(struct util_buffer* p_buf, uint16_t value);
@@ -28,6 +24,12 @@ void asm_x64_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf);
 void asm_x64_emit_jit_CHECK_BCD(struct util_buffer* p_buf);
 void asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
                                                     uint8_t offset);
+void asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf);
+void asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf);
+void asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
+                                              uint16_t addr);
+void asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf,
+                                              uint16_t addr);
 void asm_x64_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                                         void* p_trampoline);
 void asm_x64_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf);
@@ -35,7 +37,6 @@ void asm_x64_emit_jit_FLAGA(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGX(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAGY(struct util_buffer* p_buf);
 void asm_x64_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr);
-void asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(struct util_buffer* p_buf);
 void asm_x64_emit_jit_INC_SCRATCH(struct util_buffer* p_buf);
 void asm_x64_emit_jit_INVERT_CARRY(struct util_buffer* p_buf);
 void asm_x64_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf);
@@ -210,12 +211,6 @@ void asm_x64_jit_jump_interp_pc_patch();
 void asm_x64_jit_jump_interp_jump_patch();
 void asm_x64_jit_jump_interp_END();
 
-void asm_x64_jit_ABX_CHECK_PAGE_CROSSING();
-void asm_x64_jit_ABX_CHECK_PAGE_CROSSING_lea_patch();
-void asm_x64_jit_ABX_CHECK_PAGE_CROSSING_END();
-void asm_x64_jit_ABY_CHECK_PAGE_CROSSING();
-void asm_x64_jit_ABY_CHECK_PAGE_CROSSING_lea_patch();
-void asm_x64_jit_ABY_CHECK_PAGE_CROSSING_END();
 void asm_x64_jit_ADD_ABS();
 void asm_x64_jit_ADD_ABS_END();
 void asm_x64_jit_ADD_ABX();
@@ -237,6 +232,16 @@ void asm_x64_jit_CHECK_BCD_END();
 void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n();
 void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch();
 void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END();
+void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X();
+void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END();
+void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y();
+void asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END();
+void asm_x64_jit_CHECK_PAGE_CROSSING_X_n();
+void asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch();
+void asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END();
+void asm_x64_jit_CHECK_PAGE_CROSSING_Y_n();
+void asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch();
+void asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END();
 void asm_x64_jit_CHECK_PENDING_IRQ();
 void asm_x64_jit_CHECK_PENDING_IRQ_jump_patch();
 void asm_x64_jit_CHECK_PENDING_IRQ_END();
@@ -250,8 +255,6 @@ void asm_x64_jit_FLAGY();
 void asm_x64_jit_FLAGY_END();
 void asm_x64_jit_FLAG_MEM();
 void asm_x64_jit_FLAG_MEM_END();
-void asm_x64_jit_IDY_CHECK_PAGE_CROSSING();
-void asm_x64_jit_IDY_CHECK_PAGE_CROSSING_END();
 void asm_x64_jit_INC_SCRATCH();
 void asm_x64_jit_INC_SCRATCH_END();
 void asm_x64_jit_INVERT_CARRY();

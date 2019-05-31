@@ -326,12 +326,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         could_page_cross) {
       if (opmode == k_abx) {
         jit_opcode_make_uop1(p_uop,
-                             k_opcode_ABX_CHECK_PAGE_CROSSING,
+                             k_opcode_CHECK_PAGE_CROSSING_X_n,
                              operand_6502);
         p_uop++;
       } else if (opmode == k_aby) {
         jit_opcode_make_uop1(p_uop,
-                             k_opcode_ABY_CHECK_PAGE_CROSSING,
+                             k_opcode_CHECK_PAGE_CROSSING_Y_n,
                              operand_6502);
         p_uop++;
       }
@@ -606,7 +606,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      * only guaranteed that the JIT handled the uop if we get here.
      */
     if (p_compiler->option_accurate_timings && (opmem == k_read)) {
-      jit_opcode_make_uop1(p_uop, k_opcode_IDY_CHECK_PAGE_CROSSING, 0);
+      jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y, 0);
       p_uop++;
     }
     break;
@@ -747,12 +747,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_interp:
     asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_ABX_CHECK_PAGE_CROSSING:
-    asm_x64_emit_jit_ABX_CHECK_PAGE_CROSSING(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_ABY_CHECK_PAGE_CROSSING:
-    asm_x64_emit_jit_ABY_CHECK_PAGE_CROSSING(p_dest_buf, (uint16_t) value1);
-    break;
   case k_opcode_ADD_CYCLES:
     asm_x64_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
@@ -784,6 +778,18 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf,
                                                    (uint8_t) value1);
     break;
+  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
+    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(p_dest_buf);
+    break;
+  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
+    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(p_dest_buf);
+    break;
+  case k_opcode_CHECK_PAGE_CROSSING_X_n:
+    asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_CHECK_PAGE_CROSSING_Y_n:
+    asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_CHECK_PENDING_IRQ:
     asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
     break;
@@ -801,9 +807,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_FLAG_MEM:
     asm_x64_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_IDY_CHECK_PAGE_CROSSING:
-    asm_x64_emit_jit_IDY_CHECK_PAGE_CROSSING(p_dest_buf);
     break;
   case k_opcode_INC_SCRATCH:
     asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
