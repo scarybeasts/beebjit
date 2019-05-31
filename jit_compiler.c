@@ -28,6 +28,7 @@ struct jit_compiler {
   int debug;
   int option_accurate_timings;
   int option_no_optimize;
+  int log_revalidate;
   uint32_t max_6502_opcodes_per_block;
   uint16_t needs_callback_above;
 
@@ -157,6 +158,8 @@ jit_compiler_create(struct memory_access* p_memory_access,
   }
   p_compiler->option_no_optimize = util_has_option(p_options->p_opt_flags,
                                                    "jit:no-optimize");
+  p_compiler->log_revalidate = util_has_option(p_options->p_log_flags,
+                                               "jit:revalidate");
 
   (void) util_get_int_option(&max_6502_opcodes_per_block,
                              p_options->p_opt_flags,
@@ -1749,8 +1752,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         int32_t revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
         if (opcode_6502 != p_compiler->addr_opcode[addr_6502]) {
           revalidate_count = 0;
-        } else if (p_details->self_modify_invalidated) {
+        } else if (p_details->self_modify_invalidated &&
+                   (p_details->len_bytes_6502_orig > 1)) {
           revalidate_count++;
+          if (p_compiler->log_revalidate) {
+            printf("LOG:JIT:revalidate at $%.4X, opcode %.2X count %d\n",
+                   addr_6502,
+                   opcode_6502,
+                   revalidate_count);
+          }
         }
         p_compiler->addr_opcode[addr_6502] = opcode_6502;
         p_compiler->addr_revalidate_count[addr_6502] = revalidate_count;
