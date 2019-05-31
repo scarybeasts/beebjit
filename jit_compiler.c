@@ -321,21 +321,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if (opmode == k_abx || opmode == k_aby) {
       addr_range_end += 0xFF;
     }
-    if (p_compiler->option_accurate_timings &&
-        (opmem == k_read) &&
-        could_page_cross) {
-      if (opmode == k_abx) {
-        jit_opcode_make_uop1(p_uop,
-                             k_opcode_CHECK_PAGE_CROSSING_X_n,
-                             operand_6502);
-        p_uop++;
-      } else if (opmode == k_aby) {
-        jit_opcode_make_uop1(p_uop,
-                             k_opcode_CHECK_PAGE_CROSSING_Y_n,
-                             operand_6502);
-        p_uop++;
-      }
-    }
 
     /* Use the interpreter for address space wraps. Otherwise the JIT code
      * will do an out-of-bounds access. Longer term, this could be addressed,
@@ -599,19 +584,33 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Post-main per-mode uops. */
-  switch (opmode) {
-  case k_idy:
+  if (p_compiler->option_accurate_timings &&
+      (opmem == k_read) &&
+      could_page_cross) {
     /* NOTE: must do page crossing cycles fixup after the main uop, because it
      * may fault (e.g. for hardware register access) and then fixup. We're
      * only guaranteed that the JIT handled the uop if we get here.
      */
-    if (p_compiler->option_accurate_timings && (opmem == k_read)) {
+    switch (opmode) {
+    case k_abx:
+      jit_opcode_make_uop1(p_uop,
+                           k_opcode_CHECK_PAGE_CROSSING_X_n,
+                           operand_6502);
+      p_uop++;
+      break;
+    case k_aby:
+      jit_opcode_make_uop1(p_uop,
+                           k_opcode_CHECK_PAGE_CROSSING_Y_n,
+                           operand_6502);
+      p_uop++;
+      break;
+    case k_idy:
       jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y, 0);
       p_uop++;
+      break;
+    default:
+      break;
     }
-    break;
-  default:
-    break;
   }
 
   /* Post-main uops. */
