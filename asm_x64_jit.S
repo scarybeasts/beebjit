@@ -1463,6 +1463,16 @@ asm_x64_jit_LDA_SCRATCH_END:
   ret
 
 
+.globl asm_x64_jit_LDA_SCRATCH_X
+.globl asm_x64_jit_LDA_SCRATCH_X_END
+asm_x64_jit_LDA_SCRATCH_X:
+  mov REG_6502_A, \
+      [REG_SCRATCH1 + REG_6502_X_64 + K_BBC_MEM_READ_TO_IND_READ_OFFSET]
+
+asm_x64_jit_LDA_SCRATCH_X_END:
+  ret
+
+
 .globl asm_x64_jit_LDA_SCRATCH_Y
 .globl asm_x64_jit_LDA_SCRATCH_Y_END
 asm_x64_jit_LDA_SCRATCH_Y:

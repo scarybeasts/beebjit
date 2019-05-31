@@ -1207,6 +1207,11 @@ asm_x64_emit_jit_LDA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 }
 
 void
+asm_x64_emit_jit_LDA_SCRATCH_X(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_LDA_SCRATCH_X, asm_x64_jit_LDA_SCRATCH_X_END);
+}
+
+void
 asm_x64_emit_jit_LDA_SCRATCH_Y(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf, asm_x64_jit_LDA_SCRATCH_Y, asm_x64_jit_LDA_SCRATCH_Y_END);
 }

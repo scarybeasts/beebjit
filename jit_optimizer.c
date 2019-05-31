@@ -681,9 +681,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
   struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
 
-  (void) p_compiler;
-
-  /* Use a compiler-provide scratch opcode to eliminate all BCD checks and do
+  /* Use a compiler-provided scratch opcode to eliminate all BCD checks and do
    * it just once at the start of the block, if any ADC / SBC are present.
    */
   assert(num_opcodes > 2);
@@ -737,14 +735,42 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
 
     revalidate_count = jit_compiler_get_revalidate_count(p_compiler, addr_6502);
     if (revalidate_count >= 4) {
-      struct jit_uop* p_rewrite_uop;
-
       switch (opcode_6502) {
       case 0xA9: /* LDA imm */
-        p_rewrite_uop = jit_opcode_find_uop(p_opcode, 0xA9);
-        assert(p_rewrite_uop != NULL);
-        p_rewrite_uop->uopcode = 0xAD; /* LDA abs */
-        p_rewrite_uop->value1 = (addr_6502 + 1);
+        /* TODO: this smashes debug opcode. */
+        jit_opcode_replace2(p_opcode,
+                            0xAD, /* LDA abs */
+                            (uint16_t) (addr_6502 + 1),
+                            k_opcode_FLAGA,
+                            0);
+        p_opcode->dynamic_operand = 1;
+        break;
+      case 0xB9: /* LDA aby */
+        /* TODO: fix. */
+        assert(
+            jit_opcode_find_uop(p_opcode, k_opcode_ABY_CHECK_PAGE_CROSSING) ==
+            NULL);
+        jit_opcode_replace3(p_opcode,
+                            k_opcode_MODE_IND_16,
+                            (uint16_t) (addr_6502 + 1),
+                            0xB1, /* LDA idy */
+                            0,
+                            k_opcode_FLAGA,
+                            0);
+        p_opcode->dynamic_operand = 1;
+        break;
+      case 0xBD: /* LDA abx */
+        /* TODO: fix. */
+        assert(
+            jit_opcode_find_uop(p_opcode, k_opcode_ABX_CHECK_PAGE_CROSSING) ==
+            NULL);
+        jit_opcode_replace3(p_opcode,
+                            k_opcode_MODE_IND_16,
+                            (uint16_t) (addr_6502 + 1),
+                            k_opcode_LDA_SCRATCH_X,
+                            0,
+                            k_opcode_FLAGA,
+                            0);
         p_opcode->dynamic_operand = 1;
         break;
       default:

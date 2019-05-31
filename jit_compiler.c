@@ -814,6 +814,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_LDA_SCRATCH_n:
     asm_x64_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
+  case k_opcode_LDA_SCRATCH_X:
+    asm_x64_emit_jit_LDA_SCRATCH_X(p_dest_buf);
+    break;
   case k_opcode_LDA_Z:
     asm_x64_emit_jit_LDA_Z(p_dest_buf);
     break;

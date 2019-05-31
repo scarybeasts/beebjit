@@ -1328,7 +1328,25 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xD3C0);
 
+  /* Test for LDA abx dynamic operand, including bugs we hit. */
   set_new_index(p_buf, 0x13C0);
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x41);
+  emit_JSR(p_buf, 0x3120);        /* Sets up an LDA abx as dynamic operand. */
+  emit_INC(p_buf, k_abs, 0x312C); /* Self-modify later in the same block. */
+  emit_JSR(p_buf, 0x3120);
+  emit_LDA(p_buf, k_imm, 0xFE);   /* Arrange for fault in dynamic block. */
+  emit_STA(p_buf, k_zpg, 0x41);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x42);
+  emit_JSR(p_buf, 0x3120);
+  emit_LDA(p_buf, k_zpg, 0x42);
+  emit_REQUIRE_EQ(p_buf, 0x10);
+  emit_JMP(p_buf, k_abs, 0xD400);
+
+  set_new_index(p_buf, 0x1400);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1465,6 +1483,18 @@ main(int argc, const char* argv[]) {
   emit_JMP(p_buf, k_abs, 0x3116);
   emit_SBC(p_buf, k_imm, 0x01);
   emit_SBC(p_buf, k_imm, 0x01);
+  emit_RTS(p_buf);
+
+  /* For JIT dynamic operand testing. */
+  set_new_index(p_buf, 0x3120);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDY(p_buf, k_imm, 0x10);   /* Modify 16 times to be sure of opt. */
+  emit_LDA(p_buf, k_abx, 0x3000);
+  emit_INC(p_buf, k_zpg, 0x42);
+  emit_LDA(p_buf, k_idx, 0x40);   /* To fault-fixup at an interesting time. */
+  emit_INC(p_buf, k_abs, 0x3125);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -13);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

@@ -21,10 +21,35 @@ jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
 
 void
 jit_opcode_replace1(struct jit_opcode_details* p_opcode,
-                    int32_t uopcode,
+                    int32_t uop1,
                     int32_t value1) {
   p_opcode->num_uops = 1;
-  jit_opcode_make_uop1(&p_opcode->uops[0], uopcode, value1);
+  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
+}
+
+void
+jit_opcode_replace2(struct jit_opcode_details* p_opcode,
+                    int32_t uop1,
+                    int32_t value1,
+                    int32_t uop2,
+                    int32_t value2) {
+  p_opcode->num_uops = 2;
+  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
+  jit_opcode_make_uop1(&p_opcode->uops[1], uop2, value2);
+}
+
+void
+jit_opcode_replace3(struct jit_opcode_details* p_opcode,
+                    int32_t uop1,
+                    int32_t value1,
+                    int32_t uop2,
+                    int32_t value2,
+                    int32_t uop3,
+                    int32_t value3) {
+  p_opcode->num_uops = 3;
+  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
+  jit_opcode_make_uop1(&p_opcode->uops[1], uop2, value2);
+  jit_opcode_make_uop1(&p_opcode->uops[2], uop3, value3);
 }
 
 void

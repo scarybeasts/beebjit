@@ -45,6 +45,7 @@ struct jit_struct {
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
   struct interp_struct* p_interp;
+  uint32_t no_code_jit_ptr;
 
   int log_compile;
 };
@@ -306,6 +307,7 @@ jit_compile(struct jit_struct* p_jit,
             uint8_t* p_intel_rip,
             int64_t countdown,
             uint64_t intel_rflags) {
+  uint32_t jit_ptr;
   uint8_t* p_jit_ptr;
   uint8_t* p_block_ptr;
   uint16_t addr_6502;
@@ -325,9 +327,11 @@ jit_compile(struct jit_struct* p_jit,
     /* Host IP is inside a code block; find the corresponding 6502 address. */
     addr_6502 = block_addr_6502;
     while (1) {
-      p_jit_ptr = (uint8_t*) (size_t) p_jit->jit_ptrs[addr_6502];
-      assert(jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
-             block_addr_6502);
+      jit_ptr = p_jit->jit_ptrs[addr_6502];
+      p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
+      assert((jit_ptr == p_jit->no_code_jit_ptr) ||
+             (jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
+              block_addr_6502));
       if (p_jit_ptr == p_intel_rip) {
         break;
       }
@@ -527,19 +531,22 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   /* Walk the code pointers in the block and do a non-exact match because the
    * faulting instruction won't be the start of the 6502 opcode. (That may
-   * be e.g. the MODE_IND uop as part of the idy addressin mode.
+   * be e.g. the MODE_IND_8 uop as part of the idy addressing mode.
    */
   addr_6502 = block_addr_6502;
   i_addr_6502 = block_addr_6502;
   p_last_jit_ptr = NULL;
   while (1) {
-    void* p_jit_ptr = (void*) (size_t) p_jit->jit_ptrs[i_addr_6502];
-    if (p_jit_ptr > p_rip) {
-      break;
-    }
-    if (p_jit_ptr != p_last_jit_ptr) {
-      p_last_jit_ptr = p_jit_ptr;
-      addr_6502 = i_addr_6502;
+    uint32_t jit_ptr = p_jit->jit_ptrs[i_addr_6502];
+    void* p_jit_ptr = (void*) (size_t) jit_ptr;
+    if (jit_ptr != p_jit->no_code_jit_ptr) {
+      if (p_jit_ptr > p_rip) {
+        break;
+      }
+      if (p_jit_ptr != p_last_jit_ptr) {
+        p_last_jit_ptr = p_jit_ptr;
+        addr_6502 = i_addr_6502;
+      }
     }
     i_addr_6502++;
     if (!i_addr_6502) {
@@ -633,6 +640,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();
+  p_jit->no_code_jit_ptr =
+      (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
+                                                (k_6502_addr_space_size - 1));
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     /* Initialize JIT code. */
