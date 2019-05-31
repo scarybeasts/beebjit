@@ -449,7 +449,11 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_CHECK_BCD:
-    /* TODO: add page crossings once they don't smash REG_SCRATCH1. */
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
+    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
+    case k_opcode_CHECK_PAGE_CROSSING_X_n:
+    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
