@@ -1604,9 +1604,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
     for (i_uops = 0; i_uops < num_fixup_uops; ++i_uops) {
       p_uop = p_fixup_opcode->fixup_uops[i_uops];
-      if (p_uop == NULL) {
-        continue;
-      }
       assert(p_uop->eliminated);
       switch (p_uop->uopcode) {
       case k_opcode_FLAGA:
@@ -1659,9 +1656,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       util_buffer_set_pos(p_single_opcode_buf, 0);
       for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
         p_uop = p_details->fixup_uops[i_uops];
-        if (p_uop == NULL) {
-          continue;
-        }
         jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
       }
       /* JMP abs */
@@ -1764,9 +1758,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
           p_uop = p_details->fixup_uops[i_uops];
-          if (p_uop == NULL) {
-            continue;
-          }
           switch (p_uop->uopcode) {
           case k_opcode_FLAGA:
             p_compiler->addr_nz_fixup[addr_6502] = k_a;
