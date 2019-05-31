@@ -30,11 +30,12 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
 
 #echo 'Running built-in tests.'
 #./6502jit -t
-# TODO: run test.rom, JIT, accurate.
 echo 'Running test.rom, JIT.'
 ./6502jit -os test.rom -expect 434241 -mode jit
 echo 'Running test.rom, JIT, debug.'
 ./6502jit -os test.rom -expect 434241 -mode jit -d -r
+echo 'Running test.rom, JIT, accurate.'
+./6502jit -os test.rom -expect 434241 -mode jit -a
 echo 'Running test.rom, interpreter.'
 ./6502jit -os test.rom -expect 434241 -mode interp
 echo 'Running test.rom, interpreter, debug, print.'

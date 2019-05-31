@@ -744,6 +744,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     revalidate_count = jit_compiler_get_revalidate_count(p_compiler, addr_6502);
     if (revalidate_count >= 4) {
       int replaced = 0;
+      int32_t page_crossing_search_uopcode = -1;
+      int32_t page_crossing_replace_uopcode = -1;
       switch (opcode_6502) {
       case 0xA9: /* LDA imm */
         jit_opcode_find_replace1(p_opcode,
@@ -753,29 +755,25 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         replaced = 1;
         break;
       case 0xB9: /* LDA aby */
-        /* TODO: fix. */
-        assert(
-            jit_opcode_find_uop(p_opcode, k_opcode_CHECK_PAGE_CROSSING_Y_n) ==
-            NULL);
         jit_opcode_find_replace2(p_opcode,
                                  0xB9,
                                  k_opcode_MODE_IND_16,
                                  (uint16_t) (addr_6502 + 1),
                                  0xB1, /* LDA idy */
                                  0);
+        page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_Y_n;
+        page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y;
         replaced = 1;
         break;
       case 0xBD: /* LDA abx */
-        /* TODO: fix. */
-        assert(
-            jit_opcode_find_uop(p_opcode, k_opcode_CHECK_PAGE_CROSSING_X_n) ==
-            NULL);
         jit_opcode_find_replace2(p_opcode,
                                  0xBD,
                                  k_opcode_MODE_IND_16,
                                  (uint16_t) (addr_6502 + 1),
                                  k_opcode_LDA_SCRATCH_X,
                                  0);
+        page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_X_n;
+        page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X;
         replaced = 1;
         break;
       default:
@@ -783,6 +781,13 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       }
       if (replaced) {
         p_opcode->dynamic_operand = 1;
+        if (page_crossing_search_uopcode != -1) {
+          struct jit_uop* p_uop =
+              jit_opcode_find_uop(p_opcode, page_crossing_search_uopcode);
+          if (p_uop != NULL) {
+            jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
+          }
+        }
       }
     }
 
