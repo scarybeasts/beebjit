@@ -114,21 +114,16 @@ void jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
                                       int32_t uopcode,
                                       int32_t value1);
 
-void jit_opcode_replace1(struct jit_opcode_details* p_opcode,
-                         int32_t uop1,
-                         int32_t value1);
-void jit_opcode_replace2(struct jit_opcode_details* p_opcode,
-                         int32_t uop1,
-                         int32_t value1,
-                         int32_t uop2,
-                         int32_t value2);
-void jit_opcode_replace3(struct jit_opcode_details* p_opcode,
-                         int32_t uop1,
-                         int32_t value1,
-                         int32_t uop2,
-                         int32_t value2,
-                         int32_t uop3,
-                         int32_t value3);
+void jit_opcode_find_replace1(struct jit_opcode_details* p_opcode,
+                              int32_t find_uop,
+                              int32_t uop1,
+                              int32_t value1);
+void jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
+                              int32_t find_uop,
+                              int32_t uop1,
+                              int32_t value1,
+                              int32_t uop2,
+                              int32_t value2);
 
 void jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1);
 

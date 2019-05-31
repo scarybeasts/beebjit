@@ -715,7 +715,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint8_t optype = g_optypes[opcode_6502];
     uint8_t opmode = g_opmodes[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
-    int use_interp = 0;
+    int32_t interp_replace = -1;
 
     if (p_opcode == p_bcd_opcode) {
       continue;
@@ -737,12 +737,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     if (revalidate_count >= 4) {
       switch (opcode_6502) {
       case 0xA9: /* LDA imm */
-        /* TODO: this smashes debug opcode. */
-        jit_opcode_replace2(p_opcode,
-                            0xAD, /* LDA abs */
-                            (uint16_t) (addr_6502 + 1),
-                            k_opcode_FLAGA,
-                            0);
+        jit_opcode_find_replace1(p_opcode,
+                                 0xA9,
+                                 0xAD, /* LDA abs */
+                                 (uint16_t) (addr_6502 + 1));
         p_opcode->dynamic_operand = 1;
         break;
       case 0xB9: /* LDA aby */
@@ -750,13 +748,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         assert(
             jit_opcode_find_uop(p_opcode, k_opcode_ABY_CHECK_PAGE_CROSSING) ==
             NULL);
-        jit_opcode_replace3(p_opcode,
-                            k_opcode_MODE_IND_16,
-                            (uint16_t) (addr_6502 + 1),
-                            0xB1, /* LDA idy */
-                            0,
-                            k_opcode_FLAGA,
-                            0);
+        jit_opcode_find_replace2(p_opcode,
+                                 0xB9,
+                                 k_opcode_MODE_IND_16,
+                                 (uint16_t) (addr_6502 + 1),
+                                 0xB1, /* LDA idy */
+                                 0);
         p_opcode->dynamic_operand = 1;
         break;
       case 0xBD: /* LDA abx */
@@ -764,13 +761,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         assert(
             jit_opcode_find_uop(p_opcode, k_opcode_ABX_CHECK_PAGE_CROSSING) ==
             NULL);
-        jit_opcode_replace3(p_opcode,
-                            k_opcode_MODE_IND_16,
-                            (uint16_t) (addr_6502 + 1),
-                            k_opcode_LDA_SCRATCH_X,
-                            0,
-                            k_opcode_FLAGA,
-                            0);
+        jit_opcode_find_replace2(p_opcode,
+                                 0xBD,
+                                 k_opcode_MODE_IND_16,
+                                 (uint16_t) (addr_6502 + 1),
+                                 k_opcode_LDA_SCRATCH_X,
+                                 0);
         p_opcode->dynamic_operand = 1;
         break;
       default:
@@ -898,7 +894,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
         } else {
-          use_interp = 1;
+          interp_replace = k_opcode_CHECK_BCD;
         }
         break;
       default:
@@ -1026,8 +1022,11 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       break;
     }
 
-    if (use_interp) {
-      jit_opcode_replace1(p_opcode, k_opcode_interp, addr_6502);
+    if (interp_replace != -1) {
+      jit_opcode_find_replace1(p_opcode,
+                               interp_replace,
+                               k_opcode_interp,
+                               addr_6502);
       p_opcode->ends_block = 1;
       num_opcodes = (i_opcodes + 1);
       break;

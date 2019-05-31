@@ -1,6 +1,7 @@
 #include "jit_opcode.h"
 
 #include <assert.h>
+#include <err.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -20,36 +21,38 @@ jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
 }
 
 void
-jit_opcode_replace1(struct jit_opcode_details* p_opcode,
-                    int32_t uop1,
-                    int32_t value1) {
-  p_opcode->num_uops = 1;
-  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
+jit_opcode_find_replace1(struct jit_opcode_details* p_opcode,
+                         int32_t find_uop,
+                         int32_t uop1,
+                         int32_t value1) {
+  struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode, find_uop);
+  assert(p_uop != NULL);
+  jit_opcode_make_uop1(p_uop, uop1, value1);
 }
 
 void
-jit_opcode_replace2(struct jit_opcode_details* p_opcode,
-                    int32_t uop1,
-                    int32_t value1,
-                    int32_t uop2,
-                    int32_t value2) {
-  p_opcode->num_uops = 2;
-  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
-  jit_opcode_make_uop1(&p_opcode->uops[1], uop2, value2);
-}
+jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
+                         int32_t find_uop,
+                         int32_t uop1,
+                         int32_t value1,
+                         int32_t uop2,
+                         int32_t value2) {
+  size_t i;
+  struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode, find_uop);
+  assert(p_uop != NULL);
 
-void
-jit_opcode_replace3(struct jit_opcode_details* p_opcode,
-                    int32_t uop1,
-                    int32_t value1,
-                    int32_t uop2,
-                    int32_t value2,
-                    int32_t uop3,
-                    int32_t value3) {
-  p_opcode->num_uops = 3;
-  jit_opcode_make_uop1(&p_opcode->uops[0], uop1, value1);
-  jit_opcode_make_uop1(&p_opcode->uops[1], uop2, value2);
-  jit_opcode_make_uop1(&p_opcode->uops[2], uop3, value3);
+  if (p_opcode->num_uops == k_max_uops_per_opcode) {
+    errx(1, "uops full");
+  }
+
+  i = (p_uop - &p_opcode->uops[0]);
+  (void) memmove((p_uop + 1),
+                 p_uop,
+                 ((p_opcode->num_uops - i) * sizeof(struct jit_uop)));
+  p_opcode->num_uops++;
+
+  jit_opcode_make_uop1(p_uop, uop1, value1);
+  jit_opcode_make_uop1((p_uop + 1), uop2, value2);
 }
 
 void
