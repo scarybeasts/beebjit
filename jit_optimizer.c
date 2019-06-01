@@ -808,12 +808,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         new_add_uopcode = k_opcode_ADD_ABS;
         break;
       case 0x69: /* ADC imm */
-        if (flag_carry == 0) {
-          new_add_uopcode = k_opcode_ADD_IMM;
-        } else if (flag_carry == 1) {
-          /* NOTE: if this is common, we can optimize this case. */
-          printf("LOG:JIT:optimizer sees ADC #$imm with C==1\n");
-        }
+        new_add_uopcode = k_opcode_ADD_IMM;
         break;
       case 0x71: /* ADC idy */
         new_add_uopcode = k_opcode_ADD_SCRATCH_Y;
@@ -918,23 +913,39 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       }
 
-      if ((new_add_uopcode != -1) && (flag_carry == 0)) {
-        /* Eliminate LOAD_CARRY_FOR_CALC, flip ADC to ADD. */
-        struct jit_uop* p_elim_uop;
-        uopcode = new_add_uopcode;
-        p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                         k_opcode_LOAD_CARRY_FOR_CALC);
-        assert(p_elim_uop != NULL);
-        p_elim_uop->eliminated = 1;
+      if ((new_add_uopcode != -1) && (flag_carry != k_value_unknown)) {
+        if ((flag_carry == 0) ||
+            ((new_add_uopcode == k_opcode_ADD_IMM) &&
+             (p_uop->value1 != 0xFF) &&
+             (p_uop->value1 != 0x7F))) {
+          /* Eliminate LOAD_CARRY_FOR_CALC, flip ADC to ADD. */
+          struct jit_uop* p_elim_uop;
+          uopcode = new_add_uopcode;
+          if (flag_carry == 1) {
+            p_uop->value1++;
+          }
+          p_elim_uop = jit_opcode_find_uop(p_opcode,
+                                           k_opcode_LOAD_CARRY_FOR_CALC);
+          assert(p_elim_uop != NULL);
+          p_elim_uop->eliminated = 1;
+        }
       }
-      if ((new_sub_uopcode != -1) && (flag_carry == 1)) {
-        /* Eliminate LOAD_CARRY_INV_FOR_CALC, flip SBC to SUB. */
-        struct jit_uop* p_elim_uop;
-        uopcode = new_sub_uopcode;
-        p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                         k_opcode_LOAD_CARRY_INV_FOR_CALC);
-        assert(p_elim_uop != NULL);
-        p_elim_uop->eliminated = 1;
+      if ((new_sub_uopcode != -1) && (flag_carry != k_value_unknown)) {
+        if ((flag_carry == 1) ||
+            ((new_sub_uopcode == k_opcode_SUB_IMM) &&
+             (p_uop->value1 != 0xFF) &&
+             (p_uop->value1 != 0x7F))) {
+          /* Eliminate LOAD_CARRY_INV_FOR_CALC, flip SBC to SUB. */
+          struct jit_uop* p_elim_uop;
+          uopcode = new_sub_uopcode;
+          if (flag_carry == 0) {
+            p_uop->value1++;
+          }
+          p_elim_uop = jit_opcode_find_uop(p_opcode,
+                                           k_opcode_LOAD_CARRY_INV_FOR_CALC);
+          assert(p_elim_uop != NULL);
+          p_elim_uop->eliminated = 1;
+        }
       }
 
       if (reg_y != k_value_unknown) {
