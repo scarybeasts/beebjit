@@ -594,10 +594,10 @@ asm_x64_jit_MODE_ZPY_8bit_END:
 .globl asm_x64_jit_PULL_16_END
 asm_x64_jit_PULL_16:
   movzx REG_SCRATCH1_32, WORD PTR [REG_6502_S_64 + 1]
-  # Magic constant to cause a fault + fixup for stack wraps.
+  # Magic constant to cause a fault + fixup when incrementing stack by 2 would
+  # overflow.
   mov REG_SCRATCH2_8, [REG_6502_S_64 + 0x10000000 + 0xfe02]
-  lea REG_SCRATCH2_32, [REG_6502_S_64 + 2]
-  mov REG_6502_S, REG_SCRATCH2_8
+  lea REG_6502_S_32, [REG_6502_S_64 + 2]
 
 asm_x64_jit_PULL_16_END:
   ret
@@ -607,12 +607,12 @@ asm_x64_jit_PULL_16_END:
 .globl asm_x64_jit_PUSH_16_word_patch
 .globl asm_x64_jit_PUSH_16_END
 asm_x64_jit_PUSH_16:
-  # Magic constant to cause a fault + fixup for stack wraps.
-  mov REG_SCRATCH1_8, [REG_6502_S_64 - 0x101]
+  # Magic constant to cause a fault + fixup when decrementing stack by 2 would
+  # overflow.
+  mov REG_SCRATCH1_8, [REG_6502_S_64 - 0x102]
   mov WORD PTR [REG_6502_S_64 - 1], 0xffff
 asm_x64_jit_PUSH_16_word_patch:
-  lea REG_SCRATCH1_32, [REG_6502_S_64 - 2]
-  mov REG_6502_S, REG_SCRATCH1_8
+  lea REG_6502_S_32, [REG_6502_S_64 - 2]
 
 asm_x64_jit_PUSH_16_END:
   ret
