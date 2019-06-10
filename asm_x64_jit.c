@@ -159,7 +159,7 @@ asm_x64_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ADD_ZPG,
                             asm_x64_jit_ADD_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ADD_ABS,
@@ -419,7 +419,7 @@ asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
   asm_x64_copy_patch_byte(p_buf,
                           asm_x64_jit_MODE_IND_8,
                           asm_x64_jit_MODE_IND_8_END,
-                          (addr - 0x80));
+                          (addr - REG_MEM_OFFSET));
 }
 
 void
@@ -551,7 +551,7 @@ asm_x64_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_SUB_ZPG,
                             asm_x64_jit_SUB_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_SUB_ABS,
@@ -601,7 +601,7 @@ asm_x64_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ADC_ZPG,
                             asm_x64_jit_ADC_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ADC_ABS,
@@ -665,7 +665,7 @@ asm_x64_emit_jit_AND_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_AND_ZPG,
                             asm_x64_jit_AND_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_AND_ABS,
@@ -717,7 +717,7 @@ asm_x64_emit_jit_ASL_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ASL_ZPG,
                             asm_x64_jit_ASL_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ASL_ABS,
@@ -822,7 +822,7 @@ asm_x64_emit_jit_BIT(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_BIT_ZPG,
                             asm_x64_jit_BIT_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_BIT_ABS,
@@ -888,7 +888,7 @@ asm_x64_emit_jit_CMP_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_CMP_ZPG,
                             asm_x64_jit_CMP_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CMP_ABS,
@@ -940,7 +940,7 @@ asm_x64_emit_jit_CPX_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_CPX_ZPG,
                             asm_x64_jit_CPX_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CPX_ABS,
@@ -963,7 +963,7 @@ asm_x64_emit_jit_CPY_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_CPY_ZPG,
                             asm_x64_jit_CPY_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CPY_ABS,
@@ -986,7 +986,7 @@ asm_x64_emit_jit_DEC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_DEC_ZPG,
                             asm_x64_jit_DEC_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_DEC_ABS,
@@ -1048,7 +1048,7 @@ asm_x64_emit_jit_EOR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_EOR_ZPG,
                             asm_x64_jit_EOR_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_EOR_ABS,
@@ -1100,7 +1100,7 @@ asm_x64_emit_jit_INC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_INC_ZPG,
                             asm_x64_jit_INC_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_INC_ABS,
@@ -1172,7 +1172,7 @@ asm_x64_emit_jit_LDA_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_LDA_ZPG,
                             asm_x64_jit_LDA_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDA_ABS,
@@ -1229,7 +1229,7 @@ asm_x64_emit_jit_LDX_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_LDX_ZPG,
                             asm_x64_jit_LDX_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDX_ABS,
@@ -1265,7 +1265,7 @@ asm_x64_emit_jit_LDY_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_LDY_ZPG,
                             asm_x64_jit_LDY_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDY_ABS,
@@ -1301,7 +1301,7 @@ asm_x64_emit_jit_LSR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_LSR_ZPG,
                             asm_x64_jit_LSR_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LSR_ABS,
@@ -1376,7 +1376,7 @@ asm_x64_emit_jit_ORA_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ORA_ZPG,
                             asm_x64_jit_ORA_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ORA_ABS,
@@ -1428,7 +1428,7 @@ asm_x64_emit_jit_ROL_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ROL_ZPG,
                             asm_x64_jit_ROL_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ROL_ABS,
@@ -1495,7 +1495,7 @@ asm_x64_emit_jit_ROR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_ROR_ZPG,
                             asm_x64_jit_ROR_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ROR_ABS,
@@ -1570,7 +1570,7 @@ asm_x64_emit_jit_SBC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_SBC_ZPG,
                             asm_x64_jit_SBC_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_SBC_ABS,
@@ -1657,7 +1657,7 @@ asm_x64_emit_jit_STA_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_STA_ZPG,
                             asm_x64_jit_STA_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_STA_ABS,
@@ -1701,7 +1701,7 @@ asm_x64_emit_jit_STX_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_STX_ZPG,
                             asm_x64_jit_STX_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_STX_ABS,
@@ -1721,7 +1721,7 @@ asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_byte(p_buf,
                             asm_x64_jit_STY_ZPG,
                             asm_x64_jit_STY_ZPG_END,
-                            (addr - 0x80));
+                            (addr - REG_MEM_OFFSET));
   } else {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_STY_ABS,
