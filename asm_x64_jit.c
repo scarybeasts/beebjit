@@ -164,7 +164,7 @@ asm_x64_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ADD_ABS,
                            asm_x64_jit_ADD_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -327,7 +327,7 @@ asm_x64_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
                     (offset - 1),
                     asm_x64_jit_FLAG_MEM,
                     asm_x64_jit_FLAG_MEM_END,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
 }
 
 void
@@ -431,7 +431,7 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
   asm_x64_copy_patch_u32(p_buf,
                          asm_x64_jit_MODE_IND_16,
                          asm_x64_jit_MODE_IND_16_END,
-                         (K_BBC_MEM_READ_ADDR + addr));
+                         (addr - REG_MEM_OFFSET));
 }
 
 void
@@ -542,7 +542,7 @@ asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
                     (offset - 1),
                     asm_x64_jit_STOA_IMM,
                     asm_x64_jit_STOA_IMM_END,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -556,7 +556,7 @@ asm_x64_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_SUB_ABS,
                            asm_x64_jit_SUB_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -606,7 +606,7 @@ asm_x64_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ADC_ABS,
                            asm_x64_jit_ADC_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -670,7 +670,7 @@ asm_x64_emit_jit_AND_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_AND_ABS,
                            asm_x64_jit_AND_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -722,7 +722,7 @@ asm_x64_emit_jit_ASL_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ASL_ABS,
                            asm_x64_jit_ASL_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -735,12 +735,12 @@ asm_x64_emit_jit_ASL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_ASL_ABS_RMW,
                     asm_x64_jit_ASL_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_ASL_ABS_RMW,
                     asm_x64_jit_ASL_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -827,7 +827,7 @@ asm_x64_emit_jit_BIT(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_BIT_ABS,
                            asm_x64_jit_BIT_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
   asm_x64_emit_instruction_BIT_common(p_buf);
 }
@@ -893,7 +893,7 @@ asm_x64_emit_jit_CMP_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CMP_ABS,
                            asm_x64_jit_CMP_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -945,7 +945,7 @@ asm_x64_emit_jit_CPX_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CPX_ABS,
                            asm_x64_jit_CPX_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -968,7 +968,7 @@ asm_x64_emit_jit_CPY_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_CPY_ABS,
                            asm_x64_jit_CPY_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -991,7 +991,7 @@ asm_x64_emit_jit_DEC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_DEC_ABS,
                            asm_x64_jit_DEC_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1004,12 +1004,12 @@ asm_x64_emit_jit_DEC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_DEC_ABS_RMW,
                     asm_x64_jit_DEC_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_DEC_ABS_RMW,
                     asm_x64_jit_DEC_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1053,7 +1053,7 @@ asm_x64_emit_jit_EOR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_EOR_ABS,
                            asm_x64_jit_EOR_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1105,7 +1105,7 @@ asm_x64_emit_jit_INC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_INC_ABS,
                            asm_x64_jit_INC_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1118,12 +1118,12 @@ asm_x64_emit_jit_INC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_INC_ABS_RMW,
                     asm_x64_jit_INC_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_INC_ABS_RMW,
                     asm_x64_jit_INC_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1177,7 +1177,7 @@ asm_x64_emit_jit_LDA_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDA_ABS,
                            asm_x64_jit_LDA_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1234,7 +1234,7 @@ asm_x64_emit_jit_LDX_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDX_ABS,
                            asm_x64_jit_LDX_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1270,7 +1270,7 @@ asm_x64_emit_jit_LDY_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LDY_ABS,
                            asm_x64_jit_LDY_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1306,7 +1306,7 @@ asm_x64_emit_jit_LSR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_LSR_ABS,
                            asm_x64_jit_LSR_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1319,12 +1319,12 @@ asm_x64_emit_jit_LSR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_LSR_ABS_RMW,
                     asm_x64_jit_LSR_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_LSR_ABS_RMW,
                     asm_x64_jit_LSR_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1381,7 +1381,7 @@ asm_x64_emit_jit_ORA_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ORA_ABS,
                            asm_x64_jit_ORA_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1433,7 +1433,7 @@ asm_x64_emit_jit_ROL_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ROL_ABS,
                            asm_x64_jit_ROL_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1446,12 +1446,12 @@ asm_x64_emit_jit_ROL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_ROL_ABS_RMW,
                     asm_x64_jit_ROL_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_ROL_ABS_RMW,
                     asm_x64_jit_ROL_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1500,7 +1500,7 @@ asm_x64_emit_jit_ROR_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_ROR_ABS,
                            asm_x64_jit_ROR_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1513,12 +1513,12 @@ asm_x64_emit_jit_ROR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_ROR_ABS_RMW,
                     asm_x64_jit_ROR_ABS_RMW_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_ROR_ABS_RMW,
                     asm_x64_jit_ROR_ABS_RMW_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1561,7 +1561,7 @@ asm_x64_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
   asm_x64_copy_patch_u32(p_buf,
                          asm_x64_jit_SAX_ABS,
                          asm_x64_jit_SAX_ABS_END,
-                         (K_BBC_MEM_WRITE_ADDR + addr));
+                         (addr - REG_MEM_OFFSET));
 }
 
 void
@@ -1575,7 +1575,7 @@ asm_x64_emit_jit_SBC_ABS(struct util_buffer* p_buf, uint16_t addr) {
     asm_x64_copy_patch_u32(p_buf,
                            asm_x64_jit_SBC_ABS,
                            asm_x64_jit_SBC_ABS_END,
-                           (K_BBC_MEM_READ_ADDR + addr));
+                           (addr - REG_MEM_OFFSET));
   }
 }
 
@@ -1643,12 +1643,12 @@ asm_x64_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_SLO_ABS,
                     asm_x64_jit_SLO_ABS_mov1_patch,
-                    (K_BBC_MEM_READ_ADDR + addr));
+                    (addr - REG_MEM_OFFSET));
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_SLO_ABS,
                     asm_x64_jit_SLO_ABS_mov2_patch,
-                    (K_BBC_MEM_WRITE_ADDR + addr));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
 }
 
 void
@@ -1659,10 +1659,11 @@ asm_x64_emit_jit_STA_ABS(struct util_buffer* p_buf, uint16_t addr) {
                             asm_x64_jit_STA_ZPG_END,
                             (addr - REG_MEM_OFFSET));
   } else {
-    asm_x64_copy_patch_u32(p_buf,
-                           asm_x64_jit_STA_ABS,
-                           asm_x64_jit_STA_ABS_END,
-                           (K_BBC_MEM_WRITE_ADDR + addr));
+    asm_x64_copy_patch_u32(
+        p_buf,
+        asm_x64_jit_STA_ABS,
+        asm_x64_jit_STA_ABS_END,
+        (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
   }
 }
 
@@ -1703,10 +1704,11 @@ asm_x64_emit_jit_STX_ABS(struct util_buffer* p_buf, uint16_t addr) {
                             asm_x64_jit_STX_ZPG_END,
                             (addr - REG_MEM_OFFSET));
   } else {
-    asm_x64_copy_patch_u32(p_buf,
-                           asm_x64_jit_STX_ABS,
-                           asm_x64_jit_STX_ABS_END,
-                           (K_BBC_MEM_WRITE_ADDR + addr));
+    asm_x64_copy_patch_u32(
+        p_buf,
+        asm_x64_jit_STX_ABS,
+        asm_x64_jit_STX_ABS_END,
+        (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
   }
 }
 
@@ -1723,10 +1725,11 @@ asm_x64_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr) {
                             asm_x64_jit_STY_ZPG_END,
                             (addr - REG_MEM_OFFSET));
   } else {
-    asm_x64_copy_patch_u32(p_buf,
-                           asm_x64_jit_STY_ABS,
-                           asm_x64_jit_STY_ABS_END,
-                           (K_BBC_MEM_WRITE_ADDR + addr));
+    asm_x64_copy_patch_u32(
+        p_buf,
+        asm_x64_jit_STY_ABS,
+        asm_x64_jit_STY_ABS_END,
+        (addr - REG_MEM_OFFSET + K_BBC_MEM_READ_TO_WRITE_OFFSET));
   }
 }
 
