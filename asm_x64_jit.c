@@ -412,26 +412,44 @@ asm_x64_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value) {
 
 void
 asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   if (addr == 0xFF) {
     errx(1, "MODE_IND_8: page crossing");
   }
 
-  asm_x64_copy_patch_byte(p_buf,
-                          asm_x64_jit_MODE_IND_8,
-                          asm_x64_jit_MODE_IND_8_END,
-                          (addr - REG_MEM_OFFSET));
+  asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_8, asm_x64_jit_MODE_IND_8_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_MODE_IND_8,
+                     asm_x64_jit_MODE_IND_8_mov1_patch,
+                     (addr - REG_MEM_OFFSET));
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_MODE_IND_8,
+                     asm_x64_jit_MODE_IND_8_mov2_patch,
+                     ((addr + 1) - REG_MEM_OFFSET));
 }
 
 void
 asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
   if ((addr & 0xFF) == 0xFF) {
     errx(1, "MODE_IND_16: page crossing");
   }
 
-  asm_x64_copy_patch_u32(p_buf,
-                         asm_x64_jit_MODE_IND_16,
-                         asm_x64_jit_MODE_IND_16_END,
-                         (addr - REG_MEM_OFFSET));
+  asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_16, asm_x64_jit_MODE_IND_16_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_MODE_IND_16,
+                    asm_x64_jit_MODE_IND_16_mov1_patch,
+                    (addr - REG_MEM_OFFSET));
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_MODE_IND_16,
+                    asm_x64_jit_MODE_IND_16_mov2_patch,
+                    ((addr + 1) - REG_MEM_OFFSET));
 }
 
 void

@@ -510,32 +510,44 @@ asm_x64_jit_MODE_ABY_END:
 
 
 .globl asm_x64_jit_MODE_IND_8
+.globl asm_x64_jit_MODE_IND_8_mov1_patch
+.globl asm_x64_jit_MODE_IND_8_mov2_patch
 .globl asm_x64_jit_MODE_IND_8_END
 asm_x64_jit_MODE_IND_8:
-  movzx REG_SCRATCH1_32, WORD PTR [REG_MEM + 0x7f]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7f]
+asm_x64_jit_MODE_IND_8_mov1_patch:
+  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7f]
+asm_x64_jit_MODE_IND_8_mov2_patch:
 
 asm_x64_jit_MODE_IND_8_END:
   ret
 
 
 .globl asm_x64_jit_MODE_IND_16
+.globl asm_x64_jit_MODE_IND_16_mov1_patch
+.globl asm_x64_jit_MODE_IND_16_mov2_patch
 .globl asm_x64_jit_MODE_IND_16_END
 asm_x64_jit_MODE_IND_16:
-  movzx REG_SCRATCH1_32, WORD PTR [REG_MEM + 0x7fffffff]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7fffffff]
+asm_x64_jit_MODE_IND_16_mov1_patch:
+  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7fffffff]
+asm_x64_jit_MODE_IND_16_mov2_patch:
 
 asm_x64_jit_MODE_IND_16_END:
   ret
 
 
 .globl asm_x64_jit_MODE_IND_SCRATCH
-.globl asm_x64_jit_MODE_IND_SCRATCH_jump_patch
 .globl asm_x64_jit_MODE_IND_SCRATCH_END
 asm_x64_jit_MODE_IND_SCRATCH:
   # This faults (with a fixup handler) if we're trying to load from 0xFF,
   # which is highly unusual.
   mov REG_SCRATCH2_8, \
-      [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
-  movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR]
+       [REG_SCRATCH1 + K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
+
+  mov REG_SCRATCH2, REG_SCRATCH1
+  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
+  mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
 
 asm_x64_jit_MODE_IND_SCRATCH_END:
   ret
