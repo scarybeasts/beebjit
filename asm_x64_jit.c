@@ -1217,10 +1217,10 @@ asm_x64_emit_jit_LDA_ABY(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_x64_emit_jit_LDA_IMM(struct util_buffer* p_buf, uint8_t value) {
-  asm_x64_copy_patch_byte(p_buf,
-                          asm_x64_jit_LDA_IMM,
-                          asm_x64_jit_LDA_IMM_END,
-                          value);
+  asm_x64_copy_patch_u32(p_buf,
+                         asm_x64_jit_LDA_IMM,
+                         asm_x64_jit_LDA_IMM_END,
+                         value);
 }
 
 void

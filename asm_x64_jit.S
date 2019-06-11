@@ -1464,7 +1464,7 @@ asm_x64_jit_JMP_8bit_END:
 .globl asm_x64_jit_LDA_IMM
 .globl asm_x64_jit_LDA_IMM_END
 asm_x64_jit_LDA_IMM:
-  mov REG_6502_A, 0
+  mov REG_6502_A_32, 0x00000000
 
 asm_x64_jit_LDA_IMM_END:
   ret
@@ -1473,7 +1473,7 @@ asm_x64_jit_LDA_IMM_END:
 .globl asm_x64_jit_LDA_ABS
 .globl asm_x64_jit_LDA_ABS_END
 asm_x64_jit_LDA_ABS:
-  mov REG_6502_A, [REG_MEM + 0x7fffffff]
+  movzx REG_6502_A_32, BYTE PTR [REG_MEM + 0x7fffffff]
 
 asm_x64_jit_LDA_ABS_END:
   ret
@@ -1482,7 +1482,7 @@ asm_x64_jit_LDA_ABS_END:
 .globl asm_x64_jit_LDA_SCRATCH
 .globl asm_x64_jit_LDA_SCRATCH_END
 asm_x64_jit_LDA_SCRATCH:
-  mov REG_6502_A, [REG_SCRATCH1 + 0x7fffffff]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + 0x7fffffff]
 
 asm_x64_jit_LDA_SCRATCH_END:
   ret
@@ -1491,8 +1491,9 @@ asm_x64_jit_LDA_SCRATCH_END:
 .globl asm_x64_jit_LDA_SCRATCH_X
 .globl asm_x64_jit_LDA_SCRATCH_X_END
 asm_x64_jit_LDA_SCRATCH_X:
-  mov REG_6502_A, \
-      [REG_SCRATCH1 + REG_6502_X_64 + K_BBC_MEM_READ_TO_IND_READ_OFFSET]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + \
+                                 REG_6502_X_64 + \
+                                 K_BBC_MEM_READ_TO_IND_READ_OFFSET]
 
 asm_x64_jit_LDA_SCRATCH_X_END:
   ret
@@ -1501,8 +1502,9 @@ asm_x64_jit_LDA_SCRATCH_X_END:
 .globl asm_x64_jit_LDA_SCRATCH_Y
 .globl asm_x64_jit_LDA_SCRATCH_Y_END
 asm_x64_jit_LDA_SCRATCH_Y:
-  mov REG_6502_A, \
-      [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_TO_IND_READ_OFFSET]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + \
+                                 REG_6502_Y_64 + \
+                                 K_BBC_MEM_READ_TO_IND_READ_OFFSET]
 
 asm_x64_jit_LDA_SCRATCH_Y_END:
   ret
@@ -1511,7 +1513,7 @@ asm_x64_jit_LDA_SCRATCH_Y_END:
 .globl asm_x64_jit_LDA_ABX
 .globl asm_x64_jit_LDA_ABX_END
 asm_x64_jit_LDA_ABX:
-  mov REG_6502_A, [REG_6502_X_64 + 0xFFFF]
+  movzx REG_6502_A_32, BYTE PTR [REG_6502_X_64 + 0xFFFF]
 
 asm_x64_jit_LDA_ABX_END:
   ret
@@ -1520,7 +1522,7 @@ asm_x64_jit_LDA_ABX_END:
 .globl asm_x64_jit_LDA_ABY
 .globl asm_x64_jit_LDA_ABY_END
 asm_x64_jit_LDA_ABY:
-  mov REG_6502_A, [REG_6502_Y_64 + 0xFFFF]
+  movzx REG_6502_A_32, BYTE PTR [REG_6502_Y_64 + 0xFFFF]
 
 asm_x64_jit_LDA_ABY_END:
   ret
@@ -1529,7 +1531,7 @@ asm_x64_jit_LDA_ABY_END:
 .globl asm_x64_jit_LDA_ZPG
 .globl asm_x64_jit_LDA_ZPG_END
 asm_x64_jit_LDA_ZPG:
-  mov REG_6502_A, [rbp + 0x7f]
+  movzx REG_6502_A_32, BYTE PTR [rbp + 0x7f]
 
 asm_x64_jit_LDA_ZPG_END:
   ret
