@@ -1,0 +1,175 @@
+Experiments with speed of individual instructions, cache sizes, etc. on my
+Broadwell based laptop:
+
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 61
+Model name:            Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+Stepping:              4
+CPU max MHz:           2700.0000
+
+- Useful raw perf counter ids for this machine:
+See: https://software.intel.com/sites/default/files/managed/8b/6e/335279_performance_monitoring_events_guide.pdf
+r010e: UOPS_ISSUED.ANY
+r2008: DTLB_LOAD_MISSES.STLB_HIT_4K
+
+- For these demos, a normal read/write mapping is at 0x10000000:
+  p = mmap((void*) 0x10000000,
+           (4096 * 512),
+           (PROT_READ | PROT_WRITE),
+           (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED),
+           -1,
+           0);
+
+1) Demo of 2 L1D cache loads per cycle.
+
+perf stat -e cpu-cycles,instructions,r010e,L1-dcache-loads ./a.out
+
+     4,016,112,423      cpu-cycles
+    10,001,969,597      instructions              #    2.49  insns per cycle
+     9,004,105,347      r010e
+     8,000,621,550      L1-dcache-loads
+
+Note, 10B instructions and 9B uops because the dec and jne can fuse.
+
+  __asm__(
+          "movl $, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
+
+2) Demo that writing just the al register has a dependency on previous al
+writes. Implies no register renaming for al?
+
+perf stat -e cpu-cycles,instructions,r010e,L1-dcache-loads ./a.out
+
+     8,012,455,635      cpu-cycles
+    10,003,523,202      instructions              #    1.25  insns per cycle
+     9,006,330,805      r010e
+     8,001,117,403      L1-dcache-loads
+
+  __asm__(
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "movb 0x0(%esi), %al\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
+
+3) Demo that writing just the ah register doesn't depend on previous writes.
+Implies register renaming for ah?
+
+     4,023,240,918      cpu-cycles
+    10,001,980,262      instructions              #    2.49  insns per cycle
+     9,003,903,116      r010e
+     8,000,621,499      L1-dcache-loads
+
+  __asm__(
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "movb 0x0(%esi), %ah\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
+
+4) Demo of full speed 2x L1D cache reads per cycle with 8 reads spaced by
+1 4k page.
+(Reads spaced by 1 page hit should hit the same L1D 64 byte cache line bucket
+but the bucket holds 8 entries, aka. 8-way, so it's fine.)
+
+     4,016,405,020      cpu-cycles
+    10,001,998,787      instructions              #    2.49  insns per cycle
+     9,003,808,878      r010e
+     8,000,624,467      L1-dcache-loads
+
+  __asm__(
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x1000(%esi), %eax\n"
+          "movzbl 0x2000(%esi), %eax\n"
+          "movzbl 0x3000(%esi), %eax\n"
+          "movzbl 0x4000(%esi), %eax\n"
+          "movzbl 0x5000(%esi), %eax\n"
+          "movzbl 0x6000(%esi), %eax\n"
+          "movzbl 0x7000(%esi), %eax\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
+
+5) Demo of claimed L1 DTLB capacity of 64 items, 4 way. This corresponds to 16
+buckets, same-bucket stride of 64kB.
+
+a) This is full speed.
+
+  __asm__(
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x8000(%esi), %eax\n"
+          "movzbl 0x10000(%esi), %eax\n"
+          "movzbl 0x18000(%esi), %eax\n"
+          "movzbl 0x20000(%esi), %eax\n"
+          "movzbl 0x28000(%esi), %eax\n"
+          "movzbl 0x30000(%esi), %eax\n"
+          "movzbl 0x38000(%esi), %eax\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
+b) This slows down. DTLB_LOAD_MISSES.STLB_HIT_4K registers lots of hits.
+
+     6,203,103,102      cpu-cycles
+    10,003,397,726      instructions              #    1.61  insns per cycle
+     9,006,301,049      r010e
+     8,001,079,122      L1-dcache-loads
+     3,658,001,959      r2008
+
+  __asm__(
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movzbl 0x0(%esi), %eax\n"
+          "movzbl 0x10000(%esi), %eax\n"
+          "movzbl 0x20000(%esi), %eax\n"
+          "movzbl 0x30000(%esi), %eax\n"
+          "movzbl 0x40000(%esi), %eax\n"
+          "movzbl 0x50000(%esi), %eax\n"
+          "movzbl 0x60000(%esi), %eax\n"
+          "movzbl 0x70000(%esi), %eax\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
+
