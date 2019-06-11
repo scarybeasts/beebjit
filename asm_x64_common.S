@@ -168,7 +168,7 @@ asm_x64_instruction_PLA:
 
   lea REG_SCRATCH3, [REG_6502_S_64 + 1]
   mov REG_6502_S, REG_SCRATCH3_8
-  mov REG_6502_A, BYTE PTR [REG_6502_S_64]
+  movzx REG_6502_A_32, BYTE PTR [REG_6502_S_64]
 
 asm_x64_instruction_PLA_END:
   ret

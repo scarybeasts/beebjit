@@ -425,7 +425,7 @@ asm_x64_jit_JMP_SCRATCH_END:
 .globl asm_x64_jit_LDA_Z
 .globl asm_x64_jit_LDA_Z_END
 asm_x64_jit_LDA_Z:
-  xor REG_6502_A, REG_6502_A
+  xor REG_6502_A_32, REG_6502_A_32
 
 asm_x64_jit_LDA_Z_END:
   ret
