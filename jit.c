@@ -673,10 +673,22 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
 struct cpu_driver*
 jit_create(struct cpu_driver_funcs* p_funcs) {
-  struct cpu_driver* p_cpu_driver = malloc(sizeof(struct jit_struct));
-  if (p_cpu_driver == NULL) {
+  void* p_alloc;
+  struct cpu_driver* p_cpu_driver;
+  int ret;
+
+  /* Align the structure to a multiple of the L1 DTLB bucket stride. This is
+   * because the structure contains pointers read by JIT code and we want
+   * deterministic performance.
+   */
+  size_t alignment = 4096 * (64 / 4);
+
+  ret = posix_memalign(&p_alloc, alignment, sizeof(struct jit_struct));
+  if (ret != 0) {
     errx(1, "cannot allocate jit_struct");
   }
+
+  p_cpu_driver = (struct cpu_driver*) p_alloc;
   (void) memset(p_cpu_driver, '\0', sizeof(struct jit_struct));
 
   p_funcs->init = jit_init;
