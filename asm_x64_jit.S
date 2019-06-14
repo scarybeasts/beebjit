@@ -1477,7 +1477,7 @@ asm_x64_jit_LDA_ABS_END:
 .globl asm_x64_jit_LDA_SCRATCH
 .globl asm_x64_jit_LDA_SCRATCH_END
 asm_x64_jit_LDA_SCRATCH:
-  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + 0x7fffffff]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + REG_MEM + 0x7f]
 
 asm_x64_jit_LDA_SCRATCH_END:
   ret

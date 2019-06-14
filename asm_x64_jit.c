@@ -1228,10 +1228,10 @@ asm_x64_emit_jit_LDA_IMM(struct util_buffer* p_buf, uint8_t value) {
 
 void
 asm_x64_emit_jit_LDA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
-  asm_x64_copy_patch_u32(p_buf,
-                         asm_x64_jit_LDA_SCRATCH,
-                         asm_x64_jit_LDA_SCRATCH_END,
-                         (K_BBC_MEM_READ_IND_ADDR + offset));
+  asm_x64_copy_patch_byte(p_buf,
+                          asm_x64_jit_LDA_SCRATCH,
+                          asm_x64_jit_LDA_SCRATCH_END,
+                          (offset - REG_MEM_OFFSET));
 }
 
 void
