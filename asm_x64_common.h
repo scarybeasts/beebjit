@@ -38,7 +38,8 @@ void asm_x64_copy_patch_u32(struct util_buffer* p_buf,
 
 uint32_t asm_x64_asm_enter(void* p_context,
                            uint32_t jump_addr_x64,
-                           int64_t countdown);
+                           int64_t countdown,
+                           void* p_mem_base);
 void asm_x64_asm_debug();
 void asm_x64_save_AXYS_PC_flags();
 void asm_x64_restore_AXYS_PC_flags();

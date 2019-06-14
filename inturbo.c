@@ -2,6 +2,7 @@
 
 #include "asm_x64_abi.h"
 #include "asm_x64_common.h"
+#include "asm_x64_defs.h"
 #include "asm_x64_inturbo.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
@@ -606,7 +607,8 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   int64_t countdown;
   int exited;
 
-  uint16_t addr_6502 = state_6502_get_pc(p_cpu_driver->abi.p_state_6502);
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
   struct timing_struct* p_timing = p_cpu_driver->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
@@ -616,7 +618,24 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 
   countdown = timing_get_countdown(p_timing);
 
-  exited = asm_x64_asm_enter(p_cpu_driver, p_start_address, countdown);
+  /* The memory must be aligned to at least 0x10000 so that our register access
+   * tricks work.
+   */
+  assert((K_BBC_MEM_READ_FULL_ADDR & 0xffff) == 0);
+
+  p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
+                         K_BBC_MEM_READ_FULL_ADDR);
+  p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
+                         K_BBC_MEM_READ_FULL_ADDR);
+  p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
+                         K_BBC_MEM_READ_FULL_ADDR);
+  p_state_6502->reg_pc = ((p_state_6502->reg_pc & 0xFFFF) |
+                         K_BBC_MEM_READ_FULL_ADDR);
+
+  exited = asm_x64_asm_enter(p_cpu_driver,
+                             p_start_address,
+                             countdown,
+                             (p_mem_read + REG_MEM_OFFSET));
   assert(exited == 1);
 
   return exited;

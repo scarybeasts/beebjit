@@ -561,21 +561,16 @@ bbc_create(int mode,
           (void*) (size_t) K_BBC_MEM_RAW_ADDR,
           k_6502_addr_space_size);
 
-  /* p_mem_read marks ROM regions as hardware read-only. */
-  p_bbc->p_mem_read =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
-          (void*) (size_t) K_BBC_MEM_READ_ADDR,
-          k_6502_addr_space_size);
-
-  /* p_mem_write replaces ROM regions with dummy writebale regions. */
-  p_bbc->p_mem_write =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
-          (void*) (size_t) K_BBC_MEM_WRITE_ADDR,
-          k_6502_addr_space_size);
-
-  /* ... */
+  /* Runtime memory regions.
+   * The write regions differ from the read regions for 6502 ROM addresses.
+   * Writes to those in the writable region write to a dummy backing store to
+   * avoid a fault but also to avoid modifying 6502 ROM.
+   * The indirect regions are the same as the normal read / write regions
+   * except the page containing the hardware registers is marked inaccessible.
+   * This is used to enable a fast common case (no checks for hardware register
+   * access for indirect reads and writes) but work for the exceptional case
+   * via a fault + fixup.
+   */
   p_bbc->p_mem_read_ind =
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
@@ -585,6 +580,17 @@ bbc_create(int mode,
       util_get_guarded_mapping_from_fd(
           p_bbc->mem_fd,
           (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
+          k_6502_addr_space_size);
+
+  p_bbc->p_mem_read =
+      util_get_guarded_mapping_from_fd(
+          p_bbc->mem_fd,
+          (void*) (size_t) K_BBC_MEM_READ_FULL_ADDR,
+          k_6502_addr_space_size);
+  p_bbc->p_mem_write =
+      util_get_guarded_mapping_from_fd(
+          p_bbc->mem_fd,
+          (void*) (size_t) K_BBC_MEM_WRITE_FULL_ADDR,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);

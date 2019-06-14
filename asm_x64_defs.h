@@ -2,13 +2,14 @@
 #define BEEBJIT_ASM_X64_DEFS_H
 
 #define K_BBC_MEM_RAW_ADDR                      0x0f000000
-#define K_BBC_MEM_READ_ADDR                     0x10000000
-#define K_BBC_MEM_WRITE_ADDR                    0x11000000
-#define K_BBC_MEM_READ_IND_ADDR                 0x12000000
-#define K_BBC_MEM_WRITE_IND_ADDR                0x13000000
-#define K_BBC_MEM_READ_TO_WRITE_OFFSET          0x01000000
-#define K_BBC_MEM_READ_TO_IND_READ_OFFSET       0x02000000
-#define K_BBC_MEM_READ_TO_IND_WRITE_OFFSET      0x03000000
+#define K_BBC_MEM_READ_IND_ADDR                 0x10000000
+#define K_BBC_MEM_WRITE_IND_ADDR                0x11000000
+#define K_BBC_MEM_READ_FULL_ADDR                0x12000000
+#define K_BBC_MEM_WRITE_FULL_ADDR               0x13000000
+#define K_BBC_MEM_OFFSET_TO_WRITE_IND           0x01000000
+#define K_BBC_MEM_OFFSET_TO_READ_FULL           0x02000000
+#define K_BBC_MEM_OFFSET_TO_WRITE_FULL          0x03000000
+#define K_BBC_MEM_OFFSET_READ_TO_WRITE          0x01000000
 #define K_BBC_MEM_INACCESSIBLE_OFFSET           0xF000
 #define K_BBC_MEM_INACCESSIBLE_LEN              0x1000
 #define K_6502_ADDR_SPACE_SIZE                  0x10000

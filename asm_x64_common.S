@@ -439,6 +439,7 @@ asm_x64_asm_enter:
   # param1, rdi == context
   # param2, rsi == x64 start address
   # param3, rdx == countdown
+  # param4, rcx == mem base
 
   push rbp
   mov rbp, rsp
@@ -447,6 +448,10 @@ asm_x64_asm_enter:
   push r13
   push r14
   push r15
+
+  # This register points to an offset (0x80) in the zero page. This enables us
+  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
+  mov REG_MEM, REG_PARAM4
 
   push REG_PARAM2
   mov REG_CONTEXT, REG_PARAM1
@@ -465,10 +470,6 @@ asm_x64_asm_enter:
   mov REG_6502_OF_64, 0
   mov REG_6502_CF_64, 0
   mov REG_6502_ID_F_64, 0
-
-  # This register points to an offset (0x80) in the zero page. This enables us
-  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
-  mov REG_MEM, K_BBC_MEM_READ_ADDR + REG_MEM_OFFSET
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags

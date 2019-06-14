@@ -185,12 +185,16 @@ main(int argc, const char* argv[]) {
 
   /* Test indexed zero page addressing. */
   set_new_index(p_buf, 0x0200);
-  emit_LDA(p_buf, k_imm, 0xFD);
-  emit_STA(p_buf, k_zpg, 0x07);
-  emit_LDA(p_buf, k_imm, 0xFF);
-  emit_STA(p_buf, k_zpg, 0x08);
+  emit_LDX(p_buf, k_imm, 0xFD);
+  emit_LDY(p_buf, k_imm, 0x03);
+  emit_STX(p_buf, k_zpy, 0x04);
+  emit_LDY(p_buf, k_imm, 0xFF);
+  emit_LDX(p_buf, k_imm, 0x05);
+  emit_STY(p_buf, k_zpx, 0x03);
   emit_LDX(p_buf, k_imm, 0x02);
   emit_LDA(p_buf, k_zpx, 0x05);
+  emit_STA(p_buf, k_zpx, 0x07);
+  emit_LDA(p_buf, k_zpx, 0x07);
   emit_CMP(p_buf, k_imm, 0xFD);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDX(p_buf, k_imm, 0xD1);

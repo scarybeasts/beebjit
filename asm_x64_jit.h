@@ -50,7 +50,9 @@ void asm_x64_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf);
 void asm_x64_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t value);
 void asm_x64_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value);
 void asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr);
-void asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr);
+void asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
+                                  uint16_t addr,
+                                  uint32_t segment);
 void asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf);
 void asm_x64_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value);

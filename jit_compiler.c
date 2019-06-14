@@ -34,7 +34,8 @@ struct jit_compiler {
 
   struct util_buffer* p_single_opcode_buf;
   struct util_buffer* p_tmp_buf;
-  uint32_t no_code_jit_ptr;
+  uint32_t jit_ptr_no_code;
+  uint32_t jit_ptr_dynamic_operand;
 
   uint32_t len_x64_jmp;
   uint32_t len_x64_countdown;
@@ -73,11 +74,6 @@ enum {
 };
 
 static void
-jit_set_jit_ptr_no_code(struct jit_compiler* p_compiler, uint16_t addr) {
-  p_compiler->p_jit_ptrs[addr] = p_compiler->no_code_jit_ptr;
-}
-
-static void
 jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   void* p_host_ptr =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
@@ -104,7 +100,7 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   (void) p_host_ptr;
   assert(jit_ptr != (uint32_t) (size_t) p_host_ptr);
 
-  if (jit_ptr == p_compiler->no_code_jit_ptr) {
+  if (jit_ptr == p_compiler->jit_ptr_no_code) {
     return 0;
   }
 
@@ -184,12 +180,15 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_tmp_buf = util_buffer_create();
   p_compiler->p_tmp_buf = p_tmp_buf;
 
-  p_compiler->no_code_jit_ptr = 
+  p_compiler->jit_ptr_no_code =
       (uint32_t) (size_t) get_block_host_address(p_host_address_object,
                                                  (k_6502_addr_space_size - 1));
+  p_compiler->jit_ptr_dynamic_operand =
+      (uint32_t) (size_t) get_block_host_address(p_host_address_object,
+                                                 (k_6502_addr_space_size - 2));
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
-    jit_set_jit_ptr_no_code(p_compiler, i);
+    p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;
   }
 
   jit_compiler_memory_range_invalidate(p_compiler,
@@ -710,6 +709,8 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   void* p_memory_object = p_memory_access->p_callback_obj;
   void* p_host_address_object = p_compiler->p_host_address_object;
 
+  uint32_t segment;
+
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
   case k_opcode_countdown:
@@ -728,6 +729,17 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xF0:
     value1 = (uint32_t) (size_t) p_compiler->get_block_host_address(
         p_host_address_object, (uint16_t) value1);
+    break;
+  default:
+    break;
+  }
+
+  /* Resolve which segment we need to hit for memory accesses. */
+  segment = K_BBC_MEM_READ_IND_ADDR;
+  switch (uopcode) {
+  case k_opcode_MODE_IND_16:
+    /* TODO: this is not correct for hardware register hits. */
+    segment = K_BBC_MEM_READ_FULL_ADDR;
     break;
   default:
     break;
@@ -856,7 +868,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_x64_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_MODE_IND_16:
-    asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
     break;
   case k_opcode_MODE_IND_SCRATCH:
     asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);
@@ -1819,7 +1831,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         p_compiler->addr_cycles_fixup[addr_6502] = -1;
 
         if (p_details->dynamic_operand) {
-          p_compiler->p_jit_ptrs[addr_6502] = p_compiler->no_code_jit_ptr;
+          p_compiler->p_jit_ptrs[addr_6502] =
+              p_compiler->jit_ptr_dynamic_operand;
         }
       }
 

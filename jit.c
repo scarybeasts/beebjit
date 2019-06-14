@@ -45,7 +45,8 @@ struct jit_struct {
   struct util_buffer* p_temp_buf;
   struct util_buffer* p_compile_buf;
   struct interp_struct* p_interp;
-  uint32_t no_code_jit_ptr;
+  uint32_t jit_ptr_no_code;
+  uint32_t jit_ptr_dynamic_operand;
 
   int log_compile;
 };
@@ -234,15 +235,29 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   int64_t countdown;
 
   struct timing_struct* p_timing = p_cpu_driver->p_timing;
-  uint16_t addr_6502 = state_6502_get_pc(p_cpu_driver->abi.p_state_6502);
+  struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint8_t* p_start_addr = jit_get_jit_base_addr(p_jit, addr_6502);
+  void* p_mem_base = ((void*) K_BBC_MEM_READ_IND_ADDR + REG_MEM_OFFSET);
 
   uint_start_addr = (uint32_t) (size_t) p_start_addr;
 
   countdown = timing_get_countdown(p_timing);
 
-  exited = asm_x64_asm_enter(p_jit, uint_start_addr, countdown);
+  /* The memory must be aligned to at least 0x10000 so that our register access
+   * tricks work.
+   */
+  assert((K_BBC_MEM_READ_IND_ADDR & 0xffff) == 0);
+
+  p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
+                         K_BBC_MEM_READ_IND_ADDR);
+  p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
+                         K_BBC_MEM_READ_IND_ADDR);
+  p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
+                         K_BBC_MEM_READ_IND_ADDR);
+
+  exited = asm_x64_asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
   assert(exited == 1);
 
   return exited;
@@ -329,7 +344,7 @@ jit_compile(struct jit_struct* p_jit,
     while (1) {
       jit_ptr = p_jit->jit_ptrs[addr_6502];
       p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
-      assert((jit_ptr == p_jit->no_code_jit_ptr) ||
+      assert((jit_ptr == p_jit->jit_ptr_dynamic_operand) ||
              (jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
               block_addr_6502));
       if (p_jit_ptr == p_intel_rip) {
@@ -499,14 +514,16 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + k_6502_addr_space_size))) {
     inaccessible_indirect_page = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE)) {
+  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
     ff_fault_fixup = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
+  if (p_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
     /* D flag alone. */
     bcd_fault_fixup = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
+  if (p_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
     /* D flag and I flag. */
     bcd_fault_fixup = 1;
   }
@@ -539,7 +556,14 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   while (1) {
     uint32_t jit_ptr = p_jit->jit_ptrs[i_addr_6502];
     void* p_jit_ptr = (void*) (size_t) jit_ptr;
-    if (jit_ptr != p_jit->no_code_jit_ptr) {
+    uint16_t new_block_addr_6502 = jit_6502_block_addr_from_intel(p_jit,
+                                                                  p_jit_ptr);
+    if (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
+      /* Continue. */
+    } else if ((jit_ptr == p_jit->jit_ptr_no_code) ||
+               (new_block_addr_6502 != block_addr_6502)) {
+      break;
+    } else {
       if (p_jit_ptr > p_rip) {
         break;
       }
@@ -549,9 +573,6 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       }
     }
     i_addr_6502++;
-    if (!i_addr_6502) {
-      sigsegv_reraise(p_rip, p_addr);
-    }
   }
 
   /* Bounce into the interpreter via the trampolines. */
@@ -640,9 +661,12 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();
-  p_jit->no_code_jit_ptr =
+  p_jit->jit_ptr_no_code =
       (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
                                                 (k_6502_addr_space_size - 1));
+  p_jit->jit_ptr_dynamic_operand =
+      (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
+                                                (k_6502_addr_space_size - 2));
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     /* Initialize JIT code. */
