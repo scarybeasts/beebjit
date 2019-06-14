@@ -131,6 +131,8 @@ but the bucket holds 8 entries, aka. 8-way, so it's fine.)
 5) Demo of claimed L1 DTLB capacity of 64 items, 4 way. This corresponds to 16
 buckets, same-bucket stride of 64kB.
 
+perf stat -e cpu-cycles,instructions,r010e,L1-dcache-loads,r2008 ./a.out
+
 a) This is full speed.
 
   __asm__(
@@ -173,3 +175,24 @@ b) This slows down. DTLB_LOAD_MISSES.STLB_HIT_4K registers lots of hits.
           "jne 1b\n"
          );
 
+
+6) Demo that complicated addressing modes don't slow loads.
+
+#    2.48  insns per cycle
+
+  __asm__(
+          "movl $0, %ebx\n"
+          "movl $1000000000, %edi\n"
+          "movl $0x10000000, %esi\n"
+          "1:\n"
+          "movzbl 0x0(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x1000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x2000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x3000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x4000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x5000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x6000(%esi, %ebx, 4), %eax\n"
+          "movzbl 0x7000(%esi, %ebx, 4), %eax\n"
+          "dec %edi\n"
+          "jne 1b\n"
+         );
