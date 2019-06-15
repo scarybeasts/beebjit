@@ -807,6 +807,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_CLEAR_CARRY:
     asm_x64_emit_jit_CLEAR_CARRY(p_dest_buf);
     break;
+  case k_opcode_EOR_SCRATCH_n:
+    asm_x64_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
+    break;
   case k_opcode_FLAGA:
     asm_x64_emit_jit_FLAGA(p_dest_buf);
     break;
@@ -903,6 +906,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_SET_CARRY:
     asm_x64_emit_jit_SET_CARRY(p_dest_buf);
     break;
+  case k_opcode_STA_SCRATCH_n:
+    asm_x64_emit_jit_STA_SCRATCH(p_dest_buf, (uint8_t) value1);
+    break;
   case k_opcode_STOA_IMM:
     asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
@@ -917,6 +923,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_WRITE_INV_SCRATCH:
     asm_x64_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
+    break;
+  case k_opcode_WRITE_INV_SCRATCH_n:
+    asm_x64_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_WRITE_INV_SCRATCH_Y:
     asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);

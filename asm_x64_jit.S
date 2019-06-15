@@ -732,6 +732,21 @@ asm_x64_jit_WRITE_INV_SCRATCH_END:
   ret
 
 
+.globl asm_x64_jit_WRITE_INV_SCRATCH_n
+.globl asm_x64_jit_WRITE_INV_SCRATCH_n_lea_patch
+.globl asm_x64_jit_WRITE_INV_SCRATCH_n_END
+asm_x64_jit_WRITE_INV_SCRATCH_n:
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0x7f]
+asm_x64_jit_WRITE_INV_SCRATCH_n_lea_patch:
+  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
+                        REG_SCRATCH2 * 4]
+  mov WORD PTR [REG_SCRATCH2], 0x17ff
+
+asm_x64_jit_WRITE_INV_SCRATCH_n_END:
+  ret
+
+
 .globl asm_x64_jit_WRITE_INV_SCRATCH_Y
 .globl asm_x64_jit_WRITE_INV_SCRATCH_Y_END
 asm_x64_jit_WRITE_INV_SCRATCH_Y:

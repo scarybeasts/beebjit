@@ -70,6 +70,7 @@ enum {
   k_opcode_CHECK_PAGE_CROSSING_Y_n,
   k_opcode_CHECK_PENDING_IRQ,
   k_opcode_CLEAR_CARRY,
+  k_opcode_EOR_SCRATCH_n,
   k_opcode_FLAGA,
   k_opcode_FLAGX,
   k_opcode_FLAGY,
@@ -102,11 +103,13 @@ enum {
   k_opcode_SAVE_CARRY_INV,
   k_opcode_SAVE_OVERFLOW,
   k_opcode_SET_CARRY,
+  k_opcode_STA_SCRATCH_n,
   k_opcode_STOA_IMM,
   k_opcode_SUB_ABS,
   k_opcode_SUB_IMM,
   k_opcode_WRITE_INV_ABS,
   k_opcode_WRITE_INV_SCRATCH,
+  k_opcode_WRITE_INV_SCRATCH_n,
   k_opcode_WRITE_INV_SCRATCH_Y,
 };
 

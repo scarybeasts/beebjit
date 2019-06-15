@@ -610,6 +610,20 @@ asm_x64_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf,
+               asm_x64_jit_WRITE_INV_SCRATCH_n,
+               asm_x64_jit_WRITE_INV_SCRATCH_n_END);
+  asm_x64_patch_byte(p_buf,
+                     offset,
+                     asm_x64_jit_WRITE_INV_SCRATCH_n,
+                     asm_x64_jit_WRITE_INV_SCRATCH_n_lea_patch,
+                     value);
+}
+
+void
 asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
                asm_x64_jit_WRITE_INV_SCRATCH_Y,

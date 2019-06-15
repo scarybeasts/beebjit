@@ -69,6 +69,8 @@ void asm_x64_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t value);
 void asm_x64_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf);
+void asm_x64_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf,
+                                          uint8_t value);
 void asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf);
 
 void asm_x64_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr);
@@ -332,6 +334,9 @@ void asm_x64_jit_WRITE_INV_ABS_offset_patch();
 void asm_x64_jit_WRITE_INV_ABS_END();
 void asm_x64_jit_WRITE_INV_SCRATCH();
 void asm_x64_jit_WRITE_INV_SCRATCH_END();
+void asm_x64_jit_WRITE_INV_SCRATCH_n();
+void asm_x64_jit_WRITE_INV_SCRATCH_n_lea_patch();
+void asm_x64_jit_WRITE_INV_SCRATCH_n_END();
 void asm_x64_jit_WRITE_INV_SCRATCH_Y();
 void asm_x64_jit_WRITE_INV_SCRATCH_Y_END();
 

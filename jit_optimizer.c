@@ -96,6 +96,10 @@ jit_optimizer_uop_could_write(struct jit_uop* p_uop, uint16_t addr) {
       write_addr_start = p_uop->value1;
       write_addr_end = p_uop->value1;
       break;
+    case k_opcode_STA_SCRATCH_n:
+      write_addr_start = 0;
+      write_addr_end = (k_6502_addr_space_size - 1);
+      break;
     default:
       break;
     }
@@ -125,6 +129,7 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_ASL_ACC_n:
+    case k_opcode_EOR_SCRATCH_n:
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
@@ -234,6 +239,7 @@ jit_optimizer_uopcode_needs_a(int32_t uopcode) {
     case k_opcode_LSR_ACC_n:
     case k_opcode_ROL_ACC_n:
     case k_opcode_ROR_ACC_n:
+    case k_opcode_STA_SCRATCH_n:
     case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
       ret = 1;
@@ -454,6 +460,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
+    case k_opcode_EOR_SCRATCH_n:
     case k_opcode_FLAGA:
     case k_opcode_FLAGX:
     case k_opcode_FLAGY:
@@ -543,11 +550,13 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
+    case k_opcode_STA_SCRATCH_n:
     case k_opcode_STOA_IMM:
     case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
+    case k_opcode_WRITE_INV_SCRATCH_n:
     case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
@@ -626,11 +635,13 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
+    case k_opcode_STA_SCRATCH_n:
     case k_opcode_STOA_IMM:
     case k_opcode_SUB_ABS:
     case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
+    case k_opcode_WRITE_INV_SCRATCH_n:
     case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
@@ -951,9 +962,16 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       if (reg_y != k_value_unknown) {
         int replaced = 0;
         switch (uopcode) {
+        case 0x51: /* EOR idy */
+          uopcode = k_opcode_EOR_SCRATCH_n;
+          replaced = 1;
+          break;
+        case 0x91: /* STA idy */
+          uopcode = k_opcode_STA_SCRATCH_n;
+          replaced = 1;
+          break;
         case 0xB1: /* LDA idy */
           uopcode = k_opcode_LDA_SCRATCH_n;
-          p_uop->value1 = reg_y;
           replaced = 1;
           break;
         default:
@@ -964,9 +982,17 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
           struct jit_uop* p_crossing_uop =
               jit_opcode_find_uop(p_opcode,
                                   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
+          struct jit_uop* p_write_inv_uop =
+              jit_opcode_find_uop(p_opcode, k_opcode_WRITE_INV_SCRATCH_Y);
+
+          p_uop->value1 = reg_y;
           if (p_crossing_uop != NULL) {
             p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
             p_crossing_uop->value1 = reg_y;
+          }
+          if (p_write_inv_uop != NULL) {
+            p_write_inv_uop->uopcode = k_opcode_WRITE_INV_SCRATCH_n;
+            p_write_inv_uop->value1 = reg_y;
           }
         }
       }
