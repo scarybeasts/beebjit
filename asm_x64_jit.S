@@ -253,7 +253,11 @@ asm_x64_jit_ADD_ZPG_END:
 .globl asm_x64_jit_CHECK_BCD_END
 asm_x64_jit_CHECK_BCD:
   # This is fault fixup, i.e. it faults if the 6502 D flag is set.
-  mov REG_SCRATCH2_8, \
+  # You would expect movzx into a 32-bit register here to be faster due to
+  # eliminated dependencies but it is about 10% slower on one of the CLOCKSP
+  # microbenchmarks. Also, using REG_SCRATCH3_8 seems a little faster than
+  # REG_SCRATCH2_8 :shrug:.
+  mov REG_SCRATCH3_8, BYTE PTR \
       [REG_6502_ID_F_64 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 6]
 
 asm_x64_jit_CHECK_BCD_END:
@@ -541,8 +545,8 @@ asm_x64_jit_MODE_IND_16_END:
 asm_x64_jit_MODE_IND_SCRATCH:
   # This faults (with a fixup handler) if we're trying to load from 0xFF,
   # which is highly unusual.
-  mov REG_SCRATCH2_8, \
-       [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
+  mov REG_SCRATCH3_8, \
+      [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
 
   mov REG_SCRATCH2, REG_SCRATCH1
   mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
@@ -603,10 +607,10 @@ asm_x64_jit_MODE_ZPY_8bit_END:
 .globl asm_x64_jit_PULL_16
 .globl asm_x64_jit_PULL_16_END
 asm_x64_jit_PULL_16:
-  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_S_64 + 1]
   # Magic constant to cause a fault + fixup when incrementing stack by 2 would
   # overflow.
-  mov REG_SCRATCH2_8, [REG_6502_S_64 + K_BBC_MEM_OFFSET_TO_READ_FULL + 0xfe02]
+  mov REG_SCRATCH3_8, [REG_6502_S_64 + K_BBC_MEM_OFFSET_TO_READ_FULL + 0xfe02]
+  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_S_64 + 1]
   lea REG_6502_S_32, [REG_6502_S_64 + 2]
 
 asm_x64_jit_PULL_16_END:
@@ -619,7 +623,9 @@ asm_x64_jit_PULL_16_END:
 asm_x64_jit_PUSH_16:
   # Magic constant to cause a fault + fixup when decrementing stack by 2 would
   # overflow.
-  mov REG_SCRATCH1_8, [REG_6502_S_64 - 0x102]
+  # Seems to be faster without movzx, as per other similar cases, which is
+  # strange.
+  mov REG_SCRATCH3_8, [REG_6502_S_64 - 0x102]
   mov WORD PTR [REG_6502_S_64 - 1], 0xffff
 asm_x64_jit_PUSH_16_word_patch:
   lea REG_6502_S_32, [REG_6502_S_64 - 2]
