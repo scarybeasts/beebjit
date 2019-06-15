@@ -257,7 +257,7 @@ asm_x64_jit_CHECK_BCD:
   # eliminated dependencies but it is about 10% slower on one of the CLOCKSP
   # microbenchmarks. Also, using REG_SCRATCH3_8 seems a little faster than
   # REG_SCRATCH2_8 :shrug:.
-  mov REG_SCRATCH3_8, BYTE PTR \
+  mov REG_SCRATCH3_8, \
       [REG_6502_ID_F_64 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 6]
 
 asm_x64_jit_CHECK_BCD_END:
