@@ -708,63 +708,68 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   assert(p_bcd_opcode->num_uops == 1);
   p_bcd_opcode->uops[0].uopcode = k_opcode_CHECK_BCD;
 
-  /* Pass 1: tag opcodes with any known register and flag values. Also replace
-   * single uops with replacements if known registers offer better alternatives.
-   * Classic example is CLC; ADC. At the ADC instruction, it is known that
-   * CF==0 so the ADC can become just an ADD.
-   * In the case of self-modifying code, this loop can also replace uopcodes
-   * with equivalents that load operands dynamically, to prevent continual
-   * recompilation.
+  /* Pass 1: handle dynamic operands (aka. optimization for self-modifying
+   * code to avoid continual recompilation.
+   * This needs to occur early because it changes the fundamental nature of
+   * the opcode.
    */
-  reg_a = k_value_unknown;
-  reg_x = k_value_unknown;
-  reg_y = k_value_unknown;
-  flag_carry = k_value_unknown;
-  flag_decimal = k_value_unknown;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    uint32_t num_uops;
-    uint32_t i_uops;
-    uint8_t opreg;
-    int32_t revalidate_count;
+    uint8_t opcode_6502;
+    uint8_t opmode;
+    int32_t page_crossing_search_uopcode;
+    int32_t page_crossing_replace_uopcode;
+    int32_t new_opcode_6502;
+    int replaced;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
     uint16_t addr_6502 = p_opcode->addr_6502;
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
-    uint16_t operand_6502 = p_opcode->operand_6502;
-    uint8_t optype = g_optypes[opcode_6502];
-    uint8_t opmode = g_opmodes[opcode_6502];
-    int changes_carry = g_optype_changes_carry[optype];
-    int32_t interp_replace = -1;
+    int32_t revalidate_count = jit_compiler_get_revalidate_count(p_compiler,
+                                                                 addr_6502);
 
-    if (p_opcode == p_bcd_opcode) {
+    if (revalidate_count < 4) {
       continue;
     }
 
-    p_opcode->reg_a = reg_a;
-    p_opcode->reg_x = reg_x;
-    p_opcode->reg_y = reg_y;
-    p_opcode->flag_carry = flag_carry;
-    p_opcode->flag_decimal = flag_decimal;
+    opcode_6502 = p_opcode->opcode_6502;
+    opmode = g_opmodes[opcode_6502];
+    replaced = 0;
+    page_crossing_search_uopcode = -1;
+    page_crossing_replace_uopcode = -1;
+    new_opcode_6502 = -1;
 
-    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
-    opreg = g_optype_sets_register[optype];
-    if (opmode == k_acc) {
-      opreg = k_a;
-    }
-
-    revalidate_count = jit_compiler_get_revalidate_count(p_compiler, addr_6502);
-    if (revalidate_count >= 4) {
-      int replaced = 0;
-      int32_t page_crossing_search_uopcode = -1;
-      int32_t page_crossing_replace_uopcode = -1;
+    switch (opmode) {
+    case k_imm:
       switch (opcode_6502) {
-      case 0xA9: /* LDA imm */
+      case 0x09: /* ORA */
+      case 0x29: /* AND */
+      case 0x49: /* EOR */
+      case 0x69: /* ADC */
+      case 0xA9: /* LDA */
+      case 0xC9: /* CMP */
+      case 0xE9: /* SBC */
+        /* Convert imm to abs. */
+        new_opcode_6502 = (opcode_6502 + 4);
+        break;
+      case 0xA0: /* LDY */
+      case 0xA2: /* LDX */
+      case 0xC0: /* CPY */
+      case 0xE0: /* CPX */
+        /* Convert imm to abs. */
+        new_opcode_6502 = (opcode_6502 + 0xC);
+        break;
+      default:
+        break;
+      }
+      if (new_opcode_6502 != -1) {
         jit_opcode_find_replace1(p_opcode,
-                                 0xA9,
-                                 0xAD, /* LDA abs */
+                                 opcode_6502,
+                                 new_opcode_6502,
                                  (uint16_t) (addr_6502 + 1));
         replaced = 1;
-        break;
+      }
+      break;
+    default:
+      switch (opcode_6502) {
       case 0xB9: /* LDA aby */
         jit_opcode_find_replace2(p_opcode,
                                  0xB9,
@@ -790,16 +795,61 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       default:
         break;
       }
-      if (replaced) {
-        p_opcode->dynamic_operand = 1;
-        if (page_crossing_search_uopcode != -1) {
-          struct jit_uop* p_uop =
-              jit_opcode_find_uop(p_opcode, page_crossing_search_uopcode);
-          if (p_uop != NULL) {
-            jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
-          }
+      break;
+    }
+    if (replaced) {
+      p_opcode->dynamic_operand = 1;
+      if (page_crossing_search_uopcode != -1) {
+        struct jit_uop* p_uop =
+            jit_opcode_find_uop(p_opcode, page_crossing_search_uopcode);
+        if (p_uop != NULL) {
+          jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
         }
       }
+    }
+  }
+
+  /* Pass 2: tag opcodes with any known register and flag values. Also replace
+   * single uops with replacements if known registers offer better alternatives.
+   * Classic example is CLC; ADC. At the ADC instruction, it is known that
+   * CF==0 so the ADC can become just an ADD.
+   * In the case of self-modifying code, this loop can also replace uopcodes
+   * with equivalents that load operands dynamically, to prevent continual
+   * recompilation.
+   */
+  reg_a = k_value_unknown;
+  reg_x = k_value_unknown;
+  reg_y = k_value_unknown;
+  flag_carry = k_value_unknown;
+  flag_decimal = k_value_unknown;
+  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+    uint32_t num_uops;
+    uint32_t i_uops;
+    uint8_t opreg;
+
+    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    uint16_t addr_6502 = p_opcode->addr_6502;
+    uint8_t opcode_6502 = p_opcode->opcode_6502;
+    uint16_t operand_6502 = p_opcode->operand_6502;
+    uint8_t optype = g_optypes[opcode_6502];
+    uint8_t opmode = g_opmodes[opcode_6502];
+    int changes_carry = g_optype_changes_carry[optype];
+    int32_t interp_replace = -1;
+
+    if (p_opcode == p_bcd_opcode) {
+      continue;
+    }
+
+    p_opcode->reg_a = reg_a;
+    p_opcode->reg_x = reg_x;
+    p_opcode->reg_y = reg_y;
+    p_opcode->flag_carry = flag_carry;
+    p_opcode->flag_decimal = flag_decimal;
+
+    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
+    opreg = g_optype_sets_register[optype];
+    if (opmode == k_acc) {
+      opreg = k_a;
     }
 
     num_uops = p_opcode->num_uops;
@@ -1001,80 +1051,85 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
 
     /* Update known state of registers, flags, etc. for next opcode. */
-    switch (opcode_6502) {
-    case 0x18: /* CLC */
-    case 0xB0: /* BCS */
-      flag_carry = 0;
-      break;
-    case 0x38: /* SEC */
-    case 0x90: /* BCC */
-      flag_carry = 1;
-      break;
-    case 0x88: /* DEY */
-      if (reg_y != k_value_unknown) {
-        reg_y = (uint8_t) (reg_y - 1);
-      }
-      break;
-    case 0x8A: /* TXA */
-      reg_a = reg_x;
-      break;
-    case 0x98: /* TYA */
-      reg_a = reg_y;
-      break;
-    case 0xA0: /* LDY imm */
-      reg_y = operand_6502;
-      break;
-    case 0xA2: /* LDX imm */
-      reg_x = operand_6502;
-      break;
-    case 0xA8: /* TAY */
-      reg_y = reg_a;
-      break;
-    case 0xA9: /* LDA imm */
-      reg_a = operand_6502;
-      break;
-    case 0xAA: /* TAX */
-      reg_x = reg_a;
-      break;
-    case 0xC8: /* INY */
-      if (reg_y != k_value_unknown) {
-        reg_y = (uint8_t) (reg_y + 1);
-      }
-      break;
-    case 0xCA: /* DEX */
-      if (reg_x != k_value_unknown) {
-        reg_x = (uint8_t) (reg_x - 1);
-      }
-      break;
-    case 0xD8: /* CLD */
-      flag_decimal = 0;
-      break;
-    case 0xE8: /* INX */
-      if (reg_x != k_value_unknown) {
-        reg_x = (uint8_t) (reg_x + 1);
-      }
-      break;
-    case 0xF8: /* SED */
-      flag_decimal = 1;
-      break;
-    default:
-      switch (opreg) {
-      case k_a:
-        reg_a = k_value_unknown;
+    num_uops = p_opcode->num_uops;
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t uopcode = p_uop->uopcode;
+      switch (uopcode) {
+      case 0x18: /* CLC */
+      case 0xB0: /* BCS */
+        flag_carry = 0;
         break;
-      case k_x:
-        reg_x = k_value_unknown;
+      case 0x38: /* SEC */
+      case 0x90: /* BCC */
+        flag_carry = 1;
         break;
-      case k_y:
-        reg_y = k_value_unknown;
+      case 0x88: /* DEY */
+        if (reg_y != k_value_unknown) {
+          reg_y = (uint8_t) (reg_y - 1);
+        }
+        break;
+      case 0x8A: /* TXA */
+        reg_a = reg_x;
+        break;
+      case 0x98: /* TYA */
+        reg_a = reg_y;
+        break;
+      case 0xA0: /* LDY imm */
+        reg_y = operand_6502;
+        break;
+      case 0xA2: /* LDX imm */
+        reg_x = operand_6502;
+        break;
+      case 0xA8: /* TAY */
+        reg_y = reg_a;
+        break;
+      case 0xA9: /* LDA imm */
+        reg_a = operand_6502;
+        break;
+      case 0xAA: /* TAX */
+        reg_x = reg_a;
+        break;
+      case 0xC8: /* INY */
+        if (reg_y != k_value_unknown) {
+          reg_y = (uint8_t) (reg_y + 1);
+        }
+        break;
+      case 0xCA: /* DEX */
+        if (reg_x != k_value_unknown) {
+          reg_x = (uint8_t) (reg_x - 1);
+        }
+        break;
+      case 0xD8: /* CLD */
+        flag_decimal = 0;
+        break;
+      case 0xE8: /* INX */
+        if (reg_x != k_value_unknown) {
+          reg_x = (uint8_t) (reg_x + 1);
+        }
+        break;
+      case 0xF8: /* SED */
+        flag_decimal = 1;
         break;
       default:
+        switch (opreg) {
+        case k_a:
+          reg_a = k_value_unknown;
+          break;
+        case k_x:
+          reg_x = k_value_unknown;
+          break;
+        case k_y:
+          reg_y = k_value_unknown;
+          break;
+        default:
+          break;
+        }
+        if (changes_carry) {
+          flag_carry = k_value_unknown;
+        }
         break;
       }
-      if (changes_carry) {
-        flag_carry = k_value_unknown;
-      }
-      break;
     }
 
     if (interp_replace != -1) {
@@ -1088,7 +1143,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 2: merge 6502 macro opcodes as we can. */
+  /* Pass 3: merge 6502 macro opcodes as we can. */
   p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
@@ -1143,7 +1198,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     p_prev_opcode = p_opcode;
   }
 
-  /* Pass 3: first uopcode elimination pass, particularly FLAGn. */
+  /* Pass 4: first uopcode elimination pass, particularly FLAGn. */
   p_nz_flags_opcode = NULL;
   p_nz_flags_uop = NULL;
   p_idy_opcode = NULL;
@@ -1242,7 +1297,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 4: second uopcode elimination pass, particularly those eliminations
+  /* Pass 5: second uopcode elimination pass, particularly those eliminations
    * that only occur well after FLAGn has been eliminated.
    */
   p_lda_opcode = NULL;

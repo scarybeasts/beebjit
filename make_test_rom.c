@@ -1350,7 +1350,16 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x10);
   emit_JMP(p_buf, k_abs, 0xD400);
 
+  /* Test for a JIT bug at the confluence of dynamic operand and known
+   * constant propagation.
+   */
   set_new_index(p_buf, 0x1400);
+  emit_JSR(p_buf, 0x3140);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x9B);
+  emit_JMP(p_buf, k_abs, 0xD440);
+
+  set_new_index(p_buf, 0x1440);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1499,6 +1508,16 @@ main(int argc, const char* argv[]) {
   emit_INC(p_buf, k_abs, 0x3125);
   emit_DEY(p_buf);
   emit_BNE(p_buf, -13);
+  emit_RTS(p_buf);
+
+  /* For JIT dynamic operand testing. */
+  set_new_index(p_buf, 0x3140);
+  emit_LDY(p_buf, k_imm, 0x10);   /* Modify 16 times to be sure of opt. */
+  emit_LDX(p_buf, k_imm, 0xAA);
+  emit_STX(p_buf, k_zpg, 0x12);
+  emit_DEC(p_buf, k_abs, 0x3143);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -10);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
