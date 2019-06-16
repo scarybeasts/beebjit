@@ -786,6 +786,23 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                  0);
       }
       break;
+    case k_abs:
+      switch (opcode_6502) {
+      case 0x8C: /* STY */
+        new_uopcode = 0x94; /* STY zpx */
+        break;
+      default:
+        break;
+      }
+      if (new_uopcode != -1) {
+        jit_opcode_find_replace2(p_opcode,
+                                 opcode_6502,
+                                 k_opcode_LOAD_SCRATCH_16,
+                                 (uint16_t) (addr_6502 + 1),
+                                 new_uopcode,
+                                 0);
+      }
+      break;
     default:
       switch (opcode_6502) {
       case 0xB9: /* LDA aby */
