@@ -87,6 +87,8 @@ enum {
   k_opcode_LOAD_CARRY_FOR_CALC,
   k_opcode_LOAD_CARRY_INV_FOR_CALC,
   k_opcode_LOAD_OVERFLOW,
+  k_opcode_LOAD_SCRATCH_8,
+  k_opcode_LOAD_SCRATCH_16,
   k_opcode_LSR_ACC_n,
   k_opcode_MODE_ABX,
   k_opcode_MODE_ABY,

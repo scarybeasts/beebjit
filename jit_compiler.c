@@ -858,6 +858,12 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_LOAD_OVERFLOW:
     asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
     break;
+  case k_opcode_LOAD_SCRATCH_8:
+    asm_x64_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_LOAD_SCRATCH_16:
+    asm_x64_emit_jit_LOAD_SCRATCH_16(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_LSR_ACC_n:
     asm_x64_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;

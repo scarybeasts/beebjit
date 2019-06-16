@@ -488,6 +488,15 @@ asm_x64_jit_LOAD_OVERFLOW_END:
   ret
 
 
+.globl asm_x64_jit_LOAD_SCRATCH_8
+.globl asm_x64_jit_LOAD_SCRATCH_8_END
+asm_x64_jit_LOAD_SCRATCH_8:
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7fffffff]
+
+asm_x64_jit_LOAD_SCRATCH_8_END:
+  ret
+
+
 .globl asm_x64_jit_MODE_ABX
 .globl asm_x64_jit_MODE_ABX_lea_patch
 .globl asm_x64_jit_MODE_ABX_END

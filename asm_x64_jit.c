@@ -387,6 +387,31 @@ asm_x64_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf) {
 }
 
 void
+asm_x64_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
+  asm_x64_copy_patch_u32(p_buf,
+                         asm_x64_jit_LOAD_SCRATCH_8,
+                         asm_x64_jit_LOAD_SCRATCH_8_END,
+                         (addr - REG_MEM_OFFSET));
+}
+
+void
+asm_x64_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_16, asm_x64_jit_MODE_IND_16_END);
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_MODE_IND_16,
+                    asm_x64_jit_MODE_IND_16_mov1_patch,
+                    (addr - REG_MEM_OFFSET));
+  asm_x64_patch_int(p_buf,
+                    offset,
+                    asm_x64_jit_MODE_IND_16,
+                    asm_x64_jit_MODE_IND_16_mov2_patch,
+                    ((addr + 1) - REG_MEM_OFFSET));
+}
+
+void
 asm_x64_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t value) {
   size_t offset = util_buffer_get_pos(p_buf);
 
