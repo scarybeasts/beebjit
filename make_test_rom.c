@@ -458,17 +458,29 @@ main(int argc, const char* argv[]) {
   emit_CLC(p_buf);
   emit_ROR(p_buf, k_abs, 0xC603);
   emit_REQUIRE_CF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0x00);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_zpg, 0x02);
   emit_STA(p_buf, k_zpg, 0x03);
+  emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_idy, 0x02);   /* $FFFF */
-  emit_JMP(p_buf, k_abs, 0xC640);
+  emit_STA(p_buf, k_idx, 0x02);   /* $FFFF */
+  emit_STA(p_buf, k_abs, 0xFFFF);
+  emit_STA(p_buf, k_abx, 0xFFFF);
+  emit_STA(p_buf, k_aby, 0xFFFF);
+  emit_LDA(p_buf, k_abs, 0xFFFF);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_abx, 0xFFFF);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_aby, 0xFFFF);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xC660);
 
   /* Test an interesting bug we had with self-modifying code where two
    * adjacent instructions are clobbered.
    */
-  set_new_index(p_buf, 0x0640);
+  set_new_index(p_buf, 0x0660);
   emit_NOP(p_buf);
   emit_JSR(p_buf, 0x3050);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
