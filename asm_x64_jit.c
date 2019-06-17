@@ -146,6 +146,11 @@ asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_x64_emit_jit_for_testing(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf, asm_x64_jit_for_testing, asm_x64_jit_for_testing_END);
+}
+
+void
 asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
   asm_x64_copy_patch_byte(p_buf,
                           asm_x64_jit_ADD_CYCLES,

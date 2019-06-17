@@ -177,6 +177,14 @@ asm_x64_jit_jump_interp_END:
   ret
 
 
+.globl asm_x64_jit_for_testing
+.globl asm_x64_jit_for_testing_END
+asm_x64_jit_for_testing:
+  ud2
+
+asm_x64_jit_for_testing_END:
+
+
 .globl asm_x64_jit_ADD_CYCLES
 .globl asm_x64_jit_ADD_CYCLES_END
 asm_x64_jit_ADD_CYCLES:

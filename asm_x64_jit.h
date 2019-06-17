@@ -13,6 +13,7 @@ void asm_x64_emit_jit_check_countdown(struct util_buffer* p_buf,
                                       void* p_trampoline);
 void asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr);
 void asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr);
+void asm_x64_emit_jit_for_testing(struct util_buffer* p_buf);
 
 void asm_x64_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t value);
@@ -216,6 +217,8 @@ void asm_x64_jit_jump_interp();
 void asm_x64_jit_jump_interp_pc_patch();
 void asm_x64_jit_jump_interp_jump_patch();
 void asm_x64_jit_jump_interp_END();
+void asm_x64_jit_for_testing();
+void asm_x64_jit_for_testing_END();
 
 void asm_x64_jit_ADD_ABS();
 void asm_x64_jit_ADD_ABS_END();
