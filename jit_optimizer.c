@@ -845,15 +845,18 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   }
 
   /* Pass 2: tag opcodes with any known register and flag values. */
+  /* TODO: this pass operates on 6502 opcodes but it should probably work on
+   * uopcodes, because previous passes may change the characteristic of
+   * 6502 opcodes.
+   * One example is LDY imm -> dynamic operand conversion, which no longer
+   * results in "known Y".
+   */
   reg_a = k_value_unknown;
   reg_x = k_value_unknown;
   reg_y = k_value_unknown;
   flag_carry = k_value_unknown;
   flag_decimal = k_value_unknown;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
-    uint32_t num_uops;
-    uint32_t i_uops;
-
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
     uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
@@ -873,85 +876,92 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     p_opcode->flag_carry = flag_carry;
     p_opcode->flag_decimal = flag_decimal;
 
-    num_uops = p_opcode->num_uops;
-    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
-      switch (uopcode) {
-      case 0x18: /* CLC */
-      case 0xB0: /* BCS */
-        flag_carry = 0;
-        break;
-      case 0x38: /* SEC */
-      case 0x90: /* BCC */
-        flag_carry = 1;
-        break;
-      case 0x88: /* DEY */
-        if (reg_y != k_value_unknown) {
-          reg_y = (uint8_t) (reg_y - 1);
-        }
-        break;
-      case 0x8A: /* TXA */
-        reg_a = reg_x;
-        break;
-      case 0x98: /* TYA */
-        reg_a = reg_y;
-        break;
-      case 0xA0: /* LDY imm */
+    switch (opcode_6502) {
+    case 0x18: /* CLC */
+    case 0xB0: /* BCS */
+      flag_carry = 0;
+      break;
+    case 0x38: /* SEC */
+    case 0x90: /* BCC */
+      flag_carry = 1;
+      break;
+    case 0x88: /* DEY */
+      if (reg_y != k_value_unknown) {
+        reg_y = (uint8_t) (reg_y - 1);
+      }
+      break;
+    case 0x8A: /* TXA */
+      reg_a = reg_x;
+      break;
+    case 0x98: /* TYA */
+      reg_a = reg_y;
+      break;
+    case 0xA0: /* LDY imm */
+      if (!p_opcode->dynamic_operand) {
         reg_y = operand_6502;
-        break;
-      case 0xA2: /* LDX imm */
+      } else {
+        reg_y = k_value_unknown;
+      }
+      break;
+    case 0xA2: /* LDX imm */
+      if (!p_opcode->dynamic_operand) {
         reg_x = operand_6502;
-        break;
-      case 0xA8: /* TAY */
-        reg_y = reg_a;
-        break;
-      case 0xA9: /* LDA imm */
+      } else {
+        reg_x = k_value_unknown;
+      }
+      break;
+    case 0xA8: /* TAY */
+      reg_y = reg_a;
+      break;
+    case 0xA9: /* LDA imm */
+      if (!p_opcode->dynamic_operand) {
         reg_a = operand_6502;
+      } else {
+        reg_a = k_value_unknown;
+      }
+      break;
+    case 0xAA: /* TAX */
+      reg_x = reg_a;
+      break;
+    case 0xC8: /* INY */
+      if (reg_y != k_value_unknown) {
+        reg_y = (uint8_t) (reg_y + 1);
+      }
+      break;
+    case 0xCA: /* DEX */
+      if (reg_x != k_value_unknown) {
+        reg_x = (uint8_t) (reg_x - 1);
+      }
+      break;
+    case 0xD8: /* CLD */
+      flag_decimal = 0;
+      break;
+    case 0xE8: /* INX */
+      if (reg_x != k_value_unknown) {
+        reg_x = (uint8_t) (reg_x + 1);
+      }
+      break;
+    case 0xF8: /* SED */
+      flag_decimal = 1;
+      break;
+    default:
+      switch (opreg) {
+      case k_a:
+        reg_a = k_value_unknown;
         break;
-      case 0xAA: /* TAX */
-        reg_x = reg_a;
+      case k_x:
+        reg_x = k_value_unknown;
         break;
-      case 0xC8: /* INY */
-        if (reg_y != k_value_unknown) {
-          reg_y = (uint8_t) (reg_y + 1);
-        }
-        break;
-      case 0xCA: /* DEX */
-        if (reg_x != k_value_unknown) {
-          reg_x = (uint8_t) (reg_x - 1);
-        }
-        break;
-      case 0xD8: /* CLD */
-        flag_decimal = 0;
-        break;
-      case 0xE8: /* INX */
-        if (reg_x != k_value_unknown) {
-          reg_x = (uint8_t) (reg_x + 1);
-        }
-        break;
-      case 0xF8: /* SED */
-        flag_decimal = 1;
+      case k_y:
+        reg_y = k_value_unknown;
         break;
       default:
-        switch (opreg) {
-        case k_a:
-          reg_a = k_value_unknown;
-          break;
-        case k_x:
-          reg_x = k_value_unknown;
-          break;
-        case k_y:
-          reg_y = k_value_unknown;
-          break;
-        default:
-          break;
-        }
-        if (changes_carry) {
-          flag_carry = k_value_unknown;
-        }
         break;
       }
+      if (changes_carry) {
+        flag_carry = k_value_unknown;
+      }
+      break;
     }
   }
 
