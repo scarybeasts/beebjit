@@ -844,14 +844,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 2: tag opcodes with any known register and flag values. Also replace
-   * single uops with replacements if known registers offer better alternatives.
-   * Classic example is CLC; ADC. At the ADC instruction, it is known that
-   * CF==0 so the ADC can become just an ADD.
-   * In the case of self-modifying code, this loop can also replace uopcodes
-   * with equivalents that load operands dynamically, to prevent continual
-   * recompilation.
-   */
+  /* Pass 2: tag opcodes with any known register and flag values. */
   reg_a = k_value_unknown;
   reg_x = k_value_unknown;
   reg_y = k_value_unknown;
@@ -860,19 +853,18 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t num_uops;
     uint32_t i_uops;
-    uint8_t opreg;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    uint16_t addr_6502 = p_opcode->addr_6502;
     uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
     uint8_t optype = g_optypes[opcode_6502];
+    uint8_t opreg = g_optype_sets_register[optype];
     uint8_t opmode = g_opmodes[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
-    int32_t interp_replace = -1;
 
-    if (p_opcode == p_bcd_opcode) {
-      continue;
+    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
+    if (opmode == k_acc) {
+      opreg = k_a;
     }
 
     p_opcode->reg_a = reg_a;
@@ -881,10 +873,109 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     p_opcode->flag_carry = flag_carry;
     p_opcode->flag_decimal = flag_decimal;
 
-    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
-    opreg = g_optype_sets_register[optype];
-    if (opmode == k_acc) {
-      opreg = k_a;
+    num_uops = p_opcode->num_uops;
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t uopcode = p_uop->uopcode;
+      switch (uopcode) {
+      case 0x18: /* CLC */
+      case 0xB0: /* BCS */
+        flag_carry = 0;
+        break;
+      case 0x38: /* SEC */
+      case 0x90: /* BCC */
+        flag_carry = 1;
+        break;
+      case 0x88: /* DEY */
+        if (reg_y != k_value_unknown) {
+          reg_y = (uint8_t) (reg_y - 1);
+        }
+        break;
+      case 0x8A: /* TXA */
+        reg_a = reg_x;
+        break;
+      case 0x98: /* TYA */
+        reg_a = reg_y;
+        break;
+      case 0xA0: /* LDY imm */
+        reg_y = operand_6502;
+        break;
+      case 0xA2: /* LDX imm */
+        reg_x = operand_6502;
+        break;
+      case 0xA8: /* TAY */
+        reg_y = reg_a;
+        break;
+      case 0xA9: /* LDA imm */
+        reg_a = operand_6502;
+        break;
+      case 0xAA: /* TAX */
+        reg_x = reg_a;
+        break;
+      case 0xC8: /* INY */
+        if (reg_y != k_value_unknown) {
+          reg_y = (uint8_t) (reg_y + 1);
+        }
+        break;
+      case 0xCA: /* DEX */
+        if (reg_x != k_value_unknown) {
+          reg_x = (uint8_t) (reg_x - 1);
+        }
+        break;
+      case 0xD8: /* CLD */
+        flag_decimal = 0;
+        break;
+      case 0xE8: /* INX */
+        if (reg_x != k_value_unknown) {
+          reg_x = (uint8_t) (reg_x + 1);
+        }
+        break;
+      case 0xF8: /* SED */
+        flag_decimal = 1;
+        break;
+      default:
+        switch (opreg) {
+        case k_a:
+          reg_a = k_value_unknown;
+          break;
+        case k_x:
+          reg_x = k_value_unknown;
+          break;
+        case k_y:
+          reg_y = k_value_unknown;
+          break;
+        default:
+          break;
+        }
+        if (changes_carry) {
+          flag_carry = k_value_unknown;
+        }
+        break;
+      }
+    }
+  }
+
+  /* Pass 3: replace single uops with replacements if known state offers
+   * better alternatives.
+   * Classic example is CLC; ADC. At the ADC instruction, it is known that
+   * CF==0 so the ADC can become just an ADD.
+   */
+  for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
+    uint32_t num_uops;
+    uint32_t i_uops;
+
+    struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    uint16_t addr_6502 = p_opcode->addr_6502;
+    int32_t interp_replace = -1;
+
+    reg_a = p_opcode->reg_a;
+    reg_x = p_opcode->reg_x;
+    reg_y = p_opcode->reg_y;
+    flag_carry = p_opcode->flag_carry;
+    flag_decimal = p_opcode->flag_decimal;
+
+    if (p_opcode == p_bcd_opcode) {
+      continue;
     }
 
     num_uops = p_opcode->num_uops;
@@ -1085,88 +1176,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       p_uop->uopcode = uopcode;
     }
 
-    /* Update known state of registers, flags, etc. for next opcode. */
-    num_uops = p_opcode->num_uops;
-    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
-      switch (uopcode) {
-      case 0x18: /* CLC */
-      case 0xB0: /* BCS */
-        flag_carry = 0;
-        break;
-      case 0x38: /* SEC */
-      case 0x90: /* BCC */
-        flag_carry = 1;
-        break;
-      case 0x88: /* DEY */
-        if (reg_y != k_value_unknown) {
-          reg_y = (uint8_t) (reg_y - 1);
-        }
-        break;
-      case 0x8A: /* TXA */
-        reg_a = reg_x;
-        break;
-      case 0x98: /* TYA */
-        reg_a = reg_y;
-        break;
-      case 0xA0: /* LDY imm */
-        reg_y = operand_6502;
-        break;
-      case 0xA2: /* LDX imm */
-        reg_x = operand_6502;
-        break;
-      case 0xA8: /* TAY */
-        reg_y = reg_a;
-        break;
-      case 0xA9: /* LDA imm */
-        reg_a = operand_6502;
-        break;
-      case 0xAA: /* TAX */
-        reg_x = reg_a;
-        break;
-      case 0xC8: /* INY */
-        if (reg_y != k_value_unknown) {
-          reg_y = (uint8_t) (reg_y + 1);
-        }
-        break;
-      case 0xCA: /* DEX */
-        if (reg_x != k_value_unknown) {
-          reg_x = (uint8_t) (reg_x - 1);
-        }
-        break;
-      case 0xD8: /* CLD */
-        flag_decimal = 0;
-        break;
-      case 0xE8: /* INX */
-        if (reg_x != k_value_unknown) {
-          reg_x = (uint8_t) (reg_x + 1);
-        }
-        break;
-      case 0xF8: /* SED */
-        flag_decimal = 1;
-        break;
-      default:
-        switch (opreg) {
-        case k_a:
-          reg_a = k_value_unknown;
-          break;
-        case k_x:
-          reg_x = k_value_unknown;
-          break;
-        case k_y:
-          reg_y = k_value_unknown;
-          break;
-        default:
-          break;
-        }
-        if (changes_carry) {
-          flag_carry = k_value_unknown;
-        }
-        break;
-      }
-    }
-
     if (interp_replace != -1) {
       jit_opcode_find_replace1(p_opcode,
                                interp_replace,
@@ -1178,7 +1187,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 3: merge 6502 macro opcodes as we can. */
+  /* Pass 4: merge 6502 macro opcodes as we can. */
   p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
@@ -1233,7 +1242,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     p_prev_opcode = p_opcode;
   }
 
-  /* Pass 4: first uopcode elimination pass, particularly FLAGn. */
+  /* Pass 5: first uopcode elimination pass, particularly FLAGn. */
   p_nz_flags_opcode = NULL;
   p_nz_flags_uop = NULL;
   p_idy_opcode = NULL;
@@ -1332,7 +1341,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     }
   }
 
-  /* Pass 5: second uopcode elimination pass, particularly those eliminations
+  /* Pass 6: second uopcode elimination pass, particularly those eliminations
    * that only occur well after FLAGn has been eliminated.
    */
   p_lda_opcode = NULL;
