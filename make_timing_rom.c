@@ -616,12 +616,53 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x06);
   emit_JMP(p_buf, k_abs, 0xC8C0);
 
-  /* Exit sequence. */
+  /* Copy some ROM to RAM so we can test self-modifying code easier. */
   set_new_index(p_buf, 0x08C0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_STA(p_buf, k_zpg, 0xF2);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x30);
+  emit_STA(p_buf, k_zpg, 0xF3);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_STA(p_buf, k_idy, 0xF2);
+  emit_INY(p_buf);
+  emit_BNE(p_buf, -7);
+  emit_JMP(p_buf, k_abs, 0xC900);
+
+  /* Test timing of abx mode load opcode with dynamic operand. */
+  set_new_index(p_buf, 0x0900);
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0x3000);
+  emit_INC(p_buf, k_abs, 0x3001);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDX(p_buf, k_imm, 0x00);     /* No abx page crossing. */
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x3000);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x11);
+  emit_LDX(p_buf, k_imm, 0x70);     /* abx page crossing. */
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x3000);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x12);
+  emit_JMP(p_buf, k_abs, 0xC940);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0940);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
   emit_EXIT(p_buf);
+
+  /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
+  /* For testing dynamic operand of abx mode. */
+  set_new_index(p_buf, 0x2000);
+  emit_LDA(p_buf, k_abx, 0x0080);
+  emit_RTS(p_buf);
 
   /* Routine to arrange for an TIMER1 based IRQ at a specific time. */
   /* Input: A is timer value desired at first post-RTS opcode. */
