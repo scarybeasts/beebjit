@@ -1371,7 +1371,24 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x9B);
   emit_JMP(p_buf, k_abs, 0xD440);
 
+  /* Test for dynamic operand on a write instruction, and correct write
+   * invalidation.
+   */
   set_new_index(p_buf, 0x1440);
+  emit_LDA(p_buf, k_imm, 0x41);
+  emit_STA(p_buf, k_zpg, 0x05);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x400A);
+  emit_JSR(p_buf, 0x400A);
+  emit_JSR(p_buf, 0x3150);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x400C);
+  emit_JSR(p_buf, 0x400A);
+  emit_LDA(p_buf, k_zpg, 0x05);
+  emit_REQUIRE_EQ(p_buf, 0x82);
+  emit_JMP(p_buf, k_abs, 0xD480);
+
+  set_new_index(p_buf, 0x1480);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1530,6 +1547,15 @@ main(int argc, const char* argv[]) {
   emit_DEC(p_buf, k_abs, 0x3143);
   emit_DEY(p_buf);
   emit_BNE(p_buf, -10);
+  emit_RTS(p_buf);
+
+  /* For JIT write opcode dynamic operand testing. */
+  set_new_index(p_buf, 0x3150);
+  emit_LDY(p_buf, k_imm, 0x10);   /* Modify 16 times to be sure of opt. */
+  emit_STY(p_buf, k_abs, 0x4000);
+  emit_INC(p_buf, k_abs, 0x3153);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -9);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

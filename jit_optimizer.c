@@ -722,6 +722,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     uint8_t opmode;
     int32_t page_crossing_search_uopcode;
     int32_t page_crossing_replace_uopcode;
+    int32_t write_inv_search_uopcode;
+    int32_t write_inv_replace_uopcode;
     int32_t new_uopcode;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
@@ -737,6 +739,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     opmode = g_opmodes[opcode_6502];
     page_crossing_search_uopcode = -1;
     page_crossing_replace_uopcode = -1;
+    write_inv_search_uopcode = -1;
+    write_inv_replace_uopcode = -1;
     new_uopcode = -1;
 
     switch (opmode) {
@@ -790,6 +794,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       switch (opcode_6502) {
       case 0x8C: /* STY */
         new_uopcode = 0x94; /* STY zpx */
+        write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+        write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
         break;
       default:
         break;
@@ -840,6 +846,12 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         if (p_uop != NULL) {
           jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
         }
+      }
+      if (write_inv_search_uopcode != -1) {
+        struct jit_uop* p_uop =
+            jit_opcode_find_uop(p_opcode, write_inv_search_uopcode);
+        assert(p_uop != NULL);
+        jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
       }
     }
   }
