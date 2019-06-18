@@ -415,52 +415,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     return;
   }
 
-  /* Code invalidation for writes, aka. self-modifying code. */
-  /* TODO: stack page invalidations. */
-  if (opmem == k_write || opmem == k_rw) {
-    switch (opmode) {
-    case k_abs:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
-      p_uop++;
-      break;
-    case k_abx:
-      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABX, operand_6502);
-      p_uop++;
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
-    case k_aby:
-      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABY, operand_6502);
-      p_uop++;
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
-    case k_idx:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
-    case k_idy:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH_Y, 0);
-      p_uop++;
-      break;
-    case k_zpg:
-      if (p_compiler->compile_for_code_in_zero_page) {
-        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
-        p_uop++;
-      }
-      break;
-    case k_zpx:
-    case k_zpy:
-      if (p_compiler->compile_for_code_in_zero_page) {
-        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-        p_uop++;
-      }
-      break;
-    default:
-      break;
-    }
-  }
-
   /* Pre-main uops. */
   switch (optype) {
   case k_adc:
@@ -582,36 +536,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
   }
 
-  /* Post-main per-mode uops. */
-  if (p_compiler->option_accurate_timings &&
-      (opmem == k_read) &&
-      could_page_cross) {
-    /* NOTE: must do page crossing cycles fixup after the main uop, because it
-     * may fault (e.g. for hardware register access) and then fixup. We're
-     * only guaranteed that the JIT handled the uop if we get here.
-     */
-    switch (opmode) {
-    case k_abx:
-      jit_opcode_make_uop1(p_uop,
-                           k_opcode_CHECK_PAGE_CROSSING_X_n,
-                           operand_6502);
-      p_uop++;
-      break;
-    case k_aby:
-      jit_opcode_make_uop1(p_uop,
-                           k_opcode_CHECK_PAGE_CROSSING_Y_n,
-                           operand_6502);
-      p_uop++;
-      break;
-    case k_idy:
-      jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y, 0);
-      p_uop++;
-      break;
-    default:
-      break;
-    }
-  }
-
   /* Post-main uops. */
   switch (optype) {
   case k_adc:
@@ -692,6 +616,82 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   default:
     break;
+  }
+
+  /* Post-main per-mode uops. */
+  /* Code invalidation for writes, aka. self-modifying code. */
+  /* TODO: stack page invalidations. */
+  if (opmem == k_write || opmem == k_rw) {
+    switch (opmode) {
+    case k_abs:
+      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
+      p_uop++;
+      break;
+    case k_abx:
+      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABX, operand_6502);
+      p_uop++;
+      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
+      p_uop++;
+      break;
+    case k_aby:
+      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABY, operand_6502);
+      p_uop++;
+      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
+      p_uop++;
+      break;
+    case k_idx:
+      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
+      p_uop++;
+      break;
+    case k_idy:
+      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH_Y, 0);
+      p_uop++;
+      break;
+    case k_zpg:
+      if (p_compiler->compile_for_code_in_zero_page) {
+        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
+        p_uop++;
+      }
+      break;
+    case k_zpx:
+    case k_zpy:
+      if (p_compiler->compile_for_code_in_zero_page) {
+        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
+        p_uop++;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+  /* Accurate timings for page crossing cycles. */
+  if (p_compiler->option_accurate_timings &&
+      (opmem == k_read) &&
+      could_page_cross) {
+    /* NOTE: must do page crossing cycles fixup after the main uop, because it
+     * may fault (e.g. for hardware register access) and then fixup. We're
+     * only guaranteed that the JIT handled the uop if we get here.
+     */
+    switch (opmode) {
+    case k_abx:
+      jit_opcode_make_uop1(p_uop,
+                           k_opcode_CHECK_PAGE_CROSSING_X_n,
+                           operand_6502);
+      p_uop++;
+      break;
+    case k_aby:
+      jit_opcode_make_uop1(p_uop,
+                           k_opcode_CHECK_PAGE_CROSSING_Y_n,
+                           operand_6502);
+      p_uop++;
+      break;
+    case k_idy:
+      jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y, 0);
+      p_uop++;
+      break;
+    default:
+      break;
+    }
   }
 
   p_details->num_uops = (p_uop - &p_details->uops[0]);
