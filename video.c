@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,11 +16,15 @@ enum {
 };
 
 enum {
+  k_crtc_reg_horiz_total = 0,
   k_crtc_reg_horiz_displayed = 1,
   k_crtc_reg_horiz_position = 2,
+  k_crtc_reg_sync_width = 3,
+  k_crtc_reg_vert_total = 4,
   k_crtc_reg_vert_adjust = 5,
   k_crtc_reg_vert_displayed = 6,
   k_crtc_reg_vert_position = 7,
+  k_crtc_reg_lines_per_character = 9,
   k_crtc_reg_mem_addr_high = 12,
   k_crtc_reg_mem_addr_low = 13,
 };
@@ -737,8 +742,37 @@ video_set_crtc_address(struct video_struct* p_video, unsigned char val) {
 
 void
 video_set_crtc_data(struct video_struct* p_video, unsigned char val) {
-  unsigned char address = p_video->crtc_address;
-  switch (address) {
+  uint8_t hsync_width;
+  uint8_t vsync_width;
+
+  uint8_t reg = p_video->crtc_address;
+
+  switch (reg) {
+  case k_crtc_reg_horiz_total:
+    if ((val != 63) && (val != 127)) {
+      printf("LOG:CRTC:unusual horizontal total: %d\n", val);
+    }
+    break;
+  case k_crtc_reg_vert_total:
+    if ((val != 38) && (val != 30)) {
+      printf("LOG:CRTC:unusual vertical total: %d\n", val);
+    }
+    break;
+  case k_crtc_reg_sync_width:
+    hsync_width = (val & 0xF);
+    if ((hsync_width != 8) && (hsync_width != 4)) {
+      printf("LOG:CRTC:unusual hsync width: %d\n", hsync_width);
+    }
+    vsync_width = (val >> 4);
+    if (vsync_width != 2) {
+      printf("LOG:CRTC:unusual vsync width: %d\n", vsync_width);
+    }
+    break;
+  case k_crtc_reg_lines_per_character:
+    if (val != 7) {
+      printf("LOG:CRTC:scan lines per character != 7: %d\n", val);
+    }
+    break;
   case k_crtc_reg_mem_addr_high:
     p_video->crtc_mem_addr_high = (val & 0x3f);
     break;
