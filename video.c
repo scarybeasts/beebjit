@@ -30,23 +30,23 @@ enum {
 };
 
 struct video_struct {
-  unsigned char* p_mem;
-  unsigned char* p_sysvia_IC32;
+  uint8_t* p_mem;
+  uint8_t* p_sysvia_IC32;
 
-  unsigned char video_ula_control;
-  unsigned char video_palette[16];
-  unsigned int palette[16];
+  uint8_t video_ula_control;
+  uint8_t video_palette[16];
+  uint32_t palette[16];
 
-  unsigned char teletext_line[k_bbc_mode7_width];
+  uint8_t teletext_line[k_bbc_mode7_width];
 
-  unsigned char crtc_address;
-  unsigned char crtc_mem_addr_low;
-  unsigned char crtc_mem_addr_high;
-  unsigned char crtc_horiz_displayed;
-  unsigned char crtc_horiz_position;
-  unsigned char crtc_vert_displayed;
-  unsigned char crtc_vert_position;
-  unsigned char crtc_vert_adjust;
+  uint8_t crtc_address;
+  uint8_t crtc_mem_addr_low;
+  uint8_t crtc_mem_addr_high;
+  uint8_t crtc_horiz_displayed;
+  uint8_t crtc_horiz_position;
+  uint8_t crtc_vert_displayed;
+  uint8_t crtc_vert_position;
+  uint8_t crtc_vert_adjust;
 
   size_t prev_horiz_chars;
   size_t prev_vert_chars;
@@ -55,7 +55,7 @@ struct video_struct {
 };
 
 struct video_struct*
-video_create(unsigned char* p_mem, unsigned char* p_sysvia_IC32) {
+video_create(uint8_t* p_mem, uint8_t* p_sysvia_IC32) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
   if (p_video == NULL) {
     errx(1, "cannot allocate video_struct");
@@ -75,11 +75,11 @@ video_destroy(struct video_struct* p_video) {
 
 static void
 video_mode0_render(struct video_struct* p_video,
-                   unsigned char* p_frame_buf,
+                   uint8_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
-  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
@@ -90,16 +90,16 @@ video_mode0_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        unsigned char packed_pixels = *p_video_mem++;
-        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
-        unsigned char p1 = !!(packed_pixels & 0x80);
-        unsigned char p2 = !!(packed_pixels & 0x40);
-        unsigned char p3 = !!(packed_pixels & 0x20);
-        unsigned char p4 = !!(packed_pixels & 0x10);
-        unsigned char p5 = !!(packed_pixels & 0x08);
-        unsigned char p6 = !!(packed_pixels & 0x04);
-        unsigned char p7 = !!(packed_pixels & 0x02);
-        unsigned char p8 = !!(packed_pixels & 0x01);
+        uint8_t packed_pixels = *p_video_mem++;
+        uint32_t* p_x_mem = (uint32_t*) p_frame_buf;
+        uint8_t p1 = !!(packed_pixels & 0x80);
+        uint8_t p2 = !!(packed_pixels & 0x40);
+        uint8_t p3 = !!(packed_pixels & 0x20);
+        uint8_t p4 = !!(packed_pixels & 0x10);
+        uint8_t p5 = !!(packed_pixels & 0x08);
+        uint8_t p6 = !!(packed_pixels & 0x04);
+        uint8_t p7 = !!(packed_pixels & 0x02);
+        uint8_t p8 = !!(packed_pixels & 0x01);
         p_x_mem += ((y * 8) + y2) * 2 * 640;
         p_x_mem += x * 8;
         p_x_mem[0] = ~(p1 - 1);
@@ -125,7 +125,7 @@ video_mode0_render(struct video_struct* p_video,
 
 static void
 video_mode4_render(struct video_struct* p_video,
-                   unsigned char* p_frame_buf,
+                   uint8_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
@@ -192,15 +192,15 @@ video_mode4_render(struct video_struct* p_video,
 
 static void
 video_mode1_render(struct video_struct* p_video,
-                   unsigned char* p_frame_buf,
+                   uint8_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
                    size_t vert_lines_offset) {
   size_t y;
-  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  unsigned int* p_palette = &p_video->palette[0];
+  uint32_t* p_palette = &p_video->palette[0];
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -210,21 +210,21 @@ video_mode1_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        unsigned char packed_pixels = *p_video_mem++;
+        uint8_t packed_pixels = *p_video_mem++;
         /* TODO: lookup table to make this fast. */
-        unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
+        uint8_t v1 = ((packed_pixels & 0x80) >> 6) |
                            ((packed_pixels & 0x08) >> 3);
-        unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
+        uint8_t v2 = ((packed_pixels & 0x40) >> 5) |
                            ((packed_pixels & 0x04) >> 2);
-        unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
+        uint8_t v3 = ((packed_pixels & 0x20) >> 4) |
                            ((packed_pixels & 0x02) >> 1);
-        unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
+        uint8_t v4 = ((packed_pixels & 0x10) >> 3) |
                            ((packed_pixels & 0x01) >> 0);
-        unsigned int p1 = p_palette[4 + (v1 << 1)];
-        unsigned int p2 = p_palette[4 + (v2 << 1)];
-        unsigned int p3 = p_palette[4 + (v3 << 1)];
-        unsigned int p4 = p_palette[4 + (v4 << 1)];
-        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
+        uint32_t p1 = p_palette[4 + (v1 << 1)];
+        uint32_t p2 = p_palette[4 + (v2 << 1)];
+        uint32_t p3 = p_palette[4 + (v3 << 1)];
+        uint32_t p4 = p_palette[4 + (v4 << 1)];
+        uint32_t* p_x_mem = (uint32_t*) p_frame_buf;
         p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 8);
         p_x_mem[0] = p1;
@@ -250,15 +250,15 @@ video_mode1_render(struct video_struct* p_video,
 
 static void
 video_mode5_render(struct video_struct* p_video,
-                   unsigned char* p_frame_buf,
+                   uint8_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
                    size_t vert_lines_offset) {
   size_t y;
-  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  unsigned int* p_palette = &p_video->palette[0];
+  uint32_t* p_palette = &p_video->palette[0];
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -268,21 +268,21 @@ video_mode5_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        unsigned char packed_pixels = *p_video_mem++;
+        uint8_t packed_pixels = *p_video_mem++;
         /* TODO: lookup table to make this fast. */
-        unsigned char v1 = ((packed_pixels & 0x80) >> 6) |
+        uint8_t v1 = ((packed_pixels & 0x80) >> 6) |
                            ((packed_pixels & 0x08) >> 3);
-        unsigned char v2 = ((packed_pixels & 0x40) >> 5) |
+        uint8_t v2 = ((packed_pixels & 0x40) >> 5) |
                            ((packed_pixels & 0x04) >> 2);
-        unsigned char v3 = ((packed_pixels & 0x20) >> 4) |
+        uint8_t v3 = ((packed_pixels & 0x20) >> 4) |
                            ((packed_pixels & 0x02) >> 1);
-        unsigned char v4 = ((packed_pixels & 0x10) >> 3) |
+        uint8_t v4 = ((packed_pixels & 0x10) >> 3) |
                            ((packed_pixels & 0x01) >> 0);
-        unsigned int p1 = p_palette[4 + (v1 << 1)];
-        unsigned int p2 = p_palette[4 + (v2 << 1)];
-        unsigned int p3 = p_palette[4 + (v3 << 1)];
-        unsigned int p4 = p_palette[4 + (v4 << 1)];
-        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
+        uint32_t p1 = p_palette[4 + (v1 << 1)];
+        uint32_t p2 = p_palette[4 + (v2 << 1)];
+        uint32_t p3 = p_palette[4 + (v3 << 1)];
+        uint32_t p4 = p_palette[4 + (v4 << 1)];
+        uint32_t* p_x_mem = (uint32_t*) p_frame_buf;
         p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 16);
         p_x_mem[0] = p1;
@@ -324,30 +324,30 @@ video_mode5_render(struct video_struct* p_video,
 
 static void
 video_mode2_render(struct video_struct* p_video,
-                   unsigned char* p_frame_buf,
+                   uint8_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
                    size_t vert_lines_offset) {
   size_t i;
   size_t y;
-  unsigned char* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
   size_t video_memory_size = video_get_memory_size(p_video);
-  unsigned int* p_palette = &p_video->palette[0];
+  uint32_t* p_palette = &p_video->palette[0];
 
-  unsigned int p1s[256];
-  unsigned int p2s[256];
+  uint32_t p1s[256];
+  uint32_t p2s[256];
   for (i = 0; i < 256; ++i) {
-    unsigned char v1 = ((i & 0x80) >> 4) |
+    uint8_t v1 = ((i & 0x80) >> 4) |
                        ((i & 0x20) >> 3) |
                        ((i & 0x08) >> 2) |
                        ((i & 0x02) >> 1);
-    unsigned char v2 = ((i & 0x40) >> 3) |
+    uint8_t v2 = ((i & 0x40) >> 3) |
                        ((i & 0x10) >> 2) |
                        ((i & 0x04) >> 1) |
                        ((i & 0x01) >> 0);
-    unsigned int p1 = p_palette[v1];
-    unsigned int p2 = p_palette[v2];
+    uint32_t p1 = p_palette[v1];
+    uint32_t p2 = p_palette[v2];
 
     p1s[i] = p1;
     p2s[i] = p2;
@@ -361,10 +361,10 @@ video_mode2_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        unsigned char packed_pixels = *p_video_mem++;
-        unsigned int p1 = p1s[packed_pixels];
-        unsigned int p2 = p2s[packed_pixels];
-        unsigned int* p_x_mem = (unsigned int*) p_frame_buf;
+        uint8_t packed_pixels = *p_video_mem++;
+        uint32_t p1 = p1s[packed_pixels];
+        uint32_t p2 = p2s[packed_pixels];
+        uint32_t* p_x_mem = (uint32_t*) p_frame_buf;
         p_x_mem += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
         p_x_mem += ((x + horiz_chars_offset) * 8);
         p_x_mem[0] = p1;
@@ -390,23 +390,23 @@ video_mode2_render(struct video_struct* p_video,
 
 static size_t
 video_get_pixel_width(struct video_struct* p_video) {
-  unsigned char ula_control = video_get_ula_control(p_video);
-  unsigned char ula_chars_per_line =
+  uint8_t ula_control = video_get_ula_control(p_video);
+  uint8_t ula_chars_per_line =
       (ula_control & k_ula_chars_per_line) >> k_ula_chars_per_line_shift;
   return 1 << (3 - ula_chars_per_line);
 }
 
 static size_t
 video_get_clock_speed(struct video_struct* p_video) {
-  unsigned char ula_control = video_get_ula_control(p_video);
-  unsigned char clock_speed =
+  uint8_t ula_control = video_get_ula_control(p_video);
+  uint8_t clock_speed =
       (ula_control & k_ula_clock_speed) >> k_ula_clock_speed_shift;
   return clock_speed;
 }
 
 void
 video_render(struct video_struct* p_video,
-             unsigned char* p_x_mem,
+             uint8_t* p_x_mem,
              size_t x,
              size_t y,
              size_t bpp) {
@@ -508,19 +508,19 @@ video_render(struct video_struct* p_video,
   }
 }
 
-unsigned char
+uint8_t
 video_get_ula_control(struct video_struct* p_video) {
   return p_video->video_ula_control;
 }
 
 void
-video_set_ula_control(struct video_struct* p_video, unsigned char val) {
+video_set_ula_control(struct video_struct* p_video, uint8_t val) {
   p_video->video_ula_control = val;
 }
 
 void
 video_get_ula_full_palette(struct video_struct* p_video,
-                           unsigned char* p_values) {
+                           uint8_t* p_values) {
   size_t i;
   for (i = 0; i < 16; ++i) {
     p_values[i] = p_video->video_palette[i];
@@ -528,11 +528,11 @@ video_get_ula_full_palette(struct video_struct* p_video,
 }
 
 void
-video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
-  unsigned char index = (val >> 4);
-  unsigned char rgbf = (val & 0x0f);
+video_set_ula_palette(struct video_struct* p_video, uint8_t val) {
+  uint8_t index = (val >> 4);
+  uint8_t rgbf = (val & 0x0f);
   /* Alpha. */
-  unsigned int color = 0xff000000;
+  uint32_t color = 0xff000000;
 
   p_video->video_palette[index] = rgbf;
 
@@ -554,10 +554,10 @@ video_set_ula_palette(struct video_struct* p_video, unsigned char val) {
 
 void
 video_set_ula_full_palette(struct video_struct* p_video,
-                           const unsigned char* p_values) {
+                           const uint8_t* p_values) {
   size_t i;
   for (i = 0; i < 16; ++i) {
-    unsigned char val = p_values[i] & 0x0f;
+    uint8_t val = p_values[i] & 0x0f;
     val |= (i << 4);
     video_set_ula_palette(p_video, val);
   }
@@ -565,7 +565,7 @@ video_set_ula_full_palette(struct video_struct* p_video,
 
 void
 video_get_crtc_registers(struct video_struct* p_video,
-                         unsigned char* p_values) {
+                         uint8_t* p_values) {
   memset(p_values, '\0', 18);
   p_values[k_crtc_reg_horiz_displayed] = p_video->crtc_horiz_displayed;
   p_values[k_crtc_reg_horiz_position] = p_video->crtc_horiz_position;
@@ -578,7 +578,7 @@ video_get_crtc_registers(struct video_struct* p_video,
 
 void
 video_set_crtc_registers(struct video_struct* p_video,
-                         const unsigned char* p_values) {
+                         const uint8_t* p_values) {
   p_video->crtc_horiz_displayed = p_values[k_crtc_reg_horiz_displayed];
   p_video->crtc_horiz_position = p_values[k_crtc_reg_horiz_position];
   p_video->crtc_vert_displayed = p_values[k_crtc_reg_vert_displayed];
@@ -588,13 +588,13 @@ video_set_crtc_registers(struct video_struct* p_video,
   p_video->crtc_mem_addr_low = p_values[k_crtc_reg_mem_addr_low];
 }
 
-unsigned char*
+uint8_t*
 video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
   size_t mem_offset;
 
-  unsigned char ula_control = video_get_ula_control(p_video);
+  uint8_t ula_control = video_get_ula_control(p_video);
   int is_text = (ula_control & k_ula_teletext);
-  unsigned char* p_mem = p_video->p_mem;
+  uint8_t* p_mem = p_video->p_mem;
 
   assert(offset < 0x5000);
 
@@ -624,7 +624,7 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
   if (is_text && len == k_bbc_mode7_width) {
     assert(mem_offset < 0x8000);
     if (mem_offset + len > 0x8000) {
-      unsigned char* p_line = &p_video->teletext_line[0];
+      uint8_t* p_line = &p_video->teletext_line[0];
       size_t pre_len = 0x8000 - mem_offset;
       size_t post_len = k_bbc_mode7_width - pre_len;
       memcpy(p_line, p_mem + mem_offset, pre_len);
@@ -715,8 +715,8 @@ video_get_horiz_chars_offset(struct video_struct* p_video, size_t clock_speed) {
 int
 video_get_vert_lines_offset(struct video_struct* p_video) {
   int ret;
-  unsigned char pos = p_video->crtc_vert_position;
-  unsigned char adjust = (p_video->crtc_vert_adjust & 0x1f);
+  uint8_t pos = p_video->crtc_vert_position;
+  uint8_t adjust = (p_video->crtc_vert_adjust & 0x1f);
   if (pos > 34) {
     pos = 34;
   }
@@ -728,7 +728,7 @@ video_get_vert_lines_offset(struct video_struct* p_video) {
 
 int
 video_is_text(struct video_struct* p_video) {
-  unsigned char ula_control = video_get_ula_control(p_video);
+  uint8_t ula_control = video_get_ula_control(p_video);
   if (ula_control & k_ula_teletext) {
     return 1;
   }
@@ -736,12 +736,12 @@ video_is_text(struct video_struct* p_video) {
 }
 
 void
-video_set_crtc_address(struct video_struct* p_video, unsigned char val) {
+video_set_crtc_address(struct video_struct* p_video, uint8_t val) {
   p_video->crtc_address = val;
 }
 
 void
-video_set_crtc_data(struct video_struct* p_video, unsigned char val) {
+video_set_crtc_data(struct video_struct* p_video, uint8_t val) {
   uint8_t hsync_width;
   uint8_t vsync_width;
 
