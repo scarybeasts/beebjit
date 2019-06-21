@@ -1,0 +1,35 @@
+Bugs and improvements
+=====================
+
+Bugs: known bugs and deficiencies that are sufficiently egregious that they'll
+get addressed.
+
+
+Ideas
+=====
+
+Ideas: ideas sufficiently interesting that they are likely to be investigated
+and implemented.
+
+- Record and playback. Since the "accurate" mode has deterministic execution
+behavior, we can "record" a machine session by just logging and playing back
+the sources of non-determinism -- i.e. key presses and releases.
+A recording can be exited at any time, fast forwarded, etc. One great use
+would be to record run-throughs of tricky games (i.e. Exile), which can be
+"taken over" at any point.
+
+
+Backburner
+==========
+
+Backburner: ideas or bugs that aren't particularly important to fix.
+
+- JIT vectorization optimization. The BBC operates a byte at a time, including
+instances where its updating a multi-byte quantity, i.e. 4-byte numbers in
+BASIC.
+These code patterns are fairly apparent so it would be possible to optimize to
+single 4-byte operations on the host CPU.
+However, initial experimentation didn't reveal any obvious gains worth the
+complexity. The CLOCKSP Trig/Log test does a lot of rotating of 4-byte values
+and the improvement of doing that in one 4-byte operating was surprisingly
+low.
