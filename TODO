@@ -4,6 +4,12 @@ Bugs and improvements
 Bugs: known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed.
 
+- JIT block timing code improvements. Currently, there's a non-trivial
+instruction sequence after every conditional branch in a JIT block. This
+sequence can be improved a lot. For example, there only needs to be a branch
+at the start of the block. Also, the timing subtractions do not need to be
+dependent on one another.
+
 
 Ideas
 =====
