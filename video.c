@@ -8,11 +8,21 @@
 #include <string.h>
 
 enum {
+  k_ula_addr_control = 0,
+  k_ula_addr_palette = 1,
+};
+
+enum {
   k_ula_teletext = 0x02,
   k_ula_chars_per_line = 0x0c,
   k_ula_chars_per_line_shift = 2,
   k_ula_clock_speed = 0x10,
   k_ula_clock_speed_shift = 4,
+};
+
+enum {
+  k_crtc_addr_reg = 0,
+  k_crtc_addr_val = 1,
 };
 
 enum {
@@ -508,34 +518,24 @@ video_render(struct video_struct* p_video,
   }
 }
 
-uint8_t
-video_get_ula_control(struct video_struct* p_video) {
-  return p_video->video_ula_control;
-}
-
 void
-video_set_ula_control(struct video_struct* p_video, uint8_t val) {
-  p_video->video_ula_control = val;
-}
+video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
+  uint8_t index;
+  uint8_t rgbf;
+  uint32_t color;
 
-void
-video_get_ula_full_palette(struct video_struct* p_video,
-                           uint8_t* p_values) {
-  size_t i;
-  for (i = 0; i < 16; ++i) {
-    p_values[i] = p_video->video_palette[i];
+  if (addr == k_ula_addr_control) {
+    p_video->video_ula_control = val;
+    return;
   }
-}
 
-void
-video_set_ula_palette(struct video_struct* p_video, uint8_t val) {
-  uint8_t index = (val >> 4);
-  uint8_t rgbf = (val & 0x0f);
+  assert(addr == k_ula_addr_palette);
+
+  index = (val >> 4);
+  rgbf = (val & 0x0f);
   /* Alpha. */
-  uint32_t color = 0xff000000;
-
+  color = 0xff000000;
   p_video->video_palette[index] = rgbf;
-
   /* Red. */
   if (!(rgbf & 0x1)) {
     color |= 0x00ff0000;
@@ -548,8 +548,93 @@ video_set_ula_palette(struct video_struct* p_video, uint8_t val) {
   if (!(rgbf & 0x4)) {
     color |= 0x000000ff;
   }
-
   p_video->palette[index] = color;
+}
+
+void
+video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
+  uint8_t hsync_width;
+  uint8_t vsync_width;
+  uint8_t reg;
+
+  if (addr == k_crtc_addr_reg) {
+    p_video->crtc_address = val;
+    return;
+  }
+
+  assert(addr == k_crtc_addr_val);
+
+  reg = p_video->crtc_address;
+
+  switch (reg) {
+  case k_crtc_reg_horiz_total:
+    if ((val != 63) && (val != 127)) {
+      printf("LOG:CRTC:unusual horizontal total: %d\n", val);
+    }
+    break;
+  case k_crtc_reg_vert_total:
+    if ((val != 38) && (val != 30)) {
+      printf("LOG:CRTC:unusual vertical total: %d\n", val);
+    }
+    break;
+  case k_crtc_reg_sync_width:
+    hsync_width = (val & 0xF);
+    if ((hsync_width != 8) && (hsync_width != 4)) {
+      printf("LOG:CRTC:unusual hsync width: %d\n", hsync_width);
+    }
+    vsync_width = (val >> 4);
+    if (vsync_width != 2) {
+      printf("LOG:CRTC:unusual vsync width: %d\n", vsync_width);
+    }
+    break;
+  case k_crtc_reg_lines_per_character:
+    if (val != 7) {
+      printf("LOG:CRTC:scan lines per character != 7: %d\n", val);
+    }
+    break;
+  case k_crtc_reg_mem_addr_high:
+    p_video->crtc_mem_addr_high = (val & 0x3f);
+    break;
+  case k_crtc_reg_mem_addr_low:
+    p_video->crtc_mem_addr_low = val;
+    break;
+  case k_crtc_reg_horiz_displayed:
+    p_video->crtc_horiz_displayed = val;
+    break;
+  case k_crtc_reg_horiz_position:
+    p_video->crtc_horiz_position = val;
+    break;
+  case k_crtc_reg_vert_displayed:
+    p_video->crtc_vert_displayed = val;
+    break;
+  case k_crtc_reg_vert_position:
+    p_video->crtc_vert_position = val;
+    break;
+  case k_crtc_reg_vert_adjust:
+    p_video->crtc_vert_adjust = val;
+    break;
+  default:
+    break;
+  }
+}
+
+uint8_t
+video_get_ula_control(struct video_struct* p_video) {
+  return p_video->video_ula_control;
+}
+
+void
+video_set_ula_control(struct video_struct* p_video, uint8_t val) {
+  video_ula_write(p_video, k_ula_addr_control, val);
+}
+
+void
+video_get_ula_full_palette(struct video_struct* p_video,
+                           uint8_t* p_values) {
+  size_t i;
+  for (i = 0; i < 16; ++i) {
+    p_values[i] = p_video->video_palette[i];
+  }
 }
 
 void
@@ -559,7 +644,7 @@ video_set_ula_full_palette(struct video_struct* p_video,
   for (i = 0; i < 16; ++i) {
     uint8_t val = p_values[i] & 0x0f;
     val |= (i << 4);
-    video_set_ula_palette(p_video, val);
+    video_ula_write(p_video, k_ula_addr_palette, val);
   }
 }
 
@@ -733,68 +818,4 @@ video_is_text(struct video_struct* p_video) {
     return 1;
   }
   return 0;
-}
-
-void
-video_set_crtc_address(struct video_struct* p_video, uint8_t val) {
-  p_video->crtc_address = val;
-}
-
-void
-video_set_crtc_data(struct video_struct* p_video, uint8_t val) {
-  uint8_t hsync_width;
-  uint8_t vsync_width;
-
-  uint8_t reg = p_video->crtc_address;
-
-  switch (reg) {
-  case k_crtc_reg_horiz_total:
-    if ((val != 63) && (val != 127)) {
-      printf("LOG:CRTC:unusual horizontal total: %d\n", val);
-    }
-    break;
-  case k_crtc_reg_vert_total:
-    if ((val != 38) && (val != 30)) {
-      printf("LOG:CRTC:unusual vertical total: %d\n", val);
-    }
-    break;
-  case k_crtc_reg_sync_width:
-    hsync_width = (val & 0xF);
-    if ((hsync_width != 8) && (hsync_width != 4)) {
-      printf("LOG:CRTC:unusual hsync width: %d\n", hsync_width);
-    }
-    vsync_width = (val >> 4);
-    if (vsync_width != 2) {
-      printf("LOG:CRTC:unusual vsync width: %d\n", vsync_width);
-    }
-    break;
-  case k_crtc_reg_lines_per_character:
-    if (val != 7) {
-      printf("LOG:CRTC:scan lines per character != 7: %d\n", val);
-    }
-    break;
-  case k_crtc_reg_mem_addr_high:
-    p_video->crtc_mem_addr_high = (val & 0x3f);
-    break;
-  case k_crtc_reg_mem_addr_low:
-    p_video->crtc_mem_addr_low = val;
-    break;
-  case k_crtc_reg_horiz_displayed:
-    p_video->crtc_horiz_displayed = val;
-    break;
-  case k_crtc_reg_horiz_position:
-    p_video->crtc_horiz_position = val;
-    break;
-  case k_crtc_reg_vert_displayed:
-    p_video->crtc_vert_displayed = val;
-    break;
-  case k_crtc_reg_vert_position:
-    p_video->crtc_vert_position = val;
-    break;
-  case k_crtc_reg_vert_adjust:
-    p_video->crtc_vert_adjust = val;
-    break;
-  default:
-    break;
-  }
 }

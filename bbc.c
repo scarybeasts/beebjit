@@ -51,14 +51,6 @@ enum {
   k_addr_adc_low = 0xFEC2,
   k_addr_tube = 0xFEE0,
 };
-enum {
-  k_crtc_address = 0x0,
-  k_crtc_data = 0x1,
-};
-enum {
-  k_video_ula_control = 0x0,
-  k_video_ula_palette = 0x1,
-};
 
 struct bbc_struct {
   /* Internal system mechanics. */
@@ -403,11 +395,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   }
 
   switch (addr) {
-  case k_addr_crtc | k_crtc_address:
-    video_set_crtc_address(p_video, val);
-    break;
-  case k_addr_crtc | k_crtc_data:
-    video_set_crtc_data(p_video, val);
+  case (k_addr_crtc + 0):
+  case (k_addr_crtc + 1):
+    video_crtc_write(p_video, (addr & 0xf), val);
     break;
   case k_addr_acia:
     printf("ignoring ACIA write\n");
@@ -415,11 +405,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case k_addr_serial_ula:
     printf("ignoring serial ULA write\n");
     break;
-  case k_addr_video_ula | k_video_ula_control:
-    video_set_ula_control(p_video, val);
-    break;
-  case k_addr_video_ula | k_video_ula_palette:
-    video_set_ula_palette(p_video, val);
+  case (k_addr_video_ula + 0):
+  case (k_addr_video_ula + 1):
+    video_ula_write(p_video, (addr & 0xf), val);
     break;
   case k_addr_rom_select:
   case (k_addr_rom_select + 1):
