@@ -11,8 +11,16 @@ enum {
 
 struct video_struct;
 
-struct video_struct* video_create(uint8_t* p_mem, uint8_t* p_sysvia_IC32);
+struct via_struct;
+
+struct video_struct* video_create(uint8_t* p_mem,
+                                  int externally_clocked,
+                                  struct via_struct* p_system_via,
+                                  void (*p_framebuffer_ready_callback)(void* p),
+                                  void* p_framebuffer_ready_object);
 void video_destroy(struct video_struct* p_video);
+
+void video_set_wall_time(struct video_struct* p_video, uint64_t wall_time);
 
 void video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);

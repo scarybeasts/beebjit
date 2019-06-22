@@ -1,11 +1,22 @@
 #include "video.h"
 
+#include "util.h"
+#include "via.h"
+
 #include <assert.h>
 #include <err.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* A real BBC in its default modes actually has a CRTC period of 19968us,
+ * just short of 20ms.
+ * The calculation, with horizontal total 128, vertical total 39, lines
+ * per character 8, 2Mhz clock, is:
+ * (129 * 39 * 8) / 2
+ */
+static const size_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
 
 enum {
   k_ula_addr_control = 0,
@@ -41,7 +52,13 @@ enum {
 
 struct video_struct {
   uint8_t* p_mem;
+  int externally_clocked;
+  struct via_struct* p_system_via;
   uint8_t* p_sysvia_IC32;
+  void (*p_framebuffer_ready_callback)();
+  void* p_framebuffer_ready_object;
+
+  uint64_t vsync_next_time;
 
   uint8_t video_ula_control;
   uint8_t video_palette[16];
@@ -65,15 +82,25 @@ struct video_struct {
 };
 
 struct video_struct*
-video_create(uint8_t* p_mem, uint8_t* p_sysvia_IC32) {
+video_create(uint8_t* p_mem,
+             int externally_clocked,
+             struct via_struct* p_system_via,
+             void (*p_framebuffer_ready_callback)(void* p),
+             void* p_framebuffer_ready_object) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
   if (p_video == NULL) {
     errx(1, "cannot allocate video_struct");
   }
-  memset(p_video, '\0', sizeof(struct video_struct));
+  (void) memset(p_video, '\0', sizeof(struct video_struct));
 
   p_video->p_mem = p_mem;
-  p_video->p_sysvia_IC32 = p_sysvia_IC32;
+  p_video->externally_clocked = externally_clocked;
+  p_video->p_system_via = p_system_via;
+  p_video->p_sysvia_IC32 = via_get_peripheral_b_ptr(p_system_via);
+  p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
+  p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
+
+  p_video->vsync_next_time = util_gettime_us();
 
   return p_video;
 }
@@ -81,6 +108,24 @@ video_create(uint8_t* p_mem, uint8_t* p_sysvia_IC32) {
 void
 video_destroy(struct video_struct* p_video) {
   free(p_video);
+}
+
+void
+video_set_wall_time(struct video_struct* p_video, uint64_t wall_time) {
+  if (!p_video->externally_clocked) {
+    return;
+  }
+
+  if (wall_time < p_video->vsync_next_time) {
+    return;
+  }
+  while (p_video->vsync_next_time <= wall_time) {
+    p_video->vsync_next_time += k_video_us_per_vsync;
+  }
+
+  via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+
+  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
 }
 
 static void

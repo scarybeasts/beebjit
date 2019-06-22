@@ -25,8 +25,6 @@
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
 
-static const size_t k_bbc_us_per_vsync = 20000; /* 20ms / 50Hz */
-
 static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz */
 
 /* This data is from b-em, thanks b-em! */
@@ -69,6 +67,7 @@ struct bbc_struct {
   int vsync_wait_for_render;
   struct bbc_options options;
   int externally_clocked_via;
+  int externally_clocked_crtc;
 
   /* Machine state. */
   struct state_6502* p_state_6502;
@@ -93,7 +92,6 @@ struct bbc_struct {
   size_t timer_id;
   uint64_t cycles_per_run;
   uint64_t last_gettime_us;
-  uint64_t next_gettime_us_vsync;
   uint8_t romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
 
@@ -479,14 +477,14 @@ bbc_cpu_receive_message(struct bbc_struct* p_bbc) {
 }
 
 static void
-bbc_do_vsync(struct bbc_struct* p_bbc) {
+bbc_framebuffer_ready_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   bbc_cpu_send_message(p_bbc, k_message_vsync);
   if (bbc_get_vsync_wait_for_render(p_bbc)) {
     uint8_t message = bbc_cpu_receive_message(p_bbc);
     (void) message;
     assert(message == k_message_render_done);
   }
-  via_raise_interrupt(p_bbc->p_system_via, k_int_CA1);
 }
 
 struct bbc_struct*
@@ -507,6 +505,7 @@ bbc_create(int mode,
   int ret;
 
   int externally_clocked_via = 1;
+  int externally_clocked_crtc = 1;
 
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -532,7 +531,6 @@ bbc_create(int mode,
   p_bbc->exit_value = 0;
 
   p_bbc->last_gettime_us = 0;
-  p_bbc->next_gettime_us_vsync = 0;
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
@@ -632,8 +630,10 @@ bbc_create(int mode,
 
   if (accurate_flag) {
     externally_clocked_via = 0;
+    externally_clocked_crtc = 0;
   }
   p_bbc->externally_clocked_via = externally_clocked_via;
+  p_bbc->externally_clocked_crtc = externally_clocked_crtc;
 
   p_timing = timing_create(k_bbc_tick_rate);
   if (p_timing == NULL) {
@@ -668,7 +668,10 @@ bbc_create(int mode,
   }
 
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
-                                via_get_peripheral_b_ptr(p_bbc->p_system_via));
+                                externally_clocked_crtc,
+                                p_bbc->p_system_via,
+                                bbc_framebuffer_ready_callback,
+                                p_bbc);
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
   }
@@ -955,13 +958,10 @@ bbc_cycles_timer_callback(void* p) {
     via_time_advance(p_bbc->p_user_via, delta);
   }
 
-  /* Fire vsync at 50Hz. */
-  if (current_gettime_us >= p_bbc->next_gettime_us_vsync) {
-    while (p_bbc->next_gettime_us_vsync <= current_gettime_us) {
-      p_bbc->next_gettime_us_vsync += k_bbc_us_per_vsync;
-    }
-    bbc_do_vsync(p_bbc);
-  }
+  /* vsync may be triggered by this in inaccurate modes, or by a different
+   * timer in accurate modes.
+   */
+  video_set_wall_time(p_bbc->p_video, current_gettime_us);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read_port_a(p_bbc->p_system_via);
@@ -1011,7 +1011,6 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
                                        p_bbc->timer_id,
                                        cycles_per_run);
   p_bbc->last_gettime_us = util_gettime_us();
-  p_bbc->next_gettime_us_vsync = (p_bbc->last_gettime_us + k_bbc_us_per_vsync);
 }
 
 static void*
