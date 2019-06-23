@@ -288,6 +288,51 @@ via_destroy(struct via_struct* p_via) {
 }
 
 static void
+via_time_advance(struct via_struct* p_via, uint64_t ticks) {
+  int32_t t1c;
+  int32_t t2c;
+
+  struct timing_struct* p_timing = p_via->p_timing;
+
+  assert(p_via->externally_clocked);
+
+  t1c = via_get_t1c(p_via);
+  t1c -= ticks;
+  via_set_t1c(p_via, t1c);
+
+  if (t1c < 0) {
+    if (timing_get_firing(p_timing, p_via->t1_timer_id)) {
+      via_do_fire_t1(p_via);
+    }
+    t1c = via_get_t1c(p_via);
+  }
+
+  /* If TIMER2 is in pulse counting mode, it doesn't decrement. */
+  if (p_via->ACR & 0x20) {
+    return;
+  }
+
+  t2c = via_get_t2c(p_via);
+  t2c -= ticks;
+  via_set_t2c(p_via, t2c);
+
+  if (t2c < 0) {
+    if (timing_get_firing(p_timing, p_via->t2_timer_id)) {
+      via_do_fire_t2(p_via);
+    }
+    t2c = via_get_t2c(p_via);
+  }
+}
+
+void
+via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta) {
+  if (!p_via->externally_clocked) {
+    return;
+  }
+  via_time_advance(p_via, delta);
+}
+
+static void
 sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
   unsigned char sdb = p_via->peripheral_a;
@@ -802,41 +847,4 @@ void via_set_registers(struct via_struct* p_via,
 uint8_t*
 via_get_peripheral_b_ptr(struct via_struct* p_via) {
   return &p_via->peripheral_b;
-}
-
-void
-via_time_advance(struct via_struct* p_via, uint64_t ticks) {
-  int32_t t1c;
-  int32_t t2c;
-
-  struct timing_struct* p_timing = p_via->p_timing;
-
-  assert(p_via->externally_clocked);
-
-  t1c = via_get_t1c(p_via);
-  t1c -= ticks;
-  via_set_t1c(p_via, t1c);
-
-  if (t1c < 0) {
-    if (timing_get_firing(p_timing, p_via->t1_timer_id)) {
-      via_do_fire_t1(p_via);
-    }
-    t1c = via_get_t1c(p_via);
-  }
-
-  /* If TIMER2 is in pulse counting mode, it doesn't decrement. */
-  if (p_via->ACR & 0x20) {
-    return;
-  }
-
-  t2c = via_get_t2c(p_via);
-  t2c -= ticks;
-  via_set_t2c(p_via, t2c);
-
-  if (t2c < 0) {
-    if (timing_get_firing(p_timing, p_via->t2_timer_id)) {
-      via_do_fire_t2(p_via);
-    }
-    t2c = via_get_t2c(p_via);
-  }
 }

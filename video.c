@@ -58,6 +58,7 @@ struct video_struct {
   void (*p_framebuffer_ready_callback)();
   void* p_framebuffer_ready_object;
 
+  uint64_t wall_time;
   uint64_t vsync_next_time;
 
   uint8_t video_ula_control;
@@ -100,7 +101,8 @@ video_create(uint8_t* p_mem,
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
 
-  p_video->vsync_next_time = util_gettime_us();
+  p_video->wall_time = 0;
+  p_video->vsync_next_time = 0;
 
   return p_video;
 }
@@ -111,10 +113,15 @@ video_destroy(struct video_struct* p_video) {
 }
 
 void
-video_set_wall_time(struct video_struct* p_video, uint64_t wall_time) {
+video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
+  uint64_t wall_time;
+
   if (!p_video->externally_clocked) {
     return;
   }
+
+  wall_time = (p_video->wall_time + delta);
+  p_video->wall_time = wall_time;
 
   if (wall_time < p_video->vsync_next_time) {
     return;

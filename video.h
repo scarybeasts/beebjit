@@ -20,7 +20,7 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   void* p_framebuffer_ready_object);
 void video_destroy(struct video_struct* p_video);
 
-void video_set_wall_time(struct video_struct* p_video, uint64_t wall_time);
+void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
 
 void video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);

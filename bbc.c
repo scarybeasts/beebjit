@@ -630,7 +630,7 @@ bbc_create(int mode,
 
   if (accurate_flag) {
     externally_clocked_via = 0;
-    externally_clocked_crtc = 0;
+    //externally_clocked_crtc = 0;
   }
   p_bbc->externally_clocked_via = externally_clocked_via;
   p_bbc->externally_clocked_crtc = externally_clocked_crtc;
@@ -926,6 +926,16 @@ bbc_cycles_timer_callback(void* p) {
   struct timing_struct* p_timing = p_bbc->p_timing;
 
   if (p_bbc->slow_flag) {
+    /* Slow mode.
+     * Slow mode, or "real time" mode is where the system executes at normal
+     * speed, i.e. a 2Mhz BBC executes at 2Mhz in real time. Host CPU usage
+     * may be small.
+     * This is achieved by executing the system for some number of cycles, then
+     * sleeping however long is required to match to real time, then repeating.
+     * If the system is executed for a smaller number of cycles per sleep,
+     * specifically some fraction of a 50Hz frame, a highly responsive system
+     * results.
+     */
     uint64_t pre_sleep_time;
 
     current_gettime_us = (p_bbc->last_gettime_us + 1000);
@@ -938,6 +948,11 @@ bbc_cycles_timer_callback(void* p) {
     }
     delta = 1000;
   } else {
+    /* Fast mode.
+     * Fast mode is where the system executes as fast as the host CPU can
+     * manage. Host CPU usage for the system's main thread will be 100%.
+     * Effective system CPU rates of many GHz are likely to be obtained.
+     */
     current_gettime_us = util_gettime_us();
     delta = (current_gettime_us - p_bbc->last_gettime_us);
     p_bbc->last_gettime_us = current_gettime_us;
@@ -950,18 +965,12 @@ bbc_cycles_timer_callback(void* p) {
 
   assert(refreshed_time > 0);
 
-  if (p_bbc->externally_clocked_via) {
-    /* VIA timers advance.
-     * Externally clocked timing leads to jumpy resolution.
-     */
-    via_time_advance(p_bbc->p_system_via, delta);
-    via_time_advance(p_bbc->p_user_via, delta);
-  }
-
-  /* vsync may be triggered by this in inaccurate modes, or by a different
-   * timer in accurate modes.
+  /* Provide the wall time delta to various modules.
+   * In inaccurate modes, this wall time may be used to advance state.
    */
-  video_set_wall_time(p_bbc->p_video, current_gettime_us);
+  via_apply_wall_time_delta(p_bbc->p_system_via, delta);
+  via_apply_wall_time_delta(p_bbc->p_user_via, delta);
+  video_apply_wall_time_delta(p_bbc->p_video, delta);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read_port_a(p_bbc->p_system_via);

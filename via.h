@@ -43,6 +43,8 @@ struct via_struct* via_create(int id,
                               struct bbc_struct* p_bbc);
 void via_destroy(struct via_struct* p_via);
 
+void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
+
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
@@ -53,8 +55,6 @@ void via_raise_interrupt(struct via_struct* p_via, uint8_t val);
 void via_clear_interrupt(struct via_struct* p_via, uint8_t val);
 
 void via_check_interrupt(struct via_struct* p_via);
-
-void via_time_advance(struct via_struct* p_via, uint64_t us);
 
 void via_get_registers(struct via_struct* p_via,
                        uint8_t* p_ORA,
