@@ -92,7 +92,7 @@ struct bbc_struct {
   /* Timing support. */
   size_t timer_id;
   uint64_t cycles_per_run;
-  uint64_t last_gettime_us;
+  uint64_t last_time_us;
   uint8_t romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
 
@@ -531,7 +531,7 @@ bbc_create(int mode,
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
 
-  p_bbc->last_gettime_us = 0;
+  p_bbc->last_time_us = 0;
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
@@ -919,12 +919,12 @@ bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
 
 static void
 bbc_cycles_timer_callback(void* p) {
-  uint64_t current_gettime_us;
   uint64_t delta_us;
   int64_t refreshed_time;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
+  uint64_t curr_time_us = util_gettime_us();
 
   if (p_bbc->slow_flag) {
     /* Slow mode.
@@ -937,17 +937,18 @@ bbc_cycles_timer_callback(void* p) {
      * specifically some fraction of a 50Hz frame, a highly responsive system
      * results.
      */
-    uint64_t pre_sleep_time;
+    uint64_t next_wakeup_time_us;
 
     delta_us = (1000000 / k_system_wakeup_rate);
-
-    current_gettime_us = (p_bbc->last_gettime_us + delta_us);
-    pre_sleep_time = util_sleep_until_us(current_gettime_us);
-    if (pre_sleep_time > current_gettime_us) {
-      p_bbc->last_gettime_us = pre_sleep_time;
-      current_gettime_us = pre_sleep_time;
+    next_wakeup_time_us = (p_bbc->last_time_us + delta_us);
+    if (next_wakeup_time_us >= curr_time_us) {
+      util_sleep_us(next_wakeup_time_us - curr_time_us);
+      curr_time_us = next_wakeup_time_us;
     } else {
-      p_bbc->last_gettime_us = current_gettime_us;
+      /* Missed a tick. Don't sleep at all. The time baseline will be advanced
+       * to current time in case the missing tick is due to something major,
+       * such as a debugger pause.
+       */
     }
   } else {
     /* Fast mode.
@@ -955,10 +956,10 @@ bbc_cycles_timer_callback(void* p) {
      * manage. Host CPU usage for the system's main thread will be 100%.
      * Effective system CPU rates of many GHz are likely to be obtained.
      */
-    current_gettime_us = util_gettime_us();
-    delta_us = (current_gettime_us - p_bbc->last_gettime_us);
-    p_bbc->last_gettime_us = current_gettime_us;
+    delta_us = (curr_time_us - p_bbc->last_time_us);
   }
+
+  p_bbc->last_time_us = curr_time_us;
 
   (void) timing_adjust_timer_value(p_timing,
                                    &refreshed_time,
@@ -1022,7 +1023,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   (void) timing_start_timer_with_value(p_timing,
                                        p_bbc->timer_id,
                                        cycles_per_run);
-  p_bbc->last_gettime_us = util_gettime_us();
+  p_bbc->last_time_us = util_gettime_us();
 }
 
 static void*

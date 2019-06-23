@@ -61,7 +61,7 @@ void util_file_write(const char* p_file_name,
 /* Timing. */
 /* These quantities are in microseconds. */
 uint64_t util_gettime_us();
-uint64_t util_sleep_until_us(uint64_t time);
+void util_sleep_us(uint64_t us);
 
 /* Channels. */
 void util_get_channel_fds(int* fd1, int* fd2);

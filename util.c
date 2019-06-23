@@ -398,21 +398,13 @@ util_gettime_us() {
   return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
 }
 
-uint64_t
-util_sleep_until_us(uint64_t time) {
-  struct timespec ts;
-  uint64_t delta;
+void
+util_sleep_us(uint64_t us) {
   int ret;
+  struct timespec ts;
 
-  uint64_t curr_time = util_gettime_us();
-
-  if (time <= curr_time) {
-    return curr_time;
-  }
-
-  delta = (time - curr_time);
-  ts.tv_sec = (delta / 1000000);
-  ts.tv_nsec = ((delta % 1000000) * 1000);
+  ts.tv_sec = (us / 1000000);
+  ts.tv_nsec = ((us % 1000000) * 1000);
 
   do {
     ret = nanosleep(&ts, &ts);
@@ -423,8 +415,6 @@ util_sleep_until_us(uint64_t time) {
       errx(1, "nanosleep failed");
     }
   } while (ret != 0);
-
-  return curr_time;
 }
 
 void
