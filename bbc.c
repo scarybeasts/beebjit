@@ -25,7 +25,8 @@
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
 
-static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz */
+static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz. */
+static const size_t k_system_wakeup_rate = 1000; /* 1ms / 1kHz. */
 
 /* This data is from b-em, thanks b-em! */
 static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
@@ -919,7 +920,7 @@ bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
 static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t current_gettime_us;
-  uint64_t delta;
+  uint64_t delta_us;
   int64_t refreshed_time;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -938,7 +939,9 @@ bbc_cycles_timer_callback(void* p) {
      */
     uint64_t pre_sleep_time;
 
-    current_gettime_us = (p_bbc->last_gettime_us + 1000);
+    delta_us = (1000000 / k_system_wakeup_rate);
+
+    current_gettime_us = (p_bbc->last_gettime_us + delta_us);
     pre_sleep_time = util_sleep_until_us(current_gettime_us);
     if (pre_sleep_time > current_gettime_us) {
       p_bbc->last_gettime_us = pre_sleep_time;
@@ -946,7 +949,6 @@ bbc_cycles_timer_callback(void* p) {
     } else {
       p_bbc->last_gettime_us = current_gettime_us;
     }
-    delta = 1000;
   } else {
     /* Fast mode.
      * Fast mode is where the system executes as fast as the host CPU can
@@ -954,7 +956,7 @@ bbc_cycles_timer_callback(void* p) {
      * Effective system CPU rates of many GHz are likely to be obtained.
      */
     current_gettime_us = util_gettime_us();
-    delta = (current_gettime_us - p_bbc->last_gettime_us);
+    delta_us = (current_gettime_us - p_bbc->last_gettime_us);
     p_bbc->last_gettime_us = current_gettime_us;
   }
 
@@ -968,9 +970,9 @@ bbc_cycles_timer_callback(void* p) {
   /* Provide the wall time delta to various modules.
    * In inaccurate modes, this wall time may be used to advance state.
    */
-  via_apply_wall_time_delta(p_bbc->p_system_via, delta);
-  via_apply_wall_time_delta(p_bbc->p_user_via, delta);
-  video_apply_wall_time_delta(p_bbc->p_video, delta);
+  via_apply_wall_time_delta(p_bbc->p_system_via, delta_us);
+  via_apply_wall_time_delta(p_bbc->p_user_via, delta_us);
+  video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read_port_a(p_bbc->p_system_via);
@@ -979,6 +981,7 @@ bbc_cycles_timer_callback(void* p) {
 static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   int option_cycles_per_run;
+  uint64_t speed;
   uint64_t cycles_per_run;
   struct timing_struct* p_timing = p_bbc->p_timing;
   p_bbc->timer_id = timing_register_timer(p_timing,
@@ -986,9 +989,8 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
                                           p_bbc);
 
   if (p_bbc->slow_flag) {
-    cycles_per_run = 2000;
+    speed = k_bbc_tick_rate;
   } else {
-    uint64_t speed;
     /* We're going as fast as we can; check in every so often, about 1000 times
      * per second so that keyboard response is excellent and timer resolution
      * reasonable.
@@ -1005,9 +1007,10 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
        */
       speed = (500ull * 1000 * 1000);
     }
-
-    cycles_per_run = (speed / 1000);
   }
+
+  cycles_per_run = (speed / k_system_wakeup_rate);
+
   if (util_get_int_option(&option_cycles_per_run,
                           p_bbc->options.p_opt_flags,
                           "bbc:cycles-per-run=")) {
