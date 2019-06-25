@@ -938,17 +938,29 @@ bbc_cycles_timer_callback(void* p) {
      * results.
      */
     uint64_t next_wakeup_time_us;
+    int64_t spare_time_us;
 
     delta_us = (1000000 / k_system_wakeup_rate);
     next_wakeup_time_us = (p_bbc->last_time_us + delta_us);
-    if (next_wakeup_time_us >= curr_time_us) {
-      util_sleep_us(next_wakeup_time_us - curr_time_us);
+    spare_time_us = (next_wakeup_time_us - curr_time_us);
+    if (spare_time_us >= 0) {
+      util_sleep_us(spare_time_us);
       curr_time_us = next_wakeup_time_us;
     } else {
-      /* Missed a tick. Don't sleep at all. The time baseline will be advanced
-       * to current time in case the missing tick is due to something major,
-       * such as a debugger pause.
+      /* Missed a tick.
+       * In all cases, don't sleep.
        */
+       if (spare_time_us >= -20000) {
+         /* If it's a small miss, keep the existing timing expectations so that
+          * virtual time can catch up to wall time.
+          */
+        curr_time_us = next_wakeup_time_us;
+       } else {
+         /* If it's a large miss, perhaps the system was paused in the
+          * debugger or some other good reason, so reset timing expectations
+          * to avoid a huge flurry of catch-up at 100% CPU.
+          */
+       }
     }
   } else {
     /* Fast mode.
@@ -956,6 +968,7 @@ bbc_cycles_timer_callback(void* p) {
      * manage. Host CPU usage for the system's main thread will be 100%.
      * Effective system CPU rates of many GHz are likely to be obtained.
      */
+    /* TODO: limit delta_us max size in case system was paused? */
     delta_us = (curr_time_us - p_bbc->last_time_us);
   }
 
