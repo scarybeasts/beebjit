@@ -140,8 +140,6 @@ video_timer_fired(void* p) {
 
   via_raise_interrupt(p_video->p_system_via, k_int_CA1);
 
-  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
-
   video_update_timer(p_video);
 }
 
@@ -200,10 +198,6 @@ void
 video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   uint64_t wall_time;
 
-  if (!p_video->externally_clocked) {
-    return;
-  }
-
   wall_time = (p_video->wall_time + delta);
   p_video->wall_time = wall_time;
 
@@ -214,7 +208,9 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
-  via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+  if (p_video->externally_clocked) {
+    via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+  }
 
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
 }
