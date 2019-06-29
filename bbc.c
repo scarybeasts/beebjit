@@ -631,7 +631,7 @@ bbc_create(int mode,
 
   if (accurate_flag) {
     externally_clocked_via = 0;
-    //externally_clocked_crtc = 0;
+    externally_clocked_crtc = 0;
   }
   p_bbc->externally_clocked_via = externally_clocked_via;
   p_bbc->externally_clocked_crtc = externally_clocked_crtc;
@@ -670,6 +670,7 @@ bbc_create(int mode,
 
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,
+                                p_timing,
                                 p_bbc->p_system_via,
                                 bbc_framebuffer_ready_callback,
                                 p_bbc);

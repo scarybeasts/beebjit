@@ -11,10 +11,12 @@ enum {
 
 struct video_struct;
 
+struct timing_struct;
 struct via_struct;
 
 struct video_struct* video_create(uint8_t* p_mem,
                                   int externally_clocked,
+                                  struct timing_struct* p_timing,
                                   struct via_struct* p_system_via,
                                   void (*p_framebuffer_ready_callback)(void* p),
                                   void* p_framebuffer_ready_object);

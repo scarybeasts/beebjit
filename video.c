@@ -1,6 +1,7 @@
 #include "video.h"
 
 #include "util.h"
+#include "timing.h"
 #include "via.h"
 
 #include <assert.h>
@@ -14,7 +15,7 @@
  * just short of 20ms.
  * The calculation, with horizontal total 128, vertical total 39, lines
  * per character 8, 2Mhz clock, is:
- * (129 * 39 * 8) / 2
+ * (128 * 39 * 8) / 2
  */
 static const size_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
 
@@ -53,7 +54,9 @@ enum {
 struct video_struct {
   uint8_t* p_mem;
   int externally_clocked;
+  struct timing_struct* p_timing;
   struct via_struct* p_system_via;
+  size_t video_timer_id;
   uint8_t* p_sysvia_IC32;
   void (*p_framebuffer_ready_callback)();
   void* p_framebuffer_ready_object;
@@ -68,13 +71,20 @@ struct video_struct {
   uint8_t teletext_line[k_bbc_mode7_width];
 
   uint8_t crtc_address;
-  uint8_t crtc_mem_addr_low;
-  uint8_t crtc_mem_addr_high;
+  /* R1 */
   uint8_t crtc_horiz_displayed;
+  /* R2 */
   uint8_t crtc_horiz_position;
-  uint8_t crtc_vert_displayed;
-  uint8_t crtc_vert_position;
+  /* R5 */
   uint8_t crtc_vert_adjust;
+  /* R6 */
+  uint8_t crtc_vert_displayed;
+  /* R7 */
+  uint8_t crtc_vert_position;
+  /* R12 */
+  uint8_t crtc_mem_addr_high;
+  /* R13 */
+  uint8_t crtc_mem_addr_low;
 
   size_t prev_horiz_chars;
   size_t prev_vert_chars;
@@ -82,9 +92,63 @@ struct video_struct {
   int prev_vert_lines_offset;
 };
 
+static void
+video_init_timer(struct video_struct* p_video) {
+  if (p_video->externally_clocked) {
+    return;
+  }
+  (void) timing_start_timer_with_value(p_video->p_timing,
+                                       p_video->video_timer_id,
+                                       0);
+}
+
+static void
+video_update_timer(struct video_struct* p_video) {
+  int64_t timer_value;
+  uint32_t line_clocks;
+  uint32_t character_line_clocks;
+  uint32_t frame_clocks;
+  uint32_t vsync_pulse_clocks;
+
+  struct timing_struct* p_timing = p_video->p_timing;
+  size_t timer_id = p_video->video_timer_id;
+
+  if (p_video->externally_clocked) {
+    return;
+  }
+
+  timer_value = timing_get_timer_value(p_timing, timer_id);
+  assert(timer_value == 0);
+
+  line_clocks = (127 + 1);
+  character_line_clocks = (line_clocks * (7 + 1));
+  frame_clocks = (character_line_clocks * (38 + 1));
+  frame_clocks += (character_line_clocks * p_video->crtc_vert_adjust);
+  vsync_pulse_clocks = (character_line_clocks * 2);
+
+  (void) timing_set_timer_value(p_timing, timer_id, frame_clocks);
+
+  (void) timer_value;
+  (void) vsync_pulse_clocks;
+}
+
+static void
+video_timer_fired(void* p) {
+  struct video_struct* p_video = (struct video_struct*) p;
+
+  assert(!p_video->externally_clocked);
+
+  via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+
+  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
+
+  video_update_timer(p_video);
+}
+
 struct video_struct*
 video_create(uint8_t* p_mem,
              int externally_clocked,
+             struct timing_struct* p_timing,
              struct via_struct* p_system_via,
              void (*p_framebuffer_ready_callback)(void* p),
              void* p_framebuffer_ready_object) {
@@ -92,10 +156,24 @@ video_create(uint8_t* p_mem,
   if (p_video == NULL) {
     errx(1, "cannot allocate video_struct");
   }
+
+  /* This effectively zero initializes all of the CRTC and ULA registers.
+   * The emulators are not consistent here, but zero initialization is a
+   * popular choice.
+   * The 6845 data sheet isn't much help, quoting:
+   * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
+   * "The CRTC registers will have an initial value at power up. When using
+   * a direct drive monitor (sans horizontal oscillator) these initial values
+   * may result in out-of-tolerance operation."
+   * It isn't specified whether those initial values are random or
+   * deterministic, or what they may be. At any rate, the MOS ROM sets values
+   * for the registers as part of selecting MODE7 at boot up.
+   */
   (void) memset(p_video, '\0', sizeof(struct video_struct));
 
   p_video->p_mem = p_mem;
   p_video->externally_clocked = externally_clocked;
+  p_video->p_timing = p_timing;
   p_video->p_system_via = p_system_via;
   p_video->p_sysvia_IC32 = via_get_peripheral_b_ptr(p_system_via);
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
@@ -103,6 +181,12 @@ video_create(uint8_t* p_mem,
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
+
+  p_video->video_timer_id = timing_register_timer(p_timing,
+                                                  video_timer_fired,
+                                                  p_video);
+  video_init_timer(p_video);
+  video_update_timer(p_video);
 
   return p_video;
 }
@@ -703,7 +787,7 @@ video_set_ula_full_palette(struct video_struct* p_video,
 void
 video_get_crtc_registers(struct video_struct* p_video,
                          uint8_t* p_values) {
-  memset(p_values, '\0', 18);
+  (void) memset(p_values, '\0', 18);
   p_values[k_crtc_reg_horiz_displayed] = p_video->crtc_horiz_displayed;
   p_values[k_crtc_reg_horiz_position] = p_video->crtc_horiz_position;
   p_values[k_crtc_reg_vert_displayed] = p_video->crtc_vert_displayed;
