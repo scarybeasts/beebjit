@@ -673,7 +673,8 @@ bbc_create(int mode,
                                 p_timing,
                                 p_bbc->p_system_via,
                                 bbc_framebuffer_ready_callback,
-                                p_bbc);
+                                p_bbc,
+                                &p_bbc->options);
   if (p_bbc->p_video == NULL) {
     errx(1, "video_create failed");
   }

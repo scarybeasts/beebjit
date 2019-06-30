@@ -11,6 +11,7 @@ enum {
 
 struct video_struct;
 
+struct bbc_options;
 struct timing_struct;
 struct via_struct;
 
@@ -19,7 +20,8 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   struct timing_struct* p_timing,
                                   struct via_struct* p_system_via,
                                   void (*p_framebuffer_ready_callback)(void* p),
-                                  void* p_framebuffer_ready_object);
+                                  void* p_framebuffer_ready_object,
+                                  struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
 
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);

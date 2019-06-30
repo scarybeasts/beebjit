@@ -1,5 +1,6 @@
 #include "video.h"
 
+#include "bbc_options.h"
 #include "util.h"
 #include "timing.h"
 #include "via.h"
@@ -60,6 +61,11 @@ struct video_struct {
   uint8_t* p_sysvia_IC32;
   void (*p_framebuffer_ready_callback)();
   void* p_framebuffer_ready_object;
+
+  /* Options. */
+  /* TODO: change util_get_int_option API and use int32_t or uint32_t. */
+  int frames_skip;
+  uint32_t frame_skip_counter;
 
   uint64_t wall_time;
   uint64_t vsync_next_time;
@@ -189,7 +195,8 @@ video_create(uint8_t* p_mem,
              struct timing_struct* p_timing,
              struct via_struct* p_system_via,
              void (*p_framebuffer_ready_callback)(void* p),
-             void* p_framebuffer_ready_object) {
+             void* p_framebuffer_ready_object,
+             struct bbc_options* p_options) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
   if (p_video == NULL) {
     errx(1, "cannot allocate video_struct");
@@ -227,6 +234,12 @@ video_create(uint8_t* p_mem,
   p_video->crtc_clocks = 0;
   p_video->timer_ticks = 0;
 
+  p_video->frames_skip = 0;
+  p_video->frame_skip_counter = 0;
+  (void) util_get_int_option(&p_video->frames_skip,
+                             p_options->p_opt_flags,
+                             "video:frames-skip=");
+
   video_init_timer(p_video);
   video_update_timer(p_video);
 
@@ -256,7 +269,12 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     via_raise_interrupt(p_video->p_system_via, k_int_CA1);
   }
 
-  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
+  if (p_video->frame_skip_counter == 0) {
+    p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
+    p_video->frame_skip_counter = p_video->frames_skip;
+  } else {
+    p_video->frame_skip_counter--;
+  }
 }
 
 static void
