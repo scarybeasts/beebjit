@@ -86,6 +86,12 @@ struct video_struct {
   /* R13 */
   uint8_t crtc_mem_addr_low;
 
+  uint32_t crtc_clocks;
+  uint32_t timer_ticks;
+  uint32_t crtc_vsync_on_clocks;
+  uint32_t crtc_vsync_off_clocks;
+  uint32_t crtc_frame_clocks;
+
   size_t prev_horiz_chars;
   size_t prev_vert_chars;
   int prev_horiz_chars_offset;
@@ -105,10 +111,11 @@ video_init_timer(struct video_struct* p_video) {
 static void
 video_update_timer(struct video_struct* p_video) {
   int64_t timer_value;
+  uint32_t crtc_clocks_passed;
+  uint32_t crtc_clocks;
   uint32_t line_clocks;
   uint32_t character_line_clocks;
   uint32_t frame_clocks;
-  uint32_t vsync_pulse_clocks;
 
   struct timing_struct* p_timing = p_video->p_timing;
   size_t timer_id = p_video->video_timer_id;
@@ -118,27 +125,60 @@ video_update_timer(struct video_struct* p_video) {
   }
 
   timer_value = timing_get_timer_value(p_timing, timer_id);
-  assert(timer_value == 0);
+  assert(p_video->timer_ticks >= (uint32_t) timer_value);
+  crtc_clocks_passed = (p_video->timer_ticks - (uint32_t) timer_value);
+
+  crtc_clocks = (p_video->crtc_clocks + crtc_clocks_passed);
+  if (crtc_clocks >= p_video->crtc_frame_clocks) {
+    crtc_clocks -= p_video->crtc_frame_clocks;
+  }
+  p_video->crtc_clocks = crtc_clocks;
 
   line_clocks = (127 + 1);
   character_line_clocks = (line_clocks * (7 + 1));
   frame_clocks = (character_line_clocks * (38 + 1));
   frame_clocks += (character_line_clocks * p_video->crtc_vert_adjust);
-  vsync_pulse_clocks = (character_line_clocks * 2);
 
-  (void) timing_set_timer_value(p_timing, timer_id, frame_clocks);
+  p_video->crtc_vsync_on_clocks = (34 * character_line_clocks);
+  p_video->crtc_vsync_off_clocks = (p_video->crtc_vsync_on_clocks +
+                                    (line_clocks * 2));
+  p_video->crtc_frame_clocks = frame_clocks;
 
-  (void) timer_value;
-  (void) vsync_pulse_clocks;
+  /* Work out what event is next if any. */
+  if (crtc_clocks < p_video->crtc_vsync_on_clocks) {
+    timer_value = (p_video->crtc_vsync_on_clocks - crtc_clocks);
+  } else if (crtc_clocks < p_video->crtc_vsync_off_clocks) {
+    timer_value = (p_video->crtc_vsync_off_clocks - crtc_clocks);
+  } else {
+    timer_value = (frame_clocks -
+                   p_video->crtc_vsync_off_clocks +
+                   p_video->crtc_vsync_on_clocks);
+  }
+
+  p_video->timer_ticks = (uint32_t) timer_value;
+  (void) timing_set_timer_value(p_timing, timer_id, timer_value);
 }
 
 static void
 video_timer_fired(void* p) {
+  uint32_t crtc_clocks;
   struct video_struct* p_video = (struct video_struct*) p;
 
+  assert(timing_get_timer_value(p_video->p_timing, p_video->video_timer_id) ==
+         0);
   assert(!p_video->externally_clocked);
 
-  via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+  crtc_clocks = (p_video->crtc_clocks + p_video->timer_ticks);
+  if (crtc_clocks >= p_video->crtc_frame_clocks) {
+    crtc_clocks -= p_video->crtc_frame_clocks;
+  }
+
+  if (crtc_clocks == p_video->crtc_vsync_on_clocks) {
+    via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+  } else {
+    assert(crtc_clocks == p_video->crtc_vsync_off_clocks);
+    via_clear_interrupt(p_video->p_system_via, k_int_CA1);
+  }
 
   video_update_timer(p_video);
 }
@@ -183,6 +223,10 @@ video_create(uint8_t* p_mem,
   p_video->video_timer_id = timing_register_timer(p_timing,
                                                   video_timer_fired,
                                                   p_video);
+
+  p_video->crtc_clocks = 0;
+  p_video->timer_ticks = 0;
+
   video_init_timer(p_video);
   video_update_timer(p_video);
 

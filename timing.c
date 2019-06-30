@@ -225,6 +225,8 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
 
   size_t max_timer = p_timing->max_timer;
 
+  p_timing->total_timer_ticks += delta;
+
   for (i = 0; i < max_timer; ++i) {
     int64_t value;
 
@@ -249,8 +251,6 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
              p_timing->timings[i] > 0);
     }
   }
-
-  p_timing->total_timer_ticks += delta;
 
   timing_recalculate(p_timing);
 }
