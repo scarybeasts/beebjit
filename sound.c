@@ -293,7 +293,7 @@ struct sound_struct*
 sound_create(struct bbc_options* p_options) {
   size_t i;
   double volume;
-  int option;
+  uint32_t option;
   int16_t max_volume;
 
   const char* p_opt_flags = p_options->p_opt_flags;
@@ -307,7 +307,7 @@ sound_create(struct bbc_options* p_options) {
   p_sound->enabled = !util_has_option(p_opt_flags, "sound:off");
 
   p_sound->sample_rate = 44100;
-  if (util_get_int_option(&option, p_opt_flags, "sound:rate=")) {
+  if (util_get_u32_option(&option, p_opt_flags, "sound:rate=")) {
     p_sound->sample_rate = option;
   }
   p_sound->buffer_size = 512;
@@ -318,7 +318,7 @@ sound_create(struct bbc_options* p_options) {
   if (p_sound->sample_rate > 50000) {
     p_sound->buffer_size = 1024;
   }
-  if (util_get_int_option(&option, p_opt_flags, "sound:buffer=")) {
+  if (util_get_u32_option(&option, p_opt_flags, "sound:buffer=")) {
     p_sound->buffer_size = option;
   }
   p_sound->host_frames_per_fill = (p_sound->buffer_size / 4);

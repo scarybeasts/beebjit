@@ -127,7 +127,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   uint16_t temp_u16;
 
   void* p_memory_object = p_memory_access->p_callback_obj;
-  int max_6502_opcodes_per_block = 65536;
+  uint32_t max_6502_opcodes_per_block = 65536;
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
@@ -157,7 +157,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->log_revalidate = util_has_option(p_options->p_log_flags,
                                                "jit:revalidate");
 
-  (void) util_get_int_option(&max_6502_opcodes_per_block,
+  (void) util_get_u32_option(&max_6502_opcodes_per_block,
                              p_options->p_opt_flags,
                              "jit:max-ops");
   if (max_6502_opcodes_per_block < 1) {

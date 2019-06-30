@@ -430,7 +430,7 @@ util_get_channel_fds(int* fd1, int* fd2) {
 }
 
 int
-util_get_int_option(int* p_opt_out,
+util_get_u32_option(uint32_t* p_opt_out,
                     const char* p_opt_str,
                     const char* p_opt_name) {
   int matches;
@@ -445,7 +445,7 @@ util_get_int_option(int* p_opt_out,
     return 0;
   }
   p_opt_pos += strlen(p_opt_name);
-  matches = sscanf(p_opt_pos, "%d", p_opt_out);
+  matches = sscanf(p_opt_pos, "%u", p_opt_out);
   if (matches != 1) {
     return 0;
   }

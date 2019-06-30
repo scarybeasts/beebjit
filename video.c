@@ -63,8 +63,7 @@ struct video_struct {
   void* p_framebuffer_ready_object;
 
   /* Options. */
-  /* TODO: change util_get_int_option API and use int32_t or uint32_t. */
-  int frames_skip;
+  uint32_t frames_skip;
   uint32_t frame_skip_counter;
 
   uint64_t wall_time;
@@ -236,7 +235,7 @@ video_create(uint8_t* p_mem,
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
-  (void) util_get_int_option(&p_video->frames_skip,
+  (void) util_get_u32_option(&p_video->frames_skip,
                              p_options->p_opt_flags,
                              "video:frames-skip=");
 
