@@ -114,6 +114,9 @@ with ADC $B6,X. And some further instances below.
 [ITRP] 2CE8: INY
 [ITRP] 2CE9: BNE $2CE2
 [...]
+8) Sampled speech in sideways RAM enhanced version appears to use 1-bit
+samples. Frequency of a channel is set to 1 and then 0x90 / 0x9F are written
+alternately to the sound chip, which is max / zero volume for that channel.
 
 
 - Firetrack.zip
