@@ -86,12 +86,12 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
         output = -output;
         p_outputs[channel] = output;
 
-        /* NOTE: we do this like jsbeeb: we only update the random number
-         * every two counter expiries, and we have the period values half what
-         * they really are. This might mirror the real silicon? It avoids
-         * needing more than 10 bits to store the period.
-         */
         if (is_noise && (output == 1)) {
+          /* NOTE: we do this like jsbeeb: we only update the random number
+           * every two counter expiries, and we have the period values half what
+           * they really are. This might mirror the real silicon? It avoids
+           * needing more than 10 bits to store the period.
+           */
           if (*p_noise_type == 0) {
             noise_rng >>= 1;
             if (noise_rng == 0) {
@@ -102,6 +102,11 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
             noise_rng = ((noise_rng >> 1) | (bit << 14));
           }
           *p_noise_rng = noise_rng;
+        } else if (counter == 1) {
+          /* Implement the quirk of the sn76489 whereby a period of 1
+           * doesn't flip-flop the output but just holds the output high.
+           */
+          output = 1;
         }
       }
 
