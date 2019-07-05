@@ -219,6 +219,16 @@ timer 1 rolls over, if the ACR register has bit 0x80 set. This is separate from
 the timer interrupt and indeed the IER for the user VIA is 0x00.
 
 
+- SpyHunter.zip
+SHA256: 3dcbb5bb7cebd8211a935dee20a1698f78baf99bc5ab643cf23337a87ea74d91
+Notes:
+1) Sample playback code.
+After *LOAD HUNTER1, playback code at $3A00.
+Sets tone channel 1 and 3 frequency to 1. (Also channel 2 but its not used.)
+Uses user VIA counter to time 65us events via IFR polling.
+Writes the same volume to channel 1 and 3 for each 4-bit sample at $3A67.
+
+
 - StrykersRun.zip
 SHA256: 28fd9fe27a55d5ddecee840c0f9b7a28b22a137f25ae5c91c18aae6a4e2c3c36
 Notes:
