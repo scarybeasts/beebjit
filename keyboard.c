@@ -6,9 +6,11 @@
 #include <string.h>
 
 struct keyboard_struct {
-  uint8_t keys[16][16];
-  uint8_t keys_count;
-  uint8_t keys_count_col[16];
+  uint8_t bbc_keys[16][16];
+  uint8_t bbc_keys_count;
+  uint8_t bbc_keys_count_col[16];
+  uint8_t key_down[256];
+  uint8_t alt_key_pressed[256];
 };
 
 struct keyboard_struct*
@@ -324,7 +326,7 @@ keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile uint8_t* p_key = &p_keyboard->keys[row][col];
+  volatile uint8_t* p_key = &p_keyboard->bbc_keys[row][col];
   return *p_key;
 }
 
@@ -334,7 +336,7 @@ keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile uint8_t* p_count = &p_keyboard->keys_count_col[col];
+  volatile uint8_t* p_count = &p_keyboard->bbc_keys_count_col[col];
   return (*p_count > 0);
 }
 
@@ -343,8 +345,17 @@ keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
   /* Threading model: called from the BBC thread.
    * Only allowed to read keyboard state.
    */
-  volatile uint8_t* p_count = &p_keyboard->keys_count;
+  volatile uint8_t* p_count = &p_keyboard->bbc_keys_count;
   return (*p_count > 0);
+}
+
+int
+keyboard_check_and_clear_alt_key(struct keyboard_struct* p_keyboard,
+                                 uint8_t key) {
+  int ret = p_keyboard->alt_key_pressed[key];
+  p_keyboard->alt_key_pressed[key] = 0;
+
+  return ret;
 }
 
 void
@@ -354,6 +365,15 @@ keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
    */
   int32_t row;
   int32_t col;
+
+  p_keyboard->key_down[key] = 1;
+
+  if (p_keyboard->key_down[k_keyboard_key_alt_left]) {
+    /* Alt + key combos are for the emulator shell only, not the BBC. */
+    p_keyboard->alt_key_pressed[key] = 1;
+    return;
+  }
+
   keyboard_bbc_key_to_rowcol(key, &row, &col);
   if (row == -1 && col == -1) {
     return;
@@ -362,16 +382,16 @@ keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   assert(row < 16);
   assert(col >= 0);
   assert(col < 16);
-  if (p_keyboard->keys[row][col]) {
+  if (p_keyboard->bbc_keys[row][col]) {
     return;
   }
-  p_keyboard->keys[row][col] = 1;
+  p_keyboard->bbc_keys[row][col] = 1;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
     return;
   }
-  p_keyboard->keys_count_col[col]++;
-  p_keyboard->keys_count++;
+  p_keyboard->bbc_keys_count_col[col]++;
+  p_keyboard->bbc_keys_count++;
 }
 
 void
@@ -387,6 +407,9 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   int32_t row;
   int32_t col;
   int was_pressed;
+
+  p_keyboard->key_down[key] = 0;
+
   keyboard_bbc_key_to_rowcol(key, &row, &col);
   if (row == -1 && col == -1) {
     return;
@@ -395,16 +418,16 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   assert(row < 16);
   assert(col >= 0);
   assert(col < 16);
-  was_pressed = p_keyboard->keys[row][col];
-  p_keyboard->keys[row][col] = 0;
+  was_pressed = p_keyboard->bbc_keys[row][col];
+  p_keyboard->bbc_keys[row][col] = 0;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
     return;
   }
   if (was_pressed) {
-    assert(p_keyboard->keys_count_col[col] > 0);
-    p_keyboard->keys_count_col[col]--;
-    assert(p_keyboard->keys_count > 0);
-    p_keyboard->keys_count--;
+    assert(p_keyboard->bbc_keys_count_col[col] > 0);
+    p_keyboard->bbc_keys_count_col[col]--;
+    assert(p_keyboard->bbc_keys_count > 0);
+    p_keyboard->bbc_keys_count--;
   }
 }

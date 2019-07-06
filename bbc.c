@@ -933,8 +933,14 @@ bbc_cycles_timer_callback(void* p) {
   int64_t refreshed_time;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct timing_struct* p_timing = p_bbc->p_timing;
   uint64_t curr_time_us = util_gettime_us();
+
+  /* Check for special alt key combos to change emulator behavior. */
+  if (keyboard_check_and_clear_alt_key(p_keyboard, 'F')) {
+    p_bbc->slow_flag = !p_bbc->slow_flag;
+  }
 
   if (p_bbc->slow_flag) {
     /* Slow mode.

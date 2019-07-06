@@ -420,6 +420,9 @@ x_key_to_keyboard_key(int key) {
   case 62:
     ret = k_keyboard_key_shift_right;
     break;
+  case 64:
+    ret = k_keyboard_key_alt_left;
+    break;
   case 65:
     ret = ' ';
     break;

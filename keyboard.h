@@ -28,6 +28,7 @@ enum {
   k_keyboard_key_arrow_down = 147,
   k_keyboard_key_arrow_left = 148,
   k_keyboard_key_arrow_right = 149,
+  k_keyboard_key_alt_left = 150,
 };
 
 struct keyboard_struct* keyboard_create();
@@ -39,6 +40,9 @@ int keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
 int keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
                                        uint8_t col);
 int keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard);
+
+int keyboard_check_and_clear_alt_key(struct keyboard_struct* p_keyboard,
+                                     uint8_t key);
 
 /* Callbacks from the system code. */
 void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard,
