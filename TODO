@@ -9,6 +9,7 @@ instruction sequence after every conditional branch in a JIT block. This
 sequence can be improved a lot. For example, there only needs to be a branch
 at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
+- Acornsoft Chess self-play should be faster in JIT + fast mode.
 
 
 Ideas
