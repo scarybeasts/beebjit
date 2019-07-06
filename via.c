@@ -66,7 +66,6 @@ via_get_t1c_raw(struct via_struct* p_via) {
   if (val < -2) {
     /* T1 (latch 4) counts 4... 3... 2... 1... 0... -1... 4... */
     uint64_t delta = (-val - 4);
-    /* TODO: if T1L changed, this is incorrect. */
     uint64_t relatch_cycles = ((p_via->T1L + 2) << 1);
     uint64_t relatches = (delta / relatch_cycles);
     relatches++;
