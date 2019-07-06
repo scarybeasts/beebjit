@@ -1,6 +1,6 @@
 #include "x.h"
 
-#include "bbc.h"
+#include "keyboard.h"
 #include "video.h"
 
 #include <X11/Xlib.h>
@@ -24,7 +24,8 @@
 static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
 
 struct x_struct {
-  struct bbc_struct* p_bbc;
+  struct keyboard_struct* p_keyboard;
+  struct video_struct* p_video;
   size_t chars_width;
   size_t chars_height;
   Display* d;
@@ -40,7 +41,10 @@ struct x_struct {
 };
 
 struct x_struct*
-x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
+x_create(struct keyboard_struct* p_keyboard,
+         struct video_struct* p_video,
+         size_t chars_width,
+         size_t chars_height) {
   struct x_struct* p_x;
   int s;
   Window root_window;
@@ -56,9 +60,10 @@ x_create(struct bbc_struct* p_bbc, size_t chars_width, size_t chars_height) {
   if (p_x == NULL) {
     errx(1, "couldn't allocate x_struct");
   }
-  memset(p_x, '\0', sizeof(struct x_struct));
+  (void) memset(p_x, '\0', sizeof(struct x_struct));
 
-  p_x->p_bbc = p_bbc;
+  p_x->p_keyboard = p_keyboard;
+  p_x->p_video = p_video;
   p_x->chars_width = chars_width;
   p_x->chars_height = chars_height;
 
@@ -224,8 +229,7 @@ x_destroy(struct x_struct* p_x) {
 
 void
 x_render(struct x_struct* p_x) {
-  struct bbc_struct* p_bbc = p_x->p_bbc;
-  struct video_struct* p_video = bbc_get_video(p_bbc);
+  struct video_struct* p_video = p_x->p_video;
   int is_text = video_is_text(p_video);
 
   if (is_text) {
@@ -271,7 +275,7 @@ x_render(struct x_struct* p_x) {
 void
 x_event_check(struct x_struct* p_x) {
   Display* d = p_x->d;
-  struct bbc_struct* p_bbc = p_x->p_bbc;
+  struct keyboard_struct* p_keyboard = p_x->p_keyboard;
 
   while (XPending(d) > 0) {
     XEvent event;
@@ -285,13 +289,11 @@ x_event_check(struct x_struct* p_x) {
     switch (event.type) {
     case KeyPress:
       key = event.xkey.keycode;
-      /*printf("key press: %d\n", key);*/
-      bbc_key_pressed(p_bbc, key);
+      keyboard_system_key_pressed(p_keyboard, key);
       break;
     case KeyRelease:
       key = event.xkey.keycode;
-      /*printf("key release: %d\n", key);*/
-      bbc_key_released(p_bbc, key);
+      keyboard_system_key_released(p_keyboard, key);
       break;
     default:
       assert(0);

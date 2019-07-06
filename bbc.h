@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 struct cpu_driver;
+struct keyboard_struct;
 struct sound_struct;
 struct state_6502;
 struct via_struct;
@@ -83,6 +84,7 @@ uint32_t bbc_get_run_result(struct bbc_struct* p_bbc);
 struct state_6502* bbc_get_6502(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
+struct keyboard_struct* bbc_get_keyboard(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 
@@ -99,14 +101,6 @@ void bbc_memory_write(struct bbc_struct* p_bbc,
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
-
-void bbc_key_pressed(struct bbc_struct* p_bbc, int key);
-void bbc_key_released(struct bbc_struct* p_bbc, int key);
-int bbc_is_key_pressed(struct bbc_struct* p_bbc,
-                       uint8_t row,
-                       uint8_t col);
-int bbc_is_key_column_pressed(struct bbc_struct* p_bbc, uint8_t col);
-int bbc_is_any_key_pressed(struct bbc_struct* p_bbc);
 
 int bbc_get_client_fd(struct bbc_struct* p_bbc);
 void bbc_client_send_message(struct bbc_struct* p_bbc, char message);

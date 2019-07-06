@@ -1,6 +1,7 @@
 #include "via.h"
 
 #include "bbc.h"
+#include "keyboard.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -335,19 +336,20 @@ via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta) {
 static void
 sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
-  unsigned char sdb = p_via->peripheral_a;
-  unsigned char keyrow = ((sdb >> 4) & 7);
-  unsigned char keycol = (sdb & 0xf);
+  struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
+  uint8_t sdb = p_via->peripheral_a;
+  uint8_t keyrow = ((sdb >> 4) & 7);
+  uint8_t keycol = (sdb & 0xf);
   int fire = 0;
   if (!(p_via->peripheral_b & 0x08)) {
-    if (!bbc_is_key_pressed(p_bbc, keyrow, keycol)) {
+    if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       p_via->peripheral_a &= 0x7F;
     }
-    if (bbc_is_key_column_pressed(p_bbc, keycol)) {
+    if (keyboard_bbc_is_key_column_pressed(p_keyboard, keycol)) {
       fire = 1;
     }
   } else {
-    if (bbc_is_any_key_pressed(p_bbc)) {
+    if (keyboard_bbc_is_any_key_pressed(p_keyboard)) {
       fire = 1;
     }
   }
@@ -374,9 +376,9 @@ via_read_port_a(struct via_struct* p_via) {
 static void
 via_write_port_a(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
-    unsigned char ora = p_via->ORA;
-    unsigned char ddra = p_via->DDRA;
-    unsigned char port_val = ((ora & ddra) | ~ddra);
+    uint8_t ora = p_via->ORA;
+    uint8_t ddra = p_via->DDRA;
+    uint8_t port_val = ((ora & ddra) | ~ddra);
     p_via->peripheral_a = port_val;
     sysvia_update_port_a(p_via);
   } else if (p_via->id == k_via_user) {

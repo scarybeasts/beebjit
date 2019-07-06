@@ -3,11 +3,13 @@
 
 #include <stddef.h>
 
-struct bbc_struct;
+struct keyboard_struct;
+struct video_struct;
 
 struct x_struct;
 
-struct x_struct* x_create(struct bbc_struct* p_bbc,
+struct x_struct* x_create(struct keyboard_struct* p_keyboard,
+                          struct video_struct* p_video,
                           size_t chars_width,
                           size_t chars_height);
 void x_destroy(struct x_struct* p_x);

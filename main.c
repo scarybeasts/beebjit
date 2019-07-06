@@ -193,7 +193,10 @@ main(int argc, const char* argv[]) {
     bbc_load_disc(p_bbc, disc_buffer, read_ret);
   }
 
-  p_x = x_create(p_bbc, k_bbc_mode7_width, k_bbc_mode7_height);
+  p_x = x_create(bbc_get_keyboard(p_bbc),
+                 bbc_get_video(p_bbc),
+                 k_bbc_mode7_width,
+                 k_bbc_mode7_height);
   if (p_x == NULL) {
     errx(1, "x_create failed");
   }
