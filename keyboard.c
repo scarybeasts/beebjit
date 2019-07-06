@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <err.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 struct keyboard_struct {
@@ -30,288 +29,287 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
 }
 
 static void
-keyboard_bbc_key_to_rowcol(int key, int32_t* p_row, int32_t* p_col) {
+keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
   int32_t row = -1;
   int32_t col = -1;
   switch (key) {
-  case 9: /* Escape */
+  case k_keyboard_key_escape:
     row = 7;
     col = 0;
     break;
-  case 10: /* 1 */
+  case '1':
     row = 3;
     col = 0;
     break;
-  case 11: /* 2 */
+  case '2':
     row = 3;
     col = 1;
     break;
-  case 12: /* 3 */
+  case '3':
     row = 1;
     col = 1;
     break;
-  case 13: /* 4 */
+  case '4':
     row = 1;
     col = 2;
     break;
-  case 14: /* 5 */
+  case '5':
     row = 1;
     col = 3;
     break;
-  case 15: /* 6 */
+  case '6':
     row = 3;
     col = 4;
     break;
-  case 16: /* 7 */
+  case '7':
     row = 2;
     col = 4;
     break;
-  case 17: /* 8 */
+  case '8':
     row = 1;
     col = 5;
     break;
-  case 18: /* 9 */
+  case '9':
     row = 2;
     col = 6;
     break;
-  case 19: /* 0 */
+  case '0':
     row = 2;
     col = 7;
     break;
-  case 20: /* - */
+  case '-':
     row = 1;
     col = 7;
     break;
-  case 21: /* = (BBC ^) */
+  case '=': /* BBC ^ */
     row = 1;
     col = 8;
     break;
-  case 22: /* Backspace / (BBC DELETE) */
+  case k_keyboard_key_backspace: /* BBC DELETE */
     row = 5;
     col = 9;
     break;
-  case 23: /* Tab */
+  case k_keyboard_key_tab:
     row = 6;
     col = 0;
     break;
-  case 24: /* Q */
+  case 'Q':
     row = 1;
     col = 0;
     break;
-  case 25: /* W */
+  case 'W':
     row = 2;
     col = 1;
     break;
-  case 26: /* E */
+  case 'E':
     row = 2;
     col = 2;
     break;
-  case 27: /* R */
+  case 'R':
     row = 3;
     col = 3;
     break;
-  case 28: /* T */
+  case 'T':
     row = 2;
     col = 3;
     break;
-  case 29: /* Y */
+  case 'Y':
     row = 4;
     col = 4;
     break;
-  case 30: /* U */
+  case 'U':
     row = 3;
     col = 5;
     break;
-  case 31: /* I */
+  case 'I':
     row = 2;
     col = 5;
     break;
-  case 32: /* O */
+  case 'O':
     row = 3;
     col = 6;
     break;
-  case 33: /* P */
+  case 'P':
     row = 3;
     col = 7;
     break;
-  case 34: /* [ (BBC @) */
+  case '[': /* BBC @ */
     row = 4;
     col = 7;
     break;
-  case 35: /* ] (BBC [) */
+  case ']': /* BBC [ */
     row = 3;
     col = 8;
     break;
-  case 36: /* Enter (BBC RETURN) */
+  case k_keyboard_key_enter: /* BBC RETURN */
     row = 4;
     col = 9;
     break;
-  case 37: /* Ctrl */
+  case k_keyboard_key_ctrl_left:
     row = 0;
     col = 1;
     break;
-  case 38: /* A */
+  case 'A':
     row = 4;
     col = 1;
     break;
-  case 39: /* S */
+  case 'S':
     row = 5;
     col = 1;
     break;
-  case 40: /* D */
+  case 'D':
     row = 3;
     col = 2;
     break;
-  case 41: /* F */
+  case 'F':
     row = 4;
     col = 3;
     break;
-  case 42: /* G */
+  case 'G':
     row = 5;
     col = 3;
     break;
-  case 43: /* H */
+  case 'H':
     row = 5;
     col = 4;
     break;
-  case 44: /* J */
+  case 'J':
     row = 4;
     col = 5;
     break;
-  case 45: /* K */
+  case 'K':
     row = 4;
     col = 6;
     break;
-  case 46: /* L */
+  case 'L':
     row = 5;
     col = 6;
     break;
-  case 47: /* ; */
+  case ';':
     row = 5;
     col = 7;
     break;
-  case 48: /* ' (BBC colon) */
+  case '\'': /* BBC : */
     row = 4;
     col = 8;
     break;
-  case 50: /* Left shift */
+  case k_keyboard_key_shift_left:
     row = 0;
     col = 0;
     break;
-  case 51: /* \ (BBC ]) */
+  case '\\': /* BBC ] */
     row = 5;
     col = 8;
     break;
-  case 52: /* Z */
+  case 'Z':
     row = 6;
     col = 1;
     break;
-  case 53: /* X */
+  case 'X':
     row = 4;
     col = 2;
     break;
-  case 54: /* C */
+  case 'C':
     row = 5;
     col = 2;
     break;
-  case 55: /* V */
+  case 'V':
     row = 6;
     col = 3;
     break;
-  case 56: /* B */
+  case 'B':
     row = 6;
     col = 4;
     break;
-  case 57: /* N */
+  case 'N':
     row = 5;
     col = 5;
     break;
-  case 58: /* M */
+  case 'M':
     row = 6;
     col = 5;
     break;
-  case 59: /* , */
+  case ',':
     row = 6;
     col = 6;
     break;
-  case 60: /* . */
+  case '.':
     row = 6;
     col = 7;
     break;
-  case 61: /* / */
+  case '/':
     row = 6;
     col = 8;
     break;
-  case 62: /* Right shift */
+  case k_keyboard_key_shift_right:
     row = 0;
     col = 0;
     break;
-  case 65: /* Space */
+  case ' ':
     row = 6;
     col = 2;
     break;
-  case 66: /* Caps Lock */
+  case k_keyboard_key_caps_lock:
     row = 4;
     col = 0;
     break;
-  case 67: /* F1 */
+  case k_keyboard_key_f1:
     row = 7;
     col = 1;
     break;
-  case 68: /* F2 */
+  case k_keyboard_key_f2:
     row = 7;
     col = 2;
     break;
-  case 69: /* F3 */
+  case k_keyboard_key_f3:
     row = 7;
     col = 3;
     break;
-  case 70: /* F4 */
+  case k_keyboard_key_f4:
     row = 1;
     col = 4;
     break;
-  case 71: /* F5 */
+  case k_keyboard_key_f5:
     row = 7;
     col = 4;
     break;
-  case 72: /* F6 */
+  case k_keyboard_key_f6:
     row = 7;
     col = 5;
     break;
-  case 73: /* F7 */
+  case k_keyboard_key_f7:
     row = 1;
     col = 6;
     break;
-  case 74: /* F8 */
+  case k_keyboard_key_f8:
     row = 7;
     col = 6;
     break;
-  case 75: /* F9 */
+  case k_keyboard_key_f9:
     row = 7;
     col = 7;
     break;
-  case 76: /* F0 */
+  case k_keyboard_key_f0:
     row = 2;
     col = 0;
     break;
-  case 111: /* Up arrow */
+  case k_keyboard_key_arrow_up:
     row = 3;
     col = 9;
     break;
-  case 113: /* Left arrow */
+  case k_keyboard_key_arrow_left:
     row = 1;
     col = 9;
     break;
-  case 114: /* Right arrow */
+  case k_keyboard_key_arrow_right:
     row = 7;
     col = 9;
     break;
-  case 116: /* Down arrow */
+  case k_keyboard_key_arrow_down:
     row = 2;
     col = 9;
     break;
   default:
-    printf("warning: unhandled key %d\n", key);
     break;
   }
 
@@ -350,7 +348,7 @@ keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
 }
 
 void
-keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, int key) {
+keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   /* Threading model: called from the system thread.
    * Allowed to read/write keyboard state.
    */
@@ -377,7 +375,7 @@ keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, int key) {
 }
 
 void
-keyboard_system_key_released(struct keyboard_struct* p_keyboard, int key) {
+keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   /* Threading model: called from the system thread.
    * Allowed to read/write keyboard state.
    * There's no other writer thread, so updates (such as increment / decrement

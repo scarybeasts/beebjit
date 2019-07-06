@@ -5,6 +5,31 @@
 
 struct keyboard_struct;
 
+enum {
+  k_keyboard_key_escape = 128,
+  k_keyboard_key_backspace = 129,
+  k_keyboard_key_tab = 130,
+  k_keyboard_key_enter = 131,
+  k_keyboard_key_ctrl_left = 132,
+  k_keyboard_key_shift_left = 133,
+  k_keyboard_key_shift_right = 134,
+  k_keyboard_key_caps_lock = 135,
+  k_keyboard_key_f0 = 136,
+  k_keyboard_key_f1 = 137,
+  k_keyboard_key_f2 = 138,
+  k_keyboard_key_f3 = 139,
+  k_keyboard_key_f4 = 140,
+  k_keyboard_key_f5 = 141,
+  k_keyboard_key_f6 = 142,
+  k_keyboard_key_f7 = 143,
+  k_keyboard_key_f8 = 144,
+  k_keyboard_key_f9 = 145,
+  k_keyboard_key_arrow_up = 146,
+  k_keyboard_key_arrow_down = 147,
+  k_keyboard_key_arrow_left = 148,
+  k_keyboard_key_arrow_right = 149,
+};
+
 struct keyboard_struct* keyboard_create();
 void keyboard_destroy(struct keyboard_struct* p_keyboard);
 
@@ -16,7 +41,9 @@ int keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
 int keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard);
 
 /* Callbacks from the system code. */
-void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, int key);
-void keyboard_system_key_released(struct keyboard_struct* p_keyboard, int key);
+void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard,
+                                 uint8_t key);
+void keyboard_system_key_released(struct keyboard_struct* p_keyboard,
+                                  uint8_t key);
 
 #endif /* BEEBJIT_KEYBOARD_H */
