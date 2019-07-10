@@ -1104,8 +1104,8 @@ bbc_get_run_result(struct bbc_struct* p_bbc) {
   return *p_ret;
 }
 
-int
-bbc_get_client_fd(struct bbc_struct* p_bbc) {
+size_t
+bbc_get_client_handle(struct bbc_struct* p_bbc) {
   return p_bbc->message_client_fd;
 }
 

@@ -1,15 +1,13 @@
 #include "bbc.h"
 #include "cpu_driver.h"
+#include "os.h"
 #include "state.h"
 #include "test.h"
 #include "util.h"
 #include "video.h"
-#include "x.h"
 
 #include <assert.h>
 #include <err.h>
-#include <errno.h>
-#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,11 +19,11 @@ main(int argc, const char* argv[]) {
   uint8_t load_rom[k_bbc_rom_size];
   uint8_t disc_buffer[k_bbc_max_disc_size];
   int i;
-  struct x_struct* p_x;
+  struct os_window_struct* p_window;
+  struct os_poller_struct* p_poller;
   struct bbc_struct* p_bbc;
-  int x_fd;
-  int bbc_fd;
-  struct pollfd poll_fds[2];
+  size_t window_handle;
+  size_t bbc_handle;
   uint32_t run_result;
 
   const char* rom_names[k_bbc_num_roms] = {};
@@ -193,63 +191,47 @@ main(int argc, const char* argv[]) {
     bbc_load_disc(p_bbc, disc_buffer, read_ret);
   }
 
-  p_x = x_create(bbc_get_keyboard(p_bbc),
-                 bbc_get_video(p_bbc),
-                 k_bbc_mode7_width,
-                 k_bbc_mode7_height);
-  if (p_x == NULL) {
-    errx(1, "x_create failed");
+  p_window = os_window_create(bbc_get_keyboard(p_bbc),
+                              bbc_get_video(p_bbc),
+                              k_bbc_mode7_width,
+                              k_bbc_mode7_height);
+  if (p_window == NULL) {
+    errx(1, "os_window_create failed");
   }
+
+  p_poller = os_poller_create();
+  if (p_poller == NULL) {
+    errx(1, "os_poller_create failed");
+  }
+
 
   bbc_run_async(p_bbc);
 
-  x_fd = x_get_fd(p_x);
-  bbc_fd = bbc_get_client_fd(p_bbc);
-
-  poll_fds[0].fd = x_fd;
-  poll_fds[0].events = POLLIN;
-  poll_fds[1].fd = bbc_fd;
-  poll_fds[1].events = POLLIN;
+  window_handle = os_window_get_handle(p_window);
+  os_poller_add_handle(p_poller, window_handle);
+  bbc_handle = bbc_get_client_handle(p_bbc);
+  os_poller_add_handle(p_poller, bbc_handle);
 
   while (1) {
-    int ret;
     char message;
 
-    poll_fds[0].revents = 0;
-    poll_fds[1].revents = 0;
-    ret = poll(&poll_fds[0], 2, -1);
-    if (ret < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      errx(1, "poll failed");
-    }
+    os_poller_poll(p_poller);
 
-    if (poll_fds[0].revents & POLLIN) {
-      assert(ret > 0);
-      /* No x_event_check here -- see below. */
+    if (os_poller_handle_triggered(p_poller, 0)) {
+      os_window_process_events(p_window);
     }
-    if (poll_fds[1].revents & POLLIN) {
-      assert(ret > 0);
+    if (os_poller_handle_triggered(p_poller, 1)) {
       message = bbc_client_receive_message(p_bbc);
       if (message == k_message_exited) {
         break;
       } else {
         assert(message == k_message_vsync);
-        x_render(p_x);
+        os_window_render(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           bbc_client_send_message(p_bbc, k_message_render_done);
         }
       }
     }
-
-    /* We need to call x_event_check unconditionally, in case a key event comes
-     * in during X rendering. In that case, the data could be read from the
-     * socket and placed in the event queue during standard X queue processing.
-     * This would lead to a delayed event because the poll() wouldn't see it
-     * in the socket queue.
-     */
-    x_event_check(p_x);
   }
 
   run_result = bbc_get_run_result(p_bbc);
@@ -259,7 +241,8 @@ main(int argc, const char* argv[]) {
     }
   }
 
-  x_destroy(p_x);
+  os_poller_destroy(p_poller);
+  os_window_destroy(p_window);
   bbc_destroy(p_bbc);
 
   return 0;

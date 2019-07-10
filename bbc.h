@@ -102,7 +102,7 @@ int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
-int bbc_get_client_fd(struct bbc_struct* p_bbc);
+size_t bbc_get_client_handle(struct bbc_struct* p_bbc);
 void bbc_client_send_message(struct bbc_struct* p_bbc, char message);
 char bbc_client_receive_message(struct bbc_struct* p_bbc);
 

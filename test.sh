@@ -2,21 +2,21 @@
 set -e
 
 gcc -O3 -DNDEBUG -Wall -W -Werror -g -o 6502jit \
-    main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
+    main.c bbc.c jit.c defs_6502.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
     jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
-    jit_optimizer.c jit_opcode.c keyboard.c \
+    jit_optimizer.c jit_opcode.c keyboard.c os.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o 6502jit \
-    main.c bbc.c jit.c defs_6502.c x.c debug.c util.c state.c video.c via.c \
+    main.c bbc.c jit.c defs_6502.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
     jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
-    jit_optimizer.c jit_opcode.c keyboard.c \
+    jit_optimizer.c jit_opcode.c keyboard.c os.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \

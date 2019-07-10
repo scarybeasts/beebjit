@@ -1,4 +1,4 @@
-#include "x.h"
+#include "os.h"
 
 #include "keyboard.h"
 #include "video.h"
@@ -23,7 +23,7 @@
 
 static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
 
-struct x_struct {
+struct os_window_struct {
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
   size_t chars_width;
@@ -40,12 +40,12 @@ struct x_struct {
   XShmSegmentInfo shm_info;
 };
 
-struct x_struct*
-x_create(struct keyboard_struct* p_keyboard,
-         struct video_struct* p_video,
-         size_t chars_width,
-         size_t chars_height) {
-  struct x_struct* p_x;
+struct os_window_struct*
+os_window_create(struct keyboard_struct* p_keyboard,
+                 struct video_struct* p_video,
+                 size_t chars_width,
+                 size_t chars_height) {
+  struct os_window_struct* p_window;
   int s;
   Window root_window;
   unsigned long black_pixel;
@@ -56,89 +56,89 @@ x_create(struct keyboard_struct* p_keyboard,
   Visual* p_visual;
   int depth;
 
-  p_x = malloc(sizeof(struct x_struct));
-  if (p_x == NULL) {
-    errx(1, "couldn't allocate x_struct");
+  p_window = malloc(sizeof(struct os_window_struct));
+  if (p_window == NULL) {
+    errx(1, "couldn't allocate os_window_struct");
   }
-  (void) memset(p_x, '\0', sizeof(struct x_struct));
+  (void) memset(p_window, '\0', sizeof(struct os_window_struct));
 
-  p_x->p_keyboard = p_keyboard;
-  p_x->p_video = p_video;
-  p_x->chars_width = chars_width;
-  p_x->chars_height = chars_height;
+  p_window->p_keyboard = p_keyboard;
+  p_window->p_video = p_video;
+  p_window->chars_width = chars_width;
+  p_window->chars_height = chars_height;
 
-  p_x->d = XOpenDisplay(NULL);
-  if (p_x->d == NULL) {
+  p_window->d = XOpenDisplay(NULL);
+  if (p_window->d == NULL) {
     errx(1, "cannot open X display");
   }
 
-  (void) XkbSetDetectableAutoRepeat(p_x->d, True, &bool_ret);
+  (void) XkbSetDetectableAutoRepeat(p_window->d, True, &bool_ret);
   if (bool_ret != True) {
     errx(1, "can't set detect auto repeat");
   }
 
-  p_x->p_font = XLoadQueryFont(p_x->d, k_p_font_name);
-  if (p_x->p_font == NULL) {
+  p_window->p_font = XLoadQueryFont(p_window->d, k_p_font_name);
+  if (p_window->p_font == NULL) {
     errx(1, "cannot load font");
   }
 
-  bool_ret = XGetFontProperty(p_x->p_font, XA_FONT, &ul_ret);
+  bool_ret = XGetFontProperty(p_window->p_font, XA_FONT, &ul_ret);
   if (bool_ret != True) {
     errx(1, "cannot get font property XA_FONT");
   }
-  p_x->fx = p_x->p_font->per_char[0].width;
-  p_x->fy = p_x->p_font->per_char[0].ascent;
+  p_window->fx = p_window->p_font->per_char[0].width;
+  p_window->fy = p_window->p_font->per_char[0].ascent;
   printf("loaded font: %s (%zux%zu)\n",
-         XGetAtomName(p_x->d, (Atom) ul_ret),
-         p_x->fx,
-         p_x->fy);
+         XGetAtomName(p_window->d, (Atom) ul_ret),
+         p_window->fx,
+         p_window->fy);
 
-  s = DefaultScreen(p_x->d);
-  root_window = RootWindow(p_x->d, s);
-  p_visual = DefaultVisual(p_x->d, s);
-  black_pixel = BlackPixel(p_x->d, s);
-  white_pixel = WhitePixel(p_x->d, s);
-  depth = DefaultDepth(p_x->d, s);
+  s = DefaultScreen(p_window->d);
+  root_window = RootWindow(p_window->d, s);
+  p_visual = DefaultVisual(p_window->d, s);
+  black_pixel = BlackPixel(p_window->d, s);
+  white_pixel = WhitePixel(p_window->d, s);
+  depth = DefaultDepth(p_window->d, s);
 
   if (depth != 24) {
     errx(1, "default depth not 24");
   }
 
-  p_x->shmid = shmget(IPC_PRIVATE, 640 * 512 * 4, IPC_CREAT|0600);
-  if (p_x->shmid < 0) {
+  p_window->shmid = shmget(IPC_PRIVATE, 640 * 512 * 4, IPC_CREAT|0600);
+  if (p_window->shmid < 0) {
     errx(1, "shmget failed");
   }
-  p_x->p_shm = shmat(p_x->shmid, NULL, 0);
-  if (p_x->p_shm == NULL) {
+  p_window->p_shm = shmat(p_window->shmid, NULL, 0);
+  if (p_window->p_shm == NULL) {
     errx(1, "shmat failed");
   }
-  ret = shmctl(p_x->shmid, IPC_RMID, NULL);
+  ret = shmctl(p_window->shmid, IPC_RMID, NULL);
   if (ret != 0) {
     errx(1, "shmctl failed");
   }
 
-  p_x->p_image = XShmCreateImage(p_x->d,
+  p_window->p_image = XShmCreateImage(p_window->d,
                                  p_visual,
                                  24,
                                  ZPixmap,
                                  NULL,
-                                 &p_x->shm_info,
+                                 &p_window->shm_info,
                                  640,
                                  512);
-  if (p_x->p_image == NULL) {
+  if (p_window->p_image == NULL) {
     errx(1, "XShmCreateImage failed");
   }
 
-  p_x->shm_info.shmid = p_x->shmid;
-  p_x->shm_info.shmaddr = p_x->p_image->data = p_x->p_shm;
-  p_x->shm_info.readOnly = False;
+  p_window->shm_info.shmid = p_window->shmid;
+  p_window->shm_info.shmaddr = p_window->p_image->data = p_window->p_shm;
+  p_window->shm_info.readOnly = False;
 
-  bool_ret = XShmAttach(p_x->d, &p_x->shm_info);
+  bool_ret = XShmAttach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
     errx(1, "XShmAttach failed");
   }
 
-  p_x->w = XCreateSimpleWindow(p_x->d,
+  p_window->w = XCreateSimpleWindow(p_window->d,
                                root_window,
                                10,
                                10,
@@ -147,105 +147,113 @@ x_create(struct keyboard_struct* p_keyboard,
                                1,
                                black_pixel,
                                black_pixel);
-  if (p_x->w == 0) {
+  if (p_window->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
   }
-  ret = XSelectInput(p_x->d, p_x->w, KeyPressMask | KeyReleaseMask);
+  ret = XSelectInput(p_window->d, p_window->w, KeyPressMask | KeyReleaseMask);
   if (ret != 1) {
     errx(1, "XSelectInput failed");
   }
 
-  ret = XMapWindow(p_x->d, p_x->w);
+  ret = XMapWindow(p_window->d, p_window->w);
   if (ret != 1) {
     errx(1, "XMapWindow failed");
   }
 
-  p_x->gc = XCreateGC(p_x->d, p_x->w, 0, 0);
-  if (p_x->gc == 0) {
+  p_window->gc = XCreateGC(p_window->d, p_window->w, 0, 0);
+  if (p_window->gc == 0) {
     errx(1, "XCreateGC failed");
   }
-  ret = XSetBackground(p_x->d, p_x->gc, black_pixel);
+  ret = XSetBackground(p_window->d, p_window->gc, black_pixel);
   if (ret != 1) {
     errx(1, "XSetBackground failed");
   }
-  ret = XSetForeground(p_x->d, p_x->gc, white_pixel);
+  ret = XSetForeground(p_window->d, p_window->gc, white_pixel);
   if (ret != 1) {
     errx(1, "XSetForeground failed");
   }
-  ret = XSetFont(p_x->d, p_x->gc, p_x->p_font->fid);
+  ret = XSetFont(p_window->d, p_window->gc, p_window->p_font->fid);
   if (ret != 1) {
     errx(1, "XSetFont failed");
   }
 
-  ret = XFlush(p_x->d);
+  ret = XFlush(p_window->d);
   if (ret != 1) {
     errx(1, "XFlush failed");
   }
 
-  return p_x;
+  return p_window;
 }
 
 void
-x_destroy(struct x_struct* p_x) {
+os_window_destroy(struct os_window_struct* p_window) {
   int ret;
   Bool bool_ret;
 
-  ret = XFreeGC(p_x->d, p_x->gc);
+  ret = XFreeGC(p_window->d, p_window->gc);
   if (ret != 1) {
     errx(1, "XFreeGC failed");
   }
-  ret = XUnmapWindow(p_x->d, p_x->w);
+  ret = XUnmapWindow(p_window->d, p_window->w);
   if (ret != 1) {
     errx(1, "XUnmapWindow failed");
   }
-  ret = XDestroyWindow(p_x->d, p_x->w);
+  ret = XDestroyWindow(p_window->d, p_window->w);
   if (ret != 1) {
     errx(1, "XDestroyWindow failed");
   }
-  bool_ret = XShmDetach(p_x->d, &p_x->shm_info);
+  bool_ret = XShmDetach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
     errx(1, "XShmDetach failed");
   }
-  ret = XDestroyImage(p_x->p_image);
+  ret = XDestroyImage(p_window->p_image);
   if (ret != 1) {
     errx(1, "XDestroyImage failed");
   }
-  ret = shmdt(p_x->p_shm);
+  ret = shmdt(p_window->p_shm);
   if (ret != 0) {
     errx(1, "shmdt failed");
   }
-  ret = XFreeFont(p_x->d, p_x->p_font);
+  ret = XFreeFont(p_window->d, p_window->p_font);
   if (ret != 1) {
     errx(1, "XFreeFont failed");
   }
 
-  ret = XCloseDisplay(p_x->d);
+  ret = XCloseDisplay(p_window->d);
   if (ret != 0) {
     errx(1, "XCloseDisplay failed");
   }
 
-  free(p_x); 
+  free(p_window);
+}
+
+size_t
+os_window_get_handle(struct os_window_struct* p_window) {
+  Display* d = p_window->d;
+  int fd = ConnectionNumber(d);
+
+  return fd;
 }
 
 void
-x_render(struct x_struct* p_x) {
-  struct video_struct* p_video = p_x->p_video;
+os_window_render(struct os_window_struct* p_window) {
+  struct video_struct* p_video = p_window->p_video;
   int is_text = video_is_text(p_video);
 
   if (is_text) {
     size_t y;
     size_t offset = 0;
     size_t y_offset = 16;
-    size_t chars_width = p_x->chars_width;
-    size_t chars_height = p_x->chars_height;
+    size_t chars_width = p_window->chars_width;
+    size_t chars_height = p_window->chars_height;
     for (y = 0; y < chars_height; ++y) {
       unsigned char* p_video_mem = video_get_memory(p_video,
                                                     offset,
                                                     chars_width);
       /* Seems to return 0 on success -- status not checked. */
-      XDrawImageString(p_x->d,
-                  p_x->w,
-                  p_x->gc,
+      XDrawImageString(p_window->d,
+                  p_window->w,
+                  p_window->gc,
                   0,
                   y_offset,
                   (char*) p_video_mem,
@@ -254,11 +262,11 @@ x_render(struct x_struct* p_x) {
       y_offset += 16;
     }
   } else {
-    video_render(p_video, p_x->p_shm, 640, 512, 4);
-    Bool bool_ret = XShmPutImage(p_x->d,
-                                 p_x->w,
-                                 p_x->gc,
-                                 p_x->p_image,
+    video_render(p_video, p_window->p_shm, 640, 512, 4);
+    Bool bool_ret = XShmPutImage(p_window->d,
+                                 p_window->w,
+                                 p_window->gc,
+                                 p_window->p_image,
                                  0,
                                  0,
                                  0,
@@ -270,6 +278,14 @@ x_render(struct x_struct* p_x) {
       errx(1, "XShmPutImage failed");
     }
   }
+
+  /* We need to check for X events here, in case a key event comes
+   * in during X rendering. In that case, the data could be read from the
+   * socket and placed in the event queue during standard X queue processing.
+   * This would lead to a delayed event because the poll() wouldn't see it
+   * in the socket queue.
+   */
+  os_window_process_events(p_window);
 }
 
 static uint8_t
@@ -479,9 +495,9 @@ x_key_to_keyboard_key(int key) {
 }
 
 void
-x_event_check(struct x_struct* p_x) {
-  Display* d = p_x->d;
-  struct keyboard_struct* p_keyboard = p_x->p_keyboard;
+os_window_process_events(struct os_window_struct* p_window) {
+  Display* d = p_window->d;
+  struct keyboard_struct* p_keyboard = p_window->p_keyboard;
 
   while (XPending(d) > 0) {
     XEvent event;
@@ -516,12 +532,4 @@ x_event_check(struct x_struct* p_x) {
       assert(0);
     }
   }
-}
-
-int
-x_get_fd(struct x_struct* p_x) {
-  Display* d = p_x->d;
-  int fd = ConnectionNumber(d);
-
-  return fd;
 }
