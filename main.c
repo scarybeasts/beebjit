@@ -1,6 +1,7 @@
 #include "bbc.h"
 #include "cpu_driver.h"
-#include "os.h"
+#include "os_poller.h"
+#include "os_window.h"
 #include "state.h"
 #include "test.h"
 #include "util.h"
