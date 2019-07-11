@@ -7,6 +7,10 @@
 
 #include <alsa/asoundlib.h>
 
+static const uint32_t k_os_sound_default_rate = 44100;
+static const uint32_t k_os_sound_default_buffer_size = 512;
+static const uint32_t k_os_sound_default_num_periods = 4;
+
 struct os_sound_struct {
   uint32_t sample_rate;
   uint32_t buffer_size;
@@ -24,18 +28,18 @@ os_sound_create(uint32_t sample_rate, uint32_t buffer_size) {
   (void) memset(p_driver, '\0', sizeof(struct os_sound_struct));
 
   if (sample_rate == 0) {
-    sample_rate = 44100;
+    sample_rate = k_os_sound_default_rate;
   }
   if (buffer_size == 0) {
     /* Buffer size is samples, not bytes.
      * 512 samples at 44.1kHz is latency of 11.6ms.
      */
-    buffer_size = 512;
+    buffer_size = k_os_sound_default_buffer_size;
     if (sample_rate > 50000) {
       /* Make the buffer larger for larger sample rates, i.e. 96kHz might
        * otherwise struggle to keep up.
        */
-      buffer_size = 1024;
+      buffer_size *= 2;
     }
   }
 
@@ -124,7 +128,10 @@ os_sound_init(struct os_sound_struct* p_driver) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_buffer_size failed");
   }
-  ret = snd_pcm_hw_params_set_periods(playback_handle, hw_params, 4, 0);
+  ret = snd_pcm_hw_params_set_periods(playback_handle,
+                                      hw_params,
+                                      k_os_sound_default_num_periods,
+                                      0);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_periods failed");
   }
@@ -158,14 +165,14 @@ os_sound_init(struct os_sound_struct* p_driver) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_periods failed");
   }
-  if (periods != 4) {
-    errx(1, "periods is not 4");
+  if (periods != k_os_sound_default_num_periods) {
+    errx(1, "periods is not %d", k_os_sound_default_num_periods);
   }
   ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_period_size failed");
   }
-  if ((period_size * 4) != p_driver->buffer_size) {
+  if ((period_size * k_os_sound_default_num_periods) != p_driver->buffer_size) {
     errx(1, "unexpected period size %zu", period_size);
   }
 
