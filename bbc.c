@@ -665,7 +665,7 @@ bbc_create(int mode,
     errx(1, "keyboard_create failed");
   }
 
-  p_bbc->p_sound = sound_create(&p_bbc->options);
+  p_bbc->p_sound = sound_create();
   if (p_bbc->p_sound == NULL) {
     errx(1, "sound_create failed");
   }

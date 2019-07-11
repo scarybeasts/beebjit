@@ -1,16 +1,14 @@
 #include "sound.h"
 
-#include "bbc_options.h"
+#include "os_sound.h"
 #include "util.h"
 
+#include <assert.h>
 #include <err.h>
 #include <math.h>
 #include <pthread.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <alsa/asoundlib.h>
 
 enum {
   /* 0-2 square wave tone channels, 3 noise channel. */
@@ -18,29 +16,28 @@ enum {
 };
 
 struct sound_struct {
+  /* Underylying driver. */
+  struct os_sound_struct* p_driver;
+
   /* Configuration. */
-  int enabled;
-  size_t sample_rate;
-  size_t buffer_size;
-  size_t host_frames_per_fill;
+  uint32_t driver_chunk_size;
 
   /* Calculated configuration. */
-  double sn_ticks_per_host_tick;
-  size_t sn_frames_per_fill;
+  double sn_frames_per_driver_frame;
+  uint32_t sn_frames_per_driver_chunk_size;
   int16_t volumes[16];
 
   /* Internal state. */
   int thread_running;
   int do_exit;
   pthread_t sound_thread;
-  size_t cycles;
-  int16_t* p_host_frames;
+  int16_t* p_driver_frames;
   int16_t* p_sn_frames;
+
+  /* sn76489 state. */
   uint16_t counter[k_sound_num_channels];
   int8_t output[k_sound_num_channels];
   uint16_t noise_rng;
-
-  /* Register values / interface from the host. */
   int16_t volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
   /* 0 - low, 1 - medium, 2 - high, 3 -- use tone generator 1. */
@@ -52,10 +49,11 @@ struct sound_struct {
 
 static void
 sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
-  size_t i;
-  size_t channel;
+  uint32_t i;
+  uint8_t channel;
 
-  size_t sn_frames_per_fill = p_sound->sn_frames_per_fill;
+  uint32_t sn_frames_per_driver_chunk_size =
+      p_sound->sn_frames_per_driver_chunk_size;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   uint16_t* p_counters = &p_sound->counter[0];
   int8_t* p_outputs = &p_sound->output[0];
@@ -65,7 +63,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
   volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
   volatile int* p_noise_type = &p_sound->noise_type;
 
-  for (i = 0; i < sn_frames_per_fill; ++i) {
+  for (i = 0; i < sn_frames_per_driver_chunk_size; ++i) {
     int16_t sample = 0;
     for (channel = 0; channel < 4; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
@@ -130,12 +128,12 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
 
 static void
 sound_fill_buffer(struct sound_struct* p_sound) {
-  size_t i;
+  uint32_t i;
 
-  int16_t* p_host_frames = p_sound->p_host_frames;
+  int16_t* p_driver_frames = p_sound->p_driver_frames;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
-  size_t host_frames_per_fill = p_sound->host_frames_per_fill;
-  double resample_step = p_sound->sn_ticks_per_host_tick;
+  uint32_t driver_chunk_size = p_sound->driver_chunk_size;
+  double resample_step = p_sound->sn_frames_per_driver_frame;
   double resample_index = 0;
 
   /* Generate the 250kHz signal from the sn76489. */
@@ -144,209 +142,42 @@ sound_fill_buffer(struct sound_struct* p_sound) {
   /* Downsample it to host device rate via simple nearest integer index
    * selection.
    */
-  for (i = 0; i < host_frames_per_fill; ++i) {
-    p_host_frames[i] = p_sn_frames[(size_t) round(resample_index)];
+  for (i = 0; i < driver_chunk_size; ++i) {
+    p_driver_frames[i] = p_sn_frames[(uint32_t) round(resample_index)];
     resample_index += resample_step;
   }
 }
 
 static void*
 sound_play_thread(void* p) {
-  int ret;
-  unsigned int tmp;
-  snd_pcm_uframes_t period_size;
-  snd_pcm_uframes_t buffer_size;
-  unsigned int periods;
-  snd_pcm_t* playback_handle;
-  snd_pcm_hw_params_t* hw_params;
-
   struct sound_struct* p_sound = (struct sound_struct*) p;
   volatile int* p_do_exit = &p_sound->do_exit;
-  unsigned int rate = p_sound->sample_rate;
-  unsigned int rate_ret = rate;
-
-  ret = snd_pcm_open(&playback_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
-  if (ret != 0) {
-    errx(1, "snd_pcm_open failed");
-  }
-
-  snd_pcm_hw_params_alloca(&hw_params);
-
-  ret = snd_pcm_hw_params_any(playback_handle, hw_params);
-  if (ret < 0) {
-    errx(1, "snd_pcm_hw_params_any failed");
-  }
-  ret = snd_pcm_hw_params_set_access(playback_handle,
-                                     hw_params,
-                                     SND_PCM_ACCESS_RW_INTERLEAVED);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_access failed");
-  }
-  ret = snd_pcm_hw_params_set_format(playback_handle,
-                                     hw_params,
-                                     SND_PCM_FORMAT_S16_LE);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_format failed");
-  }
-  ret = snd_pcm_hw_params_set_rate_near(playback_handle,
-                                        hw_params,
-                                        &rate_ret,
-                                        0);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_rate_near failed");
-  }
-  if (rate_ret != rate) {
-    errx(1, "snd_pcm_hw_params_set_rate_near, rate %d unavailable", rate);
-  }
-  ret = snd_pcm_hw_params_set_channels(playback_handle, hw_params, 1);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_channels failed");
-  }
-  /* Buffer size is in frames, not bytes. */
-  ret = snd_pcm_hw_params_set_buffer_size(playback_handle,
-                                          hw_params,
-                                          p_sound->buffer_size);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_buffer_size failed");
-  }
-  ret = snd_pcm_hw_params_set_periods(playback_handle, hw_params, 4, 0);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_periods failed");
-  }
-  ret = snd_pcm_hw_params(playback_handle, hw_params);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params failed");
-  }
-
-  ret = snd_pcm_hw_params_get_channels(hw_params, &tmp);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_channels failed");
-  }
-  if (tmp != 1) {
-    errx(1, "channels is not 1");
-  }
-  ret = snd_pcm_hw_params_get_rate(hw_params, &tmp, NULL);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_rate failed");
-  }
-  if (tmp != p_sound->sample_rate) {
-    errx(1, "sample rate is not %zu", p_sound->sample_rate);
-  }
-  ret = snd_pcm_hw_params_get_buffer_size(hw_params, &buffer_size);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_buffer_size failed");
-  }
-  if (buffer_size != p_sound->buffer_size) {
-    errx(1, "buffer size is not %zu", p_sound->buffer_size);
-  }
-  ret = snd_pcm_hw_params_get_periods(hw_params, &periods, NULL);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_periods failed");
-  }
-  if (periods != 4) {
-    errx(1, "periods is not 4");
-  }
-
-  ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
-  if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_period_size failed");
-  }
-  printf("Sound device: %s, rate %d, buffer %d, periods %d, period size %d\n",
-         snd_pcm_name(playback_handle),
-         (int) p_sound->sample_rate,
-         (int) p_sound->buffer_size,
-         (int) periods,
-         (int) period_size);
-
-  if (period_size != p_sound->host_frames_per_fill) {
-    errx(1, "period size %zu not available", p_sound->host_frames_per_fill);
-  }
-
-  ret = snd_pcm_prepare(playback_handle);
-  if (ret != 0) {
-    errx(1, "snd_pcm_prepare failed");
-  }
 
   while (!*p_do_exit) {
     sound_fill_buffer(p_sound);
-
-    ret = snd_pcm_writei(playback_handle, p_sound->p_host_frames, period_size);
-    if (ret < 0) {
-      if (ret == -EPIPE) {
-        printf("sound: xrun\n");
-        ret = snd_pcm_prepare(playback_handle);
-        if (ret != 0) {
-          errx(1, "snd_pcm_prepare failed");
-        }
-      } else {
-        errx(1, "snd_pcm_writei failed: %d", ret);
-      }
-    } else if ((unsigned int) ret != period_size) {
-      errx(1, "snd_pcm_writei short write");
-    }
-  }
-
-  ret = snd_pcm_close(playback_handle);
-  if (ret != 0) {
-    errx(1, "snd_pcm_close failed");
+    os_sound_write(p_sound->p_driver,
+                   p_sound->p_driver_frames,
+                   p_sound->driver_chunk_size);
   }
 
   return NULL;
 }
 
 struct sound_struct*
-sound_create(struct bbc_options* p_options) {
+sound_create() {
   size_t i;
   double volume;
-  uint32_t option;
   int16_t max_volume;
 
-  const char* p_opt_flags = p_options->p_opt_flags;
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
-
   if (p_sound == NULL) {
     errx(1, "couldn't allocate sound_struct");
   }
+
   (void) memset(p_sound, '\0', sizeof(struct sound_struct));
-
-  p_sound->enabled = !util_has_option(p_opt_flags, "sound:off");
-
-  p_sound->sample_rate = 44100;
-  if (util_get_u32_option(&option, p_opt_flags, "sound:rate=")) {
-    p_sound->sample_rate = option;
-  }
-  p_sound->buffer_size = 512;
-  /* This check makes a sample rate of 96kHz work reasonably by upping the
-   * default buffer size. At 512 samples per callback @ 96kHz, it's hard for
-   * the audio system to keep up.
-   */
-  if (p_sound->sample_rate > 50000) {
-    p_sound->buffer_size = 1024;
-  }
-  if (util_get_u32_option(&option, p_opt_flags, "sound:buffer=")) {
-    p_sound->buffer_size = option;
-  }
-  p_sound->host_frames_per_fill = (p_sound->buffer_size / 4);
-  p_sound->sn_ticks_per_host_tick = ((double) 250000.0 /
-                                     (double) p_sound->sample_rate);
-  p_sound->sn_frames_per_fill = ceil(p_sound->sn_ticks_per_host_tick *
-                                     p_sound->host_frames_per_fill);
 
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
-
-  p_sound->p_host_frames = malloc(p_sound->host_frames_per_fill * 2);
-  if (p_sound->p_host_frames == NULL) {
-    errx(1, "couldn't allocate host_frames");
-  }
-  (void) memset(p_sound->p_host_frames,
-                '\0',
-                p_sound->host_frames_per_fill * 2);
-  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_fill * 2);
-  if (p_sound->p_sn_frames == NULL) {
-    errx(1, "couldn't allocate sn_frames");
-  }
-  (void) memset(p_sound->p_sn_frames, '\0', p_sound->sn_frames_per_fill * 2);
 
   volume = 1.0;
   i = 16;
@@ -412,7 +243,7 @@ void
 sound_destroy(struct sound_struct* p_sound) {
   if (p_sound->thread_running) {
     int ret;
-    assert(p_sound->enabled);
+    assert(p_sound->p_driver != NULL);
     assert(!p_sound->do_exit);
     p_sound->do_exit = 1;
     ret = pthread_join(p_sound->sound_thread, NULL);
@@ -420,16 +251,59 @@ sound_destroy(struct sound_struct* p_sound) {
       errx(1, "pthread_join failed");
     }
   }
-  free(p_sound->p_host_frames);
-  free(p_sound->p_sn_frames);
+  if (p_sound->p_driver_frames) {
+    free(p_sound->p_driver_frames);
+  }
+  if (p_sound->p_sn_frames) {
+    free(p_sound->p_sn_frames);
+  }
   free(p_sound);
+}
+
+void
+sound_set_driver(struct sound_struct* p_sound,
+                 struct os_sound_struct* p_driver) {
+  uint32_t driver_chunk_size;
+  uint32_t sample_rate;
+
+  assert(p_sound->p_driver == NULL);
+  assert(!p_sound->thread_running);
+
+  p_sound->p_driver = p_driver;
+
+  sample_rate = os_sound_get_sample_rate(p_driver);
+  driver_chunk_size = os_sound_get_write_chunk_size(p_driver);
+  assert(driver_chunk_size > 0);
+
+  p_sound->driver_chunk_size = driver_chunk_size;
+  /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
+  p_sound->sn_frames_per_driver_frame = ((double) 250000.0 /
+                                         (double) sample_rate);
+  p_sound->sn_frames_per_driver_chunk_size =
+      ceil(driver_chunk_size * p_sound->sn_frames_per_driver_frame);
+
+  p_sound->p_driver_frames = malloc(driver_chunk_size * sizeof(int16_t));
+  if (p_sound->p_driver_frames == NULL) {
+    errx(1, "couldn't allocate p_driver_frames");
+  }
+  (void) memset(p_sound->p_driver_frames,
+                '\0',
+                (driver_chunk_size * sizeof(int16_t)));
+  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_driver_chunk_size *
+                                sizeof(int16_t));
+  if (p_sound->p_sn_frames == NULL) {
+    errx(1, "couldn't allocate p_sn_frames");
+  }
+  (void) memset(p_sound->p_sn_frames,
+                '\0',
+                (p_sound->sn_frames_per_driver_chunk_size * sizeof(int16_t)));
 }
 
 void
 sound_start_playing(struct sound_struct* p_sound) {
   int ret;
 
-  if (!p_sound->enabled) {
+  if (p_sound->p_driver == NULL) {
     return;
   }
 
@@ -446,7 +320,7 @@ sound_start_playing(struct sound_struct* p_sound) {
 }
 
 void
-sound_sn_write(struct sound_struct* p_sound, unsigned char data) {
+sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
   int channel;
 
   int new_period = -1;

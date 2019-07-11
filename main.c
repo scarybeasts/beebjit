@@ -1,7 +1,9 @@
 #include "bbc.h"
 #include "cpu_driver.h"
 #include "os_poller.h"
+#include "os_sound.h"
 #include "os_window.h"
+#include "sound.h"
 #include "state.h"
 #include "test.h"
 #include "util.h"
@@ -22,6 +24,7 @@ main(int argc, const char* argv[]) {
   int i;
   struct os_window_struct* p_window;
   struct os_poller_struct* p_poller;
+  struct os_sound_struct* p_sound_driver;
   struct bbc_struct* p_bbc;
   size_t window_handle;
   size_t bbc_handle;
@@ -205,6 +208,16 @@ main(int argc, const char* argv[]) {
     errx(1, "os_poller_create failed");
   }
 
+  p_sound_driver = NULL;
+  if (!util_has_option(opt_flags, "sound:off")) {
+    uint32_t sound_sample_rate = 0;
+    uint32_t sound_buffer_size = 0;
+    (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
+    (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
+    p_sound_driver = os_sound_create(sound_sample_rate, sound_buffer_size);
+    (void) os_sound_init(p_sound_driver);
+    sound_set_driver(bbc_get_sound(p_bbc), p_sound_driver);
+  }
 
   bbc_run_async(p_bbc);
 
@@ -245,6 +258,10 @@ main(int argc, const char* argv[]) {
   os_poller_destroy(p_poller);
   os_window_destroy(p_window);
   bbc_destroy(p_bbc);
+
+  if (p_sound_driver != NULL) {
+    os_sound_destroy(p_sound_driver);
+  }
 
   return 0;
 }
