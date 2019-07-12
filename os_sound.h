@@ -5,7 +5,8 @@
 
 struct os_sound_struct;
 
-struct os_sound_struct* os_sound_create(uint32_t sample_rate,
+struct os_sound_struct* os_sound_create(char* p_device_name,
+                                        uint32_t sample_rate,
                                         uint32_t buffer_size);
 void os_sound_destroy(struct os_sound_struct* p_driver);
 

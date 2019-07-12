@@ -7,11 +7,13 @@
 
 #include <alsa/asoundlib.h>
 
+static const char* k_os_sound_default_device = "default";
 static const uint32_t k_os_sound_default_rate = 44100;
 static const uint32_t k_os_sound_default_buffer_size = 512;
 static const uint32_t k_os_sound_default_num_periods = 4;
 
 struct os_sound_struct {
+  char* p_device_name;
   uint32_t sample_rate;
   uint32_t buffer_size;
   uint32_t period_size;
@@ -19,13 +21,21 @@ struct os_sound_struct {
 };
 
 struct os_sound_struct*
-os_sound_create(uint32_t sample_rate, uint32_t buffer_size) {
+os_sound_create(char* p_device_name,
+                uint32_t sample_rate,
+                uint32_t buffer_size) {
   struct os_sound_struct* p_driver = malloc(sizeof(struct os_sound_struct));
   if (p_driver == NULL) {
     errx(1, "couldn't allocate os_sound_struct");
   }
 
   (void) memset(p_driver, '\0', sizeof(struct os_sound_struct));
+
+  if (p_device_name == NULL) {
+    p_driver->p_device_name = strdup(k_os_sound_default_device);
+  } else {
+    p_driver->p_device_name = p_device_name;
+  }
 
   if (sample_rate == 0) {
     sample_rate = k_os_sound_default_rate;
@@ -56,6 +66,8 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
     errx(1, "snd_pcm_close failed");
   }
 
+  free(p_driver->p_device_name);
+
   free(p_driver);
 }
 
@@ -73,11 +85,11 @@ os_sound_init(struct os_sound_struct* p_driver) {
   unsigned int rate_ret = rate;
 
   ret = snd_pcm_open(&playback_handle,
-                     "default",
+                     p_driver->p_device_name,
                      SND_PCM_STREAM_PLAYBACK,
                      0);
   if (ret != 0) {
-    fprintf(stderr, "snd_pcm_open failed");
+    fprintf(stderr, "snd_pcm_open failed\n");
     return -1;
   }
 
@@ -187,7 +199,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
 
   ret = snd_pcm_prepare(playback_handle);
   if (ret != 0) {
-    fprintf(stderr, "snd_pcm_prepare failed");
+    fprintf(stderr, "snd_pcm_prepare failed\n");
     return -1;
   }
 

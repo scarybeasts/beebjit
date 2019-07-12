@@ -210,13 +210,20 @@ main(int argc, const char* argv[]) {
 
   p_sound_driver = NULL;
   if (!util_has_option(opt_flags, "sound:off")) {
+    int ret;
+    char* p_device_name = NULL;
     uint32_t sound_sample_rate = 0;
     uint32_t sound_buffer_size = 0;
     (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
     (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
-    p_sound_driver = os_sound_create(sound_sample_rate, sound_buffer_size);
-    (void) os_sound_init(p_sound_driver);
-    sound_set_driver(bbc_get_sound(p_bbc), p_sound_driver);
+    (void) util_get_str_option(&p_device_name, opt_flags, "sound:dev=");
+    p_sound_driver = os_sound_create(p_device_name,
+                                     sound_sample_rate,
+                                     sound_buffer_size);
+    ret = os_sound_init(p_sound_driver);
+    if (ret == 0) {
+      sound_set_driver(bbc_get_sound(p_bbc), p_sound_driver);
+    }
   }
 
   bbc_run_async(p_bbc);

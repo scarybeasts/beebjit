@@ -429,26 +429,59 @@ util_get_channel_fds(int* fd1, int* fd2) {
   *fd2 = fds[1];
 }
 
+static const char*
+util_locate_option(const char* p_opt_str,
+                   const char* p_opt_name) {
+  const char* p_opt_pos;
+
+  if (p_opt_str == NULL) {
+    return NULL;
+  }
+
+  p_opt_pos = strstr(p_opt_str, p_opt_name);
+  if (p_opt_pos != NULL) {
+    p_opt_pos += strlen(p_opt_name);
+  }
+
+  return p_opt_pos;
+}
+
 int
 util_get_u32_option(uint32_t* p_opt_out,
                     const char* p_opt_str,
                     const char* p_opt_name) {
   int matches;
-  const char* p_opt_pos;
 
-  if (p_opt_str == NULL) {
-    return 0;
-  }
-
-  p_opt_pos = strstr(p_opt_str, p_opt_name);
+  const char* p_opt_pos = util_locate_option(p_opt_str, p_opt_name);
   if (p_opt_pos == NULL) {
     return 0;
   }
-  p_opt_pos += strlen(p_opt_name);
+
   matches = sscanf(p_opt_pos, "%u", p_opt_out);
   if (matches != 1) {
     return 0;
   }
+  return 1;
+}
+
+int
+util_get_str_option(char** p_opt_out,
+                    const char* p_opt_str,
+                    const char* p_opt_name) {
+  const char* p_opt_end;
+
+  const char* p_opt_pos = util_locate_option(p_opt_str, p_opt_name);
+  if (p_opt_pos == NULL) {
+    return 0;
+  }
+
+  p_opt_end = p_opt_pos;
+  while (*p_opt_end != '\0' && *p_opt_end != ',') {
+    p_opt_end++;
+  }
+
+  *p_opt_out = strndup(p_opt_pos, (p_opt_end - p_opt_pos));
+
   return 1;
 }
 
