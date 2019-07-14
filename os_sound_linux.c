@@ -212,8 +212,61 @@ os_sound_get_sample_rate(struct os_sound_struct* p_driver) {
 }
 
 uint32_t
-os_sound_get_write_chunk_size(struct os_sound_struct* p_driver) {
+os_sound_get_buffer_size(struct os_sound_struct* p_driver) {
+  return p_driver->buffer_size;
+}
+
+uint32_t
+os_sound_get_period_size(struct os_sound_struct* p_driver) {
   return p_driver->period_size;
+}
+
+static void
+os_sound_handle_xrun(struct os_sound_struct* p_driver) {
+  snd_pcm_t* playback_handle = p_driver->playback_handle;
+  int ret = snd_pcm_prepare(playback_handle);
+
+  printf("sound: xrun\n");
+
+  if (ret != 0) {
+    errx(1, "snd_pcm_prepare failed");
+  }
+}
+
+uint32_t
+os_sound_wait_for_frame_space(struct os_sound_struct* p_driver) {
+  snd_pcm_sframes_t num_frames;
+
+  snd_pcm_t* playback_handle = p_driver->playback_handle;
+  int ret = snd_pcm_wait(playback_handle, -1);
+
+  if (ret < 0) {
+    if (ret == -EPIPE) {
+      os_sound_handle_xrun(p_driver);
+    } else {
+      errx(1, "snd_pcm_wait failed: %d", ret);
+    }
+  } else {
+    assert(ret != 0);
+  }
+
+  while (1) {
+    num_frames = snd_pcm_avail_update(playback_handle);
+    if (num_frames <= 0) {
+      if ((num_frames < 0) && (num_frames == -EPIPE)) {
+        os_sound_handle_xrun(p_driver);
+        continue;
+      } else {
+        errx(1, "snd_pcm_avail_update failed: %ld", num_frames);
+      }
+    } else {
+      assert(num_frames >= p_driver->period_size);
+      assert(num_frames <= p_driver->buffer_size);
+    }
+    break;
+  }
+
+  return num_frames;
 }
 
 void
@@ -223,20 +276,11 @@ os_sound_write(struct os_sound_struct* p_driver,
   int ret;
 
   snd_pcm_t* playback_handle = p_driver->playback_handle;
-  uint32_t period_size = p_driver->period_size;
-
-  if (num_frames != period_size) {
-    errx(1, "os_sound_write: incorrect frame count");
-  }
 
   ret = snd_pcm_writei(playback_handle, p_frames, num_frames);
   if (ret < 0) {
     if (ret == -EPIPE) {
-      printf("sound: xrun\n");
-      ret = snd_pcm_prepare(playback_handle);
-      if (ret != 0) {
-        errx(1, "snd_pcm_prepare failed");
-      }
+      os_sound_handle_xrun(p_driver);
     } else {
       errx(1, "snd_pcm_writei failed: %d", ret);
     }

@@ -20,11 +20,11 @@ struct sound_struct {
   struct os_sound_struct* p_driver;
 
   /* Configuration. */
-  uint32_t driver_chunk_size;
+  uint32_t driver_buffer_size;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
-  uint32_t sn_frames_per_driver_chunk_size;
+  uint32_t sn_frames_per_driver_buffer_size;
   int16_t volumes[16];
 
   /* Internal state. */
@@ -48,12 +48,10 @@ struct sound_struct {
 };
 
 static void
-sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
+sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
   uint32_t i;
   uint8_t channel;
 
-  uint32_t sn_frames_per_driver_chunk_size =
-      p_sound->sn_frames_per_driver_chunk_size;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   uint16_t* p_counters = &p_sound->counter[0];
   int8_t* p_outputs = &p_sound->output[0];
@@ -63,7 +61,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
   volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
   volatile int* p_noise_type = &p_sound->noise_type;
 
-  for (i = 0; i < sn_frames_per_driver_chunk_size; ++i) {
+  for (i = 0; i < num_frames; ++i) {
     int16_t sample = 0;
     for (channel = 0; channel < 4; ++channel) {
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
@@ -127,23 +125,27 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound) {
 }
 
 static void
-sound_fill_buffer(struct sound_struct* p_sound) {
+sound_fill_buffer(struct sound_struct* p_sound, uint32_t num_driver_frames) {
   uint32_t i;
 
   int16_t* p_driver_frames = p_sound->p_driver_frames;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
-  uint32_t driver_chunk_size = p_sound->driver_chunk_size;
   double resample_step = p_sound->sn_frames_per_driver_frame;
   double resample_index = 0;
+  uint32_t num_sn_frames = (num_driver_frames * resample_step);
+
+  assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
 
   /* Generate the 250kHz signal from the sn76489. */
-  sound_fill_sn76489_buffer(p_sound);
+  sound_fill_sn76489_buffer(p_sound, num_sn_frames);
 
   /* Downsample it to host device rate via simple nearest integer index
    * selection.
    */
-  for (i = 0; i < driver_chunk_size; ++i) {
-    p_driver_frames[i] = p_sn_frames[(uint32_t) round(resample_index)];
+  for (i = 0; i < num_driver_frames; ++i) {
+    uint32_t index = round(resample_index);
+    assert(index < p_sound->sn_frames_per_driver_buffer_size);
+    p_driver_frames[i] = p_sn_frames[index];
     resample_index += resample_step;
   }
 }
@@ -151,13 +153,16 @@ sound_fill_buffer(struct sound_struct* p_sound) {
 static void*
 sound_play_thread(void* p) {
   struct sound_struct* p_sound = (struct sound_struct*) p;
+  struct os_sound_struct* p_sound_driver = p_sound->p_driver;
   volatile int* p_do_exit = &p_sound->do_exit;
 
   while (!*p_do_exit) {
-    sound_fill_buffer(p_sound);
-    os_sound_write(p_sound->p_driver,
+    uint32_t num_driver_frames = os_sound_wait_for_frame_space(p_sound_driver);
+    assert(num_driver_frames <= p_sound->driver_buffer_size);
+    sound_fill_buffer(p_sound, num_driver_frames);
+    os_sound_write(p_sound_driver,
                    p_sound->p_driver_frames,
-                   p_sound->driver_chunk_size);
+                   num_driver_frames);
   }
 
   return NULL;
@@ -263,6 +268,7 @@ sound_destroy(struct sound_struct* p_sound) {
 void
 sound_set_driver(struct sound_struct* p_sound,
                  struct os_sound_struct* p_driver) {
+  uint32_t driver_buffer_size;
   uint32_t driver_chunk_size;
   uint32_t sample_rate;
 
@@ -272,31 +278,33 @@ sound_set_driver(struct sound_struct* p_sound,
   p_sound->p_driver = p_driver;
 
   sample_rate = os_sound_get_sample_rate(p_driver);
-  driver_chunk_size = os_sound_get_write_chunk_size(p_driver);
+  driver_buffer_size = os_sound_get_buffer_size(p_driver);
+  driver_chunk_size = os_sound_get_period_size(p_driver);
+  (void) driver_chunk_size;
   assert(driver_chunk_size > 0);
 
-  p_sound->driver_chunk_size = driver_chunk_size;
+  p_sound->driver_buffer_size = driver_buffer_size;
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
   p_sound->sn_frames_per_driver_frame = ((double) 250000.0 /
                                          (double) sample_rate);
-  p_sound->sn_frames_per_driver_chunk_size =
-      ceil(driver_chunk_size * p_sound->sn_frames_per_driver_frame);
+  p_sound->sn_frames_per_driver_buffer_size =
+      ceil(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
 
-  p_sound->p_driver_frames = malloc(driver_chunk_size * sizeof(int16_t));
+  p_sound->p_driver_frames = malloc(driver_buffer_size * sizeof(int16_t));
   if (p_sound->p_driver_frames == NULL) {
     errx(1, "couldn't allocate p_driver_frames");
   }
   (void) memset(p_sound->p_driver_frames,
                 '\0',
-                (driver_chunk_size * sizeof(int16_t)));
-  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_driver_chunk_size *
+                (driver_buffer_size * sizeof(int16_t)));
+  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_driver_buffer_size *
                                 sizeof(int16_t));
   if (p_sound->p_sn_frames == NULL) {
     errx(1, "couldn't allocate p_sn_frames");
   }
   (void) memset(p_sound->p_sn_frames,
                 '\0',
-                (p_sound->sn_frames_per_driver_chunk_size * sizeof(int16_t)));
+                (p_sound->sn_frames_per_driver_buffer_size * sizeof(int16_t)));
 }
 
 void
