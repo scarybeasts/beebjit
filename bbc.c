@@ -93,7 +93,8 @@ struct bbc_struct {
   uint32_t exit_value;
   /* Timing support. */
   size_t timer_id;
-  uint64_t cycles_per_run;
+  uint64_t cycles_per_run_fast;
+  uint64_t cycles_per_run_normal;
   uint64_t last_time_us;
   uint8_t romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
@@ -930,6 +931,7 @@ bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
 static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
+  uint64_t cycles_next_run;
   int64_t refreshed_time;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -956,6 +958,7 @@ bbc_cycles_timer_callback(void* p) {
     uint64_t next_wakeup_time_us;
     int64_t spare_time_us;
 
+    cycles_next_run = p_bbc->cycles_per_run_normal;
     delta_us = (1000000 / k_system_wakeup_rate);
     next_wakeup_time_us = (p_bbc->last_time_us + delta_us);
     spare_time_us = (next_wakeup_time_us - curr_time_us);
@@ -984,6 +987,7 @@ bbc_cycles_timer_callback(void* p) {
      * manage. Host CPU usage for the system's main thread will be 100%.
      * Effective system CPU rates of many GHz are likely to be obtained.
      */
+    cycles_next_run = p_bbc->cycles_per_run_fast;
     /* TODO: limit delta_us max size in case system was paused? */
     delta_us = (curr_time_us - p_bbc->last_time_us);
   }
@@ -993,7 +997,7 @@ bbc_cycles_timer_callback(void* p) {
   (void) timing_adjust_timer_value(p_timing,
                                    &refreshed_time,
                                    p_bbc->timer_id,
-                                   p_bbc->cycles_per_run);
+                                   cycles_next_run);
 
   assert(refreshed_time > 0);
 
@@ -1012,46 +1016,44 @@ static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   uint32_t option_cycles_per_run;
   uint64_t speed;
-  uint64_t cycles_per_run;
   struct timing_struct* p_timing = p_bbc->p_timing;
   p_bbc->timer_id = timing_register_timer(p_timing,
                                           bbc_cycles_timer_callback,
                                           p_bbc);
 
-  if (p_bbc->slow_flag) {
-    speed = k_bbc_tick_rate;
+  /* Normal mode is when the system is running at real time, aka. "slow" mode.
+   * Fast mode is when the system is running the CPU as fast as possible.
+   * In fast mode, peripherals may run either in real time, or synced with
+   * fast CPU.
+   */
+  p_bbc->cycles_per_run_normal = (k_bbc_tick_rate / k_system_wakeup_rate);
+
+  /* For fast mode, estimate how fast the CPU really is (based on JIT mode,
+   * debug mode, etc.) And then arrange to check in at approximately every
+   * k_system_wakeup_rate. This will ensure reasonable timer resolution and
+   * excellent keyboard response.
+   */
+  if (p_bbc->debug_flag) {
+    /* Assume 20Mhz speed or so. */
+    speed = (20ull * 1000 * 1000);
   } else {
-    /* We're going as fast as we can; check in every so often, about 1000 times
-     * per second so that keyboard response is excellent and timer resolution
-     * reasonable.
-     * Depending on mode, 1000 times a second approximates to a different
-     * number of cycles.
+    /* 500Mhz for now. Something like JIT is much much faster but I think
+     * there's a problem with tight hardware register poll loops (e.g.
+     * vsync wait) being much slower.
      */
-    if (p_bbc->debug_flag) {
-      /* Assume 20Mhz speed or so. */
-      speed = (20ull * 1000 * 1000);
-    } else {
-      /* 500Mhz for now. Something like JIT is much much faster but I think
-       * there's a problem with tight hardware register poll loops (e.g.
-       * vsync wait) being much slower.
-       */
-      speed = (500ull * 1000 * 1000);
-    }
+    speed = (500ull * 1000 * 1000);
   }
 
-  cycles_per_run = (speed / k_system_wakeup_rate);
+  p_bbc->cycles_per_run_fast = (speed / k_system_wakeup_rate);
 
   if (util_get_u32_option(&option_cycles_per_run,
                           p_bbc->options.p_opt_flags,
                           "bbc:cycles-per-run=")) {
-    cycles_per_run = option_cycles_per_run;
+    p_bbc->cycles_per_run_fast = option_cycles_per_run;
   }
 
-  p_bbc->cycles_per_run = cycles_per_run;
+  (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id, 1);
 
-  (void) timing_start_timer_with_value(p_timing,
-                                       p_bbc->timer_id,
-                                       cycles_per_run);
   p_bbc->last_time_us = util_gettime_us();
 }
 
