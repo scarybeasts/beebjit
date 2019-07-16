@@ -68,8 +68,6 @@ struct bbc_struct {
   int slow_flag;
   int vsync_wait_for_render;
   struct bbc_options options;
-  int externally_clocked_via;
-  int externally_clocked_crtc;
 
   /* Machine state. */
   struct state_6502* p_state_6502;
@@ -631,8 +629,6 @@ bbc_create(int mode,
     externally_clocked_via = 0;
     externally_clocked_crtc = 0;
   }
-  p_bbc->externally_clocked_via = externally_clocked_via;
-  p_bbc->externally_clocked_crtc = externally_clocked_crtc;
 
   p_timing = timing_create(k_bbc_tick_rate);
   if (p_timing == NULL) {
