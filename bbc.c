@@ -503,6 +503,7 @@ bbc_create(int mode,
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
+  int synchronous_sound = 0;
 
   struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
   if (p_bbc == NULL) {
@@ -628,6 +629,7 @@ bbc_create(int mode,
   if (accurate_flag) {
     externally_clocked_via = 0;
     externally_clocked_crtc = 0;
+    /*synchronous_sound = 1;*/
   }
 
   p_timing = timing_create(k_bbc_tick_rate);
@@ -662,7 +664,7 @@ bbc_create(int mode,
     errx(1, "keyboard_create failed");
   }
 
-  p_bbc->p_sound = sound_create();
+  p_bbc->p_sound = sound_create(synchronous_sound, p_timing);
   if (p_bbc->p_sound == NULL) {
     errx(1, "sound_create failed");
   }
@@ -925,6 +927,48 @@ bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
 }
 
 static void
+bbc_do_sleep(struct bbc_struct* p_bbc,
+             uint64_t last_time_us,
+             uint64_t curr_time_us,
+             uint64_t delta_us) {
+  uint64_t next_wakeup_time_us;
+  int64_t spare_time_us;
+
+  struct sound_struct* p_sound = p_bbc->p_sound;
+
+  /* If we're synchronously writing to the sound driver at the same time the
+   * CPU executes, the timing is locked to the blocking sound driver write.
+   */
+  if (sound_is_active(p_sound) && sound_is_synchronous(p_sound)) {
+    return;
+  }
+
+  next_wakeup_time_us = (last_time_us + delta_us);
+  spare_time_us = (next_wakeup_time_us - curr_time_us);
+
+  p_bbc->last_time_us = next_wakeup_time_us;
+
+  if (spare_time_us >= 0) {
+    util_sleep_us(spare_time_us);
+  } else {
+    /* Missed a tick.
+     * In all cases, don't sleep.
+     */
+     if (spare_time_us >= -20000) {
+       /* If it's a small miss, keep the existing timing expectations so that
+        * virtual time can catch up to wall time.
+        */
+     } else {
+       /* If it's a large miss, perhaps the system was paused in the
+        * debugger or some other good reason, so reset timing expectations
+        * to avoid a huge flurry of catch-up at 100% CPU.
+        */
+       p_bbc->last_time_us = curr_time_us;
+     }
+  }
+}
+
+static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
@@ -934,6 +978,9 @@ bbc_cycles_timer_callback(void* p) {
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct timing_struct* p_timing = p_bbc->p_timing;
   uint64_t curr_time_us = util_gettime_us();
+  uint64_t last_time_us = p_bbc->last_time_us;
+
+  p_bbc->last_time_us = curr_time_us;
 
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_check_and_clear_alt_key(p_keyboard, 'F')) {
@@ -951,32 +998,10 @@ bbc_cycles_timer_callback(void* p) {
      * specifically some fraction of a 50Hz frame, a highly responsive system
      * results.
      */
-    uint64_t next_wakeup_time_us;
-    int64_t spare_time_us;
-
     cycles_next_run = p_bbc->cycles_per_run_normal;
     delta_us = (1000000 / k_system_wakeup_rate);
-    next_wakeup_time_us = (p_bbc->last_time_us + delta_us);
-    spare_time_us = (next_wakeup_time_us - curr_time_us);
-    if (spare_time_us >= 0) {
-      util_sleep_us(spare_time_us);
-      curr_time_us = next_wakeup_time_us;
-    } else {
-      /* Missed a tick.
-       * In all cases, don't sleep.
-       */
-       if (spare_time_us >= -20000) {
-         /* If it's a small miss, keep the existing timing expectations so that
-          * virtual time can catch up to wall time.
-          */
-        curr_time_us = next_wakeup_time_us;
-       } else {
-         /* If it's a large miss, perhaps the system was paused in the
-          * debugger or some other good reason, so reset timing expectations
-          * to avoid a huge flurry of catch-up at 100% CPU.
-          */
-       }
-    }
+
+    bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
   } else {
     /* Fast mode.
      * Fast mode is where the system executes as fast as the host CPU can
@@ -985,10 +1010,8 @@ bbc_cycles_timer_callback(void* p) {
      */
     cycles_next_run = p_bbc->cycles_per_run_fast;
     /* TODO: limit delta_us max size in case system was paused? */
-    delta_us = (curr_time_us - p_bbc->last_time_us);
+    delta_us = (curr_time_us - last_time_us);
   }
-
-  p_bbc->last_time_us = curr_time_us;
 
   (void) timing_adjust_timer_value(p_timing,
                                    &refreshed_time,
@@ -1003,6 +1026,9 @@ bbc_cycles_timer_callback(void* p) {
   via_apply_wall_time_delta(p_bbc->p_system_via, delta_us);
   via_apply_wall_time_delta(p_bbc->p_user_via, delta_us);
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
+
+  /* Prod the sound module in case it's in synchronous mode. */
+  sound_tick(p_bbc->p_sound);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read_port_a(p_bbc->p_system_via);

@@ -4,15 +4,20 @@
 #include <stdint.h>
 
 struct os_sound_struct;
+struct timing_struct;
 
 struct sound_struct;
 
-struct sound_struct* sound_create();
+struct sound_struct* sound_create(int synchronous,
+                                  struct timing_struct* p_timing);
 void sound_destroy(struct sound_struct* p_sound);
 
 void sound_set_driver(struct sound_struct* p_sound,
                       struct os_sound_struct* p_driver);
 void sound_start_playing(struct sound_struct* p_sound);
+int sound_is_active(struct sound_struct* p_sound);
+int sound_is_synchronous(struct sound_struct* p_sound);
+void sound_tick(struct sound_struct* p_sound);
 
 void sound_get_state(struct sound_struct* p_sound,
                      uint8_t* p_volumes,

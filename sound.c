@@ -20,6 +20,7 @@ struct sound_struct {
   struct os_sound_struct* p_driver;
 
   /* Configuration. */
+  int synchronous;
   uint32_t driver_buffer_size;
 
   /* Calculated configuration. */
@@ -45,6 +46,9 @@ struct sound_struct {
   /* 1 is white, 0 is periodic. */
   int noise_type;
   int last_channel;
+
+  /* Timing. */
+  struct timing_struct* p_timing;
 };
 
 static void
@@ -169,7 +173,7 @@ sound_play_thread(void* p) {
 }
 
 struct sound_struct*
-sound_create() {
+sound_create(int synchronous, struct timing_struct* p_timing) {
   size_t i;
   double volume;
   int16_t max_volume;
@@ -181,6 +185,8 @@ sound_create() {
 
   (void) memset(p_sound, '\0', sizeof(struct sound_struct));
 
+  p_sound->p_timing = p_timing;
+  p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
 
@@ -315,6 +321,10 @@ sound_start_playing(struct sound_struct* p_sound) {
     return;
   }
 
+  if (p_sound->synchronous) {
+    return;
+  }
+
   assert(!p_sound->thread_running);
   ret = pthread_create(&p_sound->sound_thread,
                        NULL,
@@ -325,6 +335,23 @@ sound_start_playing(struct sound_struct* p_sound) {
   }
 
   p_sound->thread_running = 1;
+}
+
+int
+sound_is_active(struct sound_struct* p_sound) {
+  return (p_sound->p_driver != NULL);
+}
+
+int
+sound_is_synchronous(struct sound_struct* p_sound) {
+  return p_sound->synchronous;
+}
+
+void
+sound_tick(struct sound_struct* p_sound) {
+  if (!p_sound->synchronous) {
+    return;
+  }
 }
 
 void
