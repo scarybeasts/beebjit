@@ -269,6 +269,25 @@ os_sound_wait_for_frame_space(struct os_sound_struct* p_driver) {
   return num_frames;
 }
 
+uint32_t
+os_sound_get_frame_space(struct os_sound_struct* p_driver) {
+  snd_pcm_sframes_t num_frames;
+  while (1) {
+    num_frames = snd_pcm_avail(p_driver->playback_handle);
+    if (num_frames < 0) {
+      if (num_frames == -EPIPE) {
+        os_sound_handle_xrun(p_driver);
+        continue;
+      } else {
+        errx(1, "snd_pcm_avail failed: %ld", num_frames);
+      }
+    }
+    break;
+  }
+
+  return num_frames;
+}
+
 void
 os_sound_write(struct os_sound_struct* p_driver,
                int16_t* p_frames,

@@ -17,6 +17,7 @@ uint32_t os_sound_get_buffer_size(struct os_sound_struct* p_driver);
 uint32_t os_sound_get_period_size(struct os_sound_struct* p_driver);
 
 uint32_t os_sound_wait_for_frame_space(struct os_sound_struct* p_driver);
+uint32_t os_sound_get_frame_space(struct os_sound_struct* p_driver);
 void os_sound_write(struct os_sound_struct* p_driver,
                     int16_t* p_frames,
                     uint32_t num_frames);

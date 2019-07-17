@@ -629,7 +629,7 @@ bbc_create(int mode,
   if (accurate_flag) {
     externally_clocked_via = 0;
     externally_clocked_crtc = 0;
-    /*synchronous_sound = 1;*/
+    synchronous_sound = 1;
   }
 
   p_timing = timing_create(k_bbc_tick_rate);
@@ -973,6 +973,7 @@ bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
   int64_t refreshed_time;
+  int sound_blocking;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
@@ -1028,7 +1029,8 @@ bbc_cycles_timer_callback(void* p) {
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Prod the sound module in case it's in synchronous mode. */
-  sound_tick(p_bbc->p_sound);
+  sound_blocking = p_bbc->slow_flag;
+  sound_tick(p_bbc->p_sound, sound_blocking);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */
   (void) via_read_port_a(p_bbc->p_system_via);

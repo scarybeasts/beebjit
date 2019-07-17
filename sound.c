@@ -1,6 +1,7 @@
 #include "sound.h"
 
 #include "os_sound.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
@@ -49,6 +50,7 @@ struct sound_struct {
 
   /* Timing. */
   struct timing_struct* p_timing;
+  uint64_t prev_system_ticks;
 };
 
 static void
@@ -358,10 +360,43 @@ sound_is_synchronous(struct sound_struct* p_sound) {
 }
 
 void
-sound_tick(struct sound_struct* p_sound) {
+sound_tick(struct sound_struct* p_sound, int blocking) {
+  uint64_t curr_system_ticks;
+  uint32_t prev_sn_ticks;
+  uint32_t curr_sn_ticks;
+  uint32_t delta_sn_ticks;
+  uint32_t num_driver_frames;
+
+  struct os_sound_struct* p_driver = p_sound->p_driver;
+
+  if (p_driver == NULL) {
+    return;
+  }
+
   if (!p_sound->synchronous) {
     return;
   }
+
+  curr_system_ticks = timing_get_total_timer_ticks(p_sound->p_timing);
+
+  prev_sn_ticks = (p_sound->prev_system_ticks / 8);
+  curr_sn_ticks = (curr_system_ticks / 8);
+  delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
+  /* In fast mode, the ticks delta will be insanely huge and needs capping. */
+  if (delta_sn_ticks > p_sound->sn_frames_per_driver_buffer_size) {
+    delta_sn_ticks = p_sound->sn_frames_per_driver_buffer_size;
+  }
+
+  p_sound->prev_system_ticks = curr_system_ticks;
+
+  num_driver_frames = sound_fill_buffer(p_sound, delta_sn_ticks);
+  if (!blocking) {
+    uint32_t driver_frames_space = os_sound_get_frame_space(p_driver);
+    if (num_driver_frames > driver_frames_space) {
+      num_driver_frames = driver_frames_space;
+    }
+  }
+  os_sound_write(p_driver, p_sound->p_driver_frames, num_driver_frames);
 }
 
 void
