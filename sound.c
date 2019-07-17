@@ -128,17 +128,18 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
   }
 }
 
-static void
-sound_fill_buffer(struct sound_struct* p_sound, uint32_t num_driver_frames) {
+static uint32_t
+sound_fill_buffer(struct sound_struct* p_sound, uint32_t num_sn_frames) {
   uint32_t i;
 
   int16_t* p_driver_frames = p_sound->p_driver_frames;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   double resample_step = p_sound->sn_frames_per_driver_frame;
   double resample_index = 0;
-  uint32_t num_sn_frames = (num_driver_frames * resample_step);
+  uint32_t num_driver_frames = (num_sn_frames / resample_step);
 
   assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
+  assert(num_driver_frames <= p_sound->driver_buffer_size);
 
   /* Generate the 250kHz signal from the sn76489. */
   sound_fill_sn76489_buffer(p_sound, num_sn_frames);
@@ -152,6 +153,8 @@ sound_fill_buffer(struct sound_struct* p_sound, uint32_t num_driver_frames) {
     p_driver_frames[i] = p_sn_frames[index];
     resample_index += resample_step;
   }
+
+  return num_driver_frames;
 }
 
 static void*
@@ -162,8 +165,15 @@ sound_play_thread(void* p) {
 
   while (!*p_do_exit) {
     uint32_t num_driver_frames = os_sound_wait_for_frame_space(p_sound_driver);
+    uint32_t num_sn_frames = (num_driver_frames *
+                              p_sound->sn_frames_per_driver_frame);
     assert(num_driver_frames <= p_sound->driver_buffer_size);
-    sound_fill_buffer(p_sound, num_driver_frames);
+    assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
+
+    /* Note: num_driver_frames may be one less than desired due to rounding
+     * down.
+     */
+    num_driver_frames = sound_fill_buffer(p_sound, num_sn_frames);
     os_sound_write(p_sound_driver,
                    p_sound->p_driver_frames,
                    num_driver_frames);
