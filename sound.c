@@ -62,13 +62,17 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   uint16_t* p_counters = &p_sound->counter[0];
   int8_t* p_outputs = &p_sound->output[0];
+  uint32_t sn_frames_filled = p_sound->sn_frames_filled;
   /* These are written by another thread. */
   volatile int16_t* p_volumes = &p_sound->volume[0];
   volatile uint16_t* p_periods = &p_sound->period[0];
   volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
   volatile int* p_noise_type = &p_sound->noise_type;
 
-  assert(p_sound->sn_frames_filled == 0);
+  if ((sn_frames_filled + num_frames) >
+      p_sound->sn_frames_per_driver_buffer_size) {
+    errx(1, "p_sn_frames overflowed");
+  }
 
   for (i = 0; i < num_frames; ++i) {
     int16_t sample = 0;
@@ -129,10 +133,10 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
       }
       sample += sample_component;
     }
-    p_sn_frames[i] = sample;
+    p_sn_frames[sn_frames_filled + i] = sample;
   }
 
-  p_sound->sn_frames_filled = num_frames;
+  p_sound->sn_frames_filled += num_frames;
 }
 
 static uint32_t
@@ -376,13 +380,16 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint32_t delta_sn_ticks;
 
   uint64_t curr_system_ticks = timing_get_total_timer_ticks(p_sound->p_timing);
+  uint32_t sn_frames_filled = p_sound->sn_frames_filled;
+  uint32_t sn_frames_per_driver_buffer_size =
+      p_sound->sn_frames_per_driver_buffer_size;
 
   prev_sn_ticks = (p_sound->prev_system_ticks / 8);
   curr_sn_ticks = (curr_system_ticks / 8);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
   /* In fast mode, the ticks delta will be insanely huge and needs capping. */
-  if (delta_sn_ticks > p_sound->sn_frames_per_driver_buffer_size) {
-    delta_sn_ticks = p_sound->sn_frames_per_driver_buffer_size;
+  if ((sn_frames_filled + delta_sn_ticks) > sn_frames_per_driver_buffer_size) {
+    delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
 
   sound_fill_sn76489_buffer(p_sound, delta_sn_ticks);
@@ -422,7 +429,8 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
 
   int new_period = -1;
 
-  if (p_sound->synchronous) {
+  if (p_sound->synchronous && (p_sound->p_driver != NULL)) {
+    sound_advance_sn_timing(p_sound);
   }
 
   if (data & 0x80) {
