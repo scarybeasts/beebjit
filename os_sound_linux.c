@@ -292,18 +292,22 @@ void
 os_sound_write(struct os_sound_struct* p_driver,
                int16_t* p_frames,
                uint32_t num_frames) {
-  int ret;
+  snd_pcm_sframes_t ret;
 
   snd_pcm_t* playback_handle = p_driver->playback_handle;
 
-  ret = snd_pcm_writei(playback_handle, p_frames, num_frames);
-  if (ret < 0) {
-    if (ret == -EPIPE) {
-      os_sound_handle_xrun(p_driver);
+  while (1) {
+    ret = snd_pcm_writei(playback_handle, p_frames, num_frames);
+    if (ret < 0) {
+      if (ret == -EPIPE) {
+        os_sound_handle_xrun(p_driver);
+      } else {
+        errx(1, "snd_pcm_writei failed: %ld", ret);
+      }
+    } else if (ret == num_frames) {
+      break;
     } else {
-      errx(1, "snd_pcm_writei failed: %d", ret);
+      num_frames -= ret;
     }
-  } else if ((unsigned int) ret != num_frames) {
-    errx(1, "snd_pcm_writei short write");
   }
 }
