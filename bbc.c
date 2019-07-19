@@ -27,7 +27,7 @@ static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
 
 static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz. */
-static const size_t k_system_wakeup_rate = 1000; /* 1ms / 1kHz. */
+static const size_t k_bbc_default_wakeup_rate = 1000; /* 1ms / 1kHz. */
 
 /* This data is from b-em, thanks b-em! */
 static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
@@ -91,6 +91,7 @@ struct bbc_struct {
   uint32_t exit_value;
   /* Timing support. */
   size_t timer_id;
+  uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
   uint64_t last_time_us;
@@ -525,6 +526,11 @@ bbc_create(int mode,
     errx(1, "couldn't allocate bbc struct");
   }
   (void) memset(p_bbc, '\0', sizeof(struct bbc_struct));
+
+  p_bbc->wakeup_rate = k_bbc_default_wakeup_rate;
+  (void) util_get_u32_option(&p_bbc->wakeup_rate,
+                             p_opt_flags,
+                             "bbc:wakeup-rate=");
 
   ret = pipe(&pipefd[0]);
   if (ret != 0) {
@@ -1015,7 +1021,7 @@ bbc_cycles_timer_callback(void* p) {
      * results.
      */
     cycles_next_run = p_bbc->cycles_per_run_normal;
-    delta_us = (1000000 / k_system_wakeup_rate);
+    delta_us = (1000000 / p_bbc->wakeup_rate);
 
     bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
   } else {
@@ -1055,7 +1061,9 @@ static void
 bbc_start_timer_tick(struct bbc_struct* p_bbc) {
   uint32_t option_cycles_per_run;
   uint64_t speed;
+
   struct timing_struct* p_timing = p_bbc->p_timing;
+
   p_bbc->timer_id = timing_register_timer(p_timing,
                                           bbc_cycles_timer_callback,
                                           p_bbc);
@@ -1065,11 +1073,11 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
    * In fast mode, peripherals may run either in real time, or synced with
    * fast CPU.
    */
-  p_bbc->cycles_per_run_normal = (k_bbc_tick_rate / k_system_wakeup_rate);
+  p_bbc->cycles_per_run_normal = (k_bbc_tick_rate / p_bbc->wakeup_rate);
 
   /* For fast mode, estimate how fast the CPU really is (based on JIT mode,
    * debug mode, etc.) And then arrange to check in at approximately every
-   * k_system_wakeup_rate. This will ensure reasonable timer resolution and
+   * p_bbc->wakeup_rate. This will ensure reasonable timer resolution and
    * excellent keyboard response.
    */
   if (p_bbc->debug_flag) {
@@ -1083,7 +1091,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
     speed = (500ull * 1000 * 1000);
   }
 
-  p_bbc->cycles_per_run_fast = (speed / k_system_wakeup_rate);
+  p_bbc->cycles_per_run_fast = (speed / p_bbc->wakeup_rate);
 
   if (util_get_u32_option(&option_cycles_per_run,
                           p_bbc->options.p_opt_flags,
