@@ -27,6 +27,7 @@ void video_destroy(struct video_struct* p_video);
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
 
 void video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
+uint8_t video_crtc_read(struct video_struct* p_video, uint8_t addr);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 
 void video_render(struct video_struct* p_video,

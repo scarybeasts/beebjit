@@ -75,7 +75,7 @@ struct video_struct {
 
   uint8_t teletext_line[k_bbc_mode7_width];
 
-  uint8_t crtc_address;
+  uint8_t crtc_reg;
   /* R1 */
   uint8_t crtc_horiz_displayed;
   /* R2 */
@@ -717,12 +717,12 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t rgbf;
   uint32_t color;
 
-  if (addr == k_ula_addr_control) {
+  if (addr == 0) {
     p_video->video_ula_control = val;
     return;
   }
 
-  assert(addr == k_ula_addr_palette);
+  assert(addr == 1);
 
   index = (val >> 4);
   rgbf = (val & 0x0f);
@@ -744,6 +744,23 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   p_video->palette[index] = color;
 }
 
+uint8_t
+video_crtc_read(struct video_struct* p_video, uint8_t addr) {
+  (void) p_video;
+
+  assert(addr < 2);
+  /* EMU NOTE: read-only registers in CRTC return 0, confirmed on a real BBC
+   * here:
+   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
+   */
+  if (addr == 0) {
+    /* CRTC latched register is read-only. */
+    return 0;
+  }
+  /* TODO: implement actual readable registers. */
+  return 0;
+}
+
 void
 video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t hsync_width;
@@ -751,13 +768,13 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t reg;
 
   if (addr == k_crtc_addr_reg) {
-    p_video->crtc_address = val;
+    p_video->crtc_reg = val;
     return;
   }
 
   assert(addr == k_crtc_addr_val);
 
-  reg = p_video->crtc_address;
+  reg = p_video->crtc_reg;
 
   switch (reg) {
   case k_crtc_reg_horiz_total:

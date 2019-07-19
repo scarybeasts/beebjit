@@ -228,30 +228,43 @@ bbc_read_callback(void* p, uint16_t addr) {
   }
 
   switch (addr) {
-  case k_addr_acia:
+  case (k_addr_crtc + 0):
+  case (k_addr_crtc + 1):
+    {
+      struct video_struct* p_video = bbc_get_video(p_bbc);
+      return video_crtc_read(p_video, (addr & 0x1));
+    }
+  case (k_addr_acia + 0):
     /* No ACIA interrupt (bit 7). */
     return 0;
   case 0xFE18:
     /* Only used in Master model but read by Synchron. */
     break;
-  case k_addr_ram_select:
+  case (k_addr_video_ula + 0):
+  case (k_addr_video_ula + 1):
+    /* EMU NOTE: ULA is write-only, and reads don't seem to be wired up.
+     * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
+     * Fall-through to default 0xFE return.
+     */
+    break;
+  case (k_addr_ram_select + 0):
     /* Ignore RAM select. Fall through.
      * (On a B+ / Master, it does shadow RAM trickery.)
      */
     break;
-  case k_addr_floppy:
+  case (k_addr_floppy + 0):
   case (k_addr_floppy + 1):
   case (k_addr_floppy + 4):
     return intel_fdc_read(p_bbc->p_intel_fdc, addr);
   case k_addr_adc_status:
     /* No ADC attention needed (bit 6). */
     return 0;
-  case k_addr_adc_high:
-  case k_addr_adc_low:
+  case (k_addr_adc_high + 0):
+  case (k_addr_adc_low + 0):
     /* No ADC values. */
     return 0;
-  case k_addr_tube:
-    /* Not present -- fall through to return 0xfe. */
+  case (k_addr_tube + 0):
+    /* Not present -- fall through to return 0xFE. */
     break;
   default:
     if (addr >= k_addr_shiela) {
@@ -259,8 +272,10 @@ bbc_read_callback(void* p, uint16_t addr) {
       assert(0);
     }
   }
-  /* EMU NOTE: These return values copied from b-em / jsbeeb. */
-  /* EMU TODO: confirm on a real BBC. */
+  /* EMU NOTE: These return values copied from b-em / jsbeeb, and checked
+   * against a real BBC, see:
+   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
+   */
   if (addr < k_addr_shiela) {
     return 0xFF;
   }
@@ -392,7 +407,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   switch (addr) {
   case (k_addr_crtc + 0):
   case (k_addr_crtc + 1):
-    video_crtc_write(p_video, (addr & 0xf), val);
+    video_crtc_write(p_video, (addr & 0x1), val);
     break;
   case k_addr_acia:
     printf("ignoring ACIA write\n");
@@ -402,7 +417,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 1):
-    video_ula_write(p_video, (addr & 0xf), val);
+    video_ula_write(p_video, (addr & 0x1), val);
     break;
   case k_addr_rom_select:
   case (k_addr_rom_select + 1):
