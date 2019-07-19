@@ -304,6 +304,7 @@ sound_set_driver(struct sound_struct* p_sound,
   uint32_t driver_chunk_size;
   uint32_t sample_rate;
 
+  assert(!sound_is_active(p_sound));
   assert(p_sound->p_driver == NULL);
   assert(!p_sound->thread_running);
 
@@ -343,7 +344,7 @@ void
 sound_start_playing(struct sound_struct* p_sound) {
   int ret;
 
-  if (p_sound->p_driver == NULL) {
+  if (!sound_is_active(p_sound)) {
     return;
   }
 
@@ -403,10 +404,9 @@ sound_tick(struct sound_struct* p_sound, int blocking) {
 
   struct os_sound_struct* p_driver = p_sound->p_driver;
 
-  if (p_driver == NULL) {
+  if (!sound_is_active(p_sound)) {
     return;
   }
-
   if (!p_sound->synchronous) {
     return;
   }
@@ -429,7 +429,7 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
 
   int new_period = -1;
 
-  if (p_sound->synchronous && (p_sound->p_driver != NULL)) {
+  if (sound_is_active(p_sound) && p_sound->synchronous) {
     sound_advance_sn_timing(p_sound);
   }
 
