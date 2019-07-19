@@ -25,11 +25,17 @@ enum {
 };
 
 enum {
+  k_intel_fdc_command_write_sectors = 0x0B,
   k_intel_fdc_command_read_sectors = 0x13,
+  k_intel_fdc_command_verify_sectors = 0x1F,
   k_intel_fdc_command_seek = 0x29,
   k_intel_fdc_command_read_drive_status = 0x2C,
   k_intel_fdc_command_specify = 0x35,
   k_intel_fdc_command_write_special_register = 0x3A,
+};
+
+enum {
+  k_intel_fdc_result_write_protected = 0x12,
 };
 
 enum {
@@ -61,6 +67,7 @@ struct intel_fdc_struct {
   uint8_t disc_data[2][k_intel_fdc_sector_size *
                        k_intel_fdc_sectors_per_track *
                        k_intel_fdc_num_tracks];
+  int disc_writeable[2];
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
@@ -95,6 +102,9 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_intel_fdc->current_bytes_left = 0;
   p_intel_fdc->data_command_running = 0;
 
+  p_intel_fdc->disc_writeable[0] = 0;
+  p_intel_fdc->disc_writeable[1] = 0;
+
   p_intel_fdc->timer_id = timing_register_timer(p_timing,
                                                 intel_fdc_timer_tick,
                                                 p_intel_fdc);
@@ -106,7 +116,8 @@ void
 intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
                    int drive,
                    uint8_t* p_data,
-                   size_t length) {
+                   size_t length,
+                   int writeable) {
   size_t max_length = (k_intel_fdc_num_tracks *
                        k_intel_fdc_sectors_per_track *
                        k_intel_fdc_sector_size);
@@ -117,6 +128,7 @@ intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
   }
 
   (void) memcpy(&p_fdc->disc_data[drive], p_data, length);
+  p_fdc->disc_writeable[drive] = writeable;
 }
 
 void
@@ -181,6 +193,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
   uint8_t param0 = p_intel_fdc->parameters[0];
   uint8_t param1 = p_intel_fdc->parameters[1];
   uint8_t param2 = p_intel_fdc->parameters[2];
+  uint8_t drive_0_or_1 = p_intel_fdc->drive_0_or_1;
 
   assert(p_intel_fdc->parameters_needed == 0);
   assert(p_intel_fdc->data_command_running == 0);
@@ -188,8 +201,21 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
   assert(p_intel_fdc->current_bytes_left == 0);
 
   switch (p_intel_fdc->command) {
+  case k_intel_fdc_command_verify_sectors:
+    /* DFS-0.9 verifies sectors before writing them. */
+    intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
+    break;
+  case k_intel_fdc_command_write_sectors:
+    if (!p_intel_fdc->disc_writeable[drive_0_or_1]) {
+      intel_fdc_set_status_result(p_intel_fdc,
+                                  0x18,
+                                  k_intel_fdc_result_write_protected);
+    } else {
+      assert(0);
+    }
+    break;
   case k_intel_fdc_command_read_sectors:
-    p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1] = param0;
+    p_intel_fdc->current_track[drive_0_or_1] = param0;
     p_intel_fdc->current_sector = param1;
     p_intel_fdc->current_sectors_left = (param2 & 0x1F);
     p_intel_fdc->current_bytes_left = k_intel_fdc_sector_size;
@@ -232,6 +258,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
       break;
     default:
       assert(0);
+      break;
     }
     /* EMU NOTE: different to b-em / jsbeeb. */
     intel_fdc_set_status_result(p_intel_fdc, 0x00, 0x00);

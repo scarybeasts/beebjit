@@ -14,7 +14,8 @@ void intel_fdc_destroy(struct intel_fdc_struct* p_fdc);
 void intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
                         int drive,
                         uint8_t* p_data,
-                        size_t length);
+                        size_t length,
+                        int writeable);
 
 uint8_t intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr);
 void intel_fdc_write(struct intel_fdc_struct* p_fdc,
