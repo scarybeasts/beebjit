@@ -57,7 +57,10 @@ void bbc_save_rom(struct bbc_struct* p_bbc,
 void bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index);
 uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
-void bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length);
+void bbc_load_disc(struct bbc_struct* p_bbc,
+                   uint8_t* p_data,
+                   size_t length,
+                   int writeable);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);

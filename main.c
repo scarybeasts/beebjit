@@ -44,6 +44,7 @@ main(int argc, const char* argv[]) {
   int slow_flag = 0;
   int test_flag = 0;
   int accurate_flag = 0;
+  int writeable_disc_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
   int mode = k_cpu_mode_interp;
@@ -130,6 +131,8 @@ main(int argc, const char* argv[]) {
       test_flag = 1;
     } else if (!strcmp(arg, "-a")) {
       accurate_flag = 1;
+    } else if (!strcmp(arg, "-w")) {
+      writeable_disc_flag = 1;
     }
   }
 
@@ -192,7 +195,7 @@ main(int argc, const char* argv[]) {
   /* Load the disc into the drive! */
   if (disc_load_name != NULL) {
     read_ret = util_file_read(disc_buffer, k_bbc_max_disc_size, disc_load_name);
-    bbc_load_disc(p_bbc, disc_buffer, read_ret);
+    bbc_load_disc(p_bbc, disc_buffer, read_ret, writeable_disc_flag);
   }
 
   p_window = os_window_create(bbc_get_keyboard(p_bbc),

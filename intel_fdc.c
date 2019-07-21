@@ -13,11 +13,13 @@ enum {
   /* Read. */
   k_intel_fdc_status = 0,
   k_intel_fdc_result = 1,
-  k_intel_fdc_data = 4,
 
   /* Write. */
   k_intel_fdc_command = 0,
   k_intel_fdc_parameter = 1,
+
+  /* Read / write. */
+  k_intel_fdc_data = 4,
 };
 
 enum {
@@ -72,6 +74,7 @@ struct intel_fdc_struct {
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
   uint8_t data_command_running;
+  int data_command_fire_nmi;
 };
 
 struct intel_fdc_struct*
@@ -101,6 +104,7 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_intel_fdc->current_sectors_left = 0;
   p_intel_fdc->current_bytes_left = 0;
   p_intel_fdc->data_command_running = 0;
+  p_intel_fdc->data_command_fire_nmi = 0;
 
   p_intel_fdc->disc_writeable[0] = 0;
   p_intel_fdc->disc_writeable[1] = 0;
@@ -194,13 +198,15 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
   uint8_t param1 = p_intel_fdc->parameters[1];
   uint8_t param2 = p_intel_fdc->parameters[2];
   uint8_t drive_0_or_1 = p_intel_fdc->drive_0_or_1;
+  uint8_t command = p_intel_fdc->command;
 
   assert(p_intel_fdc->parameters_needed == 0);
   assert(p_intel_fdc->data_command_running == 0);
+  assert(p_intel_fdc->data_command_fire_nmi == 0);
   assert(p_intel_fdc->current_sectors_left == 0);
   assert(p_intel_fdc->current_bytes_left == 0);
 
-  switch (p_intel_fdc->command) {
+  switch (command) {
   case k_intel_fdc_command_verify_sectors:
     /* DFS-0.9 verifies sectors before writing them. */
     intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
@@ -210,16 +216,16 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
       intel_fdc_set_status_result(p_intel_fdc,
                                   0x18,
                                   k_intel_fdc_result_write_protected);
-    } else {
-      assert(0);
+      break;
     }
-    break;
+    p_intel_fdc->data_command_fire_nmi = 1;
+    /* Fall through. */
   case k_intel_fdc_command_read_sectors:
     p_intel_fdc->current_track[drive_0_or_1] = param0;
     p_intel_fdc->current_sector = param1;
     p_intel_fdc->current_sectors_left = (param2 & 0x1F);
     p_intel_fdc->current_bytes_left = k_intel_fdc_sector_size;
-    p_intel_fdc->data_command_running = 1;
+    p_intel_fdc->data_command_running = command;
 
     (void) timing_start_timer_with_value(p_intel_fdc->p_timing,
                                          p_intel_fdc->timer_id,
@@ -341,12 +347,18 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
       intel_fdc_do_command(p_intel_fdc);
     }
     break;
+  case k_intel_fdc_data:
+    intel_fdc_set_status_result(p_intel_fdc,
+                                (p_intel_fdc->status & ~0x0C),
+                                p_intel_fdc->result);
+    p_intel_fdc->data = val;
+    break;
   default:
     assert(0);
   }
 }
 
-static uint8_t
+static uint8_t*
 intel_fdc_get_disc_byte(struct intel_fdc_struct* p_intel_fdc,
                         uint8_t drive,
                         uint8_t track,
@@ -355,30 +367,31 @@ intel_fdc_get_disc_byte(struct intel_fdc_struct* p_intel_fdc,
   uint8_t* p_byte;
 
   if (drive != 0 && drive != 1) {
-    return 0xFF;
+    return NULL;
   }
   if (track >= k_intel_fdc_num_tracks) {
-    return 0xFF;
+    return NULL;
   }
   if (sector >= k_intel_fdc_sectors_per_track) {
-    return 0xFF;
+    return NULL;
   }
 
   p_byte = (uint8_t*) &p_intel_fdc->disc_data[drive];
   p_byte += (track * k_intel_fdc_sectors_per_track * k_intel_fdc_sector_size);
   p_byte += (sector * k_intel_fdc_sector_size);
   p_byte += offset;
-  return *p_byte;
+  return p_byte;
 }
 
 void
 intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
-  uint8_t byte;
+  uint8_t* p_byte;
   uint8_t offset;
   uint8_t drive;
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
+  int fire_nmi;
 
   struct timing_struct* p_timing = p_intel_fdc->p_timing;
   size_t timer_id = p_intel_fdc->timer_id;
@@ -402,14 +415,20 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
 
   (void) timing_adjust_timer_value(p_timing, NULL, timer_id, 200);
 
-  /* If our virtual controller is attempting to deliver a byte before the last
-   * one was read, I presume that's data loss, otherwise what would all the
+  if (p_intel_fdc->data_command_fire_nmi) {
+    p_intel_fdc->data_command_fire_nmi = 0;
+    intel_fdc_set_status_result(p_intel_fdc, 0x8C, 0x00);
+    return;
+  }
+
+  /* If our virtual controller is attempting to crank a byte before the last
+   * one was used, I presume that's data loss, otherwise what would all the
    * NMIs be about?
    * Shouldn't happen in the new timing model.
    * For now we'll be kind and give the 6502 a chance to catch up.
    */
   if (p_intel_fdc->status & 0x04) {
-    printf("WARNING: 6502 disk byte read too slow\n");
+    printf("WARNING: 6502 disk byte too slow\n");
     return;
   }
 
@@ -419,14 +438,34 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_intel_fdc) {
   drive = p_intel_fdc->drive_0_or_1;
   current_sector = p_intel_fdc->current_sector;
 
-  byte = intel_fdc_get_disc_byte(p_intel_fdc,
-                                 drive,
-                                 p_intel_fdc->current_track[drive],
-                                 current_sector,
-                                 offset);
-  p_intel_fdc->data = byte;
+  p_byte = intel_fdc_get_disc_byte(p_intel_fdc,
+                                   drive,
+                                   p_intel_fdc->current_track[drive],
+                                   current_sector,
+                                   offset);
+  if (p_intel_fdc->data_command_running == k_intel_fdc_command_read_sectors) {
+    if (p_byte != NULL) {
+      p_intel_fdc->data = *p_byte;
+    } else {
+      p_intel_fdc->data = 0xFF;
+    }
+    fire_nmi = 1;
+  } else {
+    assert(p_intel_fdc->data_command_running ==
+           k_intel_fdc_command_write_sectors);
+    if (p_byte != NULL) {
+      *p_byte = p_intel_fdc->data;
+    }
+    if ((current_sectors_left == 1) && (current_bytes_left == 1)) {
+      fire_nmi = 0;
+    } else {
+      fire_nmi = 1;
+    }
+  }
 
-  intel_fdc_set_status_result(p_intel_fdc, 0x8C, 0x00);
+  if (fire_nmi) {
+    intel_fdc_set_status_result(p_intel_fdc, 0x8C, 0x00);
+  }
 
   current_bytes_left--;
   p_intel_fdc->current_bytes_left = current_bytes_left;

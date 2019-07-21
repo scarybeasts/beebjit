@@ -433,8 +433,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
      * (On a B+ / Master, it does shadow RAM trickery.)
      */
     break;
-  case k_addr_floppy:
+  case (k_addr_floppy + 0):
   case (k_addr_floppy + 1):
+  case (k_addr_floppy + 4):
     intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
     break;
   case k_addr_adc_status:
@@ -1159,8 +1160,11 @@ bbc_get_client_handle(struct bbc_struct* p_bbc) {
 }
 
 void
-bbc_load_disc(struct bbc_struct* p_bbc, uint8_t* p_data, size_t length) {
-  intel_fdc_load_ssd(p_bbc->p_intel_fdc, 0, p_data, length, 0);
+bbc_load_disc(struct bbc_struct* p_bbc,
+              uint8_t* p_data,
+              size_t length,
+              int writeable) {
+  intel_fdc_load_ssd(p_bbc->p_intel_fdc, 0, p_data, length, writeable);
 }
 
 static void
