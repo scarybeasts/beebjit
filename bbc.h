@@ -30,7 +30,8 @@ enum {
   k_message_render_done = 3,
 };
 enum {
-  k_bbc_max_disc_size = (1024 * 1024),
+  k_bbc_max_ssd_disc_size = (256 * 10 * 80),
+  k_bbc_max_dsd_disc_size = (256 * 10 * 80 * 2),
 };
 
 struct bbc_struct;
@@ -59,7 +60,8 @@ uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_load_disc(struct bbc_struct* p_bbc,
                    uint8_t* p_data,
-                   size_t length,
+                   size_t buffer_size,
+                   size_t buffer_filled,
                    int is_dsd,
                    int writeable);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);

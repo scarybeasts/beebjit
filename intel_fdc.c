@@ -78,10 +78,7 @@ struct intel_fdc_struct {
   uint8_t parameters_needed;
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
-  uint8_t disc_data[2][k_intel_fdc_sector_size *
-                       k_intel_fdc_sectors_per_track *
-                       k_intel_fdc_num_tracks *
-                       2];
+  uint8_t* disc_data[2];
   int disc_dsd[2];
   int disc_writeable[2];
   uint32_t disc_tracks[2];
@@ -142,11 +139,14 @@ intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
                     int drive,
                     int is_dsd,
                     uint8_t* p_data,
-                    size_t length,
+                    size_t buffer_size,
+                    size_t buffer_filled,
                     int writeable) {
   uint32_t tracks;
   uint32_t track_length;
   size_t max_length;
+
+  assert(drive == 0 || drive == 1);
 
   track_length = (k_intel_fdc_sector_size * k_intel_fdc_sectors_per_track);
   if (is_dsd) {
@@ -157,21 +157,20 @@ intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
   }
   max_length = (k_intel_fdc_num_tracks * track_length);
 
-  assert(drive == 0 || drive == 1);
-  if (length > max_length) {
-    errx(1, "disc image too large");
+  if (buffer_size != max_length) {
+    errx(1, "disc buffer wrong size: 204800 for ssd, 409600 for dsd");
   }
-  if ((length % k_intel_fdc_sector_size) != 0) {
+  if ((buffer_filled % k_intel_fdc_sector_size) != 0) {
     errx(1, "disc image not a sector multiple");
   }
 
-  (void) memcpy(&p_fdc->disc_data[drive], p_data, length);
+  p_fdc->disc_data[drive] = p_data;
   p_fdc->disc_dsd[drive] = is_dsd;
   p_fdc->disc_writeable[drive] = writeable;
 
   /* Many images have missing sectors on the last track so pad up. */
-  tracks = (length / track_length);
-  if ((length % track_length) != 0) {
+  tracks = (buffer_filled / track_length);
+  if ((buffer_filled % track_length) != 0) {
     tracks++;
   }
   p_fdc->disc_tracks[drive] = tracks;
@@ -486,7 +485,7 @@ intel_fdc_get_disc_byte(struct intel_fdc_struct* p_fdc,
     track_offset += track_size;
   }
 
-  p_byte = (uint8_t*) &p_fdc->disc_data[drive];
+  p_byte = p_fdc->disc_data[drive];
   p_byte += track_offset;
   p_byte += (sector * k_intel_fdc_sector_size);
   p_byte += offset;

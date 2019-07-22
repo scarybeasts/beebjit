@@ -15,7 +15,8 @@ void intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
                          int drive,
                          int is_dsd,
                          uint8_t* p_data,
-                         size_t length,
+                         size_t buffer_size,
+                         size_t buffer_filled,
                          int writeable);
 
 uint8_t intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr);

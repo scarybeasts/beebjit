@@ -20,6 +20,11 @@
 
 static const size_t k_guard_size = 4096;
 
+struct util_file_map {
+  void* p_mmap;
+  size_t length;
+};
+
 int
 util_get_memory_fd(size_t size) {
   int ret;
@@ -344,7 +349,7 @@ util_file_read(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
 
   int fd = open(p_file_name, O_RDONLY);
   if (fd < 0) {
-    errx(1, "open failed");
+    errx(1, "couldn't open %s", p_file_name);
   }
 
   read_ret = read(fd, p_buf, max_size);
@@ -369,7 +374,7 @@ util_file_write(const char* p_file_name,
 
   int fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
   if (fd < 0) {
-    errx(1, "open failed");
+    errx(1, "couldn't open %s", p_file_name);
   }
 
   write_ret = write(fd, p_buf, size);
@@ -384,6 +389,75 @@ util_file_write(const char* p_file_name,
   if (ret != 0) {
     errx(1, "close failed");
   }
+}
+
+struct util_file_map*
+util_file_map(const char* p_file_name, size_t max_length, int writeable) {
+  struct util_file_map* p_map;
+  int fd;
+  int open_flags;
+  int mmap_prot;
+  struct stat stat_buf;
+  int ret;
+  void* p_mmap;
+
+  if (writeable) {
+    open_flags = O_RDWR;
+    mmap_prot = (PROT_READ | PROT_WRITE);
+  } else {
+    open_flags = O_RDONLY;
+    mmap_prot = PROT_READ;
+  }
+
+  p_map = malloc(sizeof(struct util_file_map));
+  if (p_map == NULL) {
+    errx(1, "couldn't allocate util_file_map");
+  }
+  (void) memset(p_map, '\0', sizeof(struct util_file_map));
+
+  fd = open(p_file_name, open_flags);
+  if (fd < 0) {
+    errx(1, "couldn't open %s", p_file_name);
+  }
+
+  ret = fstat(fd, &stat_buf);
+  if (ret != 0) {
+    errx(1, "fstat failed");
+  }
+
+  if ((size_t) stat_buf.st_size > max_length) {
+    errx(1, "file too large");
+  }
+
+  p_mmap = mmap(NULL, stat_buf.st_size, mmap_prot, MAP_SHARED, fd, 0);
+  if (p_map == MAP_FAILED) {
+    errx(1, "mmap failed");
+  }
+
+  p_map->p_mmap = p_mmap;
+  p_map->length = stat_buf.st_size;
+
+  return p_map;
+}
+
+void*
+util_file_map_get_ptr(struct util_file_map* p_map) {
+  return p_map->p_mmap;
+}
+
+size_t
+util_file_map_get_size(struct util_file_map* p_map) {
+  return p_map->length;
+}
+
+void
+util_file_unmap(struct util_file_map* p_map) {
+  int ret = munmap(p_map->p_mmap, p_map->length);
+  if (ret != 0) {
+    errx(1, "munmap failed");
+  }
+
+  free(p_map);
 }
 
 uint64_t
