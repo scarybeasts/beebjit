@@ -34,13 +34,16 @@ enum {
   k_intel_fdc_command_read_drive_status = 0x2C,
   k_intel_fdc_command_specify = 0x35,
   k_intel_fdc_command_write_special_register = 0x3A,
+  k_intel_fdc_command_read_special_register = 0x3D,
 };
 
 enum {
   k_intel_fdc_result_write_protected = 0x12,
+  k_intel_fdc_result_sector_not_found = 0x18,
 };
 
 enum {
+  k_intel_fdc_register_scan_sector = 0x06,
   k_intel_fdc_register_mode = 0x17,
   k_intel_fdc_register_drive_out = 0x23,
 };
@@ -68,8 +71,10 @@ struct intel_fdc_struct {
   uint8_t parameters[k_intel_fdc_max_params];
   uint8_t disc_data[2][k_intel_fdc_sector_size *
                        k_intel_fdc_sectors_per_track *
-                       k_intel_fdc_num_tracks];
+                       k_intel_fdc_num_tracks *
+                       2];
   int disc_writeable[2];
+  uint32_t disc_tracks[2];
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
@@ -108,6 +113,8 @@ intel_fdc_create(struct state_6502* p_state_6502,
 
   p_intel_fdc->disc_writeable[0] = 0;
   p_intel_fdc->disc_writeable[1] = 0;
+  p_intel_fdc->disc_tracks[0] = 0;
+  p_intel_fdc->disc_tracks[1] = 0;
 
   p_intel_fdc->timer_id = timing_register_timer(p_timing,
                                                 intel_fdc_timer_tick,
@@ -122,17 +129,30 @@ intel_fdc_load_ssd(struct intel_fdc_struct* p_fdc,
                    uint8_t* p_data,
                    size_t length,
                    int writeable) {
+  uint32_t tracks;
+
   size_t max_length = (k_intel_fdc_num_tracks *
                        k_intel_fdc_sectors_per_track *
-                       k_intel_fdc_sector_size);
+                       k_intel_fdc_sector_size *
+                       2);
 
   assert(drive == 0 || drive == 1);
   if (length > max_length) {
-    length = max_length;
+    errx(1, "disc image too large");
+  }
+  if ((length % 256) != 0) {
+    errx(1, "disc image not a sector multiple");
   }
 
   (void) memcpy(&p_fdc->disc_data[drive], p_data, length);
   p_fdc->disc_writeable[drive] = writeable;
+
+  /* Many images have missing sectors on the last track so pad up. */
+  tracks = (length / (256 * 10));
+  if ((length % (256 * 10)) != 0) {
+    tracks++;
+  }
+  p_fdc->disc_tracks[drive] = tracks;
 }
 
 void
@@ -199,12 +219,28 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
   uint8_t param2 = p_intel_fdc->parameters[2];
   uint8_t drive_0_or_1 = p_intel_fdc->drive_0_or_1;
   uint8_t command = p_intel_fdc->command;
+  uint8_t current_track = p_intel_fdc->current_track[drive_0_or_1];
 
   assert(p_intel_fdc->parameters_needed == 0);
   assert(p_intel_fdc->data_command_running == 0);
   assert(p_intel_fdc->data_command_fire_nmi == 0);
   assert(p_intel_fdc->current_sectors_left == 0);
   assert(p_intel_fdc->current_bytes_left == 0);
+
+  switch (command) {
+  case k_intel_fdc_command_verify_sectors:
+  case k_intel_fdc_command_write_sectors:
+  case k_intel_fdc_command_read_sectors:
+    if (current_track >= p_intel_fdc->disc_tracks[drive_0_or_1]) {
+      intel_fdc_set_status_result(p_intel_fdc,
+                                  0x18,
+                                  k_intel_fdc_result_sector_not_found);
+      return;
+    }
+    break;
+  default:
+    break;
+  }
 
   switch (command) {
   case k_intel_fdc_command_verify_sectors:
@@ -233,12 +269,12 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
 
     break;
   case k_intel_fdc_command_seek:
-    p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1] = param0;
+    p_intel_fdc->current_track[drive_0_or_1] = param0;
     intel_fdc_set_status_result(p_intel_fdc, 0x18, 0x00);
     break;
   case k_intel_fdc_command_read_drive_status:
     temp_u8 = 0x88;
-    if (!p_intel_fdc->current_track[p_intel_fdc->drive_0_or_1]) {
+    if (current_track == 0) {
       temp_u8 |= 0x02;
     }
     if (p_intel_fdc->drive_select & 0x01) {
@@ -253,8 +289,19 @@ intel_fdc_do_command(struct intel_fdc_struct* p_intel_fdc) {
     /* EMU NOTE: different to b-em / jsbeeb. */
     intel_fdc_set_status_result(p_intel_fdc, 0x00, 0x00);
     break;
+  case k_intel_fdc_command_read_special_register:
+    switch (param0) {
+    case k_intel_fdc_register_scan_sector:
+      /* DFS-0.9 reads this register after an 0x18 sector not found error. */
+      intel_fdc_set_status_result(p_intel_fdc, 0x10, 0x00);
+      break;
+    default:
+      assert(0);
+      break;
+    }
+    break;
   case k_intel_fdc_command_write_special_register:
-    switch (p_intel_fdc->parameters[0]) {
+    switch (param0) {
     case k_intel_fdc_register_mode:
       break;
     case k_intel_fdc_register_drive_out:
@@ -300,16 +347,16 @@ intel_fdc_write(struct intel_fdc_struct* p_intel_fdc,
       num_params = 0;
       break;
     case k_intel_fdc_command_seek:
-    case 0x3D:
+    case k_intel_fdc_command_read_special_register:
       num_params = 1;
       break;
     case k_intel_fdc_command_write_special_register:
       num_params = 2;
       break;
-    case 0x0B:
+    case k_intel_fdc_command_write_sectors:
     case k_intel_fdc_command_read_sectors:
     case 0x1B:
-    case 0x1F:
+    case k_intel_fdc_command_verify_sectors:
       num_params = 3;
       break;
     case k_intel_fdc_command_specify:
