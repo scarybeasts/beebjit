@@ -194,8 +194,12 @@ main(int argc, const char* argv[]) {
 
   /* Load the disc into the drive! */
   if (disc_load_name != NULL) {
+    int is_dsd = 0;
+    if (strstr(disc_load_name, ".dsd") != NULL) {
+      is_dsd = 1;
+    }
     read_ret = util_file_read(disc_buffer, k_bbc_max_disc_size, disc_load_name);
-    bbc_load_disc(p_bbc, disc_buffer, read_ret, writeable_disc_flag);
+    bbc_load_disc(p_bbc, disc_buffer, read_ret, is_dsd, writeable_disc_flag);
   }
 
   p_window = os_window_create(bbc_get_keyboard(p_bbc),

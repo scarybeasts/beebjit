@@ -60,6 +60,7 @@ void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_load_disc(struct bbc_struct* p_bbc,
                    uint8_t* p_data,
                    size_t length,
+                   int is_dsd,
                    int writeable);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
