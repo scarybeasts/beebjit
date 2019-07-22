@@ -39,6 +39,14 @@ enum {
 };
 
 enum {
+  k_intel_fdc_status_flag_busy = 0x80,
+  k_intel_fdc_status_flag_result_ready = 0x10,
+  k_intel_fdc_status_flag_nmi = 0x08,
+  k_intel_fdc_status_flag_need_data = 0x04,
+};
+
+enum {
+  k_intel_fdc_result_ok = 0x00,
   k_intel_fdc_result_write_protected = 0x12,
   k_intel_fdc_result_sector_not_found = 0x18,
 };
@@ -179,7 +187,7 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
                             uint8_t status,
                             uint8_t result) {
   struct state_6502* p_state_6502 = p_fdc->p_state_6502;
-  int level = !!(status & 0x08);
+  int level = !!(status & k_intel_fdc_status_flag_nmi);
   int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
 
   p_fdc->status = status;
@@ -209,12 +217,16 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
     return p_fdc->status;
   case k_intel_fdc_result:
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status & ~0x18),
+                                (p_fdc->status &
+                                 ~(k_intel_fdc_status_flag_result_ready |
+                                   k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     return p_fdc->result;
   case k_intel_fdc_data:
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status & ~0x0C),
+                                (p_fdc->status &
+                                 ~(k_intel_fdc_status_flag_need_data |
+                                   k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     return p_fdc->data;
   default:
@@ -248,7 +260,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     if ((current_track >= p_fdc->disc_tracks[drive_0_or_1]) ||
         ((p_fdc->drive_out & 0x20) && !p_fdc->disc_dsd[drive_0_or_1])) {
       intel_fdc_set_status_result(p_fdc,
-                                  0x18,
+                                  (k_intel_fdc_status_flag_result_ready |
+                                   k_intel_fdc_status_flag_nmi),
                                   k_intel_fdc_result_sector_not_found);
       return;
     }
@@ -260,12 +273,16 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   switch (command) {
   case k_intel_fdc_command_verify_sectors:
     /* DFS-0.9 verifies sectors before writing them. */
-    intel_fdc_set_status_result(p_fdc, 0x18, 0x00);
+    intel_fdc_set_status_result(p_fdc,
+                                (k_intel_fdc_status_flag_result_ready |
+                                 k_intel_fdc_status_flag_nmi),
+                                k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_write_sectors:
     if (!p_fdc->disc_writeable[drive_0_or_1]) {
       intel_fdc_set_status_result(p_fdc,
-                                  0x18,
+                                  (k_intel_fdc_status_flag_result_ready |
+                                   k_intel_fdc_status_flag_nmi),
                                   k_intel_fdc_result_write_protected);
       break;
     }
@@ -285,7 +302,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_command_seek:
     p_fdc->current_track[drive_0_or_1] = param0;
-    intel_fdc_set_status_result(p_fdc, 0x18, 0x00);
+    intel_fdc_set_status_result(p_fdc,
+                                (k_intel_fdc_status_flag_result_ready |
+                                 k_intel_fdc_status_flag_nmi),
+                                k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_drive_status:
     temp_u8 = 0x88;
@@ -298,7 +318,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     if (p_fdc->drive_select & 0x02) {
       temp_u8 |= 0x40;
     }
-    intel_fdc_set_status_result(p_fdc, 0x10, temp_u8);
+    intel_fdc_set_status_result(p_fdc,
+                                k_intel_fdc_status_flag_result_ready,
+                                temp_u8);
     break;
   case k_intel_fdc_command_specify:
     /* EMU NOTE: different to b-em / jsbeeb. */
@@ -308,7 +330,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     switch (param0) {
     case k_intel_fdc_register_scan_sector:
       /* DFS-0.9 reads this register after an 0x18 sector not found error. */
-      intel_fdc_set_status_result(p_fdc, 0x10, 0x00);
+      intel_fdc_set_status_result(p_fdc,
+                                  k_intel_fdc_status_flag_result_ready,
+                                  0x00);
       break;
     default:
       assert(0);
@@ -345,7 +369,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 
   switch (addr & 0x07) {
   case k_intel_fdc_command:
-    if (p_fdc->status & 0x80) {
+    if (p_fdc->status & k_intel_fdc_status_flag_busy) {
       /* Need parameters or command busy. Get out. */
       return;
     }
@@ -382,7 +406,10 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       num_params = 5;
       break;
     default:
-      intel_fdc_set_status_result(p_fdc, 0x18, 0x18);
+      intel_fdc_set_status_result(p_fdc,
+                                  (k_intel_fdc_status_flag_result_ready |
+                                   k_intel_fdc_status_flag_nmi),
+                                  k_intel_fdc_result_sector_not_found);
       return;
     }
 
@@ -393,7 +420,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       intel_fdc_do_command(p_fdc);
     } else {
       /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
-      intel_fdc_set_status_result(p_fdc, 0x80, 0x00);
+      intel_fdc_set_status_result(p_fdc,
+                                  k_intel_fdc_status_flag_busy,
+                                  k_intel_fdc_result_ok);
     }
     break;
   case k_intel_fdc_parameter:
@@ -406,13 +435,16 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       p_fdc->parameters_index++;
       p_fdc->parameters_needed--;
     }
-    if (p_fdc->parameters_needed == 0 && p_fdc->status == 0x80) {
+    if ((p_fdc->parameters_needed == 0) &&
+        (p_fdc->status == k_intel_fdc_status_flag_busy)) {
       intel_fdc_do_command(p_fdc);
     }
     break;
   case k_intel_fdc_data:
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status & ~0x0C),
+                                (p_fdc->status &
+                                 ~(k_intel_fdc_status_flag_need_data |
+                                   k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     p_fdc->data = val;
     break;
@@ -487,7 +519,10 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc) {
     assert(current_bytes_left == 0);
     p_fdc->data_command_running = 0;
     (void) timing_stop_timer(p_timing, timer_id);
-    intel_fdc_set_status_result(p_fdc, 0x18, 0x00);
+    intel_fdc_set_status_result(p_fdc,
+                                (k_intel_fdc_status_flag_result_ready |
+                                 k_intel_fdc_status_flag_nmi),
+                                k_intel_fdc_result_ok);
     return;
   }
 
@@ -495,7 +530,11 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc) {
 
   if (p_fdc->data_command_fire_nmi) {
     p_fdc->data_command_fire_nmi = 0;
-    intel_fdc_set_status_result(p_fdc, 0x8C, 0x00);
+    intel_fdc_set_status_result(p_fdc,
+                                (k_intel_fdc_status_flag_busy |
+                                 k_intel_fdc_status_flag_nmi |
+                                 k_intel_fdc_status_flag_need_data),
+                                k_intel_fdc_result_ok);
     return;
   }
 
@@ -505,7 +544,7 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc) {
    * Shouldn't happen in the new timing model.
    * For now we'll be kind and give the 6502 a chance to catch up.
    */
-  if (p_fdc->status & 0x04) {
+  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
     printf("WARNING: 6502 disk byte too slow\n");
     return;
   }
@@ -542,7 +581,11 @@ intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc) {
   }
 
   if (fire_nmi) {
-    intel_fdc_set_status_result(p_fdc, 0x8C, 0x00);
+    intel_fdc_set_status_result(p_fdc,
+                                (k_intel_fdc_status_flag_busy |
+                                 k_intel_fdc_status_flag_nmi |
+                                 k_intel_fdc_status_flag_need_data),
+                                k_intel_fdc_result_ok);
   }
 
   current_bytes_left--;
