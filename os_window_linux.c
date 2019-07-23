@@ -475,6 +475,12 @@ x_key_to_keyboard_key(int key) {
   case 76:
     ret = k_keyboard_key_f0;
     break;
+  case 95:
+    ret = k_keyboard_key_f11;
+    break;
+  case 96:
+    ret = k_keyboard_key_f12;
+    break;
   case 111:
     ret = k_keyboard_key_arrow_up;
     break;

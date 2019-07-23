@@ -48,7 +48,7 @@ struct bbc_struct* bbc_create(int mode,
                               uint16_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
-void bbc_full_reset(struct bbc_struct* p_bbc);
+void bbc_power_on_reset(struct bbc_struct* p_bbc);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   uint8_t index,
                   uint8_t* p_rom_src);
@@ -86,6 +86,7 @@ void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 
 void bbc_run_async(struct bbc_struct* p_bbc);
 uint32_t bbc_get_run_result(struct bbc_struct* p_bbc);
+int bbc_check_do_break(struct bbc_struct* p_bbc);
 
 struct state_6502* bbc_get_6502(struct bbc_struct* p_bbc);
 struct via_struct* bbc_get_sysvia(struct bbc_struct* p_bbc);

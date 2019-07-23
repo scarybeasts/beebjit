@@ -1614,6 +1614,10 @@ check_irq:
                                             deferred_interrupt_timer_id);
         }
       }
+      if (state_6502_check_and_do_reset(p_state_6502)) {
+        state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
+        interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+      }
     }
 
     /* The instruction callback fires after the instruction is done. */

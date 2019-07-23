@@ -1,5 +1,6 @@
 #include "state_6502.h"
 
+#include "defs_6502.h"
 #include "timing.h"
 
 #include <assert.h>
@@ -8,7 +9,7 @@
 #include <string.h>
 
 struct state_6502*
-state_6502_create(struct timing_struct* p_timing) {
+state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
   struct state_6502* p_state_6502 = malloc(sizeof(struct state_6502));
   if (p_state_6502 == NULL) {
     errx(1, "couldn't allocate state_6502");
@@ -16,7 +17,10 @@ state_6502_create(struct timing_struct* p_timing) {
 
   (void) memset(p_state_6502, '\0', sizeof(struct state_6502));
 
+  p_state_6502->reset_pending = 0;
+  p_state_6502->p_mem_read = p_mem_read;
   p_state_6502->p_timing = p_timing;
+  p_state_6502->ticks_baseline = 0;
 
   return p_state_6502;
 }
@@ -28,6 +32,10 @@ state_6502_destroy(struct state_6502* p_state_6502) {
 
 void
 state_6502_reset(struct state_6502* p_state_6502) {
+  uint16_t init_pc;
+
+  uint8_t* p_mem_read = p_state_6502->p_mem_read;
+
   /* EMU: from https://www.pagetable.com/?p=410, initial 6502 state is not all
    * zero. Also, see http://www.visual6502.org/JSSim/expert.html.
    */
@@ -43,6 +51,10 @@ state_6502_reset(struct state_6502* p_state_6502) {
    * reset vector, commences thereafter.
    */
   state_6502_set_cycles(p_state_6502, 8);
+
+  init_pc = (p_mem_read[k_6502_vector_reset] |
+             (p_mem_read[k_6502_vector_reset + 1] << 8));
+  state_6502_set_pc(p_state_6502, init_pc);
 }
 
 void
@@ -171,4 +183,20 @@ state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
   assert(fire);
 
   p_state_6502->irq_fire &= ~irq_value;
+}
+
+void
+state_6502_set_reset_pending(struct state_6502* p_state_6502) {
+  p_state_6502->reset_pending = 1;
+}
+
+int
+state_6502_check_and_do_reset(struct state_6502* p_state_6502) {
+  int ret = p_state_6502->reset_pending;
+
+  p_state_6502->reset_pending = 0;
+  if (ret) {
+    state_6502_reset(p_state_6502);
+  }
+  return ret;
 }

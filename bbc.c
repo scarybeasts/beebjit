@@ -660,7 +660,7 @@ bbc_create(int mode,
   }
   p_bbc->p_timing = p_timing;
 
-  p_state_6502 = state_6502_create(p_timing);
+  p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
     errx(1, "state_6502_create failed");
   }
@@ -723,7 +723,7 @@ bbc_create(int mode,
     errx(1, "cpu_driver_alloc failed");
   }
 
-  bbc_full_reset(p_bbc);
+  bbc_power_on_reset(p_bbc);
 
   return p_bbc;
 }
@@ -801,9 +801,7 @@ bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
 }
 
 void
-bbc_full_reset(struct bbc_struct* p_bbc) {
-  uint16_t init_pc;
-
+bbc_power_on_reset(struct bbc_struct* p_bbc) {
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
   uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
@@ -817,11 +815,6 @@ bbc_full_reset(struct bbc_struct* p_bbc) {
   bbc_sideways_select(p_bbc, 0);
 
   state_6502_reset(p_state_6502);
-
-  /* Initial 6502 state. */
-  init_pc = (p_mem_raw[k_6502_vector_reset] |
-             (p_mem_raw[k_6502_vector_reset + 1] << 8));
-  state_6502_set_pc(p_state_6502, init_pc);
 }
 
 struct cpu_driver*
@@ -1008,6 +1001,15 @@ bbc_cycles_timer_callback(void* p) {
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     p_bbc->slow_flag = !p_bbc->slow_flag;
+  }
+
+  /* Check for break key. */
+  if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_f12)) {
+    struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+    /* The BBC break key is attached to the 6502 reset line. Other peripherals
+     * continue along without reset.
+     */
+    state_6502_set_reset_pending(p_state_6502);
   }
 
   if (p_bbc->slow_flag) {

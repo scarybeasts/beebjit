@@ -11,7 +11,6 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
 - Add CREDITS file listing inspirations, file sources, etc.
-- Add break key!
 
 
 Ideas
