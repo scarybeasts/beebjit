@@ -1006,7 +1006,7 @@ bbc_cycles_timer_callback(void* p) {
   p_bbc->last_time_us = curr_time_us;
 
   /* Check for special alt key combos to change emulator behavior. */
-  if (keyboard_check_and_clear_alt_key(p_keyboard, 'F')) {
+  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     p_bbc->slow_flag = !p_bbc->slow_flag;
   }
 

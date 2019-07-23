@@ -5,12 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum {
+  k_keyboard_state_flag_down = 1,
+  k_keyboard_state_flag_pressed_not_released = 2,
+  k_keyboard_state_flag_unconsumed_press = 4,
+};
+
 struct keyboard_struct {
   uint8_t bbc_keys[16][16];
   uint8_t bbc_keys_count;
   uint8_t bbc_keys_count_col[16];
-  uint8_t key_down[256];
-  uint8_t alt_key_pressed[256];
+  uint8_t key_state[256];
+  uint8_t alt_key_state[256];
 };
 
 struct keyboard_struct*
@@ -350,10 +356,20 @@ keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
 }
 
 int
-keyboard_check_and_clear_alt_key(struct keyboard_struct* p_keyboard,
-                                 uint8_t key) {
-  int ret = p_keyboard->alt_key_pressed[key];
-  p_keyboard->alt_key_pressed[key] = 0;
+keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key) {
+  int ret = !!(p_keyboard->key_state[key] &
+               k_keyboard_state_flag_unconsumed_press);
+  p_keyboard->key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
+
+  return ret;
+}
+
+int
+keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
+                               uint8_t key) {
+  int ret = !!(p_keyboard->alt_key_state[key] &
+               k_keyboard_state_flag_unconsumed_press);
+  p_keyboard->alt_key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
 
   return ret;
 }
@@ -366,11 +382,23 @@ keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   int32_t row;
   int32_t col;
 
-  p_keyboard->key_down[key] = 1;
+  p_keyboard->key_state[key] |= k_keyboard_state_flag_down;
+  if (!(p_keyboard->key_state[key] &
+        k_keyboard_state_flag_pressed_not_released)) {
+    p_keyboard->key_state[key] |= (k_keyboard_state_flag_pressed_not_released |
+                                   k_keyboard_state_flag_unconsumed_press);
+  }
 
-  if (p_keyboard->key_down[k_keyboard_key_alt_left]) {
+  if (p_keyboard->key_state[k_keyboard_key_alt_left] &
+      k_keyboard_state_flag_down) {
     /* Alt + key combos are for the emulator shell only, not the BBC. */
-    p_keyboard->alt_key_pressed[key] = 1;
+    p_keyboard->alt_key_state[key] |= k_keyboard_state_flag_down;
+    if (!(p_keyboard->alt_key_state[key] &
+          k_keyboard_state_flag_pressed_not_released)) {
+      p_keyboard->alt_key_state[key] |=
+          (k_keyboard_state_flag_pressed_not_released |
+           k_keyboard_state_flag_unconsumed_press);
+    }
     return;
   }
 
@@ -408,7 +436,11 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   int32_t col;
   int was_pressed;
 
-  p_keyboard->key_down[key] = 0;
+  p_keyboard->key_state[key] &= ~(k_keyboard_state_flag_down |
+                                  k_keyboard_state_flag_pressed_not_released);
+  p_keyboard->alt_key_state[key] &=
+      ~(k_keyboard_state_flag_down |
+        k_keyboard_state_flag_pressed_not_released);
 
   keyboard_bbc_key_to_rowcol(key, &row, &col);
   if (row == -1 && col == -1) {
