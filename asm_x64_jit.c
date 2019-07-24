@@ -593,7 +593,7 @@ asm_x64_emit_jit_STOA_IMM(struct util_buffer* p_buf,
                     (offset - 1),
                     asm_x64_jit_STOA_IMM,
                     asm_x64_jit_STOA_IMM_END,
-                    (addr - REG_MEM_OFFSET));
+                    (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
 }
 
 void
