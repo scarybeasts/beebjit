@@ -41,7 +41,7 @@ main(int argc, const char* argv[]) {
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
-  int slow_flag = 0;
+  int fast_flag = 0;
   int test_flag = 0;
   int accurate_flag = 0;
   int disc_writeable_flag = 0;
@@ -127,8 +127,8 @@ main(int argc, const char* argv[]) {
       run_flag = 1;
     } else if (!strcmp(arg, "-p")) {
       print_flag = 1;
-    } else if (!strcmp(arg, "-s")) {
-      slow_flag = 1;
+    } else if (!strcmp(arg, "-f")) {
+      fast_flag = 1;
     } else if (!strcmp(arg, "-t")) {
       test_flag = 1;
     } else if (!strcmp(arg, "-a")) {
@@ -157,7 +157,7 @@ main(int argc, const char* argv[]) {
                      debug_flag,
                      run_flag,
                      print_flag,
-                     slow_flag,
+                     fast_flag,
                      accurate_flag,
                      opt_flags,
                      log_flags,

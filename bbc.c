@@ -65,7 +65,7 @@ struct bbc_struct {
   int debug_flag;
   int run_flag;
   int print_flag;
-  int slow_flag;
+  int fast_flag;
   int vsync_wait_for_render;
   struct bbc_options options;
 
@@ -507,7 +507,7 @@ bbc_create(int mode,
            int debug_flag,
            int run_flag,
            int print_flag,
-           int slow_flag,
+           int fast_flag,
            int accurate_flag,
            const char* p_opt_flags,
            const char* p_log_flags,
@@ -551,7 +551,7 @@ bbc_create(int mode,
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
-  p_bbc->slow_flag = slow_flag;
+  p_bbc->fast_flag = fast_flag;
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
 
@@ -651,6 +651,11 @@ bbc_create(int mode,
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;
   p_bbc->options.p_log_flags = p_log_flags;
+
+  /* Accurate mode is implied if fast mode isn't selected. */
+  if (!fast_flag) {
+    accurate_flag = 1;
+  }
   p_bbc->options.accurate = accurate_flag;
 
   if (accurate_flag) {
@@ -1005,7 +1010,7 @@ bbc_cycles_timer_callback(void* p) {
 
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
-    p_bbc->slow_flag = !p_bbc->slow_flag;
+    p_bbc->fast_flag = !p_bbc->fast_flag;
   }
 
   /* Check for break key. */
@@ -1017,7 +1022,7 @@ bbc_cycles_timer_callback(void* p) {
     state_6502_set_reset_pending(p_state_6502);
   }
 
-  if (p_bbc->slow_flag) {
+  if (!p_bbc->fast_flag) {
     /* Slow mode.
      * Slow mode, or "real time" mode is where the system executes at normal
      * speed, i.e. a 2Mhz BBC executes at 2Mhz in real time. Host CPU usage
@@ -1058,7 +1063,7 @@ bbc_cycles_timer_callback(void* p) {
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Prod the sound module in case it's in synchronous mode. */
-  sound_blocking = p_bbc->slow_flag;
+  sound_blocking = !p_bbc->fast_flag;
   sound_tick(p_bbc->p_sound, sound_blocking);
 
   /* Read sysvia port A to update keyboard state and fire interrupts. */

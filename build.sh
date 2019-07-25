@@ -30,32 +30,34 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
 
 #echo 'Running built-in tests.'
 #./6502jit -t
-echo 'Running test.rom, JIT.'
-./6502jit -os test.rom -expect 434241 -mode jit
-echo 'Running test.rom, JIT, debug.'
-./6502jit -os test.rom -expect 434241 -mode jit -d -r
-echo 'Running test.rom, JIT, accurate.'
-./6502jit -os test.rom -expect 434241 -mode jit -a
-echo 'Running test.rom, interpreter.'
+echo 'Running test.rom, JIT, fast.'
+./6502jit -os test.rom -expect 434241 -mode jit -f
+echo 'Running test.rom, JIT, fast, debug.'
+./6502jit -os test.rom -expect 434241 -mode jit -f -d -r
+echo 'Running test.rom, JIT, fast, accurate.'
+./6502jit -os test.rom -expect 434241 -mode jit -f -a
+echo 'Running test.rom, interpreter, fast.'
+./6502jit -os test.rom -expect 434241 -mode interp -f
+echo 'Running test.rom, interpreter, fast, debug, print.'
+./6502jit -os test.rom -expect 434241 -mode interp -f -d -r -p >/dev/null
+echo 'Running test.rom, interpreter, slow.'
 ./6502jit -os test.rom -expect 434241 -mode interp
-echo 'Running test.rom, interpreter, debug, print.'
-./6502jit -os test.rom -expect 434241 -mode interp -d -r -p >/dev/null
-echo 'Running test.rom, interpreter, slow mode.'
-./6502jit -os test.rom -expect 434241 -mode interp -s
-echo 'Running test.rom, inturbo.'
-./6502jit -os test.rom -expect 434241 -mode inturbo
-echo 'Running test.rom, inturbo, debug.'
-./6502jit -os test.rom -expect 434241 -mode inturbo -d -r
-echo 'Running test.rom, inturbo, accurate.'
-./6502jit -os test.rom -expect 434241 -mode inturbo -a
+echo 'Running test.rom, inturbo, fast.'
+./6502jit -os test.rom -expect 434241 -mode inturbo -f
+echo 'Running test.rom, inturbo, fast, debug.'
+./6502jit -os test.rom -expect 434241 -mode inturbo -f -d -r
+echo 'Running test.rom, inturbo, fast, accurate.'
+./6502jit -os test.rom -expect 434241 -mode inturbo -f -a
 
-echo 'Running timing.rom, interpreter.'
-./6502jit -os timing.rom -expect C0C1C2 -mode interp -a
-echo 'Running timing.rom, inturbo.'
-./6502jit -os timing.rom -expect C0C1C2 -mode inturbo -a
-echo 'Running timing.rom, jit.'
-./6502jit -os timing.rom -expect C0C1C2 -mode jit -a
-echo 'Running timing.rom, jit, debug.'
-./6502jit -os timing.rom -expect C0C1C2 -mode jit -a -d -r
+echo 'Running timing.rom, interpreter, slow.'
+./6502jit -os timing.rom -expect C0C1C2 -mode interp
+echo 'Running timing.rom, interpreter, fast.'
+./6502jit -os timing.rom -expect C0C1C2 -mode interp -f -a
+echo 'Running timing.rom, inturbo, fast.'
+./6502jit -os timing.rom -expect C0C1C2 -mode inturbo -f -a
+echo 'Running timing.rom, jit, fast.'
+./6502jit -os timing.rom -expect C0C1C2 -mode jit -f -a
+echo 'Running timing.rom, jit, fast, debug.'
+./6502jit -os timing.rom -expect C0C1C2 -mode jit -f -a -d -r
 
 echo 'All is well!'
