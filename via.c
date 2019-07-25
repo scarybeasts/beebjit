@@ -255,9 +255,6 @@ via_create(int id,
   p_via->p_bbc = p_bbc;
   p_via->p_timing = p_timing;
 
-  /* Hardcoded assumption that CPU is clocked 2x VIA (2Mhz vs. 1Mhz). */
-  assert((k_via_tick_rate * 2) == timing_get_tick_rate(p_timing));
-
   t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
   t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
   p_via->t1_timer_id = t1_timer_id;

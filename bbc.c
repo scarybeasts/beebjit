@@ -517,6 +517,7 @@ bbc_create(int mode,
   struct debug_struct* p_debug;
   int pipefd[2];
   int ret;
+  uint32_t cpu_scale_factor;
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
@@ -532,6 +533,10 @@ bbc_create(int mode,
   (void) util_get_u32_option(&p_bbc->wakeup_rate,
                              p_opt_flags,
                              "bbc:wakeup-rate=");
+  cpu_scale_factor = 1;
+  (void) util_get_u32_option(&cpu_scale_factor,
+                             p_opt_flags,
+                             "bbc:cpu-scale-factor=");
 
   ret = pipe(&pipefd[0]);
   if (ret != 0) {
@@ -654,7 +659,7 @@ bbc_create(int mode,
     synchronous_sound = 1;
   }
 
-  p_timing = timing_create(k_bbc_tick_rate);
+  p_timing = timing_create(cpu_scale_factor);
   if (p_timing == NULL) {
     errx(1, "timing_create failed");
   }

@@ -10,7 +10,7 @@ enum {
 };
 
 struct timing_struct {
-  uint32_t tick_rate;
+  uint32_t scale_factor;
   uint32_t max_timer;
   void (*p_callbacks[k_timing_num_timers])(void*);
   void* p_objects[k_timing_num_timers];
@@ -23,7 +23,7 @@ struct timing_struct {
 };
 
 struct timing_struct*
-timing_create(uint32_t tick_rate) {
+timing_create(uint32_t scale_factor) {
   struct timing_struct* p_timing = malloc(sizeof(struct timing_struct));
   if (p_timing == NULL) {
     errx(1, "couldn't allocate timing_struct");
@@ -31,7 +31,7 @@ timing_create(uint32_t tick_rate) {
 
   (void) memset(p_timing, '\0', sizeof(struct timing_struct));
 
-  p_timing->tick_rate = tick_rate;
+  p_timing->scale_factor = scale_factor;
   p_timing->max_timer = 0;
   p_timing->total_timer_ticks = 0;
   p_timing->countdown = INT64_MAX;
@@ -44,14 +44,14 @@ timing_destroy(struct timing_struct* p_timing) {
   free(p_timing);
 }
 
-uint32_t
-timing_get_tick_rate(struct timing_struct* p_timing) {
-  return p_timing->tick_rate;
-}
-
 uint64_t
 timing_get_total_timer_ticks(struct timing_struct* p_timing) {
   return p_timing->total_timer_ticks;
+}
+
+uint64_t
+timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing) {
+  return (p_timing->total_timer_ticks / p_timing->scale_factor);
 }
 
 static void
@@ -112,6 +112,8 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
   assert(p_timing->p_callbacks[id] != NULL);
   assert(!p_timing->ticking[id]);
 
+  time *= p_timing->scale_factor;
+
   p_timing->timings[id] = time;
   p_timing->ticking[id] = 1;
 
@@ -154,7 +156,9 @@ timing_get_timer_value(struct timing_struct* p_timing, size_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
-  return p_timing->timings[id];
+  int64_t ret = p_timing->timings[id];
+  ret /= p_timing->scale_factor;
+  return ret;
 }
 
 int64_t
@@ -164,6 +168,8 @@ timing_set_timer_value(struct timing_struct* p_timing,
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
+
+  time *= p_timing->scale_factor;
 
   p_timing->timings[id] = time;
 
@@ -180,17 +186,30 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
                           int64_t* p_new_value,
                           size_t id,
                           int64_t delta) {
+  int64_t new_time;
+
+  uint32_t scale_factor = p_timing->scale_factor;
+
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
 
-  int64_t new_time = (p_timing->timings[id] + delta);
+  delta *= scale_factor;
+
+  new_time = (p_timing->timings[id] + delta);
 
   if (p_new_value) {
-    *p_new_value = new_time;
+    *p_new_value = (new_time / scale_factor);
   }
 
-  return timing_set_timer_value(p_timing, id, new_time);
+  p_timing->timings[id] = new_time;
+
+  /* TODO: can further optimize this away under certain circumstances? */
+  if (p_timing->firing[id]) {
+    timing_recalculate(p_timing);
+  }
+
+  return p_timing->countdown;
 }
 
 int

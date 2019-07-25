@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const uint32_t k_sound_clock_rate = 250000;
+/* BBC master clock 2MHz, 8x divider for 250kHz sn76489 chip. */
+static const uint32_t k_sound_clock_divider = 8;
+
 enum {
   /* 0-2 square wave tone channels, 3 noise channel. */
   k_sound_num_channels = 4,
@@ -318,7 +322,7 @@ sound_set_driver(struct sound_struct* p_sound,
 
   p_sound->driver_buffer_size = driver_buffer_size;
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
-  p_sound->sn_frames_per_driver_frame = ((double) 250000.0 /
+  p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
                                          (double) sample_rate);
   p_sound->sn_frames_per_driver_buffer_size =
       ceil(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
@@ -380,13 +384,14 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   uint32_t curr_sn_ticks;
   uint32_t delta_sn_ticks;
 
-  uint64_t curr_system_ticks = timing_get_total_timer_ticks(p_sound->p_timing);
+  uint64_t curr_system_ticks =
+      timing_get_scaled_total_timer_ticks(p_sound->p_timing);
   uint32_t sn_frames_filled = p_sound->sn_frames_filled;
   uint32_t sn_frames_per_driver_buffer_size =
       p_sound->sn_frames_per_driver_buffer_size;
 
-  prev_sn_ticks = (p_sound->prev_system_ticks / 8);
-  curr_sn_ticks = (curr_system_ticks / 8);
+  prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
+  curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
   /* In fast mode, the ticks delta will be insanely huge and needs capping. */
   if ((sn_frames_filled + delta_sn_ticks) > sn_frames_per_driver_buffer_size) {
