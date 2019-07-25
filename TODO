@@ -11,6 +11,8 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
 - Add CREDITS file listing inspirations, file sources, etc.
+- Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
+Exile).
 
 
 Ideas
