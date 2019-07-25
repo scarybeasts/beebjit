@@ -12,24 +12,7 @@ enum {
   k_via_system = 0,
   k_via_user = 1,
 };
-enum {
-  k_via_ORB =   0x0,
-  k_via_ORA =   0x1,
-  k_via_DDRB =  0x2,
-  k_via_DDRA =  0x3,
-  k_via_T1CL =  0x4,
-  k_via_T1CH =  0x5,
-  k_via_T1LL =  0x6,
-  k_via_T1LH =  0x7,
-  k_via_T2CL =  0x8,
-  k_via_T2CH =  0x9,
-  k_via_SR =    0xa,
-  k_via_ACR =   0xb,
-  k_via_PCR =   0xc,
-  k_via_IFR =   0xd,
-  k_via_IER =   0xe,
-  k_via_ORAnh = 0xf,
-};
+
 enum {
   k_int_CA2 =    0x01,
   k_int_CA1 =    0x02,
