@@ -247,9 +247,7 @@ os_window_render(struct os_window_struct* p_window) {
     size_t chars_width = p_window->chars_width;
     size_t chars_height = p_window->chars_height;
     for (y = 0; y < chars_height; ++y) {
-      unsigned char* p_video_mem = video_get_memory(p_video,
-                                                    offset,
-                                                    chars_width);
+      uint8_t* p_video_mem = video_get_memory(p_video, offset, chars_width);
       /* Seems to return 0 on success -- status not checked. */
       XDrawImageString(p_window->d,
                   p_window->w,

@@ -135,13 +135,13 @@ interp_create(struct cpu_driver_funcs* p_funcs) {
 }
 
 static inline void
-interp_set_flags(unsigned char flags,
-                 unsigned char* zf,
-                 unsigned char* nf,
-                 unsigned char* cf,
-                 unsigned char* of,
-                 unsigned char* df,
-                 unsigned char* intf) {
+interp_set_flags(uint8_t flags,
+                 uint8_t* zf,
+                 uint8_t* nf,
+                 uint8_t* cf,
+                 uint8_t* of,
+                 uint8_t* df,
+                 uint8_t* intf) {
   *zf = ((flags & (1 << k_flag_zero)) != 0);
   *nf = ((flags & (1 << k_flag_negative)) != 0);
   *cf = ((flags & (1 << k_flag_carry)) != 0);
@@ -150,14 +150,14 @@ interp_set_flags(unsigned char flags,
   *intf = ((flags & (1 << k_flag_interrupt)) != 0);
 }
 
-static inline unsigned char
-interp_get_flags(unsigned char zf,
-                 unsigned char nf,
-                 unsigned char cf,
-                 unsigned char of,
-                 unsigned char df,
-                 unsigned char intf) {
-  unsigned char flags = 0;
+static inline uint8_t
+interp_get_flags(uint8_t zf,
+                 uint8_t nf,
+                 uint8_t cf,
+                 uint8_t of,
+                 uint8_t df,
+                 uint8_t intf) {
+  uint8_t flags = 0;
   flags |= (cf << k_flag_carry);
   flags |= (zf << k_flag_zero);
   flags |= (intf << k_flag_interrupt);
@@ -613,7 +613,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   /* "SBC simply takes the ones complement of the second value and then       \
    * performs an ADC"                                                         \
    */                                                                         \
-  temp_int = (a + (unsigned char) ~v + cf);                                   \
+  temp_int = (a + (uint8_t) ~v + cf);                                         \
   if (df) {                                                                   \
     /* Fix up decimal carry on first nibble. */                               \
     if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                    \
@@ -621,7 +621,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     }                                                                         \
   }                                                                           \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
-  of = !!((a ^ temp_int) & ((unsigned char) ~v ^ temp_int) & 0x80);           \
+  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
   /* In decimal mode, NZ flags are based on this interim value. */            \
   INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
   if (df) {                                                                   \

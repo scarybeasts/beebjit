@@ -442,7 +442,7 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
 
   if ((data & 0x90) == 0x90) {
     /* Update volume of channel. */
-    unsigned char volume_index = (0x0f - (data & 0x0f));
+    uint8_t volume_index = (0x0f - (data & 0x0f));
     p_sound->volume[channel] = p_sound->volumes[volume_index];
   } else if (channel == 3) {
     /* For the noise channel, we only ever update the lower bits. */
