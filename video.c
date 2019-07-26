@@ -18,7 +18,13 @@
  * per character 8, 2Mhz clock, is:
  * (128 * 39 * 8) / 2
  */
-static const size_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
+static const uint32_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
+
+enum {
+  k_crtc_num_registers = 18,
+};
+
+static const uint32_t k_crtc_register_mask = 0x1F;
 
 enum {
   k_ula_addr_control = 0,
@@ -46,10 +52,17 @@ enum {
   k_crtc_reg_vert_total = 4,
   k_crtc_reg_vert_adjust = 5,
   k_crtc_reg_vert_displayed = 6,
-  k_crtc_reg_vert_position = 7,
+  k_crtc_reg_vert_sync_position = 7,
+  k_crtc_reg_interlace = 8,
   k_crtc_reg_lines_per_character = 9,
+  k_crtc_reg_cursor_start = 10,
+  k_crtc_reg_cursor_end = 11,
   k_crtc_reg_mem_addr_high = 12,
   k_crtc_reg_mem_addr_low = 13,
+  k_crtc_reg_cursor_high = 14,
+  k_crtc_reg_cursor_low = 15,
+  k_crtc_reg_light_pen_high = 16,
+  k_crtc_reg_light_pen_low = 17,
 };
 
 struct video_struct {
@@ -75,21 +88,8 @@ struct video_struct {
 
   uint8_t teletext_line[k_bbc_mode7_width];
 
-  uint8_t crtc_reg;
-  /* R1 */
-  uint8_t crtc_horiz_displayed;
-  /* R2 */
-  uint8_t crtc_horiz_position;
-  /* R5 */
-  uint8_t crtc_vert_adjust;
-  /* R6 */
-  uint8_t crtc_vert_displayed;
-  /* R7 */
-  uint8_t crtc_vert_position;
-  /* R12 */
-  uint8_t crtc_mem_addr_high;
-  /* R13 */
-  uint8_t crtc_mem_addr_low;
+  uint8_t crtc_address_register;
+  uint8_t crtc_registers[k_crtc_num_registers];
 
   uint32_t crtc_clocks;
   uint32_t timer_ticks;
@@ -121,14 +121,16 @@ video_update_timer(struct video_struct* p_video) {
   uint32_t line_clocks;
   uint32_t character_line_clocks;
   uint32_t frame_clocks;
-
-  struct timing_struct* p_timing = p_video->p_timing;
-  size_t timer_id = p_video->video_timer_id;
+  struct timing_struct* p_timing;
+  size_t timer_id;
+  uint8_t crtc_vert_adjust = p_video->crtc_registers[k_crtc_reg_vert_adjust];
 
   if (p_video->externally_clocked) {
     return;
   }
 
+  p_timing = p_video->p_timing;
+  timer_id = p_video->video_timer_id;
   timer_value = timing_get_timer_value(p_timing, timer_id);
   assert(p_video->timer_ticks >= (uint32_t) timer_value);
   crtc_clocks_passed = (p_video->timer_ticks - (uint32_t) timer_value);
@@ -142,7 +144,7 @@ video_update_timer(struct video_struct* p_video) {
   line_clocks = (127 + 1);
   character_line_clocks = (line_clocks * (7 + 1));
   frame_clocks = (character_line_clocks * (38 + 1));
-  frame_clocks += (character_line_clocks * p_video->crtc_vert_adjust);
+  frame_clocks += (character_line_clocks * crtc_vert_adjust);
 
   p_video->crtc_vsync_on_clocks = (34 * character_line_clocks);
   p_video->crtc_vsync_off_clocks = (p_video->crtc_vsync_on_clocks +
@@ -204,7 +206,7 @@ video_create(uint8_t* p_mem,
   /* This effectively zero initializes all of the CRTC and ULA registers.
    * The emulators are not consistent here, but zero initialization is a
    * popular choice.
-   * The 6845 data sheet isn't much help, quoting:
+   * The 6845 data sheets (all variations?) aren't much help, quoting:
    * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
    * "The CRTC registers will have an initial value at power up. When using
    * a direct drive monitor (sans horizontal oscillator) these initial values
@@ -230,6 +232,7 @@ video_create(uint8_t* p_mem,
                                                   video_timer_fired,
                                                   p_video);
 
+  p_video->crtc_address_register = 0;
   p_video->crtc_clocks = 0;
   p_video->timer_ticks = 0;
 
@@ -746,9 +749,10 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
 uint8_t
 video_crtc_read(struct video_struct* p_video, uint8_t addr) {
-  (void) p_video;
+  uint8_t reg;
 
   assert(addr < 2);
+
   /* EMU NOTE: read-only registers in CRTC return 0, confirmed on a real BBC
    * here:
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
@@ -757,7 +761,25 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
     /* CRTC latched register is read-only. */
     return 0;
   }
-  /* TODO: implement actual readable registers. */
+
+  /* EMU NOTE: Not all 6845s are identical. The BBC uses the Hitachi one:
+   * https://www.cpcwiki.eu/imgs/c/c0/Hd6845.hitachi.pdf
+   * Of note, the memory address registers are readable, which is not the case
+   * for other 6845s.
+   */
+  reg = p_video->crtc_address_register;
+  switch (reg) {
+  case k_crtc_reg_mem_addr_high:
+  case k_crtc_reg_mem_addr_low:
+  case k_crtc_reg_cursor_high:
+  case k_crtc_reg_cursor_low:
+  case k_crtc_reg_light_pen_high:
+  case k_crtc_reg_light_pen_low:
+    return p_video->crtc_registers[reg];
+  default:
+    break;
+  }
+
   return 0;
 }
 
@@ -767,26 +789,37 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t vsync_width;
   uint8_t reg;
 
+  uint8_t mask = 0xFF;
+
   if (addr == k_crtc_addr_reg) {
-    p_video->crtc_reg = val;
+    p_video->crtc_address_register = (val & k_crtc_register_mask);
     return;
   }
 
   assert(addr == k_crtc_addr_val);
 
-  reg = p_video->crtc_reg;
+  reg = p_video->crtc_address_register;
+
+  if (reg >= k_crtc_num_registers) {
+    return;
+  }
+  switch (reg) {
+  case k_crtc_reg_light_pen_high:
+  case k_crtc_reg_light_pen_low:
+    /* Light pen registers are read only. */
+    return;
+  default:
+    break;
+  }
 
   switch (reg) {
+  /* R0 */
   case k_crtc_reg_horiz_total:
     if ((val != 63) && (val != 127)) {
       printf("LOG:CRTC:unusual horizontal total: %d\n", val);
     }
     break;
-  case k_crtc_reg_vert_total:
-    if ((val != 38) && (val != 30)) {
-      printf("LOG:CRTC:unusual vertical total: %d\n", val);
-    }
-    break;
+  /* R3 */
   case k_crtc_reg_sync_width:
     hsync_width = (val & 0xF);
     if ((hsync_width != 8) && (hsync_width != 4)) {
@@ -797,35 +830,53 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       printf("LOG:CRTC:unusual vsync width: %d\n", vsync_width);
     }
     break;
+  /* R4 */
+  case k_crtc_reg_vert_total:
+    mask = 0x7F;
+    if ((val != 38) && (val != 30)) {
+      printf("LOG:CRTC:unusual vertical total: %d\n", val);
+    }
+    break;
+  /* R5 */
+  case k_crtc_reg_vert_adjust:
+    mask = 0x1F;
+    break;
+  /* R6 */
+  case k_crtc_reg_vert_displayed:
+    mask = 0x7F;
+    break;
+  /* R7 */
+  case k_crtc_reg_vert_sync_position:
+    mask = 0x7F;
+    break;
+  /* R9 */
   case k_crtc_reg_lines_per_character:
+    mask = 0x1F;
     if (val != 7) {
       printf("LOG:CRTC:scan lines per character != 7: %d\n", val);
     }
     break;
+  /* R10 */
+  case k_crtc_reg_cursor_start:
+    mask = 0x7F;
+    break;
+  /* R11 */
+  case k_crtc_reg_cursor_end:
+    mask = 0x1F;
+    break;
+  /* R12 */
   case k_crtc_reg_mem_addr_high:
-    p_video->crtc_mem_addr_high = (val & 0x3f);
+    mask = 0x3F;
     break;
-  case k_crtc_reg_mem_addr_low:
-    p_video->crtc_mem_addr_low = val;
-    break;
-  case k_crtc_reg_horiz_displayed:
-    p_video->crtc_horiz_displayed = val;
-    break;
-  case k_crtc_reg_horiz_position:
-    p_video->crtc_horiz_position = val;
-    break;
-  case k_crtc_reg_vert_displayed:
-    p_video->crtc_vert_displayed = val;
-    break;
-  case k_crtc_reg_vert_position:
-    p_video->crtc_vert_position = val;
-    break;
-  case k_crtc_reg_vert_adjust:
-    p_video->crtc_vert_adjust = val;
+  /* R14 */
+  case k_crtc_reg_cursor_high:
+    mask = 0x3F;
     break;
   default:
     break;
   }
+
+  p_video->crtc_registers[reg] = (val & mask);
 }
 
 uint8_t
@@ -861,26 +912,19 @@ video_set_ula_full_palette(struct video_struct* p_video,
 void
 video_get_crtc_registers(struct video_struct* p_video,
                          uint8_t* p_values) {
-  (void) memset(p_values, '\0', 18);
-  p_values[k_crtc_reg_horiz_displayed] = p_video->crtc_horiz_displayed;
-  p_values[k_crtc_reg_horiz_position] = p_video->crtc_horiz_position;
-  p_values[k_crtc_reg_vert_displayed] = p_video->crtc_vert_displayed;
-  p_values[k_crtc_reg_vert_position] = p_video->crtc_vert_position;
-  p_values[k_crtc_reg_vert_adjust] = p_video->crtc_vert_adjust;
-  p_values[k_crtc_reg_mem_addr_high] = p_video->crtc_mem_addr_high;
-  p_values[k_crtc_reg_mem_addr_low] = p_video->crtc_mem_addr_low;
+  uint32_t i;
+  for (i = 0; i < k_crtc_num_registers; ++i) {
+    p_values[i] = p_video->crtc_registers[i];
+  }
 }
 
 void
 video_set_crtc_registers(struct video_struct* p_video,
                          const uint8_t* p_values) {
-  p_video->crtc_horiz_displayed = p_values[k_crtc_reg_horiz_displayed];
-  p_video->crtc_horiz_position = p_values[k_crtc_reg_horiz_position];
-  p_video->crtc_vert_displayed = p_values[k_crtc_reg_vert_displayed];
-  p_video->crtc_vert_position = p_values[k_crtc_reg_vert_position];
-  p_video->crtc_vert_adjust = p_values[k_crtc_reg_vert_adjust];
-  p_video->crtc_mem_addr_high = p_values[k_crtc_reg_mem_addr_high];
-  p_video->crtc_mem_addr_low = p_values[k_crtc_reg_mem_addr_low];
+  uint32_t i;
+  for (i = 0; i < k_crtc_num_registers; ++i) {
+    p_video->crtc_registers[i] = p_values[i];
+  }
 }
 
 uint8_t*
@@ -890,18 +934,20 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
   uint8_t ula_control = video_get_ula_control(p_video);
   int is_text = (ula_control & k_ula_teletext);
   uint8_t* p_mem = p_video->p_mem;
+  uint8_t crtc_mem_addr_high =
+      p_video->crtc_registers[k_crtc_reg_mem_addr_high];
+  uint8_t crtc_mem_addr_low = p_video->crtc_registers[k_crtc_reg_mem_addr_low];
 
   assert(offset < 0x5000);
 
   if (is_text) {
-    mem_offset = p_video->crtc_mem_addr_high;
+    mem_offset = crtc_mem_addr_high;
     mem_offset ^= 0x20;
     mem_offset += 0x74;
     mem_offset <<= 8;
-    mem_offset |= p_video->crtc_mem_addr_low;
+    mem_offset |= crtc_mem_addr_low;
   } else {
-    mem_offset = ((p_video->crtc_mem_addr_high << 8) |
-                  p_video->crtc_mem_addr_low);
+    mem_offset = ((crtc_mem_addr_high << 8) | crtc_mem_addr_low);
     mem_offset <<= 3;
   }
 
@@ -969,7 +1015,7 @@ video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed) {
   /* NOTE: clock_speed is passed in rather than fetched, to avoid race
    * conditions where the BBC thread is changing values from under us.
    */
-  size_t ret = p_video->crtc_horiz_displayed;
+  size_t ret = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
 
   if (clock_speed == 1 && ret > 80) {
     ret = 80;
@@ -982,7 +1028,7 @@ video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed) {
 
 size_t
 video_get_vert_chars(struct video_struct* p_video) {
-  size_t ret = p_video->crtc_vert_displayed;
+  size_t ret = p_video->crtc_registers[k_crtc_reg_vert_displayed];
   if (ret > 32) {
     ret = 32;
   }
@@ -995,7 +1041,7 @@ video_get_horiz_chars_offset(struct video_struct* p_video, size_t clock_speed) {
   /* NOTE: clock_speed is passed in rather than fetched, to avoid race
    * conditions where the BBC thread is changing values from under us.
    */
-  int ret = p_video->crtc_horiz_position;
+  int ret = p_video->crtc_registers[k_crtc_reg_horiz_position];
   int max = 49;
   if (clock_speed == 1) {
     max = 98;
@@ -1010,8 +1056,8 @@ video_get_horiz_chars_offset(struct video_struct* p_video, size_t clock_speed) {
 int
 video_get_vert_lines_offset(struct video_struct* p_video) {
   int ret;
-  uint8_t pos = p_video->crtc_vert_position;
-  uint8_t adjust = (p_video->crtc_vert_adjust & 0x1f);
+  uint8_t pos = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  uint8_t adjust = p_video->crtc_registers[k_crtc_reg_vert_adjust];
   if (pos > 34) {
     pos = 34;
   }
