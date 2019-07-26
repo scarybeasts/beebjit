@@ -97,7 +97,6 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
       if (counter == 0) {
         counter = p_periods[channel];
         output = -output;
-        p_outputs[channel] = output;
 
         if (is_noise && (output == 1)) {
           /* NOTE: we do this like jsbeeb: we only update the random number
@@ -115,12 +114,25 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
             noise_rng = ((noise_rng >> 1) | (bit << 14));
           }
           *p_noise_rng = noise_rng;
-        } else if (counter == 1) {
-          /* Implement the quirk of the sn76489 whereby a period of 1
+        }
+        if (!is_noise && (counter <= 4) && (counter != 0)) {
+          /* EMU NOTE: Implement the quirk of the sn76489 whereby tiny period
            * doesn't flip-flop the output but just holds the output high.
+           * There are many unanswered questions here.
+           * - Is this a digital effect or an analog effect?
+           * - If this is a digital effect, is the cutoff correct at 4?
+           * - If this is an analog effect, should we implement a taper instead
+           * of an abrupt cutoff?
+           *
+           * In terms of compatability, this cutoff of 4 matches b-em and
+           * BeebEm, and is required for correct playback of various less
+           * common sampled sound discs such as Reet Petite:
+           * https://stardot.org.uk/forums/viewtopic.php?f=32&t=4277
            */
           output = 1;
         }
+
+        p_outputs[channel] = output;
       }
 
       if (is_noise) {
