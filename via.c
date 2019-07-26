@@ -517,6 +517,8 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     return val;
   case k_via_DDRB:
     return p_via->DDRB;
+  case k_via_DDRA:
+    return p_via->DDRA;
   case k_via_T1CL:
     if (!t1_firing) {
       via_clear_interrupt(p_via, k_int_TIMER1);
@@ -546,7 +548,6 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   case k_via_IER:
     return (p_via->IER | 0x80);
   default:
-    printf("unhandled VIA read %u\n", reg);
     break;
   }
   assert(0);
