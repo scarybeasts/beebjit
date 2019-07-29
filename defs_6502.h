@@ -12,7 +12,7 @@ enum {
 };
 
 enum {
-  k_6502_op_num_types = 62,
+  k_6502_op_num_types = 63,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 14,
 };
@@ -93,6 +93,7 @@ enum {
   k_alr = 59, /* Undocumented. */
   k_slo = 60, /* Undocumented. */
   k_shy = 61, /* Undocumented. */
+  k_anc = 62, /* Undocumented. */
 };
 
 enum {

@@ -284,8 +284,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Mode resolution and possibly per-mode uops. */
   switch (opmode) {
   case 0:
-    operand_6502 = addr_6502;
-    break;
   case k_nil:
   case k_acc:
     operand_6502 = 0;
@@ -533,6 +531,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (!main_written) {
     jit_opcode_make_uop1(p_uop, opcode_6502, operand_6502);
     p_uop->uoptype = optype;
+    /* Set value2 to the address, which will be used to bounce unhandled
+     * opcodes into the interpreter.
+     */
+    p_uop->value2 = addr_6502;
     p_uop++;
   }
 
@@ -1405,7 +1407,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     /* Use the interpreter for unknown opcodes. These could be either the
      * special re-purposed opcodes (e.g. CYCLES) or genuinely unused opcodes.
      */
-    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
+    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value2);
     break;
   }
 }

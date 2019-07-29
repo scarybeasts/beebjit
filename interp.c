@@ -812,6 +812,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0x0B: /* ANC imm */ /* Undocumented. */
+      v = p_mem_read[pc + 1];
+      a &= v;
+      INTERP_LOAD_NZ_FLAGS(a);
+      cf = nf;
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0x0D: /* ORA abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_ORA());
       break;

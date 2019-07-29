@@ -938,6 +938,12 @@ main(int argc, const char* argv[]) {
   util_buffer_add_3b(p_buf, 0x9C, 0x00, 0x7E);
   emit_LDA(p_buf, k_abs, 0x7E01);
   emit_REQUIRE_EQ(p_buf, 0x07);
+  /* ANC imm, used by Repton 2. */
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  util_buffer_add_2b(p_buf, 0x0B, 0x80);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x80);
   emit_JMP(p_buf, k_abs, 0xCCC0);
 
   /* Test some of the simpler BCD behavior. */

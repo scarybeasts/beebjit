@@ -192,6 +192,15 @@ But if we resume at $2349, we "accidentally"? get the same effect:
 [234f] 234f: LDA $7dce,Y
 
 
+- Repton2.zip
+SHA256: 2e72f2d0ca1f8fe043be9f7b7e78055d16340ea0ff32682df73f17ea072c200b
+Notes:
+1) Uses single(?) instanceof ANC imm undocumented opcode, called once per
+title screen:
+[ITRP] 220C: JSR $10F5      [A=00 X=00 Y=01 S=EF F= Z   1  ]
+[ITRP] 10F5: ANC #$0A       [A=00 X=00 Y=01 S=ED F= Z   1  ]
+
+
 - RocketRaid.zip
 SHA256: 535731b6c03aa8a13b9828f657fe247041c1740ee4e1c2d04adbe0ec65a9f585
 Start PC: $3400
