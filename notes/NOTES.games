@@ -199,6 +199,26 @@ Notes:
 title screen:
 [ITRP] 220C: JSR $10F5      [A=00 X=00 Y=01 S=EF F= Z   1  ]
 [ITRP] 10F5: ANC #$0A       [A=00 X=00 Y=01 S=ED F= Z   1  ]
+2) Probable bug? Actives sound write enable (low) while setting up screen
+addresses, see store at $4157.
+[ITRP] 4154: SEI
+[ITRP] 4155: LDA #$00
+[ITRP] 4157: STA $FE40
+[ITRP] 415A: LDA #$0C
+[ITRP] 415C: STA $FE40
+[ITRP] 415F: LDA #$05
+[ITRP] 4161: STA $FE40
+[ITRP] 4164: CLI
+Sound write enable is left low indefinitely, will likely cause intermittent
+sound problems if keyboard interrupt or scan occurs in this window.
+Later, sound write enable is pulled low again without an intervening pull high:
+[ITRP] 2CAA: LDX #$FF
+[ITRP] 2CAC: STX $FE43
+[ITRP] 2CAF: STA $FE4F
+[ITRP] 2CB2: INX
+[ITRP] 2CB3: STX $FE40
+This is actually ok, the sound chip doesn't need to see a high -> low
+transition, but is likely not what was intended.
 
 
 - RocketRaid.zip
