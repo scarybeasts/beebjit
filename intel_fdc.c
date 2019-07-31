@@ -326,17 +326,22 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_status_result(p_fdc, 0x00, 0x00);
     break;
   case k_intel_fdc_command_read_special_register:
+    temp_u8 = 0;
     switch (param0) {
     case k_intel_fdc_register_scan_sector:
       /* DFS-0.9 reads this register after an 0x18 sector not found error. */
-      intel_fdc_set_status_result(p_fdc,
-                                  k_intel_fdc_status_flag_result_ready,
-                                  0x00);
+      break;
+    case k_intel_fdc_register_drive_out:
+      /* DFS-1.2 reads drive out in normal operation. */
+      temp_u8 = p_fdc->drive_out;
       break;
     default:
       assert(0);
       break;
     }
+    intel_fdc_set_status_result(p_fdc,
+                                k_intel_fdc_status_flag_result_ready,
+                                temp_u8);
     break;
   case k_intel_fdc_command_write_special_register:
     switch (param0) {

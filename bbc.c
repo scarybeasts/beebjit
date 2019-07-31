@@ -46,6 +46,7 @@ enum {
   k_addr_sysvia = 0xFE40,
   k_addr_uservia = 0xFE60,
   k_addr_floppy = 0xFE80,
+  k_addr_econet = 0xFEA0,
   k_addr_adc_status = 0xFEC0,
   k_addr_adc_high = 0xFEC1,
   k_addr_adc_low = 0xFEC2,
@@ -257,6 +258,9 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_floppy + 1):
   case (k_addr_floppy + 4):
     return intel_fdc_read(p_bbc->p_intel_fdc, addr);
+  case (k_addr_econet + 0):
+    /* No ECONET hardware emulated. */
+    break;
   case k_addr_adc_status:
     /* No ADC attention needed (bit 6). */
     return 0;
