@@ -442,6 +442,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_floppy + 4):
     intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
     break;
+  case (k_addr_econet + 0):
+  case (k_addr_econet + 1):
+    break;
   case k_addr_adc_status:
     printf("ignoring ADC status write\n");
     break;
