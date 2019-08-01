@@ -1180,13 +1180,14 @@ bbc_get_client_handle(struct bbc_struct* p_bbc) {
 
 void
 bbc_load_disc(struct bbc_struct* p_bbc,
+              int drive,
               uint8_t* p_data,
               size_t buffer_size,
               size_t buffer_filled,
               int is_dsd,
               int writeable) {
   intel_fdc_load_disc(p_bbc->p_intel_fdc,
-                      0,
+                      drive,
                       is_dsd,
                       p_data,
                       buffer_size,

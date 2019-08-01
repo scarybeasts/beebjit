@@ -59,6 +59,7 @@ void bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index);
 uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_load_disc(struct bbc_struct* p_bbc,
+                   int drive,
                    uint8_t* p_data,
                    size_t buffer_size,
                    size_t buffer_filled,

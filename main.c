@@ -31,11 +31,12 @@ main(int argc, const char* argv[]) {
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
-  uint8_t disc_buffer[k_bbc_max_dsd_disc_size] = {};
+  uint8_t disc_buffers[2][k_bbc_max_dsd_disc_size] = {};
+  const char* disc_names[2] = {};
+  struct util_file_map* p_disc_maps[2] = {};
 
   const char* os_rom_name = "roms/os12.rom";
   const char* load_name = NULL;
-  const char* disc_load_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
   int debug_flag = 0;
@@ -51,7 +52,6 @@ main(int argc, const char* argv[]) {
   int mode = k_cpu_mode_interp;
   uint64_t cycles = 0;
   uint32_t expect = 0;
-  struct util_file_map* p_disc_map = NULL;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_lang_rom_slot] = "roms/basic.rom";
@@ -80,7 +80,10 @@ main(int argc, const char* argv[]) {
         load_name = val;
         ++i;
       } else if (!strcmp(arg, "-disc")) {
-        disc_load_name = val;
+        disc_names[0] = val;
+        ++i;
+      } else if (!strcmp(arg, "-disc1")) {
+        disc_names[1] = val;
         ++i;
       } else if (!strcmp(arg, "-opt")) {
         opt_flags = val;
@@ -197,31 +200,39 @@ main(int argc, const char* argv[]) {
   }
 
   /* Load the disc into the drive! */
-  if (disc_load_name != NULL) {
+  for (i = 0; i <= 1; ++i) {
     uint8_t* p_data;
     size_t buffer_size;
     size_t buffer_filled;
 
     int is_dsd = 0;
     size_t max_size = k_bbc_max_dsd_disc_size;
-    if (strstr(disc_load_name, ".dsd") != NULL) {
+    const char* disc_name = disc_names[i];
+    struct util_file_map* p_disc_map = NULL;
+
+    if (disc_name == NULL) {
+      continue;
+    }
+    if (strstr(disc_name, ".dsd") != NULL) {
       is_dsd = 1;
     }
     if (disc_mutable_flag) {
-      p_disc_map = util_file_map(disc_load_name, max_size, 1);
+      p_disc_map = util_file_map(disc_name, max_size, 1);
       buffer_size = util_file_map_get_size(p_disc_map);
       buffer_filled = buffer_size;
       p_data = util_file_map_get_ptr(p_disc_map);
+      p_disc_maps[i] = p_disc_map;
     } else {
       if (is_dsd) {
         buffer_size = k_bbc_max_dsd_disc_size;
       } else {
         buffer_size = k_bbc_max_ssd_disc_size;
       }
-      buffer_filled = util_file_read(disc_buffer, max_size, disc_load_name);
-      p_data = disc_buffer;
+      p_data = disc_buffers[i];
+      buffer_filled = util_file_read(p_data, max_size, disc_name);
     }
     bbc_load_disc(p_bbc,
+                  i,
                   p_data,
                   buffer_size,
                   buffer_filled,
@@ -304,8 +315,11 @@ main(int argc, const char* argv[]) {
     os_sound_destroy(p_sound_driver);
   }
 
-  if (p_disc_map != NULL) {
-    util_file_unmap(p_disc_map);
+  for (i = 0; i <= 1; ++i) {
+    struct util_file_map* p_disc_map = p_disc_maps[i];
+    if (p_disc_map != NULL) {
+      util_file_unmap(p_disc_map);
+    }
   }
 
   return 0;
