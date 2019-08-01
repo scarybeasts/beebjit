@@ -29,6 +29,7 @@ enum {
 enum {
   k_intel_fdc_command_write_sectors = 0x0B,
   k_intel_fdc_command_read_sectors = 0x13,
+  k_intel_fdc_command_read_sector_ids = 0x1B,
   k_intel_fdc_command_verify_sectors = 0x1F,
   k_intel_fdc_command_format = 0x23,
   k_intel_fdc_command_seek = 0x29,
@@ -53,7 +54,9 @@ enum {
 
 enum {
   k_intel_fdc_register_scan_sector = 0x06,
+  k_intel_fdc_register_track_drive_0 = 0x12,
   k_intel_fdc_register_mode = 0x17,
+  k_intel_fdc_register_track_drive_1 = 0x1A,
   k_intel_fdc_register_drive_out = 0x23,
 };
 
@@ -253,9 +256,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   assert(p_fdc->current_bytes_left == 0);
 
   switch (command) {
-  case k_intel_fdc_command_verify_sectors:
   case k_intel_fdc_command_write_sectors:
   case k_intel_fdc_command_read_sectors:
+  case k_intel_fdc_command_read_sector_ids:
+  case k_intel_fdc_command_verify_sectors:
     if ((current_track >= p_fdc->disc_tracks[drive_0_or_1]) ||
         ((p_fdc->drive_out & 0x20) && !p_fdc->disc_dsd[drive_0_or_1])) {
       intel_fdc_set_status_result(p_fdc,
@@ -270,6 +274,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   }
 
   switch (command) {
+  /* TODO: implement k_intel_fdc_command_read_sector_ids. */
+  case k_intel_fdc_command_read_sector_ids:
   case k_intel_fdc_command_verify_sectors:
     /* DFS-0.9 verifies sectors before writing them. */
     intel_fdc_set_status_result(p_fdc,
@@ -345,7 +351,13 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_command_write_special_register:
     switch (param0) {
+    case k_intel_fdc_register_track_drive_0:
+      p_fdc->current_track[0] = param1;
+      break;
     case k_intel_fdc_register_mode:
+      break;
+    case k_intel_fdc_register_track_drive_1:
+      p_fdc->current_track[1] = param1;
       break;
     case k_intel_fdc_register_drive_out:
       /* Bit 0x20 is important as it's used to select the side of the disc for
@@ -399,7 +411,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       break;
     case k_intel_fdc_command_write_sectors:
     case k_intel_fdc_command_read_sectors:
-    case 0x1B:
+    case k_intel_fdc_command_read_sector_ids:
     case k_intel_fdc_command_verify_sectors:
       num_params = 3;
       break;
