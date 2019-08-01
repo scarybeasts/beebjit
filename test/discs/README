@@ -1,0 +1,30 @@
+These discs are interesting in some way for emulator behavior testing.
+
+- Disc103-OddJobD.ssd
+Seems to require DFS-1.2 to correctly load.
+
+- Disc106-AtticBugInSameGame.ssd
+Triggers some strange corner case in keyboard handling.
+
+- PLAY_DISC.ssd
+Disc for drive 0 for Dragonsoft Explorer.
+Dragonsoft Explorer requires sideways RAM and has a custom disc loading
+routine that issue unusual i8271 commands directly.
+
+- ReetPetite.ssd
+Sampled sound playback, uses tone channel period of 4.
+
+- Repton2-alt.ssd
+Has an issue (bug?) that leaves the Speech subsystem latched on.
+
+- SAVE_DISC.ssd
+Disc for drive 1 for Dragonsoft Explorer.
+See above.
+
+- Speech.dsd
+Very unusual sampled sound playback routine, uses tone channel period of 8(!)
+and does not toggle the sound write enable bit.
+
+- tyb-enjoy.ssd
+Sampled sound playback, needs sideways RAM, uses tone channel period of 4.
+
