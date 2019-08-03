@@ -303,6 +303,27 @@ nop'd out with two bytes of EA, to get a version speed limited only by
 emulator speed.
 
 
+- Uridium.zip
+SHA256: 58ffc27c528d93432211ab6beef630a44fdd071c9d312033ffe6829da4ec7097
+Start PC: $24D3 (post keyboard selection)
+Notes:
+1) Bug setting EVENTV?
+It does this with interrupts on:
+[ITRP] 2532: LDA #$00
+[ITRP] 2534: STA $0220
+[ITRP] 2537: LDA #$04
+[ITRP] 2539: STA $0221
+2) Calls $FFE0 at $2543, music plays, bounces out on keypress, jumps to $2900,
+calls *RUN Uridium, executes at $6F00.
+3) $6F00 relocates and later jumps to $4800.
+4) Serious bug in $6F00 relocation routine. It is run with IRQs _enabled_, and
+copies page $1100 to $0200. Furthermore, IRQV @$0204 is written with $0200.
+There are a few problems here but mainly, IRQV can be overwritten before the
+IRQ routine at $0200 is fully copied. Then, if and when an interrupt comes in
+during this unforunate race window, it all goes south.
+5) At $487B, writes $0F to $FE42 (DDRB) -- carries risk with BBC Master?
+
+
 - Wizadore.zip
 SHA256: 5811de44e405c1cbd2ec8272e6eb58d12ef384368edd59bab602fa0c3a500274
 Notes:
