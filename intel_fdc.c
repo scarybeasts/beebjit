@@ -313,7 +313,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                                 k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_drive_status:
-    temp_u8 = 0x88;
+    temp_u8 = 0x80;
     if (current_track == 0) {
       temp_u8 |= 0x02;
     }
@@ -322,6 +322,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     }
     if (p_fdc->drive_select & 0x02) {
       temp_u8 |= 0x40;
+    }
+    if (!p_fdc->disc_writeable[drive_0_or_1]) {
+      temp_u8 |= 0x08;
     }
     intel_fdc_set_status_result(p_fdc,
                                 k_intel_fdc_status_flag_result_ready,
