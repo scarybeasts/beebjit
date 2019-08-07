@@ -6,20 +6,29 @@ Seems to require DFS-1.2 to correctly load.
 - Disc106-AtticBugInSameGame.ssd
 Triggers some strange corner case in keyboard handling.
 
-- PLAY_DISC.ssd
-Disc for drive 0 for Dragonsoft Explorer.
+- Disc116-DevilsIslandSTD.ssd
+Complicated video timing setup with MODE7 switch halfway down the screen.
+
+- EliteA-unofficial.ssd
+Has bug where it relies on disc spindown invalidating drive ready status. If
+the drive ready isn't invalidated, pressing f0 to start the game and launch
+the ship will fail.
+
+- PharaohsCurse.ssd
+Requires crazy light pen simulation support before game will start. No actual
+light pen required, it's an internal fakery between system VIA and CRTC.
+
+- PLAY_DISC.ssd, SAVE_DISC.ssd
+Disc for drives 0 / 1 for Dragonsoft Explorer.
 Dragonsoft Explorer requires sideways RAM and has a custom disc loading
 routine that issue unusual i8271 commands directly.
+Also seems to do timing / video tricks.
 
 - ReetPetite.ssd
 Sampled sound playback, uses tone channel period of 4.
 
 - Repton2-alt.ssd
 Has an issue (bug?) that leaves the Speech subsystem latched on.
-
-- SAVE_DISC.ssd
-Disc for drive 1 for Dragonsoft Explorer.
-See above.
 
 - Speech.dsd
 Very unusual sampled sound playback routine, uses tone channel period of 8(!)
