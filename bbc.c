@@ -47,9 +47,7 @@ enum {
   k_addr_uservia = 0xFE60,
   k_addr_floppy = 0xFE80,
   k_addr_econet = 0xFEA0,
-  k_addr_adc_status = 0xFEC0,
-  k_addr_adc_high = 0xFEC1,
-  k_addr_adc_low = 0xFEC2,
+  k_addr_adc = 0xFEC0,
   k_addr_tube = 0xFEE0,
 };
 
@@ -261,12 +259,15 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_econet + 0):
     /* No ECONET hardware emulated. */
     break;
-  case k_addr_adc_status:
-    /* No ADC attention needed (bit 6). */
-    return 0;
-  case (k_addr_adc_high + 0):
-  case (k_addr_adc_low + 0):
-    /* No ADC values. */
+  case (k_addr_adc + 0): /* Status. */
+    /* Return ADC conversion complete (bit 6). */
+    return 0x40;
+  case (k_addr_adc + 1): /* ADC high. */
+    /* Return 0x8000 across high and low, which is "central position" for
+     * the joystick.
+     */
+    return 0x80;
+  case (k_addr_adc + 2): /* ADC low. */
     return 0;
   case (k_addr_tube + 0):
     /* Not present -- fall through to return 0xFE. */
@@ -445,8 +446,8 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_econet + 0):
   case (k_addr_econet + 1):
     break;
-  case k_addr_adc_status:
-    printf("ignoring ADC status write\n");
+  case (k_addr_adc + 0): /* Status. */
+    /* TODO: ADC, even with nothing connected, isn't correctly emulated yet. */
     break;
   case k_addr_tube:
     printf("ignoring tube write\n");

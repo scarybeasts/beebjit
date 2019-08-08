@@ -4,7 +4,7 @@ These discs are interesting in some way for emulator behavior testing.
 Seems to require DFS-1.2 to correctly load.
 
 - Disc106-AtticBugInSameGame.ssd
-Triggers some strange corner case in keyboard handling.
+Reads ADC conversion (joystick position) and starts game if non-central.
 
 - Disc116-DevilsIslandSTD.ssd
 Complicated video timing setup with MODE7 switch halfway down the screen.
