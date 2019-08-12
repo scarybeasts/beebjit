@@ -91,6 +91,36 @@ $2500 simply does INC $0120; RTS.
 6) Trampoline bounce noise uses periodic white noise with very long period.
 
 
+- Devil's Island
+IRQ1V @ $0204: $60E5
+1) IRQ1V handles vsync interrupt, starting at $610D.
+- Sets ULA to ($C4 | current flash). [20 chars per line]
+- Sets color palette.
+- Sets horiz displayed to $20.
+- Sets horiz position to $2E.
+- Sets T1 to fire in 100us or so.
+- Sets T2 to fire in 10848us or so.
+2) IRQ1V handles T1 interrupt.
+- Passed on to MOS for standard handling, presumably keyboard etc.
+3) IRQ1V handles T2 interrupt, starting at $617A -> $6183.
+- Plenty of timing jitter on entry, particularly due to SEI block at $E465.
+- Vertical counter 0x0F, scanline 6.
+- Typical horizontal counter jitter range at least 0x12 - 0x3B.
+- About half-way down the screen.
+- Sets interlace to $31. [display off]
+- Sets ULA to $88. [40 chars per line]
+- Sets color palette.
+- Sets horiz displayed to $00.
+- Sets horiz position to $31 (from $2E).
+- Race condition here! If horiz counter is e.g. $2D / $2E or thereabouts,
+you'll get two hsyncs.
+- Sets T2 to fire in 2304us or so.
+4) IRQ1V handles T2 interrupt, starting at $617A -> $61CA.
+- Sets horiz displayed to $28.
+- Sets interlace to $01. [display on]
+- Sets T1 to fire in 100us or so.
+
+
 - Exile.zip
 SHA256: 67aac020f216178d8a89237faa86825611834fbaa79915c1604bd07b60d83268
 Start PC: $6075
