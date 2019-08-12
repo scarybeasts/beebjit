@@ -237,6 +237,8 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_acia + 0):
     /* No ACIA interrupt (bit 7). */
     return 0;
+  case (k_addr_serial_ula + 0):
+    return 0;
   case 0xFE18:
     /* Only used in Master model but read by Synchron. */
     break;
