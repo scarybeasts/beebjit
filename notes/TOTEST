@@ -1,0 +1,8 @@
+A list of little tests pending on real hardware.
+
+PENDING
+- What if display is off, cursor is on, does cursor render?
+MODE2:?&FE00=8:?&FE01=&31
+
+
+RESOLVED
