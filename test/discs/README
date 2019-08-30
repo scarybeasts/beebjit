@@ -14,6 +14,11 @@ Has bug where it relies on disc spindown invalidating drive ready status. If
 the drive ready isn't invalidated, pressing f0 to start the game and launch
 the ship will fail.
 
+- Nubium 20181214 b.ssd
+Needs a Master. Upon game start, triggers an interesting shadow memory bug
+with an unusual combination of ACCCON bits. Should actually fail to start game
+correctly on real hardware.
+
 - PharaohsCurse.ssd
 Requires crazy light pen simulation support before game will start. No actual
 light pen required, it's an internal fakery between system VIA and CRTC.
