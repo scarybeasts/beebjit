@@ -42,3 +42,12 @@ and does not toggle the sound write enable bit.
 - tyb-enjoy.ssd
 Sampled sound playback, needs sideways RAM, uses tone channel period of 4.
 
+- upside-doom.ssd
+By Kieran Connell.
+CRTC test case that uses a multiple frames per horizontal line, and illustrates
+the CRTC quirk of "no display on last horizontal character".
+
+- upside-doom-no-skew.ssd
+By Kieran Connell.
+As above but uses a strange skew trick to avoid the problem of "no display on
+last horizontal character".
