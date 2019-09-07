@@ -4,5 +4,24 @@ PENDING
 - What if display is off, cursor is on, does cursor render?
 MODE2:?&FE00=8:?&FE01=&31
 
+- What if a skewed cursor start is outside the border, does it render?
+
+- What if cursor start line > cursor end line? What renders?
+
+- Check again what happens if you set skew=1 in a normal mode, e.g. MODE 0.
+
+- Do you get a vsync if vsync position is 0?
+
+- Does display still get enabled for start of frame if vdisp is vtotal?
+
 
 RESOLVED
+- What if you have a long cursor, does it render past the screen border?
+MODE 0
+?&248=&FC
+A) Yes. See https://stardot.org.uk/forums/viewtopic.php?f=4&t=17789
+
+- Extent of ROMSEL and ULA mapping on BBC B?
+?&FE3F=0
+?&FE2E=0
+A) Both are mapped to a full 16 byte region.
