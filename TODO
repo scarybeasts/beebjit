@@ -13,11 +13,15 @@ dependent on one another.
 - Add CREDITS file listing inspirations, file sources, etc.
 - Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
 Exile).
-- Fix keyboard issue with "The Attic Bug in SameGame":
+- Fix joystick issue with "The Attic Bug in SameGame":
 http://bbcmicro.co.uk/game.php?id=1891
 - Fix memory initialization to favor both Clogger and Eagle Empire.
 - Fix Dragonsoft Explorer.
 - Fix Pharoah's Curse.
+- Fix pi.ssd (uses JMP ($..FF)).
+- Fix CA1 / CA2 line vs. VIA IRQ.
+- Fix ROMSEL / ULA mappings.
+- Fix IRA read and keyboard bus dominance.
 
 
 Ideas
