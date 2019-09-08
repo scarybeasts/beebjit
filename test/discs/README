@@ -14,6 +14,10 @@ Has bug where it relies on disc spindown invalidating drive ready status. If
 the drive ready isn't invalidated, pressing f0 to start the game and launch
 the ship will fail.
 
+- mode7-bug.ssd
+By Kieran Connell.
+Triggers interesting MODE 7 character states.
+
 - Nubium 20181214 b.ssd
 Needs a Master. Upon game start, triggers an interesting shadow memory bug
 with an unusual combination of ACCCON bits. Should actually fail to start game
@@ -22,6 +26,10 @@ correctly on real hardware.
 - PharaohsCurse.ssd
 Requires crazy light pen simulation support before game will start. No actual
 light pen required, it's an internal fakery between system VIA and CRTC.
+
+- pi.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/115
+Seems to use a page-crossing JMP ind.
 
 - PLAY_DISC.ssd, SAVE_DISC.ssd
 Disc for drives 0 / 1 for Dragonsoft Explorer.
