@@ -1018,6 +1018,9 @@ bbc_cycles_timer_callback(void* p) {
 
   p_bbc->last_time_us = curr_time_us;
 
+  /* Pull key events from system thread. */
+  keyboard_read_queue(p_keyboard);
+
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     p_bbc->fast_flag = !p_bbc->fast_flag;

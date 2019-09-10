@@ -36,6 +36,8 @@ enum {
 struct keyboard_struct* keyboard_create();
 void keyboard_destroy(struct keyboard_struct* p_keyboard);
 
+void keyboard_read_queue(struct keyboard_struct* p_keyboard);
+
 int keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
                                 uint8_t row,
                                 uint8_t col);

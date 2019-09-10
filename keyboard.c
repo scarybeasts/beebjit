@@ -1,8 +1,11 @@
 #include "keyboard.h"
 
+#include "os_lock.h"
+
 #include <assert.h>
 #include <err.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 enum {
@@ -11,7 +14,19 @@ enum {
   k_keyboard_state_flag_unconsumed_press = 4,
 };
 
+enum {
+  k_keyboard_queue_size = 16,
+};
+
 struct keyboard_struct {
+  /* The OS thread populates the queue of key events and the BBC thread
+   * empties it from time to time.
+   */
+  struct os_lock_struct* p_lock;
+  uint8_t queue_key[k_keyboard_queue_size];
+  uint8_t queue_isdown[k_keyboard_queue_size];
+  uint32_t queue_pos;
+
   uint8_t bbc_keys[16][16];
   uint8_t bbc_keys_count;
   uint8_t bbc_keys_count_col[16];
@@ -28,11 +43,15 @@ keyboard_create() {
 
   (void) memset(p_keyboard, '\0', sizeof(struct keyboard_struct));
 
+  p_keyboard->p_lock = os_lock_create();
+  p_keyboard->queue_pos = 0;
+
   return p_keyboard;
 }
 
 void
 keyboard_destroy(struct keyboard_struct* p_keyboard) {
+  os_lock_destroy(p_keyboard->p_lock);
   free(p_keyboard);
 }
 
@@ -329,30 +348,20 @@ int
 keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
                             uint8_t row,
                             uint8_t col) {
-  /* Threading model: called from the BBC thread.
-   * Only allowed to read keyboard state.
-   */
-  volatile uint8_t* p_key = &p_keyboard->bbc_keys[row][col];
-  return *p_key;
+  return p_keyboard->bbc_keys[row][col];
 }
 
 int
 keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
                                    uint8_t col) {
-  /* Threading model: called from the BBC thread.
-   * Only allowed to read keyboard state.
-   */
-  volatile uint8_t* p_count = &p_keyboard->bbc_keys_count_col[col];
-  return (*p_count > 0);
+  uint8_t count = p_keyboard->bbc_keys_count_col[col];
+  return (count > 0);
 }
 
 int
 keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
-  /* Threading model: called from the BBC thread.
-   * Only allowed to read keyboard state.
-   */
-  volatile uint8_t* p_count = &p_keyboard->bbc_keys_count;
-  return (*p_count > 0);
+  uint8_t count = p_keyboard->bbc_keys_count;
+  return (count > 0);
 }
 
 int
@@ -374,11 +383,41 @@ keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
   return ret;
 }
 
+static void
+keyboard_put_key_in_queue(struct keyboard_struct* p_keyboard,
+                          uint8_t key,
+                          int is_down) {
+  /* Called from the system thread.
+   * Only the system thread puts keys in the queue and that's all it does.
+   */
+  os_lock_lock(p_keyboard->p_lock);
+
+  if (p_keyboard->queue_pos == k_keyboard_queue_size) {
+    printf("keyboard queue full");
+    os_lock_unlock(p_keyboard->p_lock);
+    return;
+  }
+  p_keyboard->queue_key[p_keyboard->queue_pos] = key;
+  p_keyboard->queue_isdown[p_keyboard->queue_pos] = is_down;
+  p_keyboard->queue_pos++;
+
+  os_lock_unlock(p_keyboard->p_lock);
+}
+
 void
 keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
-  /* Threading model: called from the system thread.
-   * Allowed to read/write keyboard state.
-   */
+  /* Called from the system thread. */
+  keyboard_put_key_in_queue(p_keyboard, key, 1);
+}
+
+void
+keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
+  /* Called from the system thread. */
+  keyboard_put_key_in_queue(p_keyboard, key, 0);
+}
+
+static void
+keyboard_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   int32_t row;
   int32_t col;
 
@@ -422,16 +461,8 @@ keyboard_system_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   p_keyboard->bbc_keys_count++;
 }
 
-void
-keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
-  /* Threading model: called from the system thread.
-   * Allowed to read/write keyboard state.
-   * There's no other writer thread, so updates (such as increment / decrement
-   * of counters) don't need to be atomic. However, the reader should be aware
-   * that keyboard state is changing asynchronously.
-   * e.g. keyboard_bbc_is_any_key_pressed() could return 0 but an immediately
-   * following specific keyboard_bbc_is_key_pressed() could return 1.
-   */
+static void
+keyboard_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   int32_t row;
   int32_t col;
   int was_pressed;
@@ -462,4 +493,30 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
     assert(p_keyboard->bbc_keys_count > 0);
     p_keyboard->bbc_keys_count--;
   }
+}
+
+void
+keyboard_read_queue(struct keyboard_struct* p_keyboard) {
+  /* Called from the BBC thread. */
+  uint32_t i;
+
+  /* Should be safe to do this early out unlocked. */
+  if (!p_keyboard->queue_pos) {
+    return;
+  }
+
+  os_lock_lock(p_keyboard->p_lock);
+
+  for (i = 0; i < p_keyboard->queue_pos; ++i) {
+    uint8_t key = p_keyboard->queue_key[i];
+    if (p_keyboard->queue_isdown[i]) {
+      keyboard_key_pressed(p_keyboard, key);
+    } else {
+      keyboard_key_released(p_keyboard, key);
+    }
+  }
+
+  p_keyboard->queue_pos = 0;
+
+  os_lock_unlock(p_keyboard->p_lock);
 }
