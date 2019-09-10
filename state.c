@@ -135,7 +135,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
   uint8_t volumes[4];
   uint16_t periods[4];
   uint16_t counters[4];
-  int8_t outputs[4];
+  uint8_t outputs[4];
   uint8_t last_channel;
   uint8_t t1_pb7;
   size_t i;
@@ -245,7 +245,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
     size_t sn_channel = (3 - i);
     uint16_t period = (p_bem->sn_latch[sn_channel] >> 6);
     uint16_t counter = (p_bem->sn_count[sn_channel] >> 6);
-    int8_t output = 1;
+    uint8_t output = 1;
     volumes[i] = p_bem->sn_vol[sn_channel];
     /* b-em runs the noise rng twice as fast as we do, so half the timings. */
     if (i == 0) {
@@ -255,7 +255,7 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
     periods[i] = period;
     counters[i] = counter;
     if (p_bem->sn_stat[sn_channel] >= 16) {
-      output = -1;
+      output = 0;
     }
     outputs[i] = output;
   }
@@ -300,7 +300,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   uint8_t volumes[4];
   uint16_t periods[4];
   uint16_t counters[4];
-  int8_t outputs[4];
+  uint8_t outputs[4];
   uint8_t last_channel;
   int noise_type;
   uint8_t noise_frequency;
@@ -433,7 +433,7 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
     }
     p_bem->sn_latch[sn_channel] = (period << 6);
     p_bem->sn_count[sn_channel] = (counter << 6);
-    if (outputs[i] == -1) {
+    if (outputs[i] == 0) {
       stat = 16;
     }
     p_bem->sn_stat[sn_channel] = stat;

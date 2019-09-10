@@ -42,7 +42,7 @@ struct sound_struct {
 
   /* sn76489 state. */
   uint16_t counter[k_sound_num_channels];
-  int8_t output[k_sound_num_channels];
+  uint8_t output[k_sound_num_channels];
   uint16_t noise_rng;
   int16_t volume[k_sound_num_channels];
   uint16_t period[k_sound_num_channels];
@@ -65,7 +65,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
 
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   uint16_t* p_counters = &p_sound->counter[0];
-  int8_t* p_outputs = &p_sound->output[0];
+  uint8_t* p_outputs = &p_sound->output[0];
   uint32_t sn_frames_filled = p_sound->sn_frames_filled;
   /* These are written by another thread. */
   volatile int16_t* p_volumes = &p_sound->volume[0];
@@ -86,7 +86,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
        */
       int16_t sample_component = p_volumes[channel];
       uint16_t counter = p_counters[channel];
-      char output = p_outputs[channel];
+      uint8_t output = p_outputs[channel];
       uint16_t noise_rng = *p_noise_rng;
       int is_noise = 0;
       if (channel == 3) {
@@ -96,9 +96,10 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
       counter = ((counter - 1) & 0x3ff);
       if (counter == 0) {
         counter = p_periods[channel];
-        output = -output;
+        output = !output;
+        p_outputs[channel] = output;
 
-        if (is_noise && (output == 1)) {
+        if (is_noise && output) {
           /* NOTE: we do this like jsbeeb: we only update the random number
            * every two counter expiries, and we have the period values half what
            * they really are. This might mirror the real silicon? It avoids
@@ -115,38 +116,15 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
           }
           *p_noise_rng = noise_rng;
         }
-        if (!is_noise && (counter <= 4) && (counter != 0)) {
-          /* EMU NOTE: Implement the quirk of the sn76489 whereby tiny period
-           * doesn't flip-flop the output but just holds the output high.
-           * There are many unanswered questions here.
-           * - Is this a digital effect or an analog effect?
-           * - If this is a digital effect, is the cutoff correct at 4?
-           * - If this is an analog effect, should we implement a taper instead
-           * of an abrupt cutoff?
-           *
-           * In terms of compatability, this cutoff of 4 matches b-em and
-           * BeebEm, and is required for correct playback of various less
-           * common sampled sound discs such as Reet Petite:
-           * https://stardot.org.uk/forums/viewtopic.php?f=32&t=4277
-           */
-          output = 1;
-        }
-
-        p_outputs[channel] = output;
       }
 
       if (is_noise) {
-        output = 1;
-        if (!(noise_rng & 1)) {
-          output = -1;
-        }
+        output = (noise_rng & 1);
       }
 
       p_counters[channel] = counter;
 
-      if (output == -1) {
-        sample_component = -sample_component;
-      }
+      sample_component *= output;
       sample += sample_component;
     }
     p_sn_frames[sn_frames_filled + i] = sample;
@@ -270,7 +248,7 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
     p_sound->period[i] = 0;
     /* NOTE: b-em randomizes these counters, maybe to get a phase effect? */
     p_sound->counter[i] = 0;
-    p_sound->output[i] = -1;
+    p_sound->output[i] = 0;
   }
 
   /* EMU NOTE: if we zero initialize noise_frequency, this implies a period of
@@ -511,7 +489,7 @@ sound_get_state(struct sound_struct* p_sound,
                 uint8_t* p_volumes,
                 uint16_t* p_periods,
                 uint16_t* p_counters,
-                int8_t* p_outputs,
+                uint8_t* p_outputs,
                 uint8_t* p_last_channel,
                 int* p_noise_type,
                 uint8_t* p_noise_frequency,
@@ -535,7 +513,7 @@ sound_set_state(struct sound_struct* p_sound,
                 uint8_t* p_volumes,
                 uint16_t* p_periods,
                 uint16_t* p_counters,
-                int8_t* p_outputs,
+                uint8_t* p_outputs,
                 uint8_t last_channel,
                 int noise_type,
                 uint8_t noise_frequency,
