@@ -22,6 +22,8 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix CA1 / CA2 line vs. VIA IRQ.
 - Fix ROMSEL / ULA mappings.
 - Fix IRA read and keyboard bus dominance.
+- Fix Enjoy the Silence sampled playback.
+- Fix whiny pitch on sound output (poor resample?)
 
 
 Ideas
