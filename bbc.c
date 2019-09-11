@@ -8,6 +8,7 @@
 #include "intel_fdc.h"
 #include "keyboard.h"
 #include "memory_access.h"
+#include "os_thread.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -17,8 +18,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <errno.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +52,7 @@ enum {
 
 struct bbc_struct {
   /* Internal system mechanics. */
-  pthread_t cpu_thread;
+  struct os_thread_struct* p_thread_cpu;
   int thread_allocated;
   int running;
   int message_cpu_fd;
@@ -760,10 +759,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   assert(!*p_running);
 
   if (*p_thread_allocated) {
-    int ret = pthread_join(p_bbc->cpu_thread, NULL);
-    if (ret != 0) {
-      errx(1, "pthread_join failed");
-    }
+    (void) os_thread_destroy(p_bbc->p_thread_cpu);
   }
 
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
@@ -1154,10 +1150,7 @@ bbc_cpu_thread(void* p) {
 
 void
 bbc_run_async(struct bbc_struct* p_bbc) {
-  int ret = pthread_create(&p_bbc->cpu_thread, NULL, bbc_cpu_thread, p_bbc);
-  if (ret != 0) {
-    errx(1, "couldn't create jit thread");
-  }
+  p_bbc->p_thread_cpu = os_thread_create(bbc_cpu_thread, p_bbc);
 
   assert(!p_bbc->thread_allocated);
   assert(!p_bbc->running);

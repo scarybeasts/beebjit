@@ -1,6 +1,6 @@
 #include "keyboard.h"
 
-#include "os_lock.h"
+#include "os_thread.h"
 #include "timing.h"
 #include "util.h"
 

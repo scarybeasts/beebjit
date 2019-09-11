@@ -1,13 +1,13 @@
 #include "sound.h"
 
 #include "os_sound.h"
+#include "os_thread.h"
 #include "timing.h"
 #include "util.h"
 
 #include <assert.h>
 #include <err.h>
 #include <math.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,7 +36,7 @@ struct sound_struct {
   /* Internal state. */
   int thread_running;
   int do_exit;
-  pthread_t sound_thread;
+  struct os_thread_struct* p_thread_sound;
   int16_t* p_driver_frames;
   int16_t* p_sn_frames;
 
@@ -273,14 +273,10 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
 void
 sound_destroy(struct sound_struct* p_sound) {
   if (p_sound->thread_running) {
-    int ret;
     assert(p_sound->p_driver != NULL);
     assert(!p_sound->do_exit);
     p_sound->do_exit = 1;
-    ret = pthread_join(p_sound->sound_thread, NULL);
-    if (ret != 0) {
-      errx(1, "pthread_join failed");
-    }
+    (void) os_thread_destroy(p_sound->p_thread_sound);
   }
   if (p_sound->p_driver_frames) {
     free(p_sound->p_driver_frames);
@@ -336,8 +332,6 @@ sound_set_driver(struct sound_struct* p_sound,
 
 void
 sound_start_playing(struct sound_struct* p_sound) {
-  int ret;
-
   if (!sound_is_active(p_sound)) {
     return;
   }
@@ -347,14 +341,7 @@ sound_start_playing(struct sound_struct* p_sound) {
   }
 
   assert(!p_sound->thread_running);
-  ret = pthread_create(&p_sound->sound_thread,
-                       NULL,
-                       sound_play_thread,
-                       p_sound);
-  if (ret != 0) {
-    errx(1, "couldn't create sound thread");
-  }
-
+  p_sound->p_thread_sound = os_thread_create(sound_play_thread, p_sound);
   p_sound->thread_running = 1;
 }
 
