@@ -71,6 +71,12 @@ keyboard_create(struct timing_struct* p_timing) {
 
 void
 keyboard_destroy(struct keyboard_struct* p_keyboard) {
+  if (p_keyboard->capture_handle) {
+    util_file_handle_close(p_keyboard->capture_handle);
+  }
+  if (p_keyboard->replay_handle) {
+    util_file_handle_close(p_keyboard->replay_handle);
+  }
   os_lock_destroy(p_keyboard->p_lock);
   free(p_keyboard);
 }
@@ -80,7 +86,7 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                const char* p_name) {
   char buf[k_capture_header_size];
 
-  p_keyboard->capture_handle = util_file_get_handle(p_name, 1);
+  p_keyboard->capture_handle = util_file_handle_open(p_name, 1, 1);
 
   (void) memset(buf, '\0', sizeof(buf));
   (void) memcpy(buf, k_capture_header, strlen(k_capture_header));
@@ -98,7 +104,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
                               sizeof(p_keyboard->replay_next_time));
   if (ret == 0) {
     /* EOF. */
-    util_file_close_handle(handle);
+    util_file_handle_close(handle);
     p_keyboard->replay_handle = 0;
     return;
   }
@@ -116,7 +122,7 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                               const char* p_name) {
   char buf[k_capture_header_size];
   uint64_t ret;
-  uint64_t handle = util_file_get_handle(p_name, 0);
+  uint64_t handle = util_file_handle_open(p_name, 0, 0);
 
   p_keyboard->replay_handle = handle;
 

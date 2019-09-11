@@ -705,7 +705,7 @@ debug_load_raw(struct debug_struct* p_debug,
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
-  len = util_file_read(buf, sizeof(buf), p_file_name);
+  len = util_file_read_fully(buf, sizeof(buf), p_file_name);
 
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }

@@ -53,20 +53,22 @@ void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 void util_buffer_fill(struct util_buffer* p_buf, char value, size_t len);
 
 /* File. */
-uint64_t util_file_get_handle(const char* p_file_name, int writeable);
-void util_file_close_handle(uint64_t handle);
-uint64_t util_file_handle_get_size(uint64_t handle);
-void util_file_handle_write(uint64_t handle,
+intptr_t util_file_handle_open(const char* p_file_name,
+                               int writeable,
+                               int create);
+void util_file_handle_close(intptr_t handle);
+uint64_t util_file_handle_get_size(intptr_t handle);
+void util_file_handle_write(intptr_t handle,
                             const void* p_buf,
-                            uint64_t length);
-uint64_t util_file_handle_read(uint64_t handle, void* p_buf, uint64_t length);
+                            size_t length);
+size_t util_file_handle_read(intptr_t handle, void* p_buf, size_t length);
 
-size_t util_file_read(uint8_t* p_buf,
-                      size_t max_size,
-                      const char* p_file_name);
-void util_file_write(const char* p_file_name,
-                     const uint8_t* p_buf,
-                     size_t size);
+size_t util_file_read_fully(uint8_t* p_buf,
+                            size_t max_size,
+                            const char* p_file_name);
+void util_file_write_fully(const char* p_file_name,
+                           const uint8_t* p_buf,
+                           size_t size);
 struct util_file_map* util_file_map(const char* p_file_name,
                                     size_t max_size,
                                     int writeable);

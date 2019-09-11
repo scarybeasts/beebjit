@@ -342,28 +342,30 @@ util_buffer_fill(struct util_buffer* p_buf, char value, size_t len) {
   p_buf->pos += len;
 }
 
-uint64_t
-util_file_get_handle(const char* p_file_name, int writeable) {
-  /* TODO: make other util.c callers use this. */
+intptr_t
+util_file_handle_open(const char* p_file_name, int writeable, int create) {
   int flags;
   int fd;
 
   if (writeable) {
-    flags = O_RDWR | O_CREAT | O_EXCL;
+    flags = O_RDWR;
+    if (create) {
+      flags |= O_CREAT;
+    }
   } else {
     flags = O_RDONLY;
   }
 
-  fd = open(p_file_name, flags, 0666);
+  fd = open(p_file_name, flags, 0600);
   if (fd < 0) {
     errx(1, "couldn't open %s", p_file_name);
   }
 
-  return (uint64_t) fd;
+  return (intptr_t) fd;
 }
 
 void
-util_file_close_handle(uint64_t handle) {
+util_file_handle_close(intptr_t handle) {
   int fd = (int) handle;
   int ret = close(fd);
   if (ret != 0) {
@@ -372,7 +374,7 @@ util_file_close_handle(uint64_t handle) {
 }
 
 uint64_t
-util_file_handle_get_size(uint64_t handle) {
+util_file_handle_get_size(intptr_t handle) {
   struct stat stat_buf;
 
   int fd = (int) handle;
@@ -385,7 +387,7 @@ util_file_handle_get_size(uint64_t handle) {
 }
 
 void
-util_file_handle_write(uint64_t handle, const void* p_buf, uint64_t length) {
+util_file_handle_write(intptr_t handle, const void* p_buf, size_t length) {
   /* TODO: handle short writes here and below. */
   int fd = (int) handle;
   ssize_t ret = write(fd, p_buf, length);
@@ -394,80 +396,48 @@ util_file_handle_write(uint64_t handle, const void* p_buf, uint64_t length) {
   }
 }
 
-uint64_t
-util_file_handle_read(uint64_t handle, void* p_buf, uint64_t length) {
+size_t
+util_file_handle_read(intptr_t handle, void* p_buf, size_t length) {
   int fd = (int) handle;
   ssize_t ret = read(fd, p_buf, length);
   if (ret < 0) {
     errx(1, "read failed");
   }
-  return (uint64_t) ret;
+  return (size_t) ret;
 }
 
 size_t
-util_file_read(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
-  int ret;
-  ssize_t read_ret;
+util_file_read_fully(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
+  size_t read_ret;
+  intptr_t handle = util_file_handle_open(p_file_name, 0, 0);
 
-  int fd = open(p_file_name, O_RDONLY);
-  if (fd < 0) {
-    errx(1, "couldn't open %s", p_file_name);
-  }
+  read_ret = util_file_handle_read(handle, p_buf, max_size);
 
-  read_ret = read(fd, p_buf, max_size);
-  if (read_ret < 0) {
-    errx(1, "read failed");
-  }
-
-  ret = close(fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
+  util_file_handle_close(handle);
 
   return read_ret;
 }
 
 void
-util_file_write(const char* p_file_name,
-                const uint8_t* p_buf,
-                size_t size) {
-  int ret;
-  ssize_t write_ret;
-
-  int fd = open(p_file_name, O_WRONLY | O_CREAT, 0600);
-  if (fd < 0) {
-    errx(1, "couldn't open %s", p_file_name);
-  }
-
-  write_ret = write(fd, p_buf, size);
-  if (write_ret < 0) {
-    errx(1, "write failed");
-  }
-  if ((size_t) write_ret != size) {
-    errx(1, "write failed");
-  }
-
-  ret = close(fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
+util_file_write_fully(const char* p_file_name,
+                      const uint8_t* p_buf,
+                      size_t size) {
+  intptr_t handle = util_file_handle_open(p_file_name, 1, 1);
+  util_file_handle_write(handle, p_buf, size);
+  util_file_handle_close(handle);
 }
 
 struct util_file_map*
 util_file_map(const char* p_file_name, size_t max_length, int writeable) {
   struct util_file_map* p_map;
-  int fd;
-  int open_flags;
   int mmap_prot;
-  struct stat stat_buf;
-  int ret;
   void* p_mmap;
+  int64_t handle;
+  uint64_t size;
 
   if (writeable) {
-    open_flags = O_RDWR;
     mmap_prot = (PROT_READ | PROT_WRITE);
   } else {
-    open_flags = O_RDONLY;
     mmap_prot = PROT_READ;
   }
 
@@ -477,27 +447,22 @@ util_file_map(const char* p_file_name, size_t max_length, int writeable) {
   }
   (void) memset(p_map, '\0', sizeof(struct util_file_map));
 
-  fd = open(p_file_name, open_flags);
-  if (fd < 0) {
-    errx(1, "couldn't open %s", p_file_name);
-  }
+  handle = util_file_handle_open(p_file_name, writeable, 0);
+  size = util_file_handle_get_size(handle);
 
-  ret = fstat(fd, &stat_buf);
-  if (ret != 0) {
-    errx(1, "fstat failed");
-  }
-
-  if ((size_t) stat_buf.st_size > max_length) {
+  if (size > max_length) {
     errx(1, "file too large");
   }
 
-  p_mmap = mmap(NULL, stat_buf.st_size, mmap_prot, MAP_SHARED, fd, 0);
+  p_mmap = mmap(NULL, size, mmap_prot, MAP_SHARED, (int) handle, 0);
   if (p_map == MAP_FAILED) {
     errx(1, "mmap failed");
   }
 
   p_map->p_mmap = p_mmap;
-  p_map->length = stat_buf.st_size;
+  p_map->length = size;
+
+  util_file_handle_close(handle);
 
   return p_map;
 }

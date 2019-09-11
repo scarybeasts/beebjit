@@ -156,7 +156,7 @@ main(int argc, const char* argv[]) {
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-  read_ret = util_file_read(os_rom, k_bbc_rom_size, os_rom_name);
+  read_ret = util_file_read_fully(os_rom, k_bbc_rom_size, os_rom_name);
   if (read_ret != k_bbc_rom_size) {
     errx(1, "can't load OS rom");
   }
@@ -197,7 +197,7 @@ main(int argc, const char* argv[]) {
     const char* p_rom_name = rom_names[i];
     if (p_rom_name != NULL) {
       (void) memset(load_rom, '\0', k_bbc_rom_size);
-      (void) util_file_read(load_rom, k_bbc_rom_size, p_rom_name);
+      (void) util_file_read_fully(load_rom, k_bbc_rom_size, p_rom_name);
       bbc_load_rom(p_bbc, i, load_rom);
     }
     if (sideways_ram[i]) {
@@ -239,7 +239,7 @@ main(int argc, const char* argv[]) {
         buffer_size = k_bbc_max_ssd_disc_size;
       }
       p_data = disc_buffers[i];
-      buffer_filled = util_file_read(p_data, max_size, disc_name);
+      buffer_filled = util_file_read_fully(p_data, max_size, disc_name);
     }
     bbc_load_disc(p_bbc,
                   i,
