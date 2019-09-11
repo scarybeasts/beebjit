@@ -1,12 +1,16 @@
 #include "keyboard.h"
 
 #include "os_lock.h"
+#include "timing.h"
+#include "util.h"
 
 #include <assert.h>
 #include <err.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+static const char* k_capture_header = "beebjit-capture";
 
 enum {
   k_keyboard_state_flag_down = 1,
@@ -18,14 +22,25 @@ enum {
   k_keyboard_queue_size = 16,
 };
 
+enum {
+  k_capture_header_size = 32,
+};
+
 struct keyboard_struct {
+  struct timing_struct* p_timing;
+
   /* The OS thread populates the queue of key events and the BBC thread
    * empties it from time to time.
    */
   struct os_lock_struct* p_lock;
   uint8_t queue_key[k_keyboard_queue_size];
   uint8_t queue_isdown[k_keyboard_queue_size];
-  uint32_t queue_pos;
+  uint8_t queue_pos;
+
+  uint64_t capture_handle;
+  uint64_t replay_handle;
+  uint64_t replay_next_time;
+  uint8_t replay_next_keys;
 
   uint8_t bbc_keys[16][16];
   uint8_t bbc_keys_count;
@@ -35,7 +50,7 @@ struct keyboard_struct {
 };
 
 struct keyboard_struct*
-keyboard_create() {
+keyboard_create(struct timing_struct* p_timing) {
   struct keyboard_struct* p_keyboard = malloc(sizeof(struct keyboard_struct));
   if (p_keyboard == NULL) {
     errx(1, "cannot allocate keyboard_struct");
@@ -43,8 +58,13 @@ keyboard_create() {
 
   (void) memset(p_keyboard, '\0', sizeof(struct keyboard_struct));
 
+  p_keyboard->p_timing = p_timing;
   p_keyboard->p_lock = os_lock_create();
   p_keyboard->queue_pos = 0;
+  p_keyboard->capture_handle = 0;
+  p_keyboard->replay_handle = 0;
+  p_keyboard->replay_next_time = 0;
+  p_keyboard->replay_next_keys = 0;
 
   return p_keyboard;
 }
@@ -53,6 +73,61 @@ void
 keyboard_destroy(struct keyboard_struct* p_keyboard) {
   os_lock_destroy(p_keyboard->p_lock);
   free(p_keyboard);
+}
+
+void
+keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
+                               const char* p_name) {
+  char buf[k_capture_header_size];
+
+  p_keyboard->capture_handle = util_file_get_handle(p_name, 1);
+
+  (void) memset(buf, '\0', sizeof(buf));
+  (void) memcpy(buf, k_capture_header, strlen(k_capture_header));
+  util_file_handle_write(p_keyboard->capture_handle, buf, sizeof(buf));
+}
+
+static void
+keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
+  uint64_t ret;
+  uint64_t handle = p_keyboard->replay_handle;
+  assert(handle);
+
+  ret = util_file_handle_read(handle,
+                              &p_keyboard->replay_next_time,
+                              sizeof(p_keyboard->replay_next_time));
+  if (ret == 0) {
+    /* EOF. */
+    util_file_close_handle(handle);
+    p_keyboard->replay_handle = 0;
+    return;
+  }
+  ret += util_file_handle_read(handle,
+                               &p_keyboard->replay_next_keys,
+                               sizeof(p_keyboard->replay_next_keys));
+  if (ret != (sizeof(p_keyboard->replay_next_time) +
+              sizeof(p_keyboard->replay_next_keys))) {
+    errx(1, "corrupt replay file, truncated frame header");
+  }
+}
+
+void
+keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
+                              const char* p_name) {
+  char buf[k_capture_header_size];
+  uint64_t ret;
+  uint64_t handle = util_file_get_handle(p_name, 0);
+
+  p_keyboard->replay_handle = handle;
+
+  ret = util_file_handle_read(handle, buf, sizeof(buf));
+  if (ret != sizeof(buf)) {
+    errx(1, "capture file too short");
+  }
+  if (memcmp(buf, k_capture_header, strlen(k_capture_header))) {
+    errx(1, "capture file has bad header");
+  }
+  keyboard_read_replay_frame(p_keyboard);
 }
 
 static void
@@ -498,25 +573,62 @@ keyboard_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
 void
 keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   /* Called from the BBC thread. */
-  uint32_t i;
+  uint8_t keys[k_keyboard_queue_size];
+  uint8_t isdown[k_keyboard_queue_size];
+  uint8_t i;
+  uint8_t num_keys = 0;
+  uint64_t time = timing_get_total_timer_ticks(p_keyboard->p_timing);
+  uint64_t replay_handle = p_keyboard->replay_handle;
 
-  /* Should be safe to do this early out unlocked. */
-  if (!p_keyboard->queue_pos) {
+  /* Where are the keys coming from -- a real keyboard or a replay? */
+  if (replay_handle) {
+    if (time >= p_keyboard->replay_next_time) {
+      if (time > p_keyboard->replay_next_time) {
+        errx(1, "incompatible replay timing");
+      }
+      num_keys = p_keyboard->replay_next_keys;
+      uint64_t ret = util_file_handle_read(replay_handle, keys, num_keys);
+      ret += util_file_handle_read(replay_handle, isdown, num_keys);
+      if (ret != (num_keys * 2)) {
+        errx(1, "replay file truncated");
+      }
+      /* This finishes with the replay handle if we're at the end. */
+      keyboard_read_replay_frame(p_keyboard);
+    }
+  } else if (p_keyboard->queue_pos) {
+    /* Checking p_keyboard->queue_pos unlocked should be safe as we'll recheck
+     * any potential work with the lock.
+     */
+    os_lock_lock(p_keyboard->p_lock);
+
+    num_keys = p_keyboard->queue_pos;
+    (void) memcpy(keys, p_keyboard->queue_key, sizeof(keys));
+    (void) memcpy(isdown, p_keyboard->queue_isdown, sizeof(isdown));
+
+    p_keyboard->queue_pos = 0;
+
+    os_lock_unlock(p_keyboard->p_lock);
+  }
+
+  if (!num_keys) {
     return;
   }
 
-  os_lock_lock(p_keyboard->p_lock);
+  if (p_keyboard->capture_handle) {
+    util_file_handle_write(p_keyboard->capture_handle, &time, sizeof(time));
+    util_file_handle_write(p_keyboard->capture_handle,
+                           &num_keys,
+                           sizeof(num_keys));
+    util_file_handle_write(p_keyboard->capture_handle, keys, num_keys);
+    util_file_handle_write(p_keyboard->capture_handle, isdown, num_keys);
+  }
 
-  for (i = 0; i < p_keyboard->queue_pos; ++i) {
-    uint8_t key = p_keyboard->queue_key[i];
-    if (p_keyboard->queue_isdown[i]) {
+  for (i = 0; i < num_keys; ++i) {
+    uint8_t key = keys[i];
+    if (isdown[i]) {
       keyboard_key_pressed(p_keyboard, key);
     } else {
       keyboard_key_released(p_keyboard, key);
     }
   }
-
-  p_keyboard->queue_pos = 0;
-
-  os_lock_unlock(p_keyboard->p_lock);
 }

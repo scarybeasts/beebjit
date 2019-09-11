@@ -342,6 +342,68 @@ util_buffer_fill(struct util_buffer* p_buf, char value, size_t len) {
   p_buf->pos += len;
 }
 
+uint64_t
+util_file_get_handle(const char* p_file_name, int writeable) {
+  /* TODO: make other util.c callers use this. */
+  int flags;
+  int fd;
+
+  if (writeable) {
+    flags = O_RDWR | O_CREAT | O_EXCL;
+  } else {
+    flags = O_RDONLY;
+  }
+
+  fd = open(p_file_name, flags, 0666);
+  if (fd < 0) {
+    errx(1, "couldn't open %s", p_file_name);
+  }
+
+  return (uint64_t) fd;
+}
+
+void
+util_file_close_handle(uint64_t handle) {
+  int fd = (int) handle;
+  int ret = close(fd);
+  if (ret != 0) {
+    errx(1, "close failed");
+  }
+}
+
+uint64_t
+util_file_handle_get_size(uint64_t handle) {
+  struct stat stat_buf;
+
+  int fd = (int) handle;
+  int ret = fstat(fd, &stat_buf);
+  if (ret != 0 || stat_buf.st_size < 0) {
+    errx(1, "fstat failed");
+  }
+
+  return stat_buf.st_size;
+}
+
+void
+util_file_handle_write(uint64_t handle, const void* p_buf, uint64_t length) {
+  /* TODO: handle short writes here and below. */
+  int fd = (int) handle;
+  ssize_t ret = write(fd, p_buf, length);
+  if ((ret < 0) || ((uint64_t) ret != length)) {
+    errx(1, "write failed");
+  }
+}
+
+uint64_t
+util_file_handle_read(uint64_t handle, void* p_buf, uint64_t length) {
+  int fd = (int) handle;
+  ssize_t ret = read(fd, p_buf, length);
+  if (ret < 0) {
+    errx(1, "read failed");
+  }
+  return (uint64_t) ret;
+}
+
 size_t
 util_file_read(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
   int ret;

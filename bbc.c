@@ -701,7 +701,7 @@ bbc_create(int mode,
     errx(1, "via_create failed");
   }
 
-  p_bbc->p_keyboard = keyboard_create();
+  p_bbc->p_keyboard = keyboard_create(p_timing);
   if (p_bbc->p_keyboard == NULL) {
     errx(1, "keyboard_create failed");
   }

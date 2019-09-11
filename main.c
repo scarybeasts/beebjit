@@ -1,5 +1,6 @@
 #include "bbc.h"
 #include "cpu_driver.h"
+#include "keyboard.h"
 #include "os_poller.h"
 #include "os_sound.h"
 #include "os_window.h"
@@ -25,6 +26,7 @@ main(int argc, const char* argv[]) {
   struct os_poller_struct* p_poller;
   struct os_sound_struct* p_sound_driver;
   struct bbc_struct* p_bbc;
+  struct keyboard_struct* p_keyboard;
   size_t window_handle;
   size_t bbc_handle;
   uint32_t run_result;
@@ -37,6 +39,8 @@ main(int argc, const char* argv[]) {
 
   const char* os_rom_name = "roms/os12.rom";
   const char* load_name = NULL;
+  const char* capture_name = NULL;
+  const char* replay_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
   int debug_flag = 0;
@@ -78,6 +82,12 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (!strcmp(arg, "-load")) {
         load_name = val;
+        ++i;
+      } else if (!strcmp(arg, "-capture")) {
+        capture_name = val;
+        ++i;
+      } else if (!strcmp(arg, "-replay")) {
+        replay_name = val;
         ++i;
       } else if (!strcmp(arg, "-disc")) {
         disc_names[0] = val;
@@ -240,7 +250,16 @@ main(int argc, const char* argv[]) {
                   disc_writeable_flag);
   }
 
-  p_window = os_window_create(bbc_get_keyboard(p_bbc),
+  /* Set up keyboard capture / replay. */
+  p_keyboard = bbc_get_keyboard(p_bbc);
+  if (capture_name) {
+    keyboard_set_capture_file_name(p_keyboard, capture_name);
+  }
+  if (replay_name) {
+    keyboard_set_replay_file_name(p_keyboard, replay_name);
+  }
+
+  p_window = os_window_create(p_keyboard,
                               bbc_get_video(p_bbc),
                               k_bbc_mode7_width,
                               k_bbc_mode7_height);

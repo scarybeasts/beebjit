@@ -5,6 +5,8 @@
 
 struct keyboard_struct;
 
+struct timing_struct;
+
 enum {
   k_keyboard_key_escape = 128,
   k_keyboard_key_backspace = 129,
@@ -33,8 +35,13 @@ enum {
   k_keyboard_key_f12 = 152,
 };
 
-struct keyboard_struct* keyboard_create();
+struct keyboard_struct* keyboard_create(struct timing_struct* p_timing);
 void keyboard_destroy(struct keyboard_struct* p_keyboard);
+
+void keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
+                                    const char* p_name);
+void keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
+                                   const char* p_name);
 
 void keyboard_read_queue(struct keyboard_struct* p_keyboard);
 
