@@ -1014,8 +1014,13 @@ bbc_cycles_timer_callback(void* p) {
 
   p_bbc->last_time_us = curr_time_us;
 
-  /* Pull key events from system thread. */
+  /* Pull key events from system thread or wherever else they come from. */
   keyboard_read_queue(p_keyboard);
+
+  /* Bit of a special case, but break out of fast mode if replay hits EOF. */
+  if (keyboard_consume_had_replay_eof(p_keyboard)) {
+    p_bbc->fast_flag = 0;
+  }
 
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {

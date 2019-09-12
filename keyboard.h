@@ -55,6 +55,7 @@ int keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard);
 int keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key);
 int keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
                                    uint8_t key);
+int keyboard_consume_had_replay_eof(struct keyboard_struct* p_keyboard);
 
 /* Callbacks from the system code. */
 void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard,

@@ -41,6 +41,7 @@ struct keyboard_struct {
   uint64_t replay_handle;
   uint64_t replay_next_time;
   uint8_t replay_next_keys;
+  int had_replay_eof;
 
   uint8_t bbc_keys[16][16];
   uint8_t bbc_keys_count;
@@ -65,6 +66,7 @@ keyboard_create(struct timing_struct* p_timing) {
   p_keyboard->replay_handle = 0;
   p_keyboard->replay_next_time = 0;
   p_keyboard->replay_next_keys = 0;
+  p_keyboard->had_replay_eof = 0;
 
   return p_keyboard;
 }
@@ -106,6 +108,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
     /* EOF. */
     util_file_handle_close(handle);
     p_keyboard->replay_handle = 0;
+    p_keyboard->had_replay_eof = 1;
     return;
   }
   ret += util_file_handle_read(handle,
@@ -483,6 +486,16 @@ keyboard_put_key_in_queue(struct keyboard_struct* p_keyboard,
   p_keyboard->queue_pos++;
 
   os_lock_unlock(p_keyboard->p_lock);
+}
+
+int
+keyboard_consume_had_replay_eof(struct keyboard_struct* p_keyboard) {
+  if (!p_keyboard->had_replay_eof) {
+    return 0;
+  }
+
+  p_keyboard->had_replay_eof = 0;
+  return 1;
 }
 
 void
