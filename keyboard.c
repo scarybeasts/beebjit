@@ -26,6 +26,14 @@ enum {
   k_capture_header_size = 32,
 };
 
+struct keyboard_state {
+  uint8_t bbc_keys[16][16];
+  uint8_t bbc_keys_count;
+  uint8_t bbc_keys_count_col[16];
+  uint8_t key_state[256];
+  uint8_t alt_key_state[256];
+};
+
 struct keyboard_struct {
   struct timing_struct* p_timing;
 
@@ -43,11 +51,9 @@ struct keyboard_struct {
   uint8_t replay_next_keys;
   int had_replay_eof;
 
-  uint8_t bbc_keys[16][16];
-  uint8_t bbc_keys_count;
-  uint8_t bbc_keys_count_col[16];
-  uint8_t key_state[256];
-  uint8_t alt_key_state[256];
+  struct keyboard_state virtual_keyboard;
+  struct keyboard_state physical_keyboard;
+  struct keyboard_state* p_active;
 };
 
 struct keyboard_struct*
@@ -67,6 +73,7 @@ keyboard_create(struct timing_struct* p_timing) {
   p_keyboard->replay_next_time = 0;
   p_keyboard->replay_next_keys = 0;
   p_keyboard->had_replay_eof = 0;
+  p_keyboard->p_active = &p_keyboard->physical_keyboard;
 
   return p_keyboard;
 }
@@ -109,6 +116,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
     util_file_handle_close(handle);
     p_keyboard->replay_handle = 0;
     p_keyboard->had_replay_eof = 1;
+    p_keyboard->p_active = &p_keyboard->physical_keyboard;
     return;
   }
   ret += util_file_handle_read(handle,
@@ -128,6 +136,7 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
   uint64_t handle = util_file_handle_open(p_name, 0, 0);
 
   p_keyboard->replay_handle = handle;
+  p_keyboard->p_active = &p_keyboard->virtual_keyboard;
 
   ret = util_file_handle_read(handle, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
@@ -432,27 +441,28 @@ int
 keyboard_bbc_is_key_pressed(struct keyboard_struct* p_keyboard,
                             uint8_t row,
                             uint8_t col) {
-  return p_keyboard->bbc_keys[row][col];
+  return p_keyboard->p_active->bbc_keys[row][col];
 }
 
 int
 keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
                                    uint8_t col) {
-  uint8_t count = p_keyboard->bbc_keys_count_col[col];
+  uint8_t count = p_keyboard->p_active->bbc_keys_count_col[col];
   return (count > 0);
 }
 
 int
 keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
-  uint8_t count = p_keyboard->bbc_keys_count;
+  uint8_t count = p_keyboard->p_active->bbc_keys_count;
   return (count > 0);
 }
 
 int
 keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key) {
-  int ret = !!(p_keyboard->key_state[key] &
+  struct keyboard_state* p_state = p_keyboard->p_active;
+  int ret = !!(p_state->key_state[key] &
                k_keyboard_state_flag_unconsumed_press);
-  p_keyboard->key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
+  p_state->key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
 
   return ret;
 }
@@ -460,9 +470,13 @@ keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key) {
 int
 keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
                                uint8_t key) {
-  int ret = !!(p_keyboard->alt_key_state[key] &
+  /* NOTE: alt key activity always checks the physical keyboard only. This is
+   * so that emulator keys work without tangling with the replay.
+   */
+  struct keyboard_state* p_state = &p_keyboard->physical_keyboard;
+  int ret = !!(p_state->alt_key_state[key] &
                k_keyboard_state_flag_unconsumed_press);
-  p_keyboard->alt_key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
+  p_state->alt_key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
 
   return ret;
 }
@@ -511,24 +525,23 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
 }
 
 static void
-keyboard_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
+keyboard_key_pressed(struct keyboard_state* p_state, uint8_t key) {
   int32_t row;
   int32_t col;
 
-  p_keyboard->key_state[key] |= k_keyboard_state_flag_down;
-  if (!(p_keyboard->key_state[key] &
-        k_keyboard_state_flag_pressed_not_released)) {
-    p_keyboard->key_state[key] |= (k_keyboard_state_flag_pressed_not_released |
-                                   k_keyboard_state_flag_unconsumed_press);
+  p_state->key_state[key] |= k_keyboard_state_flag_down;
+  if (!(p_state->key_state[key] & k_keyboard_state_flag_pressed_not_released)) {
+    p_state->key_state[key] |= (k_keyboard_state_flag_pressed_not_released |
+                                k_keyboard_state_flag_unconsumed_press);
   }
 
-  if (p_keyboard->key_state[k_keyboard_key_alt_left] &
+  if (p_state->key_state[k_keyboard_key_alt_left] &
       k_keyboard_state_flag_down) {
     /* Alt + key combos are for the emulator shell only, not the BBC. */
-    p_keyboard->alt_key_state[key] |= k_keyboard_state_flag_down;
-    if (!(p_keyboard->alt_key_state[key] &
+    p_state->alt_key_state[key] |= k_keyboard_state_flag_down;
+    if (!(p_state->alt_key_state[key] &
           k_keyboard_state_flag_pressed_not_released)) {
-      p_keyboard->alt_key_state[key] |=
+      p_state->alt_key_state[key] |=
           (k_keyboard_state_flag_pressed_not_released |
            k_keyboard_state_flag_unconsumed_press);
     }
@@ -543,27 +556,27 @@ keyboard_key_pressed(struct keyboard_struct* p_keyboard, uint8_t key) {
   assert(row < 16);
   assert(col >= 0);
   assert(col < 16);
-  if (p_keyboard->bbc_keys[row][col]) {
+  if (p_state->bbc_keys[row][col]) {
     return;
   }
-  p_keyboard->bbc_keys[row][col] = 1;
+  p_state->bbc_keys[row][col] = 1;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
     return;
   }
-  p_keyboard->bbc_keys_count_col[col]++;
-  p_keyboard->bbc_keys_count++;
+  p_state->bbc_keys_count_col[col]++;
+  p_state->bbc_keys_count++;
 }
 
 static void
-keyboard_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
+keyboard_key_released(struct keyboard_state* p_state, uint8_t key) {
   int32_t row;
   int32_t col;
   int was_pressed;
 
-  p_keyboard->key_state[key] &= ~(k_keyboard_state_flag_down |
-                                  k_keyboard_state_flag_pressed_not_released);
-  p_keyboard->alt_key_state[key] &=
+  p_state->key_state[key] &= ~(k_keyboard_state_flag_down |
+                               k_keyboard_state_flag_pressed_not_released);
+  p_state->alt_key_state[key] &=
       ~(k_keyboard_state_flag_down |
         k_keyboard_state_flag_pressed_not_released);
 
@@ -575,79 +588,114 @@ keyboard_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   assert(row < 16);
   assert(col >= 0);
   assert(col < 16);
-  was_pressed = p_keyboard->bbc_keys[row][col];
-  p_keyboard->bbc_keys[row][col] = 0;
+  was_pressed = p_state->bbc_keys[row][col];
+  p_state->bbc_keys[row][col] = 0;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
     return;
   }
   if (was_pressed) {
-    assert(p_keyboard->bbc_keys_count_col[col] > 0);
-    p_keyboard->bbc_keys_count_col[col]--;
-    assert(p_keyboard->bbc_keys_count > 0);
-    p_keyboard->bbc_keys_count--;
+    assert(p_state->bbc_keys_count_col[col] > 0);
+    p_state->bbc_keys_count_col[col]--;
+    assert(p_state->bbc_keys_count > 0);
+    p_state->bbc_keys_count--;
   }
 }
 
 void
 keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   /* Called from the BBC thread. */
-  uint8_t keys[k_keyboard_queue_size];
-  uint8_t isdown[k_keyboard_queue_size];
+  /* When capturing, we capture the physical keyboard, unless there's an
+   * in progress replay. By re-capturing an in progress replay, it makes it
+   * easy to extend a replay.
+   */
+  uint8_t capture_keys[k_keyboard_queue_size];
+  uint8_t capture_isdown[k_keyboard_queue_size];
   uint8_t i;
-  uint8_t num_keys = 0;
+  uint8_t num_capture_keys = 0;
   uint64_t time = timing_get_total_timer_ticks(p_keyboard->p_timing);
   uint64_t replay_handle = p_keyboard->replay_handle;
+  uint64_t capture_handle = p_keyboard->capture_handle;
 
-  /* Where are the keys coming from -- a real keyboard or a replay? */
-  if (replay_handle) {
-    if (time >= p_keyboard->replay_next_time) {
-      if (time > p_keyboard->replay_next_time) {
-        errx(1, "incompatible replay timing");
-      }
-      num_keys = p_keyboard->replay_next_keys;
-      uint64_t ret = util_file_handle_read(replay_handle, keys, num_keys);
-      ret += util_file_handle_read(replay_handle, isdown, num_keys);
-      if (ret != (num_keys * 2)) {
-        errx(1, "replay file truncated");
-      }
-      /* This finishes with the replay handle if we're at the end. */
-      keyboard_read_replay_frame(p_keyboard);
-    }
-  } else if (p_keyboard->queue_pos) {
-    /* Checking p_keyboard->queue_pos unlocked should be safe as we'll recheck
-     * any potential work with the lock.
+  /* Always check the physical keyboard. Even if we're replaying a replay, we
+   * want to honor special emulator keys, i.e. Alt+combo.
+   */
+  if (p_keyboard->queue_pos) {
+    uint8_t num_keys;
+    struct keyboard_state* p_state = &p_keyboard->physical_keyboard;
+
+    /* Checking p_keyboard->queue_pos unlocked above should be safe as we'll
+     * recheck any potential work with the lock.
      */
     os_lock_lock(p_keyboard->p_lock);
 
     num_keys = p_keyboard->queue_pos;
-    (void) memcpy(keys, p_keyboard->queue_key, sizeof(keys));
-    (void) memcpy(isdown, p_keyboard->queue_isdown, sizeof(isdown));
+    assert(num_keys <= k_keyboard_queue_size);
+    for (i = 0; i < num_keys; ++i) {
+      uint8_t key = p_keyboard->queue_key[i];
+      uint8_t isdown = p_keyboard->queue_isdown[i];
+      if (isdown) {
+        keyboard_key_pressed(p_state, key);
+      } else {
+        keyboard_key_released(p_state, key);
+      }
+      if (!replay_handle) {
+        capture_keys[num_capture_keys] = key;
+        capture_isdown[num_capture_keys] = isdown;
+        num_capture_keys++;
+      }
+    }
 
     p_keyboard->queue_pos = 0;
 
     os_lock_unlock(p_keyboard->p_lock);
   }
 
-  if (!num_keys) {
-    return;
-  }
+  /* Are keys coming from a replay? */
+  if (replay_handle && (time >= p_keyboard->replay_next_time)) {
+    uint64_t ret;
+    uint8_t num_keys;
+    struct keyboard_state* p_state = &p_keyboard->virtual_keyboard;
 
-  if (p_keyboard->capture_handle) {
-    util_file_handle_write(p_keyboard->capture_handle, &time, sizeof(time));
-    util_file_handle_write(p_keyboard->capture_handle,
-                           &num_keys,
-                           sizeof(num_keys));
-    util_file_handle_write(p_keyboard->capture_handle, keys, num_keys);
-    util_file_handle_write(p_keyboard->capture_handle, isdown, num_keys);
-  }
+    assert(!num_capture_keys);
 
-  for (i = 0; i < num_keys; ++i) {
-    uint8_t key = keys[i];
-    if (isdown[i]) {
-      keyboard_key_pressed(p_keyboard, key);
-    } else {
-      keyboard_key_released(p_keyboard, key);
+    if (time > p_keyboard->replay_next_time) {
+      errx(1, "incompatible replay timing");
     }
+
+    num_keys = p_keyboard->replay_next_keys;
+    if (num_keys > k_keyboard_queue_size) {
+      errx(1, "too many keys");
+    }
+
+    ret = util_file_handle_read(replay_handle, capture_keys, num_keys);
+    ret += util_file_handle_read(replay_handle, capture_isdown, num_keys);
+    if (ret != (num_keys * 2)) {
+      errx(1, "replay file truncated");
+    }
+
+    for (i = 0; i < num_keys; ++i) {
+      uint8_t key = capture_keys[i];
+      uint8_t isdown = capture_isdown[i];
+      if (isdown) {
+        keyboard_key_pressed(p_state, key);
+      } else {
+        keyboard_key_released(p_state, key);
+      }
+    }
+
+    num_capture_keys = num_keys;
+
+    /* This finishes with the replay handle if we're at the end. */
+    keyboard_read_replay_frame(p_keyboard);
+  }
+
+  if (capture_handle) {
+    util_file_handle_write(capture_handle, &time, sizeof(time));
+    util_file_handle_write(capture_handle,
+                           &num_capture_keys,
+                           sizeof(num_capture_keys));
+    util_file_handle_write(capture_handle, capture_keys, num_capture_keys);
+    util_file_handle_write(capture_handle, capture_isdown, num_capture_keys);
   }
 }
