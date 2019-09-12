@@ -1024,7 +1024,11 @@ bbc_cycles_timer_callback(void* p) {
 
   /* Check for special alt key combos to change emulator behavior. */
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
+    /* Toggle fast mode. */
     p_bbc->fast_flag = !p_bbc->fast_flag;
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
+    /* Exit any in progress replay. */
+    keyboard_end_replay(p_keyboard);
   }
 
   /* Check for break key. */

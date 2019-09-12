@@ -113,10 +113,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
                               sizeof(p_keyboard->replay_next_time));
   if (ret == 0) {
     /* EOF. */
-    util_file_handle_close(handle);
-    p_keyboard->replay_handle = 0;
-    p_keyboard->had_replay_eof = 1;
-    p_keyboard->p_active = &p_keyboard->physical_keyboard;
+    keyboard_end_replay(p_keyboard);
     return;
   }
   ret += util_file_handle_read(handle,
@@ -146,6 +143,14 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
     errx(1, "capture file has bad header");
   }
   keyboard_read_replay_frame(p_keyboard);
+}
+
+void
+keyboard_end_replay(struct keyboard_struct* p_keyboard) {
+  util_file_handle_close(p_keyboard->replay_handle);
+  p_keyboard->replay_handle = 0;
+  p_keyboard->had_replay_eof = 1;
+  p_keyboard->p_active = &p_keyboard->physical_keyboard;
 }
 
 static void
