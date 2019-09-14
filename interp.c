@@ -1019,10 +1019,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       p_mem_write[addr] = v;
       break;
     case 0x58: /* CLI */
-      /* CLI fiddles with the interrupt disable flag so we need to tick it
-       * out to get the correct ordering and behavior.
+      /* CLI enables interrupts but this takes effect after the IRQ poll
+       * point.
        */
-      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       INTERP_TIMING_ADVANCE(2);
       intf = 0;
@@ -1110,13 +1109,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       p_mem_write[addr] = v;
       break;
     case 0x78: /* SEI */
-      /* SEI fiddles with the interrupt disable flag so we need to tick it
-       * out to get the correct ordering and behavior.
+      /* SEI disables interrupts but this takes effect after the IRQ poll
+       * point.
        */
-      /* TODO: this tick it out approach is slow in the common case of
-       * nothing interesting going on. Improve?
-       */
-      INTERP_TIMING_ADVANCE(0);
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
       intf = 1;
       pc++;
