@@ -15,7 +15,10 @@
 #include <string.h>
 
 enum {
-  k_v = 4,
+  k_interp_special_debug = 1,
+  k_interp_special_callback = 2,
+  k_interp_special_countdown = 4,
+  k_interp_special_poll_irq = 8,
 };
 
 struct interp_struct {
@@ -29,17 +32,7 @@ struct interp_struct {
   uint16_t write_callback_above;
   uint16_t callback_above;
   int debug_subsystem_active;
-
-  uint32_t deferred_interrupt_timer_id;
 };
-
-static void
-interp_deferred_interrupt_timer_callback(void* p) {
-  struct interp_struct* p_interp = (struct interp_struct*) p;
-
-  (void) timing_stop_timer(p_interp->driver.p_timing,
-                           p_interp->deferred_interrupt_timer_id);
-}
 
 static void
 interp_destroy(struct cpu_driver* p_cpu_driver) {
@@ -83,7 +76,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
   struct bbc_options* p_options = p_cpu_driver->p_options;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_funcs->destroy = interp_destroy;
@@ -111,11 +103,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
-
-  p_interp->deferred_interrupt_timer_id =
-      timing_register_timer(p_timing,
-                            interp_deferred_interrupt_timer_callback,
-                            p_interp);
 
   p_interp->exited = 0;
   p_interp->exit_value = 0;
@@ -165,14 +152,6 @@ interp_get_flags(uint8_t zf,
   flags |= (of << k_flag_overflow);
   flags |= (nf << k_flag_negative);
   return flags;
-}
-
-static inline int64_t
-interp_set_check_irqs(struct timing_struct* p_timing,
-                      uint32_t deferred_interrupt_timer_id) {
-  return timing_start_timer_with_value(p_timing,
-                                       deferred_interrupt_timer_id,
-                                       1);
 }
 
 static inline void
@@ -666,7 +645,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t of;
   uint8_t df;
   uint8_t intf;
-  uint8_t opcode;
 
   int temp_int;
   uint8_t temp_u8;
@@ -674,11 +652,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint16_t addr;
   uint16_t addr_temp;
   uint8_t v;
-  int do_special_checks;
+  int do_irq;
+  int poll_irq;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
-  uint32_t deferred_interrupt_timer_id = p_interp->deferred_interrupt_timer_id;
   struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
   uint8_t (*memory_read_callback)(void*, uint16_t) =
       p_memory_access->memory_read_callback;
@@ -689,8 +667,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
   uint16_t callback_above = p_interp->callback_above;
-  int do_irq = 0;
   int64_t cycles_this_instruction = 0;
+  uint8_t opcode = 0;
+  int special_checks = 0;
 
   assert(countdown >= 0);
   assert(!p_interp->exited);
@@ -698,26 +677,17 @@ interp_enter_with_details(struct interp_struct* p_interp,
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
 
-  opcode = p_mem_read[pc];
   if (p_interp->debug_subsystem_active) {
-    INTERP_TIMING_ADVANCE(0);
-    interp_call_debugger(p_interp,
-                         &a,
-                         &x,
-                         &y,
-                         &s,
-                         &pc,
-                         &zf,
-                         &nf,
-                         &cf,
-                         &of,
-                         &df,
-                         &intf,
-                         do_irq);
+    special_checks |= k_interp_special_debug;
+  }
+  if (instruction_callback) {
+    special_checks |= k_interp_special_callback;
   }
 
-  do_special_checks = (p_interp->debug_subsystem_active ||
-                       instruction_callback);
+  /* Jump in at the checks / fetch. Checking for countdown==0 on entry is
+   * required because e.g. JIT mode will bounce in this way sometimes.
+   */
+  goto do_special_checks;
 
   while (1) {
     switch (opcode) {
@@ -1544,18 +1514,16 @@ interp_enter_with_details(struct interp_struct* p_interp,
       __builtin_trap();
     }
 
-    /* Conceptually fetch next opcode here, although in code it's done in both
-     * branches of this if statement below.
-     * If an IRQ was polled during the just executed opcode, that will be
-     * handled inside the "countdown expired" fork below, and the next opcode
-     * will be forced to 0x00 (BRK).
-     */
-
     countdown -= cycles_this_instruction;
 
-    do_special_checks |= (countdown < 0);
+do_special_checks:
+    /* The invariant here, across all modes, is that countdown expiries fire as
+     * soon as they can. If a countdown fires at the end of an instuction, it
+     * fires before the next instruction executes.
+     */
+    special_checks |= ((countdown <= 0) * k_interp_special_countdown);
 
-    if (!do_special_checks) {
+    if (!special_checks) {
       /* No countdown expired or other special situation, just fetch the next
        * opcode without drama.
        */
@@ -1564,24 +1532,45 @@ interp_enter_with_details(struct interp_struct* p_interp,
     }
 
     do_irq = 0;
-    if ((countdown < 0) || p_interp->debug_subsystem_active) {
+    poll_irq = (special_checks & k_interp_special_poll_irq);
+    if (countdown <= 0) {
+      special_checks &= ~k_interp_special_countdown;
+      if (!countdown) {
+        /* Expiry on the instruction boundary. Will poll IRQ point of next
+         * instruction.
+         */
+        INTERP_TIMING_ADVANCE(0);
+      } else {
+        /* Expiry within the instruction that just finished. Need to poll IRQ
+         * point of this instruction.
+         */
+        poll_irq = 1;
+      }
+    }
+
+    /* Instructions requiring full tick-by-tick execution -- notably,
+     * hardware register accesses -- are handled separately.
+     * For the remaining instructions, the only sub-instruction aspect which
+     * makes a difference is when the interrupt decision is made, which
+     * usually (but not always) occurs just before the last instuction cycle.
+     * "Just before" means that we effectively need to check interrupts
+     * before the penultimate cycle because an interrupt that is asserted
+     * at the start of the last cycle is not soon enough to be detected.
+     */
+    if (poll_irq) {
+      special_checks &= ~k_interp_special_poll_irq;
+
       countdown += cycles_this_instruction;
+      assert(cycles_this_instruction);
       assert(countdown >= 0);
 
-      /* Instructions requiring full tick-by-tick execution -- notably,
-       * hardware register accesses -- are handled separately.
-       * For the remaining instructions, the only sub-instruction aspect which
-       * makes a difference is when the interrupt decision is made, which
-       * usually (but not always) occurs just before the last instuction cycle.
-       * "Just before" means that we effectively need to check interrupts
-       * before the penultimate cycle because an interrupt that is asserted
-       * at the start of the last cycle is not soon enough to be detected.
-       */
       if (cycles_this_instruction <= 2) {
         INTERP_TIMING_ADVANCE(0);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
+        /* TODO: remove? */
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
       } else if (interp_is_branch_opcode(opcode)) {
+        /* NOTE: branch & not taken case handled above for cycles == 2. */
         INTERP_TIMING_ADVANCE(0);
         /* EMU NOTE: Taken branches have a different interrupt poll location. */
         if (cycles_this_instruction == 3) {
@@ -1607,40 +1596,37 @@ interp_enter_with_details(struct interp_struct* p_interp,
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
+    }
 
 check_irq:
 
-      if (!do_irq) {
-        /* An IRQ may have been raised or unblocked after the poll point, in
-         * which case make sure to interrupt the countdown loop again next go
-         * around.
-         */
-        if (p_state_6502->irq_fire &&
-            (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-             !intf)) {
-          countdown = interp_set_check_irqs(p_timing,
-                                            deferred_interrupt_timer_id);
-        }
-      }
-      if (state_6502_check_and_do_reset(p_state_6502)) {
-        state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-        interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+    if (!do_irq) {
+      /* An IRQ may have been raised or unblocked after the poll point
+       * (including at the instruction boundary). If an IRQ is asserted,
+       * make sure to check the next poll point to see if it needs to fire.
+       */
+      if (p_state_6502->irq_fire &&
+          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+           !intf)) {
+        special_checks |= k_interp_special_poll_irq;
       }
     }
+    if (state_6502_check_and_do_reset(p_state_6502)) {
+      state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
+      interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+    }
 
-    /* The instruction callback fires after the instruction is done. */
-    if (instruction_callback) {
-      int irq_pending = timing_timer_is_running(p_timing,
-                                                deferred_interrupt_timer_id);
-      /* The instruction callback can elect to bounce out of the
-       * interpreter.
-       */
+    /* The instruction callback fires after an instruction executes. */
+    if (instruction_callback && cycles_this_instruction) {
+      int irq_pending = !!(special_checks & k_interp_special_poll_irq);
+      /* This passes the just executed opcode and addr, but the next pc. */
       if (instruction_callback(p_callback_context,
                                pc,
                                opcode,
                                addr,
                                do_irq,
                                irq_pending)) {
+        /* The instruction callback can elect to exit the interpreter. */
         break;
       }
     }
@@ -1656,6 +1642,7 @@ check_irq:
 
     /* The debug callout fires before the next instruction executes. */
     if (p_interp->debug_subsystem_active) {
+      INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
                            &a,
                            &x,
@@ -1670,9 +1657,6 @@ check_irq:
                            &intf,
                            do_irq);
     }
-
-    do_special_checks = (p_interp->debug_subsystem_active ||
-                         instruction_callback);
   }
 
   flags = interp_get_flags(zf, nf, cf, of, df, intf);
