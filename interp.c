@@ -649,7 +649,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int temp_int;
   uint8_t temp_u8;
   int page_crossing;
-  uint16_t addr;
   uint16_t addr_temp;
   uint8_t v;
   int do_irq;
@@ -670,6 +669,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int64_t cycles_this_instruction = 0;
   uint8_t opcode = 0;
   int special_checks = 0;
+  uint16_t addr = 0;
 
   assert(countdown >= 0);
   assert(!p_interp->exited);
@@ -1530,12 +1530,7 @@ do_special_checks:
     poll_irq = (special_checks & k_interp_special_poll_irq);
     if (countdown <= 0) {
       special_checks &= ~k_interp_special_countdown;
-      if (!countdown) {
-        /* Expiry on the instruction boundary. Will poll IRQ point of next
-         * instruction.
-         */
-        INTERP_TIMING_ADVANCE(0);
-      } else {
+      if (countdown < 0) {
         /* Expiry within the instruction that just finished. Need to poll IRQ
          * point of this instruction.
          */
@@ -1591,6 +1586,9 @@ do_special_checks:
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
+    } else if (!countdown) {
+      /* Make sure to always run timer callbacks at the instruction boundary. */
+      INTERP_TIMING_ADVANCE(0);
     }
 
 check_irq:

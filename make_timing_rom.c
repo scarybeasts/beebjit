@@ -651,8 +651,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x12);
   emit_JMP(p_buf, k_abs, 0xC940);
 
-  /* Exit sequence. */
+  /* Test for bug where an IRQ raise hits an instruction boundary, then
+   * another timer timeout occurs immediately at another instruction boundary.
+   */
   set_new_index(p_buf, 0x0940);
+  emit_LDA(p_buf, k_imm, 0x09);
+  emit_JSR(p_buf, 0xF000);
+  emit_CLI(p_buf);                /* T1: 9. */
+  emit_LDA(p_buf, k_imm, 0x01);   /* T2 to 0x02. */ /* T1: 8. */
+  emit_STA(p_buf, k_abs, 0xFE48); /* T1: 7, 6, 5. */
+  emit_LDA(p_buf, k_imm, 0x00);   /* T1: 4. */
+  emit_STA(p_buf, k_abs, 0xFE49); /* T1: 3, 2, 1. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* T1: 0, -1 (x0.5), IRQ. */ /* T2: 1, 0.5. */
+  emit_NOP(p_buf);                /* T2: 0, -0.5. Timeout (no IRQ). */
+  emit_JMP(p_buf, k_abs, 0xC980);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0980);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
