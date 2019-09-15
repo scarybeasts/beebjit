@@ -476,7 +476,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   v = p_mem_read[addr];                                                       \
-  cycles_this_instruction = 5;                                                \
+  cycles_this_instruction = 6;                                                \
   pc += 2;
 
 #define INTERP_LOAD_NZ_FLAGS(reg_name)                                        \
@@ -1023,9 +1023,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
        * point.
        */
       interp_poll_irq_now(&do_irq, p_state_6502, intf);
-      INTERP_TIMING_ADVANCE(2);
       intf = 0;
       pc++;
+      INTERP_TIMING_ADVANCE(2);
       goto check_irq;
     case 0x59: /* EOR aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), y);
@@ -1592,7 +1592,6 @@ do_special_checks:
     }
 
 check_irq:
-
     if (!do_irq) {
       /* An IRQ may have been raised or unblocked after the poll point
        * (including at the instruction boundary). If an IRQ is asserted,
