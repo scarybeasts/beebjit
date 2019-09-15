@@ -41,7 +41,6 @@ enum {
   k_addr_serial_ula = 0xFE10,
   k_addr_video_ula = 0xFE20,
   k_addr_rom_select = 0xFE30,
-  k_addr_ram_select = 0xFE34,
   k_addr_sysvia = 0xFE40,
   k_addr_uservia = 0xFE60,
   k_addr_floppy = 0xFE80,
@@ -201,8 +200,8 @@ bbc_read_callback(void* p, uint16_t addr) {
   /* We have an imprecise match for abx and aby addressing modes so we may get
    * here with a non-registers address, or also for the 0xff00 - 0xffff range.
    */
-  if (addr < k_bbc_registers_start ||
-      addr >= k_bbc_registers_start + k_bbc_registers_len) {
+  if ((addr < k_bbc_registers_start) ||
+      (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
     uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
     return p_mem_read[addr];
   }
@@ -219,58 +218,94 @@ bbc_read_callback(void* p, uint16_t addr) {
     (void) timing_advance_time(p_timing, countdown);
   }
 
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
-    return via_read(p_bbc->p_system_via, (addr & 0xf));
-  }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
-    return via_read(p_bbc->p_user_via, (addr & 0xf));
-  }
-
-  switch (addr) {
+  switch (addr & ~3) {
   case (k_addr_crtc + 0):
-  case (k_addr_crtc + 1):
+  case (k_addr_crtc + 4):
     {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       return video_crtc_read(p_video, (addr & 0x1));
     }
   case (k_addr_acia + 0):
+  case (k_addr_acia + 4):
     /* No ACIA interrupt (bit 7). */
     return 0;
   case (k_addr_serial_ula + 0):
+  case (k_addr_serial_ula + 4):
     return 0;
   case 0xFE18:
-    /* Only used in Master model but read by Synchron. */
+    /* Only used in Master model but read by Syncron. */
     break;
   case (k_addr_video_ula + 0):
-  case (k_addr_video_ula + 1):
+  case (k_addr_video_ula + 4):
+  case (k_addr_video_ula + 8):
+  case (k_addr_video_ula + 12):
     /* EMU NOTE: ULA is write-only, and reads don't seem to be wired up.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
      * Fall-through to default 0xFE return.
      */
     break;
-  case (k_addr_ram_select + 0):
-    /* Ignore RAM select. Fall through.
-     * (On a B+ / Master, it does shadow RAM trickery.)
-     */
-    break;
+  case (k_addr_sysvia + 0):
+  case (k_addr_sysvia + 4):
+  case (k_addr_sysvia + 8):
+  case (k_addr_sysvia + 12):
+  case (k_addr_sysvia + 16):
+  case (k_addr_sysvia + 20):
+  case (k_addr_sysvia + 24):
+  case (k_addr_sysvia + 28):
+    return via_read(p_bbc->p_system_via, (addr & 0xf));
+  case (k_addr_uservia + 0):
+  case (k_addr_uservia + 4):
+  case (k_addr_uservia + 8):
+  case (k_addr_uservia + 12):
+  case (k_addr_uservia + 16):
+  case (k_addr_uservia + 20):
+  case (k_addr_uservia + 24):
+  case (k_addr_uservia + 28):
+    return via_read(p_bbc->p_user_via, (addr & 0xf));
   case (k_addr_floppy + 0):
-  case (k_addr_floppy + 1):
   case (k_addr_floppy + 4):
-    return intel_fdc_read(p_bbc->p_intel_fdc, addr);
+  case (k_addr_floppy + 8):
+  case (k_addr_floppy + 12):
+  case (k_addr_floppy + 16):
+  case (k_addr_floppy + 20):
+  case (k_addr_floppy + 24):
+  case (k_addr_floppy + 28):
+    return intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
   case (k_addr_econet + 0):
-    /* No ECONET hardware emulated. */
+    printf("ignoring ECONET read\n");
     break;
-  case (k_addr_adc + 0): /* Status. */
-    /* Return ADC conversion complete (bit 6). */
-    return 0x40;
-  case (k_addr_adc + 1): /* ADC high. */
-    /* Return 0x8000 across high and low, which is "central position" for
-     * the joystick.
-     */
-    return 0x80;
-  case (k_addr_adc + 2): /* ADC low. */
-    return 0;
+  case (k_addr_adc + 0):
+  case (k_addr_adc + 4):
+  case (k_addr_adc + 8):
+  case (k_addr_adc + 12):
+  case (k_addr_adc + 16):
+  case (k_addr_adc + 20):
+  case (k_addr_adc + 24):
+  case (k_addr_adc + 28):
+    switch (addr & 3) {
+    case 0: /* Status. */
+      /* Return ADC conversion complete (bit 6). */
+      return 0x40;
+    case 1: /* ADC high. */
+      /* Return 0x8000 across high and low, which is "central position" for
+       * the joystick.
+       */
+      return 0x80;
+    case 2: /* ADC low. */
+      return 0;
+    default:
+      assert(0);
+      break;
+    }
+    break;
   case (k_addr_tube + 0):
+  case (k_addr_tube + 4):
+  case (k_addr_tube + 8):
+  case (k_addr_tube + 12):
+  case (k_addr_tube + 16):
+  case (k_addr_tube + 20):
+  case (k_addr_tube + 24):
+  case (k_addr_tube + 28):
     /* Not present -- fall through to return 0xFE. */
     break;
   default:
@@ -372,13 +407,12 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   struct state_6502* p_state_6502;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  struct video_struct* p_video = bbc_get_video(p_bbc);
 
   /* We bounce here for ROM writes as well as register writes; ROM writes
    * are simply squashed.
    */
-  if (addr < k_bbc_registers_start ||
-      addr >= k_bbc_registers_start + k_bbc_registers_len) {
+  if ((addr < k_bbc_registers_start) ||
+      (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
     uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
     if (addr >= k_bbc_os_rom_offset) {
       return;
@@ -402,55 +436,91 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     (void) timing_advance_time(p_timing, countdown);
   }
 
-  if (addr >= k_addr_sysvia && addr <= k_addr_sysvia + 0x1f) {
-    via_write(p_bbc->p_system_via, (addr & 0xf), val);
-    return;
-  }
-  if (addr >= k_addr_uservia && addr <= k_addr_uservia + 0x1f) {
-    via_write(p_bbc->p_user_via, (addr & 0xf), val);
-    return;
-  }
-
-  switch (addr) {
+  switch (addr & ~3) {
   case (k_addr_crtc + 0):
-  case (k_addr_crtc + 1):
-    video_crtc_write(p_video, (addr & 0x1), val);
+  case (k_addr_crtc + 4):
+    {
+      struct video_struct* p_video = bbc_get_video(p_bbc);
+      video_crtc_write(p_video, (addr & 0x1), val);
+    }
     break;
-  case k_addr_acia:
+  case (k_addr_acia + 0):
+  case (k_addr_acia + 4):
     printf("ignoring ACIA write\n");
     break;
-  case k_addr_serial_ula:
+  case (k_addr_serial_ula + 0):
+  case (k_addr_serial_ula + 4):
     printf("ignoring serial ULA write\n");
     break;
   case (k_addr_video_ula + 0):
-  case (k_addr_video_ula + 1):
-    video_ula_write(p_video, (addr & 0x1), val);
+  case (k_addr_video_ula + 4):
+  case (k_addr_video_ula + 8):
+  case (k_addr_video_ula + 12):
+    {
+      struct video_struct* p_video = bbc_get_video(p_bbc);
+      video_ula_write(p_video, (addr & 0x1), val);
+    }
     break;
-  case k_addr_rom_select:
-  case (k_addr_rom_select + 1):
-  case (k_addr_rom_select + 2):
-  case (k_addr_rom_select + 3):
+  case (k_addr_rom_select + 0):
+  case (k_addr_rom_select + 4):
+  case (k_addr_rom_select + 8):
+  case (k_addr_rom_select + 12):
     if (val != p_bbc->romsel) {
       bbc_sideways_select(p_bbc, val);
     }
     break;
-  case k_addr_ram_select:
-    /* Ignore RAM select. Doesn't do anything on a Model B.
-     * (On a B+ / Master, it does shadow RAM trickery.)
-     */
+  case (k_addr_sysvia + 0):
+  case (k_addr_sysvia + 4):
+  case (k_addr_sysvia + 8):
+  case (k_addr_sysvia + 12):
+  case (k_addr_sysvia + 16):
+  case (k_addr_sysvia + 20):
+  case (k_addr_sysvia + 24):
+  case (k_addr_sysvia + 28):
+    via_write(p_bbc->p_system_via, (addr & 0xf), val);
     break;
+  case (k_addr_uservia + 0):
+  case (k_addr_uservia + 4):
+  case (k_addr_uservia + 8):
+  case (k_addr_uservia + 12):
+  case (k_addr_uservia + 16):
+  case (k_addr_uservia + 20):
+  case (k_addr_uservia + 24):
+  case (k_addr_uservia + 28):
+    via_write(p_bbc->p_user_via, (addr & 0xf), val);
+    break;
+  /* TODO: extent of floppy / ADC / tube mapping untested. Copy jsbeeb. */
   case (k_addr_floppy + 0):
-  case (k_addr_floppy + 1):
   case (k_addr_floppy + 4):
-    intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
+  case (k_addr_floppy + 8):
+  case (k_addr_floppy + 12):
+  case (k_addr_floppy + 16):
+  case (k_addr_floppy + 20):
+  case (k_addr_floppy + 24):
+  case (k_addr_floppy + 28):
+    intel_fdc_write(p_bbc->p_intel_fdc, (addr & 0x7), val);
     break;
   case (k_addr_econet + 0):
-  case (k_addr_econet + 1):
+    printf("ignoring ECONET write\n");
     break;
-  case (k_addr_adc + 0): /* Status. */
+  case (k_addr_adc + 0):
+  case (k_addr_adc + 4):
+  case (k_addr_adc + 8):
+  case (k_addr_adc + 12):
+  case (k_addr_adc + 16):
+  case (k_addr_adc + 20):
+  case (k_addr_adc + 24):
+  case (k_addr_adc + 28):
     /* TODO: ADC, even with nothing connected, isn't correctly emulated yet. */
     break;
-  case k_addr_tube:
+  case (k_addr_tube + 0):
+  case (k_addr_tube + 4):
+  case (k_addr_tube + 8):
+  case (k_addr_tube + 12):
+  case (k_addr_tube + 16):
+  case (k_addr_tube + 20):
+  case (k_addr_tube + 24):
+  case (k_addr_tube + 28):
     printf("ignoring tube write\n");
     break;
   default:
