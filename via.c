@@ -437,6 +437,11 @@ via_write_port_b(struct via_struct* p_via) {
       struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
       sound_sn_write(p_sound, p_via->peripheral_a);
     }
+
+    /* Updating the port bits may have changed keyboard scanning so we need to
+     * recheck interrupt status.
+     */
+    sysvia_update_port_a(p_via);
   } else if (p_via->id == k_via_user) {
     /* User port. Ignore. */
   } else {

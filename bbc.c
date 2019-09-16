@@ -766,11 +766,13 @@ bbc_create(int mode,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
-  if (p_bbc->p_system_via == NULL) {
+  if (p_bbc->p_user_via == NULL) {
     errx(1, "via_create failed");
   }
 
-  p_bbc->p_keyboard = keyboard_create(p_timing);
+  p_bbc->p_keyboard = keyboard_create(p_timing,
+                                      p_bbc->p_system_via,
+                                      p_state_6502);
   if (p_bbc->p_keyboard == NULL) {
     errx(1, "keyboard_create failed");
   }
@@ -1081,10 +1083,14 @@ bbc_cycles_timer_callback(void* p) {
   struct timing_struct* p_timing = p_bbc->p_timing;
   uint64_t curr_time_us = util_gettime_us();
   uint64_t last_time_us = p_bbc->last_time_us;
+  int is_replay = keyboard_is_replaying(p_keyboard);
 
   p_bbc->last_time_us = curr_time_us;
 
-  /* Pull key events from system thread or wherever else they come from. */
+  /* Pull physical key events from system thread, always.
+   * If this ends up updating the virtual keyboard, this call also syncs
+   * interrupts and checks for BREAK.
+   */
   keyboard_read_queue(p_keyboard);
 
   /* Bit of a special case, but break out of fast mode if replay hits EOF. */
@@ -1098,16 +1104,9 @@ bbc_cycles_timer_callback(void* p) {
     p_bbc->fast_flag = !p_bbc->fast_flag;
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
-    keyboard_end_replay(p_keyboard);
-  }
-
-  /* Check for break key. */
-  if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_f12)) {
-    struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-    /* The BBC break key is attached to the 6502 reset line. Other peripherals
-     * continue along without reset.
-     */
-    state_6502_set_reset_pending(p_state_6502);
+    if (is_replay) {
+      keyboard_end_replay(p_keyboard);
+    }
   }
 
   if (!p_bbc->fast_flag) {
@@ -1153,9 +1152,6 @@ bbc_cycles_timer_callback(void* p) {
   /* Prod the sound module in case it's in synchronous mode. */
   sound_blocking = !p_bbc->fast_flag;
   sound_tick(p_bbc->p_sound, sound_blocking);
-
-  /* Read sysvia port A to update keyboard state and fire interrupts. */
-  (void) via_read_port_a(p_bbc->p_system_via);
 }
 
 static void
