@@ -1,18 +1,6 @@
 A list of little tests pending on real hardware.
 
 PENDING
-- What if display is off, cursor is on, does cursor render?
-MODE2:?&FE00=8:?&FE01=&31
-
-- What if a skewed cursor start is outside the border, does it render?
-
-- What if cursor start line > cursor end line? What renders?
-
-- Check again what happens if you set skew=1 in a normal mode, e.g. MODE 0.
-
-- Do you get a vsync if vsync position is 0?
-
-- Does display still get enabled for start of frame if vdisp is vtotal?
 
 
 RESOLVED
@@ -25,3 +13,77 @@ A) Yes. See https://stardot.org.uk/forums/viewtopic.php?f=4&t=17789
 ?&FE3F=0
 ?&FE2E=0
 A) Both are mapped to a full 16 byte region.
+
+- What are the power-on values of the light pen registers?
+Various on a BBC B (issue 7?). R16/R17: 0, 0. 20, 127. 0, 127. 0, 127. 0, 127. 52, 127.
+Various on a BBC B (issue 3). R16/R17: 62, 127. 62, 127. 63, 127.
+
+- What if display is off, cursor is on, does cursor render?
+MODE2:?&FE00=8:?&FE01=&31
+It does. Blank screen.
+(Note: on NULA, cursor doesn't render.)
+
+- What value does DCD show for silence, tone, data?
+9  REM neither RS423 nor tape owns serial
+10 ?&EA=&41
+19 REM motor on, usual serial rates
+20 ?&FE10=&85
+29 REM no IRQs, 8-bit and stop bits
+30 ?&FE08=&55
+40 C%=0
+50 S%=?&FE08
+60 B%=?&FE09
+70 N%=S% AND 4
+80 IF N% <> C% THEN PRINT N%:C%=N%
+90 GOTO 50
+DCD blips on and off quickly, even for a long tone.
+DCD blips the same way, for initial carrier or intra-block carrier.
+DCD does stay high until data register is read (as per data sheet).
+DCD does NOT blip for the short intra-block carrier on Star Drifter.
+DCD blips twice for a carrier tone with dummy byte.
+DCD blip seems to last about 210us. Could be half a 2400Hz cycle.
+DCD blip occurs after 174ms of tone (issue 3 beeb).
+
+- Memory values post power on.
+On BBC B (issue 7?):
+&800: 66, 8, ... variable
+&9E:  0,  0,  0,  seems always 0
+On BBC B (issue 3):
+&800: 255, always?
+&9E: 255, always?
+
+- What if cursor start line > cursor end line? What renders?
+?&FE00=10:?&FE01=1
+?&FE00=11:?&FE01=0
+No cursor renders (ULA and NULA).
+
+- What if a skewed cursor start is outside the border, does it render?
+?&FE00=8:?&FE01=&81
+Yes.
+
+- Check what happens if you set skew=1 in a normal mode, e.g. MODE 0.
+(Looks same as jsbeeb.)
+
+- Does display still get enabled for start of frame if vdisp is vtotal?
+Yes (probably it never gets turned off).
+MODE 0:?&FE00=6:?&FE01=39
+Interestingly, the cursor stops blinking which tells us where cursor frames
+are counted? All emulators get this wrong at time of discovery.
+
+- Do you get a vsync IRQ if vsync position is 0?
+Yes. Weirdness in interlace mode where looks sometimes >>50Hz??
+
+- Do you get a vsync IRQ if vsync position is vtotal?
+Yes. Surprise! IRQ but poor monitor sync. IRQ looks to be @ 25Hz.
+
+- What displays with R9=31, MODE 0?
+Each character row is about 4x deeper of course to about 4 standard character
+rows and these 4 look like: data, blank, data repeat, blank.
+MODE 0:?&FE00=9:?&FE01=31
+
+- What displays with R5=31? (R9=7)
+Strange one, this. Scanlines:
+0-7:   effectively R4+1
+8-15:  blank
+16-23: effectively R4+2
+24-30: blank
