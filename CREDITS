@@ -1,0 +1,39 @@
+CREDITS
+=======
+
+beebjit was written by Chris Evans <scarybeasts@gmail.com>. See COPYING but
+essentially it GPL v3.
+
+beebjit is built atop much historical effort. The following software inspired
+beebjit, and served as direct reference material for implementation subtleties.
+
+- BeebEm: the first emulator on which I was able to replay Exile.
+http://www.mkw.me.uk/beebem/
+
+- B-em: the first emulator on which I was able to replay Exile glitch-free.
+http://b-em.bbcmicro.com/
+
+- jsbeeb: providing hassle-free instant BBC experience in the browser!
+https://bbc.godbolt.org/
+https://github.com/mattgodbolt/jsbeeb
+
+- b2: a fresh perspective on clean code organization and component separation
+as routes to accurate emulation.
+
+
+The following people have been instrumental:
+- All members of Bitshifters.
+- The Stardot community, for patience running tons of test cases on real
+hardware.
+
+- Kieran Connell, for inspiration via Twisted Brain and being a general retro
+coding machine.
+- Adrian Gilby, for inspiration via Wave Runner and for the loan of the model
+B issue 3!
+- Matt Godbolt, for jsbeeb and for being far too jolly!
+- Tom Seddon, for inspiration via Wave Runner and for b2. (In particular, b2's
+video emulation has been a critical reference.)
+- Rich Talbot-Watkins for pairing up to understand some extremely tough
+corner cases, and for various critical test programs.
+- Sarah Walker, for inspiriation via numerous demos, for b-em and for patience
+when answering basic electrical engineering questions.
