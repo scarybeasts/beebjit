@@ -1,0 +1,32 @@
+- 6845.pdf
+From http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
+
+Datasheet for Motorola 6845.
+Has very clear CRTC vertical timing diagram on page 14 (figure 13), including
+interlace.
+
+
+- Hd6845.hitachi.pdf
+From http://www.cpcwiki.eu/imgs/c/c0/Hd6845.hitachi.pdf
+
+Datasheet for Hitachi 6845S, as used in the model B.
+
+
+- MC6845-CRT.pdf
+From http://archive.pcjs.org/pubs/pc/datasheets/MC6845-CRT.pdf
+
+Alternative datasheet for Motorola 6845.
+Possibly earlier? Includes note on design change of MA incrementing or not
+during vertical non-display.
+
+
+- mos_6522_preliminary_nov_1977.pdf
+From http://archive.6502.org/datasheets/mos_6522_preliminary_nov_1977.pdf
+
+Original 6522 datasheet.
+
+
+- w65c22s.pdf
+From https://www.mdawson.net/vic20chrome/peripheral/w65c22s.pdf
+
+Alternative, clean and clear 6522 datasheet.
