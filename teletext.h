@@ -1,0 +1,4 @@
+#ifndef BEEBJIT_TELETEXT_H
+#define BEEBJIT_TELETEXT_H
+
+#endif /* BEEBJIT_TELETEXT_H */
