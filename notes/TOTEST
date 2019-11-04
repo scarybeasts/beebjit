@@ -90,3 +90,9 @@ Strange one, this. Scanlines:
 
 - Can vsync + IRQ trigger twice in one frame?
 Yes. crtc.ssd:SYNCX2
+
+- How does the teletext SAA5050 decide its time for a new scanline?
+6845 DISPTMG is wired to SAA5050 LOSE, confirmed with scope.
+
+- How does the teletext SAA5050 decide if its the odd or even frame?
+6845 RA0 is wired, via an inverter, to SAA5050 CRS, confirmed with scope.
