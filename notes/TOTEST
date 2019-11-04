@@ -87,3 +87,6 @@ Strange one, this. Scanlines:
 8-15:  blank
 16-23: effectively R4+2
 24-30: blank
+
+- Can vsync + IRQ trigger twice in one frame?
+Yes. crtc.ssd:SYNCX2

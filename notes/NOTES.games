@@ -222,6 +222,19 @@ But if we resume at $2349, we "accidentally"? get the same effect:
 [234f] 234f: LDA $7dce,Y
 
 
+- PharaohsCurse.zip
+SHA256: 890d62e4fe4fc8137a8c73280425a1bfcb7e93ab8891d6b0dae6cb6469202572
+Notes:
+1) At game start, fakes a light pen pulse:
+[ITRP] 1048: LDA #$C5
+[ITRP] 104A: STA $FE4C
+[ITRP] 104D: LDA #$E5
+[ITRP] 104F: STA $FE4C
+[ITRP] 1052: LDA #$10
+[ITRP] 1054: STA $FE00
+[ITRP] 1057: LDA $FE01
+
+
 - Repton2.zip
 SHA256: 2e72f2d0ca1f8fe043be9f7b7e78055d16340ea0ff32682df73f17ea072c200b
 Notes:
