@@ -89,10 +89,13 @@ main(int argc, const char* argv[]) {
       } else if (!strcmp(arg, "-replay")) {
         replay_name = val;
         ++i;
-      } else if (!strcmp(arg, "-disc")) {
+      } else if (!strcmp(arg, "-disc") ||
+                 !strcmp(arg, "-disc0") ||
+                 !strcmp(arg, "-0")) {
         disc_names[0] = val;
         ++i;
-      } else if (!strcmp(arg, "-disc1")) {
+      } else if (!strcmp(arg, "-disc1") ||
+                 !strcmp(arg, "-1")) {
         disc_names[1] = val;
         ++i;
       } else if (!strcmp(arg, "-opt")) {
@@ -134,21 +137,21 @@ main(int argc, const char* argv[]) {
         ++i;
       }
     }
-    if (!strcmp(arg, "-d")) {
+    if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
-    } else if (!strcmp(arg, "-r")) {
+    } else if (!strcmp(arg, "-run")) {
       run_flag = 1;
-    } else if (!strcmp(arg, "-p")) {
+    } else if (!strcmp(arg, "-print")) {
       print_flag = 1;
-    } else if (!strcmp(arg, "-f")) {
+    } else if (!strcmp(arg, "-fast")) {
       fast_flag = 1;
-    } else if (!strcmp(arg, "-t")) {
+    } else if (!strcmp(arg, "-test")) {
       test_flag = 1;
-    } else if (!strcmp(arg, "-a")) {
+    } else if (!strcmp(arg, "-accurate")) {
       accurate_flag = 1;
-    } else if (!strcmp(arg, "-w")) {
+    } else if (!strcmp(arg, "-writeable")) {
       disc_writeable_flag = 1;
-    } else if (!strcmp(arg, "-m")) {
+    } else if (!strcmp(arg, "-mutable")) {
       disc_mutable_flag = 1;
     }
   }

@@ -31,33 +31,34 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
 #echo 'Running built-in tests.'
 #./beebjit -t
 echo 'Running test.rom, JIT, fast.'
-./beebjit -os test.rom -expect 434241 -mode jit -f
+./beebjit -os test.rom -expect 434241 -mode jit -fast
 echo 'Running test.rom, JIT, fast, debug.'
-./beebjit -os test.rom -expect 434241 -mode jit -f -d -r
+./beebjit -os test.rom -expect 434241 -mode jit -fast -debug -run
 echo 'Running test.rom, JIT, fast, accurate.'
-./beebjit -os test.rom -expect 434241 -mode jit -f -a
+./beebjit -os test.rom -expect 434241 -mode jit -fast -accurate
 echo 'Running test.rom, interpreter, fast.'
-./beebjit -os test.rom -expect 434241 -mode interp -f
+./beebjit -os test.rom -expect 434241 -mode interp -fast
 echo 'Running test.rom, interpreter, fast, debug, print.'
-./beebjit -os test.rom -expect 434241 -mode interp -f -d -r -p >/dev/null
+./beebjit -os test.rom -expect 434241 -mode interp -fast -debug -run -print \
+    >/dev/null
 echo 'Running test.rom, interpreter, slow.'
 ./beebjit -os test.rom -expect 434241 -mode interp
 echo 'Running test.rom, inturbo, fast.'
-./beebjit -os test.rom -expect 434241 -mode inturbo -f
+./beebjit -os test.rom -expect 434241 -mode inturbo -fast
 echo 'Running test.rom, inturbo, fast, debug.'
-./beebjit -os test.rom -expect 434241 -mode inturbo -f -d -r
+./beebjit -os test.rom -expect 434241 -mode inturbo -fast -debug -run
 echo 'Running test.rom, inturbo, fast, accurate.'
-./beebjit -os test.rom -expect 434241 -mode inturbo -f -a
+./beebjit -os test.rom -expect 434241 -mode inturbo -fast -accurate
 
 echo 'Running timing.rom, interpreter, slow.'
 ./beebjit -os timing.rom -expect C0C1C2 -mode interp
 echo 'Running timing.rom, interpreter, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode interp -f -a
+./beebjit -os timing.rom -expect C0C1C2 -mode interp -fast -accurate
 echo 'Running timing.rom, inturbo, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode inturbo -f -a
+./beebjit -os timing.rom -expect C0C1C2 -mode inturbo -fast -accurate
 echo 'Running timing.rom, jit, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode jit -f -a
+./beebjit -os timing.rom -expect C0C1C2 -mode jit -fast -accurate
 echo 'Running timing.rom, jit, fast, debug.'
-./beebjit -os timing.rom -expect C0C1C2 -mode jit -f -a -d -r
+./beebjit -os timing.rom -expect C0C1C2 -mode jit -fast -accurate -debug -run
 
 echo 'All is well!'
