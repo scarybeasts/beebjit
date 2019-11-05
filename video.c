@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "util.h"
+#include "teletext.h"
 #include "timing.h"
 #include "via.h"
 
@@ -69,6 +70,7 @@ struct video_struct {
   uint8_t* p_mem;
   int externally_clocked;
   struct timing_struct* p_timing;
+  struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   size_t video_timer_id;
   uint8_t* p_sysvia_IC32;
@@ -85,8 +87,6 @@ struct video_struct {
   uint8_t video_ula_control;
   uint8_t video_palette[16];
   uint32_t palette[16];
-
-  uint8_t teletext_line[k_bbc_mode7_width];
 
   uint8_t crtc_address_register;
   uint8_t crtc_registers[k_crtc_num_registers];
@@ -194,6 +194,7 @@ struct video_struct*
 video_create(uint8_t* p_mem,
              int externally_clocked,
              struct timing_struct* p_timing,
+             struct teletext_struct* p_teletext,
              struct via_struct* p_system_via,
              void (*p_framebuffer_ready_callback)(void* p),
              void* p_framebuffer_ready_object,
@@ -220,6 +221,7 @@ video_create(uint8_t* p_mem,
   p_video->p_mem = p_mem;
   p_video->externally_clocked = externally_clocked;
   p_video->p_timing = p_timing;
+  p_video->p_teletext = p_teletext;
   p_video->p_system_via = p_system_via;
   p_video->p_sysvia_IC32 = via_get_peripheral_b_ptr(p_system_via);
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
@@ -285,7 +287,7 @@ video_mode0_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
-  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
 
   for (y = 0; y < vert_chars; ++y) {
@@ -335,7 +337,7 @@ video_mode4_render(struct video_struct* p_video,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
-  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
 
@@ -404,7 +406,7 @@ video_mode1_render(struct video_struct* p_video,
                    size_t horiz_chars_offset,
                    size_t vert_lines_offset) {
   size_t y;
-  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
 
@@ -462,7 +464,7 @@ video_mode5_render(struct video_struct* p_video,
                    size_t horiz_chars_offset,
                    size_t vert_lines_offset) {
   size_t y;
-  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
 
@@ -537,7 +539,7 @@ video_mode2_render(struct video_struct* p_video,
                    size_t vert_lines_offset) {
   size_t i;
   size_t y;
-  uint8_t* p_video_mem = video_get_memory(p_video, 0, 0);
+  uint8_t* p_video_mem = video_get_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
 
@@ -616,6 +618,8 @@ video_render(struct video_struct* p_video,
              size_t x,
              size_t y,
              size_t bpp) {
+  /* TODO: p_x_mem shouldn't be passed in. */
+  int is_text;
   size_t pixel_width;
   size_t clock_speed;
   size_t horiz_chars;
@@ -631,6 +635,7 @@ video_render(struct video_struct* p_video,
   assert(y == 512);
   assert(bpp == 4);
 
+  is_text = video_is_text(p_video);
   pixel_width = video_get_pixel_width(p_video);
   clock_speed = video_get_clock_speed(p_video);
 
@@ -681,7 +686,11 @@ video_render(struct video_struct* p_video,
   p_video->prev_horiz_chars_offset = horiz_chars_offset;
   p_video->prev_vert_lines_offset = vert_lines_offset;
 
-  if (pixel_width == 1)  {
+  if (is_text) {
+    /* NOTE: what happens with crazy combinations, such as 2MHz clock here? */
+    struct teletext_struct* p_teletext = p_video->p_teletext;
+    teletext_render_full(p_teletext, p_video, (uint32_t*) p_x_mem);
+  } else if (pixel_width == 1)  {
     video_mode0_render(p_video, p_x_mem, horiz_chars, vert_chars);
   } else if (pixel_width == 2 && clock_speed == 0) {
     video_mode4_render(p_video, p_x_mem, horiz_chars, vert_chars);
@@ -928,7 +937,7 @@ video_set_crtc_registers(struct video_struct* p_video,
 }
 
 uint8_t*
-video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
+video_get_memory(struct video_struct* p_video) {
   size_t mem_offset;
 
   uint8_t ula_control = video_get_ula_control(p_video);
@@ -937,8 +946,6 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
   uint8_t crtc_mem_addr_high =
       p_video->crtc_registers[k_crtc_reg_mem_addr_high];
   uint8_t crtc_mem_addr_low = p_video->crtc_registers[k_crtc_reg_mem_addr_low];
-
-  assert(offset < 0x5000);
 
   if (is_text) {
     mem_offset = crtc_mem_addr_high;
@@ -951,8 +958,8 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
     mem_offset <<= 3;
   }
 
-  mem_offset &= 0x7fff;
-  mem_offset += offset;
+  /* TODO: wut? */
+  mem_offset &= 0x7FFF;
   if (mem_offset >= 0x8000) {
     if (is_text) {
       mem_offset -= 0x400;
@@ -962,20 +969,8 @@ video_get_memory(struct video_struct* p_video, size_t offset, size_t len) {
     }
   }
 
-  if (is_text && len == k_bbc_mode7_width) {
-    assert(mem_offset < 0x8000);
-    if (mem_offset + len > 0x8000) {
-      uint8_t* p_line = &p_video->teletext_line[0];
-      size_t pre_len = 0x8000 - mem_offset;
-      size_t post_len = k_bbc_mode7_width - pre_len;
-      memcpy(p_line, p_mem + mem_offset, pre_len);
-      memcpy(p_line + pre_len, p_mem + 0x7c00, post_len);
-      return p_line;
-    }
-  }
-
   /* Need alignment; we check for the pointer low bytes crossing 0x8000. */
-  assert(((size_t) p_mem & 0xffff) == 0);
+  assert(((uintptr_t) p_mem & 0xffff) == 0);
   p_mem += mem_offset;
   return p_mem;
 }

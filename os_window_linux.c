@@ -21,19 +21,14 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-static const char* k_p_font_name = "-*-fixed-*-*-*-*-20-*-*-*-*-*-iso8859-*";
-
 struct os_window_struct {
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
   size_t chars_width;
   size_t chars_height;
   Display* d;
-  XFontStruct* p_font;
   Window w;
   GC gc;
-  size_t fx;
-  size_t fy;
   int shmid;
   void* p_shm;
   XImage* p_image;
@@ -50,7 +45,6 @@ os_window_create(struct keyboard_struct* p_keyboard,
   Window root_window;
   unsigned long black_pixel;
   unsigned long white_pixel;
-  unsigned long ul_ret;
   Bool bool_ret;
   int ret;
   Visual* p_visual;
@@ -76,22 +70,6 @@ os_window_create(struct keyboard_struct* p_keyboard,
   if (bool_ret != True) {
     errx(1, "can't set detect auto repeat");
   }
-
-  p_window->p_font = XLoadQueryFont(p_window->d, k_p_font_name);
-  if (p_window->p_font == NULL) {
-    errx(1, "cannot load font");
-  }
-
-  bool_ret = XGetFontProperty(p_window->p_font, XA_FONT, &ul_ret);
-  if (bool_ret != True) {
-    errx(1, "cannot get font property XA_FONT");
-  }
-  p_window->fx = p_window->p_font->per_char[0].width;
-  p_window->fy = p_window->p_font->per_char[0].ascent;
-  printf("loaded font: %s (%zux%zu)\n",
-         XGetAtomName(p_window->d, (Atom) ul_ret),
-         p_window->fx,
-         p_window->fy);
 
   s = DefaultScreen(p_window->d);
   root_window = RootWindow(p_window->d, s);
@@ -172,10 +150,6 @@ os_window_create(struct keyboard_struct* p_keyboard,
   if (ret != 1) {
     errx(1, "XSetForeground failed");
   }
-  ret = XSetFont(p_window->d, p_window->gc, p_window->p_font->fid);
-  if (ret != 1) {
-    errx(1, "XSetFont failed");
-  }
 
   ret = XFlush(p_window->d);
   if (ret != 1) {
@@ -214,10 +188,6 @@ os_window_destroy(struct os_window_struct* p_window) {
   if (ret != 0) {
     errx(1, "shmdt failed");
   }
-  ret = XFreeFont(p_window->d, p_window->p_font);
-  if (ret != 1) {
-    errx(1, "XFreeFont failed");
-  }
 
   ret = XCloseDisplay(p_window->d);
   if (ret != 0) {
@@ -238,43 +208,22 @@ os_window_get_handle(struct os_window_struct* p_window) {
 void
 os_window_render(struct os_window_struct* p_window) {
   struct video_struct* p_video = p_window->p_video;
-  int is_text = video_is_text(p_video);
+  Bool bool_ret;
 
-  if (is_text) {
-    size_t y;
-    size_t offset = 0;
-    size_t y_offset = 16;
-    size_t chars_width = p_window->chars_width;
-    size_t chars_height = p_window->chars_height;
-    for (y = 0; y < chars_height; ++y) {
-      uint8_t* p_video_mem = video_get_memory(p_video, offset, chars_width);
-      /* Seems to return 0 on success -- status not checked. */
-      XDrawImageString(p_window->d,
-                  p_window->w,
-                  p_window->gc,
-                  0,
-                  y_offset,
-                  (char*) p_video_mem,
-                  chars_width);
-      offset += chars_width;
-      y_offset += 16;
-    }
-  } else {
-    video_render(p_video, p_window->p_shm, 640, 512, 4);
-    Bool bool_ret = XShmPutImage(p_window->d,
-                                 p_window->w,
-                                 p_window->gc,
-                                 p_window->p_image,
-                                 0,
-                                 0,
-                                 0,
-                                 0,
-                                 640,
-                                 512,
-                                 False);
-    if (bool_ret != True) {
-      errx(1, "XShmPutImage failed");
-    }
+  video_render(p_video, p_window->p_shm, 640, 512, 4);
+  bool_ret = XShmPutImage(p_window->d,
+                          p_window->w,
+                          p_window->gc,
+                          p_window->p_image,
+                          0,
+                          0,
+                          0,
+                          0,
+                          640,
+                          512,
+                          False);
+  if (bool_ret != True) {
+    errx(1, "XShmPutImage failed");
   }
 
   /* We need to check for X events here, in case a key event comes

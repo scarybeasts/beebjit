@@ -12,12 +12,14 @@ enum {
 struct video_struct;
 
 struct bbc_options;
+struct teletext_struct;
 struct timing_struct;
 struct via_struct;
 
 struct video_struct* video_create(uint8_t* p_mem,
                                   int externally_clocked,
                                   struct timing_struct* p_timing,
+                                  struct teletext_struct* p_teletext,
                                   struct via_struct* p_system_via,
                                   void (*p_framebuffer_ready_callback)(void* p),
                                   void* p_framebuffer_ready_object,
@@ -36,9 +38,7 @@ void video_render(struct video_struct* p_video,
                   size_t y,
                   size_t bpp);
 
-uint8_t* video_get_memory(struct video_struct* p_video,
-                          size_t offset,
-                          size_t len);
+uint8_t* video_get_memory(struct video_struct* p_video);
 size_t video_get_memory_size(struct video_struct* p_video);
 size_t video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed);
 size_t video_get_vert_chars(struct video_struct* p_video);

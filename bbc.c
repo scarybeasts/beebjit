@@ -11,6 +11,7 @@
 #include "os_thread.h"
 #include "sound.h"
 #include "state_6502.h"
+#include "teletext.h"
 #include "timing.h"
 #include "util.h"
 #include "via.h"
@@ -81,6 +82,7 @@ struct bbc_struct {
   struct via_struct* p_user_via;
   struct keyboard_struct* p_keyboard;
   struct sound_struct* p_sound;
+  struct teletext_struct* p_teletext;
   struct video_struct* p_video;
   struct intel_fdc_struct* p_intel_fdc;
   struct cpu_driver* p_cpu_driver;
@@ -782,9 +784,14 @@ bbc_create(int mode,
     errx(1, "sound_create failed");
   }
 
+  p_bbc->p_teletext = teletext_create();
+  if (p_bbc->p_teletext == NULL) {
+    errx(1, "teletext_create failed");
+  }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,
                                 p_timing,
+                                p_bbc->p_teletext,
                                 p_bbc->p_system_via,
                                 bbc_framebuffer_ready_callback,
                                 p_bbc,
@@ -838,6 +845,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
+  teletext_destroy(p_bbc->p_teletext);
   sound_destroy(p_bbc->p_sound);
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
