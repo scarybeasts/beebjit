@@ -4,6 +4,7 @@ Bugs and improvements
 Bugs: known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed.
 
+- Add README and EXAMPLES files.
 - JIT block timing code improvements. Currently, there's a non-trivial
 instruction sequence after every conditional branch in a JIT block. This
 sequence can be improved a lot. For example, there only needs to be a branch
@@ -37,6 +38,7 @@ the sources of non-determinism -- i.e. key presses and releases.
 A recording can be exited at any time, fast forwarded, etc. One great use
 would be to record run-throughs of tricky games (i.e. Exile), which can be
 "taken over" at any point.
+- Terminal (and headless terminal) modes. Rewires serial I/O to stdio.
 
 
 Backburner
