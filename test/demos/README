@@ -1,0 +1,11 @@
+Demos that are particularly taxing on emulators.
+Typically require a Master to run.
+
+- bs-twisted.ssd
+From https://bitshifters.github.io/posts/prods/bs-wave-runner.html
+
+- bs-wave-runner.ssd
+From https://bitshifters.github.io/posts/prods/bs-wave-runner.html
+
+- crtc-somenastyeffects.ssd
+From https://bitshifters.github.io/posts/archives/crtc-somenastyeffects.html
