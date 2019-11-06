@@ -1,0 +1,8 @@
+# Build and test artifacts.
+beebjit
+make_perf_rom
+make_test_rom
+make_timing_rom
+perf.rom
+test.rom
+timing.rom
