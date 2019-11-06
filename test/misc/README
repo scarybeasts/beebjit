@@ -1,5 +1,10 @@
 These discs are interesting in some way for emulator behavior testing.
 
+- mode7-75.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/126
+By Kieran Connell.
+Messes with CRTC R9 in MODE 7.
+
 - mode7-bug.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/141
 By Kieran Connell.
