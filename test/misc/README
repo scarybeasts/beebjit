@@ -21,6 +21,10 @@ Dragonsoft Explorer requires sideways RAM and has a custom disc loading
 routine that issue unusual i8271 commands directly.
 Also seems to do timing / video tricks.
 
+- raster-c.ssd
+By Kieran Connell.
+Excellent test case of Hitachi CRTC corner cases.
+
 - ReetPetite.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/167
 From http://bbcmicro.co.uk/gameimg/discs/1411/ReetPetite.ssd
