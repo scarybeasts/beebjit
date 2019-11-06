@@ -22,10 +22,9 @@
 #include <sys/shm.h>
 
 struct os_window_struct {
+  uint32_t width;
+  uint32_t height;
   struct keyboard_struct* p_keyboard;
-  struct video_struct* p_video;
-  size_t chars_width;
-  size_t chars_height;
   Display* d;
   Window w;
   GC gc;
@@ -36,10 +35,7 @@ struct os_window_struct {
 };
 
 struct os_window_struct*
-os_window_create(struct keyboard_struct* p_keyboard,
-                 struct video_struct* p_video,
-                 size_t chars_width,
-                 size_t chars_height) {
+os_window_create(uint32_t width, uint32_t height) {
   struct os_window_struct* p_window;
   int s;
   Window root_window;
@@ -56,10 +52,13 @@ os_window_create(struct keyboard_struct* p_keyboard,
   }
   (void) memset(p_window, '\0', sizeof(struct os_window_struct));
 
-  p_window->p_keyboard = p_keyboard;
-  p_window->p_video = p_video;
-  p_window->chars_width = chars_width;
-  p_window->chars_height = chars_height;
+  p_window->p_keyboard = NULL;
+  p_window->width = width;
+  p_window->height = height;
+
+  if ((width > 1024) || (height > 1024)) {
+    errx(1, "excessive dimension");
+  }
 
   p_window->d = XOpenDisplay(NULL);
   if (p_window->d == NULL) {
@@ -82,7 +81,12 @@ os_window_create(struct keyboard_struct* p_keyboard,
     errx(1, "default depth not 24");
   }
 
-  p_window->shmid = shmget(IPC_PRIVATE, 640 * 512 * 4, IPC_CREAT|0600);
+  /* TODO: should guard page this since writing outside the buffer is likely
+   * on account of all the video render complexity.
+   */
+  p_window->shmid = shmget(IPC_PRIVATE,
+                           (width * height * 4),
+                           (IPC_CREAT | 0600));
   if (p_window->shmid < 0) {
     errx(1, "shmget failed");
   }
@@ -96,13 +100,13 @@ os_window_create(struct keyboard_struct* p_keyboard,
   }
 
   p_window->p_image = XShmCreateImage(p_window->d,
-                                 p_visual,
-                                 24,
-                                 ZPixmap,
-                                 NULL,
-                                 &p_window->shm_info,
-                                 640,
-                                 512);
+                                      p_visual,
+                                      24,
+                                      ZPixmap,
+                                      NULL,
+                                      &p_window->shm_info,
+                                      width,
+                                      height);
   if (p_window->p_image == NULL) {
     errx(1, "XShmCreateImage failed");
   }
@@ -117,14 +121,14 @@ os_window_create(struct keyboard_struct* p_keyboard,
   }
 
   p_window->w = XCreateSimpleWindow(p_window->d,
-                               root_window,
-                               10,
-                               10,
-                               640,
-                               512,
-                               1,
-                               black_pixel,
-                               black_pixel);
+                                   root_window,
+                                   10,
+                                   10,
+                                   width,
+                                   height,
+                                   1,
+                                   black_pixel,
+                                   black_pixel);
   if (p_window->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
   }
@@ -197,7 +201,18 @@ os_window_destroy(struct os_window_struct* p_window) {
   free(p_window);
 }
 
-size_t
+void
+os_window_set_keyboard_callback(struct os_window_struct* p_window,
+                                struct keyboard_struct* p_keyboard) {
+  p_window->p_keyboard = p_keyboard;
+}
+
+uint32_t*
+os_window_get_buffer(struct os_window_struct* p_window) {
+  return (uint32_t*) p_window->p_shm;
+}
+
+uintptr_t
 os_window_get_handle(struct os_window_struct* p_window) {
   Display* d = p_window->d;
   int fd = ConnectionNumber(d);
@@ -206,22 +221,18 @@ os_window_get_handle(struct os_window_struct* p_window) {
 }
 
 void
-os_window_render(struct os_window_struct* p_window) {
-  struct video_struct* p_video = p_window->p_video;
-  Bool bool_ret;
-
-  video_render(p_video, p_window->p_shm, 640, 512, 4);
-  bool_ret = XShmPutImage(p_window->d,
-                          p_window->w,
-                          p_window->gc,
-                          p_window->p_image,
-                          0,
-                          0,
-                          0,
-                          0,
-                          640,
-                          512,
-                          False);
+os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
+  Bool bool_ret = XShmPutImage(p_window->d,
+                               p_window->w,
+                               p_window->gc,
+                               p_window->p_image,
+                               0,
+                               0,
+                               0,
+                               0,
+                               p_window->width,
+                               p_window->height,
+                               False);
   if (bool_ret != True) {
     errx(1, "XShmPutImage failed");
   }

@@ -197,23 +197,23 @@ teletext_render_line(struct teletext_struct* p_teletext,
 
 void
 teletext_render_full(struct teletext_struct* p_teletext,
-                     struct video_struct* p_video,
-                     uint32_t* p_buffer) {
+                     struct video_struct* p_video) {
   uint32_t row;
   uint32_t scanline;
 
-  uint8_t* p_video_mem = video_get_memory(p_video);
+  uint8_t* p_bbc_mem = video_get_bbc_memory(p_video);
+  uint32_t* p_render_buffer = video_get_render_buffer(p_video);
   /* TODO: get stride from video. */
   size_t stride = 640;
 
   for (row = 0; row < 25; ++row) {
     p_teletext->scanline = 0;
     for (scanline = 0; scanline < 10; ++scanline) {
-      teletext_render_line(p_teletext, p_video_mem, scanline, p_buffer);
-      p_buffer += stride;
-      teletext_render_line(p_teletext, p_video_mem, scanline, p_buffer);
-      p_buffer += stride;
+      teletext_render_line(p_teletext, p_bbc_mem, scanline, p_render_buffer);
+      p_render_buffer += stride;
+      teletext_render_line(p_teletext, p_bbc_mem, scanline, p_render_buffer);
+      p_render_buffer += stride;
     }
-    p_video_mem += 40;
+    p_bbc_mem += 40;
   }
 }

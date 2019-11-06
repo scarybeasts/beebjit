@@ -4,11 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum {
-  k_bbc_mode7_width = 40,
-  k_bbc_mode7_height = 25,
-};
-
 struct video_struct;
 
 struct bbc_options;
@@ -26,19 +21,19 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
 
+uint32_t* video_get_render_buffer(struct video_struct* p_video);
+void video_set_render_buffer(struct video_struct* p_video,
+                             uint32_t* p_render_buffer);
+
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
 
 void video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 uint8_t video_crtc_read(struct video_struct* p_video, uint8_t addr);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 
-void video_render(struct video_struct* p_video,
-                  uint8_t* p_video_mem,
-                  size_t x,
-                  size_t y,
-                  size_t bpp);
+void video_render(struct video_struct* p_video);
 
-uint8_t* video_get_memory(struct video_struct* p_video);
+uint8_t* video_get_bbc_memory(struct video_struct* p_video);
 size_t video_get_memory_size(struct video_struct* p_video);
 size_t video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed);
 size_t video_get_vert_chars(struct video_struct* p_video);

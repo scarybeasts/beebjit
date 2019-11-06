@@ -13,7 +13,7 @@ enum {
 
 struct os_poller_struct {
   struct pollfd poll_fds[k_os_poller_max_handles];
-  size_t num_used_handles;
+  uint32_t num_used_handles;
 };
 
 struct os_poller_struct*
@@ -36,8 +36,8 @@ os_poller_destroy(struct os_poller_struct* p_poller) {
 }
 
 void
-os_poller_add_handle(struct os_poller_struct* p_poller, size_t handle) {
-  size_t num_used_handles = p_poller->num_used_handles;
+os_poller_add_handle(struct os_poller_struct* p_poller, uintptr_t handle) {
+  uint32_t num_used_handles = p_poller->num_used_handles;
 
   if (p_poller->num_used_handles == k_os_poller_max_handles) {
     errx(1, "os_poller_add_handle out of handles");
@@ -52,10 +52,10 @@ os_poller_add_handle(struct os_poller_struct* p_poller, size_t handle) {
 
 void
 os_poller_poll(struct os_poller_struct* p_poller) {
-  size_t i;
+  uint32_t i;
   int ret;
 
-  size_t num_used_handles = p_poller->num_used_handles;
+  uint32_t num_used_handles = p_poller->num_used_handles;
 
   for (i = 0; i < num_used_handles; ++i) {
     p_poller->poll_fds[i].revents = 0;
@@ -77,7 +77,7 @@ os_poller_poll(struct os_poller_struct* p_poller) {
 }
 
 int
-os_poller_handle_triggered(struct os_poller_struct* p_poller, size_t index) {
+os_poller_handle_triggered(struct os_poller_struct* p_poller, uint32_t index) {
   assert(index < p_poller->num_used_handles);
 
   return (p_poller->poll_fds[index].revents & POLLIN);

@@ -27,9 +27,11 @@ main(int argc, const char* argv[]) {
   struct os_sound_struct* p_sound_driver;
   struct bbc_struct* p_bbc;
   struct keyboard_struct* p_keyboard;
-  size_t window_handle;
-  size_t bbc_handle;
+  struct video_struct* p_video;
+  uintptr_t window_handle;
+  uintptr_t bbc_handle;
   uint32_t run_result;
+  uint32_t* p_render_buffer;
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
@@ -262,13 +264,14 @@ main(int argc, const char* argv[]) {
     keyboard_set_replay_file_name(p_keyboard, replay_name);
   }
 
-  p_window = os_window_create(p_keyboard,
-                              bbc_get_video(p_bbc),
-                              k_bbc_mode7_width,
-                              k_bbc_mode7_height);
+  p_window = os_window_create(640, 512);
   if (p_window == NULL) {
     errx(1, "os_window_create failed");
   }
+  os_window_set_keyboard_callback(p_window, p_keyboard);
+  p_render_buffer = os_window_get_buffer(p_window);
+  p_video = bbc_get_video(p_bbc);
+  video_set_render_buffer(p_video, p_render_buffer);
 
   p_poller = os_poller_create();
   if (p_poller == NULL) {
@@ -314,7 +317,8 @@ main(int argc, const char* argv[]) {
         break;
       } else {
         assert(message == k_message_vsync);
-        os_window_render(p_window);
+        video_render(p_video);
+        os_window_sync_buffer_to_screen(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           bbc_client_send_message(p_bbc, k_message_render_done);
         }

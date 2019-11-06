@@ -8,14 +8,14 @@ struct video_struct;
 
 struct os_window_struct;
 
-struct os_window_struct* os_window_create(struct keyboard_struct* p_keyboard,
-                                          struct video_struct* p_video,
-                                          size_t chars_width,
-                                          size_t chars_height);
+struct os_window_struct* os_window_create(uint32_t width, uint32_t height);
 void os_window_destroy(struct os_window_struct* p_window);
 
-size_t os_window_get_handle(struct os_window_struct* p_window);
-void os_window_render(struct os_window_struct* p_window);
+void os_window_set_keyboard_callback(struct os_window_struct* p_window,
+                                     struct keyboard_struct* p_keyboard);
+uint32_t* os_window_get_buffer(struct os_window_struct* p_window);
+uintptr_t os_window_get_handle(struct os_window_struct* p_window);
+void os_window_sync_buffer_to_screen(struct os_window_struct* p_window);
 void os_window_process_events(struct os_window_struct* p_window);
 
 #endif /* BEEBJIT_OS_WINDOW_H */
