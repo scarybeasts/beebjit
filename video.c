@@ -13,11 +13,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* A real BBC in its default modes actually has a CRTC period of 19968us,
+/* A real BBC in a non-interlaced bitmapped mode has a CRTC period of 19968us,
  * just short of 20ms.
+ * e.g. *TV0,1 (interlace off, defaults to on for the model B)
+ *      MODE 0
  * The calculation, with horizontal total 128, vertical total 39, lines
  * per character 8, 2Mhz clock, is:
  * (128 * 39 * 8) / 2
+ * For interlaced modes, there's an extra half scanline per frame for a total
+ * of exactly 20000us.
  */
 static const uint32_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
 
