@@ -209,19 +209,42 @@ video_create(uint8_t* p_bbc_mem,
     errx(1, "cannot allocate video_struct");
   }
 
-  /* This effectively zero initializes all of the CRTC and ULA registers.
-   * The emulators are not consistent here, but zero initialization is a
-   * popular choice.
+  /* What initial state should we use for 6845 and Video ULA registers?
    * The 6845 data sheets (all variations?) aren't much help, quoting:
    * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
    * "The CRTC registers will have an initial value at power up. When using
    * a direct drive monitor (sans horizontal oscillator) these initial values
    * may result in out-of-tolerance operation."
    * It isn't specified whether those initial values are random or
-   * deterministic, or what they may be. At any rate, the MOS ROM sets values
-   * for the registers as part of selecting MODE7 at boot up.
+   * deterministic, or what they may be.
+   * Custom MOS ROM tests by Tom Seddon indicate fairly random values from boot
+   * to boot; sometimes the register values result in VSYNCs, sometimes not.
+   * We could argue it's not a huge deal because the MOS ROM sets values for
+   * the registers as part of selecting MODE7 at boot up. But we do want to
+   * avoid exotic 6845 setups (such as registers all zero) because the timing
+   * of exotic setups is more likely to change as bugs are fixed. And stable
+   * timing is desirable on account of record / playback support.
+   * So TL;DR: we'll set up MODE7.
    */
   (void) memset(p_video, '\0', sizeof(struct video_struct));
+
+  p_video->crtc_registers[k_crtc_reg_horiz_total] = 63;
+  p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
+  p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
+  /* Horiz sync pulse width 4, vertical sync pulse width 2. */
+  p_video->crtc_registers[k_crtc_reg_sync_width] = (4 | (2 << 4));
+  p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
+  p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
+  p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
+  p_video->crtc_registers[k_crtc_reg_vert_sync_position] = 27;
+  /* Interlace sync and video, 1 character display delay, 2 character cursor
+   * delay.
+   */
+  p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
+  p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
+
+  /* Teletext mode, 1MHz operation. */
+  p_video->video_ula_control = 2;
 
   p_video->p_bbc_mem = p_bbc_mem;
   p_video->p_render_buffer = NULL;
