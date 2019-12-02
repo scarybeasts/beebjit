@@ -8,7 +8,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,7 +54,46 @@ struct via_struct {
   uint16_t T1L;
   uint16_t T2L;
   uint8_t t1_pb7;
+  int CA1;
+  int CA2;
 };
+
+static void
+via_check_interrupt(struct via_struct* p_via) {
+  int level;
+  int interrupt;
+  struct state_6502* p_state_6502 = bbc_get_6502(p_via->p_bbc);
+
+  assert(!(p_via->IER & 0x80));
+
+  if (p_via->IER & p_via->IFR) {
+    p_via->IFR |= 0x80;
+    level = 1;
+  } else {
+    p_via->IFR &= ~0x80;
+    level = 0;
+  }
+  if (p_via->id == k_via_system) {
+    interrupt = k_state_6502_irq_1;
+  } else {
+    interrupt = k_state_6502_irq_2;
+  }
+  state_6502_set_irq_level(p_state_6502, interrupt, level);
+}
+
+static void
+via_raise_interrupt(struct via_struct* p_via, uint8_t val) {
+  assert(!(val & 0x80));
+  p_via->IFR |= val;
+  via_check_interrupt(p_via);
+}
+
+static void
+via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
+  assert(!(val & 0x80));
+  p_via->IFR &= ~val;
+  via_check_interrupt(p_via);
+}
 
 static void
 via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
@@ -368,11 +406,8 @@ sysvia_update_port_a(struct via_struct* p_via) {
       fire = 1;
     }
   }
-  if (fire) {
-    via_raise_interrupt(p_via, k_int_CA2);
-  } else {
-    via_clear_interrupt(p_via, k_int_CA2);
-  }
+
+  via_set_CA2(p_via, fire);
 }
 
 uint8_t
@@ -706,11 +741,9 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
         }
       }
     }
-    /*printf("new via %d ACR %x\n", p_via->id, val);*/
     break;
   case k_via_PCR:
     p_via->PCR = val;
-    /*printf("new via %d PCR %x\n", p_via->id, val);*/
     break;
   case k_via_IFR:
     p_via->IFR &= ~(val & 0x7F);
@@ -734,54 +767,46 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
       p_via->IER &= ~(val & 0x7F);
     }
     via_check_interrupt(p_via);
-/*    printf("new sysvia IER %x\n", p_bbc->sysvia_IER);*/
     break;
   case k_via_ORAnh:
     p_via->ORA = val;
     via_write_port_a(p_via);
     break;
   default:
-    printf("unhandled VIA write %u\n", reg);
     assert(0);
     break;
   }
 }
 
 void
-via_raise_interrupt(struct via_struct* p_via, uint8_t val) {
-  assert(!(val & 0x80));
-  p_via->IFR |= val;
-  via_check_interrupt(p_via);
+via_set_CA1(struct via_struct* p_via, int level) {
+  int trigger_level;
+
+  if (level == p_via->CA1) {
+    return;
+  }
+
+  trigger_level = (!!(p_via->PCR & 1));
+  if (level == trigger_level) {
+    via_raise_interrupt(p_via, k_int_CA1);
+    assert((p_via->PCR & 0xc) != 0x8);
+  }
+  p_via->CA1 = level;
 }
 
 void
-via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
-  assert(!(val & 0x80));
-  p_via->IFR &= ~val;
-  via_check_interrupt(p_via);
-}
+via_set_CA2(struct via_struct* p_via, int level) {
+  int trigger_level;
 
-void
-via_check_interrupt(struct via_struct* p_via) {
-  int level;
-  int interrupt;
-  struct state_6502* p_state_6502 = bbc_get_6502(p_via->p_bbc);
-
-  assert(!(p_via->IER & 0x80));
-
-  if (p_via->IER & p_via->IFR) {
-    p_via->IFR |= 0x80;
-    level = 1;
-  } else {
-    p_via->IFR &= ~0x80;
-    level = 0;
+  if (level == p_via->CA2) {
+    return;
   }
-  if (p_via->id == k_via_system) {
-    interrupt = k_state_6502_irq_1;
-  } else {
-    interrupt = k_state_6502_irq_2;
+
+  trigger_level = (!!(p_via->PCR & 4));
+  if (level == trigger_level) {
+    via_raise_interrupt(p_via, k_int_CA2);
   }
-  state_6502_set_irq_level(p_state_6502, interrupt, level);
+  p_via->CA2 = level;
 }
 
 void

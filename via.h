@@ -34,10 +34,8 @@ void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 uint8_t via_read_port_a(struct via_struct* p_via);
 uint8_t via_read_port_b(struct via_struct* p_via);
 
-void via_raise_interrupt(struct via_struct* p_via, uint8_t val);
-void via_clear_interrupt(struct via_struct* p_via, uint8_t val);
-
-void via_check_interrupt(struct via_struct* p_via);
+void via_set_CA1(struct via_struct* p_via, int level);
+void via_set_CA2(struct via_struct* p_via, int level);
 
 void via_get_registers(struct via_struct* p_via,
                        uint8_t* p_ORA,

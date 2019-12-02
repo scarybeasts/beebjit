@@ -19,7 +19,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix Dragonsoft Explorer.
 - Fix Pharoah's Curse.
 - Fix pi.ssd (uses JMP ($..FF)).
-- Fix CA1 / CA2 line vs. VIA IRQ.
 - Fix IRA read and keyboard bus dominance.
 - Fix Enjoy the Silence sampled playback.
 - Fix whiny pitch on sound output (poor resample?)

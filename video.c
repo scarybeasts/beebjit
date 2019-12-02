@@ -186,10 +186,10 @@ video_timer_fired(void* p) {
   }
 
   if (crtc_clocks == p_video->crtc_vsync_on_clocks) {
-    via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+    via_set_CA1(p_video->p_system_via, 1);
   } else {
     assert(crtc_clocks == p_video->crtc_vsync_off_clocks);
-    via_clear_interrupt(p_video->p_system_via, k_int_CA1);
+    via_set_CA1(p_video->p_system_via, 0);
   }
 
   video_update_timer(p_video);
@@ -310,7 +310,9 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   }
 
   if (p_video->externally_clocked) {
-    via_raise_interrupt(p_video->p_system_via, k_int_CA1);
+    struct via_struct* p_system_via = p_video->p_system_via;
+    via_set_CA1(p_system_via, 0);
+    via_set_CA1(p_system_via, 1);
   }
 
   if (p_video->frame_skip_counter == 0) {
