@@ -7,6 +7,7 @@
 struct video_struct;
 
 struct bbc_options;
+struct render_struct;
 struct teletext_struct;
 struct timing_struct;
 struct via_struct;
@@ -14,6 +15,7 @@ struct via_struct;
 struct video_struct* video_create(uint8_t* p_mem,
                                   int externally_clocked,
                                   struct timing_struct* p_timing,
+                                  struct render_struct* p_render,
                                   struct teletext_struct* p_teletext,
                                   struct via_struct* p_system_via,
                                   void (*p_framebuffer_ready_callback)(void* p),
@@ -21,9 +23,7 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
 
-uint32_t* video_get_render_buffer(struct video_struct* p_video);
-void video_set_render_buffer(struct video_struct* p_video,
-                             uint32_t* p_render_buffer);
+struct render_struct* video_get_render(struct video_struct* p_video);
 
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
 

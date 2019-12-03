@@ -1,9 +1,10 @@
 #include "video.h"
 
 #include "bbc_options.h"
-#include "util.h"
+#include "render.h"
 #include "teletext.h"
 #include "timing.h"
+#include "util.h"
 #include "via.h"
 
 #include <assert.h>
@@ -72,9 +73,9 @@ enum {
 
 struct video_struct {
   uint8_t* p_bbc_mem;
-  uint32_t* p_render_buffer;
   int externally_clocked;
   struct timing_struct* p_timing;
+  struct render_struct* p_render;
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   size_t video_timer_id;
@@ -199,6 +200,7 @@ struct video_struct*
 video_create(uint8_t* p_bbc_mem,
              int externally_clocked,
              struct timing_struct* p_timing,
+             struct render_struct* p_render,
              struct teletext_struct* p_teletext,
              struct via_struct* p_system_via,
              void (*p_framebuffer_ready_callback)(void* p),
@@ -209,47 +211,12 @@ video_create(uint8_t* p_bbc_mem,
     errx(1, "cannot allocate video_struct");
   }
 
-  /* What initial state should we use for 6845 and Video ULA registers?
-   * The 6845 data sheets (all variations?) aren't much help, quoting:
-   * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
-   * "The CRTC registers will have an initial value at power up. When using
-   * a direct drive monitor (sans horizontal oscillator) these initial values
-   * may result in out-of-tolerance operation."
-   * It isn't specified whether those initial values are random or
-   * deterministic, or what they may be.
-   * Custom MOS ROM tests by Tom Seddon indicate fairly random values from boot
-   * to boot; sometimes the register values result in VSYNCs, sometimes not.
-   * We could argue it's not a huge deal because the MOS ROM sets values for
-   * the registers as part of selecting MODE7 at boot up. But we do want to
-   * avoid exotic 6845 setups (such as registers all zero) because the timing
-   * of exotic setups is more likely to change as bugs are fixed. And stable
-   * timing is desirable on account of record / playback support.
-   * So TL;DR: we'll set up MODE7.
-   */
   (void) memset(p_video, '\0', sizeof(struct video_struct));
 
-  p_video->crtc_registers[k_crtc_reg_horiz_total] = 63;
-  p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
-  p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
-  /* Horiz sync pulse width 4, vertical sync pulse width 2. */
-  p_video->crtc_registers[k_crtc_reg_sync_width] = (4 | (2 << 4));
-  p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
-  p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
-  p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
-  p_video->crtc_registers[k_crtc_reg_vert_sync_position] = 27;
-  /* Interlace sync and video, 1 character display delay, 2 character cursor
-   * delay.
-   */
-  p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
-  p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
-
-  /* Teletext mode, 1MHz operation. */
-  p_video->video_ula_control = 2;
-
   p_video->p_bbc_mem = p_bbc_mem;
-  p_video->p_render_buffer = NULL;
   p_video->externally_clocked = externally_clocked;
   p_video->p_timing = p_timing;
+  p_video->p_render = p_render;
   p_video->p_teletext = p_teletext;
   p_video->p_system_via = p_system_via;
   p_video->p_sysvia_IC32 = via_get_peripheral_b_ptr(p_system_via);
@@ -273,6 +240,41 @@ video_create(uint8_t* p_bbc_mem,
                              p_options->p_opt_flags,
                              "video:frames-skip=");
 
+  /* What initial state should we use for 6845 and Video ULA registers?
+   * The 6845 data sheets (all variations?) aren't much help, quoting:
+   * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
+   * "The CRTC registers will have an initial value at power up. When using
+   * a direct drive monitor (sans horizontal oscillator) these initial values
+   * may result in out-of-tolerance operation."
+   * It isn't specified whether those initial values are random or
+   * deterministic, or what they may be.
+   * Custom MOS ROM tests by Tom Seddon indicate fairly random values from boot
+   * to boot; sometimes the register values result in VSYNCs, sometimes not.
+   * We could argue it's not a huge deal because the MOS ROM sets values for
+   * the registers as part of selecting MODE7 at boot up. But we do want to
+   * avoid exotic 6845 setups (such as registers all zero) because the timing
+   * of exotic setups is more likely to change as bugs are fixed. And stable
+   * timing is desirable on account of record / playback support.
+   * So TL;DR: we'll set up MODE7.
+   */
+  p_video->crtc_registers[k_crtc_reg_horiz_total] = 63;
+  p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
+  p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
+  /* Horiz sync pulse width 4, vertical sync pulse width 2. */
+  p_video->crtc_registers[k_crtc_reg_sync_width] = (4 | (2 << 4));
+  p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
+  p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
+  p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
+  p_video->crtc_registers[k_crtc_reg_vert_sync_position] = 27;
+  /* Interlace sync and video, 1 character display delay, 2 character cursor
+   * delay.
+   */
+  p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
+  p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
+
+  /* Teletext mode, 1MHz operation. */
+  p_video->video_ula_control = 2;
+
   video_init_timer(p_video);
   video_update_timer(p_video);
 
@@ -284,15 +286,9 @@ video_destroy(struct video_struct* p_video) {
   free(p_video);
 }
 
-uint32_t*
-video_get_render_buffer(struct video_struct* p_video) {
-  return p_video->p_render_buffer;
-}
-
-void
-video_set_render_buffer(struct video_struct* p_video,
-                        uint32_t* p_render_buffer) {
-  p_video->p_render_buffer = p_render_buffer;
+struct render_struct*
+video_get_render(struct video_struct* p_video) {
+  return p_video->p_render;
 }
 
 void
@@ -325,12 +321,14 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
 
 static void
 video_mode0_render(struct video_struct* p_video,
-                   uint32_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_frame_buf = render_get_buffer(p_render);
+  uint32_t width = render_get_width(p_render);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -350,8 +348,8 @@ video_mode0_render(struct video_struct* p_video,
         uint8_t p6 = !!(packed_pixels & 0x04);
         uint8_t p7 = !!(packed_pixels & 0x02);
         uint8_t p8 = !!(packed_pixels & 0x01);
-        p_render_buffer += ((y * 8) + y2) * 2 * 640;
-        p_render_buffer += x * 8;
+        p_render_buffer += (((y * 8) + y2) * 2 * width);
+        p_render_buffer += (x * 8);
         p_render_buffer[0] = ~(p1 - 1);
         p_render_buffer[1] = ~(p2 - 1);
         p_render_buffer[2] = ~(p3 - 1);
@@ -360,14 +358,6 @@ video_mode0_render(struct video_struct* p_video,
         p_render_buffer[5] = ~(p6 - 1);
         p_render_buffer[6] = ~(p7 - 1);
         p_render_buffer[7] = ~(p8 - 1);
-        p_render_buffer[640] = ~(p1 - 1);
-        p_render_buffer[641] = ~(p2 - 1);
-        p_render_buffer[642] = ~(p3 - 1);
-        p_render_buffer[643] = ~(p4 - 1);
-        p_render_buffer[644] = ~(p5 - 1);
-        p_render_buffer[645] = ~(p6 - 1);
-        p_render_buffer[646] = ~(p7 - 1);
-        p_render_buffer[647] = ~(p8 - 1);
       }
     }
   }
@@ -375,13 +365,15 @@ video_mode0_render(struct video_struct* p_video,
 
 static void
 video_mode4_render(struct video_struct* p_video,
-                   uint32_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars) {
   size_t y;
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_frame_buf = render_get_buffer(p_render);
+  uint32_t width = render_get_width(p_render);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -401,8 +393,8 @@ video_mode4_render(struct video_struct* p_video,
         uint32_t p6 = p_palette[((packed_pixels & 0x04) << 1)];
         uint32_t p7 = p_palette[((packed_pixels & 0x02) << 2)];
         uint32_t p8 = p_palette[((packed_pixels & 0x01) << 3)];
-        p_render_buffer += ((y * 8) + y2) * 2 * 640;
-        p_render_buffer += x * 16;
+        p_render_buffer += (((y * 8) + y2) * 2 * width);
+        p_render_buffer += (x * 16);
         p_render_buffer[0] = p1;
         p_render_buffer[1] = p1;
         p_render_buffer[2] = p2;
@@ -419,22 +411,6 @@ video_mode4_render(struct video_struct* p_video,
         p_render_buffer[13] = p7;
         p_render_buffer[14] = p8;
         p_render_buffer[15] = p8;
-        p_render_buffer[640] = p1;
-        p_render_buffer[641] = p1;
-        p_render_buffer[642] = p2;
-        p_render_buffer[643] = p2;
-        p_render_buffer[644] = p3;
-        p_render_buffer[645] = p3;
-        p_render_buffer[646] = p4;
-        p_render_buffer[647] = p4;
-        p_render_buffer[648] = p5;
-        p_render_buffer[649] = p5;
-        p_render_buffer[650] = p6;
-        p_render_buffer[651] = p6;
-        p_render_buffer[652] = p7;
-        p_render_buffer[653] = p7;
-        p_render_buffer[654] = p8;
-        p_render_buffer[655] = p8;
       }
     }
   }
@@ -442,7 +418,6 @@ video_mode4_render(struct video_struct* p_video,
 
 static void
 video_mode1_render(struct video_struct* p_video,
-                   uint32_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
@@ -451,6 +426,9 @@ video_mode1_render(struct video_struct* p_video,
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_frame_buf = render_get_buffer(p_render);
+  uint32_t width = render_get_width(p_render);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -475,7 +453,7 @@ video_mode1_render(struct video_struct* p_video,
         uint32_t p3 = p_palette[4 + (v3 << 1)];
         uint32_t p4 = p_palette[4 + (v4 << 1)];
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
+        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
         p_render_buffer += ((x + horiz_chars_offset) * 8);
         p_render_buffer[0] = p1;
         p_render_buffer[1] = p1;
@@ -485,14 +463,6 @@ video_mode1_render(struct video_struct* p_video,
         p_render_buffer[5] = p3;
         p_render_buffer[6] = p4;
         p_render_buffer[7] = p4;
-        p_render_buffer[640] = p1;
-        p_render_buffer[641] = p1;
-        p_render_buffer[642] = p2;
-        p_render_buffer[643] = p2;
-        p_render_buffer[644] = p3;
-        p_render_buffer[645] = p3;
-        p_render_buffer[646] = p4;
-        p_render_buffer[647] = p4;
       }
     }
   }
@@ -500,7 +470,6 @@ video_mode1_render(struct video_struct* p_video,
 
 static void
 video_mode5_render(struct video_struct* p_video,
-                   uint32_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
@@ -509,6 +478,9 @@ video_mode5_render(struct video_struct* p_video,
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_frame_buf = render_get_buffer(p_render);
+  uint32_t width = render_get_width(p_render);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -533,7 +505,7 @@ video_mode5_render(struct video_struct* p_video,
         uint32_t p3 = p_palette[4 + (v3 << 1)];
         uint32_t p4 = p_palette[4 + (v4 << 1)];
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
+        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
         p_render_buffer += ((x + horiz_chars_offset) * 16);
         p_render_buffer[0] = p1;
         p_render_buffer[1] = p1;
@@ -551,22 +523,6 @@ video_mode5_render(struct video_struct* p_video,
         p_render_buffer[13] = p4;
         p_render_buffer[14] = p4;
         p_render_buffer[15] = p4;
-        p_render_buffer[640] = p1;
-        p_render_buffer[641] = p1;
-        p_render_buffer[642] = p1;
-        p_render_buffer[643] = p1;
-        p_render_buffer[644] = p2;
-        p_render_buffer[645] = p2;
-        p_render_buffer[646] = p2;
-        p_render_buffer[647] = p2;
-        p_render_buffer[648] = p3;
-        p_render_buffer[649] = p3;
-        p_render_buffer[650] = p3;
-        p_render_buffer[651] = p3;
-        p_render_buffer[652] = p4;
-        p_render_buffer[653] = p4;
-        p_render_buffer[654] = p4;
-        p_render_buffer[655] = p4;
       }
     }
   }
@@ -574,7 +530,6 @@ video_mode5_render(struct video_struct* p_video,
 
 static void
 video_mode2_render(struct video_struct* p_video,
-                   uint32_t* p_frame_buf,
                    size_t horiz_chars,
                    size_t vert_chars,
                    size_t horiz_chars_offset,
@@ -584,6 +539,9 @@ video_mode2_render(struct video_struct* p_video,
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   uint32_t* p_palette = &p_video->palette[0];
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_frame_buf = render_get_buffer(p_render);
+  uint32_t width = render_get_width(p_render);
 
   uint32_t p1s[256];
   uint32_t p2s[256];
@@ -615,7 +573,7 @@ video_mode2_render(struct video_struct* p_video,
         uint32_t p1 = p1s[packed_pixels];
         uint32_t p2 = p2s[packed_pixels];
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * 640);
+        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
         p_render_buffer += ((x + horiz_chars_offset) * 8);
         p_render_buffer[0] = p1;
         p_render_buffer[1] = p1;
@@ -625,14 +583,6 @@ video_mode2_render(struct video_struct* p_video,
         p_render_buffer[5] = p2;
         p_render_buffer[6] = p2;
         p_render_buffer[7] = p2;
-        p_render_buffer[640] = p1;
-        p_render_buffer[641] = p1;
-        p_render_buffer[642] = p1;
-        p_render_buffer[643] = p1;
-        p_render_buffer[644] = p2;
-        p_render_buffer[645] = p2;
-        p_render_buffer[646] = p2;
-        p_render_buffer[647] = p2;
       }
     }
   }
@@ -668,7 +618,8 @@ video_render(struct video_struct* p_video) {
   size_t max_horiz_chars;
   size_t max_vert_lines;
 
-  uint32_t* p_render_buffer = p_video->p_render_buffer;
+  struct render_struct* p_render = p_video->p_render;
+  uint32_t* p_render_buffer = render_get_buffer(p_render);
   if (p_render_buffer == NULL) {
     return;
   }
@@ -717,7 +668,7 @@ video_render(struct video_struct* p_video) {
       vert_chars != p_video->prev_vert_chars ||
       horiz_chars_offset != p_video->prev_horiz_chars_offset ||
       vert_lines_offset != p_video->prev_vert_lines_offset) {
-    (void) memset(p_render_buffer, '\0', (640 * 480 * 4));
+    render_clear_buffer(p_render);
   }
   p_video->prev_horiz_chars = horiz_chars;
   p_video->prev_vert_chars = vert_chars;
@@ -729,26 +680,23 @@ video_render(struct video_struct* p_video) {
     struct teletext_struct* p_teletext = p_video->p_teletext;
     teletext_render_full(p_teletext, p_video);
   } else if (pixel_width == 1)  {
-    video_mode0_render(p_video, p_render_buffer, horiz_chars, vert_chars);
+    video_mode0_render(p_video, horiz_chars, vert_chars);
   } else if (pixel_width == 2 && clock_speed == 0) {
-    video_mode4_render(p_video, p_render_buffer, horiz_chars, vert_chars);
+    video_mode4_render(p_video, horiz_chars, vert_chars);
   } else if (pixel_width == 2 && clock_speed == 1) {
     video_mode1_render(p_video,
-                       p_render_buffer,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
                        vert_lines_offset);
   } else if (pixel_width == 4 && clock_speed == 1) {
     video_mode2_render(p_video,
-                       p_render_buffer,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
                        vert_lines_offset);
   } else if (pixel_width == 4 && clock_speed == 0) {
     video_mode5_render(p_video,
-                       p_render_buffer,
                        horiz_chars,
                        vert_chars,
                        horiz_chars_offset,
@@ -759,6 +707,8 @@ video_render(struct video_struct* p_video) {
      * Can also be a race conditions vs. the main 6502 thread.
      */
   }
+  /* TODO: this should be moved to the render handling in the main thread. */
+  render_double_up_lines(p_render);
 }
 
 void

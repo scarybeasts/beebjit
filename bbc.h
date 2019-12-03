@@ -95,6 +95,7 @@ struct via_struct* bbc_get_uservia(struct bbc_struct* p_bbc);
 struct keyboard_struct* bbc_get_keyboard(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
+struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 
 uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);

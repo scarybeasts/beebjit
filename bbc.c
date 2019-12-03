@@ -9,6 +9,7 @@
 #include "keyboard.h"
 #include "memory_access.h"
 #include "os_thread.h"
+#include "render.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "teletext.h"
@@ -82,6 +83,7 @@ struct bbc_struct {
   struct via_struct* p_user_via;
   struct keyboard_struct* p_keyboard;
   struct sound_struct* p_sound;
+  struct render_struct* p_render;
   struct teletext_struct* p_teletext;
   struct video_struct* p_video;
   struct intel_fdc_struct* p_intel_fdc;
@@ -784,6 +786,10 @@ bbc_create(int mode,
     errx(1, "sound_create failed");
   }
 
+  p_bbc->p_render = render_create(&p_bbc->options);
+  if (p_bbc->p_render == NULL) {
+    errx(1, "render_create failed");
+  }
   p_bbc->p_teletext = teletext_create();
   if (p_bbc->p_teletext == NULL) {
     errx(1, "teletext_create failed");
@@ -791,6 +797,7 @@ bbc_create(int mode,
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,
                                 p_timing,
+                                p_bbc->p_render,
                                 p_bbc->p_teletext,
                                 p_bbc->p_system_via,
                                 bbc_framebuffer_ready_callback,
@@ -846,6 +853,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   debug_destroy(p_bbc->p_debug);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
+  render_destroy(p_bbc->p_render);
   sound_destroy(p_bbc->p_sound);
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
@@ -982,6 +990,11 @@ bbc_get_sound(struct bbc_struct* p_bbc) {
 struct video_struct*
 bbc_get_video(struct bbc_struct* p_bbc) {
   return p_bbc->p_video;
+}
+
+struct render_struct*
+bbc_get_render(struct bbc_struct* p_bbc) {
+  return p_bbc->p_render;
 }
 
 uint8_t*

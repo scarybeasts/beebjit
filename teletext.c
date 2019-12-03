@@ -11,6 +11,7 @@
  */
 #include "teletext_glyphs.h"
 
+#include "render.h"
 #include "video.h"
 
 #include <err.h>
@@ -186,8 +187,7 @@ static void
 teletext_render_line(struct teletext_struct* p_teletext,
                      uint8_t* p_src_chars,
                      uint32_t scanline,
-                     uint32_t* p_dest_buffer,
-                     size_t stride) {
+                     uint32_t* p_dest_buffer) {
   uint32_t column;
 
   uintptr_t src_chars = (uintptr_t) p_src_chars;
@@ -233,49 +233,30 @@ teletext_render_line(struct teletext_struct* p_teletext,
 
     p_dest_buffer[0] = bg_color;
     p_dest_buffer[1] = bg_color;
-    p_dest_buffer[stride + 0] = bg_color;
-    p_dest_buffer[stride + 1] = bg_color;
 
     value = (p_src_data[0] ? fg_color : bg_color);
     p_dest_buffer[2] = value;
     p_dest_buffer[3] = value;
-    p_dest_buffer[stride + 2] = value;
-    p_dest_buffer[stride + 3] = value;
 
     value = (p_src_data[1] ? fg_color : bg_color);
     p_dest_buffer[4] = value;
     p_dest_buffer[5] = value;
-    p_dest_buffer[stride + 4] = value;
-    p_dest_buffer[stride + 5] = value;
 
     value = (p_src_data[2] ? fg_color : bg_color);
     p_dest_buffer[6] = value;
     p_dest_buffer[7] = value;
-    p_dest_buffer[stride + 6] = value;
-    p_dest_buffer[stride + 7] = value;
 
     value = (p_src_data[3] ? fg_color : bg_color);
     p_dest_buffer[8] = value;
     p_dest_buffer[9] = value;
-    p_dest_buffer[stride + 8] = value;
-    p_dest_buffer[stride + 9] = value;
 
     value = (p_src_data[4] ? fg_color : bg_color);
     p_dest_buffer[10] = value;
     p_dest_buffer[11] = value;
-    p_dest_buffer[stride + 10] = value;
-    p_dest_buffer[stride + 11] = value;
 
     value = (p_src_data[5] ? fg_color : bg_color);
     p_dest_buffer[12] = value;
     p_dest_buffer[13] = value;
-    p_dest_buffer[stride + 12] = value;
-    p_dest_buffer[stride + 13] = value;
-
-    p_dest_buffer[14] = bg_color;
-    p_dest_buffer[15] = bg_color;
-    p_dest_buffer[stride + 14] = bg_color;
-    p_dest_buffer[stride + 15] = bg_color;
 
     p_dest_buffer[14] = bg_color;
     p_dest_buffer[15] = bg_color;
@@ -291,18 +272,14 @@ teletext_render_full(struct teletext_struct* p_teletext,
   uint32_t scanline;
 
   uint8_t* p_bbc_mem = video_get_bbc_memory(p_video);
-  uint32_t* p_render_buffer = video_get_render_buffer(p_video);
-  /* TODO: get stride from video. */
-  size_t stride = 640;
+  struct render_struct* p_render = video_get_render(p_video);
+  uint32_t* p_render_buffer = render_get_buffer(p_render);
+  uint32_t stride = render_get_width(p_render);
 
   for (row = 0; row < 25; ++row) {
     p_teletext->scanline = 0;
     for (scanline = 0; scanline < 10; ++scanline) {
-      teletext_render_line(p_teletext,
-                           p_bbc_mem,
-                           scanline,
-                           p_render_buffer,
-                           stride);
+      teletext_render_line(p_teletext, p_bbc_mem, scanline, p_render_buffer);
       teletext_scanline_ended(p_teletext);
 
       p_render_buffer += (stride * 2);

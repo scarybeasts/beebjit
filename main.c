@@ -4,6 +4,7 @@
 #include "os_poller.h"
 #include "os_sound.h"
 #include "os_window.h"
+#include "render.h"
 #include "sound.h"
 #include "state.h"
 #include "test.h"
@@ -28,6 +29,7 @@ main(int argc, const char* argv[]) {
   struct bbc_struct* p_bbc;
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
+  struct render_struct* p_render;
   uintptr_t window_handle;
   uintptr_t bbc_handle;
   uint32_t run_result;
@@ -264,14 +266,15 @@ main(int argc, const char* argv[]) {
     keyboard_set_replay_file_name(p_keyboard, replay_name);
   }
 
-  p_window = os_window_create(640, 512);
+  p_render = bbc_get_render(p_bbc);
+  p_window = os_window_create(render_get_width(p_render),
+                              render_get_height(p_render));
   if (p_window == NULL) {
     errx(1, "os_window_create failed");
   }
   os_window_set_keyboard_callback(p_window, p_keyboard);
   p_render_buffer = os_window_get_buffer(p_window);
-  p_video = bbc_get_video(p_bbc);
-  video_set_render_buffer(p_video, p_render_buffer);
+  render_set_buffer(p_render, p_render_buffer);
 
   p_poller = os_poller_create();
   if (p_poller == NULL) {
@@ -302,6 +305,8 @@ main(int argc, const char* argv[]) {
   os_poller_add_handle(p_poller, window_handle);
   bbc_handle = bbc_get_client_handle(p_bbc);
   os_poller_add_handle(p_poller, bbc_handle);
+
+  p_video = bbc_get_video(p_bbc);
 
   while (1) {
     char message;
