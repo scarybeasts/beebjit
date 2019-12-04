@@ -322,7 +322,7 @@ main(int argc, const char* argv[]) {
         break;
       } else {
         assert(message == k_message_vsync);
-        video_render(p_video);
+        video_render_full_frame(p_video);
         os_window_sync_buffer_to_screen(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           bbc_client_send_message(p_bbc, k_message_render_done);

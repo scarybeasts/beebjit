@@ -14,10 +14,26 @@ struct render_struct {
 
   uint32_t* p_buffer;
 
+  uint32_t palette[16];
+  int render_table_dirty[k_render_num_modes];
+  struct render_table_2MHz render_table_mode0;
+  struct render_table_2MHz render_table_mode1;
+  struct render_table_2MHz render_table_mode2;
+  struct render_table_1MHz render_table_mode4;
+  struct render_table_1MHz render_table_mode5;
+
   uint32_t horiz_beam_pos;
   uint32_t vert_beam_pos;
   int beam_is_in_bounds;
 };
+
+static void
+render_dirty_all_tables(struct render_struct* p_render) {
+  uint32_t i;
+  for (i = 0; i < k_render_num_modes; ++i) {
+    p_render->render_table_dirty[i] = 1;
+  }
+}
 
 struct render_struct*
 render_create(struct bbc_options* p_options) {
@@ -30,6 +46,7 @@ render_create(struct bbc_options* p_options) {
     errx(1, "cannot allocate render_struct");
   }
 
+  /* Also sets the palette to black. */
   (void) memset(p_render, '\0', sizeof(struct render_struct));
 
   /* "border characters" is the number of MODE1 square 8x8 pixel characters
@@ -49,6 +66,8 @@ render_create(struct bbc_options* p_options) {
 
   p_render->width = width;
   p_render->height = height;
+
+  render_dirty_all_tables(p_render);
 
   return p_render;
 }
@@ -79,6 +98,53 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   p_render->p_buffer = p_buffer;
 
   render_clear_buffer(p_render);
+}
+
+void
+render_set_palette(struct render_struct* p_render,
+                   uint8_t index,
+                   uint32_t rgba) {
+  p_render->palette[index] = rgba;
+  render_dirty_all_tables(p_render);
+}
+
+static void
+render_generate_mode2_table(struct render_struct* p_render) {
+  uint32_t i;
+
+  struct render_table_2MHz* p_table = &p_render->render_table_mode2;
+
+  for (i = 0; i < 256; ++i) {
+    uint8_t v1 = ((i & 0x80) >> 4) |
+                  ((i & 0x20) >> 3) |
+                  ((i & 0x08) >> 2) |
+                  ((i & 0x02) >> 1);
+    uint8_t v2 = ((i & 0x40) >> 3) |
+                  ((i & 0x10) >> 2) |
+                  ((i & 0x04) >> 1) |
+                  ((i & 0x01) >> 0);
+    uint32_t p1 = p_render->palette[v1];
+    uint32_t p2 = p_render->palette[v2];
+
+    struct render_character_2MHz* p_character = &p_table->values[i];
+    p_character->host_pixels[0] = p1;
+    p_character->host_pixels[1] = p1;
+    p_character->host_pixels[2] = p1;
+    p_character->host_pixels[3] = p1;
+    p_character->host_pixels[4] = p2;
+    p_character->host_pixels[5] = p2;
+    p_character->host_pixels[6] = p2;
+    p_character->host_pixels[7] = p2;
+  }
+}
+
+struct render_table_2MHz* render_get_render_table(
+    struct render_struct* p_render, int mode) {
+  if (p_render->render_table_dirty[mode]) {
+    render_generate_mode2_table(p_render);
+  }
+
+  return &p_render->render_table_mode2;
 }
 
 static void
