@@ -357,9 +357,9 @@ sound_is_synchronous(struct sound_struct* p_sound) {
 
 static void
 sound_advance_sn_timing(struct sound_struct* p_sound) {
-  uint32_t prev_sn_ticks;
-  uint32_t curr_sn_ticks;
-  uint32_t delta_sn_ticks;
+  uint64_t prev_sn_ticks;
+  uint64_t curr_sn_ticks;
+  uint64_t delta_sn_ticks;
 
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_sound->p_timing);
