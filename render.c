@@ -15,7 +15,7 @@ struct render_struct {
   uint32_t* p_buffer;
 
   uint32_t horiz_beam_pos;
-  uint32_t vertical_beam_pos;
+  uint32_t vert_beam_pos;
   int beam_is_in_bounds;
 };
 
@@ -58,6 +58,16 @@ render_destroy(struct render_struct* p_render) {
   free(p_render);
 }
 
+uint32_t
+render_get_width(struct render_struct* p_render) {
+  return p_render->width;
+}
+
+uint32_t
+render_get_height(struct render_struct* p_render) {
+  return p_render->height;
+}
+
 uint32_t*
 render_get_buffer(struct render_struct* p_render) {
   return p_render->p_buffer;
@@ -71,14 +81,28 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   render_clear_buffer(p_render);
 }
 
-uint32_t
-render_get_width(struct render_struct* p_render) {
-  return p_render->width;
+static void
+render_function_white(struct render_struct* p_render, uint8_t data) {
+  (void) p_render;
+  (void) data;
 }
 
-uint32_t
-render_get_height(struct render_struct* p_render) {
-  return p_render->height;
+static void
+render_function_black(struct render_struct* p_render, uint8_t data) {
+  (void) p_render;
+  (void) data;
+}
+
+void (*render_get_render_data_function(struct render_struct* p_render))
+    (struct render_struct*, uint8_t) {
+  (void) p_render;
+  return render_function_white;
+}
+
+void (*render_get_render_blank_function(struct render_struct* p_render))
+    (struct render_struct*, uint8_t) {
+  (void) p_render;
+  return render_function_black;
 }
 
 void
@@ -103,4 +127,15 @@ render_double_up_lines(struct render_struct* p_render) {
     p_buffer += double_width;
     p_buffer_next_line += double_width;
   }
+}
+
+void
+render_hsync(struct render_struct* p_render) {
+  p_render->horiz_beam_pos = 0;
+  p_render->vert_beam_pos += 2;
+}
+
+void
+render_vsync(struct render_struct* p_render) {
+  p_render->vert_beam_pos = 0;
 }

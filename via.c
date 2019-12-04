@@ -5,6 +5,7 @@
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
+#include "video.h"
 
 #include <assert.h>
 #include <err.h>
@@ -454,6 +455,8 @@ via_read_port_b(struct via_struct* p_via) {
 static void
 via_write_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
+    struct bbc_struct* p_bbc = p_via->p_bbc;
+    struct video_struct* p_video = bbc_get_video(p_bbc);
     uint8_t old_peripheral_b = p_via->peripheral_b;
     uint8_t orb = p_via->ORB;
     uint8_t ddrb = p_via->DDRB;
@@ -465,6 +468,7 @@ via_write_port_b(struct via_struct* p_via) {
     } else {
       p_via->peripheral_b &= ~port_bit;
     }
+
     /* If we're pulling the sound write bit from low to high, send the data
      * value in ORA along to the sound chip.
      */
@@ -472,6 +476,11 @@ via_write_port_b(struct via_struct* p_via) {
       struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
       sound_sn_write(p_sound, p_via->peripheral_a);
     }
+
+    /* The video ULA needs to know about changes to the video wrap-around
+     * address.
+     */
+    video_IC32_updated(p_video, p_via->peripheral_b);
 
     /* Updating the port bits may have changed keyboard scanning so we need to
      * recheck interrupt status.

@@ -7,6 +7,7 @@ struct via_struct;
 
 struct bbc_struct;
 struct timing_struct;
+struct video_struct;
 
 enum {
   k_via_system = 0,

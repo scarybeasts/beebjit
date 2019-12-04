@@ -23,6 +23,8 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
 
+void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
+
 struct render_struct* video_get_render(struct video_struct* p_video);
 
 void video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta);
