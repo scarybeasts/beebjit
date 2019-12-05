@@ -81,7 +81,7 @@ struct video_struct {
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   size_t video_timer_id;
-  void (*p_framebuffer_ready_callback)();
+  void (*p_framebuffer_ready_callback)(void*, int);
   void* p_framebuffer_ready_object;
 
   /* Options. */
@@ -398,7 +398,7 @@ video_create(uint8_t* p_bbc_mem,
              struct render_struct* p_render,
              struct teletext_struct* p_teletext,
              struct via_struct* p_system_via,
-             void (*p_framebuffer_ready_callback)(void* p),
+             void (*p_framebuffer_ready_callback)(void* p, int do_full_paint),
              void* p_framebuffer_ready_object,
              struct bbc_options* p_options) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
@@ -544,7 +544,9 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   }
 
   if (p_video->frame_skip_counter == 0) {
-    p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object);
+    int do_full_paint = p_video->externally_clocked;
+    p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
+                                          do_full_paint);
     p_video->frame_skip_counter = p_video->frames_skip;
   } else {
     p_video->frame_skip_counter--;

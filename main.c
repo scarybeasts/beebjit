@@ -309,23 +309,23 @@ main(int argc, const char* argv[]) {
   p_video = bbc_get_video(p_bbc);
 
   while (1) {
-    char message;
-
     os_poller_poll(p_poller);
 
     if (os_poller_handle_triggered(p_poller, 0)) {
       os_window_process_events(p_window);
     }
     if (os_poller_handle_triggered(p_poller, 1)) {
-      message = bbc_client_receive_message(p_bbc);
-      if (message == k_message_exited) {
+      struct bbc_message message;
+      bbc_client_receive_message(p_bbc, &message);
+      if (message.data[0] == k_message_exited) {
         break;
       } else {
-        assert(message == k_message_vsync);
+        assert(message.data[0] == k_message_vsync);
         video_render_full_frame(p_video);
         os_window_sync_buffer_to_screen(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
-          bbc_client_send_message(p_bbc, k_message_render_done);
+          message.data[0] = k_message_render_done;
+          bbc_client_send_message(p_bbc, &message);
         }
       }
     }

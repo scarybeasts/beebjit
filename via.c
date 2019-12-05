@@ -480,6 +480,9 @@ via_write_port_b(struct via_struct* p_via) {
     /* The video ULA needs to know about changes to the video wrap-around
      * address.
      */
+    /* TODO: have the video subsystem register a function pointer to lower
+     * dependencies?
+     */
     video_IC32_updated(p_video, p_via->peripheral_b);
 
     /* Updating the port bits may have changed keyboard scanning so we need to

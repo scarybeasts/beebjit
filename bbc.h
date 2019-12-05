@@ -112,7 +112,13 @@ int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
 size_t bbc_get_client_handle(struct bbc_struct* p_bbc);
-void bbc_client_send_message(struct bbc_struct* p_bbc, char message);
-char bbc_client_receive_message(struct bbc_struct* p_bbc);
+
+struct bbc_message {
+  uint8_t data[16];
+};
+void bbc_client_send_message(struct bbc_struct* p_bbc,
+                             struct bbc_message* p_message);
+void bbc_client_receive_message(struct bbc_struct* p_bbc,
+                                struct bbc_message* p_out_message);
 
 #endif /* BEEJIT_JIT_H */

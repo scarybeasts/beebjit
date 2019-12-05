@@ -534,53 +534,59 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
 }
 
 void
-bbc_client_send_message(struct bbc_struct* p_bbc, char message) {
-  int ret = write(p_bbc->message_client_fd, &message, 1);
-  if (ret != 1) {
+bbc_client_send_message(struct bbc_struct* p_bbc,
+                        struct bbc_message* p_message) {
+  int ret = write(p_bbc->message_client_fd,
+                  p_message,
+                  sizeof(struct bbc_message));
+  if (ret != sizeof(struct bbc_message)) {
     errx(1, "write failed");
   }
 }
 
 static void
-bbc_cpu_send_message(struct bbc_struct* p_bbc, char message) {
-  int ret = write(p_bbc->message_cpu_fd, &message, 1);
-  if (ret != 1) {
+bbc_cpu_send_message(struct bbc_struct* p_bbc, struct bbc_message* p_message) {
+  int ret = write(p_bbc->message_cpu_fd, p_message, sizeof(struct bbc_message));
+  if (ret != sizeof(struct bbc_message)) {
     errx(1, "write failed");
   }
 }
 
-char
-bbc_client_receive_message(struct bbc_struct* p_bbc) {
-  char message;
-
-  int ret = read(p_bbc->message_client_fd, &message, 1);
-  if (ret != 1) {
+void
+bbc_client_receive_message(struct bbc_struct* p_bbc,
+                           struct bbc_message* p_out_message) {
+  int ret = read(p_bbc->message_client_fd,
+                 p_out_message,
+                 sizeof(struct bbc_message));
+  if (ret != sizeof(struct bbc_message)) {
     errx(1, "read failed");
   }
-
-  return message;
-}
-
-static char
-bbc_cpu_receive_message(struct bbc_struct* p_bbc) {
-  char message;
-
-  int ret = read(p_bbc->message_cpu_fd, &message, 1);
-  if (ret != 1) {
-    errx(1, "read failed");
-  }
-
-  return message;
 }
 
 static void
-bbc_framebuffer_ready_callback(void* p) {
+bbc_cpu_receive_message(struct bbc_struct* p_bbc,
+                        struct bbc_message* p_out_message) {
+  int ret = read(p_bbc->message_cpu_fd,
+                 p_out_message,
+                 sizeof(struct bbc_message));
+  if (ret != sizeof(struct bbc_message)) {
+    errx(1, "read failed");
+  }
+}
+
+static void
+bbc_framebuffer_ready_callback(void* p, int do_paint) {
+  struct bbc_message message;
+
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  bbc_cpu_send_message(p_bbc, k_message_vsync);
+
+  message.data[0] = k_message_vsync;
+  message.data[1] = do_paint;
+  bbc_cpu_send_message(p_bbc, &message);
   if (bbc_get_vsync_wait_for_render(p_bbc)) {
-    uint8_t message = bbc_cpu_receive_message(p_bbc);
-    (void) message;
-    assert(message == k_message_render_done);
+    struct bbc_message message;
+    bbc_cpu_receive_message(p_bbc, &message);
+    assert(message.data[0] == k_message_render_done);
   }
 }
 
@@ -1225,6 +1231,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 static void*
 bbc_cpu_thread(void* p) {
   int exited;
+  struct bbc_message message;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
@@ -1239,7 +1246,8 @@ bbc_cpu_thread(void* p) {
   p_bbc->running = 0;
   p_bbc->exit_value = p_cpu_driver->p_funcs->get_exit_value(p_cpu_driver);
 
-  bbc_cpu_send_message(p_bbc, k_message_exited);
+  message.data[0] = k_message_exited;
+  bbc_cpu_send_message(p_bbc, &message);
 
   return NULL;
 }
