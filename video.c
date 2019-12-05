@@ -121,32 +121,45 @@ struct video_struct {
   size_t prev_vert_chars;
   int prev_horiz_chars_offset;
   int prev_vert_lines_offset;
+
+  uint8_t video_memory_contiguous[2048];
 };
 
 static inline uint32_t
-video_calculate_bbc_address(struct video_struct* p_video) {
-  uint32_t address_counter = p_video->address_counter;
+video_calculate_bbc_address(uint32_t* p_out_screen_address,
+                            uint32_t address_counter,
+                            uint8_t scanline_counter,
+                            uint32_t screen_wrap_add) {
+  uint32_t address;
+  uint32_t screen_address;
 
   if (address_counter & 0x2000) {
+    address = (address_counter & 0x3FF);
     /* MA13 set => MODE7 style addressing. */
     if (address_counter & 0x800) {
       /* Normal MODE7. */
-      return (address_counter | 0x7C00);
+      screen_address = 0x7C00;
     } else {
       /* Unusual quirk -- model B only, not Master. */
-      return (address_counter | 0x3C00);
+      screen_address = 0x3C00;
     }
+    address |= screen_address;
   } else {
     /* Normal bitmapped mode. */
-    uint32_t address = (address_counter * 8);
-    address += (p_video->scanline_counter & 0x7);
-    if (address & 0x1000) {
+    address = (address_counter * 8);
+    address += (scanline_counter & 0x7);
+    screen_address = (0x8000 - screen_wrap_add);
+    if (address_counter & 0x1000) {
       /* MA12 set => screen address wrap around. */
-      address += p_video->screen_wrap_add;
+      address -= screen_wrap_add;
     }
     address &= 0x7FFF;
-    return address;
   }
+
+  if (p_out_screen_address != NULL) {
+    *p_out_screen_address = screen_address;
+  }
+  return address;
 }
 
 static inline int
@@ -254,7 +267,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* TODO: optimize this to advance by a stride and only recalculate when
      * necessary.
      */
-    bbc_address = video_calculate_bbc_address(p_video);
+    bbc_address = video_calculate_bbc_address(NULL,
+                                              p_video->address_counter,
+                                              p_video->scanline_counter,
+                                              p_video->screen_wrap_add);
 
     if (r1_hit) {
       p_video->display_enable_horiz = 0;
@@ -543,21 +559,21 @@ video_1MHz_mode_render(struct video_struct* p_video,
                        size_t horiz_chars_offset,
                        size_t vert_lines_offset) {
   size_t y;
-  uint8_t* p_video_mem = video_get_bbc_memory(p_video);
-  size_t video_memory_size = video_get_memory_size(p_video);
   struct render_struct* p_render = video_get_render(p_video);
   uint32_t* p_frame_buf = render_get_buffer(p_render);
   uint32_t width = render_get_width(p_render);
   struct render_table_1MHz* p_render_table =
       render_get_1MHz_render_table(p_render, mode);
+  uint32_t video_memory_row_size = (horiz_chars * 8);
+  uint32_t offset = 0;
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
+    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
+                                                        offset,
+                                                        video_memory_row_size);
     for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
-      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
-        p_video_mem -= video_memory_size;
-      }
       for (y2 = 0; y2 < 8; ++y2) {
         uint8_t data = *p_video_mem++;
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
@@ -568,6 +584,8 @@ video_1MHz_mode_render(struct video_struct* p_video,
         *p_character_buffer = p_render_table->values[data];
       }
     }
+
+    offset += horiz_chars;;
   }
 }
 
@@ -579,21 +597,22 @@ video_2MHz_mode_render(struct video_struct* p_video,
                        size_t horiz_chars_offset,
                        size_t vert_lines_offset) {
   size_t y;
-  uint8_t* p_video_mem = video_get_bbc_memory(p_video);
-  size_t video_memory_size = video_get_memory_size(p_video);
+
   struct render_struct* p_render = video_get_render(p_video);
   uint32_t* p_frame_buf = render_get_buffer(p_render);
   uint32_t width = render_get_width(p_render);
   struct render_table_2MHz* p_render_table =
       render_get_2MHz_render_table(p_render, mode);
+  uint32_t video_memory_row_size = (horiz_chars * 8);
+  uint32_t offset = 0;
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
+    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
+                                                        offset,
+                                                        video_memory_row_size);
     for (x = 0; x < horiz_chars; ++x) {
       size_t y2;
-      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
-        p_video_mem -= video_memory_size;
-      }
       for (y2 = 0; y2 < 8; ++y2) {
         uint8_t data = *p_video_mem++;
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
@@ -604,6 +623,8 @@ video_2MHz_mode_render(struct video_struct* p_video,
         *p_character_buffer = p_render_table->values[data];
       }
     }
+
+    offset += horiz_chars;
   }
 }
 
@@ -969,48 +990,52 @@ video_set_crtc_registers(struct video_struct* p_video,
 }
 
 uint8_t*
-video_get_bbc_memory(struct video_struct* p_video) {
-  size_t mem_offset;
+video_get_video_memory_slice(struct video_struct* p_video,
+                             uint32_t crtc_offset,
+                             uint32_t length) {
+  uint32_t crtc_address;
+  uint32_t screen_address;
+  uint32_t bbc_address;
+  uint32_t first_chunk_len;
+  uint32_t second_chunk_len;
 
-  uint8_t ula_control = video_get_ula_control(p_video);
-  int is_text = (ula_control & k_ula_teletext);
   uint8_t* p_bbc_mem = p_video->p_bbc_mem;
-  uint8_t crtc_mem_addr_high =
-      p_video->crtc_registers[k_crtc_reg_mem_addr_high];
-  uint8_t crtc_mem_addr_low = p_video->crtc_registers[k_crtc_reg_mem_addr_low];
 
-  if (is_text) {
-    mem_offset = crtc_mem_addr_high;
-    mem_offset ^= 0x20;
-    mem_offset += 0x74;
-    mem_offset <<= 8;
-    mem_offset |= crtc_mem_addr_low;
-  } else {
-    mem_offset = ((crtc_mem_addr_high << 8) | crtc_mem_addr_low);
-    mem_offset <<= 3;
+  assert(crtc_offset < 0x1000);
+  assert(length < 0x1000);
+
+  if (length > sizeof(p_video->video_memory_contiguous)) {
+    errx(1, "excessive length in video_get_video_memory_slice");
   }
 
-  /* TODO: wut? */
-  mem_offset &= 0x7FFF;
-  if (mem_offset >= 0x8000) {
-    if (is_text) {
-      mem_offset -= 0x400;
-    } else {
-      size_t memory_size = video_get_memory_size(p_video);
-      mem_offset -= memory_size;
-    }
+  crtc_address = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
+  crtc_address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
+  crtc_address += crtc_offset;
+
+  bbc_address = video_calculate_bbc_address(&screen_address,
+                                            crtc_address,
+                                            0,
+                                            p_video->screen_wrap_add);
+
+  /* NOTE: won't work for the weird 0x3C00 MODE7 quirk.
+   * Also won't work for crtc addresses that cross a behavior boundary, i.e.
+   * 0x3FFF -> 0x0000.
+   */
+  if ((bbc_address + length) <= 0x8000) {
+    return (p_bbc_mem + bbc_address);
   }
 
-  /* Need alignment; we check for the pointer low bytes crossing 0x8000. */
-  assert(((uintptr_t) p_bbc_mem & 0xffff) == 0);
-  p_bbc_mem += mem_offset;
-  return p_bbc_mem;
-}
+  /* This video memory slice wraps around so build a contiguous buffer. */
+  first_chunk_len = (0x8000 - bbc_address);
+  second_chunk_len = (length - first_chunk_len);
+  (void) memcpy(&p_video->video_memory_contiguous[0],
+                (p_bbc_mem + bbc_address),
+                first_chunk_len);
+  (void) memcpy((&p_video->video_memory_contiguous[0] + first_chunk_len),
+                (p_bbc_mem + screen_address),
+                second_chunk_len);
 
-size_t
-video_get_memory_size(struct video_struct* p_video) {
-  /* TODO: remove this function. */
-  return p_video->screen_wrap_add;
+  return &p_video->video_memory_contiguous[0];
 }
 
 size_t

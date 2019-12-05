@@ -35,8 +35,9 @@ void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 
 void video_render_full_frame(struct video_struct* p_video);
 
-uint8_t* video_get_bbc_memory(struct video_struct* p_video);
-size_t video_get_memory_size(struct video_struct* p_video);
+uint8_t* video_get_video_memory_slice(struct video_struct* p_video,
+                                      uint32_t offset,
+                                      uint32_t length);
 size_t video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed);
 size_t video_get_vert_chars(struct video_struct* p_video);
 int video_get_horiz_chars_offset(struct video_struct* p_video,

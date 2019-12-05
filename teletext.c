@@ -186,28 +186,21 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
 static void
 teletext_render_line(struct teletext_struct* p_teletext,
                      uint8_t* p_src_chars,
-                     uint32_t scanline,
+                     uint8_t columns,
+                     uint8_t scanline,
                      uint32_t* p_dest_buffer) {
   uint32_t column;
 
-  uintptr_t src_chars = (uintptr_t) p_src_chars;
-
-  for (column = 0; column < 40; ++column) {
-    uint8_t src_char;
+  for (column = 0; column < columns; ++column) {
     uint32_t value;
     uint32_t bg_color;
     uint32_t fg_color;
     /* Selects space, 0x20. */
     uint8_t* p_src_data = p_teletext->p_active_characters;
     uint32_t src_data_scanline = scanline;
+    uint8_t src_char = (*p_src_chars & 0x7F);
 
-    /* TODO: can abstract this. */
-    if (src_chars & 0x8000) {
-      src_chars &= ~0x8000;
-      src_chars |= 0x7C00;
-    }
-    src_char = ((*((uint8_t*) src_chars)) & 0x7F);
-    src_chars++;
+    p_src_chars++;
 
     if (src_char >= 0x20) {
       p_src_data += (60 * (src_char - 0x20));
@@ -271,21 +264,29 @@ teletext_render_full(struct teletext_struct* p_teletext,
   uint32_t row;
   uint32_t scanline;
 
-  uint8_t* p_bbc_mem = video_get_bbc_memory(p_video);
   struct render_struct* p_render = video_get_render(p_video);
   uint32_t* p_render_buffer = render_get_buffer(p_render);
   uint32_t stride = render_get_width(p_render);
+  uint32_t offset = 0;
 
   for (row = 0; row < 25; ++row) {
+    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
+                                                        offset,
+                                                        40);
+
     p_teletext->scanline = 0;
     for (scanline = 0; scanline < 10; ++scanline) {
-      teletext_render_line(p_teletext, p_bbc_mem, scanline, p_render_buffer);
+      teletext_render_line(p_teletext,
+                           p_video_mem,
+                           40,
+                           scanline,
+                           p_render_buffer);
       teletext_scanline_ended(p_teletext);
 
       p_render_buffer += (stride * 2);
     }
 
-    p_bbc_mem += 40;
+    offset += 40;
   }
 
   teletext_frame_ended(p_teletext);
