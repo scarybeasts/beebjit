@@ -45,7 +45,9 @@ void render_set_palette(struct render_struct* p_render,
                         uint8_t index,
                         uint32_t rgba);
 
-struct render_table_2MHz* render_get_render_table(
+struct render_table_2MHz* render_get_2MHz_render_table(
+    struct render_struct* p_render, int mode);
+struct render_table_1MHz* render_get_1MHz_render_table(
     struct render_struct* p_render, int mode);
 
 void (*render_get_render_data_function(struct render_struct* p_render))

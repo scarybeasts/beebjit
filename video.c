@@ -41,7 +41,7 @@ enum {
   k_ula_teletext = 0x02,
   k_ula_clock_speed = 0x10,
 
-  k_ula_chars_per_line = 0x0c,
+  k_ula_chars_per_line = 0x0C,
   k_ula_chars_per_line_shift = 2,
 };
 
@@ -96,7 +96,6 @@ struct video_struct {
   /* Video ULA state. */
   uint8_t video_ula_control;
   uint8_t video_palette[16];
-  uint32_t palette[16];
   uint32_t screen_wrap_add;
 
   /* 6845 registers. */
@@ -537,15 +536,20 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
 }
 
 static void
-video_mode0_render(struct video_struct* p_video,
-                   size_t horiz_chars,
-                   size_t vert_chars) {
+video_1MHz_mode_render(struct video_struct* p_video,
+                       int mode,
+                       size_t horiz_chars,
+                       size_t vert_chars,
+                       size_t horiz_chars_offset,
+                       size_t vert_lines_offset) {
   size_t y;
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
   struct render_struct* p_render = video_get_render(p_video);
   uint32_t* p_frame_buf = render_get_buffer(p_render);
   uint32_t width = render_get_width(p_render);
+  struct render_table_1MHz* p_render_table =
+      render_get_1MHz_render_table(p_render, mode);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -555,202 +559,25 @@ video_mode0_render(struct video_struct* p_video,
         p_video_mem -= video_memory_size;
       }
       for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t packed_pixels = *p_video_mem++;
+        uint8_t data = *p_video_mem++;
         uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        uint8_t p1 = !!(packed_pixels & 0x80);
-        uint8_t p2 = !!(packed_pixels & 0x40);
-        uint8_t p3 = !!(packed_pixels & 0x20);
-        uint8_t p4 = !!(packed_pixels & 0x10);
-        uint8_t p5 = !!(packed_pixels & 0x08);
-        uint8_t p6 = !!(packed_pixels & 0x04);
-        uint8_t p7 = !!(packed_pixels & 0x02);
-        uint8_t p8 = !!(packed_pixels & 0x01);
-        p_render_buffer += (((y * 8) + y2) * 2 * width);
-        p_render_buffer += (x * 8);
-        p_render_buffer[0] = ~(p1 - 1);
-        p_render_buffer[1] = ~(p2 - 1);
-        p_render_buffer[2] = ~(p3 - 1);
-        p_render_buffer[3] = ~(p4 - 1);
-        p_render_buffer[4] = ~(p5 - 1);
-        p_render_buffer[5] = ~(p6 - 1);
-        p_render_buffer[6] = ~(p7 - 1);
-        p_render_buffer[7] = ~(p8 - 1);
-      }
-    }
-  }
-}
-
-static void
-video_mode4_render(struct video_struct* p_video,
-                   size_t horiz_chars,
-                   size_t vert_chars) {
-  size_t y;
-  uint8_t* p_video_mem = video_get_bbc_memory(p_video);
-  size_t video_memory_size = video_get_memory_size(p_video);
-  uint32_t* p_palette = &p_video->palette[0];
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_frame_buf = render_get_buffer(p_render);
-  uint32_t width = render_get_width(p_render);
-
-  for (y = 0; y < vert_chars; ++y) {
-    size_t x;
-    for (x = 0; x < horiz_chars; ++x) {
-      size_t y2;
-      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
-        p_video_mem -= video_memory_size;
-      }
-      for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t packed_pixels = *p_video_mem++;
-        uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        uint32_t p1 = p_palette[((packed_pixels & 0x80) >> 4)];
-        uint32_t p2 = p_palette[((packed_pixels & 0x40) >> 3)];
-        uint32_t p3 = p_palette[((packed_pixels & 0x20) >> 2)];
-        uint32_t p4 = p_palette[((packed_pixels & 0x10) >> 1)];
-        uint32_t p5 = p_palette[(packed_pixels & 0x08)];
-        uint32_t p6 = p_palette[((packed_pixels & 0x04) << 1)];
-        uint32_t p7 = p_palette[((packed_pixels & 0x02) << 2)];
-        uint32_t p8 = p_palette[((packed_pixels & 0x01) << 3)];
-        p_render_buffer += (((y * 8) + y2) * 2 * width);
-        p_render_buffer += (x * 16);
-        p_render_buffer[0] = p1;
-        p_render_buffer[1] = p1;
-        p_render_buffer[2] = p2;
-        p_render_buffer[3] = p2;
-        p_render_buffer[4] = p3;
-        p_render_buffer[5] = p3;
-        p_render_buffer[6] = p4;
-        p_render_buffer[7] = p4;
-        p_render_buffer[8] = p5;
-        p_render_buffer[9] = p5;
-        p_render_buffer[10] = p6;
-        p_render_buffer[11] = p6;
-        p_render_buffer[12] = p7;
-        p_render_buffer[13] = p7;
-        p_render_buffer[14] = p8;
-        p_render_buffer[15] = p8;
-      }
-    }
-  }
-}
-
-static void
-video_mode1_render(struct video_struct* p_video,
-                   size_t horiz_chars,
-                   size_t vert_chars,
-                   size_t horiz_chars_offset,
-                   size_t vert_lines_offset) {
-  size_t y;
-  uint8_t* p_video_mem = video_get_bbc_memory(p_video);
-  size_t video_memory_size = video_get_memory_size(p_video);
-  uint32_t* p_palette = &p_video->palette[0];
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_frame_buf = render_get_buffer(p_render);
-  uint32_t width = render_get_width(p_render);
-
-  for (y = 0; y < vert_chars; ++y) {
-    size_t x;
-    for (x = 0; x < horiz_chars; ++x) {
-      size_t y2;
-      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
-        p_video_mem -= video_memory_size;
-      }
-      for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t packed_pixels = *p_video_mem++;
-        /* TODO: lookup table to make this fast. */
-        uint8_t v1 = ((packed_pixels & 0x80) >> 6) |
-                           ((packed_pixels & 0x08) >> 3);
-        uint8_t v2 = ((packed_pixels & 0x40) >> 5) |
-                           ((packed_pixels & 0x04) >> 2);
-        uint8_t v3 = ((packed_pixels & 0x20) >> 4) |
-                           ((packed_pixels & 0x02) >> 1);
-        uint8_t v4 = ((packed_pixels & 0x10) >> 3) |
-                           ((packed_pixels & 0x01) >> 0);
-        uint32_t p1 = p_palette[4 + (v1 << 1)];
-        uint32_t p2 = p_palette[4 + (v2 << 1)];
-        uint32_t p3 = p_palette[4 + (v3 << 1)];
-        uint32_t p4 = p_palette[4 + (v4 << 1)];
-        uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
-        p_render_buffer += ((x + horiz_chars_offset) * 8);
-        p_render_buffer[0] = p1;
-        p_render_buffer[1] = p1;
-        p_render_buffer[2] = p2;
-        p_render_buffer[3] = p2;
-        p_render_buffer[4] = p3;
-        p_render_buffer[5] = p3;
-        p_render_buffer[6] = p4;
-        p_render_buffer[7] = p4;
-      }
-    }
-  }
-}
-
-static void
-video_mode5_render(struct video_struct* p_video,
-                   size_t horiz_chars,
-                   size_t vert_chars,
-                   size_t horiz_chars_offset,
-                   size_t vert_lines_offset) {
-  size_t y;
-  uint8_t* p_video_mem = video_get_bbc_memory(p_video);
-  size_t video_memory_size = video_get_memory_size(p_video);
-  uint32_t* p_palette = &p_video->palette[0];
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_frame_buf = render_get_buffer(p_render);
-  uint32_t width = render_get_width(p_render);
-
-  for (y = 0; y < vert_chars; ++y) {
-    size_t x;
-    for (x = 0; x < horiz_chars; ++x) {
-      size_t y2;
-      if (((size_t) p_video_mem & 0xffff) == 0x8000) {
-        p_video_mem -= video_memory_size;
-      }
-      for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t packed_pixels = *p_video_mem++;
-        /* TODO: lookup table to make this fast. */
-        uint8_t v1 = ((packed_pixels & 0x80) >> 6) |
-                           ((packed_pixels & 0x08) >> 3);
-        uint8_t v2 = ((packed_pixels & 0x40) >> 5) |
-                           ((packed_pixels & 0x04) >> 2);
-        uint8_t v3 = ((packed_pixels & 0x20) >> 4) |
-                           ((packed_pixels & 0x02) >> 1);
-        uint8_t v4 = ((packed_pixels & 0x10) >> 3) |
-                           ((packed_pixels & 0x01) >> 0);
-        uint32_t p1 = p_palette[4 + (v1 << 1)];
-        uint32_t p2 = p_palette[4 + (v2 << 1)];
-        uint32_t p3 = p_palette[4 + (v3 << 1)];
-        uint32_t p4 = p_palette[4 + (v4 << 1)];
-        uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
+        struct render_character_1MHz* p_character_buffer;
         p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
         p_render_buffer += ((x + horiz_chars_offset) * 16);
-        p_render_buffer[0] = p1;
-        p_render_buffer[1] = p1;
-        p_render_buffer[2] = p1;
-        p_render_buffer[3] = p1;
-        p_render_buffer[4] = p2;
-        p_render_buffer[5] = p2;
-        p_render_buffer[6] = p2;
-        p_render_buffer[7] = p2;
-        p_render_buffer[8] = p3;
-        p_render_buffer[9] = p3;
-        p_render_buffer[10] = p3;
-        p_render_buffer[11] = p3;
-        p_render_buffer[12] = p4;
-        p_render_buffer[13] = p4;
-        p_render_buffer[14] = p4;
-        p_render_buffer[15] = p4;
+        p_character_buffer = (struct render_character_1MHz*) p_render_buffer;
+        *p_character_buffer = p_render_table->values[data];
       }
     }
   }
 }
 
 static void
-video_mode2_render(struct video_struct* p_video,
-                   size_t horiz_chars,
-                   size_t vert_chars,
-                   size_t horiz_chars_offset,
-                   size_t vert_lines_offset) {
+video_2MHz_mode_render(struct video_struct* p_video,
+                       int mode,
+                       size_t horiz_chars,
+                       size_t vert_chars,
+                       size_t horiz_chars_offset,
+                       size_t vert_lines_offset) {
   size_t y;
   uint8_t* p_video_mem = video_get_bbc_memory(p_video);
   size_t video_memory_size = video_get_memory_size(p_video);
@@ -758,7 +585,7 @@ video_mode2_render(struct video_struct* p_video,
   uint32_t* p_frame_buf = render_get_buffer(p_render);
   uint32_t width = render_get_width(p_render);
   struct render_table_2MHz* p_render_table =
-      render_get_render_table(p_render, k_render_mode2);
+      render_get_2MHz_render_table(p_render, mode);
 
   for (y = 0; y < vert_chars; ++y) {
     size_t x;
@@ -870,35 +697,44 @@ video_render_full_frame(struct video_struct* p_video) {
     /* NOTE: what happens with crazy combinations, such as 2MHz clock here? */
     struct teletext_struct* p_teletext = p_video->p_teletext;
     teletext_render_full(p_teletext, p_video);
-  } else if (pixel_width == 1)  {
-    video_mode0_render(p_video, horiz_chars, vert_chars);
-  } else if (pixel_width == 2 && clock_speed == 0) {
-    video_mode4_render(p_video, horiz_chars, vert_chars);
-  } else if (pixel_width == 2 && clock_speed == 1) {
-    video_mode1_render(p_video,
-                       horiz_chars,
-                       vert_chars,
-                       horiz_chars_offset,
-                       vert_lines_offset);
-  } else if (pixel_width == 4 && clock_speed == 1) {
-    video_mode2_render(p_video,
-                       horiz_chars,
-                       vert_chars,
-                       horiz_chars_offset,
-                       vert_lines_offset);
-  } else if (pixel_width == 4 && clock_speed == 0) {
-    video_mode5_render(p_video,
-                       horiz_chars,
-                       vert_chars,
-                       horiz_chars_offset,
-                       vert_lines_offset);
+  } else if (clock_speed == 1) {
+    int mode = k_render_mode0;
+    switch (pixel_width) {
+    case 2:
+      mode = k_render_mode1;
+      break;
+    case 4:
+      mode = k_render_mode2;
+      break;
+    case 1:
+    default:
+      break;
+    }
+    video_2MHz_mode_render(p_video,
+                           mode,
+                           horiz_chars,
+                           vert_chars,
+                           horiz_chars_offset,
+                           vert_lines_offset);
   } else {
-    /* Ignore for now: could be custom mode, or more likely control register
-     * just not set.
-     * Can also be a race conditions vs. the main 6502 thread.
-     */
+    int mode = k_render_mode4;
+    assert(clock_speed == 0);
+    switch (pixel_width) {
+    case 4:
+      mode = k_render_mode5;
+      break;
+    case 1:
+    default:
+      break;
+    }
+    video_1MHz_mode_render(p_video,
+                           mode,
+                           horiz_chars,
+                           vert_chars,
+                           horiz_chars_offset,
+                           vert_lines_offset);
   }
-  /* TODO: this should be moved to the render handling in the main thread. */
+
   render_double_up_lines(p_render);
 }
 
@@ -944,7 +780,6 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   if (!(rgbf & 0x4)) {
     color |= 0x000000ff;
   }
-  p_video->palette[index] = color;
 
   render_set_palette(p_video->p_render, index, color);
 }
