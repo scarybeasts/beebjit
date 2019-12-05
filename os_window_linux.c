@@ -1,6 +1,7 @@
 #include "os_window.h"
 
 #include "keyboard.h"
+#include "util.h"
 #include "video.h"
 
 #include <X11/Xlib.h>
@@ -29,7 +30,8 @@ struct os_window_struct {
   Window w;
   GC gc;
   int shmid;
-  void* p_shm;
+  void* p_shm_map_start;
+  void* p_shm_map_data_start;
   XImage* p_image;
   XShmSegmentInfo shm_info;
 };
@@ -45,6 +47,7 @@ os_window_create(uint32_t width, uint32_t height) {
   int ret;
   Visual* p_visual;
   int depth;
+  size_t map_size;
 
   p_window = malloc(sizeof(struct os_window_struct));
   if (p_window == NULL) {
@@ -81,23 +84,31 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "default depth not 24");
   }
 
-  /* TODO: should guard page this since writing outside the buffer is likely
-   * on account of all the video render complexity.
+  map_size = (width * height * 4);
+  /* Add in suitable extra size for guard pages, because I'm sure I'm going to
+   * write off the beginning or end one day.
    */
-  p_window->shmid = shmget(IPC_PRIVATE,
-                           (width * height * 4),
-                           (IPC_CREAT | 0600));
+  if ((map_size % 4096) != 0) {
+    map_size += (4096 - (map_size % 4096));
+  }
+  map_size += (4096 * 2);
+
+  p_window->shmid = shmget(IPC_PRIVATE, map_size, (IPC_CREAT | 0600));
   if (p_window->shmid < 0) {
     errx(1, "shmget failed");
   }
-  p_window->p_shm = shmat(p_window->shmid, NULL, 0);
-  if (p_window->p_shm == NULL) {
+  p_window->p_shm_map_start = shmat(p_window->shmid, NULL, 0);
+  if (p_window->p_shm_map_start == NULL) {
     errx(1, "shmat failed");
   }
   ret = shmctl(p_window->shmid, IPC_RMID, NULL);
   if (ret != 0) {
     errx(1, "shmctl failed");
   }
+
+  util_make_mapping_none(p_window->p_shm_map_start, 4096);
+  util_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
+  p_window->p_shm_map_data_start = (p_window->p_shm_map_start + 4096);
 
   p_window->p_image = XShmCreateImage(p_window->d,
                                       p_visual,
@@ -112,8 +123,10 @@ os_window_create(uint32_t width, uint32_t height) {
   }
 
   p_window->shm_info.shmid = p_window->shmid;
-  p_window->shm_info.shmaddr = p_window->p_image->data = p_window->p_shm;
+  p_window->shm_info.shmaddr = p_window->p_shm_map_start;
   p_window->shm_info.readOnly = False;
+
+  p_window->p_image->data = p_window->p_shm_map_data_start;
 
   bool_ret = XShmAttach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
@@ -121,14 +134,14 @@ os_window_create(uint32_t width, uint32_t height) {
   }
 
   p_window->w = XCreateSimpleWindow(p_window->d,
-                                   root_window,
-                                   10,
-                                   10,
-                                   width,
-                                   height,
-                                   1,
-                                   black_pixel,
-                                   black_pixel);
+                                    root_window,
+                                    10,
+                                    10,
+                                    width,
+                                    height,
+                                    1,
+                                    black_pixel,
+                                    black_pixel);
   if (p_window->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
   }
@@ -188,7 +201,7 @@ os_window_destroy(struct os_window_struct* p_window) {
   if (ret != 1) {
     errx(1, "XDestroyImage failed");
   }
-  ret = shmdt(p_window->p_shm);
+  ret = shmdt(p_window->p_shm_map_start);
   if (ret != 0) {
     errx(1, "shmdt failed");
   }
@@ -209,7 +222,7 @@ os_window_set_keyboard_callback(struct os_window_struct* p_window,
 
 uint32_t*
 os_window_get_buffer(struct os_window_struct* p_window) {
-  return (uint32_t*) p_window->p_shm;
+  return (uint32_t*) p_window->p_shm_map_data_start;
 }
 
 uintptr_t
