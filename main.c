@@ -320,8 +320,13 @@ main(int argc, const char* argv[]) {
       if (message.data[0] == k_message_exited) {
         break;
       } else {
+        int do_full_paint;
         assert(message.data[0] == k_message_vsync);
-        video_render_full_frame(p_video);
+        do_full_paint = message.data[1];
+        if (do_full_paint) {
+          video_render_full_frame(p_video);
+        }
+        render_double_up_lines(p_render);
         os_window_sync_buffer_to_screen(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           message.data[0] = k_message_render_done;

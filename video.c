@@ -75,14 +75,15 @@ struct video_struct {
   uint8_t* p_bbc_mem;
   int externally_clocked;
   struct timing_struct* p_timing;
-  struct render_struct* p_render;
-  void (*func_render_data)(struct render_struct*, uint8_t);
-  void (*func_render_blank)(struct render_struct*, uint8_t);
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   size_t video_timer_id;
   void (*p_framebuffer_ready_callback)(void*, int);
   void* p_framebuffer_ready_object;
+
+  /* Rendering. */
+  struct render_struct* p_render;
+  int render_mode;
 
   /* Options. */
   uint32_t frames_skip;
@@ -196,15 +197,6 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->in_vert_adjust = 0;
 }
 
-static inline void*
-video_get_render_function(struct video_struct* p_video) {
-  if (video_is_display_enabled(p_video)) {
-    return p_video->func_render_data;
-  } else {
-    return p_video->func_render_blank;
-  }
-}
-
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
   struct render_struct* p_render = p_video->p_render;
@@ -227,10 +219,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       render_get_render_data_function(p_render);
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
-  p_video->func_render_data = func_render_data;
-  p_video->func_render_blank = func_render_blank;
-  void (*func_render)(struct render_struct*, uint8_t) =
-      video_get_render_function(p_video);
 
   uint8_t scanline_stride;
   uint32_t bbc_address;
@@ -244,6 +232,12 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int r7_hit;
   int r9_hit;
 
+  void (*func_render)(struct render_struct*, uint8_t);
+
+  func_render = func_render_blank;
+  if (video_is_display_enabled(p_video)) {
+    func_render = func_render_data;
+  }
 
   if ((p_video->crtc_registers[k_crtc_reg_interlace] & 0x3) == 0x3) {
     scanline_stride = 2;
@@ -294,6 +288,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
      */
     func_render_blank(p_render, 0);
     p_video->horiz_counter = 0;
+    p_video->display_enable_horiz = 1;
 
     if (p_video->in_vsync) {
       p_video->vsync_scanline_counter--;
@@ -308,17 +303,17 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                  0x1F);
     p_video->address_counter = p_video->address_counter_this_row;
 
+    func_render = video_is_display_enabled(p_video) ?
+        func_render_data : func_render_blank;
+
     if (!r9_hit) {
-      /* Incrementing scanline can turn off (or even on) display. For example,
-       * MODE3 scanlines 8 & 9.
-       */
-      func_render = video_get_render_function(p_video);
       continue;
     }
 
     /* End of character row. */
     p_video->scanline_counter = 0;
     p_video->address_counter = p_video->address_counter_next_row;
+    p_video->address_counter_this_row = p_video->address_counter_next_row;
 
     r4_hit = (p_video->vert_counter == r4);
     p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
@@ -341,12 +336,14 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (!r4_hit) {
-      func_render = video_get_render_function(p_video);
+      func_render = video_is_display_enabled(p_video) ?
+          func_render_data : func_render_blank;
       continue;
     }
 
     video_start_new_frame(p_video);
-    func_render = video_get_render_function(p_video);
+    func_render = video_is_display_enabled(p_video) ?
+        func_render_data : func_render_blank;
   }
 
   p_video->prev_system_ticks = curr_system_ticks;
@@ -389,6 +386,58 @@ video_timer_fired(void* p) {
   video_advance_crtc_timing(p_video);
 
   video_update_timer(p_video);
+}
+
+static int
+video_get_clock_speed(struct video_struct* p_video) {
+  return !!(p_video->video_ula_control & k_ula_clock_speed);
+}
+
+static void
+video_mode_updated(struct video_struct* p_video) {
+  /* Let the renderer know about the new mode. */
+  int mode;
+
+  int is_teletext = (p_video->video_ula_control & k_ula_teletext);
+  int chars_per_line = (p_video->video_ula_control & k_ula_chars_per_line);
+  int clock_speed = video_get_clock_speed(p_video);
+  chars_per_line >>= k_ula_chars_per_line_shift;
+  if (is_teletext) {
+    mode = k_render_mode7;
+  } else if (clock_speed == 1) {
+    switch (chars_per_line) {
+    case 1:
+      mode = k_render_mode2;
+      break;
+    case 2:
+      mode = k_render_mode1;
+      break;
+    case 3:
+      mode = k_render_mode0;
+      break;
+    default:
+      assert(0);
+      mode = k_render_mode0;
+      break;
+    }
+  } else {
+    assert(clock_speed == 0);
+    switch (chars_per_line) {
+    case 1:
+      mode = k_render_mode5;
+      break;
+    case 2:
+      mode = k_render_mode4;
+      break;
+    default:
+      assert(0);
+      mode = k_render_mode4;
+      break;
+    }
+  }
+
+  p_video->render_mode = mode;
+  render_set_mode(p_video->p_render, mode);
 }
 
 struct video_struct*
@@ -465,7 +514,9 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
 
   /* Teletext mode, 1MHz operation. */
-  p_video->video_ula_control = 2;
+  p_video->video_ula_control = k_ula_teletext;
+
+  video_mode_updated(p_video);
 
   video_init_timer(p_video);
   video_start_new_frame(p_video);
@@ -545,6 +596,10 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
 
   if (p_video->frame_skip_counter == 0) {
     int do_full_paint = p_video->externally_clocked;
+    /* TODO: make MODE7 work with the CRTC implementation. */
+    if (p_video->render_mode == k_render_mode7) {
+      do_full_paint = 1;
+    }
     p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                           do_full_paint);
     p_video->frame_skip_counter = p_video->frames_skip;
@@ -630,26 +685,9 @@ video_2MHz_mode_render(struct video_struct* p_video,
   }
 }
 
-static size_t
-video_get_pixel_width(struct video_struct* p_video) {
-  uint8_t ula_control = video_get_ula_control(p_video);
-  uint8_t ula_chars_per_line =
-      (ula_control & k_ula_chars_per_line) >> k_ula_chars_per_line_shift;
-  return 1 << (3 - ula_chars_per_line);
-}
-
-static size_t
-video_get_clock_speed(struct video_struct* p_video) {
-  uint8_t ula_control = video_get_ula_control(p_video);
-  uint8_t clock_speed = !!(ula_control & k_ula_clock_speed);
-  return clock_speed;
-}
-
 void
 video_render_full_frame(struct video_struct* p_video) {
-  int is_text;
-  size_t pixel_width;
-  size_t clock_speed;
+  int clock_speed;
   size_t horiz_chars;
   size_t vert_chars;
   size_t vert_lines;
@@ -661,12 +699,12 @@ video_render_full_frame(struct video_struct* p_video) {
 
   struct render_struct* p_render = p_video->p_render;
   uint32_t* p_render_buffer = render_get_buffer(p_render);
+  int mode = p_video->render_mode;
+
   if (p_render_buffer == NULL) {
     return;
   }
 
-  is_text = video_is_text(p_video);
-  pixel_width = video_get_pixel_width(p_video);
   clock_speed = video_get_clock_speed(p_video);
 
   max_vert_lines = 256;
@@ -716,49 +754,34 @@ video_render_full_frame(struct video_struct* p_video) {
   p_video->prev_horiz_chars_offset = horiz_chars_offset;
   p_video->prev_vert_lines_offset = vert_lines_offset;
 
-  if (is_text) {
+  switch (mode) {
+  case k_render_mode7:
     /* NOTE: what happens with crazy combinations, such as 2MHz clock here? */
-    struct teletext_struct* p_teletext = p_video->p_teletext;
-    teletext_render_full(p_teletext, p_video);
-  } else if (clock_speed == 1) {
-    int mode = k_render_mode0;
-    switch (pixel_width) {
-    case 2:
-      mode = k_render_mode1;
-      break;
-    case 4:
-      mode = k_render_mode2;
-      break;
-    case 1:
-    default:
-      break;
-    }
+    teletext_render_full(p_video->p_teletext, p_video);
+    break;
+  case k_render_mode0:
+  case k_render_mode1:
+  case k_render_mode2:
     video_2MHz_mode_render(p_video,
                            mode,
                            horiz_chars,
                            vert_chars,
                            horiz_chars_offset,
                            vert_lines_offset);
-  } else {
-    int mode = k_render_mode4;
-    assert(clock_speed == 0);
-    switch (pixel_width) {
-    case 4:
-      mode = k_render_mode5;
-      break;
-    case 1:
-    default:
-      break;
-    }
+    break;
+  case k_render_mode4:
+  case k_render_mode5:
     video_1MHz_mode_render(p_video,
                            mode,
                            horiz_chars,
                            vert_chars,
                            horiz_chars_offset,
                            vert_lines_offset);
+    break;
+  default:
+    assert(0);
+    break;
   }
-
-  render_double_up_lines(p_render);
 }
 
 void
@@ -767,19 +790,17 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t rgbf;
   uint32_t color;
 
-  if (addr == 0) {
-    /* Writing the control register can affect timing if the 6845 clock rate
-     * is changed.
-     */
-    /* TODO: only need to call this if clock rate changes. MOS changes the
-     * "flash colour select" bit at some rate, which affects rendering but
-     * not timing.
-     */
-    if (!p_video->externally_clocked) {
-      video_advance_crtc_timing(p_video);
-    }
+  if (!p_video->externally_clocked) {
+    video_advance_crtc_timing(p_video);
+  }
 
+  if (addr == 0) {
     p_video->video_ula_control = val;
+
+    /* TODO: also need to make sure the render tables are invalidated if the
+     * flash color bit changed.
+     */
+    video_mode_updated(p_video);
 
     return;
   }
@@ -1095,13 +1116,4 @@ video_get_vert_lines_offset(struct video_struct* p_video) {
   ret = ((34 - pos) * 8);
   ret += adjust;
   return ret;
-}
-
-int
-video_is_text(struct video_struct* p_video) {
-  uint8_t ula_control = video_get_ula_control(p_video);
-  if (ula_control & k_ula_teletext) {
-    return 1;
-  }
-  return 0;
 }

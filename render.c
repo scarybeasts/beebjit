@@ -22,9 +22,24 @@ struct render_struct {
   struct render_table_1MHz render_table_mode4;
   struct render_table_1MHz render_table_mode5;
 
+  struct render_character_1MHz render_character_1MHz_white;
+  struct render_character_1MHz render_character_1MHz_black;
+  struct render_character_2MHz render_character_2MHz_white;
+  struct render_character_2MHz render_character_2MHz_black;
+
+  struct render_table_1MHz* p_render_table_1MHz;
+  struct render_table_2MHz* p_render_table_2MHz;
+  void (*func_render_data)(struct render_struct*, uint8_t);
+  void (*func_render_blank)(struct render_struct*, uint8_t);
+
+  int render_mode;
   uint32_t horiz_beam_pos;
   uint32_t vert_beam_pos;
-  int beam_is_in_bounds;
+
+  uint32_t* p_render_pos;
+  uint32_t* p_render_pos_row_max;
+  uint32_t* p_render_pos_frame_max;
+  uint32_t render_pos_max_from_line_start;
 };
 
 static void
@@ -39,6 +54,7 @@ struct render_struct*
 render_create(struct bbc_options* p_options) {
   uint32_t width;
   uint32_t height;
+  uint32_t i;
 
   uint32_t border_chars = 0;
   struct render_struct* p_render = malloc(sizeof(struct render_struct));
@@ -67,7 +83,21 @@ render_create(struct bbc_options* p_options) {
   p_render->width = width;
   p_render->height = height;
 
+  p_render->render_mode = k_render_mode0;
+
+  /* 16 is the maximum pixel block we write at once, in 1MHz modes. */
+  p_render->render_pos_max_from_line_start = (width - 16);
+
   render_dirty_all_tables(p_render);
+
+  for (i = 0; i < 16; ++i) {
+    p_render->render_character_1MHz_white.host_pixels[i] = 0xffffffff;
+    p_render->render_character_1MHz_black.host_pixels[i] = 0xff000000;
+  }
+  for (i = 0; i < 8; ++i) {
+    p_render->render_character_2MHz_white.host_pixels[i] = 0xffffffff;
+    p_render->render_character_2MHz_black.host_pixels[i] = 0xff000000;
+  }
 
   return p_render;
 }
@@ -97,7 +127,104 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   assert(p_render->p_buffer == NULL);
   p_render->p_buffer = p_buffer;
 
+  p_render->p_render_pos_frame_max = p_buffer;
+  p_render->p_render_pos_frame_max += (p_render->width * p_render->height);
+  /* 16 is the maximum pixel block we write at once, in 1MHz modes. */
+  p_render->p_render_pos_frame_max -= 16;
+
   render_clear_buffer(p_render);
+
+  /* These reset p_render_pos. */
+  render_hsync(p_render);
+  render_vsync(p_render);
+}
+
+static void
+render_function_null(struct render_struct* p_render, uint8_t data) {
+  (void) p_render;
+  (void) data;
+}
+
+static void
+render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_1MHz* p_character =
+      (struct render_character_1MHz*) p_render_pos;
+
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
+    *p_character = p_render->p_render_table_1MHz->values[data];
+    p_render->p_render_pos += 16;
+  }
+}
+
+static void
+render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_1MHz* p_character =
+      (struct render_character_1MHz*) p_render_pos;
+
+  (void) data;
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
+    *p_character = p_render->render_character_1MHz_black;
+    p_render->p_render_pos += 16;
+  }
+}
+
+static void
+render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_character =
+      (struct render_character_2MHz*) p_render_pos;
+
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
+    *p_character = p_render->p_render_table_2MHz->values[data];
+    p_render->p_render_pos += 8;
+  }
+}
+
+static void
+render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_2MHz* p_character =
+      (struct render_character_2MHz*) p_render_pos;
+
+  (void) data;
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
+    *p_character = p_render->render_character_2MHz_black;
+    p_render->p_render_pos += 8;
+  }
+}
+
+void
+render_set_mode(struct render_struct* p_render, int mode) {
+  assert((mode >= k_render_mode0) && (mode <= k_render_mode7));
+  switch (mode) {
+  case k_render_mode0:
+  case k_render_mode1:
+  case k_render_mode2:
+    p_render->func_render_data = render_function_2MHz_data;
+    p_render->func_render_blank = render_function_2MHz_blank;
+    p_render->p_render_table_2MHz = render_get_2MHz_render_table(p_render,
+                                                                 mode);
+    break;
+  case k_render_mode4:
+  case k_render_mode5:
+    p_render->func_render_data = render_function_1MHz_data;
+    p_render->func_render_blank = render_function_1MHz_blank;
+    p_render->p_render_table_1MHz = render_get_1MHz_render_table(p_render,
+                                                                 mode);
+    break;
+  case k_render_mode7:
+    p_render->func_render_data = render_function_null;
+    p_render->func_render_blank = render_function_null;
+    p_render->p_render_table_1MHz = NULL;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+
+  p_render->render_mode = mode;
 }
 
 void
@@ -330,28 +457,18 @@ struct render_table_1MHz* render_get_1MHz_render_table(
   }
 }
 
-static void
-render_function_white(struct render_struct* p_render, uint8_t data) {
-  (void) p_render;
-  (void) data;
-}
-
-static void
-render_function_black(struct render_struct* p_render, uint8_t data) {
-  (void) p_render;
-  (void) data;
-}
-
 void (*render_get_render_data_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t) {
-  (void) p_render;
-  return render_function_white;
+  int render_mode = p_render->render_mode;
+  if (p_render->render_table_dirty[render_mode]) {
+    render_set_mode(p_render, render_mode);
+  }
+  return p_render->func_render_data;
 }
 
 void (*render_get_render_blank_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t) {
-  (void) p_render;
-  return render_function_black;
+  return p_render->func_render_blank;
 }
 
 void
@@ -378,13 +495,27 @@ render_double_up_lines(struct render_struct* p_render) {
   }
 }
 
+static inline void
+render_reset_render_pos(struct render_struct* p_render) {
+  p_render->p_render_pos = p_render->p_buffer;
+  p_render->p_render_pos += (p_render->vert_beam_pos * p_render->width);
+  p_render->p_render_pos_row_max = (p_render->p_render_pos +
+                                    p_render->render_pos_max_from_line_start);
+  if (p_render->p_render_pos_row_max > p_render->p_render_pos_frame_max) {
+    p_render->p_render_pos_row_max = p_render->p_render_pos_frame_max;
+  }
+}
+
 void
 render_hsync(struct render_struct* p_render) {
   p_render->horiz_beam_pos = 0;
   p_render->vert_beam_pos += 2;
+  /* TODO: do a vertical flyback if beam pos gets too low. */
+  render_reset_render_pos(p_render);
 }
 
 void
 render_vsync(struct render_struct* p_render) {
   p_render->vert_beam_pos = 0;
+  render_reset_render_pos(p_render);
 }
