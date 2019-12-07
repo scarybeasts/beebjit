@@ -59,7 +59,7 @@ render_create(struct bbc_options* p_options) {
   uint32_t height;
   uint32_t i;
 
-  uint32_t border_chars = 2;
+  uint32_t border_chars = 4;
 
   /* These numbers, 15 and 4, come from the delta between horiz/vert sync
    * position and of line/frame, in a standard MODE.
