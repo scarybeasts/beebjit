@@ -942,9 +942,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R4 */
   case k_crtc_reg_vert_total:
     mask = 0x7F;
-    if ((val != 38) && (val != 30)) {
-      printf("LOG:CRTC:unusual vertical total: %d\n", val);
-    }
     break;
   /* R5 */
   case k_crtc_reg_vert_adjust:
@@ -961,9 +958,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R9 */
   case k_crtc_reg_lines_per_character:
     mask = 0x1F;
-    if (val != 7) {
-      printf("LOG:CRTC:scan lines per character != 7: %d\n", val);
-    }
     break;
   /* R10 */
   case k_crtc_reg_cursor_start:
