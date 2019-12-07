@@ -13,6 +13,7 @@ struct render_struct {
   uint32_t height;
 
   uint32_t* p_buffer;
+  uint32_t* p_buffer_end;
 
   uint32_t palette[16];
   int render_table_dirty[k_render_num_modes];
@@ -33,13 +34,15 @@ struct render_struct {
   void (*func_render_blank)(struct render_struct*, uint8_t);
 
   int render_mode;
+  uint32_t pixels_size;
   uint32_t horiz_beam_pos;
   uint32_t vert_beam_pos;
-
+  uint32_t horiz_beam_window_start_pos;
+  uint32_t horiz_beam_window_end_pos;
+  uint32_t vert_beam_window_start_pos;
+  uint32_t vert_beam_window_end_pos;
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row_max;
-  uint32_t* p_render_pos_frame_max;
-  uint32_t render_pos_max_from_line_start;
 };
 
 static void
@@ -56,7 +59,16 @@ render_create(struct bbc_options* p_options) {
   uint32_t height;
   uint32_t i;
 
-  uint32_t border_chars = 0;
+  uint32_t border_chars = 2;
+
+  /* These numbers, 15 and 4, come from the delta between horiz/vert sync
+   * position and of line/frame, in a standard MODE.
+   * Note that AUG states R7 as 34 for a lot of the screen modes whereas it
+   * should be 35!
+   */
+  uint32_t k_horiz_standard_offset = 15;
+  uint32_t k_vert_standard_offset = 4;
+
   struct render_struct* p_render = malloc(sizeof(struct render_struct));
   if (p_render == NULL) {
     errx(1, "cannot allocate render_struct");
@@ -77,16 +89,32 @@ render_create(struct bbc_options* p_options) {
     errx(1, "border-chars must be 16 or less");
   }
 
-  width = (640 + (border_chars * 16));
-  height = (512 + (border_chars * 16));
+  width = (640 + (border_chars * 2 * 16));
+  height = (512 + (border_chars * 2 * 16));
 
   p_render->width = width;
   p_render->height = height;
 
-  p_render->render_mode = k_render_mode0;
+  if (border_chars > k_horiz_standard_offset) {
+    p_render->horiz_beam_window_start_pos = 0;
+  } else {
+    p_render->horiz_beam_window_start_pos =
+        ((k_horiz_standard_offset - border_chars) * 16);
+  }
+  p_render->horiz_beam_window_end_pos = (p_render->width +
+                                         p_render->horiz_beam_window_start_pos);
 
-  /* 16 is the maximum pixel block we write at once, in 1MHz modes. */
-  p_render->render_pos_max_from_line_start = (width - 16);
+  if (border_chars > k_vert_standard_offset) {
+    p_render->vert_beam_window_start_pos = 0;
+  } else {
+    p_render->vert_beam_window_start_pos =
+        ((k_vert_standard_offset - border_chars) * 16);
+  }
+  p_render->vert_beam_window_end_pos = (p_render->height +
+                                        p_render->vert_beam_window_start_pos);
+
+  p_render->render_mode = k_render_mode0;
+  p_render->pixels_size = 8;
 
   render_dirty_all_tables(p_render);
 
@@ -126,11 +154,8 @@ void
 render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   assert(p_render->p_buffer == NULL);
   p_render->p_buffer = p_buffer;
-
-  p_render->p_render_pos_frame_max = p_buffer;
-  p_render->p_render_pos_frame_max += (p_render->width * p_render->height);
-  /* 16 is the maximum pixel block we write at once, in 1MHz modes. */
-  p_render->p_render_pos_frame_max -= 16;
+  p_render->p_buffer_end = p_buffer;
+  p_render->p_buffer_end += (p_render->width * p_render->height);
 
   render_clear_buffer(p_render);
 
@@ -145,15 +170,53 @@ render_function_null(struct render_struct* p_render, uint8_t data) {
   (void) data;
 }
 
+static inline void
+render_reset_render_pos(struct render_struct* p_render) {
+  uint32_t window_horiz_pos;
+  uint32_t window_vert_pos;
+
+  p_render->p_render_pos = p_render->p_buffer_end;
+
+  if (p_render->vert_beam_pos >= p_render->vert_beam_window_end_pos) {
+    return;
+  }
+  if (p_render->vert_beam_pos < p_render->vert_beam_window_start_pos) {
+    return;
+  }
+  if (p_render->horiz_beam_pos >= p_render->horiz_beam_window_end_pos) {
+    return;
+  }
+  if (p_render->horiz_beam_pos < p_render->horiz_beam_window_start_pos) {
+    return;
+  }
+
+  window_horiz_pos = (p_render->horiz_beam_pos -
+                      p_render->horiz_beam_window_start_pos);
+  window_vert_pos = (p_render->vert_beam_pos -
+                     p_render->vert_beam_window_start_pos);
+
+  p_render->p_render_pos = p_render->p_buffer;
+  p_render->p_render_pos += (window_vert_pos * p_render->width);
+  p_render->p_render_pos_row_max = (p_render->p_render_pos +
+                                    p_render->width -
+                                    p_render->pixels_size);
+  p_render->p_render_pos += window_horiz_pos;
+}
+
 static void
 render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
   struct render_character_1MHz* p_character =
       (struct render_character_1MHz*) p_render_pos;
 
+  p_render->horiz_beam_pos += 16;
+
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_1MHz->values[data];
     p_render->p_render_pos += 16;
+  } else if (p_render->horiz_beam_pos ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
   }
 }
 
@@ -164,9 +227,17 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
       (struct render_character_1MHz*) p_render_pos;
 
   (void) data;
+  /* TODO: If we're maintaining the canvas background correctly as black, we
+   * should skip painting anything and just advance the pointers.
+   */
+  p_render->horiz_beam_pos += 16;
+
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
     p_render->p_render_pos += 16;
+  } else if (p_render->horiz_beam_pos ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
   }
 }
 
@@ -176,9 +247,14 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
   struct render_character_2MHz* p_character =
       (struct render_character_2MHz*) p_render_pos;
 
+  p_render->horiz_beam_pos += 8;
+
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_2MHz->values[data];
     p_render->p_render_pos += 8;
+  } else if (p_render->horiz_beam_pos ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
   }
 }
 
@@ -189,9 +265,15 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
       (struct render_character_2MHz*) p_render_pos;
 
   (void) data;
+
+  p_render->horiz_beam_pos += 8;
+
   if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
     p_render->p_render_pos += 8;
+  } else if (p_render->horiz_beam_pos ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
   }
 }
 
@@ -206,6 +288,7 @@ render_set_mode(struct render_struct* p_render, int mode) {
     p_render->func_render_blank = render_function_2MHz_blank;
     p_render->p_render_table_2MHz = render_get_2MHz_render_table(p_render,
                                                                  mode);
+    p_render->pixels_size = 8;
     break;
   case k_render_mode4:
   case k_render_mode5:
@@ -213,11 +296,13 @@ render_set_mode(struct render_struct* p_render, int mode) {
     p_render->func_render_blank = render_function_1MHz_blank;
     p_render->p_render_table_1MHz = render_get_1MHz_render_table(p_render,
                                                                  mode);
+    p_render->pixels_size = 16;
     break;
   case k_render_mode7:
     p_render->func_render_data = render_function_null;
     p_render->func_render_blank = render_function_null;
     p_render->p_render_table_1MHz = NULL;
+    p_render->pixels_size = 16;
     break;
   default:
     assert(0);
@@ -225,6 +310,11 @@ render_set_mode(struct render_struct* p_render, int mode) {
   }
 
   p_render->render_mode = mode;
+
+  /* Changing 1MHz <-> 2MHz changes the size of the pixel blocks we write, and
+   * therefore the bounds.
+   */
+  render_reset_render_pos(p_render);
 }
 
 void
@@ -492,17 +582,6 @@ render_double_up_lines(struct render_struct* p_render) {
     (void) memcpy(p_buffer_next_line, p_buffer, (width * 4));
     p_buffer += double_width;
     p_buffer_next_line += double_width;
-  }
-}
-
-static inline void
-render_reset_render_pos(struct render_struct* p_render) {
-  p_render->p_render_pos = p_render->p_buffer;
-  p_render->p_render_pos += (p_render->vert_beam_pos * p_render->width);
-  p_render->p_render_pos_row_max = (p_render->p_render_pos +
-                                    p_render->render_pos_max_from_line_start);
-  if (p_render->p_render_pos_row_max > p_render->p_render_pos_frame_max) {
-    p_render->p_render_pos_row_max = p_render->p_render_pos_frame_max;
   }
 }
 
