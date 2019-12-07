@@ -245,7 +245,15 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_video_ula + 12):
     /* EMU NOTE: ULA is write-only, and reads don't seem to be wired up.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
-     * Fall-through to default 0xFE return.
+     * Break out to default 0xFE return.
+     */
+    break;
+  case (k_addr_rom_select + 0):
+  case (k_addr_rom_select + 4):
+  case (k_addr_rom_select + 8):
+  case (k_addr_rom_select + 12):
+    /* ROMSEL is readable on a Master but not on a model B, so break out to
+     * default return.
      */
     break;
   case (k_addr_sysvia + 0):
@@ -351,16 +359,10 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
   uint8_t curr_bank = p_bbc->romsel;
 
-  assert(curr_bank < k_bbc_num_roms);
-  /* NOTE: this assert isn't really valid as setting the romsel to e.g. 0xFF
-   * likely just masks with 0x0F in hardware.
-   * Still, crazy romsel values would be a novelty so we'll leave the assert
-   * in to see if it fires. Safety for optimized builds is provided by the mask
-   * directly below.
-   */
-  assert(index < k_bbc_num_roms);
-
-  index &= 0x0F;
+  index &= 0xF;
+  if (curr_bank == index) {
+    return;
+  }
 
   curr_is_ram = (p_bbc->is_sideways_ram_bank[curr_bank] != 0);
   new_is_ram = (p_bbc->is_sideways_ram_bank[index] != 0);
@@ -469,9 +471,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_rom_select + 4):
   case (k_addr_rom_select + 8):
   case (k_addr_rom_select + 12):
-    if (val != p_bbc->romsel) {
-      bbc_sideways_select(p_bbc, val);
-    }
+    bbc_sideways_select(p_bbc, val);
     break;
   case (k_addr_sysvia + 0):
   case (k_addr_sysvia + 4):
