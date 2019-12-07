@@ -182,10 +182,16 @@ static inline void
 video_start_new_frame(struct video_struct* p_video) {
   uint32_t address_counter;
 
+  p_video->horiz_counter = 0;
+  p_video->scanline_counter = 0;
   p_video->vert_counter = 0;
+  p_video->vert_adjust_counter = 0;
+
+  p_video->had_vsync_this_frame = 0;
+  p_video->in_vert_adjust = 0;
+
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
-  p_video->had_vsync_this_frame = 0;
   address_counter = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
   address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
   p_video->address_counter = address_counter;
@@ -194,7 +200,6 @@ video_start_new_frame(struct video_struct* p_video) {
    * new character row without ever having hit R1 (horizontal displayed).
    */
   p_video->address_counter_next_row = address_counter;
-  p_video->in_vert_adjust = 0;
 }
 
 static void
@@ -211,6 +216,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
   uint32_t r2 = p_video->crtc_registers[k_crtc_reg_horiz_position];
   uint32_t r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
+  uint32_t r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
   uint32_t r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
   uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
   uint32_t r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
@@ -228,6 +234,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int r1_hit;
   int r2_hit;
   int r4_hit;
+  int r5_hit;
   int r6_hit;
   int r7_hit;
   int r9_hit;
@@ -306,6 +313,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
 
+    if (p_video->in_vert_adjust) {
+      p_video->vert_adjust_counter++;
+      r5_hit = (p_video->vert_adjust_counter == r5);
+      if (r5_hit) {
+        goto start_new_frame;
+      }
+      continue;
+    }
+
     if (!r9_hit) {
       continue;
     }
@@ -335,12 +351,20 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       render_vsync(p_render);
     }
 
+    func_render = video_is_display_enabled(p_video) ?
+        func_render_data : func_render_blank;
+
     if (!r4_hit) {
-      func_render = video_is_display_enabled(p_video) ?
-          func_render_data : func_render_blank;
       continue;
     }
 
+    /* End of R4-based frame. Time for either a new frame or vertical adjust. */
+    if (r5 != 0) {
+      p_video->in_vert_adjust = 1;
+      continue;
+    }
+
+start_new_frame:
     video_start_new_frame(p_video);
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
