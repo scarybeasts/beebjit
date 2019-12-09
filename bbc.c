@@ -916,8 +916,16 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
 
-  /* Clear memory / ROMs. */
-  (void) memset(p_mem_raw, '\0', k_6502_addr_space_size);
+  /* Clear memory. */
+  /* EMU NOTE: skullduggery! On a lot of BBCs, the power-on DRAM state is 0xFF,
+   * and Eagle Empire was even found to depend on this otherwise it is crashy.
+   * On the flipside, Clogger appears to rely on a power-on DRAM value of 0x00
+   * in the zero page.
+   * We cater for both of these quirks below.
+   * Full story: https://github.com/mattgodbolt/jsbeeb/issues/105
+   */
+  (void) memset(p_mem_raw, '\xFF', k_6502_addr_space_size);
+  (void) memset(p_mem_raw, '\0', 0x100);
 
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);

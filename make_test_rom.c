@@ -46,6 +46,8 @@ main(int argc, const char* argv[]) {
   /* Check initial 6502 / VIA boot-up status. */
   set_new_index(p_buf, 0x0000);
   emit_PHP(p_buf);
+  emit_LDA(p_buf, k_imm, 0);      /* Initialize memory we need zeroed. */
+  emit_STA(p_buf, k_abs, 0x4041);
   emit_LDA(p_buf, k_abs, 0x01FD);
   emit_REQUIRE_EQ(p_buf, 0x36);   /* 1, BRK, I, Z */
   emit_LDA(p_buf, k_imm, 0xFF);   /* Set all flags upon the PLP. */
