@@ -93,15 +93,19 @@ struct video_struct {
   uint64_t wall_time;
   uint64_t vsync_next_time;
   uint64_t prev_system_ticks;
+  int timer_fire_expect_vsync_start;
+  int timer_fire_expect_vsync_end;
 
   /* Video ULA state. */
   uint8_t video_ula_control;
   uint8_t video_palette[16];
   uint32_t screen_wrap_add;
 
-  /* 6845 registers. */
+  /* 6845 registers and derivatives. */
   uint8_t crtc_address_register;
   uint8_t crtc_registers[k_crtc_num_registers];
+  int is_interlace_sync_and_video;
+  int is_master_display_enable;
 
   /* 6845 state. */
   uint8_t horiz_counter;
@@ -165,14 +169,11 @@ video_calculate_bbc_address(uint32_t* p_out_screen_address,
 
 static inline int
 video_is_display_enabled(struct video_struct* p_video) {
-  uint8_t r8 = p_video->crtc_registers[k_crtc_reg_interlace];
-  int r8_enabled = ((r8 & 0x30) != 0x30);
-  int r8_video = ((r8 & 0x3) == 0x3);
-  int scanline_enabled = (r8_video || !(p_video->scanline_counter & 0x8));
-  int enabled = p_video->display_enable_horiz;
+  int scanline_enabled = (p_video->is_interlace_sync_and_video ||
+                          !(p_video->scanline_counter & 0x8));
+  int enabled = p_video->is_master_display_enable;
+  enabled &= p_video->display_enable_horiz;
   enabled &= p_video->display_enable_vert;
-  /* TODO: cache values that are derivative from registers. */
-  enabled &= r8_enabled;
   enabled &= scanline_enabled;
 
   return enabled;
@@ -204,6 +205,23 @@ video_start_new_frame(struct video_struct* p_video) {
 
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
+  uint8_t scanline_stride;
+  uint8_t scanline_mask;
+  uint32_t bbc_address;
+  uint8_t data;
+  uint64_t advanced_to_system_ticks;
+
+  int r0_hit;
+  int r1_hit;
+  int r2_hit;
+  int r4_hit;
+  int r5_hit;
+  int r6_hit;
+  int r7_hit;
+  int r9_hit;
+
+  void (*func_render)(struct render_struct*, uint8_t);
+
   struct render_struct* p_render = p_video->p_render;
   uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   uint64_t curr_system_ticks =
@@ -226,35 +244,31 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
 
-  uint8_t scanline_stride;
-  uint32_t bbc_address;
-  uint8_t data;
-
-  int r0_hit;
-  int r1_hit;
-  int r2_hit;
-  int r4_hit;
-  int r5_hit;
-  int r6_hit;
-  int r7_hit;
-  int r9_hit;
-
-  void (*func_render)(struct render_struct*, uint8_t);
-
   func_render = func_render_blank;
   if (video_is_display_enabled(p_video)) {
     func_render = func_render_data;
   }
 
-  if ((p_video->crtc_registers[k_crtc_reg_interlace] & 0x3) == 0x3) {
+  if (p_video->is_interlace_sync_and_video) {
     scanline_stride = 2;
+    /* EMU NOTE: see comment in video_crtc_write. */
+    scanline_mask = 0x1E;
   } else {
     scanline_stride = 1;
+    scanline_mask = 0x1F;
   }
 
   if (!(p_video->video_ula_control & k_ula_clock_speed)) {
+    assert(!(p_video->prev_system_ticks & 1));
     /* 1MHz mode => CRTC ticks pass at half rate. */
     delta_crtc_ticks /= 2;
+    /* In 1MHz mode we might be advancing CRTC time at the half-cycle point.
+     * This can occur for example upon a video ULA change (palette or control
+     * registers), because the video ULA runs at 2MHz for register updates.
+     */
+    advanced_to_system_ticks = (curr_system_ticks & ~1);
+  } else {
+    advanced_to_system_ticks = curr_system_ticks;
   }
 
   while (delta_crtc_ticks--) {
@@ -305,9 +319,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    r9_hit = (p_video->scanline_counter == r9);
+    r9_hit = (p_video->scanline_counter == (r9 & scanline_mask));
     p_video->scanline_counter = ((p_video->scanline_counter + scanline_stride) &
-                                 0x1F);
+                                 scanline_mask);
     p_video->address_counter = p_video->address_counter_this_row;
 
     func_render = video_is_display_enabled(p_video) ?
@@ -370,7 +384,7 @@ start_new_frame:
         func_render_data : func_render_blank;
   }
 
-  p_video->prev_system_ticks = curr_system_ticks;
+  p_video->prev_system_ticks = advanced_to_system_ticks;
 }
 
 static void
@@ -383,20 +397,155 @@ video_init_timer(struct video_struct* p_video) {
                                        0);
 }
 
+static int
+video_get_clock_speed(struct video_struct* p_video) {
+  return !!(p_video->video_ula_control & k_ula_clock_speed);
+}
+
 static void
 video_update_timer(struct video_struct* p_video) {
   struct timing_struct* p_timing;
-  size_t timer_id;
+  uint32_t timer_id;
+  uint64_t timer_value;
+
+  uint32_t r0;
+  uint32_t r4;
+  uint32_t r5;
+  uint32_t r7;
+  uint32_t r9;
+
+  uint32_t tick_multiplier;
+  uint32_t scanline_ticks;
+  uint32_t ticks_to_next_scanline;
+  uint32_t scanline_stride;
+  uint32_t scanlines_per_row;
+  uint32_t scanlines_left_this_row;
+  uint32_t vert_counter_max;
 
   if (p_video->externally_clocked) {
     return;
   }
 
+  p_video->timer_fire_expect_vsync_start = 0;
+  p_video->timer_fire_expect_vsync_end = 0;
+
   p_timing = p_video->p_timing;
   timer_id = p_video->video_timer_id;
-  /* TODO: need to calculate accurate vsync timings here. */
-  /* 1024 2Mhz ticks is one character row (8 lines of pixels). */
-  (void) timing_set_timer_value(p_timing, timer_id, 1024);
+
+  r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
+  r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
+  r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
+  r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
+
+  vert_counter_max = r4;
+  if (r5 > 0) {
+    vert_counter_max++;
+  }
+
+  if (p_video->is_interlace_sync_and_video) {
+    scanline_stride = 2;
+  } else {
+    scanline_stride = 1;
+  }
+
+  tick_multiplier = 1;
+  if (video_get_clock_speed(p_video) == 0) {
+    tick_multiplier = 2;
+  }
+  scanline_ticks = (r0 + 1);
+
+  if (p_video->horiz_counter <= r0) {
+    ticks_to_next_scanline = ((r0 - p_video->horiz_counter) + 1);
+  } else {
+    ticks_to_next_scanline = (0x100 - p_video->horiz_counter);
+    ticks_to_next_scanline += (r0 + 1);
+  }
+
+  /* NOTE: one scanline has already been taken care of via the "ticks to next
+   * scanline" calculation above. So, this is additional scanlines once the
+   * current one has finished.
+   */
+  if (p_video->in_vert_adjust) {
+    scanlines_left_this_row = (r5 - p_video->vert_adjust_counter);
+    scanlines_left_this_row--;
+  } else {
+    if (p_video->scanline_counter <= r9) {
+      scanlines_left_this_row = (r9 - p_video->scanline_counter);
+    } else {
+      scanlines_left_this_row = (0x1F - p_video->scanline_counter);
+      scanlines_left_this_row += (r9 + 1);
+    }
+    scanlines_left_this_row /= scanline_stride;
+  }
+
+  scanlines_per_row = (r9 / scanline_stride);
+  scanlines_per_row++;
+
+  scanline_ticks *= tick_multiplier;
+  ticks_to_next_scanline *= tick_multiplier;
+
+//printf("hc %d sc %d vc %d r4 %d r5 %d r7 %d r9 %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
+
+  if (p_video->in_vsync) {
+    assert(p_video->vsync_scanline_counter > 0);
+    timer_value = ticks_to_next_scanline;
+    timer_value += ((p_video->vsync_scanline_counter - 1) * scanline_ticks);
+    p_video->timer_fire_expect_vsync_end = 1;
+  } else if ((p_video->vert_counter < r7) &&
+             (r7 <= vert_counter_max) &&
+             !p_video->had_vsync_this_frame) {
+//printf("vc < r7, r7 %d\n", r7);
+    /* In this branch, vsync will happen this current frame. */
+    assert(!p_video->in_vert_adjust);
+    timer_value = ticks_to_next_scanline;
+    timer_value += (scanline_ticks * scanlines_left_this_row);
+    timer_value += (scanline_ticks *
+                    scanlines_per_row *
+                    (r7 - p_video->vert_counter - 1));
+    p_video->timer_fire_expect_vsync_start = 1;
+  } else if (r7 > r4) {
+    /* If vsync'ing isn't happening, just wake up every 50Hz or so. */
+    timer_value = (k_video_us_per_vsync * 2);
+  } else {
+    /* Vertical counter is already past the vsync position, so we need to
+     * calculate the timing to the end of the frame, plus the timing from
+     * start of frame to vsync.
+     */
+    uint32_t ticks_to_end_of_frame;
+    uint32_t ticks_from_frame_to_vsync;
+
+//printf("vc >= r7, r7 = %d\n", r7);
+    ticks_from_frame_to_vsync = (scanline_ticks * scanlines_per_row * r7);
+    ticks_to_end_of_frame = ticks_to_next_scanline;
+    ticks_to_end_of_frame += (scanline_ticks * scanlines_left_this_row);
+    if (!p_video->in_vert_adjust) {
+      uint32_t rows_to_end_of_frame;
+
+      if (p_video->vert_counter <= r4) {
+        rows_to_end_of_frame = (r4 - p_video->vert_counter);
+      } else {
+        rows_to_end_of_frame = (0x7F - p_video->vert_counter);
+        rows_to_end_of_frame += (r4 + 1);
+      }
+      ticks_to_end_of_frame += (scanline_ticks *
+                                scanlines_per_row *
+                                rows_to_end_of_frame);
+      ticks_to_end_of_frame += (scanline_ticks * r5);
+    }
+
+    timer_value = (ticks_to_end_of_frame + ticks_from_frame_to_vsync);
+    p_video->timer_fire_expect_vsync_start = 1;
+  }
+
+  assert(timer_value < (4 * 1024 * 1024));
+
+//printf("timer value: %zu\n", timer_value);
+
+  /* TODO: add minimum timer value support for more accurate rendering in terms
+   * of syncronization between video beam and memory contents.
+   */
+  (void) timing_set_timer_value(p_timing, timer_id, timer_value);
 }
 
 static void
@@ -407,14 +556,23 @@ video_timer_fired(void* p) {
          0);
   assert(!p_video->externally_clocked);
 
+//printf("timer fired\n");
+
   video_advance_crtc_timing(p_video);
 
-  video_update_timer(p_video);
-}
+  if (p_video->timer_fire_expect_vsync_start) {
+    assert(p_video->in_vsync);
+    assert(p_video->vert_counter ==
+           p_video->crtc_registers[k_crtc_reg_vert_sync_position]);
+    assert(p_video->horiz_counter == 0);
+    assert(p_video->scanline_counter == 0);
+  }
+  if (p_video->timer_fire_expect_vsync_end) {
+    assert(!p_video->in_vsync);
+    assert(p_video->horiz_counter == 0);
+  }
 
-static int
-video_get_clock_speed(struct video_struct* p_video) {
-  return !!(p_video->video_ula_control & k_ula_clock_speed);
+  video_update_timer(p_video);
 }
 
 static void
@@ -440,7 +598,6 @@ video_mode_updated(struct video_struct* p_video) {
       mode = k_render_mode0;
       break;
     default:
-      assert(0);
       mode = k_render_mode0;
       break;
     }
@@ -454,7 +611,12 @@ video_mode_updated(struct video_struct* p_video) {
       mode = k_render_mode4;
       break;
     default:
-      assert(0);
+      /* EMU NOTE: not clear what to render here. Probably anything will do for
+       * now because it's not a defined mode.
+       * This condition can occur in practice, for example half-way through
+       * mode switches.
+       * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
+       */
       mode = k_render_mode4;
       break;
     }
@@ -536,6 +698,10 @@ video_create(uint8_t* p_bbc_mem,
    */
   p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
   p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
+
+  /* Set correctly as per above register values. */
+  p_video->is_interlace_sync_and_video = 1;
+  p_video->is_master_display_enable = 1;
 
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
@@ -819,7 +985,18 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   }
 
   if (addr == 0) {
+    int old_clock_speed = video_get_clock_speed(p_video);
+
     p_video->video_ula_control = val;
+
+    if (!p_video->externally_clocked) {
+      int new_clock_speed = video_get_clock_speed(p_video);
+      if (old_clock_speed != new_clock_speed) {
+//printf("prev ticks curr ticks %zu %zu\n", p_video->prev_system_ticks, timing_get_total_timer_ticks(p_video->p_timing));
+        p_video->prev_system_ticks = timing_get_total_timer_ticks(p_video->p_timing);
+        video_update_timer(p_video);
+      }
+    }
 
     /* TODO: also need to make sure the render tables are invalidated if the
      * flash color bit changed.
@@ -895,6 +1072,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t reg;
 
   uint8_t mask = 0xFF;
+  int does_not_change_timing = 0;
 
   if (addr == k_crtc_addr_reg) {
     p_video->crtc_address_register = (val & k_crtc_register_mask);
@@ -955,31 +1133,66 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   case k_crtc_reg_vert_sync_position:
     mask = 0x7F;
     break;
+  case k_crtc_reg_interlace:
+    mask = 0xFF;
+    p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
+    p_video->is_master_display_enable = ((val & 0x30) != 0x30);
+    break;
   /* R9 */
   case k_crtc_reg_lines_per_character:
     mask = 0x1F;
     break;
   /* R10 */
   case k_crtc_reg_cursor_start:
+    does_not_change_timing = 1;
     mask = 0x7F;
     break;
   /* R11 */
   case k_crtc_reg_cursor_end:
+    does_not_change_timing = 1;
     mask = 0x1F;
     break;
   /* R12 */
   case k_crtc_reg_mem_addr_high:
+    does_not_change_timing = 1;
     mask = 0x3F;
+    break;
+  /* R13 */
+  case k_crtc_reg_mem_addr_low:
+    does_not_change_timing = 1;
+    mask = 0xFF;
     break;
   /* R14 */
   case k_crtc_reg_cursor_high:
+    does_not_change_timing = 1;
     mask = 0x3F;
+    break;
+  /* R15 */
+  case k_crtc_reg_cursor_low:
+    does_not_change_timing = 1;
+    mask = 0xFF;
     break;
   default:
     break;
   }
 
   p_video->crtc_registers[reg] = (val & mask);
+
+  if (p_video->is_interlace_sync_and_video) {
+    /* EMU NOTE: interlace sync and video has a different behavior when
+     * programmed with an odd number in R9.
+     * The Hitachi datasheet covers it on page "92":
+     * https://www.cpcwiki.eu/imgs/c/c0/Hd6845.hitachi.pdf
+     * Since MODE7 doesn't use it, it's simplest to not emulate it, and this
+     * helps avoid headaches when CRTC registers are half-way programmed
+     * from MODE7 -> non-MODE7.
+     */
+     p_video->scanline_counter &= ~1;
+  }
+
+  if (!p_video->externally_clocked && !does_not_change_timing) {
+    video_update_timer(p_video);
+  }
 }
 
 uint8_t
