@@ -25,7 +25,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Make timing.c not suck for performance.
 - Add interlace support to the 6845 CRTC.
 - Add cursor support to the 6845 CRTC.
-- Support Video ULA flashing colors.
 
 
 Ideas
