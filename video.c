@@ -88,6 +88,7 @@ struct video_struct {
   /* Options. */
   uint32_t frames_skip;
   uint32_t frame_skip_counter;
+  int render_after_each_row;
 
   /* Timing. */
   uint64_t wall_time;
@@ -417,6 +418,7 @@ video_update_timer(struct video_struct* p_video) {
   uint32_t tick_multiplier;
   uint32_t scanline_ticks;
   uint32_t ticks_to_next_scanline;
+  uint32_t ticks_to_next_row;
   uint32_t scanline_stride;
   uint32_t scanlines_per_row;
   uint32_t scanlines_left_this_row;
@@ -484,6 +486,8 @@ video_update_timer(struct video_struct* p_video) {
 
   scanline_ticks *= tick_multiplier;
   ticks_to_next_scanline *= tick_multiplier;
+  ticks_to_next_row = ticks_to_next_scanline;
+  ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
 
 //printf("hc %d sc %d vc %d r4 %d r5 %d r7 %d r9 %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
 
@@ -498,8 +502,7 @@ video_update_timer(struct video_struct* p_video) {
 //printf("vc < r7, r7 %d\n", r7);
     /* In this branch, vsync will happen this current frame. */
     assert(!p_video->in_vert_adjust);
-    timer_value = ticks_to_next_scanline;
-    timer_value += (scanline_ticks * scanlines_left_this_row);
+    timer_value = ticks_to_next_row;
     timer_value += (scanline_ticks *
                     scanlines_per_row *
                     (r7 - p_video->vert_counter - 1));
@@ -517,8 +520,7 @@ video_update_timer(struct video_struct* p_video) {
 
 //printf("vc >= r7, r7 = %d\n", r7);
     ticks_from_frame_to_vsync = (scanline_ticks * scanlines_per_row * r7);
-    ticks_to_end_of_frame = ticks_to_next_scanline;
-    ticks_to_end_of_frame += (scanline_ticks * scanlines_left_this_row);
+    ticks_to_end_of_frame = ticks_to_next_row;
     if (!p_video->in_vert_adjust) {
       uint32_t rows_to_end_of_frame;
 
@@ -542,9 +544,19 @@ video_update_timer(struct video_struct* p_video) {
 
 //printf("timer value: %zu\n", timer_value);
 
-  /* TODO: add minimum timer value support for more accurate rendering in terms
-   * of syncronization between video beam and memory contents.
+  /* beebjit does not synchronize the video RAM read with the CPU RAM writes.
+   * This leads to juddery display in same games where screen RAM updates are
+   * carefully arranged at some useful point relative to vsync.
+   * Fortess is a good example.
+   * This option here renders after each character row, leading to a more
+   * accurate display at the cost of some performance.
    */
+  if (p_video->render_after_each_row && (timer_value > ticks_to_next_row)) {
+    timer_value = ticks_to_next_row;
+    p_video->timer_fire_expect_vsync_start = 0;
+    p_video->timer_fire_expect_vsync_end = 0;
+  }
+
   (void) timing_set_timer_value(p_timing, timer_id, timer_value);
 }
 
@@ -666,6 +678,8 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u32_option(&p_video->frames_skip,
                              p_options->p_opt_flags,
                              "video:frames-skip=");
+  p_video->render_after_each_row = util_has_option(
+      p_options->p_opt_flags, "video:render-after-each-row");
 
   /* What initial state should we use for 6845 and Video ULA registers?
    * The 6845 data sheets (all variations?) aren't much help, quoting:

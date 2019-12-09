@@ -84,7 +84,7 @@ render_create(struct bbc_options* p_options) {
    */
   (void) util_get_u32_option(&border_chars,
                              p_options->p_opt_flags,
-                             "render:border-chars=");
+                             "video:border-chars=");
   if (border_chars > 16) {
     errx(1, "border-chars must be 16 or less");
   }
