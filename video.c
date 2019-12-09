@@ -331,6 +331,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (p_video->in_vert_adjust) {
       p_video->vert_adjust_counter++;
+      p_video->vert_adjust_counter &= 0x1F;
       r5_hit = (p_video->vert_adjust_counter == r5);
       if (r5_hit) {
         goto start_new_frame;
@@ -475,8 +476,13 @@ video_update_timer(struct video_struct* p_video) {
    * current one has finished.
    */
   if (p_video->in_vert_adjust) {
-    scanlines_left_this_row = (r5 - p_video->vert_adjust_counter);
-    scanlines_left_this_row--;
+    if (p_video->vert_adjust_counter < r5) {
+      scanlines_left_this_row = (r5 - p_video->vert_adjust_counter);
+      scanlines_left_this_row--;
+    } else {
+      scanlines_left_this_row = (0x1F - p_video->vert_adjust_counter);
+      scanlines_left_this_row += r5;
+    }
   } else {
     if (p_video->scanline_counter <= r9) {
       scanlines_left_this_row = (r9 - p_video->scanline_counter);
@@ -495,7 +501,7 @@ video_update_timer(struct video_struct* p_video) {
   ticks_to_next_row = ticks_to_next_scanline;
   ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
 
-//printf("hc %d sc %d vc %d r4 %d r5 %d r7 %d r9 %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
+//printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r7 %d r9 %d adj %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->in_vert_adjust, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
 
   if (p_video->in_vsync) {
     assert(p_video->vsync_scanline_counter > 0);
