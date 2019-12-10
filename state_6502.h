@@ -4,9 +4,10 @@
 #include <stdint.h>
 
 enum {
-  k_state_6502_irq_1 = 0,
-  k_state_6502_irq_2 = 1,
-  k_state_6502_irq_nmi = 2,
+  k_state_6502_irq_via_1 = 0,
+  k_state_6502_irq_via_2 = 1,
+  k_state_6502_irq_acia = 2,
+  k_state_6502_irq_nmi = 3,
 };
 
 enum {

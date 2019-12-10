@@ -10,6 +10,7 @@
 #include "memory_access.h"
 #include "os_thread.h"
 #include "render.h"
+#include "serial.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "teletext.h"
@@ -91,6 +92,7 @@ struct bbc_struct {
   struct teletext_struct* p_teletext;
   struct video_struct* p_video;
   struct intel_fdc_struct* p_intel_fdc;
+  struct serial_struct* p_serial;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
 
@@ -839,6 +841,11 @@ bbc_create(int mode,
     errx(1, "intel_fdc_create failed");
   }
 
+  p_bbc->p_serial = serial_create(p_state_6502);
+  if (p_bbc->p_serial == NULL) {
+    errx(1, "serial_create failed");
+  }
+
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
   if (p_debug == NULL) {
     errx(1, "debug_create failed");
@@ -878,6 +885,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
 
   debug_destroy(p_bbc->p_debug);
+  serial_destroy(p_bbc->p_serial);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
   render_destroy(p_bbc->p_render);

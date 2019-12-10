@@ -89,9 +89,9 @@ via_check_interrupt(struct via_struct* p_via) {
     level = 0;
   }
   if (p_via->id == k_via_system) {
-    interrupt = k_state_6502_irq_1;
+    interrupt = k_state_6502_irq_via_1;
   } else {
-    interrupt = k_state_6502_irq_2;
+    interrupt = k_state_6502_irq_via_2;
   }
   state_6502_set_irq_level(p_state_6502, interrupt, level);
 }

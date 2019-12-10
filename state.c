@@ -172,14 +172,14 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
     state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, 0);
   }
   if (p_bem->interrupt & 1) {
-    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_1, 1);
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_via_1, 1);
   } else {
-    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_1, 0);
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_via_1, 0);
   }
   if (p_bem->interrupt & 2) {
-    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_2, 1);
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_via_2, 1);
   } else {
-    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_2, 0);
+    state_6502_set_irq_level(p_state_6502, k_state_6502_irq_via_2, 0);
   }
 
   video_set_ula_control(p_video, p_bem->ula_control);
@@ -340,10 +340,10 @@ state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   /* NOTE: likely integer truncation as the b-em format is only 32-bit. */
   p_bem->cycles = (uint32_t) state_6502_get_cycles(p_state_6502);
   p_bem->interrupt = 0;
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_1)) {
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_via_1)) {
     p_bem->interrupt |= 1;
   }
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_2)) {
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_via_2)) {
     p_bem->interrupt |= 2;
   }
   p_bem->nmi = 0;
