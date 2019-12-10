@@ -14,18 +14,16 @@ enum {
   k_via_user = 1,
 };
 
-enum {
-  k_int_CA2 =    0x01,
-  k_int_CA1 =    0x02,
-  k_int_TIMER1 = 0x40,
-  k_int_TIMER2 = 0x20,
-};
-
 struct via_struct* via_create(int id,
                               int externally_clocked,
                               struct timing_struct* p_timing,
                               struct bbc_struct* p_bbc);
 void via_destroy(struct via_struct* p_via);
+
+void via_set_CB2_changed_callback(struct via_struct* p_via,
+                                  void (*p_CB2_changed_callback)
+                                      (void* p, int level, int output),
+                                  void* p_CB2_changed_object);
 
 void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
 
@@ -37,6 +35,8 @@ uint8_t via_read_port_b(struct via_struct* p_via);
 
 void via_set_CA1(struct via_struct* p_via, int level);
 void via_set_CA2(struct via_struct* p_via, int level);
+void via_set_CB1(struct via_struct* p_via, int level);
+void via_set_CB2(struct via_struct* p_via, int level);
 
 void via_get_registers(struct via_struct* p_via,
                        uint8_t* p_ORA,

@@ -25,12 +25,21 @@ enum {
   k_via_T1LH =  0x7,
   k_via_T2CL =  0x8,
   k_via_T2CH =  0x9,
-  k_via_SR =    0xa,
-  k_via_ACR =   0xb,
-  k_via_PCR =   0xc,
-  k_via_IFR =   0xd,
-  k_via_IER =   0xe,
-  k_via_ORAnh = 0xf,
+  k_via_SR =    0xA,
+  k_via_ACR =   0xB,
+  k_via_PCR =   0xC,
+  k_via_IFR =   0xD,
+  k_via_IER =   0xE,
+  k_via_ORAnh = 0xF,
+};
+
+enum {
+  k_int_CA2 =    0x01,
+  k_int_CA1 =    0x02,
+  k_int_CB2 =    0x08,
+  k_int_CB1 =    0x10,
+  k_int_TIMER1 = 0x40,
+  k_int_TIMER2 = 0x20,
 };
 
 struct via_struct {
@@ -40,6 +49,9 @@ struct via_struct {
   struct timing_struct* p_timing;
   size_t t1_timer_id;
   size_t t2_timer_id;
+
+  void (*p_CB2_changed_callback)(void* p, int level, int output);
+  void* p_CB2_changed_object;
 
   uint8_t ORB;
   uint8_t ORA;
@@ -57,6 +69,8 @@ struct via_struct {
   uint8_t t1_pb7;
   int CA1;
   int CA2;
+  int CB1;
+  int CB2;
 };
 
 static void
@@ -340,6 +354,15 @@ via_create(int id,
 void
 via_destroy(struct via_struct* p_via) {
   free(p_via);
+}
+
+void
+via_set_CB2_changed_callback(struct via_struct* p_via,
+                             void (*p_CB2_changed_callback)
+                                 (void* p, int level, int output),
+                             void* p_CB2_changed_object) {
+  p_via->p_CB2_changed_callback = p_CB2_changed_callback;
+  p_via->p_CB2_changed_object = p_CB2_changed_object;
 }
 
 static void
@@ -756,6 +779,11 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   case k_via_PCR:
     p_via->PCR = val;
+    if ((val & 0xE0) == 0xC0) {
+      via_set_CB2(p_via, 0);
+    } else if (val & 0x80) {
+      via_set_CB2(p_via, 1);
+    }
     break;
   case k_via_IFR:
     p_via->IFR &= ~(val & 0x7F);
@@ -798,10 +826,10 @@ via_set_CA1(struct via_struct* p_via, int level) {
     return;
   }
 
-  trigger_level = (!!(p_via->PCR & 1));
+  trigger_level = !!(p_via->PCR & 1);
   if (level == trigger_level) {
     via_raise_interrupt(p_via, k_int_CA1);
-    assert((p_via->PCR & 0xc) != 0x8);
+    assert((p_via->PCR & 0x0C) != 0x08);
   }
   p_via->CA1 = level;
 }
@@ -814,11 +842,39 @@ via_set_CA2(struct via_struct* p_via, int level) {
     return;
   }
 
-  trigger_level = (!!(p_via->PCR & 4));
+  /* TODO: here and CA1, don't IRQ in output mode. */
+  trigger_level = !!(p_via->PCR & 0x04);
   if (level == trigger_level) {
     via_raise_interrupt(p_via, k_int_CA2);
   }
   p_via->CA2 = level;
+}
+
+void
+via_set_CB2(struct via_struct* p_via, int level) {
+  int trigger_level;
+  int output;
+
+  if (level == p_via->CB2) {
+    return;
+  }
+
+  p_via->CB2 = level;
+
+  output = !!(p_via->PCR & 0x80);
+
+  if (p_via->p_CB2_changed_callback) {
+    p_via->p_CB2_changed_callback(p_via->p_CB2_changed_object, level, output);
+  }
+
+  if (output) {
+    return;
+  }
+
+  trigger_level = !!(p_via->PCR & 0x40);
+  if (level == trigger_level) {
+    via_raise_interrupt(p_via, k_int_CB2);
+  }
 }
 
 void

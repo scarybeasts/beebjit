@@ -650,6 +650,30 @@ video_mode_updated(struct video_struct* p_video) {
   render_set_mode(p_video->p_render, mode);
 }
 
+static void
+video_CB2_changed_callback(void* p, int level, int output) {
+  uint32_t address_counter;
+  struct video_struct* p_video;
+
+  if (!level || !output) {
+    return;
+  }
+
+  p_video = (struct video_struct*) p;
+  address_counter = p_video->address_counter;
+
+  /* If the system VIA configures CB2 to an output and flips it low -> high,
+   * the CRTC thinks it sees a real light pen pulse.
+   * Needed by Pharoah's Curse to start.
+   */
+  if (!p_video->externally_clocked) {
+    video_advance_crtc_timing(p_video);
+  }
+
+  p_video->crtc_registers[k_crtc_reg_light_pen_high] = (address_counter >> 8);
+  p_video->crtc_registers[k_crtc_reg_light_pen_low] = (address_counter & 0xFF);
+}
+
 struct video_struct*
 video_create(uint8_t* p_bbc_mem,
              int externally_clocked,
@@ -731,6 +755,10 @@ video_create(uint8_t* p_bbc_mem,
 
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
+
+  via_set_CB2_changed_callback(p_system_via,
+                               video_CB2_changed_callback,
+                               p_video);
 
   video_mode_updated(p_video);
 
