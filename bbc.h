@@ -17,8 +17,8 @@ enum {
 };
 enum {
   k_bbc_num_roms = 16,
-  k_bbc_default_dfs_rom_slot = 0xE,
-  k_bbc_default_lang_rom_slot = 0xF,
+  k_bbc_default_dfs_rom_slot = 0xD,
+  k_bbc_default_basic_rom_slot = 0xC,
 };
 enum {
   k_bbc_registers_start = 0xFC00,

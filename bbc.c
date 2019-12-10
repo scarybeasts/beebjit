@@ -58,6 +58,8 @@ struct bbc_struct {
   int running;
   int message_cpu_fd;
   int message_client_fd;
+  uint32_t exit_value;
+  int mem_fd;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -72,13 +74,15 @@ struct bbc_struct {
   struct state_6502* p_state_6502;
   struct memory_access memory_access;
   struct timing_struct* p_timing;
-  int mem_fd;
   uint8_t* p_mem_raw;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
   uint8_t* p_mem_read_ind;
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
+  int is_sideways_ram_bank[k_bbc_num_roms];
+  int is_extended_rom_addressing;
+  int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
   struct keyboard_struct* p_keyboard;
@@ -89,7 +93,7 @@ struct bbc_struct {
   struct intel_fdc_struct* p_intel_fdc;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
-  uint32_t exit_value;
+
   /* Timing support. */
   size_t timer_id;
   uint32_t wakeup_rate;
@@ -97,7 +101,6 @@ struct bbc_struct {
   uint64_t cycles_per_run_normal;
   uint64_t last_time_us;
   uint8_t romsel;
-  int is_sideways_ram_bank[k_bbc_num_roms];
 };
 
 static int
@@ -351,28 +354,46 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
    * 6502 address space, memory access at runtime can be direct, instead of
    * having to go through lookup arrays.
    */
+  uint8_t effective_curr_bank;
+  uint8_t effective_new_bank;
   int curr_is_ram;
   int new_is_ram;
 
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
-  uint8_t curr_bank = p_bbc->romsel;
 
-  index &= 0xF;
-  if (curr_bank == index) {
+  effective_curr_bank = p_bbc->romsel;
+  effective_new_bank = (index & 0xF);
+
+  if (!p_bbc->is_extended_rom_addressing) {
+    /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
+     * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
+     * The STH Castle Quest image needs this due to a misguided "Master
+     * compatability" fix.
+     */
+    effective_curr_bank &= 0x3;
+    effective_curr_bank += 0xC;
+    effective_new_bank &= 0x3;
+    effective_new_bank += 0xC;
+  }
+
+  p_bbc->romsel = index;
+
+  if ((effective_new_bank == effective_curr_bank) &&
+      !p_bbc->is_romsel_invalidated) {
     return;
   }
 
-  curr_is_ram = (p_bbc->is_sideways_ram_bank[curr_bank] != 0);
-  new_is_ram = (p_bbc->is_sideways_ram_bank[index] != 0);
+  curr_is_ram = (p_bbc->is_sideways_ram_bank[effective_curr_bank] != 0);
+  new_is_ram = (p_bbc->is_sideways_ram_bank[effective_new_bank] != 0);
 
-  p_sideways_src += (index * k_bbc_rom_size);
+  p_sideways_src += (effective_new_bank * k_bbc_rom_size);
 
   /* If current bank is RAM, save it. */
-  if (p_bbc->is_sideways_ram_bank[curr_bank]) {
+  if (curr_is_ram) {
     uint8_t* p_sideways_dest = p_bbc->p_mem_sideways;
-    p_sideways_dest += (curr_bank * k_bbc_rom_size);
+    p_sideways_dest += (effective_curr_bank * k_bbc_rom_size);
     (void) memcpy(p_sideways_dest, p_mem_sideways, k_bbc_rom_size);
   }
 
@@ -404,8 +425,6 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
           k_bbc_rom_size);
     }
   }
-
-  p_bbc->romsel = index;
 }
 
 void
@@ -637,6 +656,7 @@ bbc_create(int mode,
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
+  p_bbc->is_extended_rom_addressing = 0;
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
@@ -890,6 +910,11 @@ bbc_load_rom(struct bbc_struct* p_bbc,
 
   p_rom_dest += (index * k_bbc_rom_size);
   (void) memcpy(p_rom_dest, p_rom_src, k_bbc_rom_size);
+  if (index < 0xC) {
+    p_bbc->is_extended_rom_addressing = 1;
+  }
+  p_bbc->is_romsel_invalidated = 1;
+  bbc_sideways_select(p_bbc, p_bbc->romsel);
 }
 
 void
@@ -908,6 +933,11 @@ void
 bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
   assert(index < k_bbc_num_roms);
   p_bbc->is_sideways_ram_bank[index] = 1;
+  if (index < 0xC) {
+    p_bbc->is_extended_rom_addressing = 1;
+  }
+  p_bbc->is_romsel_invalidated = 1;
+  bbc_sideways_select(p_bbc, p_bbc->romsel);
 }
 
 void
@@ -930,6 +960,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   /* Copy in OS ROM. */
   (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
 
+  p_bbc->is_romsel_invalidated = 1;
   bbc_sideways_select(p_bbc, 0);
 
   state_6502_reset(p_state_6502);

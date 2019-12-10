@@ -784,11 +784,11 @@ main(int argc, const char* argv[]) {
    * compilation.
    */
   set_new_index(p_buf, 0x0A80);
-  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_LDA(p_buf, k_imm, 0x08);   /* 0x8 is an alias for 0xC where BASIC is. */
   emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
   emit_JSR(p_buf, 0x8000);        /* A != 1 so this just RTS's. */
-  emit_LDA(p_buf, k_imm, 0x0E);
-  emit_STA(p_buf, k_abs, 0xFE30); /* Page in DFS. */
+  emit_LDA(p_buf, k_imm, 0x0D);
+  emit_STA(p_buf, k_abs, 0xFE34); /* Page in DFS. FE34 is also ROMSEL. */
   emit_LDA(p_buf, k_imm, 0xA0);   /* Set up the BRK vector to $CAA0. */
   emit_STA(p_buf, k_abs, 0x4040);
   emit_LDA(p_buf, k_imm, 0xCA);
@@ -796,10 +796,10 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0x8000);        /* Should hit BRK. */
   emit_CRASH(p_buf);
   util_buffer_set_pos(p_buf, 0x0AA0);
-  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_LDA(p_buf, k_imm, 0x0C);
   emit_STA(p_buf, k_abs, 0xFE30); /* Page in BASIC. */
   emit_JSR(p_buf, 0x8002);        /* ZF == 0 so this just RTS's. */
-  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_LDA(p_buf, k_imm, 0x0D);
   emit_STA(p_buf, k_abs, 0xFE30); /* Page in DFS. */
   emit_LDA(p_buf, k_imm, 0xC0);
   emit_STA(p_buf, k_abs, 0x4040);

@@ -62,7 +62,7 @@ main(int argc, const char* argv[]) {
   uint32_t expect = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
-  rom_names[k_bbc_default_lang_rom_slot] = "roms/basic.rom";
+  rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
