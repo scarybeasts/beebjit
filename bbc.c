@@ -371,6 +371,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
      * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
      * The STH Castle Quest image needs this due to a misguided "Master
      * compatability" fix.
+     * See http://beebwiki.mdfs.net/Paged_ROM.
      */
     effective_curr_bank &= 0x3;
     effective_curr_bank += 0xC;
