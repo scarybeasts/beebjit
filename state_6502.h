@@ -6,7 +6,7 @@
 enum {
   k_state_6502_irq_via_1 = 0,
   k_state_6502_irq_via_2 = 1,
-  k_state_6502_irq_acia = 2,
+  k_state_6502_irq_serial_acia = 2,
   k_state_6502_irq_nmi = 3,
 };
 

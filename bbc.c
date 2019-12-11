@@ -236,14 +236,12 @@ bbc_read_callback(void* p, uint16_t addr) {
     }
   case (k_addr_acia + 0):
   case (k_addr_acia + 4):
-    /* No ACIA interrupt (bit 7). */
-    return 0;
+    return serial_acia_read(p_bbc->p_serial, (addr & 1));
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-    return 0;
-  case 0xFE18:
-    /* Only used in Master model but read by Syncron. */
-    break;
+  case (k_addr_serial_ula + 8):
+  case (k_addr_serial_ula + 12):
+    return serial_ula_read(p_bbc->p_serial);
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
   case (k_addr_video_ula + 8):
@@ -474,11 +472,14 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     break;
   case (k_addr_acia + 0):
   case (k_addr_acia + 4):
-    printf("ignoring ACIA write\n");
+    serial_acia_write(p_bbc->p_serial, (addr & 0x1), val);
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-    printf("ignoring serial ULA write\n");
+  case (k_addr_serial_ula + 8):
+  case (k_addr_serial_ula + 12):
+    serial_ula_write(p_bbc->p_serial, val);
+    break;
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
