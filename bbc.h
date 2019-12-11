@@ -6,6 +6,7 @@
 
 struct cpu_driver;
 struct keyboard_struct;
+struct serial_struct;
 struct sound_struct;
 struct state_6502;
 struct via_struct;
@@ -96,6 +97,7 @@ struct keyboard_struct* bbc_get_keyboard(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
+struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
 
 uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);

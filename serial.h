@@ -10,6 +10,12 @@ struct state_6502;
 struct serial_struct* serial_create(struct state_6502* p_state_6502);
 void serial_destroy(struct serial_struct* p_serial);
 
+void serial_set_io_handles(struct serial_struct* p_serial,
+                           intptr_t handle_input,
+                           intptr_t handle_output);
+
+void serial_tick(struct serial_struct* p_serial);
+
 uint8_t serial_acia_read(struct serial_struct* p_serial, uint8_t reg);
 void serial_acia_write(struct serial_struct* p_serial,
                        uint8_t reg,

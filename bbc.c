@@ -1052,6 +1052,11 @@ bbc_get_render(struct bbc_struct* p_bbc) {
   return p_bbc->p_render;
 }
 
+struct serial_struct*
+bbc_get_serial(struct bbc_struct* p_bbc) {
+  return p_bbc->p_serial;
+}
+
 uint8_t*
 bbc_get_mem_read(struct bbc_struct* p_bbc) {
   return p_bbc->p_mem_read;
@@ -1228,6 +1233,11 @@ bbc_cycles_timer_callback(void* p) {
   /* Prod the sound module in case it's in synchronous mode. */
   sound_blocking = !p_bbc->fast_flag;
   sound_tick(p_bbc->p_sound, sound_blocking);
+
+  /* TODO: this is pretty poor. The serial device should maintain its own
+   * timer at the correct baud rate for the externally attached device.
+   */
+  serial_tick(p_bbc->p_serial);
 }
 
 static void

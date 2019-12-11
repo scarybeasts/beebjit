@@ -5,6 +5,7 @@
 #include "os_sound.h"
 #include "os_window.h"
 #include "render.h"
+#include "serial.h"
 #include "sound.h"
 #include "state.h"
 #include "test.h"
@@ -55,6 +56,7 @@ main(int argc, const char* argv[]) {
   int accurate_flag = 0;
   int disc_writeable_flag = 0;
   int disc_mutable_flag = 0;
+  int terminal_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
   int mode = k_cpu_mode_interp;
@@ -157,6 +159,8 @@ main(int argc, const char* argv[]) {
       disc_writeable_flag = 1;
     } else if (!strcmp(arg, "-mutable")) {
       disc_mutable_flag = 1;
+    } else if (!strcmp(arg, "-terminal")) {
+      terminal_flag = 1;
     }
   }
 
@@ -297,6 +301,13 @@ main(int argc, const char* argv[]) {
     if (ret == 0) {
       sound_set_driver(bbc_get_sound(p_bbc), p_sound_driver);
     }
+  }
+
+  if (terminal_flag) {
+    struct serial_struct* p_serial = bbc_get_serial(p_bbc);
+    intptr_t stdin_handle = util_get_stdin_handle();
+    intptr_t stdout_handle = util_get_stdout_handle();
+    serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
   }
 
   bbc_run_async(p_bbc);

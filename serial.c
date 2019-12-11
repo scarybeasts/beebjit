@@ -38,6 +38,10 @@ struct serial_struct {
   uint8_t acia_transmit;
   int line_level_DCD;
   int line_level_CTS;
+
+  /* Virtual device connected to RS423. */
+  intptr_t handle_input;
+  intptr_t handle_output;
 };
 
 static void
@@ -129,6 +133,9 @@ serial_create(struct state_6502* p_state_6502) {
   p_serial->line_level_DCD = 0;
   p_serial->line_level_CTS = 0;
 
+  p_serial->handle_input = -1;
+  p_serial->handle_output = -1;
+
   serial_acia_reset(p_serial);
 
   return p_serial;
@@ -137,6 +144,19 @@ serial_create(struct state_6502* p_state_6502) {
 void
 serial_destroy(struct serial_struct* p_serial) {
   free(p_serial);
+}
+
+void
+serial_set_io_handles(struct serial_struct* p_serial,
+                      intptr_t handle_input,
+                      intptr_t handle_output) {
+  p_serial->handle_input = handle_input;
+  p_serial->handle_output = handle_output;
+}
+
+void
+serial_tick(struct serial_struct* p_serial) {
+  (void) p_serial;
 }
 
 uint8_t

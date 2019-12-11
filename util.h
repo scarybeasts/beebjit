@@ -76,6 +76,11 @@ void* util_file_map_get_ptr(struct util_file_map* p_map);
 size_t util_file_map_get_size(struct util_file_map* p_map);
 void util_file_unmap(struct util_file_map* p_map);
 
+/* Miscellaneous handle I/O. */
+intptr_t util_get_stdin_handle();
+intptr_t util_get_stdout_handle();
+size_t util_get_handle_readable_bytes(intptr_t handle);
+
 /* Timing. */
 /* These quantities are in microseconds. */
 uint64_t util_gettime_us();

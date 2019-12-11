@@ -11,6 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -485,6 +486,29 @@ util_file_unmap(struct util_file_map* p_map) {
   }
 
   free(p_map);
+}
+
+intptr_t
+util_get_stdin_handle() {
+  return fileno(stdin);
+}
+
+intptr_t
+util_get_stdout_handle() {
+  return fileno(stdout);
+}
+
+size_t
+util_get_handle_readable_bytes(intptr_t handle) {
+  int bytes_avail;
+
+  int ret = ioctl(handle, FIONREAD, &bytes_avail);
+  if (ret != 0) {
+    return 0;
+  }
+
+  assert(bytes_avail >= 0);
+  return bytes_avail;
 }
 
 uint64_t
