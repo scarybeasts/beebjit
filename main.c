@@ -307,6 +307,9 @@ main(int argc, const char* argv[]) {
     struct serial_struct* p_serial = bbc_get_serial(p_bbc);
     intptr_t stdin_handle = util_get_stdin_handle();
     intptr_t stdout_handle = util_get_stdout_handle();
+
+    util_make_handle_unbuffered(stdin_handle);
+
     serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
   }
 

@@ -1,6 +1,7 @@
 #include "serial.h"
 
 #include "state_6502.h"
+#include "util.h"
 
 #include <assert.h>
 #include <err.h>
@@ -22,7 +23,8 @@ enum {
 };
 
 enum {
-  k_serial_acia_TCB_RTS_and_TIE = 0x20,
+  k_serial_acia_TCB_RTS_and_TIE =   0x20,
+  k_serial_acia_TCB_no_RTS_no_TIE = 0x40,
 };
 
 enum {
@@ -53,6 +55,7 @@ serial_acia_update_irq(struct serial_struct* p_serial) {
   send_int = ((p_serial->acia_control & k_serial_acia_control_TCB_mask) ==
               k_serial_acia_TCB_RTS_and_TIE);
   send_int &= !!(p_serial->acia_status & k_serial_acia_status_TDRE);
+  send_int &= !p_serial->line_level_CTS;
 
   receive_int = !!(p_serial->acia_control & k_serial_acia_control_RIE);
   receive_int &= !!(p_serial->acia_status & k_serial_acia_status_RDRF);
@@ -90,6 +93,9 @@ serial_update_line_levels(struct serial_struct* p_serial,
 
   p_serial->line_level_DCD = line_level_DCD;
   p_serial->line_level_CTS = line_level_CTS;
+
+  /* Lowering CTS could fire the interrupt for transmit. */
+  serial_acia_update_irq(p_serial);
 }
 
 static void
@@ -156,7 +162,42 @@ serial_set_io_handles(struct serial_struct* p_serial,
 
 void
 serial_tick(struct serial_struct* p_serial) {
-  (void) p_serial;
+  /* Check for external serial input. */
+  if (p_serial->handle_input != -1) {
+    int do_receive = ((p_serial->acia_control &
+                       k_serial_acia_control_TCB_mask) !=
+                      k_serial_acia_TCB_no_RTS_no_TIE);
+    do_receive &= !(p_serial->acia_status & k_serial_acia_status_RDRF);
+    if (do_receive) {
+      size_t avail = util_get_handle_readable_bytes(p_serial->handle_input);
+      if (avail > 0) {
+        uint8_t val = util_handle_read_byte(p_serial->handle_input);
+        /* Rewrite \n to \r for BBC style input. */
+        if (val == '\n') {
+          val = '\r';
+        }
+        p_serial->acia_status |= k_serial_acia_status_RDRF;
+        p_serial->acia_receive = val;
+
+        serial_acia_update_irq(p_serial);
+      }
+    }
+  }
+
+  /* Check for external serial output. */
+  if (p_serial->handle_output != -1) {
+    int do_send = !(p_serial->acia_status & k_serial_acia_status_TDRE);
+    if (do_send) {
+      uint8_t val = p_serial->acia_transmit;
+      /* NOTE: no suppression of \r in the BBC stream's newlines. */
+      /* This may block; we rely on the host end to be faster than our BBC! */
+      util_handle_write_byte(p_serial->handle_output, val);
+
+      p_serial->acia_status |= k_serial_acia_status_TDRE;
+
+      serial_acia_update_irq(p_serial);
+    }
+  }
 }
 
 uint8_t
@@ -175,8 +216,11 @@ serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
 
     return ret;
   } else {
-    assert(0);
-    return 0;
+    p_serial->acia_status &= ~k_serial_acia_status_RDRF;
+
+    serial_acia_update_irq(p_serial);
+
+    return p_serial->acia_receive;
   }
 }
 
@@ -194,9 +238,9 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
       p_serial->acia_control = val;
     }
   } else {
-assert(0);
     /* Data register, transmit byte. */
     assert(reg == 1);
+    assert(p_serial->acia_status & k_serial_acia_status_TDRE);
 
     p_serial->acia_transmit = val;
 
@@ -245,7 +289,11 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
    * the other end.
    */
   if (rs423_or_tape) {
-    line_level_CTS = 1;
+    if (p_serial->handle_output != -1) {
+      line_level_CTS = 0;
+    } else {
+      line_level_CTS = 1;
+    }
   } else {
     line_level_CTS = 0;
   }

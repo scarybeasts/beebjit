@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -498,6 +499,29 @@ util_get_stdout_handle() {
   return fileno(stdout);
 }
 
+void
+util_make_handle_unbuffered(intptr_t handle) {
+  int ret;
+  struct termios termios;
+
+  if (!isatty(handle)) {
+    return;
+  }
+
+  ret = tcgetattr(handle, &termios);
+  if (ret != 0) {
+    errx(1, "tcgetattr failed");
+  }
+
+  termios.c_lflag &= ~ICANON;
+  termios.c_lflag &= ~ECHO;
+
+  ret = tcsetattr(handle, TCSANOW, &termios);
+  if (ret != 0) {
+    errx(1, "tcsetattr failed");
+  }
+}
+
 size_t
 util_get_handle_readable_bytes(intptr_t handle) {
   int bytes_avail;
@@ -509,6 +533,26 @@ util_get_handle_readable_bytes(intptr_t handle) {
 
   assert(bytes_avail >= 0);
   return bytes_avail;
+}
+
+uint8_t
+util_handle_read_byte(intptr_t handle) {
+  uint8_t val;
+
+  ssize_t ret = read(handle, &val, 1);
+  if (ret != 1) {
+    errx(1, "failed to read byte from handle");
+  }
+
+  return val;
+}
+
+void
+util_handle_write_byte(intptr_t handle, uint8_t val) {
+  ssize_t ret = write(handle, &val, 1);
+  if (ret != 1) {
+    errx(1, "failed to write byte to handle");
+  }
 }
 
 uint64_t

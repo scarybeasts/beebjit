@@ -79,7 +79,10 @@ void util_file_unmap(struct util_file_map* p_map);
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
+void util_make_handle_unbuffered(intptr_t handle);
 size_t util_get_handle_readable_bytes(intptr_t handle);
+uint8_t util_handle_read_byte(intptr_t handle);
+void util_handle_write_byte(intptr_t handle, uint8_t val);
 
 /* Timing. */
 /* These quantities are in microseconds. */
