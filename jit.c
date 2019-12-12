@@ -47,11 +47,12 @@ struct jit_struct {
   struct interp_struct* p_interp;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
+  uint8_t jit_invalidation_sequence[2];
 
   int log_compile;
 };
 
-static uint8_t*
+static inline uint8_t*
 jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (p_jit->p_jit_base +
                         (addr_6502 * k_jit_bytes_per_byte));
@@ -107,22 +108,20 @@ jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
   return jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
 }
 
-static void
+static inline void
 jit_invalidate_block_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  struct util_buffer* p_buf = p_jit->p_temp_buf;
   uint8_t* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
 
-  util_buffer_setup(p_buf, p_jit_ptr, 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_buf);
+  p_jit_ptr[0] = p_jit->jit_invalidation_sequence[0];
+  p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
 }
 
-static void
+static inline void
 jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  struct util_buffer* p_buf = p_jit->p_temp_buf;
-  void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr_6502];
+  uint8_t* p_intel_rip = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
 
-  util_buffer_setup(p_buf, p_intel_rip, 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_buf);
+  p_intel_rip[0] = p_jit->jit_invalidation_sequence[0];
+  p_intel_rip[1] = p_jit->jit_invalidation_sequence[1];
 }
 
 static int
@@ -668,6 +667,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
                                                 (k_6502_addr_space_size - 2));
 
+  util_buffer_setup(p_temp_buf, &p_jit->jit_invalidation_sequence[0], 2);
+  asm_x64_emit_jit_call_compile_trampoline(p_temp_buf);
+
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     /* Initialize JIT code. */
     jit_invalidate_block_address(p_jit, i);
@@ -690,7 +692,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   if (ret != 0) {
     errx(1, "sigaction failed");
   }
-  if (sa.sa_sigaction != NULL && sa.sa_sigaction != jit_handle_sigsegv) {
+  if ((sa.sa_sigaction != NULL) && (sa.sa_sigaction != jit_handle_sigsegv)) {
     errx(1, "conflicting SIGSEGV handler");
   }
 }
