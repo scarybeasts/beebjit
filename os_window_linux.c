@@ -215,6 +215,14 @@ os_window_destroy(struct os_window_struct* p_window) {
 }
 
 void
+os_window_set_name(struct os_window_struct* p_window, const char* p_name) {
+  int ret = XStoreName(p_window->d, p_window->w, p_name);
+  if (ret != 1) {
+    errx(1, "XStoreName failed");
+  }
+}
+
+void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
   p_window->p_keyboard = p_keyboard;
