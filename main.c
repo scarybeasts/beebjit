@@ -60,7 +60,7 @@ main(int argc, const char* argv[]) {
   int headless_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
-  int mode = k_cpu_mode_interp;
+  int mode = k_cpu_mode_jit;
   uint64_t cycles = 0;
   uint32_t expect = 0;
 
