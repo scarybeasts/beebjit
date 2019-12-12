@@ -172,6 +172,26 @@ main(int argc, const char* argv[]) {
     errx(1, "can't load OS rom");
   }
 
+  if (terminal_flag) {
+    /* If we're in terminal mode and it appears to be an OS v1.2 MOS ROM,
+     * patch some default data values to enable serial I/O from boot.
+     */
+    if (memcmp(&os_rom[0x2825], "OS 1.2", 6) == 0) {
+      /* This is *FX2,1, aka. RS423 for input. */
+      os_rom[0xD981 - 0xC000] = 1;
+      /* For our *FX2,1 hack to work, we also need to change the default ACIA
+       * control register value to enable receive interrupts.
+       * Enabling transmit interrupts crashes due to an unexpected early IRQ.
+       */
+      os_rom[0xD990 - 0xC000] = 0x96;
+      /* This is *FX3,5, aka. screen and RS423 for output.
+       * This works without needing to hack on the ACIA transmit interrupt. I
+       * am unsure why.
+       */
+      os_rom[0xD9BC - 0xC000] = 5;
+    }
+  }
+
   if (test_flag) {
     mode = k_cpu_mode_jit;
   }
