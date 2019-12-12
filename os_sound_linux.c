@@ -226,8 +226,6 @@ os_sound_handle_xrun(struct os_sound_struct* p_driver) {
   snd_pcm_t* playback_handle = p_driver->playback_handle;
   int ret = snd_pcm_prepare(playback_handle);
 
-  printf("sound: xrun\n");
-
   if (ret != 0) {
     errx(1, "snd_pcm_prepare failed");
   }
