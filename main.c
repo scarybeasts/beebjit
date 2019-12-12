@@ -24,15 +24,12 @@ main(int argc, const char* argv[]) {
   uint8_t os_rom[k_bbc_rom_size];
   uint8_t load_rom[k_bbc_rom_size];
   int i;
-  struct os_window_struct* p_window;
   struct os_poller_struct* p_poller;
-  struct os_sound_struct* p_sound_driver;
   struct bbc_struct* p_bbc;
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
   struct render_struct* p_render;
-  uintptr_t window_handle;
-  uintptr_t bbc_handle;
+  intptr_t bbc_handle;
   uint32_t run_result;
   uint32_t* p_render_buffer;
 
@@ -42,6 +39,9 @@ main(int argc, const char* argv[]) {
   const char* disc_names[2] = {};
   struct util_file_map* p_disc_maps[2] = {};
 
+  struct os_window_struct* p_window = NULL;
+  struct os_sound_struct* p_sound_driver = NULL;
+  intptr_t window_handle = -1;
   const char* os_rom_name = "roms/os12.rom";
   const char* load_name = NULL;
   const char* capture_name = NULL;
@@ -57,6 +57,7 @@ main(int argc, const char* argv[]) {
   int disc_writeable_flag = 0;
   int disc_mutable_flag = 0;
   int terminal_flag = 0;
+  int headless_flag = 0;
   int debug_stop_addr = 0;
   int pc = 0;
   int mode = k_cpu_mode_interp;
@@ -161,6 +162,8 @@ main(int argc, const char* argv[]) {
       disc_mutable_flag = 1;
     } else if (!strcmp(arg, "-terminal")) {
       terminal_flag = 1;
+    } else if (!strcmp(arg, "-headless")) {
+      headless_flag = 1;
     }
   }
 
@@ -291,22 +294,26 @@ main(int argc, const char* argv[]) {
   }
 
   p_render = bbc_get_render(p_bbc);
-  p_window = os_window_create(render_get_width(p_render),
-                              render_get_height(p_render));
-  if (p_window == NULL) {
-    errx(1, "os_window_create failed");
-  }
-  os_window_set_keyboard_callback(p_window, p_keyboard);
-  p_render_buffer = os_window_get_buffer(p_window);
-  render_set_buffer(p_render, p_render_buffer);
 
   p_poller = os_poller_create();
   if (p_poller == NULL) {
     errx(1, "os_poller_create failed");
   }
 
-  p_sound_driver = NULL;
-  if (!util_has_option(opt_flags, "sound:off")) {
+  if (!headless_flag) {
+    p_window = os_window_create(render_get_width(p_render),
+                                render_get_height(p_render));
+    if (p_window == NULL) {
+      errx(1, "os_window_create failed");
+    }
+    os_window_set_keyboard_callback(p_window, p_keyboard);
+    p_render_buffer = os_window_get_buffer(p_window);
+    render_set_buffer(p_render, p_render_buffer);
+
+    window_handle = os_window_get_handle(p_window);
+  }
+
+  if (!headless_flag && !util_has_option(opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
     uint32_t sound_sample_rate = 0;
@@ -335,10 +342,11 @@ main(int argc, const char* argv[]) {
 
   bbc_run_async(p_bbc);
 
-  window_handle = os_window_get_handle(p_window);
-  os_poller_add_handle(p_poller, window_handle);
   bbc_handle = bbc_get_client_handle(p_bbc);
   os_poller_add_handle(p_poller, bbc_handle);
+  if (window_handle != -1) {
+    os_poller_add_handle(p_poller, window_handle);
+  }
 
   p_video = bbc_get_video(p_bbc);
 
@@ -346,9 +354,6 @@ main(int argc, const char* argv[]) {
     os_poller_poll(p_poller);
 
     if (os_poller_handle_triggered(p_poller, 0)) {
-      os_window_process_events(p_window);
-    }
-    if (os_poller_handle_triggered(p_poller, 1)) {
       struct bbc_message message;
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
@@ -357,16 +362,21 @@ main(int argc, const char* argv[]) {
         int do_full_paint;
         assert(message.data[0] == k_message_vsync);
         do_full_paint = message.data[1];
-        if (do_full_paint) {
-          video_render_full_frame(p_video);
+        if (!headless_flag) {
+          if (do_full_paint) {
+            video_render_full_frame(p_video);
+          }
+          render_double_up_lines(p_render);
+          os_window_sync_buffer_to_screen(p_window);
         }
-        render_double_up_lines(p_render);
-        os_window_sync_buffer_to_screen(p_window);
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           message.data[0] = k_message_render_done;
           bbc_client_send_message(p_bbc, &message);
         }
       }
+    }
+    if ((window_handle != -1) && os_poller_handle_triggered(p_poller, 1)) {
+      os_window_process_events(p_window);
     }
   }
 
@@ -378,7 +388,9 @@ main(int argc, const char* argv[]) {
   }
 
   os_poller_destroy(p_poller);
-  os_window_destroy(p_window);
+  if (p_window != NULL) {
+    os_window_destroy(p_window);
+  }
   bbc_destroy(p_bbc);
 
   if (p_sound_driver != NULL) {
