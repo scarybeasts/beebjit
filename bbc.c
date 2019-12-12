@@ -386,6 +386,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
     return;
   }
 
+  p_bbc->is_romsel_invalidated = 0;
+
   curr_is_ram = (p_bbc->is_sideways_ram_bank[effective_curr_bank] != 0);
   new_is_ram = (p_bbc->is_sideways_ram_bank[effective_new_bank] != 0);
 
