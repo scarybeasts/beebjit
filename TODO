@@ -18,8 +18,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix Dragonsoft Explorer.
 - Fix pi.ssd (uses JMP ($..FF)).
 - Fix IRA read and keyboard bus dominance.
-- Fix Enjoy the Silence sampled playback.
-- Fix whiny pitch on sound output (poor resample?)
 - Make timing.c not suck for performance.
 - Add interlace support to the 6845 CRTC (Revs is a mess).
 - Add cursor support to the 6845 CRTC.

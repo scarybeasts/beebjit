@@ -40,6 +40,12 @@ struct sound_struct {
   int16_t* p_driver_frames;
   int16_t* p_sn_frames;
 
+  /* Resampling. */
+  double average_sample_value;
+  double average_sample_count;
+  double resample_index;
+  uint32_t next_sample_start_index;
+
   /* sn76489 state. */
   uint16_t counter[k_sound_num_channels];
   uint8_t output[k_sound_num_channels];
@@ -135,29 +141,64 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
 
 static uint32_t
 sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
-  uint32_t i;
+  uint32_t sn_frames_index;
 
   int16_t* p_driver_frames = p_sound->p_driver_frames;
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   double resample_step = p_sound->sn_frames_per_driver_frame;
-  double resample_index = 0;
   uint32_t num_sn_frames = p_sound->sn_frames_filled;
-  uint32_t num_driver_frames = (num_sn_frames / resample_step);
+  uint32_t num_driver_frames = 0;
 
-  assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
-  assert(num_driver_frames <= p_sound->driver_buffer_size);
+  /* Carry-over from prevous resample chunk. */
+  double average_sample_value = p_sound->average_sample_value;
+  double average_sample_count = p_sound->average_sample_count;
+  double resample_index = p_sound->resample_index;
+  uint32_t next_sample_start_index = p_sound->next_sample_start_index;
 
   p_sound->sn_frames_filled = 0;
 
-  /* Downsample it to host device rate via simple nearest integer index
-   * selection.
+  /* Downsample it to host device rate via average of sample values.
+   * Sampled sound playback is very sensitive to the quality of downsampling,
+   * so even the splitting of the border sample value into fractions is
+   * important.
    */
-  for (i = 0; i < num_driver_frames; ++i) {
-    uint32_t index = round(resample_index);
-    assert(index < p_sound->sn_frames_per_driver_buffer_size);
-    p_driver_frames[i] = p_sn_frames[index];
-    resample_index += resample_step;
+  for (sn_frames_index = 0;
+       (sn_frames_index < num_sn_frames);
+       ++sn_frames_index) {
+    double this_sample_value = p_sn_frames[sn_frames_index];
+
+    if (sn_frames_index == next_sample_start_index) {
+      if (average_sample_count) {
+        double dummy;
+        double fraction_this = modf(next_sample_start_index, &dummy);
+        double fraction_next = (1.0 - fraction_this);
+        average_sample_value += (fraction_this * this_sample_value);
+        average_sample_count += fraction_this;
+        average_sample_value /= average_sample_count;
+        p_driver_frames[num_driver_frames] = average_sample_value;
+        num_driver_frames++;
+        average_sample_value = (fraction_next * this_sample_value);
+        average_sample_count = fraction_next;
+      }
+
+      resample_index += resample_step;
+      next_sample_start_index = ceil(resample_index);
+    } else {
+      average_sample_value += this_sample_value;
+      average_sample_count++;
+    }
   }
+
+  /* Preserve resample state so we don't lose precision as we cross resample
+   * chunks.
+   */
+  p_sound->average_sample_value = average_sample_value;
+  p_sound->average_sample_count = average_sample_count;
+  p_sound->resample_index = (resample_index - num_sn_frames);
+  p_sound->next_sample_start_index = (next_sample_start_index - num_sn_frames);
+
+  assert(p_sound->resample_index < resample_step);
+  assert(num_driver_frames <= p_sound->driver_buffer_size);
 
   return num_driver_frames;
 }
@@ -206,6 +247,11 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
+
+  p_sound->average_sample_value = 0.0;
+  p_sound->average_sample_count = 0.0;
+  p_sound->resample_index = 0.0;
+  p_sound->next_sample_start_index = 0;
 
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
