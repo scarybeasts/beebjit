@@ -8,7 +8,7 @@
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
-static const uint32_t k_os_sound_default_rate = 44100;
+static const uint32_t k_os_sound_default_rate = 48000;
 static const uint32_t k_os_sound_default_buffer_size = 512;
 static const uint32_t k_os_sound_default_num_periods = 4;
 
