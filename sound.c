@@ -32,6 +32,7 @@ struct sound_struct {
   double sn_frames_per_driver_frame;
   uint32_t sn_frames_per_driver_buffer_size;
   int16_t volumes[16];
+  int16_t volume_silence;
 
   /* Internal state. */
   int thread_running;
@@ -78,6 +79,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
   uint16_t* p_counters = &p_sound->counter[0];
   uint8_t* p_outputs = &p_sound->output[0];
   uint32_t sn_frames_filled = p_sound->sn_frames_filled;
+  int16_t volume_silence = p_sound->volume_silence;
 
   if ((sn_frames_filled + num_frames) >
       p_sound->sn_frames_per_driver_buffer_size) {
@@ -90,7 +92,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
       /* Tick the sn76489 clock and see if any timers expire. Flip the flip
        * flops if they do.
        */
-      int16_t sample_component = p_volumes[channel];
+      int16_t sample_component = volume_silence;
       uint16_t counter = p_counters[channel];
       uint8_t output = p_outputs[channel];
       int is_noise = 0;
@@ -129,7 +131,9 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
 
       p_counters[channel] = counter;
 
-      sample_component *= output;
+      if (output) {
+        sample_component = p_volumes[channel];
+      }
       sample += sample_component;
     }
     p_sn_frames[sn_frames_filled + i] = sample;
@@ -251,8 +255,8 @@ sound_play_thread(void* p) {
 struct sound_struct*
 sound_create(int synchronous, struct timing_struct* p_timing) {
   size_t i;
-  double volume;
-  int16_t max_volume;
+  double volume_scale;
+  int16_t volume_max;
 
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
@@ -274,18 +278,28 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
 
-  volume = 1.0;
+  volume_scale = 1.0;
   i = 16;
   do {
+    int32_t volume;
     i--;
     if (i == 0) {
-      volume = 0.0;
+      volume_scale = 0.0;
     }
-    p_sound->volumes[i] = (32767 * volume) / 4.0;
-    volume *= pow(10.0, -0.1);
+    volume = (32767 * volume_scale);
+    /* EMU: surprise! The SN76489 outputs positive voltage for silence and no
+     * voltage for max volume. The voltage output on the SN76489 sound output
+     * pin ranges from ~0 - ~3.6v.
+     */
+    volume = (32767 - volume);
+    /* Apportion the full volume range equally across the 4 channels. */
+    volume /= 4;
+    p_sound->volumes[i] = volume;
+    volume_scale *= pow(10.0, -0.1);
   } while (i > 0);
 
-  max_volume = p_sound->volumes[0xf];
+  volume_max = p_sound->volumes[0xf];
+  p_sound->volume_silence = p_sound->volumes[0];
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -301,7 +315,7 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
    */
   for (i = 0; i < 4; ++i) {
     /* NOTE: b-em uses volume of 8, mid-way volume. */
-    p_sound->volume[i] = max_volume;
+    p_sound->volume[i] = volume_max;
     /* NOTE: b-em == 0x3ff, b2 == 0x3ff, jsbeeb == 0 -> 0x3ff, MAME == 0 -> 0.
      * I'm willing to bet jsbeeb is closest but still wrong. jsbeeb flips the
      * output signal to positive immediately as it traverses -1.
