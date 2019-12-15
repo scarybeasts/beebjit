@@ -65,7 +65,12 @@ struct sound_struct {
 };
 
 static void
-sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
+sound_fill_sn76489_buffer(struct sound_struct* p_sound,
+                          uint32_t num_frames,
+                          int16_t* p_volumes,
+                          uint16_t* p_periods,
+                          uint16_t noise_rng,
+                          int noise_type) {
   uint32_t i;
   uint8_t channel;
 
@@ -73,11 +78,6 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
   uint16_t* p_counters = &p_sound->counter[0];
   uint8_t* p_outputs = &p_sound->output[0];
   uint32_t sn_frames_filled = p_sound->sn_frames_filled;
-  /* These are written by another thread. */
-  volatile int16_t* p_volumes = &p_sound->volume[0];
-  volatile uint16_t* p_periods = &p_sound->period[0];
-  volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
-  volatile int* p_noise_type = &p_sound->noise_type;
 
   if ((sn_frames_filled + num_frames) >
       p_sound->sn_frames_per_driver_buffer_size) {
@@ -93,7 +93,6 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
       int16_t sample_component = p_volumes[channel];
       uint16_t counter = p_counters[channel];
       uint8_t output = p_outputs[channel];
-      uint16_t noise_rng = *p_noise_rng;
       int is_noise = 0;
       if (channel == 3) {
         is_noise = 1;
@@ -111,7 +110,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
            * they really are. This might mirror the real silicon? It avoids
            * needing more than 10 bits to store the period.
            */
-          if (*p_noise_type == 0) {
+          if (noise_type == 0) {
             noise_rng >>= 1;
             if (noise_rng == 0) {
               noise_rng = (1 << 14);
@@ -120,7 +119,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound, uint32_t num_frames) {
             int bit = ((noise_rng & 1) ^ ((noise_rng & 2) >> 1));
             noise_rng = ((noise_rng >> 1) | (bit << 14));
           }
-          *p_noise_rng = noise_rng;
+          p_sound->noise_rng = noise_rng;
         }
       }
 
@@ -205,18 +204,37 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
 
 static void*
 sound_play_thread(void* p) {
+  int16_t volume[4];
+  uint16_t period[4];
+
   struct sound_struct* p_sound = (struct sound_struct*) p;
   struct os_sound_struct* p_sound_driver = p_sound->p_driver;
+
+  /* We read these but the main thread writes them. */
   volatile int* p_do_exit = &p_sound->do_exit;
+  volatile int16_t* p_volume = &p_sound->volume[0];
+  volatile uint16_t* p_period = &p_sound->period[0];
+  volatile uint16_t* p_noise_rng = &p_sound->noise_rng;
+  volatile int* p_noise_type = &p_sound->noise_type;
 
   while (!*p_do_exit) {
+    uint32_t i;
     uint32_t num_driver_frames = os_sound_wait_for_frame_space(p_sound_driver);
     uint32_t num_sn_frames = (num_driver_frames *
                               p_sound->sn_frames_per_driver_frame);
     assert(num_driver_frames <= p_sound->driver_buffer_size);
     assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
 
-    sound_fill_sn76489_buffer(p_sound, num_sn_frames);
+    for (i = 0; i < 4; ++i) {
+      volume[i] = p_volume[i];
+      period[i] = p_period[i];
+    }
+    sound_fill_sn76489_buffer(p_sound,
+                              num_sn_frames,
+                              volume,
+                              period,
+                              *p_noise_rng,
+                              *p_noise_type);
 
     /* Note: num_driver_frames may be one less than desired due to rounding
      * down.
@@ -421,7 +439,12 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
     delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
 
-  sound_fill_sn76489_buffer(p_sound, delta_sn_ticks);
+  sound_fill_sn76489_buffer(p_sound,
+                            delta_sn_ticks,
+                            &p_sound->volume[0],
+                            &p_sound->period[0],
+                            p_sound->noise_rng,
+                            p_sound->noise_type);
 
   p_sound->prev_system_ticks = curr_system_ticks;
 }
