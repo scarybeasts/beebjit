@@ -97,6 +97,7 @@ struct video_struct {
   uint64_t prev_system_ticks;
   int timer_fire_expect_vsync_start;
   int timer_fire_expect_vsync_end;
+  int clock_speed_changing;
 
   /* Video ULA state. */
   uint8_t video_ula_control;
@@ -205,13 +206,20 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->address_counter_next_row = address_counter;
 }
 
+static inline int
+video_get_clock_speed(struct video_struct* p_video) {
+  return !!(p_video->video_ula_control & k_ula_clock_speed);
+}
+
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t scanline_stride;
   uint8_t scanline_mask;
   uint32_t bbc_address;
   uint8_t data;
-  uint64_t advanced_to_system_ticks;
+  uint64_t advance_to_system_ticks;
+  uint64_t tick_to_system_ticks;
+  uint64_t delta_crtc_ticks;
 
   int r0_hit;
   int r1_hit;
@@ -228,9 +236,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  uint64_t delta_system_ticks = (curr_system_ticks -
-                                 p_video->prev_system_ticks);
-  uint64_t delta_crtc_ticks = delta_system_ticks;
+  int odd_ticks = (curr_system_ticks & 1);
+  int clock_speed = video_get_clock_speed(p_video);
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
@@ -260,17 +267,39 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     scanline_mask = 0x1F;
   }
 
-  if (!(p_video->video_ula_control & k_ula_clock_speed)) {
-    assert(!(p_video->prev_system_ticks & 1));
-    /* 1MHz mode => CRTC ticks pass at half rate. */
-    delta_crtc_ticks /= 2;
+  advance_to_system_ticks = curr_system_ticks;
+  tick_to_system_ticks = curr_system_ticks;
+
+  if (p_video->clock_speed_changing && odd_ticks) {
+    /* EMU: switching clock speeds on an odd system tick is a tricky operation
+     * in software and hardware.
+     * In both cases, the timing tweaks below effectively stretch one tick
+     * out a bit in order to keep things in order.
+     */
+    if (clock_speed == 0) {
+      /* About to switch 1MHz -> 2MHz. */
+      tick_to_system_ticks--;
+    } else {
+      /* About to switch 2MHz -> 1MHz. */
+      advance_to_system_ticks--;
+      tick_to_system_ticks--;
+    }
+  } else if ((clock_speed == 0) && odd_ticks) {
     /* In 1MHz mode we might be advancing CRTC time at the half-cycle point.
      * This can occur for example upon a video ULA change (palette or control
      * registers), because the video ULA runs at 2MHz for register updates.
      */
-    advanced_to_system_ticks = (curr_system_ticks & ~1);
-  } else {
-    advanced_to_system_ticks = curr_system_ticks;
+    advance_to_system_ticks--;
+    tick_to_system_ticks--;
+  }
+
+  delta_crtc_ticks = (tick_to_system_ticks - p_video->prev_system_ticks);
+
+  if (clock_speed == 0) {
+    assert(!(p_video->prev_system_ticks & 1));
+    assert(!(delta_crtc_ticks & 1));
+    /* 1MHz mode => CRTC ticks pass at half rate. */
+    delta_crtc_ticks /= 2;
   }
 
   while (delta_crtc_ticks--) {
@@ -387,7 +416,8 @@ start_new_frame:
         func_render_data : func_render_blank;
   }
 
-  p_video->prev_system_ticks = advanced_to_system_ticks;
+  p_video->clock_speed_changing = 0;
+  p_video->prev_system_ticks = advance_to_system_ticks;
 }
 
 static void
@@ -403,11 +433,6 @@ video_init_timer(struct video_struct* p_video) {
 static inline int
 video_get_flash(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_flash);
-}
-
-static inline int
-video_get_clock_speed(struct video_struct* p_video) {
-  return !!(p_video->video_ula_control & k_ula_clock_speed);
 }
 
 static void
@@ -1061,53 +1086,61 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t index;
   uint8_t rgbf;
 
-  if (!p_video->externally_clocked) {
-    video_advance_crtc_timing(p_video);
-  }
+  int old_flash;
+  int new_flash;
 
-  if (addr == 0) {
-    int new_flash;
-
-    int old_clock_speed = video_get_clock_speed(p_video);
-    int old_flash = video_get_flash(p_video);
-
-    p_video->video_ula_control = val;
-
-    new_flash = video_get_flash(p_video);
-
+  if (addr == 1) {
+    /* Palette register. */
     if (!p_video->externally_clocked) {
-      int new_clock_speed = video_get_clock_speed(p_video);
-      if (old_clock_speed != new_clock_speed) {
-//printf("prev ticks curr ticks %zu %zu\n", p_video->prev_system_ticks, timing_get_total_timer_ticks(p_video->p_timing));
-        p_video->prev_system_ticks = timing_get_total_timer_ticks(p_video->p_timing);
-        video_update_timer(p_video);
-      }
+      video_advance_crtc_timing(p_video);
     }
 
-    if (old_flash != new_flash) {
-      uint32_t i;
-      for (i = 0; i < 16; ++i) {
-        if (p_video->ula_palette[i] & 0x8) {
-          video_update_real_color(p_video, i);
-        }
-      }
-    }
+    index = (val >> 4);
+    /* The xor is to map incoming color to real physical color. e.g. MOS writes
+     * 7 for black, which xors to 0, which is the number for physical black.
+     */
+    rgbf = ((val & 0x0F) ^ 0x7);
+    p_video->ula_palette[index] = rgbf;
 
-    video_mode_updated(p_video);
+    video_update_real_color(p_video, index);
 
     return;
   }
 
-  assert(addr == 1);
+  /* Video ULA control register. */
+  assert(addr == 0);
 
-  index = (val >> 4);
-  /* The xor is to map incoming color to real physical color. e.g. MOS writes
-   * 7 for black, which xors to 0, which is the number for physical black.
-   */
-  rgbf = ((val & 0x0F) ^ 0x7);
-  p_video->ula_palette[index] = rgbf;
+  old_flash = video_get_flash(p_video);
 
-  video_update_real_color(p_video, index);
+  if (!p_video->externally_clocked) {
+    int old_clock_speed = video_get_clock_speed(p_video);
+    int new_clock_speed = !!(val & k_ula_clock_speed);
+    int clock_speed_changing = (new_clock_speed != old_clock_speed);
+
+    p_video->clock_speed_changing = clock_speed_changing;
+
+    video_advance_crtc_timing(p_video);
+
+    p_video->video_ula_control = val;
+
+    if (clock_speed_changing) {
+      video_update_timer(p_video);
+    }
+  } else {
+    p_video->video_ula_control = val;
+  }
+
+  new_flash = video_get_flash(p_video);
+  if (old_flash != new_flash) {
+    uint32_t i;
+    for (i = 0; i < 16; ++i) {
+      if (p_video->ula_palette[i] & 0x8) {
+        video_update_real_color(p_video, i);
+      }
+    }
+  }
+
+  video_mode_updated(p_video);
 }
 
 uint8_t
