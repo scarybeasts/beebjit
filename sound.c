@@ -1,5 +1,6 @@
 #include "sound.h"
 
+#include "bbc_options.h"
 #include "os_sound.h"
 #include "os_thread.h"
 #include "timing.h"
@@ -253,10 +254,13 @@ sound_play_thread(void* p) {
 }
 
 struct sound_struct*
-sound_create(int synchronous, struct timing_struct* p_timing) {
+sound_create(int synchronous,
+             struct timing_struct* p_timing,
+             struct bbc_options* p_options) {
   size_t i;
   double volume_scale;
   int16_t volume_max;
+  int positive_silence;
 
   struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
   if (p_sound == NULL) {
@@ -278,6 +282,9 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
 
+  positive_silence = util_has_option(p_options->p_opt_flags,
+                                     "sound:positive-silence");
+
   volume_scale = 1.0;
   i = 16;
   do {
@@ -290,8 +297,13 @@ sound_create(int synchronous, struct timing_struct* p_timing) {
     /* EMU: surprise! The SN76489 outputs positive voltage for silence and no
      * voltage for max volume. The voltage output on the SN76489 sound output
      * pin ranges from ~0 - ~3.6v.
+     * Unfortunately, a large constant output to the sound subsystem doesn't
+     * seem to mix well with other sounds, so default is zero voltage for
+     * silence.
      */
-    volume = (32767 - volume);
+    if (positive_silence) {
+      volume = (32767 - volume);
+    }
     /* Apportion the full volume range equally across the 4 channels. */
     volume /= 4;
     p_sound->volumes[i] = volume;

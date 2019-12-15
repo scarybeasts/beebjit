@@ -3,13 +3,15 @@
 
 #include <stdint.h>
 
+struct bbc_options;
 struct os_sound_struct;
 struct timing_struct;
 
 struct sound_struct;
 
 struct sound_struct* sound_create(int synchronous,
-                                  struct timing_struct* p_timing);
+                                  struct timing_struct* p_timing,
+                                  struct bbc_options* p_options);
 void sound_destroy(struct sound_struct* p_sound);
 
 void sound_set_driver(struct sound_struct* p_sound,

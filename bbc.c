@@ -813,7 +813,7 @@ bbc_create(int mode,
     errx(1, "keyboard_create failed");
   }
 
-  p_bbc->p_sound = sound_create(synchronous_sound, p_timing);
+  p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
   if (p_bbc->p_sound == NULL) {
     errx(1, "sound_create failed");
   }
