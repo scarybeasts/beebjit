@@ -113,6 +113,8 @@ struct video_struct {
   uint8_t crtc_registers[k_crtc_num_registers];
   int is_interlace_sync_and_video;
   int is_master_display_enable;
+  uint8_t hsync_pulse_width;
+  uint8_t vsync_pulse_width;
 
   /* 6845 state. */
   uint8_t horiz_counter;
@@ -245,11 +247,7 @@ static void
 video_set_vsync_raise_state(struct video_struct* p_video) {
   p_video->in_vsync = 1;
   p_video->had_vsync_this_frame = 1;
-  p_video->vsync_scanline_counter =
-      (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4);
-  if (p_video->vsync_scanline_counter == 0) {
-    p_video->vsync_scanline_counter = 16;
-  }
+  p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   via_set_CA1(p_video->p_system_via, 1);
 }
 
@@ -677,13 +675,11 @@ video_timer_fired(void* p) {
      * situations before deactivating rendering.
      */
     assert(!p_video->in_vert_adjust);
-    assert((p_video->crtc_registers[k_crtc_reg_sync_width] >> 4) != 0);
-    assert((p_video->crtc_registers[k_crtc_reg_sync_width] >> 4) <=
+    assert(p_video->vsync_pulse_width <=
            p_video->crtc_registers[k_crtc_reg_lines_per_character]);
 
     if (p_video->timer_fire_expect_vsync_start) {
-      assert(p_video->scanline_counter ==
-             (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4));
+      assert(p_video->scanline_counter == p_video->vsync_pulse_width);
       assert(p_video->vsync_scanline_counter == 0);
       video_set_vsync_raise_state(p_video);
       p_video->scanline_counter = 0;
@@ -692,13 +688,10 @@ video_timer_fired(void* p) {
       assert(p_video->in_vsync);
       assert(p_video->had_vsync_this_frame);
       assert(p_video->scanline_counter == 0);
-      assert(p_video->vsync_scanline_counter ==
-             (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4));
+      assert(p_video->vsync_scanline_counter == p_video->vsync_pulse_width);
       video_set_vsync_lower_state(p_video);
       p_video->vsync_scanline_counter = 0;
-      /* TODO: cache this derivative value. */
-      p_video->scanline_counter =
-          (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4);
+      p_video->scanline_counter = p_video->vsync_pulse_width;
     }
 
     p_video->prev_system_ticks =
@@ -867,7 +860,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
   p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
   /* Horiz sync pulse width 4, vertical sync pulse width 2. */
-  p_video->crtc_registers[k_crtc_reg_sync_width] = (4 | (2 << 4));
+  p_video->hsync_pulse_width = 4;
+  p_video->vsync_pulse_width = 2;
+  p_video->crtc_registers[k_crtc_reg_sync_width] =
+      (p_video->hsync_pulse_width | (p_video->vsync_pulse_width << 4));
   p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
   p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
   p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
@@ -1299,8 +1295,8 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
 
 void
 video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
-  uint8_t hsync_width;
-  uint8_t vsync_width;
+  uint8_t hsync_pulse_width;
+  uint8_t vsync_pulse_width;
   uint8_t reg;
 
   uint8_t mask = 0xFF;
@@ -1336,14 +1332,19 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     break;
   /* R3 */
   case k_crtc_reg_sync_width:
-    hsync_width = (val & 0xF);
-    if ((hsync_width != 8) && (hsync_width != 4)) {
-      printf("LOG:CRTC:unusual hsync width: %d\n", hsync_width);
+    hsync_pulse_width = (val & 0xF);
+    if ((hsync_pulse_width != 8) && (hsync_pulse_width != 4)) {
+      printf("LOG:CRTC:unusual hsync pulse width: %d\n", hsync_pulse_width);
     }
-    vsync_width = (val >> 4);
-    if (vsync_width != 2) {
-      printf("LOG:CRTC:unusual vsync width: %d\n", vsync_width);
+    vsync_pulse_width = (val >> 4);
+    if (vsync_pulse_width == 0) {
+      vsync_pulse_width = 16;
     }
+    if (vsync_pulse_width != 2) {
+      printf("LOG:CRTC:unusual vsync pulse width: %d\n", vsync_pulse_width);
+    }
+    p_video->hsync_pulse_width = hsync_pulse_width;
+    p_video->vsync_pulse_width = vsync_pulse_width;
     break;
   /* R4 */
   case k_crtc_reg_vert_total:
@@ -1362,7 +1363,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     mask = 0x7F;
     break;
   case k_crtc_reg_interlace:
-    mask = 0xFF;
     p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
     p_video->is_master_display_enable = ((val & 0x30) != 0x30);
     break;
@@ -1388,7 +1388,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R13 */
   case k_crtc_reg_mem_addr_low:
     does_not_change_framing = 1;
-    mask = 0xFF;
     break;
   /* R14 */
   case k_crtc_reg_cursor_high:
@@ -1398,7 +1397,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R15 */
   case k_crtc_reg_cursor_low:
     does_not_change_framing = 1;
-    mask = 0xFF;
     break;
   default:
     break;
