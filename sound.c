@@ -193,6 +193,9 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
     }
   }
 
+  assert(p_sound->resample_index < resample_step);
+  assert(num_driver_frames <= p_sound->driver_buffer_size);
+
   /* Preserve resample state so we don't lose precision as we cross resample
    * chunks.
    */
@@ -200,9 +203,6 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   p_sound->average_sample_count = average_sample_count;
   p_sound->resample_index = (resample_index - num_sn_frames);
   p_sound->next_sample_start_index = (next_sample_start_index - num_sn_frames);
-
-  assert(p_sound->resample_index < resample_step);
-  assert(num_driver_frames <= p_sound->driver_buffer_size);
 
   return num_driver_frames;
 }
@@ -401,7 +401,7 @@ sound_set_driver(struct sound_struct* p_sound,
   p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
                                          (double) sample_rate);
   p_sound->sn_frames_per_driver_buffer_size =
-      ceil(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
+      floor(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
 
   p_sound->p_driver_frames = malloc(driver_buffer_size * sizeof(int16_t));
   if (p_sound->p_driver_frames == NULL) {
