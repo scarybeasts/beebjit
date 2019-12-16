@@ -600,13 +600,15 @@ bbc_cpu_receive_message(struct bbc_struct* p_bbc,
 }
 
 static void
-bbc_framebuffer_ready_callback(void* p, int do_paint, int framing_changed) {
+bbc_framebuffer_ready_callback(void* p,
+                               int do_full_render,
+                               int framing_changed) {
   struct bbc_message message;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   message.data[0] = k_message_vsync;
-  message.data[1] = do_paint;
+  message.data[1] = do_full_render;
   message.data[2] = framing_changed;
   bbc_cpu_send_message(p_bbc, &message);
   if (bbc_get_vsync_wait_for_render(p_bbc)) {

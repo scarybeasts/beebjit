@@ -360,13 +360,13 @@ main(int argc, const char* argv[]) {
       if (message.data[0] == k_message_exited) {
         break;
       } else {
-        int do_full_paint;
+        int do_full_render;
         int framing_changed;
         assert(message.data[0] == k_message_vsync);
-        do_full_paint = message.data[1];
+        do_full_render = message.data[1];
         framing_changed = message.data[2];
         if (!headless_flag) {
-          if (do_full_paint) {
+          if (do_full_render) {
             video_render_full_frame(p_video);
           }
           render_double_up_lines(p_render);

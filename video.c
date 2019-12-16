@@ -86,6 +86,7 @@ struct video_struct {
   struct render_struct* p_render;
   int render_mode;
   int is_framing_changed;
+  int is_wall_time_vsync_hit;
 
   /* Options. */
   uint32_t frames_skip;
@@ -214,13 +215,13 @@ video_get_clock_speed(struct video_struct* p_video) {
 
 static void
 video_do_paint(struct video_struct* p_video) {
-  int do_full_paint = p_video->externally_clocked;
+  int do_full_render = p_video->externally_clocked;
   /* TODO: make MODE7 work with the CRTC implementation. */
   if (p_video->render_mode == k_render_mode7) {
-    do_full_paint = 1;
+    do_full_render = 1;
   }
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
-                                        do_full_paint,
+                                        do_full_render,
                                         p_video->is_framing_changed);
   p_video->is_framing_changed = 0;
 }
@@ -744,6 +745,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
   p_video->is_framing_changed = 0;
+  p_video->is_wall_time_vsync_hit = 1;
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
@@ -879,6 +881,17 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
+  if (p_video->frame_skip_counter == 0) {
+    /* In accurate + fast mode, we use the wall time 50Hz tick to decide
+     * which super fast virtual frames to render and which (the majority) to
+     * not render and just maintain timing for.
+     */
+    p_video->is_wall_time_vsync_hit = 1;
+    p_video->frame_skip_counter = p_video->frames_skip;
+  } else {
+    p_video->frame_skip_counter--;
+  }
+
   if (!p_video->externally_clocked) {
     return;
   }
@@ -887,12 +900,12 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   via_set_CA1(p_system_via, 0);
   via_set_CA1(p_system_via, 1);
 
-  if (p_video->frame_skip_counter == 0) {
-    video_do_paint(p_video);
-    p_video->frame_skip_counter = p_video->frames_skip;
-  } else {
-    p_video->frame_skip_counter--;
+  if (!p_video->is_wall_time_vsync_hit) {
+    return;
   }
+
+  video_do_paint(p_video);
+  p_video->is_wall_time_vsync_hit = 0;
 }
 
 static void
