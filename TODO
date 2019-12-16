@@ -1,27 +1,37 @@
 Bugs and improvements
 =====================
 
-Bugs: known bugs and deficiencies that are sufficiently egregious that they'll
+IMPORTANT
+=========
+Known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed.
 
 - Add README and EXAMPLES files.
+- Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
+Exile).
+- Fix pi.ssd (uses JMP ($..FF) which fails in JIT mode, maybe inturbo too).
+- Make timing.c not suck for performance.
+- Add interlace support to the 6845 CRTC (Revs is a mess).
+- Tricky's Scramble is a mess.
+- Investigate if the 1kHz system tick drives the audio too hard, or whether it
+can even block at that resolution.
+
+
+Fix later
+=========
+Bugs and issues not serious enough to warrant fixing before the next release.
+
 - JIT block timing code improvements. Currently, there's a non-trivial
 instruction sequence after every conditional branch in a JIT block. This
 sequence can be improved a lot. For example, there only needs to be a branch
 at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
-- Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
-Exile).
 - Fix joystick issue with "The Attic Bug in SameGame":
 http://bbcmicro.co.uk/game.php?id=1891
 - Fix Dragonsoft Explorer.
-- Fix pi.ssd (uses JMP ($..FF)).
 - Fix IRA read and keyboard bus dominance.
-- Make timing.c not suck for performance.
-- Add interlace support to the 6845 CRTC (Revs is a mess).
 - Add cursor support to the 6845 CRTC.
-- Tricky's Scramble is a mess.
 
 
 Ideas
