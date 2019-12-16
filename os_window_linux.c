@@ -243,6 +243,8 @@ os_window_get_handle(struct os_window_struct* p_window) {
 
 void
 os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
+  int ret;
+
   Bool bool_ret = XShmPutImage(p_window->d,
                                p_window->w,
                                p_window->gc,
@@ -256,6 +258,16 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
                                False);
   if (bool_ret != True) {
     errx(1, "XShmPutImage failed");
+  }
+
+  /* We need to sync here so that the server ack's it has finished the
+   * XShmPutImage.
+   * Clients of this function expect to be able to start writing to the buffer
+   * again immediately without affecting display.
+   */
+  ret = XSync(p_window->d, False);
+  if (ret != 1) {
+    errx(1, "XSync failed");
   }
 
   /* We need to check for X events here, in case a key event comes

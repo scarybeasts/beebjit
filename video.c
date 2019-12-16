@@ -79,12 +79,13 @@ struct video_struct {
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
   size_t video_timer_id;
-  void (*p_framebuffer_ready_callback)(void*, int);
+  void (*p_framebuffer_ready_callback)(void*, int, int);
   void* p_framebuffer_ready_object;
 
   /* Rendering. */
   struct render_struct* p_render;
   int render_mode;
+  int is_framing_changed;
 
   /* Options. */
   uint32_t frames_skip;
@@ -209,6 +210,19 @@ video_start_new_frame(struct video_struct* p_video) {
 static inline int
 video_get_clock_speed(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_clock_speed);
+}
+
+static void
+video_do_paint(struct video_struct* p_video) {
+  int do_full_paint = p_video->externally_clocked;
+  /* TODO: make MODE7 work with the CRTC implementation. */
+  if (p_video->render_mode == k_render_mode7) {
+    do_full_paint = 1;
+  }
+  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
+                                        do_full_paint,
+                                        p_video->is_framing_changed);
+  p_video->is_framing_changed = 0;
 }
 
 static void
@@ -394,6 +408,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         p_video->vsync_scanline_counter = 16;
       }
       via_set_CA1(p_video->p_system_via, 1);
+
+      video_do_paint(p_video);
+
       render_vsync(p_render);
     }
 
@@ -706,7 +723,9 @@ video_create(uint8_t* p_bbc_mem,
              struct render_struct* p_render,
              struct teletext_struct* p_teletext,
              struct via_struct* p_system_via,
-             void (*p_framebuffer_ready_callback)(void* p, int do_full_paint),
+             void (*p_framebuffer_ready_callback)(void* p,
+                                                  int do_full_paint,
+                                                  int framing_changed),
              void* p_framebuffer_ready_object,
              struct bbc_options* p_options) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
@@ -724,6 +743,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_system_via = p_system_via;
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
+  p_video->is_framing_changed = 0;
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
@@ -845,6 +865,7 @@ video_get_render(struct video_struct* p_video) {
 
 void
 video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
+  struct via_struct* p_system_via;
   uint64_t wall_time;
 
   wall_time = (p_video->wall_time + delta);
@@ -853,24 +874,21 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   if (wall_time < p_video->vsync_next_time) {
     return;
   }
+
   while (p_video->vsync_next_time <= wall_time) {
     p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
-  if (p_video->externally_clocked) {
-    struct via_struct* p_system_via = p_video->p_system_via;
-    via_set_CA1(p_system_via, 0);
-    via_set_CA1(p_system_via, 1);
+  if (!p_video->externally_clocked) {
+    return;
   }
 
+  p_system_via = p_video->p_system_via;
+  via_set_CA1(p_system_via, 0);
+  via_set_CA1(p_system_via, 1);
+
   if (p_video->frame_skip_counter == 0) {
-    int do_full_paint = p_video->externally_clocked;
-    /* TODO: make MODE7 work with the CRTC implementation. */
-    if (p_video->render_mode == k_render_mode7) {
-      do_full_paint = 1;
-    }
-    p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
-                                          do_full_paint);
+    video_do_paint(p_video);
     p_video->frame_skip_counter = p_video->frames_skip;
   } else {
     p_video->frame_skip_counter--;
@@ -1186,7 +1204,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t reg;
 
   uint8_t mask = 0xFF;
-  int does_not_change_timing = 0;
+  int does_not_change_framing = 0;
 
   if (addr == k_crtc_addr_reg) {
     p_video->crtc_address_register = (val & k_crtc_register_mask);
@@ -1258,32 +1276,32 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     break;
   /* R10 */
   case k_crtc_reg_cursor_start:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0x7F;
     break;
   /* R11 */
   case k_crtc_reg_cursor_end:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0x1F;
     break;
   /* R12 */
   case k_crtc_reg_mem_addr_high:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0x3F;
     break;
   /* R13 */
   case k_crtc_reg_mem_addr_low:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0xFF;
     break;
   /* R14 */
   case k_crtc_reg_cursor_high:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0x3F;
     break;
   /* R15 */
   case k_crtc_reg_cursor_low:
-    does_not_change_timing = 1;
+    does_not_change_framing = 1;
     mask = 0xFF;
     break;
   default:
@@ -1304,8 +1322,11 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
      p_video->scanline_counter &= ~1;
   }
 
-  if (!p_video->externally_clocked && !does_not_change_timing) {
-    video_update_timer(p_video);
+  if (!does_not_change_framing) {
+    if (!p_video->externally_clocked) {
+      video_update_timer(p_video);
+    }
+    p_video->is_framing_changed = 1;
   }
 }
 

@@ -19,7 +19,9 @@ struct video_struct* video_create(uint8_t* p_mem,
                                   struct teletext_struct* p_teletext,
                                   struct via_struct* p_system_via,
                                   void (*p_framebuffer_ready_callback)
-                                      (void* p, int do_paint),
+                                      (void* p,
+                                       int do_paint,
+                                       int framing_changed),
                                   void* p_framebuffer_ready_object,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);

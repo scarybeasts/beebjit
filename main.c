@@ -361,14 +361,23 @@ main(int argc, const char* argv[]) {
         break;
       } else {
         int do_full_paint;
+        int framing_changed;
         assert(message.data[0] == k_message_vsync);
         do_full_paint = message.data[1];
+        framing_changed = message.data[2];
         if (!headless_flag) {
           if (do_full_paint) {
             video_render_full_frame(p_video);
           }
           render_double_up_lines(p_render);
           os_window_sync_buffer_to_screen(p_window);
+          if (framing_changed) {
+            /* NOTE: in accurate mode, it would be more correct to clear the
+             * buffer from the framing change to the end of that frame, as well
+             * as for the next frame.
+             */
+            render_clear_buffer(p_render);
+          }
         }
         if (bbc_get_vsync_wait_for_render(p_bbc)) {
           message.data[0] = k_message_render_done;
