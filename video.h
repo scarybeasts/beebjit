@@ -23,6 +23,7 @@ struct video_struct* video_create(uint8_t* p_mem,
                                        int do_full_paint,
                                        int framing_changed),
                                   void* p_framebuffer_ready_object,
+                                  int* p_fast_flag,
                                   struct bbc_options* p_options);
 void video_destroy(struct video_struct* p_video);
 

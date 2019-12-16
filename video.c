@@ -81,12 +81,14 @@ struct video_struct {
   size_t video_timer_id;
   void (*p_framebuffer_ready_callback)(void*, int, int);
   void* p_framebuffer_ready_object;
+  int* p_fast_flag;
 
   /* Rendering. */
   struct render_struct* p_render;
   int render_mode;
   int is_framing_changed;
   int is_wall_time_vsync_hit;
+  int is_rendering_active;
 
   /* Options. */
   uint32_t frames_skip;
@@ -224,6 +226,37 @@ video_do_paint(struct video_struct* p_video) {
                                         do_full_render,
                                         p_video->is_framing_changed);
   p_video->is_framing_changed = 0;
+
+  if (p_video->externally_clocked) {
+    return;
+  }
+
+  /* If we're in fast mode and internally clocked, give rendering and painting
+   * a rest after each paint.
+   * We'll get prodded to start again by the 50Hz real time tick, which will
+   * get noticed in video_timer_fired().
+   */
+  if (*p_video->p_fast_flag) {
+    p_video->is_rendering_active = 0;
+  }
+}
+
+static void
+video_set_vsync_raise_state(struct video_struct* p_video) {
+  p_video->in_vsync = 1;
+  p_video->had_vsync_this_frame = 1;
+  p_video->vsync_scanline_counter =
+      (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4);
+  if (p_video->vsync_scanline_counter == 0) {
+    p_video->vsync_scanline_counter = 16;
+  }
+  via_set_CA1(p_video->p_system_via, 1);
+}
+
+static void
+video_set_vsync_lower_state(struct video_struct* p_video) {
+  p_video->in_vsync = 0;
+  via_set_CA1(p_video->p_system_via, 0);
 }
 
 static void
@@ -360,8 +393,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (p_video->in_vsync) {
       p_video->vsync_scanline_counter--;
       if (p_video->vsync_scanline_counter == 0) {
-        p_video->in_vsync = 0;
-        via_set_CA1(p_video->p_system_via, 0);
+        video_set_vsync_lower_state(p_video);
       }
     }
 
@@ -401,14 +433,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->display_enable_vert = 0;
     }
     if (r7_hit && !p_video->had_vsync_this_frame) {
-      p_video->in_vsync = 1;
-      p_video->had_vsync_this_frame = 1;
-      p_video->vsync_scanline_counter =
-          (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4);
-      if (p_video->vsync_scanline_counter == 0) {
-        p_video->vsync_scanline_counter = 16;
-      }
-      via_set_CA1(p_video->p_system_via, 1);
+      video_set_vsync_raise_state(p_video);
 
       video_do_paint(p_video);
 
@@ -606,7 +631,9 @@ video_update_timer(struct video_struct* p_video) {
    * This option here renders after each character row, leading to a more
    * accurate display at the cost of some performance.
    */
-  if (p_video->render_after_each_row && (timer_value > ticks_to_next_row)) {
+  if (p_video->render_after_each_row &&
+      p_video->is_rendering_active &&
+      (timer_value > ticks_to_next_row)) {
     timer_value = ticks_to_next_row;
     p_video->timer_fire_expect_vsync_start = 0;
     p_video->timer_fire_expect_vsync_end = 0;
@@ -625,10 +652,62 @@ video_timer_fired(void* p) {
 
 //printf("timer fired\n");
 
-  video_advance_crtc_timing(p_video);
+  /* If rendering is inactive, make it active again if we've hit a wall time
+   * vsync. If fast mode persists, it'll go inactive immediately after the
+   * render + paint in the video_advance_crtc_timing() call below.
+   */
+  if (!p_video->is_rendering_active &&
+      p_video->timer_fire_expect_vsync_end &&
+      p_video->is_wall_time_vsync_hit) {
+    p_video->is_rendering_active = 1;
+    p_video->is_wall_time_vsync_hit = 0;
+  }
+
+  if (p_video->is_rendering_active) {
+    video_advance_crtc_timing(p_video);
+  } else {
+    /* If we're in fast mode and skipping rendering, we'll need to short
+     * circuit the CRTC advance directly to the correct state.
+     */
+    assert(p_video->horiz_counter == 0);
+    assert(p_video->vert_counter ==
+           p_video->crtc_registers[k_crtc_reg_vert_sync_position]);
+
+    /* TODO: could happen. Not handled yet. Probably best to check for unusual
+     * situations before deactivating rendering.
+     */
+    assert(!p_video->in_vert_adjust);
+    assert((p_video->crtc_registers[k_crtc_reg_sync_width] >> 4) != 0);
+    assert((p_video->crtc_registers[k_crtc_reg_sync_width] >> 4) <=
+           p_video->crtc_registers[k_crtc_reg_lines_per_character]);
+
+    if (p_video->timer_fire_expect_vsync_start) {
+      assert(p_video->scanline_counter ==
+             (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4));
+      assert(p_video->vsync_scanline_counter == 0);
+      video_set_vsync_raise_state(p_video);
+      p_video->scanline_counter = 0;
+    } else {
+      assert(p_video->timer_fire_expect_vsync_end);
+      assert(p_video->in_vsync);
+      assert(p_video->had_vsync_this_frame);
+      assert(p_video->scanline_counter == 0);
+      assert(p_video->vsync_scanline_counter ==
+             (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4));
+      video_set_vsync_lower_state(p_video);
+      p_video->vsync_scanline_counter = 0;
+      /* TODO: cache this derivative value. */
+      p_video->scanline_counter =
+          (p_video->crtc_registers[k_crtc_reg_sync_width] >> 4);
+    }
+
+    p_video->prev_system_ticks =
+        timing_get_scaled_total_timer_ticks(p_video->p_timing);
+  }
 
   if (p_video->timer_fire_expect_vsync_start) {
     assert(p_video->in_vsync);
+    assert(p_video->had_vsync_this_frame);
     assert(p_video->vert_counter ==
            p_video->crtc_registers[k_crtc_reg_vert_sync_position]);
     assert(p_video->horiz_counter == 0);
@@ -728,6 +807,7 @@ video_create(uint8_t* p_bbc_mem,
                                                   int do_full_paint,
                                                   int framing_changed),
              void* p_framebuffer_ready_object,
+             int* p_fast_flag,
              struct bbc_options* p_options) {
   struct video_struct* p_video = malloc(sizeof(struct video_struct));
   if (p_video == NULL) {
@@ -744,8 +824,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_system_via = p_system_via;
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
+  p_video->p_fast_flag = p_fast_flag;
   p_video->is_framing_changed = 0;
   p_video->is_wall_time_vsync_hit = 1;
+  p_video->is_rendering_active = 1;
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
@@ -853,7 +935,7 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   }
 
   /* Changing the screen wrap addition could affect rendering, so catch up. */
-  if (!p_video->externally_clocked) {
+  if (!p_video->externally_clocked && p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
 
@@ -1122,7 +1204,7 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
   if (addr == 1) {
     /* Palette register. */
-    if (!p_video->externally_clocked) {
+    if (!p_video->externally_clocked && p_video->is_rendering_active) {
       video_advance_crtc_timing(p_video);
     }
 
@@ -1150,7 +1232,12 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
     p_video->clock_speed_changing = clock_speed_changing;
 
-    video_advance_crtc_timing(p_video);
+    /* If the clock speed is changing, this affects not only rendering but also
+     * fundamental timing.
+     */
+    if (clock_speed_changing || p_video->is_rendering_active) {
+      video_advance_crtc_timing(p_video);
+    }
 
     p_video->video_ula_control = val;
 
@@ -1225,10 +1312,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   }
 
   assert(addr == k_crtc_addr_val);
-
-  if (!p_video->externally_clocked) {
-    video_advance_crtc_timing(p_video);
-  }
 
   reg = p_video->crtc_address_register;
 
@@ -1319,6 +1402,18 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     break;
   default:
     break;
+  }
+
+  if (!p_video->externally_clocked) {
+    /* If we're skipping frame rendering in fast mode, a few registers can
+     * change without us needing to do expensive tick by tick CRTC emulation.
+     * Most usefully, the frame memory address registers R12 and R13 don't
+     * change framing. A lot of games change only these once they are up and
+     * running.
+     */
+    if (!does_not_change_framing || p_video->is_rendering_active) {
+      video_advance_crtc_timing(p_video);
+    }
   }
 
   p_video->crtc_registers[reg] = (val & mask);
