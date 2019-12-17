@@ -15,6 +15,7 @@ Exile).
 - Tricky's Scramble is a mess.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
+- Unit test for video.c on account of the new complexity.
 
 
 Fix later
@@ -32,6 +33,7 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix Dragonsoft Explorer.
 - Fix IRA read and keyboard bus dominance.
 - Add cursor support to the 6845 CRTC.
+- Add tape loading support.
 
 
 Ideas
@@ -46,7 +48,14 @@ the sources of non-determinism -- i.e. key presses and releases.
 A recording can be exited at any time, fast forwarded, etc. One great use
 would be to record run-throughs of tricky games (i.e. Exile), which can be
 "taken over" at any point.
+[half done]
+
 - Terminal (and headless terminal) modes. Rewires serial I/O to stdio.
+[half done]
+
+- Rewind.
+Possibly linked to record and playback above, rewind would go back in time a
+little bit when a key is hit.
 
 
 Backburner
@@ -63,3 +72,4 @@ However, initial experimentation didn't reveal any obvious gains worth the
 complexity. The CLOCKSP Trig/Log test does a lot of rotating of 4-byte values
 and the improvement of doing that in one 4-byte operating was surprisingly
 low.
+- Master support. Initial focus is on good BBC model B emulation.
