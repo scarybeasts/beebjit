@@ -104,6 +104,7 @@ struct video_struct {
   int clock_speed_changing;
   int is_framing_changed_this_timer;
   uint64_t num_vsyncs;
+  uint64_t num_crtc_advances;
 
   /* Video ULA state. */
   uint8_t video_ula_control;
@@ -301,6 +302,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
 
+  p_video->num_crtc_advances++;
   p_video->is_framing_changed_this_timer = 1;
 
   func_render = func_render_blank;
@@ -831,6 +833,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
   p_video->num_vsyncs = 0;
+  p_video->num_crtc_advances = 0;
   p_video->is_framing_changed_this_timer = 0;
 
   p_video->video_timer_id = timing_register_timer(p_timing,
@@ -947,8 +950,13 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
 }
 
 uint64_t
-video_get_frames(struct video_struct* p_video) {
+video_get_num_vsyncs(struct video_struct* p_video) {
   return p_video->num_vsyncs;
+}
+
+uint64_t
+video_get_num_crtc_advances(struct video_struct* p_video) {
+  return p_video->num_crtc_advances;
 }
 
 struct render_struct*

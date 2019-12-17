@@ -107,6 +107,9 @@ struct bbc_struct {
   uint64_t last_time_us_perf;
   uint64_t last_cycles;
   uint64_t last_frames;
+  uint64_t last_crtc_advances;
+  uint64_t last_hw_reg_hits;
+  uint64_t num_hw_reg_hits;
   int log_speed;
 };
 
@@ -210,6 +213,8 @@ uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct state_6502* p_state_6502;
+
+  p_bbc->num_hw_reg_hits++;
 
   /* We have an imprecise match for abx and aby addressing modes so we may get
    * here with a non-registers address, or also for the 0xff00 - 0xffff range.
@@ -441,6 +446,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
+  p_bbc->num_hw_reg_hits++;
+
+  /* TODO: this comment may now be incorrect? */
   /* We bounce here for ROM writes as well as register writes; ROM writes
    * are simply squashed.
    */
@@ -686,6 +694,9 @@ bbc_create(int mode,
   p_bbc->last_time_us_perf = 0;
   p_bbc->last_cycles = 0;
   p_bbc->last_frames = 0;
+  p_bbc->last_crtc_advances = 0;
+  p_bbc->last_hw_reg_hits = 0;
+  p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
 
   p_bbc->mem_fd = util_get_memory_fd(k_6502_addr_space_size);
@@ -1169,13 +1180,20 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
 
 static void
 bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
+  struct video_struct* p_video = p_bbc->p_video;
   uint64_t curr_cycles;
   uint64_t curr_frames;
+  uint64_t curr_crtc_advances;
+  uint64_t curr_hw_reg_hits;
   uint64_t delta_cycles;
   uint64_t delta_frames;
+  uint64_t delta_crtc_advances;
+  uint64_t delta_hw_reg_hits;
   double delta_s;
   double fps;
   double mhz;
+  double crtc_ps;
+  double hw_reg_ps;
 
   if (p_bbc->last_time_us_perf == 0) {
     p_bbc->last_time_us_perf = curr_time_us;
@@ -1186,19 +1204,33 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   }
 
   curr_cycles = timing_get_total_timer_ticks(p_bbc->p_timing);
-  curr_frames = video_get_frames(p_bbc->p_video);
+  curr_frames = video_get_num_vsyncs(p_video);
+  curr_crtc_advances = video_get_num_crtc_advances(p_video);
+  curr_hw_reg_hits = p_bbc->num_hw_reg_hits;
 
   delta_cycles = (curr_cycles - p_bbc->last_cycles);
   delta_frames = (curr_frames - p_bbc->last_frames);
+  delta_crtc_advances = (curr_crtc_advances - p_bbc->last_crtc_advances);
+  delta_hw_reg_hits = (curr_hw_reg_hits - p_bbc->last_hw_reg_hits);
   delta_s = ((curr_time_us - p_bbc->last_time_us_perf) / 1000000.0);
 
   fps = (delta_frames / delta_s);
   mhz = ((delta_cycles / delta_s) / 1000000.0);
+  crtc_ps = (delta_crtc_advances / delta_s);
+  hw_reg_ps = (delta_hw_reg_hits / delta_s);
 
-  log_do_log(k_log_perf, k_log_info, " %.1f fps, %.1f Mhz", fps, mhz);
+  log_do_log(k_log_perf,
+             k_log_info,
+             " %.1f fps, %.1f Mhz, %.1f crtc/s %.1f hwreg/s",
+             fps,
+             mhz,
+             crtc_ps,
+             hw_reg_ps);
 
   p_bbc->last_cycles = curr_cycles;
   p_bbc->last_frames = curr_frames;
+  p_bbc->last_crtc_advances = curr_crtc_advances;
+  p_bbc->last_hw_reg_hits = curr_hw_reg_hits;
   p_bbc->last_time_us_perf = curr_time_us;
 }
 
