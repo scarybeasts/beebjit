@@ -86,7 +86,7 @@ struct video_struct {
   /* Rendering. */
   struct render_struct* p_render;
   int render_mode;
-  int is_framing_changed;
+  int is_framing_changed_for_render;
   int is_wall_time_vsync_hit;
   int is_rendering_active;
 
@@ -102,6 +102,7 @@ struct video_struct {
   int timer_fire_expect_vsync_start;
   int timer_fire_expect_vsync_end;
   int clock_speed_changing;
+  int is_framing_changed_this_timer;
   uint64_t num_vsyncs;
 
   /* Video ULA state. */
@@ -227,8 +228,8 @@ video_do_paint(struct video_struct* p_video) {
   }
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                         do_full_render,
-                                        p_video->is_framing_changed);
-  p_video->is_framing_changed = 0;
+                                        p_video->is_framing_changed_for_render);
+  p_video->is_framing_changed_for_render = 0;
 
   if (p_video->externally_clocked) {
     return;
@@ -299,6 +300,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       render_get_render_data_function(p_render);
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
+
+  p_video->is_framing_changed_this_timer = 1;
 
   func_render = func_render_blank;
   if (video_is_display_enabled(p_video)) {
@@ -662,8 +665,9 @@ video_timer_fired(void* p) {
     p_video->is_wall_time_vsync_hit = 0;
   }
 
-  if (p_video->is_rendering_active) {
+  if (p_video->is_rendering_active || p_video->is_framing_changed_this_timer) {
     video_advance_crtc_timing(p_video);
+    p_video->is_framing_changed_this_timer = 0;
   } else {
     /* If we're in fast mode and skipping rendering, we'll need to short
      * circuit the CRTC advance directly to the correct state.
@@ -820,13 +824,14 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
   p_video->p_fast_flag = p_fast_flag;
-  p_video->is_framing_changed = 0;
+  p_video->is_framing_changed_for_render = 0;
   p_video->is_wall_time_vsync_hit = 1;
   p_video->is_rendering_active = 1;
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
   p_video->num_vsyncs = 0;
+  p_video->is_framing_changed_this_timer = 0;
 
   p_video->video_timer_id = timing_register_timer(p_timing,
                                                   video_timer_fired,
@@ -1247,6 +1252,7 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     p_video->video_ula_control = val;
 
     if (clock_speed_changing) {
+      p_video->is_framing_changed_for_render = 1;
       video_update_timer(p_video);
     }
   } else {
@@ -1447,7 +1453,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     if (!p_video->externally_clocked) {
       video_update_timer(p_video);
     }
-    p_video->is_framing_changed = 1;
+    p_video->is_framing_changed_for_render = 1;
   }
 }
 
