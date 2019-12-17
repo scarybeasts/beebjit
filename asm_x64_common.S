@@ -448,6 +448,10 @@ asm_x64_asm_enter:
   push r13
   push r14
   push r15
+  /* Push a dummy value to keep an even number of pushes, and a 16-byte aligned
+   * stack pointer.
+   */
+  push r15
 
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
@@ -477,6 +481,8 @@ asm_x64_asm_enter:
   pop REG_SCRATCH1
   call REG_SCRATCH1
 
+  /* First pop is a dummy value to keep stack alignment. */
+  pop r15
   pop r15
   pop r14
   pop r13
