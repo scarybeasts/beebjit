@@ -1,6 +1,7 @@
 #include "video.h"
 
 #include "bbc_options.h"
+#include "log.h"
 #include "render.h"
 #include "teletext.h"
 #include "timing.h"
@@ -9,7 +10,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1327,21 +1327,27 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R0 */
   case k_crtc_reg_horiz_total:
     if ((val != 63) && (val != 127)) {
-      printf("LOG:CRTC:unusual horizontal total: %d\n", val);
+      log_do_log_int1(k_log_video, k_log_unusual, "horizontal total", val);
     }
     break;
   /* R3 */
   case k_crtc_reg_sync_width:
     hsync_pulse_width = (val & 0xF);
     if ((hsync_pulse_width != 8) && (hsync_pulse_width != 4)) {
-      printf("LOG:CRTC:unusual hsync pulse width: %d\n", hsync_pulse_width);
+      log_do_log_int1(k_log_video,
+                      k_log_unusual,
+                      "hsync pulse width",
+                      hsync_pulse_width);
     }
     vsync_pulse_width = (val >> 4);
     if (vsync_pulse_width == 0) {
       vsync_pulse_width = 16;
     }
     if (vsync_pulse_width != 2) {
-      printf("LOG:CRTC:unusual vsync pulse width: %d\n", vsync_pulse_width);
+      log_do_log_int1(k_log_video,
+                      k_log_unusual,
+                      "vsync pulse width",
+                      vsync_pulse_width);
     }
     p_video->hsync_pulse_width = hsync_pulse_width;
     p_video->vsync_pulse_width = vsync_pulse_width;
