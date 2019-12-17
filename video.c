@@ -102,6 +102,7 @@ struct video_struct {
   int timer_fire_expect_vsync_start;
   int timer_fire_expect_vsync_end;
   int clock_speed_changing;
+  uint64_t num_vsyncs;
 
   /* Video ULA state. */
   uint8_t video_ula_control;
@@ -699,6 +700,7 @@ video_timer_fired(void* p) {
   }
 
   if (p_video->timer_fire_expect_vsync_start) {
+    p_video->num_vsyncs++;
     assert(p_video->in_vsync);
     assert(p_video->had_vsync_this_frame);
     assert(p_video->vert_counter ==
@@ -824,6 +826,7 @@ video_create(uint8_t* p_bbc_mem,
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
+  p_video->num_vsyncs = 0;
 
   p_video->video_timer_id = timing_register_timer(p_timing,
                                                   video_timer_fired,
@@ -938,6 +941,11 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   p_video->screen_wrap_add = screen_wrap_add;
 }
 
+uint64_t
+video_get_frames(struct video_struct* p_video) {
+  return p_video->num_vsyncs;
+}
+
 struct render_struct*
 video_get_render(struct video_struct* p_video) {
   return p_video->p_render;
@@ -984,6 +992,7 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
 
   video_do_paint(p_video);
   p_video->is_wall_time_vsync_hit = 0;
+  p_video->num_vsyncs++;
 }
 
 static void
@@ -1327,27 +1336,27 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R0 */
   case k_crtc_reg_horiz_total:
     if ((val != 63) && (val != 127)) {
-      log_do_log_int1(k_log_video, k_log_unusual, "horizontal total", val);
+      log_do_log(k_log_video, k_log_unusual, "horizontal total: %u", val);
     }
     break;
   /* R3 */
   case k_crtc_reg_sync_width:
     hsync_pulse_width = (val & 0xF);
     if ((hsync_pulse_width != 8) && (hsync_pulse_width != 4)) {
-      log_do_log_int1(k_log_video,
-                      k_log_unusual,
-                      "hsync pulse width",
-                      hsync_pulse_width);
+      log_do_log(k_log_video,
+                 k_log_unusual,
+                 "hsync pulse width: %u",
+                 hsync_pulse_width);
     }
     vsync_pulse_width = (val >> 4);
     if (vsync_pulse_width == 0) {
       vsync_pulse_width = 16;
     }
     if (vsync_pulse_width != 2) {
-      log_do_log_int1(k_log_video,
-                      k_log_unusual,
-                      "vsync pulse width",
-                      vsync_pulse_width);
+      log_do_log(k_log_video,
+                 k_log_unusual,
+                 "vsync pulse width: %u",
+                 vsync_pulse_width);
     }
     p_video->hsync_pulse_width = hsync_pulse_width;
     p_video->vsync_pulse_width = vsync_pulse_width;

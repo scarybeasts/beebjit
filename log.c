@@ -2,11 +2,14 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 static const char*
 log_module_to_string(int module) {
   switch (module) {
+  case k_log_perf:
+    return "perf";
   case k_log_video:
     return "video";
   default:
@@ -31,15 +34,22 @@ log_severity_to_string(int severity) {
 }
 
 void
-log_do_log_int1(int module, int severity, const char* p_msg, int ival1) {
+log_do_log(int module, int severity, const char* p_msg, ...) {
+  va_list args;
+  char msg[256];
+  int ret;
+
   const char* p_module_str = log_module_to_string(module);
   const char* p_severity_str = log_severity_to_string(severity);
-  int ret = fprintf(stdout, 
-                    "%s:%s:%s %d\n",
-                    p_severity_str,
-                    p_module_str,
-                    p_msg,
-                    ival1);
+
+  va_start(args, p_msg);
+  ret = vsnprintf(msg, sizeof(msg), p_msg, args);
+  va_end(args);
+  if (ret <= 0) {
+    errx(1, "vsnprintf failed");
+  }
+
+  ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
   if (ret <= 0) {
     errx(1, "fprintf failed");
   }

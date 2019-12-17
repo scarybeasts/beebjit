@@ -7,6 +7,7 @@
 #include "defs_6502.h"
 #include "intel_fdc.h"
 #include "keyboard.h"
+#include "log.h"
 #include "memory_access.h"
 #include "os_thread.h"
 #include "render.h"
@@ -81,6 +82,7 @@ struct bbc_struct {
   uint8_t* p_mem_read_ind;
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
+  uint8_t romsel;
   int is_sideways_ram_bank[k_bbc_num_roms];
   int is_extended_rom_addressing;
   int is_romsel_invalidated;
@@ -97,12 +99,15 @@ struct bbc_struct {
   struct debug_struct* p_debug;
 
   /* Timing support. */
-  size_t timer_id;
+  uint32_t timer_id;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
   uint64_t last_time_us;
-  uint8_t romsel;
+  uint64_t last_time_us_perf;
+  uint64_t last_cycles;
+  uint64_t last_frames;
+  int log_speed;
 };
 
 static int
@@ -673,11 +678,15 @@ bbc_create(int mode,
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
 
-  p_bbc->last_time_us = 0;
-
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
   }
+
+  p_bbc->last_time_us = 0;
+  p_bbc->last_time_us_perf = 0;
+  p_bbc->last_cycles = 0;
+  p_bbc->last_frames = 0;
+  p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
 
   p_bbc->mem_fd = util_get_memory_fd(k_6502_addr_space_size);
   if (p_bbc->mem_fd < 0) {
@@ -1159,6 +1168,41 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
 }
 
 static void
+bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
+  uint64_t curr_cycles;
+  uint64_t curr_frames;
+  uint64_t delta_cycles;
+  uint64_t delta_frames;
+  double delta_s;
+  double fps;
+  double mhz;
+
+  if (p_bbc->last_time_us_perf == 0) {
+    p_bbc->last_time_us_perf = curr_time_us;
+    return;
+  }
+  if (curr_time_us < (p_bbc->last_time_us_perf + 1000000)) {
+    return;
+  }
+
+  curr_cycles = timing_get_total_timer_ticks(p_bbc->p_timing);
+  curr_frames = video_get_frames(p_bbc->p_video);
+
+  delta_cycles = (curr_cycles - p_bbc->last_cycles);
+  delta_frames = (curr_frames - p_bbc->last_frames);
+  delta_s = ((curr_time_us - p_bbc->last_time_us_perf) / 1000000.0);
+
+  fps = (delta_frames / delta_s);
+  mhz = ((delta_cycles / delta_s) / 1000000.0);
+
+  log_do_log(k_log_perf, k_log_info, " %.1f fps, %.1f Mhz", fps, mhz);
+
+  p_bbc->last_cycles = curr_cycles;
+  p_bbc->last_frames = curr_frames;
+  p_bbc->last_time_us_perf = curr_time_us;
+}
+
+static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
@@ -1166,13 +1210,11 @@ bbc_cycles_timer_callback(void* p) {
   int sound_blocking;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
   struct timing_struct* p_timing = p_bbc->p_timing;
+  struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
   uint64_t curr_time_us = util_gettime_us();
   uint64_t last_time_us = p_bbc->last_time_us;
   int is_replay = keyboard_is_replaying(p_keyboard);
-
-  p_bbc->last_time_us = curr_time_us;
 
   /* Pull physical key events from system thread, always.
    * If this ends up updating the virtual keyboard, this call also syncs
@@ -1196,6 +1238,8 @@ bbc_cycles_timer_callback(void* p) {
     }
   }
 
+  p_bbc->last_time_us = curr_time_us;
+
   if (!p_bbc->fast_flag) {
     /* Slow mode.
      * Slow mode, or "real time" mode is where the system executes at normal
@@ -1210,6 +1254,7 @@ bbc_cycles_timer_callback(void* p) {
     cycles_next_run = p_bbc->cycles_per_run_normal;
     delta_us = (1000000 / p_bbc->wakeup_rate);
 
+    /* This may adjust p_bbc->last_time_us to maintain smooth timing. */
     bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
   } else {
     /* Fast mode.
@@ -1244,6 +1289,10 @@ bbc_cycles_timer_callback(void* p) {
    * timer at the correct baud rate for the externally attached device.
    */
   serial_tick(p_bbc->p_serial);
+
+  if (p_bbc->log_speed) {
+    bbc_do_log_speed(p_bbc, curr_time_us);
+  }
 }
 
 static void
