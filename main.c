@@ -213,12 +213,10 @@ main(int argc, const char* argv[]) {
     errx(1, "bbc_create failed");
   }
 
-/* TODO: re-enable when JIT is re-written.
   if (test_flag) {
     test_do_tests(p_bbc);
     return 0;
   }
-*/
 
   if (pc != 0) {
     bbc_set_pc(p_bbc, pc);

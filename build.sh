@@ -8,7 +8,7 @@ gcc -O3 -DNDEBUG -Wall -W -Werror -g -o beebjit \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c os.c \
-    teletext.c render.c serial.c log.c \
+    teletext.c render.c serial.c log.c test.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o beebjit \
@@ -18,7 +18,7 @@ gcc -Wall -W -Werror -g -o beebjit \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c os.c \
-    teletext.c render.c serial.c log.c \
+    teletext.c render.c serial.c log.c test.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
@@ -30,8 +30,8 @@ gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
 ./make_test_rom
 ./make_timing_rom
 
-#echo 'Running built-in tests.'
-#./beebjit -t
+echo 'Running built-in unit tests.'
+./beebjit -test
 echo 'Running test.rom, JIT, fast.'
 ./beebjit -os test.rom -expect 434241 -mode jit -fast
 echo 'Running test.rom, JIT, fast, debug.'

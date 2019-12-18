@@ -248,16 +248,24 @@ video_do_paint(struct video_struct* p_video) {
 
 static void
 video_set_vsync_raise_state(struct video_struct* p_video) {
+  struct via_struct* p_system_via = p_video->p_system_via;
+
   p_video->in_vsync = 1;
   p_video->had_vsync_this_frame = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
-  via_set_CA1(p_video->p_system_via, 1);
+  if (p_system_via) {
+    via_set_CA1(p_system_via, 1);
+  }
 }
 
 static void
 video_set_vsync_lower_state(struct video_struct* p_video) {
+  struct via_struct* p_system_via = p_video->p_system_via;
+
   p_video->in_vsync = 0;
-  via_set_CA1(p_video->p_system_via, 0);
+  if (p_system_via) {
+    via_set_CA1(p_system_via, 0);
+  }
 }
 
 static void
@@ -892,9 +900,11 @@ video_create(uint8_t* p_bbc_mem,
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
 
-  via_set_CB2_changed_callback(p_system_via,
-                               video_CB2_changed_callback,
-                               p_video);
+  if (p_system_via) {
+    via_set_CB2_changed_callback(p_system_via,
+                                 video_CB2_changed_callback,
+                                 p_video);
+  }
 
   video_mode_updated(p_video);
 
@@ -1618,3 +1628,5 @@ video_get_vert_lines_offset(struct video_struct* p_video) {
   ret += adjust;
   return ret;
 }
+
+#include "test-video.c"
