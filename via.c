@@ -47,8 +47,8 @@ struct via_struct {
   int externally_clocked;
   struct bbc_struct* p_bbc;
   struct timing_struct* p_timing;
-  size_t t1_timer_id;
-  size_t t2_timer_id;
+  uint32_t t1_timer_id;
+  uint32_t t2_timer_id;
 
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
@@ -112,7 +112,7 @@ via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
 
 static void
 via_set_t1c_raw(struct via_struct* p_via, int32_t val) {
-  size_t id = p_via->t1_timer_id;
+  uint32_t id = p_via->t1_timer_id;
   /* Add 2 to val because VIA timers fire at -1 and timing_* fires at 0, and
    * raw deals in 2Mhz cycles.
    */
@@ -127,7 +127,7 @@ via_set_t1c(struct via_struct* p_via, int32_t val) {
 
 static int32_t
 via_get_t1c_raw(struct via_struct* p_via) {
-  size_t id = p_via->t1_timer_id;
+  uint32_t id = p_via->t1_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
 
   val -= 2;
@@ -159,7 +159,7 @@ via_get_t1c(struct via_struct* p_via) {
 
 static void
 via_set_t2c_raw(struct via_struct* p_via, int32_t val) {
-  size_t id = p_via->t2_timer_id;
+  uint32_t id = p_via->t2_timer_id;
   /* Add 2 to val because VIA timers fire at -1 and timing_* fires at 0, and
    * raw deals in 2Mhz cycles.
    */
@@ -174,7 +174,7 @@ via_set_t2c(struct via_struct* p_via, int32_t val) {
 
 static int32_t
 via_get_t2c_raw(struct via_struct* p_via) {
-  size_t id = p_via->t2_timer_id;
+  uint32_t id = p_via->t2_timer_id;
   int64_t val = timing_get_timer_value(p_via->p_timing, id);
 
   val -= 2;

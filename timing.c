@@ -56,10 +56,10 @@ timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing) {
 
 static void
 timing_recalculate(struct timing_struct* p_timing) {
-  size_t i;
+  uint32_t i;
   /* Default is never. */
   int64_t countdown = INT64_MAX;
-  size_t max_timer = p_timing->max_timer;
+  uint32_t max_timer = p_timing->max_timer;
 
   for (i = 0; i < max_timer; ++i) {
     if (!p_timing->ticking[i] || !p_timing->firing[i]) {
@@ -73,11 +73,14 @@ timing_recalculate(struct timing_struct* p_timing) {
   p_timing->countdown = countdown;
 }
 
-size_t
+uint32_t
 timing_register_timer(struct timing_struct* p_timing,
                       void* p_callback,
                       void* p_object) {
-  size_t i;
+  uint32_t i;
+
+  assert(p_callback != NULL);
+
   for (i = 0; i < k_timing_num_timers; ++i) {
     if (p_timing->p_callbacks[i] == NULL) {
       break;
@@ -99,13 +102,13 @@ timing_register_timer(struct timing_struct* p_timing,
 }
 
 int64_t
-timing_start_timer(struct timing_struct* p_timing, size_t id) {
+timing_start_timer(struct timing_struct* p_timing, uint32_t id) {
   return timing_start_timer_with_value(p_timing, id, p_timing->timings[id]);
 }
 
 int64_t
 timing_start_timer_with_value(struct timing_struct* p_timing,
-                              size_t id,
+                              uint32_t id,
                               int64_t time) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
@@ -128,7 +131,7 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
 }
 
 int64_t
-timing_stop_timer(struct timing_struct* p_timing, size_t id) {
+timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
   assert(p_timing->p_callbacks[id] != NULL);
@@ -144,7 +147,7 @@ timing_stop_timer(struct timing_struct* p_timing, size_t id) {
 }
 
 int
-timing_timer_is_running(struct timing_struct* p_timing, size_t id) {
+timing_timer_is_running(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
@@ -152,7 +155,7 @@ timing_timer_is_running(struct timing_struct* p_timing, size_t id) {
 }
 
 int64_t
-timing_get_timer_value(struct timing_struct* p_timing, size_t id) {
+timing_get_timer_value(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
@@ -163,7 +166,7 @@ timing_get_timer_value(struct timing_struct* p_timing, size_t id) {
 
 int64_t
 timing_set_timer_value(struct timing_struct* p_timing,
-                       size_t id,
+                       uint32_t id,
                        int64_t time) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
@@ -184,7 +187,7 @@ timing_set_timer_value(struct timing_struct* p_timing,
 int64_t
 timing_adjust_timer_value(struct timing_struct* p_timing,
                           int64_t* p_new_value,
-                          size_t id,
+                          uint32_t id,
                           int64_t delta) {
   int64_t new_time;
 
@@ -213,7 +216,7 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
 }
 
 int
-timing_get_firing(struct timing_struct* p_timing, size_t id) {
+timing_get_firing(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
@@ -221,7 +224,7 @@ timing_get_firing(struct timing_struct* p_timing, size_t id) {
 }
 
 int64_t
-timing_set_firing(struct timing_struct* p_timing, size_t id, int firing) {
+timing_set_firing(struct timing_struct* p_timing, uint32_t id, int firing) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
@@ -240,9 +243,9 @@ timing_get_countdown(struct timing_struct* p_timing) {
 
 static void
 timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
-  size_t i;
+  uint32_t i;
 
-  size_t max_timer = p_timing->max_timer;
+  uint32_t max_timer = p_timing->max_timer;
 
   p_timing->total_timer_ticks += delta;
 
@@ -299,3 +302,5 @@ timing_advance_time(struct timing_struct* p_timing, int64_t countdown) {
 
   return p_timing->countdown;
 }
+
+#include "test-timing.c"
