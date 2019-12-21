@@ -101,7 +101,6 @@ struct video_struct {
   uint64_t prev_system_ticks;
   int timer_fire_expect_vsync_start;
   int timer_fire_expect_vsync_end;
-  int clock_speed_changing;
   int is_framing_changed_this_timer;
   uint64_t num_vsyncs;
   uint64_t num_crtc_advances;
@@ -274,8 +273,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t scanline_mask;
   uint32_t bbc_address;
   uint8_t data;
-  uint64_t advance_to_system_ticks;
-  uint64_t tick_to_system_ticks;
   uint64_t delta_crtc_ticks;
 
   int r0_hit;
@@ -293,7 +290,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  int odd_ticks = (curr_system_ticks & 1);
   int clock_speed = video_get_clock_speed(p_video);
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
@@ -327,36 +323,17 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     scanline_mask = 0x1F;
   }
 
-  advance_to_system_ticks = curr_system_ticks;
-  tick_to_system_ticks = curr_system_ticks;
-
-  if (p_video->clock_speed_changing && odd_ticks) {
-    /* EMU: switching clock speeds on an odd system tick is a tricky operation
-     * in software and hardware.
-     * In both cases, the timing tweaks below effectively stretch one tick
-     * out a bit in order to keep things in order.
-     */
-    if (clock_speed == 0) {
-      /* About to switch 1MHz -> 2MHz. */
-      tick_to_system_ticks--;
-    } else {
-      /* About to switch 2MHz -> 1MHz. */
-      advance_to_system_ticks--;
-      tick_to_system_ticks--;
-    }
-  } else if ((clock_speed == 0) && odd_ticks) {
-    /* In 1MHz mode we might be advancing CRTC time at the half-cycle point.
-     * This can occur for example upon a video ULA change (palette or control
-     * registers), because the video ULA runs at 2MHz for register updates.
-     */
-    advance_to_system_ticks--;
-    tick_to_system_ticks--;
-  }
-
-  delta_crtc_ticks = (tick_to_system_ticks - p_video->prev_system_ticks);
+  delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);
 
   if (clock_speed == 0) {
-    assert(!(p_video->prev_system_ticks & 1));
+    /* Round down if we're advancing to an odd clock. */
+    if (curr_system_ticks & 1) {
+      delta_crtc_ticks--;
+    }
+    /* Round up if we're advancing from an odd clock. */
+    if (p_video->prev_system_ticks & 1) {
+      delta_crtc_ticks++;
+    }
     assert(!(delta_crtc_ticks & 1));
     /* 1MHz mode => CRTC ticks pass at half rate. */
     delta_crtc_ticks /= 2;
@@ -471,8 +448,7 @@ start_new_frame:
         func_render_data : func_render_blank;
   }
 
-  p_video->clock_speed_changing = 0;
-  p_video->prev_system_ticks = advance_to_system_ticks;
+  p_video->prev_system_ticks = curr_system_ticks;
 }
 
 static void
@@ -511,6 +487,8 @@ video_update_timer(struct video_struct* p_video) {
   uint32_t scanlines_left_this_row;
   uint32_t vert_counter_max;
 
+  int clock_speed = video_get_clock_speed(p_video);
+
   if (p_video->externally_clocked) {
     return;
   }
@@ -539,7 +517,7 @@ video_update_timer(struct video_struct* p_video) {
   }
 
   tick_multiplier = 1;
-  if (video_get_clock_speed(p_video) == 0) {
+  if (clock_speed == 0) {
     tick_multiplier = 2;
   }
   scanline_ticks = (r0 + 1);
@@ -630,6 +608,16 @@ video_update_timer(struct video_struct* p_video) {
 
     timer_value = (ticks_to_end_of_frame + ticks_from_frame_to_vsync);
     p_video->timer_fire_expect_vsync_start = 1;
+  }
+
+  assert(timer_value != 0);
+
+  if ((clock_speed == 0) &&
+      (timing_get_scaled_total_timer_ticks(p_timing) & 1)) {
+    /* If we switched to 1MHz on an odd cycle, the first CRTC tick will only
+     * take half the time.
+     */
+    timer_value--;
   }
 
   assert(timer_value < (4 * 1024 * 1024));
@@ -1257,8 +1245,6 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     int old_clock_speed = video_get_clock_speed(p_video);
     int new_clock_speed = !!(val & k_ula_clock_speed);
     int clock_speed_changing = (new_clock_speed != old_clock_speed);
-
-    p_video->clock_speed_changing = clock_speed_changing;
 
     /* If the clock speed is changing, this affects not only rendering but also
      * fundamental timing.
