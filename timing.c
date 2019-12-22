@@ -249,28 +249,34 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
 
   p_timing->total_timer_ticks += delta;
 
+  /* Pass 1: update all timers with their correct new value. */
   for (i = 0; i < max_timer; ++i) {
-    int64_t value;
-
     if (!p_timing->ticking[i]) {
       continue;
     }
-    value = p_timing->timings[i];
-    value -= delta;
-    p_timing->timings[i] = value;
-    if (!p_timing->firing[i]) {
+
+    p_timing->timings[i] -= delta;
+  }
+
+  /* Pass 2: fire any timers. */
+  for (i = 0; i < max_timer; ++i) {
+    int64_t value;
+
+    if (!p_timing->ticking[i] || !p_timing->firing[i]) {
       continue;
     }
+
+    value = p_timing->timings[i];
     /* Callers of timing_do_advance_time() are required to expire active timers
      * exactly on time.
      */
     assert(value >= 0);
-    if (value == 0 && p_timing->firing[i]) {
+    if (value == 0) {
       void (*p_callback)(void*) = p_timing->p_callbacks[i];
       p_callback(p_timing->p_objects[i]);
       assert(!p_timing->ticking[i] ||
              !p_timing->firing[i] ||
-             p_timing->timings[i] > 0);
+             (p_timing->timings[i] > 0));
     }
   }
 
