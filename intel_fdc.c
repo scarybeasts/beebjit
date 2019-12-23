@@ -13,10 +13,13 @@ enum {
   /* Read. */
   k_intel_fdc_status = 0,
   k_intel_fdc_result = 1,
+  k_intel_fdc_unknown_read_2 = 2,
+  k_intel_fdc_unknown_read_3 = 3,
 
   /* Write. */
   k_intel_fdc_command = 0,
   k_intel_fdc_parameter = 1,
+  k_intel_fdc_reset = 2,
 
   /* Read / write. */
   k_intel_fdc_data = 4,
@@ -224,18 +227,31 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     return p_fdc->result;
+  /* EMU: on a real model B, the i8271 has the data register mapped for all of
+   * register address 4 - 7.
+   */
   case k_intel_fdc_data:
+  case (k_intel_fdc_data + 1):
+  case (k_intel_fdc_data + 2):
+  case (k_intel_fdc_data + 3):
     intel_fdc_set_status_result(p_fdc,
                                 (p_fdc->status &
                                  ~(k_intel_fdc_status_flag_need_data |
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     return p_fdc->data;
+  case k_intel_fdc_unknown_read_2:
+  case k_intel_fdc_unknown_read_3:
+    /* EMU: register address 2 and 3 are not documented as having anything
+     * wired up for reading, BUT on a model B, I'm seeing:
+     * R2 == 255, R3 == 184 after machine power on.
+     * Both 0 after some successful disc operation.
+     */
+    return 0;
   default:
-    break;
+    assert(0);
+    return 0;
   }
-  assert(0);
-  return 0;
 }
 
 static void
@@ -460,6 +476,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     }
     break;
   case k_intel_fdc_data:
+  case (k_intel_fdc_data + 1):
+  case (k_intel_fdc_data + 2):
+  case (k_intel_fdc_data + 3):
     intel_fdc_set_status_result(p_fdc,
                                 (p_fdc->status &
                                  ~(k_intel_fdc_status_flag_need_data |
@@ -469,6 +488,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     break;
   default:
     assert(0);
+    break;
   }
 }
 
