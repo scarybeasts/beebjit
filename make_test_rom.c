@@ -30,7 +30,7 @@ main(int argc, const char* argv[]) {
   (void) argc;
   (void) argv;
 
-  (void) memset(p_mem, '\xf2', k_rom_size);
+  (void) memset(p_mem, '\xF2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
   /* NMI vector. */
@@ -1396,7 +1396,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x82);
   emit_JMP(p_buf, k_abs, 0xD480);
 
+  /* Test page crossing for the JMP (ind) addressing mode. */
   set_new_index(p_buf, 0x1480);
+  emit_LDA(p_buf, k_imm, 0xC0);
+  emit_STA(p_buf, k_abs, 0x10FF);
+  emit_LDA(p_buf, k_imm, 0xD4);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0x1100);
+  emit_JMP(p_buf, k_ind, 0x10FF);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x14C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

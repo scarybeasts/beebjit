@@ -9,7 +9,6 @@ get addressed.
 - Add README and EXAMPLES files.
 - Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
 Exile).
-- Fix pi.ssd (uses JMP ($..FF) which fails in JIT mode, maybe inturbo too).
 - Make timing.c not suck for performance.
 - Add interlace support to the 6845 CRTC (Revs is a mess).
 - Tricky's Scramble is a mess.

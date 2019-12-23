@@ -465,13 +465,19 @@ void
 asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
                              uint16_t addr,
                              uint32_t segment) {
+  uint16_t next_addr;
+
   size_t offset = util_buffer_get_pos(p_buf);
   uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
 
+  /* On the 6502, (e.g.) JMP (&10FF) does not fetch across the page boundary. */
   if ((addr & 0xFF) == 0xFF) {
-    errx(1, "MODE_IND_16: page crossing");
+    next_addr = (addr & 0xFF00);
+  } else {
+    next_addr = (addr + 1);
   }
 
+  /* TODO: why aren't we doing a 16-bit load here for the common case? */
   asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_16, asm_x64_jit_MODE_IND_16_END);
   asm_x64_patch_int(p_buf,
                     offset,
@@ -482,7 +488,7 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
                     offset,
                     asm_x64_jit_MODE_IND_16,
                     asm_x64_jit_MODE_IND_16_mov2_patch,
-                    ((addr + 1) - REG_MEM_OFFSET + delta));
+                    (next_addr - REG_MEM_OFFSET + delta));
 }
 
 void

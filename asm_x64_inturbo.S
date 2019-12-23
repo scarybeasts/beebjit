@@ -375,6 +375,7 @@ asm_x64_inturbo_mode_idy_check_page_crossing_END:
 .globl asm_x64_inturbo_mode_ind_END
 asm_x64_inturbo_mode_ind:
 
+  # NOTE: this does handle page crossings, i.e. JMP (&2DFF).
   movzx REG_SCRATCH1, WORD PTR [REG_6502_PC + 1]
 
   movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
