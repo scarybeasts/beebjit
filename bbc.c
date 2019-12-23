@@ -35,18 +35,27 @@ static const size_t k_bbc_default_wakeup_rate = 1000; /* 1ms / 1kHz. */
 /* This data is from b-em, thanks b-em! */
 static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
 
+/* EMU: where given, any ranges are confirmed on a real model B. */
 enum {
   k_addr_fred = 0xFC00,
   k_addr_jim = 0xFD00,
   k_addr_shiela = 0xFE00,
   k_addr_shiela_end = 0xFEFF,
+  /* &FE00 - &FE07. */
   k_addr_crtc = 0xFE00,
+  /* &FE08 - &FE0F. */
   k_addr_acia = 0xFE08,
+  /* &FE10 - &FE17. */
   k_addr_serial_ula = 0xFE10,
+  /* &FE20 - &FE2F. */
   k_addr_video_ula = 0xFE20,
+  /* &FE30 - &FE3F. */
   k_addr_rom_select = 0xFE30,
+  /* &FE40 - &FE5F. */
   k_addr_sysvia = 0xFE40,
+  /* &FE60 - &FE6F. */
   k_addr_uservia = 0xFE60,
+  /* &FE80 - &FE9F. */
   k_addr_floppy = 0xFE80,
   k_addr_econet = 0xFEA0,
   k_addr_adc = 0xFEC0,
@@ -249,8 +258,6 @@ bbc_read_callback(void* p, uint16_t addr) {
     return serial_acia_read(p_bbc->p_serial, (addr & 1));
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-  case (k_addr_serial_ula + 8):
-  case (k_addr_serial_ula + 12):
     return serial_ula_read(p_bbc->p_serial);
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
@@ -491,8 +498,6 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-  case (k_addr_serial_ula + 8):
-  case (k_addr_serial_ula + 12):
     serial_ula_write(p_bbc->p_serial, val);
     break;
     break;
