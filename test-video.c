@@ -225,6 +225,32 @@ video_test_clock_speed_flip() {
   test_expect_u32(8, g_p_video->horiz_counter);
 }
 
+static void
+video_test_write_vs_advance() {
+  /* Tests that when doing a CRTC write, the advance occurs with pre-write
+   * CRTC state.
+   */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->is_interlace_sync_and_video);
+
+  /* Advance one scanline's worth of time. Should increment 6845 scanline
+   * counter by 2 in interlace sync and video mode.
+   */
+  countdown -= 128;
+  countdown = timing_advance_time(g_p_timing, countdown);
+
+  video_crtc_write(g_p_video, 0, k_crtc_reg_interlace);
+  video_crtc_write(g_p_video, 1, 0);
+  test_expect_u32(0, g_p_video->is_interlace_sync_and_video);
+
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(2, g_p_video->scanline_counter);
+}
+
 void
 video_test() {
   video_test_init();
@@ -233,5 +259,9 @@ video_test() {
 
   video_test_init();
   video_test_clock_speed_flip();
+  video_test_end();
+
+  video_test_init();
+  video_test_write_vs_advance();
   video_test_end();
 }

@@ -1314,12 +1314,12 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
 
 void
 video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
-  uint8_t hsync_pulse_width;
-  uint8_t vsync_pulse_width;
   uint8_t reg;
 
   uint8_t mask = 0xFF;
   int does_not_change_framing = 0;
+  uint8_t hsync_pulse_width = 0;
+  uint8_t vsync_pulse_width = 0;
 
   if (addr == k_crtc_addr_reg) {
     p_video->crtc_address_register = (val & k_crtc_register_mask);
@@ -1333,15 +1333,10 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   if (reg >= k_crtc_num_registers) {
     return;
   }
-  switch (reg) {
-  case k_crtc_reg_light_pen_high:
-  case k_crtc_reg_light_pen_low:
-    /* Light pen registers are read only. */
-    return;
-  default:
-    break;
-  }
 
+  /* NOTE: don't change CRTC state until is safe to do so below after the CRTC
+   * advance.
+   */
   switch (reg) {
   /* R0 */
   case k_crtc_reg_horiz_total:
@@ -1368,8 +1363,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
                  "vsync pulse width: %u",
                  vsync_pulse_width);
     }
-    p_video->hsync_pulse_width = hsync_pulse_width;
-    p_video->vsync_pulse_width = vsync_pulse_width;
     break;
   /* R4 */
   case k_crtc_reg_vert_total:
@@ -1386,10 +1379,6 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R7 */
   case k_crtc_reg_vert_sync_position:
     mask = 0x7F;
-    break;
-  case k_crtc_reg_interlace:
-    p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
-    p_video->is_master_display_enable = ((val & 0x30) != 0x30);
     break;
   /* R9 */
   case k_crtc_reg_lines_per_character:
@@ -1423,6 +1412,11 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   case k_crtc_reg_cursor_low:
     does_not_change_framing = 1;
     break;
+  case k_crtc_reg_light_pen_high:
+  case k_crtc_reg_light_pen_low:
+    /* Light pen registers are read only. */
+    /* NOTE: returns. */
+    return;
   default:
     break;
   }
@@ -1440,6 +1434,19 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   }
 
   p_video->crtc_registers[reg] = (val & mask);
+
+  switch (reg) {
+  case k_crtc_reg_sync_width:
+    p_video->hsync_pulse_width = hsync_pulse_width;
+    p_video->vsync_pulse_width = vsync_pulse_width;
+    break;
+  case k_crtc_reg_interlace:
+    p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
+    p_video->is_master_display_enable = ((val & 0x30) != 0x30);
+    break;
+  default:
+    break;
+  }
 
   if (p_video->is_interlace_sync_and_video) {
     /* EMU NOTE: interlace sync and video has a different behavior when
