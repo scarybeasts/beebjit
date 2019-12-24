@@ -168,12 +168,12 @@ emit_CRASH(struct util_buffer* p_buf) {
 
 void
 emit_CYCLES(struct util_buffer* p_buf) {
-  util_buffer_add_1b(p_buf, 0x12);
+  emit_LDA(p_buf, k_abs, 0xFEE1);
 }
 
 void
 emit_CYCLES_RESET(struct util_buffer* p_buf) {
-  util_buffer_add_1b(p_buf, 0x22);
+  emit_STA(p_buf, k_abs, 0xFEE1);
 }
 
 void

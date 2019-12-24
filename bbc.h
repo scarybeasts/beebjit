@@ -44,6 +44,7 @@ struct bbc_struct* bbc_create(int mode,
                               int print_flag,
                               int fast_flag,
                               int accurate_flag,
+                              int test_map_flag,
                               const char* p_opt_flags,
                               const char* p_log_flags,
                               uint16_t debug_stop_addr);

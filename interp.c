@@ -651,7 +651,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int page_crossing;
   uint16_t addr_temp;
   uint8_t v;
-  int do_irq;
   int poll_irq;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
@@ -670,6 +669,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t opcode = 0;
   int special_checks = 0;
   uint16_t addr = 0;
+  int do_irq = 0;
 
   assert(countdown >= 0);
   assert(!p_interp->exited);
@@ -802,12 +802,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x11: /* ORA idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_ORA());
       break;
-    case 0x12: /* Extension: CYCLES */
-      INTERP_TIMING_ADVANCE(0);
-      a = (state_6502_get_cycles(p_state_6502) & 0xFF);
-      pc++;
-      cycles_this_instruction = 1;
-      break;
     case 0x15: /* ORA zpx */
       INTERP_MODE_ZPr_READ(x);
       a |= v;
@@ -842,12 +836,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x21: /* AND idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_AND());
-      break;
-    case 0x22: /* Extension: CYCLES_RESET */
-      INTERP_TIMING_ADVANCE(0);
-      state_6502_set_cycles(p_state_6502, 0);
-      pc++;
-      cycles_this_instruction = 1;
       break;
     case 0x24: /* BIT zpg */
       addr = p_mem_read[pc + 1];
@@ -1526,7 +1514,6 @@ do_special_checks:
       continue;
     }
 
-    do_irq = 0;
     poll_irq = (special_checks & k_interp_special_poll_irq);
     if (countdown <= 0) {
       special_checks &= ~k_interp_special_countdown;

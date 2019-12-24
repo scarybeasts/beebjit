@@ -53,14 +53,15 @@ echo 'Running test.rom, inturbo, fast, accurate.'
 ./beebjit -os test.rom -expect 434241 -mode inturbo -fast -accurate
 
 echo 'Running timing.rom, interpreter, slow.'
-./beebjit -os timing.rom -expect C0C1C2 -mode interp
+./beebjit -os timing.rom -test-map -expect C0C1C2 -mode interp
 echo 'Running timing.rom, interpreter, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode interp -fast -accurate
+./beebjit -os timing.rom -test-map -expect C0C1C2 -mode interp -fast -accurate
 echo 'Running timing.rom, inturbo, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode inturbo -fast -accurate
+./beebjit -os timing.rom -test-map -expect C0C1C2 -mode inturbo -fast -accurate
 echo 'Running timing.rom, jit, fast.'
-./beebjit -os timing.rom -expect C0C1C2 -mode jit -fast -accurate
+./beebjit -os timing.rom -test-map -expect C0C1C2 -mode jit -fast -accurate
 echo 'Running timing.rom, jit, fast, debug.'
-./beebjit -os timing.rom -expect C0C1C2 -mode jit -fast -accurate -debug -run
+./beebjit -os timing.rom -test-map -expect C0C1C2 -mode jit -fast -accurate \
+    -debug -run
 
 echo 'All is well!'

@@ -54,6 +54,7 @@ main(int argc, const char* argv[]) {
   int fast_flag = 0;
   int test_flag = 0;
   int accurate_flag = 0;
+  int test_map_flag = 0;
   int disc_writeable_flag = 0;
   int disc_mutable_flag = 0;
   int terminal_flag = 0;
@@ -164,6 +165,8 @@ main(int argc, const char* argv[]) {
       terminal_flag = 1;
     } else if (!strcmp(arg, "-headless")) {
       headless_flag = 1;
+    } else if (!strcmp(arg, "-test-map")) {
+      test_map_flag = 1;
     }
   }
 
@@ -206,6 +209,7 @@ main(int argc, const char* argv[]) {
                      print_flag,
                      fast_flag,
                      accurate_flag,
+                     test_map_flag,
                      opt_flags,
                      log_flags,
                      debug_stop_addr);

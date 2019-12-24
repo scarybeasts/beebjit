@@ -78,6 +78,7 @@ struct bbc_struct {
   int run_flag;
   int print_flag;
   int fast_flag;
+  int test_map_flag;
   int vsync_wait_for_render;
   struct bbc_options options;
 
@@ -220,8 +221,9 @@ bbc_is_1mhz_address(uint16_t addr) {
 
 uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct state_6502* p_state_6502;
+
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   p_bbc->num_hw_reg_hits++;
 
@@ -338,6 +340,15 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_tube + 20):
   case (k_addr_tube + 24):
   case (k_addr_tube + 28):
+    if (p_bbc->test_map_flag) {
+      switch (addr) {
+      case (k_addr_tube + 1):
+        /* &FEE1: read low byte of cycles count. */
+        return (state_6502_get_cycles(p_state_6502) & 0xFF);
+      default:
+        break;
+      }
+    }
     /* Not present -- fall through to return 0xFE. */
     break;
   default:
@@ -568,7 +579,22 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_tube + 20):
   case (k_addr_tube + 24):
   case (k_addr_tube + 28):
-    printf("ignoring tube write\n");
+    if (p_bbc->test_map_flag) {
+      switch (addr) {
+      case k_addr_tube:
+        /* &FEE0: caush crash. */
+        *((volatile uint8_t*) 0xdead) = '\x41';
+        break;
+      case (k_addr_tube + 1):
+        /* &FEE1: reset cycles count. */
+        state_6502_set_cycles(p_state_6502, 0);
+        break;
+      default:
+        break;
+      }
+    } else {
+      printf("ignoring tube write\n");
+    }
     break;
   default:
     printf("unknown write: %x, %x\n", addr, val);
@@ -644,6 +670,7 @@ bbc_create(int mode,
            int print_flag,
            int fast_flag,
            int accurate_flag,
+           int test_map_flag,
            const char* p_opt_flags,
            const char* p_log_flags,
            uint16_t debug_stop_addr) {
@@ -688,6 +715,7 @@ bbc_create(int mode,
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
   p_bbc->fast_flag = fast_flag;
+  p_bbc->test_map_flag = test_map_flag;
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
 

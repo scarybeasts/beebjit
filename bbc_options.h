@@ -11,6 +11,7 @@ struct bbc_options {
   const char* p_opt_flags;
   const char* p_log_flags;
   int accurate;
+  int test_map;
 
   /* Internal options, callbacks, etc. */
   struct debug_struct* p_debug_object;
