@@ -207,45 +207,40 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
   return 0;
 }
 
-static int
-bbc_is_1mhz_address(uint16_t addr) {
+static inline int
+bbc_is_1MHz_address(uint16_t addr) {
+  if ((addr & k_addr_shiela) == k_addr_shiela) {
+    return k_FE_1mhz_array[((addr >> 5) & 7)];
+  }
+
   if ((addr < k_addr_fred) || (addr > k_addr_shiela_end)) {
     return 0;
   }
-  if (addr < k_addr_shiela) {
-    return 1;
-  }
 
-  return k_FE_1mhz_array[((addr >> 5) & 7)];
+  return 1;
 }
 
 uint8_t
 bbc_read_callback(void* p, uint16_t addr) {
-  struct state_6502* p_state_6502;
+  int is_1MHz;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  uint8_t ret = 0xFE;
 
   p_bbc->num_hw_reg_hits++;
 
-  /* We have an imprecise match for abx and aby addressing modes so we may get
-   * here with a non-registers address, or also for the 0xff00 - 0xffff range.
-   */
-  if ((addr < k_bbc_registers_start) ||
-      (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-    uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-    return p_mem_read[addr];
-  }
+  is_1MHz = bbc_is_1MHz_address(addr);
 
-  p_state_6502 = bbc_get_6502(p_bbc);
-
-  if (bbc_is_1mhz_address(addr) && (state_6502_get_cycles(p_state_6502) & 1)) {
+  if (is_1MHz) {
     /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
      * the 1Mhz train.
      */
-    struct timing_struct* p_timing = p_bbc->p_timing;
-    int64_t countdown = timing_get_countdown(p_timing);
-    countdown--;
-    (void) timing_advance_time(p_timing, countdown);
+    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
+      struct timing_struct* p_timing = p_bbc->p_timing;
+      int64_t countdown = timing_get_countdown(p_timing);
+      countdown--;
+      (void) timing_advance_time(p_timing, countdown);
+    }
   }
 
   switch (addr & ~3) {
@@ -253,14 +248,17 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_crtc + 4):
     {
       struct video_struct* p_video = bbc_get_video(p_bbc);
-      return video_crtc_read(p_video, (addr & 0x1));
+      ret = video_crtc_read(p_video, (addr & 0x1));
     }
+    break;
   case (k_addr_acia + 0):
   case (k_addr_acia + 4):
-    return serial_acia_read(p_bbc->p_serial, (addr & 1));
+    ret = serial_acia_read(p_bbc->p_serial, (addr & 1));
+    break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-    return serial_ula_read(p_bbc->p_serial);
+    ret = serial_ula_read(p_bbc->p_serial);
+    break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
   case (k_addr_video_ula + 8):
@@ -286,7 +284,8 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_sysvia + 20):
   case (k_addr_sysvia + 24):
   case (k_addr_sysvia + 28):
-    return via_read(p_bbc->p_system_via, (addr & 0xf));
+    ret = via_read(p_bbc->p_system_via, (addr & 0xf));
+    break;
   case (k_addr_uservia + 0):
   case (k_addr_uservia + 4):
   case (k_addr_uservia + 8):
@@ -295,7 +294,8 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_uservia + 20):
   case (k_addr_uservia + 24):
   case (k_addr_uservia + 28):
-    return via_read(p_bbc->p_user_via, (addr & 0xf));
+    ret = via_read(p_bbc->p_user_via, (addr & 0xf));
+    break;
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
   case (k_addr_floppy + 8):
@@ -304,7 +304,8 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    return intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
+    ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
+    break;
   case (k_addr_econet + 0):
     printf("ignoring ECONET read\n");
     break;
@@ -319,14 +320,17 @@ bbc_read_callback(void* p, uint16_t addr) {
     switch (addr & 3) {
     case 0: /* Status. */
       /* Return ADC conversion complete (bit 6). */
-      return 0x40;
+      ret = 0x40;
+      break;
     case 1: /* ADC high. */
       /* Return 0x8000 across high and low, which is "central position" for
        * the joystick.
        */
-      return 0x80;
+      ret = 0x80;
+      break;
     case 2: /* ADC low. */
-      return 0;
+      ret = 0;
+      break;
     default:
       assert(0);
       break;
@@ -344,27 +348,45 @@ bbc_read_callback(void* p, uint16_t addr) {
       switch (addr) {
       case (k_addr_tube + 1):
         /* &FEE1: read low byte of cycles count. */
-        return (state_6502_get_cycles(p_state_6502) & 0xFF);
+        ret = (state_6502_get_cycles(p_bbc->p_state_6502) & 0xFF);
       default:
         break;
       }
     }
-    /* Not present -- fall through to return 0xFE. */
+    /* Not present. */
     break;
   default:
-    if (addr >= k_addr_shiela) {
+    /* We have an imprecise match for abx and aby addressing modes so we may get
+     * here with a non-registers address, or also for the 0xFF00 - 0xFFFF range.
+     */
+    if ((addr < k_bbc_registers_start) ||
+        (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
+      uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+      ret = p_mem_read[addr];
+    } else if (addr >= k_addr_shiela) {
       printf("unknown read: %x\n", addr);
       assert(0);
+    } else {
+      /* EMU: This value, as well as the 0xFE default,  copied from b-em /
+       * jsbeeb, and checked against a real BBC, see:
+       * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
+       */
+      ret = 0xFF;
+    }
+    break;
+  }
+
+  if (is_1MHz) {
+    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
+    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
+      struct timing_struct* p_timing = p_bbc->p_timing;
+      int64_t countdown = timing_get_countdown(p_timing);
+      countdown--;
+      (void) timing_advance_time(p_timing, countdown);
     }
   }
-  /* EMU NOTE: These return values copied from b-em / jsbeeb, and checked
-   * against a real BBC, see:
-   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
-   */
-  if (addr < k_addr_shiela) {
-    return 0xFF;
-  }
-  return 0xFE;
+
+  return ret;
 }
 
 uint8_t
@@ -460,39 +482,24 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 
 void
 bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
-  struct state_6502* p_state_6502;
+  int is_1MHz;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   p_bbc->num_hw_reg_hits++;
 
-  /* TODO: this comment may now be incorrect? */
-  /* We bounce here for ROM writes as well as register writes; ROM writes
-   * are simply squashed.
-   */
-  if ((addr < k_bbc_registers_start) ||
-      (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-    uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
-    if (addr >= k_bbc_os_rom_offset) {
-      return;
-    }
-    /* Possible to get here for a write at the end of a RAM region, e.g.
-     * STA $7F01,X
-     */
-    p_mem_write[addr] = val;
-    return;
-  }
+  is_1MHz = bbc_is_1MHz_address(addr);
 
-  p_state_6502 = bbc_get_6502(p_bbc);
-
-  if (bbc_is_1mhz_address(addr) && (state_6502_get_cycles(p_state_6502) & 1)) {
+  if (is_1MHz) {
     /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
      * the 1Mhz train.
      */
-    struct timing_struct* p_timing = p_bbc->p_timing;
-    int64_t countdown = timing_get_countdown(p_timing);
-    countdown--;
-    (void) timing_advance_time(p_timing, countdown);
+    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
+      struct timing_struct* p_timing = p_bbc->p_timing;
+      int64_t countdown = timing_get_countdown(p_timing);
+      countdown--;
+      countdown = timing_advance_time(p_timing, countdown);
+    }
   }
 
   switch (addr & ~3) {
@@ -547,7 +554,6 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_uservia + 28):
     via_write(p_bbc->p_user_via, (addr & 0xf), val);
     break;
-  /* TODO: extent of floppy / ADC / tube mapping untested. Copy jsbeeb. */
   case (k_addr_floppy + 0):
   case (k_addr_floppy + 4):
   case (k_addr_floppy + 8):
@@ -587,7 +593,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
         break;
       case (k_addr_tube + 1):
         /* &FEE1: reset cycles count. */
-        state_6502_set_cycles(p_state_6502, 0);
+        state_6502_set_cycles(p_bbc->p_state_6502, 0);
         break;
       default:
         break;
@@ -597,8 +603,35 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
     }
     break;
   default:
-    printf("unknown write: %x, %x\n", addr, val);
-    assert(0);
+    /* TODO: this comment may now be incorrect? */
+    /* We bounce here for ROM writes as well as register writes; ROM writes
+     * are simply squashed.
+     */
+    if ((addr < k_bbc_registers_start) ||
+        (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
+      uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
+      if (addr < k_bbc_os_rom_offset) {
+        /* Possible to get here for a write at the end of a RAM region, e.g.
+         * STA $7F01,X
+         */
+        /* TODO: needs to invalidate potential JIT here? */
+        p_mem_write[addr] = val;
+      }
+    } else {
+      printf("unknown write: %x, %x\n", addr, val);
+      assert(0);
+    }
+    break;
+  }
+
+  if (is_1MHz) {
+    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
+    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
+      struct timing_struct* p_timing = p_bbc->p_timing;
+      int64_t countdown = timing_get_countdown(p_timing);
+      countdown--;
+      (void) timing_advance_time(p_timing, countdown);
+    }
   }
 }
 

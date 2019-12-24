@@ -15,6 +15,7 @@ Exile).
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - Unit test for video.c on account of the new complexity.
+- Uridium JIT crash after ship blows up.
 
 
 Fix later
