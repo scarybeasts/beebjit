@@ -4,18 +4,19 @@ Bugs and improvements
 IMPORTANT
 =========
 Known bugs and deficiencies that are sufficiently egregious that they'll
-get addressed.
+get addressed before the next release.
 
 - Add README and EXAMPLES files.
 - Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
 Exile).
 - Make timing.c not suck for performance.
 - Add interlace support to the 6845 CRTC (Revs is a mess).
-- Tricky's Scramble is a mess.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - Unit test for video.c on account of the new complexity.
 - Uridium JIT crash after ship blows up.
+- Re-add unit test for JIT block handling and splitting etc.
+- Syncron FE18 issue?
 
 
 Fix later
@@ -34,6 +35,9 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix IRA read and keyboard bus dominance.
 - Add cursor support to the 6845 CRTC.
 - Add tape loading support.
+- MODE7 not centered.
+- MODE7 not fully wired up, e.g. Firetrack loader overscan doesn't work.
+- MODE7 graphics rendering has gaps.
 
 
 Ideas
