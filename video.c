@@ -116,6 +116,8 @@ struct video_struct {
   int is_interlace;
   int is_interlace_sync_and_video;
   int is_master_display_enable;
+  uint32_t scanline_stride;
+  uint32_t scanline_mask;
   uint8_t hsync_pulse_width;
   uint8_t vsync_pulse_width;
   uint8_t half_r0;
@@ -303,8 +305,6 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
 
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
-  uint8_t scanline_stride;
-  uint8_t scanline_mask;
   uint32_t bbc_address;
   uint8_t data;
   uint64_t delta_crtc_ticks;
@@ -347,15 +347,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   func_render = func_render_blank;
   if (video_is_display_enabled(p_video)) {
     func_render = func_render_data;
-  }
-
-  if (p_video->is_interlace_sync_and_video) {
-    scanline_stride = 2;
-    /* EMU NOTE: see comment in video_crtc_write. */
-    scanline_mask = 0x1E;
-  } else {
-    scanline_stride = 1;
-    scanline_mask = 0x1F;
   }
 
   delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);
@@ -435,9 +426,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
-    r9_hit = (p_video->scanline_counter == (r9 & scanline_mask));
-    p_video->scanline_counter = ((p_video->scanline_counter + scanline_stride) &
-                                 scanline_mask);
+    r9_hit = (p_video->scanline_counter == (r9 & p_video->scanline_mask));
+    p_video->scanline_counter += p_video->scanline_stride;
+    p_video->scanline_counter &= p_video->scanline_mask;
     p_video->address_counter = p_video->address_counter_this_row;
 
     func_render = video_is_display_enabled(p_video) ?
@@ -558,7 +549,6 @@ video_update_timer(struct video_struct* p_video) {
   uint32_t half_scanline_ticks;
   uint32_t ticks_to_next_scanline;
   uint32_t ticks_to_next_row;
-  uint32_t scanline_stride;
   uint32_t scanlines_per_row;
   uint32_t scanlines_left_this_row;
   uint32_t vert_counter_max;
@@ -584,12 +574,6 @@ video_update_timer(struct video_struct* p_video) {
   vert_counter_max = r4;
   if (r5 > 0) {
     vert_counter_max++;
-  }
-
-  if (p_video->is_interlace_sync_and_video) {
-    scanline_stride = 2;
-  } else {
-    scanline_stride = 1;
   }
 
   tick_multiplier = 1;
@@ -626,10 +610,10 @@ video_update_timer(struct video_struct* p_video) {
       scanlines_left_this_row = (0x1F - p_video->scanline_counter);
       scanlines_left_this_row += (r9 + 1);
     }
-    scanlines_left_this_row /= scanline_stride;
+    scanlines_left_this_row /= p_video->scanline_stride;
   }
 
-  scanlines_per_row = (r9 / scanline_stride);
+  scanlines_per_row = (r9 / p_video->scanline_stride);
   scanlines_per_row++;
 
   scanline_ticks *= tick_multiplier;
@@ -1000,6 +984,8 @@ video_create(uint8_t* p_bbc_mem,
   /* Set correctly as per above register values. */
   p_video->is_interlace = 1;
   p_video->is_interlace_sync_and_video = 1;
+  p_video->scanline_stride = 2;
+  p_video->scanline_mask = 0x1E;
   p_video->is_master_display_enable = 1;
   p_video->half_r0 = 32;
 
@@ -1566,6 +1552,13 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     p_video->is_interlace = (val & 0x1);
     p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
     p_video->is_master_display_enable = ((val & 0x30) != 0x30);
+    if (p_video->is_interlace_sync_and_video) {
+      p_video->scanline_stride = 2;
+      p_video->scanline_mask = 0x1E;
+    } else {
+      p_video->scanline_stride = 1;
+      p_video->scanline_mask = 0x1F;
+    }
     break;
   default:
     break;
