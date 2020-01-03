@@ -308,6 +308,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t bbc_address;
   uint8_t data;
   uint64_t delta_crtc_ticks;
+  int check_vsync_at_half_r0;
 
   int r0_hit;
   int r1_hit;
@@ -325,7 +326,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   int clock_speed = video_get_clock_speed(p_video);
-  int check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
@@ -344,11 +344,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   p_video->num_crtc_advances++;
   p_video->is_framing_changed_this_timer = 1;
 
-  func_render = func_render_blank;
-  if (video_is_display_enabled(p_video)) {
-    func_render = func_render_data;
-  }
-
   delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);
 
   if (clock_speed == 0) {
@@ -364,6 +359,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* 1MHz mode => CRTC ticks pass at half rate. */
     delta_crtc_ticks /= 2;
   }
+
+  goto recalculate_and_continue;
 
   while (delta_crtc_ticks--) {
     r0_hit = (p_video->horiz_counter == r0);
@@ -424,15 +421,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
-    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
-
     r9_hit = (p_video->scanline_counter == (r9 & p_video->scanline_mask));
     p_video->scanline_counter += p_video->scanline_stride;
     p_video->scanline_counter &= p_video->scanline_mask;
     p_video->address_counter = p_video->address_counter_this_row;
-
-    func_render = video_is_display_enabled(p_video) ?
-        func_render_data : func_render_blank;
 
     if (p_video->in_dummy_raster) {
       goto start_new_frame;
@@ -456,11 +448,11 @@ video_advance_crtc_timing(struct video_struct* p_video) {
           goto start_new_frame;
         }
       }
-      continue;
+      goto recalculate_and_continue;
     }
 
     if (!r9_hit) {
-      continue;
+      goto recalculate_and_continue;
     }
 
     /* End of character row. */
@@ -472,8 +464,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
     r6_hit = (p_video->vert_counter == r6);
     r7_hit = (p_video->vert_counter == r7);
-
-    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
     if (r6_hit) {
       p_video->display_enable_vert = 0;
@@ -492,23 +482,20 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       video_set_vsync_raise_state(p_video);
     }
 
-    func_render = video_is_display_enabled(p_video) ?
-        func_render_data : func_render_blank;
-
     if (!r4_hit) {
-      continue;
+      goto recalculate_and_continue;
     }
 
     /* End of R4-based frame. Time for either a new frame or vertical adjust. */
     if (r5 != 0) {
       p_video->in_vert_adjust = 1;
-      continue;
+      goto recalculate_and_continue;
     }
 
 start_new_frame:
     video_start_new_frame(p_video);
 
-    /* TODO: goto here instead of continue. */
+recalculate_and_continue:
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
