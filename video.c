@@ -303,6 +303,14 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
   return 0;
 }
 
+static inline void
+video_update_odd_even_frame(struct video_struct* p_video) {
+  p_video->is_even_interlace_frame = (p_video->is_interlace &&
+                                      !(p_video->crtc_frames & 1));
+  p_video->is_odd_interlace_frame = (p_video->is_interlace &&
+                                     (p_video->crtc_frames & 1));
+}
+
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t bbc_address;
@@ -469,10 +477,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->display_enable_vert = 0;
       /* On the Hitachi 6845, frame counting is done on R6 hit. */
       p_video->crtc_frames++;
-      p_video->is_even_interlace_frame = (p_video->is_interlace &&
-                                          !(p_video->crtc_frames & 1));
-      p_video->is_odd_interlace_frame = (p_video->is_interlace &&
-                                         (p_video->crtc_frames & 1));
+      video_update_odd_even_frame(p_video);
     }
     if (r7_hit &&
         !p_video->is_odd_interlace_frame &&
@@ -1546,6 +1551,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       p_video->scanline_stride = 1;
       p_video->scanline_mask = 0x1F;
     }
+    video_update_odd_even_frame(p_video);
     break;
   default:
     break;

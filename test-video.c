@@ -69,7 +69,7 @@ video_test_get_timer() {
 }
 
 static void
-video_test_advance_and_timing() {
+video_test_advance_and_timing_mode7() {
   /* Tests simple advancement through a MODE7 frame and checks the vsync timer
    * is correctly calculated in different states.
    * MODE7 has it all: interlace, vertical adjust lines, etc.
@@ -145,6 +145,8 @@ video_test_advance_and_timing() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->in_vert_adjust);
   test_expect_u32(1, g_p_video->in_dummy_raster);
+  test_expect_u32((k_ticks_mode7_to_vsync_odd + k_ticks_mode7_per_scanline),
+                  video_test_get_timer());
 
   /* Move into new frame. */
   countdown -= k_ticks_mode7_per_scanline;
@@ -269,10 +271,42 @@ video_test_write_vs_advance() {
   test_expect_u32(2, g_p_video->scanline_counter);
 }
 
+static void
+video_test_advance_and_timing_mode4_nointerlace() {
+  /* Tests for correct timing in a no-interlace mode. */
+  int64_t countdown;
+
+  /* Default settings are MODE7, so switch to something closer to MODE4. */
+  test_expect_u32(30, g_p_video->crtc_registers[k_crtc_reg_vert_total]);
+
+  video_crtc_write(g_p_video, 0, k_crtc_reg_interlace);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, k_crtc_reg_lines_per_character);
+  video_crtc_write(g_p_video, 1, 7);
+  video_crtc_write(g_p_video, 0, k_crtc_reg_vert_adjust);
+  video_crtc_write(g_p_video, 1, 0);
+
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32((k_ticks_mode7_per_scanline * 8 * 27), countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32((k_ticks_mode7_per_scanline * 2), countdown);
+
+  countdown -= (k_ticks_mode7_per_scanline * 8 * 4);
+  countdown = timing_advance_time(g_p_timing, countdown);
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32((k_ticks_mode7_per_scanline * 8 * 27), countdown);
+}
+
 void
 video_test() {
   video_test_init();
-  video_test_advance_and_timing();
+  video_test_advance_and_timing_mode7();
   video_test_end();
 
   video_test_init();
@@ -281,5 +315,9 @@ video_test() {
 
   video_test_init();
   video_test_write_vs_advance();
+  video_test_end();
+
+  video_test_init();
+  video_test_advance_and_timing_mode4_nointerlace();
   video_test_end();
 }
