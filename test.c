@@ -2,7 +2,9 @@
 
 #include "bbc.h"
 
-#include <err.h>
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern void timing_test();
 extern void video_test();
@@ -19,6 +21,8 @@ test_do_tests(struct bbc_struct* p_bbc) {
 void
 test_expect_u32(uint32_t expectation, uint32_t actual) {
   if (actual != expectation) {
-    errx(1, "FAIL: %u, expected %u", actual, expectation);
+    (void) fprintf(stderr, "FAIL: %u, expected %u\n", actual, expectation);
+    assert(0);
+    exit(1);
   }
 }

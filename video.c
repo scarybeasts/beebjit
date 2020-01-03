@@ -113,12 +113,17 @@ struct video_struct {
   /* 6845 registers and derivatives. */
   uint8_t crtc_address_register;
   uint8_t crtc_registers[k_crtc_num_registers];
+  int is_interlace;
   int is_interlace_sync_and_video;
   int is_master_display_enable;
   uint8_t hsync_pulse_width;
   uint8_t vsync_pulse_width;
+  uint8_t half_r0;
 
   /* 6845 state. */
+  uint64_t crtc_frames;
+  int is_even_interlace_frame;
+  int is_odd_interlace_frame;
   uint8_t horiz_counter;
   uint8_t scanline_counter;
   uint8_t vert_counter;
@@ -129,6 +134,7 @@ struct video_struct {
   uint32_t address_counter_next_row;
   int in_vert_adjust;
   int in_vsync;
+  int in_dummy_raster;
   int had_vsync_this_frame;
   int display_enable_horiz;
   int display_enable_vert;
@@ -201,6 +207,7 @@ video_start_new_frame(struct video_struct* p_video) {
 
   p_video->had_vsync_this_frame = 0;
   p_video->in_vert_adjust = 0;
+  p_video->in_dummy_raster = 0;
 
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
@@ -249,11 +256,19 @@ static void
 video_set_vsync_raise_state(struct video_struct* p_video) {
   struct via_struct* p_system_via = p_video->p_system_via;
 
+  assert(!p_video->in_vsync);
+  assert(!p_video->had_vsync_this_frame);
+
   p_video->in_vsync = 1;
   p_video->had_vsync_this_frame = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   if (p_system_via) {
     via_set_CA1(p_system_via, 1);
+  }
+
+  if (p_video->is_rendering_active) {
+    video_do_paint(p_video);
+    render_vsync(p_video->p_render);
   }
 }
 
@@ -261,10 +276,29 @@ static void
 video_set_vsync_lower_state(struct video_struct* p_video) {
   struct via_struct* p_system_via = p_video->p_system_via;
 
+  assert(p_video->in_vsync);
+
   p_video->in_vsync = 0;
   if (p_system_via) {
     via_set_CA1(p_system_via, 0);
   }
+}
+
+static inline int
+video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
+  if (!p_video->is_odd_interlace_frame) {
+    return 0;
+  }
+  if (p_video->in_vsync && (p_video->vsync_scanline_counter == 0)) {
+    return 1;
+  }
+  if ((p_video->vert_counter ==
+       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) &&
+      (p_video->scanline_counter == 0) &&
+      !p_video->had_vsync_this_frame) {
+    return 1;
+  }
+  return 0;
 }
 
 static void
@@ -291,6 +325,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   int clock_speed = video_get_clock_speed(p_video);
+  int check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
   uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   uint32_t r1 = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
@@ -340,10 +375,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   }
 
   while (delta_crtc_ticks--) {
-    uint8_t horiz_counter = p_video->horiz_counter;
-    r0_hit = (horiz_counter == r0);
-    r1_hit = (horiz_counter == r1);
-    r2_hit = (horiz_counter == r2);
+    r0_hit = (p_video->horiz_counter == r0);
+    r1_hit = (p_video->horiz_counter == r1);
+    r2_hit = (p_video->horiz_counter == r2);
 
     /* Wraps 0xFF -> 0; uint8_t type. */
     p_video->horiz_counter++;
@@ -363,6 +397,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (r2_hit) {
       render_hsync(p_render);
     }
+    if (check_vsync_at_half_r0 &&
+        (p_video->horiz_counter == p_video->half_r0)) {
+      if (p_video->in_vsync) {
+        video_set_vsync_lower_state(p_video);
+      } else {
+        video_set_vsync_raise_state(p_video);
+      }
+      check_vsync_at_half_r0 = 0;
+    }
 
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
 
@@ -380,11 +423,17 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->display_enable_horiz = 1;
 
     if (p_video->in_vsync) {
-      p_video->vsync_scanline_counter--;
-      if (p_video->vsync_scanline_counter == 0) {
+      if (p_video->vsync_scanline_counter > 0) {
+        p_video->vsync_scanline_counter--;
+      }
+      if ((p_video->vsync_scanline_counter == 0) &&
+          !p_video->is_odd_interlace_frame) {
+        assert(!check_vsync_at_half_r0);
         video_set_vsync_lower_state(p_video);
       }
     }
+
+    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
     r9_hit = (p_video->scanline_counter == (r9 & scanline_mask));
     p_video->scanline_counter = ((p_video->scanline_counter + scanline_stride) &
@@ -394,12 +443,27 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
 
+    if (p_video->in_dummy_raster) {
+      goto start_new_frame;
+    }
+
     if (p_video->in_vert_adjust) {
       p_video->vert_adjust_counter++;
       p_video->vert_adjust_counter &= 0x1F;
       r5_hit = (p_video->vert_adjust_counter == r5);
       if (r5_hit) {
-        goto start_new_frame;
+        /* The dummy raster is at the end of the even frame; the test for odd
+         * here is because the R6 hit earlier in a "normal" frame will have
+         * incremented the CRTC frame count.
+         * See http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
+         * for details about the dummy raster and interlace timing.
+         */
+        if (p_video->is_odd_interlace_frame) {
+          p_video->in_vert_adjust = 0;
+          p_video->in_dummy_raster = 1;
+        } else {
+          goto start_new_frame;
+        }
       }
       continue;
     }
@@ -418,15 +482,23 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     r6_hit = (p_video->vert_counter == r6);
     r7_hit = (p_video->vert_counter == r7);
 
+    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
+
     if (r6_hit) {
       p_video->display_enable_vert = 0;
+      /* On the Hitachi 6845, frame counting is done on R6 hit. */
+      p_video->crtc_frames++;
+      p_video->is_even_interlace_frame = (p_video->is_interlace &&
+                                          !(p_video->crtc_frames & 1));
+      p_video->is_odd_interlace_frame = (p_video->is_interlace &&
+                                         (p_video->crtc_frames & 1));
     }
-    if (r7_hit && !p_video->had_vsync_this_frame) {
+    if (r7_hit &&
+        !p_video->is_odd_interlace_frame &&
+        !p_video->had_vsync_this_frame) {
+      assert(!check_vsync_at_half_r0);
+
       video_set_vsync_raise_state(p_video);
-
-      video_do_paint(p_video);
-
-      render_vsync(p_render);
     }
 
     func_render = video_is_display_enabled(p_video) ?
@@ -444,8 +516,11 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
 start_new_frame:
     video_start_new_frame(p_video);
+
+    /* TODO: goto here instead of continue. */
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
+    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
   }
 
   p_video->prev_system_ticks = curr_system_ticks;
@@ -480,6 +555,7 @@ video_update_timer(struct video_struct* p_video) {
 
   uint32_t tick_multiplier;
   uint32_t scanline_ticks;
+  uint32_t half_scanline_ticks;
   uint32_t ticks_to_next_scanline;
   uint32_t ticks_to_next_row;
   uint32_t scanline_stride;
@@ -533,7 +609,9 @@ video_update_timer(struct video_struct* p_video) {
    * scanline" calculation above. So, this is additional scanlines once the
    * current one has finished.
    */
-  if (p_video->in_vert_adjust) {
+  if (p_video->in_dummy_raster) {
+    scanlines_left_this_row = 0;
+  } else if (p_video->in_vert_adjust) {
     if (p_video->vert_adjust_counter < r5) {
       scanlines_left_this_row = (r5 - p_video->vert_adjust_counter);
       scanlines_left_this_row--;
@@ -555,6 +633,7 @@ video_update_timer(struct video_struct* p_video) {
   scanlines_per_row++;
 
   scanline_ticks *= tick_multiplier;
+  half_scanline_ticks = (scanline_ticks / 2);
   ticks_to_next_scanline *= tick_multiplier;
   ticks_to_next_row = ticks_to_next_scanline;
   ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
@@ -562,9 +641,24 @@ video_update_timer(struct video_struct* p_video) {
 //printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r7 %d r9 %d adj %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->in_vert_adjust, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
 
   if (p_video->in_vsync) {
-    assert(p_video->vsync_scanline_counter > 0);
-    timer_value = ticks_to_next_scanline;
-    timer_value += ((p_video->vsync_scanline_counter - 1) * scanline_ticks);
+    if (!p_video->is_odd_interlace_frame) {
+      assert(p_video->vsync_scanline_counter > 0);
+      timer_value = ticks_to_next_scanline;
+      timer_value += ((p_video->vsync_scanline_counter - 1) * scanline_ticks);
+    } else {
+      uint32_t full_scanlines = p_video->vsync_scanline_counter;
+      if (p_video->horiz_counter <= p_video->half_r0) {
+        timer_value = ((p_video->half_r0 - p_video->horiz_counter) *
+                       tick_multiplier);
+      } else {
+        timer_value = ticks_to_next_scanline;
+        timer_value += (p_video->half_r0 * tick_multiplier);
+        if (full_scanlines > 0) {
+          --full_scanlines;
+        }
+      }
+      timer_value += (full_scanlines * scanline_ticks);
+    }
     p_video->timer_fire_expect_vsync_end = 1;
   } else if ((p_video->vert_counter < r7) &&
              (r7 <= vert_counter_max) &&
@@ -576,6 +670,9 @@ video_update_timer(struct video_struct* p_video) {
     timer_value += (scanline_ticks *
                     scanlines_per_row *
                     (r7 - p_video->vert_counter - 1));
+    if (p_video->is_even_interlace_frame) {
+      timer_value += half_scanline_ticks;
+    }
     p_video->timer_fire_expect_vsync_start = 1;
   } else if (r7 > r4) {
     /* If vsync'ing isn't happening, just wake up every 50Hz or so. */
@@ -590,8 +687,12 @@ video_update_timer(struct video_struct* p_video) {
 
 //printf("vc >= r7, r7 = %d\n", r7);
     ticks_from_frame_to_vsync = (scanline_ticks * scanlines_per_row * r7);
+    if (p_video->is_even_interlace_frame) {
+      ticks_from_frame_to_vsync += half_scanline_ticks;
+    }
+
     ticks_to_end_of_frame = ticks_to_next_row;
-    if (!p_video->in_vert_adjust) {
+    if (!p_video->in_vert_adjust && !p_video->in_dummy_raster) {
       uint32_t rows_to_end_of_frame;
 
       if (p_video->vert_counter <= r4) {
@@ -604,6 +705,10 @@ video_update_timer(struct video_struct* p_video) {
                                 scanlines_per_row *
                                 rows_to_end_of_frame);
       ticks_to_end_of_frame += (scanline_ticks * r5);
+    }
+    if (!p_video->in_dummy_raster && p_video->is_odd_interlace_frame) {
+      /* Add in the dummy raster. */
+      ticks_to_end_of_frame += scanline_ticks;
     }
 
     timer_value = (ticks_to_end_of_frame + ticks_from_frame_to_vsync);
@@ -646,8 +751,6 @@ static void
 video_timer_fired(void* p) {
   struct video_struct* p_video = (struct video_struct*) p;
 
-  assert(timing_get_timer_value(p_video->p_timing, p_video->video_timer_id) ==
-         0);
   assert(!p_video->externally_clocked);
 
 //printf("timer fired\n");
@@ -707,12 +810,21 @@ video_timer_fired(void* p) {
     assert(p_video->had_vsync_this_frame);
     assert(p_video->vert_counter ==
            p_video->crtc_registers[k_crtc_reg_vert_sync_position]);
-    assert(p_video->horiz_counter == 0);
+    if (p_video->is_odd_interlace_frame) {
+      assert(p_video->horiz_counter == p_video->half_r0);
+    } else {
+      assert(p_video->horiz_counter == 0);
+    }
     assert(p_video->scanline_counter == 0);
   }
   if (p_video->timer_fire_expect_vsync_end) {
     assert(!p_video->in_vsync);
-    assert(p_video->horiz_counter == 0);
+    if (p_video->is_odd_interlace_frame) {
+      assert(p_video->horiz_counter == p_video->half_r0);
+    } else {
+      assert(p_video->horiz_counter == 0);
+    }
+    assert(p_video->vsync_scanline_counter == 0);
   }
 
   video_update_timer(p_video);
@@ -846,6 +958,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->render_after_each_row = util_has_option(
       p_options->p_opt_flags, "video:render-after-each-row");
 
+  p_video->crtc_frames = 0;
+  p_video->is_even_interlace_frame = 1;
+  p_video->is_odd_interlace_frame = 0;
+
   /* What initial state should we use for 6845 and Video ULA registers?
    * The 6845 data sheets (all variations?) aren't much help, quoting:
    * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
@@ -882,8 +998,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
 
   /* Set correctly as per above register values. */
+  p_video->is_interlace = 1;
   p_video->is_interlace_sync_and_video = 1;
   p_video->is_master_display_enable = 1;
+  p_video->half_r0 = 32;
 
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
@@ -1436,11 +1554,16 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   p_video->crtc_registers[reg] = (val & mask);
 
   switch (reg) {
+  case k_crtc_reg_horiz_total:
+    p_video->half_r0 = ((p_video->crtc_registers[k_crtc_reg_horiz_total] + 1) /
+                        2);
+    break;
   case k_crtc_reg_sync_width:
     p_video->hsync_pulse_width = hsync_pulse_width;
     p_video->vsync_pulse_width = vsync_pulse_width;
     break;
   case k_crtc_reg_interlace:
+    p_video->is_interlace = (val & 0x1);
     p_video->is_interlace_sync_and_video = ((val & 0x3) == 0x3);
     p_video->is_master_display_enable = ((val & 0x30) != 0x30);
     break;
