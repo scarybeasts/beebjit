@@ -38,6 +38,8 @@ http://bbcmicro.co.uk/game.php?id=1891
 - MODE7 not centered.
 - MODE7 not fully wired up, e.g. Firetrack loader overscan doesn't work.
 - MODE7 graphics rendering has gaps.
+- Add fdi disc format support.
+- MODE7 doesn't have character rounding.
 
 
 Ideas
