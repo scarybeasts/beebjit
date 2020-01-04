@@ -43,6 +43,8 @@ struct render_struct {
   uint32_t vert_beam_window_end_pos;
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row_max;
+  int do_interlace_wobble;
+  int do_skip_next_hsync_vert_pos;
 };
 
 static void
@@ -88,6 +90,10 @@ render_create(struct bbc_options* p_options) {
   if (border_chars > 16) {
     errx(1, "border-chars must be 16 or less");
   }
+
+  p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,
+                                                  "video:interlace-wobble");
+  p_render->do_skip_next_hsync_vert_pos = 0;
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
@@ -588,7 +594,11 @@ render_double_up_lines(struct render_struct* p_render) {
 void
 render_hsync(struct render_struct* p_render) {
   p_render->horiz_beam_pos = 0;
-  p_render->vert_beam_pos += 2;
+  if (!p_render->do_skip_next_hsync_vert_pos) {
+    p_render->vert_beam_pos += 2;
+  } else {
+    p_render->do_skip_next_hsync_vert_pos = 0;
+  }
   /* TODO: do a vertical flyback if beam pos gets too low. */
   render_reset_render_pos(p_render);
 }
@@ -596,5 +606,11 @@ render_hsync(struct render_struct* p_render) {
 void
 render_vsync(struct render_struct* p_render) {
   p_render->vert_beam_pos = 0;
+  if (!p_render->do_interlace_wobble && (p_render->horiz_beam_pos >= 512)) {
+    /* TODO: the interlace wobble, if enabled, is wobbling too much. It wobbles
+     * 1 full vertical scanline (2 host pixels) instead of a half scanline.
+     */
+    p_render->do_skip_next_hsync_vert_pos = 1;
+  }
   render_reset_render_pos(p_render);
 }
