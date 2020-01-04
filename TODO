@@ -10,7 +10,6 @@ get addressed before the next release.
 - Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
 Exile).
 - Make timing.c not suck for performance.
-- Add interlace support to the 6845 CRTC (Revs is a mess).
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - Unit test for video.c on account of the new complexity.
