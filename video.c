@@ -491,9 +491,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       goto recalculate_and_continue;
     }
 
-    /* End of R4-based frame. Time for either a new frame or vertical adjust. */
+    /* End of R4-based frame. Time for either vertical adjust, dummy raster or
+     * new frame.
+     */
     if (r5 != 0) {
       p_video->in_vert_adjust = 1;
+      goto recalculate_and_continue;
+    }
+    if (p_video->is_odd_interlace_frame) {
+      p_video->in_dummy_raster = 1;
       goto recalculate_and_continue;
     }
 

@@ -303,6 +303,47 @@ video_test_advance_and_timing_mode4_nointerlace() {
   test_expect_u32((k_ticks_mode7_per_scanline * 8 * 27), countdown);
 }
 
+static void
+video_test_advance_and_timing_mode4_interlace() {
+  /* Tests for correct timing in a non-MODE7 interlace mode. */
+  int64_t countdown;
+
+  /* Default settings are MODE7, so switch to something closer to MODE4. */
+  test_expect_u32(30, g_p_video->crtc_registers[k_crtc_reg_vert_total]);
+
+  video_crtc_write(g_p_video, 0, k_crtc_reg_interlace);
+  video_crtc_write(g_p_video, 1, 1);
+  video_crtc_write(g_p_video, 0, k_crtc_reg_lines_per_character);
+  video_crtc_write(g_p_video, 1, 7);
+  video_crtc_write(g_p_video, 0, k_crtc_reg_vert_adjust);
+  video_crtc_write(g_p_video, 1, 0);
+
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 8 * 27) +
+                      (k_ticks_mode7_per_scanline / 2)),
+                  countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32((k_ticks_mode7_per_scanline * 2), countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 246) +
+                      (k_ticks_mode7_per_scanline / 2)),
+                  countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32((k_ticks_mode7_per_scanline * 2), countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 246) +
+                      (k_ticks_mode7_per_scanline / 2)),
+                  countdown);
+}
+
 void
 video_test() {
   video_test_init();
@@ -319,5 +360,9 @@ video_test() {
 
   video_test_init();
   video_test_advance_and_timing_mode4_nointerlace();
+  video_test_end();
+
+  video_test_init();
+  video_test_advance_and_timing_mode4_interlace();
   video_test_end();
 }
