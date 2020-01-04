@@ -16,7 +16,6 @@ can even block at that resolution.
 - Unit test for video.c on account of the new complexity.
 - Uridium JIT crash after ship blows up.
 - Re-add unit test for JIT block handling and splitting etc.
-- Syncron FE18 issue?
 
 
 Fix later

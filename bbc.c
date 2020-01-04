@@ -47,6 +47,8 @@ enum {
   k_addr_acia = 0xFE08,
   /* &FE10 - &FE17. */
   k_addr_serial_ula = 0xFE10,
+  /* &FE18 - &FE1B. */
+  k_addr_master_adc = 0xFE18,
   /* &FE20 - &FE2F. */
   k_addr_video_ula = 0xFE20,
   /* &FE30 - &FE3F. */
@@ -258,6 +260,9 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
     ret = serial_ula_read(p_bbc->p_serial);
+    break;
+  case (k_addr_master_adc + 0):
+    /* Syncron reads this even on a model B. */
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
