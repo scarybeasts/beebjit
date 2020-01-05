@@ -622,7 +622,7 @@ video_update_timer(struct video_struct* p_video) {
   ticks_to_next_row = ticks_to_next_scanline;
   ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
 
-//printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r7 %d r9 %d adj %d isv %d mult %d ticks %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r7, r9, p_video->in_vert_adjust, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
+//printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d isv %d mult %d t %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r6, r7, r9, p_video->in_vert_adjust, p_video->is_interlace_sync_and_video, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
 
   if (p_video->in_vsync) {
     if (!p_video->is_odd_interlace_frame) {
@@ -683,9 +683,18 @@ video_update_timer(struct video_struct* p_video) {
     uint32_t ticks_to_end_of_frame;
     uint32_t ticks_from_frame_to_vsync;
 
+    int is_even_interlace_frame = 0;
+
+    if (p_video->is_interlace) {
+      is_even_interlace_frame = p_video->is_even_interlace_frame;
+      if (p_video->vert_counter < r6) {
+        is_even_interlace_frame = !is_even_interlace_frame;
+      }
+    }
+
 //printf("vc >= r7, r7 = %d\n", r7);
     ticks_from_frame_to_vsync = (scanline_ticks * scanlines_per_row * r7);
-    if (p_video->is_even_interlace_frame) {
+    if (p_video->is_interlace && is_even_interlace_frame) {
       ticks_from_frame_to_vsync += half_scanline_ticks;
     }
 
@@ -704,7 +713,9 @@ video_update_timer(struct video_struct* p_video) {
                                 rows_to_end_of_frame);
       ticks_to_end_of_frame += (scanline_ticks * r5);
     }
-    if (!p_video->in_dummy_raster && p_video->is_odd_interlace_frame) {
+    if (!p_video->in_dummy_raster &&
+        p_video->is_interlace &&
+        !is_even_interlace_frame) {
       /* Add in the dummy raster. */
       ticks_to_end_of_frame += scanline_ticks;
     }
