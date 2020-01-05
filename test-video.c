@@ -344,6 +344,45 @@ video_test_advance_and_timing_mode4_interlace() {
                   countdown);
 }
 
+static void
+video_test_additional_interlace_timing() {
+  /* Test for additional interlace timing conditions not tested above. */
+  test_expect_u32(1, g_p_video->is_interlace);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+
+  /* Simulate advance to start of scanline where vsync will fire half-way. */
+  g_p_video->is_even_interlace_frame = 0;
+  g_p_video->is_odd_interlace_frame = 1;
+  g_p_video->vert_counter =
+      g_p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  video_update_timer(g_p_video);
+  test_expect_u32((k_ticks_mode7_per_scanline / 2),
+                  video_test_get_timer());
+
+  /* Simulate advance to after R6 and before R7, even frame.
+   * Note, on the even frame, post-R6 will show as the odd frame in our state
+   * variables.
+   */
+  g_p_video->is_even_interlace_frame = 0;
+  g_p_video->is_odd_interlace_frame = 1;
+  g_p_video->vert_counter =
+      g_p_video->crtc_registers[k_crtc_reg_vert_displayed];
+  video_update_timer(g_p_video);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 10 * 2) +
+                      (k_ticks_mode7_per_scanline / 2)),
+                  video_test_get_timer());
+
+  /* Simulate advance to after R6 and before R7, odd frame. */
+  g_p_video->is_even_interlace_frame = 1;
+  g_p_video->is_odd_interlace_frame = 0;
+  g_p_video->vert_counter =
+      g_p_video->crtc_registers[k_crtc_reg_vert_displayed];
+  video_update_timer(g_p_video);
+  test_expect_u32((k_ticks_mode7_per_scanline * 10 * 2),
+                  video_test_get_timer());
+}
+
+
 void
 video_test() {
   video_test_init();
@@ -364,5 +403,9 @@ video_test() {
 
   video_test_init();
   video_test_advance_and_timing_mode4_interlace();
+  video_test_end();
+
+  video_test_init();
+  video_test_additional_interlace_timing();
   video_test_end();
 }

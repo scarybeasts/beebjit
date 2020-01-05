@@ -539,6 +539,7 @@ video_update_timer(struct video_struct* p_video) {
   uint32_t r0;
   uint32_t r4;
   uint32_t r5;
+  uint32_t r6;
   uint32_t r7;
   uint32_t r9;
 
@@ -566,6 +567,7 @@ video_update_timer(struct video_struct* p_video) {
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
   r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
+  r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
   r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
   r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
 
@@ -652,9 +654,23 @@ video_update_timer(struct video_struct* p_video) {
     timer_value += (scanline_ticks *
                     scanlines_per_row *
                     (r7 - p_video->vert_counter - 1));
-    if (p_video->is_even_interlace_frame) {
+    if (p_video->is_even_interlace_frame && (p_video->vert_counter < r6)) {
+      timer_value += half_scanline_ticks;
+    } else if (p_video->is_odd_interlace_frame &&
+               (p_video->vert_counter >= r6)) {
       timer_value += half_scanline_ticks;
     }
+    p_video->timer_fire_expect_vsync_start = 1;
+  } else if ((p_video->vert_counter == r7) &&
+             p_video->is_odd_interlace_frame &&
+             (p_video->scanline_counter == 0) &&
+             (p_video->horiz_counter < p_video->half_r0) &&
+             !p_video->had_vsync_this_frame) {
+    /* Special case for interlace mode where vsync can fire shortly after R7
+     * is hit, in the even field.
+     */
+    timer_value = (p_video->half_r0 - p_video->horiz_counter);
+    timer_value *= tick_multiplier;
     p_video->timer_fire_expect_vsync_start = 1;
   } else if (r7 > r4) {
     /* If vsync'ing isn't happening, just wake up every 50Hz or so. */
