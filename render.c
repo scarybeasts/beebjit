@@ -42,9 +42,11 @@ struct render_struct {
   uint32_t vert_beam_window_start_pos;
   uint32_t vert_beam_window_end_pos;
   uint32_t* p_render_pos;
+  uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
   int do_interlace_wobble;
   int do_skip_next_hsync_vert_pos;
+  int do_show_frame_boundaries;
 };
 
 static void
@@ -94,6 +96,9 @@ render_create(struct bbc_options* p_options) {
   p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,
                                                   "video:interlace-wobble");
   p_render->do_skip_next_hsync_vert_pos = 0;
+
+  p_render->do_show_frame_boundaries = util_has_option(
+      p_options->p_opt_flags, "video:frame-boundaries");
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
@@ -182,6 +187,7 @@ render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_vert_pos;
 
   p_render->p_render_pos = p_render->p_buffer_end;
+  p_render->p_render_pos_row = p_render->p_buffer_end;
 
   if (p_render->vert_beam_pos >= p_render->vert_beam_window_end_pos) {
     return;
@@ -189,6 +195,12 @@ render_reset_render_pos(struct render_struct* p_render) {
   if (p_render->vert_beam_pos < p_render->vert_beam_window_start_pos) {
     return;
   }
+
+  window_vert_pos = (p_render->vert_beam_pos -
+                     p_render->vert_beam_window_start_pos);
+  p_render->p_render_pos_row = p_render->p_buffer;
+  p_render->p_render_pos_row += (window_vert_pos * p_render->width);
+
   if (p_render->horiz_beam_pos >= p_render->horiz_beam_window_end_pos) {
     return;
   }
@@ -198,15 +210,12 @@ render_reset_render_pos(struct render_struct* p_render) {
 
   window_horiz_pos = (p_render->horiz_beam_pos -
                       p_render->horiz_beam_window_start_pos);
-  window_vert_pos = (p_render->vert_beam_pos -
-                     p_render->vert_beam_window_start_pos);
 
-  p_render->p_render_pos = p_render->p_buffer;
-  p_render->p_render_pos += (window_vert_pos * p_render->width);
+  p_render->p_render_pos = p_render->p_render_pos_row;
+  p_render->p_render_pos += window_horiz_pos;
   p_render->p_render_pos_row_max = (p_render->p_render_pos +
                                     p_render->width -
                                     p_render->pixels_size);
-  p_render->p_render_pos += window_horiz_pos;
 }
 
 static void
@@ -613,4 +622,21 @@ render_vsync(struct render_struct* p_render) {
     p_render->do_skip_next_hsync_vert_pos = 1;
   }
   render_reset_render_pos(p_render);
+}
+
+void
+render_frame_boundary(struct render_struct* p_render) {
+  uint32_t i;
+
+  if (!p_render->do_show_frame_boundaries) {
+    return;
+  }
+  if (p_render->p_render_pos_row == p_render->p_buffer_end) {
+    return;
+  }
+
+  /* Paint a red line to edge of canvas denote CRTC frame boundary. */
+  for (i = 0; i < p_render->width; ++i) {
+    p_render->p_render_pos_row[i] = 0xffff0000;
+  }
 }

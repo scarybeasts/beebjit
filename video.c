@@ -221,6 +221,8 @@ video_start_new_frame(struct video_struct* p_video) {
    * new character row without ever having hit R1 (horizontal displayed).
    */
   p_video->address_counter_next_row = address_counter;
+
+  render_frame_boundary(p_video->p_render);
 }
 
 static inline int

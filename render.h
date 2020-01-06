@@ -62,5 +62,6 @@ void render_clear_buffer(struct render_struct* p_render);
 void render_double_up_lines(struct render_struct* p_render);
 void render_hsync(struct render_struct* p_render);
 void render_vsync(struct render_struct* p_render);
+void render_frame_boundary(struct render_struct* p_render);
 
 #endif /* BEEBJIT_RENDER_H */
