@@ -30,9 +30,18 @@ enum {
 };
 
 enum {
+  k_intel_fdc_command_scan_sectors = 0x00,
+  k_intel_fdc_command_scan_sectors_with_deleted = 0x04,
+  k_intel_fdc_command_write_sectors_128 = 0x0A,
   k_intel_fdc_command_write_sectors = 0x0B,
+  k_intel_fdc_command_write_sectors_deleted_128 = 0x0E,
+  k_intel_fdc_command_write_sectors_deleted = 0x0F,
+  k_intel_fdc_command_read_sectors_128 = 0x12,
   k_intel_fdc_command_read_sectors = 0x13,
+  k_intel_fdc_command_read_sectors_with_deleted_128 = 0x16,
+  k_intel_fdc_command_read_sectors_with_deleted = 0x17,
   k_intel_fdc_command_read_sector_ids = 0x1B,
+  k_intel_fdc_command_verify_sectors_128 = 0x1E,
   k_intel_fdc_command_verify_sectors = 0x1F,
   k_intel_fdc_command_format = 0x23,
   k_intel_fdc_command_seek = 0x29,
