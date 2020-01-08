@@ -45,20 +45,22 @@ struct teletext_struct {
   int flash_visible_this_frame;
   uint32_t scanline;
   uint8_t* p_active_characters;
-  int graphics_active;
-  int separated_active;
+  int is_graphics_active;
+  int is_separated_active;
   int double_active;
   int flash_active;
   int had_double_active_this_scanline;
   int second_character_row_of_double;
   uint32_t fg_color;
   uint32_t bg_color;
+  int is_hold_graphics;
+  uint8_t* p_held_character;
 };
 
 static void
 teletext_set_active_characters(struct teletext_struct* p_teletext) {
-  if (p_teletext->graphics_active) {
-    if (p_teletext->separated_active) {
+  if (p_teletext->is_graphics_active) {
+    if (p_teletext->is_separated_active) {
       p_teletext->p_active_characters = &teletext_separated_graphics[0];
     } else {
       p_teletext->p_active_characters = &teletext_graphics[0];
@@ -70,12 +72,16 @@ teletext_set_active_characters(struct teletext_struct* p_teletext) {
 
 static void
 teletext_scanline_ended(struct teletext_struct* p_teletext) {
-  p_teletext->graphics_active = 0;
-  p_teletext->separated_active = 0;
+  p_teletext->is_graphics_active = 0;
+  p_teletext->is_separated_active = 0;
   p_teletext->double_active = 0;
   p_teletext->flash_active = 0;
   p_teletext->fg_color = p_teletext->palette[7];
   p_teletext->bg_color = p_teletext->palette[0];
+  p_teletext->is_hold_graphics = 0;
+  /* This is space. */
+  p_teletext->p_held_character = &teletext_characters[0];
+
 
   teletext_set_active_characters(p_teletext);
 
@@ -140,7 +146,7 @@ teletext_destroy(struct teletext_struct* p_teletext) {
   free(p_teletext);
 }
 
-static void
+static inline void
 teletext_handle_control_character(struct teletext_struct* p_teletext,
                                   uint8_t src_char) {
   switch (src_char) {
@@ -157,7 +163,7 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   case 5:
   case 6:
   case 7:
-    p_teletext->graphics_active = 0;
+    p_teletext->is_graphics_active = 0;
     p_teletext->fg_color = p_teletext->palette[src_char];
     break;
   case 8:
@@ -183,20 +189,23 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   case 21:
   case 22:
   case 23:
-    p_teletext->graphics_active = 1;
+    p_teletext->is_graphics_active = 1;
     p_teletext->fg_color = p_teletext->palette[(src_char & 7)];
     break;
   case 25:
-    p_teletext->separated_active = 0;
+    p_teletext->is_separated_active = 0;
     break;
   case 26:
-    p_teletext->separated_active = 1;
+    p_teletext->is_separated_active = 1;
     break;
   case 28:
     p_teletext->bg_color = p_teletext->palette[0];
     break;
   case 29:
     p_teletext->bg_color = p_teletext->fg_color;
+    break;
+  case 30:
+    p_teletext->is_hold_graphics = 1;
     break;
   }
 
@@ -215,8 +224,11 @@ teletext_render_line(struct teletext_struct* p_teletext,
     uint32_t i;
     uint32_t j;
     uint32_t bg_color;
-    uint32_t fg_color;
 
+    /* Foreground color and active characters are set-after so load them before
+     * potentially processing a control code.
+     */
+    uint32_t fg_color = p_teletext->fg_color;
     /* Selects space, 0x20. */
     uint8_t* p_src_data = p_teletext->p_active_characters;
     uint32_t src_data_scanline = scanline;
@@ -226,8 +238,14 @@ teletext_render_line(struct teletext_struct* p_teletext,
 
     if (src_char >= 0x20) {
       p_src_data += (60 * (src_char - 0x20));
+      if (p_teletext->is_graphics_active) {
+        p_teletext->p_held_character = p_src_data;
+      }
     } else {
       teletext_handle_control_character(p_teletext, src_char);
+      if (p_teletext->is_hold_graphics) {
+        p_src_data = p_teletext->p_held_character;
+      }
     }
 
     if (p_teletext->flash_active && !p_teletext->flash_visible_this_frame) {
@@ -244,7 +262,6 @@ teletext_render_line(struct teletext_struct* p_teletext,
     p_src_data += (src_data_scanline * 6);
 
     bg_color = p_teletext->bg_color;
-    fg_color = p_teletext->fg_color;
 
     /* TODO: this should be pre-calculated for sure. */
     j = 0;

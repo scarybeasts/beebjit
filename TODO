@@ -39,7 +39,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Add fsd disc format support.
 - MODE7 doesn't have character rounding.
 - Fix Elite-A (file not found trying to launch ship)
-- MODE7 rendering error (graphics hold support)? in Revs loading screen helmet.
 - Remove crufty old rendering code for -fast mode.
 
 
