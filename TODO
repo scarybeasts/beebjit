@@ -40,6 +40,8 @@ http://bbcmicro.co.uk/game.php?id=1891
 - MODE7 doesn't have character rounding.
 - Fix Elite-A (file not found trying to launch ship)
 - Remove crufty old rendering code for -fast mode.
+- Incorrect color line at bottom of status area in Lunar Jetman.
+- Accurate last line latching for 6845.
 
 
 Ideas
