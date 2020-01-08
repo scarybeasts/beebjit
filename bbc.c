@@ -312,7 +312,13 @@ bbc_read_callback(void* p, uint16_t addr) {
     ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
     break;
   case (k_addr_econet + 0):
-    printf("ignoring ECONET read\n");
+  case (k_addr_econet + 4):
+  case (k_addr_econet + 8):
+  case (k_addr_econet + 12):
+  case (k_addr_econet + 16):
+  case (k_addr_econet + 20):
+  case (k_addr_econet + 24):
+  case (k_addr_econet + 28):
     break;
   case (k_addr_adc + 0):
   case (k_addr_adc + 4):

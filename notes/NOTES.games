@@ -189,6 +189,19 @@ LDA ($72),Y vs. LDA #$30.
 4) Doesn't sync to vsync so need to slow it down to play!
 
 
+- LunarJetman.zip
+SHA256: 1eeebe6dff5dddfe20e765e1bc3c62e2af5818aeead7d644fd14db74e110e3f4
+Notes:
+1) Strange read of $FEA9:
+[ITRP] 332B: JSR $49B5
+[ITRP] 332E: AND #$04
+[ITRP] 3330: SEC
+[ITRP] 3331: SBC #$02
+[ITRP] 3333: BIT $FEA9
+[ITRP] 3336: STA $01A0,X
+[ITRP] 3339: RTS
+
+
 - Meteors.zip
 SHA256: 176e00afc9a83a1b07b8ec711f822398b8f5e64c2b014dde1940f8a958388e7d
 Notes:
@@ -333,6 +346,17 @@ Notes:
 1) Interesting "VIA timer is working??" check at $741F: LDA $FE44; CMP $FE44.
 Calls BRK if the compare fails. Breaks an emulator that decrements timers
 asynchronously!
+2) Unclear reason for read of $FE18, during some form of initialization:
+[ITRP] 7493: LDA #$00
+[ITRP] 7495: STA $FE4B
+[ITRP] 7498: STA $FE08
+[ITRP] 749B: BIT $FE18
+[ITRP] 749E: TAX
+[ITRP] 749F: STA $00,X
+[ITRP] 74A1: STA $0100,X
+[ITRP] 74A4: INX
+[ITRP] 74A5: BNE $749F
+[ITRP] 74A7: JSR $0AD4
 
 
 - Tarzan-Alligata.zip
