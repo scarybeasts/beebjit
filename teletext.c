@@ -18,6 +18,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Used for stretching 6 pixels wide into 16. */
+static const uint8_t k_stretch_data[] = {
+  0, 255, 0, 0,
+  0, 255, 0, 0,
+  0, 170, 1, 85,
+  1, 255, 0, 0,
+  1, 255, 0, 0,
+  1, 85,  2, 170,
+  2, 255, 0, 0,
+  2, 255, 0, 0,
+
+  3, 255, 0, 0,
+  3, 255, 0, 0,
+  3, 170, 4, 85,
+  4, 255, 0, 0,
+  4, 255, 0, 0,
+  4, 85,  5, 170,
+  5, 255, 0, 0,
+  5, 255, 0, 0,
+};
+
 struct teletext_struct {
   uint32_t palette[8];
   uint32_t flash_count;
@@ -98,16 +119,15 @@ teletext_create() {
   p_teletext->scanline = 0;
 
   for (i = 0; i < 8; ++i) {
-    /* Black, full alpha. */
-    uint32_t color = 0xff000000;
+    uint32_t color = 0;
     if (i & 1) {
-      color |= 0xff0000;
+      color |= 0x010000;
     }
     if (i & 2) {
-      color |= 0xff00;
+      color |= 0x000100;
     }
     if (i & 4) {
-      color |= 0xff;
+      color |= 0x000001;
     }
     p_teletext->palette[i] = color;
   }
@@ -192,9 +212,11 @@ teletext_render_line(struct teletext_struct* p_teletext,
   uint32_t column;
 
   for (column = 0; column < columns; ++column) {
-    uint32_t value;
+    uint32_t i;
+    uint32_t j;
     uint32_t bg_color;
     uint32_t fg_color;
+
     /* Selects space, 0x20. */
     uint8_t* p_src_data = p_teletext->p_active_characters;
     uint32_t src_data_scanline = scanline;
@@ -224,35 +246,22 @@ teletext_render_line(struct teletext_struct* p_teletext,
     bg_color = p_teletext->bg_color;
     fg_color = p_teletext->fg_color;
 
-    p_dest_buffer[0] = bg_color;
-    p_dest_buffer[1] = bg_color;
+    /* TODO: this should be pre-calculated for sure. */
+    j = 0;
+    for (i = 0; i < 16; ++i) {
+      uint32_t color;
+      uint8_t p1 = p_src_data[k_stretch_data[j]];
+      uint8_t p2 = p_src_data[k_stretch_data[j + 2]];
+      uint32_t c1 = (p1 ? fg_color : bg_color);
+      uint32_t c2 = (p2 ? fg_color : bg_color);
 
-    value = (p_src_data[0] ? fg_color : bg_color);
-    p_dest_buffer[2] = value;
-    p_dest_buffer[3] = value;
+      color = (c1 * k_stretch_data[j + 1]);
+      color += (c2 * k_stretch_data[j + 3]);
 
-    value = (p_src_data[1] ? fg_color : bg_color);
-    p_dest_buffer[4] = value;
-    p_dest_buffer[5] = value;
+      p_dest_buffer[i] = (color | 0xff000000);
 
-    value = (p_src_data[2] ? fg_color : bg_color);
-    p_dest_buffer[6] = value;
-    p_dest_buffer[7] = value;
-
-    value = (p_src_data[3] ? fg_color : bg_color);
-    p_dest_buffer[8] = value;
-    p_dest_buffer[9] = value;
-
-    value = (p_src_data[4] ? fg_color : bg_color);
-    p_dest_buffer[10] = value;
-    p_dest_buffer[11] = value;
-
-    value = (p_src_data[5] ? fg_color : bg_color);
-    p_dest_buffer[12] = value;
-    p_dest_buffer[13] = value;
-
-    p_dest_buffer[14] = bg_color;
-    p_dest_buffer[15] = bg_color;
+      j += 4;
+    }
 
     p_dest_buffer += 16;
   }

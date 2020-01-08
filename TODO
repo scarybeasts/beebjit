@@ -14,7 +14,6 @@ Exile).
 can even block at that resolution.
 - Uridium JIT crash after ship blows up.
 - Re-add unit test for JIT block handling and splitting etc.
-- MODE7 graphics rendering has gaps.
 - BCD support in JIT?
 
 
