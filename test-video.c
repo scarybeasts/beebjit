@@ -393,6 +393,33 @@ video_test_additional_interlace_timing() {
                   video_test_get_timer());
 }
 
+static void
+video_test_r6_0() {
+  /* Check if R6==0 works.
+   * First observed causing an assert in the Atic Atac loader.
+   */
+  int64_t countdown;
+
+  g_p_video->is_even_interlace_frame = 0;
+  g_p_video->is_odd_interlace_frame = 1;
+  g_p_video->crtc_frames = 1;
+  g_p_video->had_vsync_this_frame = 0;
+  g_p_video->vert_counter = 31;
+  g_p_video->in_dummy_raster = 1;
+  g_p_video->crtc_registers[k_crtc_reg_vert_displayed] = 0;
+  video_update_timer(g_p_video);
+  test_expect_u32((k_ticks_mode7_per_scanline + k_ticks_mode7_to_vsync_odd),
+                  video_test_get_timer());
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32((k_ticks_mode7_per_scanline + k_ticks_mode7_to_vsync_odd),
+                  countdown);
+  countdown = 0;
+  countdown = timing_advance_time(g_p_timing, countdown);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+}
+
 
 void
 video_test() {
@@ -418,5 +445,9 @@ video_test() {
 
   video_test_init();
   video_test_additional_interlace_timing();
+  video_test_end();
+
+  video_test_init();
+  video_test_r6_0();
   video_test_end();
 }
