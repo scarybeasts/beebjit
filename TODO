@@ -33,8 +33,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix IRA read and keyboard bus dominance.
 - Add cursor support to the 6845 CRTC.
 - Add tape loading support.
-- MODE7 not centered.
-- MODE7 not fully wired up, e.g. Firetrack loader overscan doesn't work.
 - Add fdi disc format support.
 - Add fsd disc format support.
 - MODE7 doesn't have character rounding.

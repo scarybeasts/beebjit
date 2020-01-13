@@ -14,6 +14,7 @@
 #include "render.h"
 #include "video.h"
 
+#include <assert.h>
 #include <err.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +58,7 @@ struct teletext_struct {
   uint8_t* p_held_character;
 };
 
-static void
+static inline void
 teletext_set_active_characters(struct teletext_struct* p_teletext) {
   if (p_teletext->is_graphics_active) {
     if (p_teletext->is_separated_active) {
@@ -70,7 +71,7 @@ teletext_set_active_characters(struct teletext_struct* p_teletext) {
   }
 }
 
-static void
+static inline void
 teletext_scanline_ended(struct teletext_struct* p_teletext) {
   p_teletext->is_graphics_active = 0;
   p_teletext->is_separated_active = 0;
@@ -81,7 +82,6 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
   p_teletext->is_hold_graphics = 0;
   /* This is space. */
   p_teletext->p_held_character = &teletext_characters[0];
-
 
   teletext_set_active_characters(p_teletext);
 
@@ -98,8 +98,10 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
   p_teletext->had_double_active_this_scanline = 0;
 }
 
-static void
-teletext_frame_ended(struct teletext_struct* p_teletext) {
+static inline void
+teletext_new_frame_started(struct teletext_struct* p_teletext) {
+  p_teletext->scanline = 0;
+
   p_teletext->flash_count++;
   if (p_teletext->flash_count == 48) {
     p_teletext->flash_count = 0;
@@ -118,11 +120,11 @@ teletext_create() {
 
   (void) memset(p_teletext, '\0', sizeof(struct teletext_struct));
 
-  teletext_scanline_ended(p_teletext);
-  teletext_frame_ended(p_teletext);
-
   p_teletext->flash_count = 0;
   p_teletext->scanline = 0;
+
+  teletext_scanline_ended(p_teletext);
+  teletext_new_frame_started(p_teletext);
 
   for (i = 0; i < 8; ++i) {
     uint32_t color = 0;
@@ -212,75 +214,84 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
   teletext_set_active_characters(p_teletext);
 }
 
+void
+teletext_render_data(struct teletext_struct* p_teletext,
+                     struct render_character_1MHz* p_out,
+                     uint8_t data) {
+  uint32_t i;
+  uint32_t j;
+  uint32_t bg_color;
+
+  /* Foreground color and active characters are set-after so load them before
+   * potentially processing a control code.
+   */
+  uint32_t fg_color = p_teletext->fg_color;
+  /* Selects space, 0x20. */
+  uint8_t* p_src_data = p_teletext->p_active_characters;
+  uint32_t src_data_scanline = p_teletext->scanline;
+
+  data &= 0x7F;
+
+  if (data >= 0x20) {
+    p_src_data += (60 * (data - 0x20));
+    if (p_teletext->is_graphics_active) {
+      p_teletext->p_held_character = p_src_data;
+    }
+  } else {
+    teletext_handle_control_character(p_teletext, data);
+    if (p_teletext->is_hold_graphics) {
+      p_src_data = p_teletext->p_held_character;
+    }
+  }
+
+  if (p_teletext->flash_active && !p_teletext->flash_visible_this_frame) {
+    /* Re-route to space. */
+    p_src_data = &teletext_characters[0];
+  }
+  if (p_teletext->double_active) {
+    src_data_scanline >>= 1;
+    if (p_teletext->second_character_row_of_double) {
+      src_data_scanline += 5;
+    }
+  }
+
+  p_src_data += (src_data_scanline * 6);
+
+  bg_color = p_teletext->bg_color;
+
+  /* TODO: this should be pre-calculated for sure. */
+  j = 0;
+  for (i = 0; i < 16; ++i) {
+    uint32_t color;
+    uint8_t p1 = p_src_data[k_stretch_data[j]];
+    uint8_t p2 = p_src_data[k_stretch_data[j + 2]];
+    uint32_t c1 = (p1 ? fg_color : bg_color);
+    uint32_t c2 = (p2 ? fg_color : bg_color);
+
+    color = (c1 * k_stretch_data[j + 1]);
+    color += (c2 * k_stretch_data[j + 3]);
+
+    p_out->host_pixels[i] = (color | 0xff000000);
+
+    j += 4;
+  }
+}
+
+
 static void
 teletext_render_line(struct teletext_struct* p_teletext,
                      uint8_t* p_src_chars,
                      uint8_t columns,
-                     uint8_t scanline,
                      uint32_t* p_dest_buffer) {
   uint32_t column;
+  struct render_character_1MHz* p_character =
+      (struct render_character_1MHz*) p_dest_buffer;
 
   for (column = 0; column < columns; ++column) {
-    uint32_t i;
-    uint32_t j;
-    uint32_t bg_color;
+    uint8_t data = *p_src_chars++;
 
-    /* Foreground color and active characters are set-after so load them before
-     * potentially processing a control code.
-     */
-    uint32_t fg_color = p_teletext->fg_color;
-    /* Selects space, 0x20. */
-    uint8_t* p_src_data = p_teletext->p_active_characters;
-    uint32_t src_data_scanline = scanline;
-    uint8_t src_char = (*p_src_chars & 0x7F);
-
-    p_src_chars++;
-
-    if (src_char >= 0x20) {
-      p_src_data += (60 * (src_char - 0x20));
-      if (p_teletext->is_graphics_active) {
-        p_teletext->p_held_character = p_src_data;
-      }
-    } else {
-      teletext_handle_control_character(p_teletext, src_char);
-      if (p_teletext->is_hold_graphics) {
-        p_src_data = p_teletext->p_held_character;
-      }
-    }
-
-    if (p_teletext->flash_active && !p_teletext->flash_visible_this_frame) {
-      /* Re-route to space. */
-      p_src_data = &teletext_characters[0];
-    }
-    if (p_teletext->double_active) {
-      src_data_scanline >>= 1;
-      if (p_teletext->second_character_row_of_double) {
-        src_data_scanline += 5;
-      }
-    }
-
-    p_src_data += (src_data_scanline * 6);
-
-    bg_color = p_teletext->bg_color;
-
-    /* TODO: this should be pre-calculated for sure. */
-    j = 0;
-    for (i = 0; i < 16; ++i) {
-      uint32_t color;
-      uint8_t p1 = p_src_data[k_stretch_data[j]];
-      uint8_t p2 = p_src_data[k_stretch_data[j + 2]];
-      uint32_t c1 = (p1 ? fg_color : bg_color);
-      uint32_t c2 = (p2 ? fg_color : bg_color);
-
-      color = (c1 * k_stretch_data[j + 1]);
-      color += (c2 * k_stretch_data[j + 3]);
-
-      p_dest_buffer[i] = (color | 0xff000000);
-
-      j += 4;
-    }
-
-    p_dest_buffer += 16;
+    teletext_render_data(p_teletext, p_character, data);
+    p_character++;
   }
 }
 
@@ -288,32 +299,47 @@ void
 teletext_render_full(struct teletext_struct* p_teletext,
                      struct video_struct* p_video) {
   uint32_t row;
-  uint32_t scanline;
 
   struct render_struct* p_render = video_get_render(p_video);
   uint32_t* p_render_buffer = render_get_buffer(p_render);
   uint32_t stride = render_get_width(p_render);
   uint32_t offset = 0;
 
+  teletext_new_frame_started(p_teletext);
+
   for (row = 0; row < 25; ++row) {
     uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
                                                         offset,
                                                         40);
-
-    p_teletext->scanline = 0;
-    for (scanline = 0; scanline < 10; ++scanline) {
+    assert(p_teletext->scanline == 0);
+    do {
       teletext_render_line(p_teletext,
                            p_video_mem,
                            40,
-                           scanline,
                            p_render_buffer);
       teletext_scanline_ended(p_teletext);
 
       p_render_buffer += (stride * 2);
-    }
+    } while (p_teletext->scanline != 0);
 
     offset += 40;
   }
+}
 
-  teletext_frame_ended(p_teletext);
+void
+teletext_DISPMTG_changed(struct teletext_struct* p_teletext, int value) {
+  /* TODO: we've currently only wired this up to HSYNC but it will suffice. */
+  (void) value;
+
+  teletext_scanline_ended(p_teletext);
+}
+
+void
+teletext_VSYNC_changed(struct teletext_struct* p_teletext, int value) {
+  /* TODO: we've currently only wired this up to VSYNC lower but it will
+   * suffice.
+   */
+  (void) value;
+
+  teletext_new_frame_started(p_teletext);
 }

@@ -918,13 +918,13 @@ bbc_create(int mode,
     errx(1, "sound_create failed");
   }
 
-  p_bbc->p_render = render_create(&p_bbc->options);
-  if (p_bbc->p_render == NULL) {
-    errx(1, "render_create failed");
-  }
   p_bbc->p_teletext = teletext_create();
   if (p_bbc->p_teletext == NULL) {
     errx(1, "teletext_create failed");
+  }
+  p_bbc->p_render = render_create(p_bbc->p_teletext, &p_bbc->options);
+  if (p_bbc->p_render == NULL) {
+    errx(1, "render_create failed");
   }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,

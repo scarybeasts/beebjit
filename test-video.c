@@ -14,6 +14,7 @@ enum {
 struct bbc_options g_p_options;
 uint8_t* g_p_bbc_mem = NULL;
 struct timing_struct* g_p_timing = NULL;
+struct teletext_struct* g_p_teletext = NULL;
 struct render_struct* g_p_render = NULL;
 struct video_struct* g_p_video = NULL;
 uint32_t g_video_test_framebuffer_ready_calls = 0;
@@ -37,12 +38,13 @@ video_test_init() {
   g_p_options.accurate = 1;
   g_p_bbc_mem = malloc(0x10000);
   g_p_timing = timing_create(1);
-  g_p_render = render_create(&g_p_options);
+  g_p_teletext = teletext_create();
+  g_p_render = render_create(g_p_teletext, &g_p_options);
   g_p_video = video_create(g_p_bbc_mem,
                            0,
                            g_p_timing,
                            g_p_render,
-                           NULL,
+                           g_p_teletext,
                            NULL,
                            video_test_framebuffer_ready_callback,
                            NULL,
@@ -54,6 +56,7 @@ static void
 video_test_end() {
   video_destroy(g_p_video);
   render_destroy(g_p_render);
+  teletext_destroy(g_p_teletext);
   timing_destroy(g_p_timing);
   free(g_p_bbc_mem);
   g_p_video = NULL;

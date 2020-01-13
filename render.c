@@ -1,6 +1,7 @@
 #include "render.h"
 
 #include "bbc_options.h"
+#include "teletext.h"
 #include "util.h"
 
 #include <assert.h>
@@ -14,6 +15,8 @@ struct render_struct {
 
   uint32_t* p_buffer;
   uint32_t* p_buffer_end;
+
+  struct teletext_struct* p_teletext;
 
   uint32_t palette[16];
   int render_table_dirty[k_render_num_modes];
@@ -58,7 +61,8 @@ render_dirty_all_tables(struct render_struct* p_render) {
 }
 
 struct render_struct*
-render_create(struct bbc_options* p_options) {
+render_create(struct teletext_struct* p_teletext,
+              struct bbc_options* p_options) {
   uint32_t width;
   uint32_t height;
   uint32_t i;
@@ -80,6 +84,8 @@ render_create(struct bbc_options* p_options) {
 
   /* Also sets the palette to black. */
   (void) memset(p_render, '\0', sizeof(struct render_struct));
+
+  p_render->p_teletext = p_teletext;
 
   /* "border characters" is the number of MODE1 square 8x8 pixel characters
    * used to pad the display window beyond the standard viewport for MODE1.
@@ -164,6 +170,7 @@ render_get_buffer(struct render_struct* p_render) {
 void
 render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   assert(p_render->p_buffer == NULL);
+  assert(p_buffer != NULL);
   p_render->p_buffer = p_buffer;
   p_render->p_buffer_end = p_buffer;
   p_render->p_buffer_end += (p_render->width * p_render->height);
@@ -175,12 +182,6 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   render_vsync(p_render);
 }
 
-static void
-render_function_null(struct render_struct* p_render, uint8_t data) {
-  (void) p_render;
-  (void) data;
-}
-
 static inline void
 render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;
@@ -188,6 +189,11 @@ render_reset_render_pos(struct render_struct* p_render) {
 
   p_render->p_render_pos = p_render->p_buffer_end;
   p_render->p_render_pos_row = p_render->p_buffer_end;
+  p_render->p_render_pos_row_max = p_render->p_buffer_end;
+
+  if (p_render->p_buffer == NULL) {
+    return;
+  }
 
   if (p_render->vert_beam_pos >= p_render->vert_beam_window_end_pos) {
     return;
@@ -213,9 +219,26 @@ render_reset_render_pos(struct render_struct* p_render) {
 
   p_render->p_render_pos = p_render->p_render_pos_row;
   p_render->p_render_pos += window_horiz_pos;
-  p_render->p_render_pos_row_max = (p_render->p_render_pos +
+  p_render->p_render_pos_row_max = (p_render->p_render_pos_row +
                                     p_render->width -
                                     p_render->pixels_size);
+}
+
+static void
+render_function_teletext(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+  struct render_character_1MHz* p_character =
+      (struct render_character_1MHz*) p_render_pos;
+
+  p_render->horiz_beam_pos += 16;
+
+  if (p_render_pos < p_render->p_render_pos_row_max) {
+    teletext_render_data(p_render->p_teletext, p_character, data);
+    p_render->p_render_pos += 16;
+  } else if (p_render->horiz_beam_pos ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
+  }
 }
 
 static void
@@ -226,7 +249,7 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 16;
 
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
+  if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_1MHz->values[data];
     p_render->p_render_pos += 16;
   } else if (p_render->horiz_beam_pos ==
@@ -247,7 +270,7 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
    */
   p_render->horiz_beam_pos += 16;
 
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
+  if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
     p_render->p_render_pos += 16;
   } else if (p_render->horiz_beam_pos ==
@@ -264,7 +287,7 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 8;
 
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
+  if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_2MHz->values[data];
     p_render->p_render_pos += 8;
   } else if (p_render->horiz_beam_pos ==
@@ -283,7 +306,7 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 8;
 
-  if (p_render_pos <= p_render->p_render_pos_row_max) {
+  if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
     p_render->p_render_pos += 8;
   } else if (p_render->horiz_beam_pos ==
@@ -314,8 +337,8 @@ render_set_mode(struct render_struct* p_render, int mode) {
     p_render->pixels_size = 16;
     break;
   case k_render_mode7:
-    p_render->func_render_data = render_function_null;
-    p_render->func_render_blank = render_function_null;
+    p_render->func_render_data = render_function_teletext;
+    p_render->func_render_blank = render_function_1MHz_blank;
     p_render->p_render_table_1MHz = NULL;
     p_render->pixels_size = 16;
     break;

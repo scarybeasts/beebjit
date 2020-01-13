@@ -235,10 +235,6 @@ video_get_clock_speed(struct video_struct* p_video) {
 static void
 video_do_paint(struct video_struct* p_video) {
   int do_full_render = p_video->externally_clocked;
-  /* TODO: make MODE7 work with the CRTC implementation. */
-  if (p_video->render_mode == k_render_mode7) {
-    do_full_render = 1;
-  }
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                         do_full_render,
                                         p_video->is_framing_changed_for_render);
@@ -288,6 +284,8 @@ video_set_vsync_lower_state(struct video_struct* p_video) {
   if (p_system_via) {
     via_set_CA1(p_system_via, 0);
   }
+
+  teletext_VSYNC_changed(p_video->p_teletext, 0);
 }
 
 static inline int
@@ -393,6 +391,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->display_enable_horiz = 0;
       func_render = func_render_blank;
       p_video->address_counter_next_row = p_video->address_counter;
+      if (p_video->display_enable_vert) {
+        teletext_DISPMTG_changed(p_video->p_teletext, 0);
+      }
     }
     if (r2_hit) {
       render_hsync(p_render);

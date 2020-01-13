@@ -6,6 +6,7 @@
 struct render_struct;
 
 struct bbc_options;
+struct teletext_struct;
 
 enum {
   k_render_mode0 = 0,
@@ -33,7 +34,8 @@ struct render_table_1MHz {
   struct render_character_1MHz values[256];
 };
 
-struct render_struct* render_create(struct bbc_options* p_options);
+struct render_struct* render_create(struct teletext_struct* p_teletext,
+                                    struct bbc_options* p_options);
 void render_destroy(struct render_struct* p_render);
 
 uint32_t render_get_width(struct render_struct* p_render);
