@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <stdio.h>
+//#include <stdio.h>
 
 /* A real BBC in a non-interlaced bitmapped mode has a CRTC period of 19968us,
  * just short of 20ms.
@@ -622,7 +622,7 @@ video_update_timer(struct video_struct* p_video) {
   ticks_to_next_row = ticks_to_next_scanline;
   ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
 
-printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d i %d mult %d t %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r6, r7, r9, p_video->in_vert_adjust, p_video->is_interlace, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
+//printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d i %d v %d m %d t %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r6, r7, r9, p_video->in_vert_adjust, (p_video->crtc_registers[k_crtc_reg_interlace] & 3), p_video->had_vsync_this_frame, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
 
   if (p_video->in_vsync) {
     if (!p_video->is_odd_interlace_frame) {
@@ -677,17 +677,20 @@ printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d i %d mult %
     timer_value = (k_video_us_per_vsync * 2);
   } else {
     /* Vertical counter is already past the vsync position, so we need to
-     * calculate the timing to the end of the frame, plus the timing from
-     * start of frame to vsync.
+     * calculate the timing to the end of the frame (or vertical counter wrap),
+     * plus the timing from start of frame to vsync.
      */
     uint32_t ticks_to_end_of_frame;
     uint32_t ticks_from_frame_to_vsync;
 
     int is_even_interlace_frame = 0;
+    int is_wrap = 0;
 
     if (p_video->is_interlace) {
       is_even_interlace_frame = p_video->is_even_interlace_frame;
-      if (p_video->vert_counter < r6) {
+      if ((p_video->vert_counter < r6) &&
+          !p_video->in_vert_adjust &&
+          !p_video->in_dummy_raster) {
         is_even_interlace_frame = !is_even_interlace_frame;
       }
     }
@@ -704,18 +707,19 @@ printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d i %d mult %
 
       if (p_video->vert_counter <= r4) {
         rows_to_end_of_frame = (r4 - p_video->vert_counter);
+        ticks_to_end_of_frame += (scanline_ticks * r5);
       } else {
         rows_to_end_of_frame = (0x7F - p_video->vert_counter);
-        rows_to_end_of_frame += (r4 + 1);
+        is_wrap = 1;
       }
       ticks_to_end_of_frame += (scanline_ticks *
                                 scanlines_per_row *
                                 rows_to_end_of_frame);
-      ticks_to_end_of_frame += (scanline_ticks * r5);
     }
     if (!p_video->in_dummy_raster &&
         p_video->is_interlace &&
-        !is_even_interlace_frame) {
+        !is_even_interlace_frame &&
+        !is_wrap) {
       /* Add in the dummy raster. */
       ticks_to_end_of_frame += scanline_ticks;
     }
