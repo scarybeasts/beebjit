@@ -244,6 +244,10 @@ teletext_render_data(struct teletext_struct* p_teletext,
     }
   }
 
+  if (p_out == NULL) {
+    return;
+  }
+
   if (p_teletext->flash_active && !p_teletext->flash_visible_this_frame) {
     /* Re-route to space. */
     p_src_data = &teletext_characters[0];

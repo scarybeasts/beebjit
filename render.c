@@ -235,9 +235,14 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
   if (p_render_pos < p_render->p_render_pos_row_max) {
     teletext_render_data(p_render->p_teletext, p_character, data);
     p_render->p_render_pos += 16;
-  } else if (p_render->horiz_beam_pos ==
-             p_render->horiz_beam_window_start_pos) {
-    render_reset_render_pos(p_render);
+  } else {
+    /* In teletext mode, we still need to tell the SAA5050 chip about data
+     * bytes that are off-screen, so that it can maintain state.
+     */
+    teletext_render_data(p_render->p_teletext, NULL, data);
+    if (p_render->horiz_beam_pos == p_render->horiz_beam_window_start_pos) {
+      render_reset_render_pos(p_render);
+    }
   }
 }
 
