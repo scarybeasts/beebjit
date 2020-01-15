@@ -1,5 +1,6 @@
 #include "disc.h"
 
+#include "ibm_disc_format.h"
 #include "timing.h"
 #include "util.h"
 
@@ -89,6 +90,7 @@ disc_timer_callback(struct disc_struct* p_disc) {
                           clocks_byte,
                           is_index);
 
+  assert(p_disc->byte_position < k_disc_bytes_per_track);
   p_disc->byte_position++;
   if (p_disc->byte_position == k_disc_bytes_per_track) {
     p_disc->byte_position = 0;
@@ -242,7 +244,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
       disc_build_append_repeat(p_disc, 0x00, 6);
       for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
         /* Sector header, aka. ID. */
-        disc_build_append_single_with_clock(p_disc, 0xFE, 0xC7);
+        disc_build_append_single_with_clock(p_disc,
+                                            k_ibm_disc_id_mark_data_pattern,
+                                            k_ibm_disc_mark_clock_pattern);
         disc_build_append_single(p_disc, i_track);
         disc_build_append_single(p_disc, 0);
         disc_build_append_single(p_disc, i_sector);
@@ -255,7 +259,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
         disc_build_append_repeat(p_disc, 0x00, 6);
 
         /* Sector data. */
-        disc_build_append_single_with_clock(p_disc, 0xFB, 0xC7);
+        disc_build_append_single_with_clock(p_disc,
+                                            k_ibm_disc_data_mark_data_pattern,
+                                            k_ibm_disc_mark_clock_pattern);
         disc_build_append_chunk(p_disc, p_ssd_data, k_disc_ssd_sector_size);
         disc_build_append_single(p_disc, 0);
         disc_build_append_single(p_disc, 0);
@@ -276,6 +282,10 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
                                    p_disc->byte_position));
     } /* End of side loop. */
   } /* End of track loop. */
+
+  p_disc->is_side_upper = 0;
+  p_disc->track = 0;
+  p_disc->byte_position = 0;
 }
 
 void

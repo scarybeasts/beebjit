@@ -1,5 +1,6 @@
 #include "intel_fdc.h"
 
+#include "ibm_disc_format.h"
 #include "disc.h"
 #include "state_6502.h"
 
@@ -77,6 +78,16 @@ enum {
   k_intel_fdc_drive_out_load_head = 0x08,
 };
 
+enum {
+  k_intel_fdc_state_idle = 0,
+  k_intel_fdc_state_search_id = 1,
+  k_intel_fdc_state_in_id = 2,
+  k_intel_fdc_state_in_id_crc = 3,
+  k_intel_fdc_state_search_data = 4,
+  k_intel_fdc_state_in_data = 5,
+  k_intel_fdc_state_in_data_crc = 6,
+};
+
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
   uint32_t timer_id;
@@ -95,17 +106,21 @@ struct intel_fdc_struct {
   uint8_t parameters_needed;
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
+  uint8_t drive_out;
 
   uint8_t command_track;
   uint8_t command_sector;
   uint8_t command_num_sectors;
   uint32_t command_sector_size;
+
   uint8_t current_sector;
   uint8_t current_sectors_left;
-  uint16_t current_bytes_left;
-  uint8_t data_command_running;
-  int data_command_fire_nmi;
-  uint8_t drive_out;
+
+  int state;
+  uint32_t state_count;
+  uint8_t state_id_track;
+  uint8_t state_id_sector;
+  uint16_t crc;
 };
 
 struct intel_fdc_struct*
@@ -119,21 +134,7 @@ intel_fdc_create(struct state_6502* p_state_6502) {
 
   p_fdc->p_state_6502 = p_state_6502;
 
-  p_fdc->status = 0;
-  p_fdc->result = 0;
-  p_fdc->data = 0;
-  p_fdc->drive_select = 0;
-  p_fdc->logical_track[0] = 0;
-  p_fdc->logical_track[1] = 0;
-  p_fdc->command = 0;
-  p_fdc->parameters_needed = 0;
-
-  p_fdc->current_sector = 0;
-  p_fdc->current_sectors_left = 0;
-  p_fdc->current_bytes_left = 0;
-  p_fdc->data_command_running = 0;
-  p_fdc->data_command_fire_nmi = 0;
-  p_fdc->drive_out = 0;
+  p_fdc->state = k_intel_fdc_state_idle;
 
   return p_fdc;
 }
@@ -323,11 +324,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   uint8_t param2 = p_fdc->parameters[2];
   int do_seek = 0;
 
+  assert(p_fdc->state == k_intel_fdc_state_idle);
+  assert(p_fdc->state_count == 0);
   assert(p_fdc->parameters_needed == 0);
-  assert(p_fdc->data_command_running == 0);
-  assert(p_fdc->data_command_fire_nmi == 0);
   assert(p_fdc->current_sectors_left == 0);
-  assert(p_fdc->current_bytes_left == 0);
 
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
@@ -390,8 +390,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sectors:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    p_fdc->current_bytes_left = p_fdc->command_sector_size;
-    p_fdc->data_command_running = command;
+    p_fdc->state = k_intel_fdc_state_search_id;
     break;
   case k_intel_fdc_command_seek:
     intel_fdc_set_status_result(p_fdc,
@@ -486,8 +485,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       return;
     }
 
-    assert(p_fdc->data_command_running == 0);
-    assert(p_fdc->current_bytes_left == 0);
+    assert(p_fdc->state_count == 0);
     assert(p_fdc->current_sectors_left == 0);
 
     p_fdc->command_pending = val;
@@ -537,8 +535,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_parameter:
     if (p_fdc->parameters_needed > 0) {
-      assert(p_fdc->data_command_running == 0);
-      assert(p_fdc->current_bytes_left == 0);
+      assert(p_fdc->state_count == 0);
       assert(p_fdc->current_sectors_left == 0);
 
       p_fdc->parameters[p_fdc->parameters_index] = val;
@@ -567,13 +564,125 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
   }
 }
 
+static void
+intel_fdc_crc_init(struct intel_fdc_struct* p_fdc) {
+  p_fdc->crc = 0xFFFF;
+}
+
+static void
+intel_fdc_crc_add_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
+  (void) p_fdc;
+  (void) byte;
+}
+
+static int
+intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
+  /* TODO: if byte wasn't consumed, return error $0A. */
+  p_fdc->data = byte;
+  intel_fdc_set_status_result(p_fdc,
+                              (k_intel_fdc_status_flag_busy |
+                                  k_intel_fdc_status_flag_nmi |
+                                  k_intel_fdc_status_flag_need_data),
+                                  k_intel_fdc_result_ok);
+  return 1;
+}
+
 void
 intel_fdc_byte_callback(void* p,
                         uint8_t data_byte,
                         uint8_t clocks_byte,
                         int is_index) {
-  (void) p;
-  (void) data_byte;
-  (void) clocks_byte;
+  struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
+
+  switch (p_fdc->state) {
+  case k_intel_fdc_state_idle:
+    break;
+  case k_intel_fdc_state_search_id:
+    if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
+        (data_byte == k_ibm_disc_id_mark_data_pattern)) {
+      intel_fdc_crc_init(p_fdc);
+      intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_id_mark_data_pattern);
+
+      p_fdc->state_count = 0;
+      p_fdc->state = k_intel_fdc_state_in_id;
+    }
+    break;
+  case k_intel_fdc_state_in_id:
+    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    switch (p_fdc->state_count) {
+    case 0:
+      p_fdc->state_id_track = data_byte;
+      break;
+    case 2:
+      p_fdc->state_id_sector = data_byte;
+      break;
+    default:
+      break;
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 4) {
+      p_fdc->state_count = 0;
+      p_fdc->state = k_intel_fdc_state_in_id_crc;
+    }
+    break;
+  case k_intel_fdc_state_in_id_crc:
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 2) {
+      p_fdc->state_count = 0;
+      /* TODO: check CRC of course. */
+      if ((p_fdc->state_id_track == p_fdc->command_track) &&
+          (p_fdc->state_id_sector == p_fdc->current_sector)) {
+        p_fdc->state = k_intel_fdc_state_search_data;
+      } else {
+        p_fdc->state = k_intel_fdc_state_search_id;
+      }
+    }
+    break;
+  case k_intel_fdc_state_search_data:
+    /* EMU TODO: what happens if the controller hits another ID mark before it
+     * ever sees a data mark?
+     */
+    if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
+        (data_byte == k_ibm_disc_data_mark_data_pattern)) {
+      intel_fdc_crc_init(p_fdc);
+      intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_data_mark_data_pattern);
+
+      p_fdc->state_count = 0;
+      p_fdc->state = k_intel_fdc_state_in_data;
+    }
+    break;
+  case k_intel_fdc_state_in_data:
+    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
+      break;
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == p_fdc->command_sector_size) {
+      p_fdc->state_count = 0;
+      p_fdc->state = k_intel_fdc_state_in_data_crc;
+    }
+    break;
+  case k_intel_fdc_state_in_data_crc:
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 2) {
+      p_fdc->state_count = 0;
+      /* TODO: check CRC of course. */
+      p_fdc->current_sectors_left--;
+      if (p_fdc->current_sectors_left == 0) {
+        intel_fdc_set_status_result(p_fdc,
+                                    (k_intel_fdc_status_flag_result_ready |
+                                         k_intel_fdc_status_flag_nmi),
+                                    k_intel_fdc_result_ok);
+        p_fdc->state = k_intel_fdc_state_idle;
+      } else {
+        p_fdc->current_sector++;
+        p_fdc->state = k_intel_fdc_state_search_id;
+      }
+    }
+    break;
+  default:
+    assert(0);
+    break;
+  }
   (void) is_index;
 }
