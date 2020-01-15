@@ -35,7 +35,6 @@ main(int argc, const char* argv[]) {
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
-  uint8_t disc_buffers[2][k_bbc_max_dsd_disc_size] = {};
   const char* disc_names[2] = {};
   struct util_file_map* p_disc_maps[2] = {};
 
@@ -245,45 +244,14 @@ main(int argc, const char* argv[]) {
     state_load(p_bbc, load_name);
   }
 
-  /* Load the disc into the drive! */
+  /* Load the discs into the drive! */
   for (i = 0; i <= 1; ++i) {
-    uint8_t* p_data;
-    size_t buffer_size;
-    size_t buffer_filled;
+    const char* p_filename = disc_names[i];
 
-    int is_dsd = 0;
-    size_t max_size = k_bbc_max_dsd_disc_size;
-    const char* disc_name = disc_names[i];
-    struct util_file_map* p_disc_map = NULL;
-
-    if (disc_name == NULL) {
+    if (p_filename == NULL) {
       continue;
     }
-    if (strstr(disc_name, ".dsd") != NULL) {
-      is_dsd = 1;
-    }
-    if (disc_mutable_flag) {
-      p_disc_map = util_file_map(disc_name, max_size, 1);
-      buffer_size = util_file_map_get_size(p_disc_map);
-      buffer_filled = buffer_size;
-      p_data = util_file_map_get_ptr(p_disc_map);
-      p_disc_maps[i] = p_disc_map;
-    } else {
-      if (is_dsd) {
-        buffer_size = k_bbc_max_dsd_disc_size;
-      } else {
-        buffer_size = k_bbc_max_ssd_disc_size;
-      }
-      p_data = disc_buffers[i];
-      buffer_filled = util_file_read_fully(p_data, max_size, disc_name);
-    }
-    bbc_load_disc(p_bbc,
-                  i,
-                  p_data,
-                  buffer_size,
-                  buffer_filled,
-                  is_dsd,
-                  disc_writeable_flag);
+    bbc_load_disc(p_bbc, p_filename, i, disc_writeable_flag, disc_mutable_flag);
   }
 
   /* Set up keyboard capture / replay. */

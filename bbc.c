@@ -943,7 +943,7 @@ bbc_create(int mode,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, p_timing);
+  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }
@@ -1526,19 +1526,21 @@ bbc_get_client_handle(struct bbc_struct* p_bbc) {
 
 void
 bbc_load_disc(struct bbc_struct* p_bbc,
+              const char* p_filename,
               int drive,
-              uint8_t* p_data,
-              size_t buffer_size,
-              size_t buffer_filled,
-              int is_dsd,
-              int writeable) {
-  intel_fdc_load_disc(p_bbc->p_intel_fdc,
-                      drive,
-                      is_dsd,
-                      p_data,
-                      buffer_size,
-                      buffer_filled,
-                      writeable);
+              int is_writeable,
+              int is_mutable) {
+  struct disc_struct* p_disc;
+
+  assert((drive >= 0) && (drive <= 1));
+
+  if (drive == 0) {
+    p_disc = p_bbc->p_disc_0;
+  } else {
+    p_disc = p_bbc->p_disc_1;
+  }
+
+  disc_load(p_disc, p_filename, is_writeable, is_mutable);
 }
 
 static void

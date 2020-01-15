@@ -2,7 +2,6 @@
 
 #include "disc.h"
 #include "state_6502.h"
-#include "timing.h"
 
 #include <assert.h>
 #include <err.h>
@@ -33,16 +32,16 @@ enum {
 enum {
   k_intel_fdc_command_scan_sectors = 0x00,
   k_intel_fdc_command_scan_sectors_with_deleted = 0x04,
-  k_intel_fdc_command_write_sectors_128 = 0x0A,
+  k_intel_fdc_command_write_sector_128 = 0x0A,
   k_intel_fdc_command_write_sectors = 0x0B,
-  k_intel_fdc_command_write_sectors_deleted_128 = 0x0E,
+  k_intel_fdc_command_write_sector_deleted_128 = 0x0E,
   k_intel_fdc_command_write_sectors_deleted = 0x0F,
-  k_intel_fdc_command_read_sectors_128 = 0x12,
+  k_intel_fdc_command_read_sector_128 = 0x12,
   k_intel_fdc_command_read_sectors = 0x13,
-  k_intel_fdc_command_read_sectors_with_deleted_128 = 0x16,
+  k_intel_fdc_command_read_sector_with_deleted_128 = 0x16,
   k_intel_fdc_command_read_sectors_with_deleted = 0x17,
   k_intel_fdc_command_read_sector_ids = 0x1B,
-  k_intel_fdc_command_verify_sectors_128 = 0x1E,
+  k_intel_fdc_command_verify_sector_128 = 0x1E,
   k_intel_fdc_command_verify_sectors = 0x1F,
   k_intel_fdc_command_format = 0x23,
   k_intel_fdc_command_seek = 0x29,
@@ -74,34 +73,33 @@ enum {
 };
 
 enum {
-  k_intel_fdc_sector_size = 256,
-  k_intel_fdc_sectors_per_track = 10,
-  k_intel_fdc_num_tracks = 80,
+  k_intel_fdc_drive_out_side = 0x20,
+  k_intel_fdc_drive_out_load_head = 0x08,
 };
 
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
-  struct timing_struct* p_timing;
   uint32_t timer_id;
 
   struct disc_struct* p_disc_0;
   struct disc_struct* p_disc_1;
+  struct disc_struct* p_current_disc;
 
   uint8_t status;
   uint8_t result;
   uint8_t data;
-  uint8_t drive_0_or_1;
-  /* Unused except for "read drive status". */
+  uint8_t logical_track[2];
+  uint8_t command_pending;
   uint8_t drive_select;
-  uint8_t current_track[2];
   uint8_t command;
   uint8_t parameters_needed;
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
-  uint8_t* disc_data[2];
-  int disc_dsd[2];
-  int disc_writeable[2];
-  uint32_t disc_tracks[2];
+
+  uint8_t command_track;
+  uint8_t command_sector;
+  uint8_t command_num_sectors;
+  uint32_t command_sector_size;
   uint8_t current_sector;
   uint8_t current_sectors_left;
   uint16_t current_bytes_left;
@@ -111,8 +109,7 @@ struct intel_fdc_struct {
 };
 
 struct intel_fdc_struct*
-intel_fdc_create(struct state_6502* p_state_6502,
-                 struct timing_struct* p_timing) {
+intel_fdc_create(struct state_6502* p_state_6502) {
   struct intel_fdc_struct* p_fdc =
       malloc(sizeof(struct intel_fdc_struct));
   if (p_fdc == NULL) {
@@ -121,15 +118,13 @@ intel_fdc_create(struct state_6502* p_state_6502,
   (void) memset(p_fdc, '\0', sizeof(struct intel_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
-  p_fdc->p_timing = p_timing;
 
   p_fdc->status = 0;
   p_fdc->result = 0;
   p_fdc->data = 0;
-  p_fdc->drive_0_or_1 = 0;
   p_fdc->drive_select = 0;
-  p_fdc->current_track[0] = 0;
-  p_fdc->current_track[1] = 0;
+  p_fdc->logical_track[0] = 0;
+  p_fdc->logical_track[1] = 0;
   p_fdc->command = 0;
   p_fdc->parameters_needed = 0;
 
@@ -139,17 +134,6 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_fdc->data_command_running = 0;
   p_fdc->data_command_fire_nmi = 0;
   p_fdc->drive_out = 0;
-
-  p_fdc->disc_dsd[0] = 0;
-  p_fdc->disc_dsd[1] = 0;
-  p_fdc->disc_writeable[0] = 0;
-  p_fdc->disc_writeable[1] = 0;
-  p_fdc->disc_tracks[0] = 0;
-  p_fdc->disc_tracks[1] = 0;
-
-  p_fdc->timer_id = timing_register_timer(p_timing,
-                                          intel_fdc_timer_tick,
-                                          p_fdc);
 
   return p_fdc;
 }
@@ -162,48 +146,6 @@ intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
   assert(p_fdc->p_disc_1 == NULL);
   p_fdc->p_disc_0 = p_disc_0;
   p_fdc->p_disc_1 = p_disc_1;
-}
-
-void
-intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
-                    int drive,
-                    int is_dsd,
-                    uint8_t* p_data,
-                    size_t buffer_size,
-                    size_t buffer_filled,
-                    int writeable) {
-  uint32_t tracks;
-  uint32_t track_length;
-  size_t max_length;
-
-  assert(drive == 0 || drive == 1);
-
-  track_length = (k_intel_fdc_sector_size * k_intel_fdc_sectors_per_track);
-  if (is_dsd) {
-    /* For double sided disc images, the format is alternate sides, by track,
-     * i.e. side 0 track 0, side 1 track 0, side 0 track 1, ...
-     */
-    track_length *= 2;
-  }
-  max_length = (k_intel_fdc_num_tracks * track_length);
-
-  if (buffer_size != max_length) {
-    errx(1, "disc buffer wrong size: 204800 for ssd, 409600 for dsd");
-  }
-  if ((buffer_filled % k_intel_fdc_sector_size) != 0) {
-    errx(1, "disc image not a sector multiple");
-  }
-
-  p_fdc->disc_data[drive] = p_data;
-  p_fdc->disc_dsd[drive] = is_dsd;
-  p_fdc->disc_writeable[drive] = writeable;
-
-  /* Many images have missing sectors on the last track so pad up. */
-  tracks = (buffer_filled / track_length);
-  if ((buffer_filled % track_length) != 0) {
-    tracks++;
-  }
-  p_fdc->disc_tracks[drive] = tracks;
 }
 
 void
@@ -230,14 +172,6 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
   state_6502_set_irq_level(p_fdc->p_state_6502,
                            k_state_6502_irq_nmi,
                            level);
-  if ((level == 1) && (p_fdc->data_command_running == 0)) {
-    /* If we're asserting an NMI outside of a data loop, make sure there's a
-     * timer set to fire immediately to ensure the main loop looks for the NMI.
-     */
-    struct timing_struct* p_timing = p_fdc->p_timing;
-    size_t timer_id = p_fdc->timer_id;
-    (void) timing_start_timer_with_value(p_timing, timer_id, 1);
-  }
 }
 
 uint8_t
@@ -280,15 +214,114 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
 }
 
 static void
+intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc != NULL) {
+    if ((p_fdc->drive_out & k_intel_fdc_drive_out_load_head) !=
+        (drive_out & k_intel_fdc_drive_out_load_head)) {
+      if (drive_out & k_intel_fdc_drive_out_load_head) {
+        disc_start_spinning(p_current_disc);
+      } else {
+        disc_stop_spinning(p_current_disc);
+      }
+    }
+    disc_select_side(p_current_disc,
+                     !!(drive_out & k_intel_fdc_drive_out_side));
+  }
+
+  p_fdc->drive_out = drive_out;
+}
+
+static void
+intel_fdc_select_drive(struct intel_fdc_struct* p_fdc) {
+  uint8_t new_drive_select = (p_fdc->command_pending & 0xC0);
+  if (new_drive_select == p_fdc->drive_select) {
+    return;
+  }
+
+  /* A change of drive select bits clears various bits in the drive output.
+   * For example, the newly select drive won't have the load head signal
+   * active.
+   * This also spins down the previously selected drive.
+   */
+  intel_fdc_set_drive_out(p_fdc,
+                          (p_fdc->drive_out &
+                              ~k_intel_fdc_drive_out_load_head));
+
+  p_fdc->drive_select = new_drive_select;
+  if (new_drive_select == 0x40) {
+    p_fdc->p_current_disc = p_fdc->p_disc_0;
+  } else if (new_drive_select == 0x80) {
+    p_fdc->p_current_disc = p_fdc->p_disc_1;
+  } else {
+    /* NOTE: I'm not sure what selecting no drive or selecting both drives is
+     * supposed to do.
+     */
+    p_fdc->p_current_disc = NULL;
+  }
+}
+
+static int
+intel_fdc_get_WRPROT(struct intel_fdc_struct* p_fdc) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc == NULL) {
+    return 0;
+  }
+  return disc_is_write_protected(p_current_disc);
+}
+
+static int
+intel_fdc_get_TRK0(struct intel_fdc_struct* p_fdc) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc == NULL) {
+    return 0;
+  }
+  return (disc_get_track(p_current_disc) == 0);
+}
+
+static void
+intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
+  int32_t delta;
+  uint8_t* p_logical_track;
+
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc == NULL) {
+    return;
+  }
+
+  if (p_current_disc == p_fdc->p_disc_0) {
+    p_logical_track = &p_fdc->logical_track[0];
+  } else {
+    p_logical_track = &p_fdc->logical_track[1];
+  }
+
+  /* A seek is generally a number of head steps relative to the logical track
+   * register, which may not match the physical head position.
+   * An important exception is a seek to track 0, which head steps until the
+   * TRK0 signal is detected.
+   */
+  /* TODO: does the special TRK0 logic only apply to the explicit seek command
+   * and not implicit seeks?
+   */
+  if (seek_to == 0) {
+    delta = -0xFF;
+  } else {
+    delta = (seek_to - *p_logical_track);
+  }
+  disc_seek_track(p_current_disc, delta);
+
+  *p_logical_track = seek_to;
+}
+
+static void
 intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
+  uint8_t command;
 
   uint8_t param0 = p_fdc->parameters[0];
   uint8_t param1 = p_fdc->parameters[1];
   uint8_t param2 = p_fdc->parameters[2];
-  uint8_t drive_0_or_1 = p_fdc->drive_0_or_1;
-  uint8_t command = p_fdc->command;
-  uint8_t current_track = p_fdc->current_track[drive_0_or_1];
+  int do_seek = 0;
 
   assert(p_fdc->parameters_needed == 0);
   assert(p_fdc->data_command_running == 0);
@@ -296,58 +329,71 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   assert(p_fdc->current_sectors_left == 0);
   assert(p_fdc->current_bytes_left == 0);
 
+  command = (p_fdc->command_pending & 0x3F);
+  p_fdc->command = command;
+
+  p_fdc->command_track = param0;
+  p_fdc->command_sector = param1;
+  p_fdc->command_num_sectors = (param2 & 0x1F);
+  p_fdc->command_sector_size = (((param2 >> 5) + 1) * 128);
+
+  intel_fdc_select_drive(p_fdc);
+
+  /* Many commands ensure the head is loaded. The same set of commands also
+   * perform an implicit seek.
+   */
   switch (command) {
+  case k_intel_fdc_command_write_sector_128:
   case k_intel_fdc_command_write_sectors:
+  case k_intel_fdc_command_write_sector_deleted_128:
+  case k_intel_fdc_command_write_sectors_deleted:
+  case k_intel_fdc_command_read_sector_128:
   case k_intel_fdc_command_read_sectors:
+  case k_intel_fdc_command_read_sector_with_deleted_128:
+  case k_intel_fdc_command_read_sectors_with_deleted:
   case k_intel_fdc_command_read_sector_ids:
+  case k_intel_fdc_command_verify_sector_128:
   case k_intel_fdc_command_verify_sectors:
-    if ((current_track >= p_fdc->disc_tracks[drive_0_or_1]) ||
-        ((p_fdc->drive_out & 0x20) && !p_fdc->disc_dsd[drive_0_or_1])) {
-      intel_fdc_set_status_result(p_fdc,
-                                  (k_intel_fdc_status_flag_result_ready |
-                                   k_intel_fdc_status_flag_nmi),
-                                  k_intel_fdc_result_sector_not_found);
-      return;
-    }
-    break;
+  case k_intel_fdc_command_format:
+  case k_intel_fdc_command_seek:
+    intel_fdc_set_drive_out(p_fdc,
+                            (p_fdc->drive_out |
+                                k_intel_fdc_drive_out_load_head));
+    do_seek = 1;
   default:
     break;
   }
 
+  /* The write commands bail if the disc is write protected. */
   switch (command) {
-  /* TODO: implement k_intel_fdc_command_read_sector_ids. */
-  case k_intel_fdc_command_read_sector_ids:
-  case k_intel_fdc_command_verify_sectors:
-    /* DFS-0.9 verifies sectors before writing them. */
-    intel_fdc_set_status_result(p_fdc,
-                                (k_intel_fdc_status_flag_result_ready |
-                                 k_intel_fdc_status_flag_nmi),
-                                k_intel_fdc_result_ok);
-    break;
+  case k_intel_fdc_command_write_sector_128:
   case k_intel_fdc_command_write_sectors:
-    if (!p_fdc->disc_writeable[drive_0_or_1]) {
+  case k_intel_fdc_command_write_sector_deleted_128:
+  case k_intel_fdc_command_write_sectors_deleted:
+  case k_intel_fdc_command_format:
+    if (intel_fdc_get_WRPROT(p_fdc)) {
       intel_fdc_set_status_result(p_fdc,
                                   (k_intel_fdc_status_flag_result_ready |
                                    k_intel_fdc_status_flag_nmi),
                                   k_intel_fdc_result_write_protected);
-      break;
+      return;
     }
-    p_fdc->data_command_fire_nmi = 1;
-    /* Fall through. */
+  default:
+    break;
+  }
+
+  if (do_seek) {
+    intel_fdc_do_seek(p_fdc, param0);
+  }
+
+  switch (command) {
   case k_intel_fdc_command_read_sectors:
-    p_fdc->current_track[drive_0_or_1] = param0;
-    p_fdc->current_sector = param1;
-    p_fdc->current_sectors_left = (param2 & 0x1F);
-    p_fdc->current_bytes_left = k_intel_fdc_sector_size;
+    p_fdc->current_sector = p_fdc->command_sector;
+    p_fdc->current_sectors_left = p_fdc->command_num_sectors;
+    p_fdc->current_bytes_left = p_fdc->command_sector_size;
     p_fdc->data_command_running = command;
-
-    (void) timing_start_timer_with_value(p_fdc->p_timing,
-                                         p_fdc->timer_id,
-                                         200);
-
     break;
   case k_intel_fdc_command_seek:
-    p_fdc->current_track[drive_0_or_1] = param0;
     intel_fdc_set_status_result(p_fdc,
                                 (k_intel_fdc_status_flag_result_ready |
                                  k_intel_fdc_status_flag_nmi),
@@ -355,16 +401,20 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_command_read_drive_status:
     temp_u8 = 0x80;
-    if (current_track == 0) {
+    if (intel_fdc_get_TRK0(p_fdc)) {
+      /* TRK0 */
       temp_u8 |= 0x02;
     }
-    if (p_fdc->drive_select & 0x01) {
+    if (p_fdc->drive_select & 0x40) {
+      /* RDY0 */
       temp_u8 |= 0x04;
     }
-    if (p_fdc->drive_select & 0x02) {
+    if (p_fdc->drive_select & 0x80) {
+      /* RDY1 */
       temp_u8 |= 0x40;
     }
-    if (!p_fdc->disc_writeable[drive_0_or_1]) {
+    if (intel_fdc_get_WRPROT(p_fdc)) {
+      /* WR PROT */
       temp_u8 |= 0x08;
     }
     intel_fdc_set_status_result(p_fdc,
@@ -372,8 +422,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                                 temp_u8);
     break;
   case k_intel_fdc_command_specify:
-    /* EMU NOTE: different to b-em / jsbeeb. */
-    intel_fdc_set_status_result(p_fdc, 0x00, 0x00);
+    /* EMU: return value matches real 8271. */
+    intel_fdc_set_status_result(p_fdc,
+                                k_intel_fdc_status_flag_result_ready,
+                                k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_special_register:
     temp_u8 = 0;
@@ -396,18 +448,18 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_write_special_register:
     switch (param0) {
     case k_intel_fdc_register_track_drive_0:
-      p_fdc->current_track[0] = param1;
+      p_fdc->logical_track[0] = param1;
       break;
     case k_intel_fdc_register_mode:
       break;
     case k_intel_fdc_register_track_drive_1:
-      p_fdc->current_track[1] = param1;
+      p_fdc->logical_track[1] = param1;
       break;
     case k_intel_fdc_register_drive_out:
       /* Bit 0x20 is important as it's used to select the side of the disc for
        * double sided discs.
        */
-      p_fdc->drive_out = param1;
+      intel_fdc_set_drive_out(p_fdc, param1);
       break;
     default:
       assert(0);
@@ -438,11 +490,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     assert(p_fdc->current_bytes_left == 0);
     assert(p_fdc->current_sectors_left == 0);
 
-    p_fdc->command = (val & 0x3F);
-    p_fdc->drive_select = (val >> 6);
-    p_fdc->drive_0_or_1 = !!(val & 0x80);
+    p_fdc->command_pending = val;
 
-    switch (p_fdc->command) {
+    switch (val & 0x3F) {
     case k_intel_fdc_command_read_drive_status:
       num_params = 0;
       break;
@@ -517,46 +567,6 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
   }
 }
 
-static uint8_t*
-intel_fdc_get_disc_byte(struct intel_fdc_struct* p_fdc,
-                        uint8_t drive,
-                        uint8_t track,
-                        uint8_t sector,
-                        uint8_t offset) {
-  uint8_t* p_byte;
-  uint32_t track_size;
-  uint32_t track_offset;
-
-  if ((drive != 0) && (drive != 1)) {
-    return NULL;
-  }
-  if (track >= k_intel_fdc_num_tracks) {
-    return NULL;
-  }
-  if (sector >= k_intel_fdc_sectors_per_track) {
-    return NULL;
-  }
-
-  track_size = (k_intel_fdc_sectors_per_track * k_intel_fdc_sector_size);
-  track_offset = track_size;
-  if (p_fdc->disc_dsd[drive]) {
-    track_offset *= 2;
-  }
-  track_offset *= track;
-  /* If the second side of the disc is selected, select the appropriate
-   * position in the file.
-   */
-  if (p_fdc->drive_out & 0x20) {
-    track_offset += track_size;
-  }
-
-  p_byte = p_fdc->disc_data[drive];
-  p_byte += track_offset;
-  p_byte += (sector * k_intel_fdc_sector_size);
-  p_byte += offset;
-  return p_byte;
-}
-
 void
 intel_fdc_byte_callback(void* p,
                         uint8_t data_byte,
@@ -566,115 +576,4 @@ intel_fdc_byte_callback(void* p,
   (void) data_byte;
   (void) clocks_byte;
   (void) is_index;
-}
-
-void
-intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc) {
-  uint8_t* p_byte;
-  uint8_t offset;
-  uint8_t drive;
-  uint8_t current_sector;
-  uint8_t current_sectors_left;
-  uint16_t current_bytes_left;
-  int fire_nmi;
-
-  struct timing_struct* p_timing = p_fdc->p_timing;
-  size_t timer_id = p_fdc->timer_id;
-
-  if (p_fdc->data_command_running == 0) {
-    /* This is a standalone NMI outside a data command. */
-    (void) timing_stop_timer(p_timing, timer_id);
-    return;
-  }
-
-  current_bytes_left = p_fdc->current_bytes_left;
-  current_sectors_left = p_fdc->current_sectors_left;
-
-  if (current_sectors_left == 0) {
-    assert(current_bytes_left == 0);
-    p_fdc->data_command_running = 0;
-    (void) timing_stop_timer(p_timing, timer_id);
-    intel_fdc_set_status_result(p_fdc,
-                                (k_intel_fdc_status_flag_result_ready |
-                                 k_intel_fdc_status_flag_nmi),
-                                k_intel_fdc_result_ok);
-    return;
-  }
-
-  (void) timing_adjust_timer_value(p_timing, NULL, timer_id, 200);
-
-  if (p_fdc->data_command_fire_nmi) {
-    p_fdc->data_command_fire_nmi = 0;
-    intel_fdc_set_status_result(p_fdc,
-                                (k_intel_fdc_status_flag_busy |
-                                 k_intel_fdc_status_flag_nmi |
-                                 k_intel_fdc_status_flag_need_data),
-                                k_intel_fdc_result_ok);
-    return;
-  }
-
-  /* If our virtual controller is attempting to crank a byte before the last
-   * one was used, I presume that's data loss, otherwise what would all the
-   * NMIs be about?
-   * Shouldn't happen in the new timing model.
-   * For now we'll be kind and give the 6502 a chance to catch up.
-   */
-  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
-    printf("WARNING: 6502 disk byte too slow\n");
-    return;
-  }
-
-  assert(current_bytes_left <= 256);
-  offset = (256 - current_bytes_left);
-
-  drive = p_fdc->drive_0_or_1;
-  current_sector = p_fdc->current_sector;
-
-  p_byte = intel_fdc_get_disc_byte(p_fdc,
-                                   drive,
-                                   p_fdc->current_track[drive],
-                                   current_sector,
-                                   offset);
-  if (p_fdc->data_command_running == k_intel_fdc_command_read_sectors) {
-    if (p_byte != NULL) {
-      p_fdc->data = *p_byte;
-    } else {
-      p_fdc->data = 0xFF;
-    }
-    fire_nmi = 1;
-  } else {
-    assert(p_fdc->data_command_running ==
-           k_intel_fdc_command_write_sectors);
-    if (p_byte != NULL) {
-      *p_byte = p_fdc->data;
-    }
-    if ((current_sectors_left == 1) && (current_bytes_left == 1)) {
-      fire_nmi = 0;
-    } else {
-      fire_nmi = 1;
-    }
-  }
-
-  if (fire_nmi) {
-    intel_fdc_set_status_result(p_fdc,
-                                (k_intel_fdc_status_flag_busy |
-                                 k_intel_fdc_status_flag_nmi |
-                                 k_intel_fdc_status_flag_need_data),
-                                k_intel_fdc_result_ok);
-  }
-
-  current_bytes_left--;
-  p_fdc->current_bytes_left = current_bytes_left;
-  if (current_bytes_left != 0) {
-    return;
-  }
-
-  current_sectors_left--;
-  p_fdc->current_sectors_left = current_sectors_left;
-  if (current_sectors_left == 0) {
-    return;
-  }
-
-  p_fdc->current_sector++;
-  p_fdc->current_bytes_left = k_intel_fdc_sector_size;
 }

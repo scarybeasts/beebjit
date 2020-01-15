@@ -53,6 +53,10 @@ void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 void util_buffer_fill(struct util_buffer* p_buf, char value, size_t len);
 
 /* File. */
+int util_is_extension(const char* p_name, const char* p_ext);
+enum {
+  k_util_file_no_handle = -1,
+};
 intptr_t util_file_handle_open(const char* p_file_name,
                                int writeable,
                                int create);

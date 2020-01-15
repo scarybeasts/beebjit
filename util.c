@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -342,6 +343,40 @@ util_buffer_fill(struct util_buffer* p_buf, char value, size_t len) {
   assert((p_buf->pos + len) <= p_buf->length);
   (void) memset((p_buf->p_mem + p_buf->pos), value, len);
   p_buf->pos += len;
+}
+
+int
+util_is_extension(const char* p_file_name, const char* p_ext) {
+  const char* p_file_name_end;
+  const char* p_ext_end;
+  size_t i;
+
+  size_t file_name_len = strlen(p_file_name);
+  size_t ext_len = strlen(p_ext);
+
+  if (file_name_len < (ext_len + 1)) {
+    return 0;
+  }
+
+  p_file_name_end = (p_file_name + file_name_len);
+  p_ext_end = (p_ext + ext_len);
+
+  i = 0;
+  while (i < ext_len) {
+    p_file_name_end--;
+    p_ext_end--;
+    if (*p_ext_end != tolower(*p_file_name_end)) {
+      return 0;
+    }
+    ++i;
+  }
+
+  p_file_name_end--;
+  if (*p_file_name_end != '.') {
+    return 0;
+  }
+
+  return 1;
 }
 
 intptr_t
