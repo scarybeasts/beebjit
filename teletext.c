@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <stdio.h>
+
 /* Used for stretching 6 pixels wide into 16. */
 static const uint8_t k_stretch_data[] = {
   0, 255, 0, 0,
@@ -194,6 +196,9 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
     p_teletext->is_graphics_active = 1;
     p_teletext->fg_color = p_teletext->palette[(src_char & 7)];
     break;
+  case 24:
+    printf("TODO: teletext color thing\n");
+    break;
   case 25:
     p_teletext->is_separated_active = 0;
     break;
@@ -208,6 +213,9 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
     break;
   case 30:
     p_teletext->is_hold_graphics = 1;
+    break;
+  case 31:
+    printf("TODO: teletext hold off\n");
     break;
   }
 
