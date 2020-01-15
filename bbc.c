@@ -5,6 +5,7 @@
 #include "cpu_driver.h"
 #include "debug.h"
 #include "defs_6502.h"
+#include "disc.h"
 #include "intel_fdc.h"
 #include "keyboard.h"
 #include "log.h"
@@ -105,6 +106,8 @@ struct bbc_struct {
   struct render_struct* p_render;
   struct teletext_struct* p_teletext;
   struct video_struct* p_video;
+  struct disc_struct* p_disc_0;
+  struct disc_struct* p_disc_1;
   struct intel_fdc_struct* p_intel_fdc;
   struct serial_struct* p_serial;
   struct cpu_driver* p_cpu_driver;
@@ -945,6 +948,20 @@ bbc_create(int mode,
     errx(1, "intel_fdc_create failed");
   }
 
+  p_bbc->p_disc_0 = disc_create(p_timing,
+                                intel_fdc_byte_callback,
+                                p_bbc->p_intel_fdc);
+  if (p_bbc->p_disc_0 == NULL) {
+    errx(1, "disc_create failed");
+  }
+  p_bbc->p_disc_1 = disc_create(p_timing,
+                                intel_fdc_byte_callback,
+                                p_bbc->p_intel_fdc);
+  if (p_bbc->p_disc_1 == NULL) {
+    errx(1, "disc_create failed");
+  }
+  intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
+
   p_bbc->p_serial = serial_create(p_state_6502);
   if (p_bbc->p_serial == NULL) {
     errx(1, "serial_create failed");
@@ -997,6 +1014,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
+  intel_fdc_destroy(p_bbc->p_intel_fdc);
+  disc_destroy(p_bbc->p_disc_0);
+  disc_destroy(p_bbc->p_disc_1);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);

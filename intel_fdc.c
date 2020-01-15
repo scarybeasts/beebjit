@@ -1,5 +1,6 @@
 #include "intel_fdc.h"
 
+#include "disc.h"
 #include "state_6502.h"
 #include "timing.h"
 
@@ -81,7 +82,11 @@ enum {
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
   struct timing_struct* p_timing;
-  size_t timer_id;
+  uint32_t timer_id;
+
+  struct disc_struct* p_disc_0;
+  struct disc_struct* p_disc_1;
+
   uint8_t status;
   uint8_t result;
   uint8_t data;
@@ -150,6 +155,16 @@ intel_fdc_create(struct state_6502* p_state_6502,
 }
 
 void
+intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
+                     struct disc_struct* p_disc_0,
+                     struct disc_struct* p_disc_1) {
+  assert(p_fdc->p_disc_0 == NULL);
+  assert(p_fdc->p_disc_1 == NULL);
+  p_fdc->p_disc_0 = p_disc_0;
+  p_fdc->p_disc_1 = p_disc_1;
+}
+
+void
 intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
                     int drive,
                     int is_dsd,
@@ -193,6 +208,7 @@ intel_fdc_load_disc(struct intel_fdc_struct* p_fdc,
 
 void
 intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
+  /* TODO: stop discs if spinning? */
   free(p_fdc);
 }
 
@@ -539,6 +555,17 @@ intel_fdc_get_disc_byte(struct intel_fdc_struct* p_fdc,
   p_byte += (sector * k_intel_fdc_sector_size);
   p_byte += offset;
   return p_byte;
+}
+
+void
+intel_fdc_byte_callback(void* p,
+                        uint8_t data_byte,
+                        uint8_t clocks_byte,
+                        int is_index) {
+  (void) p;
+  (void) data_byte;
+  (void) clocks_byte;
+  (void) is_index;
 }
 
 void
