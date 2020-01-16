@@ -382,22 +382,23 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
 
-  if (p_fdc->log_commands) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "8271: command %x params %x %x %x",
-               command,
-               param0,
-               param1,
-               param2);
-  }
-
   p_fdc->command_track = param0;
   p_fdc->command_sector = param1;
   p_fdc->command_num_sectors = (param2 & 0x1F);
   p_fdc->command_sector_size = (((param2 >> 5) + 1) * 128);
 
   intel_fdc_select_drive(p_fdc);
+
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "8271: command %x select %x params %x %x %x",
+               command,
+               p_fdc->drive_select,
+               param0,
+               param1,
+               param2);
+  }
 
   /* Many commands ensure the head is loaded. The same set of commands also
    * perform an implicit seek.
@@ -447,6 +448,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   switch (command) {
   case k_intel_fdc_command_read_sectors:
+  case k_intel_fdc_command_read_sectors_with_deleted:
+  case k_intel_fdc_command_read_sector_ids:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
     p_fdc->state = k_intel_fdc_state_prepare_search_id;
@@ -558,6 +561,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       break;
     case k_intel_fdc_command_write_sectors:
     case k_intel_fdc_command_read_sectors:
+    case k_intel_fdc_command_read_sectors_with_deleted:
     case k_intel_fdc_command_read_sector_ids:
     case k_intel_fdc_command_verify_sectors:
       num_params = 3;
@@ -645,6 +649,20 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
   return 1;
 }
 
+static void
+intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
+  p_fdc->current_sectors_left--;
+  if (p_fdc->current_sectors_left == 0) {
+    intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
+  } else {
+    p_fdc->current_sector++;
+    /* EMU: Go to state prepare ID so that the index pulse counter is reset.
+     * A real 8271 permits two index pulses per sector, not per command.
+     */
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
+  }
+}
+
 void
 intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   int is_index_pulse;
@@ -669,6 +687,11 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_in_id:
     intel_fdc_crc_add_byte(p_fdc, data_byte);
+    if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+      if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
+        break;
+      }
+    }
     switch (p_fdc->state_count) {
     case 0:
       p_fdc->state_id_track = data_byte;
@@ -688,11 +711,15 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
       /* TODO: check CRC of course. */
-      if ((p_fdc->state_id_track == p_fdc->command_track) &&
-          (p_fdc->state_id_sector == p_fdc->current_sector)) {
-        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
+      if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+        intel_fdc_check_completion(p_fdc);
       } else {
-        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+        if ((p_fdc->state_id_track == p_fdc->command_track) &&
+            (p_fdc->state_id_sector == p_fdc->current_sector)) {
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
+        } else {
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+        }
       }
     }
     break;
@@ -722,16 +749,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
       /* TODO: check CRC of course. */
-      p_fdc->current_sectors_left--;
-      if (p_fdc->current_sectors_left == 0) {
-        intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
-      } else {
-        p_fdc->current_sector++;
-        /* EMU: Go to state prepare ID so that the index pulse counter is reset.
-         * A real 8271 permits two index pulses per sector, not per command.
-         */
-        intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
-      }
+      intel_fdc_check_completion(p_fdc);
     }
     break;
   default:
