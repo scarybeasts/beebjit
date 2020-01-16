@@ -1,8 +1,11 @@
 #include "intel_fdc.h"
 
-#include "ibm_disc_format.h"
+#include "bbc_options.h"
 #include "disc.h"
+#include "ibm_disc_format.h"
+#include "log.h"
 #include "state_6502.h"
+#include "util.h"
 
 #include <assert.h>
 #include <err.h>
@@ -93,6 +96,8 @@ struct intel_fdc_struct {
   struct state_6502* p_state_6502;
   uint32_t timer_id;
 
+  int log_commands;
+
   struct disc_struct* p_disc_0;
   struct disc_struct* p_disc_1;
   struct disc_struct* p_current_disc;
@@ -127,7 +132,8 @@ struct intel_fdc_struct {
 };
 
 struct intel_fdc_struct*
-intel_fdc_create(struct state_6502* p_state_6502) {
+intel_fdc_create(struct state_6502* p_state_6502,
+                 struct bbc_options* p_options) {
   struct intel_fdc_struct* p_fdc =
       malloc(sizeof(struct intel_fdc_struct));
   if (p_fdc == NULL) {
@@ -136,6 +142,9 @@ intel_fdc_create(struct state_6502* p_state_6502) {
   (void) memset(p_fdc, '\0', sizeof(struct intel_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
+
+  p_fdc->log_commands = util_has_option(p_options->p_log_flags,
+                                        "disc:commands");
 
   p_fdc->state = k_intel_fdc_state_idle;
 
@@ -192,6 +201,15 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
   if (do_nmi) {
     status |= k_intel_fdc_status_flag_nmi;
   }
+
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "8271: status %x result %x",
+               status,
+               result);
+  }
+
   intel_fdc_set_status_result(p_fdc, status, result);
 
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
@@ -363,6 +381,16 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
+
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "8271: command %x params %x %x %x",
+               command,
+               param0,
+               param1,
+               param2);
+  }
 
   p_fdc->command_track = param0;
   p_fdc->command_sector = param1;

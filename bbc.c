@@ -943,7 +943,7 @@ bbc_create(int mode,
     errx(1, "video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502);
+  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
   if (p_bbc->p_intel_fdc == NULL) {
     errx(1, "intel_fdc_create failed");
   }
