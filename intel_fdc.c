@@ -258,6 +258,7 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
 static void
 intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
   struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+
   if (p_current_disc != NULL) {
     if ((p_fdc->drive_out & k_intel_fdc_drive_out_load_head) !=
         (drive_out & k_intel_fdc_drive_out_load_head)) {
@@ -275,8 +276,10 @@ intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
 }
 
 static void
-intel_fdc_select_drive(struct intel_fdc_struct* p_fdc) {
-  uint8_t new_drive_select = (p_fdc->command_pending & 0xC0);
+intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
+                       uint8_t new_drive_select) {
+  uint8_t new_drive_out;
+
   if (new_drive_select == p_fdc->drive_select) {
     return;
   }
@@ -286,9 +289,10 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc) {
    * active.
    * This also spins down the previously selected drive.
    */
-  intel_fdc_set_drive_out(p_fdc,
-                          (p_fdc->drive_out &
-                              ~k_intel_fdc_drive_out_load_head));
+  new_drive_out = (p_fdc->drive_out & ~0xC0);
+  new_drive_out |= new_drive_select;
+  new_drive_out &= ~k_intel_fdc_drive_out_load_head;
+  intel_fdc_set_drive_out(p_fdc, new_drive_out);
 
   p_fdc->drive_select = new_drive_select;
   if (new_drive_select == 0x40) {
@@ -328,6 +332,15 @@ intel_fdc_get_INDEX(struct intel_fdc_struct* p_fdc) {
     return 0;
   }
   return disc_is_index_pulse(p_current_disc);
+}
+
+static int
+intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc == NULL) {
+    return 0;
+  }
+  return disc_is_spinning(p_current_disc);
 }
 
 static void
@@ -387,7 +400,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->command_num_sectors = (param2 & 0x1F);
   p_fdc->command_sector_size = (((param2 >> 5) + 1) * 128);
 
-  intel_fdc_select_drive(p_fdc);
+  intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc,
@@ -458,8 +471,11 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_drive_status:
-    /* TODO: INDEX. */
     temp_u8 = 0x80;
+    if (!intel_fdc_current_disc_is_spinning(p_fdc)) {
+      intel_fdc_set_command_result(p_fdc, 0, temp_u8);
+      break;
+    }
     if (intel_fdc_get_TRK0(p_fdc)) {
       /* TRK0 */
       temp_u8 |= 0x02;
@@ -475,6 +491,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     if (intel_fdc_get_WRPROT(p_fdc)) {
       /* WR PROT */
       temp_u8 |= 0x08;
+    }
+    if (intel_fdc_get_INDEX(p_fdc)) {
+      /* INDEX */
+      temp_u8 |= 0x10;
     }
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
@@ -511,7 +531,15 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     case k_intel_fdc_register_drive_out:
       /* Bit 0x20 is important as it's used to select the side of the disc for
        * double sided discs.
+       * Bit 0x08 is important as it provides manual head load / unload control,
+       * which includes motor spin up / down.
+       * The parameter also includes drive select bits which override those in
+       * the command.
        */
+      /* Select the drive as a separate call to avoid recursion between
+       * these two functions.
+       */
+      intel_fdc_select_drive(p_fdc, (param1 & 0xC0));
       intel_fdc_set_drive_out(p_fdc, param1);
       break;
     default:
