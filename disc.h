@@ -9,11 +9,9 @@ struct bbc_options;
 struct timing_struct;
 
 struct disc_struct* disc_create(struct timing_struct* p_timing,
-                                void (*p_byte_callback)
-                                    (void* p,
-                                     uint8_t data,
-                                     uint8_t clock,
-                                     int is_index),
+                                void (*p_byte_callback)(void* p,
+                                                        uint8_t data,
+                                                        uint8_t clock),
                                 void* p_byte_callback_object,
                                 struct bbc_options* p_options);
 void disc_destroy(struct disc_struct* p_disc);
@@ -26,6 +24,7 @@ void disc_load(struct disc_struct* p_disc,
 int disc_is_spinning(struct disc_struct* p_disc);
 int disc_is_write_protected(struct disc_struct* p_disc);
 uint32_t disc_get_track(struct disc_struct* p_disc);
+int disc_is_index_pulse(struct disc_struct* p_disc);
 
 void disc_start_spinning(struct disc_struct* p_disc);
 void disc_stop_spinning(struct disc_struct* p_disc);

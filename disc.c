@@ -47,7 +47,7 @@ struct disc_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
-  void (*p_byte_callback)(void*, uint8_t, uint8_t, int);
+  void (*p_byte_callback)(void*, uint8_t, uint8_t);
   void* p_byte_callback_object;
 
   int log_protection;
@@ -72,7 +72,6 @@ disc_timer_callback(struct disc_struct* p_disc) {
   struct disc_track* p_track;
   uint8_t data_byte;
   uint8_t clocks_byte;
-  int is_index;
 
   if (p_disc->is_side_upper) {
     p_side = &p_disc->upper_side;
@@ -83,7 +82,6 @@ disc_timer_callback(struct disc_struct* p_disc) {
   p_track = &p_side->tracks[p_disc->track];
   data_byte = p_track->data[p_disc->byte_position];
   clocks_byte = p_track->clocks[p_disc->byte_position];
-  is_index = (p_disc->byte_position < k_disc_index_bytes);
 
   (void) timing_set_timer_value(p_disc->p_timing,
                                 p_disc->timer_id,
@@ -91,8 +89,7 @@ disc_timer_callback(struct disc_struct* p_disc) {
 
   p_disc->p_byte_callback(p_disc->p_byte_callback_object,
                           data_byte,
-                          clocks_byte,
-                          is_index);
+                          clocks_byte);
 
   assert(p_disc->byte_position < k_disc_bytes_per_track);
   p_disc->byte_position++;
@@ -103,10 +100,7 @@ disc_timer_callback(struct disc_struct* p_disc) {
 
 struct disc_struct*
 disc_create(struct timing_struct* p_timing,
-            void (*p_byte_callback)(void* p,
-                                    uint8_t data,
-                                    uint8_t clock,
-                                    int index),
+            void (*p_byte_callback)(void* p, uint8_t data, uint8_t clock),
             void* p_byte_callback_object,
             struct bbc_options* p_options) {
   struct disc_struct* p_disc = malloc(sizeof(struct disc_struct));
@@ -489,6 +483,17 @@ disc_is_write_protected(struct disc_struct* p_disc) {
 uint32_t
 disc_get_track(struct disc_struct* p_disc) {
   return p_disc->track;
+}
+
+int
+disc_is_index_pulse(struct disc_struct* p_disc) {
+  /* EMU: the 8271 datasheet says that the index pulse must be held for over
+   * 0.5us.
+   */
+  if (p_disc->byte_position < k_disc_index_bytes) {
+    return 1;
+  }
+  return 0;
 }
 
 int

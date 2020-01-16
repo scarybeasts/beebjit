@@ -80,12 +80,13 @@ enum {
 
 enum {
   k_intel_fdc_state_idle = 0,
-  k_intel_fdc_state_search_id = 1,
-  k_intel_fdc_state_in_id = 2,
-  k_intel_fdc_state_in_id_crc = 3,
-  k_intel_fdc_state_search_data = 4,
-  k_intel_fdc_state_in_data = 5,
-  k_intel_fdc_state_in_data_crc = 6,
+  k_intel_fdc_state_prepare_search_id = 1,
+  k_intel_fdc_state_search_id = 2,
+  k_intel_fdc_state_in_id = 3,
+  k_intel_fdc_state_in_id_crc = 4,
+  k_intel_fdc_state_search_data = 5,
+  k_intel_fdc_state_in_data = 6,
+  k_intel_fdc_state_in_data_crc = 7,
 };
 
 struct intel_fdc_struct {
@@ -118,6 +119,8 @@ struct intel_fdc_struct {
 
   int state;
   uint32_t state_count;
+  int state_is_index_pulse;
+  uint32_t state_index_pulse_count;
   uint8_t state_id_track;
   uint8_t state_id_sector;
   uint16_t crc;
@@ -155,6 +158,12 @@ intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   free(p_fdc);
 }
 
+static inline void
+intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
+  p_fdc->state = state;
+  p_fdc->state_count = 0;
+}
+
 static void
 intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
                             uint8_t status,
@@ -173,6 +182,20 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
   state_6502_set_irq_level(p_fdc->p_state_6502,
                            k_state_6502_irq_nmi,
                            level);
+}
+
+static void
+intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
+                             int do_nmi,
+                             uint8_t result) {
+  uint8_t status = k_intel_fdc_status_flag_result_ready;
+  if (do_nmi) {
+    status |= k_intel_fdc_status_flag_nmi;
+  }
+  intel_fdc_set_status_result(p_fdc, status, result);
+
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
+  p_fdc->command = 0;
 }
 
 uint8_t
@@ -280,6 +303,15 @@ intel_fdc_get_TRK0(struct intel_fdc_struct* p_fdc) {
   return (disc_get_track(p_current_disc) == 0);
 }
 
+static int
+intel_fdc_get_INDEX(struct intel_fdc_struct* p_fdc) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+  if (p_current_disc == NULL) {
+    return 0;
+  }
+  return disc_is_index_pulse(p_current_disc);
+}
+
 static void
 intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
   int32_t delta;
@@ -326,8 +358,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   assert(p_fdc->state == k_intel_fdc_state_idle);
   assert(p_fdc->state_count == 0);
+  assert(p_fdc->command == 0);
   assert(p_fdc->parameters_needed == 0);
-  assert(p_fdc->current_sectors_left == 0);
 
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
@@ -372,10 +404,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_write_sectors_deleted:
   case k_intel_fdc_command_format:
     if (intel_fdc_get_WRPROT(p_fdc)) {
-      intel_fdc_set_status_result(p_fdc,
-                                  (k_intel_fdc_status_flag_result_ready |
-                                   k_intel_fdc_status_flag_nmi),
-                                  k_intel_fdc_result_write_protected);
+      intel_fdc_set_command_result(p_fdc,
+                                   1,
+                                   k_intel_fdc_result_write_protected);
       return;
     }
   default:
@@ -390,15 +421,13 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sectors:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    p_fdc->state = k_intel_fdc_state_search_id;
+    p_fdc->state = k_intel_fdc_state_prepare_search_id;
     break;
   case k_intel_fdc_command_seek:
-    intel_fdc_set_status_result(p_fdc,
-                                (k_intel_fdc_status_flag_result_ready |
-                                 k_intel_fdc_status_flag_nmi),
-                                k_intel_fdc_result_ok);
+    intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_drive_status:
+    /* TODO: INDEX. */
     temp_u8 = 0x80;
     if (intel_fdc_get_TRK0(p_fdc)) {
       /* TRK0 */
@@ -416,15 +445,11 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
       /* WR PROT */
       temp_u8 |= 0x08;
     }
-    intel_fdc_set_status_result(p_fdc,
-                                k_intel_fdc_status_flag_result_ready,
-                                temp_u8);
+    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_specify:
     /* EMU: return value matches real 8271. */
-    intel_fdc_set_status_result(p_fdc,
-                                k_intel_fdc_status_flag_result_ready,
-                                k_intel_fdc_result_ok);
+    intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_special_register:
     temp_u8 = 0;
@@ -440,9 +465,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
       assert(0);
       break;
     }
-    intel_fdc_set_status_result(p_fdc,
-                                k_intel_fdc_status_flag_result_ready,
-                                temp_u8);
+    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_write_special_register:
     switch (param0) {
@@ -464,8 +487,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
       assert(0);
       break;
     }
-    /* EMU NOTE: different to b-em / jsbeeb. */
-    intel_fdc_set_status_result(p_fdc, 0x00, 0x00);
+    /* EMU: checked on a real 8271.  */
+    intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
   default:
     assert(0);
@@ -480,13 +503,17 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 
   switch (addr & 0x07) {
   case k_intel_fdc_command:
+    /* TODO: this isn't correct. A new command will actually replace the old
+     * one despite it being decried as illegal.
+     */
     if (p_fdc->status & k_intel_fdc_status_flag_busy) {
       /* Need parameters or command busy. Get out. */
       return;
     }
 
+    assert(p_fdc->state == k_intel_fdc_state_idle);
     assert(p_fdc->state_count == 0);
-    assert(p_fdc->current_sectors_left == 0);
+    assert(p_fdc->command == 0);
 
     p_fdc->command_pending = val;
 
@@ -514,10 +541,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       num_params = 5;
       break;
     default:
-      intel_fdc_set_status_result(p_fdc,
-                                  (k_intel_fdc_status_flag_result_ready |
-                                   k_intel_fdc_status_flag_nmi),
-                                  k_intel_fdc_result_sector_not_found);
+      intel_fdc_set_command_result(p_fdc,
+                                   1,
+                                   k_intel_fdc_result_sector_not_found);
       return;
     }
 
@@ -527,7 +553,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     if (p_fdc->parameters_needed == 0) {
       intel_fdc_do_command(p_fdc);
     } else {
-      /* EMU NOTE: different to b-em / jsbeeb: sets result and NMI. */
+      /* TODO: check this, sometimes I see result ready indicated on a real
+       * 8271??
+       */
       intel_fdc_set_status_result(p_fdc,
                                   k_intel_fdc_status_flag_busy,
                                   k_intel_fdc_result_ok);
@@ -535,8 +563,10 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_parameter:
     if (p_fdc->parameters_needed > 0) {
+      assert(p_fdc->status & k_intel_fdc_status_flag_busy);
+      assert(p_fdc->state == k_intel_fdc_state_idle);
       assert(p_fdc->state_count == 0);
-      assert(p_fdc->current_sectors_left == 0);
+      assert(p_fdc->command == 0);
 
       p_fdc->parameters[p_fdc->parameters_index] = val;
       p_fdc->parameters_index++;
@@ -588,14 +618,17 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
 }
 
 void
-intel_fdc_byte_callback(void* p,
-                        uint8_t data_byte,
-                        uint8_t clocks_byte,
-                        int is_index) {
+intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+  int is_index_pulse;
+
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
 
   switch (p_fdc->state) {
   case k_intel_fdc_state_idle:
+    break;
+  case k_intel_fdc_state_prepare_search_id:
+    p_fdc->state_index_pulse_count = 0;
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
     break;
   case k_intel_fdc_state_search_id:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
@@ -603,8 +636,7 @@ intel_fdc_byte_callback(void* p,
       intel_fdc_crc_init(p_fdc);
       intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_id_mark_data_pattern);
 
-      p_fdc->state_count = 0;
-      p_fdc->state = k_intel_fdc_state_in_id;
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id);
     }
     break;
   case k_intel_fdc_state_in_id:
@@ -621,20 +653,18 @@ intel_fdc_byte_callback(void* p,
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == 4) {
-      p_fdc->state_count = 0;
-      p_fdc->state = k_intel_fdc_state_in_id_crc;
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id_crc);
     }
     break;
   case k_intel_fdc_state_in_id_crc:
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
-      p_fdc->state_count = 0;
       /* TODO: check CRC of course. */
       if ((p_fdc->state_id_track == p_fdc->command_track) &&
           (p_fdc->state_id_sector == p_fdc->current_sector)) {
-        p_fdc->state = k_intel_fdc_state_search_data;
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
       } else {
-        p_fdc->state = k_intel_fdc_state_search_id;
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
       }
     }
     break;
@@ -647,8 +677,7 @@ intel_fdc_byte_callback(void* p,
       intel_fdc_crc_init(p_fdc);
       intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_data_mark_data_pattern);
 
-      p_fdc->state_count = 0;
-      p_fdc->state = k_intel_fdc_state_in_data;
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data);
     }
     break;
   case k_intel_fdc_state_in_data:
@@ -658,25 +687,22 @@ intel_fdc_byte_callback(void* p,
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
-      p_fdc->state_count = 0;
-      p_fdc->state = k_intel_fdc_state_in_data_crc;
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
     break;
   case k_intel_fdc_state_in_data_crc:
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
-      p_fdc->state_count = 0;
       /* TODO: check CRC of course. */
       p_fdc->current_sectors_left--;
       if (p_fdc->current_sectors_left == 0) {
-        intel_fdc_set_status_result(p_fdc,
-                                    (k_intel_fdc_status_flag_result_ready |
-                                         k_intel_fdc_status_flag_nmi),
-                                    k_intel_fdc_result_ok);
-        p_fdc->state = k_intel_fdc_state_idle;
+        intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
       } else {
         p_fdc->current_sector++;
-        p_fdc->state = k_intel_fdc_state_search_id;
+        /* EMU: Go to state prepare ID so that the index pulse counter is reset.
+         * A real 8271 permits two index pulses per sector, not per command.
+         */
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
       }
     }
     break;
@@ -684,5 +710,22 @@ intel_fdc_byte_callback(void* p,
     assert(0);
     break;
   }
-  (void) is_index;
+
+  is_index_pulse = intel_fdc_get_INDEX(p_fdc);
+  if (is_index_pulse && !p_fdc->state_is_index_pulse) {
+    p_fdc->state_index_pulse_count++;
+    if ((p_fdc->state != k_intel_fdc_state_idle) &&
+        (p_fdc->state_index_pulse_count >= 2)) {
+      /* I/O commands fail with $18 (sector not found) if there are two index
+       * pulses without progress.
+       * EMU: interestingly enough, this applies always for an e.g. 8192 byte
+       * sector read because such a crazy read cannot be satisfied within 2
+       * revolutions.
+       */
+      intel_fdc_set_command_result(p_fdc,
+                                   1,
+                                   k_intel_fdc_result_sector_not_found);
+    }
+  }
+  p_fdc->state_is_index_pulse = is_index_pulse;
 }
