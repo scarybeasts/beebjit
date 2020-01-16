@@ -950,13 +950,15 @@ bbc_create(int mode,
 
   p_bbc->p_disc_0 = disc_create(p_timing,
                                 intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc);
+                                p_bbc->p_intel_fdc,
+                                &p_bbc->options);
   if (p_bbc->p_disc_0 == NULL) {
     errx(1, "disc_create failed");
   }
   p_bbc->p_disc_1 = disc_create(p_timing,
                                 intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc);
+                                p_bbc->p_intel_fdc,
+                                &p_bbc->options);
   if (p_bbc->p_disc_1 == NULL) {
     errx(1, "disc_create failed");
   }

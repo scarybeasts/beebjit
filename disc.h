@@ -5,6 +5,7 @@
 
 struct disc_struct;
 
+struct bbc_options;
 struct timing_struct;
 
 struct disc_struct* disc_create(struct timing_struct* p_timing,
@@ -13,7 +14,8 @@ struct disc_struct* disc_create(struct timing_struct* p_timing,
                                      uint8_t data,
                                      uint8_t clock,
                                      int is_index),
-                                void* p_byte_callback_object);
+                                void* p_byte_callback_object,
+                                struct bbc_options* p_options);
 void disc_destroy(struct disc_struct* p_disc);
 
 void disc_load(struct disc_struct* p_disc,

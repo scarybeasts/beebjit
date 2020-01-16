@@ -12,6 +12,8 @@ log_module_to_string(int module) {
     return "perf";
   case k_log_video:
     return "video";
+  case k_log_disc:
+    return "disc";
   default:
     assert(0);
     return NULL;

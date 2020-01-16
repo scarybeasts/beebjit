@@ -1,6 +1,8 @@
 #include "disc.h"
 
+#include "bbc_options.h"
 #include "ibm_disc_format.h"
+#include "log.h"
 #include "timing.h"
 #include "util.h"
 
@@ -47,6 +49,8 @@ struct disc_struct {
 
   void (*p_byte_callback)(void*, uint8_t, uint8_t, int);
   void* p_byte_callback_object;
+
+  int log_protection;
 
   intptr_t file_handle;
   int is_mutable;
@@ -103,7 +107,8 @@ disc_create(struct timing_struct* p_timing,
                                     uint8_t data,
                                     uint8_t clock,
                                     int index),
-            void* p_byte_callback_object) {
+            void* p_byte_callback_object,
+            struct bbc_options* p_options) {
   struct disc_struct* p_disc = malloc(sizeof(struct disc_struct));
   if (p_disc == NULL) {
     errx(1, "cannot allocate disc_struct");
@@ -114,6 +119,9 @@ disc_create(struct timing_struct* p_timing,
   p_disc->p_timing = p_timing;
   p_disc->p_byte_callback = p_byte_callback;
   p_disc->p_byte_callback_object = p_byte_callback_object;
+
+  p_disc->log_protection = util_has_option(p_options->p_log_flags,
+                                           "disc:protection");
 
   p_disc->file_handle = k_util_file_no_handle;
 
@@ -282,10 +290,163 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
                                    p_disc->byte_position));
     } /* End of side loop. */
   } /* End of track loop. */
+}
 
-  p_disc->is_side_upper = 0;
-  p_disc->track = 0;
-  p_disc->byte_position = 0;
+static void
+disc_load_fsd(struct disc_struct* p_disc) {
+  static const size_t k_max_fsd_size = (1024 * 1024);
+  uint8_t buf[k_max_fsd_size];
+  size_t len;
+  size_t file_remaining;
+  uint32_t track_remaining;
+  uint8_t* p_buf;
+  uint32_t fsd_tracks;
+  uint32_t fsd_sectors;
+  uint32_t i_track;
+  uint32_t i_sector;
+  uint32_t real_sector_size;
+  uint8_t title_char;
+
+  (void) memset(buf, '\0', k_max_fsd_size);
+
+  len = util_file_handle_read(p_disc->file_handle, buf, k_max_fsd_size);
+
+  if (len == k_max_fsd_size) {
+    errx(1, "fsd file too large");
+  }
+
+  p_buf = buf;
+  file_remaining = len;
+  if (file_remaining < 8) {
+    errx(1, "fsd file no header");
+  }
+  if (memcmp(p_buf, "FSD", 3) != 0) {
+    errx(1, "fsd file incorrect header");
+  }
+  p_buf += 8;
+  file_remaining -= 8;
+  do {
+    if (file_remaining == 0) {
+      errx(1, "fsd file missing title");
+    }
+    title_char = *p_buf;
+    p_buf++;
+    file_remaining--;
+  } while (title_char != 0);
+
+  if (file_remaining == 0) {
+    errx(1, "fsd file missing tracks");
+  }
+  fsd_tracks = *p_buf;
+  p_buf++;
+  file_remaining--;
+  if (fsd_tracks > k_disc_tracks_per_disc) {
+    errx(1, "fsd file too many tracks: %d", fsd_tracks);
+  }
+
+  for (i_track = 0; i_track < fsd_tracks; ++i_track) {
+    if (file_remaining < 2) {
+      errx(1, "fsd file missing track header");
+    }
+    if (p_buf[0] != i_track) {
+      errx(1, "fsd file unmatched track id");
+    }
+
+    track_remaining = k_disc_bytes_per_track;
+    disc_build_track(p_disc, 0, i_track);
+
+    fsd_sectors = p_buf[1];
+    p_buf += 2;
+    file_remaining -= 2;
+    if (fsd_sectors == 0) {
+      if (p_disc->log_protection) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "FSD: unformatted track %d",
+                   i_track);
+      }
+      disc_build_append_repeat(p_disc, 0, k_disc_bytes_per_track);
+      continue;
+    }
+    if (file_remaining == 0) {
+      errx(1, "fsd file missing readable flag");
+    }
+    if (*p_buf != 0xFF) {
+      errx(1, "fsd file unreadable track not handled");
+    }
+    p_buf++;
+    file_remaining--;
+
+    /* Sync pattern at start of track, as the index pulse starts, aka GAP 5. */
+    disc_build_append_repeat(p_disc, 0xFF, 16);
+    disc_build_append_repeat(p_disc, 0x00, 6);
+    track_remaining -= 22;
+
+    for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
+      if (file_remaining < 6) {
+        errx(1, "fsd file missing sector header");
+      }
+      if (track_remaining < (7 + 17)) {
+        errx(1, "fsd file track no space for sector header and gap");
+      }
+      /* Sector header, aka. ID. */
+      disc_build_append_single_with_clock(p_disc,
+                                          k_ibm_disc_id_mark_data_pattern,
+                                          k_ibm_disc_mark_clock_pattern);
+      disc_build_append_single(p_disc, p_buf[0]);
+      disc_build_append_single(p_disc, p_buf[1]);
+      disc_build_append_single(p_disc, p_buf[2]);
+      disc_build_append_single(p_disc, p_buf[3]);
+      disc_build_append_single(p_disc, 0);
+      disc_build_append_single(p_disc, 0);
+      /* Sync pattern between sector header and sector data, aka. GAP 2. */
+      disc_build_append_repeat(p_disc, 0xFF, 11);
+      disc_build_append_repeat(p_disc, 0x00, 6);
+      real_sector_size = p_buf[4];
+      if (real_sector_size > 4) {
+        errx(1, "fsd file excessive sector size");
+      }
+      if (p_buf[5] != 0) {
+        errx(1, "fsd file error sector unsupported");
+      }
+      real_sector_size = (1 << (7 + real_sector_size));
+      if (file_remaining < real_sector_size) {
+        errx(1, "fsd file missing sector data");
+      }
+      if (track_remaining < (real_sector_size + 3)) {
+        errx(1, "fsd file track no space for sector data");
+      }
+      p_buf += 6;
+      file_remaining -= 6;
+      track_remaining -= (7 + 17);
+
+      disc_build_append_single_with_clock(p_disc,
+                                          k_ibm_disc_data_mark_data_pattern,
+                                          k_ibm_disc_mark_clock_pattern);
+      disc_build_append_chunk(p_disc, p_buf, real_sector_size);
+      disc_build_append_single(p_disc, 0);
+      disc_build_append_single(p_disc, 0);
+      p_buf += real_sector_size;
+      file_remaining -= real_sector_size;
+      track_remaining -= (real_sector_size + 3);
+
+      if (i_sector != (fsd_sectors - 1)) {
+        /* Sync pattern between sectors, aka. GAP 3. */
+        if (track_remaining < 22) {
+          errx(1, "fsd file track no space for inter sector gap");
+        }
+        disc_build_append_repeat(p_disc, 0xFF, 16);
+        disc_build_append_repeat(p_disc, 0x00, 6);
+        track_remaining -= 22;
+      }
+    } /* End of sectors loop. */
+
+    /* Fill until end of track, aka. GAP 4. */
+    assert(p_disc->byte_position <= k_disc_bytes_per_track);
+    disc_build_append_repeat(p_disc,
+                             0xFF,
+                             (k_disc_bytes_per_track - p_disc->byte_position));
+  } /* End of track loop. */
 }
 
 void
@@ -306,9 +467,15 @@ disc_load(struct disc_struct* p_disc,
     disc_load_ssd(p_disc, 0);
   } else if (util_is_extension(p_file_name, "dsd")) {
     disc_load_ssd(p_disc, 1);
+  } else if (util_is_extension(p_file_name, "fsd")) {
+    disc_load_fsd(p_disc);
   } else {
     errx(1, "unknown disc filename extension");
   }
+
+  p_disc->is_side_upper = 0;
+  p_disc->track = 0;
+  p_disc->byte_position = 0;
 
   p_disc->is_writeable = is_writeable;
   p_disc->is_mutable = is_mutable;
