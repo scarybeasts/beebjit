@@ -83,13 +83,15 @@ enum {
 
 enum {
   k_intel_fdc_state_idle = 0,
-  k_intel_fdc_state_prepare_search_id = 1,
-  k_intel_fdc_state_search_id = 2,
-  k_intel_fdc_state_in_id = 3,
-  k_intel_fdc_state_in_id_crc = 4,
-  k_intel_fdc_state_search_data = 5,
-  k_intel_fdc_state_in_data = 6,
-  k_intel_fdc_state_in_data_crc = 7,
+  k_intel_fdc_state_wait_no_index = 1,
+  k_intel_fdc_state_wait_index = 2,
+  k_intel_fdc_state_prepare_search_id = 3,
+  k_intel_fdc_state_search_id = 4,
+  k_intel_fdc_state_in_id = 5,
+  k_intel_fdc_state_in_id_crc = 6,
+  k_intel_fdc_state_search_data = 7,
+  k_intel_fdc_state_in_data = 8,
+  k_intel_fdc_state_in_data_crc = 9,
 };
 
 struct intel_fdc_struct {
@@ -397,6 +399,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->command_track = param0;
   p_fdc->command_sector = param1;
+  /* EMU: this is correct even for read sector IDs ($1B), even though the
+   * data sheet suggests all the bits are relevant.
+   */
   p_fdc->command_num_sectors = (param2 & 0x1F);
   p_fdc->command_sector_size = (((param2 >> 5) + 1) * 128);
 
@@ -462,10 +467,13 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   switch (command) {
   case k_intel_fdc_command_read_sectors:
   case k_intel_fdc_command_read_sectors_with_deleted:
-  case k_intel_fdc_command_read_sector_ids:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    p_fdc->state = k_intel_fdc_state_prepare_search_id;
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
+    break;
+  case k_intel_fdc_command_read_sector_ids:
+    p_fdc->current_sectors_left = p_fdc->command_num_sectors;
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
     break;
   case k_intel_fdc_command_seek:
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
@@ -693,12 +701,27 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
 
 void
 intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
-  int is_index_pulse;
+  int was_index_pulse;
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
 
+  was_index_pulse =  p_fdc->state_is_index_pulse;
+  p_fdc->state_is_index_pulse = intel_fdc_get_INDEX(p_fdc);
+
   switch (p_fdc->state) {
   case k_intel_fdc_state_idle:
+    break;
+  case k_intel_fdc_state_wait_no_index:
+    p_fdc->state_index_pulse_count = 0;
+    if (!p_fdc->state_is_index_pulse) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_index);
+    }
+    break;
+  case k_intel_fdc_state_wait_index:
+    p_fdc->state_index_pulse_count = 0;
+    if (p_fdc->state_is_index_pulse) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
+    }
     break;
   case k_intel_fdc_state_prepare_search_id:
     p_fdc->state_index_pulse_count = 0;
@@ -785,8 +808,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   }
 
-  is_index_pulse = intel_fdc_get_INDEX(p_fdc);
-  if (is_index_pulse && !p_fdc->state_is_index_pulse) {
+  if (p_fdc->state_is_index_pulse && !was_index_pulse) {
     p_fdc->state_index_pulse_count++;
     if ((p_fdc->state != k_intel_fdc_state_idle) &&
         (p_fdc->state_index_pulse_count >= 2)) {
@@ -801,5 +823,4 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
                                    k_intel_fdc_result_sector_not_found);
     }
   }
-  p_fdc->state_is_index_pulse = is_index_pulse;
 }
