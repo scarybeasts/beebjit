@@ -300,6 +300,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
   uint32_t i_sector;
   uint32_t real_sector_size;
   uint8_t title_char;
+  int do_read_data;
 
   (void) memset(buf, '\0', k_max_fsd_size);
 
@@ -365,8 +366,20 @@ disc_load_fsd(struct disc_struct* p_disc) {
     if (file_remaining == 0) {
       errx(1, "fsd file missing readable flag");
     }
-    if (*p_buf != 0xFF) {
-      errx(1, "fsd file unreadable track not handled");
+
+    if (*p_buf == 0) {
+      /* "unreadable" track. */
+      if (p_disc->log_protection) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "FSD: unreadable track %d",
+                   i_track);
+      }
+      do_read_data = 0;
+    } else if (*p_buf == 0xFF) {
+      do_read_data = 1;
+    } else {
+      errx(1, "fsd file unknown readable byte value");
     }
     p_buf++;
     file_remaining--;
@@ -396,33 +409,39 @@ disc_load_fsd(struct disc_struct* p_disc) {
       /* Sync pattern between sector header and sector data, aka. GAP 2. */
       disc_build_append_repeat(p_disc, 0xFF, 11);
       disc_build_append_repeat(p_disc, 0x00, 6);
-      real_sector_size = p_buf[4];
-      if (real_sector_size > 4) {
-        errx(1, "fsd file excessive sector size");
-      }
-      if (p_buf[5] != 0) {
-        errx(1, "fsd file error sector unsupported");
-      }
-      real_sector_size = (1 << (7 + real_sector_size));
-      if (file_remaining < real_sector_size) {
-        errx(1, "fsd file missing sector data");
-      }
-      if (track_remaining < (real_sector_size + 3)) {
-        errx(1, "fsd file track no space for sector data");
-      }
-      p_buf += 6;
-      file_remaining -= 6;
+      p_buf += 4;
+      file_remaining -= 4;
       track_remaining -= (7 + 17);
 
-      disc_build_append_single_with_clock(p_disc,
-                                          k_ibm_disc_data_mark_data_pattern,
-                                          k_ibm_disc_mark_clock_pattern);
-      disc_build_append_chunk(p_disc, p_buf, real_sector_size);
-      disc_build_append_single(p_disc, 0);
-      disc_build_append_single(p_disc, 0);
-      p_buf += real_sector_size;
-      file_remaining -= real_sector_size;
-      track_remaining -= (real_sector_size + 3);
+      if (do_read_data) {
+        real_sector_size = p_buf[0];
+        if (real_sector_size > 4) {
+          errx(1, "fsd file excessive sector size");
+        }
+        if (p_buf[1] != 0) {
+          errx(1, "fsd file error sector unsupported");
+        }
+        p_buf += 2;
+        file_remaining -= 2;
+
+        real_sector_size = (1 << (7 + real_sector_size));
+        if (file_remaining < real_sector_size) {
+          errx(1, "fsd file missing sector data");
+        }
+        if (track_remaining < (real_sector_size + 3)) {
+          errx(1, "fsd file track no space for sector data");
+        }
+
+        disc_build_append_single_with_clock(p_disc,
+                                            k_ibm_disc_data_mark_data_pattern,
+                                            k_ibm_disc_mark_clock_pattern);
+        disc_build_append_chunk(p_disc, p_buf, real_sector_size);
+        disc_build_append_single(p_disc, 0);
+        disc_build_append_single(p_disc, 0);
+        p_buf += real_sector_size;
+        file_remaining -= real_sector_size;
+        track_remaining -= (real_sector_size + 3);
+      }
 
       if (i_sector != (fsd_sectors - 1)) {
         /* Sync pattern between sectors, aka. GAP 3. */
