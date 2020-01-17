@@ -1,6 +1,14 @@
 Files from Stairway To Hell archive unless otherwise noted.
 
 
+- 008 Hopper 40-80.FSD
+From Bill Carr's FSD archive.
+SHA256: 3390bacd6d80130cd0a38c533e4ac964226f9a24e910ffc3deeb14a5ad4e53b4
+1) Obfuscated loader sequence at $285D, lots of undocumented NOP opcodes,
+different from those noted below in the REPTON.FSD notes.
+2) Uses SAX abs at $2864 and other places.
+3) Uses LAX zpg (first example of LAX found!) at $7AC1.
+
 - 080 REPTON.FSD
 From Bill Carr's FSD archive.
 SHA256: f16492b1a08e2f06eb933a15baf5cbb5ed92c2fdb02ed142e64a4add115c54cc

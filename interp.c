@@ -588,6 +588,9 @@ interp_is_branch_opcode(uint8_t opcode) {
   v |= (temp_int << 7);                                                       \
   INTERP_LOAD_NZ_FLAGS(v);
 
+#define INTERP_INSTR_SAX()                                                    \
+  v = (a & x);
+
 #define INTERP_INSTR_SBC()                                                    \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   /* "SBC simply takes the ones complement of the second value and then       \
@@ -812,6 +815,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x34:
     case 0x54:
     case 0x74:
+    case 0xD4:
     case 0xF4:
       pc += 2;
       cycles_this_instruction = 4;
@@ -834,9 +838,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x19: /* ORA aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), y);
       break;
+    case 0x1A: /* NOP */ /* Undocumented. */
+    case 0x3A:
+    case 0x5A:
+    case 0x7A:
+    case 0xDA:
+    case 0xFA:
+      pc++;
+      cycles_this_instruction = 2;
+      break;
     case 0x1C: /* NOP abx */ /* Undocumented. */
     case 0x3C:
+    case 0x5C:
+    case 0x7C:
     case 0xDC:
+    case 0xFC:
       INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
       break;
     case 0x1D: /* ORA abx */
@@ -1133,6 +1149,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x7E: /* ROR abx */
       INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
       break;
+    case 0x80: /* NOP imm */ /* Undocumented. */
+    case 0x82:
+    case 0x89:
+    case 0xC2:
+    case 0xE2:
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0x81: /* STA idx */
       INTERP_MODE_IDX_WRITE(INTERP_INSTR_STA());
       break;
@@ -1166,10 +1190,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0x89: /* NOP imm */ /* Undocumented. */
-      pc += 2;
-      cycles_this_instruction = 2;
-      break;
     case 0x8A: /* TXA */
       a = x;
       INTERP_LOAD_NZ_FLAGS(a);
@@ -1184,6 +1204,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x8E: /* STX abs */
       INTERP_MODE_ABS_WRITE(INTERP_INSTR_STX());
+      break;
+    case 0x8F: /* SAX abs */ /* Undocumented. */
+      INTERP_MODE_ABS_WRITE(INTERP_INSTR_SAX());
       break;
     case 0x90: /* BCC */
       INTERP_INSTR_BRANCH(!cf);
@@ -1255,6 +1278,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xA6: /* LDX zp */
       addr = p_mem_read[pc + 1];
       x = p_mem_read[addr];
+      INTERP_LOAD_NZ_FLAGS(x);
+      pc += 2;
+      cycles_this_instruction = 3;
+      break;
+    case 0xA7: /* LAX zpg */ /* Undocumented. */
+      addr = p_mem_read[pc + 1];
+      a = p_mem_read[addr];
+      x = a;
       INTERP_LOAD_NZ_FLAGS(x);
       pc += 2;
       cycles_this_instruction = 3;
