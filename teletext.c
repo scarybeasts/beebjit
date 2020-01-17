@@ -197,7 +197,10 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
     p_teletext->fg_color = p_teletext->palette[(src_char & 7)];
     break;
   case 24:
-    printf("TODO: teletext color thing\n");
+    /* Not commonly seen but needed e.g. by the JCB Digger MODE7 intro
+     * animation.
+     */
+    p_teletext->fg_color = p_teletext->bg_color;
     break;
   case 25:
     p_teletext->is_separated_active = 0;
