@@ -365,9 +365,8 @@ intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
    * register, which may not match the physical head position.
    * An important exception is a seek to track 0, which head steps until the
    * TRK0 signal is detected.
-   */
-  /* TODO: does the special TRK0 logic only apply to the explicit seek command
-   * and not implicit seeks?
+   * EMU: the special TRK0 logic for track 0 applies to both an explicit seek
+   * command as well as the implicit seek present in many non-seek commands.
    */
   if (seek_to == 0) {
     delta = -0xFF;
@@ -403,7 +402,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
    * data sheet suggests all the bits are relevant.
    */
   p_fdc->command_num_sectors = (param2 & 0x1F);
-  p_fdc->command_sector_size = (((param2 >> 5) + 1) * 128);
+  p_fdc->command_sector_size = (128 << (param2 >> 5));
 
   intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
