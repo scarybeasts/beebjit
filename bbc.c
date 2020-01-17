@@ -631,7 +631,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
         /* TODO: needs to invalidate potential JIT here? */
         p_mem_write[addr] = val;
       }
-    } else {
+    } else if (addr >= k_addr_shiela) {
       printf("unknown write: %x, %x\n", addr, val);
       assert(0);
     }

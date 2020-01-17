@@ -205,6 +205,25 @@ LDA ($72),Y vs. LDA #$30.
 4) Doesn't sync to vsync so need to slow it down to play!
 
 
+- Infinity.zip
+SHA256: 1e81b458c6e70205277ff6610f4a7cf4fa9263ee96a2f58bc9242562ca37c96a
+Notes:
+1) Has a loop of write patches at $1EE7:
+[1EE7] 1EE7: LDX $0100,Y
+[1EE7] 1EEA: DEY
+[1EE7] 1EEB: LDA $0100,Y
+[1EE7] 1EEE: STA $71
+[1EE7] 1EF0: DEY
+[1EE7] 1EF1: LDA $0100,Y
+[1EE7] 1EF4: STA $70
+[1EE7] 1EF6: TXA
+[1EE7] 1EF7: STA ($70),Y
+[1EE7] 1EF9: DEY
+[1EFA] 1EFA: BPL $1EE7
+Writes to $FC69, $FC66, $FC63, $FC60... $FC51 as part of its writes, for
+unknown reasons. Doesn't do anything on an unexpanded model B.
+
+
 - LunarJetman.zip
 SHA256: 1eeebe6dff5dddfe20e765e1bc3c62e2af5818aeead7d644fd14db74e110e3f4
 Notes:
