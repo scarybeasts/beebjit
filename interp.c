@@ -734,6 +734,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
       p_interp->exit_value = ((y << 16) | (x << 8) | a);
       return countdown;
     case 0x04: /* NOP zp */ /* Undocumented. */
+    case 0x44:
+    case 0x64:
       pc += 2;
       cycles_this_instruction = 3;
       break;
@@ -791,6 +793,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 2;
       break;
+    case 0x0C: /* NOP abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ(INTERP_INSTR_NOP());
+      break;
     case 0x0D: /* ORA abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_ORA());
       break;
@@ -802,6 +807,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x11: /* ORA idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_ORA());
+      break;
+    case 0x14: /* NOP zpx */ /* Undocumented. */
+    case 0x34:
+    case 0x54:
+    case 0x74:
+    case 0xF4:
+      pc += 2;
+      cycles_this_instruction = 4;
       break;
     case 0x15: /* ORA zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -820,6 +833,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x19: /* ORA aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), y);
+      break;
+    case 0x1C: /* NOP abx */ /* Undocumented. */
+    case 0x3C:
+    case 0xDC:
+      INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
       break;
     case 0x1D: /* ORA abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), x);
@@ -1148,6 +1166,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0x89: /* NOP imm */ /* Undocumented. */
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0x8A: /* TXA */
       a = x;
       INTERP_LOAD_NZ_FLAGS(a);
@@ -1391,9 +1413,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xD9: /* CMP aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), y);
       break;
-    case 0xDC: /* NOP abx */ /* Undocumented. */
-      INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
-      break;
     case 0xDD: /* CMP abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), x);
       break;
@@ -1465,10 +1484,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xF2: /* Extension: CRASH */
       *((volatile uint8_t*) 0xdead) = '\x41';
-      break;
-    case 0xF4: /* NOP zpx */ /* Undocumented. */
-      pc += 2;
-      cycles_this_instruction = 4;
       break;
     case 0xF5: /* SBC zpx */
       INTERP_MODE_ZPr_READ(x);

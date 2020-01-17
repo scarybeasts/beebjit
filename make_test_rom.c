@@ -814,7 +814,7 @@ main(int argc, const char* argv[]) {
   /* Tests triggering a simple NMI. */
   set_new_index(p_buf, 0x0AE0);
   emit_SEI(p_buf);
-  emit_LDA(p_buf, k_imm, 0x00); /* 0 is an invalid command for the 8271. */
+  emit_LDA(p_buf, k_imm, 0x30); /* $30 is an invalid command for the 8271. */
   emit_STA(p_buf, k_abs, 0xFE80);
   emit_TAY(p_buf);
   emit_BEQ(p_buf, -3);

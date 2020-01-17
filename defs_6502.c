@@ -96,31 +96,31 @@ uint8_t g_optypes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_brk, k_ora, k_kil, k_unk, k_nop, k_ora, k_asl, k_slo,
-  k_php, k_ora, k_asl, k_anc, k_unk, k_ora, k_asl, k_unk,
+  k_php, k_ora, k_asl, k_anc, k_nop, k_ora, k_asl, k_unk,
   /* 0x10 */
-  k_bpl, k_ora, k_kil, k_unk, k_unk, k_ora, k_asl, k_unk,
-  k_clc, k_ora, k_unk, k_unk, k_unk, k_ora, k_asl, k_unk,
+  k_bpl, k_ora, k_kil, k_unk, k_nop, k_ora, k_asl, k_unk,
+  k_clc, k_ora, k_unk, k_unk, k_nop, k_ora, k_asl, k_unk,
   /* 0x20 */
   k_jsr, k_and, k_kil, k_unk, k_bit, k_and, k_rol, k_unk,
   k_plp, k_and, k_rol, k_unk, k_bit, k_and, k_rol, k_unk,
   /* 0x30 */
-  k_bmi, k_and, k_kil, k_unk, k_unk, k_and, k_rol, k_unk,
-  k_sec, k_and, k_unk, k_unk, k_unk, k_and, k_rol, k_unk,
+  k_bmi, k_and, k_kil, k_unk, k_nop, k_and, k_rol, k_unk,
+  k_sec, k_and, k_unk, k_unk, k_nop, k_and, k_rol, k_unk,
   /* 0x40 */
-  k_rti, k_eor, k_kil, k_unk, k_unk, k_eor, k_lsr, k_unk,
+  k_rti, k_eor, k_kil, k_unk, k_nop, k_eor, k_lsr, k_unk,
   k_pha, k_eor, k_lsr, k_alr, k_jmp, k_eor, k_lsr, k_unk,
   /* 0x50 */
-  k_bvc, k_eor, k_kil, k_unk, k_unk, k_eor, k_lsr, k_unk,
+  k_bvc, k_eor, k_kil, k_unk, k_nop, k_eor, k_lsr, k_unk,
   k_cli, k_eor, k_unk, k_unk, k_unk, k_eor, k_lsr, k_unk,
   /* 0x60 */
-  k_rts, k_adc, k_kil, k_unk, k_unk, k_adc, k_ror, k_unk,
+  k_rts, k_adc, k_kil, k_unk, k_nop, k_adc, k_ror, k_unk,
   k_pla, k_adc, k_ror, k_unk, k_jmp, k_adc, k_ror, k_unk,
   /* 0x70 */
-  k_bvs, k_adc, k_kil, k_unk, k_unk, k_adc, k_ror, k_unk,
+  k_bvs, k_adc, k_kil, k_unk, k_nop, k_adc, k_ror, k_unk,
   k_sei, k_adc, k_unk, k_unk, k_unk, k_adc, k_ror, k_unk,
   /* 0x80 */
   k_unk, k_sta, k_unk, k_unk, k_sty, k_sta, k_stx, k_sax,
-  k_dey, k_unk, k_txa, k_unk, k_sty, k_sta, k_stx, k_unk,
+  k_dey, k_nop, k_txa, k_unk, k_sty, k_sta, k_stx, k_unk,
   /* 0x90 */
   k_bcc, k_sta, k_kil, k_unk, k_sty, k_sta, k_stx, k_unk,
   k_tya, k_sta, k_txs, k_unk, k_shy, k_sta, k_unk, k_unk,
@@ -148,31 +148,31 @@ uint8_t g_opmodes[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_imm, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, k_zpg,
-  k_nil, k_imm, k_acc, k_imm, 0    , k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_acc, k_imm, k_abs, k_abs, k_abs, 0    ,
   /* 0x10 */
-  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
-  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , k_abx, k_abx, k_abx, 0    ,
   /* 0x20 */
   k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_acc, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0x30 */
-  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
-  k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
+  k_nil, k_aby, 0    , 0    , k_abx, k_abx, k_abx, 0    ,
   /* 0x40 */
-  k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
+  k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_acc, k_imm, k_abs, k_abs, k_abs, 0    ,
   /* 0x50 */
-  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   /* 0x60 */
-  k_nil, k_idx, 0    , 0    , 0    , k_zpg, k_zpg, 0    ,
+  k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_acc, 0    , k_ind, k_abs, k_abs, 0    ,
   /* 0x70 */
-  k_rel, k_idy, 0    , 0    , 0    , k_zpx, k_zpx, 0    ,
+  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
   k_nil, k_aby, 0    , 0    , 0    , k_abx, k_abx, 0    ,
   /* 0x80 */
   0    , k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, k_zpg,
-  k_nil, 0    , k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0x90 */
   k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, 0    , 0    ,
@@ -200,31 +200,31 @@ uint8_t g_opcycles[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   7, 6, 1, 0, 3, 3, 5, 5,
-  3, 2, 2, 2, 0, 4, 6, 0,
+  3, 2, 2, 2, 4, 4, 6, 0,
   /* 0x10 */
-  2, 5, 1, 0, 0, 4, 6, 0,
-  2, 4, 0, 0, 0, 4, 7, 0,
+  2, 5, 1, 0, 4, 4, 6, 0,
+  2, 4, 0, 0, 4, 4, 7, 0,
   /* 0x20 */
   6, 6, 1, 0, 3, 3, 5, 0,
   4, 2, 2, 0, 4, 4, 6, 0,
   /* 0x30 */
-  2, 5, 0, 0, 0, 4, 6, 0,
-  2, 4, 0, 0, 0, 4, 7, 0,
+  2, 5, 0, 0, 4, 4, 6, 0,
+  2, 4, 0, 0, 4, 4, 7, 0,
   /* 0x40 */
-  6, 6, 0, 0, 0, 3, 5, 0,
+  6, 6, 0, 0, 3, 3, 5, 0,
   3, 2, 2, 2, 3, 4, 6, 0,
   /* 0x50 */
-  2, 5, 0, 0, 0, 4, 6, 0,
+  2, 5, 0, 0, 4, 4, 6, 0,
   2, 4, 0, 0, 0, 4, 7, 0,
   /* 0x60 */
-  6, 6, 0, 0, 0, 3, 5, 0,
+  6, 6, 0, 0, 3, 3, 5, 0,
   4, 2, 2, 0, 5, 4, 6, 0,
   /* 0x70 */
-  2, 5, 0, 0, 0, 4, 6, 0,
+  2, 5, 0, 0, 4, 4, 6, 0,
   2, 4, 0, 0, 0, 4, 7, 0,
   /* 0x80 */
   0, 6, 0, 0, 3, 3, 3, 3,
-  2, 0, 2, 0, 4, 4, 4, 0,
+  2, 2, 2, 0, 4, 4, 4, 0,
   /* 0x90 */
   2, 6, 0, 0, 4, 4, 4, 0,
   2, 5, 2, 0, 5, 5, 0, 0,
