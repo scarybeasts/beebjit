@@ -332,7 +332,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
   if (file_remaining == 0) {
     errx(1, "fsd file missing tracks");
   }
+  /* This appears to actually be "max zero-indexed track ID" so we add 1. */
   fsd_tracks = *p_buf;
+  fsd_tracks++;
   p_buf++;
   file_remaining--;
   if (fsd_tracks > k_disc_tracks_per_disc) {
