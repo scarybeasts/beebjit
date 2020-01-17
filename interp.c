@@ -3,6 +3,7 @@
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
+#include "log.h"
 #include "memory_access.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -1494,7 +1495,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_INC());
       break;
     default:
+      log_do_log(k_log_instruction,
+                 k_log_unimplemented,
+                 "pc $%.4x opcode $%.2x",
+                 pc,
+                 opcode);
       __builtin_trap();
+      break;
     }
 
     countdown -= cycles_this_instruction;
