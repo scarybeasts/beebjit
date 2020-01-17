@@ -299,6 +299,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
   uint32_t i_track;
   uint32_t i_sector;
   uint32_t real_sector_size;
+  uint8_t logical_track;
+  uint8_t logical_sector;
+  uint8_t sector_error;
   uint8_t title_char;
   int do_read_data;
 
@@ -400,9 +403,18 @@ disc_load_fsd(struct disc_struct* p_disc) {
       disc_build_append_single_with_clock(p_disc,
                                           k_ibm_disc_id_mark_data_pattern,
                                           k_ibm_disc_mark_clock_pattern);
-      disc_build_append_single(p_disc, p_buf[0]);
+      logical_track = p_buf[0];
+      logical_sector = p_buf[2];
+      if ((logical_track != i_track) && p_disc->log_protection) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "FSD: track mismatch phyical %d logical %d",
+                   i_track,
+                   logical_track);
+      }
+      disc_build_append_single(p_disc, logical_track);
       disc_build_append_single(p_disc, p_buf[1]);
-      disc_build_append_single(p_disc, p_buf[2]);
+      disc_build_append_single(p_disc, logical_sector);
       disc_build_append_single(p_disc, p_buf[3]);
       disc_build_append_single(p_disc, 0);
       disc_build_append_single(p_disc, 0);
@@ -414,12 +426,24 @@ disc_load_fsd(struct disc_struct* p_disc) {
       track_remaining -= (7 + 17);
 
       if (do_read_data) {
+        uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
         real_sector_size = p_buf[0];
         if (real_sector_size > 4) {
           errx(1, "fsd file excessive sector size");
         }
-        if (p_buf[1] != 0) {
-          errx(1, "fsd file error sector unsupported");
+        sector_error = p_buf[1];
+        if (sector_error == 0x20) {
+          /* Deleted data. */
+          if (p_disc->log_protection) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "FSD: deleted sector track %d logical sector %d",
+                       i_track,
+                       logical_sector);
+          }
+          sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
+        } else if (sector_error != 0) {
+          errx(1, "fsd file sector error %d unsupported", sector_error);
         }
         p_buf += 2;
         file_remaining -= 2;
@@ -433,7 +457,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
         }
 
         disc_build_append_single_with_clock(p_disc,
-                                            k_ibm_disc_data_mark_data_pattern,
+                                            sector_mark,
                                             k_ibm_disc_mark_clock_pattern);
         disc_build_append_chunk(p_disc, p_buf, real_sector_size);
         disc_build_append_single(p_disc, 0);

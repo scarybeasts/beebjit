@@ -58,6 +58,7 @@ enum {
 enum {
   k_intel_fdc_status_flag_busy = 0x80,
   k_intel_fdc_status_flag_result_ready = 0x10,
+  k_intel_fdc_status_flag_deleted_data = 0x20,
   k_intel_fdc_status_flag_nmi = 0x08,
   k_intel_fdc_status_flag_need_data = 0x04,
 };
@@ -91,7 +92,8 @@ enum {
   k_intel_fdc_state_in_id_crc = 6,
   k_intel_fdc_state_search_data = 7,
   k_intel_fdc_state_in_data = 8,
-  k_intel_fdc_state_in_data_crc = 9,
+  k_intel_fdc_state_in_deleted_data = 9,
+  k_intel_fdc_state_in_data_crc = 10,
 };
 
 struct intel_fdc_struct {
@@ -120,9 +122,11 @@ struct intel_fdc_struct {
   uint8_t command_sector;
   uint8_t command_num_sectors;
   uint32_t command_sector_size;
+  int command_is_transfer_deleted;
 
   uint8_t current_sector;
   uint8_t current_sectors_left;
+  int current_had_deleted_data;
 
   int state;
   uint32_t state_count;
@@ -200,6 +204,9 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
                              int do_nmi,
                              uint8_t result) {
   uint8_t status = k_intel_fdc_status_flag_result_ready;
+  if (p_fdc->current_had_deleted_data) {
+    //status |= k_intel_fdc_status_flag_deleted_data;
+  }
   if (do_nmi) {
     status |= k_intel_fdc_status_flag_nmi;
   }
@@ -403,6 +410,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
    */
   p_fdc->command_num_sectors = (param2 & 0x1F);
   p_fdc->command_sector_size = (128 << (param2 >> 5));
+  p_fdc->command_is_transfer_deleted = 0;
 
   intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
@@ -462,6 +470,17 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   if (do_seek) {
     intel_fdc_do_seek(p_fdc, param0);
   }
+
+  switch (command) {
+  case k_intel_fdc_command_read_sector_with_deleted_128:
+  case k_intel_fdc_command_read_sectors_with_deleted:
+    p_fdc->command_is_transfer_deleted = 1;
+    break;
+  default:
+    break;
+  }
+
+  p_fdc->current_had_deleted_data = 0;
 
   switch (command) {
   case k_intel_fdc_command_read_sectors:
@@ -778,17 +797,37 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
      * ever sees a data mark?
      */
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
-        (data_byte == k_ibm_disc_data_mark_data_pattern)) {
+        ((data_byte == k_ibm_disc_data_mark_data_pattern) ||
+            (data_byte == k_ibm_disc_deleted_data_mark_data_pattern))) {
+      int new_state = k_intel_fdc_state_in_data;
+      if (data_byte == k_ibm_disc_deleted_data_mark_data_pattern) {
+        p_fdc->current_had_deleted_data = 1;
+        new_state = k_intel_fdc_state_in_deleted_data;
+      }
       intel_fdc_crc_init(p_fdc);
-      intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_data_mark_data_pattern);
+      intel_fdc_crc_add_byte(p_fdc, data_byte);
 
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data);
+      intel_fdc_set_state(p_fdc, new_state);
     }
     break;
   case k_intel_fdc_state_in_data:
     intel_fdc_crc_add_byte(p_fdc, data_byte);
     if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
       break;
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == p_fdc->command_sector_size) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
+    }
+    break;
+  case k_intel_fdc_state_in_deleted_data:
+    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    if (p_fdc->command_is_transfer_deleted) {
+      if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
+        break;
+      }
+    } else {
+      assert(0);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
