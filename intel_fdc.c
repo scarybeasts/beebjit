@@ -403,6 +403,18 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
 
+  /* For the single 128 byte sector commands, fake the parameters. */
+  switch (command) {
+  case k_intel_fdc_command_write_sector_128:
+  case k_intel_fdc_command_write_sector_deleted_128:
+  case k_intel_fdc_command_read_sector_128:
+  case k_intel_fdc_command_read_sector_with_deleted_128:
+  case k_intel_fdc_command_verify_sector_128:
+    param2 = 1;
+  default:
+    break;
+  }
+
   p_fdc->command_track = param0;
   p_fdc->command_sector = param1;
   /* EMU: this is correct even for read sector IDs ($1B), even though the
@@ -483,7 +495,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->current_had_deleted_data = 0;
 
   switch (command) {
+  case k_intel_fdc_command_read_sector_128:
   case k_intel_fdc_command_read_sectors:
+  case k_intel_fdc_command_read_sector_with_deleted_128:
   case k_intel_fdc_command_read_sectors_with_deleted:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
@@ -610,6 +624,11 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     case k_intel_fdc_command_read_special_register:
       num_params = 1;
       break;
+    case k_intel_fdc_command_write_sector_128:
+    case k_intel_fdc_command_write_sector_deleted_128:
+    case k_intel_fdc_command_read_sector_128:
+    case k_intel_fdc_command_read_sector_with_deleted_128:
+    case k_intel_fdc_command_verify_sector_128:
     case k_intel_fdc_command_write_special_register:
       num_params = 2;
       break;
@@ -626,7 +645,13 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     case k_intel_fdc_command_format:
       num_params = 5;
       break;
+    case k_intel_fdc_command_scan_sectors_with_deleted:
+    case k_intel_fdc_command_scan_sectors:
+      errx(1, "unimplemented 8271 command %x", (val & 0x3F));
     default:
+      /* TODO: this isn't right. All the command IDs seem to do something,
+       * usually a different-parameter version of another command.
+       */
       intel_fdc_set_command_result(p_fdc,
                                    1,
                                    k_intel_fdc_result_sector_not_found);
