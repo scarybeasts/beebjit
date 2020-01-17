@@ -1,0 +1,26 @@
+- 005 Arcadians.FSD
+SHA256: af86fa5016054f9192882d62d8a115ef22e82cfe8adb4d74f10cf828aad09b3e
+Has various unreadable tracks.
+First interesting read is track 4 sector 0, 1 sector.
+$18 is returned because although the track is formatted, the track IDs are
+either 0 or $18. There is also no match for logical track 4 on the next two
+physical tracks.
+Disc title has control characters in it that sets 6845 R0 to 0!!
+
+- 011 Labyrinth.FSD
+SHA256: 0798597b728f2a47013e6697623e58023a91edf8413b02b3ae9646ff23e396b7
+This is highly typical of Acornsoft discs.
+*. reveals the disc title has a "stop echo" control character in it.
+Has various unformatted tracks.
+Unformatted track 3 has sector IDs read with $1B (read sector IDs).
+$18 is returned obviously.
+Has many tracks consisting of:
+a) Only deleted data sectors.
+b) Mismatched logical and physical track IDs. Logical track register manually
+rewritten to access them.
+c) Large logical sector IDs.
+Return code from $17 (read data and deleted data) is not checked for flag $20
+(deleted data encountered).
+Also has tracks with normal (non-deleted) sectors where the logical and physical
+tracks don't match.
+
