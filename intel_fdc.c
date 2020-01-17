@@ -731,6 +731,10 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
 static void
 intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
   p_fdc->current_sectors_left--;
+  /* Specifying 0 sectors seems to result in 32 read, presumably due to
+   * underflow of the 5-bit counter.
+   */
+  p_fdc->current_sectors_left &= 0x1F;
   if (p_fdc->current_sectors_left == 0) {
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
   } else {
