@@ -24,3 +24,11 @@ Return code from $17 (read data and deleted data) is not checked for flag $20
 Also has tracks with normal (non-deleted) sectors where the logical and physical
 tracks don't match.
 
+- 080 REPTON.FSD
+SHA256: f16492b1a08e2f06eb933a15baf5cbb5ed92c2fdb02ed142e64a4add115c54cc
+Has some tracks with 18 data sectors and logical / physical track mismatch,
+tracks 1 and 2.
+Has one deleted sector on track 3, as well as other sectors.
+Uses 8271 command $16 (read data and deleted data, 1x128 sector) to read track
+3.
+

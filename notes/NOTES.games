@@ -1,6 +1,14 @@
 Files from Stairway To Hell archive unless otherwise noted.
 
 
+- 080 REPTON.FSD
+From Bill Carr's FSD archive.
+SHA256: f16492b1a08e2f06eb933a15baf5cbb5ed92c2fdb02ed142e64a4add115c54cc
+1) Uses 8271 command $16 to read a single 128 byte deleted sector.
+2) Obfuscated loader sequence at $2BE0, uses tons of undocumented NOP opcode
+variants (abx, abs, zpg, zpx) not commonly seen elsewhere to try and
+confuse disassemblers?
+
 - Arcadians.zip
 SHA256: ef37488dcac07cf19c60e4838ae37c2cf00cc09953cd515a32850f09b5adc4b8
 Commands to run game:
