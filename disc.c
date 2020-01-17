@@ -292,12 +292,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
   uint8_t buf[k_max_fsd_size];
   size_t len;
   size_t file_remaining;
-  uint32_t track_remaining;
   uint8_t* p_buf;
   uint32_t fsd_tracks;
-  uint32_t fsd_sectors;
   uint32_t i_track;
-  uint32_t i_sector;
   uint32_t real_sector_size;
   uint8_t logical_track;
   uint8_t logical_sector;
@@ -343,6 +340,15 @@ disc_load_fsd(struct disc_struct* p_disc) {
   }
 
   for (i_track = 0; i_track < fsd_tracks; ++i_track) {
+    uint32_t fsd_sectors;
+    uint32_t i_sector;
+
+    uint32_t track_remaining = k_disc_bytes_per_track;
+    /* Acorn format command standard for 256 byte sectors. The 8271 datasheet
+     * suggests 21.
+     */
+    uint32_t gap3_ff_count = 16;
+
     if (file_remaining < 2) {
       errx(1, "fsd file missing track header");
     }
@@ -350,7 +356,6 @@ disc_load_fsd(struct disc_struct* p_disc) {
       errx(1, "fsd file unmatched track id");
     }
 
-    track_remaining = k_disc_bytes_per_track;
     disc_build_track(p_disc, 0, i_track);
 
     fsd_sectors = p_buf[1];
@@ -365,6 +370,18 @@ disc_load_fsd(struct disc_struct* p_disc) {
       }
       disc_build_append_repeat(p_disc, 0, k_disc_bytes_per_track);
       continue;
+    } else if ((fsd_sectors != 10) && p_disc->log_protection) {
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "FSD: non-standard sector count track %d count %d",
+                 i_track,
+                 fsd_sectors);
+    }
+    if (fsd_sectors > 10) {
+      /* Standard for 128 byte sectors. If we didn't lower the value here, the
+       * track wouldn't fit.
+       */
+      gap3_ff_count = 11;
     }
     if (file_remaining == 0) {
       errx(1, "fsd file missing readable flag");
@@ -408,9 +425,10 @@ disc_load_fsd(struct disc_struct* p_disc) {
       if ((logical_track != i_track) && p_disc->log_protection) {
         log_do_log(k_log_disc,
                    k_log_info,
-                   "FSD: track mismatch phyical %d logical %d",
+                   "FSD: track mismatch physical %d logical %d sector %d",
                    i_track,
-                   logical_track);
+                   logical_track,
+                   logical_sector);
       }
       disc_build_append_single(p_disc, logical_track);
       disc_build_append_single(p_disc, p_buf[1]);
@@ -472,9 +490,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
         if (track_remaining < 22) {
           errx(1, "fsd file track no space for inter sector gap");
         }
-        disc_build_append_repeat(p_disc, 0xFF, 16);
+        disc_build_append_repeat(p_disc, 0xFF, gap3_ff_count);
         disc_build_append_repeat(p_disc, 0x00, 6);
-        track_remaining -= 22;
+        track_remaining -= (gap3_ff_count + 6);
       }
     } /* End of sectors loop. */
 
