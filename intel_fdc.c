@@ -58,7 +58,6 @@ enum {
 enum {
   k_intel_fdc_status_flag_busy = 0x80,
   k_intel_fdc_status_flag_result_ready = 0x10,
-  k_intel_fdc_status_flag_deleted_data = 0x20,
   k_intel_fdc_status_flag_nmi = 0x08,
   k_intel_fdc_status_flag_need_data = 0x04,
 };
@@ -67,6 +66,7 @@ enum {
   k_intel_fdc_result_ok = 0x00,
   k_intel_fdc_result_write_protected = 0x12,
   k_intel_fdc_result_sector_not_found = 0x18,
+  k_intel_fdc_result_flag_deleted_data = 0x20,
 };
 
 enum {
@@ -205,7 +205,7 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
                              uint8_t result) {
   uint8_t status = k_intel_fdc_status_flag_result_ready;
   if (p_fdc->current_had_deleted_data) {
-    //status |= k_intel_fdc_status_flag_deleted_data;
+    result |= k_intel_fdc_result_flag_deleted_data;
   }
   if (do_nmi) {
     status |= k_intel_fdc_status_flag_nmi;
