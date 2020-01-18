@@ -855,8 +855,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
-    } else {
-      assert(0);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
