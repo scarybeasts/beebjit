@@ -412,7 +412,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
     track_remaining -= 22;
 
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
-      if (file_remaining < 6) {
+      if (file_remaining < 4) {
         errx(1, "fsd file missing sector header");
       }
       if (track_remaining < (7 + 17)) {
@@ -447,6 +447,11 @@ disc_load_fsd(struct disc_struct* p_disc) {
 
       if (do_read_data) {
         uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
+
+        if (file_remaining < 2) {
+          errx(1, "fsd file missing sector header second part");
+        }
+
         real_sector_size = p_buf[0];
         if (real_sector_size > 4) {
           errx(1, "fsd file excessive sector size");
