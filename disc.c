@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -343,8 +344,6 @@ disc_load_fsd(struct disc_struct* p_disc) {
   uint32_t fsd_tracks;
   uint32_t i_track;
   uint32_t real_sector_size;
-  uint8_t logical_track;
-  uint8_t logical_sector;
   uint8_t sector_error;
   uint8_t title_char;
   int do_read_data;
@@ -459,6 +458,12 @@ disc_load_fsd(struct disc_struct* p_disc) {
     track_remaining -= 22;
 
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
+      uint8_t logical_track;
+      uint8_t logical_head;
+      uint8_t logical_sector;
+      uint32_t logical_size;
+      char sector_spec[12];
+
       if (file_remaining < 4) {
         errx(1, "fsd file missing sector header");
       }
@@ -471,19 +476,27 @@ disc_load_fsd(struct disc_struct* p_disc) {
                                            k_ibm_disc_id_mark_data_pattern,
                                            k_ibm_disc_mark_clock_pattern);
       logical_track = p_buf[0];
+      logical_head = p_buf[1];
       logical_sector = p_buf[2];
+      logical_size = p_buf[3];
+      (void) snprintf(sector_spec,
+                      sizeof(sector_spec),
+                      "%.2x/%.2x/%.2x/%.2x",
+                      logical_track,
+                      logical_head,
+                      logical_sector,
+                      logical_size);
       if ((logical_track != i_track) && p_disc->log_protection) {
         log_do_log(k_log_disc,
                    k_log_info,
-                   "FSD: track mismatch physical %d logical %d sector %d",
+                   "FSD: track mismatch physical %d: %s",
                    i_track,
-                   logical_track,
-                   logical_sector);
+                   sector_spec);
       }
       disc_build_append_single(p_disc, logical_track);
-      disc_build_append_single(p_disc, p_buf[1]);
+      disc_build_append_single(p_disc, logical_head);
       disc_build_append_single(p_disc, logical_sector);
-      disc_build_append_single(p_disc, p_buf[3]);
+      disc_build_append_single(p_disc, logical_size);
       disc_build_append_crc(p_disc);
 
       /* Sync pattern between sector header and sector data, aka. GAP 2. */
@@ -511,9 +524,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
           if (p_disc->log_protection) {
             log_do_log(k_log_disc,
                        k_log_info,
-                       "FSD: deleted sector track %d logical sector %d",
+                       "FSD: deleted sector track %d: %s",
                        i_track,
-                       logical_sector);
+                       sector_spec);
           }
           sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
         } else if (sector_error == 0x0E) {
@@ -521,10 +534,23 @@ disc_load_fsd(struct disc_struct* p_disc) {
           if (p_disc->log_protection) {
             log_do_log(k_log_disc,
                        k_log_info,
-                       "FSD: CRC error sector track %d logical sector %d",
+                       "FSD: CRC error sector track %d: %s",
                        i_track,
-                       logical_sector);
+                       sector_spec);
           }
+          crc_error = 1;
+        } else if (sector_error == 0x2E) {
+          /* $2E isn't documented and neither are $20 / $0E documented as bit
+           * fields, but it shows up anyway in The Wizard's Return.
+           */
+          if (p_disc->log_protection) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "FSD: deleted and CRC error sector track %d: %s",
+                       i_track,
+                       sector_spec);
+          }
+          sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
           crc_error = 1;
         } else if (sector_error != 0) {
           errx(1, "fsd file sector error %d unsupported", sector_error);
@@ -532,7 +558,16 @@ disc_load_fsd(struct disc_struct* p_disc) {
         p_buf += 2;
         file_remaining -= 2;
 
+        logical_size = (1 << (7 + logical_size));
         real_sector_size = (1 << (7 + real_sector_size));
+        if ((real_sector_size != logical_size) && p_disc->log_protection) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "FSD: real size mismatch track %d size %d: %s",
+                     i_track,
+                     real_sector_size,
+                     sector_spec);
+        }
         if (file_remaining < real_sector_size) {
           errx(1, "fsd file missing sector data");
         }
