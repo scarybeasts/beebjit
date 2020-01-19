@@ -125,6 +125,7 @@ struct intel_fdc_struct {
   uint8_t command_num_sectors;
   uint32_t command_sector_size;
   int command_is_transfer_deleted;
+  int command_is_verify_only;
 
   uint8_t current_sector;
   uint8_t current_sectors_left;
@@ -426,6 +427,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->command_num_sectors = (param2 & 0x1F);
   p_fdc->command_sector_size = (128 << (param2 >> 5));
   p_fdc->command_is_transfer_deleted = 0;
+  p_fdc->command_is_verify_only = 0;
 
   intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
@@ -491,6 +493,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sectors_with_deleted:
     p_fdc->command_is_transfer_deleted = 1;
     break;
+  case k_intel_fdc_command_verify_sector_128:
+  case k_intel_fdc_command_verify_sectors:
+    p_fdc->command_is_verify_only = 1;
+    break;
   default:
     break;
   }
@@ -502,6 +508,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sectors:
   case k_intel_fdc_command_read_sector_with_deleted_128:
   case k_intel_fdc_command_read_sectors_with_deleted:
+  case k_intel_fdc_command_verify_sector_128:
+  case k_intel_fdc_command_verify_sectors:
     p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_prepare_search_id);
@@ -853,8 +861,10 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_in_data:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
-      break;
+    if (!p_fdc->command_is_verify_only) {
+      if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
+        break;
+      }
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
@@ -864,7 +874,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_in_deleted_data:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (p_fdc->command_is_transfer_deleted) {
+    if (!p_fdc->command_is_verify_only && p_fdc->command_is_transfer_deleted) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }

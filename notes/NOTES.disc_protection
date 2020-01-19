@@ -4,7 +4,6 @@ TODO:
 - Castle Quest
 - Fortress
 - Cybertron Mission
-- Teddy Bears' Picnic
 
 - 005 Arcadians.FSD
 SHA256: af86fa5016054f9192882d62d8a115ef22e82cfe8adb4d74f10cf828aad09b3e
@@ -97,3 +96,7 @@ $111F.
 [ITRP] 0570: BNE $0566
 [ITRP] 0572: JMP $0536
 [ITRP] 0575: BEQ $0536
+
+- 200 MOON CRESTA (NO LENSLOCK).FSD
+Nothing too exciting. Protection is mainly deleted data based.
+But it is the first title discovered to use 8271 command $1F aka. verify.
