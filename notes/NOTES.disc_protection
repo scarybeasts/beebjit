@@ -40,6 +40,13 @@ Has one deleted sector on track 3, as well as other sectors.
 Uses 8271 command $16 (read data and deleted data, 1x128 sector) to read track
 3.
 
+- 170 PHANTOM COMBAT (BBC 'B' 32K).FSD
+SHA256: c94728018434000852dd16ac2c7144dc8792f237f5043782488dda066c0d7011
+Various protections included deleted sectors and sector overread with CRC
+error.
+Also, fairly uniquely, uses 8271 command $3D, read special parameter, to
+read parameter $17, the mode.
+
 - 186 THE TEDDY BEARS' PICNIC SIDE 1.FSD
 SHA256: 7bd415a4ade19250ba34888840a9dfdbe478a3d328a4e11d11bde6a39cdb80ea
 Track 39 sector 9, 256 bytes, very special. It gives CRC error $0E when read,

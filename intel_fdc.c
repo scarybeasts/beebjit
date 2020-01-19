@@ -119,6 +119,7 @@ struct intel_fdc_struct {
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
   uint8_t drive_out;
+  uint8_t register_mode;
 
   uint8_t command_track;
   uint8_t command_sector;
@@ -559,6 +560,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     case k_intel_fdc_register_scan_sector:
       /* DFS-0.9 reads this register after an 0x18 sector not found error. */
       break;
+    case k_intel_fdc_register_mode:
+      /* Phantom Combat (BBC B 32K version) reads this?! */
+      temp_u8 = (0xC0 | p_fdc->register_mode);
+      break;
     case k_intel_fdc_register_drive_out:
       /* DFS-1.2 reads drive out in normal operation. */
       temp_u8 = p_fdc->drive_out;
@@ -575,6 +580,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
       p_fdc->logical_track[0] = param1;
       break;
     case k_intel_fdc_register_mode:
+      p_fdc->register_mode = (param1 & 0x07);
       break;
     case k_intel_fdc_register_track_drive_1:
       p_fdc->logical_track[1] = param1;
