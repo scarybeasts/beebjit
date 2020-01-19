@@ -64,6 +64,8 @@ enum {
 
 enum {
   k_intel_fdc_result_ok = 0x00,
+  k_intel_fdc_result_id_crc_error = 0x0C,
+  k_intel_fdc_result_data_crc_error = 0x0E,
   k_intel_fdc_result_write_protected = 0x12,
   k_intel_fdc_result_sector_not_found = 0x18,
   k_intel_fdc_result_flag_deleted_data = 0x20,
@@ -135,6 +137,7 @@ struct intel_fdc_struct {
   uint8_t state_id_track;
   uint8_t state_id_sector;
   uint16_t crc;
+  uint16_t on_disc_crc;
 };
 
 struct intel_fdc_struct*
@@ -705,17 +708,6 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
   }
 }
 
-static void
-intel_fdc_crc_init(struct intel_fdc_struct* p_fdc) {
-  p_fdc->crc = 0xFFFF;
-}
-
-static void
-intel_fdc_crc_add_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
-  (void) p_fdc;
-  (void) byte;
-}
-
 static int
 intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
   /* TODO: if byte wasn't consumed, return error $0A. */
@@ -726,6 +718,16 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
                                   k_intel_fdc_status_flag_need_data),
                                   k_intel_fdc_result_ok);
   return 1;
+}
+
+static int
+intel_fdc_check_crc(struct intel_fdc_struct* p_fdc, uint8_t error) {
+  if (p_fdc->crc == p_fdc->on_disc_crc) {
+    return 1;
+  }
+
+  intel_fdc_set_command_result(p_fdc, 1, error);
+  return 0;
 }
 
 static void
@@ -777,14 +779,16 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   case k_intel_fdc_state_search_id:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         (data_byte == k_ibm_disc_id_mark_data_pattern)) {
-      intel_fdc_crc_init(p_fdc);
-      intel_fdc_crc_add_byte(p_fdc, k_ibm_disc_id_mark_data_pattern);
+      p_fdc->crc = ibm_disc_format_crc_init();
+      p_fdc->crc =
+          ibm_disc_format_crc_add_byte(p_fdc->crc,
+                                       k_ibm_disc_id_mark_data_pattern);
 
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id);
     }
     break;
   case k_intel_fdc_state_in_id:
-    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
     if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
@@ -802,13 +806,21 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == 4) {
+      p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id_crc);
     }
     break;
   case k_intel_fdc_state_in_id_crc:
+    p_fdc->on_disc_crc <<= 8;
+    p_fdc->on_disc_crc |= data_byte;
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
-      /* TODO: check CRC of course. */
+      /* TODO: need to decide if it's a CRC error even if a different track /
+       * sector match has been requested.
+       */
+      if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_id_crc_error)) {
+        break;
+      }
       if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
         intel_fdc_check_completion(p_fdc);
       } else {
@@ -833,24 +845,25 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
         p_fdc->current_had_deleted_data = 1;
         new_state = k_intel_fdc_state_in_deleted_data;
       }
-      intel_fdc_crc_init(p_fdc);
-      intel_fdc_crc_add_byte(p_fdc, data_byte);
+      p_fdc->crc = ibm_disc_format_crc_init();
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
 
       intel_fdc_set_state(p_fdc, new_state);
     }
     break;
   case k_intel_fdc_state_in_data:
-    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
     if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
       break;
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
+      p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
     break;
   case k_intel_fdc_state_in_deleted_data:
-    intel_fdc_crc_add_byte(p_fdc, data_byte);
+    p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
     if (p_fdc->command_is_transfer_deleted) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
@@ -858,13 +871,18 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == p_fdc->command_sector_size) {
+      p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
     break;
   case k_intel_fdc_state_in_data_crc:
+    p_fdc->on_disc_crc <<= 8;
+    p_fdc->on_disc_crc |= data_byte;
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
-      /* TODO: check CRC of course. */
+      if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_data_crc_error)) {
+        break;
+      }
       intel_fdc_check_completion(p_fdc);
     }
     break;

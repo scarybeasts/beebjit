@@ -64,6 +64,8 @@ struct disc_struct {
   /* State of the drive. */
   int is_side_upper;
   uint32_t track;
+
+  uint16_t crc;
 };
 
 static void
@@ -164,10 +166,16 @@ disc_write_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
 }
 
 static void
+disc_build_reset_crc(struct disc_struct* p_disc) {
+  p_disc->crc = ibm_disc_format_crc_init();
+}
+
+static void
 disc_build_append_single_with_clock(struct disc_struct* p_disc,
                                     uint8_t data,
                                     uint8_t clocks) {
   disc_write_byte(p_disc, data, clocks);
+  p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, data);
   p_disc->byte_position++;
 }
 
@@ -196,6 +204,15 @@ disc_build_append_chunk(struct disc_struct* p_disc,
   for (i = 0; i < num; ++i) {
     disc_build_append_single(p_disc, p_src[i]);
   }
+}
+
+static void
+disc_build_append_crc(struct disc_struct* p_disc) {
+  /* Cache the crc because the calls below will corrupt it. */
+  uint16_t crc = p_disc->crc;
+
+  disc_build_append_single(p_disc, (crc >> 8));
+  disc_build_append_single(p_disc, (crc & 0xFF));
 }
 
 static void
@@ -246,6 +263,7 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
       disc_build_append_repeat(p_disc, 0x00, 6);
       for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
         /* Sector header, aka. ID. */
+        disc_build_reset_crc(p_disc);
         disc_build_append_single_with_clock(p_disc,
                                             k_ibm_disc_id_mark_data_pattern,
                                             k_ibm_disc_mark_clock_pattern);
@@ -253,20 +271,19 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
         disc_build_append_single(p_disc, 0);
         disc_build_append_single(p_disc, i_sector);
         disc_build_append_single(p_disc, 1);
-        disc_build_append_single(p_disc, 0);
-        disc_build_append_single(p_disc, 0);
+        disc_build_append_crc(p_disc);
 
         /* Sync pattern between sector header and sector data, aka. GAP 2. */
         disc_build_append_repeat(p_disc, 0xFF, 11);
         disc_build_append_repeat(p_disc, 0x00, 6);
 
         /* Sector data. */
+        disc_build_reset_crc(p_disc);
         disc_build_append_single_with_clock(p_disc,
                                             k_ibm_disc_data_mark_data_pattern,
                                             k_ibm_disc_mark_clock_pattern);
         disc_build_append_chunk(p_disc, p_ssd_data, k_disc_ssd_sector_size);
-        disc_build_append_single(p_disc, 0);
-        disc_build_append_single(p_disc, 0);
+        disc_build_append_crc(p_disc);
 
         p_ssd_data += k_disc_ssd_sector_size;
 
@@ -288,6 +305,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
 
 static void
 disc_load_fsd(struct disc_struct* p_disc) {
+  /* The most authoritative "documentation" for the FSD format appears to be:
+   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p66240
+   */
   static const size_t k_max_fsd_size = (1024 * 1024);
   uint8_t buf[k_max_fsd_size];
   size_t len;
@@ -419,6 +439,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
         errx(1, "fsd file track no space for sector header and gap");
       }
       /* Sector header, aka. ID. */
+      disc_build_reset_crc(p_disc);
       disc_build_append_single_with_clock(p_disc,
                                           k_ibm_disc_id_mark_data_pattern,
                                           k_ibm_disc_mark_clock_pattern);
@@ -436,8 +457,8 @@ disc_load_fsd(struct disc_struct* p_disc) {
       disc_build_append_single(p_disc, p_buf[1]);
       disc_build_append_single(p_disc, logical_sector);
       disc_build_append_single(p_disc, p_buf[3]);
-      disc_build_append_single(p_disc, 0);
-      disc_build_append_single(p_disc, 0);
+      disc_build_append_crc(p_disc);
+
       /* Sync pattern between sector header and sector data, aka. GAP 2. */
       disc_build_append_repeat(p_disc, 0xFF, 11);
       disc_build_append_repeat(p_disc, 0x00, 6);
@@ -447,6 +468,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
 
       if (do_read_data) {
         uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
+        int crc_error = 0;
 
         if (file_remaining < 2) {
           errx(1, "fsd file missing sector header second part");
@@ -467,6 +489,16 @@ disc_load_fsd(struct disc_struct* p_disc) {
                        logical_sector);
           }
           sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
+        } else if (sector_error == 0x0E) {
+          /* Sector has data CRC error. */
+          if (p_disc->log_protection) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "FSD: CRC error sector track %d logical sector %d",
+                       i_track,
+                       logical_sector);
+          }
+          crc_error = 1;
         } else if (sector_error != 0) {
           errx(1, "fsd file sector error %d unsupported", sector_error);
         }
@@ -481,12 +513,23 @@ disc_load_fsd(struct disc_struct* p_disc) {
           errx(1, "fsd file track no space for sector data");
         }
 
+        disc_build_reset_crc(p_disc);
         disc_build_append_single_with_clock(p_disc,
                                             sector_mark,
                                             k_ibm_disc_mark_clock_pattern);
         disc_build_append_chunk(p_disc, p_buf, real_sector_size);
-        disc_build_append_single(p_disc, 0);
-        disc_build_append_single(p_disc, 0);
+        if (crc_error) {
+          /* CRC error required. Use 0xFFFF unless that's accidentally correct,
+           * in which case 0xFFFE.
+           */
+          if (p_disc->crc == 0xFFFF) {
+            p_disc->crc = 0xFFFE;
+          } else {
+            p_disc->crc = 0xFFFF;
+          }
+        }
+        disc_build_append_crc(p_disc);
+
         p_buf += real_sector_size;
         file_remaining -= real_sector_size;
         track_remaining -= (real_sector_size + 3);
