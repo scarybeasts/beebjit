@@ -15,6 +15,8 @@ can even block at that resolution.
 - Uridium JIT crash after ship blows up.
 - Re-add unit test for JIT block handling and splitting etc.
 - BCD support in JIT?
+- "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
+Picnic for a bit, just after you give your bear a name and address.
 
 
 Fix later

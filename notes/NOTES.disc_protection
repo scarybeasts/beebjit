@@ -4,6 +4,7 @@ TODO:
 - Castle Quest
 - Fortress
 - Cybertron Mission
+- Teddy Bears' Picnic
 
 - 005 Arcadians.FSD
 SHA256: af86fa5016054f9192882d62d8a115ef22e82cfe8adb4d74f10cf828aad09b3e
@@ -39,3 +40,60 @@ Has one deleted sector on track 3, as well as other sectors.
 Uses 8271 command $16 (read data and deleted data, 1x128 sector) to read track
 3.
 
+- 186 THE TEDDY BEARS' PICNIC SIDE 1.FSD
+SHA256: 7bd415a4ade19250ba34888840a9dfdbe478a3d328a4e11d11bde6a39cdb80ea
+Track 39 sector 9, 256 bytes, very special. It gives CRC error $0E when read,
+and is expected to contain a few bytes of valid code followed by weak bits.
+In the code sequence below, OSWORD &7F is expected to return $0E at &04A0, after
+reading track 39 sector 9 into $1100.
+Then $1100 is called to check the start of the sector is a few simple
+deterministic bytes.
+Then at $0539 there's a loop that repeats the same sector read into $1100
+until a difference between different reads is detected in the range $1118 to
+$111F.
+[ITRP] 0536: JSR $0492
+...
+[ITRP] 0492: LDA #$7F
+[ITRP] 0494: LDX $0490
+[ITRP] 0497: LDY $0491
+[ITRP] 049A: JSR $FFF1
+[ITRP] 049D: LDA #$0E
+[ITRP] 049F: NOP
+[ITRP] 04A0: CMP #$0E
+[ITRP] 04A2: BNE $049D
+[ITRP] 04A4: LDA #$3D
+[ITRP] 04A6: JSR $1100
+...
+[ITRP] 1100: STA $0737
+[ITRP] 1103: RTS
+...
+[ITRP] 04A9: LDA #$32
+[ITRP] 04AB: STA $03A1
+[ITRP] 04AE: RTS
+...
+[ITRP] 0539: LDA $1118
+[ITRP] 053C: STA $81
+[ITRP] 053E: LDA $1119
+[ITRP] 0541: STA $82
+[ITRP] 0543: LDA $111A
+[ITRP] 0546: STA $83
+[ITRP] 0548: LDA $111B
+[ITRP] 054B: STA $84
+[ITRP] 054D: LDA $111C
+[ITRP] 0550: STA $85
+[ITRP] 0552: LDA $111D
+[ITRP] 0555: STA $86
+[ITRP] 0557: LDA $111E
+[ITRP] 055A: STA $87
+[ITRP] 055C: LDA $111F
+[ITRP] 055F: STA $88
+[ITRP] 0561: JSR $0492
+[ITRP] 0564: LDX #$00
+[ITRP] 0566: LDA $81,X
+[ITRP] 0568: CMP $1118,X
+[ITRP] 056B: BNE $0577
+[ITRP] 056D: INX
+[ITRP] 056E: CPX #$07
+[ITRP] 0570: BNE $0566
+[ITRP] 0572: JMP $0536
+[ITRP] 0575: BEQ $0536

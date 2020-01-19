@@ -89,6 +89,21 @@ disc_timer_callback(struct disc_struct* p_disc) {
                                 p_disc->timer_id,
                                 k_disc_ticks_per_byte);
 
+  /* If there's an empty patch on the disc surface, the disc drive's head
+   * amplifier will typically desperately seek for a signal in the noise,
+   * resulting in "weak bits".
+   * I've verified this with an oscilloscope on my Chinon F-051MD drive, which
+   * has a Motorola MC3470AP head amplifier.
+   * We need to return an inconsistent yet deterministic set of weak bits.
+   */
+  if ((data_byte == 0) && (clocks_byte == 0)) {
+    uint64_t ticks = timing_get_total_timer_ticks(p_disc->p_timing);
+    data_byte = ticks;
+    data_byte ^= (ticks >> 8);
+    data_byte ^= (ticks >> 16);
+    data_byte ^= (ticks >> 24);
+  }
+
   p_disc->p_byte_callback(p_disc->p_byte_callback_object,
                           data_byte,
                           clocks_byte);
@@ -171,9 +186,9 @@ disc_build_reset_crc(struct disc_struct* p_disc) {
 }
 
 static void
-disc_build_append_single_with_clock(struct disc_struct* p_disc,
-                                    uint8_t data,
-                                    uint8_t clocks) {
+disc_build_append_single_with_clocks(struct disc_struct* p_disc,
+                                     uint8_t data,
+                                     uint8_t clocks) {
   disc_write_byte(p_disc, data, clocks);
   p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, data);
   p_disc->byte_position++;
@@ -181,7 +196,7 @@ disc_build_append_single_with_clock(struct disc_struct* p_disc,
 
 static void
 disc_build_append_single(struct disc_struct* p_disc, uint8_t data) {
-  disc_build_append_single_with_clock(p_disc, data, 0xFF);
+  disc_build_append_single_with_clocks(p_disc, data, 0xFF);
 }
 
 static void
@@ -192,6 +207,18 @@ disc_build_append_repeat(struct disc_struct* p_disc,
 
   for (i = 0; i < num; ++i) {
     disc_build_append_single(p_disc, data);
+  }
+}
+
+static void
+disc_build_append_repeat_with_clocks(struct disc_struct* p_disc,
+                                     uint8_t data,
+                                     uint8_t clocks,
+                                     size_t num) {
+  size_t i;
+
+  for (i = 0; i < num; ++i) {
+    disc_build_append_single_with_clocks(p_disc, data, clocks);
   }
 }
 
@@ -264,9 +291,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
       for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
         /* Sector header, aka. ID. */
         disc_build_reset_crc(p_disc);
-        disc_build_append_single_with_clock(p_disc,
-                                            k_ibm_disc_id_mark_data_pattern,
-                                            k_ibm_disc_mark_clock_pattern);
+        disc_build_append_single_with_clocks(p_disc,
+                                             k_ibm_disc_id_mark_data_pattern,
+                                             k_ibm_disc_mark_clock_pattern);
         disc_build_append_single(p_disc, i_track);
         disc_build_append_single(p_disc, 0);
         disc_build_append_single(p_disc, i_sector);
@@ -279,9 +306,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
 
         /* Sector data. */
         disc_build_reset_crc(p_disc);
-        disc_build_append_single_with_clock(p_disc,
-                                            k_ibm_disc_data_mark_data_pattern,
-                                            k_ibm_disc_mark_clock_pattern);
+        disc_build_append_single_with_clocks(p_disc,
+                                             k_ibm_disc_data_mark_data_pattern,
+                                             k_ibm_disc_mark_clock_pattern);
         disc_build_append_chunk(p_disc, p_ssd_data, k_disc_ssd_sector_size);
         disc_build_append_crc(p_disc);
 
@@ -440,9 +467,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
       }
       /* Sector header, aka. ID. */
       disc_build_reset_crc(p_disc);
-      disc_build_append_single_with_clock(p_disc,
-                                          k_ibm_disc_id_mark_data_pattern,
-                                          k_ibm_disc_mark_clock_pattern);
+      disc_build_append_single_with_clocks(p_disc,
+                                           k_ibm_disc_id_mark_data_pattern,
+                                           k_ibm_disc_mark_clock_pattern);
       logical_track = p_buf[0];
       logical_sector = p_buf[2];
       if ((logical_track != i_track) && p_disc->log_protection) {
@@ -514,14 +541,28 @@ disc_load_fsd(struct disc_struct* p_disc) {
         }
 
         disc_build_reset_crc(p_disc);
-        disc_build_append_single_with_clock(p_disc,
-                                            sector_mark,
-                                            k_ibm_disc_mark_clock_pattern);
-        disc_build_append_chunk(p_disc, p_buf, real_sector_size);
-        if (crc_error) {
+        disc_build_append_single_with_clocks(p_disc,
+                                             sector_mark,
+                                             k_ibm_disc_mark_clock_pattern);
+        if (!crc_error) {
+          disc_build_append_chunk(p_disc, p_buf, real_sector_size);
+        } else {
           /* CRC error required. Use 0xFFFF unless that's accidentally correct,
            * in which case 0xFFFE.
+           * Furthermore, CRC error in the FSD format appears to also imply
+           * weak bits. See:
+           * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p74208
+           * Our 8271 driver interprets empty disc surface (no data bits, no
+           * clock bits) as weak bits. As does my real drive + 8271 combo.
+           *
+           * But it gets icky: the titles that rely on weak bits (mostly,
+           * hopefully exclusively? Sherston Software titles) rely on the weak
+           * bits being a little later in the sector as the code at the start
+           * of the sector is executed!!
            */
+          disc_build_append_chunk(p_disc, p_buf, 24);
+          disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
+          disc_build_append_chunk(p_disc, p_buf, (real_sector_size - 32));
           if (p_disc->crc == 0xFFFF) {
             p_disc->crc = 0xFFFE;
           } else {
