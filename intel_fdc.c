@@ -64,6 +64,8 @@ enum {
 
 enum {
   k_intel_fdc_result_ok = 0x00,
+  k_intel_fdc_result_clock_error = 0x08,
+  k_intel_fdc_result_late_dma = 0x0A,
   k_intel_fdc_result_id_crc_error = 0x0C,
   k_intel_fdc_result_data_crc_error = 0x0E,
   k_intel_fdc_result_write_protected = 0x12,
@@ -96,6 +98,8 @@ enum {
   k_intel_fdc_state_in_data = 8,
   k_intel_fdc_state_in_deleted_data = 9,
   k_intel_fdc_state_in_data_crc = 10,
+  k_intel_fdc_state_write_gap_2 = 11,
+  k_intel_fdc_state_write_sector_data = 12,
 };
 
 struct intel_fdc_struct {
@@ -127,6 +131,7 @@ struct intel_fdc_struct {
   uint32_t command_sector_size;
   int command_is_transfer_deleted;
   int command_is_verify_only;
+  int command_is_write;
 
   uint8_t current_sector;
   uint8_t current_sectors_left;
@@ -429,6 +434,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->command_sector_size = (128 << (param2 >> 5));
   p_fdc->command_is_transfer_deleted = 0;
   p_fdc->command_is_verify_only = 0;
+  p_fdc->command_is_write = 0;
 
   intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
@@ -481,6 +487,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                                    k_intel_fdc_result_write_protected);
       return;
     }
+    p_fdc->command_is_write = 1;
+    break;
   default:
     break;
   }
@@ -490,6 +498,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   }
 
   switch (command) {
+  case k_intel_fdc_command_write_sector_deleted_128:
+  case k_intel_fdc_command_write_sectors_deleted:
   case k_intel_fdc_command_read_sector_with_deleted_128:
   case k_intel_fdc_command_read_sectors_with_deleted:
     p_fdc->command_is_transfer_deleted = 1;
@@ -505,6 +515,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->current_had_deleted_data = 0;
 
   switch (command) {
+  case k_intel_fdc_command_write_sector_128:
+  case k_intel_fdc_command_write_sectors:
+  case k_intel_fdc_command_write_sector_deleted_128:
+  case k_intel_fdc_command_write_sectors_deleted:
   case k_intel_fdc_command_read_sector_128:
   case k_intel_fdc_command_read_sectors:
   case k_intel_fdc_command_read_sector_with_deleted_128:
@@ -723,14 +737,35 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 }
 
 static int
+intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
+  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
+    intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_late_dma);
+    return 0;
+  }
+  return 1;
+}
+
+static int
 intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
-  /* TODO: if byte wasn't consumed, return error $0A. */
+  if (!intel_fdc_check_data_loss_ok(p_fdc)) {
+    return 0;
+  }
   p_fdc->data = byte;
   intel_fdc_set_status_result(p_fdc,
                               (k_intel_fdc_status_flag_busy |
                                   k_intel_fdc_status_flag_nmi |
                                   k_intel_fdc_status_flag_need_data),
                                   k_intel_fdc_result_ok);
+  return 1;
+}
+
+static int
+intel_fdc_consume_data_byte(struct intel_fdc_struct* p_fdc) {
+  if (!intel_fdc_check_data_loss_ok(p_fdc)) {
+    return 0;
+  }
+
+  disc_write_byte(p_fdc->p_current_disc, p_fdc->data, 0xFF);
   return 1;
 }
 
@@ -840,7 +875,11 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       } else {
         if ((p_fdc->state_id_track == p_fdc->command_track) &&
             (p_fdc->state_id_sector == p_fdc->current_sector)) {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
+          if (p_fdc->command_is_write) {
+            intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
+          } else {
+            intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
+          }
         } else {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
         }
@@ -900,6 +939,51 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
         break;
       }
       intel_fdc_check_completion(p_fdc);
+    }
+    break;
+  case k_intel_fdc_state_write_gap_2:
+    if (p_fdc->state_count < 11) {
+      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+    } else {
+      disc_write_byte(p_fdc->p_current_disc, 0x00, 0xFF);
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == (11 + 6)) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_sector_data);
+    }
+    break;
+  case k_intel_fdc_state_write_sector_data:
+    if (p_fdc->state_count == 0) {
+      uint8_t mark_byte;
+      if (p_fdc->command_is_transfer_deleted) {
+        mark_byte = k_ibm_disc_deleted_data_mark_data_pattern;
+      } else {
+        mark_byte = k_ibm_disc_data_mark_data_pattern;
+      }
+      disc_write_byte(p_fdc->p_current_disc,
+                      mark_byte,
+                      k_ibm_disc_mark_clock_pattern);
+      p_fdc->crc = ibm_disc_format_crc_init();
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, mark_byte);
+    } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
+      if (!intel_fdc_consume_data_byte(p_fdc)) {
+        break;
+      }
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->data);
+    } else if (p_fdc->state_count == (p_fdc->command_sector_size + 1)) {
+      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc >> 8), 0xFF);
+    } else if (p_fdc->state_count == (p_fdc->command_sector_size + 2)) {
+      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == (p_fdc->command_sector_size + 3)) {
+      intel_fdc_check_completion(p_fdc);
+    } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
+      intel_fdc_set_status_result(p_fdc,
+                                  (k_intel_fdc_status_flag_busy |
+                                      k_intel_fdc_status_flag_nmi |
+                                      k_intel_fdc_status_flag_need_data),
+                                      k_intel_fdc_result_ok);
     }
     break;
   default:
