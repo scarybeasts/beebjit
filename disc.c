@@ -390,6 +390,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
     uint32_t i_sector;
     size_t saved_file_remaining;
     uint8_t* p_saved_buf;
+    uint8_t sector_seen[256];
 
     uint32_t track_remaining = k_disc_bytes_per_track;
     uint32_t track_data_bytes = 0;
@@ -399,6 +400,8 @@ disc_load_fsd(struct disc_struct* p_disc) {
     uint32_t gap1_ff_count = 16;
     uint32_t gap2_ff_count = 11;
     uint32_t gap3_ff_count = 16;
+
+    (void) memset(sector_seen, '\0', sizeof(sector_seen));
 
     if (file_remaining < 2) {
       errx(1, "fsd file missing track header");
@@ -558,6 +561,15 @@ disc_load_fsd(struct disc_struct* p_disc) {
                    i_track,
                    sector_spec);
       }
+      if (sector_seen[logical_sector] && p_disc->log_protection) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "FSD: duplicate logical sector, track %d: %s",
+                   i_track,
+                   sector_spec);
+      }
+      sector_seen[logical_sector] = 1;
+
       disc_build_append_single(p_disc, logical_track);
       disc_build_append_single(p_disc, logical_head);
       disc_build_append_single(p_disc, logical_sector);
