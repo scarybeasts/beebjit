@@ -572,7 +572,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     temp_u8 = 0;
     switch (param0) {
     case k_intel_fdc_register_scan_sector:
-      /* DFS-0.9 reads this register after an 0x18 sector not found error. */
+      /* DFS-0.9 reads this register after an error. It is used to report the
+       * sector in error.
+       */
+      temp_u8 = p_fdc->current_sector;
       break;
     case k_intel_fdc_register_mode:
       /* Phantom Combat (BBC B 32K version) reads this?! */
