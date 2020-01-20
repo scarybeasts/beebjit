@@ -17,6 +17,8 @@ can even block at that resolution.
 - BCD support in JIT?
 - "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
 Picnic for a bit, just after you give your bear a name and address.
+- Test for new undocumented opcodes, mainly LAX?
+- Exile crash in loader in JIT mode, stack underflow related?
 
 
 Fix later
