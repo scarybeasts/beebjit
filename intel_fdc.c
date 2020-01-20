@@ -147,6 +147,78 @@ struct intel_fdc_struct {
   uint16_t on_disc_crc;
 };
 
+static inline void
+intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
+  p_fdc->state = state;
+  p_fdc->state_count = 0;
+}
+
+static void
+intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+
+  if (p_current_disc != NULL) {
+    if ((p_fdc->drive_out & k_intel_fdc_drive_out_load_head) !=
+        (drive_out & k_intel_fdc_drive_out_load_head)) {
+      if (drive_out & k_intel_fdc_drive_out_load_head) {
+        disc_start_spinning(p_current_disc);
+      } else {
+        disc_stop_spinning(p_current_disc);
+      }
+    }
+    disc_select_side(p_current_disc,
+                     !!(drive_out & k_intel_fdc_drive_out_side));
+  }
+
+  p_fdc->drive_out = drive_out;
+}
+
+static void
+intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
+                       uint8_t new_drive_select) {
+  uint8_t new_drive_out;
+
+  if (new_drive_select == p_fdc->drive_select) {
+    return;
+  }
+
+  /* A change of drive select bits clears various bits in the drive output.
+   * For example, the newly select drive won't have the load head signal
+   * active.
+   * This also spins down the previously selected drive.
+   */
+  new_drive_out = (p_fdc->drive_out & ~0xC0);
+  new_drive_out |= new_drive_select;
+  new_drive_out &= ~k_intel_fdc_drive_out_load_head;
+  intel_fdc_set_drive_out(p_fdc, new_drive_out);
+
+  p_fdc->drive_select = new_drive_select;
+  if (new_drive_select == 0x40) {
+    p_fdc->p_current_disc = p_fdc->p_disc_0;
+  } else if (new_drive_select == 0x80) {
+    p_fdc->p_current_disc = p_fdc->p_disc_1;
+  } else {
+    /* NOTE: I'm not sure what selecting no drive or selecting both drives is
+     * supposed to do.
+     */
+    p_fdc->p_current_disc = NULL;
+  }
+}
+
+static void
+intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc, k_log_info, "8271: reset");
+  }
+
+  /* Abort any in-progress command. */
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
+  p_fdc->command = 0;
+
+  /* Deselect any drive; ensures spin-down. */
+  intel_fdc_select_drive(p_fdc, 0x00);
+}
+
 struct intel_fdc_struct*
 intel_fdc_create(struct state_6502* p_state_6502,
                  struct bbc_options* p_options) {
@@ -162,7 +234,7 @@ intel_fdc_create(struct state_6502* p_state_6502,
   p_fdc->log_commands = util_has_option(p_options->p_log_flags,
                                         "disc:commands");
 
-  p_fdc->state = k_intel_fdc_state_idle;
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
 
   return p_fdc;
 }
@@ -181,12 +253,6 @@ void
 intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   /* TODO: stop discs if spinning? */
   free(p_fdc);
-}
-
-static inline void
-intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
-  p_fdc->state = state;
-  p_fdc->state_count = 0;
 }
 
 static void
@@ -271,58 +337,6 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   default:
     assert(0);
     return 0;
-  }
-}
-
-static void
-intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
-  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
-
-  if (p_current_disc != NULL) {
-    if ((p_fdc->drive_out & k_intel_fdc_drive_out_load_head) !=
-        (drive_out & k_intel_fdc_drive_out_load_head)) {
-      if (drive_out & k_intel_fdc_drive_out_load_head) {
-        disc_start_spinning(p_current_disc);
-      } else {
-        disc_stop_spinning(p_current_disc);
-      }
-    }
-    disc_select_side(p_current_disc,
-                     !!(drive_out & k_intel_fdc_drive_out_side));
-  }
-
-  p_fdc->drive_out = drive_out;
-}
-
-static void
-intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
-                       uint8_t new_drive_select) {
-  uint8_t new_drive_out;
-
-  if (new_drive_select == p_fdc->drive_select) {
-    return;
-  }
-
-  /* A change of drive select bits clears various bits in the drive output.
-   * For example, the newly select drive won't have the load head signal
-   * active.
-   * This also spins down the previously selected drive.
-   */
-  new_drive_out = (p_fdc->drive_out & ~0xC0);
-  new_drive_out |= new_drive_select;
-  new_drive_out &= ~k_intel_fdc_drive_out_load_head;
-  intel_fdc_set_drive_out(p_fdc, new_drive_out);
-
-  p_fdc->drive_select = new_drive_select;
-  if (new_drive_select == 0x40) {
-    p_fdc->p_current_disc = p_fdc->p_disc_0;
-  } else if (new_drive_select == 0x80) {
-    p_fdc->p_current_disc = p_fdc->p_disc_1;
-  } else {
-    /* NOTE: I'm not sure what selecting no drive or selecting both drives is
-     * supposed to do.
-     */
-    p_fdc->p_current_disc = NULL;
   }
 }
 
@@ -732,6 +746,20 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
     p_fdc->data = val;
+    break;
+  case k_intel_fdc_reset:
+    /* EMU: On a real 8271, crazy crazy things happen if you write 2 or
+     * especially 4 to this register.
+     */
+    assert((val == 0) || (val == 1));
+
+    /* EMU TODO: if we cared to emulate this more accurately, note that it's
+     * possible to leave the reset register in the 1 state and then commands
+     * to the command register are ignored.
+     */
+    if (val == 1) {
+      intel_fdc_do_reset(p_fdc);
+    }
     break;
   default:
     assert(0);
