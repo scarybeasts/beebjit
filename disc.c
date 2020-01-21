@@ -624,7 +624,14 @@ disc_load_fsd(struct disc_struct* p_disc) {
            * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p74208
            */
           do_crc_error = 1;
-          do_weak_bits = 1;
+          /* Sector error $0E only applies weak bits if the real and declared
+           * sector sizes match. Otherwise various Sherston Software titles
+           * fail. This also matches the logic in:
+           * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
+           */
+          if (real_sector_size == logical_size) {
+            do_weak_bits = 1;
+          }
         } else if (sector_error == 0x2E) {
           /* $2E isn't documented and neither are $20 / $0E documented as bit
            * fields, but it shows up anyway in The Wizard's Return.
@@ -638,7 +645,6 @@ disc_load_fsd(struct disc_struct* p_disc) {
           }
           sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
           do_crc_error = 1;
-          do_weak_bits = 1;
         } else if ((sector_error >= 0xE0) && (sector_error <= 0xE2)) {
           if (p_disc->log_protection) {
             log_do_log(k_log_disc,
@@ -655,19 +661,15 @@ disc_load_fsd(struct disc_struct* p_disc) {
         p_buf += 2;
         file_remaining -= 2;
 
-        if ((real_sector_size != logical_size) && p_disc->log_protection) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "FSD: real size mismatch track %d size %d: %s",
-                     i_track,
-                     real_sector_size,
-                     sector_spec);
-          /* Sector error $0E only applies weak bits if the real and declared
-           * sector sizes match. Otherwise various Sherston Software titles
-           * fail. This also matches the logic in:
-           * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
-           */
-          do_weak_bits = 0;
+        if (real_sector_size != logical_size) {
+          if (p_disc->log_protection) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "FSD: real size mismatch track %d size %d: %s",
+                       i_track,
+                       real_sector_size,
+                       sector_spec);
+          }
         }
         if (file_remaining < real_sector_size) {
           errx(1, "fsd file missing sector data");
@@ -693,7 +695,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
            * clock bits) as weak bits. As does my real drive + 8271 combo.
            */
           disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
-          disc_build_append_chunk(p_disc, p_buf, (real_sector_size - 32));
+          disc_build_append_chunk(p_disc,
+                                  (p_buf + 32),
+                                  (real_sector_size - 32));
         }
         if (do_crc_error) {
           /* CRC error required. Use 0xFFFF unless that's accidentally correct,
@@ -710,6 +714,28 @@ disc_load_fsd(struct disc_struct* p_disc) {
         p_buf += real_sector_size;
         file_remaining -= real_sector_size;
         track_remaining -= (real_sector_size + 3);
+
+        if ((fsd_sectors == 1) && (track_data_bytes == 256)) {
+          if (p_disc->log_protection) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "FSD: workaround: zero padding short track %d: %s",
+                       i_track,
+                       sector_spec);
+          }
+          /* This is essentially a workaround for buggy FSD files, such as:
+           * 297 DISC DUPLICATOR 3.FSD
+           * The copy protection relies on zeros being returned from a sector
+           * overread of a single sectored short track, but the FSD file does
+           * not guarantee this.
+           * Also make sure to not accidentally create a valid CRC for a 512
+           * byte read. This happens if the valid 256 byte sector CRC is
+           * followed by all 0x00 and an 0x00 CRC.
+           */
+          disc_build_append_repeat(p_disc, 0x00, (256 - 2));
+          disc_build_append_repeat(p_disc, 0xFF, 2);
+          track_remaining -= 256;
+        }
       }
 
       if (i_sector != (fsd_sectors - 1)) {
