@@ -500,24 +500,26 @@ interp_is_branch_opcode(uint8_t opcode) {
 
 #define INTERP_INSTR_ADC()                                                    \
   temp_int = (a + v + cf);                                                    \
+  zf = !(temp_int & 0xFF);                                                    \
   if (df) {                                                                   \
     /* Fix up decimal carry on first nibble. */                               \
-    /* TODO: incorrect for invalid large BCD numbers, double carries? */      \
     int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                       \
     if (decimal_carry >= 0x0A) {                                              \
       temp_int += 0x06;                                                       \
+      if (decimal_carry >= 0x1A) {                                            \
+        temp_int -= 0x10;                                                     \
+      }                                                                       \
     }                                                                         \
   }                                                                           \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
-  /* In decimal mode, NZ flags are based on this interim value. */            \
-  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
+  nf = !!(temp_int & 0x80);                                                   \
   if (df) {                                                                   \
     if (temp_int >= 0xA0) {                                                   \
       temp_int += 0x60;                                                       \
     }                                                                         \
   }                                                                           \
-  cf = !!(temp_int & 0x100);                                                  \
+  cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
 
 #define INTERP_INSTR_AND()                                                    \

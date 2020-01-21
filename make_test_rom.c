@@ -1406,8 +1406,32 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x1100);
   emit_JMP(p_buf, k_ind, 0x10FF);
 
-  /* End of test. */
+  /* More involved BCD testing, including "illegal" values, "pointless" flags,
+   * all tested by the Exile protected unpacker.
+   */
   set_new_index(p_buf, 0x14C0);
+  emit_SED(p_buf);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x88);
+  emit_ADC(p_buf, k_imm, 0x78);
+  /* ZF is based on the raw addition value. */
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_ADC(p_buf, k_imm, 0x0F);
+  /* Huge invalid digits must still only carry once. */
+  emit_REQUIRE_EQ(p_buf, 0x14);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_ADC(p_buf, k_imm, 0xF0);
+  /* Huge result from invalid digits must still show carry. */
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x40);
+  emit_CLD(p_buf);
+  emit_JMP(p_buf, k_abs, 0xD500);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1500);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
