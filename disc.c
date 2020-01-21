@@ -334,7 +334,7 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
 static void
 disc_load_fsd(struct disc_struct* p_disc) {
   /* The most authoritative "documentation" for the FSD format appears to be:
-   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p66240
+   * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
   static const size_t k_max_fsd_size = (1024 * 1024);
   uint8_t buf[k_max_fsd_size];

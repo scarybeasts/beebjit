@@ -75,8 +75,15 @@ enum {
 
 enum {
   k_intel_fdc_register_scan_sector = 0x06,
+  k_intel_fdc_register_head_step_rate = 0x0D,
+  k_intel_fdc_register_head_settle_time = 0x0E,
+  k_intel_fdc_register_head_load_unload_time = 0x0F,
+  k_intel_fdc_register_bad_track_1_drive_0 = 0x10,
+  k_intel_fdc_register_bad_track_2_drive_0 = 0x11,
   k_intel_fdc_register_track_drive_0 = 0x12,
   k_intel_fdc_register_mode = 0x17,
+  k_intel_fdc_register_bad_track_1_drive_1 = 0x18,
+  k_intel_fdc_register_bad_track_2_drive_1 = 0x19,
   k_intel_fdc_register_track_drive_1 = 0x1A,
   k_intel_fdc_register_drive_out = 0x23,
 };
@@ -419,6 +426,50 @@ intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
 }
 
 static void
+intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
+                                 uint8_t reg,
+                                 uint8_t val) {
+  switch (reg) {
+  case k_intel_fdc_register_head_step_rate:
+  case k_intel_fdc_register_head_settle_time:
+  case k_intel_fdc_register_head_load_unload_time:
+    /* TODO: actually use those to influence timing. */
+    break;
+  case k_intel_fdc_register_track_drive_0:
+    p_fdc->logical_track[0] = val;
+    break;
+  case k_intel_fdc_register_track_drive_1:
+    p_fdc->logical_track[1] = val;
+    break;
+  case k_intel_fdc_register_mode:
+    p_fdc->register_mode = (val & 0x07);
+    break;
+  case k_intel_fdc_register_bad_track_1_drive_0:
+  case k_intel_fdc_register_bad_track_2_drive_0:
+  case k_intel_fdc_register_bad_track_1_drive_1:
+  case k_intel_fdc_register_bad_track_2_drive_1:
+    break;
+  case k_intel_fdc_register_drive_out:
+    /* Bit 0x20 is important as it's used to select the side of the disc for
+     * double sided discs.
+     * Bit 0x08 is important as it provides manual head load / unload control,
+     * which includes motor spin up / down.
+     * The parameter also includes drive select bits which override those in
+     * the command.
+     */
+    /* Select the drive as a separate call to avoid recursion between
+     * these two functions.
+     */
+    intel_fdc_select_drive(p_fdc, (val & 0xC0));
+    intel_fdc_set_drive_out(p_fdc, val);
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void
 intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
   uint8_t command;
@@ -598,6 +649,9 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_specify:
+    intel_fdc_write_special_register(p_fdc, param0, param1);
+    intel_fdc_write_special_register(p_fdc, (param0 + 1), param2);
+    intel_fdc_write_special_register(p_fdc, (param0 + 2), param3);
     /* EMU: return value matches real 8271. */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
@@ -625,34 +679,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_write_special_register:
-    switch (param0) {
-    case k_intel_fdc_register_track_drive_0:
-      p_fdc->logical_track[0] = param1;
-      break;
-    case k_intel_fdc_register_mode:
-      p_fdc->register_mode = (param1 & 0x07);
-      break;
-    case k_intel_fdc_register_track_drive_1:
-      p_fdc->logical_track[1] = param1;
-      break;
-    case k_intel_fdc_register_drive_out:
-      /* Bit 0x20 is important as it's used to select the side of the disc for
-       * double sided discs.
-       * Bit 0x08 is important as it provides manual head load / unload control,
-       * which includes motor spin up / down.
-       * The parameter also includes drive select bits which override those in
-       * the command.
-       */
-      /* Select the drive as a separate call to avoid recursion between
-       * these two functions.
-       */
-      intel_fdc_select_drive(p_fdc, (param1 & 0xC0));
-      intel_fdc_set_drive_out(p_fdc, param1);
-      break;
-    default:
-      assert(0);
-      break;
-    }
+    intel_fdc_write_special_register(p_fdc, param0, param1);
     /* EMU: checked on a real 8271.  */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
