@@ -597,6 +597,10 @@ disc_load_fsd(struct disc_struct* p_disc) {
           errx(1, "fsd file excessive sector size");
         }
         sector_error = p_buf[1];
+
+        logical_size = (1 << (7 + logical_size));
+        real_sector_size = (1 << (7 + real_sector_size));
+
         if (sector_error == 0x20) {
           /* Deleted data. */
           if (p_disc->log_protection) {
@@ -651,8 +655,6 @@ disc_load_fsd(struct disc_struct* p_disc) {
         p_buf += 2;
         file_remaining -= 2;
 
-        logical_size = (1 << (7 + logical_size));
-        real_sector_size = (1 << (7 + real_sector_size));
         if ((real_sector_size != logical_size) && p_disc->log_protection) {
           log_do_log(k_log_disc,
                      k_log_info,
@@ -660,6 +662,12 @@ disc_load_fsd(struct disc_struct* p_disc) {
                      i_track,
                      real_sector_size,
                      sector_spec);
+          /* Sector error $0E only applies weak bits if the real and declared
+           * sector sizes match. Otherwise various Sherston Software titles
+           * fail. This also matches the logic in:
+           * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
+           */
+          do_weak_bits = 0;
         }
         if (file_remaining < real_sector_size) {
           errx(1, "fsd file missing sector data");

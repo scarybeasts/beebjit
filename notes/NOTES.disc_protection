@@ -5,6 +5,8 @@ TODO:
 - Fortress
 - Cybertron Mission
 - Boulderdash
+- Disc Duplicator 3
+
 
 - 005 Arcadians.FSD
 SHA256: af86fa5016054f9192882d62d8a115ef22e82cfe8adb4d74f10cf828aad09b3e
@@ -108,3 +110,16 @@ $111F.
 - 200 MOON CRESTA (NO LENSLOCK).FSD
 Nothing too exciting. Protection is mainly deleted data based.
 But it is the first title discovered to use 8271 command $1F aka. verify.
+
+- 275 The Wizard's Return DISC 1.FSD
+Sector 0, track 1 is deleted, 256 bytes. The program reads it normally with $1F
+(verify), as a 256 byte sector.
+Later it does a read (with deleted), command $17, as a 512 byte sector,
+apparently expecting error code $2E. Where the first two bytes are the CRC,
+the overread data is:
+3C 60 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 FF FF FF FF FF FF FF ....
+The post-CRC bytes would normally be GAP 3 and gaps start with $FF, so looks
+like some hidden inter-sector byte expectations.
