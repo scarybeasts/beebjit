@@ -19,6 +19,7 @@ can even block at that resolution.
 Picnic for a bit, just after you give your bear a name and address.
 - Test for new undocumented opcodes, mainly LAX?
 - Exile crash in loader in JIT mode, stack underflow related?
+- Disc spindown (serious perf issue if they are left spinning).
 
 
 Fix later
