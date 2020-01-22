@@ -400,6 +400,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
     uint32_t gap1_ff_count = 16;
     uint32_t gap2_ff_count = 11;
     uint32_t gap3_ff_count = 16;
+    int do_data_truncate = 0;
 
     (void) memset(sector_seen, '\0', sizeof(sector_seen));
 
@@ -503,6 +504,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
                    i_track,
                    track_data_bytes);
       }
+
       /* This is ugly because the FSD format is ambiguous.
        * Where a sector's "real" size push us over the limit of 3125 bytes per
        * track, there are a couple of reasons this could be the case:
@@ -514,12 +516,18 @@ disc_load_fsd(struct disc_struct* p_disc) {
        *
        * 2) is pretty common but if we follow it blindly we'll get incorrect
        * data for the case where 1) is going on.
-       * As an initial stab, implement 1), which seems to make a large number
-       * of titles work, especially Tynesoft ones.
        */
-      gap1_ff_count = 4;
-      gap2_ff_count = 3;
-      gap3_ff_count = 3;
+
+      /* For manageable overages, implement 1), which seems to make a large
+       * number of titles work, especially Tynesoft ones.
+       */
+      if (track_data_bytes <= 2944) {
+        gap1_ff_count = 4;
+        gap2_ff_count = 3;
+        gap3_ff_count = 3;
+      } else {
+        do_data_truncate = 1;
+      }
     }
 
     /* Pass 2: process data bytes. */
@@ -584,6 +592,8 @@ disc_load_fsd(struct disc_struct* p_disc) {
       track_remaining -= (7 + (gap2_ff_count + 6));
 
       if (do_read_data) {
+        uint32_t data_write_size;
+
         int do_crc_error = 0;
         int do_weak_bits = 0;
         uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
@@ -600,6 +610,10 @@ disc_load_fsd(struct disc_struct* p_disc) {
 
         logical_size = (1 << (7 + logical_size));
         real_sector_size = (1 << (7 + real_sector_size));
+        data_write_size = real_sector_size;
+        if (do_data_truncate) {
+          data_write_size = logical_size;
+        }
 
         if (sector_error == 0x20) {
           /* Deleted data. */
@@ -674,7 +688,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
         if (file_remaining < real_sector_size) {
           errx(1, "fsd file missing sector data");
         }
-        if (track_remaining < (real_sector_size + 3)) {
+        if (track_remaining < (data_write_size + 3)) {
           errx(1, "fsd file track no space for sector data");
         }
 
@@ -683,7 +697,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
                                              sector_mark,
                                              k_ibm_disc_mark_clock_pattern);
         if (!do_weak_bits) {
-          disc_build_append_chunk(p_disc, p_buf, real_sector_size);
+          disc_build_append_chunk(p_disc, p_buf, data_write_size);
         } else {
           /* This is icky: the titles that rely on weak bits (mostly,
            * hopefully exclusively? Sherston Software titles) rely on the weak
@@ -697,7 +711,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
           disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
           disc_build_append_chunk(p_disc,
                                   (p_buf + 32),
-                                  (real_sector_size - 32));
+                                  (data_write_size - 32));
         }
         if (do_crc_error) {
           /* CRC error required. Use 0xFFFF unless that's accidentally correct,
@@ -713,7 +727,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
 
         p_buf += real_sector_size;
         file_remaining -= real_sector_size;
-        track_remaining -= (real_sector_size + 3);
+        track_remaining -= (data_write_size + 3);
 
         if ((fsd_sectors == 1) && (track_data_bytes == 256)) {
           if (p_disc->log_protection) {
