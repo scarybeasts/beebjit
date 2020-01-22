@@ -936,26 +936,30 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     p_fdc->on_disc_crc |= data_byte;
     p_fdc->state_count++;
     if (p_fdc->state_count == 2) {
-      /* TODO: need to decide if it's a CRC error even if a different track /
-       * sector match has been requested.
+      /* EMU NOTE: on a real 8271, an ID CRC error seems to end things
+       * decisively even if a subsequent ok ID would match.
        */
       if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_id_crc_error)) {
         break;
       }
       if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
         intel_fdc_check_completion(p_fdc);
-      } else {
-        if ((p_fdc->state_id_track == p_fdc->command_track) &&
-            (p_fdc->state_id_sector == p_fdc->current_sector)) {
-          p_fdc->state_index_pulse_count = 0;
-          if (p_fdc->command_is_write) {
-            intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
-          } else {
-            intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
-          }
+      } else if (p_fdc->state_id_track != p_fdc->command_track) {
+        /* EMU TODO: upon any mismatch of found track vs. expected track,
+         * the drive will try twice more on the next two tracks.
+         */
+        intel_fdc_set_command_result(p_fdc,
+                                     1,
+                                     k_intel_fdc_result_sector_not_found);
+      } else if (p_fdc->state_id_sector == p_fdc->current_sector) {
+        p_fdc->state_index_pulse_count = 0;
+        if (p_fdc->command_is_write) {
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
         } else {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
         }
+      } else {
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
       }
     }
     break;
