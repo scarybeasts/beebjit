@@ -1,7 +1,4 @@
 TODO:
-- Firetrack
-- Elite
-- Castle Quest
 - Fortress
 - Cybertron Mission
 - Boulderdash
@@ -16,6 +13,7 @@ $18 is returned because although the track is formatted, the track IDs are
 either 0 or $18. There is also no match for logical track 4 on the next two
 physical tracks.
 Disc title has control characters in it that sets 6845 R0 to 0!!
+
 
 - 011 Labyrinth.FSD
 SHA256: 0798597b728f2a47013e6697623e58023a91edf8413b02b3ae9646ff23e396b7
@@ -34,6 +32,46 @@ Return code from $17 (read data and deleted data) is not checked for flag $20
 Also has tracks with normal (non-deleted) sectors where the logical and physical
 tracks don't match.
 
+
+- 022 ELITE-SNG38-0.FSD
+SHA256: d7922e5b70c6cadd2b2805d594f32d4545c744a1934a8e62c5bb38b8aa805393
+Surprisingly simple protection for such a legendary title, but it was earlier
+in the BBC era, 1984. Has:
+a) An unformatted track 3, $1B (read sector IDs) is called on it an gets error
+$18.
+b) A few tracks, including 4 / 5 / 6, with large logical sector IDs and logical
+track IDs not matching, so logical track register has to be manipulated to
+read them.
+
+
+- 050 FIRETRACK.FSD
+SHA256: 4dedf6c5d37abf0e677b191acd8f13ce8c4117bf06413838ac1aa97c461078be
+The readout shows a lot of unformatted / track mismatch / etc. but the main
+check appears to center around track 2:
+- 10 sectors, logical $80 - $89.
+- All declaring 128 bytes and reading ok except $88.
+- $88 delcares 256 bytes and gives $0E at 128 and 256 byte reads.
+- Firetrack loader loads it as 256 byte sector, _does not care if the read
+succeeds or fails_, and expects $00 at offset $8B.
+[ITRP] 0736: LDA #$7F
+[ITRP] 0738: LDX #$9A
+[ITRP] 073A: LDY #$07
+[ITRP] 073C: JSR $FFF1
+[ITRP] 073F: LDA $198B
+[ITRP] 0742: BNE $0736
+079A: 00 00 19 FF FF 03 53 02 88 21 00 FF 00 19 FF FF  ......S..!......
+
+
+072 CASTLE QUEST.FSD
+SHA256: d5113bfb2ef4c58e06803d33406d1ed70f6f3b4505f1002e50334135cee3713f
+Seems a very simple protection.
+Physical track 2 has only sectors declaring logical track 4.
+An attempt is made to read track 2, sector 0, which fails with $18 because of
+the track mismatch.
+You can actually just deformat track 2 entirely and the protection appears to
+still pass.
+
+
 - 080 REPTON.FSD
 SHA256: f16492b1a08e2f06eb933a15baf5cbb5ed92c2fdb02ed142e64a4add115c54cc
 Has some tracks with 18 data sectors and logical / physical track mismatch,
@@ -42,12 +80,14 @@ Has one deleted sector on track 3, as well as other sectors.
 Uses 8271 command $16 (read data and deleted data, 1x128 sector) to read track
 3.
 
+
 - 170 PHANTOM COMBAT (BBC 'B' 32K).FSD
 SHA256: c94728018434000852dd16ac2c7144dc8792f237f5043782488dda066c0d7011
 Various protections included deleted sectors and sector overread with CRC
 error.
 Also, fairly uniquely, uses 8271 command $3D, read special parameter, to
 read parameter $17, the mode.
+
 
 - 186 THE TEDDY BEARS' PICNIC SIDE 1.FSD
 SHA256: 7bd415a4ade19250ba34888840a9dfdbe478a3d328a4e11d11bde6a39cdb80ea
@@ -107,9 +147,11 @@ $111F.
 [ITRP] 0572: JMP $0536
 [ITRP] 0575: BEQ $0536
 
+
 - 200 MOON CRESTA (NO LENSLOCK).FSD
 Nothing too exciting. Protection is mainly deleted data based.
 But it is the first title discovered to use 8271 command $1F aka. verify.
+
 
 - 275 The Wizard's Return DISC 1.FSD
 Sector 0, track 1 is deleted, 256 bytes. The program reads it normally with $1F
@@ -122,4 +164,4 @@ the overread data is:
 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 00 00 00 00 00 FF FF FF FF FF FF FF ....
 The post-CRC bytes would normally be GAP 3 and gaps start with $FF, so looks
-like some hidden inter-sector byte expectations.
+like some hidden inter-sector byte expectations of 0x00.
