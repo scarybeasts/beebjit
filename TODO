@@ -38,7 +38,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Add cursor support to the 6845 CRTC.
 - Add tape loading support.
 - Add fdi disc format support.
-- Add fsd disc format support.
 - MODE7 doesn't have character rounding.
 - Fix Elite-A (file not found trying to launch ship)
 - Remove crufty old rendering code for -fast mode.
