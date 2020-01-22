@@ -669,6 +669,16 @@ disc_load_fsd(struct disc_struct* p_disc) {
                        sector_spec);
           }
           do_crc_error = 1;
+          if (do_data_truncate) {
+            do_crc_error = 0;
+            if (sector_error == 0xE0) {
+              data_write_size = 128;
+            } else if (sector_error == 0xE1) {
+              data_write_size = 256;
+            } else {
+              data_write_size = 512;
+            }
+          }
         } else if (sector_error != 0) {
           errx(1, "fsd file sector error %d unsupported", sector_error);
         }
