@@ -9,28 +9,56 @@
 #include <string.h>
 
 enum {
-  k_tape_ticks_per_byte = 16666,
+  k_tape_ticks_per_byte = (2000000 / 1200 * 10),
+};
+
+enum {
+  k_tape_uef_chunk_origin = 0x0000,
+  k_tape_uef_chunk_data = 0x0100,
+  k_tape_uef_chunk_carrier_tone = 0x0110,
+  k_tape_uef_chunk_gap_int = 0x0112,
+};
+
+enum {
+  k_tape_uef_value_carrier = -1,
+  k_tape_uef_value_silence = -2,
 };
 
 struct tape_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
-  void (*p_byte_callback)(void*, uint8_t);
-  void* p_byte_callback_object;
+  void (*p_value_callback)(void*, int32_t);
+  void* p_value_callback_object;
 
-  intptr_t file_handle;
+  int32_t* p_tape_buffer;
+  uint32_t num_tape_values;
+  uint64_t tape_buffer_pos;
 };
 
 static void
 tape_timer_callback(struct tape_struct* p_tape) {
-  (void) p_tape;
+  int32_t tape_value;
+
+  (void) timing_set_timer_value(p_tape->p_timing,
+                                p_tape->timer_id,
+                                k_tape_ticks_per_byte);
+
+  if (p_tape->tape_buffer_pos < p_tape->num_tape_values) {
+    tape_value = p_tape->p_tape_buffer[p_tape->tape_buffer_pos];
+  } else {
+    tape_value = k_tape_uef_value_silence;
+  }
+
+  p_tape->p_value_callback(p_tape->p_value_callback_object, tape_value);
+
+  p_tape->tape_buffer_pos++;
 }
 
 struct tape_struct*
 tape_create(struct timing_struct* p_timing,
-            void (*p_byte_callback)(void* p, uint8_t data),
-            void* p_byte_callback_object,
+            void (*p_value_callback)(void* p, int32_t data),
+            void* p_value_callback_object,
             struct bbc_options* p_options) {
   struct tape_struct* p_tape = malloc(sizeof(struct tape_struct));
   if (p_tape == NULL) {
@@ -42,10 +70,8 @@ tape_create(struct timing_struct* p_timing,
   (void) memset(p_tape, '\0', sizeof(struct tape_struct));
 
   p_tape->p_timing = p_timing;
-  p_tape->p_byte_callback = p_byte_callback;
-  p_tape->p_byte_callback_object = p_byte_callback_object;
-
-  p_tape->file_handle = k_util_file_no_handle;
+  p_tape->p_value_callback = p_value_callback;
+  p_tape->p_value_callback_object = p_value_callback_object;
 
   p_tape->timer_id = timing_register_timer(p_timing,
                                            tape_timer_callback,
@@ -57,16 +83,143 @@ tape_create(struct timing_struct* p_timing,
 void
 tape_destroy(struct tape_struct* p_tape) {
   assert(!tape_is_playing(p_tape));
-  if (p_tape->file_handle != k_util_file_no_handle) {
-    util_file_handle_close(p_tape->file_handle);
+  if (p_tape->p_tape_buffer != NULL) {
+    free(p_tape->p_tape_buffer);
   }
   free(p_tape);
 }
 
 void
-tape_load(struct tape_struct* p_tape, const char* p_filename) {
-  (void) p_tape;
-  (void) p_filename;
+tape_load(struct tape_struct* p_tape, const char* p_file_name) {
+  static const size_t k_max_uef_size = (1024 * 1024);
+  uint8_t in_buf[k_max_uef_size];
+  int32_t out_buf[k_max_uef_size];
+  size_t len;
+  size_t file_remaining;
+  size_t buffer_remaining;
+  uint8_t* p_in_buf;
+  int32_t* p_out_buf;
+  intptr_t file_handle;
+  uint32_t num_tape_values;
+  size_t tape_buffer_size;
+
+  assert(p_tape->p_tape_buffer == NULL);
+
+  (void) memset(in_buf, '\0', sizeof(in_buf));
+  (void) memset(out_buf, '\0', sizeof(out_buf));
+
+  file_handle = util_file_handle_open(p_file_name, 0, 0);
+
+  len = util_file_handle_read(file_handle, in_buf, sizeof(in_buf));
+
+  util_file_handle_close(file_handle);
+
+  if (len == sizeof(in_buf)) {
+    errx(1, "uef file too large");
+  }
+
+  p_in_buf = in_buf;
+  p_out_buf = out_buf;
+  file_remaining = len;
+  buffer_remaining = k_max_uef_size;
+  if (file_remaining < 12) {
+    errx(1, "uef file missing header");
+  }
+
+  if ((p_in_buf[0] == 0x1B) && (p_in_buf[1] == 0x8B)) {
+    errx(1, "uef file needs unzipping first");
+  }
+  if (memcmp(p_in_buf, "UEF File!", 10) != 0) {
+    errx(1, "uef file incorrect header");
+  }
+  if (p_in_buf[11] != 0x00) {
+    errx(1, "uef file not supported, need major version 0");
+  }
+  p_in_buf += 12;
+  file_remaining -= 12;
+
+  while (file_remaining != 0) {
+    uint16_t chunk_type;
+    uint32_t chunk_len;
+    uint32_t temp_u16;
+    uint32_t i;
+
+    if (file_remaining < 6) {
+      errx(1, "uef file missing chunk");
+    }
+    chunk_type = (p_in_buf[1] << 8);
+    chunk_type |= p_in_buf[0];
+    chunk_len = (p_in_buf[5] << 24);
+    chunk_len |= (p_in_buf[4] << 16);
+    chunk_len |= (p_in_buf[3] << 8);
+    chunk_len |= p_in_buf[2];
+    p_in_buf += 6;
+    file_remaining -= 6;
+    if (chunk_len > file_remaining) {
+      errx(1, "uef file chunk too big");
+    }
+
+    switch (chunk_type) {
+    case k_tape_uef_chunk_origin:
+      /* A text comment, typically of which software made this UEF. */
+      break;
+    case k_tape_uef_chunk_data:
+      if (chunk_len > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < chunk_len; ++i) {
+        *p_out_buf++ = p_in_buf[i];
+      }
+      buffer_remaining -= chunk_len;
+      break;
+    case k_tape_uef_chunk_carrier_tone:
+      if (chunk_len != 2) {
+        errx(1, "uef file incorrect carrier tone chunk size");
+      }
+      temp_u16 = (p_in_buf[1] << 8);
+      temp_u16 |= p_in_buf[0];
+      if (temp_u16 > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < temp_u16; ++i) {
+        *p_out_buf++ = k_tape_uef_value_carrier;
+      }
+      buffer_remaining -= temp_u16;
+      break;
+    case k_tape_uef_chunk_gap_int:
+      if (chunk_len != 2) {
+        errx(1, "uef file incorrect integer gap chunk size");
+      }
+      temp_u16 = (p_in_buf[1] << 8);
+      temp_u16 |= p_in_buf[0];
+      /* Length is specified in terms of 2x time units per baud. */
+      temp_u16 >>= 1;
+      if (temp_u16 > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < temp_u16; ++i) {
+        *p_out_buf++ = k_tape_uef_value_silence;
+      }
+      buffer_remaining -= temp_u16;
+      break;
+    default:
+      errx(1, "uef unknown chunk type 0x%.4x", chunk_type);
+      break;
+    }
+
+    p_in_buf += chunk_len;
+    file_remaining -= chunk_len;
+  }
+
+  num_tape_values = (k_max_uef_size - buffer_remaining);
+  tape_buffer_size = (num_tape_values * sizeof(int32_t));
+  p_tape->p_tape_buffer = malloc(tape_buffer_size);
+  if (p_tape->p_tape_buffer == NULL) {
+    errx(1, "couldn't allocate tape buffer");
+  }
+
+  (void) memcpy(p_tape->p_tape_buffer, out_buf, tape_buffer_size);
+  p_tape->num_tape_values = num_tape_values;
 }
 
 int

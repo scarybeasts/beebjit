@@ -65,6 +65,7 @@ void bbc_load_disc(struct bbc_struct* p_bbc,
                    int drive,
                    int is_writeable,
                    int is_mutable);
+void bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);

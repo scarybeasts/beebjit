@@ -972,7 +972,7 @@ bbc_create(int mode,
   }
 
   p_bbc->p_tape = tape_create(p_timing,
-                              serial_tape_byte_callback,
+                              serial_tape_value_callback,
                               p_bbc->p_serial,
                               &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
@@ -1554,6 +1554,11 @@ bbc_load_disc(struct bbc_struct* p_bbc,
   }
 
   disc_load(p_disc, p_filename, is_writeable, is_mutable);
+}
+
+void
+bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
+  tape_load(p_bbc->p_tape, p_file_name);
 }
 
 static void

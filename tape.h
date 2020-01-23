@@ -10,7 +10,7 @@ struct timing_struct;
 
 struct tape_struct* tape_create(struct timing_struct* p_timing,
                                 void (*p_byte_callback)(void* p,
-                                                        uint8_t data),
+                                                        int32_t data),
                                 void* p_byte_callback_object,
                                 struct bbc_options* p_options);
 void tape_destroy(struct tape_struct* p_tape);

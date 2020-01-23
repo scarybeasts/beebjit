@@ -37,6 +37,7 @@ main(int argc, const char* argv[]) {
   int sideways_ram[k_bbc_num_roms] = {};
   const char* disc_names[2] = {};
   struct util_file_map* p_disc_maps[2] = {};
+  const char* p_tape_file_name = NULL;
 
   struct os_window_struct* p_window = NULL;
   struct os_sound_struct* p_sound_driver = NULL;
@@ -104,6 +105,9 @@ main(int argc, const char* argv[]) {
       } else if (!strcmp(arg, "-disc1") ||
                  !strcmp(arg, "-1")) {
         disc_names[1] = val;
+        ++i;
+      } else if (!strcmp(arg, "-tape")) {
+        p_tape_file_name = val;
         ++i;
       } else if (!strcmp(arg, "-opt")) {
         opt_flags = val;
@@ -252,6 +256,11 @@ main(int argc, const char* argv[]) {
       continue;
     }
     bbc_load_disc(p_bbc, p_filename, i, disc_writeable_flag, disc_mutable_flag);
+  }
+
+  /* Load the tape! */
+  if (p_tape_file_name != NULL) {
+    bbc_load_tape(p_bbc, p_tape_file_name);
   }
 
   /* Set up keyboard capture / replay. */

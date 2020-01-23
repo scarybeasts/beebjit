@@ -29,6 +29,6 @@ void serial_ula_write(struct serial_struct* p_serial, uint8_t val);
 int serial_is_receive_empty(struct serial_struct* p_serial);
 void serial_receive(struct serial_struct* p_serial, uint8_t val);
 
-void serial_tape_byte_callback(void* p, uint8_t data_byte);
+void serial_tape_value_callback(void* p, int32_t tape_value);
 
 #endif /* BEEBJIT_SERIAL_H */
