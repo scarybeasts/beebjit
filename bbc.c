@@ -15,6 +15,7 @@
 #include "serial.h"
 #include "sound.h"
 #include "state_6502.h"
+#include "tape.h"
 #include "teletext.h"
 #include "timing.h"
 #include "util.h"
@@ -110,6 +111,7 @@ struct bbc_struct {
   struct disc_struct* p_disc_1;
   struct intel_fdc_struct* p_intel_fdc;
   struct serial_struct* p_serial;
+  struct tape_struct* p_tape;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
 
@@ -968,6 +970,15 @@ bbc_create(int mode,
   if (p_bbc->p_serial == NULL) {
     errx(1, "serial_create failed");
   }
+
+  p_bbc->p_tape = tape_create(p_timing,
+                              serial_tape_byte_callback,
+                              p_bbc->p_serial,
+                              &p_bbc->options);
+  if (p_bbc->p_tape == NULL) {
+    errx(1, "tape_create failed");
+  }
+  serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
   if (p_debug == NULL) {

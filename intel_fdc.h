@@ -25,6 +25,5 @@ void intel_fdc_write(struct intel_fdc_struct* p_fdc,
                      uint8_t val);
 
 void intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte);
-void intel_fdc_timer_tick(struct intel_fdc_struct* p_fdc);
 
 #endif /* BEEBJIT_INTEL_FDC_H */

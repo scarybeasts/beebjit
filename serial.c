@@ -44,6 +44,9 @@ struct serial_struct {
   /* Virtual device connected to RS423. */
   intptr_t handle_input;
   intptr_t handle_output;
+
+  /* Tape device, part of the serial ULA and feeding to the ACIA. */
+  struct tape_struct* p_tape;
 };
 
 static void
@@ -158,6 +161,12 @@ serial_set_io_handles(struct serial_struct* p_serial,
                       intptr_t handle_output) {
   p_serial->handle_input = handle_input;
   p_serial->handle_output = handle_output;
+}
+
+void
+serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
+  assert(p_serial->p_tape == NULL);
+  p_serial->p_tape = p_tape;
 }
 
 void
@@ -299,4 +308,10 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
   }
 
   serial_update_line_levels(p_serial, line_level_DCD, line_level_CTS);
+}
+
+void
+serial_tape_byte_callback(void* p, uint8_t data_byte) {
+  (void) p;
+  (void) data_byte;
 }
