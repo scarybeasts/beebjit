@@ -304,8 +304,8 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
         errx(1, "uef file incorrect float gap chunk size");
       }
       temp_float = tape_read_float(p_in_buf);
-      /* Current record: 66.8s, STH 3DGrandPrix_B.hq.zip. */
-      if ((temp_float > 120) || (temp_float < 0)) {
+      /* Current record: 263.9s, ChipBuster_B.hq.zip. */
+      if ((temp_float > 360) || (temp_float < 0)) {
         errx(1, "uef file strange float gap %f", temp_float);
       }
       len_u16_1 = (temp_float *
