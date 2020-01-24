@@ -1,5 +1,6 @@
 #include "tape.h"
 
+#include "bbc_options.h"
 #include "serial.h"
 #include "timing.h"
 #include "util.h"
@@ -33,6 +34,8 @@ struct tape_struct {
   uint32_t timer_id;
   struct serial_struct* p_serial;
 
+  uint32_t tick_rate;
+
   int32_t* p_tape_buffer;
   uint32_t num_tape_values;
   uint64_t tape_buffer_pos;
@@ -45,7 +48,7 @@ tape_timer_callback(struct tape_struct* p_tape) {
 
   (void) timing_set_timer_value(p_tape->p_timing,
                                 p_tape->timer_id,
-                                k_tape_ticks_per_byte);
+                                p_tape->tick_rate);
 
   if (p_tape->tape_buffer_pos < p_tape->num_tape_values) {
     tape_value = p_tape->p_tape_buffer[p_tape->tape_buffer_pos];
@@ -73,8 +76,6 @@ tape_create(struct timing_struct* p_timing,
     errx(1, "cannot allocate tape_struct");
   }
 
-  (void) p_options;
-
   (void) memset(p_tape, '\0', sizeof(struct tape_struct));
 
   p_tape->p_timing = p_timing;
@@ -83,6 +84,11 @@ tape_create(struct timing_struct* p_timing,
   p_tape->timer_id = timing_register_timer(p_timing,
                                            tape_timer_callback,
                                            p_tape);
+
+  p_tape->tick_rate = k_tape_ticks_per_byte;
+  (void) util_get_u32_option(&p_tape->tick_rate,
+                             p_options->p_opt_flags,
+                             "tape:tick-rate=");
 
   return p_tape;
 }
@@ -246,7 +252,7 @@ void
 tape_play(struct tape_struct* p_tape) {
   (void) timing_start_timer_with_value(p_tape->p_timing,
                                        p_tape->timer_id,
-                                       k_tape_ticks_per_byte);
+                                       p_tape->tick_rate);
 }
 
 void
