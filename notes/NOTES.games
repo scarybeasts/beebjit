@@ -49,6 +49,21 @@ variants (abx, abs, zpg, zpx) not commonly seen elsewhere to try and
 confuse disassemblers?
 
 
+- AndroidAttack_B.hq.zip
+SHA256: e15f6c6cf5db88c275f98cfd4c5863e3e43afd1d82aa5947e28b7ce1f9ade74e
+Notes:
+1) Has some form of custom tape loader, emits stuff like:
+DEBUG (VERY UNUSUAL): 16-bit ADDRESS WRAP at $31E6 to $00C6
+2) Uses LAX abs directly after loading!
+[ITRP] 1102: LAX $0258
+[ITRP] 1105: NOP
+[ITRP] 1106: NOP
+[ITRP] 1107: NOP $0000,X
+[ITRP] 110A: CPX #$02
+[ITRP] 110C: BNE $111D
+
+
+
 - Arcadians.zip
 SHA256: ef37488dcac07cf19c60e4838ae37c2cf00cc09953cd515a32850f09b5adc4b8
 Commands to run game:

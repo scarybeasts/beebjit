@@ -127,7 +127,7 @@ uint8_t g_optypes[k_6502_op_num_opcodes] =
   k_tya, k_sta, k_txs, k_unk, k_shy, k_sta, k_unk, k_unk,
   /* 0xa0 */
   k_ldy, k_lda, k_ldx, k_unk, k_ldy, k_lda, k_ldx, k_lax,
-  k_tay, k_lda, k_tax, k_unk, k_ldy, k_lda, k_ldx, k_unk,
+  k_tay, k_lda, k_tax, k_unk, k_ldy, k_lda, k_ldx, k_lax,
   /* 0xb0 */
   k_bcs, k_lda, k_kil, k_unk, k_ldy, k_lda, k_ldx, k_unk,
   k_clv, k_lda, k_tsx, k_unk, k_ldy, k_lda, k_ldx, k_unk,
@@ -179,7 +179,7 @@ uint8_t g_opmodes[k_6502_op_num_opcodes] =
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, 0    , 0    ,
   /* 0xa0 */
   k_imm, k_idx, k_imm, 0    , k_zpg, k_zpg, k_zpg, k_zpg,
-  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, 0    ,
+  k_nil, k_imm, k_nil, 0    , k_abs, k_abs, k_abs, k_abs,
   /* 0xb0 */
   k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpy, 0    ,
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_aby, 0    ,
@@ -231,7 +231,7 @@ uint8_t g_opcycles[k_6502_op_num_opcodes] =
   2, 5, 2, 0, 5, 5, 0, 0,
   /* 0xa0 */
   2, 6, 2, 0, 3, 3, 3, 3,
-  2, 2, 2, 0, 4, 4, 4, 0,
+  2, 2, 2, 0, 4, 4, 4, 4,
   /* 0xb0 */
   2, 5, 0, 0, 4, 4, 4, 0,
   2, 4, 2, 0, 4, 4, 4, 0,

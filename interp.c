@@ -553,6 +553,11 @@ interp_is_branch_opcode(uint8_t opcode) {
   v++;                                                                        \
   INTERP_LOAD_NZ_FLAGS(v);
 
+#define INTERP_INSTR_LAX()                                                    \
+  a = v;                                                                      \
+  x = v;                                                                      \
+  INTERP_LOAD_NZ_FLAGS(v);
+
 #define INTERP_INSTR_LDA()                                                    \
   a = v;                                                                      \
   INTERP_LOAD_NZ_FLAGS(v);
@@ -1288,7 +1293,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       addr = p_mem_read[pc + 1];
       a = p_mem_read[addr];
       x = a;
-      INTERP_LOAD_NZ_FLAGS(x);
+      INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
@@ -1318,6 +1323,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xAE: /* LDX abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_LDX());
+      break;
+    case 0xAF: /* LAX abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ(INTERP_INSTR_LAX());
       break;
     case 0xB0: /* BCS */
       INTERP_INSTR_BRANCH(cf);
