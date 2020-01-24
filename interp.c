@@ -658,6 +658,12 @@ interp_is_branch_opcode(uint8_t opcode) {
 #define INTERP_INSTR_SHY()                                                    \
   v = (y & ((addr_temp >> 8) + 1));
 
+#define INTERP_INSTR_SRE()                                                    \
+  cf = (v & 0x01);                                                            \
+  v >>= 1;                                                                    \
+  a ^= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
+
 #define INTERP_INSTR_STA()                                                    \
   v = a;
 
@@ -1064,6 +1070,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x4E: /* LSR abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_LSR());
+      break;
+    case 0x4F: /* SRE abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_SRE());
       break;
     case 0x50: /* BVC */
       INTERP_INSTR_BRANCH(!of);

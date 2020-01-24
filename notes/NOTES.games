@@ -513,3 +513,21 @@ Notes:
 - Undocumented instruction ALR #$AA at $10B2.
 - Undocumented instruction SLO $80 at $10B4.
 
+
+- Zalaga-v2.1_RUN_B.zip
+SHA256: acfa74a7d848d47cfe5d0996da6268f36786164817347884e5bc4d801b28cb8d
+Notes:
+1) More undocumented opcodes in the tape loader, from the very first
+instruction:
+[ITRP] 2412: LAX $FFEB
+[ITRP] 2415: ALR #$C5
+[ITRP] 2417: NOP $A9,X
+[ITRP] 2419: BCS $23EE
+2) Executes, at $23EE, the text(!) string:
+Orlando M.Pilchard
+3) And that text string starts with the first seen instance on an SRE!
+[ITRP] 23EE: SRE $6C72
+[ITRP] 23F1: ADC ($6E,X)
+[ITRP] 23F3: NOP $6F
+[ITRP] 23F5: JSR $2E4D
+
