@@ -17,9 +17,11 @@ can even block at that resolution.
 - BCD support in JIT?
 - "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
 Picnic for a bit, just after you give your bear a name and address.
-- Test for new undocumented opcodes, mainly LAX?
+- Test for new undocumented opcodes, mainly LAX? DCP? SRE?
 - Exile crash in loader in JIT mode, stack underflow related?
 - Disc spindown (serious perf issue if they are left spinning).
+- Living Daylights FSD disc not loading.
+- Alien8 tape: Kevin Edwards' protection broken!
 
 
 Fix later
@@ -37,13 +39,13 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Fix Dragonsoft Explorer.
 - Fix IRA read and keyboard bus dominance.
 - Add cursor support to the 6845 CRTC.
-- Add tape loading support.
 - Add fdi disc format support.
 - MODE7 doesn't have character rounding.
 - Fix Elite-A (file not found trying to launch ship)
 - Remove crufty old rendering code for -fast mode.
 - Incorrect color line at bottom of status area in Lunar Jetman.
 - Accurate last line latching for 6845.
+- Estra stopping at $0000 in the debugger even though no breakpoint is set.
 
 
 Ideas
