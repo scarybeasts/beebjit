@@ -11,8 +11,9 @@
 #include <string.h>
 
 enum {
+  k_tape_system_tick_rate = 2000000,
   k_tape_bit_rate = 1200,
-  k_tape_ticks_per_bit = (2000000 / k_tape_bit_rate),
+  k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
   /* Includes a start and stop bit. */
   k_tape_ticks_per_byte = (k_tape_ticks_per_bit * 10),
 };
@@ -21,7 +22,12 @@ enum {
   k_tape_uef_chunk_origin = 0x0000,
   k_tape_uef_chunk_data = 0x0100,
   k_tape_uef_chunk_carrier_tone = 0x0110,
+  k_tape_uef_chunk_carrier_tone_with_dummy_byte = 0x0111,
   k_tape_uef_chunk_gap_int = 0x0112,
+  k_tape_uef_chunk_set_baud_rate = 0x0113,
+  k_tape_uef_chunk_security_cycles = 0x0114,
+  k_tape_uef_chunk_phase_change = 0x0115,
+  k_tape_uef_chunk_gap_float = 0x0116,
 };
 
 enum {
@@ -102,6 +108,17 @@ tape_destroy(struct tape_struct* p_tape) {
   free(p_tape);
 }
 
+static uint16_t
+tape_read_u16(uint8_t* p_in_buf) {
+  /* NOTE: not respecting endianness of host in these helpers. */
+  return *(uint16_t*) p_in_buf;
+}
+
+static float
+tape_read_float(uint8_t* p_in_buf) {
+  return *(float*) p_in_buf;
+}
+
 void
 tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   static const size_t k_max_uef_size = (1024 * 1024);
@@ -115,6 +132,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   intptr_t file_handle;
   uint32_t num_tape_values;
   size_t tape_buffer_size;
+  float temp_float;
 
   assert(p_tape->p_tape_buffer == NULL);
 
@@ -154,7 +172,8 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   while (file_remaining != 0) {
     uint16_t chunk_type;
     uint32_t chunk_len;
-    uint32_t temp_u16;
+    uint16_t len_u16_1;
+    uint16_t len_u16_2;
     uint32_t i;
 
     if (file_remaining < 6) {
@@ -189,39 +208,92 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       if (chunk_len != 2) {
         errx(1, "uef file incorrect carrier tone chunk size");
       }
-      temp_u16 = (p_in_buf[1] << 8);
-      temp_u16 |= p_in_buf[0];
+      len_u16_1 = tape_read_u16(p_in_buf);
       /* Length is specified in terms of 2x time units per baud. */
-      temp_u16 >>= 1;
+      len_u16_1 >>= 1;
       /* From bits to 10-bit byte time units. */
-      temp_u16 /= 10;
+      len_u16_1 /= 10;
 
-      if (temp_u16 > buffer_remaining) {
+      if (len_u16_1 > buffer_remaining) {
         errx(1, "uef file out of buffer");
       }
-      for (i = 0; i < temp_u16; ++i) {
+      for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_carrier;
       }
-      buffer_remaining -= temp_u16;
+      buffer_remaining -= len_u16_1;
+      break;
+    case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
+      if (chunk_len != 4) {
+        errx(1, "uef file incorrect carrier tone with dummy byte chunk size");
+      }
+      len_u16_1 = tape_read_u16(p_in_buf);
+      len_u16_2 = tape_read_u16(p_in_buf + 2);
+      /* Length is specified in terms of 2x time units per baud. */
+      len_u16_1 >>= 1;
+      len_u16_2 >>= 1;
+      /* From bits to 10-bit byte time units. */
+      len_u16_1 /= 10;
+      len_u16_2 /= 10;
+
+      if ((uint32_t) (len_u16_1 + 1 + len_u16_2) > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < len_u16_1; ++i) {
+        *p_out_buf++ = k_tape_uef_value_carrier;
+      }
+      *p_out_buf++ = 0xAA;
+      for (i = 0; i < len_u16_2; ++i) {
+        *p_out_buf++ = k_tape_uef_value_carrier;
+      }
+      buffer_remaining -= (len_u16_1 + 1 + len_u16_2);
       break;
     case k_tape_uef_chunk_gap_int:
       if (chunk_len != 2) {
         errx(1, "uef file incorrect integer gap chunk size");
       }
-      temp_u16 = (p_in_buf[1] << 8);
-      temp_u16 |= p_in_buf[0];
+      len_u16_1 = tape_read_u16(p_in_buf);
       /* Length is specified in terms of 2x time units per baud. */
-      temp_u16 >>= 1;
+      len_u16_1 >>= 1;
       /* From bits to 10-bit byte time units. */
-      temp_u16 /= 10;
+      len_u16_1 /= 10;
 
-      if (temp_u16 > buffer_remaining) {
+      if (len_u16_1 > buffer_remaining) {
         errx(1, "uef file out of buffer");
       }
-      for (i = 0; i < temp_u16; ++i) {
+      for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_silence;
       }
-      buffer_remaining -= temp_u16;
+      buffer_remaining -= len_u16_1;
+      break;
+    case k_tape_uef_chunk_set_baud_rate:
+      /* Example file is STH 3DGrandPrix_B.hq.zip. */
+      break;
+    case k_tape_uef_chunk_security_cycles:
+      /* Example file is STH 3DGrandPrix_B.hq.zip. */
+      break;
+    case k_tape_uef_chunk_phase_change:
+      /* Example file is STH 3DGrandPrix_B.hq.zip. */
+      break;
+    case k_tape_uef_chunk_gap_float:
+      if (chunk_len != 4) {
+        errx(1, "uef file incorrect float gap chunk size");
+      }
+      temp_float = tape_read_float(p_in_buf);
+      /* Current record: 66.8s, STH 3DGrandPrix_B.hq.zip. */
+      if ((temp_float > 120) || (temp_float < 0)) {
+        errx(1, "uef file strange float gap %f", temp_float);
+      }
+      len_u16_1 = (temp_float *
+                       k_tape_system_tick_rate /
+                       k_tape_ticks_per_byte);
+
+      if (len_u16_1 > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < len_u16_1; ++i) {
+        *p_out_buf++ = k_tape_uef_value_silence;
+      }
+      buffer_remaining -= len_u16_1;
       break;
     default:
       errx(1, "uef unknown chunk type 0x%.4x", chunk_type);
