@@ -60,34 +60,38 @@ struct serial_struct {
 
 static void
 serial_acia_update_irq(struct serial_struct* p_serial) {
-  int send_int;
-  int receive_int;
-  int do_int;
+  int do_check_send_int;
+  int do_check_receive_int;
+  int do_fire_int;
 
-  send_int = ((p_serial->acia_control & k_serial_acia_control_TCB_mask) ==
-              k_serial_acia_TCB_RTS_and_TIE);
-  if (send_int) {
-    send_int = !!(p_serial->acia_status & k_serial_acia_status_TDRE);
-    send_int &= !p_serial->line_level_CTS;
+  int do_fire_send_int = 0;
+  int do_fire_receive_int = 0;
+
+  do_check_send_int =
+      ((p_serial->acia_control & k_serial_acia_control_TCB_mask) ==
+          k_serial_acia_TCB_RTS_and_TIE);
+  if (do_check_send_int) {
+    do_fire_send_int = !!(p_serial->acia_status & k_serial_acia_status_TDRE);
+    do_fire_send_int &= !p_serial->line_level_CTS;
   }
 
-  receive_int = !!(p_serial->acia_control & k_serial_acia_control_RIE);
-  if (receive_int) {
-    receive_int = !!(p_serial->acia_status & k_serial_acia_status_RDRF);
-    receive_int |= !!(p_serial->acia_status & k_serial_acia_status_DCD);
+  do_check_receive_int = !!(p_serial->acia_control & k_serial_acia_control_RIE);
+  if (do_check_receive_int) {
+    do_fire_receive_int = !!(p_serial->acia_status & k_serial_acia_status_RDRF);
+    do_fire_receive_int |= !!(p_serial->acia_status & k_serial_acia_status_DCD);
   }
 
-  do_int = (send_int | receive_int);
+  do_fire_int = (do_fire_send_int | do_fire_receive_int);
 
   /* Bit 7 of the control register must be high if we're asserting IRQ. */
   p_serial->acia_status &= ~k_serial_acia_status_IRQ;
-  if (do_int) {
+  if (do_fire_int) {
     p_serial->acia_status |= k_serial_acia_status_IRQ;
   }
 
   state_6502_set_irq_level(p_serial->p_state_6502,
                            k_state_6502_irq_serial_acia,
-                           do_int);
+                           do_fire_int);
 }
 
 static void
