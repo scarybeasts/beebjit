@@ -1,5 +1,6 @@
 #include "tape.h"
 
+#include "serial.h"
 #include "timing.h"
 #include "util.h"
 
@@ -9,7 +10,10 @@
 #include <string.h>
 
 enum {
-  k_tape_ticks_per_byte = (2000000 / 1200 * 10),
+  k_tape_bit_rate = 1200,
+  k_tape_ticks_per_bit = (2000000 / k_tape_bit_rate),
+  /* Includes a start and stop bit. */
+  k_tape_ticks_per_byte = (k_tape_ticks_per_bit * 10),
 };
 
 enum {
@@ -27,9 +31,7 @@ enum {
 struct tape_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
-
-  void (*p_value_callback)(void*, int32_t);
-  void* p_value_callback_object;
+  struct serial_struct* p_serial;
 
   int32_t* p_tape_buffer;
   uint32_t num_tape_values;
@@ -39,6 +41,7 @@ struct tape_struct {
 static void
 tape_timer_callback(struct tape_struct* p_tape) {
   int32_t tape_value;
+  int carrier = 0;
 
   (void) timing_set_timer_value(p_tape->p_timing,
                                 p_tape->timer_id,
@@ -50,15 +53,20 @@ tape_timer_callback(struct tape_struct* p_tape) {
     tape_value = k_tape_uef_value_silence;
   }
 
-  p_tape->p_value_callback(p_tape->p_value_callback_object, tape_value);
+  if (tape_value == k_tape_uef_value_carrier) {
+    carrier = 1;
+  }
+  serial_tape_set_carrier(p_tape->p_serial, carrier);
+  if (tape_value >= 0) {
+    serial_tape_receive_byte(p_tape->p_serial, (uint8_t) tape_value);
+  }
 
   p_tape->tape_buffer_pos++;
 }
 
 struct tape_struct*
 tape_create(struct timing_struct* p_timing,
-            void (*p_value_callback)(void* p, int32_t data),
-            void* p_value_callback_object,
+            struct serial_struct* p_serial,
             struct bbc_options* p_options) {
   struct tape_struct* p_tape = malloc(sizeof(struct tape_struct));
   if (p_tape == NULL) {
@@ -70,8 +78,7 @@ tape_create(struct timing_struct* p_timing,
   (void) memset(p_tape, '\0', sizeof(struct tape_struct));
 
   p_tape->p_timing = p_timing;
-  p_tape->p_value_callback = p_value_callback;
-  p_tape->p_value_callback_object = p_value_callback_object;
+  p_tape->p_serial = p_serial;
 
   p_tape->timer_id = timing_register_timer(p_timing,
                                            tape_timer_callback,
@@ -178,6 +185,11 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       }
       temp_u16 = (p_in_buf[1] << 8);
       temp_u16 |= p_in_buf[0];
+      /* Length is specified in terms of 2x time units per baud. */
+      temp_u16 >>= 1;
+      /* From bits to 10-bit byte time units. */
+      temp_u16 /= 10;
+
       if (temp_u16 > buffer_remaining) {
         errx(1, "uef file out of buffer");
       }
@@ -194,6 +206,9 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       temp_u16 |= p_in_buf[0];
       /* Length is specified in terms of 2x time units per baud. */
       temp_u16 >>= 1;
+      /* From bits to 10-bit byte time units. */
+      temp_u16 /= 10;
+
       if (temp_u16 > buffer_remaining) {
         errx(1, "uef file out of buffer");
       }
@@ -237,4 +252,5 @@ tape_play(struct tape_struct* p_tape) {
 void
 tape_stop(struct tape_struct* p_tape) {
   (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
+  serial_tape_set_carrier(p_tape->p_serial, 0);
 }

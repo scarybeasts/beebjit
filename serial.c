@@ -1,11 +1,13 @@
 #include "serial.h"
 
+#include "bbc_options.h"
+#include "log.h"
 #include "state_6502.h"
+#include "tape.h"
 #include "util.h"
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,12 +43,19 @@ struct serial_struct {
   int line_level_DCD;
   int line_level_CTS;
 
+  int serial_ula_rs423_selected;
+  int serial_ula_motor_on;
+
+  int serial_tape_is_carrier;
+
   /* Virtual device connected to RS423. */
   intptr_t handle_input;
   intptr_t handle_output;
 
   /* Tape device, part of the serial ULA and feeding to the ACIA. */
   struct tape_struct* p_tape;
+
+  int log_state;
 };
 
 static void
@@ -57,11 +66,16 @@ serial_acia_update_irq(struct serial_struct* p_serial) {
 
   send_int = ((p_serial->acia_control & k_serial_acia_control_TCB_mask) ==
               k_serial_acia_TCB_RTS_and_TIE);
-  send_int &= !!(p_serial->acia_status & k_serial_acia_status_TDRE);
-  send_int &= !p_serial->line_level_CTS;
+  if (send_int) {
+    send_int = !!(p_serial->acia_status & k_serial_acia_status_TDRE);
+    send_int &= !p_serial->line_level_CTS;
+  }
 
   receive_int = !!(p_serial->acia_control & k_serial_acia_control_RIE);
-  receive_int &= !!(p_serial->acia_status & k_serial_acia_status_RDRF);
+  if (receive_int) {
+    receive_int = !!(p_serial->acia_status & k_serial_acia_status_RDRF);
+    receive_int |= !!(p_serial->acia_status & k_serial_acia_status_DCD);
+  }
 
   do_int = (send_int | receive_int);
 
@@ -77,15 +91,42 @@ serial_acia_update_irq(struct serial_struct* p_serial) {
 }
 
 static void
-serial_update_line_levels(struct serial_struct* p_serial,
-                          int line_level_DCD,
-                          int line_level_CTS) {
-  /* TODO: nothing raises DCD yet because we don't support the cassette
-   * interface. But when we do, we'll need to support DCD interrupting and
-   * DCD staying high in the status register until data is read.
+serial_check_line_levels(struct serial_struct* p_serial) {
+  int line_level_CTS;
+  int line_level_DCD;
+
+  /* CTS. When tape is selected, CTS is always low (meaning active). For RS423,
+   * it is high (meaning inactive) unless we've connected a virtual device on
+   * the other end.
    */
-  p_serial->acia_status &= ~k_serial_acia_status_DCD;
-  if (line_level_DCD) {
+  if (p_serial->serial_ula_rs423_selected) {
+    if (p_serial->handle_output != -1) {
+      line_level_CTS = 0;
+    } else {
+      line_level_CTS = 1;
+    }
+  } else {
+    line_level_CTS = 0;
+  }
+
+  /* DCD. In the tape case, it depends on a carrier tone on the tape.
+   * For the RS423 case, AUG clearly states: "It will always be low when the
+   * RS423 interface is selected".
+   */
+  if (p_serial->serial_ula_rs423_selected) {
+    line_level_DCD = 0;
+  } else {
+    line_level_DCD = p_serial->serial_tape_is_carrier;
+  }
+
+  /* The DCD low to high edge causes a bit latch, and potentially an IRQ.
+   * DCD going from high to low doesn't affect the status register until the
+   * bit latch is cleared by reading the data register.
+   */
+  if (line_level_DCD && !p_serial->line_level_DCD) {
+    if (p_serial->log_state) {
+      log_do_log(k_log_serial, k_log_info, "DCD going high");
+    }
     p_serial->acia_status |= k_serial_acia_status_DCD;
   }
 
@@ -103,6 +144,10 @@ serial_update_line_levels(struct serial_struct* p_serial,
 
 static void
 serial_acia_reset(struct serial_struct* p_serial) {
+  if (p_serial->log_state) {
+    log_do_log(k_log_serial, k_log_info, "reset");
+  }
+
   p_serial->acia_receive = 0;
   p_serial->acia_transmit = 0;
 
@@ -112,19 +157,19 @@ serial_acia_reset(struct serial_struct* p_serial) {
   p_serial->acia_status &= ~k_serial_acia_status_RDRF;
   /* Set TDRE (transmit data register empty). */
   p_serial->acia_status |= k_serial_acia_status_TDRE;
+  /* Clear latched DCD low -> high transition. */
+  p_serial->acia_status &= ~k_serial_acia_status_DCD;
 
   /* Reset of the ACIA cannot change external line levels. Make sure they are
    * kept.
    */
-  serial_update_line_levels(p_serial,
-                            p_serial->line_level_DCD,
-                            p_serial->line_level_CTS);
+  serial_check_line_levels(p_serial);
 
   serial_acia_update_irq(p_serial);
 }
 
 struct serial_struct*
-serial_create(struct state_6502* p_state_6502) {
+serial_create(struct state_6502* p_state_6502, struct bbc_options* p_options) {
   struct serial_struct* p_serial = malloc(sizeof(struct serial_struct));
   if (p_serial == NULL) {
     errx(1, "cannot allocate serial_struct");
@@ -144,6 +189,8 @@ serial_create(struct state_6502* p_state_6502) {
 
   p_serial->handle_input = -1;
   p_serial->handle_output = -1;
+
+  p_serial->log_state = util_has_option(p_options->p_log_flags, "serial:state");
 
   serial_acia_reset(p_serial);
 
@@ -169,8 +216,23 @@ serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
   p_serial->p_tape = p_tape;
 }
 
+static void
+serial_receive(struct serial_struct* p_serial, uint8_t byte) {
+  if (p_serial->acia_status & k_serial_acia_status_RDRF) {
+    log_do_log(k_log_serial, k_log_unimplemented, "receive buffer full");
+  }
+  p_serial->acia_status |= k_serial_acia_status_RDRF;
+  p_serial->acia_receive = byte;
+
+  serial_acia_update_irq(p_serial);
+}
+
 void
 serial_tick(struct serial_struct* p_serial) {
+  if (!p_serial->serial_ula_rs423_selected) {
+    return;
+  }
+
   /* Check for external serial input. */
   if (p_serial->handle_input != -1) {
     int do_receive = ((p_serial->acia_control &
@@ -185,10 +247,7 @@ serial_tick(struct serial_struct* p_serial) {
         if (val == '\n') {
           val = '\r';
         }
-        p_serial->acia_status |= k_serial_acia_status_RDRF;
-        p_serial->acia_receive = val;
-
-        serial_acia_update_irq(p_serial);
+        serial_receive(p_serial, val);
       }
     }
   }
@@ -223,9 +282,17 @@ serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
       ret &= ~k_serial_acia_status_TDRE;
     }
 
+    /* If the "DCD went high" bit isn't latched, it follows line level. */
+    if (!(ret & k_serial_acia_status_DCD)) {
+      if (p_serial->line_level_DCD) {
+        ret |= k_serial_acia_status_DCD;
+      }
+    }
+
     return ret;
   } else {
     p_serial->acia_status &= ~k_serial_acia_status_RDRF;
+    p_serial->acia_status &= ~k_serial_acia_status_DCD;
 
     serial_acia_update_irq(p_serial);
 
@@ -276,42 +343,48 @@ serial_ula_read(struct serial_struct* p_serial) {
 
 void
 serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
-  int line_level_DCD;
-  int line_level_CTS;
-
   int rs423_or_tape = !!(val & k_serial_ula_rs423);
   int motor_on = !!(val & k_serial_ula_motor);
 
-  (void) motor_on;
+  if (motor_on != p_serial->serial_ula_motor_on) {
+    if (p_serial->log_state) {
+      log_do_log(k_log_serial, k_log_info, "new motor state: %d", motor_on);
+    }
+  }
+  if (motor_on && !p_serial->serial_ula_motor_on) {
+    tape_play(p_serial->p_tape);
+  } else if (!motor_on && p_serial->serial_ula_motor_on) {
+    tape_stop(p_serial->p_tape);
+  }
+  p_serial->serial_ula_motor_on = motor_on;
+
+  if (rs423_or_tape != p_serial->serial_ula_rs423_selected) {
+    if (p_serial->log_state) {
+      log_do_log(k_log_serial,
+                 k_log_info,
+                 "new rs423 selected state: %d",
+                 rs423_or_tape);
+    }
+  }
+  p_serial->serial_ula_rs423_selected = rs423_or_tape;
 
   /* Selecting the ACIA's connection between RS423 vs. tape will update the
-   * physical line levels.
+   * physical line levels, as can switching off the tape motor if tape is
+   * selected.
    */
-  /* DCD. We don't emulate tape yet so DCD is always low in the tape case.
-   * For the RS423 case, AUG clearly states: "It will always be low when the
-   * RS423 interface is selected".
-   */
-  line_level_DCD = 0;
-
-  /* CTS. When tape is selected, CTS is always low (meaning active). For RS423,
-   * it is high (meaning inactive) unless we've connected a virtual device on
-   * the other end.
-   */
-  if (rs423_or_tape) {
-    if (p_serial->handle_output != -1) {
-      line_level_CTS = 0;
-    } else {
-      line_level_CTS = 1;
-    }
-  } else {
-    line_level_CTS = 0;
-  }
-
-  serial_update_line_levels(p_serial, line_level_DCD, line_level_CTS);
+  serial_check_line_levels(p_serial);
 }
 
 void
-serial_tape_value_callback(void* p, int32_t tape_value) {
-  (void) p;
-  (void) tape_value;
+serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte) {
+  if (!p_serial->serial_ula_rs423_selected) {
+    serial_receive(p_serial, byte);
+  }
+}
+
+void
+serial_tape_set_carrier(struct serial_struct* p_serial, int carrier) {
+  p_serial->serial_tape_is_carrier = carrier;
+
+  serial_check_line_levels(p_serial);
 }

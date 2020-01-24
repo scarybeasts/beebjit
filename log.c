@@ -16,6 +16,8 @@ log_module_to_string(int module) {
     return "disc";
   case k_log_instruction:
     return "instruction";
+  case k_log_serial:
+    return "serial";
   default:
     assert(0);
     return NULL;

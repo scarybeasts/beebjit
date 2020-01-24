@@ -5,10 +5,12 @@
 
 struct serial_struct;
 
+struct bbc_options;
 struct state_6502;
 struct tape_struct;
 
-struct serial_struct* serial_create(struct state_6502* p_state_6502);
+struct serial_struct* serial_create(struct state_6502* p_state_6502,
+                                    struct bbc_options* p_options);
 void serial_destroy(struct serial_struct* p_serial);
 
 void serial_set_io_handles(struct serial_struct* p_serial,
@@ -26,9 +28,7 @@ void serial_acia_write(struct serial_struct* p_serial,
 uint8_t serial_ula_read(struct serial_struct* p_serial);
 void serial_ula_write(struct serial_struct* p_serial, uint8_t val);
 
-int serial_is_receive_empty(struct serial_struct* p_serial);
-void serial_receive(struct serial_struct* p_serial, uint8_t val);
-
-void serial_tape_value_callback(void* p, int32_t tape_value);
+void serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte);
+void serial_tape_set_carrier(struct serial_struct* p_serial, int carrier);
 
 #endif /* BEEBJIT_SERIAL_H */

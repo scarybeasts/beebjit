@@ -966,15 +966,12 @@ bbc_create(int mode,
   }
   intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
 
-  p_bbc->p_serial = serial_create(p_state_6502);
+  p_bbc->p_serial = serial_create(p_state_6502, &p_bbc->options);
   if (p_bbc->p_serial == NULL) {
     errx(1, "serial_create failed");
   }
 
-  p_bbc->p_tape = tape_create(p_timing,
-                              serial_tape_value_callback,
-                              p_bbc->p_serial,
-                              &p_bbc->options);
+  p_bbc->p_tape = tape_create(p_timing, p_bbc->p_serial, &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
     errx(1, "tape_create failed");
   }
@@ -1019,6 +1016,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
 
   debug_destroy(p_bbc->p_debug);
+  tape_destroy(p_bbc->p_tape);
   serial_destroy(p_bbc->p_serial);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
@@ -1027,9 +1025,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
-  intel_fdc_destroy(p_bbc->p_intel_fdc);
   disc_destroy(p_bbc->p_disc_0);
   disc_destroy(p_bbc->p_disc_1);
+  intel_fdc_destroy(p_bbc->p_intel_fdc);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
   util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
