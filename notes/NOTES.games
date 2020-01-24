@@ -140,6 +140,23 @@ and holding down RETURN indefinitely. When the game starts, the keyboard won't
 work. Lovely!
 
 
+- ChipBuster_B.hq.zip
+SHA256: 143cc45ac50d28d0eb4fc85c9bbfc02b9e311b9564bfe51ec1c1fe812a6db0b9
+1) Unusual undocumented opcodes in the loader! Particularly, the DCP is the
+first one ever seen!
+[ITRP] 0C02: SAX ($FD,X)
+[ITRP] 0C04: LDA #$00
+[ITRP] 0C06: NOP
+[ITRP] 0C07: STA $72
+[ITRP] 0C09: DCP ($D9),Y
+[ITRP] 0C0B: LDA #$0B
+[ITRP] 0C0D: NOP $39
+[ITRP] 0C0F: STA $73
+[ITRP] 0C11: NOP $1E00
+[ITRP] 0C14: LDY #$00
+[ITRP] 0C16: NOP $99,X
+
+
 - Citadel.zip
 SHA256: 741b4efd3b5be7092b09c63529e1104b428d0474b4556d8720a4110b31ec3863
 IRQ1V @ $0204: $DC93 (default)

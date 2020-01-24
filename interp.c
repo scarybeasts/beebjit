@@ -456,6 +456,34 @@ interp_is_branch_opcode(uint8_t opcode) {
     goto check_irq;                                                           \
   }
 
+/* TODO: check, especially IRQ poll point -- should there be two? */
+#define INTERP_MODE_IDY_READ_WRITE(INSTR)                                     \
+  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  pc += 2;                                                                    \
+  if (addr < callback_above) {                                                \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 8;                                              \
+  } else {                                                                    \
+    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
+    INTERP_TIMING_ADVANCE(4);                                                 \
+    INTERP_MEMORY_READ(addr_temp);                                            \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    INTERP_MEMORY_READ(addr);                                                 \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_ZPr_READ(reg_name)                                        \
   addr = p_mem_read[pc + 1];                                                  \
   addr += reg_name;                                                           \
@@ -540,6 +568,11 @@ interp_is_branch_opcode(uint8_t opcode) {
   cf = (reg_name >= v);                                                       \
   v = (reg_name - v);                                                         \
   INTERP_LOAD_NZ_FLAGS(v);
+
+#define INTERP_INSTR_DCP()                                                    \
+  v--;                                                                        \
+  INTERP_LOAD_NZ_FLAGS((a - v));                                              \
+  cf = (a >= v);
 
 #define INTERP_INSTR_DEC()                                                    \
   v--;                                                                        \
@@ -1167,6 +1200,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x81: /* STA idx */
       INTERP_MODE_IDX_WRITE(INTERP_INSTR_STA());
       break;
+    case 0x83: /* SAX idx */ /* Undocumented. */
+      INTERP_MODE_IDX_WRITE(INTERP_INSTR_SAX());
+      break;
     case 0x84: /* STY zp */
       addr = p_mem_read[pc + 1];
       p_mem_write[addr] = y;
@@ -1435,6 +1471,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xD1: /* CMP idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_CMP(a));
+      break;
+    case 0xD3: /* DCP idy */
+      INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_DCP());
       break;
     case 0xD5: /* CMP zpx */
       INTERP_MODE_ZPr_READ(x);
