@@ -21,6 +21,7 @@ enum {
 enum {
   k_tape_uef_chunk_origin = 0x0000,
   k_tape_uef_chunk_data = 0x0100,
+  k_tape_uef_chunk_defined_format_data = 0x0104,
   k_tape_uef_chunk_carrier_tone = 0x0110,
   k_tape_uef_chunk_carrier_tone_with_dummy_byte = 0x0111,
   k_tape_uef_chunk_gap_int = 0x0112,
@@ -203,6 +204,30 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
         *p_out_buf++ = p_in_buf[i];
       }
       buffer_remaining -= chunk_len;
+      break;
+    case k_tape_uef_chunk_defined_format_data:
+      if (chunk_len < 3) {
+        errx(1, "uef file short defined format chunk");
+      }
+      /* Read num data bits, then convert it to a mask. */
+      len_u16_1 = p_in_buf[0];
+      if ((len_u16_1 > 8) || (len_u16_1 < 1)) {
+        errx(1, "uef file bad number data bits");
+      }
+      len_u16_1 = ((1 << len_u16_1) - 1);
+      /* NOTE: we ignore parity and stop bits. This is poor emulation, likely
+       * giving incorrect timing. Also, I've yet to find it, but a nasty
+       * protection could set up a tape vs. ACIA serial format mismatch and
+       * rely on getting a framing error.
+       */
+
+      if ((chunk_len - 3) > buffer_remaining) {
+        errx(1, "uef file out of buffer");
+      }
+      for (i = 0; i < (chunk_len - 3); ++i) {
+        *p_out_buf++ = (p_in_buf[i + 3] & len_u16_1);
+      }
+      buffer_remaining -= (chunk_len - 3);
       break;
     case k_tape_uef_chunk_carrier_tone:
       if (chunk_len != 2) {
