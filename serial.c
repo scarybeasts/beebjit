@@ -46,7 +46,8 @@ struct serial_struct {
   int serial_ula_rs423_selected;
   int serial_ula_motor_on;
 
-  int serial_tape_is_carrier;
+  uint32_t serial_tape_carrier_count;
+  int serial_tape_line_level_DCD;
 
   /* Virtual device connected to RS423. */
   intptr_t handle_input;
@@ -120,7 +121,7 @@ serial_check_line_levels(struct serial_struct* p_serial) {
   if (p_serial->serial_ula_rs423_selected) {
     line_level_DCD = 0;
   } else {
-    line_level_DCD = p_serial->serial_tape_is_carrier;
+    line_level_DCD = p_serial->serial_tape_line_level_DCD;
   }
 
   /* The DCD low to high edge causes a bit latch, and potentially an IRQ.
@@ -278,7 +279,7 @@ serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
     /* Status register. */
     uint8_t ret = p_serial->acia_status;
 
-    /* MC6850: "A low CTS indicates that there is a Clear-to-Send from the
+    /* EMU MC6850: "A low CTS indicates that there is a Clear-to-Send from the
      * modem. In the high state, the Transmit Data Register Empty bit is
      * inhibited".
      */
@@ -287,14 +288,29 @@ serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
     }
 
     /* If the "DCD went high" bit isn't latched, it follows line level. */
+    /* EMU MC6850, more verbosely: "It remains high after the DCD input is
+     * returned low until cleared by first reading the Status Register and then
+     * Data Register or until a master reset occurs. If the DCD input remains
+     * high after read status read data or master reset has occurred, the
+     * interrupt is cleared, the DCD status bit remains high and will follow
+     * the DCD input.
+     * Note that on real hardware, only a read of data register seems required
+     * to unlatch the DCD high condition.
+     */
     if (!(ret & k_serial_acia_status_DCD)) {
       if (p_serial->line_level_DCD) {
         ret |= k_serial_acia_status_DCD;
       }
     }
 
+    /* EMU TODO: MC6850: "Data Carrier Detect being high also causes RDRF to
+     * indicate empty."
+     * Unclear if that means the line level, latched DCD status, etc.
+     */
+
     return ret;
   } else {
+    /* Data register. */
     p_serial->acia_status &= ~k_serial_acia_status_RDRF;
     p_serial->acia_status &= ~k_serial_acia_status_DCD;
 
@@ -388,7 +404,24 @@ serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte) {
 
 void
 serial_tape_set_carrier(struct serial_struct* p_serial, int carrier) {
-  p_serial->serial_tape_is_carrier = carrier;
+  if (!carrier) {
+    p_serial->serial_tape_carrier_count = 0;
+    p_serial->serial_tape_line_level_DCD = 0;
+  } else {
+    p_serial->serial_tape_carrier_count++;
+    /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
+     * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
+     * continuous tone appears".
+     * We use ~0.17s, measured on an issue 3 model B.
+     * Star Drifter doesn't load without this.
+     * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
+     */
+    if (p_serial->serial_tape_carrier_count == 20) {
+      p_serial->serial_tape_line_level_DCD = 1;
+    } else {
+      p_serial->serial_tape_line_level_DCD = 0;
+    }
+  }
 
   serial_check_line_levels(p_serial);
 }
