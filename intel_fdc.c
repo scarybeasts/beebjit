@@ -515,14 +515,21 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
 
   if (p_fdc->log_commands) {
+    int32_t head_pos = -1;
+    struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+
+    if (p_current_disc != NULL) {
+      head_pos = (int32_t) disc_get_head_position(p_current_disc);
+    }
     log_do_log(k_log_disc,
                k_log_info,
-               "8271: command %x select %x params %x %x %x",
+               "8271: command %x select %x params %x %x %x headpos %d",
                command,
                p_fdc->drive_select,
                param0,
                param1,
-               param2);
+               param2,
+               head_pos);
   }
 
   /* Many commands ensure the head is loaded. The same set of commands also

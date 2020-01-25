@@ -25,6 +25,7 @@ int disc_is_spinning(struct disc_struct* p_disc);
 int disc_is_write_protected(struct disc_struct* p_disc);
 uint32_t disc_get_track(struct disc_struct* p_disc);
 int disc_is_index_pulse(struct disc_struct* p_disc);
+uint32_t disc_get_head_position(struct disc_struct* p_disc);
 
 void disc_start_spinning(struct disc_struct* p_disc);
 void disc_stop_spinning(struct disc_struct* p_disc);

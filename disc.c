@@ -834,6 +834,11 @@ disc_is_index_pulse(struct disc_struct* p_disc) {
   return 0;
 }
 
+uint32_t
+disc_get_head_position(struct disc_struct* p_disc) {
+  return p_disc->byte_position;
+}
+
 int
 disc_is_spinning(struct disc_struct* p_disc) {
   return timing_timer_is_running(p_disc->p_timing, p_disc->timer_id);
