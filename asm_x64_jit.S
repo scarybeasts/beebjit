@@ -642,7 +642,7 @@ asm_x64_jit_PUSH_16:
   # overflow.
   # Seems to be faster without movzx, as per other similar cases, which is
   # strange.
-  mov REG_SCRATCH3_8, [REG_6502_S_64 - 0x102]
+  mov REG_SCRATCH3_8, [REG_6502_S_64 + K_BBC_MEM_OFFSET_TO_READ_FULL - 0x102]
   mov WORD PTR [REG_6502_S_64 - 1], 0xffff
 asm_x64_jit_PUSH_16_word_patch:
   lea REG_6502_S_32, [REG_6502_S_64 - 2]

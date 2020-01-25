@@ -18,7 +18,6 @@ can even block at that resolution.
 - "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
 Picnic for a bit, just after you give your bear a name and address.
 - Test for new undocumented opcodes, mainly LAX? DCP? SRE?
-- Exile crash in loader in JIT mode, stack underflow related?
 - Disc spindown (serious perf issue if they are left spinning).
 - Living Daylights FSD disc not loading.
 - Alien8 tape: Kevin Edwards' protection broken!

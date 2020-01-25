@@ -1430,8 +1430,18 @@ main(int argc, const char* argv[]) {
   emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xD500);
 
-  /* End of test. */
+  /* Test stack wraps. */
   set_new_index(p_buf, 0x1500);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_TXS(p_buf);
+  emit_JSR(p_buf, 0x30A0);      /* Just does RTS. */
+  emit_TSX(p_buf);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xD540);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1540);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

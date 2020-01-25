@@ -463,6 +463,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   int inaccessible_indirect_page;
   int ff_fault_fixup;
   int bcd_fault_fixup;
+  int stack_wrap_fault_fixup;
   struct jit_struct* p_jit;
   uint16_t block_addr_6502;
   uint16_t addr_6502;
@@ -502,32 +503,54 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
    * a block with ADC / SBC instructions.
    */
   bcd_fault_fixup = 0;
+  /* The stack wrap fault occurs if a 16-bit stack access wraps the S
+   * register.
+   */
+  stack_wrap_fault_fixup = 0;
 
+  /* TODO: better checks, i.e. read vs write fault, more checks, etc. */
   if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + k_6502_addr_space_size))) {
+      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
   }
   if ((p_addr >= ((void*) K_BBC_MEM_WRITE_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + k_6502_addr_space_size))) {
+      (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
   }
   if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
     ff_fault_fixup = 1;
   }
-  if (p_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
+  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
+                 K_6502_ADDR_SPACE_SIZE +
+                 2)) {
     /* D flag alone. */
     bcd_fault_fixup = 1;
   }
-  if (p_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
+  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
+                 K_6502_ADDR_SPACE_SIZE +
+                 6)) {
     /* D flag and I flag. */
     bcd_fault_fixup = 1;
   }
+  if ((p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
+      (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
+    /* Wrap via pushing (decrementing). */
+    stack_wrap_fault_fixup = 1;
+  }
+  if ((p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
+      (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
+                  K_6502_ADDR_SPACE_SIZE +
+                  1))) {
+    /* Wrap via pulling (incrementing). */
+    stack_wrap_fault_fixup = 1;
+  }
 
-  if (!inaccessible_indirect_page && !ff_fault_fixup && !bcd_fault_fixup) {
+  if (!inaccessible_indirect_page &&
+      !ff_fault_fixup &&
+      !bcd_fault_fixup &&
+      !stack_wrap_fault_fixup) {
     sigsegv_reraise(p_rip, p_addr);
   }
 

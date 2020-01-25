@@ -31,6 +31,9 @@ behavior and flags in the presence of "invalid" BCD digits:
 [ITRP] 73FE: INC $73F5
 7) Eventually the unpacker loops overwrites itself at $73E7. EOR #$F2 becomes
 BNE $73DB which is taken to continue.
+8) Also in the unpacker, it loops by calling JSR with no matching RTS, causing
+rampant stack wrapping:
+[ITRP] 7416: JSR $73E7      [A=B9 X=03 Y=7E S=01 F=  ID 1O ]
 
 
 - 008 Hopper 40-80.FSD
