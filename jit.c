@@ -473,8 +473,10 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   void* p_addr = p_siginfo->si_addr;
   ucontext_t* p_context = (ucontext_t*) p_void;
   void* p_rip = (void*) p_context->uc_mcontext.gregs[REG_RIP];
+  uintptr_t reg_err = (uintptr_t) p_context->uc_mcontext.gregs[REG_ERR];
   void* p_jit_end = (k_jit_addr +
                      (k_6502_addr_space_size * k_jit_bytes_per_byte));
+  int is_write_fault = !!(reg_err & (1 << 1));
 
   /* Crash unless it's fault we clearly recognize. */
   if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
@@ -483,6 +485,11 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   /* Crash unless the faulting instruction is in the JIT region. */
   if ((p_rip < k_jit_addr) || (p_rip >= p_jit_end)) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  /* Fault in instruction fetch would be bad! */
+  if (reg_err & (1 << 4)) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
@@ -508,15 +515,23 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
    */
   stack_wrap_fault_fixup = 0;
 
-  /* TODO: better checks, i.e. read vs write fault, more checks, etc. */
-  if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
-                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
-    inaccessible_indirect_page = 1;
-  }
+  /* TODO: more checks, etc. */
   if ((p_addr >= ((void*) K_BBC_MEM_WRITE_IND_ADDR +
                   K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
       (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+    if (is_write_fault) {
+      inaccessible_indirect_page = 1;
+    }
+  }
+
+  /* From this point on, nothing else is a write fault. */
+  if (!inaccessible_indirect_page && is_write_fault) {
+    sigsegv_reraise(p_rip, p_addr);
+  }
+
+  if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
+                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
   }
   if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
