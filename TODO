@@ -32,7 +32,6 @@ dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
 - Fix joystick issue with "The Attic Bug in SameGame":
 http://bbcmicro.co.uk/game.php?id=1891
-- Fix Dragonsoft Explorer.
 - Fix IRA read and keyboard bus dominance.
 - Add cursor support to the 6845 CRTC.
 - Add fdi disc format support.
