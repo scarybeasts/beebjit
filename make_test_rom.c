@@ -1440,8 +1440,40 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xD540);
 
-  /* End of test. */
+  /* Test a few more undocumented opcodes uncovered by protected loaders. */
   set_new_index(p_buf, 0x1540);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x00);
+  /* LAX abs, used by the Zalaga loader. */
+  util_buffer_add_3b(p_buf, 0xAF, 0xA0, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x60);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x60);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x0A);
+  emit_STA(p_buf, k_zpg, 0xF3);
+  emit_LDY(p_buf, k_imm, 0x03);
+  emit_LDA(p_buf, k_imm, 0x09);
+  /* DCP idy, used by the Chip Buster loader. */
+  util_buffer_add_2b(p_buf, 0xD3, 0xF0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_LDA(p_buf, k_zpg, 0xF3);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  /* SRE abs, used by the Zalaga loader. In fact, SRE $6C72 is the beginning of
+   * the text string, Orlando M.Pilchard.
+   */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_CLC(p_buf);
+  util_buffer_add_3b(p_buf, 0x4F, 0xF3, 0x00);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0x04);
+  emit_JMP(p_buf, k_abs, 0xD580);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1580);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
