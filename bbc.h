@@ -47,7 +47,7 @@ struct bbc_struct* bbc_create(int mode,
                               int test_map_flag,
                               const char* p_opt_flags,
                               const char* p_log_flags,
-                              uint16_t debug_stop_addr);
+                              int32_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_power_on_reset(struct bbc_struct* p_bbc);

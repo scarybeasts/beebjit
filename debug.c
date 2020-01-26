@@ -36,8 +36,8 @@ struct debug_struct {
   int debug_running;
   int debug_running_print;
   /* Breakpointing. */
-  uint16_t debug_stop_addr;
-  uint16_t next_or_finish_stop_addr;
+  int32_t debug_stop_addr;
+  int32_t next_or_finish_stop_addr;
   int debug_break_exec[k_max_break];
   int debug_break_mem_low[k_max_break];
   int debug_break_mem_high[k_max_break];
@@ -80,7 +80,7 @@ sigint_handler(int signum) {
 struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
-             uint16_t debug_stop_addr) {
+             int32_t debug_stop_addr) {
   size_t i;
   sighandler_t ret_sig;
 
@@ -100,6 +100,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
+  p_debug->next_or_finish_stop_addr = -1;
   p_debug->time_basis = util_gettime_us();
   p_debug->next_cycles = 0;
 
@@ -126,7 +127,7 @@ debug_destroy(struct debug_struct* p_debug) {
 int
 debug_subsystem_active(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (p_debug->debug_active || p_debug->debug_stop_addr) {
+  if (p_debug->debug_active || (p_debug->debug_stop_addr >= 0)) {
     return 1;
   }
   return 0;
@@ -986,7 +987,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   p_debug->debug_running = 0;
   if (reg_pc == p_debug->next_or_finish_stop_addr) {
-    p_debug->next_or_finish_stop_addr = 0;
+    p_debug->next_or_finish_stop_addr = -1;
   }
 
   oplen = g_opmodelens[opmode];
@@ -998,9 +999,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     uint16_t parse_addr;
     int ret;
 
-    int parse_int = -1;
-    int parse_int2 = -1;
-    int parse_int3 = -1;
+    int32_t parse_int = -1;
+    int32_t parse_int2 = -1;
+    int32_t parse_int3 = -1;
 
     (void) printf("(6502db) ");
     ret = fflush(stdout);

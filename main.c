@@ -59,8 +59,8 @@ main(int argc, const char* argv[]) {
   int disc_mutable_flag = 0;
   int terminal_flag = 0;
   int headless_flag = 0;
-  int debug_stop_addr = 0;
-  int pc = 0;
+  int32_t debug_stop_addr = -1;
+  int32_t pc = -1;
   int mode = k_cpu_mode_jit;
   uint64_t cycles = 0;
   uint32_t expect = 0;
@@ -225,7 +225,7 @@ main(int argc, const char* argv[]) {
     return 0;
   }
 
-  if (pc != 0) {
+  if (pc >= 0) {
     bbc_set_pc(p_bbc, pc);
   }
   if (cycles != 0) {

@@ -722,7 +722,7 @@ bbc_create(int mode,
            int test_map_flag,
            const char* p_opt_flags,
            const char* p_log_flags,
-           uint16_t debug_stop_addr) {
+           int32_t debug_stop_addr) {
   struct timing_struct* p_timing;
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;

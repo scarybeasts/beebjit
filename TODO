@@ -43,7 +43,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Remove crufty old rendering code for -fast mode.
 - Incorrect color line at bottom of status area in Lunar Jetman.
 - Accurate last line latching for 6845.
-- Estra stopping at $0000 in the debugger even though no breakpoint is set.
 - Nightshade tape version not starting at the very end of loading (seems to
 get past Kevin Edwards' protection though).
 
