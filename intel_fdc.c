@@ -77,7 +77,7 @@ enum {
   k_intel_fdc_register_scan_sector = 0x06,
   k_intel_fdc_register_head_step_rate = 0x0D,
   k_intel_fdc_register_head_settle_time = 0x0E,
-  k_intel_fdc_register_head_load_unload_time = 0x0F,
+  k_intel_fdc_register_head_load_unload = 0x0F,
   k_intel_fdc_register_bad_track_1_drive_0 = 0x10,
   k_intel_fdc_register_bad_track_2_drive_0 = 0x11,
   k_intel_fdc_register_track_drive_0 = 0x12,
@@ -137,6 +137,9 @@ struct intel_fdc_struct {
   uint8_t parameters[k_intel_fdc_max_params];
   uint8_t drive_out;
   uint8_t register_mode;
+  uint8_t register_head_step_rate;
+  uint8_t register_head_settle_time;
+  uint8_t register_head_load_unload;
 
   uint8_t command_track;
   uint8_t command_sector;
@@ -152,6 +155,7 @@ struct intel_fdc_struct {
   uint8_t current_format_gap1;
   uint8_t current_format_gap3;
   uint8_t current_format_gap5;
+  int32_t current_head_unload_count;
 
   int state;
   uint32_t state_count;
@@ -162,12 +166,6 @@ struct intel_fdc_struct {
   uint16_t crc;
   uint16_t on_disc_crc;
 };
-
-static inline void
-intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
-  p_fdc->state = state;
-  p_fdc->state_count = 0;
-}
 
 static void
 intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
@@ -222,6 +220,27 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
 }
 
 static void
+intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
+  p_fdc->state = state;
+  p_fdc->state_count = 0;
+
+  if (p_fdc->state == k_intel_fdc_state_idle) {
+    uint8_t head_unload_count = (p_fdc->register_head_load_unload >> 4);
+
+    p_fdc->state_index_pulse_count = 0;
+    if (head_unload_count == 0) {
+      /* Unload immediately. */
+      intel_fdc_select_drive(p_fdc, 0);
+    } else if (head_unload_count == 0xF) {
+      /* Never automatically unload. */
+      p_fdc->current_head_unload_count = -1;
+    } else {
+      p_fdc->current_head_unload_count = head_unload_count;
+    }
+  }
+}
+
+static void
 intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc, k_log_info, "8271: reset");
@@ -232,7 +251,7 @@ intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
   p_fdc->command = 0;
 
   /* Deselect any drive; ensures spin-down. */
-  intel_fdc_select_drive(p_fdc, 0x00);
+  intel_fdc_select_drive(p_fdc, 0);
 }
 
 struct intel_fdc_struct*
@@ -431,9 +450,13 @@ intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
                                  uint8_t val) {
   switch (reg) {
   case k_intel_fdc_register_head_step_rate:
+    p_fdc->register_head_step_rate = val;
+    break;
   case k_intel_fdc_register_head_settle_time:
-  case k_intel_fdc_register_head_load_unload_time:
-    /* TODO: actually use those to influence timing. */
+    p_fdc->register_head_settle_time = val;
+    break;
+  case k_intel_fdc_register_head_load_unload:
+    p_fdc->register_head_load_unload = val;
     break;
   case k_intel_fdc_register_track_drive_0:
     p_fdc->logical_track[0] = val;
@@ -670,6 +693,15 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
        * sector in error.
        */
       temp_u8 = p_fdc->current_sector;
+      break;
+    case k_intel_fdc_register_head_step_rate:
+      temp_u8 = p_fdc->register_head_step_rate;
+      break;
+    case k_intel_fdc_register_head_settle_time:
+      temp_u8 = p_fdc->register_head_settle_time;
+      break;
+    case k_intel_fdc_register_head_load_unload:
+      temp_u8 = p_fdc->register_head_load_unload;
       break;
     case k_intel_fdc_register_mode:
       /* Phantom Combat (BBC B 32K version) reads this?! */
@@ -1190,17 +1222,28 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
   if (p_fdc->state_is_index_pulse && !was_index_pulse) {
     p_fdc->state_index_pulse_count++;
-    if ((p_fdc->state != k_intel_fdc_state_idle) &&
-        (p_fdc->state_index_pulse_count >= 2)) {
-      /* I/O commands fail with $18 (sector not found) if there are two index
-       * pulses without progress.
-       * EMU: interestingly enough, this applies always for an e.g. 8192 byte
-       * sector read because such a crazy read cannot be satisfied within 2
-       * revolutions.
-       */
-      intel_fdc_set_command_result(p_fdc,
-                                   1,
-                                   k_intel_fdc_result_sector_not_found);
+    if (p_fdc->state != k_intel_fdc_state_idle) {
+      if (p_fdc->state_index_pulse_count >= 2) {
+        /* I/O commands fail with $18 (sector not found) if there are two index
+         * pulses without progress.
+         * EMU: interestingly enough, this applies always for an e.g. 8192 byte
+         * sector read because such a crazy read cannot be satisfied within 2
+         * revolutions.
+         */
+        intel_fdc_set_command_result(p_fdc,
+                                     1,
+                                     k_intel_fdc_result_sector_not_found);
+      }
+    } else {
+      /* Idle state; check for automatic head unload. */
+      if ((p_fdc->current_head_unload_count != -1) &&
+          (p_fdc->state_index_pulse_count ==
+               (uint32_t) p_fdc->current_head_unload_count)) {
+        if (p_fdc->log_commands) {
+          log_do_log(k_log_disc, k_log_info, "8271: automatic head unload");
+        }
+        intel_fdc_select_drive(p_fdc, 0);
+      }
     }
   }
 }

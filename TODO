@@ -17,7 +17,6 @@ can even block at that resolution.
 - BCD support in JIT?
 - "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
 Picnic for a bit, just after you give your bear a name and address.
-- Disc spindown (serious perf issue if they are left spinning).
 - Living Daylights FSD disc not loading.
 
 
@@ -38,7 +37,6 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Add cursor support to the 6845 CRTC.
 - Add fdi disc format support.
 - MODE7 doesn't have character rounding.
-- Fix Elite-A (file not found trying to launch ship)
 - Remove crufty old rendering code for -fast mode.
 - Incorrect color line at bottom of status area in Lunar Jetman.
 - Accurate last line latching for 6845.
