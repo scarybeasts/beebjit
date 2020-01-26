@@ -91,6 +91,7 @@ enum {
 enum {
   k_intel_fdc_drive_out_side = 0x20,
   k_intel_fdc_drive_out_load_head = 0x08,
+  k_intel_fdc_drive_out_write_enable = 0x01,
 };
 
 enum {
@@ -197,13 +198,14 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
   }
 
   /* A change of drive select bits clears various bits in the drive output.
-   * For example, the newly select drive won't have the load head signal
+   * For example, the newly selected drive won't have the load head signal
    * active.
    * This also spins down the previously selected drive.
    */
   new_drive_out = (p_fdc->drive_out & ~0xC0);
   new_drive_out |= new_drive_select;
   new_drive_out &= ~k_intel_fdc_drive_out_load_head;
+  new_drive_out &= ~k_intel_fdc_drive_out_write_enable;
   intel_fdc_set_drive_out(p_fdc, new_drive_out);
 
   p_fdc->drive_select = new_drive_select;
@@ -587,9 +589,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_verify_sectors:
   case k_intel_fdc_command_format:
   case k_intel_fdc_command_seek:
-    intel_fdc_set_drive_out(p_fdc,
-                            (p_fdc->drive_out |
-                                k_intel_fdc_drive_out_load_head));
+    temp_u8 = p_fdc->drive_out;
+    temp_u8 &= ~k_intel_fdc_drive_out_write_enable;
+    temp_u8 |= k_intel_fdc_drive_out_load_head;
+    intel_fdc_set_drive_out(p_fdc, temp_u8);
     do_seek = 1;
   default:
     break;
@@ -935,12 +938,22 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   int was_index_pulse;
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
+  struct disc_struct* p_current_disc = p_fdc->p_current_disc;
+
+  assert(p_current_disc != NULL);
 
   was_index_pulse =  p_fdc->state_is_index_pulse;
   p_fdc->state_is_index_pulse = intel_fdc_get_INDEX(p_fdc);
 
   switch (p_fdc->state) {
   case k_intel_fdc_state_idle:
+    /* If the write gate is open outside a command, it cleans flux transitions
+     * from the disc surface, effectively creating weak bits!
+     */
+    if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
+        !disc_is_write_protected(p_current_disc)) {
+      disc_write_byte(p_current_disc, 0x00, 0x00);
+    }
     break;
   case k_intel_fdc_state_wait_no_index:
     if (!p_fdc->state_is_index_pulse) {
@@ -1075,9 +1088,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_write_gap_2:
     if (p_fdc->state_count < 11) {
-      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+      disc_write_byte(p_current_disc, 0xFF, 0xFF);
     } else {
-      disc_write_byte(p_fdc->p_current_disc, 0x00, 0xFF);
+      disc_write_byte(p_current_disc, 0x00, 0xFF);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == (11 + 6)) {
@@ -1092,9 +1105,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       } else {
         mark_byte = k_ibm_disc_data_mark_data_pattern;
       }
-      disc_write_byte(p_fdc->p_current_disc,
-                      mark_byte,
-                      k_ibm_disc_mark_clock_pattern);
+      disc_write_byte(p_current_disc, mark_byte, k_ibm_disc_mark_clock_pattern);
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, mark_byte);
     } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
@@ -1103,9 +1114,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->data);
     } else if (p_fdc->state_count == (p_fdc->command_sector_size + 1)) {
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc >> 8), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc >> 8), 0xFF);
     } else if (p_fdc->state_count == (p_fdc->command_sector_size + 2)) {
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == (p_fdc->command_sector_size + 3)) {
@@ -1133,9 +1144,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     /* FALL THROUGH -- need to start writing immediately. */
   case k_intel_fdc_state_format_gap_1:
     if (p_fdc->state_count < p_fdc->current_format_gap1) {
-      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+      disc_write_byte(p_current_disc, 0xFF, 0xFF);
     } else {
-      disc_write_byte(p_fdc->p_current_disc, 0x00, 0xFF);
+      disc_write_byte(p_current_disc, 0x00, 0xFF);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == (uint32_t) (p_fdc->current_format_gap1 + 6)) {
@@ -1144,7 +1155,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_format_write_id:
     if (p_fdc->state_count == 0) {
-      disc_write_byte(p_fdc->p_current_disc,
+      disc_write_byte(p_current_disc,
                       k_ibm_disc_id_mark_data_pattern,
                       k_ibm_disc_mark_clock_pattern);
       p_fdc->crc = ibm_disc_format_crc_init();
@@ -1157,15 +1168,15 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->data);
     } else if (p_fdc->state_count == 5) {
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc >> 8), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc >> 8), 0xFF);
     } else if (p_fdc->state_count == 6) {
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
     } else if (p_fdc->state_count < 18) {
       /* GAP 2 $FF's x11 */
-      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+      disc_write_byte(p_current_disc, 0xFF, 0xFF);
     } else {
       /* GAP 2 $00's x6 */
-      disc_write_byte(p_fdc->p_current_disc, 0x00, 0xFF);
+      disc_write_byte(p_current_disc, 0x00, 0xFF);
     }
 
     p_fdc->state_count++;
@@ -1182,23 +1193,21 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   case k_intel_fdc_state_format_write_data:
     if (p_fdc->state_count == 0) {
       uint8_t byte = k_ibm_disc_data_mark_data_pattern;
-      disc_write_byte(p_fdc->p_current_disc,
-                      byte,
-                      k_ibm_disc_mark_clock_pattern);
+      disc_write_byte(p_current_disc, byte, k_ibm_disc_mark_clock_pattern);
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, byte);
     } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
       uint8_t byte = 0xE5;
-      disc_write_byte(p_fdc->p_current_disc, byte, 0xFF);
+      disc_write_byte(p_current_disc, byte, 0xFF);
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, byte);
     } else if (p_fdc->state_count == (p_fdc->command_sector_size + 1)) {
       /* Formatted sector data is constant so we can check our CRC algorithm
        * here with this assert.
        */
       assert(p_fdc->crc == 0xA40C);
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc >> 8), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc >> 8), 0xFF);
     } else {
-      disc_write_byte(p_fdc->p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
+      disc_write_byte(p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
     }
 
     p_fdc->state_count++;
@@ -1214,9 +1223,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_intel_fdc_state_format_gap_3:
     if (p_fdc->state_count < p_fdc->current_format_gap3) {
-      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+      disc_write_byte(p_current_disc, 0xFF, 0xFF);
     } else {
-      disc_write_byte(p_fdc->p_current_disc, 0x00, 0xFF);
+      disc_write_byte(p_current_disc, 0x00, 0xFF);
     }
     p_fdc->state_count++;
     if (p_fdc->state_count == (uint32_t) (p_fdc->current_format_gap3 + 6)) {
@@ -1228,7 +1237,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if (p_fdc->state_is_index_pulse) {
       intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
     } else {
-      disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+      disc_write_byte(p_current_disc, 0xFF, 0xFF);
     }
     break;
   default:
