@@ -20,7 +20,6 @@ Picnic for a bit, just after you give your bear a name and address.
 - Test for new undocumented opcodes, mainly LAX? DCP? SRE?
 - Disc spindown (serious perf issue if they are left spinning).
 - Living Daylights FSD disc not loading.
-- Alien8 tape: Kevin Edwards' protection broken!
 
 
 Fix later
@@ -45,6 +44,8 @@ http://bbcmicro.co.uk/game.php?id=1891
 - Incorrect color line at bottom of status area in Lunar Jetman.
 - Accurate last line latching for 6845.
 - Estra stopping at $0000 in the debugger even though no breakpoint is set.
+- Nightshade tape version not starting at the very end of loading (seems to
+get past Kevin Edwards' protection though).
 
 
 Ideas

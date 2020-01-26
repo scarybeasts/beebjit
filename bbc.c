@@ -216,7 +216,7 @@ bbc_is_special_write_address(struct bbc_struct* p_bbc,
 
 static inline int
 bbc_is_1MHz_address(uint16_t addr) {
-  if ((addr & k_addr_shiela) == k_addr_shiela) {
+  if ((addr & 0xFF00) == k_addr_shiela) {
     return k_FE_1mhz_array[((addr >> 5) & 7)];
   }
 

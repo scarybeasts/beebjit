@@ -674,8 +674,16 @@ main(int argc, const char* argv[]) {
   emit_NOP(p_buf);                /* T2: 0, -0.5. Timeout (no IRQ). */
   emit_JMP(p_buf, k_abs, 0xC980);
 
-  /* Exit sequence. */
+  /* Test that we don't accidentally cycle stretch $FF00 - $FFFF. */
   set_new_index(p_buf, 0x0980);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFF00); /* LDA abs, 4 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 8);
+  emit_JMP(p_buf, k_abs, 0xC9C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x09C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
