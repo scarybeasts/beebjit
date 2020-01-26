@@ -241,12 +241,27 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
 }
 
 static void
+intel_fdc_command_abort(struct intel_fdc_struct* p_fdc) {
+  /* If we're aborting a command in the middle of writing data, it usually
+   * doesn't leave a clean byte end on the disc. This is not particularly
+   * important to emulate at all but it does help create new copy protection
+   * schemes under emulation.
+   */
+  if ((p_fdc->state == k_intel_fdc_state_write_sector_data) ||
+      (p_fdc->state == k_intel_fdc_state_format_write_id) ||
+      (p_fdc->state == k_intel_fdc_state_format_write_data)) {
+    disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
+  }
+}
+
+static void
 intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc, k_log_info, "8271: reset");
   }
 
   /* Abort any in-progress command. */
+  intel_fdc_command_abort(p_fdc);
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
   p_fdc->command = 0;
 
@@ -855,6 +870,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
+    intel_fdc_command_abort(p_fdc);
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_late_dma);
     return 0;
   }
