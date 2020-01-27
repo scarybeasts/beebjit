@@ -2,7 +2,8 @@ TODO:
 - Fortress
 - Cybertron Mission
 - Boulderdash
-- Disc Duplicator 3
+- Living Daylights ($12AD)
+- 3D pool
 
 
 - 005 Arcadians.FSD
@@ -62,7 +63,7 @@ succeeds or fails_, and expects $00 at offset $8B.
 079A: 00 00 19 FF FF 03 53 02 88 21 00 FF 00 19 FF FF  ......S..!......
 
 
-072 CASTLE QUEST.FSD
+- 072 CASTLE QUEST.FSD
 SHA256: d5113bfb2ef4c58e06803d33406d1ed70f6f3b4505f1002e50334135cee3713f
 Seems a very simple protection.
 Physical track 2 has only sectors declaring logical track 4.
@@ -165,3 +166,30 @@ the overread data is:
 00 00 00 00 00 FF FF FF FF FF FF FF ....
 The post-CRC bytes would normally be GAP 3 and gaps start with $FF, so looks
 like some hidden inter-sector byte expectations of 0x00.
+
+
+- 297 DISC DUPLICATOR 3.FSD
+SHA256: c73125f2c50ded2b4bd3c06d804273fe502dd35f10339afb991d93cfb04a1b41
+1) !BOOT executes at $2000. At $2049, calls $20D7 which EOR unpacks some code
+from $2427 to $400.
+2) At $204C, JSR $0615 calls into the unpacked code, which changes mode and
+eventually jumps to $2054 and branches to $208C. $20D7 is called a couple of
+times which EOR unpacks some code from $2112 to $0900 and $23F2 to $0D00.
+3) At $20AF, $0900 is called which seeks to track 0.
+4) At $20C3, $0917 is called which seems to be a first protection check. It
+reads track 2 sector 1, count 1, size 2048. At $20C6, error code $0E is
+expected but also byte 4 of the read must be $0E. $20D1 jumps into the read
+data, at $2505.
+5) At $252D, $20D7 is called to EOR unpack $2977 to $0D00.
+6) At $2530, $0900 is called to seek to 0 again. At $2533, JSR $0615 again,
+which this time prints the DISC DUPLICATOR 3 banner and jumps to $25B4.
+7) At $25B4, $0B6E is called for some initialization. $2808 is called to
+checksum parts of !BOOT that were read previously. $27F7 is called, also
+checksumming. $27B9 is called, perhaps looking for sideways RAM.
+8) At $25C0, $2758 is called. This calls $0942 to read 31 IDs from track
+24 into $0E00, with $0E02 of the result ($00) stored in $C4.
+9) At $276F, $0900 is called to seek to 0.
+10) At $2772, some protection! A series of reads are performed on track 14,
+sector 1, of varying sector sizes. 2048 byte and 1024 byte reads must error.
+256 byte read must not error. 512 byte read must give $0E error but also
+byte index $180 of the read must match the result from above stored in $C4.

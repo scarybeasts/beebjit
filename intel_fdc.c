@@ -563,12 +563,14 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     }
     log_do_log(k_log_disc,
                k_log_info,
-               "8271: command %x select %x params %x %x %x headpos %d",
+               "8271: command %x select %x params %x %x %x %x %x headpos %d",
                command,
                p_fdc->drive_select,
                param0,
                param1,
                param2,
+               param3,
+               param4,
                head_pos);
   }
 
@@ -1191,6 +1193,14 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     break;
   case k_intel_fdc_state_format_write_data:
+    /* EMU: no matter how large the format sector size request, even 16384, the
+     * command never exits due to 2 index pulses counted. This differs from read
+     * _and_ write.
+     * Disc Duplicator III needs this to work correctly when deformatting
+     * tracks.
+     */
+    p_fdc->state_index_pulse_count = 0;
+
     if (p_fdc->state_count == 0) {
       uint8_t byte = k_ibm_disc_data_mark_data_pattern;
       disc_write_byte(p_current_disc, byte, k_ibm_disc_mark_clock_pattern);
@@ -1204,7 +1214,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       /* Formatted sector data is constant so we can check our CRC algorithm
        * here with this assert.
        */
-      assert(p_fdc->crc == 0xA40C);
+      if (p_fdc->command_sector_size == 256) {
+        assert(p_fdc->crc == 0xA40C);
+      }
       disc_write_byte(p_current_disc, (p_fdc->crc >> 8), 0xFF);
     } else {
       disc_write_byte(p_current_disc, (p_fdc->crc & 0xFF), 0xFF);
