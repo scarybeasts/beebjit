@@ -114,6 +114,8 @@ enum {
   k_intel_fdc_state_format_write_data = 16,
   k_intel_fdc_state_format_gap_3 = 17,
   k_intel_fdc_state_format_gap_4 = 18,
+  k_intel_fdc_state_seeking = 19,
+  k_intel_fdc_state_settling = 20,
 };
 
 struct intel_fdc_struct {
@@ -153,10 +155,12 @@ struct intel_fdc_struct {
   uint8_t current_sector;
   uint8_t current_sectors_left;
   int current_had_deleted_data;
+  int current_needs_settle;
   uint8_t current_format_gap1;
   uint8_t current_format_gap3;
   uint8_t current_format_gap5;
   int32_t current_head_unload_count;
+  uint32_t current_seek_count;
 
   int state;
   uint32_t state_count;
@@ -342,7 +346,7 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc,
                k_log_info,
-               "8271: status %x result %x",
+               "8271: status $%x result $%x",
                status,
                result);
   }
@@ -428,15 +432,13 @@ intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
   return disc_is_spinning(p_current_disc);
 }
 
-static void
-intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
+static int
+intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
   int32_t delta;
   uint8_t* p_logical_track;
 
   struct disc_struct* p_current_disc = p_fdc->p_current_disc;
-  if (p_current_disc == NULL) {
-    return;
-  }
+  assert(p_current_disc != NULL);
 
   if (p_current_disc == p_fdc->p_disc_0) {
     p_logical_track = &p_fdc->logical_track[0];
@@ -451,14 +453,32 @@ intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, uint8_t seek_to) {
    * EMU: the special TRK0 logic for track 0 applies to both an explicit seek
    * command as well as the implicit seek present in many non-seek commands.
    */
-  if (seek_to == 0) {
-    delta = -0xFF;
-  } else {
-    delta = (seek_to - *p_logical_track);
+  if (p_fdc->command_track == 0) {
+    if (disc_get_track(p_current_disc) == 0) {
+      *p_logical_track = 0;
+      return 0;
+    }
+    disc_seek_track(p_current_disc, -1);
+    return 1;
   }
-  disc_seek_track(p_current_disc, delta);
 
-  *p_logical_track = seek_to;
+  if (p_fdc->command_track == *p_logical_track) {
+    return 0;
+  }
+
+  /* EMU TODO: I was seeing weirdness on real hardware with large logical
+   * track numbers (0xFx). Signedness issue or bad track register issue?
+   */
+  if (p_fdc->command_track > *p_logical_track) {
+    delta = 1;
+  } else {
+    delta = -1;
+  }
+
+  disc_seek_track(p_current_disc, delta);
+  *p_logical_track += delta;
+
+  return 1;
 }
 
 static void
@@ -519,7 +539,6 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   uint8_t param2 = p_fdc->parameters[2];
   uint8_t param3 = p_fdc->parameters[3];
   uint8_t param4 = p_fdc->parameters[4];
-  int do_seek = 0;
 
   assert(p_fdc->state == k_intel_fdc_state_idle);
   assert(p_fdc->state_count == 0);
@@ -556,14 +575,17 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   if (p_fdc->log_commands) {
     int32_t head_pos = -1;
+    int32_t track = -1;
     struct disc_struct* p_current_disc = p_fdc->p_current_disc;
 
     if (p_current_disc != NULL) {
       head_pos = (int32_t) disc_get_head_position(p_current_disc);
+      track = (int32_t) disc_get_track(p_current_disc);
     }
     log_do_log(k_log_disc,
                k_log_info,
-               "8271: command %x select %x params %x %x %x %x %x headpos %d",
+               "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
+               "ptrk %d hpos %d",
                command,
                p_fdc->drive_select,
                param0,
@@ -571,6 +593,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                param2,
                param3,
                param4,
+               track,
                head_pos);
   }
 
@@ -595,7 +618,6 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     temp_u8 &= ~k_intel_fdc_drive_out_write_enable;
     temp_u8 |= k_intel_fdc_drive_out_load_head;
     intel_fdc_set_drive_out(p_fdc, temp_u8);
-    do_seek = 1;
   default:
     break;
   }
@@ -619,10 +641,6 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     break;
   }
 
-  if (do_seek) {
-    intel_fdc_do_seek(p_fdc, param0);
-  }
-
   switch (command) {
   case k_intel_fdc_command_write_sector_deleted_128:
   case k_intel_fdc_command_write_sectors_deleted:
@@ -640,6 +658,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->state_index_pulse_count = 0;
   p_fdc->current_had_deleted_data = 0;
+  p_fdc->current_needs_settle = 0;
+  p_fdc->current_seek_count = 0;
 
   switch (command) {
   case k_intel_fdc_command_write_sector_128:
@@ -652,23 +672,18 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sectors_with_deleted:
   case k_intel_fdc_command_verify_sector_128:
   case k_intel_fdc_command_verify_sectors:
-    p_fdc->current_sector = p_fdc->command_sector;
-    p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
-    break;
   case k_intel_fdc_command_read_sector_ids:
-    p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
-    break;
   case k_intel_fdc_command_format:
+  case k_intel_fdc_command_seek:
+    /* Not all of these variable are used by all of the commands but set them
+     * all for simplicity.
+     */
+    p_fdc->current_sector = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
     p_fdc->current_format_gap1 = param4;
     p_fdc->current_format_gap3 = param1;
     p_fdc->current_format_gap5 = param3;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_wait_no_index);
-    break;
-  case k_intel_fdc_command_seek:
-    intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seeking);
     break;
   case k_intel_fdc_command_read_drive_status:
     temp_u8 = 0x80;
@@ -826,18 +841,20 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     }
     break;
   case k_intel_fdc_parameter:
-    if (p_fdc->parameters_needed > 0) {
-      assert(p_fdc->status & k_intel_fdc_status_flag_busy);
-      assert(p_fdc->state == k_intel_fdc_state_idle);
-      assert(p_fdc->state_count == 0);
-      assert(p_fdc->command == 0);
-
-      p_fdc->parameters[p_fdc->parameters_index] = val;
-      p_fdc->parameters_index++;
-      p_fdc->parameters_needed--;
+    if (p_fdc->parameters_needed == 0) {
+      break;
     }
-    if ((p_fdc->parameters_needed == 0) &&
-        (p_fdc->status == k_intel_fdc_status_flag_busy)) {
+
+    assert(p_fdc->status & k_intel_fdc_status_flag_busy);
+    assert(p_fdc->state == k_intel_fdc_state_idle);
+    assert(p_fdc->state_count == 0);
+    assert(p_fdc->command == 0);
+
+    p_fdc->parameters[p_fdc->parameters_index] = val;
+    p_fdc->parameters_index++;
+    p_fdc->parameters_needed--;
+
+    if (p_fdc->parameters_needed == 0) {
       intel_fdc_do_command(p_fdc);
     }
     break;
@@ -938,6 +955,7 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
 void
 intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   int was_index_pulse;
+  int did_step;
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_struct* p_current_disc = p_fdc->p_current_disc;
@@ -956,6 +974,65 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
         !disc_is_write_protected(p_current_disc)) {
       disc_write_byte(p_current_disc, 0x00, 0x00);
     }
+    break;
+  case k_intel_fdc_state_seeking:
+    /* Seeking doesn't time out due to index pulse counting. */
+    p_fdc->state_index_pulse_count = 0;
+
+    if (p_fdc->current_seek_count) {
+      p_fdc->current_seek_count--;
+      break;
+    }
+
+    did_step = intel_fdc_do_seek_step(p_fdc);
+    p_fdc->current_needs_settle |= did_step;
+    if (did_step) {
+      /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
+       * or 2ms for 5.25" drives. 1ms might be your best guess from the
+       * datasheet, but timing on a real machine, it appears to be 2ms.
+       */
+      p_fdc->current_seek_count = (p_fdc->register_head_step_rate * 1000);
+      p_fdc->current_seek_count *= 2;
+      /* Calculate how many 64us chunks for the head step time. */
+      p_fdc->current_seek_count /= 64;
+      break;
+    }
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+    break;
+  case k_intel_fdc_state_settling:
+    /* Settling doesn't time out due to index pulse counting. */
+    p_fdc->state_index_pulse_count = 0;
+
+    if (p_fdc->current_seek_count) {
+      p_fdc->current_seek_count--;
+      break;
+    }
+
+    if (p_fdc->current_needs_settle) {
+      p_fdc->current_needs_settle = 0;
+      /* EMU: all references state the units are 2ms for 5.25" drives. */
+      p_fdc->current_seek_count = (p_fdc->register_head_settle_time * 1000);
+      p_fdc->current_seek_count *= 2;
+      /* Calculate how many 64us chunks for the head step time. */
+      p_fdc->current_seek_count /= 64;
+      break;
+    }
+
+    switch (p_fdc->command) {
+    case k_intel_fdc_command_read_sector_ids:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+      break;
+    case k_intel_fdc_command_format:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_wait_no_index);
+      break;
+    case k_intel_fdc_command_seek:
+      intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
+      break;
+    default:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+      break;
+    }
+
     break;
   case k_intel_fdc_state_wait_no_index:
     if (!p_fdc->state_is_index_pulse) {

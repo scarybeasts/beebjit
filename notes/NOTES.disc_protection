@@ -2,7 +2,6 @@ TODO:
 - Fortress
 - Cybertron Mission
 - Boulderdash
-- Living Daylights ($12AD)
 - 3D pool
 
 
@@ -193,3 +192,31 @@ checksumming. $27B9 is called, perhaps looking for sideways RAM.
 sector 1, of varying sector sizes. 2048 byte and 1024 byte reads must error.
 256 byte read must not error. 512 byte read must give $0E error but also
 byte index $180 of the read must match the result from above stored in $C4.
+
+
+- 358 THE LIVING DAYLIGHTS.FSD
+SHA256: c7530cdc837ff0a6ae45ac6a827e91dd352c5fb3e04a5965463b25310860265e
+1) Track 2 is interesting. It is 18 sector but looks like 10 sectors of 256
+bytes. The logical sector IDs for the first 10 sectors run 09 -> 00 inclusive.
+Then, there are 8 sectors with sector headers of 4x 00 bytes.
+2) LOADER executes at $1200. It does an EOR based unpack of itself at $1239,
+and when execution arrives at $1239, it is JSR $1338.
+3) At $1260, a JSR $1340 routine uses OSWORD $7F to seek to 0.
+4) At $1263, OSWORD $7F is used to read 10 sector IDs (command $1F) from track
+2, with the results going to $2000. A result of 2 is expected for the first
+byte, presumably a 40/80 track check?
+NOTE: this leaves the head position about half-way through the track.
+5) At $12A4, a JSR $1340 routine uses OSWORD $7F to seek to 0.
+6) At $12A7, a JSR $134A routine uses OSWORD $7F to seek to 2.
+7) At $12AD, OSWORD $7F is used to read track 2, sector 0, 1 sector, 256 byte
+sized.
+I believe a couple of attempts are allowed but this is sensitive to current
+head position and therefore seek timing sensitive! It will only work if the
+read starts in the first half of the track, otherwise it'll hit the sector
+headers with logical track $00 and bail.
+The timing seems to work: the seek to 0 and then back to 2, with default seek
+and settle timings, leaves the head position a little over 20% into the track.
+8) Read result is $0E (unchecked?) but the sector read bytes, starting from
+offset $80 (i.e. the start of the overread) are expected to be:
+(6502db) m 13dc
+13DC: 5D 30 FF FF FF FF FF FF FF FF FF 00 00 00 00 00
