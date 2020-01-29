@@ -17,8 +17,6 @@ can even block at that resolution.
 - BCD support in JIT?
 - "via_read: Assertion `!(p_via->ACR & 0x02)' failed" if you play Teddy Bear's
 Picnic for a bit, just after you give your bear a name and address.
-- Nightshade tape version not starting at the very end of loading (seems to
-get past Kevin Edwards' protection though).
 
 
 Fix later

@@ -629,6 +629,14 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   return 0;
 }
 
+static void
+via_load_T1(struct via_struct* p_via) {
+  int32_t timer_val = p_via->T1L;
+  /* Increment the value because it must take effect in 1 tick. */
+  timer_val++;
+  via_set_t1c(p_via, timer_val);
+}
+
 void
 via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   uint32_t t2_timer_id;
@@ -642,6 +650,10 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int t1_firing = via_is_t1_firing(p_via);
   int t2_firing = via_is_t2_firing(p_via);
 
+  /* TODO: the way things have worked out, it looks like we'll have less
+   * complexity if we apply the write right away and then fix up. There will
+   * likely be less fixing up that way around.
+   */
   /* Advance to the VIA mid-cycle. */
   struct timing_struct* p_timing = p_via->p_timing;
   int64_t countdown = timing_get_countdown(p_timing);
@@ -688,16 +700,20 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   case k_via_T1LL:
     /* Not an error: writing to either T1CL or T1LL updates just T1LL. */
     p_via->T1L = ((p_via->T1L & 0xFF00) | val);
+    /* EMU NOTE: If we reloaded the timer from the latch at the same VIA cycle
+     * as a write to change the latch, the newly written value must take effect.
+     * Finally hit by the second(?) stage Nightshade tape loader at $7300.
+     */
+    if (t1_firing && (p_via->ACR & 0x40)) {
+      via_load_T1(p_via);
+    }
     break;
   case k_via_T1CH:
     if (!t1_firing) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
-    timer_val = p_via->T1L;
-    /* Increment the value because it must take effect in 1 tick. */
-    timer_val++;
-    via_set_t1c(p_via, timer_val);
+    via_load_T1(p_via);
     timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
     /* EMU TODO: does this behave differently if t1_firing as well? */
     p_via->t1_pb7 = 0;
@@ -713,10 +729,12 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     /* EMU TODO: assuming the same logic of not canceling interrupts applies
      * here for T1LH writes vs. IFR, but it's untest on a real BBC.
      */
+    p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     if (!t1_firing) {
       via_clear_interrupt(p_via, k_int_TIMER1);
+    } else if (p_via->ACR & 0x40) {
+      via_load_T1(p_via);
     }
-    p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     break;
   case k_via_T2CL:
     p_via->T2L = ((p_via->T2L & 0xFF00) | val);

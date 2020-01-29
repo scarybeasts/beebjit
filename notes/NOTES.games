@@ -312,6 +312,47 @@ Notes:
 with the user VIA timer not wired up?
 
 
+- Nightshade (Ultimate) (B) (Tape) [side-noimprint-front].hq.uef
+Unsure if it is publicly downloadable.
+SHA256: 7315a6d238e0b96e5d52011e2c6c80ae4d370f56a93df7f0dc7ae1fa685bf7d4
+Notes:
+1) Phase 1 Kevin Edwards loader loads after the title screen, entry is at
+$0D00 or so. It does very complicated VIA vs. 6502 instruction and IRQ timing
+interplay.
+2) If you are lucky and it decodes correctly, execution arrives at $0E00 after
+a few seconds.
+3) At $0E00, it sets up some variables and then erases its earlier code up
+$0E33. VIA interrupts are disabled at $0E3C.
+4) At $0E44, some code at $0700 is EOR unpacked, keyed with part of MOS. $0E52
+calls the routine at $0700.
+5) At $0700, it resets the 8271 (suspicious for a tape game!), and sets some
+drive timing parameters, including seek time, to 1. That's clever -- writing
+state to disc if you get past the first unpacker will not work or be reliable.
+This routine will self-destruct in 5..4..3.. (erases itself at $0749).
+6) At $0752, starts fiddling around with paging in ROMs and doing checks.
+Unclear if it's looking for anything suspicous, maybe? If it sees something of
+interest, it jumps $07B7, but normally it finishes checks at $079C, trashes
+some of the code that just ran, and RTS's to $0E55.
+7) At $0E55, an IRQ handler is set up at $0E9D for tape / serial IRQs.
+8) At $0E71, a tape read is kicked off, $47 blocks loading to $1100.
+9) At $0E7B, $5738 is called which sets up some screen settings.
+10) At $0E92, a tape read is kicked off, $1E blocks loading to $5700.
+11) At $0E9C, RTS jumps to $7204.
+12) Another unpacker does its thing at $7300, exiting the main unpack at $73AA
+and then doing a bit more unpacking before if all is well branching to $7400.
+13) There a bit more self-erasing and then a bit more checking for a Replay
+ROM, then it RTS's to $7000 for... a stage 3 nightmare VIA unpack routine?
+14) Stage 3 unpack finishes at $70B5 with a little bit more EOR unpacking of
+course, branching to $7100 if all is ok.
+15) At $7100 there's checking that some system variables are as expected
+including the CRTC cursor high / low! Current values of sysvia T1 latch are
+pushed to the stack. There's some more self-erasing.
+16) At $716D, latch values pushed to the stack are reloaded into uservia T2,
+and a simpler timer based EOR unpack is run across $1100 - $7100.
+17) The RTS lands at $6CAC, from from values explicitly pushed to the stack
+earlier. This seems to be the start of the unpacked program.
+
+
 - MrEe.zip
 SHA256: 388ce49e3efcb492e27572f440106be08e5fbe2ce888d2dcaec7feb31fb9edda
 1) Immediately, $4302 writes to ROM?! via STA $801B.

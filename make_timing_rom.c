@@ -672,6 +672,7 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE49); /* T1: 3, 2, 1. */
   emit_LDA(p_buf, k_zpg, 0x00);   /* T1: 0, -1 (x0.5), IRQ. */ /* T2: 1, 0.5. */
   emit_NOP(p_buf);                /* T2: 0, -0.5. Timeout (no IRQ). */
+  emit_SEI(p_buf);
   emit_JMP(p_buf, k_abs, 0xC980);
 
   /* Test that we don't accidentally cycle stretch $FF00 - $FFFF. */
@@ -682,8 +683,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xC9C0);
 
-  /* Exit sequence. */
+  /* Test a T1 latch value change co-inciding with a timer expiry / reload. */
   set_new_index(p_buf, 0x09C0);
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_JSR(p_buf, 0xF000);
+  emit_LDA(p_buf, k_imm, 0x40);   /* Set T1 continuous. */ /* T1: 6 */
+  emit_STA(p_buf, k_abs, 0xFE4B); /* T1: 5, 4, 3. */
+  emit_LDA(p_buf, k_imm, 0x10);   /* T1: 2 */
+  emit_STA(p_buf, k_abs, 0xFE44); /* T1: 1, 0, -1. */
+  emit_LDA(p_buf, k_abs, 0xFE44);
+  /* The reloaded latch must be based on the value we wrote the same cycle as
+   * the expiry / reload.
+   */
+  emit_REQUIRE_EQ(p_buf, 0x0E);
+  emit_JMP(p_buf, k_abs, 0xCA00);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0A00);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
