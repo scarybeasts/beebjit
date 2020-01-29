@@ -9,14 +9,18 @@ enum {
   k_timing_num_timers = 16,
 };
 
+struct timer_struct {
+  void (*p_callback)(void*);
+  void* p_object;
+  int64_t value;
+  int ticking;
+  int firing;
+};
+
 struct timing_struct {
   uint32_t scale_factor;
   uint32_t max_timer;
-  void (*p_callbacks[k_timing_num_timers])(void*);
-  void* p_objects[k_timing_num_timers];
-  int64_t timings[k_timing_num_timers];
-  uint8_t ticking[k_timing_num_timers];
-  uint8_t firing[k_timing_num_timers];
+  struct timer_struct timers[k_timing_num_timers];
 
   uint64_t total_timer_ticks;
   int64_t countdown;
@@ -57,16 +61,19 @@ timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing) {
 static void
 timing_recalculate(struct timing_struct* p_timing) {
   uint32_t i;
+  int64_t value;
+
   /* Default is never. */
   int64_t countdown = INT64_MAX;
   uint32_t max_timer = p_timing->max_timer;
 
   for (i = 0; i < max_timer; ++i) {
-    if (!p_timing->ticking[i] || !p_timing->firing[i]) {
+    if (!p_timing->timers[i].ticking || !p_timing->timers[i].firing) {
       continue;
     }
-    if (p_timing->timings[i] < countdown) {
-      countdown = p_timing->timings[i];
+    value = p_timing->timers[i].value;
+    if (value < countdown) {
+      countdown = value;
     }
   }
 
@@ -78,11 +85,12 @@ timing_register_timer(struct timing_struct* p_timing,
                       void* p_callback,
                       void* p_object) {
   uint32_t i;
+  struct timer_struct* p_timer;
 
   assert(p_callback != NULL);
 
   for (i = 0; i < k_timing_num_timers; ++i) {
-    if (p_timing->p_callbacks[i] == NULL) {
+    if (p_timing->timers[i].p_callback == NULL) {
       break;
     }
   }
@@ -92,38 +100,47 @@ timing_register_timer(struct timing_struct* p_timing,
 
   p_timing->max_timer = (i + 1);
 
-  p_timing->p_callbacks[i] = p_callback;
-  p_timing->p_objects[i] = p_object;
-  p_timing->timings[i] = INT64_MAX;
-  p_timing->ticking[i] = 0;
-  p_timing->firing[i] = 1;
+  p_timer = &p_timing->timers[i];
+
+  p_timer->p_callback = p_callback;
+  p_timer->p_object = p_object;
+  p_timer->value = INT64_MAX;
+  p_timer->ticking = 0;
+  p_timer->firing = 1;
 
   return i;
 }
 
 int64_t
 timing_start_timer(struct timing_struct* p_timing, uint32_t id) {
-  return timing_start_timer_with_value(p_timing, id, p_timing->timings[id]);
+  int64_t value;
+
+  assert(id < k_timing_num_timers);
+  value = p_timing->timers[id].value;
+  return timing_start_timer_with_value(p_timing, id, value);
 }
 
 int64_t
 timing_start_timer_with_value(struct timing_struct* p_timing,
                               uint32_t id,
                               int64_t time) {
+  struct timer_struct* p_timer;
+
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
-  assert(p_timing->p_callbacks[id] != NULL);
-  assert(!p_timing->ticking[id]);
+
+  p_timer = &p_timing->timers[id];
+  assert(p_timer->p_callback != NULL);
+  assert(!p_timer->ticking);
 
   time *= p_timing->scale_factor;
 
-  p_timing->timings[id] = time;
-  p_timing->ticking[id] = 1;
+  p_timer->value = time;
+  p_timer->ticking = 1;
 
   /* Don't need to do a full recalculate, can just see if the timer is expiring
    * sooner than the current soonest.
    */
-  if (p_timing->firing[id] && (time < p_timing->countdown)) {
+  if (p_timer->firing && (time < p_timing->countdown)) {
     p_timing->countdown = time;
   }
 
@@ -132,14 +149,18 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
 
 int64_t
 timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
+  struct timer_struct* p_timer;
+
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
-  assert(p_timing->p_callbacks[id] != NULL);
-  assert(p_timing->ticking[id]);
 
-  p_timing->ticking[id] = 0;
+  p_timer = &p_timing->timers[id];
+  assert(p_timer->p_callback != NULL);
+  assert(p_timer->ticking);
 
-  if (p_timing->firing[id]) {
+  p_timer->ticking = 0;
+
+  if (p_timer->firing) {
     timing_recalculate(p_timing);
   }
 
@@ -151,15 +172,17 @@ timing_timer_is_running(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
-  return p_timing->ticking[id];
+  return p_timing->timers[id].ticking;
 }
 
 int64_t
 timing_get_timer_value(struct timing_struct* p_timing, uint32_t id) {
+  int64_t ret;
+
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
-  int64_t ret = p_timing->timings[id];
+  ret = p_timing->timers[id].value;
   ret /= p_timing->scale_factor;
   return ret;
 }
@@ -168,16 +191,20 @@ int64_t
 timing_set_timer_value(struct timing_struct* p_timing,
                        uint32_t id,
                        int64_t time) {
+  struct timer_struct* p_timer;
+
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
-  assert(p_timing->p_callbacks[id] != NULL);
+
+  p_timer = &p_timing->timers[id];
+  assert(p_timer->p_callback != NULL);
 
   time *= p_timing->scale_factor;
 
-  p_timing->timings[id] = time;
+  p_timer->value = time;
 
   /* TODO: can further optimize this away under certain circumstances? */
-  if (p_timing->firing[id]) {
+  if (p_timer->firing) {
     timing_recalculate(p_timing);
   }
 
@@ -190,25 +217,28 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
                           uint32_t id,
                           int64_t delta) {
   int64_t new_time;
+  struct timer_struct* p_timer;
 
   uint32_t scale_factor = p_timing->scale_factor;
 
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
-  assert(p_timing->p_callbacks[id] != NULL);
+
+  p_timer = &p_timing->timers[id];
+  assert(p_timer->p_callback != NULL);
 
   delta *= scale_factor;
 
-  new_time = (p_timing->timings[id] + delta);
+  new_time = (p_timer->value + delta);
 
   if (p_new_value) {
     *p_new_value = (new_time / scale_factor);
   }
 
-  p_timing->timings[id] = new_time;
+  p_timer->value = new_time;
 
   /* TODO: can further optimize this away under certain circumstances? */
-  if (p_timing->firing[id]) {
+  if (p_timer->firing) {
     timing_recalculate(p_timing);
   }
 
@@ -220,7 +250,7 @@ timing_get_firing(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
-  return p_timing->firing[id];
+  return p_timing->timers[id].firing;
 }
 
 int64_t
@@ -228,7 +258,7 @@ timing_set_firing(struct timing_struct* p_timing, uint32_t id, int firing) {
   assert(id < k_timing_num_timers);
   assert(id < p_timing->max_timer);
 
-  p_timing->firing[id] = firing;
+  p_timing->timers[id].firing = firing;
 
   /* TODO: can optimize. */
   timing_recalculate(p_timing);
@@ -251,32 +281,32 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
 
   /* Pass 1: update all timers with their correct new value. */
   for (i = 0; i < max_timer; ++i) {
-    if (!p_timing->ticking[i]) {
+    struct timer_struct* p_timer = &p_timing->timers[i];
+    if (!p_timer->ticking) {
       continue;
     }
 
-    p_timing->timings[i] -= delta;
+    p_timer->value -= delta;
   }
 
   /* Pass 2: fire any timers. */
   for (i = 0; i < max_timer; ++i) {
     int64_t value;
 
-    if (!p_timing->ticking[i] || !p_timing->firing[i]) {
+    struct timer_struct* p_timer = &p_timing->timers[i];
+
+    if (!p_timer->ticking || !p_timer->firing) {
       continue;
     }
 
-    value = p_timing->timings[i];
+    value = p_timer->value;
     /* Callers of timing_do_advance_time() are required to expire active timers
      * exactly on time.
      */
     assert(value >= 0);
     if (value == 0) {
-      void (*p_callback)(void*) = p_timing->p_callbacks[i];
-      p_callback(p_timing->p_objects[i]);
-      assert(!p_timing->ticking[i] ||
-             !p_timing->firing[i] ||
-             (p_timing->timings[i] > 0));
+      p_timer->p_callback(p_timer->p_object);
+      assert(!p_timer->ticking || !p_timer->firing || (p_timer->value > 0));
     }
   }
 

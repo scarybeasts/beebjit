@@ -14,7 +14,8 @@ timing_test_timer_fired_basic(void* p) {
   g_timing_test_timer_hits_basic++;
 
   for (i = 0; i < p_timing->max_timer; ++i) {
-    if (p_timing->firing[i] && (p_timing->timings[i] == 0)) {
+    struct timer_struct* p_timer = &p_timing->timers[i];
+    if (p_timer->firing && (p_timer->value == 0)) {
       timing_stop_timer(p_timing, i);
     }
   }
