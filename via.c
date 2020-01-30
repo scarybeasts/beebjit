@@ -53,6 +53,8 @@ struct via_struct {
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
 
+  uint8_t IRA;
+  uint8_t IRB;
   uint8_t ORB;
   uint8_t ORA;
   uint8_t DDRB;
@@ -325,6 +327,11 @@ via_create(int id,
   p_via->DDRB = 0;
   p_via->ORA = 0;
   p_via->ORB = 0;
+  /* EMU: the input registers seem to be initialized to 0xFF on a real
+   * machine.
+   */
+  p_via->IRA = 0xFF;
+  p_via->IRB = 0xFF;
 
   via_set_t1c(p_via, 0xFFFF);
   p_via->T1L = 0xFFFF;
@@ -562,12 +569,15 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   switch (reg) {
   case k_via_ORB:
     assert((p_via->PCR & 0xA0) != 0x20);
-    assert(!(p_via->ACR & 0x02));
     orb = p_via->ORB;
     ddrb = p_via->DDRB;
     val = (orb & ddrb);
     port_val = via_read_port_b(p_via);
-    val |= (port_val & ~ddrb);
+    if (p_via->ACR & 0x02) {
+      val |= (p_via->IRB & ~ddrb);
+    } else {
+      val |= (port_val & ~ddrb);
+    }
     /* EMU NOTE: PB7 toggling is actually a mix-in of a separately maintained
      * bit, and it's mixed in to both IRB and ORB.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16081
@@ -583,12 +593,15 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     via_clear_interrupt(p_via, k_int_CA2);
     /* Fall through. */
   case k_via_ORAnh:
-    assert(!(p_via->ACR & 0x01));
-    ora = p_via->ORA;
-    ddra = p_via->DDRA;
-    val = (ora & ddra);
-    port_val = via_read_port_a(p_via);
-    val |= (port_val & ~ddra);
+    if (p_via->ACR & 0x01) {
+      val = p_via->IRA;
+    } else {
+      ora = p_via->ORA;
+      ddra = p_via->DDRA;
+      val = (ora & ddra);
+      port_val = via_read_port_a(p_via);
+      val |= (port_val & ~ddra);
+    }
     return val;
   case k_via_DDRB:
     return p_via->DDRB;
@@ -846,6 +859,7 @@ via_set_CA1(struct via_struct* p_via, int level) {
 
   trigger_level = !!(p_via->PCR & 1);
   if (level == trigger_level) {
+    p_via->IRA = p_via->peripheral_a;
     via_raise_interrupt(p_via, k_int_CA1);
     assert((p_via->PCR & 0x0C) != 0x08);
   }

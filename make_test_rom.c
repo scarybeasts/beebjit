@@ -1472,8 +1472,26 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x04);
   emit_JMP(p_buf, k_abs, 0xD580);
 
-  /* End of test. */
+  /* Test reading VIA input registers. */
   set_new_index(p_buf, 0x1580);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE6B);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE63);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE6F);
+  emit_LDA(p_buf, k_abs, 0xFE6F);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE6B);
+  emit_LDA(p_buf, k_abs, 0xFE6F);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE6B);
+  emit_JMP(p_buf, k_abs, 0xD5C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x15C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
