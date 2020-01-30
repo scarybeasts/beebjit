@@ -48,6 +48,11 @@ timing_test_basics() {
   test_expect_u32(100, countdown);
   test_expect_u32(100, timing_get_timer_value(p_timing, t1));
 
+  /* Timer is already firing, but this is checking for a bug that occurred when
+   * setting firing to 1 when it was already 1.
+   */
+  (void) timing_set_firing(p_timing, t1, 1);
+
   countdown = timing_set_timer_value(p_timing, t2, 50);
   test_expect_u32(0, timing_timer_is_running(p_timing, t2));
   test_expect_u32(100, countdown);
