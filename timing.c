@@ -17,15 +17,17 @@ struct timer_struct {
   int firing;
   struct timer_struct* p_expiry_prev;
   struct timer_struct* p_expiry_next;
+  struct timer_struct* p_ticking_prev;
+  struct timer_struct* p_ticking_next;
 };
 
 struct timing_struct {
   uint32_t scale_factor;
-  uint32_t max_timer;
   struct timer_struct timers[k_timing_num_timers];
 
   uint64_t total_timer_ticks;
   struct timer_struct* p_expiry_head;
+  struct timer_struct* p_ticking_head;
 };
 
 struct timing_struct*
@@ -38,9 +40,9 @@ timing_create(uint32_t scale_factor) {
   (void) memset(p_timing, '\0', sizeof(struct timing_struct));
 
   p_timing->scale_factor = scale_factor;
-  p_timing->max_timer = 0;
   p_timing->total_timer_ticks = 0;
   p_timing->p_expiry_head = NULL;
+  p_timing->p_ticking_head = NULL;
 
   return p_timing;
 }
@@ -88,8 +90,6 @@ timing_register_timer(struct timing_struct* p_timing,
   if (i == k_timing_num_timers) {
     errx(1, "out of timer ids");
   }
-
-  p_timing->max_timer = (i + 1);
 
   p_timer = &p_timing->timers[i];
 
@@ -153,6 +153,38 @@ timing_remove_expiring_timer(struct timing_struct* p_timing,
   p_timer->p_expiry_next = NULL;
 }
 
+static void
+timing_insert_ticking_timer(struct timing_struct* p_timing,
+                            struct timer_struct* p_timer) {
+  struct timer_struct* p_old_head = p_timing->p_ticking_head;
+
+  assert(p_timer->p_ticking_prev == NULL);
+  assert(p_timer->p_ticking_next == NULL);
+
+  p_timing->p_ticking_head = p_timer;
+  p_timer->p_ticking_next = p_old_head;
+  if (p_old_head) {
+    p_old_head->p_ticking_prev = p_timer;
+  }
+}
+
+static void
+timing_remove_ticking_timer(struct timing_struct* p_timing,
+                            struct timer_struct* p_timer) {
+  if (p_timer->p_ticking_prev) {
+    p_timer->p_ticking_prev->p_ticking_next = p_timer->p_ticking_next;
+  } else {
+    assert(p_timer == p_timing->p_ticking_head);
+    p_timing->p_ticking_head = p_timer->p_ticking_next;
+  }
+  if (p_timer->p_ticking_next) {
+    p_timer->p_ticking_next->p_ticking_prev = p_timer->p_ticking_prev;
+  }
+
+  p_timer->p_ticking_prev = NULL;
+  p_timer->p_ticking_next = NULL;
+}
+
 int64_t
 timing_start_timer(struct timing_struct* p_timing, uint32_t id) {
   int64_t value;
@@ -179,6 +211,7 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
   p_timer->value = time;
   p_timer->ticking = 1;
 
+  timing_insert_ticking_timer(p_timing, p_timer);
   if (p_timer->firing) {
     timing_insert_expiring_timer(p_timing, p_timer);
   }
@@ -191,7 +224,6 @@ timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
   struct timer_struct* p_timer;
 
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   p_timer = &p_timing->timers[id];
   assert(p_timer->p_callback != NULL);
@@ -199,6 +231,7 @@ timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
 
   p_timer->ticking = 0;
 
+  timing_remove_ticking_timer(p_timing, p_timer);
   if (p_timer->firing) {
     timing_remove_expiring_timer(p_timing, p_timer);
   }
@@ -209,7 +242,6 @@ timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
 int
 timing_timer_is_running(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   return p_timing->timers[id].ticking;
 }
@@ -219,7 +251,6 @@ timing_get_timer_value(struct timing_struct* p_timing, uint32_t id) {
   int64_t ret;
 
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   ret = p_timing->timers[id].value;
   ret /= p_timing->scale_factor;
@@ -233,7 +264,6 @@ timing_set_timer_value(struct timing_struct* p_timing,
   struct timer_struct* p_timer;
 
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   p_timer = &p_timing->timers[id];
   assert(p_timer->p_callback != NULL);
@@ -261,7 +291,6 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
   uint32_t scale_factor = p_timing->scale_factor;
 
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   p_timer = &p_timing->timers[id];
   assert(p_timer->p_callback != NULL);
@@ -287,7 +316,6 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
 int
 timing_get_firing(struct timing_struct* p_timing, uint32_t id) {
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   return p_timing->timers[id].firing;
 }
@@ -299,7 +327,6 @@ timing_set_firing(struct timing_struct* p_timing, uint32_t id, int firing) {
   int firing_changed = 0;
 
   assert(id < k_timing_num_timers);
-  assert(id < p_timing->max_timer);
 
   p_timer = &p_timing->timers[id];
   if (firing != p_timer->firing) {
@@ -320,21 +347,17 @@ timing_set_firing(struct timing_struct* p_timing, uint32_t id, int firing) {
 
 static void
 timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
-  uint32_t i;
   struct timer_struct* p_timer;
-
-  uint32_t max_timer = p_timing->max_timer;
 
   p_timing->total_timer_ticks += delta;
 
   /* Pass 1: update all timers with their correct new value. */
-  for (i = 0; i < max_timer; ++i) {
-    p_timer = &p_timing->timers[i];
-    if (!p_timer->ticking) {
-      continue;
-    }
-
+  p_timer = p_timing->p_ticking_head;
+  while (p_timer != NULL) {
+    assert(p_timer->ticking);
     p_timer->value -= delta;
+
+    p_timer = p_timer->p_ticking_next;
   }
 
   /* Pass 2: fire any timers. */
