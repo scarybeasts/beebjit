@@ -470,4 +470,11 @@ timing_advance_time(struct timing_struct* p_timing, int64_t countdown_target) {
   return countdown;
 }
 
+int64_t
+timing_advance_time_delta(struct timing_struct* p_timing, uint64_t delta) {
+  uint64_t countdown = p_timing->countdown;
+  countdown -= delta;
+  return timing_advance_time(p_timing, countdown);
+}
+
 #include "test-timing.c"

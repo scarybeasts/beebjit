@@ -36,5 +36,7 @@ int64_t timing_set_firing(struct timing_struct* p_timing,
 
 int64_t timing_get_countdown(struct timing_struct* p_timing);
 int64_t timing_advance_time(struct timing_struct* p_timing, int64_t countdown);
+int64_t timing_advance_time_delta(struct timing_struct* p_timing,
+                                  uint64_t delta);
 
 #endif /* BEEBJIT_TIMING_H */

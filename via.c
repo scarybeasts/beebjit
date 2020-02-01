@@ -549,10 +549,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  struct timing_struct* p_timing = p_via->p_timing;
-  int64_t countdown = timing_get_countdown(p_timing);
-  countdown--;
-  (void) timing_advance_time(p_timing, countdown);
+  (void) timing_advance_time_delta(p_via->p_timing, 1);
 
   assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
 
@@ -662,16 +659,14 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
    */
   int t1_firing = via_is_t1_firing(p_via);
   int t2_firing = via_is_t2_firing(p_via);
+  struct timing_struct* p_timing = p_via->p_timing;
 
   /* TODO: the way things have worked out, it looks like we'll have less
    * complexity if we apply the write right away and then fix up. There will
    * likely be less fixing up that way around.
    */
   /* Advance to the VIA mid-cycle. */
-  struct timing_struct* p_timing = p_via->p_timing;
-  int64_t countdown = timing_get_countdown(p_timing);
-  countdown--;
-  (void) timing_advance_time(p_timing, countdown);
+  (void) timing_advance_time_delta(p_timing, 1);
 
   assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
 
@@ -727,7 +722,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     }
     p_via->T1L = ((val << 8) | (p_via->T1L & 0xFF));
     via_load_T1(p_via);
-    timing_set_firing(p_via->p_timing, p_via->t1_timer_id, 1);
+    timing_set_firing(p_timing, p_via->t1_timer_id, 1);
     /* EMU TODO: does this behave differently if t1_firing as well? */
     p_via->t1_pb7 = 0;
     break;
@@ -763,7 +758,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
       timer_val++;
     }
     via_set_t2c(p_via, timer_val);
-    timing_set_firing(p_via->p_timing, p_via->t2_timer_id, 1);
+    timing_set_firing(p_timing, p_via->t2_timer_id, 1);
     break;
   case k_via_SR:
     p_via->SR = val;

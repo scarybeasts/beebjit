@@ -149,9 +149,11 @@ timing_test_basics() {
 
   countdown -= 1;
   countdown = timing_advance_time(p_timing, countdown);
-  test_expect_u32(99, countdown);
-  test_expect_u32(99, timing_get_timer_value(p_timing, t1));
-  test_expect_u32(49, timing_get_timer_value(p_timing, t2));
+  countdown = timing_advance_time_delta(p_timing, 1);
+  test_expect_u32(98, countdown);
+  test_expect_u32(2, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(98, timing_get_timer_value(p_timing, t1));
+  test_expect_u32(48, timing_get_timer_value(p_timing, t2));
 
   test_expect_u32(200, timing_get_timer_value(p_timing, t3));
   (void) timing_set_timer_value(p_timing, t3, 190);
@@ -159,7 +161,7 @@ timing_test_basics() {
   (void) timing_adjust_timer_value(p_timing, NULL, t3, -5);
   test_expect_u32(185, timing_get_timer_value(p_timing, t3));
 
-  countdown -= 99;
+  countdown -= 98;
   countdown = timing_advance_time(p_timing, countdown);
   test_expect_u32(1, g_timing_test_timer_hits_basic);
   test_expect_u32(0, timing_get_timer_value(p_timing, t1));

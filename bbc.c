@@ -243,10 +243,7 @@ bbc_read_callback(void* p, uint16_t addr) {
      * the 1Mhz train.
      */
     if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      struct timing_struct* p_timing = p_bbc->p_timing;
-      int64_t countdown = timing_get_countdown(p_timing);
-      countdown--;
-      (void) timing_advance_time(p_timing, countdown);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
   }
 
@@ -395,10 +392,7 @@ bbc_read_callback(void* p, uint16_t addr) {
   if (is_1MHz) {
     /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
     if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      struct timing_struct* p_timing = p_bbc->p_timing;
-      int64_t countdown = timing_get_countdown(p_timing);
-      countdown--;
-      (void) timing_advance_time(p_timing, countdown);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
   }
 
@@ -511,10 +505,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
      * the 1Mhz train.
      */
     if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      struct timing_struct* p_timing = p_bbc->p_timing;
-      int64_t countdown = timing_get_countdown(p_timing);
-      countdown--;
-      countdown = timing_advance_time(p_timing, countdown);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
   }
 
@@ -643,10 +634,7 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   if (is_1MHz) {
     /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
     if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      struct timing_struct* p_timing = p_bbc->p_timing;
-      int64_t countdown = timing_get_countdown(p_timing);
-      countdown--;
-      (void) timing_advance_time(p_timing, countdown);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
   }
 }
