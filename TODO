@@ -9,7 +9,6 @@ get addressed before the next release.
 - Add README and EXAMPLES files.
 - Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
 Exile).
-- Make timing.c not suck for performance.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - Uridium JIT crash after ship blows up.

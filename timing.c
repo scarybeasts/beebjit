@@ -28,6 +28,9 @@ struct timing_struct {
   uint64_t total_timer_ticks;
   struct timer_struct* p_expiry_head;
   struct timer_struct* p_ticking_head;
+
+  uint64_t next_timer_expiry;
+  uint64_t countdown;
 };
 
 struct timing_struct*
@@ -44,6 +47,9 @@ timing_create(uint32_t scale_factor) {
   p_timing->p_expiry_head = NULL;
   p_timing->p_ticking_head = NULL;
 
+  p_timing->next_timer_expiry = INT64_MAX;
+  p_timing->countdown = INT64_MAX;
+
   return p_timing;
 }
 
@@ -52,15 +58,37 @@ timing_destroy(struct timing_struct* p_timing) {
   free(p_timing);
 }
 
+static inline uint64_t
+timing_get_countdown_adjustment(struct timing_struct* p_timing) {
+  assert(p_timing->next_timer_expiry >= p_timing->countdown);
+  return (p_timing->next_timer_expiry - p_timing->countdown);
+}
+
+static uint64_t
+timing_update_counts(struct timing_struct* p_timing) {
+  uint64_t countdown;
+  uint64_t next_timer_expiry;
+
+  struct timer_struct* p_expiry_head = p_timing->p_expiry_head;
+  uint64_t adjustment = timing_get_countdown_adjustment(p_timing);
+
+  if (p_expiry_head == NULL) {
+    next_timer_expiry = INT64_MAX;
+  } else {
+    next_timer_expiry = p_expiry_head->value;
+  }
+
+  countdown = (next_timer_expiry - adjustment);
+
+  p_timing->next_timer_expiry = next_timer_expiry;
+  p_timing->countdown = countdown;
+
+  return countdown;
+}
+
 inline int64_t
 timing_get_countdown(struct timing_struct* p_timing) {
-  struct timer_struct* p_expiry_head = p_timing->p_expiry_head;
-
-  if (p_expiry_head != NULL) {
-    return p_expiry_head->value;
-  } else {
-    return INT64_MAX;
-  }
+  return p_timing->countdown;
 }
 
 uint64_t
@@ -116,6 +144,10 @@ timing_insert_expiring_timer(struct timing_struct* p_timing,
   assert(p_timer->firing);
 
   while ((p_iter != NULL) && (p_timer->value > p_iter->value)) {
+    assert((p_prev == NULL) || (p_iter->value >= p_prev->value));
+    if (p_iter->p_expiry_next) {
+      assert(p_iter->p_expiry_next->p_expiry_prev == p_iter);
+    }
     p_prev = p_iter;
     p_iter = p_iter->p_expiry_next;
   }
@@ -187,11 +219,11 @@ timing_remove_ticking_timer(struct timing_struct* p_timing,
 
 int64_t
 timing_start_timer(struct timing_struct* p_timing, uint32_t id) {
-  int64_t value;
+  struct timer_struct* p_timer;
 
   assert(id < k_timing_num_timers);
-  value = p_timing->timers[id].value;
-  return timing_start_timer_with_value(p_timing, id, value);
+  p_timer = &p_timing->timers[id];
+  return timing_start_timer_with_value(p_timing, id, p_timer->value);
 }
 
 int64_t
@@ -207,6 +239,7 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
   assert(!p_timer->ticking);
 
   time *= p_timing->scale_factor;
+  time += timing_get_countdown_adjustment(p_timing);
 
   p_timer->value = time;
   p_timer->ticking = 1;
@@ -216,7 +249,7 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
     timing_insert_expiring_timer(p_timing, p_timer);
   }
 
-  return timing_get_countdown(p_timing);
+  return timing_update_counts(p_timing);
 }
 
 int64_t
@@ -236,7 +269,12 @@ timing_stop_timer(struct timing_struct* p_timing, uint32_t id) {
     timing_remove_expiring_timer(p_timing, p_timer);
   }
 
-  return timing_get_countdown(p_timing);
+  /* While the timer is not ticking, store the timer value directly. This
+   * avoids having to update it while the countdown ticks.
+   */
+  p_timer->value -= timing_get_countdown_adjustment(p_timing);
+
+  return timing_update_counts(p_timing);
 }
 
 int
@@ -248,11 +286,16 @@ timing_timer_is_running(struct timing_struct* p_timing, uint32_t id) {
 
 int64_t
 timing_get_timer_value(struct timing_struct* p_timing, uint32_t id) {
+  struct timer_struct* p_timer;
   int64_t ret;
 
   assert(id < k_timing_num_timers);
 
-  ret = p_timing->timers[id].value;
+  p_timer = &p_timing->timers[id];
+  ret = p_timer->value;
+  if (p_timer->ticking) {
+    ret -= timing_get_countdown_adjustment(p_timing);
+  }
   ret /= p_timing->scale_factor;
   return ret;
 }
@@ -269,6 +312,9 @@ timing_set_timer_value(struct timing_struct* p_timing,
   assert(p_timer->p_callback != NULL);
 
   time *= p_timing->scale_factor;
+  if (p_timer->ticking) {
+    time += timing_get_countdown_adjustment(p_timing);
+  }
 
   p_timer->value = time;
 
@@ -277,7 +323,7 @@ timing_set_timer_value(struct timing_struct* p_timing,
     timing_insert_expiring_timer(p_timing, p_timer);
   }
 
-  return timing_get_countdown(p_timing);
+  return timing_update_counts(p_timing);
 }
 
 int64_t
@@ -310,7 +356,7 @@ timing_adjust_timer_value(struct timing_struct* p_timing,
     timing_insert_expiring_timer(p_timing, p_timer);
   }
 
-  return timing_get_countdown(p_timing);
+  return timing_update_counts(p_timing);
 }
 
 int
@@ -342,23 +388,34 @@ timing_set_firing(struct timing_struct* p_timing, uint32_t id, int firing) {
     }
   }
 
-  return timing_get_countdown(p_timing);
+  return timing_update_counts(p_timing);
 }
 
-static void
+static uint64_t
 timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
   struct timer_struct* p_timer;
 
-  p_timing->total_timer_ticks += delta;
+  delta += timing_get_countdown_adjustment(p_timing);
 
   /* Pass 1: update all timers with their correct new value. */
   p_timer = p_timing->p_ticking_head;
   while (p_timer != NULL) {
     assert(p_timer->ticking);
+    if (p_timer->p_expiry_next) {
+      assert(p_timer->p_expiry_next->p_expiry_prev == p_timer);
+    }
+    if (p_timer->p_ticking_next) {
+      assert(p_timer->p_ticking_next->p_ticking_prev == p_timer);
+    }
+
     p_timer->value -= delta;
 
     p_timer = p_timer->p_ticking_next;
   }
+
+  /* Clear the countdown adjustment. */
+  p_timing->next_timer_expiry = 0;
+  p_timing->countdown = 0;
 
   /* Pass 2: fire any timers. */
   p_timer = p_timing->p_expiry_head;
@@ -379,33 +436,38 @@ timing_do_advance_time(struct timing_struct* p_timing, uint64_t delta) {
            !p_old_timer->firing ||
            (p_old_timer->value > 0));
   }
+
+  return timing_update_counts(p_timing);
 }
 
 int64_t
 timing_advance_time(struct timing_struct* p_timing, int64_t countdown_target) {
-  uint64_t sub_delta;
+  uint64_t countdown;
+  int64_t delta;
 
-  int64_t countdown = timing_get_countdown(p_timing);
-  uint64_t orig_delta = (countdown - countdown_target);
-  uint64_t delta = orig_delta;
+  countdown = p_timing->countdown;
+  delta = (countdown - countdown_target);
 
-  assert(countdown_target <= countdown);
-
-  sub_delta = countdown;
+  assert(delta >= 0);
 
   while (delta) {
-    if (sub_delta > delta) {
-      /* TODO: optimization, can return if we know nothing expires. */
-      sub_delta = delta;
-    }
-    timing_do_advance_time(p_timing, sub_delta);
-    delta -= sub_delta;
+    /* Common case: delta is less than the amount to the next event. Get out
+     * quickly.
+     */
+    if ((uint64_t) delta < countdown) {
+      countdown -= delta;
+      p_timing->countdown = countdown;
+      p_timing->total_timer_ticks += delta;
 
-    sub_delta = timing_get_countdown(p_timing);
-    assert(((int64_t) sub_delta) > 0);
+      return countdown;
+    }
+
+    p_timing->total_timer_ticks += countdown;
+    delta -= countdown;
+    countdown = timing_do_advance_time(p_timing, countdown);
   }
 
-  return timing_get_countdown(p_timing);
+  return countdown;
 }
 
 #include "test-timing.c"

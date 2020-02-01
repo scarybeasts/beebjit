@@ -16,15 +16,97 @@ timing_test_timer_fired_basic(void* p) {
   for (i = 0; i < k_timing_num_timers; ++i) {
     struct timer_struct* p_timer = &p_timing->timers[i];
     if (p_timer->firing && (p_timer->value == 0)) {
-      timing_stop_timer(p_timing, i);
+      test_expect_u32(0, timing_get_timer_value(p_timing, i));
+      (void) timing_stop_timer(p_timing, i);
     }
   }
+}
+
+static void
+timing_test_counting() {
+  uint64_t countdown;
+
+  g_timing_test_timer_hits_basic = 0;
+  struct timing_struct* p_timing = timing_create(1);
+
+  uint32_t t1 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_basic,
+                                      p_timing);
+  uint32_t t2 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_basic,
+                                      p_timing);
+  (void) t2;
+
+  test_expect_u32((uint32_t) INT64_MAX, timing_get_countdown(p_timing));
+  countdown = timing_start_timer_with_value(p_timing, t1, 100);
+  test_expect_u32(100, countdown);
+  test_expect_u32(100, timing_get_countdown(p_timing));
+  countdown = timing_advance_time(p_timing, 98);
+  test_expect_u32(98, countdown);
+  test_expect_u32(2, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(2, timing_get_scaled_total_timer_ticks(p_timing));
+  /* Peek at the internals to make sure we're really testing a countdown
+   * advance that didn't update all timer baselines.
+   */
+  test_expect_u32(98, p_timing->countdown);
+  test_expect_u32(100, p_timing->timers[0].value);
+  test_expect_u32(98, timing_get_timer_value(p_timing, t1));
+
+  countdown = timing_start_timer_with_value(p_timing, t2, 50);
+  test_expect_u32(50, countdown);
+  test_expect_u32(50, p_timing->countdown);
+  test_expect_u32(100, p_timing->timers[0].value);
+  test_expect_u32(52, p_timing->timers[1].value);
+  test_expect_u32(98, timing_get_timer_value(p_timing, t1));
+  test_expect_u32(50, timing_get_timer_value(p_timing, t2));
+
+  countdown = timing_stop_timer(p_timing, t2);
+  test_expect_u32(50, timing_get_timer_value(p_timing, t2));
+  test_expect_u32(98, countdown);
+  test_expect_u32(98, p_timing->countdown);
+  countdown = timing_start_timer(p_timing, t2);
+  test_expect_u32(50, countdown);
+  test_expect_u32(50, p_timing->countdown);
+
+  countdown = timing_set_timer_value(p_timing, t2, 40);
+  test_expect_u32(40, countdown);
+  test_expect_u32(40, p_timing->countdown);
+  test_expect_u32(100, p_timing->timers[0].value);
+  test_expect_u32(42, p_timing->timers[1].value);
+
+  countdown = timing_adjust_timer_value(p_timing, NULL, t2, -10);
+  test_expect_u32(30, countdown);
+  test_expect_u32(30, p_timing->countdown);
+  test_expect_u32(100, p_timing->timers[0].value);
+  test_expect_u32(32, p_timing->timers[1].value);
+
+  countdown = timing_set_firing(p_timing, t2, 0);
+  test_expect_u32(98, countdown);
+  test_expect_u32(98, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t2, 1);
+  test_expect_u32(30, countdown);
+  test_expect_u32(30, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t1, 0);
+  test_expect_u32(30, countdown);
+  test_expect_u32(30, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t1, 1);
+  test_expect_u32(30, countdown);
+  test_expect_u32(30, p_timing->countdown);
+
+  countdown = timing_advance_time(p_timing, 0);
+  test_expect_u32(68, countdown);
+  test_expect_u32(68, p_timing->countdown);
+
+  countdown = timing_advance_time(p_timing, countdown);
+
+  timing_destroy(p_timing);
 }
 
 static void
 timing_test_basics() {
   uint64_t countdown;
 
+  g_timing_test_timer_hits_basic = 0;
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
@@ -63,13 +145,19 @@ timing_test_basics() {
   test_expect_u32(100, countdown);
 
   (void) timing_set_timer_value(p_timing, t3, 200);
+  test_expect_u32(200, timing_get_timer_value(p_timing, t3));
 
   countdown -= 1;
   countdown = timing_advance_time(p_timing, countdown);
   test_expect_u32(99, countdown);
   test_expect_u32(99, timing_get_timer_value(p_timing, t1));
   test_expect_u32(49, timing_get_timer_value(p_timing, t2));
+
   test_expect_u32(200, timing_get_timer_value(p_timing, t3));
+  (void) timing_set_timer_value(p_timing, t3, 190);
+  test_expect_u32(190, timing_get_timer_value(p_timing, t3));
+  (void) timing_adjust_timer_value(p_timing, NULL, t3, -5);
+  test_expect_u32(185, timing_get_timer_value(p_timing, t3));
 
   countdown -= 99;
   countdown = timing_advance_time(p_timing, countdown);
@@ -156,6 +244,7 @@ timing_test_multi_expiry() {
 
 void
 timing_test() {
+  timing_test_counting();
   timing_test_basics();
   timing_test_multi_expiry();
 }
