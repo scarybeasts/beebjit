@@ -30,7 +30,6 @@ dependent on one another.
 - Add cursor support to the 6845 CRTC.
 - Add fdi disc format support.
 - MODE7 doesn't have character rounding.
-- Remove crufty old rendering code for -fast mode.
 - Incorrect color line at bottom of status area in Lunar Jetman.
 - Accurate last line latching for 6845.
 

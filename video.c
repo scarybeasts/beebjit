@@ -1140,179 +1140,77 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   p_video->num_vsyncs++;
 }
 
-static void
-video_1MHz_mode_render(struct video_struct* p_video,
-                       int mode,
-                       size_t horiz_chars,
-                       size_t vert_chars,
-                       size_t horiz_chars_offset,
-                       size_t vert_lines_offset) {
-  size_t y;
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_frame_buf = render_get_buffer(p_render);
-  uint32_t width = render_get_width(p_render);
-  struct render_table_1MHz* p_render_table =
-      render_get_1MHz_render_table(p_render, mode);
-  uint32_t video_memory_row_size = (horiz_chars * 8);
-  uint32_t offset = 0;
-
-  for (y = 0; y < vert_chars; ++y) {
-    size_t x;
-    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
-                                                        offset,
-                                                        video_memory_row_size);
-    for (x = 0; x < horiz_chars; ++x) {
-      size_t y2;
-      for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t data = *p_video_mem++;
-        uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        struct render_character_1MHz* p_character_buffer;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
-        p_render_buffer += ((x + horiz_chars_offset) * 16);
-        p_character_buffer = (struct render_character_1MHz*) p_render_buffer;
-        *p_character_buffer = p_render_table->values[data];
-      }
-    }
-
-    offset += horiz_chars;;
-  }
-}
-
-static void
-video_2MHz_mode_render(struct video_struct* p_video,
-                       int mode,
-                       size_t horiz_chars,
-                       size_t vert_chars,
-                       size_t horiz_chars_offset,
-                       size_t vert_lines_offset) {
-  size_t y;
-
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_frame_buf = render_get_buffer(p_render);
-  uint32_t width = render_get_width(p_render);
-  struct render_table_2MHz* p_render_table =
-      render_get_2MHz_render_table(p_render, mode);
-  uint32_t video_memory_row_size = (horiz_chars * 8);
-  uint32_t offset = 0;
-
-  for (y = 0; y < vert_chars; ++y) {
-    size_t x;
-    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
-                                                        offset,
-                                                        video_memory_row_size);
-    for (x = 0; x < horiz_chars; ++x) {
-      size_t y2;
-      for (y2 = 0; y2 < 8; ++y2) {
-        uint8_t data = *p_video_mem++;
-        uint32_t* p_render_buffer = (uint32_t*) p_frame_buf;
-        struct render_character_2MHz* p_character_buffer;
-        p_render_buffer += (((y * 8) + y2 + vert_lines_offset) * 2 * width);
-        p_render_buffer += ((x + horiz_chars_offset) * 8);
-        p_character_buffer = (struct render_character_2MHz*) p_render_buffer;
-        *p_character_buffer = p_render_table->values[data];
-      }
-    }
-
-    offset += horiz_chars;
-  }
-}
-
 void
 video_render_full_frame(struct video_struct* p_video) {
-  int clock_speed;
-  size_t horiz_chars;
-  size_t vert_chars;
-  size_t vert_lines;
-  int horiz_chars_offset;
-  int vert_lines_offset;
-
-  size_t max_horiz_chars;
-  size_t max_vert_lines;
+  uint32_t i_cols;
+  uint32_t i_lines;
+  uint32_t i_rows;
+  uint32_t crtc_line_address;
 
   struct render_struct* p_render = p_video->p_render;
-  uint32_t* p_render_buffer = render_get_buffer(p_render);
-  int mode = p_video->render_mode;
+  void (*func_render_data)(struct render_struct*, uint8_t) =
+      render_get_render_data_function(p_render);
+  void (*func_render_blank)(struct render_struct*, uint8_t) =
+      render_get_render_blank_function(p_render);
 
-  if (p_render_buffer == NULL) {
-    return;
-  }
+  /* This render function is typically called on a different thread to the
+   * BBC thread, so make sure to reload register values from memory.
+   */
+  volatile uint8_t* p_regs = (volatile uint8_t*) &p_video->crtc_registers;
 
-  clock_speed = video_get_clock_speed(p_video);
+  uint32_t crtc_start_address = ((p_regs[k_crtc_reg_mem_addr_high] << 8) |
+                                 p_regs[k_crtc_reg_mem_addr_low]);
+  uint32_t screen_wrap_add = p_video->screen_wrap_add;
+  uint32_t num_rows = p_regs[k_crtc_reg_vert_displayed];
+  uint32_t num_lines = p_regs[k_crtc_reg_lines_per_character];
+  uint32_t num_cols = p_regs[k_crtc_reg_horiz_displayed];
+  uint32_t num_pre_lines = 0;
+  uint32_t num_pre_cols = 0;
+  uint8_t* p_bbc_mem = p_video->p_bbc_mem;
+  struct teletext_struct* p_teletext = p_video->p_teletext;
 
-  max_vert_lines = 256;
-  if (clock_speed == 0) {
-    max_horiz_chars = 40;
+  if ((p_regs[k_crtc_reg_interlace] & 0x03) == 0x03) {
+    num_lines += 2;
+    num_lines /= 2;
   } else {
-    max_horiz_chars = 80;
+    num_lines += 1;
+  }
+  if (p_regs[k_crtc_reg_vert_total] > p_regs[k_crtc_reg_vert_sync_position]) {
+    num_pre_lines = (p_regs[k_crtc_reg_vert_total] -
+                     p_regs[k_crtc_reg_vert_sync_position]);
+    num_pre_lines *= num_lines;
+  }
+  num_pre_lines += p_regs[k_crtc_reg_vert_adjust];
+  if (p_regs[k_crtc_reg_horiz_total] > p_regs[k_crtc_reg_horiz_position]) {
+    num_pre_cols = (p_regs[k_crtc_reg_horiz_total] -
+                    p_regs[k_crtc_reg_horiz_position]);
   }
 
-  horiz_chars = video_get_horiz_chars(p_video, clock_speed);
-  vert_chars = video_get_vert_chars(p_video);
-  vert_lines = (vert_chars * 8);
-  horiz_chars_offset = video_get_horiz_chars_offset(p_video, clock_speed);
-  vert_lines_offset = video_get_vert_lines_offset(p_video);
-  assert(horiz_chars_offset >= 0);
-  assert(vert_lines_offset >= 0);
+  render_vsync(p_render);
+  teletext_VSYNC_changed(p_teletext, 0);
 
-  if (horiz_chars > max_horiz_chars) {
-    horiz_chars = max_horiz_chars;
+  for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
+    render_hsync(p_render);
   }
-  if (vert_lines > max_vert_lines) {
-    vert_lines = max_vert_lines;
-  }
-  if ((size_t) horiz_chars_offset > max_horiz_chars) {
-    horiz_chars_offset = max_horiz_chars;
-  }
-  if ((size_t) vert_lines_offset > max_vert_lines) {
-    vert_lines_offset = max_vert_lines;
-  }
-  if (horiz_chars + horiz_chars_offset > max_horiz_chars) {
-    horiz_chars = (max_horiz_chars - horiz_chars_offset);
-  }
-  if (vert_lines + vert_lines_offset > max_vert_lines) {
-    vert_lines = (max_vert_lines - vert_lines_offset);
-    vert_chars = (vert_lines / 8);
-  }
-
-  /* Clear the screen if the size or position changed. */
-  if (horiz_chars != p_video->prev_horiz_chars ||
-      vert_chars != p_video->prev_vert_chars ||
-      horiz_chars_offset != p_video->prev_horiz_chars_offset ||
-      vert_lines_offset != p_video->prev_vert_lines_offset) {
-    render_clear_buffer(p_render);
-  }
-  p_video->prev_horiz_chars = horiz_chars;
-  p_video->prev_vert_chars = vert_chars;
-  p_video->prev_horiz_chars_offset = horiz_chars_offset;
-  p_video->prev_vert_lines_offset = vert_lines_offset;
-
-  switch (mode) {
-  case k_render_mode7:
-    /* NOTE: what happens with crazy combinations, such as 2MHz clock here? */
-    teletext_render_full(p_video->p_teletext, p_video);
-    break;
-  case k_render_mode0:
-  case k_render_mode1:
-  case k_render_mode2:
-    video_2MHz_mode_render(p_video,
-                           mode,
-                           horiz_chars,
-                           vert_chars,
-                           horiz_chars_offset,
-                           vert_lines_offset);
-    break;
-  case k_render_mode4:
-  case k_render_mode5:
-    video_1MHz_mode_render(p_video,
-                           mode,
-                           horiz_chars,
-                           vert_chars,
-                           horiz_chars_offset,
-                           vert_lines_offset);
-    break;
-  default:
-    assert(0);
-    break;
+  for (i_rows = 0; i_rows < num_rows; ++i_rows) {
+    for (i_lines = 0; i_lines < num_lines; ++i_lines) {
+      crtc_line_address = (crtc_start_address + (i_rows * num_cols));
+      for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
+        func_render_blank(p_render, 0x00);
+      }
+      for (i_cols = 0; i_cols < num_cols; ++i_cols) {
+        uint32_t bbc_address;
+        crtc_line_address &= 0x3FFF;
+        bbc_address = video_calculate_bbc_address(NULL,
+                                                  crtc_line_address,
+                                                  i_lines,
+                                                  screen_wrap_add);
+        func_render_data(p_render, p_bbc_mem[bbc_address]);
+        crtc_line_address++;
+      }
+      render_hsync(p_render);
+      teletext_DISPMTG_changed(p_teletext, 0);
+    }
   }
 }
 
@@ -1661,112 +1559,6 @@ video_set_crtc_registers(struct video_struct* p_video,
   for (i = 0; i < k_crtc_num_registers; ++i) {
     p_video->crtc_registers[i] = p_values[i];
   }
-}
-
-uint8_t*
-video_get_video_memory_slice(struct video_struct* p_video,
-                             uint32_t crtc_offset,
-                             uint32_t length) {
-  uint32_t crtc_address;
-  uint32_t screen_address;
-  uint32_t bbc_address;
-  uint32_t first_chunk_len;
-  uint32_t second_chunk_len;
-
-  uint8_t* p_bbc_mem = p_video->p_bbc_mem;
-
-  assert(crtc_offset < 0x1000);
-  assert(length < 0x1000);
-
-  if (length > sizeof(p_video->video_memory_contiguous)) {
-    errx(1, "excessive length in video_get_video_memory_slice");
-  }
-
-  crtc_address = (p_video->crtc_registers[k_crtc_reg_mem_addr_high] << 8);
-  crtc_address |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
-  crtc_address += crtc_offset;
-
-  bbc_address = video_calculate_bbc_address(&screen_address,
-                                            crtc_address,
-                                            0,
-                                            p_video->screen_wrap_add);
-
-  /* NOTE: won't work for the weird 0x3C00 MODE7 quirk.
-   * Also won't work for crtc addresses that cross a behavior boundary, i.e.
-   * 0x3FFF -> 0x0000.
-   */
-  if ((bbc_address + length) <= 0x8000) {
-    return (p_bbc_mem + bbc_address);
-  }
-
-  /* This video memory slice wraps around so build a contiguous buffer. */
-  first_chunk_len = (0x8000 - bbc_address);
-  second_chunk_len = (length - first_chunk_len);
-  (void) memcpy(&p_video->video_memory_contiguous[0],
-                (p_bbc_mem + bbc_address),
-                first_chunk_len);
-  (void) memcpy((&p_video->video_memory_contiguous[0] + first_chunk_len),
-                (p_bbc_mem + screen_address),
-                second_chunk_len);
-
-  return &p_video->video_memory_contiguous[0];
-}
-
-size_t
-video_get_horiz_chars(struct video_struct* p_video, size_t clock_speed) {
-  /* NOTE: clock_speed is passed in rather than fetched, to avoid race
-   * conditions where the BBC thread is changing values from under us.
-   */
-  size_t ret = p_video->crtc_registers[k_crtc_reg_horiz_displayed];
-
-  if (clock_speed == 1 && ret > 80) {
-    ret = 80;
-  } else if (clock_speed == 0 && ret > 40) {
-    ret = 40;
-  }
-
-  return ret;
-}
-
-size_t
-video_get_vert_chars(struct video_struct* p_video) {
-  size_t ret = p_video->crtc_registers[k_crtc_reg_vert_displayed];
-  if (ret > 32) {
-    ret = 32;
-  }
-
-  return ret;
-}
-
-int
-video_get_horiz_chars_offset(struct video_struct* p_video, size_t clock_speed) {
-  /* NOTE: clock_speed is passed in rather than fetched, to avoid race
-   * conditions where the BBC thread is changing values from under us.
-   */
-  int ret = p_video->crtc_registers[k_crtc_reg_horiz_position];
-  int max = 49;
-  if (clock_speed == 1) {
-    max = 98;
-  }
-  if (ret > max) {
-    ret = max;
-  }
-
-  return (max - ret);
-}
-
-int
-video_get_vert_lines_offset(struct video_struct* p_video) {
-  int ret;
-  uint8_t pos = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
-  uint8_t adjust = p_video->crtc_registers[k_crtc_reg_vert_adjust];
-  if (pos > 34) {
-    pos = 34;
-  }
-
-  ret = ((34 - pos) * 8);
-  ret += adjust;
-  return ret;
 }
 
 #include "test-video.c"

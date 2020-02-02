@@ -17,7 +17,4 @@ void teletext_render_data(struct teletext_struct* p_teletext,
 void teletext_DISPMTG_changed(struct teletext_struct* p_teletext, int value);
 void teletext_VSYNC_changed(struct teletext_struct* p_teletext, int value);
 
-void teletext_render_full(struct teletext_struct* p_teletext,
-                          struct video_struct* p_video);
-
 #endif /* BEEBJIT_TELETEXT_H */

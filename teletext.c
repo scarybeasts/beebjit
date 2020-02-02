@@ -292,55 +292,6 @@ teletext_render_data(struct teletext_struct* p_teletext,
   }
 }
 
-
-static void
-teletext_render_line(struct teletext_struct* p_teletext,
-                     uint8_t* p_src_chars,
-                     uint8_t columns,
-                     uint32_t* p_dest_buffer) {
-  uint32_t column;
-  struct render_character_1MHz* p_character =
-      (struct render_character_1MHz*) p_dest_buffer;
-
-  for (column = 0; column < columns; ++column) {
-    uint8_t data = *p_src_chars++;
-
-    teletext_render_data(p_teletext, p_character, data);
-    p_character++;
-  }
-}
-
-void
-teletext_render_full(struct teletext_struct* p_teletext,
-                     struct video_struct* p_video) {
-  uint32_t row;
-
-  struct render_struct* p_render = video_get_render(p_video);
-  uint32_t* p_render_buffer = render_get_buffer(p_render);
-  uint32_t stride = render_get_width(p_render);
-  uint32_t offset = 0;
-
-  teletext_new_frame_started(p_teletext);
-
-  for (row = 0; row < 25; ++row) {
-    uint8_t* p_video_mem = video_get_video_memory_slice(p_video,
-                                                        offset,
-                                                        40);
-    assert(p_teletext->scanline == 0);
-    do {
-      teletext_render_line(p_teletext,
-                           p_video_mem,
-                           40,
-                           p_render_buffer);
-      teletext_scanline_ended(p_teletext);
-
-      p_render_buffer += (stride * 2);
-    } while (p_teletext->scanline != 0);
-
-    offset += 40;
-  }
-}
-
 void
 teletext_DISPMTG_changed(struct teletext_struct* p_teletext, int value) {
   /* TODO: we've currently only wired this up to HSYNC but it will suffice. */
