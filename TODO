@@ -11,7 +11,6 @@ get addressed before the next release.
 Exile).
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
-- Uridium JIT crash after ship blows up.
 - Re-add unit test for JIT block handling and splitting etc.
 - BCD support in JIT?
 

@@ -1490,8 +1490,25 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_JMP(p_buf, k_abs, 0xD5C0);
 
-  /* End of test. */
+  /* Test an interesting JIT metadata bug where an incorrect invalidation
+   * address led to JIT code corruption.
+   */
   set_new_index(p_buf, 0x15C0);
+  emit_JSR(p_buf, 0x3160);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x3160);
+  emit_JSR(p_buf, 0x3160);
+  /* The issue here is that the host invalidation address for $3161 is left
+   * stale from the first block that was compiled there, and not cleared when
+   * the second (shorter) block was compiled.
+   * This would hit a host(!) illegal instruction.
+   */
+  emit_STA(p_buf, k_abs, 0x3161);
+  emit_JSR(p_buf, 0x3160);
+  emit_JMP(p_buf, k_abs, 0xD600);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1600);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1659,6 +1676,14 @@ main(int argc, const char* argv[]) {
   emit_INC(p_buf, k_abs, 0x3153);
   emit_DEY(p_buf);
   emit_BNE(p_buf, -9);
+  emit_RTS(p_buf);
+
+  /* For an interesting JIT metadata bug. */
+  set_new_index(p_buf, 0x3160);
+  emit_INX(p_buf);
+  emit_STX(p_buf, k_zpg, 0xF0);
+  emit_INY(p_buf);
+  emit_STY(p_buf, k_zpg, 0xF1);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

@@ -84,10 +84,41 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
 
 static void
 jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
+  uint16_t block_addr_6502;
   uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
-  uint16_t block_addr_6502 =
+
+  if (jit_ptr == p_compiler->jit_ptr_no_code) {
+    return;
+  }
+
+  block_addr_6502 =
       p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
+  /* If we're compiling in the middle of an existing block, invalidate the
+   * very start of that block so it gets recompiled when it is next hit.
+   */
   jit_invalidate_jump_target(p_compiler, block_addr_6502);
+
+  /* Also clear all of the JIT invalidation pointers for the existing block.
+   * They will typically get rewritten but some might otherwise get left stale
+   * if we recompile a small block exactly on top of an existing larger one.
+   */
+  while (1) {
+    uint16_t next_block_addr_6502;
+    addr++;
+    jit_ptr = p_compiler->p_jit_ptrs[addr];
+
+    if (jit_ptr == p_compiler->jit_ptr_dynamic_operand) {
+      continue;
+    }
+
+    next_block_addr_6502 =
+        p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object,
+                                      jit_ptr);
+    if (next_block_addr_6502 != block_addr_6502) {
+      break;
+    }
+    p_compiler->p_jit_ptrs[addr] = p_compiler->jit_ptr_no_code;
+  }
 }
 
 static int
@@ -1750,7 +1781,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     uint8_t num_bytes_6502;
     uint8_t i;
     uint32_t jit_ptr;
-    uint16_t addr_6502;
 
     p_details = &opcode_details[i_opcodes];
     if (p_details->eliminated) {
