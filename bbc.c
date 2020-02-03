@@ -102,6 +102,7 @@ struct bbc_struct {
   int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
+  uint32_t IC32;
   struct keyboard_struct* p_keyboard;
   struct sound_struct* p_sound;
   struct render_struct* p_render;
@@ -1177,6 +1178,31 @@ bbc_get_render(struct bbc_struct* p_bbc) {
 struct serial_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
+}
+
+uint8_t
+bbc_get_IC32(struct bbc_struct* p_bbc) {
+  return p_bbc->IC32;
+}
+
+void
+bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val) {
+  p_bbc->IC32 = val;
+
+  /* IC32 is the addressable latch. It selects what peripheral(s) are active on
+   * the system VIA port A bus, as well as storing other system bits.
+   * Changing this selection requires various notifications.
+   */
+
+  /* Selecting or deselecting the keyboard may need to change interrupt and / or
+   * bus value status.
+   */
+  via_update_port_a(p_bbc->p_system_via);
+
+  /* The video ULA needs to know about changes to the video wrap-around
+   * address.
+   */
+  video_IC32_updated(p_bbc->p_video, val);
 }
 
 uint8_t*

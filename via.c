@@ -5,7 +5,6 @@
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
-#include "video.h"
 
 #include <assert.h>
 #include <err.h>
@@ -73,10 +72,6 @@ struct via_struct {
   int CA2;
   int CB1;
   int CB2;
-  /* TODO: IC32 is a separate chip connected to the system VIA port B, so this
-   * does not belong here.
-   */
-  uint8_t IC32;
 };
 
 static void
@@ -460,9 +455,10 @@ sysvia_update_port_a(struct via_struct* p_via) {
   uint8_t keyrow = ((bus_val >> 4) & 7);
   uint8_t keycol = (bus_val & 0xf);
   int fire = 0;
+  uint8_t IC32 = bbc_get_IC32(p_bbc);
 
   p_via->peripheral_a |= 0x80;
-  if (!(p_via->IC32 & 0x08)) {
+  if (!(IC32 & 0x08)) {
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       p_via->peripheral_a &= 0x7F;
     }
@@ -481,22 +477,19 @@ sysvia_update_port_a(struct via_struct* p_via) {
 static void
 sysvia_update_port_b(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
-  struct video_struct* p_video = bbc_get_video(p_bbc);
-  uint8_t old_IC32 = p_via->IC32;
+  uint8_t old_IC32 = bbc_get_IC32(p_bbc);
   uint8_t bus_val = via_calculate_port_b(p_via);
   uint8_t port_bit = (1 << (bus_val & 7));
   int bit_set = ((bus_val & 0x08) == 0x08);
+  uint8_t IC32 = old_IC32;
 
   if (bit_set) {
-    p_via->IC32 |= port_bit;
+    IC32 |= port_bit;
   } else {
-    p_via->IC32 &= ~port_bit;
+    IC32 &= ~port_bit;
   }
 
-  /* Updating the port bits may have changed keyboard scanning so we need to
-   * recheck interrupt status.
-   */
-  sysvia_update_port_a(p_via);
+  bbc_set_IC32(p_bbc, IC32);
 
   /* If we're pulling the sound write bit from low to high, send the bus value
    * along to the sound chip.
@@ -505,14 +498,6 @@ sysvia_update_port_b(struct via_struct* p_via) {
     struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
     sound_sn_write(p_sound, via_calculate_port_a(p_via));
   }
-
-  /* The video ULA needs to know about changes to the video wrap-around
-   * address.
-   */
-  /* TODO: have the video subsystem register a function pointer to lower
-   * dependencies?
-   */
-  video_IC32_updated(p_video, p_via->IC32);
 }
 
 void

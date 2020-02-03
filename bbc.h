@@ -99,6 +99,9 @@ struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
 
+uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
+void bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val);
+
 uint8_t* bbc_get_mem_read(struct bbc_struct* p_bbc);
 uint8_t* bbc_get_mem_write(struct bbc_struct* p_bbc);
 void bbc_set_memory_block(struct bbc_struct* p_bbc,
