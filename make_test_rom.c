@@ -1507,8 +1507,23 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0x3160);
   emit_JMP(p_buf, k_abs, 0xD600);
 
-  /* End of test. */
+  /* Test VIA port A reads for real bus levels, and keyboard pull-low
+   * dominance.
+   */
   set_new_index(p_buf, 0x1600);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE42);
+  emit_LDA(p_buf, k_imm, 3);      /* Keyboard auto-scan off. */
+  emit_STA(p_buf, k_abs, 0xFE40);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE43); /* Port A to all outputs. */
+  emit_STA(p_buf, k_abs, 0xFE4F); /* Scan for some non-existant key. */
+  emit_LDA(p_buf, k_abs, 0xFE4F);
+  emit_REQUIRE_EQ(p_buf, 0x7F);   /* Must still see a zero. */
+  emit_JMP(p_buf, k_abs, 0xD640);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1640);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

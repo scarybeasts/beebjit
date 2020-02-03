@@ -30,8 +30,8 @@ void via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta);
 uint8_t via_read(struct via_struct* p_via, uint8_t reg);
 void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 
-uint8_t via_read_port_a(struct via_struct* p_via);
-uint8_t via_read_port_b(struct via_struct* p_via);
+void via_update_port_a(struct via_struct* p_via);
+void via_update_port_b(struct via_struct* p_via);
 
 void via_set_CA1(struct via_struct* p_via, int level);
 void via_set_CA2(struct via_struct* p_via, int level);
@@ -77,7 +77,5 @@ void via_set_registers(struct via_struct* p_via,
                        uint8_t t1_oneshot_fired,
                        uint8_t t2_oneshot_fired,
                        uint8_t t1_pb7);
-
-uint8_t* via_get_peripheral_b_ptr(struct via_struct* p_via);
 
 #endif /* BEEBJIT_VIA_H */

@@ -73,6 +73,10 @@ struct via_struct {
   int CA2;
   int CB1;
   int CB2;
+  /* TODO: IC32 is a separate chip connected to the system VIA port B, so this
+   * does not belong here.
+   */
+  uint8_t IC32;
 };
 
 static void
@@ -333,6 +337,12 @@ via_create(int id,
   p_via->IRA = 0xFF;
   p_via->IRB = 0xFF;
 
+  /* Nothing attached to the buses, or nothing actively pulling pins low to
+   * start with.
+   */
+  p_via->peripheral_a = 0xFF;
+  p_via->peripheral_b = 0xFF;
+
   via_set_t1c(p_via, 0xFFFF);
   p_via->T1L = 0xFFFF;
   via_set_t2c(p_via, 0xFFFF);
@@ -417,15 +427,42 @@ via_apply_wall_time_delta(struct via_struct* p_via, uint64_t delta) {
   via_time_advance(p_via, delta);
 }
 
+static uint8_t
+via_calculate_port_a(struct via_struct* p_via) {
+  uint8_t ora = p_via->ORA;
+  uint8_t ddra = p_via->DDRA;
+  uint8_t val = (ora & ddra);
+  val |= (p_via->peripheral_a & ~ddra);
+
+  /* Our peripheral (currently just the keyboard) is always capable of driving
+   * a bus level low, even for pins configured as outputs.
+   */
+  val &= p_via->peripheral_a;
+
+  return val;
+}
+
+static uint8_t
+via_calculate_port_b(struct via_struct* p_via) {
+  uint8_t orb = p_via->ORB;
+  uint8_t ddrb = p_via->DDRB;
+  uint8_t val = (orb & ddrb);
+  val |= (p_via->peripheral_b & ~ddrb);
+
+  return val;
+}
+
 static void
 sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
-  uint8_t sdb = p_via->peripheral_a;
-  uint8_t keyrow = ((sdb >> 4) & 7);
-  uint8_t keycol = (sdb & 0xf);
+  uint8_t bus_val = via_calculate_port_a(p_via);
+  uint8_t keyrow = ((bus_val >> 4) & 7);
+  uint8_t keycol = (bus_val & 0xf);
   int fire = 0;
-  if (!(p_via->peripheral_b & 0x08)) {
+
+  p_via->peripheral_a |= 0x80;
+  if (!(p_via->IC32 & 0x08)) {
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       p_via->peripheral_a &= 0x7F;
     }
@@ -441,26 +478,46 @@ sysvia_update_port_a(struct via_struct* p_via) {
   via_set_CA2(p_via, fire);
 }
 
-uint8_t
-via_read_port_a(struct via_struct* p_via) {
-  if (p_via->id == k_via_system) {
-    sysvia_update_port_a(p_via);
-    return p_via->peripheral_a;
-  } else if (p_via->id == k_via_user) {
-    /* Printer port, write only. */
-    return 0xFF;
+static void
+sysvia_update_port_b(struct via_struct* p_via) {
+  struct bbc_struct* p_bbc = p_via->p_bbc;
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+  uint8_t old_IC32 = p_via->IC32;
+  uint8_t bus_val = via_calculate_port_b(p_via);
+  uint8_t port_bit = (1 << (bus_val & 7));
+  int bit_set = ((bus_val & 0x08) == 0x08);
+
+  if (bit_set) {
+    p_via->IC32 |= port_bit;
+  } else {
+    p_via->IC32 &= ~port_bit;
   }
-  assert(0);
-  return 0;
+
+  /* Updating the port bits may have changed keyboard scanning so we need to
+   * recheck interrupt status.
+   */
+  sysvia_update_port_a(p_via);
+
+  /* If we're pulling the sound write bit from low to high, send the bus value
+   * along to the sound chip.
+   */
+  if ((port_bit == 1) && bit_set && !(old_IC32 & 1)) {
+    struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
+    sound_sn_write(p_sound, via_calculate_port_a(p_via));
+  }
+
+  /* The video ULA needs to know about changes to the video wrap-around
+   * address.
+   */
+  /* TODO: have the video subsystem register a function pointer to lower
+   * dependencies?
+   */
+  video_IC32_updated(p_video, p_via->IC32);
 }
 
-static void
-via_write_port_a(struct via_struct* p_via) {
+void
+via_update_port_a(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
-    uint8_t ora = p_via->ORA;
-    uint8_t ddra = p_via->DDRA;
-    uint8_t port_val = ((ora & ddra) | ~ddra);
-    p_via->peripheral_a = port_val;
     sysvia_update_port_a(p_via);
   } else if (p_via->id == k_via_user) {
     /* Printer port. Ignore. */
@@ -469,56 +526,10 @@ via_write_port_a(struct via_struct* p_via) {
   }
 }
 
-uint8_t
-via_read_port_b(struct via_struct* p_via) {
+void
+via_update_port_b(struct via_struct* p_via) {
   if (p_via->id == k_via_system) {
-    /* Read is for joystick and CMOS. 0xFF means nothing. */
-    return 0xFF;
-  } else if (p_via->id == k_via_user) {
-    /* Read is for joystick, mouse, user port. 0xFF means nothing. */
-    return 0xFF;
-  }
-  assert(0);
-  return 0;
-}
-
-static void
-via_write_port_b(struct via_struct* p_via) {
-  if (p_via->id == k_via_system) {
-    struct bbc_struct* p_bbc = p_via->p_bbc;
-    struct video_struct* p_video = bbc_get_video(p_bbc);
-    uint8_t old_peripheral_b = p_via->peripheral_b;
-    uint8_t orb = p_via->ORB;
-    uint8_t ddrb = p_via->DDRB;
-    uint8_t port_val = ((orb & ddrb) | ~ddrb);
-    uint8_t port_bit = (1 << (port_val & 7));
-    int bit_set = ((port_val & 0x08) == 0x08);
-    if (bit_set) {
-      p_via->peripheral_b |= port_bit;
-    } else {
-      p_via->peripheral_b &= ~port_bit;
-    }
-
-    /* If we're pulling the sound write bit from low to high, send the data
-     * value in ORA along to the sound chip.
-     */
-    if ((port_bit == 1) && bit_set && !(old_peripheral_b & 1)) {
-      struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
-      sound_sn_write(p_sound, p_via->peripheral_a);
-    }
-
-    /* The video ULA needs to know about changes to the video wrap-around
-     * address.
-     */
-    /* TODO: have the video subsystem register a function pointer to lower
-     * dependencies?
-     */
-    video_IC32_updated(p_video, p_via->peripheral_b);
-
-    /* Updating the port bits may have changed keyboard scanning so we need to
-     * recheck interrupt status.
-     */
-    sysvia_update_port_a(p_via);
+    sysvia_update_port_b(p_via);
   } else if (p_via->id == k_via_user) {
     /* User port. Ignore. */
   } else {
@@ -528,12 +539,10 @@ via_write_port_b(struct via_struct* p_via) {
 
 uint8_t
 via_read(struct via_struct* p_via, uint8_t reg) {
-  uint8_t ora;
   uint8_t orb;
-  uint8_t ddra;
   uint8_t ddrb;
-  uint8_t val;
   uint8_t port_val;
+  uint8_t val;
   int32_t t1_val;
   int32_t t2_val;
 
@@ -566,15 +575,17 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   switch (reg) {
   case k_via_ORB:
     assert((p_via->PCR & 0xA0) != 0x20);
+    /* A read of VIA port B mixes input and output as indicated by DDRB. */
     orb = p_via->ORB;
     ddrb = p_via->DDRB;
     val = (orb & ddrb);
-    port_val = via_read_port_b(p_via);
     if (p_via->ACR & 0x02) {
-      val |= (p_via->IRB & ~ddrb);
+      port_val = p_via->IRB;
     } else {
-      val |= (port_val & ~ddrb);
+      port_val = via_calculate_port_b(p_via);
     }
+    val |= (port_val & ~ddrb);
+
     /* EMU NOTE: PB7 toggling is actually a mix-in of a separately maintained
      * bit, and it's mixed in to both IRB and ORB.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16081
@@ -588,16 +599,15 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     assert((p_via->PCR & 0x0A) != 0x02);
     via_clear_interrupt(p_via, k_int_CA1);
     via_clear_interrupt(p_via, k_int_CA2);
-    /* Fall through. */
+  /* Fall through. */
   case k_via_ORAnh:
+    /* A read of VIA port A reads the current pins levels, or uses the pin
+     * levels at the last latch, regardless of input vs. output configuration.
+     */
     if (p_via->ACR & 0x01) {
       val = p_via->IRA;
     } else {
-      ora = p_via->ORA;
-      ddra = p_via->DDRA;
-      val = (ora & ddra);
-      port_val = via_read_port_a(p_via);
-      val |= (port_val & ~ddra);
+      val = via_calculate_port_a(p_via);
     }
     return val;
   case k_via_DDRB:
@@ -687,22 +697,24 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     assert((p_via->PCR & 0xE0) != 0x80);
     assert((p_via->PCR & 0xE0) != 0xA0);
     p_via->ORB = val;
-    via_write_port_b(p_via);
+    via_update_port_b(p_via);
     break;
   case k_via_ORA:
     assert((p_via->PCR & 0x0A) != 0x02);
     assert((p_via->PCR & 0x0E) != 0x08);
     assert((p_via->PCR & 0x0E) != 0x0A);
+  /* Fall through. */
+  case k_via_ORAnh:
     p_via->ORA = val;
-    via_write_port_a(p_via);
+    via_update_port_a(p_via);
     break;
   case k_via_DDRB:
     p_via->DDRB = val;
-    via_write_port_b(p_via);
+    via_update_port_b(p_via);
     break;
   case k_via_DDRA:
     p_via->DDRA = val;
-    via_write_port_a(p_via);
+    via_update_port_a(p_via);
     break;
   case k_via_T1CL:
   case k_via_T1LL:
@@ -833,10 +845,6 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
       p_via->IER &= ~(val & 0x7F);
     }
     via_check_interrupt(p_via);
-    break;
-  case k_via_ORAnh:
-    p_via->ORA = val;
-    via_write_port_a(p_via);
     break;
   default:
     assert(0);
@@ -985,9 +993,4 @@ void via_set_registers(struct via_struct* p_via,
   timing_set_firing(p_timing, p_via->t1_timer_id, !t1_oneshot_fired);
   timing_set_firing(p_timing, p_via->t2_timer_id, !t2_oneshot_fired);
   p_via->t1_pb7 = t1_pb7;
-}
-
-uint8_t*
-via_get_peripheral_b_ptr(struct via_struct* p_via) {
-  return &p_via->peripheral_b;
 }

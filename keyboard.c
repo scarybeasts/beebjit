@@ -497,7 +497,7 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
 static void
 keyboard_virtual_updated(struct keyboard_struct* p_keyboard) {
   /* Make sure interrupt state is synced with new keyboard state. */
-  (void) via_read_port_a(p_keyboard->p_system_via);
+  (void) via_update_port_a(p_keyboard->p_system_via);
 
   /* Check for BREAK key. */
   if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_f12)) {
