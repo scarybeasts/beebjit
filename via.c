@@ -472,6 +472,13 @@ sysvia_update_port_a(struct via_struct* p_via) {
   }
 
   via_set_CA2(p_via, fire);
+
+  if (!(IC32 & 1)) {
+    struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
+    /* Make sure the bus value is uptodate with any keyboard action. */
+    bus_val = via_calculate_port_a(p_via);
+    sound_sn_write(p_sound, bus_val);
+  }
 }
 
 static void
@@ -490,14 +497,6 @@ sysvia_update_port_b(struct via_struct* p_via) {
   }
 
   bbc_set_IC32(p_bbc, IC32);
-
-  /* If we're pulling the sound write bit from low to high, send the bus value
-   * along to the sound chip.
-   */
-  if ((port_bit == 1) && bit_set && !(old_IC32 & 1)) {
-    struct sound_struct* p_sound = bbc_get_sound(p_via->p_bbc);
-    sound_sn_write(p_sound, via_calculate_port_a(p_via));
-  }
 }
 
 void
