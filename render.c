@@ -369,164 +369,86 @@ render_set_palette(struct render_struct* p_render,
 }
 
 static void
-render_generate_mode0_table(struct render_struct* p_render) {
+render_generate_1MHz_table(struct render_struct* p_render,
+                           struct render_table_1MHz* p_table,
+                           uint32_t num_pixels) {
   uint32_t i;
+  uint32_t j;
 
-  struct render_table_2MHz* p_table = &p_render->render_table_mode0;
+  uint32_t pixel_stride = (16 / num_pixels);
+  uint32_t palette_index = 0;
+  uint32_t pixel_value = 0;
 
-  /* TODO: looks like we only support a black and white MODE0?? */
   for (i = 0; i < 256; ++i) {
-    uint8_t p0 = !!(i & 0x80);
-    uint8_t p1 = !!(i & 0x40);
-    uint8_t p2 = !!(i & 0x20);
-    uint8_t p3 = !!(i & 0x10);
-    uint8_t p4 = !!(i & 0x08);
-    uint8_t p5 = !!(i & 0x04);
-    uint8_t p6 = !!(i & 0x02);
-    uint8_t p7 = !!(i & 0x01);
-
-    struct render_character_2MHz* p_character = &p_table->values[i];
-    p_character->host_pixels[0] = ~(p0 - 1);
-    p_character->host_pixels[1] = ~(p1 - 1);
-    p_character->host_pixels[2] = ~(p2 - 1);
-    p_character->host_pixels[3] = ~(p3 - 1);
-    p_character->host_pixels[4] = ~(p4 - 1);
-    p_character->host_pixels[5] = ~(p5 - 1);
-    p_character->host_pixels[6] = ~(p6 - 1);
-    p_character->host_pixels[7] = ~(p7 - 1);
+    struct render_character_1MHz* p_character = &p_table->values[i];
+    uint8_t shift_register = i;
+    for (j = 0; j < 16; ++j) {
+      if ((j % pixel_stride) == 0) {
+        palette_index = (((shift_register & 0x02) >> 1) |
+                         ((shift_register & 0x08) >> 2) |
+                         ((shift_register & 0x20) >> 3) |
+                         ((shift_register & 0x80) >> 4));
+        pixel_value = p_render->palette[palette_index];
+        shift_register <<= 1;
+        shift_register |= 1;
+      }
+      p_character->host_pixels[j] = pixel_value;
+    }
   }
+}
+
+static void
+render_generate_2MHz_table(struct render_struct* p_render,
+                           struct render_table_2MHz* p_table,
+                           uint32_t num_pixels) {
+  uint32_t i;
+  uint32_t j;
+
+  uint32_t pixel_stride = (8 / num_pixels);
+  uint32_t palette_index = 0;
+  uint32_t pixel_value = 0;
+
+  for (i = 0; i < 256; ++i) {
+    struct render_character_2MHz* p_character = &p_table->values[i];
+    uint8_t shift_register = i;
+    for (j = 0; j < 8; ++j) {
+      if ((j % pixel_stride) == 0) {
+        palette_index = (((shift_register & 0x02) >> 1) |
+                         ((shift_register & 0x08) >> 2) |
+                         ((shift_register & 0x20) >> 3) |
+                         ((shift_register & 0x80) >> 4));
+        pixel_value = p_render->palette[palette_index];
+        shift_register <<= 1;
+        shift_register |= 1;
+      }
+      p_character->host_pixels[j] = pixel_value;
+    }
+  }
+}
+
+static void
+render_generate_mode0_table(struct render_struct* p_render) {
+  render_generate_2MHz_table(p_render, &p_render->render_table_mode0, 8);
 }
 
 static void
 render_generate_mode1_table(struct render_struct* p_render) {
-  uint32_t i;
-
-  struct render_table_2MHz* p_table = &p_render->render_table_mode1;
-
-  for (i = 0; i < 256; ++i) {
-    uint8_t v0 = (((i & 0x80) >> 6) | ((i & 0x08) >> 3));
-    uint8_t v1 = (((i & 0x40) >> 5) | ((i & 0x04) >> 2));
-    uint8_t v2 = (((i & 0x20) >> 4) | ((i & 0x02) >> 1));
-    uint8_t v3 = (((i & 0x10) >> 3) | ((i & 0x01) >> 0));
-    uint32_t p0 = p_render->palette[(4 + (v0 << 1))];
-    uint32_t p1 = p_render->palette[(4 + (v1 << 1))];
-    uint32_t p2 = p_render->palette[(4 + (v2 << 1))];
-    uint32_t p3 = p_render->palette[(4 + (v3 << 1))];
-
-    struct render_character_2MHz* p_character = &p_table->values[i];
-    p_character->host_pixels[0] = p0;
-    p_character->host_pixels[1] = p0;
-    p_character->host_pixels[2] = p1;
-    p_character->host_pixels[3] = p1;
-    p_character->host_pixels[4] = p2;
-    p_character->host_pixels[5] = p2;
-    p_character->host_pixels[6] = p3;
-    p_character->host_pixels[7] = p3;
-  }
+  render_generate_2MHz_table(p_render, &p_render->render_table_mode1, 4);
 }
 
 static void
 render_generate_mode2_table(struct render_struct* p_render) {
-  uint32_t i;
-
-  struct render_table_2MHz* p_table = &p_render->render_table_mode2;
-
-  for (i = 0; i < 256; ++i) {
-    uint8_t v0 = ((i & 0x80) >> 4) |
-                  ((i & 0x20) >> 3) |
-                  ((i & 0x08) >> 2) |
-                  ((i & 0x02) >> 1);
-    uint8_t v1 = ((i & 0x40) >> 3) |
-                  ((i & 0x10) >> 2) |
-                  ((i & 0x04) >> 1) |
-                  ((i & 0x01) >> 0);
-    uint32_t p0 = p_render->palette[v0];
-    uint32_t p1 = p_render->palette[v1];
-
-    struct render_character_2MHz* p_character = &p_table->values[i];
-    p_character->host_pixels[0] = p0;
-    p_character->host_pixels[1] = p0;
-    p_character->host_pixels[2] = p0;
-    p_character->host_pixels[3] = p0;
-    p_character->host_pixels[4] = p1;
-    p_character->host_pixels[5] = p1;
-    p_character->host_pixels[6] = p1;
-    p_character->host_pixels[7] = p1;
-  }
+  render_generate_2MHz_table(p_render, &p_render->render_table_mode2, 2);
 }
 
 static void
 render_generate_mode4_table(struct render_struct* p_render) {
-  uint32_t i;
-
-  struct render_table_1MHz* p_table = &p_render->render_table_mode4;
-
-  /* TODO: is there some commonality we can factor out with MODE0? */
-  for (i = 0; i < 256; ++i) {
-    uint32_t p0 = p_render->palette[((i & 0x80) >> 4)];
-    uint32_t p1 = p_render->palette[((i & 0x40) >> 3)];
-    uint32_t p2 = p_render->palette[((i & 0x20) >> 2)];
-    uint32_t p3 = p_render->palette[((i & 0x10) >> 1)];
-    uint32_t p4 = p_render->palette[(i & 0x08)];
-    uint32_t p5 = p_render->palette[((i & 0x04) << 1)];
-    uint32_t p6 = p_render->palette[((i & 0x02) << 2)];
-    uint32_t p7 = p_render->palette[((i & 0x01) << 3)];
-
-    struct render_character_1MHz* p_character = &p_table->values[i];
-    p_character->host_pixels[0] = p0;
-    p_character->host_pixels[1] = p0;
-    p_character->host_pixels[2] = p1;
-    p_character->host_pixels[3] = p1;
-    p_character->host_pixels[4] = p2;
-    p_character->host_pixels[5] = p2;
-    p_character->host_pixels[6] = p3;
-    p_character->host_pixels[7] = p3;
-    p_character->host_pixels[8] = p4;
-    p_character->host_pixels[9] = p4;
-    p_character->host_pixels[10] = p5;
-    p_character->host_pixels[11] = p5;
-    p_character->host_pixels[12] = p6;
-    p_character->host_pixels[13] = p6;
-    p_character->host_pixels[14] = p7;
-    p_character->host_pixels[15] = p7;
-  }
+  render_generate_1MHz_table(p_render, &p_render->render_table_mode4, 8);
 }
 
 static void
 render_generate_mode5_table(struct render_struct* p_render) {
-  uint32_t i;
-
-  struct render_table_1MHz* p_table = &p_render->render_table_mode5;
-
-  /* TODO: is there some commonality we can factor out with MODE1? */
-  for (i = 0; i < 256; ++i) {
-    uint8_t v0 = (((i & 0x80) >> 6) | ((i & 0x08) >> 3));
-    uint8_t v1 = (((i & 0x40) >> 5) | ((i & 0x04) >> 2));
-    uint8_t v2 = (((i & 0x20) >> 4) | ((i & 0x02) >> 1));
-    uint8_t v3 = (((i & 0x10) >> 3) | ((i & 0x01) >> 0));
-    uint32_t p0 = p_render->palette[(4 + (v0 << 1))];
-    uint32_t p1 = p_render->palette[(4 + (v1 << 1))];
-    uint32_t p2 = p_render->palette[(4 + (v2 << 1))];
-    uint32_t p3 = p_render->palette[(4 + (v3 << 1))];
-
-    struct render_character_1MHz* p_character = &p_table->values[i];
-    p_character->host_pixels[0] = p0;
-    p_character->host_pixels[1] = p0;
-    p_character->host_pixels[2] = p0;
-    p_character->host_pixels[3] = p0;
-    p_character->host_pixels[4] = p1;
-    p_character->host_pixels[5] = p1;
-    p_character->host_pixels[6] = p1;
-    p_character->host_pixels[7] = p1;
-    p_character->host_pixels[8] = p2;
-    p_character->host_pixels[9] = p2;
-    p_character->host_pixels[10] = p2;
-    p_character->host_pixels[11] = p2;
-    p_character->host_pixels[12] = p3;
-    p_character->host_pixels[13] = p3;
-    p_character->host_pixels[14] = p3;
-    p_character->host_pixels[15] = p3;
-  }
+  render_generate_1MHz_table(p_render, &p_render->render_table_mode5, 4);
 }
 
 struct render_table_2MHz* render_get_2MHz_render_table(
