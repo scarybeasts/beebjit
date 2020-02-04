@@ -13,6 +13,7 @@ Exile).
 can even block at that resolution.
 - Re-add unit test for JIT block handling and splitting etc.
 - BCD support in JIT?
+- Disc write persistance support.
 
 
 Fix later
@@ -29,6 +30,8 @@ dependent on one another.
 - Add fdi disc format support.
 - MODE7 doesn't have character rounding.
 - Accurate last line latching for 6845.
+- Tape loading noises.
+- Disc loading noises.
 
 
 Ideas
@@ -69,3 +72,6 @@ and the improvement of doing that in one 4-byte operating was surprisingly
 low.
 - Master support. Initial focus is on good BBC model B emulation.
 - Save state / load state.
+- Mouse support.
+- Joystick support.
+- NULA support.
