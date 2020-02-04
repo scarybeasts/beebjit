@@ -52,5 +52,10 @@ void video_get_crtc_registers(struct video_struct* p_video,
                               uint8_t* p_values);
 void video_set_crtc_registers(struct video_struct* p_video,
                               const uint8_t* p_values);
+void video_get_crtc_state(struct video_struct* p_video,
+                          uint8_t* p_horiz_counter,
+                          uint8_t* p_scanline_counter,
+                          uint8_t* p_vert_counter,
+                          uint16_t* p_address_counter);
 
 #endif /* BEEBJIT_VIDEO_H */

@@ -9,6 +9,7 @@
 #include "state_6502.h"
 #include "util.h"
 #include "via.h"
+#include "video.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -462,6 +463,27 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                 T2L,
                 (uint16_t) (T2C_raw >> 1),
                 t2_oneshot_fired);
+}
+
+static void
+debug_dump_crtc(struct bbc_struct* p_bbc) {
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint16_t address_counter;
+
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+  video_get_crtc_state(p_video,
+                       &horiz_counter,
+                       &scanline_counter,
+                       &vert_counter,
+                       &address_counter);
+
+  (void) printf("horiz %d scanline %d vert %d addr $%.4X\n",
+                horiz_counter,
+                scanline_counter,
+                vert_counter,
+                address_counter);
 }
 
 static inline int
@@ -1196,6 +1218,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {
       debug_dump_via(p_bbc, k_via_user);
+    } else if (!strcmp(input_buf, "crtc")) {
+      debug_dump_crtc(p_bbc);
     } else if (!strcmp(input_buf, "r")) {
       debug_print_registers(reg_a,
                             reg_x,

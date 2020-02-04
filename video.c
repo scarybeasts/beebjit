@@ -142,13 +142,6 @@ struct video_struct {
   int had_vsync_this_frame;
   int display_enable_horiz;
   int display_enable_vert;
-
-  size_t prev_horiz_chars;
-  size_t prev_vert_chars;
-  int prev_horiz_chars_offset;
-  int prev_vert_lines_offset;
-
-  uint8_t video_memory_contiguous[2048];
 };
 
 static inline uint32_t
@@ -1559,6 +1552,21 @@ video_set_crtc_registers(struct video_struct* p_video,
   for (i = 0; i < k_crtc_num_registers; ++i) {
     p_video->crtc_registers[i] = p_values[i];
   }
+}
+
+void
+video_get_crtc_state(struct video_struct* p_video,
+                     uint8_t* p_horiz_counter,
+                     uint8_t* p_scanline_counter,
+                     uint8_t* p_vert_counter,
+                     uint16_t* p_address_counter) {
+  if (!p_video->externally_clocked) {
+    video_advance_crtc_timing(p_video);
+  }
+  *p_horiz_counter = p_video->horiz_counter;
+  *p_scanline_counter = p_video->scanline_counter;
+  *p_vert_counter = p_video->vert_counter;
+  *p_address_counter = (uint16_t) p_video->address_counter;
 }
 
 #include "test-video.c"
