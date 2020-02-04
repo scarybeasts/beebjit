@@ -342,13 +342,21 @@ asm_x64_inturbo_mode_idx_END:
 
 
 .globl asm_x64_inturbo_mode_idy
+.globl asm_x64_inturbo_mode_idy_jump_patch
 .globl asm_x64_inturbo_mode_idy_END
 asm_x64_inturbo_mode_idy:
 
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
-  # TODO: doesn't handle 0xFF.
+
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
+
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+
+  # Handle special case of 0xFF via the interpreter.
+  bt REG_SCRATCH2_32, 8
+  jb 0
+asm_x64_inturbo_mode_idy_jump_patch:
 
 asm_x64_inturbo_mode_idy_END:
   ret

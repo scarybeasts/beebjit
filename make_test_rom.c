@@ -1522,8 +1522,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x7F);   /* Must still see a zero. */
   emit_JMP(p_buf, k_abs, 0xD640);
 
-  /* End of test. */
+  /* Test idy mode with $FF. */
   set_new_index(p_buf, 0x1640);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0xFF);
+  emit_LDA(p_buf, k_imm, 0xFB);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_LDA(p_buf, k_idy, 0xFF);   /* Read $FBFF. */
+  emit_REQUIRE_EQ(p_buf, 0x7D);
+  emit_JMP(p_buf, k_abs, 0xD680);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1680);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

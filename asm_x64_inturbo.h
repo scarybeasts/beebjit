@@ -198,6 +198,7 @@ void asm_x64_inturbo_mode_idx();
 void asm_x64_inturbo_mode_idx_jump_patch();
 void asm_x64_inturbo_mode_idx_END();
 void asm_x64_inturbo_mode_idy();
+void asm_x64_inturbo_mode_idy_jump_patch();
 void asm_x64_inturbo_mode_idy_END();
 void asm_x64_inturbo_mode_idy_check_page_crossing();
 void asm_x64_inturbo_mode_idy_check_page_crossing_END();

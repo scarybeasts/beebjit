@@ -442,10 +442,14 @@ asm_x64_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value) {
 
 void
 asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
+  uint16_t next_addr;
+
   size_t offset = util_buffer_get_pos(p_buf);
 
   if (addr == 0xFF) {
-    errx(1, "MODE_IND_8: page crossing");
+    next_addr = 0;
+  } else {
+    next_addr = (addr + 1);
   }
 
   asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_8, asm_x64_jit_MODE_IND_8_END);
@@ -458,7 +462,7 @@ asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
                      offset,
                      asm_x64_jit_MODE_IND_8,
                      asm_x64_jit_MODE_IND_8_mov2_patch,
-                     ((addr + 1) - REG_MEM_OFFSET));
+                     (next_addr - REG_MEM_OFFSET));
 }
 
 void
