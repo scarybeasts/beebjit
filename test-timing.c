@@ -244,9 +244,89 @@ timing_test_multi_expiry() {
   timing_destroy(p_timing);
 }
 
+static void
+timing_test_scaling() {
+  uint64_t countdown;
+
+  g_timing_test_timer_hits_basic = 0;
+  /* 3 internal ticks per 1 external tick. */
+  struct timing_struct* p_timing = timing_create(3);
+
+  uint32_t t1 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_basic,
+                                      p_timing);
+  uint32_t t2 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_basic,
+                                      p_timing);
+
+  countdown = timing_start_timer_with_value(p_timing, t1, 100);
+  test_expect_u32(300, countdown);
+  test_expect_u32(300, timing_get_countdown(p_timing));
+  countdown = timing_advance_time(p_timing, 299);
+  test_expect_u32(299, countdown);
+  test_expect_u32(1, timing_get_total_timer_ticks(p_timing));
+  test_expect_u32(0, timing_get_scaled_total_timer_ticks(p_timing));
+
+  /* Peek at the internals to make sure we really have a scaled timer. */
+  test_expect_u32(299, p_timing->countdown);
+  test_expect_u32(300, p_timing->timers[0].value);
+  test_expect_u32(99, timing_get_timer_value(p_timing, t1));
+
+  countdown = timing_start_timer_with_value(p_timing, t2, 50);
+  test_expect_u32(150, countdown);
+  test_expect_u32(150, p_timing->countdown);
+  test_expect_u32(300, p_timing->timers[0].value);
+  test_expect_u32(151, p_timing->timers[1].value);
+  test_expect_u32(99, timing_get_timer_value(p_timing, t1));
+  test_expect_u32(50, timing_get_timer_value(p_timing, t2));
+
+  countdown = timing_stop_timer(p_timing, t2);
+  test_expect_u32(50, timing_get_timer_value(p_timing, t2));
+  test_expect_u32(299, countdown);
+  test_expect_u32(299, p_timing->countdown);
+  countdown = timing_start_timer(p_timing, t2);
+  test_expect_u32(150, countdown);
+  test_expect_u32(150, p_timing->countdown);
+
+  countdown = timing_set_timer_value(p_timing, t2, 40);
+  test_expect_u32(40, timing_get_timer_value(p_timing, t2));
+  test_expect_u32(120, countdown);
+  test_expect_u32(120, p_timing->countdown);
+  test_expect_u32(300, p_timing->timers[0].value);
+  test_expect_u32(121, p_timing->timers[1].value);
+
+  countdown = timing_adjust_timer_value(p_timing, NULL, t2, -10);
+  test_expect_u32(90, countdown);
+  test_expect_u32(90, p_timing->countdown);
+  test_expect_u32(300, p_timing->timers[0].value);
+  test_expect_u32(91, p_timing->timers[1].value);
+
+  countdown = timing_set_firing(p_timing, t2, 0);
+  test_expect_u32(299, countdown);
+  test_expect_u32(299, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t2, 1);
+  test_expect_u32(90, countdown);
+  test_expect_u32(90, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t1, 0);
+  test_expect_u32(90, countdown);
+  test_expect_u32(90, p_timing->countdown);
+  countdown = timing_set_firing(p_timing, t1, 1);
+  test_expect_u32(90, countdown);
+  test_expect_u32(90, p_timing->countdown);
+
+  countdown = timing_advance_time(p_timing, 0);
+  test_expect_u32(209, countdown);
+  test_expect_u32(209, p_timing->countdown);
+
+  countdown = timing_advance_time(p_timing, countdown);
+
+  timing_destroy(p_timing);
+}
+
 void
 timing_test() {
   timing_test_counting();
   timing_test_basics();
   timing_test_multi_expiry();
+  timing_test_scaling();
 }

@@ -7,8 +7,6 @@ Known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed before the next release.
 
 - Add README and EXAMPLES files.
-- Investigate why cpu-scale-factor of e.g. 16 causes load failures (Elite,
-Exile).
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - Re-add unit test for JIT block handling and splitting etc.

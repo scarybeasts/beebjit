@@ -217,13 +217,35 @@ timing_remove_ticking_timer(struct timing_struct* p_timing,
   p_timer->p_ticking_next = NULL;
 }
 
+static int64_t
+timing_start_timer_with_internal_value(struct timing_struct* p_timing,
+                                       struct timer_struct* p_timer,
+                                       int64_t value) {
+  assert(p_timer->p_callback != NULL);
+  assert(!p_timer->ticking);
+
+  value += timing_get_countdown_adjustment(p_timing);
+
+  p_timer->value = value;
+  p_timer->ticking = 1;
+
+  timing_insert_ticking_timer(p_timing, p_timer);
+  if (p_timer->firing) {
+    timing_insert_expiring_timer(p_timing, p_timer);
+  }
+
+  return timing_update_counts(p_timing);
+}
+
 int64_t
 timing_start_timer(struct timing_struct* p_timing, uint32_t id) {
   struct timer_struct* p_timer;
 
   assert(id < k_timing_num_timers);
   p_timer = &p_timing->timers[id];
-  return timing_start_timer_with_value(p_timing, id, p_timer->value);
+  return timing_start_timer_with_internal_value(p_timing,
+                                                p_timer,
+                                                p_timer->value);
 }
 
 int64_t
@@ -235,21 +257,10 @@ timing_start_timer_with_value(struct timing_struct* p_timing,
   assert(id < k_timing_num_timers);
 
   p_timer = &p_timing->timers[id];
-  assert(p_timer->p_callback != NULL);
-  assert(!p_timer->ticking);
 
   time *= p_timing->scale_factor;
-  time += timing_get_countdown_adjustment(p_timing);
 
-  p_timer->value = time;
-  p_timer->ticking = 1;
-
-  timing_insert_ticking_timer(p_timing, p_timer);
-  if (p_timer->firing) {
-    timing_insert_expiring_timer(p_timing, p_timer);
-  }
-
-  return timing_update_counts(p_timing);
+  return timing_start_timer_with_internal_value(p_timing, p_timer, time);
 }
 
 int64_t
