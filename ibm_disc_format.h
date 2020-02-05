@@ -8,6 +8,11 @@ enum {
   k_ibm_disc_id_mark_data_pattern = 0xFE,
   k_ibm_disc_data_mark_data_pattern = 0xFB,
   k_ibm_disc_deleted_data_mark_data_pattern = 0xF8,
+
+  k_ibm_disc_std_sync_00s = 6,
+  k_ibm_disc_std_gap1_FFs = 16,
+  k_ibm_disc_std_gap2_FFs = 11,
+  k_ibm_disc_std_10_sector_gap3_FFs = 21,
 };
 
 uint16_t ibm_disc_format_crc_init();

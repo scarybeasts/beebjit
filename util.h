@@ -62,10 +62,11 @@ intptr_t util_file_handle_open(const char* p_file_name,
                                int create);
 void util_file_handle_close(intptr_t handle);
 uint64_t util_file_handle_get_size(intptr_t handle);
+void util_file_handle_seek(intptr_t handle, uint64_t pos);
 void util_file_handle_write(intptr_t handle,
                             const void* p_buf,
-                            size_t length);
-size_t util_file_handle_read(intptr_t handle, void* p_buf, size_t length);
+                            uint64_t length);
+size_t util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length);
 
 size_t util_file_read_fully(uint8_t* p_buf,
                             size_t max_size,

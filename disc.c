@@ -50,6 +50,7 @@ struct disc_struct {
 
   void (*p_byte_callback)(void*, uint8_t, uint8_t);
   void* p_byte_callback_object;
+  void (*p_write_track_callback)(struct disc_struct*);
 
   int log_protection;
 
@@ -59,8 +60,10 @@ struct disc_struct {
   /* State of the disc. */
   struct disc_side lower_side;
   struct disc_side upper_side;
+  int is_double_sided;
   uint32_t byte_position;
   int is_writeable;
+  int is_track_dirty;
 
   /* State of the drive. */
   int is_side_upper;
@@ -70,21 +73,44 @@ struct disc_struct {
 };
 
 static void
+disc_check_track_needs_write(struct disc_struct* p_disc) {
+  if (!p_disc->is_track_dirty) {
+    return;
+  }
+  if (!p_disc->is_mutable) {
+    return;
+  }
+
+  p_disc->p_write_track_callback(p_disc);
+
+  p_disc->is_track_dirty = 0;
+}
+
+static struct disc_side*
+disc_get_side(struct disc_struct* p_disc) {
+  if (p_disc->is_side_upper) {
+    return &p_disc->upper_side;
+  } else {
+    return &p_disc->lower_side;
+  }
+}
+
+static void
 disc_timer_callback(struct disc_struct* p_disc) {
-  struct disc_side* p_side;
   struct disc_track* p_track;
   uint8_t data_byte;
   uint8_t clocks_byte;
 
-  if (p_disc->is_side_upper) {
-    p_side = &p_disc->upper_side;
-  } else {
-    p_side = &p_disc->lower_side;
+  uint32_t byte_position = p_disc->byte_position;
+  struct disc_side* p_side = disc_get_side(p_disc);
+
+  if (p_disc->byte_position == 0) {
+    disc_check_track_needs_write(p_disc);
   }
 
   p_track = &p_side->tracks[p_disc->track];
-  data_byte = p_track->data[p_disc->byte_position];
-  clocks_byte = p_track->clocks[p_disc->byte_position];
+  data_byte = p_track->data[byte_position];
+  clocks_byte = p_track->clocks[byte_position];
 
   (void) timing_set_timer_value(p_disc->p_timing,
                                 p_disc->timer_id,
@@ -109,11 +135,12 @@ disc_timer_callback(struct disc_struct* p_disc) {
                           data_byte,
                           clocks_byte);
 
-  assert(p_disc->byte_position < k_disc_bytes_per_track);
-  p_disc->byte_position++;
-  if (p_disc->byte_position == k_disc_bytes_per_track) {
-    p_disc->byte_position = 0;
+  assert(byte_position < k_disc_bytes_per_track);
+  byte_position++;
+  if (byte_position == k_disc_bytes_per_track) {
+    byte_position = 0;
   }
+  p_disc->byte_position = byte_position;
 }
 
 struct disc_struct*
@@ -164,8 +191,8 @@ disc_build_track(struct disc_struct* p_disc,
   p_disc->byte_position = 0;
 }
 
-void
-disc_write_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
+static void
+disc_put_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
   struct disc_side* p_side;
   struct disc_track* p_track;
 
@@ -181,6 +208,12 @@ disc_write_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
   p_track->clocks[p_disc->byte_position] = clocks;
 }
 
+void
+disc_write_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
+  disc_put_byte(p_disc, data, clocks);
+  p_disc->is_track_dirty = 1;
+}
+
 static void
 disc_build_reset_crc(struct disc_struct* p_disc) {
   p_disc->crc = ibm_disc_format_crc_init();
@@ -190,7 +223,7 @@ static void
 disc_build_append_single_with_clocks(struct disc_struct* p_disc,
                                      uint8_t data,
                                      uint8_t clocks) {
-  disc_write_byte(p_disc, data, clocks);
+  disc_put_byte(p_disc, data, clocks);
   p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, data);
   p_disc->byte_position++;
 }
@@ -244,6 +277,49 @@ disc_build_append_crc(struct disc_struct* p_disc) {
 }
 
 static void
+disc_save_ssd(struct disc_struct* p_disc) {
+  uint8_t* p_track_src;
+  uint32_t i_sector;
+  uint64_t seek_pos;
+
+  intptr_t file_handle = p_disc->file_handle;
+  struct disc_side* p_side = disc_get_side(p_disc);
+  uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
+  uint32_t track = p_disc->track;
+
+  assert(p_disc->is_track_dirty);
+
+  seek_pos = (track_size * track);
+  if (p_disc->is_double_sided) {
+    seek_pos *= 2;
+  }
+  if (p_disc->is_side_upper) {
+    seek_pos += track_size;
+  }
+  util_file_handle_seek(file_handle, seek_pos);
+
+  p_track_src = &p_side->tracks[track].data[0];
+  /* Skip GAP1. */
+  p_track_src += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
+
+  for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
+    /* Skip header, GAP2 and data marker. */
+    p_track_src += 7;
+    p_track_src += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
+    p_track_src += 1;
+
+    util_file_handle_write(file_handle, p_track_src, k_disc_ssd_sector_size);
+    p_track_src += k_disc_ssd_sector_size;
+    /* Skip checksum. */
+    p_track_src += 2;
+
+    /* Skip GAP3. */
+    p_track_src += (k_ibm_disc_std_10_sector_gap3_FFs +
+                    k_ibm_disc_std_sync_00s);
+  }
+}
+
+static void
 disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
   uint64_t file_size;
   size_t read_ret;
@@ -261,6 +337,9 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
   uint32_t num_sides = 2;
 
   assert(file_handle != k_util_file_no_handle);
+
+  p_disc->p_write_track_callback = disc_save_ssd;
+  p_disc->is_double_sided = is_dsd;
 
   (void) memset(buf, '\0', sizeof(buf));
 
@@ -287,8 +366,8 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
       /* Sync pattern at start of track, as the index pulse starts, aka.
        * GAP 5.
        */
-      disc_build_append_repeat(p_disc, 0xFF, 16);
-      disc_build_append_repeat(p_disc, 0x00, 6);
+      disc_build_append_repeat(p_disc, 0xFF, k_ibm_disc_std_gap1_FFs);
+      disc_build_append_repeat(p_disc, 0x00, k_ibm_disc_std_sync_00s);
       for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
         /* Sector header, aka. ID. */
         disc_build_reset_crc(p_disc);
@@ -302,8 +381,8 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
         disc_build_append_crc(p_disc);
 
         /* Sync pattern between sector header and sector data, aka. GAP 2. */
-        disc_build_append_repeat(p_disc, 0xFF, 11);
-        disc_build_append_repeat(p_disc, 0x00, 6);
+        disc_build_append_repeat(p_disc, 0xFF, k_ibm_disc_std_gap2_FFs);
+        disc_build_append_repeat(p_disc, 0x00, k_ibm_disc_std_sync_00s);
 
         /* Sector data. */
         disc_build_reset_crc(p_disc);
@@ -317,8 +396,10 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
 
         if (i_sector != (k_disc_ssd_sectors_per_track - 1)) {
           /* Sync pattern between sectors, aka. GAP 3. */
-          disc_build_append_repeat(p_disc, 0xFF, 16);
-          disc_build_append_repeat(p_disc, 0x00, 6);
+          disc_build_append_repeat(p_disc,
+                                   0xFF,
+                                   k_ibm_disc_std_10_sector_gap3_FFs);
+          disc_build_append_repeat(p_disc, 0x00, k_ibm_disc_std_sync_00s);
         }
       } /* End of sectors loop. */
       /* Fill until end of track, aka. GAP 4. */
@@ -805,6 +886,10 @@ disc_load(struct disc_struct* p_disc,
     errx(1, "unknown disc filename extension");
   }
 
+  if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
+    errx(1, "cannot write this file format");
+  }
+
   p_disc->is_side_upper = 0;
   p_disc->track = 0;
   p_disc->byte_position = 0;
@@ -853,16 +938,21 @@ disc_start_spinning(struct disc_struct* p_disc) {
 
 void
 disc_stop_spinning(struct disc_struct* p_disc) {
+  disc_check_track_needs_write(p_disc);
   (void) timing_stop_timer(p_disc->p_timing, p_disc->timer_id);
 }
 
 void
 disc_select_side(struct disc_struct* p_disc, int side) {
+  disc_check_track_needs_write(p_disc);
+
   p_disc->is_side_upper = side;
 }
 
 void
 disc_select_track(struct disc_struct* p_disc, uint32_t track) {
+  disc_check_track_needs_write(p_disc);
+
   if (track >= k_disc_tracks_per_disc) {
     track = (k_disc_tracks_per_disc - 1);
   }

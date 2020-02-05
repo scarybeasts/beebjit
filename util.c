@@ -424,7 +424,19 @@ util_file_handle_get_size(intptr_t handle) {
 }
 
 void
-util_file_handle_write(intptr_t handle, const void* p_buf, size_t length) {
+util_file_handle_seek(intptr_t handle, uint64_t pos) {
+  off_t ret;
+
+  int fd = (int) handle;
+
+  ret = lseek(fd, (off_t) pos, SEEK_SET);
+  if ((uint64_t) ret != pos) {
+    errx(1, "lseek failed");
+  }
+}
+
+void
+util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
   /* TODO: handle short writes here and below. */
   int fd = (int) handle;
   ssize_t ret = write(fd, p_buf, length);
@@ -434,7 +446,7 @@ util_file_handle_write(intptr_t handle, const void* p_buf, size_t length) {
 }
 
 size_t
-util_file_handle_read(intptr_t handle, void* p_buf, size_t length) {
+util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   int fd = (int) handle;
   ssize_t ret = read(fd, p_buf, length);
   if (ret < 0) {

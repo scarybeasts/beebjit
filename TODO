@@ -13,7 +13,6 @@ Exile).
 can even block at that resolution.
 - Re-add unit test for JIT block handling and splitting etc.
 - BCD support in JIT?
-- Disc write persistance support.
 
 
 Fix later
