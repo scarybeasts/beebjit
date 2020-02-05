@@ -887,7 +887,11 @@ disc_load(struct disc_struct* p_disc,
   }
 
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
-    errx(1, "cannot write this file format");
+    log_do_log(k_log_disc,
+               k_log_unimplemented,
+               "cannot writeback to %s",
+               p_file_name);
+    is_mutable = 0;
   }
 
   p_disc->is_side_upper = 0;
