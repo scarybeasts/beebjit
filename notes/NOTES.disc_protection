@@ -4,6 +4,9 @@ TODO:
 - Boulderdash
 - 3D pool
 
+Great list of tricky and varied protection test cases:
+https://stardot.org.uk/forums/viewtopic.php?f=4&t=10938&p=135262
+
 
 - 005 Arcadians.FSD
 SHA256: af86fa5016054f9192882d62d8a115ef22e82cfe8adb4d74f10cf828aad09b3e
@@ -220,3 +223,10 @@ and settle timings, leaves the head position a little over 20% into the track.
 offset $80 (i.e. the start of the overread) are expected to be:
 (6502db) m 13dc
 13DC: 5D 30 FF FF FF FF FF FF FF FF FF 00 00 00 00 00
+
+
+Copies with DD3 standard mode:
+- 001 EXILE.FSD
+- 005 Arcadians.FSD
+- 040 Starship Command.FSD
+- 194 Mr Ee.FSD
