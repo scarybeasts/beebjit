@@ -1446,6 +1446,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
 void
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            struct util_buffer* p_buf,
+                           int is_invalidation,
                            uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
   uint8_t single_opcode_buffer[128];
@@ -1467,16 +1468,30 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t total_num_opcodes = 0;
   uint32_t total_num_6502_opcodes = 0;
   int block_ended = 0;
+  int is_block_start = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
   jit_invalidate_block_with_addr(p_compiler, start_addr_6502);
 
+  (void) is_invalidation;
+//  if (p_compiler->addr_is_block_start[start_addr_6502]) {
+    /* Retain any existing block start determination. */
+//    is_block_start = 1;
+//  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
+//             !is_invalidation) {
+    /* New block starts are only created if this isn't a compilation
+     * continuation, and this isn't an invalidation of existing code.
+     */
+//    is_block_start = 1;
+//  }
   if (!p_compiler->addr_is_block_continuation[start_addr_6502]) {
-    p_compiler->addr_is_block_start[start_addr_6502] = 1;
+    is_block_start = 1;
   } else {
-    p_compiler->addr_is_block_start[start_addr_6502] = 0;
+    is_block_start = 0;
   }
+
+  p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
 
   /* Prepend opcodes at the start of every block. */
   addr_6502 = start_addr_6502;

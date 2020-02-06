@@ -8,6 +8,7 @@
 
 extern void timing_test();
 extern void video_test();
+extern void jit_test(struct bbc_struct* p_bbc);
 
 void
 test_do_tests(struct bbc_struct* p_bbc) {
@@ -16,6 +17,7 @@ test_do_tests(struct bbc_struct* p_bbc) {
 
   timing_test();
   video_test();
+  jit_test(p_bbc);
 }
 
 void
