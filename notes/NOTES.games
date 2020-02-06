@@ -318,6 +318,12 @@ Notes:
 [ITRP] 3333: BIT $FEA9
 [ITRP] 3336: STA $01A0,X
 [ITRP] 3339: RTS
+2) Requires precise video ULA emulation to get the correct color for the
+status / content separator bar on scanline 0 of verical row 4.
+The memory content, at $0700, is 0xFF for the entire line, selecting logical
+color 0xF. As the line renders, a loop at $4719 is rewriting logical colors
+0x8 - 0xF. If the incorrect logical color is used due to video ULA shortcuts,
+the line won't be all green like it should.
 
 
 - Meteors.zip
@@ -330,6 +336,7 @@ with the user VIA timer not wired up?
 
 - Nightshade (Ultimate) (B) (Tape) [side-noimprint-front].hq.uef
 Unsure if it is publicly downloadable.
+There's one here, different SHA: https://stardot.org.uk/forums/viewtopic.php?t=5023#p86170
 SHA256: 7315a6d238e0b96e5d52011e2c6c80ae4d370f56a93df7f0dc7ae1fa685bf7d4
 Notes:
 1) Phase 1 Kevin Edwards loader loads after the title screen, entry is at
