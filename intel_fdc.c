@@ -258,6 +258,13 @@ intel_fdc_command_abort(struct intel_fdc_struct* p_fdc) {
       (p_fdc->state == k_intel_fdc_state_format_write_data)) {
     disc_write_byte(p_fdc->p_current_disc, 0xFF, 0xFF);
   }
+
+  /* Lower any NMI assertion. This is particularly important for error $0A,
+   * aka. late DMA, which will abort the command while NMI is asserted. We
+   * therefore need to de-assert NMI so that the NMI for command completion
+   * isn't lost.
+   */
+  state_6502_set_irq_level(p_fdc->p_state_6502, k_state_6502_irq_nmi, 0);
 }
 
 static void
