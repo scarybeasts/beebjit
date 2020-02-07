@@ -34,6 +34,8 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
                                           uint16_t len);
 
+uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
+
 int32_t jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
                                           uint16_t addr_6502);
 
@@ -41,5 +43,12 @@ int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);
 void jit_compiler_set_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler, int value);
+
+void jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
+                                         int optimizing);
+void jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
+                                      uint32_t num_ops);
+void jit_compiler_testing_set_max_revalidate_count(
+    struct jit_compiler* p_compiler, uint32_t max_count);
 
 #endif /* BEEJIT_JIT_COMPILER_H */

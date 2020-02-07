@@ -24,7 +24,7 @@ enum {
 
 struct interp_struct {
   struct cpu_driver driver;
-  int exited;
+  int has_exited;
   uint32_t exit_value;
 
   uint8_t* p_mem_read;
@@ -48,19 +48,19 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
   (void) countdown;
 
-  return p_interp->exited;
+  return p_interp->has_exited;
 }
 
 static int
 interp_has_exited(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  return p_interp->exited;
+  return p_interp->has_exited;
 }
 
 static uint32_t
 interp_get_exit_value(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  assert(p_interp->exited);
+  assert(p_interp->has_exited);
   return p_interp->exit_value;
 }
 
@@ -105,7 +105,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
 
-  p_interp->exited = 0;
+  p_interp->has_exited = 0;
   p_interp->exit_value = 0;
 }
 
@@ -722,7 +722,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int do_irq = 0;
 
   assert(countdown >= 0);
-  assert(!p_interp->exited);
+  assert(!p_interp->has_exited);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -779,7 +779,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
     case 0x02: /* Extension: EXIT */
-      p_interp->exited = 1;
+      p_interp->has_exited = 1;
       p_interp->exit_value = ((y << 16) | (x << 8) | a);
       return countdown;
     case 0x04: /* NOP zp */ /* Undocumented. */
@@ -1753,4 +1753,9 @@ check_irq:
   state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
 
   return countdown;
+}
+
+void
+interp_testing_unexit(struct interp_struct* p_interp) {
+  p_interp->has_exited = 0;
 }

@@ -702,6 +702,8 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_carry_write_uop;
   int carry_flipped_for_branch;
 
+  uint32_t max_revalidate_count =
+      jit_compiler_get_max_revalidate_count(p_compiler);
   struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
 
   /* Use a compiler-provided scratch opcode to eliminate all BCD checks and do
@@ -731,7 +733,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     int32_t revalidate_count = jit_compiler_get_revalidate_count(p_compiler,
                                                                  addr_6502);
 
-    if (revalidate_count < 4) {
+    if (revalidate_count < (int32_t) max_revalidate_count) {
       continue;
     }
 

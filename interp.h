@@ -20,4 +20,6 @@ int64_t interp_enter_with_details(
                                 int irq_pending),
     void* p_callback_context);
 
+void interp_testing_unexit(struct interp_struct* p_interp);
+
 #endif /* BEEBJIT_INTERP_H */

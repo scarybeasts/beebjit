@@ -26,11 +26,13 @@ struct jit_compiler {
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
+  int log_revalidate;
+  uint16_t needs_callback_above;
+
   int option_accurate_timings;
   int option_no_optimize;
-  int log_revalidate;
   uint32_t max_6502_opcodes_per_block;
-  uint16_t needs_callback_above;
+  uint32_t max_revalidate_count;
 
   struct util_buffer* p_single_opcode_buf;
   struct util_buffer* p_tmp_buf;
@@ -159,6 +161,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
 
   void* p_memory_object = p_memory_access->p_callback_obj;
   uint32_t max_6502_opcodes_per_block = 65536;
+  uint32_t max_revalidate_count = 4;
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
@@ -195,6 +198,13 @@ jit_compiler_create(struct memory_access* p_memory_access,
     max_6502_opcodes_per_block = 1;
   }
   p_compiler->max_6502_opcodes_per_block = max_6502_opcodes_per_block;
+  (void) util_get_u32_option(&max_revalidate_count,
+                             p_options->p_opt_flags,
+                             "jit:max-revalidate");
+  if (max_revalidate_count < 1) {
+    max_revalidate_count = 1;
+  }
+  p_compiler->max_revalidate_count = max_revalidate_count;
 
   needs_callback_above = p_memory_access->memory_read_needs_callback_above(
       p_memory_object);
@@ -1469,6 +1479,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t total_num_6502_opcodes = 0;
   int block_ended = 0;
   int is_block_start = 0;
+  int is_block_continuation = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
@@ -1555,6 +1566,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * opcodes.
      */
     if (total_num_6502_opcodes == p_compiler->max_6502_opcodes_per_block) {
+      is_block_continuation = 1;
       break;
     }
 
@@ -1563,6 +1575,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * to jump out of a block when the block doesn't fit.
      */
     if (total_num_opcodes == (k_max_opcodes_per_compile - 1)) {
+      is_block_continuation = 1;
       break;
     }
 
@@ -1572,6 +1585,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
        * possibly needed opcode to jump out of a block that doesn't fit.
        */
       if (total_num_opcodes >= (k_max_opcodes_per_compile - 2)) {
+        is_block_continuation = 1;
         break;
       }
     }
@@ -1735,7 +1749,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * current position, and execute a jump to the block continuation.
      */
     if (util_buffer_remaining(p_buf) < buf_needed) {
-      p_compiler->addr_is_block_continuation[addr_6502] = 1;
+      is_block_continuation = 1;
       util_buffer_set_pos(p_single_opcode_buf, 0);
       for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
         p_uop = p_details->fixup_uops[i_uops];
@@ -1756,6 +1770,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
     p_details->p_host_address = p_host_address;
   }
+
+  p_compiler->addr_is_block_continuation[addr_6502] = is_block_continuation;
 
   /* Fifth, update any values (metadata and/or binary) that may have changed
    * now we know the full extent of the emitted binary.
@@ -2027,6 +2043,11 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
   }
 }
 
+uint32_t
+jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler) {
+  return p_compiler->max_revalidate_count;
+}
+
 int32_t
 jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
                                   uint16_t addr_6502) {
@@ -2043,4 +2064,22 @@ void
 jit_compiler_set_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler, int value) {
   p_compiler->compile_for_code_in_zero_page = value;
+}
+
+void
+jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
+                                    int optimizing) {
+  p_compiler->option_no_optimize = !optimizing;
+}
+
+void
+jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
+                                 uint32_t num_ops) {
+  p_compiler->max_6502_opcodes_per_block = num_ops;
+}
+
+void
+jit_compiler_testing_set_max_revalidate_count(struct jit_compiler* p_compiler,
+                                              uint32_t max_count) {
+  p_compiler->max_revalidate_count = max_count;
 }

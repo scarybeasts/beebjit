@@ -53,16 +53,31 @@ struct jit_struct {
 };
 
 static inline uint8_t*
-jit_get_jit_base_addr(struct jit_struct* p_jit, uint16_t addr_6502) {
+jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (p_jit->p_jit_base +
                         (addr_6502 * k_jit_bytes_per_byte));
   return p_jit_ptr;
 }
 
+static inline int
+jit_is_host_address_invalidated(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
+  if ((p_jit_ptr[0] == p_jit->jit_invalidation_sequence[0]) &&
+      (p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1])) {
+    return 1;
+  }
+  return 0;
+}
+
+static inline void
+jit_invalidate_host_address(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
+  p_jit_ptr[0] = p_jit->jit_invalidation_sequence[0];
+  p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
+}
+
 static void*
 jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
-  return jit_get_jit_base_addr(p_jit, addr_6502);
+  return jit_get_jit_block_host_address(p_jit, addr_6502);
 }
 
 static void*
@@ -110,18 +125,16 @@ jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
 
 static inline void
 jit_invalidate_block_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+  uint8_t* p_jit_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
 
-  p_jit_ptr[0] = p_jit->jit_invalidation_sequence[0];
-  p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
+  jit_invalidate_host_address(p_jit, p_jit_ptr);
 }
 
 static inline void
 jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_intel_rip = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
 
-  p_intel_rip[0] = p_jit->jit_invalidation_sequence[0];
-  p_intel_rip[1] = p_jit->jit_invalidation_sequence[1];
+  jit_invalidate_host_address(p_jit, p_intel_rip);
 }
 
 static int
@@ -237,7 +250,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
-  uint8_t* p_start_addr = jit_get_jit_base_addr(p_jit, addr_6502);
+  uint8_t* p_start_addr = jit_get_jit_block_host_address(p_jit, addr_6502);
   void* p_mem_base = ((void*) K_BBC_MEM_READ_IND_ADDR + REG_MEM_OFFSET);
 
   uint_start_addr = (uint32_t) (size_t) p_start_addr;
@@ -332,7 +345,7 @@ jit_compile(struct jit_struct* p_jit,
   struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
   uint16_t block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
 
-  p_block_ptr = jit_get_jit_base_addr(p_jit, block_addr_6502);
+  p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
   if (p_block_ptr == p_intel_rip) {
     is_invalidation = 0;
     addr_6502 = block_addr_6502;
@@ -356,7 +369,7 @@ jit_compile(struct jit_struct* p_jit,
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
-  p_jit_ptr = jit_get_jit_base_addr(p_jit, addr_6502);
+  p_jit_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
   p_state_6502->reg_pc = addr_6502;
   if (is_invalidation) {
     countdown = jit_compiler_fixup_state(p_compiler,
@@ -702,11 +715,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();
   p_jit->jit_ptr_no_code =
-      (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
-                                                (k_6502_addr_space_size - 1));
+      (uint32_t) (size_t) jit_get_jit_block_host_address(
+          p_jit, (k_6502_addr_space_size - 1));
   p_jit->jit_ptr_dynamic_operand =
-      (uint32_t) (size_t) jit_get_jit_base_addr(p_jit,
-                                                (k_6502_addr_space_size - 2));
+      (uint32_t) (size_t) jit_get_jit_block_host_address(
+          p_jit, (k_6502_addr_space_size - 2));
 
   util_buffer_setup(p_temp_buf, &p_jit->jit_invalidation_sequence[0], 2);
   asm_x64_emit_jit_call_compile_trampoline(p_temp_buf);
