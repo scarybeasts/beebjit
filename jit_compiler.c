@@ -1485,21 +1485,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   jit_invalidate_block_with_addr(p_compiler, start_addr_6502);
 
-  (void) is_invalidation;
-//  if (p_compiler->addr_is_block_start[start_addr_6502]) {
+  if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
-//    is_block_start = 1;
-//  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
-//             !is_invalidation) {
+    is_block_start = 1;
+  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
+             !is_invalidation) {
     /* New block starts are only created if this isn't a compilation
      * continuation, and this isn't an invalidation of existing code.
      */
-//    is_block_start = 1;
-//  }
-  if (!p_compiler->addr_is_block_continuation[start_addr_6502]) {
     is_block_start = 1;
-  } else {
-    is_block_start = 0;
   }
 
   p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
