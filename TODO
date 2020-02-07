@@ -29,6 +29,8 @@ dependent on one another.
 - Accurate last line latching for 6845.
 - Tape loading noises.
 - Disc loading noises.
+- 6845 skew support.
+- Add a test for the JIT optimizer.
 
 
 Ideas
