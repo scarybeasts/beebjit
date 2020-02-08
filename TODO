@@ -9,8 +9,9 @@ get addressed before the next release.
 - Add README and EXAMPLES files.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
-- Re-add unit test for JIT block handling and splitting etc.
 - BCD support in JIT?
+- Big problems with block splitting.
+- Big problems with video vsync asserts.
 
 
 Fix later
@@ -24,7 +25,7 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
 - Add cursor support to the 6845 CRTC.
-- Add fdi disc format support.
+- Add fdi or hfe disc format support.
 - MODE7 doesn't have character rounding.
 - Accurate last line latching for 6845.
 - Tape loading noises.
