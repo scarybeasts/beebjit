@@ -58,8 +58,10 @@ jit_test_block_split() {
   interp_testing_unexit(g_p_interp);
 
   p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB00);
-  /* TODO: should be 0? */
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  /* We expect 0 because the block isn't invalidated -- the first 6502 JIT
+   * instruction of the block is instead.
+   */
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
   p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB01);
   test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
 
@@ -86,7 +88,7 @@ jit_test_block_continuation() {
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
-  /* Block boundary here because we set the limit to 4 opcodes. */
+  /* Block continuation here because we set the limit to 4 opcodes. */
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
@@ -125,6 +127,11 @@ jit_test_invalidation() {
   util_buffer_setup(p_buf, (g_p_mem + 0xD00), 0x100);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  /* Block continuation here. */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_EXIT(p_buf);
 
   state_6502_set_pc(g_p_state_6502, 0xD00);
@@ -138,8 +145,7 @@ jit_test_invalidation() {
   interp_testing_unexit(g_p_interp);
 
   p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD00);
-  /* TODO: should be 0? */
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
   p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD01);
   test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
 
@@ -153,6 +159,44 @@ jit_test_invalidation() {
    * a new block boundary.
    */
   p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD01);
+  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+
+  jit_invalidate_code_at_address(g_p_jit, 0xD05);
+
+  /* This execution will create a block at 0xD05 because of the invalidation
+   * but it should not be a fundamental block boundary. Also, 0xD04 must remain
+   * a block continuation and not a fundamental boundary.
+   */
+  state_6502_set_pc(g_p_state_6502, 0xD00);
+  jit_enter(g_p_cpu_driver);
+  interp_testing_unexit(g_p_interp);
+
+  /* Execute again, should settle back to the original block boundaries and
+   * continuations.
+   */
+  state_6502_set_pc(g_p_state_6502, 0xD00);
+  jit_enter(g_p_cpu_driver);
+  interp_testing_unexit(g_p_interp);
+
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD00);
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD05);
+  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+
+  /* Check that no block boundaries appeared in incorrect places. */
+  state_6502_set_pc(g_p_state_6502, 0xD03);
+  jit_enter(g_p_cpu_driver);
+  interp_testing_unexit(g_p_interp);
+
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD03);
+  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
+  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD05);
   test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
 
   util_buffer_destroy(p_buf);

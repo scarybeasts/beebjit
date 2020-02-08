@@ -85,6 +85,21 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
 }
 
 static void
+jit_invalidate_6502_jit_code(struct jit_compiler* p_compiler, uint16_t addr) {
+  uint8_t* p_host_ptr;
+
+  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
+
+  if (jit_ptr == p_compiler->jit_ptr_no_code) {
+    return;
+  }
+
+  p_host_ptr = (uint8_t*) (uintptr_t) jit_ptr;
+  util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
+  asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
+}
+
+static void
 jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
   uint16_t block_addr_6502;
   uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
@@ -98,7 +113,7 @@ jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
   /* If we're compiling in the middle of an existing block, invalidate the
    * very start of that block so it gets recompiled when it is next hit.
    */
-  jit_invalidate_jump_target(p_compiler, block_addr_6502);
+  jit_invalidate_6502_jit_code(p_compiler, block_addr_6502);
 
   /* Also clear all of the JIT invalidation pointers for the existing block.
    * They will typically get rewritten but some might otherwise get left stale
