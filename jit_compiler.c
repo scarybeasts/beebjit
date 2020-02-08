@@ -7,13 +7,13 @@
 #include "defs_6502.h"
 #include "jit_opcode.h"
 #include "jit_optimizer.h"
+#include "log.h"
 #include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1860,10 +1860,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                    (p_details->len_bytes_6502_orig > 1)) {
           revalidate_count++;
           if (p_compiler->log_revalidate) {
-            printf("LOG:JIT:revalidate at $%.4X, opcode %.2X count %d\n",
-                   addr_6502,
-                   opcode_6502,
-                   revalidate_count);
+            log_do_log(k_log_jit,
+                       k_log_info,
+                       "revalidate at $%.4X, opcode %.2X count %d",
+                       addr_6502,
+                       opcode_6502,
+                       revalidate_count);
           }
         }
         p_compiler->addr_opcode[addr_6502] = opcode_6502;

@@ -11,6 +11,7 @@
 #include "interp.h"
 #include "memory_access.h"
 #include "jit_compiler.h"
+#include "log.h"
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
@@ -301,7 +302,11 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   uint32_t addr_end = (addr + len);
 
   if (p_jit->log_compile) {
-    printf("LOG:JIT:invalidate range $%.4X-$%.4X\n", addr, (addr_end - 1));
+    log_do_log(k_log_jit,
+               k_log_info,
+               "invalidate range $%.4X-$%.4X",
+               addr,
+               (addr_end - 1));
   }
 
   assert(addr_end >= addr);
@@ -387,15 +392,20 @@ jit_compile(struct jit_struct* p_jit,
     } else {
       p_new_or_inval = "new";
     }
-    printf("LOG:JIT:compile @$%.4X [rip @%p], %s\n",
-           addr_6502,
-           p_intel_rip,
-           p_new_or_inval);
+    log_do_log(k_log_jit,
+               k_log_info,
+               "compile @$%.4X [rip @%p], %s",
+               addr_6502,
+               p_intel_rip,
+               p_new_or_inval);
   }
 
   if ((addr_6502 < 0xFF) &&
       !jit_compiler_is_compiling_for_code_in_zero_page(p_compiler)) {
-    printf("LOG:JIT:compiling zero page code; handled but slightly slower\n");
+    log_do_log(k_log_jit,
+               k_log_unusual,
+               "compiling zero page code @$%.2X",
+               addr_6502);
 
     /* Invalidate all existing compiled code because if it writes to the zero
      * page, it isn't doing self-modified code correctly.
@@ -409,8 +419,10 @@ jit_compile(struct jit_struct* p_jit,
     /* TODO: doesn't handle case where zero page code spills into stack page
      * code.
      */
-    printf("LOG:JIT:compiling stack page code; self-modify here not handled\n");
-    printf("LOG:JIT:happens a lot (including Exile); will probably work ok\n");
+    log_do_log(k_log_jit,
+               k_log_unimplemented,
+               "compiling stack page code @$%.4X; self-modify not handled",
+               addr_6502);
   }
 
   jit_compiler_compile_block(p_compiler,
