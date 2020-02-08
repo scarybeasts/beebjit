@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-//#include <stdio.h>
-
 /* A real BBC in a non-interlaced bitmapped mode has a CRTC period of 19968us,
  * just short of 20ms.
  * e.g. *TV0,1 (interlace off, defaults to on for the model B)
@@ -96,6 +94,7 @@ struct video_struct {
   uint32_t frames_skip;
   uint32_t frame_skip_counter;
   int render_after_each_row;
+  int log_timer;
 
   /* Timing. */
   uint64_t wall_time;
@@ -614,7 +613,27 @@ video_update_timer(struct video_struct* p_video) {
   ticks_to_next_row = ticks_to_next_scanline;
   ticks_to_next_row += (scanline_ticks * scanlines_left_this_row);
 
-//printf("hc %d sc %d ac %d vc %d r4 %d r5 %d r6 %d r7 %d r9 %d adj %d i %d v %d m %d t %zu\n", p_video->horiz_counter, p_video->scanline_counter, p_video->vert_adjust_counter, p_video->vert_counter, r4, r5, r6, r7, r9, p_video->in_vert_adjust, (p_video->crtc_registers[k_crtc_reg_interlace] & 3), p_video->had_vsync_this_frame, tick_multiplier, timing_get_total_timer_ticks(p_video->p_timing));
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "hc %d sc %d ac %d vc %d "
+               "r4 %d r5 %d r6 %d r7 %d r9 %d "
+               "adj %d i %d v %d m %d t %zu",
+               p_video->horiz_counter,
+               p_video->scanline_counter,
+               p_video->vert_adjust_counter,
+               p_video->vert_counter,
+               r4,
+               r5,
+               r6,
+               r7,
+               r9,
+               p_video->in_vert_adjust,
+               (p_video->crtc_registers[k_crtc_reg_interlace] & 3),
+               p_video->had_vsync_this_frame,
+               tick_multiplier,
+               timing_get_total_timer_ticks(p_video->p_timing));
+  }
 
   if (p_video->in_vsync) {
     if (!p_video->is_odd_interlace_frame) {
@@ -639,7 +658,6 @@ video_update_timer(struct video_struct* p_video) {
   } else if ((p_video->vert_counter < r7) &&
              (r7 <= vert_counter_max) &&
              !p_video->had_vsync_this_frame) {
-//printf("vc < r7, r7 %d\n", r7);
     /* In this branch, vsync will happen this current frame. */
     assert(!p_video->in_vert_adjust);
     timer_value = ticks_to_next_row;
@@ -687,7 +705,6 @@ video_update_timer(struct video_struct* p_video) {
       }
     }
 
-//printf("vc >= r7, r7 = %d\n", r7);
     ticks_from_frame_to_vsync = (scanline_ticks * scanlines_per_row * r7);
     if (p_video->is_interlace && is_even_interlace_frame) {
       ticks_from_frame_to_vsync += half_scanline_ticks;
@@ -732,7 +749,9 @@ video_update_timer(struct video_struct* p_video) {
 
   assert(timer_value < (4 * 1024 * 1024));
 
-//printf("timer value: %zu\n", timer_value);
+  if (p_video->log_timer) {
+    log_do_log(k_log_video, k_log_info, "timer value: %zu", timer_value);
+  }
 
   /* beebjit does not synchronize the video RAM read with the CPU RAM writes.
    * This leads to juddery display in same games where screen RAM updates are
@@ -757,8 +776,6 @@ video_timer_fired(void* p) {
   struct video_struct* p_video = (struct video_struct*) p;
 
   assert(!p_video->externally_clocked);
-
-//printf("timer fired\n");
 
   video_advance_crtc_timing(p_video);
 
@@ -926,6 +943,8 @@ video_create(uint8_t* p_bbc_mem,
                              "video:frames-skip=");
   p_video->render_after_each_row = util_has_option(
       p_options->p_opt_flags, "video:render-after-each-row");
+  p_video->log_timer = util_has_option(p_options->p_log_flags,
+                                       "video:timer");
 
   p_video->crtc_frames = 0;
   p_video->is_even_interlace_frame = 1;
