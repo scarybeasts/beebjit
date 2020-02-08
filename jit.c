@@ -75,6 +75,14 @@ jit_invalidate_host_address(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
   p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
 }
 
+static inline int
+jit_has_6502_code(struct jit_struct* p_jit, uint16_t addr_6502) {
+  if (p_jit->jit_ptrs[addr_6502] == p_jit->jit_ptr_no_code) {
+    return 0;
+  }
+  return 1;
+}
+
 static void*
 jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
@@ -105,7 +113,7 @@ jit_get_jit_ptr_block_callback(void* p, uint32_t jit_ptr) {
 }
 
 static uint16_t
-jit_6502_block_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
+jit_6502_block_addr_from_host(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   size_t block_addr_6502;
 
   uint8_t* p_jit_base = p_jit->p_jit_base;
@@ -121,7 +129,7 @@ jit_6502_block_addr_from_intel(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 static uint16_t
 jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
   void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr];
-  return jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
+  return jit_6502_block_addr_from_host(p_jit, p_intel_rip);
 }
 
 static inline void
@@ -342,27 +350,26 @@ jit_compile(struct jit_struct* p_jit,
   uint32_t jit_ptr;
   uint8_t* p_jit_ptr;
   uint8_t* p_block_ptr;
-  uint16_t addr_6502;
-  int is_invalidation;
+  uint32_t bytes_6502_compiled;
+  int has_6502_code;
+  int is_block_continuation;
 
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
-  uint16_t block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_intel_rip);
+  uint16_t block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_intel_rip);
+  uint16_t addr_6502 = block_addr_6502;
+  int is_invalidation = 0;
 
   p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
-  if (p_block_ptr == p_intel_rip) {
-    is_invalidation = 0;
-    addr_6502 = block_addr_6502;
-  } else {
+  if (p_block_ptr != p_intel_rip) {
     is_invalidation = 1;
     /* Host IP is inside a code block; find the corresponding 6502 address. */
-    addr_6502 = block_addr_6502;
     while (1) {
       jit_ptr = p_jit->jit_ptrs[addr_6502];
       p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
       assert((jit_ptr == p_jit->jit_ptr_dynamic_operand) ||
-             (jit_6502_block_addr_from_intel(p_jit, p_jit_ptr) ==
+             (jit_6502_block_addr_from_host(p_jit, p_jit_ptr) ==
               block_addr_6502));
       if (p_jit_ptr == p_intel_rip) {
         break;
@@ -384,21 +391,6 @@ jit_compile(struct jit_struct* p_jit,
   }
 
   util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
-
-  if (p_jit->log_compile) {
-    const char* p_new_or_inval;
-    if (is_invalidation) {
-      p_new_or_inval = "inval";
-    } else {
-      p_new_or_inval = "new";
-    }
-    log_do_log(k_log_jit,
-               k_log_info,
-               "compile @$%.4X [rip @%p], %s",
-               addr_6502,
-               p_intel_rip,
-               p_new_or_inval);
-  }
 
   if ((addr_6502 < 0xFF) &&
       !jit_compiler_is_compiling_for_code_in_zero_page(p_compiler)) {
@@ -425,10 +417,34 @@ jit_compile(struct jit_struct* p_jit,
                addr_6502);
   }
 
-  jit_compiler_compile_block(p_compiler,
-                             p_compile_buf,
-                             is_invalidation,
-                             addr_6502);
+  has_6502_code = jit_has_6502_code(p_jit, addr_6502);
+  is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
+                                                             addr_6502);
+  bytes_6502_compiled = jit_compiler_compile_block(p_compiler,
+                                                   p_compile_buf,
+                                                   is_invalidation,
+                                                   addr_6502);
+
+  if (p_jit->log_compile) {
+    const char* p_text;
+    uint16_t addr_6502_end = (addr_6502 + bytes_6502_compiled - 1);
+    if (is_invalidation) {
+      p_text = "inval";
+    } else if (is_block_continuation) {
+      p_text = "cont";
+    } else if (has_6502_code) {
+      p_text = "split";
+    } else {
+      p_text = "new";
+    }
+    log_do_log(k_log_jit,
+               k_log_info,
+               "compile @$%.4X-$%.4X [rip @%p], %s",
+               addr_6502,
+               addr_6502_end,
+               p_intel_rip,
+               p_text);
+  }
 
   return countdown;
 }
@@ -609,7 +625,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   /* NOTE -- may call assert() which isn't async safe but faulting context is
    * raw asm, shouldn't be a disaster.
    */
-  block_addr_6502 = jit_6502_block_addr_from_intel(p_jit, p_rip);
+  block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_rip);
 
   /* Walk the code pointers in the block and do a non-exact match because the
    * faulting instruction won't be the start of the 6502 opcode. (That may
@@ -621,8 +637,8 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   while (1) {
     uint32_t jit_ptr = p_jit->jit_ptrs[i_addr_6502];
     void* p_jit_ptr = (void*) (size_t) jit_ptr;
-    uint16_t new_block_addr_6502 = jit_6502_block_addr_from_intel(p_jit,
-                                                                  p_jit_ptr);
+    uint16_t new_block_addr_6502 = jit_6502_block_addr_from_host(p_jit,
+                                                                 p_jit_ptr);
     if (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
       /* Continue. */
     } else if ((jit_ptr == p_jit->jit_ptr_no_code) ||

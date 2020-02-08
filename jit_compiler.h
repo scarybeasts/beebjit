@@ -20,10 +20,10 @@ struct jit_compiler* jit_compiler_create(
     int debug);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
-void jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                                struct util_buffer* p_buf,
-                                int is_invalidation,
-                                uint16_t addr_6502);
+uint32_t jit_compiler_compile_block(struct jit_compiler* p_compiler,
+                                    struct util_buffer* p_buf,
+                                    int is_invalidation,
+                                    uint16_t addr_6502);
 
 int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                                  struct state_6502* p_state_6502,
@@ -36,6 +36,8 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
 uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
 
+int jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
+                                       uint16_t addr_6502);
 int32_t jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
                                           uint16_t addr_6502);
 

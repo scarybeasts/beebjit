@@ -1468,7 +1468,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   }
 }
 
-void
+uint32_t
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            struct util_buffer* p_buf,
                            int is_invalidation,
@@ -1942,6 +1942,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * 3) Performance. int3 will stop the Intel instruction decoder.
    */
   util_buffer_fill_to_end(p_buf, '\xcc');
+
+  return (addr_6502 - start_addr_6502);
 }
 
 int64_t
@@ -2063,6 +2065,12 @@ int32_t
 jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
                                   uint16_t addr_6502) {
   return p_compiler->addr_revalidate_count[addr_6502];
+}
+
+int
+jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
+                                   uint16_t addr_6502) {
+  return p_compiler->addr_is_block_continuation[addr_6502];
 }
 
 int
