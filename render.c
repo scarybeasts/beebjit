@@ -50,6 +50,8 @@ struct render_struct {
   int do_interlace_wobble;
   int do_skip_next_hsync_vert_pos;
   int do_show_frame_boundaries;
+  int32_t cursor_segment_index;
+  int cursor_segments[4];
 };
 
 static void
@@ -132,6 +134,8 @@ render_create(struct teletext_struct* p_teletext,
 
   p_render->render_mode = k_render_mode0;
   p_render->pixels_size = 8;
+
+  p_render->cursor_segment_index = -1;
 
   render_dirty_all_tables(p_render);
 
@@ -224,6 +228,27 @@ render_reset_render_pos(struct render_struct* p_render) {
                                     p_render->pixels_size);
 }
 
+static inline void
+render_check_cursor(struct render_struct* p_render,
+                    uint32_t* p_render_pos,
+                    uint32_t num_pixels) {
+  if (p_render->cursor_segment_index == -1) {
+    return;
+  }
+
+  if (p_render->cursor_segments[p_render->cursor_segment_index] &&
+      (p_render_pos >= p_render->p_render_pos_row)) {
+    uint32_t i;
+    for (i = 0; i < num_pixels; ++i) {
+      p_render_pos[i] ^= 0x00ffffff;
+    }
+  }
+  p_render->cursor_segment_index++;
+  if (p_render->cursor_segment_index == 4) {
+    p_render->cursor_segment_index = -1;
+  }
+}
+
 static void
 render_function_teletext(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
@@ -234,6 +259,10 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     teletext_render_data(p_render->p_teletext, p_character, data);
+    /* NOTE: the -16 here is a dodgy hack to shift the cursor to the left
+     * while we don't support 6845 skew.
+     */
+    render_check_cursor(p_render, (p_render_pos - 16), 16);
     p_render->p_render_pos += 16;
   } else {
     /* In teletext mode, we still need to tell the SAA5050 chip about data
@@ -256,6 +285,7 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_1MHz->values[data];
+    render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
   } else if (p_render->horiz_beam_pos ==
              p_render->horiz_beam_window_start_pos) {
@@ -294,6 +324,7 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_2MHz->values[data];
+    render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
   } else if (p_render->horiz_beam_pos ==
              p_render->horiz_beam_window_start_pos) {
@@ -366,6 +397,18 @@ render_set_palette(struct render_struct* p_render,
                    uint32_t rgba) {
   p_render->palette[index] = rgba;
   render_dirty_all_tables(p_render);
+}
+
+void
+render_set_cursor_segments(struct render_struct* p_render,
+                           int s0,
+                           int s1,
+                           int s2,
+                           int s3) {
+  p_render->cursor_segments[0] = s0;
+  p_render->cursor_segments[1] = s1;
+  p_render->cursor_segments[2] = s2;
+  p_render->cursor_segments[3] = s3;
 }
 
 static void
@@ -560,6 +603,13 @@ render_hsync(struct render_struct* p_render) {
   }
   /* TODO: do a vertical flyback if beam pos gets too low. */
   render_reset_render_pos(p_render);
+
+  /* NOTE: dodgy hack to get MODE7 shifted to the right by one character
+   * because we do not yet support 6845 skew.
+   */
+  if (p_render->render_mode == k_render_mode7) {
+    render_function_1MHz_blank(p_render, 0);
+  }
 }
 
 void
@@ -589,4 +639,9 @@ render_frame_boundary(struct render_struct* p_render) {
   for (i = 0; i < p_render->width; ++i) {
     p_render->p_render_pos_row[i] = 0xffff0000;
   }
+}
+
+void
+render_cursor(struct render_struct* p_render) {
+  p_render->cursor_segment_index = 0;
 }

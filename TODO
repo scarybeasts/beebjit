@@ -24,7 +24,6 @@ sequence can be improved a lot. For example, there only needs to be a branch
 at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
-- Add cursor support to the 6845 CRTC.
 - Add fdi or hfe disc format support.
 - MODE7 doesn't have character rounding.
 - Accurate last line latching for 6845.

@@ -49,6 +49,11 @@ void render_set_mode(struct render_struct* p_render, int mode);
 void render_set_palette(struct render_struct* p_render,
                         uint8_t index,
                         uint32_t rgba);
+void render_set_cursor_segments(struct render_struct* p_render,
+                                int s0,
+                                int s1,
+                                int s2,
+                                int s3);
 
 struct render_table_2MHz* render_get_2MHz_render_table(
     struct render_struct* p_render, int mode);
@@ -65,5 +70,6 @@ void render_double_up_lines(struct render_struct* p_render);
 void render_hsync(struct render_struct* p_render);
 void render_vsync(struct render_struct* p_render);
 void render_frame_boundary(struct render_struct* p_render);
+void render_cursor(struct render_struct* p_render);
 
 #endif /* BEEBJIT_RENDER_H */

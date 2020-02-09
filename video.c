@@ -121,6 +121,10 @@ struct video_struct {
   uint8_t hsync_pulse_width;
   uint8_t vsync_pulse_width;
   uint8_t half_r0;
+  int cursor_disabled;
+  int cursor_flashing;
+  uint32_t cursor_flash_mask;
+  uint8_t cursor_start_line;
 
   /* 6845 state. */
   uint64_t crtc_frames;
@@ -140,6 +144,8 @@ struct video_struct {
   int had_vsync_this_frame;
   int display_enable_horiz;
   int display_enable_vert;
+  int has_hit_cursor_line_start;
+  int has_hit_cursor_line_end;
 };
 
 static inline uint32_t
@@ -203,6 +209,8 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->had_vsync_this_frame = 0;
   p_video->in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
+  p_video->has_hit_cursor_line_start = 0;
+  p_video->has_hit_cursor_line_end = 0;
 
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
@@ -336,6 +344,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
   uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
   uint32_t r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
+  uint32_t cursor_addr =
+      ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
+       p_video->crtc_registers[k_crtc_reg_cursor_low]);
 
   void (*func_render_data)(struct render_struct*, uint8_t) =
       render_get_render_data_function(p_render);
@@ -398,6 +409,16 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       check_vsync_at_half_r0 = 0;
     }
 
+    if (!p_video->cursor_disabled &&
+        (p_video->address_counter == cursor_addr) &&
+        p_video->has_hit_cursor_line_start &&
+        !p_video->has_hit_cursor_line_end &&
+        (!p_video->cursor_flashing || (p_video->crtc_frames &
+                                       p_video->cursor_flash_mask)) &&
+        p_video->display_enable_horiz &&
+        p_video->display_enable_vert) {
+      render_cursor(p_render);
+    }
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
 
     if (!r0_hit) {
@@ -462,6 +483,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->scanline_counter = 0;
     p_video->address_counter = p_video->address_counter_next_row;
     p_video->address_counter_this_row = p_video->address_counter_next_row;
+    p_video->has_hit_cursor_line_start = 0;
+    p_video->has_hit_cursor_line_end = 0;
 
     r4_hit = (p_video->vert_counter == r4);
     p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
@@ -498,6 +521,13 @@ start_new_frame:
     }
 
 recalculate_and_continue:
+    if (p_video->scanline_counter == p_video->cursor_start_line) {
+      p_video->has_hit_cursor_line_start = 1;
+    }
+    if (p_video->scanline_counter ==
+        p_video->crtc_registers[k_crtc_reg_cursor_end]) {
+      p_video->has_hit_cursor_line_end = 1;
+    }
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
@@ -984,6 +1014,8 @@ video_create(uint8_t* p_bbc_mem,
    */
   p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
   p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
+  p_video->crtc_registers[k_crtc_reg_cursor_start] = 0x72;
+  p_video->crtc_registers[k_crtc_reg_cursor_end] = 0x13;
 
   /* Set correctly as per above register values. */
   p_video->is_interlace = 1;
@@ -992,6 +1024,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->scanline_mask = 0x1E;
   p_video->is_master_display_enable = 1;
   p_video->half_r0 = 32;
+  p_video->cursor_disabled = 0;
+  p_video->cursor_flashing = 1;
+  p_video->cursor_flash_mask = 0x10;
+  p_video->cursor_start_line = 18;
 
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
@@ -1223,13 +1259,14 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
   int old_flash;
   int new_flash;
+  int old_clock_speed;
+
+  if (!p_video->externally_clocked) {
+    video_advance_crtc_timing(p_video);
+  }
 
   if (addr == 1) {
     /* Palette register. */
-    if (!p_video->externally_clocked) {
-      video_advance_crtc_timing(p_video);
-    }
-
     index = (val >> 4);
     /* The xor is to map incoming color to real physical color. e.g. MOS writes
      * 7 for black, which xors to 0, which is the number for physical black.
@@ -1246,25 +1283,15 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   assert(addr == 0);
 
   old_flash = video_get_flash(p_video);
+  old_clock_speed = video_get_clock_speed(p_video);
+  p_video->video_ula_control = val;
 
   if (!p_video->externally_clocked) {
-    int old_clock_speed = video_get_clock_speed(p_video);
     int new_clock_speed = !!(val & k_ula_clock_speed);
-    int clock_speed_changing = (new_clock_speed != old_clock_speed);
-
-    /* If the clock speed is changing, this affects not only rendering but also
-     * fundamental timing.
-     */
-    video_advance_crtc_timing(p_video);
-
-    p_video->video_ula_control = val;
-
-    if (clock_speed_changing) {
+    if (new_clock_speed != old_clock_speed) {
       p_video->is_framing_changed_for_render = 1;
       video_update_timer(p_video);
     }
-  } else {
-    p_video->video_ula_control = val;
   }
 
   new_flash = video_get_flash(p_video);
@@ -1276,6 +1303,13 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       }
     }
   }
+
+  /* NOTE: yes, the last two are repeated. */
+  render_set_cursor_segments(p_video->p_render,
+                             !!(val & 0x80),
+                             !!(val & 0x40),
+                             !!(val & 0x20),
+                             !!(val & 0x20));
 
   video_mode_updated(p_video);
 }
@@ -1458,6 +1492,16 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       p_video->scanline_mask = 0x1F;
     }
     video_update_odd_even_frame(p_video);
+    break;
+  case k_crtc_reg_cursor_start:
+    p_video->cursor_disabled = ((val & 0x60) == 0x20);
+    p_video->cursor_flashing = !!(val & 0x40);
+    if (val & 0x20) {
+      p_video->cursor_flash_mask = 0x10;
+    } else {
+      p_video->cursor_flash_mask = 0x08;
+    }
+    p_video->cursor_start_line = (val & 0x1F);
     break;
   default:
     break;
