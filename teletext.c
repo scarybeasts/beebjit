@@ -252,17 +252,24 @@ teletext_render_data(struct teletext_struct* p_teletext,
      * This mostly matches the chip in the beeb, but one notable exception is
      * that control codes _outside_ of hold graphics reset the held character
      * to space.
+     * Also: "The "Held-Mosaic" character is reset to "SPACE" at the start of
+     * each row, on a change of alphanumeric/mosaics mode..."
      */
-    if (p_teletext->is_graphics_active && (data & 0x20)) {
-      p_teletext->p_held_character = p_src_data;
+    if (p_teletext->is_graphics_active) {
+      if (data & 0x20) {
+        p_teletext->p_held_character = p_src_data;
+      }
+    } else {
+      p_teletext->p_held_character = &teletext_characters[0];
     }
   } else {
     uint8_t* p_held_character = p_teletext->p_held_character;
+    int is_graphics_active = p_teletext->is_graphics_active;
 
     teletext_handle_control_character(p_teletext, data);
     /* Hold on is set-at and hold off is set-after. */
     is_hold_graphics |= p_teletext->is_hold_graphics;
-    if (is_hold_graphics) {
+    if (is_graphics_active && is_hold_graphics) {
       p_src_data = p_held_character;
     } else {
       p_teletext->p_held_character = &teletext_characters[0];
