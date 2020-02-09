@@ -218,7 +218,7 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
     p_teletext->is_hold_graphics = 1;
     break;
   case 31:
-    printf("TODO: teletext hold off\n");
+    p_teletext->is_hold_graphics = 0;
     break;
   }
 
@@ -237,6 +237,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
    * potentially processing a control code.
    */
   uint32_t fg_color = p_teletext->fg_color;
+  int is_hold_graphics = p_teletext->is_hold_graphics;
   /* Selects space, 0x20. */
   uint8_t* p_src_data = p_teletext->p_active_characters;
   uint32_t src_data_scanline = p_teletext->scanline;
@@ -245,13 +246,26 @@ teletext_render_data(struct teletext_struct* p_teletext,
 
   if (data >= 0x20) {
     p_src_data += (60 * (data - 0x20));
-    if (p_teletext->is_graphics_active) {
+    /* EMU NOTE: from the Teletext spec, "the "Held-Mosaic" character inserted
+     * is the most recent mosaics character with bit 6 = '1' in its code on
+     * that row".
+     * This mostly matches the chip in the beeb, but one notable exception is
+     * that control codes _outside_ of hold graphics reset the held character
+     * to space.
+     */
+    if (p_teletext->is_graphics_active && (data & 0x20)) {
       p_teletext->p_held_character = p_src_data;
     }
   } else {
+    uint8_t* p_held_character = p_teletext->p_held_character;
+
     teletext_handle_control_character(p_teletext, data);
-    if (p_teletext->is_hold_graphics) {
-      p_src_data = p_teletext->p_held_character;
+    /* Hold on is set-at and hold off is set-after. */
+    is_hold_graphics |= p_teletext->is_hold_graphics;
+    if (is_hold_graphics) {
+      p_src_data = p_held_character;
+    } else {
+      p_teletext->p_held_character = &teletext_characters[0];
     }
   }
 
