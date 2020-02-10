@@ -10,6 +10,10 @@ From https://github.com/mattgodbolt/jsbeeb/issues/141
 By Kieran Connell.
 Triggers interesting MODE 7 character states.
 
+- Music2.ssd
+From http://mdfs.net/Mirror/Image/JGH/Music2.ssd
+The Doctor Who song playback displays MODE 8.
+
 - pi.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/115
 Seems to use a page-crossing JMP ind.
@@ -35,6 +39,9 @@ From https://github.com/mattgodbolt/jsbeeb/issues/193
 From http://bbcmicro.co.uk/gameimg/discs/1411/Speech.dsd
 Very unusual sampled sound playback routine, uses tone channel period of 8(!)
 and does not toggle the sound write enable bit.
+
+- teletest.ssd
+A famous Teletext engineering test page. A good test too.
 
 - tyb-enjoy.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/122
