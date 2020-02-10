@@ -20,6 +20,8 @@ log_module_to_string(int module) {
     return "serial";
   case k_log_jit:
     return "jit";
+  case k_log_keyboard:
+    return "keyboard";
   default:
     assert(0);
     return NULL;

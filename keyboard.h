@@ -35,6 +35,7 @@ enum {
   k_keyboard_key_alt_left = 150,
   k_keyboard_key_f11 = 151,
   k_keyboard_key_f12 = 152,
+  k_keyboard_key_end = 153,
 };
 
 struct keyboard_struct* keyboard_create(struct timing_struct* p_timing,

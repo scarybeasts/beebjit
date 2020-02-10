@@ -1,6 +1,7 @@
 #include "os_window.h"
 
 #include "keyboard.h"
+#include "log.h"
 #include "util.h"
 #include "video.h"
 
@@ -15,7 +16,6 @@
 #include <assert.h>
 #include <err.h>
 #include <pthread.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -481,6 +481,9 @@ x_key_to_keyboard_key(int key) {
   case 114:
     ret = k_keyboard_key_arrow_right;
     break;
+  case 115:
+    ret = k_keyboard_key_end;
+    break;
   case 116:
     ret = k_keyboard_key_arrow_down;
     break;
@@ -513,7 +516,10 @@ os_window_process_events(struct os_window_struct* p_window) {
       if (key != 0) {
         keyboard_system_key_pressed(p_keyboard, key);
       } else {
-        printf("warning: unmapped key press %d\n", keycode);
+        log_do_log(k_log_keyboard,
+                   k_log_unimplemented,
+                   "unmapped key press %d",
+                   keycode);
       }
       break;
     case KeyRelease:
@@ -522,7 +528,10 @@ os_window_process_events(struct os_window_struct* p_window) {
       if (key != 0) {
         keyboard_system_key_released(p_keyboard, key);
       } else {
-        printf("warning: unmapped key release %d\n", keycode);
+        log_do_log(k_log_keyboard,
+                   k_log_unimplemented,
+                   "unmapped key release %d",
+                   keycode);
       }
       break;
     default:

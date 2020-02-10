@@ -341,6 +341,10 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     row = 2;
     col = 9;
     break;
+  case k_keyboard_key_end: /* BBC COPY */
+    row = 6;
+    col = 9;
+    break;
   default:
     break;
   }

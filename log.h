@@ -9,6 +9,7 @@ enum log_module {
   k_log_instruction = 4,
   k_log_serial = 5,
   k_log_jit = 6,
+  k_log_keyboard = 7,
 };
 
 enum log_severity {
