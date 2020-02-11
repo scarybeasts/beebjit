@@ -14,7 +14,7 @@
 
 enum {
   k_disc_bytes_per_track = 3125,
-  k_disc_tracks_per_disc = 80,
+  k_disc_tracks_per_disc = 84,
   /* This is 300RPM == 0.2s == 200000us per revolution, 3125 bytes per track,
    * 2 system ticks per us.
    * Or if you like, exactly 64us / 128 ticks.
@@ -55,6 +55,7 @@ struct disc_struct {
   int log_protection;
 
   intptr_t file_handle;
+  uint8_t* p_format_metadata;
   int is_mutable;
 
   /* State of the disc. */
@@ -174,6 +175,9 @@ disc_create(struct timing_struct* p_timing,
 void
 disc_destroy(struct disc_struct* p_disc) {
   assert(!disc_is_spinning(p_disc));
+  if (p_disc->p_format_metadata != NULL) {
+    free(p_disc->p_format_metadata);
+  }
   if (p_disc->file_handle != k_util_file_no_handle) {
     util_file_handle_close(p_disc->file_handle);
   }
@@ -413,6 +417,236 @@ disc_load_ssd(struct disc_struct* p_disc, int is_dsd) {
 }
 
 static void
+disc_hfe_extract_data(uint8_t* p_data, uint8_t* p_clock, uint8_t* p_src) {
+  uint8_t data = 0;
+  uint8_t clock = 0;
+
+  uint8_t b0 = p_src[0];
+  uint8_t b1 = p_src[1];
+  uint8_t b2 = p_src[2];
+  uint8_t b3 = p_src[3];
+
+  if (b0 & 0x08) data |= 0x80;
+  if (b0 & 0x80) data |= 0x40;
+  if (b1 & 0x08) data |= 0x20;
+  if (b1 & 0x80) data |= 0x10;
+  if (b2 & 0x08) data |= 0x08;
+  if (b2 & 0x80) data |= 0x04;
+  if (b3 & 0x08) data |= 0x02;
+  if (b3 & 0x80) data |= 0x01;
+  if (b0 & 0x02) clock |= 0x80;
+  if (b0 & 0x20) clock |= 0x40;
+  if (b1 & 0x02) clock |= 0x20;
+  if (b1 & 0x20) clock |= 0x10;
+  if (b2 & 0x02) clock |= 0x08;
+  if (b2 & 0x20) clock |= 0x04;
+  if (b3 & 0x02) clock |= 0x02;
+  if (b3 & 0x20) clock |= 0x01;
+
+
+  *p_data = data;
+  *p_clock = clock;
+}
+
+static void
+disc_hfe_encode_data(uint8_t* p_dest, uint8_t data, uint8_t clock) {
+  uint8_t b0 = 0;
+  uint8_t b1 = 0;
+  uint8_t b2 = 0;
+  uint8_t b3 = 0;
+
+  if (data & 0x80) b0 |= 0x08;
+  if (data & 0x40) b0 |= 0x80;
+  if (data & 0x20) b1 |= 0x08;
+  if (data & 0x10) b1 |= 0x80;
+  if (data & 0x08) b2 |= 0x08;
+  if (data & 0x04) b2 |= 0x80;
+  if (data & 0x02) b3 |= 0x08;
+  if (data & 0x01) b3 |= 0x80;
+  if (clock & 0x80) b0 |= 0x02;
+  if (clock & 0x40) b0 |= 0x20;
+  if (clock & 0x20) b1 |= 0x02;
+  if (clock & 0x10) b1 |= 0x20;
+  if (clock & 0x08) b2 |= 0x02;
+  if (clock & 0x04) b2 |= 0x20;
+  if (clock & 0x02) b3 |= 0x02;
+  if (clock & 0x01) b3 |= 0x20;
+
+  p_dest[0] = b0;
+  p_dest[1] = b1;
+  p_dest[2] = b2;
+  p_dest[3] = b3;
+}
+
+static void
+disc_save_hfe(struct disc_struct* p_disc) {
+  uint32_t hfe_track_offset;
+  uint32_t hfe_track_len;
+  uint8_t* p_metadata;
+  uint32_t write_len;
+  uint32_t i_byte;
+  uint8_t* p_src_data;
+  uint8_t* p_src_clocks;
+  uint8_t buf[64 * 4];
+
+  intptr_t file_handle = p_disc->file_handle;
+  uint32_t track = p_disc->track;
+
+  assert(p_disc->is_track_dirty);
+
+  p_metadata = p_disc->p_format_metadata;
+  p_metadata += (track * 4);
+  hfe_track_offset = (p_metadata[0] + (p_metadata[1] << 8));
+  hfe_track_offset *= 512;
+  if (p_disc->is_side_upper) {
+    hfe_track_offset += 256;
+  }
+  hfe_track_len = (p_metadata[2] + (p_metadata[3] << 8));
+  hfe_track_len /= 4;
+
+  if (p_disc->is_side_upper) {
+    p_src_data = &p_disc->upper_side.tracks[track].data[0];
+    p_src_clocks = &p_disc->upper_side.tracks[track].clocks[0];
+  } else {
+    p_src_data = &p_disc->lower_side.tracks[track].data[0];
+    p_src_clocks = &p_disc->lower_side.tracks[track].clocks[0];
+  }
+
+  write_len = k_disc_bytes_per_track;
+  if (write_len > hfe_track_len) {
+    write_len = hfe_track_len;
+  }
+
+  for (i_byte = 0; i_byte < write_len; ++i_byte) {
+    uint32_t index = (i_byte % 64);
+
+    disc_hfe_encode_data((buf + (index * 4)),
+                         p_src_data[i_byte],
+                         p_src_clocks[i_byte]);
+
+    if ((index == 63) || (i_byte == (write_len - 1))) {
+      util_file_handle_seek(file_handle, hfe_track_offset);
+      util_file_handle_write(file_handle, buf, ((index + 1) * 4));
+      hfe_track_offset += 512;
+    }
+  }
+}
+
+static void
+disc_load_hfe(struct disc_struct* p_disc) {
+  /* HFE (v1?):
+   * https://hxc2001.com/download/floppy_drive_emulator/SDCard_HxC_Floppy_Emulator_HFE_file_format.pdf
+   */
+  static const size_t k_max_hfe_size = (1024 * 1024 * 4);
+  uint8_t buf[k_max_hfe_size];
+  uint32_t file_len;
+  uint32_t hfe_tracks;
+  uint32_t i_track;
+  uint32_t lut_offset;
+  uint8_t* p_lut;
+
+  intptr_t file_handle = p_disc->file_handle;
+  int is_double_sided = 0;
+
+  assert(file_handle != k_util_file_no_handle);
+
+  p_disc->p_write_track_callback = disc_save_hfe;
+
+  (void) memset(buf, '\0', sizeof(buf));
+
+  p_disc->p_format_metadata = malloc(512);
+  if (p_disc->p_format_metadata == NULL) {
+    errx(1, "couldn't allocate metadata");
+  }
+
+  file_len = util_file_handle_read(file_handle, buf, k_max_hfe_size);
+
+  if (file_len == k_max_hfe_size) {
+    errx(1, "hfe file too large");
+  }
+
+  if (file_len < 512) {
+    errx(1, "hfe file no header");
+  }
+  if (memcmp(buf, "HXCPICFE", 8) != 0) {
+    errx(1, "hfe file incorrect header");
+  }
+  if (buf[8] != '\0') {
+    errx(1, "hfe file revision not 0");
+  }
+  if (buf[11] != 2) {
+    errx(1, "hfe encoding not ISOIBM_FM_ENCODING");
+  }
+  if (buf[10] == 1) {
+    is_double_sided = 0;
+  } else if (buf[10] == 2) {
+    is_double_sided = 1;
+  } else {
+    errx(1, "hfe invalid number of sides");
+  }
+  p_disc->is_double_sided = is_double_sided;
+
+  hfe_tracks = buf[9];
+  if (hfe_tracks > k_disc_tracks_per_disc) {
+    errx(1, "hfe excessive tracks");
+  }
+
+  lut_offset = (buf[18] + (buf[19] << 8));
+  lut_offset *= 512;
+
+  if ((lut_offset + 512) > file_len) {
+    errx(1, "hfe LUT doesn't fit");
+  }
+
+  (void) memcpy(p_disc->p_format_metadata, (buf + lut_offset), 512);
+  p_lut = p_disc->p_format_metadata;
+
+  for (i_track = 0; i_track < hfe_tracks; ++i_track) {
+    uint32_t track_offset;
+    uint32_t hfe_track_len;
+    uint32_t read_track_bytes;
+    uint8_t* p_track_lut;
+    uint8_t* p_track_data;
+    uint32_t i_byte;
+
+    p_track_lut = (p_lut + (i_track * 4));
+    track_offset = (p_track_lut[0] + (p_track_lut[1] << 8));
+    track_offset *= 512;
+    hfe_track_len = (p_track_lut[2] + (p_track_lut[3] << 8));
+
+    if ((track_offset + hfe_track_len) > file_len) {
+      errx(1, "hfe track doesn't fit");
+    }
+
+    /* Divide by 4; 2x sides and 2x FM bytes per data byte. */
+    hfe_track_len /= 4;
+
+    p_track_data = (buf + track_offset);
+    read_track_bytes = k_disc_bytes_per_track;
+    if (read_track_bytes > hfe_track_len) {
+      read_track_bytes = hfe_track_len;
+    }
+
+    for (i_byte = 0; i_byte < read_track_bytes; ++i_byte) {
+      uint8_t data;
+      uint8_t clock;
+      uint32_t index = (i_byte / 64);
+      index *= 512;
+      index += ((i_byte % 64) * 4);
+
+      disc_hfe_extract_data(&data, &clock, (p_track_data + index));
+      p_disc->lower_side.tracks[i_track].data[i_byte] = data;
+      p_disc->lower_side.tracks[i_track].clocks[i_byte] = clock;
+      if (is_double_sided) {
+        disc_hfe_extract_data(&data, &clock, (p_track_data + index + 256));
+        p_disc->upper_side.tracks[i_track].data[i_byte] = data;
+        p_disc->upper_side.tracks[i_track].clocks[i_byte] = clock;
+      }
+    }
+  }
+}
+
+static void
 disc_load_fsd(struct disc_struct* p_disc) {
   /* The most authoritative "documentation" for the FSD format appears to be:
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
@@ -427,11 +661,15 @@ disc_load_fsd(struct disc_struct* p_disc) {
   uint8_t title_char;
   int do_read_data;
 
-  (void) memset(buf, '\0', k_max_fsd_size);
+  intptr_t file_handle = p_disc->file_handle;
 
-  len = util_file_handle_read(p_disc->file_handle, buf, k_max_fsd_size);
+  assert(file_handle != k_util_file_no_handle);
 
-  if (len == k_max_fsd_size) {
+  (void) memset(buf, '\0', sizeof(buf));
+
+  len = util_file_handle_read(file_handle, buf, sizeof(buf));
+
+  if (len == sizeof(buf)) {
     errx(1, "fsd file too large");
   }
 
@@ -882,6 +1120,8 @@ disc_load(struct disc_struct* p_disc,
     disc_load_ssd(p_disc, 1);
   } else if (util_is_extension(p_file_name, "fsd")) {
     disc_load_fsd(p_disc);
+  } else if (util_is_extension(p_file_name, "hfe")) {
+    disc_load_hfe(p_disc);
   } else {
     errx(1, "unknown disc filename extension");
   }
