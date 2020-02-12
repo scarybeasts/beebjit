@@ -152,6 +152,7 @@ teletext_destroy(struct teletext_struct* p_teletext) {
 
 static inline void
 teletext_handle_control_character(struct teletext_struct* p_teletext,
+                                  uint32_t* p_fg_color,
                                   uint8_t src_char) {
   switch (src_char) {
   case 0:
@@ -201,6 +202,8 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
      * animation.
      */
     p_teletext->fg_color = p_teletext->bg_color;
+    /* This control code is set-at, unlike other changes to foreground color. */
+    *p_fg_color = p_teletext->fg_color;
     break;
   case 25:
     p_teletext->is_separated_active = 0;
@@ -266,7 +269,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     uint8_t* p_held_character = p_teletext->p_held_character;
     int is_graphics_active = p_teletext->is_graphics_active;
 
-    teletext_handle_control_character(p_teletext, data);
+    teletext_handle_control_character(p_teletext, &fg_color, data);
     /* Hold on is set-at and hold off is set-after. */
     is_hold_graphics |= p_teletext->is_hold_graphics;
     if (is_graphics_active && is_hold_graphics) {
@@ -280,7 +283,9 @@ teletext_render_data(struct teletext_struct* p_teletext,
     return;
   }
 
-  if (p_teletext->flash_active && !p_teletext->flash_visible_this_frame) {
+  if ((p_teletext->flash_active && !p_teletext->flash_visible_this_frame) ||
+      (p_teletext->second_character_row_of_double &&
+       !p_teletext->double_active)) {
     /* Re-route to space. */
     p_src_data = &teletext_characters[0];
   }

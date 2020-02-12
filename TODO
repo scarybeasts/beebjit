@@ -12,8 +12,6 @@ can even block at that resolution.
 - BCD support in JIT?
 - Big problems with block splitting.
 - Big problems with video vsync asserts.
-- Teletext engineering test page not displaying correctly.
-- Teletext separated graphics rendering not aligned correctly?
 
 
 Fix later
@@ -32,6 +30,7 @@ dependent on one another.
 - Disc loading noises.
 - 6845 skew support.
 - Add a test for the JIT optimizer.
+- Teletext separated graphics rendering not aligned correctly?
 
 
 Ideas
