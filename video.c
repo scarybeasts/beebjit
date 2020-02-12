@@ -85,7 +85,6 @@ struct video_struct {
 
   /* Rendering. */
   struct render_struct* p_render;
-  int render_mode;
   int is_framing_changed_for_render;
   int is_wall_time_vsync_hit;
   int is_rendering_active;
@@ -876,6 +875,9 @@ video_mode_updated(struct video_struct* p_video) {
   } else {
     assert(clock_speed == 0);
     switch (chars_per_line) {
+    case 0:
+      mode = k_render_mode8;
+      break;
     case 1:
       mode = k_render_mode5;
       break;
@@ -894,7 +896,6 @@ video_mode_updated(struct video_struct* p_video) {
     }
   }
 
-  p_video->render_mode = mode;
   render_set_mode(p_video->p_render, mode);
 }
 

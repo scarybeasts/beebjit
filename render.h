@@ -15,7 +15,8 @@ enum {
   k_render_mode4 = 3,
   k_render_mode5 = 4,
   k_render_mode7 = 5,
-  k_render_num_modes = 6,
+  k_render_mode8 = 6,
+  k_render_num_modes = 7,
 };
 
 struct render_character_2MHz {
@@ -54,11 +55,6 @@ void render_set_cursor_segments(struct render_struct* p_render,
                                 int s1,
                                 int s2,
                                 int s3);
-
-struct render_table_2MHz* render_get_2MHz_render_table(
-    struct render_struct* p_render, int mode);
-struct render_table_1MHz* render_get_1MHz_render_table(
-    struct render_struct* p_render, int mode);
 
 void (*render_get_render_data_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t);

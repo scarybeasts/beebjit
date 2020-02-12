@@ -25,18 +25,16 @@ struct render_struct {
   struct render_table_2MHz render_table_mode2;
   struct render_table_1MHz render_table_mode4;
   struct render_table_1MHz render_table_mode5;
+  struct render_table_1MHz render_table_mode8;
 
-  struct render_character_1MHz render_character_1MHz_white;
   struct render_character_1MHz render_character_1MHz_black;
-  struct render_character_2MHz render_character_2MHz_white;
   struct render_character_2MHz render_character_2MHz_black;
 
   struct render_table_1MHz* p_render_table_1MHz;
   struct render_table_2MHz* p_render_table_2MHz;
-  void (*func_render_data)(struct render_struct*, uint8_t);
-  void (*func_render_blank)(struct render_struct*, uint8_t);
 
   int render_mode;
+  int is_clock_2MHz;
   uint32_t pixels_size;
   uint32_t horiz_beam_pos;
   uint32_t vert_beam_pos;
@@ -140,11 +138,9 @@ render_create(struct teletext_struct* p_teletext,
   render_dirty_all_tables(p_render);
 
   for (i = 0; i < 16; ++i) {
-    p_render->render_character_1MHz_white.host_pixels[i] = 0xffffffff;
     p_render->render_character_1MHz_black.host_pixels[i] = 0xff000000;
   }
   for (i = 0; i < 8; ++i) {
-    p_render->render_character_2MHz_white.host_pixels[i] = 0xffffffff;
     p_render->render_character_2MHz_black.host_pixels[i] = 0xff000000;
   }
 
@@ -353,29 +349,26 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
 
 void
 render_set_mode(struct render_struct* p_render, int mode) {
-  assert((mode >= k_render_mode0) && (mode <= k_render_mode7));
+  assert((mode >= k_render_mode0) && (mode <= k_render_mode8));
+
+  if (mode == p_render->render_mode) {
+    return;
+  }
+
+  render_dirty_all_tables(p_render);
+
   switch (mode) {
   case k_render_mode0:
   case k_render_mode1:
   case k_render_mode2:
-    p_render->func_render_data = render_function_2MHz_data;
-    p_render->func_render_blank = render_function_2MHz_blank;
-    p_render->p_render_table_2MHz = render_get_2MHz_render_table(p_render,
-                                                                 mode);
+    p_render->is_clock_2MHz = 1;
     p_render->pixels_size = 8;
     break;
   case k_render_mode4:
   case k_render_mode5:
-    p_render->func_render_data = render_function_1MHz_data;
-    p_render->func_render_blank = render_function_1MHz_blank;
-    p_render->p_render_table_1MHz = render_get_1MHz_render_table(p_render,
-                                                                 mode);
-    p_render->pixels_size = 16;
-    break;
   case k_render_mode7:
-    p_render->func_render_data = render_function_teletext;
-    p_render->func_render_blank = render_function_1MHz_blank;
-    p_render->p_render_table_1MHz = NULL;
+  case k_render_mode8:
+    p_render->is_clock_2MHz = 0;
     p_render->pixels_size = 16;
     break;
   default:
@@ -395,6 +388,10 @@ void
 render_set_palette(struct render_struct* p_render,
                    uint8_t index,
                    uint32_t rgba) {
+  if (p_render->palette[index] == rgba) {
+    return;
+  }
+
   p_render->palette[index] = rgba;
   render_dirty_all_tables(p_render);
 }
@@ -494,8 +491,15 @@ render_generate_mode5_table(struct render_struct* p_render) {
   render_generate_1MHz_table(p_render, &p_render->render_table_mode5, 4);
 }
 
-struct render_table_2MHz* render_get_2MHz_render_table(
-    struct render_struct* p_render, int mode) {
+static void
+render_generate_mode8_table(struct render_struct* p_render) {
+  render_generate_1MHz_table(p_render, &p_render->render_table_mode8, 2);
+}
+
+static void
+render_check_2MHz_render_table(struct render_struct* p_render) {
+  int mode = p_render->render_mode;
+
   if (p_render->render_table_dirty[mode]) {
     switch (mode) {
     case k_render_mode0:
@@ -516,19 +520,24 @@ struct render_table_2MHz* render_get_2MHz_render_table(
 
   switch (mode) {
   case k_render_mode0:
-    return &p_render->render_table_mode0;
+    p_render->p_render_table_2MHz = &p_render->render_table_mode0;
+    break;
   case k_render_mode1:
-    return &p_render->render_table_mode1;
+    p_render->p_render_table_2MHz = &p_render->render_table_mode1;
+    break;
   case k_render_mode2:
-    return &p_render->render_table_mode2;
+    p_render->p_render_table_2MHz = &p_render->render_table_mode2;
+    break;
   default:
     assert(0);
-    return NULL;
+    break;
   }
 }
 
-struct render_table_1MHz* render_get_1MHz_render_table(
-    struct render_struct* p_render, int mode) {
+static void
+render_check_1MHz_render_table(struct render_struct* p_render) {
+  int mode = p_render->render_mode;
+
   if (p_render->render_table_dirty[mode]) {
     switch (mode) {
     case k_render_mode4:
@@ -536,6 +545,9 @@ struct render_table_1MHz* render_get_1MHz_render_table(
       break;
     case k_render_mode5:
       render_generate_mode5_table(p_render);
+      break;
+    case k_render_mode8:
+      render_generate_mode8_table(p_render);
       break;
     default:
       assert(0);
@@ -546,27 +558,40 @@ struct render_table_1MHz* render_get_1MHz_render_table(
 
   switch (mode) {
   case k_render_mode4:
-    return &p_render->render_table_mode4;
+    p_render->p_render_table_1MHz = &p_render->render_table_mode4;
+    break;
   case k_render_mode5:
-    return &p_render->render_table_mode5;
+    p_render->p_render_table_1MHz = &p_render->render_table_mode5;
+    break;
+  case k_render_mode8:
+    p_render->p_render_table_1MHz = &p_render->render_table_mode8;
+    break;
   default:
     assert(0);
-    return NULL;
+    break;
   }
 }
 
 void (*render_get_render_data_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t) {
-  int render_mode = p_render->render_mode;
-  if (p_render->render_table_dirty[render_mode]) {
-    render_set_mode(p_render, render_mode);
+  if (p_render->render_mode == k_render_mode7) {
+    return render_function_teletext;
+  } else if (p_render->is_clock_2MHz) {
+    render_check_2MHz_render_table(p_render);
+    return render_function_2MHz_data;
+  } else {
+    render_check_1MHz_render_table(p_render);
+    return render_function_1MHz_data;
   }
-  return p_render->func_render_data;
 }
 
 void (*render_get_render_blank_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t) {
-  return p_render->func_render_blank;
+  if (p_render->is_clock_2MHz) {
+    return render_function_2MHz_blank;
+  } else {
+    return render_function_1MHz_blank;
+  }
 }
 
 void

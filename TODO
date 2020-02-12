@@ -12,7 +12,6 @@ can even block at that resolution.
 - BCD support in JIT?
 - Big problems with block splitting.
 - Big problems with video vsync asserts.
-- "MODE 8" not displaying well at all. (Music2.ssd)
 - Teletext engineering test page not displaying correctly.
 - Teletext separated graphics rendering not aligned correctly?
 
@@ -27,7 +26,6 @@ sequence can be improved a lot. For example, there only needs to be a branch
 at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
-- Add fdi or hfe disc format support.
 - MODE7 doesn't have character rounding.
 - Accurate last line latching for 6845.
 - Tape loading noises.
