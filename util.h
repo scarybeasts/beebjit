@@ -6,6 +6,10 @@ struct util_file_map_struct;
 #include <stdint.h>
 #include <unistd.h>
 
+/* Memory. */
+void* util_mallocz(size_t size);
+void util_free(void* p);
+
 /* Memory mapping. */
 int util_get_memory_fd(size_t size);
 void* util_get_guarded_mapping(void* p_addr, size_t size);

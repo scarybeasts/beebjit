@@ -28,6 +28,24 @@ struct util_file_map {
   size_t length;
 };
 
+void*
+util_mallocz(size_t size) {
+  void* p_ret = malloc(size);
+  if (p_ret == NULL) {
+    errx(1, "malloc failed");
+  }
+
+  (void) memset(p_ret, '\0', size);
+
+  return p_ret;
+}
+
+void
+util_free(void* p) {
+  free(p);
+}
+
+
 int
 util_get_memory_fd(size_t size) {
   int ret;

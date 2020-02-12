@@ -176,7 +176,7 @@ void
 disc_destroy(struct disc_struct* p_disc) {
   assert(!disc_is_spinning(p_disc));
   if (p_disc->p_format_metadata != NULL) {
-    free(p_disc->p_format_metadata);
+    util_free(p_disc->p_format_metadata);
   }
   if (p_disc->file_handle != k_util_file_no_handle) {
     util_file_handle_close(p_disc->file_handle);
@@ -479,7 +479,7 @@ disc_hfe_encode_data(uint8_t* p_dest, uint8_t data, uint8_t clock) {
 }
 
 static void
-disc_save_hfe(struct disc_struct* p_disc) {
+disc_hfe_write_track(struct disc_struct* p_disc) {
   uint32_t hfe_track_offset;
   uint32_t hfe_track_len;
   uint8_t* p_metadata;
@@ -550,14 +550,11 @@ disc_load_hfe(struct disc_struct* p_disc) {
 
   assert(file_handle != k_util_file_no_handle);
 
-  p_disc->p_write_track_callback = disc_save_hfe;
+  p_disc->p_write_track_callback = disc_hfe_write_track;
 
   (void) memset(buf, '\0', sizeof(buf));
 
-  p_disc->p_format_metadata = malloc(512);
-  if (p_disc->p_format_metadata == NULL) {
-    errx(1, "couldn't allocate metadata");
-  }
+  p_disc->p_format_metadata = util_mallocz(512);
 
   file_len = util_file_handle_read(file_handle, buf, k_max_hfe_size);
 
@@ -644,6 +641,85 @@ disc_load_hfe(struct disc_struct* p_disc) {
       }
     }
   }
+}
+
+static void
+disc_convert_to_hfe(struct disc_struct* p_disc) {
+  uint32_t i_track;
+  uint8_t header[512];
+  uint8_t* p_metadata;
+
+  intptr_t file_handle = p_disc->file_handle;
+  uint32_t hfe_track_len = (k_disc_bytes_per_track * 8);
+  uint32_t hfe_offset = 2;
+  uint32_t hfe_offset_delta = ((hfe_track_len / 512) + 1);
+
+  p_disc->p_write_track_callback = disc_hfe_write_track;
+
+  /* Fill with 0xFF; that is what the command line HFE tools do, and also, 0xFF
+   * appears to be the byte used for the default / sane boolean option.
+   */
+  (void) memset(header, '\xFF', sizeof(header));
+  (void) strcpy((char*) header, "HXCPICFE");
+  /* Revision 0. */
+  header[8] = 0;
+  /* 80 tracks, sides as appropriate. */
+  header[9] = 80;
+  if (p_disc->is_double_sided) {
+    header[10] = 2;
+  } else {
+    header[10] = 1;
+  }
+  /* IBM FM, 250kbit, (unused) RPM. */
+  header[11] = 2;
+  header[12] = 0xFA;
+  header[13] = 0;
+  header[14] = 0;
+  header[15] = 0;
+  /* Mode: Shuggart DD. Unused. 1==512 LUT offset. */
+  header[16] = 7;
+  header[17] = 0xFF;
+  header[18] = 1;
+  header[19] = 0;
+  /* Write allowed, single step, no alternate track options. */
+  header[20] = 0xFF;
+  header[21] = 0xFF;
+  header[22] = 0xFF;
+  header[23] = 0xFF;
+  header[24] = 0xFF;
+  header[25] = 0xFF;
+
+  util_file_handle_seek(file_handle, 0);
+  util_file_handle_write(file_handle, header, 512);
+
+  assert(p_disc->p_format_metadata == NULL);
+  p_metadata = util_mallocz(512);
+  p_disc->p_format_metadata = p_metadata;
+
+  for (i_track = 0; i_track < k_disc_tracks_per_disc; ++i_track) {
+    uint32_t index = (i_track * 4);
+    p_metadata[index] = (hfe_offset & 0xFF);
+    p_metadata[index + 1] = (hfe_offset >> 8);
+    p_metadata[index + 2] = (hfe_track_len & 0xFF);
+    p_metadata[index + 3] = (hfe_track_len >> 8);
+
+    p_disc->track = i_track;
+    p_disc->is_side_upper = 0;
+    p_disc->is_track_dirty = 1;
+    disc_hfe_write_track(p_disc);
+    if (p_disc->is_double_sided) {
+      p_disc->is_side_upper = 1;
+      p_disc->is_track_dirty = 1;
+      disc_hfe_write_track(p_disc);
+    }
+
+    hfe_offset += hfe_offset_delta;
+  }
+
+  p_disc->is_track_dirty = 0;
+
+  util_file_handle_seek(file_handle, 512);
+  util_file_handle_write(file_handle, p_metadata, 512);
 }
 
 static void
@@ -1127,11 +1203,18 @@ disc_load(struct disc_struct* p_disc,
   }
 
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
+    char new_file_name[256];
+    (void) snprintf(new_file_name,
+                    sizeof(new_file_name),
+                    "%s.hfe",
+                    p_file_name);
     log_do_log(k_log_disc,
-               k_log_unimplemented,
-               "cannot writeback to %s",
-               p_file_name);
-    is_mutable = 0;
+               k_log_info,
+               "cannot writeback to file type, converting to HFE: %s",
+               new_file_name);
+    util_file_handle_close(p_disc->file_handle);
+    p_disc->file_handle = util_file_handle_open(new_file_name, 1, 1);
+    disc_convert_to_hfe(p_disc);
   }
 
   p_disc->is_side_upper = 0;
