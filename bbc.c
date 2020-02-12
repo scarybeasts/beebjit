@@ -266,6 +266,14 @@ bbc_read_callback(void* p, uint16_t addr) {
     break;
   case (k_addr_master_adc + 0):
     /* Syncron reads this even on a model B. */
+    /* EMU: returns 0 on an issue 3. */
+    ret = 0;
+    log_do_log(k_log_misc, k_log_unimplemented, "read of $FE18 region");
+    break;
+  case 0xFE1C:
+    /* EMU: a hole here. Returns 0 on an issue 3. */
+    ret = 0;
+    log_do_log(k_log_misc, k_log_unimplemented, "read of $FE1C region");
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
@@ -345,8 +353,9 @@ bbc_read_callback(void* p, uint16_t addr) {
     case 2: /* ADC low. */
       ret = 0;
       break;
-    default:
-      assert(0);
+    case 3:
+      ret = 0;
+      log_do_log(k_log_misc, k_log_unimplemented, "ADC read of index 3");
       break;
     }
     break;
@@ -378,7 +387,7 @@ bbc_read_callback(void* p, uint16_t addr) {
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
-      printf("unknown read: %x\n", addr);
+      /* We should have every byte covered above. */
       assert(0);
     } else {
       /* EMU: This value, as well as the 0xFE default,  copied from b-em /

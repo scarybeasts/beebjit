@@ -22,6 +22,8 @@ log_module_to_string(int module) {
     return "jit";
   case k_log_keyboard:
     return "keyboard";
+  case k_log_misc:
+    return "misc";
   default:
     assert(0);
     return NULL;
