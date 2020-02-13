@@ -31,7 +31,6 @@ dependent on one another.
 - 6845 skew support.
 - Add a test for the JIT optimizer.
 - Teletext separated graphics rendering not aligned correctly?
-- Cursor incorrect in MODE 3.
 
 
 Ideas

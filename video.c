@@ -186,12 +186,9 @@ video_calculate_bbc_address(uint32_t* p_out_screen_address,
 
 static inline int
 video_is_display_enabled(struct video_struct* p_video) {
-  int scanline_enabled = (p_video->is_interlace_sync_and_video ||
-                          !(p_video->scanline_counter & 0x8));
   int enabled = p_video->is_master_display_enable;
   enabled &= p_video->display_enable_horiz;
   enabled &= p_video->display_enable_vert;
-  enabled &= scanline_enabled;
 
   return enabled;
 }
@@ -416,6 +413,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                        p_video->cursor_flash_mask)) &&
         p_video->display_enable_horiz &&
         p_video->display_enable_vert) {
+      /* EMU: cursor _does_ display if master display enable is off, but it's
+       * within the horiz / vert border.
+       */
       render_cursor(p_render);
     }
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
@@ -432,6 +432,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     func_render_blank(p_render, 0);
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
+    if (p_video->scanline_counter ==
+        p_video->crtc_registers[k_crtc_reg_cursor_end]) {
+      p_video->has_hit_cursor_line_end = 1;
+    }
 
     if (p_video->in_vsync) {
       if (p_video->vsync_scanline_counter > 0) {
@@ -523,10 +527,7 @@ recalculate_and_continue:
     if (p_video->scanline_counter == p_video->cursor_start_line) {
       p_video->has_hit_cursor_line_start = 1;
     }
-    if (p_video->scanline_counter ==
-        p_video->crtc_registers[k_crtc_reg_cursor_end]) {
-      p_video->has_hit_cursor_line_end = 1;
-    }
+    render_set_RA(p_render, p_video->scanline_counter);
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);

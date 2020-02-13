@@ -55,6 +55,7 @@ void render_set_cursor_segments(struct render_struct* p_render,
                                 int s1,
                                 int s2,
                                 int s3);
+void render_set_RA(struct render_struct* p_render, uint32_t row_address);
 
 void (*render_get_render_data_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t);
