@@ -1,7 +1,6 @@
 TODO:
 - Fortress
 - Cybertron Mission
-- Boulderdash
 - 3D pool
 
 Great list of tricky and varied protection test cases:
@@ -63,6 +62,46 @@ succeeds or fails_, and expects $00 at offset $8B.
 [ITRP] 073F: LDA $198B
 [ITRP] 0742: BNE $0736
 079A: 00 00 19 FF FF 03 53 02 88 21 00 FF 00 19 FF FF  ......S..!......
+
+
+- 058 BOULDER DASH.FSD
+SHA256: a7514a655027bb39a4310976e69d7ac787a955ef341d259ac8a27c4d55b18d98
+Interesting disc! Released a little later in the BBC's life.
+1) !BOOT runs boot, which executes at $1100. Immediately launches in a VIA + EOR
+bit of deobfuscation, using timing and its own program code as a key, with a
+bit of self-modification of course. After a few seconds, branches to $1200.
+2) At $1200, fiddles with ROMs, looks like it's looking for the infamous REPLAY
+ROM! ($1203==REPLAY). Finishes with that at $125A. Writes the first intro
+screen at $12C0. Finishes with that at $12CE.
+3) At $12DB, does *DISK then *R.Welly
+4) What?? If you *R.Welly directly, it loads. Unclear why bother with all the
+deobfuscation in the first bit.
+5) Ok, Welly executes at $1100 and has the same sort of unpacker. Execution
+gets to $1200, REPLAY check. At $1294, does *DISK then *LOAD Welly2 A00. It
+is EOR unpacked, at then at $12C4, we have a jump to $0AC1.
+6) At $0AD6, JSR $0A38 uses OSWORD $7F to seek to 0. At $0B15, JSR $0A48 reads
+track 1, sector 0, size 1024. Result must be $00. At $0B9B, JSR $0A2B reads
+track $17, sector 2, size 512, into $1900. Then loop back to $0B6C, $0B9B to
+JSR again, read track $10, sector 3, size 256 to $1B00. Back to $0B6C, but this
+time branch to $0BA4.
+7) At $0BDC, JSR $0A2B, here we go! Read track 0, sector 9, size 512, to $0400.
+This is a sector overread, the sector is really 256 bytes, so the post-sector
+bytes starting with the checksum and then GAP4 bytes end up at $0500.
+8) At $0BDF, the data read to $1900 is unpacked using data at $0500 as a key.
+Routine at $0C9B is called for every byte:
+[ITRP] 0C9D: LDY #$00
+[ITRP] 0C9F: LDX #$92
+[ITRP] 0CA1: EOR $0502,X
+[ITRP] 0CA4: EOR $0502,Y
+[ITRP] 0CA7: INY
+[ITRP] 0CA8: DEX
+[ITRP] 0CA9: CPX #$64
+[ITRP] 0CAB: BNE $0CA1
+So it appears the amount of "overread" data required for correct unpacking is
+$92 + $02 + 1 == 149 bytes, or 147 bytes excluding the sector checksum.
+8) There's some check, correct execution branches to $0C26. RTS at $0C3E jumps
+to $FF89, a further couple of RTS's land at $8B7D, in BASIC. Later, program
+code hits at $1100... another unpacker... zzzzz...
 
 
 - 072 CASTLE QUEST.FSD
