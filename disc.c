@@ -722,6 +722,27 @@ disc_convert_to_hfe(struct disc_struct* p_disc) {
   util_file_handle_write(file_handle, p_metadata, 512);
 }
 
+static uint32_t
+disc_calculate_track_total_bytes(uint32_t fsd_sectors,
+                                 uint32_t track_data_bytes,
+                                 uint32_t gap1_ff_count,
+                                 uint32_t gap2_ff_count,
+                                 uint32_t gap3_ff_count) {
+  uint32_t ret = track_data_bytes;
+  /* Each sector's data has a marker and CRC. */
+  ret += (fsd_sectors * 3);
+  /* Each sector has a sector header with marker and CRC. */
+  ret += (fsd_sectors * 7);
+  /* Each sector has GAP2, between the header and data. */
+  ret += (fsd_sectors * (gap2_ff_count + 6));
+  /* Each sector, bar the last, has GAP3, the inter-sector gap. */
+  ret += ((fsd_sectors - 1) * (gap3_ff_count + 6));
+  /* Before the first sector is GAP1. */
+  ret += (gap1_ff_count + 6);
+
+  return ret;
+}
+
 static void
 disc_load_fsd(struct disc_struct* p_disc) {
   /* The most authoritative "documentation" for the FSD format appears to be:
@@ -786,6 +807,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
     size_t saved_file_remaining;
     uint8_t* p_saved_buf;
     uint8_t sector_seen[256];
+    uint32_t track_total_bytes;
 
     uint32_t track_remaining = k_disc_bytes_per_track;
     uint32_t track_data_bytes = 0;
@@ -796,6 +818,8 @@ disc_load_fsd(struct disc_struct* p_disc) {
     uint32_t gap2_ff_count = 11;
     uint32_t gap3_ff_count = 16;
     int do_data_truncate = 0;
+    uint32_t num_multi_size_sectors = 0;
+    uint32_t num_bytes_over = 0;
 
     (void) memset(sector_seen, '\0', sizeof(sector_seen));
 
@@ -854,25 +878,22 @@ disc_load_fsd(struct disc_struct* p_disc) {
     p_buf++;
     file_remaining--;
 
-    /* Sync pattern at start of track, as the index pulse starts, aka GAP 1.
-     * Note that GAP 5 (with index address mark) is typically not used in BBC
-     * formatted discs.
-     */
-    disc_build_append_repeat(p_disc, 0xFF, gap1_ff_count);
-    disc_build_append_repeat(p_disc, 0x00, 6);
-    track_remaining -= (gap1_ff_count + 6);
-
     /* Pass 1: find total data bytes. */
     saved_file_remaining = file_remaining;
     p_saved_buf = p_buf;
     if (do_read_data) {
       for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
         uint32_t real_sector_size;
+        uint8_t sector_error;
 
         if (file_remaining < 6) {
           errx(1, "fsd file missing sector header");
         }
         real_sector_size = p_buf[4];
+        sector_error = p_buf[5];
+        if ((sector_error >= 0xE0) && (sector_error <= 0xE2)) {
+          num_multi_size_sectors++;
+        }
         if (real_sector_size > 4) {
           errx(1, "fsd file excessive sector size");
         }
@@ -891,12 +912,20 @@ disc_load_fsd(struct disc_struct* p_disc) {
     file_remaining = saved_file_remaining;
     p_buf = p_saved_buf;
 
-    if (track_data_bytes > 2560) {
+    track_total_bytes = disc_calculate_track_total_bytes(fsd_sectors,
+                                                         track_data_bytes,
+                                                         gap1_ff_count,
+                                                         gap2_ff_count,
+                                                         gap3_ff_count);
+
+    if (track_total_bytes > k_disc_bytes_per_track) {
       if (p_disc->log_protection) {
         log_do_log(k_log_disc,
                    k_log_info,
-                   "FSD: excessive length track %d: %d",
+                   "FSD: excessive length track %d: %d (%d sectors %d data)",
                    i_track,
+                   track_total_bytes,
+                   fsd_sectors,
                    track_data_bytes);
       }
 
@@ -913,17 +942,37 @@ disc_load_fsd(struct disc_struct* p_disc) {
        * data for the case where 1) is going on.
        */
 
-      /* For manageable overages, implement 1), which seems to make a large
-       * number of titles work, especially Tynesoft ones.
+      /* First attempt -- see if it fits if we lower the gap sizes a lot. */
+      /* NOTE: the 1770 is very sensitive to GAP2 size so we leave it alone.
+       * In tests, 9 0xFF's is ok, 7 is not. 11 is the default.
        */
-      if (track_data_bytes <= 2944) {
-        gap1_ff_count = 4;
-        gap2_ff_count = 3;
-        gap3_ff_count = 3;
-      } else {
-        do_data_truncate = 1;
-      }
+      gap1_ff_count = 3;
+      gap3_ff_count = 3;
     }
+
+    track_total_bytes = disc_calculate_track_total_bytes(fsd_sectors,
+                                                         track_data_bytes,
+                                                         gap1_ff_count,
+                                                         gap2_ff_count,
+                                                         gap3_ff_count);
+    if (track_total_bytes > k_disc_bytes_per_track) {
+      if (p_disc->log_protection) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "FSD: small gaps, still excessive length: %d, truncating",
+                   track_total_bytes);
+      }
+      do_data_truncate = 1;
+      num_bytes_over = (track_total_bytes - k_disc_bytes_per_track);
+    }
+
+    /* Sync pattern at start of track, as the index pulse starts, aka GAP 1.
+     * Note that GAP 5 (with index address mark) is typically not used in BBC
+     * formatted discs.
+     */
+    disc_build_append_repeat(p_disc, 0xFF, gap1_ff_count);
+    disc_build_append_repeat(p_disc, 0x00, 6);
+    track_remaining -= (gap1_ff_count + 6);
 
     /* Pass 2: process data bytes. */
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
@@ -989,6 +1038,7 @@ disc_load_fsd(struct disc_struct* p_disc) {
       if (do_read_data) {
         uint32_t data_write_size;
 
+        int do_crc = 1;
         int do_crc_error = 0;
         int do_weak_bits = 0;
         uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
@@ -1006,9 +1056,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
         logical_size = (1 << (7 + logical_size));
         real_sector_size = (1 << (7 + real_sector_size));
         data_write_size = real_sector_size;
-        if (do_data_truncate) {
-          data_write_size = logical_size;
-        }
+        //if (do_data_truncate) {
+        //  data_write_size = logical_size;
+        //}
 
         if (sector_error == 0x20) {
           /* Deleted data. */
@@ -1065,6 +1115,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
           }
           do_crc_error = 1;
           if (do_data_truncate) {
+            uint32_t new_bytes = 0;
+            uint32_t orig_data_write_size = data_write_size;
+
             do_crc_error = 0;
             if (sector_error == 0xE0) {
               data_write_size = 128;
@@ -1072,6 +1125,23 @@ disc_load_fsd(struct disc_struct* p_disc) {
               data_write_size = 256;
             } else {
               data_write_size = 512;
+            }
+            if (data_write_size < orig_data_write_size) {
+              new_bytes = (orig_data_write_size - data_write_size);
+            }
+            /* NOTE: this is a pretty random heuristic. We only add in sector
+             * overread bytes if there's just one such sector. This keeps
+             * things simple, but it might be necessary to share the
+             * remaining track space across multiple overread sectors if we
+             * ever hit that.
+             */
+            if ((num_multi_size_sectors == 1) &&
+                (new_bytes > (num_bytes_over + 1))) {
+              /* Don't emit a CRC at all -- it should be part of the overread
+               * data.
+               */
+              do_crc = 0;
+              data_write_size += (new_bytes - num_bytes_over - 1);
             }
           }
         } else if (sector_error != 0) {
@@ -1128,7 +1198,9 @@ disc_load_fsd(struct disc_struct* p_disc) {
             p_disc->crc = 0xFFFF;
           }
         }
-        disc_build_append_crc(p_disc);
+        if (do_crc) {
+          disc_build_append_crc(p_disc);
+        }
 
         p_buf += real_sector_size;
         file_remaining -= real_sector_size;
