@@ -21,12 +21,24 @@ void disc_load(struct disc_struct* p_disc,
                const char* p_filename,
                int is_writeable,
                int is_mutable);
+intptr_t disc_get_file_handle(struct disc_struct* p_disc);
+uint8_t* disc_allocate_format_metadata(struct disc_struct* p_disc,
+                                       size_t num_bytes);
+void disc_set_is_double_sided(struct disc_struct* p_disc, int is_double_sided);
 
+int disc_is_double_sided(struct disc_struct* p_disc);
 int disc_is_spinning(struct disc_struct* p_disc);
 int disc_is_write_protected(struct disc_struct* p_disc);
+int disc_is_upper_side(struct disc_struct* p_disc);
 uint32_t disc_get_track(struct disc_struct* p_disc);
 int disc_is_index_pulse(struct disc_struct* p_disc);
 uint32_t disc_get_head_position(struct disc_struct* p_disc);
+
+int disc_is_track_dirty(struct disc_struct* p_disc);
+void disc_set_track_dirty(struct disc_struct* p_disc, int is_dirty);
+uint8_t* disc_get_format_metadata(struct disc_struct* p_disc);
+uint8_t* disc_get_raw_track_data(struct disc_struct* p_disc);
+uint8_t* disc_get_raw_track_clocks(struct disc_struct* p_disc);
 
 void disc_start_spinning(struct disc_struct* p_disc);
 void disc_stop_spinning(struct disc_struct* p_disc);

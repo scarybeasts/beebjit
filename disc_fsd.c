@@ -381,9 +381,7 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
 }
 
 void
-disc_fsd_load(struct disc_struct* p_disc,
-              intptr_t file_handle,
-              int log_protection) {
+disc_fsd_load(struct disc_struct* p_disc, int log_protection) {
   /* The most authoritative "documentation" for the FSD format appears to be:
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
@@ -396,6 +394,7 @@ disc_fsd_load(struct disc_struct* p_disc,
   uint32_t i_track;
   uint8_t title_char;
 
+  intptr_t file_handle = disc_get_file_handle(p_disc);
   assert(file_handle != k_util_file_no_handle);
 
   (void) memset(buf, '\0', sizeof(buf));
