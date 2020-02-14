@@ -9,7 +9,7 @@ gcc -O3 -DNDEBUG -Wall -W -Werror -g -o beebjit \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c os.c \
     teletext.c render.c serial.c log.c test.c disc.c ibm_disc_format.c tape.c \
-    disc_fsd.c disc_hfe.c \
+    disc_fsd.c disc_hfe.c disc_ssd.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o beebjit \
@@ -20,7 +20,7 @@ gcc -Wall -W -Werror -g -o beebjit \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c os.c \
     teletext.c render.c serial.c log.c test.c disc.c ibm_disc_format.c tape.c \
-    disc_fsd.c disc_hfe.c \
+    disc_fsd.c disc_hfe.c disc_ssd.c \
     -lm -lX11 -lXext -lpthread -lasound
 
 gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
