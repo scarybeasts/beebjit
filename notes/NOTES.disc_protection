@@ -258,7 +258,7 @@ read starts in the first half of the track, otherwise it'll hit the sector
 headers with logical track $00 and bail.
 The timing seems to work: the seek to 0 and then back to 2, with default seek
 and settle timings, leaves the head position a little over 20% into the track.
-8) Read result is $0E (unchecked?) but the sector read bytes, starting from
+8) Read result is $0E (unchecked?) but the 10 sector read bytes, starting from
 offset $80 (i.e. the start of the overread) are expected to be:
 (6502db) m 13dc
 13DC: 5D 30 FF FF FF FF FF FF FF FF FF 00 00 00 00 00
