@@ -4,6 +4,9 @@
 #include <stdint.h>
 
 enum {
+  k_ibm_disc_bytes_per_track = 3125,
+  k_ibm_disc_tracks_per_disc = 84,
+
   k_ibm_disc_mark_clock_pattern = 0xC7,
   k_ibm_disc_id_mark_data_pattern = 0xFE,
   k_ibm_disc_data_mark_data_pattern = 0xFB,

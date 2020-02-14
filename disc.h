@@ -1,6 +1,7 @@
 #ifndef BEEBJIT_DISC_H
 #define BEEBJIT_DISC_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct disc_struct;
@@ -33,5 +34,26 @@ void disc_select_side(struct disc_struct* p_disc, int is_upper_side);
 void disc_select_track(struct disc_struct* p_disc, uint32_t track);
 void disc_seek_track(struct disc_struct* p_disc, int32_t delta);
 void disc_write_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks);
+
+void disc_build_track(struct disc_struct* p_disc,
+                      int is_side_upper,
+                      uint32_t track);
+void disc_build_reset_crc(struct disc_struct* p_disc);
+void disc_build_append_single_with_clocks(struct disc_struct* p_disc,
+                                          uint8_t data,
+                                          uint8_t clocks);
+void disc_build_append_single(struct disc_struct* p_disc, uint8_t data);
+void disc_build_append_repeat(struct disc_struct* p_disc,
+                              uint8_t data,
+                              size_t num);
+void disc_build_append_repeat_with_clocks(struct disc_struct* p_disc,
+                                          uint8_t data,
+                                          uint8_t clocks,
+                                          size_t num);
+void disc_build_append_chunk(struct disc_struct* p_disc,
+                             uint8_t* p_src,
+                             size_t num);
+void disc_build_append_crc(struct disc_struct* p_disc);
+void disc_build_append_bad_crc(struct disc_struct* p_disc);
 
 #endif /* BEEBJIT_DISC_H */
