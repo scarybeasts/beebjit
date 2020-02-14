@@ -30,6 +30,7 @@ struct disc_fsd_sector {
   int is_crc_error;
   int is_weak_bits;
   int is_crc_included;
+  int is_format_bytes;
 };
 
 static uint32_t
@@ -153,7 +154,17 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     sector_seen[logical_sector] = 1;
 
     if (!readable) {
-      /* TODO: assume data is there and just plain format bytes? */
+      /* Invent some "unreadable" data. I looked at Exile's "unreadable"
+       * track and the bytes are just format bytes, i.e. 0xE5.
+       */
+      uint32_t num_format_bytes = 128;
+      if (fsd_sectors <= 10) {
+        num_format_bytes = 256;
+      }
+
+      p_sector->is_format_bytes = 1;
+      p_sector->write_size_bytes = num_format_bytes;
+
       continue;
     }
 
@@ -515,6 +526,8 @@ disc_fsd_load(struct disc_struct* p_disc, int log_protection) {
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
       struct disc_fsd_sector* p_sector = &sectors[i_sector];
       uint32_t write_size_bytes = p_sector->write_size_bytes;
+      uint8_t* p_data = p_sector->p_data;
+      uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
 
       if (track_remaining < (7 + (gap2_ff_count + 6))) {
         errx(1, "fsd file track no space for sector header and gap");
@@ -535,70 +548,67 @@ disc_fsd_load(struct disc_struct* p_disc, int log_protection) {
       disc_build_append_repeat(p_disc, 0x00, 6);
       track_remaining -= (7 + (gap2_ff_count + 6));
 
-      if (write_size_bytes > 0) {
-        uint8_t* p_data = p_sector->p_data;
+      if (p_sector->is_deleted) {
+        sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
+      }
 
-        uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
-        if (p_sector->is_deleted) {
-          sector_mark = k_ibm_disc_deleted_data_mark_data_pattern;
-        }
+      if (track_remaining < (write_size_bytes + 3)) {
+        errx(1, "fsd file track no space for sector data");
+      }
 
-        if (track_remaining < (write_size_bytes + 3)) {
-          errx(1, "fsd file track no space for sector data");
-        }
-
-        disc_build_reset_crc(p_disc);
-        disc_build_append_single_with_clocks(p_disc,
-                                             sector_mark,
-                                             k_ibm_disc_mark_clock_pattern);
-        if (!p_sector->is_weak_bits) {
-          disc_build_append_chunk(p_disc, p_data, write_size_bytes);
+      disc_build_reset_crc(p_disc);
+      disc_build_append_single_with_clocks(p_disc,
+                                           sector_mark,
+                                           k_ibm_disc_mark_clock_pattern);
+      if (p_sector->is_format_bytes) {
+        disc_build_append_repeat(p_disc, 0xE5, write_size_bytes);
+      } else if (!p_sector->is_weak_bits) {
+        disc_build_append_chunk(p_disc, p_data, write_size_bytes);
+      } else {
+        /* This is icky: the titles that rely on weak bits (mostly,
+         * hopefully exclusively? Sherston Software titles) rely on the weak
+         * bits being a little later in the sector as the code at the start
+         * of the sector is executed!!
+         */
+        disc_build_append_chunk(p_disc, p_data, 24);
+        /* Our 8271 driver interprets empty disc surface (no data bits, no
+         * clock bits) as weak bits. As does my real drive + 8271 combo.
+         */
+        disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
+        disc_build_append_chunk(p_disc,
+                                (p_data + 32),
+                                (write_size_bytes - 32));
+      }
+      if (!p_sector->is_crc_included) {
+        if (p_sector->is_crc_error) {
+          disc_build_append_bad_crc(p_disc);
         } else {
-          /* This is icky: the titles that rely on weak bits (mostly,
-           * hopefully exclusively? Sherston Software titles) rely on the weak
-           * bits being a little later in the sector as the code at the start
-           * of the sector is executed!!
-           */
-          disc_build_append_chunk(p_disc, p_data, 24);
-          /* Our 8271 driver interprets empty disc surface (no data bits, no
-           * clock bits) as weak bits. As does my real drive + 8271 combo.
-           */
-          disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
-          disc_build_append_chunk(p_disc,
-                                  (p_data + 32),
-                                  (write_size_bytes - 32));
+          disc_build_append_crc(p_disc);
         }
-        if (!p_sector->is_crc_included) {
-          if (p_sector->is_crc_error) {
-            disc_build_append_bad_crc(p_disc);
-          } else {
-            disc_build_append_crc(p_disc);
-          }
-        }
+      }
 
-        track_remaining -= (write_size_bytes + 3);
+      track_remaining -= (write_size_bytes + 3);
 
-        if ((fsd_sectors == 1) && (track_data_bytes == 256)) {
-          if (log_protection) {
-            log_do_log(k_log_disc,
-                       k_log_info,
-                       "FSD: workaround: zero padding short track %d: %s",
-                       i_track,
-                       p_sector->sector_spec);
-          }
-          /* This is essentially a workaround for buggy FSD files, such as:
-           * 297 DISC DUPLICATOR 3.FSD
-           * The copy protection relies on zeros being returned from a sector
-           * overread of a single sectored short track, but the FSD file does
-           * not guarantee this.
-           * Also make sure to not accidentally create a valid CRC for a 512
-           * byte read. This happens if the valid 256 byte sector CRC is
-           * followed by all 0x00 and an 0x00 CRC.
-           */
-          disc_build_append_repeat(p_disc, 0x00, (256 - 2));
-          disc_build_append_repeat(p_disc, 0xFF, 2);
-          track_remaining -= 256;
+      if ((fsd_sectors == 1) && (track_data_bytes == 256)) {
+        if (log_protection) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "FSD: workaround: zero padding short track %d: %s",
+                     i_track,
+                     p_sector->sector_spec);
         }
+        /* This is essentially a workaround for buggy FSD files, such as:
+         * 297 DISC DUPLICATOR 3.FSD
+         * The copy protection relies on zeros being returned from a sector
+         * overread of a single sectored short track, but the FSD file does
+         * not guarantee this.
+         * Also make sure to not accidentally create a valid CRC for a 512
+         * byte read. This happens if the valid 256 byte sector CRC is
+         * followed by all 0x00 and an 0x00 CRC.
+         */
+        disc_build_append_repeat(p_disc, 0x00, (256 - 2));
+        disc_build_append_repeat(p_disc, 0xFF, 2);
+        track_remaining -= 256;
       }
 
       if (i_sector != (fsd_sectors - 1)) {
