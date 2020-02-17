@@ -308,7 +308,9 @@ disc_load(struct disc_struct* p_disc,
     disc_ssd_load(p_disc, 1);
     p_disc->p_write_track_callback = disc_ssd_write_track;
   } else if (util_is_extension(p_file_name, "fsd")) {
-    disc_fsd_load(p_disc, p_disc->log_protection);
+    disc_fsd_load(p_disc, 1, p_disc->log_protection);
+  } else if (util_is_extension(p_file_name, "log")) {
+    disc_fsd_load(p_disc, 0, p_disc->log_protection);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc);
     p_disc->p_write_track_callback = disc_hfe_write_track;

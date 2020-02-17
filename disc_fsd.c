@@ -392,7 +392,9 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
 }
 
 void
-disc_fsd_load(struct disc_struct* p_disc, int log_protection) {
+disc_fsd_load(struct disc_struct* p_disc,
+              int has_file_name,
+              int log_protection) {
   /* The most authoritative "documentation" for the FSD format appears to be:
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
@@ -426,14 +428,16 @@ disc_fsd_load(struct disc_struct* p_disc, int log_protection) {
   }
   p_buf += 8;
   file_remaining -= 8;
-  do {
-    if (file_remaining == 0) {
-      errx(1, "fsd file missing title");
-    }
-    title_char = *p_buf;
-    p_buf++;
-    file_remaining--;
-  } while (title_char != 0);
+  if (has_file_name) {
+    do {
+      if (file_remaining == 0) {
+        errx(1, "fsd file missing title");
+      }
+      title_char = *p_buf;
+      p_buf++;
+      file_remaining--;
+    } while (title_char != 0);
+  }
 
   if (file_remaining == 0) {
     errx(1, "fsd file missing tracks");
