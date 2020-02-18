@@ -487,6 +487,14 @@ disc_fsd_load(struct disc_struct* p_disc,
                    i_track);
       }
       disc_build_append_repeat(p_disc, 0, k_ibm_disc_bytes_per_track);
+      /* Some LOG files end prematurely after all the useful data, in the
+       * middle of a run of "unformatted track". We can detect and accept that
+       * here.
+       * Example: 518 THE WORST WITCH.log
+       */
+      if (file_remaining == 0) {
+        break;
+      }
       continue;
     }
 
