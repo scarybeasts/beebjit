@@ -12,14 +12,10 @@
 #include "teletext_glyphs.h"
 
 #include "render.h"
+#include "util.h"
 #include "video.h"
 
-#include <assert.h>
-#include <err.h>
-#include <stdlib.h>
 #include <string.h>
-
-#include <stdio.h>
 
 /* Used for stretching 6 pixels wide into 16. */
 static const uint8_t k_stretch_data[] = {
@@ -42,6 +38,11 @@ static const uint8_t k_stretch_data[] = {
   5, 255, 0, 0,
 };
 
+static int g_teletext_was_generated;
+
+static uint8_t g_teletext_generated_gfx[96 * 60];
+static uint8_t g_teletext_generated_sep_gfx[96 * 60];
+
 struct teletext_struct {
   uint32_t palette[8];
   uint32_t flash_count;
@@ -60,13 +61,80 @@ struct teletext_struct {
   uint8_t* p_held_character;
 };
 
+static void
+teletext_draw_block(uint8_t* p_glyph,
+                    uint32_t x,
+                    uint32_t y,
+                    uint32_t w,
+                    uint32_t h) {
+  uint32_t i_width;
+  uint32_t i_height;
+
+  for (i_height = 0; i_height < h; ++i_height) {
+    for (i_width = 0; i_width < w; ++i_width) {
+      p_glyph[((y + i_height) * 6) + x + i_width] = 1;
+    }
+  }
+}
+
+static void
+teletext_generate() {
+  uint32_t i;
+
+  /* 0x40 - 0x5F in graphics modes use the character glyph. */
+  (void) memcpy(&g_teletext_generated_gfx[(0x40 - 0x20) * 60],
+                &teletext_characters[(0x40 - 0x20) * 60],
+                (0x20 * 60));
+  (void) memcpy(&g_teletext_generated_sep_gfx[(0x40 - 0x20) * 60],
+                &teletext_characters[(0x40 - 0x20) * 60],
+                (0x20 * 60));
+
+  for (i = 0; i < 0x40; ++i) {
+    uint8_t glyph_index;
+    uint8_t* p_gfx_dest;
+    uint8_t* p_sep_gfx_dest;
+
+    glyph_index = i;
+    if (i >= 0x20) {
+      glyph_index += 0x20;
+    }
+    p_gfx_dest = &g_teletext_generated_gfx[glyph_index * 60];
+    p_sep_gfx_dest = &g_teletext_generated_sep_gfx[glyph_index * 60];
+
+    if (i & 0x01) {
+      teletext_draw_block(p_gfx_dest, 0, 0, 3, 3);
+      teletext_draw_block(p_sep_gfx_dest, 1, 0, 2, 2);
+    }
+    if (i & 0x02) {
+      teletext_draw_block(p_gfx_dest, 3, 0, 3, 3);
+      teletext_draw_block(p_sep_gfx_dest, 4, 0, 2, 2);
+    }
+    if (i & 0x04) {
+      teletext_draw_block(p_gfx_dest, 0, 3, 3, 4);
+      teletext_draw_block(p_sep_gfx_dest, 1, 3, 2, 3);
+    }
+    if (i & 0x08) {
+      teletext_draw_block(p_gfx_dest, 3, 3, 3, 4);
+      teletext_draw_block(p_sep_gfx_dest, 4, 3, 2, 3);
+    }
+    if (i & 0x10) {
+      teletext_draw_block(p_gfx_dest, 0, 7, 3, 3);
+      teletext_draw_block(p_sep_gfx_dest, 1, 7, 2, 2);
+    }
+    if (i & 0x20) {
+      teletext_draw_block(p_gfx_dest, 3, 7, 3, 3);
+      teletext_draw_block(p_sep_gfx_dest, 4, 7, 2, 2);
+    }
+  }
+}
+
 static inline void
 teletext_set_active_characters(struct teletext_struct* p_teletext) {
   if (p_teletext->is_graphics_active) {
     if (p_teletext->is_separated_active) {
-      p_teletext->p_active_characters = &teletext_separated_graphics[0];
+      p_teletext->p_active_characters = &g_teletext_generated_sep_gfx[0];
     } else {
-      p_teletext->p_active_characters = &teletext_graphics[0];
+      p_teletext->p_active_characters = &g_teletext_generated_gfx[0];
     }
   } else {
     p_teletext->p_active_characters = &teletext_characters[0];
@@ -114,13 +182,15 @@ teletext_new_frame_started(struct teletext_struct* p_teletext) {
 struct teletext_struct*
 teletext_create() {
   uint32_t i;
+  struct teletext_struct* p_teletext;
 
-  struct teletext_struct* p_teletext = malloc(sizeof(struct teletext_struct));
-  if (p_teletext == NULL) {
-    errx(1, "cannot allocate teletext_struct");
+  (void) teletext_graphics;
+  (void) teletext_separated_graphics;
+  if (!g_teletext_was_generated) {
+    teletext_generate();
   }
 
-  (void) memset(p_teletext, '\0', sizeof(struct teletext_struct));
+  p_teletext = util_mallocz(sizeof(struct teletext_struct));
 
   p_teletext->flash_count = 0;
   p_teletext->scanline = 0;
@@ -147,7 +217,7 @@ teletext_create() {
 
 void
 teletext_destroy(struct teletext_struct* p_teletext) {
-  free(p_teletext);
+  util_free(p_teletext);
 }
 
 static inline void

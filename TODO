@@ -30,7 +30,6 @@ dependent on one another.
 - Disc loading noises.
 - 6845 skew support.
 - Add a test for the JIT optimizer.
-- Teletext separated graphics rendering not aligned correctly?
 
 
 Ideas
