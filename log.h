@@ -18,6 +18,7 @@ enum log_severity {
   k_log_info = 1,
   k_log_unusual = 2,
   k_log_unimplemented = 3,
+  k_log_error = 4,
 };
 
 void log_do_log(int module, int severity, const char* p_msg, ...);

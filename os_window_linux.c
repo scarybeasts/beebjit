@@ -535,6 +535,10 @@ os_window_process_events(struct os_window_struct* p_window) {
       }
       break;
     default:
+      /* This fired once or twice on me, so try and log what it is in case it
+       * happens again.
+       */
+      log_do_log(k_log_misc, k_log_error, "unexpected XEvent %d", event.type);
       assert(0);
     }
   }

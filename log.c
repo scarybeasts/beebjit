@@ -39,6 +39,8 @@ log_severity_to_string(int severity) {
     return "UNUSUAL";
   case k_log_unimplemented:
     return "UNIMPLEMENTED";
+  case k_log_error:
+    return "ERROR";
   default:
     assert(0);
     return NULL;
