@@ -1,0 +1,45 @@
+Pretty much all games work in beebjit but here are some specific games known to
+work. This is perhaps most useful as a reference for tough emulation cases,
+and interesting but less well known games.
+
+The classics: working
+- Exile (including sideways RAM enhanced version, speech, water level)
+- Elite (including flickery mode switch)
+- Citadel
+- Repton 3
+- Castle Quest
+- Chuckie Egg
+
+Some of my favorites: working
+- Mr. Ee
+- Arcadians
+- Thrust
+- Labyrinth
+- Starship Command
+
+Tougher emulation cases: working
+See also: https://stardot.org.uk/forums/viewtopic.php?t=8164
+- Snapper (uses VIA PB7 bit flipping quirk)
+- Revs (requires precise VIA / CRTC timing synchronization in interlace mode)
+- Uridium (multiple CRTC frames per vsync)
+- Boffin (CRTC horizontal overscan)
+- Firetrack (CRTC 1-line vertical scrolling)
+- Zalaga (tape) (game uses undocumented 6502 opcodes; tape loader too)
+- Nightshade (tape) (insane protection routines, requires very accurate timing)
+- Exile (protected disc) (requires precise BCD mode handling)
+- Pharaoh's Curse (fake lightpen triggering)
+- Lunar Jetman (needs accurate video ULA for separator line color)
+- Elite-A (needs accurate disc spindown and disc controller status reporting)
+
+Interesting, less well known games: working
+- Blast!, Audiogenic (nice Thrust-ish but different)
+- Breakthrough, Audiogenic (level based puzzle game)
+- Krakout, Gremlin (sideways Breakout game with smooth rendering)
+- Boulderdash, Tynesoft (maybe not less well known!)
+- Saigon, Tynesoft (essentially Commando but faster / smoother)
+- Sphere of Destiny, Audiogenic (very smooth and fast animation of track)
+- Starquake, Bubble Bus (extemely smooth rendering, great work)
+- Star Drifter, Firebird (nicely done room exploration game)
+- Star Maze, Software Invasion (Thrust in a maze, with inertia not gravity)
+- Impossible Mission, US Gold (room based + puzzles, looks interesting)
+- Ricochet, Superior/Acornsoft (late release, room based, you're a bouncy ball)
