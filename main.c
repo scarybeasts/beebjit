@@ -16,6 +16,7 @@
 #include <err.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int
@@ -170,6 +171,29 @@ main(int argc, const char* argv[]) {
       headless_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
+    } else if (!strcmp(arg, "-version") ||
+               !strcmp(arg, "-v")) {
+      (void) printf("beebjit v0.20\n");
+      exit(0);
+    } else if (!strcmp(arg, "-help") ||
+               !strcmp(arg, "--help") ||
+               !strcmp(arg, "-h")) {
+      (void) printf(
+"The most common command line flags follow. See EXAMPLES for more.\n"
+"-0 -disc -disc0 <f>: load disc image file <f> into drive 0/2.\n"
+"-1 -disc1       <f>: load disc image file <f> into drive 1/3.\n"
+"-writeable         : discs are not write protected (by default they are).\n"
+"-mutable           : disc image changes are written back to host image file.\n"
+"-tape           <f>: load tape image file <f>.\n"
+"-swram        <hex>: specified ROM bank is sideways RAM.\n"
+"-rom      <hex> <f>: load ROM file <f> into specified ROM bank.\n"
+"-debug             : enable 6502 debugger and start in debugger.\n"
+"-run               : if -debug, run instead of starting in debugger.\n"
+"-print             : if -debug, print every instruction run.\n"
+"-mode              : CPU emulation driver: jit,interp,inturbo (default jit).\n"
+"-fast              : run CPU as fast as host can; lowers accuracy.\n"
+"");
+      exit(0);
     }
   }
 
