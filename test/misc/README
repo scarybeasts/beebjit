@@ -40,8 +40,10 @@ From http://bbcmicro.co.uk/gameimg/discs/1411/Speech.dsd
 Very unusual sampled sound playback routine, uses tone channel period of 8(!)
 and does not toggle the sound write enable bit.
 
-- teletest.ssd
-A famous Teletext engineering test page. A good test too.
+- teletest_v1.ssd
+Various teletext tests.
+Includes the famous Teletext engineering test page.
+And a test by me that tests additional things.
 
 - tyb-enjoy.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/122
