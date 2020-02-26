@@ -1118,8 +1118,11 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     break;
   case k_intel_fdc_state_search_data:
-    /* EMU TODO: what happens if the controller hits another ID mark before it
-     * ever sees a data mark?
+    /* EMU TODO: implement these results from a real 8271: if another sector ID
+     * header is hit instead of the data mark, that's $10. Also, there are
+     * strict requirements on the sync bytes in between header and data. At
+     * least 14 bytes are needed post-header and at least the last 2 of these
+     * must be 0x00. Violations => $10.
      */
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         ((data_byte == k_ibm_disc_data_mark_data_pattern) ||
