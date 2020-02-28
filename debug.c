@@ -503,6 +503,20 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                 address_counter);
 }
 
+static struct debug_breakpoint*
+debug_get_free_breakpoint(struct debug_struct* p_debug) {
+  uint32_t i;
+
+  for (i = 0; i < k_max_break; ++i) {
+    struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+    if (!p_breakpoint->is_in_use) {
+      return p_breakpoint;
+    }
+  }
+
+  return NULL;
+}
+
 static inline int
 debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
@@ -1101,7 +1115,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
-    int32_t parse_int3 = -1;
 
     (void) printf("(6502db) ");
     ret = fflush(stdout);
@@ -1179,67 +1192,60 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr++;
       }
       (void) printf("\n");
-    } else if (((sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2) ||
-                (sscanf(input_buf,
-                        "break %d %x",
-                        &parse_int,
-                        &parse_int2) == 2)) &&
-               (parse_int >= 0) &&
-               (parse_int < k_max_break)) {
-      parse_addr = parse_int2;
-      p_breakpoint = &p_debug->breakpoints[parse_int];
+    } else if ((sscanf(input_buf, "b %x", &parse_int) == 1) ||
+               (sscanf(input_buf, "break %x", &parse_int) == 1)) {
+      parse_addr = parse_int;
+      p_breakpoint = debug_get_free_breakpoint(p_debug);
+      if (p_breakpoint == NULL) {
+        (void) printf("no free breakpoints\n");
+        continue;
+      }
       p_breakpoint->is_in_use = 1;
       p_breakpoint->type = k_debug_breakpoint_exec;
       p_breakpoint->start = parse_addr;
       p_breakpoint->end = parse_addr;
     } else if (!strcmp(input_buf, "bl") || !strcmp(input_buf, "blist")) {
       debug_dump_breakpoints(p_debug);
-    } else if ((sscanf(input_buf,
-                      "bm %d %x %x",
-                      &parse_int,
-                      &parse_int2,
-                      &parse_int3) >= 2) &&
-               (parse_int >= 0) &&
-               (parse_int < k_max_break)) {
-      parse_addr = parse_int2;
-      p_breakpoint = &p_debug->breakpoints[parse_int];
+    } else if (sscanf(input_buf, "bm %x %x", &parse_int, &parse_int2) >= 1) {
+      parse_addr = parse_int;
+      p_breakpoint = debug_get_free_breakpoint(p_debug);
+      if (p_breakpoint == NULL) {
+        (void) printf("no free breakpoints\n");
+        continue;
+      }
       p_breakpoint->is_in_use = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_read_write;
       p_breakpoint->start = parse_addr;
-      if (parse_int3 != -1) {
-        parse_addr = parse_int3;
+      if (parse_int2 != -1) {
+        parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
-    } else if ((sscanf(input_buf,
-                      "bmr %d %x %x",
-                      &parse_int,
-                      &parse_int2,
-                      &parse_int3) >= 2) &&
-               (parse_int >= 0) &&
-               (parse_int < k_max_break)) {
-      parse_addr = parse_int2;
-      p_breakpoint = &p_debug->breakpoints[parse_int];
+    } else if (sscanf(input_buf, "bmr %x %x", &parse_int, &parse_int2) >= 1) {
+      parse_addr = parse_int;
+      p_breakpoint = debug_get_free_breakpoint(p_debug);
+      if (p_breakpoint == NULL) {
+        (void) printf("no free breakpoints\n");
+        continue;
+      }
       p_breakpoint->is_in_use = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_read;
       p_breakpoint->start = parse_addr;
-      if (parse_int3 != -1) {
-        parse_addr = parse_int3;
+      if (parse_int2 != -1) {
+        parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
-    } else if ((sscanf(input_buf,
-                      "bmw %d %x %x",
-                      &parse_int,
-                      &parse_int2,
-                      &parse_int3) >= 2) &&
-               (parse_int >= 0) &&
-               (parse_int < k_max_break)) {
-      parse_addr = parse_int2;
-      p_breakpoint = &p_debug->breakpoints[parse_int];
+    } else if (sscanf(input_buf, "bmw %x %x", &parse_int, &parse_int2) >= 1) {
+      parse_addr = parse_int;
+      p_breakpoint = debug_get_free_breakpoint(p_debug);
+      if (p_breakpoint == NULL) {
+        (void) printf("no free breakpoints\n");
+        continue;
+      }
       p_breakpoint->is_in_use = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_write;
       p_breakpoint->start = parse_addr;
-      if (parse_int3 != -1) {
-        parse_addr = parse_int3;
+      if (parse_int2 != -1) {
+        parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
     } else if ((sscanf(input_buf, "db %d", &parse_int) == 1) &&
