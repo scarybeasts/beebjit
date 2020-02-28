@@ -1205,40 +1205,40 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, i);
-    } else if (sscanf(input_buf, "bop %x", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < 256) {
+    } else if ((sscanf(input_buf, "bop %x", &parse_int) == 1) &&
+               (parse_int >= 0) &&
+               (parse_int < 256)) {
       p_debug->debug_break_opcodes[parse_int] = 1;
-    } else if (sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2 &&
-               parse_int >= 0 &&
-               parse_int < 65536) {
+    } else if ((sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, parse_int2);
-    } else if (sscanf(input_buf, "inv %x", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < 65536) {
+    } else if ((sscanf(input_buf, "inv %x", &parse_int) == 1) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
-    } else if (sscanf(input_buf, "stopat %x", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < 65536) {
+    } else if ((sscanf(input_buf, "stopat %x", &parse_int) == 1) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536)) {
       p_debug->debug_stop_addr = parse_int;
-    } else if (sscanf(input_buf,
+    } else if ((sscanf(input_buf,
                       "lm %255s %x %x",
                       parse_string,
                       &parse_int,
-                      &parse_int2) == 3 &&
-               parse_int >= 0 &&
-               parse_int < 65536 &&
-               parse_int2 >= 0 &&
-               parse_int2 <= 65536 &&
-               parse_int + parse_int2 <= 65536) {
+                      &parse_int2) == 3) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536) &&
+               (parse_int2 >= 0) &&
+               (parse_int2 <= 65536) &&
+               (parse_int + parse_int2 <= 65536)) {
       parse_string[255] = '\0';
       state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
-    } else if (sscanf(input_buf,
+    } else if ((sscanf(input_buf,
                       "lr %255s %x",
                       parse_string,
-                      &parse_int) == 2 &&
-               parse_int >= 0 &&
-               parse_int < 65536) {
+                      &parse_int) == 2) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536)) {
       parse_string[255] = '\0';
       debug_load_raw(p_debug, parse_string, parse_int);
     } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
