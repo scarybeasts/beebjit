@@ -1144,7 +1144,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr++;
       }
       (void) printf("\n");
-    } else if ((sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2) &&
+    } else if (((sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2) ||
+                (sscanf(input_buf,
+                        "break %d %x",
+                        &parse_int,
+                        &parse_int2) == 2)) &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       parse_addr = parse_int2;
@@ -1209,7 +1213,10 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                (parse_int >= 0) &&
                (parse_int < 256)) {
       p_debug->debug_break_opcodes[parse_int] = 1;
-    } else if ((sscanf(input_buf, "sm %x %x", &parse_int, &parse_int2) == 2) &&
+    } else if ((sscanf(input_buf,
+                       "writem %x %x",
+                       &parse_int,
+                       &parse_int2) == 2) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, parse_int2);
@@ -1278,20 +1285,20 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "q                 : quit\n"
   "c                 : continue\n"
   "s                 : step one 6502 instuction\n"
-  "d <addr>          : disassemble at <addr>\n"
+  "d <a>             : disassemble at <a>\n"
   "t                 : trap into gdb\n"
-  "b <id> <addr>     : set breakpoint <id> at 6502 address <addr>\n"
+  "{b,break} <id> <a>: set breakpoint <id> at 6502 address <a>\n"
   "db <id>           : delete breakpoint <id>\n"
   "bm <id> <lo> (hi) : set read/write memory breakpoint for 6502 range\n"
   "bmr <id> <lo> (hi): set read memory breakpoint for 6502 range\n"
   "bmw <id> <lo> (hi): set write memory breakpoint for 6502 range\n"
   "bop <op>          : break on opcode <op>\n"
-  "m <addr>          : show memory at <addr>\n"
-  "sm <addr> <val>   : write <val> to 6502 <addr>\n"
-  "lm <f> <addr> <l> : load <l> memory at <addr> from state <f>\n"
-  "lr <f> <addr>     : load memory at <addr> from raw file <f>\n"
+  "m <a>             : show memory at <a>\n"
+  "writem <a> <v>    : write <v> to 6502 <a>\n"
+  "lm <f> <a> <l>    : load <l> memory at <a> from state <f>\n"
+  "lr <f> <a>        : load memory at <addr> from raw file <f>\n"
   "ss <f>            : save state to BEM file <f>\n"
-  "{a,x,y,pc}=<val>  : set register to <val>\n"
+  "{a,x,y,pc}=<v>    : set register to <v>\n"
   "sys               : show system VIA registers\n"
   "user              : show user VIA registers\n"
   "r                 : show regular registers\n"
