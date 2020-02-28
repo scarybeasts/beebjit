@@ -31,20 +31,32 @@ enum {
   k_max_input_len = 256,
 };
 
+enum {
+  k_debug_breakpoint_exec = 1,
+  k_debug_breakpoint_mem_read = 2,
+  k_debug_breakpoint_mem_write = 3,
+  k_debug_breakpoint_mem_read_write = 4,
+};
+
+struct debug_breakpoint {
+  int is_in_use;
+  int type;
+  int32_t start;
+  int32_t end;
+};
+
 struct debug_struct {
   struct bbc_struct* p_bbc;
   int debug_active;
   int debug_running;
   int debug_running_print;
+
   /* Breakpointing. */
   int32_t debug_stop_addr;
   int32_t next_or_finish_stop_addr;
-  int debug_break_exec[k_max_break];
-  int debug_break_mem_low[k_max_break];
-  int debug_break_mem_high[k_max_break];
-  uint8_t debug_break_mem_read[k_max_break];
-  uint8_t debug_break_mem_write[k_max_break];
   int debug_break_opcodes[256];
+  struct debug_breakpoint breakpoints[k_max_break];
+
   /* Stats. */
   int stats;
   uint64_t count_addr[k_6502_addr_space_size];
@@ -63,6 +75,7 @@ struct debug_struct {
   uint64_t adc_sbc_with_decimal_count;
   uint64_t register_reads;
   uint64_t register_writes;
+
   /* Other. */
   uint64_t time_basis;
   size_t next_cycles;
@@ -76,6 +89,14 @@ static void
 sigint_handler(int signum) {
   (void) signum;
   s_sigint_received = 1;
+}
+
+static void
+debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
+  p_debug->breakpoints[i].is_in_use = 0;
+  p_debug->breakpoints[i].type = 0;
+  p_debug->breakpoints[i].start = -1;
+  p_debug->breakpoints[i].end = -1;
 }
 
 struct debug_struct*
@@ -106,11 +127,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->next_cycles = 0;
 
   for (i = 0; i < k_max_break; ++i) {
-    p_debug->debug_break_exec[i] = -1;
-    p_debug->debug_break_mem_low[i] = -1;
-    p_debug->debug_break_mem_high[i] = -1;
-    p_debug->debug_break_mem_read[i] = 0;
-    p_debug->debug_break_mem_write[i] = 0;
+    debug_clear_breakpoint(p_debug, i);
   }
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
@@ -491,24 +508,49 @@ debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
                 uint8_t opcode_6502) {
-  size_t i;
-  for (i = 0; (i < k_max_break); ++i) {
-    if (reg_pc == p_debug->debug_break_exec[i]) {
-      return 1;
+  uint32_t i;
+  uint8_t optype;
+  uint8_t opmem;
+
+  for (i = 0; i < k_max_break; ++i) {
+    int type;
+    struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+    if (!p_breakpoint->is_in_use) {
+      continue;
     }
-    if ((addr_6502 != -1) &&
-        (p_debug->debug_break_mem_low[i] <= addr_6502) &&
-        (p_debug->debug_break_mem_high[i] >= addr_6502)) {
-      uint8_t optype = g_optypes[opcode_6502];
-      uint8_t opmem = g_opmem[optype];
-      if (((opmem == k_read) || (opmem == k_rw)) &&
-          p_debug->debug_break_mem_read[i]) {
+
+    type = p_breakpoint->type;
+    switch (type) {
+    case k_debug_breakpoint_exec:
+      if (reg_pc == p_breakpoint->start) {
         return 1;
       }
-      if (((opmem == k_write) || (opmem == k_rw)) &&
-          p_debug->debug_break_mem_write[i]) {
-        return 1;
+      break;
+    case k_debug_breakpoint_mem_read:
+    case k_debug_breakpoint_mem_write:
+    case k_debug_breakpoint_mem_read_write:
+      if ((addr_6502 < p_breakpoint->start) ||
+          (addr_6502 > p_breakpoint->end)) {
+        break;
       }
+      optype = g_optypes[opcode_6502];
+      opmem = g_opmem[optype];
+      if ((opmem == k_read) || (opmem == k_rw)) {
+        if ((type == k_debug_breakpoint_mem_read) ||
+            (type == k_debug_breakpoint_mem_read_write)) {
+          return 1;
+        }
+      }
+      if ((opmem == k_write) || (opmem == k_rw)) {
+        if ((type == k_debug_breakpoint_mem_write) ||
+            (type == k_debug_breakpoint_mem_read_write)) {
+          return 1;
+        }
+      }
+      break;
+    default:
+      assert(0);
+      break;
     }
   }
   if (p_debug->debug_break_opcodes[opcode_6502]) {
@@ -1020,6 +1062,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     char parse_string[256];
     uint16_t parse_addr;
     int ret;
+    struct debug_breakpoint* p_breakpoint;
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
@@ -1101,65 +1144,67 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr++;
       }
       (void) printf("\n");
-    } else if (sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
+    } else if ((sscanf(input_buf, "b %d %x", &parse_int, &parse_int2) == 2) &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
       parse_addr = parse_int2;
-      p_debug->debug_break_exec[parse_int] = parse_addr;
-    } else if (sscanf(input_buf,
+      p_breakpoint = &p_debug->breakpoints[parse_int];
+      p_breakpoint->is_in_use = 1;
+      p_breakpoint->type = k_debug_breakpoint_exec;
+      p_breakpoint->start = parse_addr;
+      p_breakpoint->end = parse_addr;
+    } else if ((sscanf(input_buf,
                       "bm %d %x %x",
                       &parse_int,
                       &parse_int2,
-                      &parse_int3) >= 2 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
+                      &parse_int3) >= 2) &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
       parse_addr = parse_int2;
-      p_debug->debug_break_mem_low[parse_int] = parse_addr;
+      p_breakpoint = &p_debug->breakpoints[parse_int];
+      p_breakpoint->is_in_use = 1;
+      p_breakpoint->type = k_debug_breakpoint_mem_read_write;
+      p_breakpoint->start = parse_addr;
       if (parse_int3 != -1) {
         parse_addr = parse_int3;
       }
-      p_debug->debug_break_mem_high[parse_int] = parse_addr;
-      p_debug->debug_break_mem_read[parse_int] = 1;
-      p_debug->debug_break_mem_write[parse_int] = 1;
-    } else if (sscanf(input_buf,
+      p_breakpoint->end = parse_addr;
+    } else if ((sscanf(input_buf,
                       "bmr %d %x %x",
                       &parse_int,
                       &parse_int2,
-                      &parse_int3) >= 2 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
+                      &parse_int3) >= 2) &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
       parse_addr = parse_int2;
-      p_debug->debug_break_mem_low[parse_int] = parse_addr;
+      p_breakpoint = &p_debug->breakpoints[parse_int];
+      p_breakpoint->is_in_use = 1;
+      p_breakpoint->type = k_debug_breakpoint_mem_read;
+      p_breakpoint->start = parse_addr;
       if (parse_int3 != -1) {
         parse_addr = parse_int3;
       }
-      p_debug->debug_break_mem_high[parse_int] = parse_addr;
-      p_debug->debug_break_mem_read[parse_int] = 1;
-      p_debug->debug_break_mem_write[parse_int] = 0;
-    } else if (sscanf(input_buf,
+      p_breakpoint->end = parse_addr;
+    } else if ((sscanf(input_buf,
                       "bmw %d %x %x",
                       &parse_int,
                       &parse_int2,
-                      &parse_int3) >= 2 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
+                      &parse_int3) >= 2) &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
       parse_addr = parse_int2;
-      p_debug->debug_break_mem_low[parse_int] = parse_addr;
+      p_breakpoint = &p_debug->breakpoints[parse_int];
+      p_breakpoint->is_in_use = 1;
+      p_breakpoint->type = k_debug_breakpoint_mem_write;
+      p_breakpoint->start = parse_addr;
       if (parse_int3 != -1) {
         parse_addr = parse_int3;
       }
-      p_debug->debug_break_mem_high[parse_int] = parse_addr;
-      p_debug->debug_break_mem_read[parse_int] = 0;
-      p_debug->debug_break_mem_write[parse_int] = 1;
-    } else if (sscanf(input_buf, "db %d", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
-      p_debug->debug_break_exec[parse_int] = -1;
-    } else if (sscanf(input_buf, "dbm %d", &parse_int) == 1 &&
-               parse_int >= 0 &&
-               parse_int < k_max_break) {
-      p_debug->debug_break_mem_low[parse_int] = -1;
-      p_debug->debug_break_mem_high[parse_int] = -1;
+      p_breakpoint->end = parse_addr;
+    } else if ((sscanf(input_buf, "db %d", &parse_int) == 1) &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
+      debug_clear_breakpoint(p_debug, i);
     } else if (sscanf(input_buf, "bop %x", &parse_int) == 1 &&
                parse_int >= 0 &&
                parse_int < 256) {
@@ -1240,7 +1285,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "bm <id> <lo> (hi) : set read/write memory breakpoint for 6502 range\n"
   "bmr <id> <lo> (hi): set read memory breakpoint for 6502 range\n"
   "bmw <id> <lo> (hi): set write memory breakpoint for 6502 range\n"
-  "dbm <id>          : delete memory breakpoint <id>\n"
   "bop <op>          : break on opcode <op>\n"
   "m <addr>          : show memory at <addr>\n"
   "sm <addr> <val>   : write <val> to 6502 <addr>\n"
