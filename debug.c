@@ -680,6 +680,41 @@ debug_dump_stats(struct debug_struct* p_debug) {
                 p_debug->register_writes);
 }
 
+static void
+debug_dump_breakpoints(struct debug_struct* p_debug) {
+  uint32_t i;
+  for (i = 0; i < k_max_break; ++i) {
+    const char* p_type_name;
+    struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+    if (!p_breakpoint->is_in_use) {
+      continue;
+    }
+    (void) printf("breakpoint %d: ", i);
+    switch (p_breakpoint->type) {
+    case k_debug_breakpoint_exec:
+      p_type_name = "exec";
+      break;
+    case k_debug_breakpoint_mem_read:
+      p_type_name = "mem read";
+      break;
+    case k_debug_breakpoint_mem_write:
+      p_type_name = "mem write";
+      break;
+    case k_debug_breakpoint_mem_read_write:
+      p_type_name = "mem read/write";
+      break;
+    default:
+      assert(0);
+      break;
+    }
+    (void) printf("%s @$%.4X", p_type_name, p_breakpoint->start);
+    if (p_breakpoint->end != p_breakpoint->start) {
+      (void) printf("-$%.4X", p_breakpoint->end);
+    }
+    (void) printf("\n");
+  }
+}
+
 static inline void
 debug_check_unusual(struct cpu_driver* p_cpu_driver,
                     uint8_t operand1,
@@ -1157,6 +1192,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       p_breakpoint->type = k_debug_breakpoint_exec;
       p_breakpoint->start = parse_addr;
       p_breakpoint->end = parse_addr;
+    } else if (!strcmp(input_buf, "bl") || !strcmp(input_buf, "blist")) {
+      debug_dump_breakpoints(p_debug);
     } else if ((sscanf(input_buf,
                       "bm %d %x %x",
                       &parse_int,
@@ -1208,7 +1245,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "db %d", &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
-      debug_clear_breakpoint(p_debug, i);
+      debug_clear_breakpoint(p_debug, parse_int);
     } else if ((sscanf(input_buf, "bop %x", &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 256)) {
@@ -1288,6 +1325,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "d <a>             : disassemble at <a>\n"
   "t                 : trap into gdb\n"
   "{b,break} <id> <a>: set breakpoint <id> at 6502 address <a>\n"
+  "{bl,blist}        : list breakpoints\n"
   "db <id>           : delete breakpoint <id>\n"
   "bm <id> <lo> (hi) : set read/write memory breakpoint for 6502 range\n"
   "bmr <id> <lo> (hi): set read memory breakpoint for 6502 range\n"
