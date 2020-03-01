@@ -1171,6 +1171,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       stack++;
       finish_addr |= (p_mem_read[k_6502_stack_addr + stack] << 8);
       finish_addr++;
+      (void) printf("finish will stop at %04X\n", finish_addr);
       p_debug->next_or_finish_stop_addr = finish_addr;
       p_debug->debug_running = 1;
       break;
