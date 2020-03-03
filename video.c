@@ -1352,6 +1352,18 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
   return 0;
 }
 
+static void
+video_update_cursor_disabled(struct video_struct* p_video) {
+  int cursor_disabled = 0;
+  if ((p_video->crtc_registers[k_crtc_reg_cursor_start] & 0x60) == 0x20) {
+    cursor_disabled = 1;
+  }
+  if ((p_video->crtc_registers[k_crtc_reg_interlace] & 0xC0) == 0xC0) {
+    cursor_disabled = 1;
+  }
+  p_video->cursor_disabled = cursor_disabled;
+}
+
 void
 video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t reg;
@@ -1494,9 +1506,9 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       p_video->scanline_mask = 0x1F;
     }
     video_update_odd_even_frame(p_video);
+    video_update_cursor_disabled(p_video);
     break;
   case k_crtc_reg_cursor_start:
-    p_video->cursor_disabled = ((val & 0x60) == 0x20);
     p_video->cursor_flashing = !!(val & 0x40);
     if (val & 0x20) {
       p_video->cursor_flash_mask = 0x10;
@@ -1504,6 +1516,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
       p_video->cursor_flash_mask = 0x08;
     }
     p_video->cursor_start_line = (val & 0x1F);
+    video_update_cursor_disabled(p_video);
     break;
   default:
     break;
