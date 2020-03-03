@@ -486,6 +486,15 @@ disc_fsd_load(struct disc_struct* p_disc,
                    "FSD: unformatted track %d",
                    i_track);
       }
+      /* NOTE: "unformatted" track could mean a few different possibilities.
+       * What it definitely means is that there are no detectable sector ID
+       * markers. But it doesn't say why.
+       * For example, my original Elite disc has a genuinely unformatted track,
+       * i.e. no flux transitions. On the other hand, my original Labyrinth
+       * disc has flux transitions (of varinging width)!
+       * To keep things simple we write a track full of 0 data bits and no
+       * markers.
+       */
       disc_build_append_repeat(p_disc, 0, k_ibm_disc_bytes_per_track);
       /* Some LOG files end prematurely after all the useful data, in the
        * middle of a run of "unformatted track". We can detect and accept that
