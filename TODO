@@ -11,7 +11,6 @@ get addressed before the next release.
 can even block at that resolution.
 - BCD support in JIT?
 - Big problems with block splitting.
-- Big problems with video vsync asserts.
 
 
 Fix later
