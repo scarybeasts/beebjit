@@ -123,6 +123,8 @@ struct video_struct {
   int cursor_flashing;
   uint32_t cursor_flash_mask;
   uint8_t cursor_start_line;
+  int has_sane_framing_parameters;
+  int32_t frame_crtc_ticks;
 
   /* 6845 state. */
   uint64_t crtc_frames;
@@ -550,6 +552,35 @@ video_get_flash(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_flash);
 }
 
+static int
+video_is_at_vsync_start(struct video_struct* p_video) {
+  if (p_video->vert_counter !=
+      p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
+    return 0;
+  }
+  if (p_video->scanline_counter != 0) {
+    return 0;
+  }
+  if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
+    if (p_video->horiz_counter != 0) {
+      return 0;
+    }
+  } else {
+    if (p_video->horiz_counter != p_video->half_r0) {
+      return 0;
+    }
+  }
+  /* in_vsync will only be set if we didn't already have one this frame. We
+   * can't check had_vsync_this_frame because it will always be set at the
+   * first vsync.
+   */
+  if (!p_video->in_vsync) {
+    return 0;
+  }
+
+  return 1;
+}
+
 static uint64_t
 video_calculate_timer(struct video_struct* p_video,
                       int clock_speed,
@@ -570,6 +601,30 @@ video_calculate_timer(struct video_struct* p_video,
   /* If we're past R0, realign to C0=0. */
   if (horiz_counter > r0) {
     return ((256 - horiz_counter) * tick_multiplier);
+  }
+
+  /* If we're at one of the vsync points of significance, and sanely framed,
+   * we can easily time to the next point.
+   */
+  if (p_video->timer_fire_expect_vsync_start ||
+      (video_is_at_vsync_start(p_video) &&
+       p_video->has_sane_framing_parameters)) {
+    assert(p_video->has_sane_framing_parameters);
+
+    p_video->timer_fire_expect_vsync_start = 0;
+    p_video->timer_fire_expect_vsync_end = 1;
+    return (p_video->vsync_pulse_width * (r0 + 1) * tick_multiplier);
+  }
+  if (p_video->timer_fire_expect_vsync_end) {
+    uint32_t ret;
+    assert(p_video->has_sane_framing_parameters);
+
+    p_video->timer_fire_expect_vsync_start = 1;
+    p_video->timer_fire_expect_vsync_end = 0;
+    ret = p_video->frame_crtc_ticks;
+    ret -= (p_video->vsync_pulse_width * (r0 + 1));
+    ret *= tick_multiplier;
+    return ret;
   }
 
   /* In interlace mode, stop at half R0. */
@@ -746,6 +801,57 @@ video_CB2_changed_callback(void* p, int level, int output) {
   p_video->crtc_registers[k_crtc_reg_light_pen_low] = (address_counter & 0xFF);
 }
 
+static void
+video_recalculate_framing_sanity(struct video_struct* p_video) {
+  int32_t frame_crtc_ticks = -1;
+  int sane = 1;
+
+  uint32_t r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
+  uint32_t r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
+  uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  uint32_t r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
+
+  if (r0 < 3) {
+    sane = 0;
+  }
+  /* Make sure vsync pulse width fits within one character row (which is
+   * restricted to being 4 lines or more below.
+   */
+  if (p_video->vsync_pulse_width != 2) {
+    sane = 0;
+  }
+  /* R4 > R7 > R6. */
+  if (r4 <= r7) {
+    sane = 0;
+  }
+  if (r7 <= p_video->crtc_registers[k_crtc_reg_vert_displayed]) {
+    sane = 0;
+  }
+  if (r9 < 3) {
+    sane = 0;
+  }
+
+  if (sane) {
+    uint32_t scanlines = (r9 + 1);
+
+    if (p_video->is_interlace_sync_and_video) {
+      scanlines = ((scanlines + 1) / 2);
+    }
+    frame_crtc_ticks = (r0 + 1);
+    frame_crtc_ticks *= scanlines;
+    frame_crtc_ticks *= (r4 + 1);
+
+    frame_crtc_ticks += ((r0 + 1) *
+                         p_video->crtc_registers[k_crtc_reg_vert_adjust]);
+    if (p_video->is_interlace) {
+      frame_crtc_ticks += ((r0 + 1) / 2);
+    }
+  }
+
+  p_video->has_sane_framing_parameters = sane;
+  p_video->frame_crtc_ticks = frame_crtc_ticks;
+}
+
 struct video_struct*
 video_create(uint8_t* p_bbc_mem,
              int externally_clocked,
@@ -853,6 +959,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->cursor_flashing = 1;
   p_video->cursor_flash_mask = 0x10;
   p_video->cursor_start_line = 18;
+  video_recalculate_framing_sanity(p_video);
 
   /* Teletext mode, 1MHz operation. */
   p_video->video_ula_control = k_ula_teletext;
@@ -1077,6 +1184,18 @@ video_update_real_color(struct video_struct* p_video, uint8_t index) {
   render_set_palette(p_video->p_render, index, color);
 }
 
+static void
+video_framing_changed(struct video_struct* p_video) {
+  p_video->is_framing_changed_for_render = 1;
+  if (p_video->externally_clocked) {
+    return;
+  }
+
+  p_video->timer_fire_expect_vsync_start = 0;
+  p_video->timer_fire_expect_vsync_end = 0;
+  video_update_timer(p_video);
+}
+
 void
 video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   uint8_t index;
@@ -1084,6 +1203,7 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
   int old_flash;
   int new_flash;
+  int new_clock_speed;
   int old_clock_speed;
 
   if (!p_video->externally_clocked) {
@@ -1111,12 +1231,9 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   old_clock_speed = video_get_clock_speed(p_video);
   p_video->video_ula_control = val;
 
-  if (!p_video->externally_clocked) {
-    int new_clock_speed = !!(val & k_ula_clock_speed);
-    if (new_clock_speed != old_clock_speed) {
-      p_video->is_framing_changed_for_render = 1;
-      video_update_timer(p_video);
-    }
+  new_clock_speed = !!(val & k_ula_clock_speed);
+  if (new_clock_speed != old_clock_speed) {
+    video_framing_changed(p_video);
   }
 
   new_flash = video_get_flash(p_video);
@@ -1358,10 +1475,8 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   }
 
   if (!does_not_change_framing) {
-    if (!p_video->externally_clocked) {
-      video_update_timer(p_video);
-    }
-    p_video->is_framing_changed_for_render = 1;
+    video_recalculate_framing_sanity(p_video);
+    video_framing_changed(p_video);
   }
 }
 
