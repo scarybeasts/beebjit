@@ -365,6 +365,18 @@ video_test_6845_corner_cases() {
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(1, g_p_video->in_vert_adjust);
   test_expect_u32(1, g_p_video->in_vsync);
+
+  /* MA should increment outside the display area. */
+  countdown = timing_advance_time(g_p_timing, (countdown - (2 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->display_enable_horiz);
+  test_expect_u32(0, g_p_video->address_counter);
+  countdown = timing_advance_time(g_p_timing, (countdown - 100));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(50, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->display_enable_horiz);
+  test_expect_u32(50, g_p_video->address_counter);
 }
 
 void
