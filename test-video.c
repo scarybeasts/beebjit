@@ -269,6 +269,39 @@ video_test_full_frame_timers() {
   test_expect_u32(1, g_p_video->in_vsync);
 
   /* Now back where we started: vsync raise of even frame. */
+  /* Do some checks that non-frame-changing register writes don't reload the
+   * timer.
+   */
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
+  /* ULA palette. */
+  video_ula_write(g_p_video, 1, 0xF0);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
+  /* ULA control: flash and pixels per character. Making sure to keep the clock
+   * rate at 1MHz.
+   */
+  video_ula_write(g_p_video, 0, 0x00);
+  video_ula_write(g_p_video, 0, 0xE5);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
+  /* CRTC start address. */
+  video_crtc_write(g_p_video, 0, 13);
+  video_crtc_write(g_p_video, 1, 0xAA);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
+  /* Cursor address. */
+  video_crtc_write(g_p_video, 0, 15);
+  video_crtc_write(g_p_video, 1, 0xAA);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
+
+  /* Change the framing and check the timer changed. */
+  /* Vertical total. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 8);
+  test_expect_u32(54, video_test_get_timer());
 }
 
 void
