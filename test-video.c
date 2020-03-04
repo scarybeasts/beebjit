@@ -304,6 +304,69 @@ video_test_full_frame_timers() {
   test_expect_u32(54, video_test_get_timer());
 }
 
+static void
+video_test_out_of_frame() {
+  /* Tests situations where the counters are outside of the defined frame. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing, (countdown - 20));
+  /* Horizontal total to 7, while horiz_counter == 10. */
+  video_crtc_write(g_p_video, 0, 0);
+  video_crtc_write(g_p_video, 1, 7);
+  /* Timer should restore sanity by bringing horiz_counter back to 0. */
+  test_expect_u32((246 * 2), video_test_get_timer());
+}
+
+static void
+video_test_6845_corner_cases() {
+  /* Tests corner cases, expecting Hitachi 6845 behavior. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+
+  /* Interlace off to keep it simpler. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 9);
+
+  /* R7=0 should vsync ok. */
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 0);
+  /* Vsync pulse width 0 should be 16. */
+  video_crtc_write(g_p_video, 0, 3);
+  video_crtc_write(g_p_video, 1, 0x04);
+  /* Turning off interlace changed countdown. */
+  countdown = timing_get_countdown(g_p_timing);
+
+  countdown = timing_advance_time(g_p_timing, (countdown - (312 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+
+  countdown = timing_advance_time(g_p_timing, (countdown - (15 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->in_vsync);
+  countdown = timing_advance_time(g_p_timing, (countdown - (1 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->in_vsync);
+
+  /* R7=R4+1 should vsync ok if there is vert adjust. */
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 31);
+
+  countdown = timing_advance_time(g_p_timing, (countdown - ((312 - 16) * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+
+  countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->in_vert_adjust);
+  test_expect_u32(1, g_p_video->in_vsync);
+}
+
 void
 video_test() {
   video_test_init();
@@ -320,5 +383,13 @@ video_test() {
 
   video_test_init();
   video_test_full_frame_timers();
+  video_test_end();
+
+  video_test_init();
+  video_test_out_of_frame();
+  video_test_end();
+
+  video_test_init();
+  video_test_6845_corner_cases();
   video_test_end();
 }
