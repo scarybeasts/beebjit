@@ -627,6 +627,18 @@ video_calculate_timer(struct video_struct* p_video,
     return ret;
   }
 
+  /* If R7 > R4 then no point stopping much as vsync is not happening. This
+   * situation does occur a lot in games using vertical rupture, e.g.
+   * Uridium, Tricky's Frogger.
+   * R4 + 1 is used because sync can occur at R4 + 1 with vertical adjust or
+   * interlace.
+   */
+  if ((p_video->crtc_registers[k_crtc_reg_vert_sync_position] >
+          (p_video->crtc_registers[k_crtc_reg_vert_total] + 1)) &&
+      !p_video->in_vsync) {
+    return k_video_us_per_vsync;
+  }
+
   /* In interlace mode, stop at half R0. */
   if (p_video->is_interlace && (horiz_counter < p_video->half_r0)) {
     return ((p_video->half_r0 - horiz_counter) * tick_multiplier);
