@@ -691,8 +691,8 @@ video_timer_fired(void* p) {
    * next paint at the next vsync raise.
    */
   if (!p_video->is_rendering_active &&
-      p_video->timer_fire_expect_vsync_start &&
-      p_video->is_wall_time_vsync_hit) {
+      p_video->is_wall_time_vsync_hit &&
+      video_is_at_vsync_start(p_video)) {
     render_vsync(p_video->p_render);
     p_video->is_rendering_active = 1;
     p_video->is_wall_time_vsync_hit = 0;
