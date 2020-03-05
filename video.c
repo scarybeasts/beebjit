@@ -247,6 +247,7 @@ video_do_paint(struct video_struct* p_video) {
    */
   if (*p_video->p_fast_flag) {
     p_video->is_rendering_active = 0;
+    p_video->is_wall_time_vsync_hit = 0;
   }
 }
 
@@ -257,6 +258,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   assert(!p_video->in_vsync);
   assert(!p_video->had_vsync_this_frame);
 
+  p_video->num_vsyncs++;
   p_video->in_vsync = 1;
   p_video->had_vsync_this_frame = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
@@ -705,13 +707,11 @@ video_timer_fired(void* p) {
   if (!p_video->is_rendering_active &&
       p_video->is_wall_time_vsync_hit &&
       video_is_at_vsync_start(p_video)) {
-    render_vsync(p_video->p_render);
     p_video->is_rendering_active = 1;
     p_video->is_wall_time_vsync_hit = 0;
   }
 
   if (p_video->timer_fire_expect_vsync_start) {
-    p_video->num_vsyncs++;
     assert(p_video->in_vsync);
     assert(p_video->had_vsync_this_frame);
     assert(p_video->vert_counter ==
