@@ -49,7 +49,6 @@ struct render_struct {
   uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
   int do_interlace_wobble;
-  int do_skip_next_hsync_vert_pos;
   int do_show_frame_boundaries;
   int32_t cursor_segment_index;
   int cursor_segments[4];
@@ -104,7 +103,6 @@ render_create(struct teletext_struct* p_teletext,
 
   p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,
                                                   "video:interlace-wobble");
-  p_render->do_skip_next_hsync_vert_pos = 0;
 
   p_render->do_show_frame_boundaries = util_has_option(
       p_options->p_opt_flags, "video:frame-boundaries");
@@ -669,12 +667,9 @@ render_double_up_lines(struct render_struct* p_render) {
 void
 render_hsync(struct render_struct* p_render) {
   p_render->horiz_beam_pos = 0;
-  if (!p_render->do_skip_next_hsync_vert_pos) {
-    p_render->vert_beam_pos += 2;
-  } else {
-    p_render->do_skip_next_hsync_vert_pos = 0;
-  }
   /* TODO: do a vertical flyback if beam pos gets too low. */
+  p_render->vert_beam_pos += 2;
+
   render_reset_render_pos(p_render);
 
   /* NOTE: dodgy hack to get MODE7 shifted to the right by one character
@@ -688,11 +683,11 @@ render_hsync(struct render_struct* p_render) {
 void
 render_vsync(struct render_struct* p_render) {
   p_render->vert_beam_pos = 0;
-  if (!p_render->do_interlace_wobble && (p_render->horiz_beam_pos >= 512)) {
+  if (!p_render->do_interlace_wobble && (p_render->horiz_beam_pos < 512)) {
     /* TODO: the interlace wobble, if enabled, is wobbling too much. It wobbles
      * 1 full vertical scanline (2 host pixels) instead of a half scanline.
      */
-    p_render->do_skip_next_hsync_vert_pos = 1;
+    p_render->vert_beam_pos = 2;
   }
   render_reset_render_pos(p_render);
 }
