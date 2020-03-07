@@ -407,37 +407,90 @@ video_test_inactive_rendering() {
   test_expect_u32(1, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->num_vsyncs);
   test_expect_u32(0, g_p_video->num_crtc_advances);
+  test_expect_u32(0, g_p_video->crtc_frames);
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->is_even_interlace_frame);
+  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(1, g_p_video->num_vsyncs);
+  test_expect_u32(1, g_p_video->crtc_frames);
   num_crtc_advances = g_p_video->num_crtc_advances;
   test_expect_u32((k_ticks_mode7_per_scanline * 2), video_test_get_timer());
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
   test_expect_u32(2, g_p_video->num_vsyncs);
-  /* TODO: should be 0? */
-  test_expect_u32(2, (g_p_video->num_crtc_advances - num_crtc_advances));
-  num_crtc_advances = g_p_video->num_crtc_advances;
+  test_expect_u32(2, g_p_video->crtc_frames);
+  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32((k_ticks_mode7_per_scanline * 2), video_test_get_timer());
 
   g_p_video->is_wall_time_vsync_hit = 1;
 
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_per_frame));
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->is_even_interlace_frame);
+  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
   test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(3, g_p_video->num_vsyncs);
+  test_expect_u32(3, g_p_video->crtc_frames);
+  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+
   test_expect_u32(1, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
-  test_expect_u32(3, g_p_video->num_vsyncs);
-  /* TODO: should be 0? */
-  test_expect_u32(2, (g_p_video->num_crtc_advances - num_crtc_advances));
+
+  /* Bounce back to inactive rendering. */
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_per_frame));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->is_rendering_active);
   num_crtc_advances = g_p_video->num_crtc_advances;
+
+  /* Make sure non-timing-changing ULA / CRTC writes work as expected. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_ula_write(g_p_video, 1, 0xF7);
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_ula_write(g_p_video, 0, 0xE7);
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_crtc_write(g_p_video, 0, 12);
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_crtc_write(g_p_video, 1, 0x0B);
+
+  test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 40),
+                  video_test_get_timer());
+  test_expect_u32(1, g_p_video->timer_fire_force_vsync_end);
+
+  /* Make a change that messes with framing and timing. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_crtc_write(g_p_video, 0, 4);
+  countdown = timing_advance_time(g_p_timing, (countdown - 10));
+  video_crtc_write(g_p_video, 1, 0x0B);
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
+  test_expect_u32(0, g_p_video->timer_fire_force_vsync_end);
+  test_expect_u32(30, g_p_video->horiz_counter);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - ((k_ticks_mode7_per_scanline * 2) - 60)));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
 }
 
 void
