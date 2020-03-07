@@ -188,7 +188,7 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
 
   /* These reset p_render_pos. */
   render_hsync(p_render);
-  render_vsync(p_render);
+  render_vsync(p_render, 1);
 }
 
 static inline void
@@ -681,9 +681,11 @@ render_hsync(struct render_struct* p_render) {
 }
 
 void
-render_vsync(struct render_struct* p_render) {
+render_vsync(struct render_struct* p_render, int do_interlace_compensate) {
   p_render->vert_beam_pos = 0;
-  if (!p_render->do_interlace_wobble && (p_render->horiz_beam_pos < 512)) {
+  if (do_interlace_compensate &&
+      !p_render->do_interlace_wobble &&
+      (p_render->horiz_beam_pos < 512)) {
     /* TODO: the interlace wobble, if enabled, is wobbling too much. It wobbles
      * 1 full vertical scanline (2 host pixels) instead of a half scanline.
      */

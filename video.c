@@ -269,7 +269,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
 
   if (p_video->is_rendering_active) {
     video_do_paint(p_video);
-    render_vsync(p_video->p_render);
+    render_vsync(p_video->p_render, 1);
   }
 }
 
@@ -811,10 +811,18 @@ video_timer_fired(void* p) {
   if (!p_video->is_rendering_active &&
       p_video->is_wall_time_vsync_hit &&
       video_is_at_vsync_start(p_video)) {
+    struct render_struct* p_render = p_video->p_render;
     p_video->is_rendering_active = 1;
     p_video->is_wall_time_vsync_hit = 0;
     p_video->timer_fire_force_vsync_start = 0;
     p_video->timer_fire_force_vsync_end = 0;
+    /* Wrestle the renderer to match the current odd or even interlace frame
+     * state.
+     */
+    render_vsync(p_render, 0);
+    if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
+      render_hsync(p_render);
+    }
   }
 }
 
@@ -1223,7 +1231,7 @@ video_render_full_frame(struct video_struct* p_video) {
                     p_regs[k_crtc_reg_horiz_position]);
   }
 
-  render_vsync(p_render);
+  render_vsync(p_render, 0);
   teletext_VSYNC_changed(p_teletext, 0);
 
   for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
