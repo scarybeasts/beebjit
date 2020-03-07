@@ -36,6 +36,7 @@ enum {
 
 struct serial_struct {
   struct state_6502* p_state_6502;
+  int* p_fast_flag;
   uint8_t acia_control;
   uint8_t acia_status;
   uint8_t acia_receive;
@@ -56,6 +57,7 @@ struct serial_struct {
   /* Tape device, part of the serial ULA and feeding to the ACIA. */
   struct tape_struct* p_tape;
 
+  int fasttape_flag;
   int log_state;
 };
 
@@ -174,7 +176,10 @@ serial_acia_reset(struct serial_struct* p_serial) {
 }
 
 struct serial_struct*
-serial_create(struct state_6502* p_state_6502, struct bbc_options* p_options) {
+serial_create(struct state_6502* p_state_6502,
+              int* p_fast_flag,
+              int fasttape_flag,
+              struct bbc_options* p_options) {
   struct serial_struct* p_serial = malloc(sizeof(struct serial_struct));
   if (p_serial == NULL) {
     errx(1, "cannot allocate serial_struct");
@@ -183,6 +188,8 @@ serial_create(struct state_6502* p_state_6502, struct bbc_options* p_options) {
   (void) memset(p_serial, '\0', sizeof(struct serial_struct));
 
   p_serial->p_state_6502 = p_state_6502;
+  p_serial->p_fast_flag = p_fast_flag;
+  p_serial->fasttape_flag = fasttape_flag;
 
   p_serial->acia_control = 0;
   p_serial->acia_status = 0;
@@ -373,8 +380,14 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
   }
   if (motor_on && !p_serial->serial_ula_motor_on) {
     tape_play(p_serial->p_tape);
+    if (p_serial->fasttape_flag) {
+      *(p_serial->p_fast_flag) = 1;
+    }
   } else if (!motor_on && p_serial->serial_ula_motor_on) {
     tape_stop(p_serial->p_tape);
+    if (p_serial->fasttape_flag) {
+      *(p_serial->p_fast_flag) = 0;
+    }
   }
   p_serial->serial_ula_motor_on = motor_on;
 

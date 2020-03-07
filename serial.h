@@ -10,6 +10,8 @@ struct state_6502;
 struct tape_struct;
 
 struct serial_struct* serial_create(struct state_6502* p_state_6502,
+                                    int* p_fast_flag,
+                                    int fasttape_flag,
                                     struct bbc_options* p_options);
 void serial_destroy(struct serial_struct* p_serial);
 

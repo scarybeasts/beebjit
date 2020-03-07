@@ -60,6 +60,7 @@ main(int argc, const char* argv[]) {
   int disc_mutable_flag = 0;
   int terminal_flag = 0;
   int headless_flag = 0;
+  int fasttape_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -169,6 +170,8 @@ main(int argc, const char* argv[]) {
       terminal_flag = 1;
     } else if (!strcmp(arg, "-headless")) {
       headless_flag = 1;
+    } else if (!strcmp(arg, "-fasttape")) {
+      fasttape_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-version") ||
@@ -185,6 +188,7 @@ main(int argc, const char* argv[]) {
 "-writeable         : discs are not write protected (by default they are).\n"
 "-mutable           : disc image changes are written back to host image file.\n"
 "-tape           <f>: load tape image file <f>.\n"
+"-fasttape          : emulate fast when the tape motor is on.\n"
 "-swram        <hex>: specified ROM bank is sideways RAM.\n"
 "-rom      <hex> <f>: load ROM file <f> into specified ROM bank.\n"
 "-debug             : enable 6502 debugger and start in debugger.\n"
@@ -236,6 +240,7 @@ main(int argc, const char* argv[]) {
                      print_flag,
                      fast_flag,
                      accurate_flag,
+                     fasttape_flag,
                      test_map_flag,
                      opt_flags,
                      log_flags,

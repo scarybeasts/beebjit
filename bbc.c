@@ -717,6 +717,7 @@ bbc_create(int mode,
            int print_flag,
            int fast_flag,
            int accurate_flag,
+           int fasttape_flag,
            int test_map_flag,
            const char* p_opt_flags,
            const char* p_log_flags,
@@ -964,7 +965,10 @@ bbc_create(int mode,
   }
   intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
 
-  p_bbc->p_serial = serial_create(p_state_6502, &p_bbc->options);
+  p_bbc->p_serial = serial_create(p_state_6502,
+                                  &p_bbc->fast_flag,
+                                  fasttape_flag,
+                                  &p_bbc->options);
   if (p_bbc->p_serial == NULL) {
     errx(1, "serial_create failed");
   }
