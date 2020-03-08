@@ -138,7 +138,7 @@ util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size) {
   }
 
   if (p_guard != p_map - k_guard_size) {
-    errx(1, "mmap in wrong location");
+    errx(1, "mmap in wrong location (util_get_guarded_mapping_from_fd (1))");
   }
 
   p_guard = mmap(p_map + size,
@@ -152,7 +152,7 @@ util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size) {
   }
 
   if (p_guard != p_map + size) {
-    errx(1, "mmap in wrong location");
+    errx(1, "mmap in wrong location (util_get_guarded_mapping_from_fd (2))");
   }
 
   return p_map;
@@ -171,7 +171,7 @@ util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
   }
 
   if (p_map != p_addr) {
-    errx(1, "mmap in wrong location");
+    errx(1, "mmap in wrong location (util_get_fixed_anonymous_mapping)");
   }
 
   return p_map;

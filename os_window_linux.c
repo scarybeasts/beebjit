@@ -36,6 +36,14 @@ struct os_window_struct {
   XShmSegmentInfo shm_info;
 };
 
+static void
+rm_shmid(struct os_window_struct *p_window) {
+  int ret = shmctl(p_window->shmid, IPC_RMID, NULL);
+  if (ret != 0) {
+    errx(1, "shmctl failed");
+  }
+}
+
 struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
   struct os_window_struct* p_window;
@@ -101,10 +109,6 @@ os_window_create(uint32_t width, uint32_t height) {
   if (p_window->p_shm_map_start == NULL) {
     errx(1, "shmat failed");
   }
-  ret = shmctl(p_window->shmid, IPC_RMID, NULL);
-  if (ret != 0) {
-    errx(1, "shmctl failed");
-  }
 
   util_make_mapping_none(p_window->p_shm_map_start, 4096);
   util_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
@@ -119,6 +123,7 @@ os_window_create(uint32_t width, uint32_t height) {
                                       width,
                                       height);
   if (p_window->p_image == NULL) {
+    rm_shmid(p_window);
     errx(1, "XShmCreateImage failed");
   }
 
@@ -130,9 +135,14 @@ os_window_create(uint32_t width, uint32_t height) {
 
   bool_ret = XShmAttach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
+    rm_shmid(p_window);
     errx(1, "XShmAttach failed");
   }
 
+  XSync(p_window->d, False);
+
+  rm_shmid(p_window);
+  
   p_window->w = XCreateSimpleWindow(p_window->d,
                                     root_window,
                                     10,
