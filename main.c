@@ -176,7 +176,7 @@ main(int argc, const char* argv[]) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-version") ||
                !strcmp(arg, "-v")) {
-      (void) printf("beebjit v0.20\n");
+      (void) printf("beebjit v0.21\n");
       exit(0);
     } else if (!strcmp(arg, "-help") ||
                !strcmp(arg, "--help") ||
