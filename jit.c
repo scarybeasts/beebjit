@@ -670,6 +670,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_jit_trampolines;
   struct util_buffer* p_temp_buf;
   struct sigaction sa;
+  struct sigaction sa_prev;
   int ret;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -768,13 +769,14 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * fast path doesn't need certain checks.
    */
   (void) memset(&sa, '\0', sizeof(sa));
+  (void) memset(&sa_prev, '\0', sizeof(sa_prev));
   sa.sa_sigaction = jit_handle_sigsegv;
   sa.sa_flags = (SA_SIGINFO | SA_NODEFER);
-  ret = sigaction(SIGSEGV, &sa, &sa);
+  ret = sigaction(SIGSEGV, &sa, &sa_prev);
   if (ret != 0) {
     errx(1, "sigaction failed");
   }
-  if ((sa.sa_sigaction != NULL) && (sa.sa_sigaction != jit_handle_sigsegv)) {
+  if ((sa_prev.sa_sigaction != NULL) && (sa_prev.sa_sigaction != jit_handle_sigsegv)) {
     errx(1, "conflicting SIGSEGV handler");
   }
 }
