@@ -1,0 +1,136 @@
+Here are some examples of what beebjit can do.
+
+Any referenced .ssd file can be found on the Stairway to Hell archive:
+https://www.stairwaytohell.com/bbc/archive/diskimages/reclist.php?sort=name
+[NOTE: the .ssd file must be extracted from the .zip]
+
+Any referenced .uef file can also be found there:
+https://www.stairwaytohell.com/bbc/archive/tapeimages/reclist.php?sort=name
+[NOTE: the .uef file must be extracted from the .zip AND further it must be
+gunzip'ped to make a raw .uef]
+
+The referenced EXILE.FSD file can be found inside a zip here:
+https://stardot.org.uk/forums/download/file.php?id=4880
+
+
+1) Running a classic from disc.
+./beebjit -0 ~/Downloads/Acornsoft/StarshipCommand.ssd
+[NOTE: the Break key is F12, so on a typical laptop the Shift + Break boot
+command is hold Shift AND hold Fn AND while they are both held down, press and
+release F12]
+
+2) Running a classic from tape -- quickly!
+./beebjit -tape ~/Downloads/Snapper-v1_B.uef -fasttape
+
+beebjit boots up with the Disc File System selected. To load from a tape, type
+these two commands in to the emulator on separate lines:
+*TAPE
+CH.""
+
+[NOTE: the -fasttape option automatically turbocharges beebjit when the cassette
+motor is switch on to load tapes, and resumes normal speed when the load is
+done. You may be surprised how fast beebjit can complete the few minutes of
+real time that elapse without the -fasttape option!]
+[NOTE: the beeb keyboard is laid out differently to a modern PC / laptop, so
+to get *, press Shift+' and to get ", press Shift+2]
+
+
+3) Running the Exile protected disc -- enhanced sideways RAM version.
+./beebjit -0 ~/Downloads/EXILE.FSD -swram 4
+[NOTE: you'll need to find a copy of the Novella to answer the copy protection
+question correctly! Perhaps try:
+https://acorn.huininga.nl/pub/unsorted/scans/
+]
+
+
+4) Taking the terminal + headless mode for a spin.
+./beebjit -terminal -headless
+[NOTE: this is just a prototype. The main immediately apparent problem is that
+Backspace doesn't erase any previous entered characters.]
+
+
+5) Running Zalaga as if it had a 16MHz 6502, with other peripherals clocked as
+normal.
+./beebjit -0 ~/Downloads/Aardvark/Zalaga.ssd -opt bbc:cpu-scale-factor=8
+[NOTE: a lot of software will behave strangely if you give it such an
+out-of-spec BBC but Zalaga responds beautifully by rendering at a silky smooth
+50Hz!]
+
+
+6) Showing off beebjit's speed.
+./beebjit -0 ~/Downloads/Acornsoft/Elite.ssd -log perf:speed
+
+Press Alt-F to toggle fast mode when you're ready -- perhaps once the game's
+start screen is visible with the classic rotating ship. There's more
+optimization pending but beebjit is clearing 1GHz effective speed on my ancient
+laptop.
+
+Another good demo is Citadel's game start screen which cycles through different
+rooms in the game. Press Alt-F there!
+
+
+7) Writing to disc.
+By default, discs are read-only. There are two levels of write that can be
+activated:
+a) Writeable virtual discs; changes not saved to host.
+./beebjit -0 ~/Downloads/Acornsoft/Elite.ssd -writeable
+b) Writeable virtual discs; changes saved to host.
+./beebjit -0 ~/Downloads/Acornsoft/Elite.ssd -writeable -mutable
+[NOTE: if you load an FSD format disc file while using -writeable and -mutable,
+it will AUTOMATICALLY be converted to the HFE format. The FSD file will be
+unchanged and a new .hfe file will be created and used.]
+
+
+8) Checking out the fastest mode of beebjit.
+So far, we've seen how to launch beebjit in its default mode (which is accurate
+emulation), and press Alt+F to go as fast as possible while retaining cycle by
+cycle accuracy.
+There is another mode, which runs the virtual 6502 as fast as possible while
+ticking hardware peripherals (timers, video etc.) at real time. This is not
+a particularly accurate emulation but for highly compatible beeb code which
+makes few timing assumptions, it works fine. For example, BASIC might be running
+on a 2MHz 6502, a 2MHz 65c12, a 3MHz 6502 co-processor, etc., so it is not
+picky.
+./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/clocksp.ssd
+And then in the emulator:
+CH."CLOCKSP"
+Overall CLOCKSP is about 7GHz on my old slow laptop. I've seen individual tests
+hit 10GHz but that was before the Intel meltdown / spectre fiasco and
+slowdowns!
+[NOTE: the long list of options is designed to get other subsystems out of the
+way for maximum speed but it is unclear how much benefit they bring.]
+
+
+9) Capture and replay.
+./beebjit -0 ~/Downloads/Superior/Thrust.ssd -capture thrust.cap
+
+Play the game a bit, then exit the emulator.
+./beebjit -0 ~/Downloads/Superior/Thrust.ssd -replay thrust.cap
+
+Enjoy watching yourself! Use the Alt-F toggle to make the replay go super fast.
+To exit a replay at any moment and "take over", press Alt-E.
+And you can take an existing capture file and write to a new one if you want
+to exit the existing capture and splice in a new reality!
+./beebjit -0 ~/Downloads/Superior/Thrust.ssd -replay thrust.cap -capture thrust2.cap
+
+
+10) Troubleshooting parameters.
+There may be corner case bugs in the JIT compiler so you can switch back to a
+standard 6502 interpreter if you like:
+./beebjit -0 ~/Downloads/Superior/Galaforce.ssd -mode interp
+
+Don't worry -- the interpreter mode still rockets along compared to most
+emulators, 500MHz+ can be expected.
+
+beebjit, by default, drives the host system very hard even when running the
+beeb at normal real-time speed. This is to try and get best-in-class low
+latency of the keyboard and sound subsystems. Maybe on your system, it drives
+too hard?
+./beebjit -0 ~/Downloads/Superior/Galaforce.ssd -opt sound:buffer=2048,bbc:wakeup-rate=100
+
+
+11) Built-in 6502 debugger.
+./beebjit -debug
+
+Type ? then Enter at the prompt to see some of the more common commands.
+

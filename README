@@ -1,0 +1,97 @@
+Welcome to beebjit!
+I'm Chris Evans <scarybeasts@gmail.com>. Any and all feedback / suggestions very
+welcome. Please don't be shy!
+
+beebjit is an emulation for Acorn's BBC Micro 8-bit microcomputer from the
+1980s. For more information see:
+https://en.wikipedia.org/wiki/BBC_Micro
+
+See BUILD for build instructions.
+See CREDITS because I didn't do this alone.
+See COPYING for copyright and license details.
+See EXAMPLES for demos of how to use beebjit's various options.
+
+This machine is iconic, particularly if you grew up in the UK, so there are
+already plenty of emulators for it. I particularly recommend (and contribute to)
+jsbeeb:
+https://bbc.godbolt.org/
+And to quickly get up and running with a huge catalog of original BBC games,
+using jsbeeb as the emulator, see:
+http://bbcmicro.co.uk/
+
+So why another emulator? Aside from the cheeky answer of "because I enjoyed the
+journey of writing one", there are a few things that beebjit might do better
+for you than the other emulators. And of course there are plenty of things it
+will do worse.
+
+In the "better" category, we have:
+- Speed.
+The JIT in beebjit does indeed refer to the compilation method known as "Just
+In Time". beebjit will compile 6502 code blocks into host (currently Intel x64)
+code blocks as it encounters them. beebjit also has various tricks to handle
+self-modifying code without losing much speed. On top of this, attempts are made
+to implement system peripherals such as audio, video, timers etc. in a way that
+enables the JIT'ed code to motor along.
+In some tests, beebjit has run the 2MHz 6502 CPU at an effective speed of 10GHz,
+although 2GHz might be more typical when running a game with full accuracy.
+
+- Loading original protected discs.
+The preservation of original BBC discs, copy protection and all, is not great.
+One of the highlights here is @billcarr2005's (on stardot.org.uk) work to
+generate FSD files from original discs. beebjit will load FSD files, and coupled
+to its fairly accurate Intel 8271 disc controller emulation, will run a large
+range of protected titles as they would have been originally experienced.
+beebjit is also capable of converting FSD files to the more standard HFE files,
+and writing to these.
+Putting it all together, beebjit is capable of tricks such as loading the
+original protected Disc Duplicator III disc, copying the original protected
+Exile disc, and booting the copy -- all under emulation!
+
+- Terminal support.
+Quickly getting text in and out of an emulator can be a headache. beebjit
+supports a terminal mode (optionally headless), enabling the host operating
+system's text copy and paste mechanisms to be used.
+See EXAMPLES.
+
+- Deterministic capture and fast replay.
+beebjit can capture a small stream file representing the deterministic inputs
+required to recreate an emulation run. This file can be replayed at normal
+speed or extremely fast speed. Conceptually, it sorts of represents a saved
+state file with a saved state at every instruction. Replay can be stopped, and
+normal execution continued, at any point.
+As always, see EXAMPLES.
+
+
+In the "ok" category:
+- Accuracy.
+beebjit is towards the upper end of BBC emulators. You should expect it to run
+pretty much any game you throw at it, including well-known classics (Exile,
+Elite, Revs etc.) and tricky-to-emulate titles such as the original Nightshade
+tape, Tricky's Frogger / Scramble.
+
+- 6502 debugger.
+The built-in 6502 debugger is reasonably capable and could very quickly be
+extended if there is demand.
+
+
+In the "worse" category:
+- Porting.
+Currently, beebjit is only ported to Linux.
+If there's demand, this will be fixed.
+
+- Model support.
+Currently, beebjit only supports the BBC model B with some small
+configurability such as extra ROMs and sideways RAM. Disappointingly, there is
+not yet any Master support yet alone Master Compact, Master Turbo, etc.
+
+- Peripheral support.
+beebjit does support the basics: discs, tapes, sideways RAM... and not much
+else. If you need support for co-processors, joysticks, mice or hard drives,
+then you are likely to be better served by a different emulator.
+
+
+I hope beebjit is in some way useful or inspiring to you. If it is, do let me
+know. Happy beebing!
+
+Chris Evans <scarybeasts@gmail.com>
+
