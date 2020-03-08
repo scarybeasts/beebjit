@@ -20,9 +20,11 @@ https://github.com/mattgodbolt/jsbeeb
 - b2: a fresh perspective on clean code organization and component separation
 as routes to accurate emulation.
 
+- MAME: a great reference for various chips in the beeb including the SN76489.
+
 
 The following people have been instrumental:
-- All members of Bitshifters.
+- All members of Bitshifters for inspiration, suggestions and encouragement.
 - The Stardot community, for patience running tons of test cases on real
 hardware.
 
@@ -37,3 +39,6 @@ video emulation has been a critical reference.)
 corner cases, and for various critical test programs.
 - Sarah Walker, for inspiriation via numerous demos, for b-em and for patience
 when answering basic electrical engineering questions.
+- Richard Broadhurst aka. Tricky, for Frogger and other games. Although it
+should be noted that Frogger is both an inspiration and also an impediment for
+getting productive work done :)
