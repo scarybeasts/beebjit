@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 int
 main(int argc, const char* argv[]) {
@@ -143,7 +144,7 @@ main(int argc, const char* argv[]) {
         sideways_ram[bank] = 1;
         ++i;
       } else if (!strcmp(arg, "-cycles")) {
-        (void) sscanf(val, "%ld", &cycles);
+        (void) sscanf(val, "%" SCNu64, &cycles);
         ++i;
       } else if (!strcmp(arg, "-expect")) {
         (void) sscanf(val, "%x", &expect);

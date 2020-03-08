@@ -1,5 +1,6 @@
 #include "jit_compiler.h"
 
+#include "asm_x64_defs.h"
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "asm_x64_jit_defs.h"

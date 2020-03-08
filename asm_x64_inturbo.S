@@ -1,10 +1,10 @@
 #include "asm_x64_defs.h"
-
+#include "asm_as_defs.h"
+	
 .file "asm_x64_inturbo.S"
 .intel_syntax noprefix
-.section rodata
+SECTION_RODATA
 .text
-
 
 .globl asm_x64_inturbo_JMP_scratch_plus_1_interp
 .globl asm_x64_inturbo_JMP_scratch_plus_1_interp_END
@@ -35,7 +35,7 @@ asm_x64_inturbo_check_special_address:
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
 asm_x64_inturbo_check_special_address_lea_patch:
   bt REG_SCRATCH2_32, 16
-  jb 0
+  jb dword ptr asm_x64_inturbo_check_special_address_lea_patch
 asm_x64_inturbo_check_special_address_jb_patch:
 
 asm_x64_inturbo_check_special_address_END:
@@ -51,7 +51,7 @@ asm_x64_inturbo_check_countdown:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_x64_inturbo_check_countdown_lea_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb dword ptr asm_x64_inturbo_check_countdown_lea_patch
 asm_x64_inturbo_check_countdown_jb_patch:
 
 asm_x64_inturbo_check_countdown_END:
@@ -68,7 +68,7 @@ asm_x64_inturbo_check_countdown_with_page_crossing:
 asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb dword ptr asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch
 asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch:
 
 asm_x64_inturbo_check_countdown_with_page_crossing_END:
@@ -81,7 +81,7 @@ asm_x64_inturbo_check_countdown_with_page_crossing_END:
 asm_x64_inturbo_check_decimal:
 
   bt REG_6502_ID_F_64, 3
-  jb 0
+  jb dword ptr asm_x64_inturbo_check_decimal
 asm_x64_inturbo_check_decimal_jb_patch:
 
 asm_x64_inturbo_check_decimal_END:
@@ -98,7 +98,7 @@ asm_x64_inturbo_check_interrupt:
       DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
   bt REG_SCRATCH1_32, 31
-  jae 0
+  jae dword ptr asm_x64_inturbo_check_interrupt
 asm_x64_inturbo_check_interrupt_jae_patch:
 
 asm_x64_inturbo_check_interrupt_END:
@@ -145,7 +145,7 @@ asm_x64_inturbo_jump_opcode_END:
 .globl asm_x64_inturbo_enter_debug_END
 asm_x64_inturbo_enter_debug:
 
-  call 0
+  call dword ptr asm_x64_inturbo_enter_debug
 asm_x64_inturbo_enter_debug_END:
   ret
 
@@ -155,7 +155,7 @@ asm_x64_inturbo_enter_debug_END:
 .globl asm_x64_inturbo_jump_call_interp_jmp_patch
 asm_x64_inturbo_jump_call_interp:
 
-  jmp 0
+  jmp dword ptr asm_x64_inturbo_jump_call_interp
 asm_x64_inturbo_jump_call_interp_jmp_patch:
 
 asm_x64_inturbo_jump_call_interp_END:
@@ -334,7 +334,7 @@ asm_x64_inturbo_mode_idx:
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb 0
+  jb dword ptr asm_x64_inturbo_mode_idx
 asm_x64_inturbo_mode_idx_jump_patch:
 
 asm_x64_inturbo_mode_idx_END:
@@ -355,7 +355,7 @@ asm_x64_inturbo_mode_idy:
 
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb 0
+  jb dword ptr asm_x64_inturbo_mode_idy
 asm_x64_inturbo_mode_idy_jump_patch:
 
 asm_x64_inturbo_mode_idy_END:
@@ -417,7 +417,7 @@ asm_x64_instruction_Bxx_interp_accurate:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb dword ptr asm_x64_instruction_Bxx_interp_accurate
 asm_x64_instruction_Bxx_interp_accurate_jb_patch:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + REG_SCRATCH1]
@@ -577,7 +577,7 @@ asm_x64_instruction_BCC_interp_END:
 asm_x64_instruction_BCC_interp_accurate:
 
   bt REG_6502_CF_64, 0
-  jb 0
+  jb dword ptr asm_x64_instruction_BCC_interp_accurate
 asm_x64_instruction_BCC_interp_accurate_jump_patch:
 
 asm_x64_instruction_BCC_interp_accurate_END:
@@ -605,7 +605,7 @@ asm_x64_instruction_BCS_interp_END:
 asm_x64_instruction_BCS_interp_accurate:
 
   bt REG_6502_CF_64, 0
-  jae 0
+  jae dword ptr asm_x64_instruction_BCS_interp_accurate
 asm_x64_instruction_BCS_interp_accurate_jump_patch:
 
 asm_x64_instruction_BCS_interp_accurate_END:
@@ -631,7 +631,7 @@ asm_x64_instruction_BEQ_interp_END:
 .globl asm_x64_instruction_BEQ_interp_accurate_jump_patch
 asm_x64_instruction_BEQ_interp_accurate:
 
-  jne 0
+  jne dword ptr asm_x64_instruction_BEQ_interp_accurate
 asm_x64_instruction_BEQ_interp_accurate_jump_patch:
 
 asm_x64_instruction_BEQ_interp_accurate_END:
@@ -667,7 +667,7 @@ asm_x64_instruction_BMI_interp_END:
 .globl asm_x64_instruction_BMI_interp_accurate_jump_patch
 asm_x64_instruction_BMI_interp_accurate:
 
-  jns 0
+  jns dword ptr asm_x64_instruction_BMI_interp_accurate
 asm_x64_instruction_BMI_interp_accurate_jump_patch:
 
 asm_x64_instruction_BMI_interp_accurate_END:
@@ -693,7 +693,7 @@ asm_x64_instruction_BNE_interp_END:
 .globl asm_x64_instruction_BNE_interp_accurate_jump_patch
 asm_x64_instruction_BNE_interp_accurate:
 
-  je 0
+  je dword ptr asm_x64_instruction_BNE_interp_accurate
 asm_x64_instruction_BNE_interp_accurate_jump_patch:
 
 asm_x64_instruction_BNE_interp_accurate_END:
@@ -719,7 +719,7 @@ asm_x64_instruction_BPL_interp_END:
 .globl asm_x64_instruction_BPL_interp_accurate_jump_patch
 asm_x64_instruction_BPL_interp_accurate:
 
-  js 0
+  js dword ptr asm_x64_instruction_BPL_interp_accurate
 asm_x64_instruction_BPL_interp_accurate_jump_patch:
 
 asm_x64_instruction_BPL_interp_accurate_END:
@@ -747,7 +747,7 @@ asm_x64_instruction_BVC_interp_END:
 asm_x64_instruction_BVC_interp_accurate:
 
   bt REG_6502_OF_64, 0
-  jb 0
+  jb dword ptr asm_x64_instruction_BVC_interp_accurate
 asm_x64_instruction_BVC_interp_accurate_jump_patch:
 
 asm_x64_instruction_BVC_interp_accurate_END:
@@ -775,7 +775,7 @@ asm_x64_instruction_BVS_interp_END:
 asm_x64_instruction_BVS_interp_accurate:
 
   bt REG_6502_OF_64, 0
-  jae 0
+  jae dword ptr asm_x64_instruction_BVS_interp_accurate
 asm_x64_instruction_BVS_interp_accurate_jump_patch:
 
 asm_x64_instruction_BVS_interp_accurate_END:

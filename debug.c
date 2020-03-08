@@ -19,6 +19,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
+
+// Goddamnit.
+
+#if (defined __APPLE__) && (defined __MACH__)
+
+#define GNU_QSORT_R(BASE,NMEMB,SIZE,COMPAR,ARG) (qsort_r((BASE),(NMEMB),(SIZE),(ARG),(COMPAR)))
+
+#define GNU_QSORT_R_CALLBACK_PARAMETERS(A,B,CONTEXT) CONTEXT,A,B
+
+#elif defined __linux__
+
+#define GNU_QSORT_R(BASE,NMEMB,SIZE,COMPAR,ARG) (qsort_r((BASE),(NMEMB),(SIZE),(COMPAR),(ARG)))
+
+#define GNU_QSORT_R_CALLBACK_PARAMETERS(A,B,CONTEXT) A,B,CONTEXT
+
+#else
+
+#error unknown platform
+
+#endif
 
 typedef void (*sighandler_t)(int);
 
@@ -581,7 +602,10 @@ debug_hit_break(struct debug_struct* p_debug,
 }
 
 static int
-debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
+debug_sort_opcodes(GNU_QSORT_R_CALLBACK_PARAMETERS(const void* p_op1,
+                                                   const void* p_op2,
+                                                   void* p_state))
+{
   struct debug_struct* p_debug = (struct debug_struct*) p_state;
   uint8_t op1 = *(uint8_t*) p_op1;
   uint8_t op2 = *(uint8_t*) p_op2;
@@ -589,7 +613,10 @@ debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
 }
 
 static int
-debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
+debug_sort_addrs(GNU_QSORT_R_CALLBACK_PARAMETERS(const void* p_addr1,
+                                                 const void* p_addr2,
+                                                 void* p_state))
+{
   struct debug_struct* p_debug = (struct debug_struct*) p_state;
   uint16_t addr1 = *(uint16_t*) p_addr1;
   uint16_t addr2 = *(uint16_t*) p_addr2;
@@ -634,11 +661,11 @@ debug_dump_stats(struct debug_struct* p_debug) {
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     sorted_opcodes[i] = i;
   }
-  qsort_r(sorted_opcodes,
-          k_6502_op_num_opcodes,
-          sizeof(uint8_t),
-          debug_sort_opcodes,
-          p_debug);
+  GNU_QSORT_R(sorted_opcodes,
+              k_6502_op_num_opcodes,
+              sizeof(uint8_t),
+              debug_sort_opcodes,
+              p_debug);
   (void) printf("=== Opcodes ===\n");
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     char opcode_buf[k_max_opcode_len];
@@ -661,11 +688,11 @@ debug_dump_stats(struct debug_struct* p_debug) {
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     sorted_addrs[i] = i;
   }
-  qsort_r(sorted_addrs,
-          k_6502_addr_space_size,
-          sizeof(uint16_t),
-          debug_sort_addrs,
-          p_debug);
+  GNU_QSORT_R(sorted_addrs,
+              k_6502_addr_space_size,
+              sizeof(uint16_t),
+              debug_sort_addrs,
+              p_debug);
   (void) printf("=== Addrs ===\n");
   for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
@@ -675,21 +702,21 @@ debug_dump_stats(struct debug_struct* p_debug) {
     }
     (void) printf("%4X: %zu\n", addr, count);
   }
-  (void) printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
-  (void) printf("--> branch (not taken, taken, page cross): %zu, %zu, %zu\n",
+  (void) printf("--> rom_write_faults: %" PRIu64 "\n", p_debug->rom_write_faults);
+  (void) printf("--> branch (not taken, taken, page cross): %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
                 p_debug->branch_not_taken,
                 p_debug->branch_taken,
                 p_debug->branch_taken_page_crossing);
-  (void) printf("--> abn reads (total, page crossing): %zu, %zu\n",
+  (void) printf("--> abn reads (total, page crossing): %" PRIu64 ", %" PRIu64 "\n",
                 p_debug->abn_reads,
                 p_debug->abn_reads_with_page_crossing);
-  (void) printf("--> idy reads (total, page crossing): %zu, %zu\n",
+  (void) printf("--> idy reads (total, page crossing): %" PRIu64 ", %" PRIu64 "\n",
                 p_debug->idy_reads,
                 p_debug->idy_reads_with_page_crossing);
-  (void) printf("--> abc/sbc (total, with decimal flag): %zu, %zu\n",
+  (void) printf("--> abc/sbc (total, with decimal flag): %" PRIu64 ", %" PRIu64 "\n",
                 p_debug->adc_sbc_count,
                 p_debug->adc_sbc_with_decimal_count);
-  (void) printf("--> register hits (read / write): %zu, %zu\n",
+  (void) printf("--> register hits (read / write): %" PRIu64 ", %" PRIu64 "\n",
                 p_debug->register_reads,
                 p_debug->register_writes);
 }
@@ -832,7 +859,7 @@ debug_print_registers(uint8_t reg_a,
                       const char* flags_buf,
                       uint16_t reg_pc,
                       uint64_t cycles) {
-  (void) printf("[A=%.2X X=%.2X Y=%.2X S=%.2X F=%s PC=%.4X cycles=%zu]\n",
+  (void) printf("[A=%.2X X=%.2X Y=%.2X S=%.2X F=%s PC=%.4X cycles=%" PRIu64 "]\n",
                 reg_a,
                 reg_x,
                 reg_y,

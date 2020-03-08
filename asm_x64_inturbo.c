@@ -1,3 +1,4 @@
+#include "asm_x64_defs.h"
 #include "asm_x64_inturbo.h"
 
 #include "asm_x64_common.h"

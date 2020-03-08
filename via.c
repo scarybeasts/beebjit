@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_via_tick_rate = 1000000; /* 1Mhz */
+// static const size_t k_via_tick_rate = 1000000; /* 1Mhz */
 
 enum {
   k_via_ORB =   0x0,

@@ -36,13 +36,13 @@ void asm_x64_copy_patch_u32(struct util_buffer* p_buf,
                             void* p_end,
                             uint32_t value);
 
-uint32_t asm_x64_asm_enter(void* p_context,
-                           uint32_t jump_addr_x64,
-                           int64_t countdown,
-                           void* p_mem_base);
-void asm_x64_asm_debug();
-void asm_x64_save_AXYS_PC_flags();
-void asm_x64_restore_AXYS_PC_flags();
+ASM_SYMBOL(uint32_t,asm_x64_asm_enter,(void* p_context,
+                                       uint32_t jump_addr_x64,
+                                       int64_t countdown,
+                                       void* p_mem_base));
+ASM_SYMBOL(void,asm_x64_asm_debug,());
+ASM_SYMBOL(void,asm_x64_save_AXYS_PC_flags,());
+ASM_SYMBOL(void,asm_x64_restore_AXYS_PC_flags,());
 
 void asm_x64_emit_instruction_CRASH(struct util_buffer* p_buf);
 void asm_x64_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
@@ -80,78 +80,79 @@ void asm_x64_emit_push_word_from_scratch(struct util_buffer* p_buf);
 void asm_x64_emit_pull_word_to_scratch(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
-void asm_x64_instruction_CRASH();
-void asm_x64_instruction_CRASH_END();
-void asm_x64_instruction_EXIT();
-void asm_x64_instruction_EXIT_END();
-void asm_x64_instruction_REAL_NOP();
-void asm_x64_instruction_REAL_NOP_END();
-void asm_x64_instruction_TRAP();
-void asm_x64_instruction_TRAP_END();
-void asm_x64_instruction_ILLEGAL();
-void asm_x64_instruction_ILLEGAL_END();
 
-void asm_x64_instruction_BIT_common();
-void asm_x64_instruction_BIT_common_END();
-void asm_x64_instruction_CLC();
-void asm_x64_instruction_CLC_END();
-void asm_x64_instruction_CLD();
-void asm_x64_instruction_CLD_END();
-void asm_x64_instruction_CLI();
-void asm_x64_instruction_CLI_END();
-void asm_x64_instruction_CLV();
-void asm_x64_instruction_CLV_END();
-void asm_x64_instruction_DEX();
-void asm_x64_instruction_DEX_END();
-void asm_x64_instruction_DEY();
-void asm_x64_instruction_DEY_END();
-void asm_x64_instruction_INX();
-void asm_x64_instruction_INX_END();
-void asm_x64_instruction_INY();
-void asm_x64_instruction_INY_END();
-void asm_x64_instruction_PHA();
-void asm_x64_instruction_PHA_END();
-void asm_x64_instruction_PLA();
-void asm_x64_instruction_PLA_END();
-void asm_x64_instruction_SEC();
-void asm_x64_instruction_SEC_END();
-void asm_x64_instruction_SED();
-void asm_x64_instruction_SED_END();
-void asm_x64_instruction_SEI();
-void asm_x64_instruction_SEI_END();
-void asm_x64_instruction_TAX();
-void asm_x64_instruction_TAX_END();
-void asm_x64_instruction_TAY();
-void asm_x64_instruction_TAY_END();
-void asm_x64_instruction_TSX();
-void asm_x64_instruction_TSX_END();
-void asm_x64_instruction_TXA();
-void asm_x64_instruction_TXA_END();
-void asm_x64_instruction_TXS();
-void asm_x64_instruction_TXS_END();
-void asm_x64_instruction_TYA();
-void asm_x64_instruction_TYA_END();
+ASM_SYMBOL(void,asm_x64_instruction_CRASH,());
+ASM_SYMBOL(void,asm_x64_instruction_CRASH_END,());
+ASM_SYMBOL(void,asm_x64_instruction_EXIT,());
+ASM_SYMBOL(void,asm_x64_instruction_EXIT_END,());
+ASM_SYMBOL(void,asm_x64_instruction_REAL_NOP,());
+ASM_SYMBOL(void,asm_x64_instruction_REAL_NOP_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TRAP,());
+ASM_SYMBOL(void,asm_x64_instruction_TRAP_END,());
+ASM_SYMBOL(void,asm_x64_instruction_ILLEGAL,());
+ASM_SYMBOL(void,asm_x64_instruction_ILLEGAL_END,());
 
-void asm_x64_instruction_A_NZ_flags();
-void asm_x64_instruction_A_NZ_flags_END();
-void asm_x64_instruction_X_NZ_flags();
-void asm_x64_instruction_X_NZ_flags_END();
-void asm_x64_instruction_Y_NZ_flags();
-void asm_x64_instruction_Y_NZ_flags_END();
+ASM_SYMBOL(void,asm_x64_instruction_BIT_common,());
+ASM_SYMBOL(void,asm_x64_instruction_BIT_common_END,());
+ASM_SYMBOL(void,asm_x64_instruction_CLC,());
+ASM_SYMBOL(void,asm_x64_instruction_CLC_END,());
+ASM_SYMBOL(void,asm_x64_instruction_CLD,());
+ASM_SYMBOL(void,asm_x64_instruction_CLD_END,());
+ASM_SYMBOL(void,asm_x64_instruction_CLI,());
+ASM_SYMBOL(void,asm_x64_instruction_CLI_END,());
+ASM_SYMBOL(void,asm_x64_instruction_CLV,());
+ASM_SYMBOL(void,asm_x64_instruction_CLV_END,());
+ASM_SYMBOL(void,asm_x64_instruction_DEX,());
+ASM_SYMBOL(void,asm_x64_instruction_DEX_END,());
+ASM_SYMBOL(void,asm_x64_instruction_DEY,());
+ASM_SYMBOL(void,asm_x64_instruction_DEY_END,());
+ASM_SYMBOL(void,asm_x64_instruction_INX,());
+ASM_SYMBOL(void,asm_x64_instruction_INX_END,());
+ASM_SYMBOL(void,asm_x64_instruction_INY,());
+ASM_SYMBOL(void,asm_x64_instruction_INY_END,());
+ASM_SYMBOL(void,asm_x64_instruction_PHA,());
+ASM_SYMBOL(void,asm_x64_instruction_PHA_END,());
+ASM_SYMBOL(void,asm_x64_instruction_PLA,());
+ASM_SYMBOL(void,asm_x64_instruction_PLA_END,());
+ASM_SYMBOL(void,asm_x64_instruction_SEC,());
+ASM_SYMBOL(void,asm_x64_instruction_SEC_END,());
+ASM_SYMBOL(void,asm_x64_instruction_SED,());
+ASM_SYMBOL(void,asm_x64_instruction_SED_END,());
+ASM_SYMBOL(void,asm_x64_instruction_SEI,());
+ASM_SYMBOL(void,asm_x64_instruction_SEI_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TAX,());
+ASM_SYMBOL(void,asm_x64_instruction_TAX_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TAY,());
+ASM_SYMBOL(void,asm_x64_instruction_TAY_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TSX,());
+ASM_SYMBOL(void,asm_x64_instruction_TSX_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TXA,());
+ASM_SYMBOL(void,asm_x64_instruction_TXA_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TXS,());
+ASM_SYMBOL(void,asm_x64_instruction_TXS_END,());
+ASM_SYMBOL(void,asm_x64_instruction_TYA,());
+ASM_SYMBOL(void,asm_x64_instruction_TYA_END,());
 
-void asm_x64_asm_emit_intel_flags_to_scratch();
-void asm_x64_asm_emit_intel_flags_to_scratch_END();
-void asm_x64_asm_set_intel_flags_from_scratch();
-void asm_x64_asm_set_intel_flags_from_scratch_END();
-void asm_x64_set_brk_flag_in_scratch();
-void asm_x64_set_brk_flag_in_scratch_END();
-void asm_x64_push_from_scratch();
-void asm_x64_push_from_scratch_END();
-void asm_x64_push_word_from_scratch();
-void asm_x64_push_word_from_scratch_END();
-void asm_x64_pull_to_scratch();
-void asm_x64_pull_to_scratch_END();
-void asm_x64_pull_word_to_scratch();
-void asm_x64_pull_word_to_scratch_END();
+ASM_SYMBOL(void,asm_x64_instruction_A_NZ_flags,());
+ASM_SYMBOL(void,asm_x64_instruction_A_NZ_flags_END,());
+ASM_SYMBOL(void,asm_x64_instruction_X_NZ_flags,());
+ASM_SYMBOL(void,asm_x64_instruction_X_NZ_flags_END,());
+ASM_SYMBOL(void,asm_x64_instruction_Y_NZ_flags,());
+ASM_SYMBOL(void,asm_x64_instruction_Y_NZ_flags_END,());
+
+ASM_SYMBOL(void,asm_x64_asm_emit_intel_flags_to_scratch,());
+ASM_SYMBOL(void,asm_x64_asm_emit_intel_flags_to_scratch_END,());
+ASM_SYMBOL(void,asm_x64_asm_set_intel_flags_from_scratch,());
+ASM_SYMBOL(void,asm_x64_asm_set_intel_flags_from_scratch_END,());
+ASM_SYMBOL(void,asm_x64_set_brk_flag_in_scratch,());
+ASM_SYMBOL(void,asm_x64_set_brk_flag_in_scratch_END,());
+ASM_SYMBOL(void,asm_x64_push_from_scratch,());
+ASM_SYMBOL(void,asm_x64_push_from_scratch_END,());
+ASM_SYMBOL(void,asm_x64_push_word_from_scratch,());
+ASM_SYMBOL(void,asm_x64_push_word_from_scratch_END,());
+ASM_SYMBOL(void,asm_x64_pull_to_scratch,());
+ASM_SYMBOL(void,asm_x64_pull_to_scratch_END,());
+ASM_SYMBOL(void,asm_x64_pull_word_to_scratch,());
+ASM_SYMBOL(void,asm_x64_pull_word_to_scratch_END,());
 
 #endif /* BEEBJIT_ASM_X64_COMMON_H */

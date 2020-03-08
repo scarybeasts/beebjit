@@ -20,6 +20,7 @@
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <inttypes.h>
 
 static const size_t k_guard_size = 4096;
 
@@ -49,17 +50,36 @@ util_free(void* p) {
 int
 util_get_memory_fd(size_t size) {
   int ret;
-  int fd = syscall(SYS_memfd_create, "beebjit", 0);
+  int fd;
+  
+#ifdef __APPLE__
+  
+  {
+    char path[1000];
+    snprintf(path, sizeof path,"/tmp/beebjit_%" PRId64 ".dat", (int64_t)getpid());
+
+    fd = open(path, O_CREAT | O_RDWR | O_TRUNC | 0600 );
+    if (fd < 0) {
+      errx(1, "open failed");
+    }
+  }
+  
+#else
+  
+  fd = syscall(SYS_memfd_create, "beebjit", 0);
   if (fd < 0) {
     errx(1, "memfd_create failed");
   }
 
+#endif
+  
   ret = ftruncate(fd, size);
   if (ret != 0) {
     errx(1, "ftruncate failed");
   }
 
   return fd;
+
 }
 
 static void*

@@ -1,6 +1,20 @@
 #ifndef BEEBJIT_ASM_X64_DEFS_H
 #define BEEBJIT_ASM_X64_DEFS_H
 
+#ifdef __APPLE__
+
+#define ASM_SYMBOL(RET,NAME,PARAMETERS) RET NAME PARAMETERS asm(#NAME)
+
+#elif defined __linux__
+
+#define ASM_SYMBOL(RET,NAME,PARAMETERS) RET NAME PARAMETERS
+
+#else
+
+#error unknown platform
+
+#endif
+
 #define K_BBC_MEM_RAW_ADDR                      0x0f000000
 #define K_BBC_MEM_READ_IND_ADDR                 0x10000000
 #define K_BBC_MEM_WRITE_IND_ADDR                0x11000000

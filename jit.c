@@ -2,6 +2,7 @@
 
 #include "jit.h"
 
+#include "asm_x64_defs.h"
 #include "asm_x64_common.h"
 #include "asm_x64_jit.h"
 #include "asm_x64_jit_defs.h"
@@ -24,6 +25,26 @@
 #include <string.h>
 #include <ucontext.h>
 #include <unistd.h>
+
+#if (defined __APPLE__) && (defined __MACH__)
+
+#define UCONTEXT_ERR(UCONTEXT) (p_context->uc_mcontext->__es.__err)
+#define UCONTEXT_RIP(UCONTEXT) (p_context->uc_mcontext->__ss.__rip)
+#define UCONTEXT_RDI(UCONTEXT) (p_context->uc_mcontext->__ss.__rdi)
+
+#elif defined __linux__
+
+#define UCONTEXT_REG_LVAL(UCONTEXT,REG) (p_context->mc_ucontext.gregs[REG_##REG])
+
+#define UCONTEXT_RDI(UCONTEXT) UCONTEXT_REG_LVAL(UCONTEXT,RDI)
+#define UCONTEXT_RIP(UCONTEXT) UCONTEXT_REG_LVAL(UCONTEXT,RIP)
+#define UCONTEXT_ERR(UCONTEXT) UCONTEXT_REG_LVAL(UCONTEXT,ERR)
+
+#else
+
+#error unknown platform
+
+#endif
 
 static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
 static const int k_jit_bytes_per_byte = K_BBC_JIT_BYTES_PER_BYTE;
@@ -516,8 +537,8 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   void* p_addr = p_siginfo->si_addr;
   ucontext_t* p_context = (ucontext_t*) p_void;
-  void* p_rip = (void*) p_context->uc_mcontext.gregs[REG_RIP];
-  uintptr_t reg_err = (uintptr_t) p_context->uc_mcontext.gregs[REG_ERR];
+  void* p_rip = (void*) UCONTEXT_RIP(p_context);
+  uintptr_t reg_err = (uintptr_t) UCONTEXT_ERR(p_context);
   void* p_jit_end = (k_jit_addr +
                      (k_6502_addr_space_size * k_jit_bytes_per_byte));
   int is_write_fault = !!(reg_err & (1 << 1));
@@ -613,7 +634,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
     sigsegv_reraise(p_rip, p_addr);
   }
 
-  p_jit = (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+  p_jit = (struct jit_struct*) UCONTEXT_RDI(p_context);
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
     sigsegv_reraise(p_rip, p_addr);
@@ -657,7 +678,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   }
 
   /* Bounce into the interpreter via the trampolines. */
-  p_context->uc_mcontext.gregs[REG_RIP] =
+  UCONTEXT_RIP(p_context) =
       (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
 }
 
