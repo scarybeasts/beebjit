@@ -6,3 +6,7 @@ make_timing_rom
 perf.rom
 test.rom
 timing.rom
+
+# CLion/Cmake crap
+cmake-*
+.idea
