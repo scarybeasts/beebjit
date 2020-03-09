@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// https://github.com/majek/dump/blob/master/msqueue/pthread_spin_lock_shim.h
+/* https://github.com/majek/dump/blob/master/msqueue/pthread_spin_lock_shim.h */
 
 struct os_lock_struct {
   int value;

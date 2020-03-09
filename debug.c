@@ -21,8 +21,6 @@
 #include <string.h>
 #include <inttypes.h>
 
-// Goddamnit.
-
 #if (defined __APPLE__) && (defined __MACH__)
 
 #define GNU_QSORT_R(BASE,NMEMB,SIZE,COMPAR,ARG) (qsort_r((BASE),(NMEMB),(SIZE),(ARG),(COMPAR)))
