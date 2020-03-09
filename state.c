@@ -12,6 +12,9 @@
 #include <stdio.h>
 #include <string.h>
 
+// TODO(mrg) this is a workaround to the places that pass an "int *" taken from the packed structure below
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+
 struct bem_v2x {
   uint8_t signature[8];
   uint8_t model;
