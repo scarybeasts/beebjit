@@ -919,7 +919,8 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
   /* Make sure vsync pulse width fits within one character row (which is
    * restricted to being 4 lines or more below.
    */
-  if (p_video->vsync_pulse_width != 2) {
+  assert(p_video->vsync_pulse_width != 0);
+  if (p_video->vsync_pulse_width > 3) {
     sane = 0;
   }
   /* R4 > R7 > R6. */
