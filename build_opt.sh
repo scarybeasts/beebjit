@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-gcc -O3 -DNDEBUG -Wall -W -Werror -g -o beebjit \
+gcc -O3 -DNDEBUG -Wall -W -Werror -Wno-address-of-packed-member -g -o beebjit \
     main.c bbc.c jit.c defs_6502.c debug.c util.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
     jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \

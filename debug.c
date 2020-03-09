@@ -698,7 +698,7 @@ static void
 debug_dump_breakpoints(struct debug_struct* p_debug) {
   uint32_t i;
   for (i = 0; i < k_max_break; ++i) {
-    const char* p_type_name;
+    const char* p_type_name = NULL;
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       continue;
