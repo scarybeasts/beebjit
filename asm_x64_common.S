@@ -442,15 +442,12 @@ asm_x64_asm_enter:
   # param4, rcx == mem base
 
   push rbp
+  # At this point: stack aligned to 16 bytes.
   mov rbp, rsp
   push rbx
   push r12
   push r13
   push r14
-  push r15
-  /* Push a dummy value to keep an even number of pushes, and a 16-byte aligned
-   * stack pointer.
-   */
   push r15
 
   # This register points to an offset (0x80) in the zero page. This enables us
@@ -479,10 +476,11 @@ asm_x64_asm_enter:
   call asm_x64_restore_AXYS_PC_flags
 
   pop REG_SCRATCH1
+  # At this point: stack aligned to 8 bytes, not 16.
+  # The target is raw JIT code so we let the call's push re-align to a 16-byte
+  # stack alignment.
   call REG_SCRATCH1
 
-  /* First pop is a dummy value to keep stack alignment. */
-  pop r15
   pop r15
   pop r14
   pop r13
