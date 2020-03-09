@@ -134,3 +134,20 @@ too hard?
 
 Type ? then Enter at the prompt to see some of the more common commands.
 
+
+12) Fixing flickering.
+beebjit doesn't synchronize 6502 memory writes with the video chip memory reads.
+Normally this works out fine. When it doesn't, execution is still accurate but
+rendering (display) can look off.
+Some examples of affected games include:
+a) Fortress (bad juddering).
+b) Repton (main sprite flickers during movement)
+[NOTE: when fixing this with the option below, the scrolling will change and
+develop artifacts at the edges of the screen, particularly the top of screen.
+This is faithful to a real beeb.]
+c) Rocket Raid (status bar at top wobbles a bit)
+[NOTE: when fixing this with the option below, the main spaceship sprite will
+become flickery. Again, this is faithful to a real beeb.]
+To improve the synchronization:
+./beebjit -0 ~/Downloads/Pace/Fortress.ssd -opt video:render-every-ticks=64
+
