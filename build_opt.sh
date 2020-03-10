@@ -1,7 +1,8 @@
 #!/bin/sh
 set -e
 
-gcc -Wall -W -Werror -Wno-address-of-packed-member \
+gcc -Wall -W -Werror \
+    -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie \
     -O3 -DNDEBUG -g -o beebjit \
     main.c bbc.c jit.c defs_6502.c debug.c util.c state.c video.c via.c \
