@@ -1,7 +1,9 @@
 beebjit is copyrighted by Chris Evans <scarybeasts@gmail.com>.
 beebjit is licensed under version 3 of the GNU GPL.
 
-teletext_glyphs.h is copyrighted by Sarah Walker.
+teletext_glyphs.h is copyrighted by Sarah Walker, licenced under the GPL.
 
-Inlcuded retro ROMs and software are copyrighted by their respective owners;
-it is unknown which have entered the public domain.
+Most files in the datasheets/, roms/, and test/ directories are not part of
+beebjit itself. They are included in the repository for convenience, and subject
+to their own individual copyrights and licenses. If there is something checked
+in that should not be, let me know and I will remove it.

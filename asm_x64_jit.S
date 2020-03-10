@@ -9,6 +9,8 @@
 
 .globl asm_x64_jit_compile_trampoline
 asm_x64_jit_compile_trampoline:
+  # At this point: stack is aligned to 8 bytes.
+  # This is because the JIT engine gets here via call [rdi].
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   # Preserves RFLAGS
@@ -29,6 +31,8 @@ asm_x64_jit_compile_trampoline:
   pushf
   pop REG_PARAM4
 
+  # One push prior to the call.
+  # That takes us back to 16 bytes stack alignment.
   push REG_CONTEXT
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
   pop REG_CONTEXT
@@ -50,6 +54,8 @@ asm_x64_jit_compile_trampoline:
 
 .globl asm_x64_jit_interp
 asm_x64_jit_interp:
+  # At this point: stack is aligned to 16 bytes.
+  # This is because the JIT engine gets here via jmp.
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   # Trashes REG_SCRATCH1, REG_SCRATCH3
   # Preserves RFLAGS
@@ -68,8 +74,11 @@ asm_x64_jit_interp:
   pushf
   pop REG_PARAM3
 
+  # Double push to keep stack aligned to 16 bytes before the call.
+  push REG_SCRATCH3
   push REG_SCRATCH3
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  pop REG_CONTEXT
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
