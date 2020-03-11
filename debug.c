@@ -1,5 +1,3 @@
-#define _GNU_SOURCE /* For qsort_r() */
-
 #include "debug.h"
 
 #include "bbc.h"
@@ -83,12 +81,13 @@ struct debug_struct {
   char debug_old_input_buf[k_max_input_len];
 };
 
-static int s_sigint_received;
+static int g_sigint_received;
+static struct debug_struct* g_p_debug;
 
 static void
 sigint_handler(int signum) {
   (void) signum;
-  s_sigint_received = 1;
+  g_sigint_received = 1;
 }
 
 static void
@@ -105,12 +104,15 @@ debug_create(struct bbc_struct* p_bbc,
              int32_t debug_stop_addr) {
   size_t i;
   sighandler_t ret_sig;
+  struct debug_struct* p_debug;
 
-  struct debug_struct* p_debug = malloc(sizeof(struct debug_struct));
-  if (p_debug == NULL) {
-    errx(1, "couldn't allocate debug_struct");
-  }
-  (void) memset(p_debug, '\0', sizeof(struct debug_struct));
+  assert(g_p_debug == NULL);
+
+  p_debug = util_mallocz(sizeof(struct debug_struct));
+  /* NOTE: using this singleton pattern for now so we can use qsort().
+   * qsort_r() is a minor porting headache due to differing signatures.
+   */
+  g_p_debug = p_debug;
 
   ret_sig = signal(SIGINT, sigint_handler);
   if (ret_sig == SIG_ERR) {
@@ -581,19 +583,17 @@ debug_hit_break(struct debug_struct* p_debug,
 }
 
 static int
-debug_sort_opcodes(const void* p_op1, const void* p_op2, void* p_state) {
-  struct debug_struct* p_debug = (struct debug_struct*) p_state;
+debug_sort_opcodes(const void* p_op1, const void* p_op2) {
   uint8_t op1 = *(uint8_t*) p_op1;
   uint8_t op2 = *(uint8_t*) p_op2;
-  return (p_debug->count_opcode[op1] - p_debug->count_opcode[op2]);
+  return (g_p_debug->count_opcode[op1] - g_p_debug->count_opcode[op2]);
 }
 
 static int
-debug_sort_addrs(const void* p_addr1, const void* p_addr2, void* p_state) {
-  struct debug_struct* p_debug = (struct debug_struct*) p_state;
+debug_sort_addrs(const void* p_addr1, const void* p_addr2) {
   uint16_t addr1 = *(uint16_t*) p_addr1;
   uint16_t addr2 = *(uint16_t*) p_addr2;
-  return (p_debug->count_addr[addr1] - p_debug->count_addr[addr2]);
+  return (g_p_debug->count_addr[addr1] - g_p_debug->count_addr[addr2]);
 }
 
 static void
@@ -634,11 +634,10 @@ debug_dump_stats(struct debug_struct* p_debug) {
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     sorted_opcodes[i] = i;
   }
-  qsort_r(sorted_opcodes,
-          k_6502_op_num_opcodes,
-          sizeof(uint8_t),
-          debug_sort_opcodes,
-          p_debug);
+  qsort(sorted_opcodes,
+        k_6502_op_num_opcodes,
+        sizeof(uint8_t),
+        debug_sort_opcodes);
   (void) printf("=== Opcodes ===\n");
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     char opcode_buf[k_max_opcode_len];
@@ -661,11 +660,10 @@ debug_dump_stats(struct debug_struct* p_debug) {
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     sorted_addrs[i] = i;
   }
-  qsort_r(sorted_addrs,
-          k_6502_addr_space_size,
-          sizeof(uint16_t),
-          debug_sort_addrs,
-          p_debug);
+  qsort(sorted_addrs,
+        k_6502_addr_space_size,
+        sizeof(uint16_t),
+        debug_sort_addrs);
   (void) printf("=== Addrs ===\n");
   for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
@@ -908,7 +906,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
-  volatile int* p_sigint_received = &s_sigint_received;
+  volatile int* p_sigint_received = &g_sigint_received;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
