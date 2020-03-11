@@ -17,7 +17,6 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
@@ -46,12 +45,21 @@ util_free(void* p) {
 }
 
 
-int
-util_get_memory_fd(size_t size) {
+intptr_t
+util_get_memory_handle(size_t size) {
+  int fd;
   int ret;
-  int fd = syscall(SYS_memfd_create, "beebjit", 0);
+  char file_name[19];
+
+  (void) strcpy(file_name, "/tmp/beebjitXXXXXX");
+  fd = mkstemp(file_name);
   if (fd < 0) {
-    errx(1, "memfd_create failed");
+    errx(1, "mkstemp failed");
+  }
+
+  ret = unlink(file_name);
+  if (ret != 0) {
+    errx(1, "unlink failed");
   }
 
   ret = ftruncate(fd, size);
@@ -63,12 +71,15 @@ util_get_memory_fd(size_t size) {
 }
 
 static void*
-util_get_mapping_from_fd(int fd, void* p_addr, size_t size, int fixed) {
+util_get_mapping_from_handle(intptr_t handle,
+                             void* p_addr,
+                             size_t size,
+                             int fixed) {
   int map_flags;
   void* p_map;
 
-  if (fd == -1) {
-    map_flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if (handle == -1) {
+    map_flags = (MAP_PRIVATE | MAP_ANONYMOUS);
   } else {
     map_flags = MAP_SHARED;
   }
@@ -76,12 +87,12 @@ util_get_mapping_from_fd(int fd, void* p_addr, size_t size, int fixed) {
     map_flags |= MAP_FIXED;
   }
 
-  p_map = mmap(p_addr, size, PROT_READ | PROT_WRITE, map_flags, fd, 0);
+  p_map = mmap(p_addr, size, (PROT_READ | PROT_WRITE), map_flags, handle, 0);
   if (p_map == MAP_FAILED) {
     errx(1, "mmap failed");
   }
 
-  if (p_addr != NULL && p_map != p_addr) {
+  if ((p_addr != NULL) && (p_map != p_addr)) {
     errx(1, "mmap in wrong location");
   }
 
@@ -89,49 +100,51 @@ util_get_mapping_from_fd(int fd, void* p_addr, size_t size, int fixed) {
 }
 
 void*
-util_get_fixed_mapping_from_fd(int fd, void* p_addr, size_t size) {
-  return util_get_mapping_from_fd(fd, p_addr, size, 1);
+util_get_fixed_mapping_from_handle(intptr_t handle, void* p_addr, size_t size) {
+  return util_get_mapping_from_handle(handle, p_addr, size, 1);
 }
 
 void*
 util_get_guarded_mapping(void* p_addr, size_t size) {
-  return util_get_guarded_mapping_from_fd(-1, p_addr, size);
+  return util_get_guarded_mapping_from_handle(-1, p_addr, size);
 }
 
 void*
-util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size) {
+util_get_guarded_mapping_from_handle(intptr_t handle,
+                                     void* p_addr,
+                                     size_t size) {
   void* p_map;
   void* p_guard;
 
-  assert(size + (k_guard_size * 2) > size);
+  assert((size + (k_guard_size * 2)) > size);
 
-  p_map = util_get_mapping_from_fd(fd, p_addr, size, 0);
+  p_map = util_get_mapping_from_handle(handle, p_addr, size, 0);
 
-  p_guard = mmap(p_map - k_guard_size,
+  p_guard = mmap((p_map - k_guard_size),
                  k_guard_size,
                  PROT_NONE,
-                 MAP_PRIVATE | MAP_ANONYMOUS,
+                 (MAP_PRIVATE | MAP_ANONYMOUS),
                  -1,
                  0);
   if (p_guard == MAP_FAILED) {
     errx(1, "mmap failed");
   }
 
-  if (p_guard != p_map - k_guard_size) {
+  if (p_guard != (p_map - k_guard_size)) {
     errx(1, "mmap in wrong location");
   }
 
-  p_guard = mmap(p_map + size,
+  p_guard = mmap((p_map + size),
                  k_guard_size,
                  PROT_NONE,
-                 MAP_PRIVATE | MAP_ANONYMOUS,
+                 (MAP_PRIVATE | MAP_ANONYMOUS),
                  -1,
                  0);
   if (p_guard == MAP_FAILED) {
     errx(1, "mmap failed");
   }
 
-  if (p_guard != p_map + size) {
+  if (p_guard != (p_map + size)) {
     errx(1, "mmap in wrong location");
   }
 
@@ -142,8 +155,8 @@ void*
 util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
   void* p_map = mmap(p_addr,
                      size,
-                     PROT_READ | PROT_WRITE,
-                     MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
+                     (PROT_READ | PROT_WRITE),
+                     (MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS),
                      -1,
                      0);
   if (p_map == MAP_FAILED) {
@@ -159,7 +172,7 @@ util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
 
 void
 util_free_guarded_mapping(void* p_addr, size_t size) {
-  char* p_map = p_addr - k_guard_size;
+  uint8_t* p_map = (p_addr - k_guard_size);
   size += (k_guard_size * 2);
   int ret = munmap(p_map, size);
   if (ret != 0) {
@@ -177,7 +190,7 @@ util_make_mapping_read_only(void* p_addr, size_t size) {
 
 void
 util_make_mapping_read_write(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, PROT_READ|PROT_WRITE);
+  int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
   if (ret != 0) {
     errx(1, "mprotect failed");
   }
@@ -185,7 +198,7 @@ util_make_mapping_read_write(void* p_addr, size_t size) {
 
 void
 util_make_mapping_read_write_exec(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, PROT_READ|PROT_WRITE|PROT_EXEC);
+  int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE | PROT_EXEC));
   if (ret != 0) {
     errx(1, "mprotect failed");
   }
