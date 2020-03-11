@@ -11,16 +11,21 @@ void* util_mallocz(size_t size);
 void util_free(void* p);
 
 /* Memory mapping. */
-int util_get_memory_fd(size_t size);
+/* TODO: this should be in os_mapping.h because Windows will be different. */
+intptr_t util_get_memory_handle(size_t size);
 void* util_get_guarded_mapping(void* p_addr, size_t size);
-void* util_get_guarded_mapping_from_fd(int fd, void* p_addr, size_t size);
+void* util_get_guarded_mapping_from_handle(intptr_t handle,
+                                           void* p_addr,
+                                           size_t size);
 void util_free_guarded_mapping(void* p_addr, size_t size);
 void util_make_mapping_read_only(void* p_addr, size_t size);
 void util_make_mapping_read_write(void* p_addr, size_t size);
 void util_make_mapping_read_write_exec(void* p_addr, size_t size);
 void util_make_mapping_none(void* p_addr, size_t size);
 void* util_get_fixed_anonymous_mapping(void* p_addr, size_t size);
-void* util_get_fixed_mapping_from_fd(int fd, void* p_addr, size_t size);
+void* util_get_fixed_mapping_from_handle(intptr_t handle,
+                                         void* p_addr,
+                                         size_t size);
 
 /* Buffer. */
 struct util_buffer;

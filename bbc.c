@@ -25,7 +25,6 @@
 #include <assert.h>
 #include <err.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
@@ -74,7 +73,7 @@ struct bbc_struct {
   int message_cpu_fd;
   int message_client_fd;
   uint32_t exit_value;
-  int mem_fd;
+  intptr_t mem_handle;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -481,12 +480,12 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
    */
   if (curr_is_ram ^ new_is_ram) {
     if (new_is_ram) {
-      (void) util_get_fixed_mapping_from_fd(
-          p_bbc->mem_fd,
+      (void) util_get_fixed_mapping_from_handle(
+          p_bbc->mem_handle,
           p_bbc->p_mem_write,
           (k_bbc_sideways_offset + k_bbc_rom_size));
-      (void) util_get_fixed_mapping_from_fd(
-          p_bbc->mem_fd,
+      (void) util_get_fixed_mapping_from_handle(
+          p_bbc->mem_handle,
           p_bbc->p_mem_write_ind,
           (k_bbc_sideways_offset + k_bbc_rom_size));
     } else {
@@ -733,11 +732,7 @@ bbc_create(int mode,
   int externally_clocked_crtc = 1;
   int synchronous_sound = 0;
 
-  struct bbc_struct* p_bbc = malloc(sizeof(struct bbc_struct));
-  if (p_bbc == NULL) {
-    errx(1, "couldn't allocate bbc struct");
-  }
-  (void) memset(p_bbc, '\0', sizeof(struct bbc_struct));
+  struct bbc_struct* p_bbc = util_mallocz(sizeof(struct bbc_struct));
 
   p_bbc->wakeup_rate = k_bbc_default_wakeup_rate;
   (void) util_get_u32_option(&p_bbc->wakeup_rate,
@@ -780,14 +775,14 @@ bbc_create(int mode,
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
 
-  p_bbc->mem_fd = util_get_memory_fd(k_6502_addr_space_size);
-  if (p_bbc->mem_fd < 0) {
-    errx(1, "util_get_memory_fd failed");
+  p_bbc->mem_handle = util_get_memory_handle(k_6502_addr_space_size);
+  if (p_bbc->mem_handle < 0) {
+    errx(1, "util_get_memory_handle failed");
   }
 
   p_bbc->p_mem_raw =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
+      util_get_guarded_mapping_from_handle(
+          p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_RAW_ADDR,
           k_6502_addr_space_size);
 
@@ -802,29 +797,28 @@ bbc_create(int mode,
    * via a fault + fixup.
    */
   p_bbc->p_mem_read_ind =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
+      util_get_guarded_mapping_from_handle(
+          p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_READ_IND_ADDR,
           k_6502_addr_space_size);
   p_bbc->p_mem_write_ind =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
+      util_get_guarded_mapping_from_handle(
+          p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
           k_6502_addr_space_size);
 
   p_bbc->p_mem_read =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
+      util_get_guarded_mapping_from_handle(
+          p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_READ_FULL_ADDR,
           k_6502_addr_space_size);
   p_bbc->p_mem_write =
-      util_get_guarded_mapping_from_fd(
-          p_bbc->mem_fd,
+      util_get_guarded_mapping_from_handle(
+          p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_WRITE_FULL_ADDR,
           k_6502_addr_space_size);
 
-  p_bbc->p_mem_sideways = malloc(k_bbc_rom_size * k_bbc_num_roms);
-  (void) memset(p_bbc->p_mem_sideways, '\0', (k_bbc_rom_size * k_bbc_num_roms));
+  p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
 
   /* Install the dummy writeable ROM regions. */
   (void) util_get_fixed_anonymous_mapping(
@@ -1002,8 +996,6 @@ bbc_create(int mode,
 
 void
 bbc_destroy(struct bbc_struct* p_bbc) {
-  int ret;
-
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   volatile int* p_running = &p_bbc->running;
   volatile int* p_thread_allocated = &p_bbc->thread_allocated;
@@ -1037,13 +1029,10 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
   util_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
+  util_file_handle_close(p_bbc->mem_handle);
 
-  ret = close(p_bbc->mem_fd);
-  if (ret != 0) {
-    errx(1, "close failed");
-  }
-
-  free(p_bbc);
+  util_free(p_bbc->p_mem_sideways);
+  util_free(p_bbc);
 }
 
 void
