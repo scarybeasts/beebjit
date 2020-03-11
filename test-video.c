@@ -385,6 +385,8 @@ video_test_6845_corner_cases() {
   countdown = timing_advance_time(g_p_timing, (countdown - (2 * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->display_enable_horiz);
   test_expect_u32(0, g_p_video->address_counter);
   countdown = timing_advance_time(g_p_timing, (countdown - 100));
@@ -392,6 +394,53 @@ video_test_6845_corner_cases() {
   test_expect_u32(50, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->display_enable_horiz);
   test_expect_u32(50, g_p_video->address_counter);
+
+  /* Last line of vertical adjust should latch end of frame. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 28));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_vert_adjust);
+  test_expect_u32(2, g_p_video->vert_adjust_counter);
+  test_expect_u32(0, g_p_video->is_end_of_frame_latched);
+  /* Advance to mid-line because latch occurs at C0=2. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->is_end_of_frame_latched);
+  /* Change R5 and check frame still ends. */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 3);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+
+  /* With no vertical adjust, last line of main frame should latch end of
+   * frame.
+   */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 0);
+  countdown = timing_advance_time(g_p_timing, (countdown - (309 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(9, g_p_video->scanline_counter);
+  test_expect_u32(30, g_p_video->vert_counter);
+  /* Advance to mid-line because latch occurs at C0=2. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->is_end_of_frame_latched);
+  /* Change R4 and check frame still ends. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 35);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
 }
 
 static void

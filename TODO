@@ -10,6 +10,8 @@ get addressed before the next release.
 can even block at that resolution.
 - BCD support in JIT?
 - Big problems with block splitting.
+- Assert in debug mode with Uridium + Alt-F.
+- raster-c.ssd doesn't work.
 
 
 Fix later
@@ -23,10 +25,8 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Acornsoft Chess self-play should be faster in JIT + fast mode.
 - MODE7 doesn't have character rounding.
-- Accurate last line latching for 6845.
 - Tape loading noises.
 - Disc loading noises.
-- 6845 skew support.
 - Add a test for the JIT optimizer.
 
 
@@ -71,3 +71,4 @@ low.
 - Mouse support.
 - Joystick support.
 - NULA support.
+- 6845 skew support.

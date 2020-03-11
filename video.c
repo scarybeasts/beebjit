@@ -147,6 +147,9 @@ struct video_struct {
   int display_enable_vert;
   int has_hit_cursor_line_start;
   int has_hit_cursor_line_end;
+  uint32_t line_state_check_counter;
+  int is_end_of_main_latched;
+  int is_end_of_frame_latched;
 };
 
 static inline uint32_t
@@ -209,6 +212,9 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->in_dummy_raster = 0;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
+  p_video->is_end_of_main_latched = 0;
+  p_video->is_end_of_frame_latched = 0;
+  p_video->line_state_check_counter = 0;
 
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
@@ -382,6 +388,26 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     r1_hit = (p_video->horiz_counter == r1);
     r2_hit = (p_video->horiz_counter == r2);
 
+    if (p_video->line_state_check_counter > 0) {
+      /* line_state_check_counter == 3 is C0=0. Nothing to do there. */
+      if (p_video->line_state_check_counter == 2) {
+        /* One tick after the new line (typically C0=1), end-of-main is checked
+         * and latched.
+         */
+        if (r4_hit && r9_hit) {
+          p_video->is_end_of_main_latched = 1;
+        }
+      } else if (p_video->line_state_check_counter == 1) {
+        /* One tick after the end-of-main check is the end-of-vert-adjust
+         * check.
+         */
+        if (p_video->is_end_of_main_latched && r5_hit) {
+          p_video->is_end_of_frame_latched = 1;
+        }
+      }
+      p_video->line_state_check_counter--;
+    }
+
     /* Wraps 0xFF -> 0; uint8_t type. */
     p_video->horiz_counter++;
     /* TODO: optimize this to advance by a stride and only recalculate when
@@ -456,34 +482,34 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
+    /* End-of-line state transitions. */
+    if (p_video->in_dummy_raster) {
+      video_start_new_frame(p_video);
+      goto check_r6_r7;
+    } else if (p_video->is_end_of_frame_latched) {
+      if (p_video->is_odd_interlace_frame) {
+        p_video->in_dummy_raster = 1;
+      } else {
+        video_start_new_frame(p_video);
+        goto check_r6_r7;
+      }
+    } else if (p_video->is_end_of_main_latched) {
+      p_video->in_vert_adjust = 1;
+    }
+
+    /* New line state check counter, which drives end of frame checks. */
+    if (p_video->line_state_check_counter == 0) {
+      p_video->line_state_check_counter = 3;
+    }
+
     r9_hit = (p_video->scanline_counter == (r9 & p_video->scanline_mask));
     p_video->scanline_counter += p_video->scanline_stride;
     p_video->scanline_counter &= p_video->scanline_mask;
     p_video->address_counter = p_video->address_counter_this_row;
 
-    if (p_video->in_dummy_raster) {
-      goto start_new_frame;
-    }
-
     if (p_video->in_vert_adjust) {
       p_video->vert_adjust_counter++;
       p_video->vert_adjust_counter &= 0x1F;
-      r5_hit = (p_video->vert_adjust_counter == r5);
-      if (r5_hit) {
-        /* The dummy raster is at the end of the even frame; the test for odd
-         * here is because the R6 hit earlier in a "normal" frame will have
-         * incremented the CRTC frame count.
-         * See http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
-         * for details about the dummy raster and interlace timing.
-         */
-        if (p_video->is_odd_interlace_frame) {
-          p_video->in_vert_adjust = 0;
-          p_video->in_dummy_raster = 1;
-        } else {
-          goto start_new_frame;
-        }
-      }
-      goto recalculate_and_continue;
     }
 
     if (!r9_hit) {
@@ -497,23 +523,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->has_hit_cursor_line_start = 0;
     p_video->has_hit_cursor_line_end = 0;
 
-    r4_hit = (p_video->vert_counter == r4);
     p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
 
-    if (r4_hit) {
-      /* End of R4-based frame. Time for either vertical adjust, dummy raster or
-       * new frame.
-       */
-      if (r5 != 0) {
-        p_video->in_vert_adjust = 1;
-      } else if (p_video->is_odd_interlace_frame) {
-        p_video->in_dummy_raster = 1;
-      } else {
-start_new_frame:
-        video_start_new_frame(p_video);
-      }
-    }
-
+check_r6_r7:
     r6_hit = (p_video->vert_counter == r6);
     r7_hit = (p_video->vert_counter == r7);
 
@@ -539,6 +551,10 @@ recalculate_and_continue:
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
+
+    r4_hit = (p_video->vert_counter == r4);
+    r5_hit = (p_video->vert_adjust_counter == r5);
+    r9_hit = (p_video->scanline_counter == r9);
   }
 
   p_video->prev_system_ticks = curr_system_ticks;
