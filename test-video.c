@@ -441,6 +441,26 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
+
+  /* Interlace on but R6 > R4; freezes in current odd / even frame state. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 1);
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 30);
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 50);
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32(1, g_p_video->is_interlace);
+  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_even_interlace_frame);
+  countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_dummy_raster);
+  countdown = timing_advance_time(g_p_timing, (countdown - 128));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->is_interlace);
+  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->is_even_interlace_frame);
 }
 
 static void
