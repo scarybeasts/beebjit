@@ -10,3 +10,6 @@ timing.rom
 # CLion/Cmake crap
 cmake-*
 .idea
+
+# Linux perf profiler
+perf.data*
