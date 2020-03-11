@@ -1,6 +1,7 @@
 #include "os_window.h"
 
 #include "keyboard.h"
+#include "os_x11_keys.h"
 #include "log.h"
 #include "util.h"
 #include "video.h"
@@ -34,6 +35,7 @@ struct os_window_struct {
   void* p_shm_map_data_start;
   XImage* p_image;
   XShmSegmentInfo shm_info;
+  uint8_t* p_key_map;
 };
 
 struct os_window_struct*
@@ -173,6 +175,8 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "XFlush failed");
   }
 
+  p_window->p_key_map = os_x11_keys_get_mapping();
+
   return p_window;
 }
 
@@ -280,218 +284,16 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
 }
 
 static uint8_t
-x_key_to_keyboard_key(int key) {
-  uint8_t ret = 0;
+os_window_convert_key_code(struct os_window_struct* p_window,
+                           uint32_t keycode) {
+  uint8_t* p_key_map = p_window->p_key_map;
+  uint8_t key = 0;
 
-  switch (key) {
-  case 9:
-    ret = k_keyboard_key_escape;
-    break;
-  case 10:
-  case 11:
-  case 12:
-  case 13:
-  case 14:
-  case 15:
-  case 16:
-  case 17:
-  case 18:
-    ret = (key + '1' - 10);
-    break;
-  case 19:
-    ret = '0';
-    break;
-  case 20:
-    ret = '-';
-    break;
-  case 21:
-    ret = '=';
-    break;
-  case 22:
-    ret = k_keyboard_key_backspace;
-    break;
-  case 23:
-    ret = k_keyboard_key_tab;
-    break;
-  case 24:
-    ret = 'Q';
-    break;
-  case 25:
-    ret = 'W';
-    break;
-  case 26:
-    ret = 'E';
-    break;
-  case 27:
-    ret = 'R';
-    break;
-  case 28:
-    ret = 'T';
-    break;
-  case 29:
-    ret = 'Y';
-    break;
-  case 30:
-    ret = 'U';
-    break;
-  case 31:
-    ret = 'I';
-    break;
-  case 32:
-    ret = 'O';
-    break;
-  case 33:
-    ret = 'P';
-    break;
-  case 34:
-    ret = '[';
-    break;
-  case 35:
-    ret = ']';
-    break;
-  case 36:
-    ret = k_keyboard_key_enter;
-    break;
-  case 37:
-    ret = k_keyboard_key_ctrl_left;
-    break;
-  case 38:
-    ret = 'A';
-    break;
-  case 39:
-    ret = 'S';
-    break;
-  case 40:
-    ret = 'D';
-    break;
-  case 41:
-    ret = 'F';
-    break;
-  case 42:
-    ret = 'G';
-    break;
-  case 43:
-    ret = 'H';
-    break;
-  case 44:
-    ret = 'J';
-    break;
-  case 45:
-    ret = 'K';
-    break;
-  case 46:
-    ret = 'L';
-    break;
-  case 47:
-    ret = ';';
-    break;
-  case 48:
-    ret = '\'';
-    break;
-  case 50:
-    ret = k_keyboard_key_shift_left;
-    break;
-  case 51:
-    ret = '\\';
-    break;
-  case 52:
-    ret = 'Z';
-    break;
-  case 53:
-    ret = 'X';
-    break;
-  case 54:
-    ret = 'C';
-    break;
-  case 55:
-    ret = 'V';
-    break;
-  case 56:
-    ret = 'B';
-    break;
-  case 57:
-    ret = 'N';
-    break;
-  case 58:
-    ret = 'M';
-    break;
-  case 59:
-    ret = ',';
-    break;
-  case 60:
-    ret = '.';
-    break;
-  case 61:
-    ret = '/';
-    break;
-  case 62:
-    ret = k_keyboard_key_shift_right;
-    break;
-  case 64:
-    ret = k_keyboard_key_alt_left;
-    break;
-  case 65:
-    ret = ' ';
-    break;
-  case 66:
-    ret = k_keyboard_key_caps_lock;
-    break;
-  case 67:
-    ret = k_keyboard_key_f1;
-    break;
-  case 68:
-    ret = k_keyboard_key_f2;
-    break;
-  case 69:
-    ret = k_keyboard_key_f3;
-    break;
-  case 70:
-    ret = k_keyboard_key_f4;
-    break;
-  case 71:
-    ret = k_keyboard_key_f5;
-    break;
-  case 72:
-    ret = k_keyboard_key_f6;
-    break;
-  case 73:
-    ret = k_keyboard_key_f7;
-    break;
-  case 74:
-    ret = k_keyboard_key_f8;
-    break;
-  case 75:
-    ret = k_keyboard_key_f9;
-    break;
-  case 76:
-    ret = k_keyboard_key_f0;
-    break;
-  case 95:
-    ret = k_keyboard_key_f11;
-    break;
-  case 96:
-    ret = k_keyboard_key_f12;
-    break;
-  case 111:
-    ret = k_keyboard_key_arrow_up;
-    break;
-  case 113:
-    ret = k_keyboard_key_arrow_left;
-    break;
-  case 114:
-    ret = k_keyboard_key_arrow_right;
-    break;
-  case 115:
-    ret = k_keyboard_key_end;
-    break;
-  case 116:
-    ret = k_keyboard_key_arrow_down;
-    break;
-  default:
-    break;
+  if (keycode < 256) {
+    key = p_key_map[keycode];
   }
 
-  return ret;
+  return key;
 }
 
 void
@@ -512,7 +314,7 @@ os_window_process_events(struct os_window_struct* p_window) {
     switch (event.type) {
     case KeyPress:
       keycode = event.xkey.keycode;
-      key = x_key_to_keyboard_key(keycode);
+      key = os_window_convert_key_code(p_window, keycode);
       if (key != 0) {
         keyboard_system_key_pressed(p_keyboard, key);
       } else {
@@ -524,7 +326,7 @@ os_window_process_events(struct os_window_struct* p_window) {
       break;
     case KeyRelease:
       keycode = event.xkey.keycode;
-      key = x_key_to_keyboard_key(keycode);
+      key = os_window_convert_key_code(p_window, keycode);
       if (key != 0) {
         keyboard_system_key_released(p_keyboard, key);
       } else {
