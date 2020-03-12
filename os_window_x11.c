@@ -38,6 +38,15 @@ struct os_window_struct {
   uint8_t* p_key_map;
 };
 
+/* For use by rm_window_shmid_error_handler, due to inconvenient X11 API. */
+struct rm_window_shmid_error_handler_context_struct {
+  struct os_window_struct* p_window;
+  XErrorHandler old_error_handler;
+};
+
+static struct rm_window_shmid_error_handler_context_struct*
+    s_p_rm_window_shmid_error_handler_context;
+
 static void
 rm_shmid(struct os_window_struct *p_window) {
   int ret = shmctl(p_window->shmid, IPC_RMID, NULL);
@@ -48,24 +57,17 @@ rm_shmid(struct os_window_struct *p_window) {
   p_window->shmid = -1;
 }
 
-/* For use by rm_window_shmid_error_handler, due to inconvenient X11
- * API. */
-struct rm_window_shmid_error_handler_context_struct {
-  struct os_window_struct *window;
-  XErrorHandler old_error_handler;
-};
-
-static struct rm_window_shmid_error_handler_context_struct *rm_window_shmid_error_handler_context;
-
 static int
-rm_window_shmid_error_handler(Display *display, XErrorEvent *event) {
-  (void)display, (void)event;
-
+rm_window_shmid_error_handler(Display* display, XErrorEvent* event) {
   int ret;
-  
-  rm_shmid(rm_window_shmid_error_handler_context->window);
 
-  ret = (*rm_window_shmid_error_handler_context->old_error_handler)(display, event);
+  (void) display;
+  (void) event;
+
+  rm_shmid(s_p_rm_window_shmid_error_handler_context->p_window);
+
+  ret = (s_p_rm_window_shmid_error_handler_context->old_error_handler)(display,
+                                                                       event);
   return ret;
 }
 
@@ -166,14 +168,14 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "XShmAttach failed");
   }
 
-  /* Don't let the shared memory leak if there's an error during
-   * XSync. */
-  error_handler_context.window = p_window;
-  error_handler_context.old_error_handler = XSetErrorHandler(&rm_window_shmid_error_handler);
-  rm_window_shmid_error_handler_context = &error_handler_context;
+  /* Don't let the shared memory leak if there's an error during XSync. */
+  error_handler_context.p_window = p_window;
+  error_handler_context.old_error_handler =
+      XSetErrorHandler(rm_window_shmid_error_handler);
+  s_p_rm_window_shmid_error_handler_context = &error_handler_context;
   XSync(p_window->d, False);
-  XSetErrorHandler(error_handler_context.old_error_handler);
-  rm_window_shmid_error_handler_context = NULL;
+  (void) XSetErrorHandler(error_handler_context.old_error_handler);
+  s_p_rm_window_shmid_error_handler_context = NULL;
 
   rm_shmid(p_window);
 
