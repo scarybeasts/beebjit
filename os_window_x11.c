@@ -38,6 +38,37 @@ struct os_window_struct {
   uint8_t* p_key_map;
 };
 
+static void
+rm_shmid(struct os_window_struct *p_window) {
+  int ret = shmctl(p_window->shmid, IPC_RMID, NULL);
+  if (ret != 0) {
+    errx(1, "shmctl failed");
+  }
+
+  p_window->shmid = -1;
+}
+
+/* For use by rm_window_shmid_error_handler, due to inconvenient X11
+ * API. */
+struct rm_window_shmid_error_handler_context_struct {
+  struct os_window_struct *window;
+  XErrorHandler old_error_handler;
+};
+
+static struct rm_window_shmid_error_handler_context_struct *rm_window_shmid_error_handler_context;
+
+static int
+rm_window_shmid_error_handler(Display *display, XErrorEvent *event) {
+  (void)display, (void)event;
+
+  int ret;
+  
+  rm_shmid(rm_window_shmid_error_handler_context->window);
+
+  ret = (*rm_window_shmid_error_handler_context->old_error_handler)(display, event);
+  return ret;
+}
+
 struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
   struct os_window_struct* p_window;
@@ -50,6 +81,7 @@ os_window_create(uint32_t width, uint32_t height) {
   Visual* p_visual;
   int depth;
   size_t map_size;
+  struct rm_window_shmid_error_handler_context_struct error_handler_context;
 
   p_window = malloc(sizeof(struct os_window_struct));
   if (p_window == NULL) {
@@ -101,11 +133,8 @@ os_window_create(uint32_t width, uint32_t height) {
   }
   p_window->p_shm_map_start = shmat(p_window->shmid, NULL, 0);
   if (p_window->p_shm_map_start == NULL) {
+    rm_shmid(p_window);
     errx(1, "shmat failed");
-  }
-  ret = shmctl(p_window->shmid, IPC_RMID, NULL);
-  if (ret != 0) {
-    errx(1, "shmctl failed");
   }
 
   util_make_mapping_none(p_window->p_shm_map_start, 4096);
@@ -121,6 +150,7 @@ os_window_create(uint32_t width, uint32_t height) {
                                       width,
                                       height);
   if (p_window->p_image == NULL) {
+    rm_shmid(p_window);
     errx(1, "XShmCreateImage failed");
   }
 
@@ -132,8 +162,20 @@ os_window_create(uint32_t width, uint32_t height) {
 
   bool_ret = XShmAttach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
+    rm_shmid(p_window);
     errx(1, "XShmAttach failed");
   }
+
+  /* Don't let the shared memory leak if there's an error during
+   * XSync. */
+  error_handler_context.window = p_window;
+  error_handler_context.old_error_handler = XSetErrorHandler(&rm_window_shmid_error_handler);
+  rm_window_shmid_error_handler_context = &error_handler_context;
+  XSync(p_window->d, False);
+  XSetErrorHandler(error_handler_context.old_error_handler);
+  rm_window_shmid_error_handler_context = NULL;
+
+  rm_shmid(p_window);
 
   p_window->w = XCreateSimpleWindow(p_window->d,
                                     root_window,
