@@ -147,9 +147,9 @@ struct video_struct {
   int display_enable_vert;
   int has_hit_cursor_line_start;
   int has_hit_cursor_line_end;
-  uint32_t line_state_check_counter;
   int is_end_of_main_latched;
   int is_end_of_frame_latched;
+  uint32_t start_of_line_state_checks;
 };
 
 static inline uint32_t
@@ -214,7 +214,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_frame_latched = 0;
-  p_video->line_state_check_counter = 0;
+  p_video->start_of_line_state_checks = 1;
 
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
@@ -388,24 +388,34 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     r1_hit = (p_video->horiz_counter == r1);
     r2_hit = (p_video->horiz_counter == r2);
 
-    if (p_video->line_state_check_counter > 0) {
-      /* line_state_check_counter == 3 is C0=0. Nothing to do there. */
-      if (p_video->line_state_check_counter == 2) {
+    if (p_video->start_of_line_state_checks) {
+      if (p_video->start_of_line_state_checks & 4) {
+        /* One tick after the end-of-main check is the end-of-vert-adjust
+         * check.
+         */
+        if (p_video->is_end_of_main_latched) {
+          if (r5_hit) {
+            p_video->is_end_of_frame_latched = 1;
+          } else {
+            p_video->in_vert_adjust = 1;
+          }
+        }
+        p_video->start_of_line_state_checks &= ~4;
+      }
+      if (p_video->start_of_line_state_checks & 2) {
         /* One tick after the new line (typically C0=1), end-of-main is checked
          * and latched.
          */
         if (r4_hit && r9_hit) {
           p_video->is_end_of_main_latched = 1;
         }
-      } else if (p_video->line_state_check_counter == 1) {
-        /* One tick after the end-of-main check is the end-of-vert-adjust
-         * check.
-         */
-        if (p_video->is_end_of_main_latched && r5_hit) {
-          p_video->is_end_of_frame_latched = 1;
-        }
+        p_video->start_of_line_state_checks &= ~2;
+        p_video->start_of_line_state_checks |= 4;
       }
-      p_video->line_state_check_counter--;
+      if (p_video->start_of_line_state_checks & 1) {
+        p_video->start_of_line_state_checks &= ~1;
+        p_video->start_of_line_state_checks |= 2;
+      }
     }
 
     /* Wraps 0xFF -> 0; uint8_t type. */
@@ -493,14 +503,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         video_start_new_frame(p_video);
         goto check_r6_r7;
       }
-    } else if (p_video->is_end_of_main_latched) {
-      p_video->in_vert_adjust = 1;
     }
 
-    /* New line state check counter, which drives end of frame checks. */
-    if (p_video->line_state_check_counter == 0) {
-      p_video->line_state_check_counter = 3;
-    }
+    /* Start the new line state check chain. */
+    p_video->start_of_line_state_checks |= 1;
 
     r9_hit = (p_video->scanline_counter == (r9 & p_video->scanline_mask));
     p_video->scanline_counter += p_video->scanline_stride;

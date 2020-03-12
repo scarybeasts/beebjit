@@ -464,6 +464,62 @@ video_test_6845_corner_cases() {
 }
 
 static void
+video_test_R01_corner_case() {
+  /* A separate test for a crazy corner case with R0=2. On the Hitachi 6845
+   * this causes unexpected extra scanlines.
+   */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+
+  /* Interlace off to keep it simpler. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  /* Make this the last row. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 0);
+  countdown = timing_get_countdown(g_p_timing);
+  /* Advance to the next frame. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->is_end_of_frame_latched);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  /* Set R0=1, R9=2. */
+  video_crtc_write(g_p_video, 0, 0);
+  video_crtc_write(g_p_video, 1, 1);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 1);
+  countdown = timing_get_countdown(g_p_timing);
+  /* Now each line is 2 1MHz ticks. Advance line by line and check state. */
+  countdown = timing_advance_time(g_p_timing, (countdown - 4));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->scanline_counter);
+  countdown = timing_advance_time(g_p_timing, (countdown - 4));
+  video_advance_crtc_timing(g_p_video);
+  /* This is the surprise extra scanline caused by not being able to finish a
+   * frame quickly enough with R0=1.
+   */
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->vert_counter);
+  test_expect_u32(0, g_p_video->in_vert_adjust);
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+  countdown = timing_advance_time(g_p_timing, (countdown - 4));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+}
+
+static void
 video_test_inactive_rendering() {
   /* Tests that state is maintained correctly when skipping rendering some
    * frames on account of fast mode.
@@ -586,6 +642,10 @@ video_test() {
 
   video_test_init();
   video_test_6845_corner_cases();
+  video_test_end();
+
+  video_test_init();
+  video_test_R01_corner_case();
   video_test_end();
 
   video_test_init();
