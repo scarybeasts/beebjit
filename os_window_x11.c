@@ -49,7 +49,11 @@ static struct rm_window_shmid_error_handler_context_struct*
 
 static void
 rm_shmid(struct os_window_struct *p_window) {
-  int ret = shmctl(p_window->shmid, IPC_RMID, NULL);
+  int ret;
+
+  assert(p_window->shmid != -1);
+
+  ret = shmctl(p_window->shmid, IPC_RMID, NULL);
   if (ret != 0) {
     errx(1, "shmctl failed");
   }
@@ -60,11 +64,18 @@ rm_shmid(struct os_window_struct *p_window) {
 static int
 rm_window_shmid_error_handler(Display* display, XErrorEvent* event) {
   int ret;
+  struct os_window_struct* p_window =
+      s_p_rm_window_shmid_error_handler_context->p_window;
 
   (void) display;
   (void) event;
 
-  rm_shmid(s_p_rm_window_shmid_error_handler_context->p_window);
+  /* The XSync man page suggests the possibility of multiple calls to the error
+   * handler so only delete the shared memory once.
+   */
+  if (p_window->shmid != -1) {
+    rm_shmid(p_window);
+  }
 
   ret = (s_p_rm_window_shmid_error_handler_context->old_error_handler)(display,
                                                                        event);
@@ -173,11 +184,16 @@ os_window_create(uint32_t width, uint32_t height) {
   error_handler_context.old_error_handler =
       XSetErrorHandler(rm_window_shmid_error_handler);
   s_p_rm_window_shmid_error_handler_context = &error_handler_context;
-  XSync(p_window->d, False);
+
+  /* Check ret later, only after deleting the shared memory. */
+  ret = XSync(p_window->d, False);
   (void) XSetErrorHandler(error_handler_context.old_error_handler);
   s_p_rm_window_shmid_error_handler_context = NULL;
 
   rm_shmid(p_window);
+  if (ret != 1) {
+    errx(1, "XSync failed");
+  }
 
   p_window->w = XCreateSimpleWindow(p_window->d,
                                     root_window,
