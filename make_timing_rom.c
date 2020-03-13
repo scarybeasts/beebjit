@@ -119,22 +119,22 @@ main(int argc, const char* argv[]) {
   /* Check simple instruction timings that hit 1Mhz peripherals. */
   set_new_index(p_buf, 0x0140);
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
-  emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
-  emit_CYCLES_RESET(p_buf);       /* Cycles == 1 after this. */
-  emit_LDA(p_buf, k_zpg, 0x00);   /* Cycles == 4 after this opcode. */
   emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 13);
+  emit_REQUIRE_EQ(p_buf, 10);
+  emit_CYCLES_RESET(p_buf);       /* Cycles == 0 after this. */
+  emit_LDA(p_buf, k_zpg, 0x00);   /* Cycles == 3 after this opcode. */
+  emit_LDA(p_buf, k_abs, 0xFE4E); /* Read IER, odd cycle start, 5 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 12);
   emit_CYCLES_RESET(p_buf);
   emit_LDA(p_buf, k_abs, 0xFE20); /* Read Video ULA, 4 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 8);
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_abs, 0xFE00); /* Read CRTC, odd cycle start, 5 cycles. */
+  emit_LDA(p_buf, k_abs, 0xFE00); /* Read CRTC, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
+  emit_REQUIRE_EQ(p_buf, 10);
   emit_JMP(p_buf, k_abs, 0xC180);
 
   /* Check T1 timer tick values. */

@@ -230,63 +230,75 @@ bbc_is_1MHz_address(uint16_t addr) {
 
 static void
 bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
-                                int* p_is_1MHz,
                                 uint16_t addr,
                                 int do_last_tick_callback) {
-  int is_unaligned = 0;
+  int is_unaligned;
+  int do_ticking;
   int is_1MHz = bbc_is_1MHz_address(addr);
 
-  *p_is_1MHz = is_1MHz;
-
-  if (is_1MHz) {
-    is_unaligned = (state_6502_get_cycles(p_bbc->p_state_6502) & 1);
-  }
-
-  if (do_last_tick_callback) {
-    /* If it's not 1MHz, this is the last tick. */
-    if (!is_1MHz) {
+  if (!is_1MHz) {
+    if (do_last_tick_callback) {
+      /* If it's not 1MHz, this is the last tick. */
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
-    } else {
-      /* It is 1MHz. Last tick will be in 1 or two ticks depending on
-       * alignment.
-       */
-      /* NOTE: it's not the most efficient to start a one or two tick timer,
-       * but it's clean. Furthermore, this is uncommon. The common cases of
-       * LDA abs / STA abs for harware register access do not need the last
-       * tick callback because the IRQ check occurs before the potentially
-       * stretched cycle.
-       */
-      /* NOTE: there's an important subtlety here. We rely on this timer firing
-       * last if there are multiple timers firing at the same this. This
-       * guarantee _is_ made by timing API. What happens is that the older
-       * timers may raise (or lower) IRQs. And then this newest timer needs to
-       * see latest IRQ results to act on them.
-       */
-      (void) timing_start_timer_with_value(p_bbc->p_timing,
-                                           p_bbc->timer_id_tick,
-                                           (1 + is_unaligned));
     }
+    /* Currently, all 2MHz peripherals are handled as tick then access. */
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    return;
   }
 
-  if (is_unaligned) {
-    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
-     * the 1Mhz train.
+  is_unaligned = (state_6502_get_cycles(p_bbc->p_state_6502) & 1);
+
+  if (do_last_tick_callback) {
+    /* It is 1MHz. Last tick will be in 1 or two ticks depending on
+     * alignment.
      */
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    /* NOTE: it's not the most efficient to start a one or two tick timer,
+     * but it's clean. Furthermore, this is uncommon. The common cases of
+     * LDA abs / STA abs for harware register access do not need the last
+     * tick callback because the IRQ check occurs before the potentially
+     * stretched cycle.
+     */
+    /* NOTE: there's an important subtlety here. We rely on this timer firing
+     * last if there are multiple timers firing at the same this. This
+     * guarantee _is_ made by timing API. What happens is that the older
+     * timers may raise (or lower) IRQs. And then this newest timer needs to
+     * see latest IRQ results to act on them.
+     */
+    (void) timing_start_timer_with_value(p_bbc->p_timing,
+                                         p_bbc->timer_id_tick,
+                                         (1 + is_unaligned));
+  }
+
+  /* For 1MHz, the specific peripheral callback can opt to take on the timing
+   * ticking itself. The VIAs do this. For everything else, we fully tick to
+   * the end of the stretched cycle and then do the read or write.
+   * It's worth noting that this behavior is required for CRTC. If we fail to
+   * tick to the end of the stretched cycle, the writes take effect too soon.
+   */
+  do_ticking = 1;
+  switch (addr & ~0x1F) {
+  case k_addr_sysvia:
+  case k_addr_uservia:
+    do_ticking = 0;
+    break;
+  default:
+    break;
+  }
+
+  if (do_ticking) {
+    (void) timing_advance_time_delta(p_bbc->p_timing, (2 + is_unaligned));
   }
 }
 
 uint8_t
 bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
-  int is_1MHz;
-
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   uint8_t ret = 0xFE;
 
   p_bbc->num_hw_reg_hits++;
 
-  bbc_do_read_write_tick_handling(p_bbc, &is_1MHz, addr, do_last_tick_callback);
+  bbc_do_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -439,13 +451,6 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     break;
   }
 
-  if (is_1MHz) {
-    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
-    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
-
   return ret;
 }
 
@@ -545,13 +550,11 @@ bbc_write_callback(void* p,
                    uint16_t addr,
                    uint8_t val,
                    int do_last_tick_callback) {
-  int is_1MHz;
-
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   p_bbc->num_hw_reg_hits++;
 
-  bbc_do_read_write_tick_handling(p_bbc, &is_1MHz, addr, do_last_tick_callback);
+  bbc_do_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -673,13 +676,6 @@ bbc_write_callback(void* p,
       assert(0);
     }
     break;
-  }
-
-  if (is_1MHz) {
-    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
-    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
   }
 }
 
