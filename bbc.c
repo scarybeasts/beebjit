@@ -243,13 +243,25 @@ bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
   }
 
   if (do_last_tick_callback) {
-    /* If it's not a 1MHz, this is the last tick. */
+    /* If it's not 1MHz, this is the last tick. */
     if (!is_1MHz) {
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     } else {
       /* It is 1MHz. Last tick will be in 1 or two ticks depending on
        * alignment.
+       */
+      /* NOTE: it's not the most efficient to start a one or two tick timer,
+       * but it's clean. Furthermore, this is uncommon. The common cases of
+       * LDA abs / STA abs for harware register access do not need the last
+       * tick callback because the IRQ check occurs before the potentially
+       * stretched cycle.
+       */
+      /* NOTE: there's an important subtlety here. We rely on this timer firing
+       * last if there are multiple timers firing at the same this. This
+       * guarantee _is_ made by timing API. What happens is that the older
+       * timers may raise (or lower) IRQs. And then this newest timer needs to
+       * see latest IRQ results to act on them.
        */
       (void) timing_start_timer_with_value(p_bbc->p_timing,
                                            p_bbc->timer_id_tick,

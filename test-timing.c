@@ -2,16 +2,18 @@
 
 #include "test.h"
 
-static uint32_t g_timing_test_timer_hits_basic = 0;
-static uint32_t g_timing_test_timer_hits_multi = 0;
+static uint32_t s_timing_test_timer_hits_basic = 0;
+static uint32_t s_timing_test_timer_hits_multi = 0;
+static uint32_t s_timing_test_order_counter = 0;
+static int32_t s_timing_test_order_t1 = -1;
+static int32_t s_timing_test_order_t2 = -1;
+static int32_t s_timing_test_order_t3 = -1;
 
 static void
-timing_test_timer_fired_basic(void* p) {
+timing_test_stop_timers(void* p) {
   uint32_t i;
 
   struct timing_struct* p_timing = (struct timing_struct*) p;
-
-  g_timing_test_timer_hits_basic++;
 
   for (i = 0; i < k_timing_num_timers; ++i) {
     struct timer_struct* p_timer = &p_timing->timers[i];
@@ -23,10 +25,47 @@ timing_test_timer_fired_basic(void* p) {
 }
 
 static void
+timing_test_stop_timer(void* p, uint32_t id) {
+  struct timing_struct* p_timing = (struct timing_struct*) p;
+  (void) timing_stop_timer(p_timing, id);
+}
+
+static void
+timing_test_timer_fired_basic(void* p) {
+  s_timing_test_timer_hits_basic++;
+
+  timing_test_stop_timers(p);
+}
+
+static void
+timing_test_timer_fired_order_t1(void* p) {
+  s_timing_test_order_t1 = s_timing_test_order_counter;
+  s_timing_test_order_counter++;
+
+  timing_test_stop_timer(p, 0);
+}
+
+static void
+timing_test_timer_fired_order_t2(void* p) {
+  s_timing_test_order_t2 = s_timing_test_order_counter;
+  s_timing_test_order_counter++;
+
+  timing_test_stop_timer(p, 1);
+}
+
+static void
+timing_test_timer_fired_order_t3(void* p) {
+  s_timing_test_order_t3 = s_timing_test_order_counter;
+  s_timing_test_order_counter++;
+
+  timing_test_stop_timer(p, 2);
+}
+
+static void
 timing_test_counting() {
   uint64_t countdown;
 
-  g_timing_test_timer_hits_basic = 0;
+  s_timing_test_timer_hits_basic = 0;
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
@@ -106,7 +145,7 @@ static void
 timing_test_basics() {
   uint64_t countdown;
 
-  g_timing_test_timer_hits_basic = 0;
+  s_timing_test_timer_hits_basic = 0;
   struct timing_struct* p_timing = timing_create(1);
 
   uint32_t t1 = timing_register_timer(p_timing,
@@ -163,7 +202,7 @@ timing_test_basics() {
 
   countdown -= 98;
   countdown = timing_advance_time(p_timing, countdown);
-  test_expect_u32(1, g_timing_test_timer_hits_basic);
+  test_expect_u32(1, s_timing_test_timer_hits_basic);
   test_expect_u32(0, timing_get_timer_value(p_timing, t1));
   test_expect_u32((uint32_t) -50,
                   (uint32_t) timing_get_timer_value(p_timing, t2));
@@ -177,7 +216,7 @@ timing_test_timer_fired_multi(void* p) {
 
   struct timing_struct* p_timing = (struct timing_struct*) p;
 
-  if (g_timing_test_timer_hits_multi == 0) {
+  if (s_timing_test_timer_hits_multi == 0) {
     test_expect_u32(0, timing_get_timer_value(p_timing, 0));
     test_expect_u32(200, timing_get_timer_value(p_timing, 1));
     test_expect_u32(50, timing_get_timer_value(p_timing, 2));
@@ -186,24 +225,24 @@ timing_test_timer_fired_multi(void* p) {
     (void) timing_adjust_timer_value(p_timing, &new_timer_value, 0, 30);
     test_expect_u32(30, new_timer_value);
     (void) timing_start_timer_with_value(p_timing, 1, 20);
-  } else if (g_timing_test_timer_hits_multi == 1) {
+  } else if (s_timing_test_timer_hits_multi == 1) {
     test_expect_u32(10, timing_get_timer_value(p_timing, 0));
     test_expect_u32(0, timing_get_timer_value(p_timing, 1));
     test_expect_u32(30, timing_get_timer_value(p_timing, 2));
     (void) timing_stop_timer(p_timing, 1);
-  } else if (g_timing_test_timer_hits_multi == 2) {
+  } else if (s_timing_test_timer_hits_multi == 2) {
     test_expect_u32(0, timing_get_timer_value(p_timing, 0));
     test_expect_u32(0, timing_get_timer_value(p_timing, 1));
     test_expect_u32(20, timing_get_timer_value(p_timing, 2));
     (void) timing_stop_timer(p_timing, 0);
-  } else if (g_timing_test_timer_hits_multi == 3) {
+  } else if (s_timing_test_timer_hits_multi == 3) {
     test_expect_u32(0, timing_get_timer_value(p_timing, 0));
     test_expect_u32(0, timing_get_timer_value(p_timing, 1));
     test_expect_u32(0, timing_get_timer_value(p_timing, 2));
     (void) timing_set_timer_value(p_timing, 2, 500);
   }
 
-  g_timing_test_timer_hits_multi++;
+  s_timing_test_timer_hits_multi++;
 }
 
 static void
@@ -237,7 +276,7 @@ timing_test_multi_expiry() {
 
   countdown = timing_advance_time(p_timing, countdown);
   test_expect_u32(400, countdown);
-  test_expect_u32(4, g_timing_test_timer_hits_multi);
+  test_expect_u32(4, s_timing_test_timer_hits_multi);
 
   test_expect_u32(200, timing_get_total_timer_ticks(p_timing));
 
@@ -248,7 +287,7 @@ static void
 timing_test_scaling() {
   uint64_t countdown;
 
-  g_timing_test_timer_hits_basic = 0;
+  s_timing_test_timer_hits_basic = 0;
   /* 3 internal ticks per 1 external tick. */
   struct timing_struct* p_timing = timing_create(3);
 
@@ -323,10 +362,35 @@ timing_test_scaling() {
   timing_destroy(p_timing);
 }
 
+static void
+timing_test_simultaneous() {
+  /* Test ordering of simultaneous expiries. FIFO order is expected. */
+  struct timing_struct* p_timing = timing_create(1);
+
+  uint32_t t1 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_order_t1,
+                                      p_timing);
+  uint32_t t2 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_order_t2,
+                                      p_timing);
+  uint32_t t3 = timing_register_timer(p_timing,
+                                      timing_test_timer_fired_order_t3,
+                                      p_timing);
+  (void) timing_start_timer_with_value(p_timing, t1, 50);
+  (void) timing_start_timer_with_value(p_timing, t3, 50);
+  (void) timing_start_timer_with_value(p_timing, t2, 50);
+
+  (void) timing_advance_time_delta(p_timing, 50);
+  test_expect_u32(0, s_timing_test_order_t1);
+  test_expect_u32(1, s_timing_test_order_t3);
+  test_expect_u32(2, s_timing_test_order_t2);
+}
+
 void
 timing_test() {
   timing_test_counting();
   timing_test_basics();
   timing_test_multi_expiry();
   timing_test_scaling();
+  timing_test_simultaneous();
 }

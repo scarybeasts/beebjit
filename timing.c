@@ -143,7 +143,7 @@ timing_insert_expiring_timer(struct timing_struct* p_timing,
   assert(p_timer->ticking);
   assert(p_timer->firing);
 
-  while ((p_iter != NULL) && (p_timer->value > p_iter->value)) {
+  while ((p_iter != NULL) && (p_timer->value >= p_iter->value)) {
     assert((p_prev == NULL) || (p_iter->value >= p_prev->value));
     if (p_iter->p_expiry_next) {
       assert(p_iter->p_expiry_next->p_expiry_prev == p_iter);
