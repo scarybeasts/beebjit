@@ -30,6 +30,9 @@ struct interp_struct {
   uint16_t write_callback_above;
   uint16_t callback_above;
   int debug_subsystem_active;
+
+  uint8_t callback_intf;
+  int callback_do_irq;
 };
 
 static void
@@ -69,6 +72,30 @@ interp_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   return "ITRP";
 }
 
+static inline void
+interp_poll_irq_now(int* p_do_irq,
+                    struct state_6502* p_state_6502,
+                    uint8_t intf) {
+  if (!p_state_6502->irq_fire) {
+    return;
+  }
+
+  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+      !intf) {
+    *p_do_irq = 1;
+  }
+}
+
+static void
+interp_last_tick_callback(void* p) {
+  struct interp_struct* p_interp = (struct interp_struct*) p;
+
+  p_interp->callback_do_irq = 0;
+  interp_poll_irq_now(&p_interp->callback_do_irq,
+                      p_interp->driver.abi.p_state_6502,
+                      p_interp->callback_intf);
+}
+
 static void
 interp_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
@@ -94,6 +121,10 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   if (p_interp->write_callback_above < p_interp->read_callback_above) {
     p_interp->callback_above = p_interp->write_callback_above;
   }
+
+  p_memory_access->memory_client_last_tick_callback = interp_last_tick_callback;
+  p_memory_access->p_last_tick_callback_obj = p_interp;
+
   /* The code assumes that zero page and stack accesses don't incur special
    * handling.
    */
@@ -146,20 +177,6 @@ interp_get_flags(uint8_t zf,
   flags |= (of << k_flag_overflow);
   flags |= (nf << k_flag_negative);
   return flags;
-}
-
-static inline void
-interp_poll_irq_now(int* p_do_irq,
-                    struct state_6502* p_state_6502,
-                    uint8_t intf) {
-  if (!p_state_6502->irq_fire) {
-    return;
-  }
-
-  if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-      !intf) {
-    *p_do_irq = 1;
-  }
 }
 
 static void
@@ -221,8 +238,20 @@ interp_is_branch_opcode(uint8_t opcode) {
   v = memory_read_callback(p_memory_obj, addr_read, 0);                       \
   countdown = timing_get_countdown(p_timing);
 
+#define INTERP_MEMORY_READ_POLL_IRQ(addr_read)                                \
+  p_interp->callback_intf = intf;                                             \
+  v= memory_read_callback(p_memory_obj, addr_read, 1);                        \
+  do_irq = p_interp->callback_do_irq;                                         \
+  countdown = timing_get_countdown(p_timing);
+
 #define INTERP_MEMORY_WRITE(addr_write)                                       \
   memory_write_callback(p_memory_obj, addr_write, v, 0);                      \
+  countdown = timing_get_countdown(p_timing);
+
+#define INTERP_MEMORY_WRITE_POLL_IRQ(addr_write)                              \
+  p_interp->callback_intf = intf;                                             \
+  memory_write_callback(p_memory_obj, addr_write, v, 1);                      \
+  do_irq = p_interp->callback_do_irq;                                         \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
@@ -271,9 +300,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
-    INTERP_MEMORY_WRITE(addr);                                                \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                       \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -294,9 +321,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(3);                                               \
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
-      INTERP_MEMORY_READ(addr - 0x100);                                       \
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
+      INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                              \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
@@ -320,9 +345,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(3);                                                 \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
-    INTERP_MEMORY_READ(addr_temp);                                            \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -346,9 +369,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
-    INTERP_MEMORY_WRITE(addr);                                                \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                       \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -411,9 +432,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(4);                                               \
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
-      INTERP_MEMORY_READ(addr - 0x100);                                       \
-      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
+      INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                              \
       INTERP_TIMING_ADVANCE(1);                                               \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
@@ -439,9 +458,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   } else {                                                                    \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
-    INTERP_MEMORY_READ(addr_temp);                                            \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
@@ -449,7 +466,6 @@ interp_is_branch_opcode(uint8_t opcode) {
     goto check_irq;                                                           \
   }
 
-/* TODO: check, especially IRQ poll point -- should there be two? */
 #define INTERP_MODE_IDY_READ_WRITE(INSTR)                                     \
   addr_temp = p_mem_read[pc + 1];                                             \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
@@ -468,8 +484,7 @@ interp_is_branch_opcode(uint8_t opcode) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_TIMING_ADVANCE(1);                                                 \
-    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
-    INTERP_MEMORY_WRITE(addr);                                                \
+    INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                       \
     INTERP_TIMING_ADVANCE(1);                                                 \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
