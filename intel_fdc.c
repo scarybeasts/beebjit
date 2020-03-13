@@ -9,9 +9,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   /* Read. */
@@ -286,11 +283,7 @@ struct intel_fdc_struct*
 intel_fdc_create(struct state_6502* p_state_6502,
                  struct bbc_options* p_options) {
   struct intel_fdc_struct* p_fdc =
-      malloc(sizeof(struct intel_fdc_struct));
-  if (p_fdc == NULL) {
-    errx(1, "couldn't allocate intel_fdc_struct");
-  }
-  (void) memset(p_fdc, '\0', sizeof(struct intel_fdc_struct));
+      util_mallocz(sizeof(struct intel_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
 
@@ -315,7 +308,7 @@ intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
 void
 intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   /* TODO: stop discs if spinning? */
-  free(p_fdc);
+  util_free(p_fdc);
 }
 
 static void
@@ -330,7 +323,7 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
   p_fdc->result = result;
 
   if (firing && (level == 1)) {
-    printf("WARNING: edge triggered NMI already high\n");
+    log_do_log(k_log_disc, k_log_error, "edge triggered NMI already high");
   }
 
   state_6502_set_irq_level(p_fdc->p_state_6502,

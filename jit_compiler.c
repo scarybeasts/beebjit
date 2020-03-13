@@ -13,8 +13,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct jit_compiler {
@@ -181,11 +179,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
 
-  struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
-  if (p_compiler == NULL) {
-    errx(1, "cannot alloc jit_compiler");
-  }
-  (void) memset(p_compiler, '\0', sizeof(struct jit_compiler));
+  struct jit_compiler* p_compiler = util_mallocz(sizeof(struct jit_compiler));
 
   p_compiler->p_memory_access = p_memory_access;
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
@@ -281,7 +275,7 @@ void
 jit_compiler_destroy(struct jit_compiler* p_compiler) {
   util_buffer_destroy(p_compiler->p_single_opcode_buf);
   util_buffer_destroy(p_compiler->p_tmp_buf);
-  free(p_compiler);
+  util_free(p_compiler);
 }
 
 static void

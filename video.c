@@ -9,10 +9,7 @@
 #include "via.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 /* A real BBC in a non-interlaced bitmapped mode has a CRTC period of 19968us,
  * just short of 20ms.
@@ -990,12 +987,7 @@ video_create(uint8_t* p_bbc_mem,
              void* p_framebuffer_ready_object,
              int* p_fast_flag,
              struct bbc_options* p_options) {
-  struct video_struct* p_video = malloc(sizeof(struct video_struct));
-  if (p_video == NULL) {
-    errx(1, "cannot allocate video_struct");
-  }
-
-  (void) memset(p_video, '\0', sizeof(struct video_struct));
+  struct video_struct* p_video = util_mallocz(sizeof(struct video_struct));
 
   p_video->p_bbc_mem = p_bbc_mem;
   p_video->externally_clocked = externally_clocked;
@@ -1107,7 +1099,7 @@ video_create(uint8_t* p_bbc_mem,
 
 void
 video_destroy(struct video_struct* p_video) {
-  free(p_video);
+  util_free(p_video);
 }
 
 void

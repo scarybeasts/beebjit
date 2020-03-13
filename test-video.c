@@ -36,7 +36,7 @@ video_test_init() {
   g_p_options.p_opt_flags = "";
   g_p_options.p_log_flags = "";
   g_p_options.accurate = 1;
-  g_p_bbc_mem = malloc(0x10000);
+  g_p_bbc_mem = util_mallocz(0x10000);
   g_p_timing = timing_create(1);
   g_p_teletext = teletext_create();
   g_p_render = render_create(g_p_teletext, &g_p_options);
@@ -59,7 +59,7 @@ video_test_end() {
   render_destroy(g_p_render);
   teletext_destroy(g_p_teletext);
   timing_destroy(g_p_timing);
-  free(g_p_bbc_mem);
+  util_free(g_p_bbc_mem);
   g_p_video = NULL;
   g_p_render = NULL;
   g_p_timing = NULL;

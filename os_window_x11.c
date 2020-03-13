@@ -17,8 +17,6 @@
 #include <assert.h>
 #include <err.h>
 #include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -96,11 +94,7 @@ os_window_create(uint32_t width, uint32_t height) {
   size_t map_size;
   struct rm_window_shmid_error_handler_context_struct error_handler_context;
 
-  p_window = malloc(sizeof(struct os_window_struct));
-  if (p_window == NULL) {
-    errx(1, "couldn't allocate os_window_struct");
-  }
-  (void) memset(p_window, '\0', sizeof(struct os_window_struct));
+  p_window = util_mallocz(sizeof(struct os_window_struct));
 
   p_window->p_keyboard = NULL;
   p_window->width = width;
@@ -275,7 +269,7 @@ os_window_destroy(struct os_window_struct* p_window) {
     errx(1, "XCloseDisplay failed");
   }
 
-  free(p_window);
+  util_free(p_window);
 }
 
 void

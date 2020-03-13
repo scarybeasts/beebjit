@@ -6,7 +6,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct render_struct {
@@ -79,13 +78,7 @@ render_create(struct teletext_struct* p_teletext,
   uint32_t k_horiz_standard_offset = 15;
   uint32_t k_vert_standard_offset = 4;
 
-  struct render_struct* p_render = malloc(sizeof(struct render_struct));
-  if (p_render == NULL) {
-    errx(1, "cannot allocate render_struct");
-  }
-
-  /* Also sets the palette to black. */
-  (void) memset(p_render, '\0', sizeof(struct render_struct));
+  struct render_struct* p_render = util_mallocz(sizeof(struct render_struct));
 
   p_render->p_teletext = p_teletext;
 
@@ -158,7 +151,7 @@ render_create(struct teletext_struct* p_teletext,
 
 void
 render_destroy(struct render_struct* p_render) {
-  free(p_render);
+  util_free(p_render);
 }
 
 uint32_t

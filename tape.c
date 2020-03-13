@@ -7,7 +7,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdlib.h>
 #include <string.h>
 
 enum {
@@ -78,12 +77,7 @@ struct tape_struct*
 tape_create(struct timing_struct* p_timing,
             struct serial_struct* p_serial,
             struct bbc_options* p_options) {
-  struct tape_struct* p_tape = malloc(sizeof(struct tape_struct));
-  if (p_tape == NULL) {
-    errx(1, "cannot allocate tape_struct");
-  }
-
-  (void) memset(p_tape, '\0', sizeof(struct tape_struct));
+  struct tape_struct* p_tape = util_mallocz(sizeof(struct tape_struct));
 
   p_tape->p_timing = p_timing;
   p_tape->p_serial = p_serial;
@@ -104,9 +98,9 @@ void
 tape_destroy(struct tape_struct* p_tape) {
   assert(!tape_is_playing(p_tape));
   if (p_tape->p_tape_buffer != NULL) {
-    free(p_tape->p_tape_buffer);
+    util_free(p_tape->p_tape_buffer);
   }
-  free(p_tape);
+  util_free(p_tape);
 }
 
 static uint16_t
@@ -331,10 +325,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
 
   num_tape_values = (k_max_uef_size - buffer_remaining);
   tape_buffer_size = (num_tape_values * sizeof(int32_t));
-  p_tape->p_tape_buffer = malloc(tape_buffer_size);
-  if (p_tape->p_tape_buffer == NULL) {
-    errx(1, "couldn't allocate tape buffer");
-  }
+  p_tape->p_tape_buffer = util_mallocz(tape_buffer_size);
 
   (void) memcpy(p_tape->p_tape_buffer, out_buf, tape_buffer_size);
   p_tape->num_tape_values = num_tape_values;

@@ -1,9 +1,9 @@
 #include "timing.h"
 
+#include "util.h"
+
 #include <assert.h>
 #include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_timing_num_timers = 16,
@@ -35,12 +35,7 @@ struct timing_struct {
 
 struct timing_struct*
 timing_create(uint32_t scale_factor) {
-  struct timing_struct* p_timing = malloc(sizeof(struct timing_struct));
-  if (p_timing == NULL) {
-    errx(1, "couldn't allocate timing_struct");
-  }
-
-  (void) memset(p_timing, '\0', sizeof(struct timing_struct));
+  struct timing_struct* p_timing = util_mallocz(sizeof(struct timing_struct));
 
   p_timing->scale_factor = scale_factor;
   p_timing->total_timer_ticks = 0;
@@ -55,7 +50,7 @@ timing_create(uint32_t scale_factor) {
 
 void
 timing_destroy(struct timing_struct* p_timing) {
-  free(p_timing);
+  util_free(p_timing);
 }
 
 static inline uint64_t

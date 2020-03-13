@@ -2,20 +2,13 @@
 
 #include "defs_6502.h"
 #include "timing.h"
+#include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 struct state_6502*
 state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
-  struct state_6502* p_state_6502 = malloc(sizeof(struct state_6502));
-  if (p_state_6502 == NULL) {
-    errx(1, "couldn't allocate state_6502");
-  }
-
-  (void) memset(p_state_6502, '\0', sizeof(struct state_6502));
+  struct state_6502* p_state_6502 = util_mallocz(sizeof(struct state_6502));
 
   p_state_6502->reset_pending = 0;
   p_state_6502->p_mem_read = p_mem_read;
@@ -27,7 +20,7 @@ state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
 
 void
 state_6502_destroy(struct state_6502* p_state_6502) {
-  free(p_state_6502);
+  util_free(p_state_6502);
 }
 
 void

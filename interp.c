@@ -7,13 +7,10 @@
 #include "memory_access.h"
 #include "state_6502.h"
 #include "timing.h"
+#include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_interp_special_debug = 1,
@@ -37,7 +34,7 @@ struct interp_struct {
 
 static void
 interp_destroy(struct cpu_driver* p_cpu_driver) {
-  free(p_cpu_driver);
+  util_free(p_cpu_driver);
 }
 
 static int
@@ -111,11 +108,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
 struct cpu_driver*
 interp_create(struct cpu_driver_funcs* p_funcs) {
-  struct interp_struct* p_interp = malloc(sizeof(struct interp_struct));
-  if (p_interp == NULL) {
-    errx(1, "couldn't allocate interp_struct");
-  }
-  (void) memset(p_interp, '\0', sizeof(struct interp_struct));
+  struct interp_struct* p_interp = util_mallocz(sizeof(struct interp_struct));
 
   p_funcs->init = interp_init;
 

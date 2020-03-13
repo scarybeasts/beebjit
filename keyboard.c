@@ -1,5 +1,6 @@
 #include "keyboard.h"
 
+#include "log.h"
 #include "os_thread.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -8,8 +9,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 static const char* k_capture_header = "beebjit-capture";
@@ -558,12 +557,8 @@ struct keyboard_struct*
 keyboard_create(struct timing_struct* p_timing,
                 struct via_struct* p_system_via,
                 struct state_6502* p_state_6502) {
-  struct keyboard_struct* p_keyboard = malloc(sizeof(struct keyboard_struct));
-  if (p_keyboard == NULL) {
-    errx(1, "cannot allocate keyboard_struct");
-  }
-
-  (void) memset(p_keyboard, '\0', sizeof(struct keyboard_struct));
+  struct keyboard_struct* p_keyboard =
+      util_mallocz(sizeof(struct keyboard_struct));
 
   p_keyboard->p_timing = p_timing;
   p_keyboard->p_system_via = p_system_via;
@@ -591,7 +586,7 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
     util_file_handle_close(p_keyboard->replay_handle);
   }
   os_lock_destroy(p_keyboard->p_lock);
-  free(p_keyboard);
+  util_free(p_keyboard);
 }
 
 void
@@ -704,7 +699,7 @@ keyboard_put_key_in_queue(struct keyboard_struct* p_keyboard,
   os_lock_lock(p_keyboard->p_lock);
 
   if (p_keyboard->queue_pos == k_keyboard_queue_size) {
-    printf("keyboard queue full");
+    log_do_log(k_log_keyboard, k_log_error, "keyboard queue full");
     os_lock_unlock(p_keyboard->p_lock);
     return;
   }

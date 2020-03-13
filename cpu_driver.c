@@ -3,12 +3,11 @@
 #include "interp.h"
 #include "inturbo.h"
 #include "jit.h"
+#include "util.h"
 
 #include <assert.h>
 #include <err.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 
 static void
 cpu_driver_memory_range_invalidate_dummy(struct cpu_driver* p_cpu_driver,
@@ -44,13 +43,8 @@ cpu_driver_alloc(int mode,
                  struct timing_struct* p_timing,
                  struct bbc_options* p_options) {
   struct cpu_driver* p_cpu_driver = NULL;
-  struct cpu_driver_funcs* p_funcs = malloc(sizeof(struct cpu_driver_funcs));
-
-  if (p_funcs == NULL) {
-    errx(1, "couldn't allocate cpu_driver_funcs");
-  }
-
-  (void) memset(p_funcs, '\0', sizeof(struct cpu_driver_funcs));
+  struct cpu_driver_funcs* p_funcs =
+      util_mallocz(sizeof(struct cpu_driver_funcs));
 
   switch (mode) {
   case k_cpu_mode_interp:

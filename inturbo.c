@@ -17,8 +17,6 @@
 #include <err.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 static const size_t k_inturbo_bytes_per_opcode = 256;
 static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
@@ -599,7 +597,7 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
 
   util_free_guarded_mapping(p_inturbo->p_inturbo_base,
                             (256 * k_inturbo_bytes_per_opcode));
-  free(p_inturbo);
+  util_free(p_inturbo);
 }
 
 static int
@@ -717,11 +715,8 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
 struct cpu_driver*
 inturbo_create(struct cpu_driver_funcs* p_funcs) {
-  struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
-  if (p_inturbo == NULL) {
-    errx(1, "couldn't allocate inturbo_struct");
-  }
-  (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+  struct inturbo_struct* p_inturbo =
+      util_mallocz(sizeof(struct inturbo_struct));
 
   p_funcs->init = inturbo_init;
 

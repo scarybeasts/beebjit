@@ -12,8 +12,6 @@
 #include <assert.h>
 #include <err.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   /* This is 300RPM == 0.2s == 200000us per revolution, 3125 bytes per track,
@@ -144,12 +142,7 @@ disc_create(struct timing_struct* p_timing,
             void (*p_byte_callback)(void* p, uint8_t data, uint8_t clock),
             void* p_byte_callback_object,
             struct bbc_options* p_options) {
-  struct disc_struct* p_disc = malloc(sizeof(struct disc_struct));
-  if (p_disc == NULL) {
-    errx(1, "cannot allocate disc_struct");
-  }
-
-  (void) memset(p_disc, '\0', sizeof(struct disc_struct));
+  struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
 
   p_disc->p_timing = p_timing;
   p_disc->p_byte_callback = p_byte_callback;
@@ -176,7 +169,7 @@ disc_destroy(struct disc_struct* p_disc) {
   if (p_disc->file_handle != k_util_file_no_handle) {
     util_file_handle_close(p_disc->file_handle);
   }
-  free(p_disc);
+  util_free(p_disc);
 }
 
 void

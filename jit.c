@@ -776,7 +776,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   if (ret != 0) {
     errx(1, "sigaction failed");
   }
-  if ((sa_prev.sa_sigaction != NULL) && (sa_prev.sa_sigaction != jit_handle_sigsegv)) {
+  if ((sa_prev.sa_sigaction != NULL) &&
+      (sa_prev.sa_sigaction != jit_handle_sigsegv)) {
     errx(1, "conflicting SIGSEGV handler");
   }
 }

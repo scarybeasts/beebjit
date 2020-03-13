@@ -5,11 +5,9 @@
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
+#include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_via_ORB =   0x0,
@@ -295,12 +293,7 @@ via_create(int id,
   uint32_t t1_timer_id;
   uint32_t t2_timer_id;
 
-  struct via_struct* p_via = malloc(sizeof(struct via_struct));
-
-  if (p_via == NULL) {
-    errx(1, "cannot allocate via_struct");
-  }
-  (void) memset(p_via, '\0', sizeof(struct via_struct));
+  struct via_struct* p_via = util_mallocz(sizeof(struct via_struct));
 
   p_via->id = id;
   p_via->externally_clocked = externally_clocked;
@@ -363,7 +356,7 @@ via_create(int id,
 
 void
 via_destroy(struct via_struct* p_via) {
-  free(p_via);
+  util_free(p_via);
 }
 
 void

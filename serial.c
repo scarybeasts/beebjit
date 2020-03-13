@@ -7,9 +7,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_serial_acia_status_RDRF = 0x01,
@@ -180,12 +177,7 @@ serial_create(struct state_6502* p_state_6502,
               int* p_fast_flag,
               int fasttape_flag,
               struct bbc_options* p_options) {
-  struct serial_struct* p_serial = malloc(sizeof(struct serial_struct));
-  if (p_serial == NULL) {
-    errx(1, "cannot allocate serial_struct");
-  }
-
-  (void) memset(p_serial, '\0', sizeof(struct serial_struct));
+  struct serial_struct* p_serial = util_mallocz(sizeof(struct serial_struct));
 
   p_serial->p_state_6502 = p_state_6502;
   p_serial->p_fast_flag = p_fast_flag;
@@ -211,7 +203,7 @@ serial_create(struct state_6502* p_state_6502,
 
 void
 serial_destroy(struct serial_struct* p_serial) {
-  free(p_serial);
+  util_free(p_serial);
 }
 
 void

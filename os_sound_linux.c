@@ -1,10 +1,5 @@
 #include "os_sound.h"
 
-#include <err.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
@@ -24,12 +19,8 @@ struct os_sound_struct*
 os_sound_create(char* p_device_name,
                 uint32_t sample_rate,
                 uint32_t buffer_size) {
-  struct os_sound_struct* p_driver = malloc(sizeof(struct os_sound_struct));
-  if (p_driver == NULL) {
-    errx(1, "couldn't allocate os_sound_struct");
-  }
-
-  (void) memset(p_driver, '\0', sizeof(struct os_sound_struct));
+  struct os_sound_struct* p_driver =
+      util_mallocz(sizeof(struct os_sound_struct));
 
   if (p_device_name == NULL) {
     p_driver->p_device_name = strdup(k_os_sound_default_device);
@@ -68,7 +59,7 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
 
   free(p_driver->p_device_name);
 
-  free(p_driver);
+  util_free(p_driver);
 }
 
 int

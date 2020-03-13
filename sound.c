@@ -9,8 +9,6 @@
 #include <assert.h>
 #include <err.h>
 #include <math.h>
-#include <stdlib.h>
-#include <string.h>
 
 static const uint32_t k_sound_clock_rate = 250000;
 /* BBC master clock 2MHz, 8x divider for 250kHz sn76489 chip. */
@@ -262,12 +260,7 @@ sound_create(int synchronous,
   int16_t volume_max;
   int positive_silence;
 
-  struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
-  if (p_sound == NULL) {
-    errx(1, "couldn't allocate sound_struct");
-  }
-
-  (void) memset(p_sound, '\0', sizeof(struct sound_struct));
+  struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
 
   p_sound->p_timing = p_timing;
   p_sound->synchronous = synchronous;
@@ -369,12 +362,12 @@ sound_destroy(struct sound_struct* p_sound) {
     (void) os_thread_destroy(p_sound->p_thread_sound);
   }
   if (p_sound->p_driver_frames) {
-    free(p_sound->p_driver_frames);
+    util_free(p_sound->p_driver_frames);
   }
   if (p_sound->p_sn_frames) {
-    free(p_sound->p_sn_frames);
+    util_free(p_sound->p_sn_frames);
   }
-  free(p_sound);
+  util_free(p_sound);
 }
 
 void
@@ -403,21 +396,9 @@ sound_set_driver(struct sound_struct* p_sound,
   p_sound->sn_frames_per_driver_buffer_size =
       floor(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
 
-  p_sound->p_driver_frames = malloc(driver_buffer_size * sizeof(int16_t));
-  if (p_sound->p_driver_frames == NULL) {
-    errx(1, "couldn't allocate p_driver_frames");
-  }
-  (void) memset(p_sound->p_driver_frames,
-                '\0',
-                (driver_buffer_size * sizeof(int16_t)));
-  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_driver_buffer_size *
-                                sizeof(int16_t));
-  if (p_sound->p_sn_frames == NULL) {
-    errx(1, "couldn't allocate p_sn_frames");
-  }
-  (void) memset(p_sound->p_sn_frames,
-                '\0',
-                (p_sound->sn_frames_per_driver_buffer_size * sizeof(int16_t)));
+  p_sound->p_driver_frames = util_mallocz(driver_buffer_size * sizeof(int16_t));
+  p_sound->p_sn_frames = util_mallocz(
+      p_sound->sn_frames_per_driver_buffer_size * sizeof(int16_t));
 }
 
 void
