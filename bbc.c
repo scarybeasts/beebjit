@@ -116,7 +116,8 @@ struct bbc_struct {
   struct debug_struct* p_debug;
 
   /* Timing support. */
-  uint32_t timer_id;
+  uint32_t timer_id_cycles;
+  uint32_t timer_id_tick;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
@@ -227,8 +228,45 @@ bbc_is_1MHz_address(uint16_t addr) {
   return 1;
 }
 
+static void
+bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
+                                int* p_is_1MHz,
+                                uint16_t addr,
+                                int do_last_tick_callback) {
+  int is_unaligned = 0;
+  int is_1MHz = bbc_is_1MHz_address(addr);
+
+  *p_is_1MHz = is_1MHz;
+
+  if (is_1MHz) {
+    is_unaligned = (state_6502_get_cycles(p_bbc->p_state_6502) & 1);
+  }
+
+  if (do_last_tick_callback) {
+    /* If it's not a 1MHz, this is the last tick. */
+    if (!is_1MHz) {
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    } else {
+      /* It is 1MHz. Last tick will be in 1 or two ticks depending on
+       * alignment.
+       */
+      (void) timing_start_timer_with_value(p_bbc->p_timing,
+                                           p_bbc->timer_id_tick,
+                                           (1 + is_unaligned));
+    }
+  }
+
+  if (is_unaligned) {
+    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
+     * the 1Mhz train.
+     */
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+  }
+}
+
 uint8_t
-bbc_read_callback(void* p, uint16_t addr) {
+bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   int is_1MHz;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
@@ -236,16 +274,7 @@ bbc_read_callback(void* p, uint16_t addr) {
 
   p_bbc->num_hw_reg_hits++;
 
-  is_1MHz = bbc_is_1MHz_address(addr);
-
-  if (is_1MHz) {
-    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
-     * the 1Mhz train.
-     */
-    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  bbc_do_read_write_tick_handling(p_bbc, &is_1MHz, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -500,23 +529,17 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 }
 
 void
-bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
+bbc_write_callback(void* p,
+                   uint16_t addr,
+                   uint8_t val,
+                   int do_last_tick_callback) {
   int is_1MHz;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   p_bbc->num_hw_reg_hits++;
 
-  is_1MHz = bbc_is_1MHz_address(addr);
-
-  if (is_1MHz) {
-    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
-     * the 1Mhz train.
-     */
-    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  bbc_do_read_write_tick_handling(p_bbc, &is_1MHz, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -708,6 +731,16 @@ bbc_framebuffer_ready_callback(void* p,
   }
 }
 
+static void
+bbc_tick_timer_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_tick);
+
+  p_bbc->memory_access.memory_client_last_tick_callback(
+      p_bbc->memory_access.p_last_tick_callback_obj);
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            uint8_t* p_os_rom,
@@ -882,6 +915,9 @@ bbc_create(int mode,
     errx(1, "timing_create failed");
   }
   p_bbc->p_timing = p_timing;
+  p_bbc->timer_id_tick = timing_register_timer(p_timing,
+                                               bbc_tick_timer_callback,
+                                               p_bbc);
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
@@ -1425,7 +1461,7 @@ bbc_cycles_timer_callback(void* p) {
 
   (void) timing_adjust_timer_value(p_timing,
                                    &refreshed_time,
-                                   p_bbc->timer_id,
+                                   p_bbc->timer_id_cycles,
                                    cycles_next_run);
 
   assert(refreshed_time > 0);
@@ -1458,9 +1494,9 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 
   struct timing_struct* p_timing = p_bbc->p_timing;
 
-  p_bbc->timer_id = timing_register_timer(p_timing,
-                                          bbc_cycles_timer_callback,
-                                          p_bbc);
+  p_bbc->timer_id_cycles = timing_register_timer(p_timing,
+                                                 bbc_cycles_timer_callback,
+                                                 p_bbc);
 
   /* Normal mode is when the system is running at real time, aka. "slow" mode.
    * Fast mode is when the system is running the CPU as fast as possible.
@@ -1493,7 +1529,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
     p_bbc->cycles_per_run_fast = option_cycles_per_run;
   }
 
-  (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id, 1);
+  (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id_cycles, 1);
 
   p_bbc->last_time_us = util_gettime_us();
 }

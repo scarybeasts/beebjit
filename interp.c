@@ -225,11 +225,11 @@ interp_is_branch_opcode(uint8_t opcode) {
   countdown = timing_advance_time(p_timing, countdown);                       \
 
 #define INTERP_MEMORY_READ(addr_read)                                         \
-  v = memory_read_callback(p_memory_obj, addr_read);                          \
+  v = memory_read_callback(p_memory_obj, addr_read, 0);                       \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MEMORY_WRITE(addr_write)                                       \
-  memory_write_callback(p_memory_obj, addr_write, v);                         \
+  memory_write_callback(p_memory_obj, addr_write, v, 0);                      \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
@@ -706,9 +706,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
   struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
-  uint8_t (*memory_read_callback)(void*, uint16_t) =
+  uint8_t (*memory_read_callback)(void*, uint16_t, int) =
       p_memory_access->memory_read_callback;
-  void (*memory_write_callback)(void*, uint16_t, uint8_t) =
+  void (*memory_write_callback)(void*, uint16_t, uint8_t, int) =
       p_memory_access->memory_write_callback;
   void* p_memory_obj = p_memory_access->p_callback_obj;
   uint8_t* p_mem_read = p_interp->p_mem_read;
