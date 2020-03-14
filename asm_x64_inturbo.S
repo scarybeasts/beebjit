@@ -197,6 +197,9 @@ asm_x64_inturbo_call_interp:
   # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
   # overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
+
+  # Double push, including a dummy push, to keep stack correctly aligned.
+  push REG_CONTEXT
   push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
@@ -204,6 +207,7 @@ asm_x64_inturbo_call_interp:
   mov REG_PARAM2, REG_COUNTDOWN
 
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  pop REG_CONTEXT
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
