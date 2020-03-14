@@ -580,7 +580,6 @@ video_get_flash(struct video_struct* p_video) {
 
 static int
 video_is_at_vsync_start(struct video_struct* p_video) {
-  assert(p_video->has_sane_framing_parameters);
   if (p_video->vert_counter !=
       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
     return 0;
@@ -610,7 +609,6 @@ video_is_at_vsync_start(struct video_struct* p_video) {
 
 static int
 video_is_at_vsync_end(struct video_struct* p_video) {
-  assert(p_video->has_sane_framing_parameters);
   if (p_video->vert_counter !=
       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
     return 0;

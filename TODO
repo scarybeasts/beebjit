@@ -10,8 +10,6 @@ get addressed before the next release.
 can even block at that resolution.
 - BCD support in JIT?
 - Big problems with block splitting.
-- Assert in debug mode with Uridium + Alt-F.
-- raster-c.ssd doesn't work.
 
 
 Fix later
