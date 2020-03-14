@@ -25,7 +25,6 @@ struct jit_compiler {
   uint32_t* p_jit_ptrs;
   int debug;
   int log_revalidate;
-  uint16_t needs_callback_above;
 
   int option_accurate_timings;
   int option_no_optimize;
@@ -167,12 +166,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
                     int debug) {
-  size_t i;
+  uint32_t i;
   struct util_buffer* p_tmp_buf;
-  uint16_t needs_callback_above;
-  uint16_t temp_u16;
 
-  void* p_memory_object = p_memory_access->p_callback_obj;
   uint32_t max_6502_opcodes_per_block = 65536;
   uint32_t max_revalidate_count = 4;
 
@@ -214,15 +210,6 @@ jit_compiler_create(struct memory_access* p_memory_access,
     max_revalidate_count = 1;
   }
   p_compiler->max_revalidate_count = max_revalidate_count;
-
-  needs_callback_above = p_memory_access->memory_read_needs_callback_above(
-      p_memory_object);
-  temp_u16 = p_memory_access->memory_write_needs_callback_above(
-      p_memory_object);
-  if (temp_u16 < needs_callback_above) {
-    needs_callback_above = temp_u16;
-  }
-  p_compiler->needs_callback_above = needs_callback_above;
 
   p_compiler->compile_for_code_in_zero_page = 0;
 
