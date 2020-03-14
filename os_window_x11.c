@@ -30,25 +30,20 @@ struct os_window_struct {
   Display* d;
   Window w;
   GC gc;
+  int use_mit_shm;
   int shmid;
   void* p_shm_map_start;
-  void* p_shm_map_data_start;
+  void* p_image_data;
   XImage* p_image;
   XShmSegmentInfo shm_info;
   uint8_t* p_key_map;
 };
 
-/* For use by rm_window_shmid_error_handler, due to inconvenient X11 API. */
-struct rm_window_shmid_error_handler_context_struct {
-  struct os_window_struct* p_window;
-  XErrorHandler old_error_handler;
-};
-
-static struct rm_window_shmid_error_handler_context_struct*
-    s_p_rm_window_shmid_error_handler_context;
+static XErrorEvent s_last_error_event;
+static int s_got_last_error_event;
 
 static void
-rm_shmid(struct os_window_struct *p_window) {
+rm_shmid(struct os_window_struct* p_window) {
   int ret;
 
   assert(p_window->shmid != -1);
@@ -61,25 +56,46 @@ rm_shmid(struct os_window_struct *p_window) {
   p_window->shmid = -1;
 }
 
-static int
-rm_window_shmid_error_handler(Display* display, XErrorEvent* event) {
+static void
+dt_shm(struct os_window_struct* p_window) {
   int ret;
-  struct os_window_struct* p_window =
-      s_p_rm_window_shmid_error_handler_context->p_window;
+  
+  assert(p_window->p_shm_map_start != NULL);
 
-  (void) display;
-  (void) event;
-
-  /* The XSync man page suggests the possibility of multiple calls to the error
-   * handler so only delete the shared memory once.
-   */
-  if (p_window->shmid != -1) {
-    rm_shmid(p_window);
+  ret = shmdt(p_window->p_shm_map_start);
+  if (ret != 0) {
+    errx(1, "shmdt failed");
   }
 
-  ret = (s_p_rm_window_shmid_error_handler_context->old_error_handler)(display,
-                                                                       event);
-  return ret;
+  p_window->p_shm_map_start = NULL;
+  p_window->p_image_data = NULL;
+}
+
+static void
+destroy_image(struct os_window_struct* p_window) {
+  int ret;
+
+  assert(p_window->p_image != NULL);
+  
+  ret = XDestroyImage(p_window->p_image);
+  if (ret != 1) {
+    errx(1, "XDestroyImage failed");
+  }
+}  
+
+static int
+store_error_event_error_handler(Display* display, XErrorEvent* event) {
+  (void) display;
+
+  /* The XSync man page suggests the possibility of multiple calls to the error
+   * handler.
+   */
+  if (!s_got_last_error_event) {
+    s_got_last_error_event = 1;
+    s_last_error_event = *event;
+  }
+
+  return 1;
 }
 
 struct os_window_struct*
@@ -94,7 +110,7 @@ os_window_create(uint32_t width, uint32_t height) {
   Visual* p_visual;
   int depth;
   size_t map_size;
-  struct rm_window_shmid_error_handler_context_struct error_handler_context;
+  XErrorHandler old_error_handler;
 
   p_window = malloc(sizeof(struct os_window_struct));
   if (p_window == NULL) {
@@ -102,6 +118,8 @@ os_window_create(uint32_t width, uint32_t height) {
   }
   (void) memset(p_window, '\0', sizeof(struct os_window_struct));
 
+  p_window->use_mit_shm = 1;
+  
   p_window->p_keyboard = NULL;
   p_window->width = width;
   p_window->height = height;
@@ -152,7 +170,7 @@ os_window_create(uint32_t width, uint32_t height) {
 
   util_make_mapping_none(p_window->p_shm_map_start, 4096);
   util_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
-  p_window->p_shm_map_data_start = (p_window->p_shm_map_start + 4096);
+  p_window->p_image_data = (p_window->p_shm_map_start + 4096);
 
   p_window->p_image = XShmCreateImage(p_window->d,
                                       p_visual,
@@ -171,7 +189,7 @@ os_window_create(uint32_t width, uint32_t height) {
   p_window->shm_info.shmaddr = p_window->p_shm_map_start;
   p_window->shm_info.readOnly = False;
 
-  p_window->p_image->data = p_window->p_shm_map_data_start;
+  p_window->p_image->data = p_window->p_image_data;
 
   bool_ret = XShmAttach(p_window->d, &p_window->shm_info);
   if (bool_ret != True) {
@@ -180,19 +198,59 @@ os_window_create(uint32_t width, uint32_t height) {
   }
 
   /* Don't let the shared memory leak if there's an error during XSync. */
-  error_handler_context.p_window = p_window;
-  error_handler_context.old_error_handler =
-      XSetErrorHandler(rm_window_shmid_error_handler);
-  s_p_rm_window_shmid_error_handler_context = &error_handler_context;
-
+  s_got_last_error_event = 0;
+  old_error_handler = XSetErrorHandler(store_error_event_error_handler);
+  
   /* Check ret later, only after deleting the shared memory. */
   ret = XSync(p_window->d, False);
-  (void) XSetErrorHandler(error_handler_context.old_error_handler);
-  s_p_rm_window_shmid_error_handler_context = NULL;
+  (void) XSetErrorHandler(old_error_handler);
 
   rm_shmid(p_window);
+  
   if (ret != 1) {
     errx(1, "XSync failed");
+  }
+
+  /* An X error doesn't count as an XSync failure. If it looks like XShmAttach
+  failed, disable MIT-SHM and carry on; otherwise, call the old error handler.
+  (The old error handler will probably exit the program, but do an errx anyway,
+  just in case.)
+  *
+  * Note: request code 132 = MIT-SHM, minor code 1 = X_ShmAttach
+  */
+  if (s_got_last_error_event &&
+      s_last_error_event.error_code == BadAccess &&
+      s_last_error_event.request_code == 132 &&
+      s_last_error_event.minor_code == 1) {
+    size_t image_data_size_bytes = width * height * 4;
+
+    fprintf(stderr,"XShmAttach failure - not using MIT-SHM\n");
+
+    dt_shm(p_window);
+
+    destroy_image(p_window);
+
+    p_window->use_mit_shm = 0;
+
+    p_window->p_image_data = malloc(image_data_size_bytes);
+    memset(p_window->p_image_data, 0, image_data_size_bytes);
+
+    p_window->p_image = XCreateImage(p_window->d,
+                                     p_visual,
+                                     24,
+                                     ZPixmap,
+                                     0,
+                                     p_window->p_image_data,
+                                     width,
+                                     height,
+                                     32,
+                                     width * 4);
+    if (p_window->p_image == NULL) {
+      errx(1, "XCreateImage failed");
+    }
+  } else {
+    (*old_error_handler)(p_window->d, &s_last_error_event);
+    errx(1, "X error encountered");
   }
 
   p_window->w = XCreateSimpleWindow(p_window->d,
@@ -257,17 +315,18 @@ os_window_destroy(struct os_window_struct* p_window) {
   if (ret != 1) {
     errx(1, "XDestroyWindow failed");
   }
-  bool_ret = XShmDetach(p_window->d, &p_window->shm_info);
-  if (bool_ret != True) {
-    errx(1, "XShmDetach failed");
+
+  if (p_window->use_mit_shm) {
+    bool_ret = XShmDetach(p_window->d, &p_window->shm_info);
+    if (bool_ret != True) {
+      errx(1, "XShmDetach failed");
+    }
   }
-  ret = XDestroyImage(p_window->p_image);
-  if (ret != 1) {
-    errx(1, "XDestroyImage failed");
-  }
-  ret = shmdt(p_window->p_shm_map_start);
-  if (ret != 0) {
-    errx(1, "shmdt failed");
+  
+  destroy_image(p_window);
+
+  if (p_window->use_mit_shm) {
+    dt_shm(p_window);
   }
 
   ret = XCloseDisplay(p_window->d);
@@ -294,7 +353,7 @@ os_window_set_keyboard_callback(struct os_window_struct* p_window,
 
 uint32_t*
 os_window_get_buffer(struct os_window_struct* p_window) {
-  return (uint32_t*) p_window->p_shm_map_data_start;
+  return (uint32_t*) p_window->p_image_data;
 }
 
 uintptr_t
@@ -309,29 +368,42 @@ void
 os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
   int ret;
 
-  Bool bool_ret = XShmPutImage(p_window->d,
-                               p_window->w,
-                               p_window->gc,
-                               p_window->p_image,
-                               0,
-                               0,
-                               0,
-                               0,
-                               p_window->width,
-                               p_window->height,
-                               False);
-  if (bool_ret != True) {
-    errx(1, "XShmPutImage failed");
-  }
-
-  /* We need to sync here so that the server ack's it has finished the
-   * XShmPutImage.
-   * Clients of this function expect to be able to start writing to the buffer
-   * again immediately without affecting display.
-   */
-  ret = XSync(p_window->d, False);
-  if (ret != 1) {
-    errx(1, "XSync failed");
+  if (p_window->use_mit_shm) {
+    Bool bool_ret = XShmPutImage(p_window->d,
+                                 p_window->w,
+                                 p_window->gc,
+                                 p_window->p_image,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 p_window->width,
+                                 p_window->height,
+                                 False);
+    if (bool_ret != True) {
+      errx(1, "XShmPutImage failed");
+    }
+    
+    /* We need to sync here so that the server ack's it has finished the
+     * XShmPutImage. Clients of this function expect to be able to start writing
+     * to the buffer again immediately without affecting display.
+     */
+    ret = XSync(p_window->d, False);
+    if (ret != 1) {
+      errx(1, "XSync failed");
+    }
+  } else {
+    /* The return value of XPutImage doesn't actually seem to be useful. */
+    (void) XPutImage(p_window->d,
+                     p_window->w,
+                     p_window->gc,
+                     p_window->p_image,
+                     0,
+                     0,
+                     0,
+                     0,
+                     p_window->width,
+                     p_window->height);
   }
 
   /* We need to check for X events here, in case a key event comes
