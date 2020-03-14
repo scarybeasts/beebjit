@@ -430,12 +430,14 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     /* Not present. */
     break;
   default:
-    /* We have an imprecise match for abx and aby addressing modes so we may get
-     * here with a non-registers address, or also for the 0xFF00 - 0xFFFF range.
-     */
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
+      /* If we miss the registers, it will be $FF00 - $FFFF on account of
+       * trapping on anything above $FC00, or it will be $FBxx on account of
+       * the X uncertainty of $FBxx,X.
+       */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+      assert(addr >= k_bbc_os_rom_offset);
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -656,20 +658,13 @@ bbc_write_callback(void* p,
     }
     break;
   default:
-    /* TODO: this comment may now be incorrect? */
-    /* We bounce here for ROM writes as well as register writes; ROM writes
-     * are simply squashed.
-     */
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-      uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
-      if (addr < k_bbc_os_rom_offset) {
-        /* Possible to get here for a write at the end of a RAM region, e.g.
-         * STA $7F01,X
-         */
-        /* TODO: needs to invalidate potential JIT here? */
-        p_mem_write[addr] = val;
-      }
+      /* If we miss the registers, it will be $FF00 - $FFFF on account of
+       * trapping on anything above $FC00, or it will be $FBxx on account of
+       * the X uncertainty of $FBxx,X.
+       */
+      assert(addr >= k_bbc_os_rom_offset);
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
       assert(0);
