@@ -256,6 +256,15 @@ video_do_paint(struct video_struct* p_video) {
 }
 
 static void
+video_flyback_callback(void* p) {
+  struct video_struct* p_video = (struct video_struct*) p;
+
+  if (p_video->is_rendering_active) {
+    video_do_paint(p_video);
+  }
+}
+
+static void
 video_set_vsync_raise_state(struct video_struct* p_video) {
   struct via_struct* p_system_via = p_video->p_system_via;
 
@@ -271,7 +280,9 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   }
 
   if (p_video->is_rendering_active) {
-    video_do_paint(p_video);
+    /* Painting occurs in the renderer's flyback callback;
+     * see video_flyback_callback().
+     */
     render_vsync(p_video->p_render, 1);
   }
 }
@@ -434,10 +445,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
     if (r2_hit) {
-      int did_flyback = render_hsync(p_render);
-      if (did_flyback && p_video->is_rendering_active) {
-        video_do_paint(p_video);
-      }
+      render_hsync(p_render);
     }
     if (check_vsync_at_half_r0 &&
         (p_video->horiz_counter == p_video->half_r0)) {
@@ -1089,6 +1097,8 @@ video_create(uint8_t* p_bbc_mem,
                                  p_video);
   }
 
+  render_set_flyback_callback(p_render, video_flyback_callback, p_video);
+
   video_mode_updated(p_video);
 
   video_init_timer(p_video);
@@ -1100,6 +1110,7 @@ video_create(uint8_t* p_bbc_mem,
 
 void
 video_destroy(struct video_struct* p_video) {
+  render_set_flyback_callback(p_video->p_render, NULL, NULL);
   util_free(p_video);
 }
 

@@ -9,6 +9,9 @@
 #include <string.h>
 
 struct render_struct {
+  void (*p_flyback_callback)(void*);
+  void* p_flyback_callback_object;
+
   uint32_t width;
   uint32_t height;
 
@@ -154,6 +157,14 @@ render_destroy(struct render_struct* p_render) {
   util_free(p_render);
 }
 
+void
+render_set_flyback_callback(struct render_struct* p_render,
+                            void (*p_flyback_callback)(void* p),
+                            void* p_flyback_callback_object) {
+  p_render->p_flyback_callback = p_flyback_callback;
+  p_render->p_flyback_callback_object = p_flyback_callback_object;
+}
+
 uint32_t
 render_get_width(struct render_struct* p_render) {
   return p_render->width;
@@ -167,21 +178,6 @@ render_get_height(struct render_struct* p_render) {
 uint32_t*
 render_get_buffer(struct render_struct* p_render) {
   return p_render->p_buffer;
-}
-
-void
-render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
-  assert(p_render->p_buffer == NULL);
-  assert(p_buffer != NULL);
-  p_render->p_buffer = p_buffer;
-  p_render->p_buffer_end = p_buffer;
-  p_render->p_buffer_end += (p_render->width * p_render->height);
-
-  render_clear_buffer(p_render);
-
-  /* These reset p_render_pos. */
-  (void) render_hsync(p_render);
-  render_vsync(p_render, 1);
 }
 
 static inline void
@@ -224,6 +220,21 @@ render_reset_render_pos(struct render_struct* p_render) {
   p_render->p_render_pos_row_max = (p_render->p_render_pos_row +
                                     p_render->width -
                                     p_render->pixels_size);
+}
+
+void
+render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
+  assert(p_render->p_buffer == NULL);
+  assert(p_buffer != NULL);
+  p_render->p_buffer = p_buffer;
+  p_render->p_buffer_end = p_buffer;
+  p_render->p_buffer_end += (p_render->width * p_render->height);
+
+  render_clear_buffer(p_render);
+
+  p_render->horiz_beam_pos = 0;
+  p_render->vert_beam_pos = 0;
+  render_reset_render_pos(p_render);
 }
 
 static inline void
@@ -657,10 +668,8 @@ render_double_up_lines(struct render_struct* p_render) {
   }
 }
 
-int
+void
 render_hsync(struct render_struct* p_render) {
-  int did_flyback = 0;
-
   p_render->horiz_beam_pos = 0;
   p_render->vert_beam_pos += 2;
 
@@ -669,7 +678,6 @@ render_hsync(struct render_struct* p_render) {
    */
   if (p_render->vert_beam_pos >= 768) {
     render_vsync(p_render, 1);
-    did_flyback = 1;
   }
 
   render_reset_render_pos(p_render);
@@ -680,12 +688,14 @@ render_hsync(struct render_struct* p_render) {
   if (p_render->render_mode == k_render_mode7) {
     render_function_1MHz_blank(p_render, 0);
   }
-
-  return did_flyback;
 }
 
 void
 render_vsync(struct render_struct* p_render, int do_interlace_compensate) {
+  if (p_render->p_flyback_callback) {
+    p_render->p_flyback_callback(p_render->p_flyback_callback_object);
+  }
+
   p_render->vert_beam_pos = 0;
   if (do_interlace_compensate &&
       !p_render->do_interlace_wobble &&
