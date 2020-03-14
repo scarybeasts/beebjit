@@ -69,8 +69,8 @@ struct bbc_struct {
   struct os_thread_struct* p_thread_cpu;
   int thread_allocated;
   int running;
-  int message_cpu_fd;
-  int message_client_fd;
+  intptr_t message_cpu_handle;
+  intptr_t message_client_handle;
   uint32_t exit_value;
   intptr_t mem_handle;
 
@@ -676,28 +676,24 @@ bbc_write_callback(void* p,
 void
 bbc_client_send_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_message) {
-  int ret = write(p_bbc->message_client_fd,
-                  p_message,
-                  sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "write failed");
-  }
+  util_file_handle_write(p_bbc->message_client_handle,
+                         p_message,
+                         sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_send_message(struct bbc_struct* p_bbc, struct bbc_message* p_message) {
-  int ret = write(p_bbc->message_cpu_fd, p_message, sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "write failed");
-  }
+  util_file_handle_write(p_bbc->message_cpu_handle,
+                         p_message,
+                         sizeof(struct bbc_message));
 }
 
 void
 bbc_client_receive_message(struct bbc_struct* p_bbc,
                            struct bbc_message* p_out_message) {
-  int ret = read(p_bbc->message_client_fd,
-                 p_out_message,
-                 sizeof(struct bbc_message));
+  size_t ret = util_file_handle_read(p_bbc->message_client_handle,
+                                     p_out_message,
+                                     sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
     errx(1, "read failed");
   }
@@ -706,9 +702,9 @@ bbc_client_receive_message(struct bbc_struct* p_bbc,
 static void
 bbc_cpu_receive_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_out_message) {
-  int ret = read(p_bbc->message_cpu_fd,
-                 p_out_message,
-                 sizeof(struct bbc_message));
+  size_t ret = util_file_handle_read(p_bbc->message_cpu_handle,
+                                     p_out_message,
+                                     sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
     errx(1, "read failed");
   }
@@ -759,8 +755,6 @@ bbc_create(int mode,
   struct timing_struct* p_timing;
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
-  int pipefd[2];
-  int ret;
   uint32_t cpu_scale_factor;
 
   int externally_clocked_via = 1;
@@ -778,12 +772,8 @@ bbc_create(int mode,
                              p_opt_flags,
                              "bbc:cpu-scale-factor=");
 
-  ret = pipe(&pipefd[0]);
-  if (ret != 0) {
-    errx(1, "pipe failed");
-  }
-
-  util_get_channel_fds(&p_bbc->message_cpu_fd, &p_bbc->message_client_fd);
+  util_get_channel_file_handles(&p_bbc->message_cpu_handle,
+                                &p_bbc->message_client_handle);
 
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
@@ -1584,9 +1574,9 @@ bbc_get_run_result(struct bbc_struct* p_bbc) {
   return *p_ret;
 }
 
-size_t
+intptr_t
 bbc_get_client_handle(struct bbc_struct* p_bbc) {
-  return p_bbc->message_client_fd;
+  return p_bbc->message_client_handle;
 }
 
 void

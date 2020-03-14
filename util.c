@@ -468,22 +468,44 @@ util_file_handle_seek(intptr_t handle, uint64_t pos) {
 
 void
 util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
-  /* TODO: handle short writes here and below. */
   int fd = (int) handle;
-  ssize_t ret = write(fd, p_buf, length);
-  if ((ret < 0) || ((uint64_t) ret != length)) {
-    errx(1, "write failed");
+  uint64_t to_go = length;
+
+  while (to_go > 0) {
+    ssize_t ret = write(fd, p_buf, to_go);
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      errx(1, "write failed");
+    } else if (ret == 0) {
+      errx(1, "write EOF");
+    }
+    to_go -= ret;
   }
 }
 
 size_t
 util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   int fd = (int) handle;
-  ssize_t ret = read(fd, p_buf, length);
-  if (ret < 0) {
-    errx(1, "read failed");
+  uint64_t to_go = length;
+  uint64_t done = 0;
+
+  while (to_go > 0) {
+    ssize_t ret = read(fd, p_buf, to_go);
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      errx(1, "read failed");
+    } else if (ret == 0) {
+      break;
+    }
+    to_go -= ret;
+    done += ret;
   }
-  return (size_t) ret;
+
+  return done;
 }
 
 size_t
@@ -665,15 +687,15 @@ util_sleep_us(uint64_t us) {
 }
 
 void
-util_get_channel_fds(int* fd1, int* fd2) {
+util_get_channel_file_handles(intptr_t* p_handle1, intptr_t* p_handle2) {
   int fds[2];
   int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
   if (ret != 0) {
     errx(1, "socketpair failed");
   }
 
-  *fd1 = fds[0];
-  *fd2 = fds[1];
+  *p_handle1 = fds[0];
+  *p_handle2 = fds[1];
 }
 
 static const char*
