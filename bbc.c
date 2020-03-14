@@ -24,7 +24,6 @@
 
 #include <assert.h>
 #include <err.h>
-#include <stdio.h>
 #include <string.h>
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
@@ -439,7 +438,7 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
-      /* We should have every byte covered above. */
+      /* We should have every address covered above. */
       assert(0);
     } else {
       /* EMU: This value, as well as the 0xFE default,  copied from b-em /
@@ -619,7 +618,7 @@ bbc_write_callback(void* p,
     intel_fdc_write(p_bbc->p_intel_fdc, (addr & 0x7), val);
     break;
   case (k_addr_econet + 0):
-    printf("ignoring ECONET write\n");
+    log_do_log(k_log_misc, k_log_unimplemented, "write of ECONET region");
     break;
   case (k_addr_adc + 0):
   case (k_addr_adc + 4):
@@ -653,7 +652,7 @@ bbc_write_callback(void* p,
         break;
       }
     } else {
-      printf("ignoring tube write\n");
+      log_do_log(k_log_misc, k_log_unimplemented, "write of TUBE region");
     }
     break;
   default:
@@ -672,7 +671,7 @@ bbc_write_callback(void* p,
         p_mem_write[addr] = val;
       }
     } else if (addr >= k_addr_shiela) {
-      printf("unknown write: %x, %x\n", addr, val);
+      /* We should have every address covered above. */
       assert(0);
     }
     break;
