@@ -434,7 +434,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
     if (r2_hit) {
-      render_hsync(p_render);
+      int did_flyback = render_hsync(p_render);
+      if (did_flyback && p_video->is_rendering_active) {
+        video_do_paint(p_video);
+      }
     }
     if (check_vsync_at_half_r0 &&
         (p_video->horiz_counter == p_video->half_r0)) {
@@ -1248,7 +1251,7 @@ video_render_full_frame(struct video_struct* p_video) {
   teletext_VSYNC_changed(p_teletext, 0);
 
   for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
-    render_hsync(p_render);
+    (void) render_hsync(p_render);
   }
   for (i_rows = 0; i_rows < num_rows; ++i_rows) {
     for (i_lines = 0; i_lines < num_lines; ++i_lines) {
@@ -1266,7 +1269,7 @@ video_render_full_frame(struct video_struct* p_video) {
         func_render_data(p_render, p_bbc_mem[bbc_address]);
         crtc_line_address++;
       }
-      render_hsync(p_render);
+      (void) render_hsync(p_render);
       teletext_DISPMTG_changed(p_teletext, 0);
     }
   }

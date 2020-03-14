@@ -180,7 +180,7 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   render_clear_buffer(p_render);
 
   /* These reset p_render_pos. */
-  render_hsync(p_render);
+  (void) render_hsync(p_render);
   render_vsync(p_render, 1);
 }
 
@@ -657,11 +657,20 @@ render_double_up_lines(struct render_struct* p_render) {
   }
 }
 
-void
+int
 render_hsync(struct render_struct* p_render) {
+  int did_flyback = 0;
+
   p_render->horiz_beam_pos = 0;
-  /* TODO: do a vertical flyback if beam pos gets too low. */
   p_render->vert_beam_pos += 2;
+
+  /* If the CRT beam gets too low with no vsync signal in sight, it will do
+   * flyback anyway.
+   */
+  if (p_render->vert_beam_pos >= 768) {
+    render_vsync(p_render, 1);
+    did_flyback = 1;
+  }
 
   render_reset_render_pos(p_render);
 
@@ -671,6 +680,8 @@ render_hsync(struct render_struct* p_render) {
   if (p_render->render_mode == k_render_mode7) {
     render_function_1MHz_blank(p_render, 0);
   }
+
+  return did_flyback;
 }
 
 void

@@ -64,7 +64,7 @@ void (*render_get_render_blank_function(struct render_struct* p_render))
 
 void render_clear_buffer(struct render_struct* p_render);
 void render_double_up_lines(struct render_struct* p_render);
-void render_hsync(struct render_struct* p_render);
+int render_hsync(struct render_struct* p_render);
 void render_vsync(struct render_struct* p_render, int do_interlace_compensate);
 void render_frame_boundary(struct render_struct* p_render);
 void render_cursor(struct render_struct* p_render);
