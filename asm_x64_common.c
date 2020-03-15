@@ -6,6 +6,11 @@
 #include <limits.h>
 
 void
+asm_x64_unpatched_branch_target(void) {
+  asm __volatile__ ("int $3");
+}
+
+void
 asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   size_t size = (p_end - p_start);
   util_buffer_add_chunk(p_buf, p_start, size);

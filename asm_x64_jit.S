@@ -114,7 +114,7 @@ asm_x64_jit_call_compile_trampoline_END:
 asm_x64_jit_jump_interp_trampoline:
   mov REG_6502_PC_32, 0x7fffffff
 asm_x64_jit_jump_interp_trampoline_pc_patch:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 asm_x64_jit_jump_interp_trampoline_jump_patch:
 
 asm_x64_jit_jump_interp_trampoline_END:
@@ -129,7 +129,7 @@ asm_x64_jit_check_countdown:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 asm_x64_jit_check_countdown_count_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_jit_check_countdown_jump_patch:
 
 asm_x64_jit_check_countdown_END:
@@ -144,7 +144,7 @@ asm_x64_jit_check_countdown_8bit:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 asm_x64_jit_check_countdown_8bit_count_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_jit_check_countdown_8bit_jump_patch:
 
 asm_x64_jit_check_countdown_8bit_END:
@@ -163,7 +163,7 @@ asm_x64_jit_call_debug_pc_patch:
   # So they must be saved.
   pushf
   push REG_SCRATCH1
-  call 0
+  call asm_x64_unpatched_branch_target
 asm_x64_jit_call_debug_call_patch:
   pop REG_SCRATCH1
   popf
@@ -179,7 +179,7 @@ asm_x64_jit_call_debug_END:
 asm_x64_jit_jump_interp:
   mov REG_6502_PC_32, 0x7fffffff
 asm_x64_jit_jump_interp_pc_patch:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 asm_x64_jit_jump_interp_jump_patch:
 
 asm_x64_jit_jump_interp_END:
@@ -361,7 +361,7 @@ asm_x64_jit_CHECK_PENDING_IRQ:
   mov REG_SCRATCH1_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
   bt REG_SCRATCH1_32, 31
-  jae 0
+  jae asm_x64_unpatched_branch_target
 asm_x64_jit_CHECK_PENDING_IRQ_jump_patch:
 
 asm_x64_jit_CHECK_PENDING_IRQ_END:
@@ -1013,7 +1013,7 @@ asm_x64_jit_ASL_ZPG_END:
 .globl asm_x64_jit_BCC
 .globl asm_x64_jit_BCC_END
 asm_x64_jit_BCC:
-  jae 0
+  jae asm_x64_unpatched_branch_target
 
 asm_x64_jit_BCC_END:
   ret
@@ -1031,7 +1031,7 @@ asm_x64_jit_BCC_8bit_END:
 .globl asm_x64_jit_BCS
 .globl asm_x64_jit_BCS_END
 asm_x64_jit_BCS:
-  jb 0
+  jb asm_x64_unpatched_branch_target
 
 asm_x64_jit_BCS_END:
   ret
@@ -1049,7 +1049,7 @@ asm_x64_jit_BCS_8bit_END:
 .globl asm_x64_jit_BEQ
 .globl asm_x64_jit_BEQ_END
 asm_x64_jit_BEQ:
-  je 0
+  je asm_x64_unpatched_branch_target
 
 asm_x64_jit_BEQ_END:
   ret
@@ -1085,7 +1085,7 @@ asm_x64_jit_BIT_ZPG_END:
 .globl asm_x64_jit_BMI
 .globl asm_x64_jit_BMI_END
 asm_x64_jit_BMI:
-  js 0
+  js asm_x64_unpatched_branch_target
 
 asm_x64_jit_BMI_END:
   ret
@@ -1103,7 +1103,7 @@ asm_x64_jit_BMI_8bit_END:
 .globl asm_x64_jit_BNE
 .globl asm_x64_jit_BNE_END
 asm_x64_jit_BNE:
-  jne 0
+  jne asm_x64_unpatched_branch_target
 
 asm_x64_jit_BNE_END:
   ret
@@ -1121,7 +1121,7 @@ asm_x64_jit_BNE_8bit_END:
 .globl asm_x64_jit_BPL
 .globl asm_x64_jit_BPL_END
 asm_x64_jit_BPL:
-  jns 0
+  jns asm_x64_unpatched_branch_target
 
 asm_x64_jit_BPL_END:
   ret
@@ -1139,7 +1139,7 @@ asm_x64_jit_BPL_8bit_END:
 .globl asm_x64_jit_BVC
 .globl asm_x64_jit_BVC_END
 asm_x64_jit_BVC:
-  jae 0
+  jae asm_x64_unpatched_branch_target
 
 asm_x64_jit_BVC_END:
   ret
@@ -1157,7 +1157,7 @@ asm_x64_jit_BVC_8bit_END:
 .globl asm_x64_jit_BVS
 .globl asm_x64_jit_BVS_END
 asm_x64_jit_BVS:
-  jb 0
+  jb asm_x64_unpatched_branch_target
 
 asm_x64_jit_BVS_END:
   ret
@@ -1489,7 +1489,7 @@ asm_x64_jit_INC_ZPG_END:
 .globl asm_x64_jit_JMP
 .globl asm_x64_jit_JMP_END
 asm_x64_jit_JMP:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 
 asm_x64_jit_JMP_END:
   ret
