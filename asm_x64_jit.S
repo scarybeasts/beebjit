@@ -543,6 +543,8 @@ asm_x64_jit_MODE_ABY_END:
 .globl asm_x64_jit_MODE_IND_8_mov2_patch
 .globl asm_x64_jit_MODE_IND_8_END
 asm_x64_jit_MODE_IND_8:
+  # Deliberately done as 2x 8 byte loads, not 1x 16.
+  # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7f]
 asm_x64_jit_MODE_IND_8_mov1_patch:
   mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7f]
@@ -557,6 +559,8 @@ asm_x64_jit_MODE_IND_8_END:
 .globl asm_x64_jit_MODE_IND_16_mov2_patch
 .globl asm_x64_jit_MODE_IND_16_END
 asm_x64_jit_MODE_IND_16:
+  # Deliberately done as 2x 8 byte loads, not 1x 16.
+  # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7fffffff]
 asm_x64_jit_MODE_IND_16_mov1_patch:
   mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7fffffff]

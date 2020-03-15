@@ -481,7 +481,6 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
     next_addr = (addr + 1);
   }
 
-  /* TODO: why aren't we doing a 16-bit load here for the common case? */
   asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_16, asm_x64_jit_MODE_IND_16_END);
   asm_x64_patch_int(p_buf,
                     offset,
