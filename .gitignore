@@ -6,3 +6,5 @@ make_timing_rom
 perf.rom
 test.rom
 timing.rom
+/.dir-locals.el
+/TAGS
