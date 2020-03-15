@@ -23,6 +23,7 @@ struct interp_struct {
   struct cpu_driver driver;
   int has_exited;
   uint32_t exit_value;
+  int has_logged_bcd;
 
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -228,6 +229,15 @@ interp_is_branch_opcode(uint8_t opcode) {
     return 1;
   }
   return 0;
+}
+
+static inline void
+interp_check_log_bcd(struct interp_struct* p_interp) {
+  if (p_interp->has_logged_bcd) {
+    return;
+  }
+  p_interp->has_logged_bcd = 1;
+  log_do_log(k_log_instruction, k_log_info, "BCD mode was used (log once)");
 }
 
 #define INTERP_TIMING_ADVANCE(num_cycles)                                     \
@@ -515,6 +525,7 @@ interp_is_branch_opcode(uint8_t opcode) {
   temp_int = (a + v + cf);                                                    \
   zf = !(temp_int & 0xFF);                                                    \
   if (df) {                                                                   \
+    interp_check_log_bcd(p_interp);                                           \
     /* Fix up decimal carry on first nibble. */                               \
     int decimal_carry = ((a & 0x0F) + (v & 0x0F) + cf);                       \
     if (decimal_carry >= 0x0A) {                                              \
@@ -623,6 +634,7 @@ interp_is_branch_opcode(uint8_t opcode) {
    */                                                                         \
   temp_int = (a + (uint8_t) ~v + cf);                                         \
   if (df) {                                                                   \
+    interp_check_log_bcd(p_interp);                                           \
     /* Fix up decimal carry on first nibble. */                               \
     if (((v & 0x0F) + !cf) > (a & 0x0F)) {                                    \
       temp_int -= 0x06;                                                       \
