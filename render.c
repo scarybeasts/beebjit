@@ -682,10 +682,11 @@ render_hsync(struct render_struct* p_render) {
 
   render_reset_render_pos(p_render);
 
-  /* NOTE: dodgy hack to get MODE7 shifted to the right by one character
+  /* NOTE: dodgy hack to get MODE7 shifted to the right by two characters
    * because we do not yet support 6845 skew.
    */
   if (p_render->render_mode == k_render_mode7) {
+    render_function_1MHz_blank(p_render, 0);
     render_function_1MHz_blank(p_render, 0);
   }
 }
