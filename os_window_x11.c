@@ -79,6 +79,8 @@ destroy_image(struct os_window_struct* p_window) {
   if (ret != 1) {
     errx(1, "XDestroyImage failed");
   }
+
+  p_window->p_image = NULL;
 }  
 
 static int
@@ -93,7 +95,13 @@ store_error_event_error_handler(Display* display, XErrorEvent* event) {
     s_last_error_event = *event;
   }
 
-  return 1;
+  /* https://linux.die.net/man/3/xseterrorhandler
+   *
+   * ``Because this condition [calling the error handler] is not assumed to be
+   * fatal, it is acceptable for your error handler to return; the returned
+   * value is ignored''
+   */
+  return 0;
 }
 
 struct os_window_struct*
@@ -205,20 +213,18 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "XSync failed");
   }
 
-  /* An X error doesn't count as an XSync failure. If it looks like XShmAttach
-  failed, disable MIT-SHM and carry on; otherwise, call the old error handler.
-  (The old error handler will probably exit the program, but do an errx anyway,
-  just in case.)
-  *
-  * Note: request code 132 = MIT-SHM, minor code 1 = X_ShmAttach
-  */
+  /* X errors don't count as failures. If it looks like XShmAttach failed,
+   * disable MIT-SHM and carry on; otherwise, call the old error handler. (The
+   * old error handler will probably exit the program, but do an errx anyway,
+   * just in case.)
+   *
+   * Note: request code 132 = MIT-SHM, minor code 1 = X_ShmAttach
+   */
   if (s_got_last_error_event &&
-      s_last_error_event.error_code == BadAccess &&
-      s_last_error_event.request_code == 132 &&
-      s_last_error_event.minor_code == 1) {
-    size_t image_data_size_bytes = width * height * 4;
-
-    fprintf(stderr,"XShmAttach failure - not using MIT-SHM\n");
+      (s_last_error_event.error_code == BadAccess) &&
+      (s_last_error_event.request_code == 132) &&
+      (s_last_error_event.minor_code == 1)) {
+    log_do_log(k_log_misc, k_log_info, "XShmAttach failure - not using MIT-SHM");
 
     dt_shm(p_window);
 
@@ -226,8 +232,7 @@ os_window_create(uint32_t width, uint32_t height) {
 
     p_window->use_mit_shm = 0;
 
-    p_window->p_image_data = malloc(image_data_size_bytes);
-    memset(p_window->p_image_data, 0, image_data_size_bytes);
+    p_window->p_image_data = util_mallocz(width * height * 4);
 
     p_window->p_image = XCreateImage(p_window->d,
                                      p_visual,
@@ -238,7 +243,7 @@ os_window_create(uint32_t width, uint32_t height) {
                                      width,
                                      height,
                                      32,
-                                     width * 4);
+                                     (width * 4));
     if (p_window->p_image == NULL) {
       errx(1, "XCreateImage failed");
     }
@@ -377,15 +382,6 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
     if (bool_ret != True) {
       errx(1, "XShmPutImage failed");
     }
-    
-    /* We need to sync here so that the server ack's it has finished the
-     * XShmPutImage. Clients of this function expect to be able to start writing
-     * to the buffer again immediately without affecting display.
-     */
-    ret = XSync(p_window->d, False);
-    if (ret != 1) {
-      errx(1, "XSync failed");
-    }
   } else {
     /* The return value of XPutImage doesn't actually seem to be useful. */
     (void) XPutImage(p_window->d,
@@ -400,6 +396,15 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
                      p_window->height);
   }
 
+  /* We need to sync here so that the server ack's it has finished the
+   * XShmPutImage. Clients of this function expect to be able to start writing
+   * to the buffer again immediately without affecting display.
+   */
+  ret = XSync(p_window->d, False);
+  if (ret != 1) {
+    errx(1, "XSync failed");
+  }
+    
   /* We need to check for X events here, in case a key event comes
    * in during X rendering. In that case, the data could be read from the
    * socket and placed in the event queue during standard X queue processing.
