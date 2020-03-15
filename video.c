@@ -234,30 +234,38 @@ video_get_clock_speed(struct video_struct* p_video) {
 
 static void
 video_do_paint(struct video_struct* p_video) {
-  int do_full_render = p_video->externally_clocked;
+  int do_full_render;
+
+  /* If we're in fast mode and internally clocked, give rendering and painting
+   * a rest after each paint consideration.
+   * We'll get prodded to start again by the 50Hz real time tick, which will
+   * get noticed in video_timer_fired().
+   */
+  if (!p_video->externally_clocked && *p_video->p_fast_flag) {
+    p_video->is_rendering_active = 0;
+    p_video->is_wall_time_vsync_hit = 0;
+  }
+
+  /* Skip the paint for the appropriate option. */
+  if (p_video->frame_skip_counter > 0) {
+    p_video->frame_skip_counter--;
+    return;
+  }
+
+  p_video->frame_skip_counter = p_video->frames_skip;
+
+  do_full_render = p_video->externally_clocked;
   p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
                                         do_full_render,
                                         p_video->is_framing_changed_for_render);
   p_video->is_framing_changed_for_render = 0;
-
-  if (p_video->externally_clocked) {
-    return;
-  }
-
-  /* If we're in fast mode and internally clocked, give rendering and painting
-   * a rest after each paint.
-   * We'll get prodded to start again by the 50Hz real time tick, which will
-   * get noticed in video_timer_fired().
-   */
-  if (*p_video->p_fast_flag) {
-    p_video->is_rendering_active = 0;
-    p_video->is_wall_time_vsync_hit = 0;
-  }
 }
 
 static void
 video_flyback_callback(void* p) {
   struct video_struct* p_video = (struct video_struct*) p;
+
+  assert(!p_video->externally_clocked);
 
   if (p_video->is_rendering_active) {
     video_do_paint(p_video);
@@ -840,17 +848,21 @@ video_timer_fired(void* p) {
       p_video->is_wall_time_vsync_hit &&
       video_is_at_vsync_start(p_video)) {
     struct render_struct* p_render = p_video->p_render;
-    p_video->is_rendering_active = 1;
-    p_video->is_wall_time_vsync_hit = 0;
-    p_video->timer_fire_force_vsync_start = 0;
-    p_video->timer_fire_force_vsync_end = 0;
     /* Wrestle the renderer to match the current odd or even interlace frame
      * state.
+     */
+    /* NOTE: need to call render_vsync() prior to marking rendering active
+     * again, otherwise the flyback callback would attempt to paint.
      */
     render_vsync(p_render, 0);
     if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
       render_hsync(p_render);
     }
+
+    p_video->is_rendering_active = 1;
+    p_video->is_wall_time_vsync_hit = 0;
+    p_video->timer_fire_force_vsync_start = 0;
+    p_video->timer_fire_force_vsync_end = 0;
   }
 }
 
@@ -1097,7 +1109,9 @@ video_create(uint8_t* p_bbc_mem,
                                  p_video);
   }
 
-  render_set_flyback_callback(p_render, video_flyback_callback, p_video);
+  if (!externally_clocked) {
+    render_set_flyback_callback(p_render, video_flyback_callback, p_video);
+  }
 
   video_mode_updated(p_video);
 
@@ -1184,18 +1198,8 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
-  if (p_video->frame_skip_counter == 0) {
-    /* In accurate + fast mode, we use the wall time 50Hz tick to decide
-     * which super fast virtual frames to render and which (the majority) to
-     * not render and just maintain timing for.
-     */
-    p_video->is_wall_time_vsync_hit = 1;
-    p_video->frame_skip_counter = p_video->frames_skip;
-  } else {
-    p_video->frame_skip_counter--;
-  }
-
   if (!p_video->externally_clocked) {
+    p_video->is_wall_time_vsync_hit = 1;
     return;
   }
 
@@ -1203,12 +1207,7 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   via_set_CA1(p_system_via, 0);
   via_set_CA1(p_system_via, 1);
 
-  if (!p_video->is_wall_time_vsync_hit) {
-    return;
-  }
-
   video_do_paint(p_video);
-  p_video->is_wall_time_vsync_hit = 0;
   p_video->num_vsyncs++;
 }
 
@@ -1224,6 +1223,8 @@ video_render_full_frame(struct video_struct* p_video) {
       render_get_render_data_function(p_render);
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
+
+  assert(p_video->externally_clocked);
 
   /* This render function is typically called on a different thread to the
    * BBC thread, so make sure to reload register values from memory.
