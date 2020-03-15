@@ -21,6 +21,6 @@ enum log_severity {
   k_log_error = 4,
 };
 
-void log_do_log(int module, int severity, const char* p_msg, ...);
+void log_do_log(int module, int severity, const char* p_msg, ...) __attribute__((format(printf, 3, 4)));
 
 #endif /* BEEBJIT_LOG_H */
