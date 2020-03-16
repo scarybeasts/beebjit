@@ -51,6 +51,9 @@ struct jit_struct {
   uint8_t jit_invalidation_sequence[2];
 
   int log_compile;
+
+  uint64_t counter_num_compiles;
+  uint64_t counter_num_interps;
 };
 
 static inline uint8_t*
@@ -210,6 +213,8 @@ jit_enter_interp(struct jit_struct* p_jit,
   struct interp_struct* p_interp = p_jit->p_interp;
   struct state_6502* p_state_6502 = p_jit_cpu_driver->abi.p_state_6502;
 
+  p_jit->counter_num_interps++;
+
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
@@ -342,6 +347,16 @@ jit_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   return block_addr_buf;
 }
 
+static void
+jit_get_custom_counters(struct cpu_driver* p_cpu_driver,
+                        uint64_t* p_c1,
+                        uint64_t* p_c2) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+
+  *p_c1 = p_jit->counter_num_compiles;
+  *p_c2 = p_jit->counter_num_interps;
+}
+
 static int64_t
 jit_compile(struct jit_struct* p_jit,
             uint8_t* p_intel_rip,
@@ -360,6 +375,8 @@ jit_compile(struct jit_struct* p_jit,
   uint16_t block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_intel_rip);
   uint16_t addr_6502 = block_addr_6502;
   int is_invalidation = 0;
+
+  p_jit->counter_num_compiles++;
 
   p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
   if (p_block_ptr != p_intel_rip) {
@@ -690,6 +707,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_exit_value = jit_get_exit_value;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
+  p_funcs->get_custom_counters = jit_get_custom_counters;
 
   p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;

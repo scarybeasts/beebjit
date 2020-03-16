@@ -126,6 +126,9 @@ struct bbc_struct {
   uint64_t last_frames;
   uint64_t last_crtc_advances;
   uint64_t last_hw_reg_hits;
+  uint64_t last_c1;
+  uint64_t last_c2;
+
   uint64_t num_hw_reg_hits;
   int log_speed;
 };
@@ -1332,20 +1335,28 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
 
 static void
 bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
-  struct video_struct* p_video = p_bbc->p_video;
   uint64_t curr_cycles;
   uint64_t curr_frames;
   uint64_t curr_crtc_advances;
   uint64_t curr_hw_reg_hits;
+  uint64_t curr_c1;
+  uint64_t curr_c2;
   uint64_t delta_cycles;
   uint64_t delta_frames;
   uint64_t delta_crtc_advances;
   uint64_t delta_hw_reg_hits;
+  uint64_t delta_c1;
+  uint64_t delta_c2;
   double delta_s;
   double fps;
   double mhz;
   double crtc_ps;
   double hw_reg_ps;
+  double c1_ps;
+  double c2_ps;
+
+  struct video_struct* p_video = p_bbc->p_video;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   if (p_bbc->last_time_us_perf == 0) {
     p_bbc->last_time_us_perf = curr_time_us;
@@ -1359,31 +1370,40 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   curr_frames = video_get_num_vsyncs(p_video);
   curr_crtc_advances = video_get_num_crtc_advances(p_video);
   curr_hw_reg_hits = p_bbc->num_hw_reg_hits;
+  p_cpu_driver->p_funcs->get_custom_counters(p_cpu_driver, &curr_c1, &curr_c2);
 
   delta_cycles = (curr_cycles - p_bbc->last_cycles);
   delta_frames = (curr_frames - p_bbc->last_frames);
   delta_crtc_advances = (curr_crtc_advances - p_bbc->last_crtc_advances);
   delta_hw_reg_hits = (curr_hw_reg_hits - p_bbc->last_hw_reg_hits);
   delta_s = ((curr_time_us - p_bbc->last_time_us_perf) / 1000000.0);
+  delta_c1 = (curr_c1 - p_bbc->last_c1);
+  delta_c2 = (curr_c2 - p_bbc->last_c2);
 
   fps = (delta_frames / delta_s);
   mhz = ((delta_cycles / delta_s) / 1000000.0);
   crtc_ps = (delta_crtc_advances / delta_s);
   hw_reg_ps = (delta_hw_reg_hits / delta_s);
+  c1_ps = (delta_c1 / delta_s);
+  c2_ps = (delta_c2 / delta_s);
 
   log_do_log(k_log_perf,
              k_log_info,
-             " %.1f fps, %.1f Mhz, %.1f crtc/s %.1f hwreg/s",
+             " %.1f fps, %.1f Mhz, %.1f crtc/s %.1f hw/s %.1f c1/s %.1f c2/s",
              fps,
              mhz,
              crtc_ps,
-             hw_reg_ps);
+             hw_reg_ps,
+             c1_ps,
+             c2_ps);
 
   p_bbc->last_cycles = curr_cycles;
   p_bbc->last_frames = curr_frames;
   p_bbc->last_crtc_advances = curr_crtc_advances;
   p_bbc->last_hw_reg_hits = curr_hw_reg_hits;
   p_bbc->last_time_us_perf = curr_time_us;
+  p_bbc->last_c1 = curr_c1;
+  p_bbc->last_c2 = curr_c2;
 }
 
 static void

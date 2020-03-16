@@ -28,7 +28,9 @@ struct cpu_driver_funcs {
                                   uint16_t addr,
                                   uint16_t len);
   char* (*get_address_info)(struct cpu_driver* p_cpu_driver, uint16_t addr);
-  int (*address_has_code)(struct cpu_driver* p_cpu_driver, uint16_t addr);
+  void (*get_custom_counters)(struct cpu_driver* p_cpu_driver,
+                              uint64_t* p_c1,
+                              uint64_t* p_c2);
 };
 
 struct cpu_driver {

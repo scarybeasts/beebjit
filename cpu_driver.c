@@ -27,13 +27,14 @@ cpu_driver_get_address_info_dummy(struct cpu_driver* p_cpu_driver,
   return "    ";
 }
 
-static int
-cpu_driver_address_has_code_dummy(struct cpu_driver* p_cpu_driver,
-                                  uint16_t addr) {
+static void
+cpu_driver_get_custom_counters_dummy(struct cpu_driver* p_cpu_driver,
+                                     uint64_t* p_c1,
+                                     uint64_t* p_c2) {
   (void) p_cpu_driver;
-  (void) addr;
 
-  return 0;
+  *p_c1 = 0;
+  *p_c2 = 0;
 }
 
 struct cpu_driver*
@@ -82,7 +83,7 @@ cpu_driver_alloc(int mode,
 
   p_funcs->memory_range_invalidate = cpu_driver_memory_range_invalidate_dummy;
   p_funcs->get_address_info = cpu_driver_get_address_info_dummy;
-  p_funcs->address_has_code = cpu_driver_address_has_code_dummy;
+  p_funcs->get_custom_counters = cpu_driver_get_custom_counters_dummy;
 
   p_funcs->init(p_cpu_driver);
 
