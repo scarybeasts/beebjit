@@ -28,7 +28,7 @@ asm_x64_jit_compile_trampoline:
   # param4: Intel rflags
   # Needed because carry / overflow flags state could be here in certain
   # optimization conditions.
-  pushf
+  pushfq
   pop REG_PARAM4
 
   # One push prior to the call.
@@ -71,7 +71,7 @@ asm_x64_jit_interp:
   # param3: Intel rflags
   # Needed because carry / overflow flags state could be here in certain
   # optimization conditions.
-  pushf
+  pushfq
   pop REG_PARAM3
 
   # Double push to keep stack aligned to 16 bytes before the call.
@@ -161,7 +161,7 @@ asm_x64_jit_call_debug_pc_patch:
   # Some optimizations cache values across opcodes in REG_SCRATCH1 or host
   # flags.
   # So they must be saved.
-  pushf
+  pushfq
   push REG_SCRATCH1
   call asm_x64_unpatched_branch_target
 asm_x64_jit_call_debug_call_patch:
