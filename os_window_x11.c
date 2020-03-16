@@ -220,36 +220,39 @@ os_window_create(uint32_t width, uint32_t height) {
    *
    * Note: request code 132 = MIT-SHM, minor code 1 = X_ShmAttach
    */
-  if (s_got_last_error_event &&
-      (s_last_error_event.error_code == BadAccess) &&
-      (s_last_error_event.request_code == 132) &&
-      (s_last_error_event.minor_code == 1)) {
-    log_do_log(k_log_misc, k_log_info, "XShmAttach failure - not using MIT-SHM");
+  if (s_got_last_error_event) {
+    if ((s_last_error_event.error_code == BadAccess) &&
+        (s_last_error_event.request_code == 132) &&
+        (s_last_error_event.minor_code == 1)) {
+      log_do_log(k_log_misc,
+                 k_log_info,
+                 "XShmAttach failure - not using MIT-SHM");
 
-    dt_shm(p_window);
+      dt_shm(p_window);
 
-    destroy_image(p_window);
+      destroy_image(p_window);
 
-    p_window->use_mit_shm = 0;
+      p_window->use_mit_shm = 0;
 
-    p_window->p_image_data = util_mallocz(width * height * 4);
+      p_window->p_image_data = util_mallocz(width * height * 4);
 
-    p_window->p_image = XCreateImage(p_window->d,
-                                     p_visual,
-                                     24,
-                                     ZPixmap,
-                                     0,
-                                     p_window->p_image_data,
-                                     width,
-                                     height,
-                                     32,
-                                     (width * 4));
-    if (p_window->p_image == NULL) {
-      errx(1, "XCreateImage failed");
+      p_window->p_image = XCreateImage(p_window->d,
+                                       p_visual,
+                                       24,
+                                       ZPixmap,
+                                       0,
+                                       p_window->p_image_data,
+                                       width,
+                                       height,
+                                       32,
+                                       (width * 4));
+      if (p_window->p_image == NULL) {
+        errx(1, "XCreateImage failed");
+      }
+    } else {
+      (*old_error_handler)(p_window->d, &s_last_error_event);
+      errx(1, "X error encountered");
     }
-  } else {
-    (*old_error_handler)(p_window->d, &s_last_error_event);
-    errx(1, "X error encountered");
   }
 
   p_window->w = XCreateSimpleWindow(p_window->d,
