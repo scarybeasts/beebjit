@@ -3,7 +3,7 @@
 #include <X11/Xlib.h>
 
 struct mapping_struct {
-  const char *x_key_name;
+  const char *p_x_key_name;
   uint8_t key;
 };
 
@@ -101,15 +101,19 @@ static uint8_t s_keys_mapping[256];
  * There's probably a better way of doing this.
  */
 static void
-init_mapping(Display* display) {
+init_mapping(Display* p_display) {
   const struct mapping_struct* p_mapping;
   int keycode;
-  int min_keycode, max_keycode;
+  int min_keycode;
+  int max_keycode;
   /* X keycodes are byte values, so 256 entries is sufficient. */
-  KeySym *keysyms[256];
-  int num_keysyms[256];
+  KeySym* keysyms_by_keycode[256];
+  int num_keysyms_by_keycode[256];
 
-  XDisplayKeycodes(display,&min_keycode,&max_keycode);
+  (void) XDisplayKeycodes(p_display, &min_keycode, &max_keycode);
+  if ((min_keycode > max_keycode) || (min_keycode < 8) || (max_keycode > 255)) {
+    errx(1, "inexplicable XDisplayKeycodes result");
+  }
 
   /* XGetKeyboardMapping took long enough on my Mac that it seems to be worth
    * calling it for each keycode outside the loop. (The endless calls to
@@ -117,20 +121,25 @@ init_mapping(Display* display) {
    * obviously causing a problem.)
    */
   for (keycode = min_keycode; keycode <= max_keycode; ++keycode) {
-    keysyms[keycode] = XGetKeyboardMapping(display,
-                                           keycode,
-                                           1,
-                                           &num_keysyms[keycode]);                    
+    keysyms_by_keycode[keycode] = XGetKeyboardMapping(p_display,
+                                                      keycode,
+                                                      1,
+                                                      &num_keysyms_by_keycode[keycode]);
   }
 
-  for (p_mapping = s_x_keys_mapping; p_mapping->x_key_name != NULL; ++p_mapping) {
+  for (p_mapping = s_x_keys_mapping;
+       p_mapping->p_x_key_name != NULL;
+       ++p_mapping) {
     int found_x_key = 0;
     
     for (keycode = min_keycode; keycode <= max_keycode; ++keycode) {
-      for (int i = 0; i < num_keysyms[keycode]; ++i) {
-        char *keysym_name = XKeysymToString(keysyms[keycode][i]);
+      int i;
+      const KeySym *keysyms = keysyms_by_keycode[keycode];
+      
+      for (i = 0; i < num_keysyms_by_keycode[keycode]; ++i) {
+        const char *keysym_name = XKeysymToString(keysyms[i]);
         if (keysym_name != NULL) {
-          if (strcmp(keysym_name, p_mapping->x_key_name) == 0) {
+          if (strcmp(keysym_name, p_mapping->p_x_key_name) == 0) {
             /* Can multiple keysyms map to the same keycode? Should probably
              * print a warning if that happens. */
             s_keys_mapping[keycode] = p_mapping->key;
@@ -138,7 +147,8 @@ init_mapping(Display* display) {
             found_x_key = 1;
 
             /* Continue checking key codes. The same X key name might map to
-             * multiple physical keys. */
+             * multiple physical keys.
+             */
             break;
           }
         }
@@ -147,23 +157,24 @@ init_mapping(Display* display) {
     
     if (!found_x_key) {
       /* Not an error... right? This key presumably just isn't on the
-       * keyboard. */
-      log_do_log(k_log_misc, k_log_info, "X key not available: %s", p_mapping->x_key_name);
+       * keyboard.
+       */
+      log_do_log(k_log_misc, k_log_info, "X key not available: %s", p_mapping->p_x_key_name);
     }
   }
   
   for (keycode = min_keycode; keycode <= max_keycode; ++keycode) {
-    XFree(keysyms[keycode]);
-    keysyms[keycode] = NULL;
+    (void) XFree(keysyms_by_keycode[keycode]);
+    keysyms_by_keycode[keycode] = NULL;
   }
 }
 
 uint8_t*
 os_x11_keys_get_mapping(void* display) {
-  if(!s_keys_mapping_built) {
+  if (!s_keys_mapping_built) {
     init_mapping(display);
    
-    s_keys_mapping_built=1;
+    s_keys_mapping_built = 1;
   }
 
   return s_keys_mapping;

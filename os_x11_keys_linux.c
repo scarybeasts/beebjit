@@ -223,8 +223,8 @@ os_x11_keys_build_mapping() {
 }
 
 uint8_t*
-os_x11_keys_get_mapping(void* display) {
-  (void) display;
+os_x11_keys_get_mapping(void* p_display) {
+  (void) p_display;
   
   if (!g_keys_mapping_built) {
     os_x11_keys_build_mapping();
