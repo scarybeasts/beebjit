@@ -1151,6 +1151,7 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
     screen_wrap_add = 0x2800;
     break;
   default:
+    screen_wrap_add = 0;
     assert(0);
     break;
   }
