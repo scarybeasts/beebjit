@@ -52,9 +52,11 @@ os_sound_create(char* p_device_name,
 
 void
 os_sound_destroy(struct os_sound_struct* p_driver) {
-  int ret = snd_pcm_close(p_driver->playback_handle);
-  if (ret != 0) {
-    errx(1, "snd_pcm_close failed");
+  if (p_driver->playback_handle != NULL) {
+    int ret = snd_pcm_close(p_driver->playback_handle);
+    if (ret != 0) {
+      errx(1, "snd_pcm_close failed");
+    }
   }
 
   free(p_driver->p_device_name);
