@@ -211,11 +211,11 @@ jit_test_dynamic_operand() {
   jit_compiler_testing_set_optimizing(s_p_compiler, 1);
   state_6502_set_x(s_p_state_6502, 0);
 
-  util_buffer_setup(p_buf, (s_p_mem + 0xE00), 0x100);
+  util_buffer_setup(p_buf, (s_p_mem + 0xE00), 0x80);
   emit_LDA(p_buf, k_abx, 0x0E01);
   emit_STA(p_buf, k_abs, 0xF0);
-  emit_LDA(p_buf, k_imm, 0x02);
-  emit_STA(p_buf, k_abs, 0x0E01);
+  emit_LDX(p_buf, k_imm, 0x02);
+  emit_STX(p_buf, k_abs, 0x0E01);
   emit_EXIT(p_buf);
 
   state_6502_set_pc(s_p_state_6502, 0xE00);
@@ -250,6 +250,32 @@ jit_test_dynamic_operand() {
   jit_invalidate_code_at_address(s_p_jit, 0xE01);
   jit_invalidate_code_at_address(s_p_jit, 0xE02);
   p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+
+  /* Try again but with the dynamic operand opcode not at the block start. */
+  util_buffer_setup(p_buf, (s_p_mem + 0xE80), 0x80);
+  emit_LDY(p_buf, k_imm, 0x84);
+  emit_LDA(p_buf, k_abx, 0x0E83);
+  emit_STY(p_buf, k_abs, 0x0E83);
+  emit_EXIT(p_buf);
+
+  state_6502_set_pc(s_p_state_6502, 0xE80);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xE80);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_invalidate_code_at_address(s_p_jit, 0xE84);
+  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE82);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+
+  state_6502_set_pc(s_p_state_6502, 0xE80);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_invalidate_code_at_address(s_p_jit, 0xE84);
+  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE82);
   test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
