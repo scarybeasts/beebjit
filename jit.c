@@ -63,6 +63,12 @@ jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   return p_jit_ptr;
 }
 
+static inline uint8_t*
+jit_get_jit_code_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
+  uint8_t* p_jit_ptr = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
+  return p_jit_ptr;
+}
+
 static inline int
 jit_is_host_address_invalidated(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
   if ((p_jit_ptr[0] == p_jit->jit_invalidation_sequence[0]) &&

@@ -727,17 +727,31 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     int32_t write_inv_search_uopcode;
     int32_t write_inv_replace_uopcode;
     int32_t new_uopcode;
+    int32_t revalidate_count;
+    int32_t revalidate_opcode;
+    uint16_t addr_6502;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    uint16_t addr_6502 = p_opcode->addr_6502;
-    int32_t revalidate_count = jit_compiler_get_revalidate_count(p_compiler,
-                                                                 addr_6502);
-
-    if (revalidate_count < (int32_t) max_revalidate_count) {
+    if (!p_opcode->self_modify_invalidated) {
       continue;
     }
 
+    addr_6502 = p_opcode->addr_6502;
+    jit_compiler_get_revalidation_details(p_compiler,
+                                          &revalidate_opcode,
+                                          &revalidate_count,
+                                          addr_6502);
+    assert(revalidate_opcode >= 0);
+    assert(revalidate_count >= 0);
+
     opcode_6502 = p_opcode->opcode_6502;
+    if (opcode_6502 != revalidate_opcode) {
+      continue;
+    }
+    if ((revalidate_count + 1) < (int32_t) max_revalidate_count) {
+      continue;
+    }
+
     opmode = g_opmodes[opcode_6502];
     page_crossing_search_uopcode = -1;
     page_crossing_replace_uopcode = -1;

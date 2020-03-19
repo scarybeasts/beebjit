@@ -38,8 +38,10 @@ uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
 
 int jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
                                        uint16_t addr_6502);
-int32_t jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
-                                          uint16_t addr_6502);
+void jit_compiler_get_revalidation_details(struct jit_compiler* p_compiler,
+                                           int32_t* p_opcode,
+                                           int32_t* p_revalidate_count,
+                                           uint16_t addr_6502);
 
 int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);

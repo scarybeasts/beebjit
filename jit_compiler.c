@@ -142,8 +142,16 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
   uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502];
+
   (void) p_host_ptr;
   assert(jit_ptr != (uint32_t) (size_t) p_host_ptr);
+
+  /* TODO: this shouldn't be necessary. Is invalidating a range not clearing
+   * JIT pointers properly?
+   */
+  if (p_compiler->addr_opcode[addr_6502] == -1) {
+    return 0;
+  }
 
   if (jit_ptr == p_compiler->jit_ptr_no_code) {
     return 0;
@@ -1611,7 +1619,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     /* Check self-modified status for each opcode. Need to do this before we
      * start overwriting the existing host binary in the fourth step below.
      */
-    if (jit_has_invalidated_code(p_compiler, addr_6502)) {
+    if (jit_has_invalidated_code(p_compiler, addr_6502) &&
+        (p_details->len_bytes_6502_orig > 1)) {
       p_details->self_modify_invalidated = 1;
     }
 
@@ -1837,8 +1846,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         int32_t revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
         if (opcode_6502 != p_compiler->addr_opcode[addr_6502]) {
           revalidate_count = 0;
-        } else if (p_details->self_modify_invalidated &&
-                   (p_details->len_bytes_6502_orig > 1)) {
+        } else if (p_details->self_modify_invalidated) {
           revalidate_count++;
           if (p_compiler->log_revalidate) {
             log_do_log(k_log_jit,
@@ -2042,10 +2050,13 @@ jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler) {
   return p_compiler->max_revalidate_count;
 }
 
-int32_t
-jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
-                                  uint16_t addr_6502) {
-  return p_compiler->addr_revalidate_count[addr_6502];
+void
+jit_compiler_get_revalidation_details(struct jit_compiler* p_compiler,
+                                      int32_t* p_opcode,
+                                      int32_t* p_revalidate_count,
+                                      uint16_t addr_6502) {
+  *p_opcode = p_compiler->addr_opcode[addr_6502];
+  *p_revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
 }
 
 int
