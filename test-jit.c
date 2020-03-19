@@ -5,28 +5,28 @@
 #include "bbc.h"
 #include "emit_6502.h"
 
-static struct cpu_driver* g_p_cpu_driver = NULL;
-static struct jit_struct* g_p_jit = NULL;
-static struct state_6502* g_p_state_6502 = NULL;
-static uint8_t* g_p_mem = NULL;
-static struct interp_struct* g_p_interp = NULL;
-static struct jit_compiler* g_p_compiler = NULL;
+static struct cpu_driver* s_p_cpu_driver = NULL;
+static struct jit_struct* s_p_jit = NULL;
+static struct state_6502* s_p_state_6502 = NULL;
+static uint8_t* s_p_mem = NULL;
+static struct interp_struct* s_p_interp = NULL;
+static struct jit_compiler* s_p_compiler = NULL;
 
 static void
 jit_test_init(struct bbc_struct* p_bbc) {
   struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
   assert(p_cpu_driver->p_funcs->init == jit_init);
 
-  g_p_cpu_driver = p_cpu_driver;
-  g_p_jit = (struct jit_struct*) p_cpu_driver;
-  g_p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  g_p_mem = p_cpu_driver->p_memory_access->p_mem_read;
-  g_p_interp = g_p_jit->p_interp;
-  g_p_compiler = g_p_jit->p_compiler;
+  s_p_cpu_driver = p_cpu_driver;
+  s_p_jit = (struct jit_struct*) p_cpu_driver;
+  s_p_state_6502 = p_cpu_driver->abi.p_state_6502;
+  s_p_mem = p_cpu_driver->p_memory_access->p_mem_read;
+  s_p_interp = s_p_jit->p_interp;
+  s_p_compiler = s_p_jit->p_compiler;
 
-  jit_compiler_testing_set_optimizing(g_p_compiler, 0);
-  jit_compiler_testing_set_max_ops(g_p_compiler, 4);
-  jit_compiler_testing_set_max_revalidate_count(g_p_compiler, 1);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+  jit_compiler_testing_set_max_ops(s_p_compiler, 4);
+  jit_compiler_testing_set_max_revalidate_count(s_p_compiler, 1);
 }
 
 static void
@@ -35,44 +35,44 @@ jit_test_block_split() {
 
   struct util_buffer* p_buf = util_buffer_create();
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB00);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB01);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  util_buffer_setup(p_buf, (g_p_mem + 0xB00), 0x100);
+  util_buffer_setup(p_buf, (s_p_mem + 0xB00), 0x100);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
-  state_6502_set_pc(g_p_state_6502, 0xB00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xB00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB01);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  state_6502_set_pc(g_p_state_6502, 0xB01);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xB01);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB00);
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
   /* We expect 0 because the block isn't invalidated -- the first 6502 JIT
    * instruction of the block is instead.
    */
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB01);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  state_6502_set_pc(g_p_state_6502, 0xB00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xB00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xB01);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   util_buffer_destroy(p_buf);
 }
@@ -83,7 +83,7 @@ jit_test_block_continuation() {
 
   struct util_buffer* p_buf = util_buffer_create();
 
-  util_buffer_setup(p_buf, (g_p_mem + 0xC00), 0x100);
+  util_buffer_setup(p_buf, (s_p_mem + 0xC00), 0x100);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
@@ -93,27 +93,27 @@ jit_test_block_continuation() {
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
 
-  state_6502_set_pc(g_p_state_6502, 0xC00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xC00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC01);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC04);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC01);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC04);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  state_6502_set_pc(g_p_state_6502, 0xC01);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xC01);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC01);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC04);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xC05);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC01);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC04);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC05);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   util_buffer_destroy(p_buf);
 }
@@ -124,7 +124,7 @@ jit_test_invalidation() {
 
   struct util_buffer* p_buf = util_buffer_create();
 
-  util_buffer_setup(p_buf, (g_p_mem + 0xD00), 0x100);
+  util_buffer_setup(p_buf, (s_p_mem + 0xD00), 0x100);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
   emit_NOP(p_buf);
@@ -134,70 +134,70 @@ jit_test_invalidation() {
   emit_NOP(p_buf);
   emit_EXIT(p_buf);
 
-  state_6502_set_pc(g_p_state_6502, 0xD00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  jit_invalidate_code_at_address(g_p_jit, 0xD01);
+  jit_invalidate_code_at_address(s_p_jit, 0xD01);
 
-  state_6502_set_pc(g_p_state_6502, 0xD00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD01);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD01);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  state_6502_set_pc(g_p_state_6502, 0xD00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
   /* This checks that the invalidation in the middle of a block didn't create
    * a new block boundary.
    */
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD01);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD01);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
-  jit_invalidate_code_at_address(g_p_jit, 0xD05);
+  jit_invalidate_code_at_address(s_p_jit, 0xD05);
 
   /* This execution will create a block at 0xD05 because of the invalidation
    * but it should not be a fundamental block boundary. Also, 0xD04 must remain
    * a block continuation and not a fundamental boundary.
    */
-  state_6502_set_pc(g_p_state_6502, 0xD00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
   /* Execute again, should settle back to the original block boundaries and
    * continuations.
    */
-  state_6502_set_pc(g_p_state_6502, 0xD00);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD05);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD05);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   /* Check that no block boundaries appeared in incorrect places. */
-  state_6502_set_pc(g_p_state_6502, 0xD03);
-  jit_enter(g_p_cpu_driver);
-  interp_testing_unexit(g_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0xD03);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD03);
-  test_expect_u32(0, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD04);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(g_p_jit, 0xD05);
-  test_expect_u32(1, jit_is_host_address_invalidated(g_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD03);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD05);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   util_buffer_destroy(p_buf);
 }
