@@ -137,8 +137,15 @@ jit_6502_block_addr_from_host(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
 
 static uint16_t
 jit_6502_block_addr_from_6502(struct jit_struct* p_jit, uint16_t addr) {
-  void* p_intel_rip = (void*) (size_t) p_jit->jit_ptrs[addr];
-  return jit_6502_block_addr_from_host(p_jit, p_intel_rip);
+  void* p_jit_ptr;
+  uint32_t jit_ptr = p_jit->jit_ptrs[addr];
+
+  while (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
+    jit_ptr = p_jit->jit_ptrs[--addr];
+  }
+
+  p_jit_ptr = (void*) (uintptr_t) jit_ptr;
+  return jit_6502_block_addr_from_host(p_jit, p_jit_ptr);
 }
 
 static inline void
@@ -381,7 +388,6 @@ jit_compile(struct jit_struct* p_jit,
   uint16_t host_block_addr_6502;
   uint16_t addr_6502;
   uint16_t old_block_addr_6502;
-  uint16_t tmp_addr_6502;
 
   int is_invalidation = 0;
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
@@ -397,13 +403,8 @@ jit_compile(struct jit_struct* p_jit,
   /* Whatever happens, the existing block will either be recompiled or split.
    * Either way, it is now invalid.
    */
-  tmp_addr_6502 = host_block_addr_6502;
-  jit_ptr = p_jit->jit_ptrs[tmp_addr_6502];
-  while (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
-    jit_ptr = p_jit->jit_ptrs[--tmp_addr_6502];
-  }
-  p_tmp_jit_ptr = (uint8_t*) (uintptr_t) jit_ptr;
-  old_block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_tmp_jit_ptr);
+  old_block_addr_6502 = jit_6502_block_addr_from_6502(p_jit,
+                                                      host_block_addr_6502);
   p_old_block_ptr = jit_get_jit_block_host_address(p_jit, old_block_addr_6502);
   jit_invalidate_host_address(p_jit, p_old_block_ptr);
 
