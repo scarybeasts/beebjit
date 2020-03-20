@@ -195,7 +195,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->max_6502_opcodes_per_block = max_6502_opcodes_per_block;
   (void) util_get_u32_option(&max_revalidate_count,
                              p_options->p_opt_flags,
-                             "jit:max-revalidate");
+                             "jit:max-revalidate=");
   if (max_revalidate_count < 1) {
     max_revalidate_count = 1;
   }
