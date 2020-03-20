@@ -58,10 +58,7 @@ jit_test_block_split() {
   interp_testing_unexit(s_p_interp);
 
   p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
-  /* We expect 0 because the block isn't invalidated -- the first 6502 JIT
-   * instruction of the block is instead.
-   */
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
   p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
   test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
@@ -144,8 +141,11 @@ jit_test_invalidation() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
+  /* The block split compiling the invalidation at $0D01 invalidates the block
+   * at $0D00.
+   */
   p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
   p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD01);
   test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
@@ -277,6 +277,15 @@ jit_test_dynamic_operand() {
   jit_invalidate_code_at_address(s_p_jit, 0xE84);
   p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE82);
   test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  /* When we do the recompile for the self-modified code, it splits the block
+   * starting at 0xE80 and invalidates it.
+   * When we recompile that block, make sure we didn't mistake the block split
+   * invalidation for a self-modify invalidation, i.e. the code at $0E80 should
+   * not have been compiled as dynamic operand.
+   */
+  jit_invalidate_code_at_address(s_p_jit, 0xE81);
+  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE80);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
 }

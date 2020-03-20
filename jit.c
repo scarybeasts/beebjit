@@ -369,32 +369,53 @@ jit_compile(struct jit_struct* p_jit,
             int64_t countdown,
             uint64_t intel_rflags) {
   uint32_t jit_ptr;
-  uint8_t* p_jit_ptr;
-  uint8_t* p_block_ptr;
+  uint8_t* p_tmp_jit_ptr;
+  uint8_t* p_host_block_ptr;
+  uint8_t* p_new_block_ptr;
+  uint8_t* p_old_block_ptr;
   uint32_t bytes_6502_compiled;
   int has_6502_code;
   int is_block_continuation;
+  uint16_t host_block_addr_6502;
+  uint16_t addr_6502;
+  uint16_t old_block_addr_6502;
+  uint16_t tmp_addr_6502;
 
+  int is_invalidation = 0;
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct util_buffer* p_compile_buf = p_jit->p_compile_buf;
-  uint16_t block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_intel_rip);
-  uint16_t addr_6502 = block_addr_6502;
-  int is_invalidation = 0;
 
   p_jit->counter_num_compiles++;
 
-  p_block_ptr = jit_get_jit_block_host_address(p_jit, block_addr_6502);
-  if (p_block_ptr != p_intel_rip) {
+  host_block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_intel_rip);
+  p_host_block_ptr = jit_get_jit_block_host_address(p_jit,
+                                                    host_block_addr_6502);
+
+  /* Whatever happens, the existing block will either be recompiled or split.
+   * Either way, it is now invalid.
+   */
+  tmp_addr_6502 = host_block_addr_6502;
+  jit_ptr = p_jit->jit_ptrs[tmp_addr_6502];
+  while (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
+    jit_ptr = p_jit->jit_ptrs[--tmp_addr_6502];
+  }
+  p_tmp_jit_ptr = (uint8_t*) (uintptr_t) jit_ptr;
+  old_block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_tmp_jit_ptr);
+  p_old_block_ptr = jit_get_jit_block_host_address(p_jit, old_block_addr_6502);
+  jit_invalidate_host_address(p_jit, p_old_block_ptr);
+
+  addr_6502 = host_block_addr_6502;
+  if (p_host_block_ptr != p_intel_rip) {
     is_invalidation = 1;
     /* Host IP is inside a code block; find the corresponding 6502 address. */
     while (1) {
       jit_ptr = p_jit->jit_ptrs[addr_6502];
-      p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
+      p_tmp_jit_ptr = (uint8_t*) (uintptr_t) jit_ptr;
       assert((jit_ptr == p_jit->jit_ptr_dynamic_operand) ||
-             (jit_6502_block_addr_from_host(p_jit, p_jit_ptr) ==
-              block_addr_6502));
-      if (p_jit_ptr == p_intel_rip) {
+             (jit_6502_block_addr_from_host(p_jit, p_tmp_jit_ptr) ==
+              host_block_addr_6502));
+      if (p_tmp_jit_ptr == p_intel_rip) {
         break;
       }
       addr_6502++;
@@ -404,7 +425,7 @@ jit_compile(struct jit_struct* p_jit,
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
    */
-  p_jit_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
+  p_new_block_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
   p_state_6502->reg_pc = addr_6502;
   if (is_invalidation) {
     countdown = jit_compiler_fixup_state(p_compiler,
@@ -413,7 +434,7 @@ jit_compile(struct jit_struct* p_jit,
                                          intel_rflags);
   }
 
-  util_buffer_setup(p_compile_buf, p_jit_ptr, k_jit_bytes_per_byte);
+  util_buffer_setup(p_compile_buf, p_new_block_ptr, k_jit_bytes_per_byte);
 
   if ((addr_6502 < 0xFF) &&
       !jit_compiler_is_compiling_for_code_in_zero_page(p_compiler)) {

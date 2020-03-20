@@ -81,21 +81,7 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
 }
 
-static void
-jit_invalidate_6502_jit_code(struct jit_compiler* p_compiler, uint16_t addr) {
-  uint8_t* p_host_ptr;
-
-  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-  if (jit_ptr == p_compiler->jit_ptr_no_code) {
-    return;
-  }
-
-  p_host_ptr = (uint8_t*) (uintptr_t) jit_ptr;
-  util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
-}
-
+/* TODO: move this to jit.c. */
 static void
 jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
   uint16_t block_addr_6502;
@@ -107,12 +93,8 @@ jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
 
   block_addr_6502 =
       p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
-  /* If we're compiling in the middle of an existing block, invalidate the
-   * very start of that block so it gets recompiled when it is next hit.
-   */
-  jit_invalidate_6502_jit_code(p_compiler, block_addr_6502);
 
-  /* Also clear all of the JIT invalidation pointers for the existing block.
+  /* Clear all of the JIT invalidation pointers for the existing block.
    * They will typically get rewritten but some might otherwise get left stale
    * if we recompile a small block exactly on top of an existing larger one.
    */
@@ -1483,7 +1465,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t total_num_6502_opcodes = 0;
   int block_ended = 0;
   int is_block_start = 0;
-  int is_block_continuation = 0;
+  int is_next_block_continuation = 0;
 
   assert(!util_buffer_get_pos(p_buf));
 
@@ -1501,6 +1483,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
+  /* NOTE: p_compiler->addr_is_block_continuation[start_addr_6502] is left as
+   * it currently is.
+   * The only way to clear it is compile across the continuation boundary.
+   */
 
   /* Prepend opcodes at the start of every block. */
   addr_6502 = start_addr_6502;
@@ -1564,7 +1550,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * opcodes.
      */
     if (total_num_6502_opcodes == p_compiler->max_6502_opcodes_per_block) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       break;
     }
 
@@ -1573,7 +1559,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * to jump out of a block when the block doesn't fit.
      */
     if (total_num_opcodes == (k_max_opcodes_per_compile - 1)) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       break;
     }
 
@@ -1583,7 +1569,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
        * possibly needed opcode to jump out of a block that doesn't fit.
        */
       if (total_num_opcodes >= (k_max_opcodes_per_compile - 2)) {
-        is_block_continuation = 1;
+        is_next_block_continuation = 1;
         break;
       }
     }
@@ -1748,7 +1734,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * current position, and execute a jump to the block continuation.
      */
     if (util_buffer_remaining(p_buf) < buf_needed) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       util_buffer_set_pos(p_single_opcode_buf, 0);
       for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
         p_uop = p_details->fixup_uops[i_uops];
@@ -1770,7 +1756,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->p_host_address = p_host_address;
   }
 
-  p_compiler->addr_is_block_continuation[addr_6502] = is_block_continuation;
+  p_compiler->addr_is_block_continuation[addr_6502] =
+      is_next_block_continuation;
 
   /* Fifth, update any values (metadata and/or binary) that may have changed
    * now we know the full extent of the emitted binary.
@@ -1829,9 +1816,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       if (addr_6502 != start_addr_6502) {
         jit_invalidate_jump_target(p_compiler, addr_6502);
         p_compiler->addr_is_block_start[addr_6502] = 0;
+        p_compiler->addr_is_block_continuation[addr_6502] = 0;
       }
-
-      p_compiler->addr_is_block_continuation[addr_6502] = 0;
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
       p_compiler->addr_nz_mem_fixup[addr_6502] = -1;
