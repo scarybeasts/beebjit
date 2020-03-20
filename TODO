@@ -9,7 +9,6 @@ get addressed before the next release.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - BCD support in JIT?
-- Big problems with block splitting.
 
 
 Fix later

@@ -253,7 +253,7 @@ jit_test_dynamic_operand() {
   test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   /* Try again but with the dynamic operand opcode not at the block start. */
-  util_buffer_setup(p_buf, (s_p_mem + 0xE80), 0x80);
+  util_buffer_setup(p_buf, (s_p_mem + 0xE80), 0x10);
   emit_LDY(p_buf, k_imm, 0x84);
   emit_LDA(p_buf, k_abx, 0x0E83);
   emit_STY(p_buf, k_abs, 0x0E83);
@@ -285,6 +285,40 @@ jit_test_dynamic_operand() {
    */
   jit_invalidate_code_at_address(s_p_jit, 0xE81);
   p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE80);
+  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+
+  /* Try again but with the two dynamic operands in a block. */
+  util_buffer_setup(p_buf, (s_p_mem + 0xE90), 0x10);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_LDY(p_buf, k_imm, 0x02);
+  emit_EXIT(p_buf);
+
+  state_6502_set_pc(s_p_state_6502, 0xE90);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_invalidate_code_at_address(s_p_jit, 0xE91);
+  jit_invalidate_code_at_address(s_p_jit, 0xE93);
+
+  state_6502_set_pc(s_p_state_6502, 0xE90);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_invalidate_code_at_address(s_p_jit, 0xE91);
+  jit_invalidate_code_at_address(s_p_jit, 0xE93);
+
+  /* There was a bug where dynamic operands would not be handled later in a
+   * block. This is tested here. If the bug triggers, the code at $0E92 would
+   * currently be in an invalidated state, resulting in a compile and split
+   * for this next execution.
+   */
+  state_6502_set_pc(s_p_state_6502, 0xE90);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE90);
+  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE92);
   test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);

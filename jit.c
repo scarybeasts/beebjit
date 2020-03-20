@@ -106,22 +106,6 @@ jit_get_trampoline_host_address_callback(void* p, uint16_t addr_6502) {
 }
 
 static uint16_t
-jit_get_jit_ptr_block_callback(void* p, uint32_t jit_ptr) {
-  size_t ret;
-  uint8_t* p_jit_ptr;
-
-  struct jit_struct* p_jit = (struct jit_struct*) p;
-
-  p_jit_ptr = (uint8_t*) (size_t) jit_ptr;
-
-  ret = ((p_jit_ptr - p_jit->p_jit_base) / k_jit_bytes_per_byte);
-
-  assert(ret < k_6502_addr_space_size);
-
-  return ret;
-}
-
-static uint16_t
 jit_6502_block_addr_from_host(struct jit_struct* p_jit, uint8_t* p_intel_rip) {
   size_t block_addr_6502;
 
@@ -388,6 +372,8 @@ jit_compile(struct jit_struct* p_jit,
   uint16_t host_block_addr_6502;
   uint16_t addr_6502;
   uint16_t old_block_addr_6502;
+  uint16_t clear_ptrs_addr_6502;
+  uint16_t clear_ptrs_block_addr_6502;
 
   int is_invalidation = 0;
   struct state_6502* p_state_6502 = p_jit->driver.abi.p_state_6502;
@@ -471,6 +457,20 @@ jit_compile(struct jit_struct* p_jit,
                                                    p_compile_buf,
                                                    is_invalidation,
                                                    addr_6502);
+
+  /* Clear any leftover JIT pointers from a previous block at the same
+   * location.
+   */
+  clear_ptrs_addr_6502 = (addr_6502 + bytes_6502_compiled);
+  while (1) {
+    clear_ptrs_block_addr_6502 =
+        jit_6502_block_addr_from_6502(p_jit, clear_ptrs_addr_6502);
+    if (clear_ptrs_block_addr_6502 != addr_6502) {
+      break;
+    }
+    p_jit->jit_ptrs[clear_ptrs_addr_6502] = p_jit->jit_ptr_no_code;
+    clear_ptrs_addr_6502++;
+  }
 
   if (p_jit->log_compile) {
     const char* p_text;
@@ -783,7 +783,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_memory_access,
       jit_get_block_host_address_callback,
       jit_get_trampoline_host_address_callback,
-      jit_get_jit_ptr_block_callback,
       p_jit,
       &p_jit->jit_ptrs[0],
       p_options,

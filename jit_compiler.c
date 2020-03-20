@@ -20,7 +20,6 @@ struct jit_compiler {
   uint8_t* p_mem_read;
   void* (*get_block_host_address)(void* p, uint16_t addr);
   void* (*get_trampoline_host_address)(void* p, uint16_t addr);
-  uint16_t (*get_jit_ptr_block)(void* p, uint32_t jit_ptr);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
@@ -81,42 +80,6 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
 }
 
-/* TODO: move this to jit.c. */
-static void
-jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
-  uint16_t block_addr_6502;
-  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-  if (jit_ptr == p_compiler->jit_ptr_no_code) {
-    return;
-  }
-
-  block_addr_6502 =
-      p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
-
-  /* Clear all of the JIT invalidation pointers for the existing block.
-   * They will typically get rewritten but some might otherwise get left stale
-   * if we recompile a small block exactly on top of an existing larger one.
-   */
-  while (1) {
-    uint16_t next_block_addr_6502;
-    addr++;
-    jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-    if (jit_ptr == p_compiler->jit_ptr_dynamic_operand) {
-      continue;
-    }
-
-    next_block_addr_6502 =
-        p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object,
-                                      jit_ptr);
-    if (next_block_addr_6502 != block_addr_6502) {
-      break;
-    }
-    p_compiler->p_jit_ptrs[addr] = p_compiler->jit_ptr_no_code;
-  }
-}
-
 static int
 jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   uint8_t* p_raw_ptr;
@@ -151,7 +114,6 @@ struct jit_compiler*
 jit_compiler_create(struct memory_access* p_memory_access,
                     void* (*get_block_host_address)(void*, uint16_t),
                     void* (*get_trampoline_host_address)(void*, uint16_t),
-                    uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
@@ -171,7 +133,6 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
   p_compiler->get_block_host_address = get_block_host_address;
   p_compiler->get_trampoline_host_address = get_trampoline_host_address;
-  p_compiler->get_jit_ptr_block = get_jit_ptr_block;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
@@ -1468,8 +1429,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   int is_next_block_continuation = 0;
 
   assert(!util_buffer_get_pos(p_buf));
-
-  jit_invalidate_block_with_addr(p_compiler, start_addr_6502);
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
