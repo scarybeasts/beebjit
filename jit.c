@@ -320,6 +320,8 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint32_t addr_end = (addr + len);
 
+  assert(addr_end <= k_6502_addr_space_size);
+
   if (p_jit->log_compile) {
     log_do_log(k_log_jit,
                k_log_info,

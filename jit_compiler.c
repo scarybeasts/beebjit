@@ -2012,7 +2012,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
   uint32_t addr_end = (addr + len);
 
-  assert(addr_end >= addr);
+  assert(addr_end <= k_6502_addr_space_size);
 
   for (i = addr; i < addr_end; ++i) {
     p_compiler->addr_opcode[i] = -1;
