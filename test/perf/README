@@ -1,0 +1,5 @@
+These discs are interesting to test emulator performance.
+
+- pi.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/115
+Aside from being a good performance test, seems to use a page-crossing JMP ind.

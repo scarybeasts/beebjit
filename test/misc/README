@@ -14,10 +14,6 @@ Triggers interesting MODE 7 character states.
 From http://mdfs.net/Mirror/Image/JGH/Music2.ssd
 The Doctor Who song playback displays MODE 8.
 
-- pi.ssd
-From https://github.com/mattgodbolt/jsbeeb/issues/115
-Seems to use a page-crossing JMP ind.
-
 - PLAY_DISC.ssd, SAVE_DISC.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/198
 Disc for drives 0 / 1 for Dragonsoft Explorer.
