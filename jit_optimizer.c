@@ -810,7 +810,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       break;
     case k_abs:
       switch (opcode_6502) {
-      case 0x8C: /* STY */
+      case 0x4C: /* JMP abs */
+        new_uopcode = k_opcode_JMP_SCRATCH;
+        break;
+      case 0x8C: /* STY abs */
         new_uopcode = 0x94; /* STY zpx */
         write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
         write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
