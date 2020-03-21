@@ -8,7 +8,6 @@ get addressed before the next release.
 
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
-- BCD support in JIT?
 
 
 Fix later
@@ -25,6 +24,9 @@ dependent on one another.
 - Tape loading noises.
 - Disc loading noises.
 - Add a test for the JIT optimizer.
+- BCD support in JIT. It gives accurate results but slowly because it uses the
+interpreter. No evidence yet of intense BCD usage in anything that needs to go
+fast.
 
 
 Peformance tuning
