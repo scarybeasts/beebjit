@@ -27,6 +27,20 @@ dependent on one another.
 - Add a test for the JIT optimizer.
 
 
+Peformance tuning
+=================
+Software running slower than it might for various reasons. Fun to knock these
+improvements out one by one on a rainy day.
+
+- Thrust.ssd. Lots of not-yet-optimized self-modifications.
+- Galaforce2.ssd. Heavy self-modification of a branch operand.
+- Elite.ssd. Slams hardware registers in a tight loop reading keyboard.
+- Tarzan.ssd. Very slow (120MHz). interp is faster!! Looks to be a tight
+wait-for-vsync loop at $24D9 causing a lot of thrash. Surely this is common.
+- Citadel.ssd. Flips between a JSR and JMP at $3BA3 via self-modification.
+- Tricky's Frogger. 94Mhz only. 86k CRTC/s due to CRTC register abuse.
+
+
 Ideas
 =====
 
