@@ -570,10 +570,10 @@ asm_x64_jit_MODE_IND_16_END:
   ret
 
 
-.globl asm_x64_jit_MODE_IND_SCRATCH
-.globl asm_x64_jit_MODE_IND_SCRATCH_END
-asm_x64_jit_MODE_IND_SCRATCH:
-  # This faults (with a fixup handler) if we're trying to load from 0xFF,
+.globl asm_x64_jit_MODE_IND_SCRATCH_8
+.globl asm_x64_jit_MODE_IND_SCRATCH_8_END
+asm_x64_jit_MODE_IND_SCRATCH_8:
+  # This faults (with a fixup handler) if we're trying to load from $00FF,
   # which is highly unusual.
   mov REG_SCRATCH3_8, \
       [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
@@ -582,7 +582,24 @@ asm_x64_jit_MODE_IND_SCRATCH:
   mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
   mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
 
-asm_x64_jit_MODE_IND_SCRATCH_END:
+asm_x64_jit_MODE_IND_SCRATCH_8_END:
+  ret
+
+
+.globl asm_x64_jit_MODE_IND_SCRATCH_16
+.globl asm_x64_jit_MODE_IND_SCRATCH_16_END
+asm_x64_jit_MODE_IND_SCRATCH_16:
+  # This faults (with a fixup handler) if we're trying to load from $xxFF,
+  # which is highly unusual.
+  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
+  mov REG_SCRATCH3_8, \
+      [REG_SCRATCH3 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
+
+  mov REG_SCRATCH2, REG_SCRATCH1
+  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
+  mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
+
+asm_x64_jit_MODE_IND_SCRATCH_16_END:
   ret
 
 

@@ -546,7 +546,8 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_8:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH:
+    case k_opcode_MODE_IND_SCRATCH_8:
+    case k_opcode_MODE_IND_SCRATCH_16:
     case k_opcode_MODE_ZPX:
     case k_opcode_MODE_ZPY:
     case k_opcode_SAVE_CARRY:
@@ -633,7 +634,8 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_8:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH:
+    case k_opcode_MODE_IND_SCRATCH_8:
+    case k_opcode_MODE_IND_SCRATCH_16:
     case k_opcode_MODE_ZPX:
     case k_opcode_MODE_ZPY:
     case k_opcode_SAVE_CARRY:
@@ -852,6 +854,15 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       break;
     default:
       switch (opcode_6502) {
+      case 0x6C: /* JMP ind */
+        new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
+        jit_opcode_find_replace2(p_opcode,
+                                 k_opcode_MODE_IND_16,
+                                 k_opcode_LOAD_SCRATCH_16,
+                                 (uint16_t) (addr_6502 + 1),
+                                 k_opcode_MODE_IND_SCRATCH_16,
+                                 0);
+        break;
       case 0xBD: /* LDA abx */
         new_uopcode = k_opcode_LDA_SCRATCH_X;
         jit_opcode_find_replace2(p_opcode,

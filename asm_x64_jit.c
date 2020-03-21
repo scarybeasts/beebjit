@@ -495,10 +495,17 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
 }
 
 void
-asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf) {
+asm_x64_emit_jit_MODE_IND_SCRATCH_8(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_jit_MODE_IND_SCRATCH,
-               asm_x64_jit_MODE_IND_SCRATCH_END);
+               asm_x64_jit_MODE_IND_SCRATCH_8,
+               asm_x64_jit_MODE_IND_SCRATCH_8_END);
+}
+
+void
+asm_x64_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_MODE_IND_SCRATCH_16,
+               asm_x64_jit_MODE_IND_SCRATCH_16_END);
 }
 
 void

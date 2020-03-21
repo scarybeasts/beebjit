@@ -56,7 +56,8 @@ void asm_x64_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr);
 void asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
                                   uint16_t addr,
                                   uint32_t segment);
-void asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf);
+void asm_x64_emit_jit_MODE_IND_SCRATCH_8(struct util_buffer* p_buf);
+void asm_x64_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf);
 void asm_x64_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value);
 void asm_x64_emit_jit_PULL_16(struct util_buffer* p_buf);
@@ -300,8 +301,10 @@ void asm_x64_jit_MODE_IND_16();
 void asm_x64_jit_MODE_IND_16_mov1_patch();
 void asm_x64_jit_MODE_IND_16_mov2_patch();
 void asm_x64_jit_MODE_IND_16_END();
-void asm_x64_jit_MODE_IND_SCRATCH();
-void asm_x64_jit_MODE_IND_SCRATCH_END();
+void asm_x64_jit_MODE_IND_SCRATCH_8();
+void asm_x64_jit_MODE_IND_SCRATCH_8_END();
+void asm_x64_jit_MODE_IND_SCRATCH_16();
+void asm_x64_jit_MODE_IND_SCRATCH_16_END();
 void asm_x64_jit_MODE_ZPX();
 void asm_x64_jit_MODE_ZPX_lea_patch();
 void asm_x64_jit_MODE_ZPX_END();

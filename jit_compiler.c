@@ -344,7 +344,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = p_mem_read[addr_plus_1];
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH, addr_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH_8, addr_6502);
     p_uop++;
     break;
   case k_idy:
@@ -872,8 +872,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_MODE_IND_16:
     asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
     break;
-  case k_opcode_MODE_IND_SCRATCH:
-    asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);
+  case k_opcode_MODE_IND_SCRATCH_8:
+    asm_x64_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
+    break;
+  case k_opcode_MODE_IND_SCRATCH_16:
+    asm_x64_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
     break;
   case k_opcode_MODE_ZPX:
     asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
