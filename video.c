@@ -402,7 +402,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   while (delta_crtc_ticks--) {
     r0_hit = (p_video->horiz_counter == r0);
     r1_hit = (p_video->horiz_counter == r1);
-    r2_hit = (p_video->horiz_counter == r2);
 
     if (p_video->start_of_line_state_checks) {
       if (p_video->start_of_line_state_checks & 4) {
@@ -436,13 +435,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     /* Wraps 0xFF -> 0; uint8_t type. */
     p_video->horiz_counter++;
-    /* TODO: optimize this to advance by a stride and only recalculate when
-     * necessary.
-     */
-    bbc_address = video_calculate_bbc_address(NULL,
-                                              p_video->address_counter,
-                                              p_video->scanline_counter,
-                                              p_video->screen_wrap_add);
 
     if (r1_hit) {
       p_video->display_enable_horiz = 0;
@@ -451,9 +443,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       if (p_video->display_enable_vert) {
         teletext_DISPMTG_changed(p_video->p_teletext, 0);
       }
-    }
-    if (r2_hit) {
-      render_hsync(p_render);
     }
     if (check_vsync_at_half_r0 &&
         (p_video->horiz_counter == p_video->half_r0)) {
@@ -465,31 +454,47 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       check_vsync_at_half_r0 = 0;
     }
 
-    if (!p_video->cursor_disabled &&
-        (p_video->address_counter == cursor_addr) &&
-        p_video->has_hit_cursor_line_start &&
-        !p_video->has_hit_cursor_line_end &&
-        (!p_video->cursor_flashing || (p_video->crtc_frames &
-                                       p_video->cursor_flash_mask)) &&
-        p_video->display_enable_horiz &&
-        p_video->display_enable_vert) {
-      /* EMU: cursor _does_ display if master display enable is off, but it's
-       * within the horiz / vert border.
-       */
-      render_cursor(p_render);
+    if (p_video->is_rendering_active) {
+      r2_hit = (p_video->horiz_counter == r2);
+      if (r2_hit) {
+        render_hsync(p_render);
+      }
+      if (!p_video->cursor_disabled &&
+          (p_video->address_counter == cursor_addr) &&
+          p_video->has_hit_cursor_line_start &&
+          !p_video->has_hit_cursor_line_end &&
+          (!p_video->cursor_flashing || (p_video->crtc_frames &
+                                         p_video->cursor_flash_mask)) &&
+          p_video->display_enable_horiz &&
+          p_video->display_enable_vert) {
+        /* EMU: cursor _does_ display if master display enable is off, but it's
+         * within the horiz / vert border.
+         */
+        render_cursor(p_render);
+      }
+
+      if (!r0_hit) {
+        bbc_address = video_calculate_bbc_address(NULL,
+                                                  p_video->address_counter,
+                                                  p_video->scanline_counter,
+                                                  p_video->screen_wrap_add);
+        data = p_bbc_mem[bbc_address];
+        func_render(p_render, data);
+      }
     }
+
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
 
     if (!r0_hit) {
-      data = p_bbc_mem[bbc_address];
-      func_render(p_render, data);
       continue;
     }
 
     /* End of horizontal line.
      * There's no display output for this last character.
      */
-    func_render_blank(p_render, 0);
+    if (p_video->is_rendering_active) {
+      func_render_blank(p_render, 0);
+    }
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
     if (p_video->scanline_counter ==

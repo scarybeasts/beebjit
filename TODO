@@ -40,7 +40,7 @@ improvements out one by one on a rainy day.
 - Tarzan.ssd. Very slow (120MHz). interp is faster!! Looks to be a tight
 wait-for-vsync loop at $24D9 causing a lot of thrash. Surely this is common.
 - Citadel.ssd. Flips between a JSR and JMP at $3BA3 via self-modification.
-- Tricky's Frogger. 94Mhz only. 86k CRTC/s due to CRTC register abuse.
+- Tricky's Frogger. 150Mhz only. 126k CRTC/s due to CRTC register abuse.
 
 
 Ideas
