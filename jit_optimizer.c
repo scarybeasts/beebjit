@@ -814,12 +814,24 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         new_uopcode = k_opcode_JMP_SCRATCH;
         break;
       case 0x8C: /* STY abs */
-        new_uopcode = 0x94; /* STY zpx */
+        new_uopcode = 0x94; /* STY zpx -- which is STY_scratch. */
         write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
         write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
         break;
+      case 0x8D: /* STA abs */
+        new_uopcode = 0x95; /* STA zpx -- which is STA_SCRATCH. */
+        write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+        write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
+        break;
+      case 0xAE: /* LDX abs */
+        new_uopcode = 0xB6; /* LDX zpy -- which is LDX_scratch. */
+        break;
       default:
         break;
+      }
+      /* abs mode can hit hardware registers and compile to an interp call. */
+      if (jit_opcode_find_uop(p_opcode, opcode_6502) == NULL) {
+        new_uopcode = -1;
       }
       if (new_uopcode != -1) {
         jit_opcode_find_replace2(p_opcode,
@@ -845,6 +857,10 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
         break;
       default:
         break;
+      }
+      /* aby mode can hit hardware registers and compile to an interp call. */
+      if (jit_opcode_find_uop(p_opcode, opcode_6502) == NULL) {
+        new_uopcode = -1;
       }
       if (new_uopcode != -1) {
         jit_opcode_find_replace2(p_opcode,
