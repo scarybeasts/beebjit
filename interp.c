@@ -23,7 +23,7 @@ struct interp_struct {
   struct cpu_driver driver;
   int has_exited;
   uint32_t exit_value;
-  int has_logged_bcd;
+  uint64_t counter_bcd;
 
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -233,11 +233,12 @@ interp_is_branch_opcode(uint8_t opcode) {
 
 static inline void
 interp_check_log_bcd(struct interp_struct* p_interp) {
-  if (p_interp->has_logged_bcd) {
-    return;
+  if ((p_interp->counter_bcd % 1000) == 0) {
+    log_do_log(k_log_instruction,
+               k_log_info,
+               "BCD mode was used (log every 1k)");
   }
-  p_interp->has_logged_bcd = 1;
-  log_do_log(k_log_instruction, k_log_info, "BCD mode was used (log once)");
+  p_interp->counter_bcd++;
 }
 
 #define INTERP_TIMING_ADVANCE(num_cycles)                                     \
