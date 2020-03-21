@@ -151,3 +151,12 @@ become flickery. Again, this is faithful to a real beeb.]
 To improve the synchronization:
 ./beebjit -0 ~/Downloads/Pace/Fortress.ssd -opt video:render-every-ticks=64
 
+
+13) Loading a ROM, and running something requiring E00 DFS.
+./beebjit -swram d -rom d ~/beebjit/roms/E00DFS090 -fast -opt sound:off -0 ~/beebjit/test/perf/pi.ssd -log perf:speed
+
+In the above command, the E00DFS090 file is loaded in to ROM slot hex 0xd, which
+overrides the default DFS ROM in that same slot. Furthermore, this ROM actually
+needs to be in a writeable sideways RAM bank to work, to the -swram d option
+is also needed.
+The pi.ssd test will calculate more digits if it detects $0E00 PAGE!
