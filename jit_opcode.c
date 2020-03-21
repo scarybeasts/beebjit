@@ -37,7 +37,7 @@ jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
                          int32_t value1,
                          int32_t uop2,
                          int32_t value2) {
-  size_t i;
+  uint32_t i;
   struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode, find_uop);
   assert(p_uop != NULL);
 
@@ -78,4 +78,18 @@ jit_opcode_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
   }
 
   return p_ret;
+}
+
+void
+jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
+  uint32_t i;
+  struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode, uopcode);
+
+  assert(p_uop != NULL);
+
+  i = (p_uop - &p_opcode->uops[0]);
+  (void) memmove(p_uop,
+                 (p_uop + 1),
+                 ((p_opcode->num_uops - i - 1) * sizeof(struct jit_uop)));
+  p_opcode->num_uops--;
 }

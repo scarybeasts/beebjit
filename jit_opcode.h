@@ -137,4 +137,6 @@ void jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1);
 struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);
 
+void jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode);
+
 #endif /* JIT_OPCODE_H */

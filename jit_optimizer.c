@@ -725,6 +725,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     int32_t page_crossing_replace_uopcode;
     int32_t write_inv_search_uopcode;
     int32_t write_inv_replace_uopcode;
+    int32_t write_inv_erase_uopcode;
     int32_t new_uopcode;
     int32_t revalidate_count;
     int32_t revalidate_opcode;
@@ -755,6 +756,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     page_crossing_replace_uopcode = -1;
     write_inv_search_uopcode = -1;
     write_inv_replace_uopcode = -1;
+    write_inv_erase_uopcode = -1;
     new_uopcode = -1;
 
     switch (opmode) {
@@ -823,19 +825,33 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
                                  0);
       }
       break;
-    default:
+    case k_aby:
       switch (opcode_6502) {
+      case 0x99: /* STA aby */
+        new_uopcode = 0x91; /* STA idy */
+        write_inv_search_uopcode = k_opcode_WRITE_INV_SCRATCH;
+        write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH_Y;
+        write_inv_erase_uopcode = k_opcode_MODE_ABY;
+        break;
       case 0xB9: /* LDA aby */
         new_uopcode = 0xB1; /* LDA idy */
-        jit_opcode_find_replace2(p_opcode,
-                                 0xB9,
-                                 k_opcode_LOAD_SCRATCH_16,
-                                 (uint16_t) (addr_6502 + 1),
-                                 0xB1, /* LDA idy */
-                                 0);
         page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_Y_n;
         page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y;
         break;
+      default:
+        break;
+      }
+      if (new_uopcode != -1) {
+        jit_opcode_find_replace2(p_opcode,
+                                 opcode_6502,
+                                 k_opcode_LOAD_SCRATCH_16,
+                                 (uint16_t) (addr_6502 + 1),
+                                 new_uopcode,
+                                 0);
+      }
+      break;
+    default:
+      switch (opcode_6502) {
       case 0xBD: /* LDA abx */
         new_uopcode = k_opcode_LDA_SCRATCH_X;
         jit_opcode_find_replace2(p_opcode,
@@ -866,6 +882,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
             jit_opcode_find_uop(p_opcode, write_inv_search_uopcode);
         assert(p_uop != NULL);
         jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
+      }
+      if (write_inv_erase_uopcode != -1) {
+        jit_opcode_erase_uop(p_opcode, write_inv_erase_uopcode);
       }
     }
   }
