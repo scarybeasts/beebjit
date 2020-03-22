@@ -115,4 +115,7 @@ int util_get_str_option(char** p_opt_out,
                         const char* p_opt_name);
 int util_has_option(const char* p_opt_str, const char* p_opt_name);
 
+/* Misc. */
+void util_bail(const char* p_msg, ...) __attribute__((format(printf, 1, 2)));
+
 #endif /* BEEBJIT_UTIL_H */

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -760,4 +761,20 @@ util_has_option(const char* p_opt_str, const char* p_opt_name) {
     return 1;
   }
   return 0;
+}
+
+void
+util_bail(const char* p_msg, ...) {
+  va_list args;
+  char msg[256];
+
+  va_start(args, p_msg);
+  msg[0] = '\0';
+  (void) vsnprintf(msg, sizeof(msg), p_msg, args);
+  va_end(args);
+
+  (void) fprintf(stderr, "BAILING: %s\n", msg);
+
+  exit(1);
+  /* Not reached. */
 }

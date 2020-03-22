@@ -13,7 +13,7 @@
 #include "video.h"
 
 #include <assert.h>
-#include <err.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,10 +76,10 @@ main(int argc, const char* argv[]) {
       const char* val1 = argv[i + 1];
       const char* val2 = argv[i + 2];
       if (!strcmp(arg, "-rom")) {
-        int bank;
-        (void) sscanf(val1, "%x", &bank);
+        int32_t bank = -1;
+        (void) sscanf(val1, PRIx32, &bank);
         if (bank < 0 || bank >= k_bbc_num_roms) {
-          errx(1, "ROM bank number out of range");
+          util_bail("ROM bank number out of range");
         }
         rom_names[bank] = val2;
         i += 2;
@@ -118,10 +118,10 @@ main(int argc, const char* argv[]) {
         log_flags = val;
         ++i;
       } else if (!strcmp(arg, "-stopat")) {
-        (void) sscanf(val, "%x", &debug_stop_addr);
+        (void) sscanf(val, PRIx32, &debug_stop_addr);
         ++i;
       } else if (!strcmp(arg, "-pc")) {
-        (void) sscanf(val, "%x", &pc);
+        (void) sscanf(val, PRIx32, &pc);
         ++i;
       } else if (!strcmp(arg, "-mode")) {
         if (!strcmp(val, "jit")) {
@@ -131,22 +131,22 @@ main(int argc, const char* argv[]) {
         } else if (!strcmp(val, "inturbo")) {
           mode = k_cpu_mode_inturbo;
         } else {
-          errx(1, "unknown mode");
+          util_bail("unknown mode");
         }
         ++i;
       } else if (!strcmp(arg, "-swram")) {
-        int bank;
-        (void) sscanf(val, "%x", &bank);
+        int32_t bank = -1;
+        (void) sscanf(val, PRIx32, &bank);
         if (bank < 0 || bank >= k_bbc_num_roms) {
-          errx(1, "RAM bank number out of range");
+          util_bail("RAM bank number out of range");
         }
         sideways_ram[bank] = 1;
         ++i;
       } else if (!strcmp(arg, "-cycles")) {
-        (void) sscanf(val, "%ld", &cycles);
+        (void) sscanf(val, PRIu64, &cycles);
         ++i;
       } else if (!strcmp(arg, "-expect")) {
-        (void) sscanf(val, "%x", &expect);
+        (void) sscanf(val, PRIx32, &expect);
         ++i;
       }
     }
@@ -206,7 +206,7 @@ main(int argc, const char* argv[]) {
 
   read_ret = util_file_read_fully(os_rom, k_bbc_rom_size, os_rom_name);
   if (read_ret != k_bbc_rom_size) {
-    errx(1, "can't load OS rom");
+    util_bail("can't load OS rom");
   }
 
   if (terminal_flag) {
@@ -246,7 +246,7 @@ main(int argc, const char* argv[]) {
                      log_flags,
                      debug_stop_addr);
   if (p_bbc == NULL) {
-    errx(1, "bbc_create failed");
+    util_bail("bbc_create failed");
   }
 
   if (test_flag) {
@@ -305,14 +305,14 @@ main(int argc, const char* argv[]) {
 
   p_poller = os_poller_create();
   if (p_poller == NULL) {
-    errx(1, "os_poller_create failed");
+    util_bail("os_poller_create failed");
   }
 
   if (!headless_flag) {
     p_window = os_window_create(render_get_width(p_render),
                                 render_get_height(p_render));
     if (p_window == NULL) {
-      errx(1, "os_window_create failed");
+      util_bail("os_window_create failed");
     }
     os_window_set_name(p_window, "beebjit technology preview");
     os_window_set_keyboard_callback(p_window, p_keyboard);
@@ -401,7 +401,7 @@ main(int argc, const char* argv[]) {
   run_result = bbc_get_run_result(p_bbc);
   if (expect) {
     if (run_result != expect) {
-      errx(1, "run result %x is not as expected", run_result);
+      util_bail("run result %x is not as expected", run_result);
     }
   }
 
