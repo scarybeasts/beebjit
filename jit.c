@@ -244,9 +244,9 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   jit_compiler_destroy(p_jit->p_compiler);
 
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  util_free_guarded_mapping(k_jit_addr, mapping_size);
+  os_alloc_free_guarded_mapping(k_jit_addr, mapping_size);
   mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
-  util_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
+  os_alloc_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
 }
 
 static int
@@ -746,8 +746,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  p_jit_base = util_get_guarded_mapping(k_jit_addr, mapping_size);
-  util_make_mapping_read_write_exec(p_jit_base, mapping_size);
+  p_jit_base = os_alloc_get_guarded_mapping(k_jit_addr, mapping_size);
+  os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
   /* Fill with int3. */
   (void) memset(p_jit_base, '\xcc', mapping_size);
 
@@ -757,9 +757,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * interp.
    */
   mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
-  p_jit_trampolines = util_get_guarded_mapping(k_jit_trampolines_addr,
-                                               mapping_size);
-  util_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
+  p_jit_trampolines = os_alloc_get_guarded_mapping(k_jit_trampolines_addr,
+                                                   mapping_size);
+  os_alloc_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
   /* Fill with int3. */
   (void) memset(p_jit_trampolines, '\xcc', mapping_size);
 

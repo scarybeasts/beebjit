@@ -1,6 +1,7 @@
 #include "os_window.h"
 
 #include "keyboard.h"
+#include "os_alloc.h"
 #include "os_x11_keys.h"
 #include "log.h"
 #include "util.h"
@@ -170,8 +171,8 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "shmat failed");
   }
 
-  util_make_mapping_none(p_window->p_shm_map_start, 4096);
-  util_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
+  os_alloc_make_mapping_none(p_window->p_shm_map_start, 4096);
+  os_alloc_make_mapping_none(p_window->p_shm_map_start + map_size - 4096, 4096);
   p_window->p_image_data = (p_window->p_shm_map_start + 4096);
 
   p_window->p_image = XShmCreateImage(p_window->d,

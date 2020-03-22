@@ -9,6 +9,7 @@
 #include "defs_6502.h"
 #include "interp.h"
 #include "memory_access.h"
+#include "os_alloc.h"
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
@@ -594,8 +595,8 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
 
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
-  util_free_guarded_mapping(p_inturbo->p_inturbo_base,
-                            (256 * k_inturbo_bytes_per_opcode));
+  os_alloc_free_guarded_mapping(p_inturbo->p_inturbo_base,
+                                (256 * k_inturbo_bytes_per_opcode));
   util_free(p_inturbo);
 }
 
@@ -702,10 +703,10 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
-  p_inturbo->p_inturbo_base = util_get_guarded_mapping(
+  p_inturbo->p_inturbo_base = os_alloc_get_guarded_mapping(
       k_inturbo_opcodes_addr,
       (256 * k_inturbo_bytes_per_opcode));
-  util_make_mapping_read_write_exec(
+  os_alloc_make_mapping_read_write_exec(
       p_inturbo->p_inturbo_base,
       (256 * k_inturbo_bytes_per_opcode));
 

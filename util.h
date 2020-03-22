@@ -1,29 +1,12 @@
 #ifndef BEEBJIT_UTIL_H
 #define BEEBJIT_UTIL_H
 
+#include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 
 /* Memory. */
 void* util_mallocz(size_t size);
 void util_free(void* p);
-
-/* Memory mapping. */
-/* TODO: this should be in os_mapping.h because Windows will be different. */
-intptr_t util_get_memory_handle(size_t size);
-void* util_get_guarded_mapping(void* p_addr, size_t size);
-void* util_get_guarded_mapping_from_handle(intptr_t handle,
-                                           void* p_addr,
-                                           size_t size);
-void util_free_guarded_mapping(void* p_addr, size_t size);
-void util_make_mapping_read_only(void* p_addr, size_t size);
-void util_make_mapping_read_write(void* p_addr, size_t size);
-void util_make_mapping_read_write_exec(void* p_addr, size_t size);
-void util_make_mapping_none(void* p_addr, size_t size);
-void* util_get_fixed_anonymous_mapping(void* p_addr, size_t size);
-void* util_get_fixed_mapping_from_handle(intptr_t handle,
-                                         void* p_addr,
-                                         size_t size);
 
 /* Buffer. */
 struct util_buffer;
@@ -54,7 +37,7 @@ void util_buffer_add_5b(struct util_buffer* p_buf,
                         int b3,
                         int b4,
                         int b5);
-void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
+void util_buffer_add_int(struct util_buffer* p_buf, int64_t i);
 void util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size);
 void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 void util_buffer_fill(struct util_buffer* p_buf, char value, size_t len);
@@ -85,8 +68,6 @@ void util_file_write_fully(const char* p_file_name,
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
-void util_make_handle_unbuffered(intptr_t handle);
-uint64_t util_get_handle_readable_bytes(intptr_t handle);
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
 

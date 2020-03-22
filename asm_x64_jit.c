@@ -16,7 +16,7 @@ asm_x64_emit_jit_jump(struct util_buffer* p_buf,
                       void* p_jmp_8bit,
                       void* p_jmp_end_8bit) {
   int32_t len_x64;
-  ssize_t delta;
+  int64_t delta;
 
   size_t offset = util_buffer_get_pos(p_buf);
   void* p_source = (util_buffer_get_base_address(p_buf) + offset);
