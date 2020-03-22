@@ -294,6 +294,7 @@ util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
       util_bail("write EOF");
     }
     to_go -= ret;
+    p_buf += ret;
   }
 }
 
@@ -315,6 +316,7 @@ util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
     }
     to_go -= ret;
     done += ret;
+    p_buf += ret;
   }
 
   return done;
