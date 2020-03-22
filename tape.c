@@ -6,7 +6,7 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
+#include <inttypes.h>
 #include <string.h>
 
 enum {
@@ -141,7 +141,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   util_file_handle_close(file_handle);
 
   if (len == sizeof(in_buf)) {
-    errx(1, "uef file too large");
+    util_bail("uef file too large");
   }
 
   p_in_buf = in_buf;
@@ -149,17 +149,17 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   file_remaining = len;
   buffer_remaining = k_max_uef_size;
   if (file_remaining < 12) {
-    errx(1, "uef file missing header");
+    util_bail("uef file missing header");
   }
 
   if ((p_in_buf[0] == 0x1B) && (p_in_buf[1] == 0x8B)) {
-    errx(1, "uef file needs unzipping first");
+    util_bail("uef file needs unzipping first");
   }
   if (memcmp(p_in_buf, "UEF File!", 10) != 0) {
-    errx(1, "uef file incorrect header");
+    util_bail("uef file incorrect header");
   }
   if (p_in_buf[11] != 0x00) {
-    errx(1, "uef file not supported, need major version 0");
+    util_bail("uef file not supported, need major version 0");
   }
   p_in_buf += 12;
   file_remaining -= 12;
@@ -172,7 +172,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
     uint32_t i;
 
     if (file_remaining < 6) {
-      errx(1, "uef file missing chunk");
+      util_bail("uef file missing chunk");
     }
     chunk_type = (p_in_buf[1] << 8);
     chunk_type |= p_in_buf[0];
@@ -183,7 +183,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
     p_in_buf += 6;
     file_remaining -= 6;
     if (chunk_len > file_remaining) {
-      errx(1, "uef file chunk too big");
+      util_bail("uef file chunk too big");
     }
 
     switch (chunk_type) {
@@ -192,7 +192,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_data:
       if (chunk_len > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < chunk_len; ++i) {
         *p_out_buf++ = p_in_buf[i];
@@ -201,12 +201,12 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_defined_format_data:
       if (chunk_len < 3) {
-        errx(1, "uef file short defined format chunk");
+        util_bail("uef file short defined format chunk");
       }
       /* Read num data bits, then convert it to a mask. */
       len_u16_1 = p_in_buf[0];
       if ((len_u16_1 > 8) || (len_u16_1 < 1)) {
-        errx(1, "uef file bad number data bits");
+        util_bail("uef file bad number data bits");
       }
       len_u16_1 = ((1 << len_u16_1) - 1);
       /* NOTE: we ignore parity and stop bits. This is poor emulation, likely
@@ -216,7 +216,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
        */
 
       if ((chunk_len - 3) > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < (chunk_len - 3); ++i) {
         *p_out_buf++ = (p_in_buf[i + 3] & len_u16_1);
@@ -225,7 +225,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_carrier_tone:
       if (chunk_len != 2) {
-        errx(1, "uef file incorrect carrier tone chunk size");
+        util_bail("uef file incorrect carrier tone chunk size");
       }
       len_u16_1 = tape_read_u16(p_in_buf);
       /* Length is specified in terms of 2x time units per baud. */
@@ -234,7 +234,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       len_u16_1 /= 10;
 
       if (len_u16_1 > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_carrier;
@@ -243,7 +243,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
       if (chunk_len != 4) {
-        errx(1, "uef file incorrect carrier tone with dummy byte chunk size");
+        util_bail("uef file incorrect carrier tone with dummy byte chunk size");
       }
       len_u16_1 = tape_read_u16(p_in_buf);
       len_u16_2 = tape_read_u16(p_in_buf + 2);
@@ -255,7 +255,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       len_u16_2 /= 10;
 
       if ((uint32_t) (len_u16_1 + 1 + len_u16_2) > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_carrier;
@@ -268,7 +268,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_gap_int:
       if (chunk_len != 2) {
-        errx(1, "uef file incorrect integer gap chunk size");
+        util_bail("uef file incorrect integer gap chunk size");
       }
       len_u16_1 = tape_read_u16(p_in_buf);
       /* Length is specified in terms of 2x time units per baud. */
@@ -277,7 +277,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       len_u16_1 /= 10;
 
       if (len_u16_1 > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_silence;
@@ -295,19 +295,19 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       break;
     case k_tape_uef_chunk_gap_float:
       if (chunk_len != 4) {
-        errx(1, "uef file incorrect float gap chunk size");
+        util_bail("uef file incorrect float gap chunk size");
       }
       temp_float = tape_read_float(p_in_buf);
       /* Current record: 263.9s, ChipBuster_B.hq.zip. */
       if ((temp_float > 360) || (temp_float < 0)) {
-        errx(1, "uef file strange float gap %f", temp_float);
+        util_bail("uef file strange float gap %f", temp_float);
       }
       len_u16_1 = (temp_float *
                        k_tape_system_tick_rate /
                        k_tape_ticks_per_byte);
 
       if (len_u16_1 > buffer_remaining) {
-        errx(1, "uef file out of buffer");
+        util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_silence;
@@ -315,7 +315,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
       buffer_remaining -= len_u16_1;
       break;
     default:
-      errx(1, "uef unknown chunk type 0x%.4x", chunk_type);
+      util_bail("uef unknown chunk type 0x%.4"PRIx16, chunk_type);
       break;
     }
 

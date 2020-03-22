@@ -6,7 +6,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -81,7 +80,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
   *p_track_truncatable_sectors = 0;
 
   if (fsd_sectors > k_disc_fsd_max_sectors) {
-    errx(1, "fsd file excessive sectors");
+    util_bail("fsd file excessive sectors");
   }
 
   if ((fsd_sectors != 10) && log_protection) {
@@ -93,7 +92,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
   }
 
   if (file_remaining == 0) {
-    errx(1, "fsd file missing readable flag");
+    util_bail("fsd file missing readable flag");
   }
 
   if (*p_buf == 0) {
@@ -103,7 +102,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     }
     readable = 0;
   } else if (*p_buf != 0xFF) {
-    errx(1, "fsd file unknown readable byte value");
+    util_bail("fsd file unknown readable byte value");
   }
   p_buf++;
   file_remaining--;
@@ -118,7 +117,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     struct disc_fsd_sector* p_sector = &p_sectors[i_sector];
 
     if (file_remaining < 4) {
-      errx(1, "fsd file missing sector header");
+      util_bail("fsd file missing sector header");
     }
 
     p_sector->logical_track = p_buf[0];
@@ -169,7 +168,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     }
 
     if (file_remaining < 2) {
-      errx(1, "fsd file missing sector header");
+      util_bail("fsd file missing sector header");
     }
 
     actual_size_bytes = p_buf[0];
@@ -178,14 +177,14 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     file_remaining -= 2;
 
     if (actual_size_bytes > 4) {
-      errx(1, "fsd file excessive sector size");
+      util_bail("fsd file excessive sector size");
     }
     actual_size_bytes = (1 << (7 + actual_size_bytes));
     p_sector->actual_size_bytes = actual_size_bytes;
     p_sector->truncated_size_bytes = actual_size_bytes;
     p_sector->write_size_bytes = actual_size_bytes;
     if (file_remaining < actual_size_bytes) {
-      errx(1, "fsd file missing sector data");
+      util_bail("fsd file missing sector data");
     }
     p_sector->p_data = p_buf;
     p_buf += actual_size_bytes;
@@ -265,17 +264,17 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
         p_sector->truncated_size_bytes = 128;
       } else if (sector_error == 0xE1) {
         if (p_sector->actual_size_bytes < 256) {
-          errx(1, "bad size for sector error $E1");
+          util_bail("bad size for sector error $E1");
         }
         p_sector->truncated_size_bytes = 256;
       } else {
         if (p_sector->actual_size_bytes < 512) {
-          errx(1, "bad size for sector error $E2");
+          util_bail("bad size for sector error $E2");
         }
         p_sector->truncated_size_bytes = 512;
       }
     } else if (sector_error != 0) {
-      errx(1, "fsd file sector error %d unsupported", sector_error);
+      util_bail("fsd file sector error %d unsupported", sector_error);
     }
 
     if (p_sector->truncated_size_bytes != p_sector->actual_size_bytes) {
@@ -363,7 +362,7 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
 
   num_bytes_over = (track_total_bytes - k_ibm_disc_bytes_per_track);
   if (num_bytes_over >= track_truncatable_bytes) {
-    errx(1, "fsd sectors really cannot fit");
+    util_bail("fsd sectors really cannot fit");
   }
 
   track_total_bytes -= track_truncatable_bytes;
@@ -415,23 +414,23 @@ disc_fsd_load(struct disc_struct* p_disc,
   len = util_file_handle_read(file_handle, buf, sizeof(buf));
 
   if (len == sizeof(buf)) {
-    errx(1, "fsd file too large");
+    util_bail("fsd file too large");
   }
 
   p_buf = buf;
   file_remaining = len;
   if (file_remaining < 8) {
-    errx(1, "fsd file no header");
+    util_bail("fsd file no header");
   }
   if (memcmp(p_buf, "FSD", 3) != 0) {
-    errx(1, "fsd file incorrect header");
+    util_bail("fsd file incorrect header");
   }
   p_buf += 8;
   file_remaining -= 8;
   if (has_file_name) {
     do {
       if (file_remaining == 0) {
-        errx(1, "fsd file missing title");
+        util_bail("fsd file missing title");
       }
       title_char = *p_buf;
       p_buf++;
@@ -440,7 +439,7 @@ disc_fsd_load(struct disc_struct* p_disc,
   }
 
   if (file_remaining == 0) {
-    errx(1, "fsd file missing tracks");
+    util_bail("fsd file missing tracks");
   }
   /* This appears to actually be "max zero-indexed track ID" so we add 1. */
   fsd_tracks = *p_buf;
@@ -448,7 +447,7 @@ disc_fsd_load(struct disc_struct* p_disc,
   p_buf++;
   file_remaining--;
   if (fsd_tracks > k_ibm_disc_tracks_per_disc) {
-    errx(1, "fsd file too many tracks: %d", fsd_tracks);
+    util_bail("fsd file too many tracks: %d", fsd_tracks);
   }
 
   for (i_track = 0; i_track < fsd_tracks; ++i_track) {
@@ -468,10 +467,10 @@ disc_fsd_load(struct disc_struct* p_disc,
     uint32_t gap3_ff_count = 16;
 
     if (file_remaining < 2) {
-      errx(1, "fsd file missing track header");
+      util_bail("fsd file missing track header");
     }
     if (p_buf[0] != i_track) {
-      errx(1, "fsd file unmatched track id");
+      util_bail("fsd file unmatched track id");
     }
 
     disc_build_track(p_disc, 0, i_track);
@@ -551,7 +550,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
 
       if (track_remaining < (7 + (gap2_ff_count + 6))) {
-        errx(1, "fsd file track no space for sector header and gap");
+        util_bail("fsd file track no space for sector header and gap");
       }
       /* Sector header, aka. ID. */
       disc_build_reset_crc(p_disc);
@@ -574,7 +573,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       }
 
       if (track_remaining < (write_size_bytes + 3)) {
-        errx(1, "fsd file track no space for sector data");
+        util_bail("fsd file track no space for sector data");
       }
 
       disc_build_reset_crc(p_disc);
@@ -635,7 +634,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       if (i_sector != (fsd_sectors - 1)) {
         /* Sync pattern between sectors, aka. GAP 3. */
         if (track_remaining < (gap3_ff_count + 6)) {
-          errx(1, "fsd file track no space for inter sector gap");
+          util_bail("fsd file track no space for inter sector gap");
         }
         disc_build_append_repeat(p_disc, 0xFF, gap3_ff_count);
         disc_build_append_repeat(p_disc, 0x00, 6);

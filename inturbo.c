@@ -14,7 +14,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -696,7 +695,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
                                                       p_timing,
                                                       p_options);
   if (p_interp == NULL) {
-    errx(1, "couldn't allocate interp_struct");
+    util_bail("couldn't allocate interp_struct");
   }
   p_inturbo->p_interp = p_interp;
 

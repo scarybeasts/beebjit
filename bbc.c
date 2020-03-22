@@ -23,7 +23,6 @@
 #include "video.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
@@ -698,7 +697,7 @@ bbc_client_receive_message(struct bbc_struct* p_bbc,
                                      p_out_message,
                                      sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
-    errx(1, "read failed");
+    util_bail("read failed");
   }
 }
 
@@ -709,7 +708,7 @@ bbc_cpu_receive_message(struct bbc_struct* p_bbc,
                                      p_out_message,
                                      sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
-    errx(1, "read failed");
+    util_bail("read failed");
   }
 }
 
@@ -805,7 +804,7 @@ bbc_create(int mode,
 
   p_bbc->mem_handle = util_get_memory_handle(k_6502_addr_space_size);
   if (p_bbc->mem_handle < 0) {
-    errx(1, "util_get_memory_handle failed");
+    util_bail("util_get_memory_handle failed");
   }
 
   p_bbc->p_mem_raw =
@@ -907,7 +906,7 @@ bbc_create(int mode,
 
   p_timing = timing_create(cpu_scale_factor);
   if (p_timing == NULL) {
-    errx(1, "timing_create failed");
+    util_bail("timing_create failed");
   }
   p_bbc->p_timing = p_timing;
   p_bbc->timer_id_tick = timing_register_timer(p_timing,
@@ -916,7 +915,7 @@ bbc_create(int mode,
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
-    errx(1, "state_6502_create failed");
+    util_bail("state_6502_create failed");
   }
   p_bbc->p_state_6502 = p_state_6502;
 
@@ -925,35 +924,35 @@ bbc_create(int mode,
                                    p_timing,
                                    p_bbc);
   if (p_bbc->p_system_via == NULL) {
-    errx(1, "via_create failed");
+    util_bail("via_create failed");
   }
   p_bbc->p_user_via = via_create(k_via_user,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
   if (p_bbc->p_user_via == NULL) {
-    errx(1, "via_create failed");
+    util_bail("via_create failed");
   }
 
   p_bbc->p_keyboard = keyboard_create(p_timing,
                                       p_bbc->p_system_via,
                                       p_state_6502);
   if (p_bbc->p_keyboard == NULL) {
-    errx(1, "keyboard_create failed");
+    util_bail("keyboard_create failed");
   }
 
   p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
   if (p_bbc->p_sound == NULL) {
-    errx(1, "sound_create failed");
+    util_bail("sound_create failed");
   }
 
   p_bbc->p_teletext = teletext_create();
   if (p_bbc->p_teletext == NULL) {
-    errx(1, "teletext_create failed");
+    util_bail("teletext_create failed");
   }
   p_bbc->p_render = render_create(p_bbc->p_teletext, &p_bbc->options);
   if (p_bbc->p_render == NULL) {
-    errx(1, "render_create failed");
+    util_bail("render_create failed");
   }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,
@@ -966,12 +965,12 @@ bbc_create(int mode,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
   if (p_bbc->p_video == NULL) {
-    errx(1, "video_create failed");
+    util_bail("video_create failed");
   }
 
   p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
   if (p_bbc->p_intel_fdc == NULL) {
-    errx(1, "intel_fdc_create failed");
+    util_bail("intel_fdc_create failed");
   }
 
   p_bbc->p_disc_0 = disc_create(p_timing,
@@ -979,14 +978,14 @@ bbc_create(int mode,
                                 p_bbc->p_intel_fdc,
                                 &p_bbc->options);
   if (p_bbc->p_disc_0 == NULL) {
-    errx(1, "disc_create failed");
+    util_bail("disc_create failed");
   }
   p_bbc->p_disc_1 = disc_create(p_timing,
                                 intel_fdc_byte_callback,
                                 p_bbc->p_intel_fdc,
                                 &p_bbc->options);
   if (p_bbc->p_disc_1 == NULL) {
-    errx(1, "disc_create failed");
+    util_bail("disc_create failed");
   }
   intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
 
@@ -995,18 +994,18 @@ bbc_create(int mode,
                                   fasttape_flag,
                                   &p_bbc->options);
   if (p_bbc->p_serial == NULL) {
-    errx(1, "serial_create failed");
+    util_bail("serial_create failed");
   }
 
   p_bbc->p_tape = tape_create(p_timing, p_bbc->p_serial, &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
-    errx(1, "tape_create failed");
+    util_bail("tape_create failed");
   }
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
   if (p_debug == NULL) {
-    errx(1, "debug_create failed");
+    util_bail("debug_create failed");
   }
 
   p_bbc->options.p_debug_object = p_debug;
@@ -1017,7 +1016,7 @@ bbc_create(int mode,
                                          p_timing,
                                          &p_bbc->options);
   if (p_bbc->p_cpu_driver == NULL) {
-    errx(1, "cpu_driver_alloc failed");
+    util_bail("cpu_driver_alloc failed");
   }
 
   bbc_power_on_reset(p_bbc);

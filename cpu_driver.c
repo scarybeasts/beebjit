@@ -6,7 +6,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stddef.h>
 
 static void
@@ -51,19 +50,19 @@ cpu_driver_alloc(int mode,
   case k_cpu_mode_interp:
     p_cpu_driver = interp_create(p_funcs);
     if (p_cpu_driver == NULL) {
-      errx(1, "interp_create() failed");
+      util_bail("interp_create() failed");
     }
     break;
   case k_cpu_mode_inturbo:
     p_cpu_driver = inturbo_create(p_funcs);
     if (p_cpu_driver == NULL) {
-      errx(1, "inturbo_create() failed");
+      util_bail("inturbo_create() failed");
     }
     break;
   case k_cpu_mode_jit:
     p_cpu_driver = jit_create(p_funcs);
     if (p_cpu_driver == NULL) {
-      errx(1, "jit_create() failed");
+      util_bail("jit_create() failed");
     }
     break;
   default:

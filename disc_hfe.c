@@ -5,7 +5,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 static void
@@ -146,40 +145,40 @@ disc_hfe_load(struct disc_struct* p_disc) {
   file_len = util_file_handle_read(file_handle, buf, k_max_hfe_size);
 
   if (file_len == k_max_hfe_size) {
-    errx(1, "hfe file too large");
+    util_bail("hfe file too large");
   }
 
   if (file_len < 512) {
-    errx(1, "hfe file no header");
+    util_bail("hfe file no header");
   }
   if (memcmp(buf, "HXCPICFE", 8) != 0) {
-    errx(1, "hfe file incorrect header");
+    util_bail("hfe file incorrect header");
   }
   if (buf[8] != '\0') {
-    errx(1, "hfe file revision not 0");
+    util_bail("hfe file revision not 0");
   }
   if (buf[11] != 2) {
-    errx(1, "hfe encoding not ISOIBM_FM_ENCODING");
+    util_bail("hfe encoding not ISOIBM_FM_ENCODING");
   }
   if (buf[10] == 1) {
     is_double_sided = 0;
   } else if (buf[10] == 2) {
     is_double_sided = 1;
   } else {
-    errx(1, "hfe invalid number of sides");
+    util_bail("hfe invalid number of sides");
   }
   disc_set_is_double_sided(p_disc, is_double_sided);
 
   hfe_tracks = buf[9];
   if (hfe_tracks > k_ibm_disc_tracks_per_disc) {
-    errx(1, "hfe excessive tracks");
+    util_bail("hfe excessive tracks");
   }
 
   lut_offset = (buf[18] + (buf[19] << 8));
   lut_offset *= 512;
 
   if ((lut_offset + 512) > file_len) {
-    errx(1, "hfe LUT doesn't fit");
+    util_bail("hfe LUT doesn't fit");
   }
 
   (void) memcpy(p_format_metadata, (buf + lut_offset), 512);
@@ -199,7 +198,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
     hfe_track_len = (p_track_lut[2] + (p_track_lut[3] << 8));
 
     if ((track_offset + hfe_track_len) > file_len) {
-      errx(1, "hfe track doesn't fit");
+      util_bail("hfe track doesn't fit");
     }
 
     /* Divide by 4; 2x sides and 2x FM bytes per data byte. */

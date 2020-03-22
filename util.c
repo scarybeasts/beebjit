@@ -486,7 +486,7 @@ util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
   }
 }
 
-size_t
+uint64_t
 util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   int fd = (int) handle;
   uint64_t to_go = length;
@@ -509,8 +509,10 @@ util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   return done;
 }
 
-size_t
-util_file_read_fully(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
+uint64_t
+util_file_read_fully(uint8_t* p_buf,
+                     uint64_t max_size,
+                     const char* p_file_name) {
   size_t read_ret;
   intptr_t handle = util_file_handle_open(p_file_name, 0, 0);
 
@@ -524,14 +526,14 @@ util_file_read_fully(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
 void
 util_file_write_fully(const char* p_file_name,
                       const uint8_t* p_buf,
-                      size_t size) {
+                      uint64_t size) {
   intptr_t handle = util_file_handle_open(p_file_name, 1, 1);
   util_file_handle_write(handle, p_buf, size);
   util_file_handle_close(handle);
 }
 
 struct util_file_map*
-util_file_map(const char* p_file_name, size_t max_length, int writeable) {
+util_file_map(const char* p_file_name, uint64_t max_length, int writeable) {
   struct util_file_map* p_map;
   int mmap_prot;
   void* p_mmap;
@@ -623,7 +625,7 @@ util_make_handle_unbuffered(intptr_t handle) {
   }
 }
 
-size_t
+uint64_t
 util_get_handle_readable_bytes(intptr_t handle) {
   int bytes_avail;
 

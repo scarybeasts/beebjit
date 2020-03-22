@@ -8,7 +8,6 @@
 #include "via.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 static const char* k_capture_header = "beebjit-capture";
@@ -485,11 +484,11 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
                                sizeof(p_keyboard->replay_next_keys));
   if (ret != (sizeof(replay_next_time) +
               sizeof(p_keyboard->replay_next_keys))) {
-    errx(1, "corrupt replay file, truncated frame header");
+    util_bail("corrupt replay file, truncated frame header");
   }
 
   if (replay_next_time < time) {
-    errx(1, "corrupt replay file, backwards time");
+    util_bail("corrupt replay file, backwards time");
   }
 
   assert(timing_get_timer_value(p_timing, replay_timer_id) == 0);
@@ -526,13 +525,13 @@ keyboard_replay_timer_tick(struct keyboard_struct* p_keyboard) {
   assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
 
   if (num_keys > k_keyboard_queue_size) {
-    errx(1, "replay: too many keys");
+    util_bail("replay: too many keys");
   }
 
   ret = util_file_handle_read(replay_handle, replay_keys, num_keys);
   ret += util_file_handle_read(replay_handle, replay_isdown, num_keys);
   if (ret != (num_keys * 2)) {
-    errx(1, "replay: file truncated reading keys");
+    util_bail("replay: file truncated reading keys");
   }
 
   for (i = 0; i < num_keys; ++i) {
@@ -613,10 +612,10 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
 
   ret = util_file_handle_read(handle, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
-    errx(1, "capture file too short");
+    util_bail("capture file too short");
   }
   if (memcmp(buf, k_capture_header, strlen(k_capture_header))) {
-    errx(1, "capture file has bad header");
+    util_bail("capture file has bad header");
   }
 
   (void) timing_start_timer_with_value(p_keyboard->p_timing,

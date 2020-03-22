@@ -5,7 +5,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 enum {
@@ -85,15 +84,15 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
   }
   file_size = util_file_handle_get_size(file_handle);
   if (file_size > max_size) {
-    errx(1, "ssd/dsd file too large");
+    util_bail("ssd/dsd file too large");
   }
   if ((file_size % k_disc_ssd_sector_size) != 0) {
-    errx(1, "ssd/dsd file not a sector multiple");
+    util_bail("ssd/dsd file not a sector multiple");
   }
 
   read_ret = util_file_handle_read(file_handle, buf, file_size);
   if (read_ret != file_size) {
-    errx(1, "ssd/dsd file short read");
+    util_bail("ssd/dsd file short read");
   }
 
   for (i_track = 0; i_track < k_disc_ssd_tracks_per_disc; ++i_track) {

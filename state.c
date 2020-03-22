@@ -1,6 +1,7 @@
 #include "state.h"
 
 #include "bbc.h"
+#include "log.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "util.h"
@@ -8,8 +9,7 @@
 #include "video.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdio.h>
+#include <inttypes.h>
 #include <string.h>
 
 struct bem_v2x {
@@ -102,7 +102,7 @@ struct bem_v2x {
   uint16_t sn_shift;
 } __attribute__((packed));
 
-static const size_t k_snapshot_size = 327885;
+static const uint64_t k_snapshot_size = 327885;
 
 static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
@@ -111,21 +111,22 @@ state_read(unsigned char* p_buf, const char* p_file_name) {
   size_t len = util_file_read_fully(p_buf, k_snapshot_size, p_file_name);
 
   if (len != k_snapshot_size) {
-    errx(1, "wrong snapshot size (expected %zu)", k_snapshot_size);
+    util_bail("wrong snapshot size (expected %"PRIu64")", k_snapshot_size);
   }
 
   p_bem = (struct bem_v2x*) p_buf;
-  if (memcmp(p_bem->signature, "BEMSNAP1", 8)) {
-    errx(1, "file is not a BEMv2.x snapshot");
+  if ((memcmp(p_bem->signature, "BEMSNAP1", 8)) != 0) {
+    util_bail("file is not a BEMv2.x snapshot");
   }
-  if (p_bem->model != 3 && p_bem->model != 4) {
-    errx(1, "can only load default BBC model B snapshots, plus sideways RAM");
+  if ((p_bem->model != 3) && (p_bem->model != 4)) {
+    util_bail("can only load default BBC model B snapshots, plus sideways RAM");
   }
 
-  printf("Loading BEMv2.x snapshot, model %u, PC %x\n",
-         p_bem->model,
-         p_bem->pc);
-  fflush(stdout);
+  log_do_log(k_log_misc,
+             k_log_info,
+             "Loading BEMv2.x snapshot, model %"PRIu8", PC %"PRIx16"\n",
+             p_bem->model,
+             p_bem->pc);
 }
 
 void

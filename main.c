@@ -77,7 +77,7 @@ main(int argc, const char* argv[]) {
       const char* val2 = argv[i + 2];
       if (!strcmp(arg, "-rom")) {
         int32_t bank = -1;
-        (void) sscanf(val1, PRIx32, &bank);
+        (void) sscanf(val1, "%"PRIx32, &bank);
         if (bank < 0 || bank >= k_bbc_num_roms) {
           util_bail("ROM bank number out of range");
         }
@@ -118,10 +118,10 @@ main(int argc, const char* argv[]) {
         log_flags = val;
         ++i;
       } else if (!strcmp(arg, "-stopat")) {
-        (void) sscanf(val, PRIx32, &debug_stop_addr);
+        (void) sscanf(val, "%"PRIx32, &debug_stop_addr);
         ++i;
       } else if (!strcmp(arg, "-pc")) {
-        (void) sscanf(val, PRIx32, &pc);
+        (void) sscanf(val, "%"PRIx32, &pc);
         ++i;
       } else if (!strcmp(arg, "-mode")) {
         if (!strcmp(val, "jit")) {
@@ -136,17 +136,17 @@ main(int argc, const char* argv[]) {
         ++i;
       } else if (!strcmp(arg, "-swram")) {
         int32_t bank = -1;
-        (void) sscanf(val, PRIx32, &bank);
+        (void) sscanf(val, "%"PRIx32, &bank);
         if (bank < 0 || bank >= k_bbc_num_roms) {
           util_bail("RAM bank number out of range");
         }
         sideways_ram[bank] = 1;
         ++i;
       } else if (!strcmp(arg, "-cycles")) {
-        (void) sscanf(val, PRIu64, &cycles);
+        (void) sscanf(val, "%"PRIu64, &cycles);
         ++i;
       } else if (!strcmp(arg, "-expect")) {
-        (void) sscanf(val, PRIx32, &expect);
+        (void) sscanf(val, "%"PRIx32, &expect);
         ++i;
       }
     }

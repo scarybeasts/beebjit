@@ -3,7 +3,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 
 enum {
   k_timing_num_timers = 16,
@@ -111,7 +110,7 @@ timing_register_timer(struct timing_struct* p_timing,
     }
   }
   if (i == k_timing_num_timers) {
-    errx(1, "out of timer ids");
+    util_bail("out of timer ids");
   }
 
   p_timer = &p_timing->timers[i];

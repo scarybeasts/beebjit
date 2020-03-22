@@ -10,7 +10,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stdio.h>
 
 enum {
@@ -308,7 +307,7 @@ disc_load(struct disc_struct* p_disc,
     disc_hfe_load(p_disc);
     p_disc->p_write_track_callback = disc_hfe_write_track;
   } else {
-    errx(1, "unknown disc filename extension");
+    util_bail("unknown disc filename extension");
   }
 
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {

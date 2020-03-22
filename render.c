@@ -5,7 +5,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 struct render_struct {
@@ -94,7 +93,7 @@ render_create(struct teletext_struct* p_teletext,
                              p_options->p_opt_flags,
                              "video:border-chars=");
   if (border_chars > 16) {
-    errx(1, "border-chars must be 16 or less");
+    util_bail("border-chars must be 16 or less");
   }
 
   p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,

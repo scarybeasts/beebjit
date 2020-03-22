@@ -1,7 +1,8 @@
 #include "jit_opcode.h"
 
+#include "util.h"
+
 #include <assert.h>
-#include <err.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -42,7 +43,7 @@ jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
   assert(p_uop != NULL);
 
   if (p_opcode->num_uops == k_max_uops_per_opcode) {
-    errx(1, "uops full");
+    util_bail("uops full");
   }
 
   i = (p_uop - &p_opcode->uops[0]);

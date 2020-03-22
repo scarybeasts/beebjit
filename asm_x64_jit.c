@@ -7,7 +7,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 
 static void
 asm_x64_emit_jit_jump(struct util_buffer* p_buf,

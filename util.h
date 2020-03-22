@@ -75,16 +75,16 @@ void util_file_handle_seek(intptr_t handle, uint64_t pos);
 void util_file_handle_write(intptr_t handle,
                             const void* p_buf,
                             uint64_t length);
-size_t util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length);
+uint64_t util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length);
 
-size_t util_file_read_fully(uint8_t* p_buf,
-                            size_t max_size,
-                            const char* p_file_name);
+uint64_t util_file_read_fully(uint8_t* p_buf,
+                              uint64_t max_size,
+                              const char* p_file_name);
 void util_file_write_fully(const char* p_file_name,
                            const uint8_t* p_buf,
-                           size_t size);
+                           uint64_t size);
 struct util_file_map* util_file_map(const char* p_file_name,
-                                    size_t max_size,
+                                    uint64_t max_size,
                                     int writeable);
 void* util_file_map_get_ptr(struct util_file_map* p_map);
 size_t util_file_map_get_size(struct util_file_map* p_map);
@@ -94,7 +94,7 @@ void util_file_unmap(struct util_file_map* p_map);
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
 void util_make_handle_unbuffered(intptr_t handle);
-size_t util_get_handle_readable_bytes(intptr_t handle);
+uint64_t util_get_handle_readable_bytes(intptr_t handle);
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
 

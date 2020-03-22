@@ -1,7 +1,8 @@
 #include "log.h"
 
+#include "util.h"
+
 #include <assert.h>
-#include <err.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -60,11 +61,11 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
   ret = vsnprintf(msg, sizeof(msg), p_msg, args);
   va_end(args);
   if (ret <= 0) {
-    errx(1, "vsnprintf failed");
+    util_bail("vsnprintf failed");
   }
 
   ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
   if (ret <= 0) {
-    errx(1, "fprintf failed");
+    util_bail("fprintf failed");
   }
 }

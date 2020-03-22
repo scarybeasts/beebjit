@@ -7,7 +7,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <math.h>
 
 static const uint32_t k_sound_clock_rate = 250000;
@@ -82,7 +81,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
 
   if ((sn_frames_filled + num_frames) >
       p_sound->sn_frames_per_driver_buffer_size) {
-    errx(1, "p_sn_frames overflowed");
+    util_bail("p_sn_frames overflowed");
   }
 
   for (i = 0; i < num_frames; ++i) {
