@@ -9,12 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 
 void*
@@ -376,49 +373,6 @@ util_handle_write_byte(intptr_t handle, uint8_t val) {
   }
 }
 
-uint64_t
-util_gettime_us() {
-  struct timespec ts;
-
-  int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
-  if (ret != 0) {
-    util_bail("clock_gettime failed");
-  }
-
-  return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
-}
-
-void
-util_sleep_us(uint64_t us) {
-  int ret;
-  struct timespec ts;
-
-  ts.tv_sec = (us / 1000000);
-  ts.tv_nsec = ((us % 1000000) * 1000);
-
-  do {
-    ret = nanosleep(&ts, &ts);
-    if (ret != 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      util_bail("nanosleep failed");
-    }
-  } while (ret != 0);
-}
-
-void
-util_get_channel_file_handles(intptr_t* p_handle1, intptr_t* p_handle2) {
-  int fds[2];
-  int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
-  if (ret != 0) {
-    util_bail("socketpair failed");
-  }
-
-  *p_handle1 = fds[0];
-  *p_handle2 = fds[1];
-}
-
 static const char*
 util_locate_option(const char* p_opt_str,
                    const char* p_opt_name) {
@@ -458,7 +412,9 @@ int
 util_get_str_option(char** p_opt_out,
                     const char* p_opt_str,
                     const char* p_opt_name) {
+  size_t len;
   const char* p_opt_end;
+  char* p_ret;
 
   const char* p_opt_pos = util_locate_option(p_opt_str, p_opt_name);
   if (p_opt_pos == NULL) {
@@ -470,7 +426,12 @@ util_get_str_option(char** p_opt_out,
     p_opt_end++;
   }
 
-  *p_opt_out = strndup(p_opt_pos, (p_opt_end - p_opt_pos));
+  /* NOTE: would use strndup() here but Windows doesn't have it verbatim. */
+  len = (p_opt_end - p_opt_pos);
+  p_ret = malloc(len + 1);
+  (void) memcpy(p_ret, p_opt_pos, len);
+  p_ret[len] = '\0';
+  *p_opt_out = p_ret;
 
   return 1;
 }

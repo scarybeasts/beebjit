@@ -333,6 +333,7 @@ main(int argc, const char* argv[]) {
     p_sound_driver = os_sound_create(p_device_name,
                                      sound_sample_rate,
                                      sound_buffer_size);
+    util_free(p_device_name);
     ret = os_sound_init(p_sound_driver);
     if (ret == 0) {
       sound_set_driver(bbc_get_sound(p_bbc), p_sound_driver);

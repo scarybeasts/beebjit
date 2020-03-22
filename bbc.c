@@ -11,7 +11,9 @@
 #include "log.h"
 #include "memory_access.h"
 #include "os_alloc.h"
+#include "os_channel.h"
 #include "os_thread.h"
+#include "os_time.h"
 #include "render.h"
 #include "serial.h"
 #include "sound.h"
@@ -775,8 +777,8 @@ bbc_create(int mode,
                              p_opt_flags,
                              "bbc:cpu-scale-factor=");
 
-  util_get_channel_file_handles(&p_bbc->message_cpu_handle,
-                                &p_bbc->message_client_handle);
+  os_channel_get_handles(&p_bbc->message_cpu_handle,
+                         &p_bbc->message_client_handle);
 
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
@@ -1314,7 +1316,7 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
   p_bbc->last_time_us = next_wakeup_time_us;
 
   if (spare_time_us >= 0) {
-    util_sleep_us(spare_time_us);
+    os_time_sleep_us(spare_time_us);
   } else {
     /* Missed a tick.
      * In all cases, don't sleep.
@@ -1416,7 +1418,7 @@ bbc_cycles_timer_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
-  uint64_t curr_time_us = util_gettime_us();
+  uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
   int is_replay = keyboard_is_replaying(p_keyboard);
 
@@ -1543,7 +1545,7 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 
   (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id_cycles, 1);
 
-  p_bbc->last_time_us = util_gettime_us();
+  p_bbc->last_time_us = os_time_get_us();
 }
 
 static void*

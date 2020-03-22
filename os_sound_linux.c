@@ -25,7 +25,7 @@ os_sound_create(char* p_device_name,
   if (p_device_name == NULL) {
     p_driver->p_device_name = strdup(k_os_sound_default_device);
   } else {
-    p_driver->p_device_name = p_device_name;
+    p_driver->p_device_name = strdup(p_device_name);
   }
 
   if (sample_rate == 0) {

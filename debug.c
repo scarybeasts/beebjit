@@ -75,7 +75,6 @@ struct debug_struct {
   uint64_t register_writes;
 
   /* Other. */
-  uint64_t time_basis;
   uint8_t warn_at_addr_count[k_6502_addr_space_size];
   char debug_old_input_buf[k_max_input_len];
 };
@@ -124,7 +123,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
-  p_debug->time_basis = util_gettime_us();
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);

@@ -71,14 +71,6 @@ intptr_t util_get_stdout_handle();
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
 
-/* Timing. */
-/* These quantities are in microseconds. */
-uint64_t util_gettime_us();
-void util_sleep_us(uint64_t us);
-
-/* Channels. */
-void util_get_channel_file_handles(intptr_t* p_handle1, intptr_t* p_handle2);
-
 /* Options. */
 int util_get_u32_option(uint32_t* p_opt_out,
                         const char* p_opt_str,
