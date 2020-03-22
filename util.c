@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -32,7 +31,7 @@ void*
 util_mallocz(size_t size) {
   void* p_ret = malloc(size);
   if (p_ret == NULL) {
-    errx(1, "malloc failed");
+    util_bail("malloc failed");
   }
 
   (void) memset(p_ret, '\0', size);
@@ -55,17 +54,17 @@ util_get_memory_handle(size_t size) {
   (void) strcpy(file_name, "/tmp/beebjitXXXXXX");
   fd = mkstemp(file_name);
   if (fd < 0) {
-    errx(1, "mkstemp failed");
+    util_bail("mkstemp failed");
   }
 
   ret = unlink(file_name);
   if (ret != 0) {
-    errx(1, "unlink failed");
+    util_bail("unlink failed");
   }
 
   ret = ftruncate(fd, size);
   if (ret != 0) {
-    errx(1, "ftruncate failed");
+    util_bail("ftruncate failed");
   }
 
   return fd;
@@ -90,11 +89,11 @@ util_get_mapping_from_handle(intptr_t handle,
 
   p_map = mmap(p_addr, size, (PROT_READ | PROT_WRITE), map_flags, handle, 0);
   if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
+    util_bail("mmap failed");
   }
 
   if ((p_addr != NULL) && (p_map != p_addr)) {
-    errx(1, "mmap in wrong location");
+    util_bail("mmap in wrong location");
   }
 
   return p_map;
@@ -128,11 +127,11 @@ util_get_guarded_mapping_from_handle(intptr_t handle,
                  -1,
                  0);
   if (p_guard == MAP_FAILED) {
-    errx(1, "mmap failed");
+    util_bail("mmap failed");
   }
 
   if (p_guard != (p_map - k_guard_size)) {
-    errx(1, "mmap in wrong location");
+    util_bail("mmap in wrong location");
   }
 
   p_guard = mmap((p_map + size),
@@ -142,11 +141,11 @@ util_get_guarded_mapping_from_handle(intptr_t handle,
                  -1,
                  0);
   if (p_guard == MAP_FAILED) {
-    errx(1, "mmap failed");
+    util_bail("mmap failed");
   }
 
   if (p_guard != (p_map + size)) {
-    errx(1, "mmap in wrong location");
+    util_bail("mmap in wrong location");
   }
 
   return p_map;
@@ -161,11 +160,11 @@ util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
                      -1,
                      0);
   if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
+    util_bail("mmap failed");
   }
 
   if (p_map != p_addr) {
-    errx(1, "mmap in wrong location");
+    util_bail("mmap in wrong location");
   }
 
   return p_map;
@@ -177,7 +176,7 @@ util_free_guarded_mapping(void* p_addr, size_t size) {
   size += (k_guard_size * 2);
   int ret = munmap(p_map, size);
   if (ret != 0) {
-    errx(1, "munmap failed");
+    util_bail("munmap failed");
   }
 }
 
@@ -185,7 +184,7 @@ void
 util_make_mapping_read_only(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_READ);
   if (ret != 0) {
-    errx(1, "mprotect failed");
+    util_bail("mprotect failed");
   }
 }
 
@@ -193,7 +192,7 @@ void
 util_make_mapping_read_write(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
   if (ret != 0) {
-    errx(1, "mprotect failed");
+    util_bail("mprotect failed");
   }
 }
 
@@ -201,7 +200,7 @@ void
 util_make_mapping_read_write_exec(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE | PROT_EXEC));
   if (ret != 0) {
-    errx(1, "mprotect failed");
+    util_bail("mprotect failed");
   }
 }
 
@@ -209,7 +208,7 @@ void
 util_make_mapping_none(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {
-    errx(1, "mprotect failed");
+    util_bail("mprotect failed");
   }
 }
 
@@ -222,14 +221,7 @@ struct util_buffer {
 
 struct util_buffer*
 util_buffer_create() {
-  struct util_buffer* p_buf = malloc(sizeof(struct util_buffer));
-  if (p_buf == NULL) {
-    errx(1, "couldn't allocate util_buffer");
-  }
-  p_buf->p_mem = NULL;
-  p_buf->length = 0;
-  p_buf->pos = 0;
-  p_buf->p_base = NULL;
+  struct util_buffer* p_buf = util_mallocz(sizeof(struct util_buffer));
 
   return p_buf;
 }
@@ -427,7 +419,7 @@ util_file_handle_open(const char* p_file_name, int writeable, int create) {
 
   fd = open(p_file_name, flags, 0600);
   if (fd < 0) {
-    errx(1, "couldn't open %s", p_file_name);
+    util_bail("couldn't open %s", p_file_name);
   }
 
   return (intptr_t) fd;
@@ -438,7 +430,7 @@ util_file_handle_close(intptr_t handle) {
   int fd = (int) handle;
   int ret = close(fd);
   if (ret != 0) {
-    errx(1, "close failed");
+    util_bail("close failed");
   }
 }
 
@@ -449,7 +441,7 @@ util_file_handle_get_size(intptr_t handle) {
   int fd = (int) handle;
   int ret = fstat(fd, &stat_buf);
   if (ret != 0 || stat_buf.st_size < 0) {
-    errx(1, "fstat failed");
+    util_bail("fstat failed");
   }
 
   return stat_buf.st_size;
@@ -463,7 +455,7 @@ util_file_handle_seek(intptr_t handle, uint64_t pos) {
 
   ret = lseek(fd, (off_t) pos, SEEK_SET);
   if ((uint64_t) ret != pos) {
-    errx(1, "lseek failed");
+    util_bail("lseek failed");
   }
 }
 
@@ -478,9 +470,9 @@ util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
       if (errno == EINTR) {
         continue;
       }
-      errx(1, "write failed");
+      util_bail("write failed");
     } else if (ret == 0) {
-      errx(1, "write EOF");
+      util_bail("write EOF");
     }
     to_go -= ret;
   }
@@ -498,7 +490,7 @@ util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
       if (errno == EINTR) {
         continue;
       }
-      errx(1, "read failed");
+      util_bail("read failed");
     } else if (ret == 0) {
       break;
     }
@@ -546,22 +538,18 @@ util_file_map(const char* p_file_name, uint64_t max_length, int writeable) {
     mmap_prot = PROT_READ;
   }
 
-  p_map = malloc(sizeof(struct util_file_map));
-  if (p_map == NULL) {
-    errx(1, "couldn't allocate util_file_map");
-  }
-  (void) memset(p_map, '\0', sizeof(struct util_file_map));
+  p_map = util_mallocz(sizeof(struct util_file_map));
 
   handle = util_file_handle_open(p_file_name, writeable, 0);
   size = util_file_handle_get_size(handle);
 
   if (size > max_length) {
-    errx(1, "file too large");
+    util_bail("file too large");
   }
 
   p_mmap = mmap(NULL, size, mmap_prot, MAP_SHARED, (int) handle, 0);
   if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
+    util_bail("mmap failed");
   }
 
   p_map->p_mmap = p_mmap;
@@ -586,7 +574,7 @@ void
 util_file_unmap(struct util_file_map* p_map) {
   int ret = munmap(p_map->p_mmap, p_map->length);
   if (ret != 0) {
-    errx(1, "munmap failed");
+    util_bail("munmap failed");
   }
 
   free(p_map);
@@ -613,7 +601,7 @@ util_make_handle_unbuffered(intptr_t handle) {
 
   ret = tcgetattr(handle, &termios);
   if (ret != 0) {
-    errx(1, "tcgetattr failed");
+    util_bail("tcgetattr failed");
   }
 
   termios.c_lflag &= ~ICANON;
@@ -621,7 +609,7 @@ util_make_handle_unbuffered(intptr_t handle) {
 
   ret = tcsetattr(handle, TCSANOW, &termios);
   if (ret != 0) {
-    errx(1, "tcsetattr failed");
+    util_bail("tcsetattr failed");
   }
 }
 
@@ -644,7 +632,7 @@ util_handle_read_byte(intptr_t handle) {
 
   ssize_t ret = read(handle, &val, 1);
   if (ret != 1) {
-    errx(1, "failed to read byte from handle");
+    util_bail("failed to read byte from handle");
   }
 
   return val;
@@ -654,7 +642,7 @@ void
 util_handle_write_byte(intptr_t handle, uint8_t val) {
   ssize_t ret = write(handle, &val, 1);
   if (ret != 1) {
-    errx(1, "failed to write byte to handle");
+    util_bail("failed to write byte to handle");
   }
 }
 
@@ -664,7 +652,7 @@ util_gettime_us() {
 
   int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
   if (ret != 0) {
-    errx(1, "clock_gettime failed");
+    util_bail("clock_gettime failed");
   }
 
   return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
@@ -684,7 +672,7 @@ util_sleep_us(uint64_t us) {
       if (errno == EINTR) {
         continue;
       }
-      errx(1, "nanosleep failed");
+      util_bail("nanosleep failed");
     }
   } while (ret != 0);
 }
@@ -694,7 +682,7 @@ util_get_channel_file_handles(intptr_t* p_handle1, intptr_t* p_handle2) {
   int fds[2];
   int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
   if (ret != 0) {
-    errx(1, "socketpair failed");
+    util_bail("socketpair failed");
   }
 
   *p_handle1 = fds[0];
