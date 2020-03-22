@@ -1,5 +1,3 @@
-#define _GNU_SOURCE /* For REG_RIP */
-
 #include "jit.h"
 
 #include "asm_x64_common.h"
@@ -10,6 +8,8 @@
 #include "defs_6502.h"
 #include "interp.h"
 #include "memory_access.h"
+#include "os_alloc.h"
+#include "os_fault.h"
 #include "jit_compiler.h"
 #include "log.h"
 #include "state_6502.h"
@@ -17,12 +17,10 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ucontext.h>
 #include <unistd.h>
 
 static void* k_jit_addr = (void*) K_BBC_JIT_ADDR;
@@ -523,18 +521,13 @@ jit_safe_hex_convert(char* p_buf, void* p_ptr) {
 }
 
 static void
-sigsegv_reraise(void* p_rip, void* p_addr) {
+fault_reraise(void* p_rip, void* p_addr) {
   int ret;
-  struct sigaction sa;
   char hex_buf[16];
 
-  static const char* p_msg = "SIGSEGV: rip ";
+  static const char* p_msg = "FAULT: rip ";
   static const char* p_msg2 = ", addr ";
   static const char* p_msg3 = "\n";
-
-  (void) memset(&sa, '\0', sizeof(sa));
-  sa.sa_handler = SIG_DFL;
-  (void) sigaction(SIGSEGV, &sa, NULL);
 
   ret = write(2, p_msg, strlen(p_msg));
   jit_safe_hex_convert(&hex_buf[0], p_rip);
@@ -545,12 +538,14 @@ sigsegv_reraise(void* p_rip, void* p_addr) {
   ret = write(2, p_msg3, strlen(p_msg3));
   (void) ret;
 
-  (void) raise(SIGSEGV);
-  _exit(1);
+  os_fault_bail();
 }
 
 static void
-jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
+jit_handle_fault(uintptr_t* p_host_rip,
+                 uintptr_t host_fault_addr,
+                 uintptr_t host_exception_flags,
+                 uintptr_t host_rdi) {
   int inaccessible_indirect_page;
   int ff_fault_fixup;
   int bcd_fault_fixup;
@@ -561,27 +556,20 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   uint16_t i_addr_6502;
   void* p_last_jit_ptr;
 
-  void* p_addr = p_siginfo->si_addr;
-  ucontext_t* p_context = (ucontext_t*) p_void;
-  void* p_rip = (void*) p_context->uc_mcontext.gregs[REG_RIP];
-  uintptr_t reg_err = (uintptr_t) p_context->uc_mcontext.gregs[REG_ERR];
   void* p_jit_end = (k_jit_addr +
                      (k_6502_addr_space_size * k_jit_bytes_per_byte));
-  int is_write_fault = !!(reg_err & (1 << 1));
-
-  /* Crash unless it's fault we clearly recognize. */
-  if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
-    sigsegv_reraise(p_rip, p_addr);
-  }
+  int is_write_fault = !!(host_exception_flags & (1 << 1));
+  void* p_fault_rip = (void*) *p_host_rip;
+  void* p_fault_addr = (void*) host_fault_addr;
 
   /* Crash unless the faulting instruction is in the JIT region. */
-  if ((p_rip < k_jit_addr) || (p_rip >= p_jit_end)) {
-    sigsegv_reraise(p_rip, p_addr);
+  if ((p_fault_rip < k_jit_addr) || (p_fault_rip >= p_jit_end)) {
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
 
   /* Fault in instruction fetch would be bad! */
-  if (reg_err & (1 << 4)) {
-    sigsegv_reraise(p_rip, p_addr);
+  if (host_exception_flags & (1 << 4)) {
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
 
   /* Bail unless it's a clearly recognized fault. */
@@ -607,9 +595,10 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   stack_wrap_fault_fixup = 0;
 
   /* TODO: more checks, etc. */
-  if ((p_addr >= ((void*) K_BBC_MEM_WRITE_IND_ADDR +
-                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_addr < ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_fault_addr <
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     if (is_write_fault) {
       inaccessible_indirect_page = 1;
     }
@@ -617,38 +606,38 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   /* From this point on, nothing else is a write fault. */
   if (!inaccessible_indirect_page && is_write_fault) {
-    sigsegv_reraise(p_rip, p_addr);
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
 
-  if ((p_addr >= ((void*) K_BBC_MEM_READ_IND_ADDR +
-                  K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
-      (p_addr < ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_fault_addr <
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
     ff_fault_fixup = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
-                 K_6502_ADDR_SPACE_SIZE +
-                 2)) {
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
     /* D flag alone. */
     bcd_fault_fixup = 1;
   }
-  if (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
-                 K_6502_ADDR_SPACE_SIZE +
-                 6)) {
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
     /* D flag and I flag. */
     bcd_fault_fixup = 1;
   }
-  if ((p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
-      (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
+  if ((p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
+      (p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
     /* Wrap via pushing (decrementing). */
     stack_wrap_fault_fixup = 1;
   }
-  if ((p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
-      (p_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR +
-                  K_6502_ADDR_SPACE_SIZE +
-                  1))) {
+  if ((p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
+      (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 1))) {
     /* Wrap via pulling (incrementing). */
     stack_wrap_fault_fixup = 1;
   }
@@ -657,22 +646,22 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
       !ff_fault_fixup &&
       !bcd_fault_fixup &&
       !stack_wrap_fault_fixup) {
-    sigsegv_reraise(p_rip, p_addr);
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
 
-  p_jit = (struct jit_struct*) p_context->uc_mcontext.gregs[REG_RDI];
+  p_jit = (struct jit_struct*) host_rdi;
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
-    sigsegv_reraise(p_rip, p_addr);
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
   if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
-    sigsegv_reraise(p_rip, p_addr);
+    fault_reraise(p_fault_rip, p_fault_addr);
   }
 
   /* NOTE -- may call assert() which isn't async safe but faulting context is
    * raw asm, shouldn't be a disaster.
    */
-  block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_rip);
+  block_addr_6502 = jit_6502_block_addr_from_host(p_jit, p_fault_rip);
 
   /* Walk the code pointers in the block and do a non-exact match because the
    * faulting instruction won't be the start of the 6502 opcode. (That may
@@ -683,7 +672,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   p_last_jit_ptr = NULL;
   while (1) {
     uint32_t jit_ptr = p_jit->jit_ptrs[i_addr_6502];
-    void* p_jit_ptr = (void*) (size_t) jit_ptr;
+    void* p_jit_ptr = (void*) (uintptr_t) jit_ptr;
     uint16_t new_block_addr_6502 = jit_6502_block_addr_from_host(p_jit,
                                                                  p_jit_ptr);
     if (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
@@ -692,7 +681,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
                (new_block_addr_6502 != block_addr_6502)) {
       break;
     } else {
-      if (p_jit_ptr > p_rip) {
+      if (p_jit_ptr > p_fault_rip) {
         break;
       }
       if (p_jit_ptr != p_last_jit_ptr) {
@@ -704,7 +693,7 @@ jit_handle_sigsegv(int signum, siginfo_t* p_siginfo, void* p_void) {
   }
 
   /* Bounce into the interpreter via the trampolines. */
-  p_context->uc_mcontext.gregs[REG_RIP] =
+  *p_host_rip =
       (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
 }
 
@@ -716,9 +705,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_jit_base;
   uint8_t* p_jit_trampolines;
   struct util_buffer* p_temp_buf;
-  struct sigaction sa;
-  struct sigaction sa_prev;
-  int ret;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
@@ -751,7 +737,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                                       p_timing,
                                                       p_options);
   if (p_interp == NULL) {
-    errx(1, "couldn't allocate interp_struct");
+    util_bail("couldn't allocate interp_struct");
   }
   p_jit->p_interp = p_interp;
 
@@ -811,47 +797,31 @@ jit_init(struct cpu_driver* p_cpu_driver) {
     asm_x64_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
 
-  /* Ah the horrors, a SIGSEGV handler! This actually enables a ton of
+  /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the
    * fast path doesn't need certain checks.
    */
-  (void) memset(&sa, '\0', sizeof(sa));
-  (void) memset(&sa_prev, '\0', sizeof(sa_prev));
-  sa.sa_sigaction = jit_handle_sigsegv;
-  sa.sa_flags = (SA_SIGINFO | SA_NODEFER);
-  ret = sigaction(SIGSEGV, &sa, &sa_prev);
-  if (ret != 0) {
-    errx(1, "sigaction failed");
-  }
-  if ((sa_prev.sa_sigaction != NULL) &&
-      (sa_prev.sa_sigaction != jit_handle_sigsegv)) {
-    errx(1, "conflicting SIGSEGV handler");
-  }
+  os_fault_register_handler(jit_handle_fault);
 }
 
 struct cpu_driver*
 jit_create(struct cpu_driver_funcs* p_funcs) {
-  void* p_alloc;
   struct cpu_driver* p_cpu_driver;
-  int ret;
 
   /* Check some preconditions. */
   if ((asm_x64_jit_BEQ_8bit_END - asm_x64_jit_BEQ_8bit) != 2) {
-    errx(1, "JIT assembly miscompiled -- clang issue? try opt build.");
+    util_bail("JIT assembly miscompiled -- clang issue? try opt build.");
   }
 
   /* Align the structure to a multiple of the L1 DTLB bucket stride. This is
    * because the structure contains pointers read by JIT code and we want
    * deterministic performance.
    */
-  size_t alignment = 4096 * (64 / 4);
+  size_t alignment = (4096 * (64 / 4));
 
-  ret = posix_memalign(&p_alloc, alignment, sizeof(struct jit_struct));
-  if (ret != 0) {
-    errx(1, "cannot allocate jit_struct");
-  }
-
-  p_cpu_driver = (struct cpu_driver*) p_alloc;
+  p_cpu_driver =
+      (struct cpu_driver*) os_alloc_aligned(alignment,
+                                            sizeof(struct jit_struct));
   (void) memset(p_cpu_driver, '\0', sizeof(struct jit_struct));
 
   p_funcs->init = jit_init;
