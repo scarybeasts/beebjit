@@ -46,7 +46,7 @@ struct disc_struct {
 
   int log_protection;
 
-  intptr_t file_handle;
+  struct util_file* p_file;
   uint8_t* p_format_metadata;
   int is_mutable;
 
@@ -150,7 +150,7 @@ disc_create(struct timing_struct* p_timing,
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
 
-  p_disc->file_handle = k_util_file_no_handle;
+  p_disc->p_file = NULL;
 
   p_disc->timer_id = timing_register_timer(p_timing,
                                            disc_timer_callback,
@@ -165,8 +165,8 @@ disc_destroy(struct disc_struct* p_disc) {
   if (p_disc->p_format_metadata != NULL) {
     util_free(p_disc->p_format_metadata);
   }
-  if (p_disc->file_handle != k_util_file_no_handle) {
-    util_file_handle_close(p_disc->file_handle);
+  if (p_disc->p_file != NULL) {
+    util_file_close(p_disc->p_file);
   }
   util_free(p_disc);
 }
@@ -289,9 +289,7 @@ disc_load(struct disc_struct* p_disc,
   if (is_mutable) {
     is_file_writeable = 1;
   }
-  p_disc->file_handle = util_file_handle_open(p_file_name,
-                                              is_file_writeable,
-                                              0);
+  p_disc->p_file = util_file_open(p_file_name, is_file_writeable, 0);
 
   if (util_is_extension(p_file_name, "ssd")) {
     disc_ssd_load(p_disc, 0);
@@ -320,8 +318,8 @@ disc_load(struct disc_struct* p_disc,
                k_log_info,
                "cannot writeback to file type, converting to HFE: %s",
                new_file_name);
-    util_file_handle_close(p_disc->file_handle);
-    p_disc->file_handle = util_file_handle_open(new_file_name, 1, 1);
+    util_file_close(p_disc->p_file);
+    p_disc->p_file = util_file_open(new_file_name, 1, 1);
     disc_hfe_convert(p_disc);
     p_disc->p_write_track_callback = disc_hfe_write_track;
   }
@@ -334,9 +332,9 @@ disc_load(struct disc_struct* p_disc,
   p_disc->is_mutable = is_mutable;
 }
 
-intptr_t
-disc_get_file_handle(struct disc_struct* p_disc) {
-  return p_disc->file_handle;
+struct util_file*
+disc_get_file(struct disc_struct* p_disc) {
+  return p_disc->p_file;
 }
 
 uint8_t*

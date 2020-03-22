@@ -824,12 +824,12 @@ static void
 debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
-  size_t len;
+  uint64_t len;
   uint8_t buf[k_6502_addr_space_size];
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
-  len = util_file_read_fully(buf, sizeof(buf), p_file_name);
+  len = util_file_read_fully(p_file_name, buf, sizeof(buf));
 
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }

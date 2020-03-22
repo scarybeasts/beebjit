@@ -8,6 +8,7 @@ struct disc_struct;
 
 struct bbc_options;
 struct timing_struct;
+struct util_file;
 
 struct disc_struct* disc_create(struct timing_struct* p_timing,
                                 void (*p_byte_callback)(void* p,
@@ -21,7 +22,7 @@ void disc_load(struct disc_struct* p_disc,
                const char* p_filename,
                int is_writeable,
                int is_mutable);
-intptr_t disc_get_file_handle(struct disc_struct* p_disc);
+struct util_file* disc_get_file(struct disc_struct* p_disc);
 uint8_t* disc_allocate_format_metadata(struct disc_struct* p_disc,
                                        size_t num_bytes);
 void disc_set_is_double_sided(struct disc_struct* p_disc, int is_double_sided);

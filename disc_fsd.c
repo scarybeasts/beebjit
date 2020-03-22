@@ -406,12 +406,12 @@ disc_fsd_load(struct disc_struct* p_disc,
   uint32_t i_track;
   uint8_t title_char;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
-  assert(file_handle != k_util_file_no_handle);
+  struct util_file* p_file = disc_get_file(p_disc);
+  assert(p_file != NULL);
 
   (void) memset(buf, '\0', sizeof(buf));
 
-  len = util_file_handle_read(file_handle, buf, sizeof(buf));
+  len = util_file_read(p_file, buf, sizeof(buf));
 
   if (len == sizeof(buf)) {
     util_bail("fsd file too large");

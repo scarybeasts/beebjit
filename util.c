@@ -11,9 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/stat.h>
-#include <sys/types.h>
-
 void*
 util_mallocz(size_t size) {
   void* p_ret = malloc(size);
@@ -222,84 +219,110 @@ util_is_extension(const char* p_file_name, const char* p_ext) {
   return 1;
 }
 
-intptr_t
-util_file_handle_open(const char* p_file_name, int writeable, int create) {
-  int flags;
-  int fd;
+struct util_file*
+util_file_open(const char* p_file_name, int writeable, int create) {
+  FILE* p_file;
+
+  /* Need the "b" aka. "binary" for Windows. */
+  const char* p_flags = "rb";
 
   if (writeable) {
-    flags = O_RDWR;
     if (create) {
-      flags |= O_CREAT;
+      p_flags = "wb+";
+    } else {
+      p_flags = "rb+";
     }
-  } else {
-    flags = O_RDONLY;
   }
 
-  fd = open(p_file_name, flags, 0600);
-  if (fd < 0) {
+  p_file = fopen(p_file_name, p_flags);
+  if (p_file == NULL) {
     util_bail("couldn't open %s", p_file_name);
   }
 
-  return (intptr_t) fd;
+  return (struct util_file*) p_file;
 }
 
 void
-util_file_handle_close(intptr_t handle) {
-  int fd = (int) handle;
-  int ret = close(fd);
+util_file_close(struct util_file* p) {
+  int ret = fclose((FILE*) p);
   if (ret != 0) {
     util_bail("close failed");
   }
 }
 
 uint64_t
-util_file_handle_get_size(intptr_t handle) {
-  struct stat stat_buf;
+util_file_get_size(struct util_file* p) {
+  int ret;
+  uint64_t pos;
+  FILE* p_file = (FILE*) p;
 
-  int fd = (int) handle;
-  int ret = fstat(fd, &stat_buf);
-  if (ret != 0 || stat_buf.st_size < 0) {
-    util_bail("fstat failed");
+  ret = fseek(p_file, 0, SEEK_END);
+  if (ret != 0) {
+    util_bail("fseek SEEK_END failed");
   }
 
-  return stat_buf.st_size;
+  pos = ftell(p_file);
+
+  ret = fseek(p_file, 0, SEEK_SET);
+  if (ret != 0) {
+    util_bail("fseek SEEK_SET failed");
+  }
+
+  return pos;
+}
+
+uint64_t
+util_file_read(struct util_file* p, void* p_buf, uint64_t length) {
+  FILE* p_file = (FILE*) p;
+
+  return fread(p_buf, 1, length, p_file);
 }
 
 void
-util_file_handle_seek(intptr_t handle, uint64_t pos) {
-  off_t ret;
-
-  int fd = (int) handle;
-
-  ret = lseek(fd, (off_t) pos, SEEK_SET);
-  if ((uint64_t) ret != pos) {
-    util_bail("lseek failed");
+util_file_write(struct util_file* p, const void* p_buf, uint64_t length) {
+  FILE* p_file = (FILE*) p;
+  uint64_t ret = fwrite(p_buf, 1, length, p_file);
+  if (ret != length) {
+    util_bail("fwrite short write");
   }
 }
 
 void
-util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
-  int fd = (int) handle;
-  uint64_t to_go = length;
+util_file_seek(struct util_file* p, uint64_t pos) {
+  int ret;
+  FILE* p_file = (FILE*) p;
 
-  while (to_go > 0) {
-    ssize_t ret = write(fd, p_buf, to_go);
-    if (ret < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      util_bail("write failed");
-    } else if (ret == 0) {
-      util_bail("write EOF");
-    }
-    to_go -= ret;
-    p_buf += ret;
+  ret = fseek(p_file, pos, SEEK_SET);
+  if (ret != 0) {
+    util_bail("fseek SEEK_SET failed");
   }
 }
 
 uint64_t
-util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
+util_file_read_fully(const char* p_file_name,
+                     uint8_t* p_buf,
+                     uint64_t max_size) {
+  uint64_t ret;
+  struct util_file* p_file = util_file_open(p_file_name, 0, 0);
+
+  ret = util_file_read(p_file, p_buf, max_size);
+
+  util_file_close(p_file);
+
+  return ret;
+}
+
+void
+util_file_write_fully(const char* p_file_name,
+                      const uint8_t* p_buf,
+                      uint64_t size) {
+  struct util_file* p_file = util_file_open(p_file_name, 1, 1);
+  util_file_write(p_file, p_buf, size);
+  util_file_close(p_file);
+}
+
+uint64_t
+util_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   int fd = (int) handle;
   uint64_t to_go = length;
   uint64_t done = 0;
@@ -322,27 +345,24 @@ util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
   return done;
 }
 
-uint64_t
-util_file_read_fully(uint8_t* p_buf,
-                     uint64_t max_size,
-                     const char* p_file_name) {
-  size_t read_ret;
-  intptr_t handle = util_file_handle_open(p_file_name, 0, 0);
-
-  read_ret = util_file_handle_read(handle, p_buf, max_size);
-
-  util_file_handle_close(handle);
-
-  return read_ret;
-}
-
 void
-util_file_write_fully(const char* p_file_name,
-                      const uint8_t* p_buf,
-                      uint64_t size) {
-  intptr_t handle = util_file_handle_open(p_file_name, 1, 1);
-  util_file_handle_write(handle, p_buf, size);
-  util_file_handle_close(handle);
+util_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
+  int fd = (int) handle;
+  uint64_t to_go = length;
+
+  while (to_go > 0) {
+    ssize_t ret = write(fd, p_buf, to_go);
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      util_bail("write failed");
+    } else if (ret == 0) {
+      util_bail("write EOF");
+    }
+    to_go -= ret;
+    p_buf += ret;
+  }
 }
 
 intptr_t
@@ -372,6 +392,15 @@ util_handle_write_byte(intptr_t handle, uint8_t val) {
   ssize_t ret = write(handle, &val, 1);
   if (ret != 1) {
     util_bail("failed to write byte to handle");
+  }
+}
+
+void
+util_handle_close(intptr_t handle) {
+  int fd = (int) handle;
+  int ret = close(fd);
+  if (ret != 0) {
+    util_bail("close failed");
   }
 }
 

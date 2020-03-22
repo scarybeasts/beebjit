@@ -19,7 +19,7 @@ disc_ssd_write_track(struct disc_struct* p_disc) {
   uint32_t i_sector;
   uint64_t seek_pos;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
+  struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
   uint32_t track = disc_get_track(p_disc);
 
@@ -32,7 +32,7 @@ disc_ssd_write_track(struct disc_struct* p_disc) {
   if (disc_is_upper_side(p_disc)) {
     seek_pos += track_size;
   }
-  util_file_handle_seek(file_handle, seek_pos);
+  util_file_seek(p_file, seek_pos);
 
   p_track_src = disc_get_raw_track_data(p_disc);
   /* Skip GAP1. */
@@ -44,7 +44,7 @@ disc_ssd_write_track(struct disc_struct* p_disc) {
     p_track_src += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
     p_track_src += 1;
 
-    util_file_handle_write(file_handle, p_track_src, k_disc_ssd_sector_size);
+    util_file_write(p_file, p_track_src, k_disc_ssd_sector_size);
     p_track_src += k_disc_ssd_sector_size;
     /* Skip checksum. */
     p_track_src += 2;
@@ -67,12 +67,12 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
   uint32_t i_track;
   uint32_t i_sector;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
+  struct util_file* p_file = disc_get_file(p_disc);
   uint64_t max_size = sizeof(buf);
   uint8_t* p_ssd_data = buf;
   uint32_t num_sides = 2;
 
-  assert(file_handle != k_util_file_no_handle);
+  assert(p_file != NULL);
 
   disc_set_is_double_sided(p_disc, is_dsd);
 
@@ -82,7 +82,7 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
     max_size /= 2;
     num_sides = 1;
   }
-  file_size = util_file_handle_get_size(file_handle);
+  file_size = util_file_get_size(p_file);
   if (file_size > max_size) {
     util_bail("ssd/dsd file too large");
   }
@@ -90,7 +90,7 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
     util_bail("ssd/dsd file not a sector multiple");
   }
 
-  read_ret = util_file_handle_read(file_handle, buf, file_size);
+  read_ret = util_file_read(p_file, buf, file_size);
   if (read_ret != file_size) {
     util_bail("ssd/dsd file short read");
   }

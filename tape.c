@@ -124,7 +124,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   size_t buffer_remaining;
   uint8_t* p_in_buf;
   int32_t* p_out_buf;
-  intptr_t file_handle;
+  struct util_file* p_file;
   uint32_t num_tape_values;
   size_t tape_buffer_size;
   float temp_float;
@@ -134,11 +134,11 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   (void) memset(in_buf, '\0', sizeof(in_buf));
   (void) memset(out_buf, '\0', sizeof(out_buf));
 
-  file_handle = util_file_handle_open(p_file_name, 0, 0);
+  p_file = util_file_open(p_file_name, 0, 0);
 
-  len = util_file_handle_read(file_handle, in_buf, sizeof(in_buf));
+  len = util_file_read(p_file, in_buf, sizeof(in_buf));
 
-  util_file_handle_close(file_handle);
+  util_file_close(p_file);
 
   if (len == sizeof(in_buf)) {
     util_bail("uef file too large");

@@ -681,24 +681,24 @@ bbc_write_callback(void* p,
 void
 bbc_client_send_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_message) {
-  util_file_handle_write(p_bbc->message_client_handle,
-                         p_message,
-                         sizeof(struct bbc_message));
+  util_handle_write(p_bbc->message_client_handle,
+                    p_message,
+                    sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_send_message(struct bbc_struct* p_bbc, struct bbc_message* p_message) {
-  util_file_handle_write(p_bbc->message_cpu_handle,
-                         p_message,
-                         sizeof(struct bbc_message));
+  util_handle_write(p_bbc->message_cpu_handle,
+                    p_message,
+                    sizeof(struct bbc_message));
 }
 
 void
 bbc_client_receive_message(struct bbc_struct* p_bbc,
                            struct bbc_message* p_out_message) {
-  size_t ret = util_file_handle_read(p_bbc->message_client_handle,
-                                     p_out_message,
-                                     sizeof(struct bbc_message));
+  size_t ret = util_handle_read(p_bbc->message_client_handle,
+                                p_out_message,
+                                sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
     util_bail("read failed");
   }
@@ -707,9 +707,9 @@ bbc_client_receive_message(struct bbc_struct* p_bbc,
 static void
 bbc_cpu_receive_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_out_message) {
-  size_t ret = util_file_handle_read(p_bbc->message_cpu_handle,
-                                     p_out_message,
-                                     sizeof(struct bbc_message));
+  size_t ret = util_handle_read(p_bbc->message_cpu_handle,
+                                p_out_message,
+                                sizeof(struct bbc_message));
   if (ret != sizeof(struct bbc_message)) {
     util_bail("read failed");
   }
@@ -1062,7 +1062,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_alloc_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
   os_alloc_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
   os_alloc_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
-  util_file_handle_close(p_bbc->mem_handle);
+  util_handle_close(p_bbc->mem_handle);
 
   util_free(p_bbc->p_mem_sideways);
   util_free(p_bbc);

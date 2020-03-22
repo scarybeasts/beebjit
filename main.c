@@ -204,7 +204,7 @@ main(int argc, const char* argv[]) {
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-  read_ret = util_file_read_fully(os_rom, k_bbc_rom_size, os_rom_name);
+  read_ret = util_file_read_fully(os_rom_name, os_rom, k_bbc_rom_size);
   if (read_ret != k_bbc_rom_size) {
     util_bail("can't load OS rom");
   }
@@ -265,7 +265,7 @@ main(int argc, const char* argv[]) {
     const char* p_rom_name = rom_names[i];
     if (p_rom_name != NULL) {
       (void) memset(load_rom, '\0', k_bbc_rom_size);
-      (void) util_file_read_fully(load_rom, k_bbc_rom_size, p_rom_name);
+      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
       bbc_load_rom(p_bbc, i, load_rom);
     }
     if (sideways_ram[i]) {

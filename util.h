@@ -43,24 +43,27 @@ void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 void util_buffer_fill(struct util_buffer* p_buf, char value, size_t len);
 
 /* File. */
+struct util_file;
+
 int util_is_extension(const char* p_name, const char* p_ext);
 enum {
   k_util_file_no_handle = -1,
 };
-intptr_t util_file_handle_open(const char* p_file_name,
-                               int writeable,
-                               int create);
-void util_file_handle_close(intptr_t handle);
-uint64_t util_file_handle_get_size(intptr_t handle);
-void util_file_handle_seek(intptr_t handle, uint64_t pos);
-void util_file_handle_write(intptr_t handle,
-                            const void* p_buf,
-                            uint64_t length);
-uint64_t util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length);
 
-uint64_t util_file_read_fully(uint8_t* p_buf,
-                              uint64_t max_size,
-                              const char* p_file_name);
+struct util_file* util_file_open(const char* p_file_name,
+                                 int writeable,
+                                 int create);
+void util_file_close(struct util_file* p_file);
+uint64_t util_file_get_size(struct util_file* p_file);
+void util_file_seek(struct util_file* p_file, uint64_t pos);
+uint64_t util_file_read(struct util_file* p_file, void* p_buf, uint64_t length);
+void util_file_write(struct util_file* p_file,
+                     const void* p_buf,
+                     uint64_t length);
+
+uint64_t util_file_read_fully(const char* p_file_name,
+                              uint8_t* p_buf,
+                              uint64_t max_size);
 void util_file_write_fully(const char* p_file_name,
                            const uint8_t* p_buf,
                            uint64_t size);
@@ -68,8 +71,11 @@ void util_file_write_fully(const char* p_file_name,
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
+uint64_t util_handle_read(intptr_t handle, void* p_buf, uint64_t length);
+void util_handle_write(intptr_t handle, const void* p_buf, uint64_t length);
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
+void util_handle_close(intptr_t handle);
 
 /* Options. */
 int util_get_u32_option(uint32_t* p_opt_out,

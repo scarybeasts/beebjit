@@ -108,7 +108,7 @@ static void
 state_read(unsigned char* p_buf, const char* p_file_name) {
   struct bem_v2x* p_bem;
 
-  size_t len = util_file_read_fully(p_buf, k_snapshot_size, p_file_name);
+  uint64_t len = util_file_read_fully(p_file_name, p_buf, k_snapshot_size);
 
   if (len != k_snapshot_size) {
     util_bail("wrong snapshot size (expected %"PRIu64")", k_snapshot_size);

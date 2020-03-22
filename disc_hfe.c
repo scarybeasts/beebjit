@@ -80,10 +80,10 @@ disc_hfe_write_track(struct disc_struct* p_disc) {
   uint8_t* p_src_clocks;
   uint8_t buf[64 * 4];
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
+  struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track = disc_get_track(p_disc);
 
-  assert(file_handle != k_util_file_no_handle);
+  assert(p_file != NULL);
   assert(disc_is_track_dirty(p_disc));
 
   p_metadata = disc_get_format_metadata(p_disc);
@@ -112,8 +112,8 @@ disc_hfe_write_track(struct disc_struct* p_disc) {
                          p_src_clocks[i_byte]);
 
     if ((index == 63) || (i_byte == (write_len - 1))) {
-      util_file_handle_seek(file_handle, hfe_track_offset);
-      util_file_handle_write(file_handle, buf, ((index + 1) * 4));
+      util_file_seek(p_file, hfe_track_offset);
+      util_file_write(p_file, buf, ((index + 1) * 4));
       hfe_track_offset += 512;
     }
   }
@@ -133,16 +133,16 @@ disc_hfe_load(struct disc_struct* p_disc) {
   uint8_t* p_lut;
   uint8_t* p_format_metadata;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
+  struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = 0;
 
-  assert(file_handle != k_util_file_no_handle);
+  assert(p_file != NULL);
 
   (void) memset(buf, '\0', sizeof(buf));
 
   p_format_metadata = disc_allocate_format_metadata(p_disc, 512);
 
-  file_len = util_file_handle_read(file_handle, buf, k_max_hfe_size);
+  file_len = util_file_read(p_file, buf, k_max_hfe_size);
 
   if (file_len == k_max_hfe_size) {
     util_bail("hfe file too large");
@@ -248,7 +248,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   uint32_t hfe_track_len = (k_ibm_disc_bytes_per_track * 8);
   uint32_t hfe_offset = 2;
   uint32_t hfe_offset_delta = ((hfe_track_len / 512) + 1);
-  intptr_t file_handle = disc_get_file_handle(p_disc);
+  struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = disc_is_double_sided(p_disc);
 
   /* Fill with 0xFF; that is what the command line HFE tools do, and also, 0xFF
@@ -284,8 +284,8 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   header[24] = 0xFF;
   header[25] = 0xFF;
 
-  util_file_handle_seek(file_handle, 0);
-  util_file_handle_write(file_handle, header, 512);
+  util_file_seek(p_file, 0);
+  util_file_write(p_file, header, 512);
 
   p_metadata = disc_allocate_format_metadata(p_disc, 512);
 
@@ -311,6 +311,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
 
   disc_set_track_dirty(p_disc, 0);
 
-  util_file_handle_seek(file_handle, 512);
-  util_file_handle_write(file_handle, p_metadata, 512);
+  util_file_seek(p_file, 512);
+  util_file_write(p_file, p_metadata, 512);
 }

@@ -47,8 +47,8 @@ struct keyboard_struct {
   uint8_t queue_isdown[k_keyboard_queue_size];
   uint8_t queue_pos;
 
-  uint64_t capture_handle;
-  uint64_t replay_handle;
+  struct util_file* p_capture_file;
+  struct util_file* p_replay_file;
   uint8_t replay_next_keys;
   int had_replay_eof;
   uint32_t replay_timer_id;
@@ -436,27 +436,27 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
                       uint8_t* keys,
                       uint8_t* is_downs) {
   uint64_t time;
-  uint64_t capture_handle = p_keyboard->capture_handle;
-  uint64_t replay_handle = p_keyboard->replay_handle;
+  struct util_file* p_capture_file = p_keyboard->p_capture_file;
+  struct util_file* p_replay_file = p_keyboard->p_replay_file;
 
-  if (!capture_handle) {
+  if (p_capture_file == NULL) {
     return;
   }
 
   /* If we're replaying, don't capture physical keyboard. */
-  if (replay_handle && !is_replay) {
+  if ((p_replay_file != NULL) && !is_replay) {
     return;
   }
 
   if (is_replay) {
-    assert(replay_handle);
+    assert(p_replay_file != NULL);
   }
 
   time = timing_get_total_timer_ticks(p_keyboard->p_timing);
-  util_file_handle_write(capture_handle, &time, sizeof(time));
-  util_file_handle_write(capture_handle, &num_keys, sizeof(num_keys));
-  util_file_handle_write(capture_handle, keys, num_keys);
-  util_file_handle_write(capture_handle, is_downs, num_keys);
+  util_file_write(p_capture_file, &time, sizeof(time));
+  util_file_write(p_capture_file, &num_keys, sizeof(num_keys));
+  util_file_write(p_capture_file, keys, num_keys);
+  util_file_write(p_capture_file, is_downs, num_keys);
 }
 
 static void
@@ -465,23 +465,21 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
   uint64_t replay_next_time;
   uint64_t delta_time;
 
-  uint64_t handle = p_keyboard->replay_handle;
+  struct util_file* p_file = p_keyboard->p_replay_file;
   struct timing_struct* p_timing = p_keyboard->p_timing;
   uint32_t replay_timer_id = p_keyboard->replay_timer_id;
   uint64_t time = timing_get_total_timer_ticks(p_timing);
-  assert(handle);
+  assert(p_file != NULL);
 
-  ret = util_file_handle_read(handle,
-                              &replay_next_time,
-                              sizeof(replay_next_time));
+  ret = util_file_read(p_file, &replay_next_time, sizeof(replay_next_time));
   if (ret == 0) {
     /* EOF. */
     keyboard_end_replay(p_keyboard);
     return;
   }
-  ret += util_file_handle_read(handle,
-                               &p_keyboard->replay_next_keys,
-                               sizeof(p_keyboard->replay_next_keys));
+  ret += util_file_read(p_file,
+                        &p_keyboard->replay_next_keys,
+                        sizeof(p_keyboard->replay_next_keys));
   if (ret != (sizeof(replay_next_time) +
               sizeof(p_keyboard->replay_next_keys))) {
     util_bail("corrupt replay file, truncated frame header");
@@ -517,19 +515,19 @@ keyboard_replay_timer_tick(struct keyboard_struct* p_keyboard) {
   uint8_t replay_keys[k_keyboard_queue_size];
   uint8_t replay_isdown[k_keyboard_queue_size];
 
-  uint64_t replay_handle = p_keyboard->replay_handle;
+  struct util_file* p_replay_file = p_keyboard->p_replay_file;
   struct keyboard_state* p_state = &p_keyboard->virtual_keyboard;
   uint8_t num_keys = p_keyboard->replay_next_keys;
 
-  assert(replay_handle);
+  assert(p_replay_file != NULL);
   assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
 
   if (num_keys > k_keyboard_queue_size) {
     util_bail("replay: too many keys");
   }
 
-  ret = util_file_handle_read(replay_handle, replay_keys, num_keys);
-  ret += util_file_handle_read(replay_handle, replay_isdown, num_keys);
+  ret = util_file_read(p_replay_file, replay_keys, num_keys);
+  ret += util_file_read(p_replay_file, replay_isdown, num_keys);
   if (ret != (num_keys * 2)) {
     util_bail("replay: file truncated reading keys");
   }
@@ -564,8 +562,8 @@ keyboard_create(struct timing_struct* p_timing,
   p_keyboard->p_state_6502 = p_state_6502;
   p_keyboard->p_lock = os_lock_create();
   p_keyboard->queue_pos = 0;
-  p_keyboard->capture_handle = 0;
-  p_keyboard->replay_handle = 0;
+  p_keyboard->p_capture_file = NULL;
+  p_keyboard->p_replay_file = NULL;
   p_keyboard->replay_next_keys = 0;
   p_keyboard->had_replay_eof = 0;
   p_keyboard->p_active = &p_keyboard->physical_keyboard;
@@ -578,11 +576,11 @@ keyboard_create(struct timing_struct* p_timing,
 
 void
 keyboard_destroy(struct keyboard_struct* p_keyboard) {
-  if (p_keyboard->capture_handle) {
-    util_file_handle_close(p_keyboard->capture_handle);
+  if (p_keyboard->p_capture_file != NULL) {
+    util_file_close(p_keyboard->p_capture_file);
   }
-  if (p_keyboard->replay_handle) {
-    util_file_handle_close(p_keyboard->replay_handle);
+  if (p_keyboard->p_replay_file != NULL) {
+    util_file_close(p_keyboard->p_replay_file);
   }
   os_lock_destroy(p_keyboard->p_lock);
   util_free(p_keyboard);
@@ -593,11 +591,11 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                const char* p_name) {
   char buf[k_capture_header_size];
 
-  p_keyboard->capture_handle = util_file_handle_open(p_name, 1, 1);
+  p_keyboard->p_capture_file = util_file_open(p_name, 1, 1);
 
   (void) memset(buf, '\0', sizeof(buf));
   (void) memcpy(buf, k_capture_header, strlen(k_capture_header));
-  util_file_handle_write(p_keyboard->capture_handle, buf, sizeof(buf));
+  util_file_write(p_keyboard->p_capture_file, buf, sizeof(buf));
 }
 
 void
@@ -605,12 +603,12 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                               const char* p_name) {
   char buf[k_capture_header_size];
   uint64_t ret;
-  uint64_t handle = util_file_handle_open(p_name, 0, 0);
+  struct util_file* p_file = util_file_open(p_name, 0, 0);
 
-  p_keyboard->replay_handle = handle;
+  p_keyboard->p_replay_file = p_file;
   p_keyboard->p_active = &p_keyboard->virtual_keyboard;
 
-  ret = util_file_handle_read(handle, buf, sizeof(buf));
+  ret = util_file_read(p_file, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
     util_bail("capture file too short");
   }
@@ -626,20 +624,20 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
 
 int
 keyboard_is_replaying(struct keyboard_struct* p_keyboard) {
-  return (p_keyboard->replay_handle != 0);
+  return (p_keyboard->p_replay_file != NULL);
 }
 
 void
 keyboard_end_replay(struct keyboard_struct* p_keyboard) {
-  uint64_t replay_handle = p_keyboard->replay_handle;
+  struct util_file* p_replay_file = p_keyboard->p_replay_file;
 
-  assert(replay_handle);
+  assert(p_replay_file != NULL);
   assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
 
   (void) timing_stop_timer(p_keyboard->p_timing, p_keyboard->replay_timer_id);
-  util_file_handle_close(replay_handle);
+  util_file_close(p_replay_file);
 
-  p_keyboard->replay_handle = 0;
+  p_keyboard->p_replay_file = 0;
   p_keyboard->had_replay_eof = 1;
   p_keyboard->p_active = &p_keyboard->physical_keyboard;
 }
