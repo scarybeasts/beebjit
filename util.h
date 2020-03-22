@@ -1,8 +1,6 @@
 #ifndef BEEBJIT_UTIL_H
 #define BEEBJIT_UTIL_H
 
-struct util_file_map_struct;
-
 #include <stdint.h>
 #include <unistd.h>
 
@@ -83,12 +81,6 @@ uint64_t util_file_read_fully(uint8_t* p_buf,
 void util_file_write_fully(const char* p_file_name,
                            const uint8_t* p_buf,
                            uint64_t size);
-struct util_file_map* util_file_map(const char* p_file_name,
-                                    uint64_t max_size,
-                                    int writeable);
-void* util_file_map_get_ptr(struct util_file_map* p_map);
-size_t util_file_map_get_size(struct util_file_map* p_map);
-void util_file_unmap(struct util_file_map* p_map);
 
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();

@@ -20,11 +20,6 @@
 
 static const size_t k_guard_size = 4096;
 
-struct util_file_map {
-  void* p_mmap;
-  size_t length;
-};
-
 void*
 util_mallocz(size_t size) {
   void* p_ret = malloc(size);
@@ -520,62 +515,6 @@ util_file_write_fully(const char* p_file_name,
   intptr_t handle = util_file_handle_open(p_file_name, 1, 1);
   util_file_handle_write(handle, p_buf, size);
   util_file_handle_close(handle);
-}
-
-struct util_file_map*
-util_file_map(const char* p_file_name, uint64_t max_length, int writeable) {
-  struct util_file_map* p_map;
-  int mmap_prot;
-  void* p_mmap;
-  int64_t handle;
-  uint64_t size;
-
-  if (writeable) {
-    mmap_prot = (PROT_READ | PROT_WRITE);
-  } else {
-    mmap_prot = PROT_READ;
-  }
-
-  p_map = util_mallocz(sizeof(struct util_file_map));
-
-  handle = util_file_handle_open(p_file_name, writeable, 0);
-  size = util_file_handle_get_size(handle);
-
-  if (size > max_length) {
-    util_bail("file too large");
-  }
-
-  p_mmap = mmap(NULL, size, mmap_prot, MAP_SHARED, (int) handle, 0);
-  if (p_map == MAP_FAILED) {
-    util_bail("mmap failed");
-  }
-
-  p_map->p_mmap = p_mmap;
-  p_map->length = size;
-
-  util_file_handle_close(handle);
-
-  return p_map;
-}
-
-void*
-util_file_map_get_ptr(struct util_file_map* p_map) {
-  return p_map->p_mmap;
-}
-
-size_t
-util_file_map_get_size(struct util_file_map* p_map) {
-  return p_map->length;
-}
-
-void
-util_file_unmap(struct util_file_map* p_map) {
-  int ret = munmap(p_map->p_mmap, p_map->length);
-  if (ret != 0) {
-    util_bail("munmap failed");
-  }
-
-  free(p_map);
 }
 
 intptr_t

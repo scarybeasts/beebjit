@@ -38,7 +38,6 @@ main(int argc, const char* argv[]) {
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
   const char* disc_names[2] = {};
-  struct util_file_map* p_disc_maps[2] = {};
   const char* p_tape_file_name = NULL;
 
   struct os_window_struct* p_window = NULL;
@@ -414,13 +413,6 @@ main(int argc, const char* argv[]) {
 
   if (p_sound_driver != NULL) {
     os_sound_destroy(p_sound_driver);
-  }
-
-  for (i = 0; i <= 1; ++i) {
-    struct util_file_map* p_disc_map = p_disc_maps[i];
-    if (p_disc_map != NULL) {
-      util_file_unmap(p_disc_map);
-    }
   }
 
   return 0;
