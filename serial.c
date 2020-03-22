@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "log.h"
+#include "os_terminal.h"
 #include "state_6502.h"
 #include "tape.h"
 #include "util.h"
@@ -244,7 +245,10 @@ serial_tick(struct serial_struct* p_serial) {
                       k_serial_acia_TCB_no_RTS_no_TIE);
     do_receive &= !(p_serial->acia_status & k_serial_acia_status_RDRF);
     if (do_receive) {
-      size_t avail = util_get_handle_readable_bytes(p_serial->handle_input);
+      /* TODO: this doesn't seem correct. The serial connection may not be via
+       * a host terminal?
+       */
+      size_t avail = os_terminal_readable_bytes(p_serial->handle_input);
       if (avail > 0) {
         uint8_t val = util_handle_read_byte(p_serial->handle_input);
         /* Rewrite \n to \r for BBC style input. */

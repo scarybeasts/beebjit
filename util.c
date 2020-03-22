@@ -9,11 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
-#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -588,42 +586,6 @@ util_get_stdin_handle() {
 intptr_t
 util_get_stdout_handle() {
   return fileno(stdout);
-}
-
-void
-util_make_handle_unbuffered(intptr_t handle) {
-  int ret;
-  struct termios termios;
-
-  if (!isatty(handle)) {
-    return;
-  }
-
-  ret = tcgetattr(handle, &termios);
-  if (ret != 0) {
-    util_bail("tcgetattr failed");
-  }
-
-  termios.c_lflag &= ~ICANON;
-  termios.c_lflag &= ~ECHO;
-
-  ret = tcsetattr(handle, TCSANOW, &termios);
-  if (ret != 0) {
-    util_bail("tcsetattr failed");
-  }
-}
-
-uint64_t
-util_get_handle_readable_bytes(intptr_t handle) {
-  int bytes_avail;
-
-  int ret = ioctl(handle, FIONREAD, &bytes_avail);
-  if (ret != 0) {
-    return 0;
-  }
-
-  assert(bytes_avail >= 0);
-  return bytes_avail;
 }
 
 uint8_t

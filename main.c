@@ -3,6 +3,7 @@
 #include "keyboard.h"
 #include "os_poller.h"
 #include "os_sound.h"
+#include "os_terminal.h"
 #include "os_window.h"
 #include "render.h"
 #include "serial.h"
@@ -344,7 +345,7 @@ main(int argc, const char* argv[]) {
     intptr_t stdin_handle = util_get_stdin_handle();
     intptr_t stdout_handle = util_get_stdout_handle();
 
-    util_make_handle_unbuffered(stdin_handle);
+    os_terminal_setup(stdin_handle);
 
     serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
   }
