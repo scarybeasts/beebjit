@@ -9,4 +9,5 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c \
     teletext.c render.c serial.c log.c test.c disc.c ibm_disc_format.c tape.c \
-    disc_fsd.c disc_hfe.c disc_ssd.c
+    disc_fsd.c disc_hfe.c disc_ssd.c \
+    debug.c
