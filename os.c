@@ -28,6 +28,6 @@
 
 #else
 
-#error Not yet ported to Windows, Mac, etc.
+#error Not yet ported to Mac, etc.
 
 #endif

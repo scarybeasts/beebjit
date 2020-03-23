@@ -8,7 +8,11 @@ static const char* s_p_beejit_class_name = "beebjit Window Class";
 
 struct os_window_struct {
   HWND handle;
-  HBITMAP bitmap;
+  HDC handle_draw;
+  uint32_t width;
+  uint32_t height;
+  HBITMAP handle_bitmap;
+  HDC handle_draw_bitmap;
   uint32_t* p_buffer;
 };
 
@@ -21,7 +25,10 @@ struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
   ATOM class_ret;
   HWND handle;
-  HBITMAP bitmap;
+  HDC handle_draw;
+  HBITMAP handle_bitmap;
+  HDC handle_draw_bitmap;
+  HGDIOBJ select_object_ret;
 
   WNDCLASS wc = {};
   BITMAPINFO bmi = {};
@@ -29,6 +36,9 @@ os_window_create(uint32_t width, uint32_t height) {
 
   struct os_window_struct* p_window =
       util_mallocz(sizeof(struct os_window_struct));
+
+  p_window->width = width;
+  p_window->height = height;
 
   wc.lpfnWndProc = WindowProc;
   wc.hInstance = NULL;
@@ -56,22 +66,47 @@ os_window_create(uint32_t width, uint32_t height) {
   }
   p_window->handle = handle;
 
+  handle_draw = GetDC(handle);
+  if (handle_draw == NULL) {
+    util_bail("GetDC failed");
+  }
+  p_window->handle_draw = handle_draw;
+
   bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
   bmi.bmiHeader.biWidth = width;
-  bmi.bmiHeader.biHeight = height;
+  /* NOTE: height has to be negative to get "normal" top-to-bottom pixel
+   * ordering.
+   */
+  bmi.bmiHeader.biHeight = -height;
   bmi.bmiHeader.biPlanes = 1;
   bmi.bmiHeader.biBitCount = 32;
   bmi.bmiHeader.biCompression = BI_RGB;
 
-  bitmap = CreateDIBSection(NULL, &bmi, DIB_RGB_COLORS, &pvBits, NULL, 0);
-  if (bitmap == NULL) {
+  handle_bitmap = CreateDIBSection(NULL,
+                                   &bmi,
+                                   DIB_RGB_COLORS,
+                                   &pvBits,
+                                   NULL,
+                                   0);
+  if (handle_bitmap == NULL) {
     util_bail("CreateDIBSection failed");
   }
   if (pvBits == NULL) {
     util_bail("CreateDIBSection didn't return a buffer");
   }
-  p_window->bitmap = bitmap;
+  p_window->handle_bitmap = handle_bitmap;
   p_window->p_buffer = pvBits;
+
+  handle_draw_bitmap = CreateCompatibleDC(NULL);
+  if (handle_draw_bitmap == NULL) {
+    util_bail("CreateCompatibleDC failed");
+  }
+  p_window->handle_draw_bitmap = handle_draw_bitmap;
+
+  select_object_ret = SelectObject(handle_draw_bitmap, handle_bitmap);
+  if (select_object_ret == NULL) {
+    util_bail("SelectObject failed");
+  }
 
   (void) ShowWindow(handle, SW_SHOWDEFAULT);
 
@@ -120,7 +155,22 @@ os_window_get_handle(struct os_window_struct* p_window) {
 
 void
 os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
-  (void) p_window;
+  BOOL ret;
+
+  HDC handle_draw = p_window->handle_draw;
+
+  ret = BitBlt(handle_draw,
+               0,
+               0,
+               p_window->width,
+               p_window->height,
+               p_window->handle_draw_bitmap,
+               0,
+               0,
+               SRCCOPY);
+  if (ret == 0) {
+    util_bail("BitBlt failed");
+  }
 }
 
 void
