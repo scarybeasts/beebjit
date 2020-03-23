@@ -2,7 +2,7 @@
 
 struct os_poller_struct*
 os_poller_create() {
-  return NULL;
+  return (struct os_poller_struct*) (intptr_t) 1;
 }
 
 void

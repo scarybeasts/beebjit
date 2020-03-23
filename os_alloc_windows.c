@@ -21,12 +21,12 @@ os_alloc_free_aligned(void* p) {
 
 intptr_t
 os_alloc_get_memory_handle(size_t size) {
-  HANDLE ret = CreateFileMappingA(INVALID_HANDLE_VALUE,
-                                  NULL,
-                                  PAGE_READWRITE,
-                                  (size >> 32),
-                                  (size & 0xffffffff),
-                                  NULL);
+  HANDLE ret = CreateFileMapping(INVALID_HANDLE_VALUE,
+                                 NULL,
+                                 PAGE_READWRITE,
+                                 (size >> 32),
+                                 (size & 0xffffffff),
+                                 NULL);
   return (intptr_t) ret;
 }
 
