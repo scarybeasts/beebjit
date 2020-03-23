@@ -12,7 +12,7 @@
 static const size_t k_guard_size = 4096;
 
 void*
-os_alloc_aligned(size_t alignment, size_t size) {
+os_alloc_get_aligned(size_t alignment, size_t size) {
   int ret;
   void* p_alloc = NULL;
 
@@ -22,6 +22,11 @@ os_alloc_aligned(size_t alignment, size_t size) {
   }
 
   return p_alloc;
+}
+
+void
+os_alloc_free_aligned(void* p) {
+  free(p);
 }
 
 intptr_t
@@ -47,6 +52,15 @@ os_alloc_get_memory_handle(size_t size) {
   }
 
   return fd;
+}
+
+void
+os_alloc_free_memory_handle(intptr_t h) {
+  int fd = (int) h;
+  int ret = close(fd);
+  if (ret != 0) {
+    util_bail("close failed");
+  }
 }
 
 static void*

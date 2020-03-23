@@ -1062,7 +1062,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_alloc_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
   os_alloc_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
   os_alloc_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
-  util_handle_close(p_bbc->mem_handle);
+  os_alloc_free_memory_handle(p_bbc->mem_handle);
 
   util_free(p_bbc->p_mem_sideways);
   util_free(p_bbc);

@@ -247,6 +247,8 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   os_alloc_free_guarded_mapping(k_jit_addr, mapping_size);
   mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
   os_alloc_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
+
+  os_alloc_free_aligned(p_cpu_driver);
 }
 
 static int
@@ -820,8 +822,8 @@ jit_create(struct cpu_driver_funcs* p_funcs) {
   size_t alignment = (4096 * (64 / 4));
 
   p_cpu_driver =
-      (struct cpu_driver*) os_alloc_aligned(alignment,
-                                            sizeof(struct jit_struct));
+      (struct cpu_driver*) os_alloc_get_aligned(alignment,
+                                                sizeof(struct jit_struct));
   (void) memset(p_cpu_driver, '\0', sizeof(struct jit_struct));
 
   p_funcs->init = jit_init;
