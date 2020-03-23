@@ -71,8 +71,10 @@ struct bbc_struct {
   struct os_thread_struct* p_thread_cpu;
   int thread_allocated;
   int running;
-  intptr_t message_cpu_handle;
-  intptr_t message_client_handle;
+  intptr_t handle_channel_read_bbc;
+  intptr_t handle_channel_write_bbc;
+  intptr_t handle_channel_read_client;
+  intptr_t handle_channel_write_client;
   uint32_t exit_value;
   intptr_t mem_handle;
 
@@ -681,38 +683,32 @@ bbc_write_callback(void* p,
 void
 bbc_client_send_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_message) {
-  util_handle_write(p_bbc->message_client_handle,
-                    p_message,
-                    sizeof(struct bbc_message));
+  os_channel_write(p_bbc->handle_channel_write_client,
+                   p_message,
+                   sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_send_message(struct bbc_struct* p_bbc, struct bbc_message* p_message) {
-  util_handle_write(p_bbc->message_cpu_handle,
-                    p_message,
-                    sizeof(struct bbc_message));
+  os_channel_write(p_bbc->handle_channel_write_bbc,
+                   p_message,
+                   sizeof(struct bbc_message));
 }
 
 void
 bbc_client_receive_message(struct bbc_struct* p_bbc,
                            struct bbc_message* p_out_message) {
-  size_t ret = util_handle_read(p_bbc->message_client_handle,
-                                p_out_message,
-                                sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    util_bail("read failed");
-  }
+  os_channel_read(p_bbc->handle_channel_read_client,
+                  p_out_message,
+                  sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_receive_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_out_message) {
-  size_t ret = util_handle_read(p_bbc->message_cpu_handle,
-                                p_out_message,
-                                sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    util_bail("read failed");
-  }
+  os_channel_read(p_bbc->handle_channel_read_bbc,
+                  p_out_message,
+                  sizeof(struct bbc_message));
 }
 
 static void
@@ -777,9 +773,6 @@ bbc_create(int mode,
                              p_opt_flags,
                              "bbc:cpu-scale-factor=");
 
-  os_channel_get_handles(&p_bbc->message_cpu_handle,
-                         &p_bbc->message_client_handle);
-
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -791,6 +784,10 @@ bbc_create(int mode,
   p_bbc->test_map_flag = test_map_flag;
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
+  p_bbc->handle_channel_read_bbc = -1;
+  p_bbc->handle_channel_write_bbc = -1;
+  p_bbc->handle_channel_read_client = -1;
+  p_bbc->handle_channel_write_client = -1;
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
@@ -1596,9 +1593,16 @@ bbc_get_run_result(struct bbc_struct* p_bbc) {
   return *p_ret;
 }
 
-intptr_t
-bbc_get_client_handle(struct bbc_struct* p_bbc) {
-  return p_bbc->message_client_handle;
+void
+bbc_set_channel_handles(struct bbc_struct* p_bbc,
+                        intptr_t handle_channel_read_bbc,
+                        intptr_t handle_channel_write_bbc,
+                        intptr_t handle_channel_read_client,
+                        intptr_t handle_channel_write_client) {
+  p_bbc->handle_channel_read_bbc = handle_channel_read_bbc;
+  p_bbc->handle_channel_write_bbc = handle_channel_write_bbc;
+  p_bbc->handle_channel_read_client = handle_channel_read_client;
+  p_bbc->handle_channel_write_client = handle_channel_write_client;
 }
 
 void

@@ -1,6 +1,7 @@
 #include "bbc.h"
 #include "cpu_driver.h"
 #include "keyboard.h"
+#include "os_channel.h"
 #include "os_poller.h"
 #include "os_sound.h"
 #include "os_terminal.h"
@@ -31,9 +32,12 @@ main(int argc, const char* argv[]) {
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
   struct render_struct* p_render;
-  intptr_t bbc_handle;
   uint32_t run_result;
   uint32_t* p_render_buffer;
+  intptr_t handle_channel_read_ui;
+  intptr_t handle_channel_write_bbc;
+  intptr_t handle_channel_read_bbc;
+  intptr_t handle_channel_write_ui;
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
@@ -350,10 +354,19 @@ main(int argc, const char* argv[]) {
     serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
   }
 
+  os_channel_get_handles(&handle_channel_read_ui,
+                         &handle_channel_write_bbc,
+                         &handle_channel_read_bbc,
+                         &handle_channel_write_ui);
+  bbc_set_channel_handles(p_bbc,
+                          handle_channel_read_bbc,
+                          handle_channel_write_bbc,
+                          handle_channel_read_ui,
+                          handle_channel_write_ui);
+
   bbc_run_async(p_bbc);
 
-  bbc_handle = bbc_get_client_handle(p_bbc);
-  os_poller_add_handle(p_poller, bbc_handle);
+  os_poller_add_handle(p_poller, handle_channel_read_ui);
   if (window_handle != -1) {
     os_poller_add_handle(p_poller, window_handle);
   }
@@ -411,6 +424,11 @@ main(int argc, const char* argv[]) {
     os_window_destroy(p_window);
   }
   bbc_destroy(p_bbc);
+
+  os_channel_free_handles(handle_channel_read_ui,
+                          handle_channel_write_bbc,
+                          handle_channel_read_bbc,
+                          handle_channel_write_ui);
 
   if (p_sound_driver != NULL) {
     os_sound_destroy(p_sound_driver);

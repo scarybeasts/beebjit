@@ -117,7 +117,11 @@ int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
-intptr_t bbc_get_client_handle(struct bbc_struct* p_bbc);
+void bbc_set_channel_handles(struct bbc_struct* p_bbc,
+                             intptr_t handle_channel_read_bbc,
+                             intptr_t handle_channel_write_bbc,
+                             intptr_t handle_channel_read_client,
+                             intptr_t handle_channel_write_client);
 
 struct bbc_message {
   uint8_t data[16];

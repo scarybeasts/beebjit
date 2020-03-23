@@ -359,7 +359,7 @@ os_window_get_buffer(struct os_window_struct* p_window) {
   return (uint32_t*) p_window->p_image_data;
 }
 
-uintptr_t
+intptr_t
 os_window_get_handle(struct os_window_struct* p_window) {
   Display* d = p_window->d;
   int fd = ConnectionNumber(d);

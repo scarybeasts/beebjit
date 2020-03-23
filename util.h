@@ -71,8 +71,6 @@ void util_file_write_fully(const char* p_file_name,
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
-uint64_t util_handle_read(intptr_t handle, void* p_buf, uint64_t length);
-void util_handle_write(intptr_t handle, const void* p_buf, uint64_t length);
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
 void util_handle_close(intptr_t handle);

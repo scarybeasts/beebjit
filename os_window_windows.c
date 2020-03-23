@@ -108,10 +108,14 @@ os_window_get_buffer(struct os_window_struct* p_window) {
   return p_window->p_buffer;
 }
 
-uintptr_t
+intptr_t
 os_window_get_handle(struct os_window_struct* p_window) {
+  /* Return a NULL handle. The Windows poller doesn't need a handle for the
+   * window because MsgWaitForMultipleObjects includes the current thread's
+   * message queue.
+   */
   (void) p_window;
-  return 0;
+  return (intptr_t) NULL;
 }
 
 void
@@ -121,5 +125,12 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
 
 void
 os_window_process_events(struct os_window_struct* p_window) {
+  MSG msg;
+
   (void) p_window;
+
+  while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
+  }
 }

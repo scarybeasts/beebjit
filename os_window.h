@@ -16,7 +16,7 @@ void os_window_set_name(struct os_window_struct* p_window, const char* p_name);
 void os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                      struct keyboard_struct* p_keyboard);
 uint32_t* os_window_get_buffer(struct os_window_struct* p_window);
-uintptr_t os_window_get_handle(struct os_window_struct* p_window);
+intptr_t os_window_get_handle(struct os_window_struct* p_window);
 void os_window_sync_buffer_to_screen(struct os_window_struct* p_window);
 void os_window_process_events(struct os_window_struct* p_window);
 

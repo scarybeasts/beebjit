@@ -321,50 +321,6 @@ util_file_write_fully(const char* p_file_name,
   util_file_close(p_file);
 }
 
-uint64_t
-util_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
-  int fd = (int) handle;
-  uint64_t to_go = length;
-  uint64_t done = 0;
-
-  while (to_go > 0) {
-    ssize_t ret = read(fd, p_buf, to_go);
-    if (ret < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      util_bail("read failed");
-    } else if (ret == 0) {
-      break;
-    }
-    to_go -= ret;
-    done += ret;
-    p_buf += ret;
-  }
-
-  return done;
-}
-
-void
-util_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
-  int fd = (int) handle;
-  uint64_t to_go = length;
-
-  while (to_go > 0) {
-    ssize_t ret = write(fd, p_buf, to_go);
-    if (ret < 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      util_bail("write failed");
-    } else if (ret == 0) {
-      util_bail("write EOF");
-    }
-    to_go -= ret;
-    p_buf += ret;
-  }
-}
-
 intptr_t
 util_get_stdin_handle() {
   return fileno(stdin);
