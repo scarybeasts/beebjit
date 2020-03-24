@@ -211,11 +211,34 @@ os_window_create(uint32_t width, uint32_t height) {
 void
 os_window_destroy(struct os_window_struct* p_window) {
   (void) p_window;
-  BOOL ret = UnregisterClass(s_p_beejit_class_name, NULL);
+  BOOL ret;
+
+  ret = DeleteDC(p_window->handle_draw_bitmap);
+  if (ret == 0) {
+    util_bail("DeleteDC for bitmap failed");
+  }
+
+  ret = DeleteObject(p_window->handle_bitmap);
+  if (ret == 0) {
+    util_bail("DeleteObject for bitmap failed");
+  }
+
+  ret = DeleteDC(p_window->handle_draw);
+  if (ret == 0) {
+    util_bail("DeleteDC for window failed");
+  }
+
+  ret = DestroyWindow(p_window->handle);
+  if (ret == 0) {
+    util_bail("DestroyWindow failed");
+  }
+
+  ret = UnregisterClass(s_p_beejit_class_name, NULL);
   if (ret == 0) {
     util_bail("UnregisterClass failed");
   }
-  util_bail("blah");
+
+  util_free(p_window);
 }
 
 void

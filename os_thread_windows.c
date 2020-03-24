@@ -47,9 +47,23 @@ os_thread_create(void* p_func, void* p_arg) {
 
 intptr_t
 os_thread_destroy(struct os_thread_struct* p_thread_struct) {
-  (void) p_thread_struct;
-  util_bail("os_thread_destroy");
-  return 0;
+  intptr_t ret;
+  BOOL close_ret;
+  DWORD wait_ret = WaitForSingleObject(p_thread_struct->handle, INFINITE);
+  if (wait_ret == WAIT_FAILED) {
+    util_bail("WaitForSingleObject failed");
+  }
+
+  close_ret = CloseHandle(p_thread_struct->handle);
+  if (close_ret == 0) {
+    util_bail("CloseHandle failed");
+  }
+
+  ret = (intptr_t) p_thread_struct->p_ret;
+
+  util_free(p_thread_struct);
+
+  return ret;
 }
 
 struct os_lock_struct*

@@ -33,7 +33,7 @@ os_alloc_get_memory_handle(size_t size) {
 void
 os_alloc_free_memory_handle(intptr_t h) {
   (void) h;
-  util_bail("blah");
+  util_bail("os_alloc_free_memory_handle");
 }
 
 static void*
@@ -98,7 +98,7 @@ void
 os_alloc_free_guarded_mapping(void* p_addr, size_t size) {
   (void) p_addr;
   (void) size;
-  util_bail("blah");
+  util_bail("os_alloc_free_guarded_mapping");
 }
 
 void

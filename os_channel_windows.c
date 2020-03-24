@@ -37,7 +37,7 @@ os_channel_free_handles(intptr_t read1,
   (void) write1;
   (void) read2;
   (void) write2;
-  util_bail("blah");
+  util_bail("os_channel_free_handles");
 }
 
 void
