@@ -14,7 +14,7 @@ enum {
   k_keyboard_key_backspace = 129,
   k_keyboard_key_tab = 130,
   k_keyboard_key_enter = 131,
-  k_keyboard_key_ctrl_left = 132,
+  k_keyboard_key_ctrl = 132,
   k_keyboard_key_shift_left = 133,
   k_keyboard_key_shift_right = 134,
   k_keyboard_key_caps_lock = 135,

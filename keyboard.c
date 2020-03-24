@@ -175,7 +175,7 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     row = 4;
     col = 9;
     break;
-  case k_keyboard_key_ctrl_left:
+  case k_keyboard_key_ctrl:
     row = 0;
     col = 1;
     break;
@@ -224,6 +224,7 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     col = 8;
     break;
   case k_keyboard_key_shift_left:
+  case k_keyboard_key_shift_right:
     row = 0;
     col = 0;
     break;
@@ -270,10 +271,6 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
   case '/':
     row = 6;
     col = 8;
-    break;
-  case k_keyboard_key_shift_right:
-    row = 0;
-    col = 0;
     break;
   case ' ':
     row = 6;

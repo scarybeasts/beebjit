@@ -1,10 +1,13 @@
 #include "os_window.h"
 
+#include "keyboard.h"
 #include "util.h"
 
 #include <windows.h>
 
 static const char* s_p_beejit_class_name = "beebjit Window Class";
+
+static struct keyboard_struct* s_p_keyboard;
 
 struct os_window_struct {
   HWND handle;
@@ -16,8 +19,100 @@ struct os_window_struct {
   uint32_t* p_buffer;
 };
 
+static uint8_t
+convert_windows_key_code(uint32_t vkey) {
+  if ((vkey >= '0') && (vkey <= '9')) {
+    return (uint8_t) vkey;
+  }
+  if ((vkey >= 'A') && (vkey <= 'Z')) {
+    return (uint8_t) vkey;
+  }
+  if ((vkey >= VK_F1) && (vkey <= VK_F9)) {
+    return (uint8_t) ((vkey - VK_F1) + k_keyboard_key_f1);
+  }
+  switch (vkey) {
+  case VK_F10:
+    return k_keyboard_key_f0;
+  case VK_F12:
+    return k_keyboard_key_f12;
+  case VK_SPACE:
+    return ' ';
+  case VK_RETURN:
+    return k_keyboard_key_enter;
+  case VK_BACK:
+    return k_keyboard_key_backspace;
+  case VK_ESCAPE:
+    return k_keyboard_key_escape;
+  case VK_TAB:
+    return k_keyboard_key_tab;
+  case VK_SHIFT:
+    /* TODO: distinguish between left and right shift. */
+    return k_keyboard_key_shift_left;
+  case VK_CAPITAL:
+    return k_keyboard_key_caps_lock;
+  case VK_CONTROL:
+    return k_keyboard_key_ctrl;
+  case VK_LEFT:
+    return k_keyboard_key_arrow_left;
+  case VK_RIGHT:
+    return k_keyboard_key_arrow_right;
+  case VK_UP:
+    return k_keyboard_key_arrow_up;
+  case VK_DOWN:
+    return k_keyboard_key_arrow_down;
+  case VK_END:
+    return k_keyboard_key_end;
+  case VK_OEM_PLUS:
+    return '=';
+  case VK_OEM_MINUS:
+    return '-';
+  case VK_OEM_4:
+    return '[';
+  case VK_OEM_6:
+    return ']';
+  case VK_OEM_5:
+    return '\\';
+  case VK_OEM_1:
+    return ';';
+  case VK_OEM_7:
+    return '\'';
+  case VK_OEM_COMMA:
+    return ',';
+  case VK_OEM_PERIOD:
+    return '.';
+  case VK_OEM_2:
+    return '/';
+  default:
+    break;
+  }
+
+  return 0;
+}
+
 LRESULT CALLBACK
 WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  uint8_t key;
+
+  /* F10 and Alt are special and come in via WM_SYSKEYDOWN. */
+
+  switch (uMsg) {
+  case WM_KEYDOWN:
+  case WM_SYSKEYDOWN:
+    key = convert_windows_key_code((uint32_t) wParam);
+    if (key != 0) {
+      keyboard_system_key_pressed(s_p_keyboard, key);
+    }
+    break;
+  case WM_KEYUP:
+  case WM_SYSKEYUP:
+    key = convert_windows_key_code((uint32_t) wParam);
+    if (key != 0) {
+      keyboard_system_key_released(s_p_keyboard, key);
+    }
+    break;
+  default:
+    break;
+  }
   return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -135,7 +230,8 @@ void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
   (void) p_window;
-  (void) p_keyboard;
+  assert(s_p_keyboard == NULL);
+  s_p_keyboard = p_keyboard;
 }
 
 uint32_t*

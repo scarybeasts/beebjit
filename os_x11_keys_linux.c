@@ -81,7 +81,7 @@ os_x11_keys_build_mapping() {
       val = k_keyboard_key_enter;
       break;
     case 37:
-      val = k_keyboard_key_ctrl_left;
+      val = k_keyboard_key_ctrl;
       break;
     case 38:
       val = 'A';

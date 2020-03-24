@@ -4,12 +4,12 @@
 
 #include <pthread.h>
 
-struct os_lock_struct {
-  pthread_spinlock_t lock;
-};
-
 struct os_thread_struct {
   pthread_t thread;
+};
+
+struct os_lock_struct {
+  pthread_spinlock_t lock;
 };
 
 struct os_thread_struct*

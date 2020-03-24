@@ -9,6 +9,10 @@ struct os_thread_struct {
   void* p_ret;
 };
 
+struct os_lock_struct {
+  CRITICAL_SECTION cs;
+};
+
 DWORD WINAPI
 ThreadProc(_In_ LPVOID lpParameter) {
   void* p_ret;
@@ -50,21 +54,25 @@ os_thread_destroy(struct os_thread_struct* p_thread_struct) {
 
 struct os_lock_struct*
 os_lock_create() {
-  return NULL;
+  struct os_lock_struct* p_lock = util_mallocz(sizeof(struct os_lock_struct));
+
+  InitializeCriticalSection(&p_lock->cs);
+
+  return p_lock;
 }
 
 void
 os_lock_destroy(struct os_lock_struct* p_lock) {
-  (void) p_lock;
+  DeleteCriticalSection(&p_lock->cs);
+  util_free(p_lock);
 }
 
 void
 os_lock_lock(struct os_lock_struct* p_lock) {
-  (void) p_lock;
-  util_bail("os_lock_lock");
+  EnterCriticalSection(&p_lock->cs);
 }
 
 void
 os_lock_unlock(struct os_lock_struct* p_lock) {
-  (void) p_lock;
+  LeaveCriticalSection(&p_lock->cs);
 }
