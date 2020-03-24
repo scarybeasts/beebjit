@@ -32,6 +32,8 @@ os_channel_free_handles(intptr_t read1,
 
   assert(read1 == write2);
   assert(write1 == read2);
+  (void) read2;
+  (void) write2;
 
   ret = close((int) read1);
   if (ret != 0) {
