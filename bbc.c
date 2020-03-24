@@ -124,6 +124,7 @@ struct bbc_struct {
   struct debug_struct* p_debug;
 
   /* Timing support. */
+  struct os_time_sleeper* p_sleeper;
   uint32_t timer_id_cycles;
   uint32_t timer_id_tick;
   uint32_t timer_id_stop_cycles;
@@ -799,6 +800,7 @@ bbc_create(int mode,
     p_bbc->vsync_wait_for_render = 0;
   }
 
+  p_bbc->p_sleeper = os_time_create_sleeper();
   p_bbc->last_time_us = 0;
   p_bbc->last_time_us_perf = 0;
   p_bbc->last_cycles = 0;
@@ -1073,6 +1075,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
   os_alloc_free_memory_handle(p_bbc->mem_handle);
 
+  os_time_free_sleeper(p_bbc->p_sleeper);
+
   util_free(p_bbc->p_mem_sideways);
   util_free(p_bbc);
 }
@@ -1325,7 +1329,7 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
   p_bbc->last_time_us = next_wakeup_time_us;
 
   if (spare_time_us >= 0) {
-    os_time_sleep_us(spare_time_us);
+    os_time_sleeper_sleep_us(p_bbc->p_sleeper, spare_time_us);
   } else {
     /* Missed a tick.
      * In all cases, don't sleep.

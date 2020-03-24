@@ -17,10 +17,22 @@ os_time_get_us() {
   return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
 }
 
+struct os_time_sleeper*
+os_time_create_sleeper(void) {
+  return NULL;
+}
+
 void
-os_time_sleep_us(uint64_t us) {
+os_time_free_sleeper(struct os_time_sleeper* p_sleeper) {
+  (void) p_sleeper;
+}
+
+void
+os_time_sleeper_sleep_us(struct os_time_sleeper* p_sleeper, uint64_t us) {
   int ret;
   struct timespec ts;
+
+  (void) p_sleeper;
 
   ts.tv_sec = (us / 1000000);
   ts.tv_nsec = ((us % 1000000) * 1000);
