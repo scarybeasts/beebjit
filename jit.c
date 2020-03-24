@@ -38,6 +38,8 @@ struct jit_struct {
   uint32_t jit_ptrs[k_6502_addr_space_size];
 
   /* Fields not referenced by JIT'ed code. */
+  struct os_alloc_mapping* p_mapping_jit;
+  struct os_alloc_mapping* p_mapping_trampolines;
   uint8_t* p_jit_base;
   uint8_t* p_jit_trampolines;
   struct jit_compiler* p_compiler;
@@ -231,8 +233,6 @@ jit_enter_interp(struct jit_struct* p_jit,
 
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
-  size_t mapping_size;
-
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
@@ -243,10 +243,8 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
 
   jit_compiler_destroy(p_jit->p_compiler);
 
-  mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  os_alloc_free_guarded_mapping(k_jit_addr, mapping_size);
-  mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
-  os_alloc_free_guarded_mapping(k_jit_trampolines_addr, mapping_size);
+  os_alloc_free_mapping(p_jit->p_mapping_jit);
+  os_alloc_free_mapping(p_jit->p_mapping_trampolines);
 
   os_alloc_free_aligned(p_cpu_driver);
 }
@@ -757,7 +755,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  p_jit_base = os_alloc_get_guarded_mapping(k_jit_addr, mapping_size);
+  p_jit->p_mapping_jit = os_alloc_get_guarded_mapping(k_jit_addr, mapping_size);
+  p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
   os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
   /* Fill with int3. */
   (void) memset(p_jit_base, '\xcc', mapping_size);
@@ -768,8 +767,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * interp.
    */
   mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
-  p_jit_trampolines = os_alloc_get_guarded_mapping(k_jit_trampolines_addr,
-                                                   mapping_size);
+  p_jit->p_mapping_trampolines =
+      os_alloc_get_guarded_mapping(k_jit_trampolines_addr, mapping_size);
+  p_jit_trampolines = os_alloc_get_mapping_addr(p_jit->p_mapping_trampolines);
   os_alloc_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
   /* Fill with int3. */
   (void) memset(p_jit_trampolines, '\xcc', mapping_size);

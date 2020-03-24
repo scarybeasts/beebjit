@@ -26,6 +26,7 @@ struct inturbo_struct {
 
   struct interp_struct* p_interp;
   int debug_subsystem_active;
+  struct os_alloc_mapping* p_mapping_base;
   uint8_t* p_inturbo_base;
 };
 
@@ -595,8 +596,7 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
 
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
-  os_alloc_free_guarded_mapping(p_inturbo->p_inturbo_base,
-                                (256 * k_inturbo_bytes_per_opcode));
+  os_alloc_free_mapping(p_inturbo->p_mapping_base);
   util_free(p_inturbo);
 }
 
@@ -675,6 +675,7 @@ static void
 inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
+  size_t mapping_size;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
@@ -712,12 +713,13 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
-  p_inturbo->p_inturbo_base = os_alloc_get_guarded_mapping(
-      k_inturbo_opcodes_addr,
-      (256 * k_inturbo_bytes_per_opcode));
-  os_alloc_make_mapping_read_write_exec(
-      p_inturbo->p_inturbo_base,
-      (256 * k_inturbo_bytes_per_opcode));
+  mapping_size = (256 * k_inturbo_bytes_per_opcode);
+  p_inturbo->p_mapping_base =
+      os_alloc_get_guarded_mapping(k_inturbo_opcodes_addr, mapping_size);
+  p_inturbo->p_inturbo_base =
+      os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
+  os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
+                                        mapping_size);
 
   inturbo_fill_tables(p_inturbo);
 }

@@ -11,6 +11,12 @@
 
 static const size_t k_guard_size = 4096;
 
+struct os_alloc_mapping {
+  void* p_addr;
+  size_t size;
+  int is_guarded;
+};
+
 void*
 os_alloc_get_aligned(size_t alignment, size_t size) {
   int ret;
@@ -63,13 +69,21 @@ os_alloc_free_memory_handle(intptr_t h) {
   }
 }
 
-static void*
+void*
+os_alloc_get_mapping_addr(struct os_alloc_mapping* p_mapping) {
+  return p_mapping->p_addr;
+}
+
+static struct os_alloc_mapping*
 os_alloc_get_mapping_from_handle(intptr_t handle,
                                  void* p_addr,
                                  size_t size,
                                  int fixed) {
   int map_flags;
   void* p_map;
+
+  struct os_alloc_mapping* p_ret =
+      util_mallocz(sizeof(struct os_alloc_mapping));
 
   if (handle == -1) {
     map_flags = (MAP_PRIVATE | MAP_ANONYMOUS);
@@ -89,71 +103,72 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
     util_bail("mmap in wrong location");
   }
 
-  return p_map;
+  p_ret->p_addr = p_map;
+  p_ret->size = size;
+  p_ret->is_guarded = 0;
+
+  return p_ret;
+}
+
+struct os_alloc_mapping*
+os_alloc_get_guarded_mapping_from_handle(intptr_t handle,
+                                         void* p_addr,
+                                         size_t size) {
+  void* p_guard;
+  struct os_alloc_mapping* p_ret;
+  void* p_mapping_addr;
+
+  assert((size + (k_guard_size * 2)) > size);
+
+  p_ret = os_alloc_get_mapping_from_handle(handle, p_addr, size, 0);
+  p_mapping_addr = p_ret->p_addr;
+  p_ret->is_guarded = 1;
+
+  p_guard = mmap((p_mapping_addr - k_guard_size),
+                 k_guard_size,
+                 PROT_NONE,
+                 (MAP_PRIVATE | MAP_ANONYMOUS),
+                 -1,
+                 0);
+  if (p_guard == MAP_FAILED) {
+    util_bail("mmap failed");
+  }
+
+  if (p_guard != (p_mapping_addr - k_guard_size)) {
+    util_bail("mmap in wrong location");
+  }
+
+  p_guard = mmap((p_mapping_addr + size),
+                 k_guard_size,
+                 PROT_NONE,
+                 (MAP_PRIVATE | MAP_ANONYMOUS),
+                 -1,
+                 0);
+  if (p_guard == MAP_FAILED) {
+    util_bail("mmap failed");
+  }
+
+  if (p_guard != (p_mapping_addr + size)) {
+    util_bail("mmap in wrong location");
+  }
+
+  return p_ret;
+}
+
+struct os_alloc_mapping*
+os_alloc_get_guarded_mapping(void* p_addr, size_t size) {
+  return os_alloc_get_guarded_mapping_from_handle(-1, p_addr, size);
 }
 
 void
 os_alloc_get_mapping_from_handle_replace(intptr_t handle,
                                          void* p_addr,
                                          size_t size) {
-  (void) os_alloc_get_mapping_from_handle(handle, p_addr, size, 1);
-}
-
-void*
-os_alloc_get_guarded_mapping_from_handle(intptr_t handle,
-                                         void* p_addr,
-                                         size_t size) {
-  void* p_map;
-  void* p_guard;
-
-  assert((size + (k_guard_size * 2)) > size);
-
-  p_map = os_alloc_get_mapping_from_handle(handle, p_addr, size, 0);
-
-  p_guard = mmap((p_map - k_guard_size),
-                 k_guard_size,
-                 PROT_NONE,
-                 (MAP_PRIVATE | MAP_ANONYMOUS),
-                 -1,
-                 0);
-  if (p_guard == MAP_FAILED) {
-    util_bail("mmap failed");
-  }
-
-  if (p_guard != (p_map - k_guard_size)) {
-    util_bail("mmap in wrong location");
-  }
-
-  p_guard = mmap((p_map + size),
-                 k_guard_size,
-                 PROT_NONE,
-                 (MAP_PRIVATE | MAP_ANONYMOUS),
-                 -1,
-                 0);
-  if (p_guard == MAP_FAILED) {
-    util_bail("mmap failed");
-  }
-
-  if (p_guard != (p_map + size)) {
-    util_bail("mmap in wrong location");
-  }
-
-  return p_map;
-}
-
-void*
-os_alloc_get_guarded_mapping(void* p_addr, size_t size) {
-  return os_alloc_get_guarded_mapping_from_handle(-1, p_addr, size);
-}
-
-void
-os_alloc_free_guarded_mapping(void* p_addr, size_t size) {
-  uint8_t* p_map = (p_addr - k_guard_size);
-  size += (k_guard_size * 2);
-  int ret = munmap(p_map, size);
-  if (ret != 0) {
-    util_bail("munmap failed");
-  }
+  struct os_alloc_mapping* p_ret = os_alloc_get_mapping_from_handle(handle,
+                                                                    p_addr,
+                                                                    size,
+                                                                    1);
+  util_free(p_ret);
 }
 
 void
@@ -171,6 +186,26 @@ os_alloc_get_anonymous_mapping_replace(void* p_addr, size_t size) {
   if (p_map != p_addr) {
     util_bail("mmap in wrong location");
   }
+}
+
+void
+os_alloc_free_mapping(struct os_alloc_mapping* p_mapping) {
+  int ret;
+
+  void* p_addr = p_mapping->p_addr;
+  size_t size = p_mapping->size;
+
+  if (p_mapping->is_guarded) {
+    p_addr -= k_guard_size;
+    size += (k_guard_size * 2);
+  }
+
+  ret = munmap(p_addr, size);
+  if (ret != 0) {
+    util_bail("munmap failed");
+  }
+
+  util_free(p_mapping);
 }
 
 void

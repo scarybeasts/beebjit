@@ -33,11 +33,23 @@ os_channel_free_handles(intptr_t read1,
                         intptr_t write1,
                         intptr_t read2,
                         intptr_t write2) {
-  (void) read1;
-  (void) write1;
-  (void) read2;
-  (void) write2;
-  util_bail("os_channel_free_handles");
+  BOOL ret;
+  ret = CloseHandle((HANDLE) read1);
+  if (ret == 0) {
+    util_bail("CloseHandle failed");
+  }
+  ret = CloseHandle((HANDLE) write1);
+  if (ret == 0) {
+    util_bail("CloseHandle failed");
+  }
+  ret = CloseHandle((HANDLE) read2);
+  if (ret == 0) {
+    util_bail("CloseHandle failed");
+  }
+  ret = CloseHandle((HANDLE) write2);
+  if (ret == 0) {
+    util_bail("CloseHandle failed");
+  }
 }
 
 void

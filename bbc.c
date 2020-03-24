@@ -92,6 +92,11 @@ struct bbc_struct {
   struct state_6502* p_state_6502;
   struct memory_access memory_access;
   struct timing_struct* p_timing;
+  struct os_alloc_mapping* p_mapping_raw;
+  struct os_alloc_mapping* p_mapping_read;
+  struct os_alloc_mapping* p_mapping_write;
+  struct os_alloc_mapping* p_mapping_read_ind;
+  struct os_alloc_mapping* p_mapping_write_ind;
   uint8_t* p_mem_raw;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -808,11 +813,12 @@ bbc_create(int mode,
     util_bail("os_alloc_get_memory_handle failed");
   }
 
-  p_bbc->p_mem_raw =
+  p_bbc->p_mapping_raw =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_RAW_ADDR,
           k_6502_addr_space_size);
+  p_bbc->p_mem_raw = os_alloc_get_mapping_addr(p_bbc->p_mapping_raw);
 
   /* Runtime memory regions.
    * The write regions differ from the read regions for 6502 ROM addresses.
@@ -824,27 +830,32 @@ bbc_create(int mode,
    * access for indirect reads and writes) but work for the exceptional case
    * via a fault + fixup.
    */
-  p_bbc->p_mem_read_ind =
+  p_bbc->p_mapping_read_ind =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_READ_IND_ADDR,
           k_6502_addr_space_size);
-  p_bbc->p_mem_write_ind =
+  p_bbc->p_mem_read_ind = os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind);
+  p_bbc->p_mapping_write_ind =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
           k_6502_addr_space_size);
+  p_bbc->p_mem_write_ind =
+      os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind);
 
-  p_bbc->p_mem_read =
+  p_bbc->p_mapping_read =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_READ_FULL_ADDR,
           k_6502_addr_space_size);
-  p_bbc->p_mem_write =
+  p_bbc->p_mem_read = os_alloc_get_mapping_addr(p_bbc->p_mapping_read);
+  p_bbc->p_mapping_write =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
           (void*) (size_t) K_BBC_MEM_WRITE_FULL_ADDR,
           k_6502_addr_space_size);
+  p_bbc->p_mem_write = os_alloc_get_mapping_addr(p_bbc->p_mapping_write);
 
   p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
 
@@ -1055,11 +1066,11 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   intel_fdc_destroy(p_bbc->p_intel_fdc);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
-  os_alloc_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
-  os_alloc_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
-  os_alloc_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
-  os_alloc_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
-  os_alloc_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
+  os_alloc_free_mapping(p_bbc->p_mapping_raw);
+  os_alloc_free_mapping(p_bbc->p_mapping_read);
+  os_alloc_free_mapping(p_bbc->p_mapping_write);
+  os_alloc_free_mapping(p_bbc->p_mapping_read_ind);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
   os_alloc_free_memory_handle(p_bbc->mem_handle);
 
   util_free(p_bbc->p_mem_sideways);
