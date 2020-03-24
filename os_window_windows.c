@@ -84,6 +84,8 @@ convert_windows_key_code(uint32_t vkey) {
     return '.';
   case VK_OEM_2:
     return '/';
+  case VK_MENU:
+    return k_keyboard_key_alt_left;
   default:
     break;
   }
