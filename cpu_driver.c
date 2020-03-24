@@ -36,6 +36,24 @@ cpu_driver_get_custom_counters_dummy(struct cpu_driver* p_cpu_driver,
   *p_c2 = 0;
 }
 
+static void
+cpu_driver_exit_default(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  assert(!p_cpu_driver->has_exited);
+  p_cpu_driver->has_exited = 1;
+  p_cpu_driver->exit_value = exit_value;
+}
+
+static int
+cpu_driver_has_exited_default(struct cpu_driver* p_cpu_driver) {
+  return p_cpu_driver->has_exited;
+}
+
+static uint32_t
+cpu_driver_get_exit_value_default(struct cpu_driver* p_cpu_driver) {
+  assert(p_cpu_driver->has_exited);
+  return p_cpu_driver->exit_value;
+}
+
 struct cpu_driver*
 cpu_driver_alloc(int mode,
                  struct state_6502* p_state_6502,
@@ -80,6 +98,9 @@ cpu_driver_alloc(int mode,
   p_cpu_driver->p_options = p_options;
   p_cpu_driver->p_funcs = p_funcs;
 
+  p_funcs->exit = cpu_driver_exit_default;
+  p_funcs->has_exited = cpu_driver_has_exited_default;
+  p_funcs->get_exit_value = cpu_driver_get_exit_value_default;
   p_funcs->memory_range_invalidate = cpu_driver_memory_range_invalidate_dummy;
   p_funcs->get_address_info = cpu_driver_get_address_info_dummy;
   p_funcs->get_custom_counters = cpu_driver_get_custom_counters_dummy;

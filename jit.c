@@ -286,6 +286,14 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   return exited;
 }
 
+static void
+jit_exit(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  p_interp_driver->p_funcs->exit(p_interp_driver, exit_value);
+}
+
 static int
 jit_has_exited(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -721,6 +729,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
+  p_funcs->exit = jit_exit;
   p_funcs->has_exited = jit_has_exited;
   p_funcs->get_exit_value = jit_get_exit_value;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;

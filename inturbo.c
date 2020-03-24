@@ -639,6 +639,14 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   return exited;
 }
 
+static void
+inturbo_exit(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  p_interp_driver->p_funcs->exit(p_interp_driver, exit_value);
+}
+
 static int
 inturbo_has_exited(struct cpu_driver* p_cpu_driver) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
@@ -679,6 +687,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = inturbo_destroy;
   p_funcs->enter = inturbo_enter;
+  p_funcs->exit = inturbo_exit;
   p_funcs->has_exited = inturbo_has_exited;
   p_funcs->get_exit_value = inturbo_get_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;

@@ -21,6 +21,7 @@ struct cpu_driver_funcs {
   void (*init)(struct cpu_driver* p_cpu_driver);
   void (*destroy)(struct cpu_driver* p_cpu_driver);
   int (*enter)(struct cpu_driver* p_cpu_driver);
+  void (*exit)(struct cpu_driver* p_cpu_driver, uint32_t exit_value);
   int (*has_exited)(struct cpu_driver* p_cpu_driver);
   uint32_t (*get_exit_value)(struct cpu_driver* p_cpu_driver);
 
@@ -41,6 +42,9 @@ struct cpu_driver {
   struct bbc_options* p_options;
 
   struct cpu_driver_funcs* p_funcs;
+
+  int has_exited;
+  uint32_t exit_value;
 };
 
 struct cpu_driver* cpu_driver_alloc(int mode,

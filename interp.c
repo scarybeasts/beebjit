@@ -21,8 +21,6 @@ enum {
 
 struct interp_struct {
   struct cpu_driver driver;
-  int has_exited;
-  uint32_t exit_value;
   uint64_t counter_bcd;
 
   uint8_t* p_mem_read;
@@ -38,6 +36,8 @@ struct interp_struct {
 
 static void
 interp_destroy(struct cpu_driver* p_cpu_driver) {
+  assert(p_cpu_driver->p_funcs->has_exited(p_cpu_driver));
+
   util_free(p_cpu_driver);
 }
 
@@ -49,20 +49,7 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
   (void) countdown;
 
-  return p_interp->has_exited;
-}
-
-static int
-interp_has_exited(struct cpu_driver* p_cpu_driver) {
-  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  return p_interp->has_exited;
-}
-
-static uint32_t
-interp_get_exit_value(struct cpu_driver* p_cpu_driver) {
-  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  assert(p_interp->has_exited);
-  return p_interp->exit_value;
+  return p_cpu_driver->has_exited;
 }
 
 static char*
@@ -106,8 +93,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = interp_destroy;
   p_funcs->enter = interp_enter;
-  p_funcs->has_exited = interp_has_exited;
-  p_funcs->get_exit_value = interp_get_exit_value;
   p_funcs->get_address_info = interp_get_address_info;
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
@@ -133,9 +118,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
-
-  p_interp->has_exited = 0;
-  p_interp->exit_value = 0;
 }
 
 struct cpu_driver*
@@ -720,7 +702,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int do_irq = 0;
 
   assert(countdown >= 0);
-  assert(!p_interp->has_exited);
+  assert(!p_interp->driver.p_funcs->has_exited(&p_interp->driver));
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -777,8 +759,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
     case 0x02: /* Extension: EXIT */
-      p_interp->has_exited = 1;
-      p_interp->exit_value = ((y << 16) | (x << 8) | a);
+      p_interp->driver.p_funcs->exit(&p_interp->driver,
+                                     (y << 16) | (x << 8) | a);
       return countdown;
     case 0x04: /* NOP zp */ /* Undocumented. */
     case 0x44:
@@ -1719,6 +1701,11 @@ check_irq:
       }
     }
 
+    /* Advancing the timing may have fired a timer that exited the CPU. */
+    if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
+      break;
+    }
+
     if (do_irq) {
       opcode = 0x00;
     } else {
@@ -1755,5 +1742,5 @@ check_irq:
 
 void
 interp_testing_unexit(struct interp_struct* p_interp) {
-  p_interp->has_exited = 0;
+  p_interp->driver.has_exited = 0;
 }

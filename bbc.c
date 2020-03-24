@@ -121,6 +121,7 @@ struct bbc_struct {
   /* Timing support. */
   uint32_t timer_id_cycles;
   uint32_t timer_id_tick;
+  uint32_t timer_id_stop_cycles;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
@@ -1631,15 +1632,20 @@ bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
 
 static void
 bbc_stop_cycles_timer_callback(void* p) {
-  (void) p;
-  __builtin_trap();
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_stop_cycles);
+
+  p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFF);
 }
 
 void
 bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
   struct timing_struct* p_timing = p_bbc->p_timing;
-  size_t id = timing_register_timer(p_bbc->p_timing,
-                                    bbc_stop_cycles_timer_callback,
-                                    NULL);
+  uint32_t id = timing_register_timer(p_bbc->p_timing,
+                                      bbc_stop_cycles_timer_callback,
+                                      p_bbc);
+  p_bbc->timer_id_stop_cycles = id;
   (void) timing_start_timer_with_value(p_timing, id, cycles);
 }
