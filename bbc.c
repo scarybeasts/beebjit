@@ -1648,7 +1648,7 @@ bbc_stop_cycles_timer_callback(void* p) {
 
   (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_stop_cycles);
 
-  p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFF);
+  p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFE);
 }
 
 void

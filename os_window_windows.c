@@ -7,7 +7,7 @@
 
 static const char* s_p_beejit_class_name = "beebjit Window Class";
 
-static struct keyboard_struct* s_p_keyboard;
+static struct os_window_struct* s_p_window;
 
 struct os_window_struct {
   HWND handle;
@@ -17,6 +17,8 @@ struct os_window_struct {
   HBITMAP handle_bitmap;
   HDC handle_draw_bitmap;
   uint32_t* p_buffer;
+  int is_destroyed;
+  struct keyboard_struct* p_keyboard;
 };
 
 static uint8_t
@@ -91,6 +93,7 @@ convert_windows_key_code(uint32_t vkey) {
 
 LRESULT CALLBACK
 WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  struct keyboard_struct* p_keyboard = s_p_window->p_keyboard;
   uint8_t key;
 
   /* F10 and Alt are special and come in via WM_SYSKEYDOWN. */
@@ -100,15 +103,18 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   case WM_SYSKEYDOWN:
     key = convert_windows_key_code((uint32_t) wParam);
     if (key != 0) {
-      keyboard_system_key_pressed(s_p_keyboard, key);
+      keyboard_system_key_pressed(p_keyboard, key);
     }
     break;
   case WM_KEYUP:
   case WM_SYSKEYUP:
     key = convert_windows_key_code((uint32_t) wParam);
     if (key != 0) {
-      keyboard_system_key_released(s_p_keyboard, key);
+      keyboard_system_key_released(p_keyboard, key);
     }
+    break;
+  case WM_DESTROY:
+    s_p_window->is_destroyed = 1;
     break;
   default:
     break;
@@ -131,6 +137,9 @@ os_window_create(uint32_t width, uint32_t height) {
 
   struct os_window_struct* p_window =
       util_mallocz(sizeof(struct os_window_struct));
+
+  assert(s_p_window == NULL);
+  s_p_window = p_window;
 
   p_window->width = width;
   p_window->height = height;
@@ -228,9 +237,11 @@ os_window_destroy(struct os_window_struct* p_window) {
     util_bail("DeleteDC for window failed");
   }
 
-  ret = DestroyWindow(p_window->handle);
-  if (ret == 0) {
-    util_bail("DestroyWindow failed");
+  if (!p_window->is_destroyed) {
+    ret = DestroyWindow(p_window->handle);
+    if (ret == 0) {
+      util_bail("DestroyWindow failed");
+    }
   }
 
   ret = UnregisterClass(s_p_beejit_class_name, NULL);
@@ -252,9 +263,7 @@ os_window_set_name(struct os_window_struct* p_window, const char* p_name) {
 void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
-  (void) p_window;
-  assert(s_p_keyboard == NULL);
-  s_p_keyboard = p_keyboard;
+  p_window->p_keyboard = p_keyboard;
 }
 
 uint32_t*
@@ -302,4 +311,9 @@ os_window_process_events(struct os_window_struct* p_window) {
     TranslateMessage(&msg);
     DispatchMessage(&msg);
   }
+}
+
+int
+os_window_is_closed(struct os_window_struct* p_window) {
+  return p_window->is_destroyed;
 }

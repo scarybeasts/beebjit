@@ -480,3 +480,12 @@ os_window_process_events(struct os_window_struct* p_window) {
     }
   }
 }
+
+int
+os_window_is_closed(struct os_window_struct* p_window) {
+  /* TODO: implement this, and make sure we don't get the ugly X11 error message
+   * based exit if the window is closed by the user.
+   */
+  (void) p_window;
+  return 0;
+}

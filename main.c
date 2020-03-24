@@ -70,6 +70,7 @@ main(int argc, const char* argv[]) {
   int mode = k_cpu_mode_jit;
   uint64_t cycles = 0;
   uint32_t expect = 0;
+  int window_open = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
@@ -318,6 +319,7 @@ main(int argc, const char* argv[]) {
     if (p_window == NULL) {
       util_bail("os_window_create failed");
     }
+    window_open = 1;
     os_window_set_name(p_window, "beebjit technology preview");
     os_window_set_keyboard_callback(p_window, p_keyboard);
     p_render_buffer = os_window_get_buffer(p_window);
@@ -387,7 +389,7 @@ main(int argc, const char* argv[]) {
         assert(message.data[0] == k_message_vsync);
         do_full_render = message.data[1];
         framing_changed = message.data[2];
-        if (!headless_flag) {
+        if (window_open) {
           if (do_full_render) {
             video_render_full_frame(p_video);
           }
@@ -407,8 +409,15 @@ main(int argc, const char* argv[]) {
         }
       }
     }
-    if ((window_handle != -1) && os_poller_handle_triggered(p_poller, 1)) {
+    if (window_open && os_poller_handle_triggered(p_poller, 1)) {
       os_window_process_events(p_window);
+      if (os_window_is_closed(p_window)) {
+        struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+        window_open = 0;
+        if (!p_cpu_driver->p_funcs->has_exited(p_cpu_driver)) {
+          p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFF);
+        }
+      }
     }
   }
 
