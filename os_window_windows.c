@@ -234,12 +234,11 @@ os_window_destroy(struct os_window_struct* p_window) {
     util_bail("DeleteObject for bitmap failed");
   }
 
-  ret = DeleteDC(p_window->handle_draw);
-  if (ret == 0) {
-    util_bail("DeleteDC for window failed");
-  }
-
   if (!p_window->is_destroyed) {
+    ret = DeleteDC(p_window->handle_draw);
+    if (ret == 0) {
+      util_bail("DeleteDC for window failed");
+    }
     ret = DestroyWindow(p_window->handle);
     if (ret == 0) {
       util_bail("DestroyWindow failed");
