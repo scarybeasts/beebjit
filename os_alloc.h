@@ -28,7 +28,6 @@ void os_alloc_get_anonymous_mapping_replace(void* p_addr, size_t size);
 void os_alloc_free_mapping(struct os_alloc_mapping* p_mapping);
 
 void os_alloc_make_mapping_read_only(void* p_addr, size_t size);
-void os_alloc_make_mapping_read_write(void* p_addr, size_t size);
 void os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size);
 void os_alloc_make_mapping_none(void* p_addr, size_t size);
 

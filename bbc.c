@@ -869,6 +869,7 @@ bbc_create(int mode,
       (p_bbc->p_mem_write_ind + k_bbc_ram_size),
       (k_6502_addr_space_size - k_bbc_ram_size));
 
+  /* TODO: we can widen what we make read-only? */
   /* Make the ROM readonly in the read mappings used at runtime. */
   os_alloc_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
                                   (k_6502_addr_space_size - k_bbc_ram_size));
