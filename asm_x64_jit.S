@@ -34,7 +34,10 @@ asm_x64_jit_compile_trampoline:
   # One push prior to the call.
   # That takes us back to 16 bytes stack alignment.
   push REG_CONTEXT
+  # Win x64 shadow space convention.
+  sub rsp, 32
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
+  add rsp, 32
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
@@ -61,30 +64,38 @@ asm_x64_jit_interp:
   # Preserves RFLAGS
   call asm_x64_save_AXYS_PC_flags
 
-  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
-  # overwritten below.
-  mov REG_SCRATCH3, REG_CONTEXT
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
+  # AMD64 calling convention, which is overwritten below.
+  # Use REG_SCRATCH4 because that won't be overwritten as a parameter in either
+  # AMD64 or Win x64 calling convention.
+  mov REG_SCRATCH4, REG_CONTEXT
+
+  # Double push to keep stack aligned to 16 bytes before the call.
+  push REG_CONTEXT
+  push REG_CONTEXT
   # param1 is interp object.
-  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
-  # param2 is current countdown value.
-  mov REG_PARAM2, REG_COUNTDOWN
-  # param3: Intel rflags
+  mov REG_PARAM1, [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  # param2 is stack storage for 2x int64 return values.
+  lea REG_PARAM2, [rsp - 16]
+  # param3 is current countdown value.
+  mov REG_PARAM3, REG_COUNTDOWN
+  # param4: Intel rflags
   # Needed because carry / overflow flags state could be here in certain
   # optimization conditions.
   pushfq
-  pop REG_PARAM3
+  pop REG_PARAM4
 
-  # Double push to keep stack aligned to 16 bytes before the call.
-  push REG_SCRATCH3
-  push REG_SCRATCH3
-  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  # Return value space and Win x64 shadow space convention.
+  sub rsp, 16 + 32
+  call [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  add rsp, 16 + 32
+  mov REG_COUNTDOWN, [rsp - 16]
+  mov REG_RETURN, [rsp - 8]
   pop REG_CONTEXT
   pop REG_CONTEXT
 
-  mov REG_COUNTDOWN, REG_RETURN
-  test REG_RETURN2, REG_RETURN2
+  test REG_RETURN, REG_RETURN
   je not_exiting
-  mov REG_RETURN, REG_RETURN2
   ret
 
 not_exiting:

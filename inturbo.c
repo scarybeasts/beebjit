@@ -570,10 +570,10 @@ struct inturbo_enter_interp_ret {
   int64_t exited;
 };
 
-static struct inturbo_enter_interp_ret
-inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
-  struct inturbo_enter_interp_ret ret;
-
+static void
+inturbo_enter_interp(struct inturbo_struct* p_inturbo,
+                     struct inturbo_enter_interp_ret* p_ret,
+                     int64_t countdown) {
   struct cpu_driver* p_inturbo_cpu_driver = &p_inturbo->driver;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
@@ -582,10 +582,9 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
                                         inturbo_interp_instruction_callback,
                                         NULL);
 
-  ret.countdown = countdown;
-  ret.exited = p_inturbo_cpu_driver->p_funcs->has_exited(p_inturbo_cpu_driver);
-
-  return ret;
+  p_ret->countdown = countdown;
+  p_ret->exited =
+      p_inturbo_cpu_driver->p_funcs->has_exited(p_inturbo_cpu_driver);
 }
 
 static void

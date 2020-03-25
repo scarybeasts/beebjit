@@ -194,8 +194,8 @@ asm_x64_inturbo_call_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_save_AXYS_PC_flags
 
-  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
-  # overwritten below.
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
+  # AMD64 calling convention, which is overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
 
   # Double push, including a dummy push, to keep stack correctly aligned.
@@ -203,17 +203,22 @@ asm_x64_inturbo_call_interp:
   push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
-  # param2 is current countdown value.
-  mov REG_PARAM2, REG_COUNTDOWN
+  # param2 is stack storage for 2x int64 return values.
+  lea REG_PARAM2, [rsp - 16]
+  # param3 is current countdown value.
+  mov REG_PARAM3, REG_COUNTDOWN
 
+  # Return value space and Win x64 shadow space convention.
+  sub rsp, 16 + 32
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  add rsp, 16 + 32
+  mov REG_COUNTDOWN, [rsp - 16]
+  mov REG_RETURN, [rsp - 8]
   pop REG_CONTEXT
   pop REG_CONTEXT
 
-  mov REG_COUNTDOWN, REG_RETURN
-  test REG_RETURN2, REG_RETURN2
+  test REG_RETURN, REG_RETURN
   je not_exiting
-  mov REG_RETURN, REG_RETURN2
   ret
 
 not_exiting:

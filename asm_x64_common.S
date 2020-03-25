@@ -436,10 +436,10 @@ asm_x64_pull_word_to_scratch_END:
 .globl asm_x64_asm_enter_END
 asm_x64_asm_enter:
 
-  # param1, rdi == context
-  # param2, rsi == x64 start address
-  # param3, rdx == countdown
-  # param4, rcx == mem base
+  # param1, rdi/rcx == context
+  # param2, rsi/rdx == x64 start address
+  # param3, rdx/r8  == countdown
+  # param4, rcx/r9  == mem base
 
   push rbp
   # At this point: stack aligned to 16 bytes.
@@ -449,11 +449,16 @@ asm_x64_asm_enter:
   push r13
   push r14
   push r15
+  # Extra callee save registers in the Windows x64 calling convention.
+  push rdi
+  push rsi
 
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
   mov REG_MEM, REG_PARAM4
 
+  # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
+  # as it will be overwritten.
   push REG_PARAM2
   mov REG_CONTEXT, REG_PARAM1
   mov REG_COUNTDOWN, REG_PARAM3
@@ -481,6 +486,8 @@ asm_x64_asm_enter:
   # stack alignment.
   call REG_SCRATCH1
 
+  pop rsi
+  pop rdi
   pop r15
   pop r14
   pop r13
@@ -510,7 +517,10 @@ asm_x64_asm_debug:
   # currently rdi.
   mov REG_PARAM1, REG_CONTEXT
   mov REG_PARAM2, 0
+  # Win x64 shadow space convention.
+  sub rsp, 32
   call [REG_CONTEXT + K_CONTEXT_OFFSET_DEBUG_CALLBACK]
+  add rsp, 32
   pop REG_CONTEXT
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]

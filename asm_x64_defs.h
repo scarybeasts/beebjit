@@ -1,6 +1,9 @@
 #ifndef BEEBJIT_ASM_X64_DEFS_H
 #define BEEBJIT_ASM_X64_DEFS_H
 
+/* For REG_PARAM1 etc. */
+#include "os_asm_abi.h"
+
 #define K_BBC_MEM_RAW_ADDR                      0x0f000000
 #define K_BBC_MEM_READ_IND_ADDR                 0x10000000
 #define K_BBC_MEM_WRITE_IND_ADDR                0x11000000
@@ -82,14 +85,5 @@
 #define REG_SCRATCH4_32    r11d
 
 #define REG_RETURN         rax
-#define REG_RETURN2        rdx
-#define REG_PARAM1         rdi
-#define REG_PARAM1_32      edi
-#define REG_PARAM2         rsi
-#define REG_PARAM2_32      esi
-#define REG_PARAM3         rdx
-#define REG_PARAM3_32      edx
-#define REG_PARAM4         rcx
-#define REG_PARAM4_32      ecx
 
 #endif /* BEEBJIT_ASM_X64_DEFS_H */

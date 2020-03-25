@@ -199,12 +199,11 @@ struct jit_enter_interp_ret {
   int64_t exited;
 };
 
-static struct jit_enter_interp_ret
+static void
 jit_enter_interp(struct jit_struct* p_jit,
+                 struct jit_enter_interp_ret* p_ret,
                  int64_t countdown,
                  uint64_t intel_rflags) {
-  struct jit_enter_interp_ret ret;
-
   struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct interp_struct* p_interp = p_jit->p_interp;
@@ -225,10 +224,8 @@ jit_enter_interp(struct jit_struct* p_jit,
                                         jit_interp_instruction_callback,
                                         p_jit);
 
-  ret.countdown = countdown;
-  ret.exited = p_jit_cpu_driver->p_funcs->has_exited(p_jit_cpu_driver);
-
-  return ret;
+  p_ret->countdown = countdown;
+  p_ret->exited = p_jit_cpu_driver->p_funcs->has_exited(p_jit_cpu_driver);
 }
 
 static void
