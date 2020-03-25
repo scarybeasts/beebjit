@@ -145,24 +145,30 @@ os_alloc_free_mapping(struct os_alloc_mapping* p_mapping) {
 
 void
 os_alloc_make_mapping_read_only(void* p_addr, size_t size) {
-  BOOL ret = VirtualProtect(p_addr, size, PAGE_READONLY, NULL);
+  DWORD old_protection;
+  BOOL ret = VirtualProtect(p_addr, size, PAGE_READONLY, &old_protection);
   if (ret == 0) {
-    util_bail("VirtualProtect failed");
+    util_bail("VirtualProtect PAGE_READONLY failed");
   }
 }
 
 void
 os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
-  BOOL ret = VirtualProtect(p_addr, size, PAGE_EXECUTE_READWRITE, NULL);
+  DWORD old_protection;
+  BOOL ret = VirtualProtect(p_addr,
+                            size,
+                            PAGE_EXECUTE_READWRITE,
+                            &old_protection);
   if (ret == 0) {
-    util_bail("VirtualProtect failed");
+    util_bail("VirtualProtect PAGE_EXECUTE_READWRITE failed");
   }
 }
 
 void
 os_alloc_make_mapping_none(void* p_addr, size_t size) {
-  BOOL ret = VirtualProtect(p_addr, size, PAGE_NOACCESS, NULL);
+  DWORD old_protection;
+  BOOL ret = VirtualProtect(p_addr, size, PAGE_NOACCESS, &old_protection);
   if (ret == 0) {
-    util_bail("VirtualProtect failed");
+    util_bail("VirtualProtect PAGE_NOACCESS failed");
   }
 }
