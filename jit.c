@@ -549,7 +549,8 @@ fault_reraise(void* p_rip, void* p_addr) {
 static void
 jit_handle_fault(uintptr_t* p_host_rip,
                  uintptr_t host_fault_addr,
-                 uintptr_t host_exception_flags,
+                 int is_exec,
+                 int is_write,
                  uintptr_t host_rdi) {
   int inaccessible_indirect_page;
   int ff_fault_fixup;
@@ -563,7 +564,6 @@ jit_handle_fault(uintptr_t* p_host_rip,
 
   void* p_jit_end = (k_jit_addr +
                      (k_6502_addr_space_size * k_jit_bytes_per_byte));
-  int is_write_fault = !!(host_exception_flags & (1 << 1));
   void* p_fault_rip = (void*) *p_host_rip;
   void* p_fault_addr = (void*) host_fault_addr;
 
@@ -573,7 +573,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
   }
 
   /* Fault in instruction fetch would be bad! */
-  if (host_exception_flags & (1 << 4)) {
+  if (is_exec) {
     fault_reraise(p_fault_rip, p_fault_addr);
   }
 
@@ -604,13 +604,13 @@ jit_handle_fault(uintptr_t* p_host_rip,
           ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
       (p_fault_addr <
           ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
-    if (is_write_fault) {
+    if (is_write) {
       inaccessible_indirect_page = 1;
     }
   }
 
   /* From this point on, nothing else is a write fault. */
-  if (!inaccessible_indirect_page && is_write_fault) {
+  if (!inaccessible_indirect_page && is_write) {
     fault_reraise(p_fault_rip, p_fault_addr);
   }
 

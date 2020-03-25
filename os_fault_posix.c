@@ -7,7 +7,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, uintptr_t, uintptr_t);
+static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);
 
 static void
 linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
@@ -28,7 +28,8 @@ linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
 
   s_p_fault_callback((uintptr_t*) &p_context->uc_mcontext.gregs[REG_RIP],
                      host_fault_addr,
-                     host_exception_flags,
+                     !!(host_exception_flags & 16),
+                     !!(host_exception_flags & 2),
                      host_rdi);
 }
 
@@ -36,7 +37,8 @@ void
 os_fault_register_handler(
     void (*p_fault_callback)(uintptr_t* p_host_rip,
                              uintptr_t host_fault_addr,
-                             uintptr_t host_exception_flags,
+                             int is_exec,
+                             int is_write,
                              uintptr_t host_rdi)) {
   struct sigaction sa;
   struct sigaction sa_prev;
