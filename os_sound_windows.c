@@ -7,18 +7,19 @@
 #include <windows.h>
 
 enum {
-  k_os_sound_default_num_periods = 4,
+  k_os_sound_max_period = 16,
 };
 
 struct os_sound_struct {
   uint32_t sample_rate;
   uint32_t buffer_size;
+  uint32_t num_periods;
   uint32_t frames_per_period;
 
   HWAVEOUT handle_wav;
-  WAVEHDR wav_headers[k_os_sound_default_num_periods];
-  HANDLE wait_objects[k_os_sound_default_num_periods];
-  uint16_t* buffers[k_os_sound_default_num_periods];
+  WAVEHDR wav_headers[k_os_sound_max_period];
+  HANDLE wait_objects[k_os_sound_max_period];
+  uint16_t* buffers[k_os_sound_max_period];
   uint32_t wav_fill_index;
   int is_filling;
   uint32_t fill_frames_pos;
@@ -28,16 +29,21 @@ struct os_sound_struct {
 struct os_sound_struct*
 os_sound_create(char* p_device_name,
                 uint32_t sample_rate,
-                uint32_t buffer_size) {
+                uint32_t buffer_size,
+                uint32_t num_periods) {
   struct os_sound_struct* p_driver =
       util_mallocz(sizeof(struct os_sound_struct));
 
   (void) p_device_name;
 
+  if (num_periods > k_os_sound_max_period) {
+    util_bail("num_periods too high");
+  }
+
   p_driver->sample_rate = sample_rate;
   p_driver->buffer_size = buffer_size;
-  p_driver->frames_per_period = (p_driver->buffer_size /
-                                 k_os_sound_default_num_periods);
+  p_driver->num_periods = num_periods;
+  p_driver->frames_per_period = (buffer_size / num_periods);
 
   return p_driver;
 }
@@ -53,7 +59,7 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
     util_bail("waveOutPause failed");
   }
 
-  for (i = 0; i < k_os_sound_default_num_periods; ++i) {
+  for (i = 0; i < p_driver->num_periods; ++i) {
     WAVEHDR* p_wav_header = &p_driver->wav_headers[i];
     ret = waveOutUnprepareHeader(handle_wav, p_wav_header, sizeof(WAVEHDR));
     if (ret != MMSYSERR_NOERROR) {
@@ -117,6 +123,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
   MMRESULT ret;
   uint32_t i;
 
+  uint32_t num_periods = p_driver->num_periods;
   uint32_t bytes_per_period = (p_driver->frames_per_period * 2);
 
   (void) memset(&wav_format, '\0', sizeof(wav_format));
@@ -143,7 +150,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
   }
   p_driver->handle_wav = handle_wav;
 
-  for (i = 0; i < k_os_sound_default_num_periods; ++i) {
+  for (i = 0; i < num_periods; ++i) {
     WAVEHDR* p_wav_header = &p_driver->wav_headers[i];
     uint16_t* p_buffer = util_mallocz(bytes_per_period);
     p_driver->buffers[i] = p_buffer;
@@ -166,7 +173,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
   p_driver->wav_fill_index = 0;
   p_driver->fill_frames_pos = 0;
 
-  p_driver->num_buffers_free = k_os_sound_default_num_periods;
+  p_driver->num_buffers_free = num_periods;
 
   return 0;
 }
@@ -249,7 +256,7 @@ os_sound_write(struct os_sound_struct* p_driver,
       }
       p_driver->is_filling = 0;
       p_driver->wav_fill_index++;
-      if (p_driver->wav_fill_index == k_os_sound_default_num_periods) {
+      if (p_driver->wav_fill_index == p_driver->num_periods) {
         p_driver->wav_fill_index = 0;
       }
     }

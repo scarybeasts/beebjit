@@ -23,6 +23,7 @@
 
 static const uint32_t k_sound_default_rate = 48000;
 static const uint32_t k_sound_default_buffer_size = 512;
+static const uint32_t k_sound_default_num_periods = 4;
 
 int
 main(int argc, const char* argv[]) {
@@ -336,8 +337,10 @@ main(int argc, const char* argv[]) {
     char* p_device_name = NULL;
     uint32_t sound_sample_rate = 0;
     uint32_t sound_buffer_size = 0;
+    uint32_t num_periods = 0;
     (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
     (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
+    (void) util_get_u32_option(&num_periods, opt_flags, "sound:periods=");
     (void) util_get_str_option(&p_device_name, opt_flags, "sound:dev=");
     if (sound_sample_rate == 0) {
       sound_sample_rate = k_sound_default_rate;
@@ -345,9 +348,13 @@ main(int argc, const char* argv[]) {
     if (sound_buffer_size == 0) {
       sound_buffer_size = k_sound_default_buffer_size;
     }
+    if (num_periods == 0) {
+      num_periods = k_sound_default_num_periods;
+    }
     p_sound_driver = os_sound_create(p_device_name,
                                      sound_sample_rate,
-                                     sound_buffer_size);
+                                     sound_buffer_size,
+                                     num_periods);
     util_free(p_device_name);
     ret = os_sound_init(p_sound_driver);
     if (ret == 0) {

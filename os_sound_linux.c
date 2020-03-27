@@ -3,12 +3,12 @@
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
-static const uint32_t k_os_sound_default_num_periods = 4;
 
 struct os_sound_struct {
   char* p_device_name;
   uint32_t sample_rate;
   uint32_t buffer_size;
+  uint32_t num_periods;
   uint32_t period_size;
   snd_pcm_t* playback_handle;
 };
@@ -16,7 +16,8 @@ struct os_sound_struct {
 struct os_sound_struct*
 os_sound_create(char* p_device_name,
                 uint32_t sample_rate,
-                uint32_t buffer_size) {
+                uint32_t buffer_size,
+                uint32_t num_periods) {
   struct os_sound_struct* p_driver =
       util_mallocz(sizeof(struct os_sound_struct));
 
@@ -28,6 +29,7 @@ os_sound_create(char* p_device_name,
 
   p_driver->sample_rate = sample_rate;
   p_driver->buffer_size = buffer_size;
+  p_driver->num_periods = num_periods;
 
   return p_driver;
 }
@@ -57,6 +59,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
   snd_pcm_uframes_t period_size;
 
   unsigned int rate = p_driver->sample_rate;
+  unsigned int num_periods = p_driver->num_periods;
   unsigned int rate_ret = rate;
 
   ret = snd_pcm_open(&playback_handle,
@@ -117,7 +120,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
   }
   ret = snd_pcm_hw_params_set_periods(playback_handle,
                                       hw_params,
-                                      k_os_sound_default_num_periods,
+                                      num_periods,
                                       0);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_set_periods failed");
@@ -152,14 +155,14 @@ os_sound_init(struct os_sound_struct* p_driver) {
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_periods failed");
   }
-  if (periods != k_os_sound_default_num_periods) {
-    errx(1, "periods is not %d", k_os_sound_default_num_periods);
+  if (periods != num_periods) {
+    errx(1, "periods is not %d", num_periods);
   }
   ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
   if (ret != 0) {
     errx(1, "snd_pcm_hw_params_get_period_size failed");
   }
-  if ((period_size * k_os_sound_default_num_periods) != p_driver->buffer_size) {
+  if ((period_size * num_periods) != p_driver->buffer_size) {
     errx(1, "unexpected period size %zu", period_size);
   }
 
