@@ -3,8 +3,6 @@
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
-static const uint32_t k_os_sound_default_rate = 48000;
-static const uint32_t k_os_sound_default_buffer_size = 512;
 static const uint32_t k_os_sound_default_num_periods = 4;
 
 struct os_sound_struct {
@@ -26,22 +24,6 @@ os_sound_create(char* p_device_name,
     p_driver->p_device_name = strdup(k_os_sound_default_device);
   } else {
     p_driver->p_device_name = strdup(p_device_name);
-  }
-
-  if (sample_rate == 0) {
-    sample_rate = k_os_sound_default_rate;
-  }
-  if (buffer_size == 0) {
-    /* Buffer size is samples, not bytes.
-     * 512 samples at 44.1kHz is latency of 11.6ms.
-     */
-    buffer_size = k_os_sound_default_buffer_size;
-    if (sample_rate > 50000) {
-      /* Make the buffer larger for larger sample rates, i.e. 96kHz might
-       * otherwise struggle to keep up.
-       */
-      buffer_size *= 2;
-    }
   }
 
   p_driver->sample_rate = sample_rate;

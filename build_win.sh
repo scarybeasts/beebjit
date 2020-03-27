@@ -14,4 +14,4 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     disc_fsd.c disc_hfe.c disc_ssd.c \
     debug.c jit.c util.c \
     os.c \
-    -lgdi32
+    -lgdi32 -lwinmm

@@ -25,6 +25,8 @@ log_module_to_string(int module) {
     return "keyboard";
   case k_log_misc:
     return "misc";
+  case k_log_audio:
+    return "audio";
   default:
     assert(0);
     return NULL;
@@ -68,4 +70,5 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
   if (ret <= 0) {
     util_bail("fprintf failed");
   }
+  /* TODO: fflush? */
 }

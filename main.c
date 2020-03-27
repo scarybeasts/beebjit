@@ -21,6 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const uint32_t k_sound_default_rate = 48000;
+static const uint32_t k_sound_default_buffer_size = 512;
+
 int
 main(int argc, const char* argv[]) {
   size_t read_ret;
@@ -336,6 +339,12 @@ main(int argc, const char* argv[]) {
     (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
     (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
     (void) util_get_str_option(&p_device_name, opt_flags, "sound:dev=");
+    if (sound_sample_rate == 0) {
+      sound_sample_rate = k_sound_default_rate;
+    }
+    if (sound_buffer_size == 0) {
+      sound_buffer_size = k_sound_default_buffer_size;
+    }
     p_sound_driver = os_sound_create(p_device_name,
                                      sound_sample_rate,
                                      sound_buffer_size);

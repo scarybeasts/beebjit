@@ -384,6 +384,7 @@ sound_set_driver(struct sound_struct* p_sound,
 
   sample_rate = os_sound_get_sample_rate(p_driver);
   driver_buffer_size = os_sound_get_buffer_size(p_driver);
+  /* TODO: remove this from the OS API? Seems unused. */
   driver_chunk_size = os_sound_get_period_size(p_driver);
   (void) driver_chunk_size;
   assert(driver_chunk_size > 0);
