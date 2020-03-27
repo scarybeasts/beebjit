@@ -5,6 +5,8 @@
 
 struct os_sound_struct;
 
+uint32_t os_sound_get_default_buffer_size(void);
+
 struct os_sound_struct* os_sound_create(char* p_device_name,
                                         uint32_t sample_rate,
                                         uint32_t buffer_size,

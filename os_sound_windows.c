@@ -6,9 +6,19 @@
 #include <assert.h>
 #include <windows.h>
 
+/* NOTE: we're using a simple but ancient Windows API for sound, which doesn't
+ * have the best latency. On a Win10 laptop, a 2048 sized buffer was needed to
+ * play sound without stuttering.
+ */
 enum {
   k_os_sound_max_period = 16,
+  k_os_sound_default_buffer_size = 2048,
 };
+
+uint32_t
+os_sound_get_default_buffer_size(void) {
+  return k_os_sound_default_buffer_size;
+}
 
 struct os_sound_struct {
   uint32_t sample_rate;

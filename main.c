@@ -335,22 +335,14 @@ main(int argc, const char* argv[]) {
   if (!headless_flag && !util_has_option(opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
-    uint32_t sound_sample_rate = 0;
-    uint32_t sound_buffer_size = 0;
-    uint32_t num_periods = 0;
+    uint32_t sound_sample_rate = k_sound_default_rate;
+    uint32_t sound_buffer_size = os_sound_get_default_buffer_size();
+    uint32_t num_periods = k_sound_default_num_periods;
     (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
     (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
     (void) util_get_u32_option(&num_periods, opt_flags, "sound:periods=");
     (void) util_get_str_option(&p_device_name, opt_flags, "sound:dev=");
-    if (sound_sample_rate == 0) {
-      sound_sample_rate = k_sound_default_rate;
-    }
-    if (sound_buffer_size == 0) {
-      sound_buffer_size = k_sound_default_buffer_size;
-    }
-    if (num_periods == 0) {
-      num_periods = k_sound_default_num_periods;
-    }
+
     p_sound_driver = os_sound_create(p_device_name,
                                      sound_sample_rate,
                                      sound_buffer_size,

@@ -3,6 +3,8 @@
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
+/* NOTE: a bit aggressive but it seems to work on my old laptop. */
+static uint32_t k_os_sound_default_buffer_size = 512;
 
 struct os_sound_struct {
   char* p_device_name;
@@ -12,6 +14,11 @@ struct os_sound_struct {
   uint32_t period_size;
   snd_pcm_t* playback_handle;
 };
+
+uint32_t
+os_sound_get_default_buffer_size(void) {
+  return k_os_sound_default_buffer_size;
+}
 
 struct os_sound_struct*
 os_sound_create(char* p_device_name,
