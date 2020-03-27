@@ -182,13 +182,6 @@ os_sound_get_period_size(struct os_sound_struct* p_driver) {
 }
 
 uint32_t
-os_sound_wait_for_frame_space(struct os_sound_struct* p_driver) {
-  (void) p_driver;
-  util_bail("os_sound_wait_for_frame_space");
-  return 0;
-}
-
-uint32_t
 os_sound_get_frame_space(struct os_sound_struct* p_driver) {
   (void) p_driver;
   util_bail("os_sound_get_frame_space");

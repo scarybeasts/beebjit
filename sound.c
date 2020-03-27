@@ -211,6 +211,7 @@ sound_play_thread(void* p) {
 
   struct sound_struct* p_sound = (struct sound_struct*) p;
   struct os_sound_struct* p_sound_driver = p_sound->p_driver;
+  uint32_t period_frames = os_sound_get_period_size(p_sound_driver);
 
   /* We read these but the main thread writes them. */
   volatile int* p_do_exit = &p_sound->do_exit;
@@ -221,18 +222,14 @@ sound_play_thread(void* p) {
 
   while (!*p_do_exit) {
     uint32_t i;
-    uint32_t num_driver_frames = os_sound_wait_for_frame_space(p_sound_driver);
-    uint32_t num_sn_frames = (num_driver_frames *
-                              p_sound->sn_frames_per_driver_frame);
-    assert(num_driver_frames <= p_sound->driver_buffer_size);
-    assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
+    uint32_t num_driver_frames;
 
     for (i = 0; i < 4; ++i) {
       volume[i] = p_volume[i];
       period[i] = p_period[i];
     }
     sound_fill_sn76489_buffer(p_sound,
-                              num_sn_frames,
+                              period_frames,
                               volume,
                               period,
                               *p_noise_rng,
@@ -373,7 +370,6 @@ void
 sound_set_driver(struct sound_struct* p_sound,
                  struct os_sound_struct* p_driver) {
   uint32_t driver_buffer_size;
-  uint32_t driver_chunk_size;
   uint32_t sample_rate;
 
   assert(!sound_is_active(p_sound));
@@ -384,10 +380,6 @@ sound_set_driver(struct sound_struct* p_sound,
 
   sample_rate = os_sound_get_sample_rate(p_driver);
   driver_buffer_size = os_sound_get_buffer_size(p_driver);
-  /* TODO: remove this from the OS API? Seems unused. */
-  driver_chunk_size = os_sound_get_period_size(p_driver);
-  (void) driver_chunk_size;
-  assert(driver_chunk_size > 0);
 
   p_sound->driver_buffer_size = driver_buffer_size;
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
