@@ -1635,7 +1635,6 @@ do_special_checks:
       if (cycles_this_instruction <= 2) {
         INTERP_TIMING_ADVANCE(0);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
-        /* TODO: remove? */
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
       } else if (interp_is_branch_opcode(opcode)) {
         /* NOTE: branch & not taken case handled above for cycles == 2. */
@@ -1664,7 +1663,7 @@ do_special_checks:
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
       }
-    } else if (!countdown) {
+    } else if (countdown == 0) {
       /* Make sure to always run timer callbacks at the instruction boundary. */
       INTERP_TIMING_ADVANCE(0);
     }
