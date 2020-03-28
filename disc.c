@@ -283,8 +283,10 @@ void
 disc_load(struct disc_struct* p_disc,
           const char* p_file_name,
           int is_writeable,
-          int is_mutable) {
+          int is_mutable,
+          int convert_to_hfe) {
   int is_file_writeable = 0;
+  int is_hfe = 0;
 
   if (is_mutable) {
     is_file_writeable = 1;
@@ -304,20 +306,22 @@ disc_load(struct disc_struct* p_disc,
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc);
     p_disc->p_write_track_callback = disc_hfe_write_track;
+    is_hfe = 1;
   } else {
     util_bail("unknown disc filename extension");
   }
 
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
-    char new_file_name[256];
+    log_do_log(k_log_disc, k_log_info, "cannot writeback to file type");
+    convert_to_hfe = 1;
+  }
+  if (convert_to_hfe && !is_hfe) {
+    char new_file_name[4096];
     (void) snprintf(new_file_name,
                     sizeof(new_file_name),
                     "%s.hfe",
                     p_file_name);
-    log_do_log(k_log_disc,
-               k_log_info,
-               "cannot writeback to file type, converting to HFE: %s",
-               new_file_name);
+    log_do_log(k_log_disc, k_log_info, "converting to HFE: %s", new_file_name);
     util_file_close(p_disc->p_file);
     p_disc->p_file = util_file_open(new_file_name, 1, 1);
     disc_hfe_convert(p_disc);

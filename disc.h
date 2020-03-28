@@ -21,7 +21,8 @@ void disc_destroy(struct disc_struct* p_disc);
 void disc_load(struct disc_struct* p_disc,
                const char* p_filename,
                int is_writeable,
-               int is_mutable);
+               int is_mutable,
+               int convert_to_hfe);
 struct util_file* disc_get_file(struct disc_struct* p_disc);
 uint8_t* disc_allocate_format_metadata(struct disc_struct* p_disc,
                                        size_t num_bytes);

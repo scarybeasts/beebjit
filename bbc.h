@@ -65,7 +65,8 @@ void bbc_load_disc(struct bbc_struct* p_bbc,
                    const char* p_filename,
                    int drive,
                    int is_writeable,
-                   int is_mutable);
+                   int is_mutable,
+                   int convert_to_hfe);
 void bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 

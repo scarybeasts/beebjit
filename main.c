@@ -69,6 +69,7 @@ main(int argc, const char* argv[]) {
   int terminal_flag = 0;
   int headless_flag = 0;
   int fasttape_flag = 0;
+  int convert_hfe_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -181,6 +182,8 @@ main(int argc, const char* argv[]) {
       headless_flag = 1;
     } else if (!strcmp(arg, "-fasttape")) {
       fasttape_flag = 1;
+    } else if (!strcmp(arg, "-convert-hfe")) {
+      convert_hfe_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-version") ||
@@ -293,7 +296,16 @@ main(int argc, const char* argv[]) {
     if (p_filename == NULL) {
       continue;
     }
-    bbc_load_disc(p_bbc, p_filename, i, disc_writeable_flag, disc_mutable_flag);
+    bbc_load_disc(p_bbc,
+                  p_filename,
+                  i,
+                  disc_writeable_flag,
+                  disc_mutable_flag,
+                  convert_hfe_flag);
+  }
+
+  if (convert_hfe_flag) {
+    exit(0);
   }
 
   /* Load the tape! */

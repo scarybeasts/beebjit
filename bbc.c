@@ -1627,7 +1627,8 @@ bbc_load_disc(struct bbc_struct* p_bbc,
               const char* p_filename,
               int drive,
               int is_writeable,
-              int is_mutable) {
+              int is_mutable,
+              int convert_to_hfe) {
   struct disc_struct* p_disc;
 
   assert((drive >= 0) && (drive <= 1));
@@ -1638,7 +1639,7 @@ bbc_load_disc(struct bbc_struct* p_bbc,
     p_disc = p_bbc->p_disc_1;
   }
 
-  disc_load(p_disc, p_filename, is_writeable, is_mutable);
+  disc_load(p_disc, p_filename, is_writeable, is_mutable, convert_to_hfe);
 }
 
 void
