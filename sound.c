@@ -204,6 +204,43 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   return num_driver_frames;
 }
 
+static void
+sound_direct_write_driver_frames(struct sound_struct* p_sound,
+                                 int16_t* p_volumes,
+                                 uint16_t* p_periods,
+                                 uint16_t noise_rng,
+                                 int noise_type,
+                                 uint32_t num_frames) {
+  uint32_t num_driver_frames;
+  int16_t* p_driver_frames = p_sound->p_driver_frames;
+  double num_sn_frames;
+
+  num_sn_frames = (num_frames * p_sound->sn_frames_per_driver_frame);
+
+  p_sound->sn_frames_filled = 0;
+  sound_fill_sn76489_buffer(p_sound,
+                            (uint32_t) num_sn_frames,
+                            p_volumes,
+                            p_periods,
+                            noise_rng,
+                            noise_type);
+
+  num_driver_frames = sound_resample_to_driver_buffer(p_sound);
+
+  /* TODO: the rounding errors causing this need looking into in more detail. */
+  if (num_driver_frames < num_frames) {
+    int16_t sample = 0;
+    if (num_driver_frames > 0) {
+      sample = p_driver_frames[num_driver_frames - 1];
+    }
+    p_driver_frames[num_driver_frames] = sample;
+    num_driver_frames++;
+  }
+  assert(num_driver_frames == num_frames);
+
+  os_sound_write(p_sound->p_driver, p_driver_frames, num_driver_frames);
+}
+
 static void*
 sound_play_thread(void* p) {
   int16_t volume[4];
@@ -222,26 +259,18 @@ sound_play_thread(void* p) {
 
   while (!*p_do_exit) {
     uint32_t i;
-    uint32_t num_driver_frames;
 
     for (i = 0; i < 4; ++i) {
       volume[i] = p_volume[i];
       period[i] = p_period[i];
     }
-    sound_fill_sn76489_buffer(p_sound,
-                              period_frames,
-                              volume,
-                              period,
-                              *p_noise_rng,
-                              *p_noise_type);
 
-    /* Note: num_driver_frames may be one less than desired due to rounding
-     * down.
-     */
-    num_driver_frames = sound_resample_to_driver_buffer(p_sound);
-    os_sound_write(p_sound_driver,
-                   p_sound->p_driver_frames,
-                   num_driver_frames);
+    sound_direct_write_driver_frames(p_sound,
+                                     volume,
+                                     period,
+                                     *p_noise_rng,
+                                     *p_noise_type,
+                                     period_frames);
   }
 
   return NULL;
@@ -461,6 +490,7 @@ sound_tick(struct sound_struct* p_sound, int blocking) {
     return;
   }
 
+  /* TODO: optimize this away if in fast mode! */
   sound_advance_sn_timing(p_sound);
 
   num_driver_frames = sound_resample_to_driver_buffer(p_sound);
