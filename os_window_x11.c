@@ -36,6 +36,8 @@ struct os_window_struct {
   XImage* p_image;
   XShmSegmentInfo shm_info;
   uint8_t* p_key_map;
+  Atom atom_delete_message;
+  int is_deleted;
 };
 
 static XErrorEvent s_last_error_event;
@@ -118,6 +120,7 @@ os_window_create(uint32_t width, uint32_t height) {
   int depth;
   size_t map_size;
   XErrorHandler old_error_handler;
+  Status status_ret;
 
   p_window = util_mallocz(sizeof(struct os_window_struct));
 
@@ -268,7 +271,20 @@ os_window_create(uint32_t width, uint32_t height) {
   if (p_window->w == 0) {
     errx(1, "XCreateSimpleWindow failed");
   }
-  ret = XSelectInput(p_window->d, p_window->w, KeyPressMask | KeyReleaseMask);
+
+  /* This makes sure we get a notification when the window is closed. */
+  p_window->atom_delete_message = XInternAtom(p_window->d,
+                                              "WM_DELETE_WINDOW",
+                                              False);
+  status_ret = XSetWMProtocols(p_window->d,
+                               p_window->w,
+                               &p_window->atom_delete_message,
+                               1);
+  if (status_ret == 0) {
+    errx(1, "XSetWMProtocols failed");
+  }
+
+  ret = XSelectInput(p_window->d, p_window->w, (KeyPressMask | KeyReleaseMask));
   if (ret != 1) {
     errx(1, "XSelectInput failed");
   }
@@ -471,21 +487,19 @@ os_window_process_events(struct os_window_struct* p_window) {
                    keycode);
       }
       break;
+    case ClientMessage:
+      if ((Atom) event.xclient.data.l[0] == p_window->atom_delete_message) {
+        p_window->is_deleted = 1;
+      }
+      break;
     default:
-      /* This fired once or twice on me, so try and log what it is in case it
-       * happens again.
-       */
-      log_do_log(k_log_misc, k_log_error, "unexpected XEvent %d", event.type);
-      assert(0);
+      /* Various events cannot be masked, so we just ignore them. */
+      break;
     }
   }
 }
 
 int
 os_window_is_closed(struct os_window_struct* p_window) {
-  /* TODO: implement this, and make sure we don't get the ugly X11 error message
-   * based exit if the window is closed by the user.
-   */
-  (void) p_window;
-  return 0;
+  return p_window->is_deleted;
 }
