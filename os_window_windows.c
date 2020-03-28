@@ -101,6 +101,12 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   /* F10 and Alt are special and come in via WM_SYSKEYDOWN. */
 
   switch (uMsg) {
+  case WM_SETCURSOR:
+    if (LOWORD(lParam) == HTCLIENT) {
+      SetCursor(NULL);
+      return TRUE;
+    }
+    break;
   case WM_KEYDOWN:
   case WM_SYSKEYDOWN:
     key = convert_windows_key_code((uint32_t) wParam);
