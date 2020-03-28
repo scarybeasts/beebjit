@@ -54,6 +54,8 @@ struct jit_struct {
 
   uint64_t counter_num_compiles;
   uint64_t counter_num_interps;
+  uint64_t counter_num_faults;
+  int do_fault_log;
 };
 
 static inline uint8_t*
@@ -210,6 +212,12 @@ jit_enter_interp(struct jit_struct* p_jit,
   struct state_6502* p_state_6502 = p_jit_cpu_driver->abi.p_state_6502;
 
   p_jit->counter_num_interps++;
+
+  /* Take care of any deferred fault logging. */
+  if (p_jit->do_fault_log) {
+    p_jit->do_fault_log = 0;
+    log_do_log(k_log_jit, k_log_info, "JIT handled fault (log every 1k)");
+  }
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
    * that was temporarily stale due to optimizations.
@@ -662,6 +670,14 @@ jit_handle_fault(uintptr_t* p_host_rip,
   if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
     fault_reraise(p_fault_rip, p_fault_addr);
   }
+
+  if ((p_jit->counter_num_faults % 1000) == 0) {
+    /* We shouldn't call logging in the fault context (re-entrancy etc.) so set
+     * a flag to take care of it later.
+     */
+    p_jit->do_fault_log = 1;
+  }
+  p_jit->counter_num_faults++;
 
   /* NOTE -- may call assert() which isn't async safe but faulting context is
    * raw asm, shouldn't be a disaster.
