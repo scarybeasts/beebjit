@@ -25,6 +25,7 @@ struct sound_struct {
   /* Configuration. */
   int synchronous;
   uint32_t driver_buffer_size;
+  int is_output_enabled;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
@@ -291,6 +292,7 @@ sound_create(int synchronous,
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
+  p_sound->is_output_enabled = 1;
 
   p_sound->average_sample_value = 0.0;
   p_sound->average_sample_count = 0.0;
@@ -401,7 +403,6 @@ sound_set_driver(struct sound_struct* p_sound,
   uint32_t driver_buffer_size;
   uint32_t sample_rate;
 
-  assert(!sound_is_active(p_sound));
   assert(p_sound->p_driver == NULL);
   assert(!p_sound->thread_running);
 
@@ -424,7 +425,7 @@ sound_set_driver(struct sound_struct* p_sound,
 
 void
 sound_start_playing(struct sound_struct* p_sound) {
-  if (!sound_is_active(p_sound)) {
+  if (p_sound->p_driver == NULL) {
     return;
   }
 
@@ -437,9 +438,17 @@ sound_start_playing(struct sound_struct* p_sound) {
   p_sound->thread_running = 1;
 }
 
+void
+sound_set_output_enabled(struct sound_struct* p_sound, int is_enabled) {
+  p_sound->is_output_enabled = is_enabled;
+}
+
 int
 sound_is_active(struct sound_struct* p_sound) {
-  return (p_sound->p_driver != NULL);
+  if (p_sound->p_driver == NULL) {
+    return 0;
+  }
+  return p_sound->is_output_enabled;
 }
 
 int
@@ -462,7 +471,9 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
   curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
-  /* In fast mode, the ticks delta will be insanely huge and needs capping. */
+  /* When switching from output disabled (e.g. fast mode) to enabled, the ticks
+   * delta will be insanely huge and needs capping.
+   */
   if ((sn_frames_filled + delta_sn_ticks) > sn_frames_per_driver_buffer_size) {
     delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
@@ -478,7 +489,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
 }
 
 void
-sound_tick(struct sound_struct* p_sound, int blocking) {
+sound_tick(struct sound_struct* p_sound) {
   uint32_t num_driver_frames;
 
   struct os_sound_struct* p_driver = p_sound->p_driver;
@@ -490,16 +501,9 @@ sound_tick(struct sound_struct* p_sound, int blocking) {
     return;
   }
 
-  /* TODO: optimize this away if in fast mode! */
   sound_advance_sn_timing(p_sound);
 
   num_driver_frames = sound_resample_to_driver_buffer(p_sound);
-  if (!blocking) {
-    uint32_t driver_frames_space = os_sound_get_frame_space(p_driver);
-    if (num_driver_frames > driver_frames_space) {
-      num_driver_frames = driver_frames_space;
-    }
-  }
   os_sound_write(p_driver, p_sound->p_driver_frames, num_driver_frames);
 }
 

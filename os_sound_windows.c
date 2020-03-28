@@ -33,7 +33,6 @@ struct os_sound_struct {
   uint32_t wav_fill_index;
   int is_filling;
   uint32_t fill_frames_pos;
-  long num_buffers_free;
 };
 
 struct os_sound_struct*
@@ -122,8 +121,6 @@ waveOutProc(HWAVEOUT handle_wav,
   if (ret == 0) {
     util_bail("SetEvent failed");
   }
-
-  InterlockedIncrement(&p_driver->num_buffers_free);
 }
 
 int
@@ -183,8 +180,6 @@ os_sound_init(struct os_sound_struct* p_driver) {
   p_driver->wav_fill_index = 0;
   p_driver->fill_frames_pos = 0;
 
-  p_driver->num_buffers_free = num_periods;
-
   return 0;
 }
 
@@ -201,14 +196,6 @@ os_sound_get_buffer_size(struct os_sound_struct* p_driver) {
 uint32_t
 os_sound_get_period_size(struct os_sound_struct* p_driver) {
   return p_driver->frames_per_period;
-}
-
-uint32_t
-os_sound_get_frame_space(struct os_sound_struct* p_driver) {
-  /* NOTE: for threading, I think this relies on os_sound_get_frame_space being
-   * used on the same thread as os_sound_write.
-   */
-  return (p_driver->num_buffers_free * p_driver->frames_per_period);
 }
 
 void
@@ -235,8 +222,6 @@ os_sound_write(struct os_sound_struct* p_driver,
       }
       p_driver->is_filling = 1;
       p_driver->fill_frames_pos = 0;
-
-      InterlockedDecrement(&p_driver->num_buffers_free);
     }
 
     p_wav_header = &p_driver->wav_headers[wav_fill_index];

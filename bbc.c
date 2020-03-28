@@ -1421,11 +1421,11 @@ bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
   int64_t refreshed_time;
-  int sound_blocking;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+  struct sound_struct* p_sound = p_bbc->p_sound;
   uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
   int is_replay = keyboard_is_replaying(p_keyboard);
@@ -1445,6 +1445,7 @@ bbc_cycles_timer_callback(void* p) {
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
     p_bbc->fast_flag = !p_bbc->fast_flag;
+    sound_set_output_enabled(p_sound, !p_bbc->fast_flag);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
     if (is_replay) {
@@ -1496,8 +1497,7 @@ bbc_cycles_timer_callback(void* p) {
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Prod the sound module in case it's in synchronous mode. */
-  sound_blocking = !p_bbc->fast_flag;
-  sound_tick(p_bbc->p_sound, sound_blocking);
+  sound_tick(p_sound);
 
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.
