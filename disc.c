@@ -124,9 +124,11 @@ disc_timer_callback(struct disc_struct* p_disc) {
     data_byte ^= (ticks >> 24);
   }
 
-  p_disc->p_byte_callback(p_disc->p_byte_callback_object,
-                          data_byte,
-                          clocks_byte);
+  if (p_disc->p_byte_callback != NULL) {
+    p_disc->p_byte_callback(p_disc->p_byte_callback_object,
+                            data_byte,
+                            clocks_byte);
+  }
 
   assert(byte_position < k_ibm_disc_bytes_per_track);
   byte_position++;
@@ -137,15 +139,10 @@ disc_timer_callback(struct disc_struct* p_disc) {
 }
 
 struct disc_struct*
-disc_create(struct timing_struct* p_timing,
-            void (*p_byte_callback)(void* p, uint8_t data, uint8_t clock),
-            void* p_byte_callback_object,
-            struct bbc_options* p_options) {
+disc_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
 
   p_disc->p_timing = p_timing;
-  p_disc->p_byte_callback = p_byte_callback;
-  p_disc->p_byte_callback_object = p_byte_callback_object;
 
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
@@ -169,6 +166,16 @@ disc_destroy(struct disc_struct* p_disc) {
     util_file_close(p_disc->p_file);
   }
   util_free(p_disc);
+}
+
+void
+disc_set_byte_callback(struct disc_struct* p_disc,
+                       void (*p_byte_callback)(void* p,
+                                               uint8_t data,
+                                               uint8_t clock),
+                       void* p_byte_callback_object) {
+  p_disc->p_byte_callback = p_byte_callback;
+  p_disc->p_byte_callback_object = p_byte_callback_object;
 }
 
 void

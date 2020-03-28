@@ -11,12 +11,13 @@ struct timing_struct;
 struct util_file;
 
 struct disc_struct* disc_create(struct timing_struct* p_timing,
-                                void (*p_byte_callback)(void* p,
-                                                        uint8_t data,
-                                                        uint8_t clock),
-                                void* p_byte_callback_object,
                                 struct bbc_options* p_options);
 void disc_destroy(struct disc_struct* p_disc);
+void disc_set_byte_callback(struct disc_struct* p_disc,
+                            void (*p_byte_callback)(void* p,
+                                                    uint8_t data,
+                                                    uint8_t clock),
+                            void* p_byte_callback_object);
 
 void disc_load(struct disc_struct* p_disc,
                const char* p_filename,

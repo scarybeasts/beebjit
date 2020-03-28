@@ -983,24 +983,18 @@ bbc_create(int mode,
     util_bail("video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
-  if (p_bbc->p_intel_fdc == NULL) {
-    util_bail("intel_fdc_create failed");
-  }
-
-  p_bbc->p_disc_0 = disc_create(p_timing,
-                                intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc,
-                                &p_bbc->options);
+  p_bbc->p_disc_0 = disc_create(p_timing, &p_bbc->options);
   if (p_bbc->p_disc_0 == NULL) {
     util_bail("disc_create failed");
   }
-  p_bbc->p_disc_1 = disc_create(p_timing,
-                                intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc,
-                                &p_bbc->options);
+  p_bbc->p_disc_1 = disc_create(p_timing, &p_bbc->options);
   if (p_bbc->p_disc_1 == NULL) {
     util_bail("disc_create failed");
+  }
+
+  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
+  if (p_bbc->p_intel_fdc == NULL) {
+    util_bail("intel_fdc_create failed");
   }
   intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
 
@@ -1064,9 +1058,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
+  intel_fdc_destroy(p_bbc->p_intel_fdc);
   disc_destroy(p_bbc->p_disc_0);
   disc_destroy(p_bbc->p_disc_1);
-  intel_fdc_destroy(p_bbc->p_intel_fdc);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
   os_alloc_free_mapping(p_bbc->p_mapping_raw);

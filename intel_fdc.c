@@ -302,11 +302,26 @@ intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
   assert(p_fdc->p_disc_1 == NULL);
   p_fdc->p_disc_0 = p_disc_0;
   p_fdc->p_disc_1 = p_disc_1;
+
+  disc_set_byte_callback(p_disc_0, intel_fdc_byte_callback, p_fdc);
+  disc_set_byte_callback(p_disc_1, intel_fdc_byte_callback, p_fdc);
 }
 
 void
 intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
-  /* TODO: stop discs if spinning? */
+  struct disc_struct* p_disc_0 = p_fdc->p_disc_0;
+  struct disc_struct* p_disc_1 = p_fdc->p_disc_1;
+
+  disc_set_byte_callback(p_disc_0, NULL, NULL);
+  disc_set_byte_callback(p_disc_1, NULL, NULL);
+
+  if (disc_is_spinning(p_disc_0)) {
+    disc_stop_spinning(p_disc_0);
+  }
+  if (disc_is_spinning(p_disc_1)) {
+    disc_stop_spinning(p_disc_1);
+  }
+
   util_free(p_fdc);
 }
 
