@@ -455,7 +455,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (p_video->is_rendering_active) {
-      r2_hit = (p_video->horiz_counter == r2);
+      /* This ugly -1 here is just a code ordering issue related to an
+       * optimization; we already incremented horiz_counter above.
+       */
+      r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
       if (r2_hit) {
         render_hsync(p_render);
       }
