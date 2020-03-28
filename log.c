@@ -70,5 +70,8 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
   if (ret <= 0) {
     util_bail("fprintf failed");
   }
-  /* TODO: fflush? */
+  ret = fflush(stdout);
+  if (ret != 0) {
+    util_bail("fflush failed");
+  }
 }
