@@ -1,5 +1,7 @@
 - OVERVIEW
 Currently, beebjit builds on Linux.
+(The early Windows port is currently cobbled together in a simple manner by
+cross-compiling on Linux. See build_win_opt.sh.)
 
 
 - LINUX
