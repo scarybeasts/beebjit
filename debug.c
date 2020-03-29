@@ -12,13 +12,10 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <ctype.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 12 + 1;
 static const size_t k_max_extra_len = 32;
@@ -79,13 +76,12 @@ struct debug_struct {
   char debug_old_input_buf[k_max_input_len];
 };
 
-static int g_sigint_received;
-static struct debug_struct* g_p_debug;
+static int s_interrupt_received;
+static struct debug_struct* s_p_debug;
 
 static void
-sigint_handler(int signum) {
-  (void) signum;
-  g_sigint_received = 1;
+debug_interrupt_callback(void) {
+  s_interrupt_received = 1;
 }
 
 static void
@@ -100,22 +96,18 @@ struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
              int32_t debug_stop_addr) {
-  size_t i;
-  sighandler_t ret_sig;
+  uint32_t i;
   struct debug_struct* p_debug;
 
-  assert(g_p_debug == NULL);
+  assert(s_p_debug == NULL);
 
   p_debug = util_mallocz(sizeof(struct debug_struct));
   /* NOTE: using this singleton pattern for now so we can use qsort().
    * qsort_r() is a minor porting headache due to differing signatures.
    */
-  g_p_debug = p_debug;
+  s_p_debug = p_debug;
 
-  ret_sig = signal(SIGINT, sigint_handler);
-  if (ret_sig == SIG_ERR) {
-    util_bail("signal failed");
-  }
+  util_set_interrupt_callback(debug_interrupt_callback);
 
   p_debug->p_bbc = p_bbc;
   p_debug->debug_active = debug_active;
@@ -592,14 +584,14 @@ static int
 debug_sort_opcodes(const void* p_op1, const void* p_op2) {
   uint8_t op1 = *(uint8_t*) p_op1;
   uint8_t op2 = *(uint8_t*) p_op2;
-  return (g_p_debug->count_opcode[op1] - g_p_debug->count_opcode[op2]);
+  return (s_p_debug->count_opcode[op1] - s_p_debug->count_opcode[op2]);
 }
 
 static int
 debug_sort_addrs(const void* p_addr1, const void* p_addr2) {
   uint16_t addr1 = *(uint16_t*) p_addr1;
   uint16_t addr2 = *(uint16_t*) p_addr2;
-  return (g_p_debug->count_addr[addr1] - g_p_debug->count_addr[addr2]);
+  return (s_p_debug->count_addr[addr1] - s_p_debug->count_addr[addr2]);
 }
 
 static void
@@ -921,7 +913,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
-  volatile int* p_sigint_received = &g_sigint_received;
+  volatile int* p_interrupt_received = &s_interrupt_received;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -1034,8 +1026,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
 
-  if (*p_sigint_received) {
-    *p_sigint_received = 0;
+  if (*p_interrupt_received) {
+    *p_interrupt_received = 0;
     p_debug->debug_running = 0;
   }
 
