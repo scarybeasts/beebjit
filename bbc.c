@@ -998,17 +998,17 @@ bbc_create(int mode,
   }
   intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
 
+  p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
+  if (p_bbc->p_tape == NULL) {
+    util_bail("tape_create failed");
+  }
+
   p_bbc->p_serial = serial_create(p_state_6502,
                                   &p_bbc->fast_flag,
                                   fasttape_flag,
                                   &p_bbc->options);
   if (p_bbc->p_serial == NULL) {
     util_bail("serial_create failed");
-  }
-
-  p_bbc->p_tape = tape_create(p_timing, p_bbc->p_serial, &p_bbc->options);
-  if (p_bbc->p_tape == NULL) {
-    util_bail("tape_create failed");
   }
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
@@ -1049,8 +1049,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
 
   debug_destroy(p_bbc->p_debug);
-  tape_destroy(p_bbc->p_tape);
   serial_destroy(p_bbc->p_serial);
+  tape_destroy(p_bbc->p_tape);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
   render_destroy(p_bbc->p_render);

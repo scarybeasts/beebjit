@@ -204,6 +204,14 @@ serial_create(struct state_6502* p_state_6502,
 
 void
 serial_destroy(struct serial_struct* p_serial) {
+  struct tape_struct* p_tape = p_serial->p_tape;
+
+  tape_set_status_callback(p_tape, NULL, NULL);
+
+  if (tape_is_playing(p_tape)) {
+    tape_stop(p_tape);
+  }
+
   util_free(p_serial);
 }
 
@@ -215,12 +223,6 @@ serial_set_io_handles(struct serial_struct* p_serial,
   p_serial->handle_output = handle_output;
 }
 
-void
-serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
-  assert(p_serial->p_tape == NULL);
-  p_serial->p_tape = p_tape;
-}
-
 static void
 serial_receive(struct serial_struct* p_serial, uint8_t byte) {
   if (p_serial->acia_status & k_serial_acia_status_RDRF) {
@@ -230,6 +232,44 @@ serial_receive(struct serial_struct* p_serial, uint8_t byte) {
   p_serial->acia_receive = byte;
 
   serial_acia_update_irq(p_serial);
+}
+
+static void
+serial_tape_receive_status(void* p, int carrier, int32_t byte) {
+  struct serial_struct* p_serial = (struct serial_struct*) p;
+
+  if (!carrier) {
+    p_serial->serial_tape_carrier_count = 0;
+    p_serial->serial_tape_line_level_DCD = 0;
+  } else {
+    p_serial->serial_tape_carrier_count++;
+    /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
+     * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
+     * continuous tone appears".
+     * We use ~0.17s, measured on an issue 3 model B.
+     * Star Drifter doesn't load without this.
+     * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
+     */
+    if (p_serial->serial_tape_carrier_count == 20) {
+      p_serial->serial_tape_line_level_DCD = 1;
+    } else {
+      p_serial->serial_tape_line_level_DCD = 0;
+    }
+  }
+
+  serial_check_line_levels(p_serial);
+
+  if ((byte >= 0) && !p_serial->serial_ula_rs423_selected) {
+    serial_receive(p_serial, byte);
+  }
+}
+
+void
+serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
+  assert(p_serial->p_tape == NULL);
+  p_serial->p_tape = p_tape;
+
+  tape_set_status_callback(p_tape, serial_tape_receive_status, p_serial);
 }
 
 void
@@ -401,36 +441,5 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
    * physical line levels, as can switching off the tape motor if tape is
    * selected.
    */
-  serial_check_line_levels(p_serial);
-}
-
-void
-serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte) {
-  if (!p_serial->serial_ula_rs423_selected) {
-    serial_receive(p_serial, byte);
-  }
-}
-
-void
-serial_tape_set_carrier(struct serial_struct* p_serial, int carrier) {
-  if (!carrier) {
-    p_serial->serial_tape_carrier_count = 0;
-    p_serial->serial_tape_line_level_DCD = 0;
-  } else {
-    p_serial->serial_tape_carrier_count++;
-    /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
-     * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
-     * continuous tone appears".
-     * We use ~0.17s, measured on an issue 3 model B.
-     * Star Drifter doesn't load without this.
-     * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
-     */
-    if (p_serial->serial_tape_carrier_count == 20) {
-      p_serial->serial_tape_line_level_DCD = 1;
-    } else {
-      p_serial->serial_tape_line_level_DCD = 0;
-    }
-  }
-
   serial_check_line_levels(p_serial);
 }

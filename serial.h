@@ -30,7 +30,4 @@ void serial_acia_write(struct serial_struct* p_serial,
 uint8_t serial_ula_read(struct serial_struct* p_serial);
 void serial_ula_write(struct serial_struct* p_serial, uint8_t val);
 
-void serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte);
-void serial_tape_set_carrier(struct serial_struct* p_serial, int carrier);
-
 #endif /* BEEBJIT_SERIAL_H */

@@ -10,9 +10,14 @@ struct serial_struct;
 struct timing_struct;
 
 struct tape_struct* tape_create(struct timing_struct* p_timing,
-                                struct serial_struct* p_serial,
                                 struct bbc_options* p_options);
 void tape_destroy(struct tape_struct* p_tape);
+
+void tape_set_status_callback(struct tape_struct* p_tape,
+                              void (*p_status_callback)(void* p,
+                                                        int carrier,
+                                                        int32_t value),
+                              void* p_status_callback_object);
 
 void tape_load(struct tape_struct* p_disc, const char* p_filename);
 

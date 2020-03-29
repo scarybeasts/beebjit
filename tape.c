@@ -39,6 +39,8 @@ struct tape_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
   struct serial_struct* p_serial;
+  void (*p_status_callback)(void* p, int carrier, int32_t value);
+  void* p_status_callback_object;
 
   uint32_t tick_rate;
 
@@ -65,22 +67,21 @@ tape_timer_callback(struct tape_struct* p_tape) {
   if (tape_value == k_tape_uef_value_carrier) {
     carrier = 1;
   }
-  serial_tape_set_carrier(p_tape->p_serial, carrier);
-  if (tape_value >= 0) {
-    serial_tape_receive_byte(p_tape->p_serial, (uint8_t) tape_value);
+
+  if (p_tape->p_status_callback) {
+    p_tape->p_status_callback(p_tape->p_status_callback_object,
+                              carrier,
+                              tape_value);
   }
 
   p_tape->tape_buffer_pos++;
 }
 
 struct tape_struct*
-tape_create(struct timing_struct* p_timing,
-            struct serial_struct* p_serial,
-            struct bbc_options* p_options) {
+tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   struct tape_struct* p_tape = util_mallocz(sizeof(struct tape_struct));
 
   p_tape->p_timing = p_timing;
-  p_tape->p_serial = p_serial;
 
   p_tape->timer_id = timing_register_timer(p_timing,
                                            tape_timer_callback,
@@ -101,6 +102,16 @@ tape_destroy(struct tape_struct* p_tape) {
     util_free(p_tape->p_tape_buffer);
   }
   util_free(p_tape);
+}
+
+void
+tape_set_status_callback(struct tape_struct* p_tape,
+                         void (*p_status_callback)(void* p,
+                                                   int carrier,
+                                                   int32_t value),
+                         void* p_status_callback_object) {
+  p_tape->p_status_callback = p_status_callback;
+  p_tape->p_status_callback_object = p_status_callback_object;
 }
 
 static uint16_t
@@ -346,5 +357,7 @@ tape_play(struct tape_struct* p_tape) {
 void
 tape_stop(struct tape_struct* p_tape) {
   (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
-  serial_tape_set_carrier(p_tape->p_serial, 0);
+  if (p_tape->p_status_callback) {
+    p_tape->p_status_callback(p_tape->p_status_callback_object, 0, -1);
+  }
 }
