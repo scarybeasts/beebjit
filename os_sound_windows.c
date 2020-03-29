@@ -63,7 +63,7 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
   HWAVEOUT handle_wav = p_driver->handle_wav;
   uint32_t i;
 
-  ret = waveOutPause(handle_wav);
+  ret = waveOutReset(handle_wav);
   if (ret != MMSYSERR_NOERROR) {
     util_bail("waveOutPause failed");
   }
@@ -72,7 +72,7 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
     WAVEHDR* p_wav_header = &p_driver->wav_headers[i];
     ret = waveOutUnprepareHeader(handle_wav, p_wav_header, sizeof(WAVEHDR));
     if (ret != MMSYSERR_NOERROR) {
-      util_bail("waveOutPrepareHeader failed");
+      util_bail("waveOutUnprepareHeader failed");
     }
     util_free(p_driver->buffers[i]);
 
