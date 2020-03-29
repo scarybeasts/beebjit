@@ -152,6 +152,7 @@ os_window_create(uint32_t width, uint32_t height) {
   p_window->width = width;
   p_window->height = height;
 
+  wc.style = CS_OWNDC;
   wc.lpfnWndProc = WindowProc;
   wc.hInstance = NULL;
   wc.lpszClassName = s_p_beejit_class_name;
@@ -209,7 +210,7 @@ os_window_create(uint32_t width, uint32_t height) {
   p_window->handle_bitmap = handle_bitmap;
   p_window->p_buffer = pvBits;
 
-  handle_draw_bitmap = CreateCompatibleDC(NULL);
+  handle_draw_bitmap = CreateCompatibleDC(handle_draw);
   if (handle_draw_bitmap == NULL) {
     util_bail("CreateCompatibleDC failed");
   }
@@ -241,10 +242,11 @@ os_window_destroy(struct os_window_struct* p_window) {
   }
 
   if (!p_window->is_destroyed) {
-    ret = DeleteDC(p_window->handle_draw);
-    if (ret == 0) {
-      util_bail("DeleteDC for window failed");
-    }
+    /* Not calling ReleaseDC on p_window->handle_draw.
+     * https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-releasedc
+     * "It frees only common and window DCs. It has no effect on class or
+     * private DCs.
+     */
     ret = DestroyWindow(p_window->handle);
     if (ret == 0) {
       util_bail("DestroyWindow failed");
