@@ -91,7 +91,7 @@ a particularly accurate emulation but for highly compatible beeb code which
 makes few timing assumptions, it works fine. For example, BASIC might be running
 on a 2MHz 6502, a 2MHz 65c12, a 3MHz 6502 co-processor, etc., so it is not
 picky.
-./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/clocksp.ssd
+./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/perf/clocksp.ssd
 And then in the emulator:
 CH."CLOCKSP"
 Overall CLOCKSP is about 7GHz on my old slow laptop. I've seen individual tests
