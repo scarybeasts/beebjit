@@ -51,11 +51,14 @@ os_poller_poll(struct os_poller_struct* p_poller) {
     util_bail("missing NULL (the window handle)");
   }
 
+  /* NOTE: needs to be QS_ALLINPUT and not QS_ALLEVENTS otherwise there's a
+   * strange hang trying to restore the minimized window.
+   */
   DWORD ret = MsgWaitForMultipleObjects((num_used_handles - 1),
                                         p_poller->handles,
                                         FALSE,
                                         INFINITE,
-                                        QS_ALLEVENTS);
+                                        QS_ALLINPUT);
   if (ret == WAIT_FAILED) {
     util_bail("MsgWaitForMultipleObjects failed");
   }
