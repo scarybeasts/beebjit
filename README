@@ -76,8 +76,18 @@ extended if there is demand.
 
 In the "worse" category:
 - Porting.
-Currently, beebjit is only ported to Linux.
-If there's demand, this will be fixed.
+Currently, beebjit was developed on Linux and there's an early port to Windows.
+If there's demand, this will be improved.
+
+- GUI.
+There is no GUI for configuration or anything else. Currently, it's a deliberate
+philosophical decision. Cast your mind back to the original BBC: it dropped you
+at a text screen with no fancy GUI, and forced you to learn a little bit about
+and interact with it, even for something as simple as starting a tape loading.
+Similarly, you'll need to experiment a little with the beebjit command line and
+options to.
+(This decision may be grating to some. Adding some GUI assistance in the future
+may well happen, once a cross-platform solution, such as SDL, is selected.)
 
 - Model support.
 Currently, beebjit only supports the BBC model B with some small

@@ -12,6 +12,10 @@ gunzip'ped to make a raw .uef]
 The referenced EXILE.FSD file can be found inside a zip here:
 https://stardot.org.uk/forums/download/file.php?id=4880
 
+[NOTE: for the Windows port, you will use beebjit.exe in place of beebjit in
+these examples, and you may also want to use Windows-style paths (\ instead of /
+etc.)]
+
 
 1) Running a classic from disc.
 ./beebjit -0 ~/Downloads/Acornsoft/StarshipCommand.ssd
