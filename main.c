@@ -1,6 +1,7 @@
 #include "bbc.h"
 #include "cpu_driver.h"
 #include "keyboard.h"
+#include "log.h"
 #include "os_channel.h"
 #include "os_poller.h"
 #include "os_sound.h"
@@ -82,85 +83,90 @@ main(int argc, const char* argv[]) {
 
   for (i = 1; i < argc; ++i) {
     const char* arg = argv[i];
-    if (i + 2 < argc) {
-      const char* val1 = argv[i + 1];
-      const char* val2 = argv[i + 2];
-      if (!strcmp(arg, "-rom")) {
-        int32_t bank = -1;
-        (void) sscanf(val1, "%"PRIx32, &bank);
-        if (bank < 0 || bank >= k_bbc_num_roms) {
-          util_bail("ROM bank number out of range");
-        }
-        rom_names[bank] = val2;
-        i += 2;
-      }
+    int has_1 = 0;
+    int has_2 = 0;
+    const char* val1 = NULL;
+    const char* val2 = NULL;
+
+    if ((i + 1) < argc) {
+      has_1 = 1;
+      val1 = argv[i + 1];
     }
-    if (i + 1 < argc) {
-      const char* val = argv[i + 1];
-      if (!strcmp(arg, "-os")) {
-        os_rom_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-load")) {
-        load_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-capture")) {
-        capture_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-replay")) {
-        replay_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-disc") ||
-                 !strcmp(arg, "-disc0") ||
-                 !strcmp(arg, "-0")) {
-        disc_names[0] = val;
-        ++i;
-      } else if (!strcmp(arg, "-disc1") ||
-                 !strcmp(arg, "-1")) {
-        disc_names[1] = val;
-        ++i;
-      } else if (!strcmp(arg, "-tape")) {
-        p_tape_file_name = val;
-        ++i;
-      } else if (!strcmp(arg, "-opt")) {
-        opt_flags = val;
-        ++i;
-      } else if (!strcmp(arg, "-log")) {
-        log_flags = val;
-        ++i;
-      } else if (!strcmp(arg, "-stopat")) {
-        (void) sscanf(val, "%"PRIx32, &debug_stop_addr);
-        ++i;
-      } else if (!strcmp(arg, "-pc")) {
-        (void) sscanf(val, "%"PRIx32, &pc);
-        ++i;
-      } else if (!strcmp(arg, "-mode")) {
-        if (!strcmp(val, "jit")) {
-          mode = k_cpu_mode_jit;
-        } else if (!strcmp(val, "interp")) {
-          mode = k_cpu_mode_interp;
-        } else if (!strcmp(val, "inturbo")) {
-          mode = k_cpu_mode_inturbo;
-        } else {
-          util_bail("unknown mode");
-        }
-        ++i;
-      } else if (!strcmp(arg, "-swram")) {
-        int32_t bank = -1;
-        (void) sscanf(val, "%"PRIx32, &bank);
-        if (bank < 0 || bank >= k_bbc_num_roms) {
-          util_bail("RAM bank number out of range");
-        }
-        sideways_ram[bank] = 1;
-        ++i;
-      } else if (!strcmp(arg, "-cycles")) {
-        (void) sscanf(val, "%"PRIu64, &cycles);
-        ++i;
-      } else if (!strcmp(arg, "-expect")) {
-        (void) sscanf(val, "%"PRIx32, &expect);
-        ++i;
-      }
+    if ((i + 2) < argc) {
+      has_2 = 1;
+      val2 = argv[i + 2];
     }
-    if (!strcmp(arg, "-debug")) {
+
+    if (has_2 && !strcmp(arg, "-rom")) {
+      int32_t bank = -1;
+      (void) sscanf(val1, "%"PRIx32, &bank);
+      if (bank < 0 || bank >= k_bbc_num_roms) {
+        util_bail("ROM bank number out of range");
+      }
+      rom_names[bank] = val2;
+      i += 2;
+    } else if (has_1 && !strcmp(arg, "-os")) {
+      os_rom_name = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-load")) {
+      load_name = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-capture")) {
+      capture_name = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-replay")) {
+      replay_name = val1;
+      ++i;
+    } else if (has_1 && (!strcmp(arg, "-disc") ||
+                         !strcmp(arg, "-disc0") ||
+                         !strcmp(arg, "-0"))) {
+      disc_names[0] = val1;
+      ++i;
+    } else if (has_1 && (!strcmp(arg, "-disc1") ||
+                         !strcmp(arg, "-1"))) {
+      disc_names[1] = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-tape")) {
+      p_tape_file_name = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-opt")) {
+      opt_flags = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-log")) {
+      log_flags = val1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-stopat")) {
+      (void) sscanf(val1, "%"PRIx32, &debug_stop_addr);
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-pc")) {
+      (void) sscanf(val1, "%"PRIx32, &pc);
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-mode")) {
+      if (!strcmp(val1, "jit")) {
+        mode = k_cpu_mode_jit;
+      } else if (!strcmp(val1, "interp")) {
+        mode = k_cpu_mode_interp;
+      } else if (!strcmp(val1, "inturbo")) {
+        mode = k_cpu_mode_inturbo;
+      } else {
+        util_bail("unknown mode");
+      }
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-swram")) {
+      int32_t bank = -1;
+      (void) sscanf(val1, "%"PRIx32, &bank);
+      if ((bank < 0) || (bank >= k_bbc_num_roms)) {
+        util_bail("RAM bank number out of range");
+      }
+      sideways_ram[bank] = 1;
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-cycles")) {
+      (void) sscanf(val1, "%"PRIu64, &cycles);
+      ++i;
+    } else if (has_1 && !strcmp(arg, "-expect")) {
+      (void) sscanf(val1, "%"PRIx32, &expect);
+      ++i;
+    } else if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
     } else if (!strcmp(arg, "-run")) {
       run_flag = 1;
@@ -210,6 +216,11 @@ main(int argc, const char* argv[]) {
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
 "");
       exit(0);
+    } else {
+      log_do_log(k_log_misc,
+                 k_log_warning,
+                 "unknown command line option or missing argument: %s",
+                 arg);
     }
   }
 
