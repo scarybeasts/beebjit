@@ -18,6 +18,11 @@ struct os_alloc_mapping {
   int is_guarded;
 };
 
+int
+os_alloc_get_is_64k_mappings(void) {
+  return 0;
+}
+
 void*
 os_alloc_get_aligned(size_t alignment, size_t size) {
   int ret;
@@ -227,6 +232,14 @@ os_alloc_free_mapping(struct os_alloc_mapping* p_mapping) {
 void
 os_alloc_make_mapping_read_only(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_READ);
+  if (ret != 0) {
+    util_bail("mprotect failed");
+  }
+}
+
+void
+os_alloc_make_mapping_read_write(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
   if (ret != 0) {
     util_bail("mprotect failed");
   }

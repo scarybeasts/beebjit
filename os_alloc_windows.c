@@ -10,6 +10,11 @@ struct os_alloc_mapping {
   int is_file;
 };
 
+int
+os_alloc_get_is_64k_mappings(void) {
+  return 1;
+}
+
 void*
 os_alloc_get_aligned(size_t alignment, size_t size) {
   void* p_ret = _aligned_malloc(size, alignment);
@@ -101,6 +106,7 @@ os_alloc_get_mapping_from_handle_replace(intptr_t handle,
   (void) handle;
   (void) p_addr;
   (void) size;
+  util_bail("os_alloc_get_mapping_from_handle_replace not supported");
 }
 
 struct os_alloc_mapping*
@@ -121,6 +127,7 @@ void
 os_alloc_get_anonymous_mapping_replace(void* p_addr, size_t size) {
   (void) p_addr;
   (void) size;
+  util_bail("os_alloc_get_anonymous_mapping_replace not supported");
 }
 
 void
@@ -147,6 +154,15 @@ void
 os_alloc_make_mapping_read_only(void* p_addr, size_t size) {
   DWORD old_protection;
   BOOL ret = VirtualProtect(p_addr, size, PAGE_READONLY, &old_protection);
+  if (ret == 0) {
+    util_bail("VirtualProtect PAGE_READONLY failed");
+  }
+}
+
+void
+os_alloc_make_mapping_read_write(void* p_addr, size_t size) {
+  DWORD old_protection;
+  BOOL ret = VirtualProtect(p_addr, size, PAGE_READWRITE, &old_protection);
   if (ret == 0) {
     util_bail("VirtualProtect PAGE_READONLY failed");
   }

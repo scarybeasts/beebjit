@@ -77,6 +77,7 @@ struct bbc_struct {
   intptr_t handle_channel_write_client;
   uint32_t exit_value;
   intptr_t mem_handle;
+  int is_64k_mappings;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -163,14 +164,21 @@ bbc_read_needs_callback_above(void* p) {
 
 static uint16_t
 bbc_write_needs_callback_above(void* p) {
-  (void) p;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  /* Selects 0xFC00 - 0xFFFF. */
-  /* Doesn't select the whole ROM region 0x8000 - 0xFC00 because ROM write
-   * squashing is handled by writing to to the "write" mapping, which has the
-   * ROM regions backed by dummy RAM.
-   */
-  return 0xFC00;
+  if (!p_bbc->is_64k_mappings) {
+    /* Selects 0xFC00 - 0xFFFF. */
+    /* Doesn't select the whole ROM region 0x8000 - 0xFC00 because ROM write
+     * squashing is handled by writing to to the "write" mapping, which has the
+     * ROM regions backed by dummy RAM.
+     */
+    return 0xFC00;
+  } else {
+    /* Unfortunately, the Windows port has to do a more expensive range because
+     * of its lack of mapping granularity: from 0x8000.
+     */
+    return k_bbc_sideways_offset;
+  }
 }
 
 static int
@@ -446,12 +454,17 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   default:
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-      /* If we miss the registers, it will be $FF00 - $FFFF on account of
-       * trapping on anything above $FC00, or it will be $FBxx on account of
-       * the X uncertainty of $FBxx,X.
+      /* If we miss the registers, it will be:
+       * 1) $FF00 - $FFFF on account of trapping on anything above $FC00, or
+       * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
+       * 3) The Windows port can get here for read-modify-write instructions.
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-      assert(addr >= k_bbc_os_rom_offset);
+      if (!p_bbc->is_64k_mappings) {
+        assert(addr >= k_bbc_os_rom_offset);
+      } else {
+        assert(addr >= k_bbc_sideways_offset);
+      }
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -474,6 +487,28 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
 }
 
+static uint8_t
+bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t bank) {
+  if (!p_bbc->is_extended_rom_addressing) {
+    /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
+     * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
+     * The STH Castle Quest image needs this due to a misguided "Master
+     * compatability" fix.
+     * See http://beebwiki.mdfs.net/Paged_ROM.
+     */
+    bank &= 0x3;
+    bank += 0xC;
+  }
+
+  return bank;
+}
+
+static int
+bbc_is_sideways_currently_ram(struct bbc_struct* p_bbc) {
+  uint8_t bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
+  return p_bbc->is_sideways_ram_bank[bank];
+}
+
 void
 bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   /* The broad approach here is: slower sideways bank switching in order to
@@ -493,21 +528,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
 
-  effective_curr_bank = p_bbc->romsel;
-  effective_new_bank = (index & 0xF);
-
-  if (!p_bbc->is_extended_rom_addressing) {
-    /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
-     * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
-     * The STH Castle Quest image needs this due to a misguided "Master
-     * compatability" fix.
-     * See http://beebwiki.mdfs.net/Paged_ROM.
-     */
-    effective_curr_bank &= 0x3;
-    effective_curr_bank += 0xC;
-    effective_new_bank &= 0x3;
-    effective_new_bank += 0xC;
-  }
+  effective_curr_bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
+  effective_new_bank = bbc_get_effective_bank(p_bbc, (index & 0xF));
 
   p_bbc->romsel = index;
 
@@ -518,8 +540,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 
   p_bbc->is_romsel_invalidated = 0;
 
-  curr_is_ram = (p_bbc->is_sideways_ram_bank[effective_curr_bank] != 0);
-  new_is_ram = (p_bbc->is_sideways_ram_bank[effective_new_bank] != 0);
+  curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
+  new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
 
   p_sideways_src += (effective_new_bank * k_bbc_rom_size);
 
@@ -541,21 +563,39 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
    */
   if (curr_is_ram ^ new_is_ram) {
     if (new_is_ram) {
-      os_alloc_get_mapping_from_handle_replace(
-          p_bbc->mem_handle,
-          p_bbc->p_mem_write,
-          (k_bbc_sideways_offset + k_bbc_rom_size));
-      os_alloc_get_mapping_from_handle_replace(
-          p_bbc->mem_handle,
-          p_bbc->p_mem_write_ind,
-          (k_bbc_sideways_offset + k_bbc_rom_size));
+      if (!p_bbc->is_64k_mappings) {
+        os_alloc_get_mapping_from_handle_replace(
+            p_bbc->mem_handle,
+            p_bbc->p_mem_write,
+            (k_bbc_sideways_offset + k_bbc_rom_size));
+        os_alloc_get_mapping_from_handle_replace(
+            p_bbc->mem_handle,
+            p_bbc->p_mem_write_ind,
+            (k_bbc_sideways_offset + k_bbc_rom_size));
+      } else {
+        os_alloc_make_mapping_read_write(
+            (p_bbc->p_mem_write + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+        os_alloc_make_mapping_read_write(
+            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+      }
     } else {
-      os_alloc_get_anonymous_mapping_replace(
-          (p_bbc->p_mem_write + k_bbc_sideways_offset),
-          k_bbc_rom_size);
-      os_alloc_get_anonymous_mapping_replace(
-          (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
-          k_bbc_rom_size);
+      if (!p_bbc->is_64k_mappings) {
+        os_alloc_get_anonymous_mapping_replace(
+            (p_bbc->p_mem_write + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+        os_alloc_get_anonymous_mapping_replace(
+            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+      } else {
+        os_alloc_make_mapping_read_only(
+            (p_bbc->p_mem_write + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+        os_alloc_make_mapping_read_only(
+            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
+            k_bbc_rom_size);
+      }
     }
   }
 }
@@ -674,11 +714,21 @@ bbc_write_callback(void* p,
   default:
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-      /* If we miss the registers, it will be $FF00 - $FFFF on account of
-       * trapping on anything above $FC00, or it will be $FBxx on account of
-       * the X uncertainty of $FBxx,X.
+      /* If we miss the registers, it will be:
+       * 1) $FF00 - $FFFF on account of trapping on anything above $FC00, or
+       * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
+       * 3) The Windows port needs a wider range to trap ROM writes.
        */
-      assert(addr >= k_bbc_os_rom_offset);
+      if (!p_bbc->is_64k_mappings) {
+        assert(addr >= k_bbc_os_rom_offset);
+      } else {
+        /* Windows port. */
+        assert(addr >= k_bbc_sideways_offset);
+        if ((addr < k_bbc_os_rom_offset) &&
+            bbc_is_sideways_currently_ram(p_bbc)) {
+          bbc_memory_write(p_bbc, addr, val);
+        }
+      }
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
       assert(0);
@@ -815,6 +865,8 @@ bbc_create(int mode,
     util_bail("os_alloc_get_memory_handle failed");
   }
 
+  p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
+
   p_bbc->p_mapping_raw =
       os_alloc_get_guarded_mapping_from_handle(
           p_bbc->mem_handle,
@@ -861,13 +913,22 @@ bbc_create(int mode,
 
   p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
 
-  /* Install the dummy writeable ROM regions. */
-  os_alloc_get_anonymous_mapping_replace(
-      (p_bbc->p_mem_write + k_bbc_ram_size),
-      (k_6502_addr_space_size - k_bbc_ram_size));
-  os_alloc_get_anonymous_mapping_replace(
-      (p_bbc->p_mem_write_ind + k_bbc_ram_size),
-      (k_6502_addr_space_size - k_bbc_ram_size));
+  /* Set up to handle ROM writes. */
+  if (!p_bbc->is_64k_mappings) {
+    /* Install the dummy writeable ROM regions. */
+    os_alloc_get_anonymous_mapping_replace(
+        (p_bbc->p_mem_write + k_bbc_ram_size),
+        (k_6502_addr_space_size - k_bbc_ram_size));
+    os_alloc_get_anonymous_mapping_replace(
+        (p_bbc->p_mem_write_ind + k_bbc_ram_size),
+        (k_6502_addr_space_size - k_bbc_ram_size));
+  } else {
+    /* Windows unfortunately has to use a less efficient scheme. */
+    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_ram_size),
+                               (k_6502_addr_space_size - k_bbc_ram_size));
+    os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_ram_size),
+                               (k_6502_addr_space_size - k_bbc_ram_size));
+  }
 
   /* TODO: we can widen what we make read-only? */
   /* Make the ROM readonly in the read mappings used at runtime. */

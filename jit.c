@@ -590,6 +590,8 @@ jit_handle_fault(uintptr_t* p_host_rip,
    * to access 0xF000 - 0xFFFF, primarily of interest due to the hardware
    * registers. Using a fault + fixup here is a good performance boost for the
    * common case.
+   * This fault is also encountered in the Windows port, which needs to use it
+   * for ROM writes.
    */
   inaccessible_indirect_page = 0;
   /* The 0xFF page wrap fault occurs when a word fetch is performed at the end
@@ -609,7 +611,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
 
   /* TODO: more checks, etc. */
   if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_SIDEWAYS_OFFSET)) &&
       (p_fault_addr <
           ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     if (is_write) {

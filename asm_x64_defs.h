@@ -13,6 +13,7 @@
 #define K_BBC_MEM_OFFSET_TO_READ_FULL           0x02000000
 #define K_BBC_MEM_OFFSET_TO_WRITE_FULL          0x03000000
 #define K_BBC_MEM_OFFSET_READ_TO_WRITE          0x01000000
+#define K_BBC_MEM_SIDEWAYS_OFFSET               0x8000
 #define K_BBC_MEM_INACCESSIBLE_OFFSET           0xF000
 #define K_BBC_MEM_INACCESSIBLE_LEN              0x1000
 #define K_6502_ADDR_SPACE_SIZE                  0x10000
