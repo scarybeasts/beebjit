@@ -1,5 +1,6 @@
 #include "os_alloc.h"
 
+#include "log.h"
 #include "util.h"
 
 #include <assert.h>
@@ -79,22 +80,37 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
                                  void* p_addr,
                                  size_t size,
                                  int fixed) {
-  int map_flags;
   void* p_map;
+  int map_flags = 0;
+  int try_huge = 0;
+  int map_prot = (PROT_READ | PROT_WRITE);
 
   struct os_alloc_mapping* p_ret =
       util_mallocz(sizeof(struct os_alloc_mapping));
 
+  if ((size % (2 * 1024 * 1024)) == 0) {
+    try_huge = 1;
+    map_flags |= MAP_HUGETLB;
+  }
+
   if (handle == -1) {
-    map_flags = (MAP_PRIVATE | MAP_ANONYMOUS);
+    map_flags |= (MAP_PRIVATE | MAP_ANONYMOUS);
   } else {
-    map_flags = MAP_SHARED;
+    map_flags |= MAP_SHARED;
   }
   if (fixed) {
     map_flags |= MAP_FIXED;
   }
 
-  p_map = mmap(p_addr, size, (PROT_READ | PROT_WRITE), map_flags, handle, 0);
+  p_map = mmap(p_addr, size, map_prot, map_flags, handle, 0);
+  if (try_huge) {
+    if (p_map == MAP_FAILED) {
+      map_flags &= ~MAP_HUGETLB;
+      p_map = mmap(p_addr, size, map_prot, map_flags, handle, 0);
+    } else {
+      log_do_log(k_log_misc, k_log_info, "used MAP_HUGETLB");
+    }
+  }
   if (p_map == MAP_FAILED) {
     util_bail("mmap failed");
   }
