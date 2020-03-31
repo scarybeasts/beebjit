@@ -15,17 +15,11 @@ intptr_t os_alloc_get_memory_handle(size_t size);
 void os_alloc_free_memory_handle(intptr_t handle);
 
 void* os_alloc_get_mapping_addr(struct os_alloc_mapping* p_mapping);
-struct os_alloc_mapping* os_alloc_get_guarded_mapping_from_handle(
-    intptr_t handle,
-    void* p_addr,
-    size_t size);
-struct os_alloc_mapping* os_alloc_get_guarded_mapping(void* p_addr,
-                                                      size_t size);
-
-void os_alloc_get_mapping_from_handle_replace(intptr_t handle,
-                                              void* p_addr,
-                                              size_t size);
-void os_alloc_get_anonymous_mapping_replace(void* p_addr, size_t size);
+struct os_alloc_mapping* os_alloc_get_mapping_from_handle(intptr_t handle,
+                                                          void* p_addr,
+                                                          size_t offset,
+                                                          size_t size);
+struct os_alloc_mapping* os_alloc_get_mapping(void* p_addr, size_t size);
 
 void os_alloc_free_mapping(struct os_alloc_mapping* p_mapping);
 

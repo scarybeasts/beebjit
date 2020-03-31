@@ -54,25 +54,23 @@ os_alloc_get_mapping_addr(struct os_alloc_mapping* p_mapping) {
   return p_mapping->p_addr;
 }
 
-static struct os_alloc_mapping*
+struct os_alloc_mapping*
 os_alloc_get_mapping_from_handle(intptr_t h,
                                  void* p_addr,
-                                 size_t size,
-                                 int fixed) {
+                                 size_t offset,
+                                 size_t size) {
   LPVOID p_map;
 
   HANDLE handle = (HANDLE) h;
   struct os_alloc_mapping* p_ret =
       util_mallocz(sizeof(struct os_alloc_mapping));
 
-  (void) fixed;
-
   if (handle != NULL) {
     p_ret->is_file = 1;
     p_map = MapViewOfFileEx(handle,
                             FILE_MAP_WRITE,
-                            0,
-                            0,
+                            (offset >> 32),
+                            (offset & 0xffffffff),
                             size,
                             p_addr);
     if (p_map == NULL) {
@@ -99,35 +97,9 @@ os_alloc_get_mapping_from_handle(intptr_t h,
   return p_ret;
 }
 
-void
-os_alloc_get_mapping_from_handle_replace(intptr_t handle,
-                                         void* p_addr,
-                                         size_t size) {
-  (void) handle;
-  (void) p_addr;
-  (void) size;
-  util_bail("os_alloc_get_mapping_from_handle_replace not supported");
-}
-
 struct os_alloc_mapping*
-os_alloc_get_guarded_mapping_from_handle(intptr_t handle,
-                                         void* p_addr,
-                                         size_t size) {
-  return os_alloc_get_mapping_from_handle(handle, p_addr, size, 0);
-}
-
-struct os_alloc_mapping*
-os_alloc_get_guarded_mapping(void* p_addr, size_t size) {
-  return os_alloc_get_guarded_mapping_from_handle((intptr_t) NULL,
-                                                  p_addr,
-                                                  size);
-}
-
-void
-os_alloc_get_anonymous_mapping_replace(void* p_addr, size_t size) {
-  (void) p_addr;
-  (void) size;
-  util_bail("os_alloc_get_anonymous_mapping_replace not supported");
+os_alloc_get_mapping(void* p_addr, size_t size) {
+  return os_alloc_get_mapping_from_handle((intptr_t) NULL, p_addr, 0, size);
 }
 
 void

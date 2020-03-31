@@ -715,8 +715,8 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
   mapping_size = (256 * k_inturbo_bytes_per_opcode);
-  p_inturbo->p_mapping_base =
-      os_alloc_get_guarded_mapping(k_inturbo_opcodes_addr, mapping_size);
+  p_inturbo->p_mapping_base = os_alloc_get_mapping(k_inturbo_opcodes_addr,
+                                                   mapping_size);
   p_inturbo->p_inturbo_base =
       os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
   os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,

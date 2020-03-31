@@ -22,7 +22,7 @@ asm_tables_init() {
   s_inited = 1;
 
 
-  (void) os_alloc_get_guarded_mapping(k_asm_tables_addr, k_asm_tables_size);
+  (void) os_alloc_get_mapping(k_asm_tables_addr, k_asm_tables_size);
 
   p_dst = (k_asm_tables_addr + k_asm_table_offset_6502_flags_to_x64);
   for (i = 0; i < 0x100; ++i) {

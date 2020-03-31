@@ -96,8 +96,10 @@ struct bbc_struct {
   struct os_alloc_mapping* p_mapping_raw;
   struct os_alloc_mapping* p_mapping_read;
   struct os_alloc_mapping* p_mapping_write;
+  struct os_alloc_mapping* p_mapping_write_2;
   struct os_alloc_mapping* p_mapping_read_ind;
   struct os_alloc_mapping* p_mapping_write_ind;
+  struct os_alloc_mapping* p_mapping_write_ind_2;
   uint8_t* p_mem_raw;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -164,21 +166,10 @@ bbc_read_needs_callback_from(void* p) {
 
 static uint16_t
 bbc_write_needs_callback_from(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  (void) p;
 
-  if (!p_bbc->is_64k_mappings) {
-    /* Selects 0xFC00 - 0xFFFF. */
-    /* Doesn't select the whole ROM region 0x8000 - 0xFC00 because ROM write
-     * squashing is handled by writing to to the "write" mapping, which has the
-     * ROM regions backed by dummy RAM.
-     */
-    return 0xFC00;
-  } else {
-    /* Unfortunately, the Windows port has to do a more expensive range because
-     * of its lack of mapping granularity: from 0x8000.
-     */
-    return k_bbc_sideways_offset;
-  }
+  /* TODO: we can do better on Linux: 0xFC00. */
+  return k_bbc_os_rom_offset;
 }
 
 static int
@@ -194,17 +185,9 @@ bbc_read_needs_callback(void* p, uint16_t addr) {
 
 static int
 bbc_write_needs_callback(void* p, uint16_t addr) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  (void) p;
 
-  if (!p_bbc->is_64k_mappings) {
-    /* Same range as for reads. */
-    return bbc_read_needs_callback(p, addr);
-  } else {
-    /* Unfortunately, the Windows port has to do a more expensive range because
-     * of its lack of mapping granularity: from 0x8000.
-     */
-    return (addr >= k_bbc_sideways_offset);
-  }
+  return (addr >= k_bbc_os_rom_offset);
 }
 
 static inline int
@@ -533,41 +516,43 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
    */
   if (curr_is_ram ^ new_is_ram) {
+    size_t map_size = (k_6502_addr_space_size * 2);
+    size_t half_map_size = (map_size / 2);
+    size_t map_offset = (k_6502_addr_space_size / 2);
+
+    os_alloc_free_mapping(p_bbc->p_mapping_write_2);
+    os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+
     if (new_is_ram) {
-      if (!p_bbc->is_64k_mappings) {
-        os_alloc_get_mapping_from_handle_replace(
-            p_bbc->mem_handle,
-            p_bbc->p_mem_write,
-            (k_bbc_sideways_offset + k_bbc_rom_size));
-        os_alloc_get_mapping_from_handle_replace(
-            p_bbc->mem_handle,
-            p_bbc->p_mem_write_ind,
-            (k_bbc_sideways_offset + k_bbc_rom_size));
-      } else {
-        os_alloc_make_mapping_read_write(
-            (p_bbc->p_mem_write + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-        os_alloc_make_mapping_read_write(
-            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-      }
+      intptr_t mem_handle = p_bbc->mem_handle;
+
+      p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
+          mem_handle,
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+          half_map_size,
+          half_map_size);
+      os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
+                                 k_bbc_rom_size);
+      p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
+          mem_handle,
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+          half_map_size,
+          half_map_size);
+      os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
+                                 k_bbc_rom_size);
     } else {
-      if (!p_bbc->is_64k_mappings) {
-        os_alloc_get_anonymous_mapping_replace(
-            (p_bbc->p_mem_write + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-        os_alloc_get_anonymous_mapping_replace(
-            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-      } else {
-        os_alloc_make_mapping_read_only(
-            (p_bbc->p_mem_write + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-        os_alloc_make_mapping_read_only(
-            (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
-            k_bbc_rom_size);
-      }
+      p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+          half_map_size);
+      p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+          half_map_size);
     }
+    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                               map_offset);
+    os_alloc_make_mapping_none(
+        (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+        map_offset);
   }
 }
 
@@ -785,6 +770,9 @@ bbc_create(int mode,
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
   uint32_t cpu_scale_factor;
+  size_t map_size;
+  size_t half_map_size;
+  size_t map_offset;
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
@@ -831,7 +819,17 @@ bbc_create(int mode,
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
 
-  p_bbc->mem_handle = os_alloc_get_memory_handle(k_6502_addr_space_size);
+  /* We allocate 2 times the 6502 64k address space size. This is so we can
+   * place it in the middle of a 128k region and straddle a 64k boundary in the
+   * middle. We need that for a satisfactory mappings setup on Windows, which
+   * only has 64k allocation resolution. This way, the stuff that is usually
+   * RAM is below the boundary and the stuff that is usually ROM is above the
+   * boundary, permitting a high performance setup.
+   */
+  map_size = (k_6502_addr_space_size * 2);
+  half_map_size = (map_size / 2);
+  map_offset = (k_6502_addr_space_size / 2);
+  p_bbc->mem_handle = os_alloc_get_memory_handle(map_size);
   if (p_bbc->mem_handle < 0) {
     util_bail("os_alloc_get_memory_handle failed");
   }
@@ -839,11 +837,16 @@ bbc_create(int mode,
   p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
 
   p_bbc->p_mapping_raw =
-      os_alloc_get_guarded_mapping_from_handle(
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_RAW_ADDR,
-          k_6502_addr_space_size);
-  p_bbc->p_mem_raw = os_alloc_get_mapping_addr(p_bbc->p_mapping_raw);
+          (void*) (size_t) (K_BBC_MEM_RAW_ADDR - map_offset),
+          0,
+          map_size);
+  p_bbc->p_mem_raw = (os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) +
+                      map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_raw - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_raw + k_6502_addr_space_size),
+                             map_offset);
 
   /* Runtime memory regions.
    * The write regions differ from the read regions for 6502 ROM addresses.
@@ -856,50 +859,62 @@ bbc_create(int mode,
    * via a fault + fixup.
    */
   p_bbc->p_mapping_read_ind =
-      os_alloc_get_guarded_mapping_from_handle(
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_READ_IND_ADDR,
-          k_6502_addr_space_size);
-  p_bbc->p_mem_read_ind = os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind);
+          (void*) (size_t) (K_BBC_MEM_READ_IND_ADDR - map_offset),
+          0,
+          map_size);
+  p_bbc->p_mem_read_ind =
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind + k_6502_addr_space_size),
+                             map_offset);
   p_bbc->p_mapping_write_ind =
-      os_alloc_get_guarded_mapping_from_handle(
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
-          k_6502_addr_space_size);
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR - map_offset),
+          0,
+          half_map_size);
+  /* Writeable dummy ROM region. */
+  p_bbc->p_mapping_write_ind_2 =
+      os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+          half_map_size);
   p_bbc->p_mem_write_ind =
-      os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind);
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+                             map_offset);
 
   p_bbc->p_mapping_read =
-      os_alloc_get_guarded_mapping_from_handle(
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_READ_FULL_ADDR,
-          k_6502_addr_space_size);
-  p_bbc->p_mem_read = os_alloc_get_mapping_addr(p_bbc->p_mapping_read);
+          (void*) (size_t) (K_BBC_MEM_READ_FULL_ADDR - map_offset),
+          0,
+          map_size);
+  p_bbc->p_mem_read = (os_alloc_get_mapping_addr(p_bbc->p_mapping_read) +
+                       map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read + k_6502_addr_space_size),
+                             map_offset);
   p_bbc->p_mapping_write =
-      os_alloc_get_guarded_mapping_from_handle(
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_WRITE_FULL_ADDR,
-          k_6502_addr_space_size);
-  p_bbc->p_mem_write = os_alloc_get_mapping_addr(p_bbc->p_mapping_write);
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR - map_offset),
+          0,
+          half_map_size);
+  /* Writeable dummy ROM region. */
+  p_bbc->p_mapping_write_2 =
+      os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+          half_map_size);
+  p_bbc->p_mem_write = (os_alloc_get_mapping_addr(p_bbc->p_mapping_write) +
+                        map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
 
   p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
-
-  /* Set up to handle ROM writes. */
-  if (!p_bbc->is_64k_mappings) {
-    /* Install the dummy writeable ROM regions. */
-    os_alloc_get_anonymous_mapping_replace(
-        (p_bbc->p_mem_write + k_bbc_ram_size),
-        (k_6502_addr_space_size - k_bbc_ram_size));
-    os_alloc_get_anonymous_mapping_replace(
-        (p_bbc->p_mem_write_ind + k_bbc_ram_size),
-        (k_6502_addr_space_size - k_bbc_ram_size));
-  } else {
-    /* Windows unfortunately has to use a less efficient scheme. */
-    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_ram_size),
-                               (k_6502_addr_space_size - k_bbc_ram_size));
-    os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_ram_size),
-                               (k_6502_addr_space_size - k_bbc_ram_size));
-  }
 
   /* TODO: we can widen what we make read-only? */
   /* Make the ROM readonly in the read mappings used at runtime. */
@@ -1098,8 +1113,10 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_alloc_free_mapping(p_bbc->p_mapping_raw);
   os_alloc_free_mapping(p_bbc->p_mapping_read);
   os_alloc_free_mapping(p_bbc->p_mapping_write);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_2);
   os_alloc_free_mapping(p_bbc->p_mapping_read_ind);
   os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
   os_alloc_free_memory_handle(p_bbc->mem_handle);
 
   os_time_free_sleeper(p_bbc->p_sleeper);

@@ -424,7 +424,7 @@ asm_x64_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t value) {
                     offset,
                     asm_x64_jit_MODE_ABX,
                     asm_x64_jit_MODE_ABX_lea_patch,
-                    value);
+                    (value - (K_BBC_MEM_RAW_ADDR & 0xFFFF)));
 }
 
 void
@@ -436,7 +436,7 @@ asm_x64_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value) {
                     offset,
                     asm_x64_jit_MODE_ABY,
                     asm_x64_jit_MODE_ABY_lea_patch,
-                    value);
+                    (value - (K_BBC_MEM_RAW_ADDR & 0xFFFF)));
 }
 
 void

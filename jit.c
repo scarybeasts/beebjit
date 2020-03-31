@@ -271,10 +271,10 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
 
   countdown = timing_get_countdown(p_timing);
 
-  /* The memory must be aligned to at least 0x10000 so that our register access
+  /* The memory must be aligned to at least 0x100 so that our register access
    * tricks work.
    */
-  assert((K_BBC_MEM_READ_IND_ADDR & 0xffff) == 0);
+  assert((K_BBC_MEM_READ_IND_ADDR & 0xff) == 0);
 
   p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
                          K_BBC_MEM_READ_IND_ADDR);
@@ -611,7 +611,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
 
   /* TODO: more checks, etc. */
   if ((p_fault_addr >=
-          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_SIDEWAYS_OFFSET)) &&
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_OS_ROM_OFFSET)) &&
       (p_fault_addr <
           ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     if (is_write) {
@@ -770,7 +770,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
   mapping_size = (k_6502_addr_space_size * k_jit_bytes_per_byte);
-  p_jit->p_mapping_jit = os_alloc_get_guarded_mapping(k_jit_addr, mapping_size);
+  p_jit->p_mapping_jit = os_alloc_get_mapping(k_jit_addr, mapping_size);
   p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
   os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
   /* Fill with int3. */
@@ -782,8 +782,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * interp.
    */
   mapping_size = (k_6502_addr_space_size * k_jit_trampoline_bytes_per_byte);
-  p_jit->p_mapping_trampolines =
-      os_alloc_get_guarded_mapping(k_jit_trampolines_addr, mapping_size);
+  p_jit->p_mapping_trampolines = os_alloc_get_mapping(k_jit_trampolines_addr,
+                                                      mapping_size);
   p_jit_trampolines = os_alloc_get_mapping_addr(p_jit->p_mapping_trampolines);
   os_alloc_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
   /* Fill with int3. */
