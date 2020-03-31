@@ -1533,8 +1533,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x7D);
   emit_JMP(p_buf, k_abs, 0xD680);
 
-  /* End of test. */
+  /* Test idy mode invalidations. */
   set_new_index(p_buf, 0x1680);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x3170);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  /* Flip INX to NOP. */
+  emit_LDA(p_buf, k_imm, 0x70);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x31);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  /* Cheesy way of setting Y=0 while avoiding "known-Y" optimization. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_PHA(p_buf);
+  emit_PLA(p_buf);
+  emit_TAY(p_buf);
+  emit_LDA(p_buf, k_imm, 0xEA);
+  emit_STA(p_buf, k_idy, 0xF0);
+  /* Check it. */
+  emit_JSR(p_buf, 0x3170);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xD6C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x16C0);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1710,6 +1734,11 @@ main(int argc, const char* argv[]) {
   emit_STX(p_buf, k_zpg, 0xF0);
   emit_INY(p_buf);
   emit_STY(p_buf, k_zpg, 0xF1);
+  emit_RTS(p_buf);
+
+  /* For an invalidation test using the idy addressing mode. */
+  set_new_index(p_buf, 0x3170);
+  emit_INX(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
