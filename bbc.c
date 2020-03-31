@@ -200,42 +200,6 @@ bbc_write_needs_callback(void* p, uint16_t addr) {
   return bbc_read_needs_callback(p, addr);
 }
 
-int
-bbc_is_special_read_address(struct bbc_struct* p_bbc,
-                            uint16_t addr_low,
-                            uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_bbc_registers_start &&
-      addr_low < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_high >= k_bbc_registers_start &&
-      addr_high < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_low < k_bbc_registers_start &&
-      addr_high >= k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  return 0;
-}
-
-int
-bbc_is_special_write_address(struct bbc_struct* p_bbc,
-                             uint16_t addr_low,
-                             uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_bbc_sideways_offset) {
-    return 1;
-  }
-  if (addr_high >= k_bbc_sideways_offset) {
-    return 1;
-  }
-  return 0;
-}
-
 static inline int
 bbc_is_1MHz_address(uint16_t addr) {
   if ((addr & 0xFF00) == k_addr_shiela) {
