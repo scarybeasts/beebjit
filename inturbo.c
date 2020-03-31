@@ -33,8 +33,8 @@ struct inturbo_struct {
 static void
 inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   size_t i;
-  uint16_t read_callback_above;
-  uint16_t write_callback_above;
+  uint16_t read_callback_from;
+  uint16_t write_callback_from;
 
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
@@ -46,9 +46,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
-  read_callback_above = p_memory_access->memory_read_needs_callback_above(
+  read_callback_from = p_memory_access->memory_read_needs_callback_from(
       p_memory_object);
-  write_callback_above = p_memory_access->memory_write_needs_callback_above(
+  write_callback_from = p_memory_access->memory_write_needs_callback_from(
       p_memory_object);
 
   for (i = 0;
@@ -62,7 +62,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opreg = 0;
     uint8_t opcycles = g_opcycles[i];
     int check_page_crossing_read = 0;
-    uint16_t this_callback_above = read_callback_above;
+    uint16_t this_callback_from = read_callback_from;
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -93,7 +93,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     if ((opmem == k_write) || (opmem == k_rw)) {
-      this_callback_above = write_callback_above;
+      this_callback_from = write_callback_from;
     }
 
     switch (opmode) {
@@ -112,11 +112,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         break;
       }
       asm_x64_emit_inturbo_mode_abs(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_abx:
       asm_x64_emit_inturbo_mode_abx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
@@ -125,7 +125,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_aby:
       asm_x64_emit_inturbo_mode_aby(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
@@ -140,11 +140,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_idx:
       asm_x64_emit_inturbo_mode_idx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_idy:
       asm_x64_emit_inturbo_mode_idy(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
