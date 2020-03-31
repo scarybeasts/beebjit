@@ -185,7 +185,7 @@ static int
 bbc_read_needs_callback(void* p, uint16_t addr) {
   (void) p;
 
-  if (addr >= 0xFC00 && addr < 0xFF00) {
+  if ((addr >= 0xFC00) && (addr < 0xFF00)) {
     return 1;
   }
 
@@ -194,10 +194,17 @@ bbc_read_needs_callback(void* p, uint16_t addr) {
 
 static int
 bbc_write_needs_callback(void* p, uint16_t addr) {
-  (void) p;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  /* Same range as for reads. */
-  return bbc_read_needs_callback(p, addr);
+  if (!p_bbc->is_64k_mappings) {
+    /* Same range as for reads. */
+    return bbc_read_needs_callback(p, addr);
+  } else {
+    /* Unfortunately, the Windows port has to do a more expensive range because
+     * of its lack of mapping granularity: from 0x8000.
+     */
+    return (addr >= k_bbc_sideways_offset);
+  }
 }
 
 static inline int
