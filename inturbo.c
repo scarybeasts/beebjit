@@ -620,15 +620,13 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   /* The memory must be aligned to at least 0x10000 so that our register access
    * tricks work.
    */
-  assert((K_BBC_MEM_READ_FULL_ADDR & 0xffff) == 0);
+  assert((K_BBC_MEM_READ_FULL_ADDR & 0xff) == 0);
 
   p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
   p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
   p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
-                         K_BBC_MEM_READ_FULL_ADDR);
-  p_state_6502->reg_pc = ((p_state_6502->reg_pc & 0xFFFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
 
   exited = asm_x64_asm_enter(p_cpu_driver,

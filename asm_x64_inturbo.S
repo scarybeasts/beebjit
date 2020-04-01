@@ -10,7 +10,7 @@
 .globl asm_x64_inturbo_JMP_scratch_plus_1_interp_END
 asm_x64_inturbo_JMP_scratch_plus_1_interp:
 
-  lea REG_6502_PC_16, [REG_SCRATCH1 + 1]
+  lea REG_6502_PC_32, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + 1]
 
 asm_x64_inturbo_JMP_scratch_plus_1_interp_END:
   ret
@@ -20,7 +20,8 @@ asm_x64_inturbo_JMP_scratch_plus_1_interp_END:
 .globl asm_x64_inturbo_load_pc_from_pc_END
 asm_x64_inturbo_load_pc_from_pc:
 
-  mov REG_6502_PC_16, [REG_6502_PC + 1]
+  movzx REG_6502_PC_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_inturbo_load_pc_from_pc_END:
   ret
@@ -166,7 +167,7 @@ asm_x64_inturbo_jump_call_interp_END:
 .globl asm_x64_inturbo_pc_plus_2_to_scratch_END
 asm_x64_inturbo_pc_plus_2_to_scratch:
 
-  lea REG_SCRATCH1, [REG_6502_PC + 2]
+  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR + 2]
 
 asm_x64_inturbo_pc_plus_2_to_scratch_END:
   ret
@@ -176,7 +177,8 @@ asm_x64_inturbo_pc_plus_2_to_scratch_END:
 .globl asm_x64_inturbo_interrupt_vector_END
 asm_x64_inturbo_interrupt_vector:
 
-  mov REG_6502_PC_16, [K_BBC_MEM_READ_FULL_ADDR + K_6502_VECTOR_IRQ]
+  movzx REG_6502_PC_32, WORD PTR [K_BBC_MEM_READ_FULL_ADDR + K_6502_VECTOR_IRQ]
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_inturbo_interrupt_vector_END:
   ret
@@ -950,7 +952,7 @@ asm_x64_instruction_INC_scratch_interp_based_END:
 .globl asm_x64_instruction_JMP_scratch_interp_END
 asm_x64_instruction_JMP_scratch_interp:
 
-  mov REG_6502_PC_16, REG_SCRATCH1_16
+  lea REG_6502_PC_32, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_instruction_JMP_scratch_interp_END:
   ret
