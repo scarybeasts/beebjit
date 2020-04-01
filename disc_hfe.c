@@ -2,10 +2,28 @@
 
 #include "disc.h"
 #include "ibm_disc_format.h"
+#include "log.h"
 #include "util.h"
 
 #include <assert.h>
 #include <string.h>
+
+static uint8_t
+disc_hfe_byte_flip(uint8_t val) {
+  uint8_t ret = 0;
+
+  /* This could be a table but it's not performance critical. */
+  if (val & 0x80) ret |= 0x01;
+  if (val & 0x40) ret |= 0x02;
+  if (val & 0x20) ret |= 0x04;
+  if (val & 0x10) ret |= 0x08;
+  if (val & 0x08) ret |= 0x10;
+  if (val & 0x04) ret |= 0x20;
+  if (val & 0x02) ret |= 0x40;
+  if (val & 0x01) ret |= 0x80;
+
+  return ret;
+}
 
 static void
 disc_hfe_extract_data(uint8_t* p_data, uint8_t* p_clock, uint8_t* p_src) {
@@ -17,22 +35,22 @@ disc_hfe_extract_data(uint8_t* p_data, uint8_t* p_clock, uint8_t* p_src) {
   uint8_t b2 = p_src[2];
   uint8_t b3 = p_src[3];
 
-  if (b0 & 0x08) data |= 0x80;
-  if (b0 & 0x80) data |= 0x40;
-  if (b1 & 0x08) data |= 0x20;
-  if (b1 & 0x80) data |= 0x10;
-  if (b2 & 0x08) data |= 0x08;
-  if (b2 & 0x80) data |= 0x04;
-  if (b3 & 0x08) data |= 0x02;
-  if (b3 & 0x80) data |= 0x01;
-  if (b0 & 0x02) clock |= 0x80;
-  if (b0 & 0x20) clock |= 0x40;
-  if (b1 & 0x02) clock |= 0x20;
-  if (b1 & 0x20) clock |= 0x10;
-  if (b2 & 0x02) clock |= 0x08;
-  if (b2 & 0x20) clock |= 0x04;
-  if (b3 & 0x02) clock |= 0x02;
-  if (b3 & 0x20) clock |= 0x01;
+  if (b0 & 0x10) data |= 0x80;
+  if (b0 & 0x01) data |= 0x40;
+  if (b1 & 0x10) data |= 0x20;
+  if (b1 & 0x01) data |= 0x10;
+  if (b2 & 0x10) data |= 0x08;
+  if (b2 & 0x01) data |= 0x04;
+  if (b3 & 0x10) data |= 0x02;
+  if (b3 & 0x01) data |= 0x01;
+  if (b0 & 0x40) clock |= 0x80;
+  if (b0 & 0x04) clock |= 0x40;
+  if (b1 & 0x40) clock |= 0x20;
+  if (b1 & 0x04) clock |= 0x10;
+  if (b2 & 0x40) clock |= 0x08;
+  if (b2 & 0x04) clock |= 0x04;
+  if (b3 & 0x40) clock |= 0x02;
+  if (b3 & 0x04) clock |= 0x01;
 
 
   *p_data = data;
@@ -135,6 +153,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
   struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = 0;
+  int is_v3 = 0;
 
   assert(p_file != NULL);
 
@@ -151,7 +170,12 @@ disc_hfe_load(struct disc_struct* p_disc) {
   if (file_len < 512) {
     util_bail("hfe file no header");
   }
-  if (memcmp(buf, "HXCPICFE", 8) != 0) {
+  if (memcmp(buf, "HXCPICFE", 8) == 0) {
+    /* HFE v1. */
+  } else if (memcmp(buf, "HXCHFEV3", 8) == 0) {
+    /* HFE v3. */
+    is_v3 = 1;
+  } else {
     util_bail("hfe file incorrect header");
   }
   if (buf[8] != '\0') {
@@ -187,10 +211,10 @@ disc_hfe_load(struct disc_struct* p_disc) {
   for (i_track = 0; i_track < hfe_tracks; ++i_track) {
     uint32_t track_offset;
     uint32_t hfe_track_len;
-    uint32_t read_track_bytes;
     uint8_t* p_track_lut;
     uint8_t* p_track_data;
     uint32_t i_byte;
+    uint32_t i_side;
 
     p_track_lut = (p_lut + (i_track * 4));
     track_offset = (p_track_lut[0] + (p_track_lut[1] << 8));
@@ -201,39 +225,99 @@ disc_hfe_load(struct disc_struct* p_disc) {
       util_bail("hfe track doesn't fit");
     }
 
-    /* Divide by 4; 2x sides and 2x FM bytes per data byte. */
-    hfe_track_len /= 4;
-
     p_track_data = (buf + track_offset);
-    read_track_bytes = k_ibm_disc_bytes_per_track;
-    if (read_track_bytes > hfe_track_len) {
-      read_track_bytes = hfe_track_len;
-    }
 
     disc_select_track(p_disc, i_track);
 
-    for (i_byte = 0; i_byte < read_track_bytes; ++i_byte) {
-      uint8_t data;
-      uint8_t clock;
+    for (i_side = 0; i_side < 2; ++i_side) {
       uint8_t* p_data;
       uint8_t* p_clocks;
-      uint32_t index = (i_byte / 64);
-      index *= 512;
-      index += ((i_byte % 64) * 4);
+      uint8_t bitbuf[4];
 
-      disc_hfe_extract_data(&data, &clock, (p_track_data + index));
-      disc_select_side(p_disc, 0);
+      uint32_t i_bitbuf = 0;
+      uint32_t bytes_written = 0;
+      uint32_t buf_len = (hfe_track_len / 2);
+      int is_setbitrate = 0;
+
+      disc_select_side(p_disc, i_side);
       p_data = disc_get_raw_track_data(p_disc);
+      (void) memset(p_data, '\0', k_ibm_disc_bytes_per_track);
       p_clocks = disc_get_raw_track_clocks(p_disc);
-      p_data[i_byte] = data;
-      p_clocks[i_byte] = clock;
-      if (is_double_sided) {
-        disc_hfe_extract_data(&data, &clock, (p_track_data + index + 256));
-        disc_select_side(p_disc, 1);
-        p_data = disc_get_raw_track_data(p_disc);
-        p_clocks = disc_get_raw_track_clocks(p_disc);
-        p_data[i_byte] = data;
-        p_clocks[i_byte] = clock;
+      (void) memset(p_clocks, '\0', k_ibm_disc_bytes_per_track);
+
+      for (i_byte = 0; i_byte < buf_len; ++i_byte) {
+        uint32_t index;
+
+        uint8_t data = 0;
+        uint8_t clock = 0;
+        uint8_t byte = p_track_data[i_byte];
+
+        index = (i_byte / 256);
+        index *= 512;
+        if (i_side == 1) {
+          index += 256;
+        }
+        index += (i_byte % 256);
+
+        byte = p_track_data[index];
+        byte = disc_hfe_byte_flip(byte);
+
+        if (is_setbitrate) {
+          is_setbitrate = 0;
+          if (byte != 72) {
+            util_bail("HFE v3 SETBITRATE not 250kbit: %d", (int) byte);
+          }
+          continue;
+        }
+
+        if (is_v3 && ((byte & 0xF0) == 0xF0)) {
+          switch (byte) {
+          case 0xF0: /* NOP */
+            continue;
+          case 0xF1: /* SETINDEX */
+            if (bytes_written != 0) {
+              util_bail("HFE v3 SETINDEX not at byte 0: %d",
+                        (int) bytes_written);
+            }
+            continue;
+          case 0xF2: /* SETBITRATE */
+            is_setbitrate = 1;
+            continue;
+          case 0xF4: /* RAND */
+            /* Internally we represent non-deterministic bits of disc as a
+             * no flux area.
+             */
+            data = 0;
+            clock = 0;
+            break;
+          default:
+            util_bail("HFE v3 unknown opcode %X", (int) byte);
+          }
+        } else {
+          bitbuf[i_bitbuf] = byte;
+          i_bitbuf++;
+          if (i_bitbuf < 4) {
+            continue;
+          }
+          i_bitbuf = 0;
+
+          disc_hfe_extract_data(&data, &clock, bitbuf);
+          /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
+           * it.
+           */
+          if (!is_double_sided && (i_side == 1)) {
+            data = 0;
+            clock = 0;
+          }
+        }
+
+        p_data[bytes_written] = data;
+        p_clocks[bytes_written] = clock;
+        bytes_written++;
+
+        if (bytes_written == k_ibm_disc_bytes_per_track) {
+          break;
+        }
       }
     }
   }
