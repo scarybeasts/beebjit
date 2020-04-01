@@ -5,6 +5,7 @@
 #include "defs_6502.h"
 #include "state.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
@@ -833,16 +834,19 @@ debug_print_registers(uint8_t reg_a,
                       uint8_t reg_s,
                       const char* flags_buf,
                       uint16_t reg_pc,
-                      uint64_t cycles) {
+                      uint64_t cycles,
+                      uint64_t countdown) {
   (void) printf("[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
-                "F=%s PC=%.4"PRIX16" cycles=%"PRIu64"]\n",
+                "F=%s PC=%.4"PRIX16" "
+                "cycles=%"PRIu64" countdowwn=%"PRIu64"]\n",
                 reg_a,
                 reg_x,
                 reg_y,
                 reg_s,
                 flags_buf,
                 reg_pc,
-                cycles);
+                cycles,
+                countdown);
 }
 
 static void
@@ -896,7 +900,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t flag_o;
   uint8_t flag_i;
   uint8_t flag_d;
-  uint64_t cycles;
   int wrapped_8bit;
   int wrapped_16bit;
   uint8_t opmode;
@@ -1034,8 +1037,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   if (p_debug->debug_running && !hit_break && !p_debug->debug_running_print) {
     return 0;
   }
-
-  cycles = state_6502_get_cycles(p_state_6502);
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
@@ -1331,13 +1332,17 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "crtc")) {
       debug_dump_crtc(p_bbc);
     } else if (!strcmp(input_buf, "r")) {
+      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      uint64_t countdown = timing_get_countdown(p_timing);
+      uint64_t cycles = state_6502_get_cycles(p_state_6502);
       debug_print_registers(reg_a,
                             reg_x,
                             reg_y,
                             reg_s,
                             flags_buf,
                             reg_pc,
-                            cycles);
+                            cycles,
+                            countdown);
     } else if (!strcmp(input_buf, "?")) {
       (void) printf(
   "q                 : quit\n"

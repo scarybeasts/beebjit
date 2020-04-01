@@ -1208,12 +1208,6 @@ bbc_get_registers(struct bbc_struct* p_bbc,
   state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
 }
 
-size_t
-bbc_get_cycles(struct bbc_struct* p_bbc) {
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-  return state_6502_get_cycles(p_state_6502);
-}
-
 void
 bbc_set_registers(struct bbc_struct* p_bbc,
                   uint8_t a,
@@ -1270,6 +1264,11 @@ bbc_get_render(struct bbc_struct* p_bbc) {
 struct serial_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
+}
+
+struct timing_struct*
+bbc_get_timing(struct bbc_struct* p_bbc) {
+  return p_bbc->p_timing;
 }
 
 uint8_t

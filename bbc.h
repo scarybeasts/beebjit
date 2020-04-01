@@ -85,7 +85,6 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        uint8_t s,
                        uint8_t flags,
                        uint16_t pc);
-size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 
 void bbc_run_async(struct bbc_struct* p_bbc);
@@ -100,6 +99,7 @@ struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);
 
 uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
 void bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val);
