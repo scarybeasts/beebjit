@@ -698,8 +698,21 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x0E);
   emit_JMP(p_buf, k_abs, 0xCA00);
 
-  /* Exit sequence. */
+  /* Test a corner case from the Exile disc protected loader: invalid opcode
+   * gets compiled but then invalidated before it executes.
+   */
   set_new_index(p_buf, 0x0A00);
+  /* Make sure timer doesn't disturb us by bouncing into interp. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE45);
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x3010);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 22);
+  emit_JMP(p_buf, k_abs, 0xCA40);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0A40);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -710,6 +723,13 @@ main(int argc, const char* argv[]) {
   set_new_index(p_buf, 0x2000);
   emit_LDA(p_buf, k_abx, 0x0080);
   emit_RTS(p_buf);
+
+  /* For testing compile of invalidate opcode. */
+  set_new_index(p_buf, 0x2010);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x3015);
+  /* KIL */
+  util_buffer_add_1b(p_buf, 0x72);
 
   /* Routine to arrange for an TIMER1 based IRQ at a specific time. */
   /* Input: A is timer value desired at first post-RTS opcode. */

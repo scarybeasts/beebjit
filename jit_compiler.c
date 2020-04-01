@@ -1898,7 +1898,10 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
 
-  assert(cycles_fixup > 0);
+  /* cycles_fixup can be 0 in the case the opcode is bouncing to the
+   * interpreter -- an invalid opcode, for example.
+   */
+  assert(cycles_fixup >= 0);
   countdown += cycles_fixup;
 
   if (a_fixup != -1) {
