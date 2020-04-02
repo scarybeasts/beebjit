@@ -250,7 +250,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
-  if (addr < read_callback_from) {                                           \
+  if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     cycles_this_instruction = 4;                                              \
@@ -266,7 +266,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MODE_ABS_WRITE(INSTR)                                          \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
-  if (addr < write_callback_from) {                                          \
+  if (addr < write_callback_from) {                                           \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 4;                                              \
@@ -282,7 +282,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
-  if (addr < read_write_callback_from) {                                     \
+  if (addr < read_write_callback_from) {                                      \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -301,7 +301,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
-  if (addr < read_callback_from) {                                           \
+  if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     cycles_this_instruction = 4;                                              \
@@ -324,7 +324,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
-  if (addr < write_callback_from) {                                          \
+  if (addr < write_callback_from) {                                           \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 5;                                              \
@@ -341,7 +341,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + x);                                                     \
   pc += 3;                                                                    \
-  if (addr < read_write_callback_from) {                                     \
+  if (addr < read_write_callback_from) {                                      \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -363,7 +363,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
   pc += 2;                                                                    \
-  if (addr < read_callback_from) {                                           \
+  if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     cycles_this_instruction = 6;                                              \
@@ -382,7 +382,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
   pc += 2;                                                                    \
-  if (addr < write_callback_from) {                                          \
+  if (addr < write_callback_from) {                                           \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
@@ -402,7 +402,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr = (addr_temp + y);                                                     \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
   pc += 2;                                                                    \
-  if (addr < read_callback_from) {                                           \
+  if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     cycles_this_instruction = 5;                                              \
@@ -427,7 +427,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
   pc += 2;                                                                    \
-  if (addr < write_callback_from) {                                          \
+  if (addr < write_callback_from) {                                           \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
@@ -446,7 +446,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
   pc += 2;                                                                    \
-  if (addr < read_write_callback_from) {                                     \
+  if (addr < read_write_callback_from) {                                      \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
