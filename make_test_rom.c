@@ -1557,8 +1557,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x02);
   emit_JMP(p_buf, k_abs, 0xD6C0);
 
-  /* End of test. */
+  /* Test for crossing a boundary to $C000. */
   set_new_index(p_buf, 0x16C0);
+  /* Avoid optimizations. */
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_PHA(p_buf);
+  emit_PLA(p_buf);
+  emit_TAX(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abx, 0xBFF8);
+  emit_LDA(p_buf, k_abx, 0xBFF8);
+  /* Should have read out the PHP at $C000. */
+  emit_REQUIRE_EQ(p_buf, 0x08);
+  emit_STA(p_buf, k_abx, 0xBF01);
+  emit_JMP(p_buf, k_abs, 0xD700);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1700);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);

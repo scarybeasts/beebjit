@@ -411,14 +411,13 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
       /* If we miss the registers, it will be:
        * 1) $FF00 - $FFFF on account of trapping on anything above $FC00, or
        * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
-       * 3) The Windows port can get here for read-modify-write instructions.
+       * 3) Temporarily(?) $BFxx on account of $BFxx,X uncertainty and we're
+       * trapping $C000+ on all ports (only really needed on Windows). This
+       * should only be able to hit with the uncarried address read for
+       * something like a page-crossing LDA $BFFF,X
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-      if (!p_bbc->is_64k_mappings) {
-        assert(addr >= k_bbc_os_rom_offset);
-      } else {
-        assert(addr >= k_bbc_sideways_offset);
-      }
+      assert(addr >= (k_bbc_os_rom_offset - 0x100));
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -457,12 +456,6 @@ bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
   }
 
   return romsel;
-}
-
-static int
-bbc_is_sideways_currently_ram(struct bbc_struct* p_bbc) {
-  uint8_t bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
-  return p_bbc->is_sideways_ram_bank[bank];
 }
 
 void
@@ -679,16 +672,7 @@ bbc_write_callback(void* p,
        * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
        * 3) The Windows port needs a wider range to trap ROM writes.
        */
-      if (!p_bbc->is_64k_mappings) {
-        assert(addr >= k_bbc_os_rom_offset);
-      } else {
-        /* Windows port. */
-        assert(addr >= k_bbc_sideways_offset);
-        if ((addr < k_bbc_os_rom_offset) &&
-            bbc_is_sideways_currently_ram(p_bbc)) {
-          bbc_memory_write(p_bbc, addr, val);
-        }
-      }
+      assert(addr >= k_bbc_os_rom_offset);
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
       assert(0);
