@@ -442,7 +442,9 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
 }
 
 static uint8_t
-bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t bank) {
+bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
+  romsel &= 0xF;
+
   if (!p_bbc->is_extended_rom_addressing) {
     /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
      * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
@@ -450,11 +452,11 @@ bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t bank) {
      * compatability" fix.
      * See http://beebwiki.mdfs.net/Paged_ROM.
      */
-    bank &= 0x3;
-    bank += 0xC;
+    romsel &= 0x3;
+    romsel += 0xC;
   }
 
-  return bank;
+  return romsel;
 }
 
 static int
@@ -483,7 +485,9 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
 
   effective_curr_bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
-  effective_new_bank = bbc_get_effective_bank(p_bbc, (index & 0xF));
+  effective_new_bank = bbc_get_effective_bank(p_bbc, index);
+  assert(!(effective_curr_bank & 0xF0));
+  assert(!(effective_new_bank & 0xF0));
 
   p_bbc->romsel = index;
 
