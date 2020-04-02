@@ -40,12 +40,12 @@ struct render_struct {
   int is_clock_2MHz;
   int is_rendering_black;
   uint32_t pixels_size;
-  uint32_t horiz_beam_pos;
-  uint32_t vert_beam_pos;
-  uint32_t horiz_beam_window_start_pos;
-  uint32_t horiz_beam_window_end_pos;
-  uint32_t vert_beam_window_start_pos;
-  uint32_t vert_beam_window_end_pos;
+  int32_t horiz_beam_pos;
+  int32_t vert_beam_pos;
+  int32_t horiz_beam_window_start_pos;
+  int32_t horiz_beam_window_end_pos;
+  int32_t vert_beam_window_start_pos;
+  int32_t vert_beam_window_end_pos;
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
@@ -70,10 +70,13 @@ render_create(struct teletext_struct* p_teletext,
   uint32_t height;
   uint32_t i;
 
+  /* The border appears on all screen edges, and 1 character unit is the width /
+   * height of a MODE 4 glyph / character.
+   */
   uint32_t border_chars = 4;
 
   /* These numbers, 15 and 4, come from the delta between horiz/vert sync
-   * position and of line/frame, in a standard MODE.
+   * position and of line/frame, in a standard 1MHz MODE.
    * Note that AUG states R7 as 34 for a lot of the screen modes whereas it
    * should be 35!
    */
@@ -277,7 +280,8 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
      * bytes that are off-screen, so that it can maintain state.
      */
     teletext_render_data(p_render->p_teletext, NULL, data);
-    if (p_render->horiz_beam_pos == p_render->horiz_beam_window_start_pos) {
+    if ((p_render->horiz_beam_pos & ~15) ==
+        p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
     }
   }
@@ -295,7 +299,7 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
     *p_character = p_render->p_render_table_1MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -316,7 +320,7 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
     p_render->p_render_pos += 16;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -334,7 +338,7 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
     *p_character = p_render->p_render_table_2MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -353,7 +357,7 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
     p_render->p_render_pos += 8;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -668,8 +672,16 @@ render_double_up_lines(struct render_struct* p_render) {
 }
 
 void
-render_hsync(struct render_struct* p_render) {
+render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
+  /* A real CRT appears to sync to the middle of the hsync pulse?!! This
+   * permits half-character horizontal scrolling.
+   * Used by tricky's RallyX demo.
+   * For now, handle just the special case.
+   */
   p_render->horiz_beam_pos = 0;
+  if (hsync_pulse_ticks & 1) {
+    p_render->horiz_beam_pos = -4;
+  }
   p_render->vert_beam_pos += 2;
 
   /* If the CRT beam gets too low with no vsync signal in sight, it will do

@@ -460,7 +460,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
        */
       r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
       if (r2_hit) {
-        render_hsync(p_render);
+        render_hsync(p_render, (p_video->hsync_pulse_width *
+                                p_video->clock_tick_multiplier));
       }
       if (!p_video->cursor_disabled &&
           (p_video->address_counter == cursor_addr) &&
@@ -864,7 +865,7 @@ video_timer_fired(void* p) {
      */
     render_vsync(p_render, 0);
     if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
-      render_hsync(p_render);
+      render_hsync(p_render, 0);
     }
 
     p_video->is_rendering_active = 1;
@@ -1250,6 +1251,8 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t num_pre_cols = 0;
   uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   struct teletext_struct* p_teletext = p_video->p_teletext;
+  uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width *
+                                p_video->clock_tick_multiplier);
 
   if ((p_regs[k_crtc_reg_interlace] & 0x03) == 0x03) {
     num_lines += 2;
@@ -1272,7 +1275,7 @@ video_render_full_frame(struct video_struct* p_video) {
   teletext_VSYNC_changed(p_teletext, 0);
 
   for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
-    (void) render_hsync(p_render);
+    (void) render_hsync(p_render, hsync_pulse_ticks);
   }
   for (i_rows = 0; i_rows < num_rows; ++i_rows) {
     for (i_lines = 0; i_lines < num_lines; ++i_lines) {
@@ -1290,7 +1293,7 @@ video_render_full_frame(struct video_struct* p_video) {
         func_render_data(p_render, p_bbc_mem[bbc_address]);
         crtc_line_address++;
       }
-      (void) render_hsync(p_render);
+      (void) render_hsync(p_render, hsync_pulse_ticks);
       teletext_DISPMTG_changed(p_teletext, 0);
     }
   }
@@ -1484,7 +1487,12 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R3 */
   case k_crtc_reg_sync_width:
     hsync_pulse_width = (val & 0xF);
-    if ((hsync_pulse_width != 8) && (hsync_pulse_width != 4)) {
+    /* NOTE: width of 9 exempted here because some awesome tricky demos use
+     * it for half-character horizontal scrolling.
+     */
+    if ((hsync_pulse_width != 8) &&
+        (hsync_pulse_width != 4) &&
+        (hsync_pulse_width != 9)) {
       log_do_log(k_log_video,
                  k_log_unusual,
                  "hsync pulse width: %u",

@@ -9,3 +9,8 @@ From https://bitshifters.github.io/posts/prods/bs-wave-runner.html
 
 - crtc-somenastyeffects.ssd
 From https://bitshifters.github.io/posts/archives/crtc-somenastyeffects.html
+
+- RallyX.ssd
+From http://www.retrosoftware.co.uk/forum/viewtopic.php?f=19&t=903
+Works on a Model B. Uses R3 trick for half-character horizontal scrolling on a
+CRT display.
