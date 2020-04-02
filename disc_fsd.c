@@ -338,8 +338,13 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
    */
 
   /* First attempt -- see if it fits if we lower the gap sizes a lot. */
-  /* NOTE: the 1770 is very sensitive to GAP2 size so we leave it alone.
-   * In tests, 9 0xFF's is ok, 7 is not. 11 is the default.
+  /* NOTE: the 1770 and 8271 controllers are very sensitive to GAP2 size so we
+   * leave it alone. (In tests, 9 0xFF's is ok, 7 is not. 11 is the default.)
+   * These gaps here are sufficient to enable certain tricky Tynesoft titles to
+   * work (Winter Olympiad, Boulderdash, etc.), which have very small inter-
+   * sector gaps. On the Winter Olympiad disc, the packed tracks have total
+   * gap sizes (FFs + 00s) as small as 4, but more typically 7 (1x FFs, 6x 00s).
+   * The total gap sizes here will be 9, which is still small enough to work.
    */
   *p_gap1_ff_count = 3;
   *p_gap3_ff_count = 3;
@@ -488,13 +493,15 @@ disc_fsd_load(struct disc_struct* p_disc,
       /* NOTE: "unformatted" track could mean a few different possibilities.
        * What it definitely means is that there are no detectable sector ID
        * markers. But it doesn't say why.
-       * For example, my original Elite disc has a genuinely unformatted track,
-       * i.e. no flux transitions. On the other hand, my original Labyrinth
-       * disc has flux transitions (of varinging width)!
-       * To keep things simple we write a track full of 0 data bits and no
-       * markers.
+       * For example, my original Elite and Castle Quest discs have a genuinely
+       * unformatted track, i.e. no flux transitions. On the other hand, my
+       * original Labyrinth disc has flux transitions (of varinging width)!
+       * Let's go with a genuinely unformatted track.
        */
-      disc_build_append_repeat(p_disc, 0, k_ibm_disc_bytes_per_track);
+      disc_build_append_repeat_with_clocks(p_disc,
+                                           0,
+                                           0,
+                                           k_ibm_disc_bytes_per_track);
       /* Some LOG files end prematurely after all the useful data, in the
        * middle of a run of "unformatted track". We can detect and accept that
        * here.
