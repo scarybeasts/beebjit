@@ -8,8 +8,8 @@ get addressed before the next release.
 
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
-- HFEv3.
 - 6845 R6, R7 time-of-check improvements?
+- 6845 R3 based horizontal scrolling.
 
 
 Fix later

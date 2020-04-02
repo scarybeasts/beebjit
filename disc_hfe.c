@@ -8,6 +8,18 @@
 #include <assert.h>
 #include <string.h>
 
+static const char* k_hfe_header_v1 = "HXCPICFE";
+static const char* k_hfe_header_v3 = "HXCHFEV3";
+static uint32_t k_hfe_format_metadata_size = 513;
+static uint32_t k_hfe_format_metadata_offset_version = 512;
+static uint8_t k_hfe_v3_opcode_mask = 0xF0;
+enum {
+  k_hfe_v3_opcode_nop = 0xF0,
+  k_hfe_v3_opcode_setindex = 0xF1,
+  k_hfe_v3_opcode_setbitrate = 0xF2,
+  k_hfe_v3_opcode_rand = 0xF4,
+};
+
 static uint8_t
 disc_hfe_byte_flip(uint8_t val) {
   uint8_t ret = 0;
@@ -91,49 +103,75 @@ void
 disc_hfe_write_track(struct disc_struct* p_disc) {
   uint32_t hfe_track_offset;
   uint32_t hfe_track_len;
-  uint8_t* p_metadata;
-  uint32_t write_len;
   uint32_t i_byte;
-  uint8_t* p_src_data;
-  uint8_t* p_src_clocks;
-  uint8_t buf[64 * 4];
+  uint32_t metadata_index;
+  uint8_t buffer[(k_ibm_disc_bytes_per_track * 4) + 3];
+  uint8_t hfe_chunk[256];
 
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track = disc_get_track(p_disc);
+  uint8_t* p_metadata = disc_get_format_metadata(p_disc);
+  uint8_t version = p_metadata[k_hfe_format_metadata_offset_version];
+  uint8_t* p_src_data = disc_get_raw_track_data(p_disc);
+  uint8_t* p_src_clocks = disc_get_raw_track_clocks(p_disc);
+  uint32_t buffer_index = 0;
+  uint32_t write_pos = 0;
 
   assert(p_file != NULL);
   assert(disc_is_track_dirty(p_disc));
 
-  p_metadata = disc_get_format_metadata(p_disc);
-  p_metadata += (track * 4);
-  hfe_track_offset = (p_metadata[0] + (p_metadata[1] << 8));
-  hfe_track_offset *= 512;
-  if (disc_is_upper_side(p_disc)) {
-    hfe_track_offset += 256;
+  if (version == 3) {
+    buffer[0] = disc_hfe_byte_flip(k_hfe_v3_opcode_setindex);
+    buffer[1] = disc_hfe_byte_flip(k_hfe_v3_opcode_setbitrate);
+    buffer[2] = disc_hfe_byte_flip(72);
+    buffer_index += 3;
   }
-  hfe_track_len = (p_metadata[2] + (p_metadata[3] << 8));
-  hfe_track_len /= 4;
-
-  p_src_data = disc_get_raw_track_data(p_disc);
-  p_src_clocks = disc_get_raw_track_clocks(p_disc);
-
-  write_len = k_ibm_disc_bytes_per_track;
-  if (write_len > hfe_track_len) {
-    write_len = hfe_track_len;
-  }
-
-  for (i_byte = 0; i_byte < write_len; ++i_byte) {
-    uint32_t index = (i_byte % 64);
-
-    disc_hfe_encode_data((buf + (index * 4)),
-                         p_src_data[i_byte],
-                         p_src_clocks[i_byte]);
-
-    if ((index == 63) || (i_byte == (write_len - 1))) {
-      util_file_seek(p_file, hfe_track_offset);
-      util_file_write(p_file, buf, ((index + 1) * 4));
-      hfe_track_offset += 512;
+  for (i_byte = 0; i_byte < k_ibm_disc_bytes_per_track; ++i_byte) {
+    uint8_t data = p_src_data[i_byte];
+    uint8_t clocks = p_src_clocks[i_byte];
+    if ((version == 3) && (data == 0) && (clocks == 0)) {
+      /* Mark weak bits explicitly in HFEv3. */
+      uint8_t byte = disc_hfe_byte_flip(k_hfe_v3_opcode_rand);
+      (void) memset(&buffer[buffer_index], byte, 4);
+    } else {
+      disc_hfe_encode_data(&buffer[buffer_index],
+                           p_src_data[i_byte],
+                           p_src_clocks[i_byte]);
     }
+    buffer_index += 4;
+  }
+
+  metadata_index = (track * 4);
+  hfe_track_offset = (p_metadata[metadata_index] +
+                      (p_metadata[metadata_index + 1] << 8));
+  hfe_track_offset *= 512;
+  hfe_track_len = (p_metadata[metadata_index + 2] +
+                   (p_metadata[metadata_index + 3] << 8));
+
+  i_byte = 0;
+  write_pos = 0;
+  if (disc_is_upper_side(p_disc)) {
+    write_pos = 256;
+  }
+
+  while (i_byte < buffer_index) {
+    uint32_t chunk_len = 256;
+    uint32_t read_left = (buffer_index - i_byte);
+    if (read_left < 256) {
+      chunk_len = read_left;
+      (void) memset(hfe_chunk, '\0', 256);
+    }
+
+    (void) memcpy(hfe_chunk, &buffer[i_byte], chunk_len);
+
+    util_file_seek(p_file, (hfe_track_offset + write_pos));
+    util_file_write(p_file, hfe_chunk, 256);
+    write_pos += 512;
+    if (write_pos >= hfe_track_len) {
+      break;
+    }
+
+    i_byte += chunk_len;
   }
 }
 
@@ -149,7 +187,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
   uint32_t i_track;
   uint32_t lut_offset;
   uint8_t* p_lut;
-  uint8_t* p_format_metadata;
+  uint8_t* p_metadata;
 
   struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = 0;
@@ -159,7 +197,8 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
   (void) memset(buf, '\0', sizeof(buf));
 
-  p_format_metadata = disc_allocate_format_metadata(p_disc, 512);
+  p_metadata = disc_allocate_format_metadata(p_disc,
+                                             k_hfe_format_metadata_size);
 
   file_len = util_file_read(p_file, buf, k_max_hfe_size);
 
@@ -170,11 +209,13 @@ disc_hfe_load(struct disc_struct* p_disc) {
   if (file_len < 512) {
     util_bail("hfe file no header");
   }
-  if (memcmp(buf, "HXCPICFE", 8) == 0) {
+  if (memcmp(buf, k_hfe_header_v1, 8) == 0) {
     /* HFE v1. */
-  } else if (memcmp(buf, "HXCHFEV3", 8) == 0) {
+    p_metadata[k_hfe_format_metadata_offset_version] = 1;
+  } else if (memcmp(buf, k_hfe_header_v3, 8) == 0) {
     /* HFE v3. */
     is_v3 = 1;
+    p_metadata[k_hfe_format_metadata_offset_version] = 3;
   } else {
     util_bail("hfe file incorrect header");
   }
@@ -205,8 +246,8 @@ disc_hfe_load(struct disc_struct* p_disc) {
     util_bail("hfe LUT doesn't fit");
   }
 
-  (void) memcpy(p_format_metadata, (buf + lut_offset), 512);
-  p_lut = p_format_metadata;
+  (void) memcpy(p_metadata, (buf + lut_offset), 512);
+  p_lut = p_metadata;
 
   for (i_track = 0; i_track < hfe_tracks; ++i_track) {
     uint32_t track_offset;
@@ -250,6 +291,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
         uint8_t data = 0;
         uint8_t clock = 0;
+        int is_weak = 0;
         uint8_t byte = p_track_data[i_byte];
 
         index = (i_byte / 256);
@@ -270,45 +312,53 @@ disc_hfe_load(struct disc_struct* p_disc) {
           continue;
         }
 
-        if (is_v3 && ((byte & 0xF0) == 0xF0)) {
+        if (is_v3 && ((byte & k_hfe_v3_opcode_mask) == k_hfe_v3_opcode_mask)) {
           switch (byte) {
-          case 0xF0: /* NOP */
+          case k_hfe_v3_opcode_nop:
             continue;
-          case 0xF1: /* SETINDEX */
+          case k_hfe_v3_opcode_setindex:
             if (bytes_written != 0) {
               util_bail("HFE v3 SETINDEX not at byte 0: %d",
                         (int) bytes_written);
             }
             continue;
-          case 0xF2: /* SETBITRATE */
+          case k_hfe_v3_opcode_setbitrate:
             is_setbitrate = 1;
             continue;
-          case 0xF4: /* RAND */
-            /* Internally we represent non-deterministic bits of disc as a
-             * no flux area.
-             */
-            data = 0;
-            clock = 0;
+          case k_hfe_v3_opcode_rand:
+            /* Handled below. */
             break;
           default:
             util_bail("HFE v3 unknown opcode %X", (int) byte);
+            break;
           }
-        } else {
-          bitbuf[i_bitbuf] = byte;
-          i_bitbuf++;
-          if (i_bitbuf < 4) {
-            continue;
-          }
-          i_bitbuf = 0;
+        }
 
-          disc_hfe_extract_data(&data, &clock, bitbuf);
-          /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
-           * it.
-           */
-          if (!is_double_sided && (i_side == 1)) {
-            data = 0;
-            clock = 0;
-          }
+        if (is_v3 && (byte == k_hfe_v3_opcode_rand)) {
+          is_weak = 1;
+        }
+        bitbuf[i_bitbuf] = byte;
+        i_bitbuf++;
+        if (i_bitbuf < 4) {
+          continue;
+        }
+
+        disc_hfe_extract_data(&data, &clock, bitbuf);
+        /* Internally we represent weak bits on disc as a no flux area. */
+        if (is_weak) {
+          data = 0;
+          clock = 0;
+        }
+
+        i_bitbuf = 0;
+        is_weak = 0;
+
+        /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
+         * it.
+         */
+        if (!is_double_sided && (i_side == 1)) {
+          data = 0;
+          clock = 0;
         }
 
         p_data[bytes_written] = data;
@@ -329,7 +379,8 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   uint8_t header[512];
   uint8_t* p_metadata;
 
-  uint32_t hfe_track_len = (k_ibm_disc_bytes_per_track * 8);
+  /* 4 bytes per data byte, 3 "header" HFEv3 bytes, 2 sides. */
+  uint32_t hfe_track_len = (((k_ibm_disc_bytes_per_track * 4) + 3) * 2);
   uint32_t hfe_offset = 2;
   uint32_t hfe_offset_delta = ((hfe_track_len / 512) + 1);
   struct util_file* p_file = disc_get_file(p_disc);
@@ -339,7 +390,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
    * appears to be the byte used for the default / sane boolean option.
    */
   (void) memset(header, '\xFF', sizeof(header));
-  (void) strcpy((char*) header, "HXCPICFE");
+  (void) strcpy((char*) header, k_hfe_header_v3);
   /* Revision 0. */
   header[8] = 0;
   /* 80 tracks, sides as appropriate. */
@@ -371,7 +422,10 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   util_file_seek(p_file, 0);
   util_file_write(p_file, header, 512);
 
-  p_metadata = disc_allocate_format_metadata(p_disc, 512);
+  p_metadata = disc_allocate_format_metadata(p_disc,
+                                             k_hfe_format_metadata_size);
+  /* HFE v3. */
+  p_metadata[k_hfe_format_metadata_offset_version] = 3;
 
   for (i_track = 0; i_track < k_ibm_disc_tracks_per_disc; ++i_track) {
     uint32_t index = (i_track * 4);
