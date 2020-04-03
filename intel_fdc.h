@@ -6,7 +6,7 @@
 struct intel_fdc_struct;
 
 struct bbc_options;
-struct disc_struct;
+struct disc_drive_struct;
 struct state_6502;
 
 struct intel_fdc_struct* intel_fdc_create(struct state_6502* p_state_6502,
@@ -15,8 +15,8 @@ void intel_fdc_destroy(struct intel_fdc_struct* p_fdc);
 
 /* Setup. */
 void intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
-                          struct disc_struct* p_disc_0,
-                          struct disc_struct* p_disc_1);
+                          struct disc_drive_struct* p_drive_0,
+                          struct disc_drive_struct* p_drive_1);
 
 /* Host hardware register I/O. */
 uint8_t intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr);

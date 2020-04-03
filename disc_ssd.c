@@ -14,44 +14,46 @@ enum {
 };
 
 void
-disc_ssd_write_track(struct disc_struct* p_disc) {
-  uint8_t* p_track_src;
+disc_ssd_write_track(struct disc_struct* p_disc,
+                     int is_side_upper,
+                     uint32_t track,
+                     uint8_t* p_data,
+                     uint8_t* p_clocks) {
   uint32_t i_sector;
   uint64_t seek_pos;
 
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
-  uint32_t track = disc_get_track(p_disc);
+  int is_dsd = disc_is_double_sided(p_disc);
 
-  assert(disc_is_track_dirty(p_disc));
+  (void) p_clocks;
 
   seek_pos = (track_size * track);
-  if (disc_is_double_sided(p_disc)) {
+  if (is_dsd) {
     seek_pos *= 2;
   }
-  if (disc_is_upper_side(p_disc)) {
+  if (is_side_upper) {
+    assert(is_dsd);
     seek_pos += track_size;
   }
   util_file_seek(p_file, seek_pos);
 
-  p_track_src = disc_get_raw_track_data(p_disc);
   /* Skip GAP1. */
-  p_track_src += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
+  p_data += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
 
   for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
     /* Skip header, GAP2 and data marker. */
-    p_track_src += 7;
-    p_track_src += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
-    p_track_src += 1;
+    p_data += 7;
+    p_data += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
+    p_data += 1;
 
-    util_file_write(p_file, p_track_src, k_disc_ssd_sector_size);
-    p_track_src += k_disc_ssd_sector_size;
+    util_file_write(p_file, p_data, k_disc_ssd_sector_size);
+    p_data += k_disc_ssd_sector_size;
     /* Skip checksum. */
-    p_track_src += 2;
+    p_data += 2;
 
     /* Skip GAP3. */
-    p_track_src += (k_ibm_disc_std_10_sector_gap3_FFs +
-                    k_ibm_disc_std_sync_00s);
+    p_data += (k_ibm_disc_std_10_sector_gap3_FFs + k_ibm_disc_std_sync_00s);
   }
 }
 
@@ -140,12 +142,9 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
           disc_build_append_repeat(p_disc, 0x00, k_ibm_disc_std_sync_00s);
         }
       } /* End of sectors loop. */
+
       /* Fill until end of track, aka. GAP 4. */
-      assert(disc_get_head_position(p_disc) <= k_ibm_disc_bytes_per_track);
-      disc_build_append_repeat(p_disc,
-                               0xFF,
-                               (k_ibm_disc_bytes_per_track -
-                                disc_get_head_position(p_disc)));
+      disc_build_fill(p_disc, 0xFF);
     } /* End of side loop. */
   } /* End of track loop. */
 

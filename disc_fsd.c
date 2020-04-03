@@ -691,11 +691,7 @@ disc_fsd_load(struct disc_struct* p_disc,
     } /* End of sectors loop. */
 
     /* Fill until end of track, aka. GAP 4. */
-    assert(disc_get_head_position(p_disc) <= k_ibm_disc_bytes_per_track);
-    disc_build_append_repeat(p_disc,
-                             0xFF,
-                             (k_ibm_disc_bytes_per_track -
-                              disc_get_head_position(p_disc)));
+    disc_build_fill(p_disc, 0xFF);
   } /* End of track loop. */
 
   util_free(p_file_buf);

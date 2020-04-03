@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "defs_6502.h"
 #include "disc.h"
+#include "disc_drive.h"
 #include "intel_fdc.h"
 #include "keyboard.h"
 #include "log.h"
@@ -118,8 +119,8 @@ struct bbc_struct {
   struct render_struct* p_render;
   struct teletext_struct* p_teletext;
   struct video_struct* p_video;
-  struct disc_struct* p_disc_0;
-  struct disc_struct* p_disc_1;
+  struct disc_drive_struct* p_drive_0;
+  struct disc_drive_struct* p_drive_1;
   struct intel_fdc_struct* p_intel_fdc;
   struct serial_struct* p_serial;
   struct tape_struct* p_tape;
@@ -1018,20 +1019,20 @@ bbc_create(int mode,
     util_bail("video_create failed");
   }
 
-  p_bbc->p_disc_0 = disc_create(p_timing, &p_bbc->options);
-  if (p_bbc->p_disc_0 == NULL) {
-    util_bail("disc_create failed");
+  p_bbc->p_drive_0 = disc_drive_create(p_timing);
+  if (p_bbc->p_drive_0 == NULL) {
+    util_bail("disc_drive_create failed");
   }
-  p_bbc->p_disc_1 = disc_create(p_timing, &p_bbc->options);
-  if (p_bbc->p_disc_1 == NULL) {
-    util_bail("disc_create failed");
+  p_bbc->p_drive_1 = disc_drive_create(p_timing);
+  if (p_bbc->p_drive_1 == NULL) {
+    util_bail("disc_drive_create failed");
   }
 
   p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
   if (p_bbc->p_intel_fdc == NULL) {
     util_bail("intel_fdc_create failed");
   }
-  intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
+  intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
 
   p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
@@ -1094,8 +1095,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
   intel_fdc_destroy(p_bbc->p_intel_fdc);
-  disc_destroy(p_bbc->p_disc_0);
-  disc_destroy(p_bbc->p_disc_1);
+  disc_drive_destroy(p_bbc->p_drive_0);
+  disc_drive_destroy(p_bbc->p_drive_1);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
   os_alloc_free_mapping(p_bbc->p_mapping_raw);
@@ -1659,17 +1660,27 @@ bbc_load_disc(struct bbc_struct* p_bbc,
               int is_writeable,
               int is_mutable,
               int convert_to_hfe) {
+  struct disc_drive_struct* p_drive;
   struct disc_struct* p_disc;
 
   assert((drive >= 0) && (drive <= 1));
 
   if (drive == 0) {
-    p_disc = p_bbc->p_disc_0;
+    p_drive = p_bbc->p_drive_0;
   } else {
-    p_disc = p_bbc->p_disc_1;
+    p_drive = p_bbc->p_drive_1;
   }
 
-  disc_load(p_disc, p_filename, is_writeable, is_mutable, convert_to_hfe);
+  p_disc = disc_create(p_filename,
+                       is_writeable,
+                       is_mutable,
+                       convert_to_hfe,
+                       &p_bbc->options);
+  if (p_disc == NULL) {
+    util_bail("disc_create failed");
+  }
+
+  disc_drive_add_disc(p_drive, p_disc);
 }
 
 void
