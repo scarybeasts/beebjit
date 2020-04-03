@@ -471,6 +471,16 @@ disc_fsd_load(struct disc_struct* p_disc,
     uint32_t gap2_ff_count = 11;
     uint32_t gap3_ff_count = 16;
 
+    /* Some files end prematurely but cleanly on a track boundary. These files
+     * seem to work ok if the remainder of tracks are left unformatted.
+     * Examples:
+     * 255 Felix meets the Evil Weevils.FSD
+     * 518 THE WORST WITCH.log
+     */
+    if (file_remaining == 0) {
+      break;
+    }
+
     if (file_remaining < 2) {
       util_bail("fsd file missing track header");
     }
@@ -502,14 +512,6 @@ disc_fsd_load(struct disc_struct* p_disc,
                                            0,
                                            0,
                                            k_ibm_disc_bytes_per_track);
-      /* Some LOG files end prematurely after all the useful data, in the
-       * middle of a run of "unformatted track". We can detect and accept that
-       * here.
-       * Example: 518 THE WORST WITCH.log
-       */
-      if (file_remaining == 0) {
-        break;
-      }
       continue;
     }
 
