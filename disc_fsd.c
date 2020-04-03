@@ -16,6 +16,7 @@ enum {
 
 struct disc_fsd_sector {
   char sector_spec[32];
+  uint8_t sector_error;
   uint8_t logical_track;
   uint8_t head;
   uint8_t logical_sector;
@@ -51,6 +52,46 @@ disc_fsd_calculate_track_total_bytes(uint32_t fsd_sectors,
   ret += (gap1_ff_count + 6);
 
   return ret;
+}
+
+static void
+disc_fsd_determine_sherston_weak_bits(struct disc_fsd_sector* p_sector) {
+  /* Sector error $0E only applies weak bits if the real and declared
+   * sector sizes match. Otherwise various Sherston Software titles
+   * fail. This also matches the logic in:
+   * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
+   */
+  if (!p_sector->is_crc_error) {
+    return;
+  }
+
+  /* Only sector error $0E needs to trigger. */
+  if (p_sector->sector_error != 0x0E) {
+    return;
+  }
+
+  /* Examples:
+   * 1) 621 THREE LITTLE PIGS AT HOME - THE STORY.log
+   * Track 39 / sector 9 / logical size 256. Physical size 128.
+   *
+   * 2) 186 THE TEDDY BEARS' PICNIC SIDE 1.FSD
+   * Track 39 / sector 9 / logical size 256. Physical size 256.
+   *
+   * 3) 267 THE CIRCUS (80 TRACK).FSD
+   * Track 0 / sector 2 / logical size 256. Physical size 256.
+   */
+
+  /* Sherston weak bits are track 39, sector 9 or track 0, sector 2. */
+  if ((p_sector->logical_track == 39) && (p_sector->logical_sector == 9)) {
+    /* Yes. */
+  } else if ((p_sector->logical_track == 0) &&
+             (p_sector->logical_sector == 2)) {
+    /* Yes. */
+  } else {
+    return;
+  }
+
+  p_sector->is_weak_bits = 1;
 }
 
 static void
@@ -173,6 +214,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
 
     actual_size_bytes = p_buf[0];
     sector_error = p_buf[1];
+    p_sector->sector_error = sector_error;
     p_buf += 2;
     file_remaining -= 2;
 
@@ -229,14 +271,6 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
        * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p74208
        */
       p_sector->is_crc_error = 1;
-      /* Sector error $0E only applies weak bits if the real and declared
-       * sector sizes match. Otherwise various Sherston Software titles
-       * fail. This also matches the logic in:
-       * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
-           */
-      if (actual_size_bytes == logical_size_bytes) {
-        p_sector->is_weak_bits = 1;
-      }
     } else if (sector_error == 0x2E) {
       /* $2E isn't documented and neither are $20 / $0E documented as bit
        * fields, but it shows up anyway in The Wizard's Return.
@@ -276,6 +310,11 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     } else if (sector_error != 0) {
       util_bail("fsd file sector error %d unsupported", sector_error);
     }
+
+    /* For now, try and determine whether it's a Sherston Software weak bits
+     * sector from just the header details.
+     */
+    disc_fsd_determine_sherston_weak_bits(p_sector);
 
     if (p_sector->truncated_size_bytes != p_sector->actual_size_bytes) {
       (*p_track_truncatable_sectors)++;
