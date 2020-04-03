@@ -181,7 +181,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
    * https://hxc2001.com/download/floppy_drive_emulator/SDCard_HxC_Floppy_Emulator_HFE_file_format.pdf
    */
   static const size_t k_max_hfe_size = (1024 * 1024 * 4);
-  uint8_t buf[k_max_hfe_size];
+  uint8_t* p_file_buf;
   uint32_t file_len;
   uint32_t hfe_tracks;
   uint32_t i_track;
@@ -195,12 +195,12 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
   assert(p_file != NULL);
 
-  (void) memset(buf, '\0', sizeof(buf));
+  p_file_buf = util_malloc(k_max_hfe_size);
 
   p_metadata = disc_allocate_format_metadata(p_disc,
                                              k_hfe_format_metadata_size);
 
-  file_len = util_file_read(p_file, buf, k_max_hfe_size);
+  file_len = util_file_read(p_file, p_file_buf, k_max_hfe_size);
 
   if (file_len == k_max_hfe_size) {
     util_bail("hfe file too large");
@@ -209,44 +209,44 @@ disc_hfe_load(struct disc_struct* p_disc) {
   if (file_len < 512) {
     util_bail("hfe file no header");
   }
-  if (memcmp(buf, k_hfe_header_v1, 8) == 0) {
+  if (memcmp(p_file_buf, k_hfe_header_v1, 8) == 0) {
     /* HFE v1. */
     p_metadata[k_hfe_format_metadata_offset_version] = 1;
-  } else if (memcmp(buf, k_hfe_header_v3, 8) == 0) {
+  } else if (memcmp(p_file_buf, k_hfe_header_v3, 8) == 0) {
     /* HFE v3. */
     is_v3 = 1;
     p_metadata[k_hfe_format_metadata_offset_version] = 3;
   } else {
     util_bail("hfe file incorrect header");
   }
-  if (buf[8] != '\0') {
+  if (p_file_buf[8] != '\0') {
     util_bail("hfe file revision not 0");
   }
-  if (buf[11] != 2) {
+  if (p_file_buf[11] != 2) {
     util_bail("hfe encoding not ISOIBM_FM_ENCODING");
   }
-  if (buf[10] == 1) {
+  if (p_file_buf[10] == 1) {
     is_double_sided = 0;
-  } else if (buf[10] == 2) {
+  } else if (p_file_buf[10] == 2) {
     is_double_sided = 1;
   } else {
     util_bail("hfe invalid number of sides");
   }
   disc_set_is_double_sided(p_disc, is_double_sided);
 
-  hfe_tracks = buf[9];
+  hfe_tracks = p_file_buf[9];
   if (hfe_tracks > k_ibm_disc_tracks_per_disc) {
     util_bail("hfe excessive tracks");
   }
 
-  lut_offset = (buf[18] + (buf[19] << 8));
+  lut_offset = (p_file_buf[18] + (p_file_buf[19] << 8));
   lut_offset *= 512;
 
   if ((lut_offset + 512) > file_len) {
     util_bail("hfe LUT doesn't fit");
   }
 
-  (void) memcpy(p_metadata, (buf + lut_offset), 512);
+  (void) memcpy(p_metadata, (p_file_buf + lut_offset), 512);
   p_lut = p_metadata;
 
   for (i_track = 0; i_track < hfe_tracks; ++i_track) {
@@ -266,7 +266,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
       util_bail("hfe track doesn't fit");
     }
 
-    p_track_data = (buf + track_offset);
+    p_track_data = (p_file_buf + track_offset);
 
     disc_select_track(p_disc, i_track);
 
@@ -371,6 +371,8 @@ disc_hfe_load(struct disc_struct* p_disc) {
       }
     }
   }
+
+  util_free(p_file_buf);
 }
 
 void

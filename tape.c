@@ -128,8 +128,8 @@ tape_read_float(uint8_t* p_in_buf) {
 void
 tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   static const size_t k_max_uef_size = (1024 * 1024);
-  uint8_t in_buf[k_max_uef_size];
-  int32_t out_buf[k_max_uef_size];
+  uint8_t* p_in_file_buf;
+  int32_t* p_out_file_buf;
   size_t len;
   size_t file_remaining;
   size_t buffer_remaining;
@@ -142,21 +142,21 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
 
   assert(p_tape->p_tape_buffer == NULL);
 
-  (void) memset(in_buf, '\0', sizeof(in_buf));
-  (void) memset(out_buf, '\0', sizeof(out_buf));
+  p_in_file_buf = util_malloc(k_max_uef_size);
+  p_out_file_buf = util_malloc(k_max_uef_size * 4);
 
   p_file = util_file_open(p_file_name, 0, 0);
 
-  len = util_file_read(p_file, in_buf, sizeof(in_buf));
+  len = util_file_read(p_file, p_in_file_buf, k_max_uef_size);
 
   util_file_close(p_file);
 
-  if (len == sizeof(in_buf)) {
+  if (len == k_max_uef_size) {
     util_bail("uef file too large");
   }
 
-  p_in_buf = in_buf;
-  p_out_buf = out_buf;
+  p_in_buf = p_in_file_buf;
+  p_out_buf = p_out_file_buf;
   file_remaining = len;
   buffer_remaining = k_max_uef_size;
   if (file_remaining < 12) {
@@ -336,10 +336,13 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
 
   num_tape_values = (k_max_uef_size - buffer_remaining);
   tape_buffer_size = (num_tape_values * sizeof(int32_t));
-  p_tape->p_tape_buffer = util_mallocz(tape_buffer_size);
+  p_tape->p_tape_buffer = util_malloc(tape_buffer_size);
 
-  (void) memcpy(p_tape->p_tape_buffer, out_buf, tape_buffer_size);
+  (void) memcpy(p_tape->p_tape_buffer, p_out_file_buf, tape_buffer_size);
   p_tape->num_tape_values = num_tape_values;
+
+  util_free(p_in_file_buf);
+  util_free(p_out_file_buf);
 }
 
 int

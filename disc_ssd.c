@@ -57,26 +57,29 @@ disc_ssd_write_track(struct disc_struct* p_disc) {
 
 void
 disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
+  static const uint32_t k_max_ssd_size = (k_disc_ssd_sector_size *
+                                          k_disc_ssd_sectors_per_track *
+                                          k_disc_ssd_tracks_per_disc *
+                                          2);
   uint64_t file_size;
   size_t read_ret;
-  uint8_t buf[(k_disc_ssd_sector_size *
-               k_disc_ssd_sectors_per_track *
-               k_disc_ssd_tracks_per_disc *
-               2)];
+  uint8_t* p_file_buf;
   uint32_t i_side;
   uint32_t i_track;
   uint32_t i_sector;
 
   struct util_file* p_file = disc_get_file(p_disc);
-  uint64_t max_size = sizeof(buf);
-  uint8_t* p_ssd_data = buf;
+  uint8_t* p_ssd_data;
   uint32_t num_sides = 2;
+  uint32_t max_size = k_max_ssd_size;
 
   assert(p_file != NULL);
 
   disc_set_is_double_sided(p_disc, is_dsd);
 
-  (void) memset(buf, '\0', sizeof(buf));
+  /* Must zero it out because it is all read even if the file is short. */
+  p_file_buf = util_mallocz(k_max_ssd_size);
+  p_ssd_data = p_file_buf;
 
   if (!is_dsd) {
     max_size /= 2;
@@ -90,7 +93,7 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
     util_bail("ssd/dsd file not a sector multiple");
   }
 
-  read_ret = util_file_read(p_file, buf, file_size);
+  read_ret = util_file_read(p_file, p_file_buf, file_size);
   if (read_ret != file_size) {
     util_bail("ssd/dsd file short read");
   }
@@ -145,4 +148,6 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
                                 disc_get_head_position(p_disc)));
     } /* End of side loop. */
   } /* End of track loop. */
+
+  util_free(p_file_buf);
 }

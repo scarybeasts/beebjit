@@ -442,7 +442,7 @@ disc_fsd_load(struct disc_struct* p_disc,
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
   static const size_t k_max_fsd_size = (1024 * 1024);
-  uint8_t buf[k_max_fsd_size];
+  uint8_t* p_file_buf;
   size_t len;
   size_t file_remaining;
   uint8_t* p_buf;
@@ -453,15 +453,15 @@ disc_fsd_load(struct disc_struct* p_disc,
   struct util_file* p_file = disc_get_file(p_disc);
   assert(p_file != NULL);
 
-  (void) memset(buf, '\0', sizeof(buf));
+  p_file_buf = util_malloc(k_max_fsd_size);
 
-  len = util_file_read(p_file, buf, sizeof(buf));
+  len = util_file_read(p_file, p_file_buf, k_max_fsd_size);
 
-  if (len == sizeof(buf)) {
+  if (len == k_max_fsd_size) {
     util_bail("fsd file too large");
   }
 
-  p_buf = buf;
+  p_buf = p_file_buf;
   file_remaining = len;
   if (file_remaining < 8) {
     util_bail("fsd file no header");
@@ -697,4 +697,6 @@ disc_fsd_load(struct disc_struct* p_disc,
                              (k_ibm_disc_bytes_per_track -
                               disc_get_head_position(p_disc)));
   } /* End of track loop. */
+
+  util_free(p_file_buf);
 }

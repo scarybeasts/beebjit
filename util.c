@@ -17,11 +17,18 @@ typedef void (*sighandler_t)(int);
 static void (*s_p_interrupt_callback)(void);
 
 void*
-util_mallocz(size_t size) {
+util_malloc(size_t size) {
   void* p_ret = malloc(size);
   if (p_ret == NULL) {
     util_bail("malloc failed");
   }
+
+  return p_ret;
+}
+
+void*
+util_mallocz(size_t size) {
+  void* p_ret = util_malloc(size);
 
   (void) memset(p_ret, '\0', size);
 
