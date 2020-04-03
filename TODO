@@ -9,12 +9,15 @@ get addressed before the next release.
 - Investigate if the 1kHz system tick drives the audio too hard, or whether it
 can even block at that resolution.
 - 6845 R6, R7 time-of-check improvements?
+- Ability to change discs.
 
 
 Fix later
 =========
 Bugs and issues not serious enough to warrant fixing before the next release.
 
+- Carry 40T vs. 80T through to converted HFEs.
+- "back in time" support in the debugger via fast replay.
 - JIT block timing code improvements. Currently, there's a non-trivial
 instruction sequence after every conditional branch in a JIT block. This
 sequence can be improved a lot. For example, there only needs to be a branch
