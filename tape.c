@@ -364,3 +364,8 @@ tape_stop(struct tape_struct* p_tape) {
     p_tape->p_status_callback(p_tape->p_status_callback_object, 0, -1);
   }
 }
+
+void
+tape_rewind(struct tape_struct* p_tape) {
+  p_tape->tape_buffer_pos = 0;
+}

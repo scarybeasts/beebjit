@@ -25,5 +25,6 @@ int tape_is_playing(struct tape_struct* p_tape);
 
 void tape_play(struct tape_struct* p_tape);
 void tape_stop(struct tape_struct* p_tape);
+void tape_rewind(struct tape_struct* p_tape);
 
 #endif /* BEEBJIT_TAPE_H */

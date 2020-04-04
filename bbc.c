@@ -1472,6 +1472,28 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
+static inline void
+bbc_check_alt_keys(struct bbc_struct* p_bbc) {
+  struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+
+  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
+    /* Toggle fast mode. */
+    p_bbc->fast_flag = !p_bbc->fast_flag;
+    sound_set_output_enabled(p_bbc->p_sound, !p_bbc->fast_flag);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
+    /* Exit any in progress replay. */
+    if (keyboard_is_replaying(p_keyboard)) {
+      keyboard_end_replay(p_keyboard);
+    }
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '0')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_0);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_1);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'T')) {
+    tape_rewind(p_bbc->p_tape);
+  }
+}
+
 static void
 bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
@@ -1481,10 +1503,8 @@ bbc_cycles_timer_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
-  struct sound_struct* p_sound = p_bbc->p_sound;
   uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
-  int is_replay = keyboard_is_replaying(p_keyboard);
 
   /* Pull physical key events from system thread, always.
    * If this ends up updating the virtual keyboard, this call also syncs
@@ -1498,20 +1518,7 @@ bbc_cycles_timer_callback(void* p) {
   }
 
   /* Check for special alt key combos to change emulator behavior. */
-  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
-    /* Toggle fast mode. */
-    p_bbc->fast_flag = !p_bbc->fast_flag;
-    sound_set_output_enabled(p_sound, !p_bbc->fast_flag);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
-    /* Exit any in progress replay. */
-    if (is_replay) {
-      keyboard_end_replay(p_keyboard);
-    }
-  } else if (keyboard_consume_alt_key_press(p_keyboard, '0')) {
-    disc_drive_cycle_disc(p_bbc->p_drive_0);
-  } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
-    disc_drive_cycle_disc(p_bbc->p_drive_1);
-  }
+  bbc_check_alt_keys(p_bbc);
 
   p_bbc->last_time_us = curr_time_us;
 
@@ -1557,7 +1564,7 @@ bbc_cycles_timer_callback(void* p) {
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Prod the sound module in case it's in synchronous mode. */
-  sound_tick(p_sound);
+  sound_tick(p_bbc->p_sound);
 
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.
