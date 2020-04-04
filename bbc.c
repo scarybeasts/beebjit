@@ -751,9 +751,11 @@ bbc_virtual_keyboard_updated_callback(void* p) {
 
   /* Check for BREAK key. */
   if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
-    /* The BBC break key is attached to the 6502 reset line. Other peripherals
-     * continue along without reset.
+    /* The BBC break key is attached to the 6502 reset line.
+     * Many other peripherals are not connected to any reset on break, but a
+     * few are.
      */
+    intel_fdc_break_reset(p_bbc->p_intel_fdc);
     state_6502_set_reset_pending(p_bbc->p_state_6502);
   }
 }

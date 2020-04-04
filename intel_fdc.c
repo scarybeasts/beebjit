@@ -116,7 +116,6 @@ enum {
 
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
-  uint32_t timer_id;
 
   int log_commands;
 
@@ -223,23 +222,29 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
 
 static void
 intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
+  uint8_t head_unload_count;
+
   p_fdc->state = state;
   p_fdc->state_count = 0;
 
-  if (p_fdc->state == k_intel_fdc_state_idle) {
-    uint8_t head_unload_count = (p_fdc->register_head_load_unload >> 4);
-
-    p_fdc->state_index_pulse_count = 0;
-    if (head_unload_count == 0) {
-      /* Unload immediately. */
-      intel_fdc_select_drive(p_fdc, 0);
-    } else if (head_unload_count == 0xF) {
-      /* Never automatically unload. */
-      p_fdc->current_head_unload_count = -1;
-    } else {
-      p_fdc->current_head_unload_count = head_unload_count;
-    }
+  if (p_fdc->state != k_intel_fdc_state_idle) {
+    return;
   }
+
+  head_unload_count = (p_fdc->register_head_load_unload >> 4);
+
+  p_fdc->state_index_pulse_count = 0;
+  if (head_unload_count == 0) {
+    /* Unload immediately. */
+    intel_fdc_select_drive(p_fdc, 0);
+  } else if (head_unload_count == 0xF) {
+    /* Never automatically unload. */
+    p_fdc->current_head_unload_count = -1;
+  } else {
+    p_fdc->current_head_unload_count = head_unload_count;
+  }
+
+  p_fdc->command = 0;
 }
 
 static void
@@ -263,8 +268,8 @@ intel_fdc_command_abort(struct intel_fdc_struct* p_fdc) {
   state_6502_set_irq_level(p_fdc->p_state_6502, k_state_6502_irq_nmi, 0);
 }
 
-static void
-intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
+void
+intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc, k_log_info, "8271: reset");
   }
@@ -272,10 +277,13 @@ intel_fdc_do_reset(struct intel_fdc_struct* p_fdc) {
   /* Abort any in-progress command. */
   intel_fdc_command_abort(p_fdc);
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
-  p_fdc->command = 0;
 
   /* Deselect any drive; ensures spin-down. */
   intel_fdc_select_drive(p_fdc, 0);
+
+  assert(p_fdc->command == 0);
+  /* EMU: on a real machine, status appears to be cleared but result not. */
+  p_fdc->status = 0;
 }
 
 struct intel_fdc_struct*
@@ -368,7 +376,6 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
   intel_fdc_set_status_result(p_fdc, status, result);
 
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
-  p_fdc->command = 0;
 }
 
 uint8_t
@@ -894,7 +901,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
      * to the command register are ignored.
      */
     if (val == 1) {
-      intel_fdc_do_reset(p_fdc);
+      intel_fdc_break_reset(p_fdc);
     }
     break;
   default:
