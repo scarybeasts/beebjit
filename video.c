@@ -147,6 +147,7 @@ struct video_struct {
   int is_end_of_main_latched;
   int is_end_of_frame_latched;
   uint32_t start_of_line_state_checks;
+  int is_first_frame_scanline;
 };
 
 static inline uint32_t
@@ -212,6 +213,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->is_end_of_main_latched = 0;
   p_video->is_end_of_frame_latched = 0;
   p_video->start_of_line_state_checks = 1;
+  p_video->is_first_frame_scanline = 1;
 
   p_video->display_enable_horiz = 1;
   p_video->display_enable_vert = 1;
@@ -501,6 +503,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
+    p_video->is_first_frame_scanline = 0;
     if (p_video->scanline_counter ==
         p_video->crtc_registers[k_crtc_reg_cursor_end]) {
       p_video->has_hit_cursor_line_end = 1;
@@ -543,24 +546,24 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->vert_adjust_counter &= 0x1F;
     }
 
-    if (!r9_hit) {
-      goto recalculate_and_continue;
+    if (r9_hit) {
+      /* End of character row. */
+      p_video->scanline_counter = 0;
+      p_video->address_counter = p_video->address_counter_next_row;
+      p_video->address_counter_this_row = p_video->address_counter_next_row;
+      p_video->has_hit_cursor_line_start = 0;
+      p_video->has_hit_cursor_line_end = 0;
+
+      p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
     }
-
-    /* End of character row. */
-    p_video->scanline_counter = 0;
-    p_video->address_counter = p_video->address_counter_next_row;
-    p_video->address_counter_this_row = p_video->address_counter_next_row;
-    p_video->has_hit_cursor_line_start = 0;
-    p_video->has_hit_cursor_line_end = 0;
-
-    p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
 
 check_r6_r7:
     r6_hit = (p_video->vert_counter == r6);
     r7_hit = (p_video->vert_counter == r7);
 
-    if (r6_hit) {
+    if (r6_hit &&
+        p_video->display_enable_vert &&
+        !p_video->is_first_frame_scanline) {
       p_video->display_enable_vert = 0;
       /* On the Hitachi 6845, frame counting is done on R6 hit. */
       p_video->crtc_frames++;
@@ -1056,6 +1059,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_frames = 0;
   p_video->is_even_interlace_frame = 1;
   p_video->is_odd_interlace_frame = 0;
+  p_video->is_first_frame_scanline = 1;
 
   /* What initial state should we use for 6845 and Video ULA registers?
    * The 6845 data sheets (all variations?) aren't much help, quoting:
