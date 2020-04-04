@@ -23,6 +23,7 @@ struct disc_side {
 struct disc_struct {
   int log_protection;
 
+  char* p_file_name;
   struct util_file* p_file;
   uint8_t* p_format_metadata;
   int is_mutable;
@@ -60,6 +61,7 @@ disc_create(const char* p_file_name,
 
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
+  p_disc->p_file_name = util_strdup(p_file_name);
   p_disc->p_file = NULL;
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
@@ -120,6 +122,7 @@ disc_destroy(struct disc_struct* p_disc) {
   if (p_disc->p_file != NULL) {
     util_file_close(p_disc->p_file);
   }
+  util_free(p_disc->p_file_name);
   util_free(p_disc);
 }
 
@@ -281,6 +284,11 @@ disc_build_fill(struct disc_struct* p_disc, uint8_t data) {
   disc_build_append_repeat(p_disc,
                            data,
                            (k_ibm_disc_bytes_per_track - build_index));
+}
+
+const char*
+disc_get_file_name(struct disc_struct* p_disc) {
+  return p_disc->p_file_name;
 }
 
 struct util_file*

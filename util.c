@@ -40,6 +40,11 @@ util_free(void* p) {
   free(p);
 }
 
+char*
+util_strdup(const char* p_str) {
+  return strdup(p_str);
+}
+
 struct util_buffer {
   uint8_t* p_mem;
   size_t length;

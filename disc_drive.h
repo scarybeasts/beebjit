@@ -18,6 +18,7 @@ void disc_drive_set_byte_callback(struct disc_drive_struct* p_drive,
 
 void disc_drive_add_disc(struct disc_drive_struct* p_drive,
                          struct disc_struct* p_disc);
+void disc_drive_cycle_disc(struct disc_drive_struct* p_drive);
 
 int disc_drive_is_spinning(struct disc_drive_struct* p_drive);
 int disc_drive_is_upper_side(struct disc_drive_struct* p_drive);

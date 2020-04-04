@@ -25,13 +25,18 @@
 static const uint32_t k_sound_default_rate = 48000;
 static const uint32_t k_sound_default_buffer_size = 512;
 static const uint32_t k_sound_default_num_periods = 4;
+enum {
+  k_max_discs_per_drive = 4,
+};
 
 int
 main(int argc, const char* argv[]) {
+  int i_args;
   size_t read_ret;
   uint8_t os_rom[k_bbc_rom_size];
   uint8_t load_rom[k_bbc_rom_size];
-  int i;
+  uint32_t i;
+  uint32_t j;
   struct os_poller_struct* p_poller;
   struct bbc_struct* p_bbc;
   struct keyboard_struct* p_keyboard;
@@ -46,7 +51,7 @@ main(int argc, const char* argv[]) {
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
-  const char* disc_names[2] = {};
+  const char* disc_names[2][k_max_discs_per_drive] = {};
   const char* p_tape_file_name = NULL;
 
   struct os_window_struct* p_window = NULL;
@@ -77,24 +82,26 @@ main(int argc, const char* argv[]) {
   uint64_t cycles = 0;
   uint32_t expect = 0;
   int window_open = 0;
+  uint32_t num_discs_0 = 0;
+  uint32_t num_discs_1 = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
 
-  for (i = 1; i < argc; ++i) {
-    const char* arg = argv[i];
+  for (i_args = 1; i_args < argc; ++i_args) {
+    const char* arg = argv[i_args];
     int has_1 = 0;
     int has_2 = 0;
     const char* val1 = NULL;
     const char* val2 = NULL;
 
-    if ((i + 1) < argc) {
+    if ((i_args + 1) < argc) {
       has_1 = 1;
-      val1 = argv[i + 1];
+      val1 = argv[i_args + 1];
     }
-    if ((i + 2) < argc) {
+    if ((i_args + 2) < argc) {
       has_2 = 1;
-      val2 = argv[i + 2];
+      val2 = argv[i_args + 2];
     }
 
     if (has_2 && !strcmp(arg, "-rom")) {
@@ -104,43 +111,51 @@ main(int argc, const char* argv[]) {
         util_bail("ROM bank number out of range");
       }
       rom_names[bank] = val2;
-      i += 2;
+      i_args += 2;
     } else if (has_1 && !strcmp(arg, "-os")) {
       os_rom_name = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-load")) {
       load_name = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-capture")) {
       capture_name = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-replay")) {
       replay_name = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && (!strcmp(arg, "-disc") ||
                          !strcmp(arg, "-disc0") ||
                          !strcmp(arg, "-0"))) {
-      disc_names[0] = val1;
-      ++i;
+      if (num_discs_0 == k_max_discs_per_drive) {
+        util_bail("too many discs for drive 0");
+      }
+      disc_names[0][num_discs_0] = val1;
+      ++num_discs_0;
+      ++i_args;
     } else if (has_1 && (!strcmp(arg, "-disc1") ||
                          !strcmp(arg, "-1"))) {
-      disc_names[1] = val1;
-      ++i;
+      if (num_discs_1 == k_max_discs_per_drive) {
+        util_bail("too many discs for drive 1");
+      }
+      disc_names[1][num_discs_1] = val1;
+      ++num_discs_1;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-tape")) {
       p_tape_file_name = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-opt")) {
       opt_flags = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-log")) {
       log_flags = val1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-stopat")) {
       (void) sscanf(val1, "%"PRIx32, &debug_stop_addr);
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-pc")) {
       (void) sscanf(val1, "%"PRIx32, &pc);
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-mode")) {
       if (!strcmp(val1, "jit")) {
         mode = k_cpu_mode_jit;
@@ -151,7 +166,7 @@ main(int argc, const char* argv[]) {
       } else {
         util_bail("unknown mode");
       }
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-swram")) {
       int32_t bank = -1;
       (void) sscanf(val1, "%"PRIx32, &bank);
@@ -159,13 +174,13 @@ main(int argc, const char* argv[]) {
         util_bail("RAM bank number out of range");
       }
       sideways_ram[bank] = 1;
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-cycles")) {
       (void) sscanf(val1, "%"PRIu64, &cycles);
-      ++i;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-expect")) {
       (void) sscanf(val1, "%"PRIx32, &expect);
-      ++i;
+      ++i_args;
     } else if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
     } else if (!strcmp(arg, "-run")) {
@@ -302,17 +317,19 @@ main(int argc, const char* argv[]) {
 
   /* Load the discs into the drive! */
   for (i = 0; i <= 1; ++i) {
-    const char* p_filename = disc_names[i];
+    for (j = 0; j < k_max_discs_per_drive; ++j) {
+      const char* p_filename = disc_names[i][j];
 
-    if (p_filename == NULL) {
-      continue;
+      if (p_filename == NULL) {
+        continue;
+      }
+      bbc_add_disc(p_bbc,
+                   p_filename,
+                   i,
+                   disc_writeable_flag,
+                   disc_mutable_flag,
+                   convert_hfe_flag);
     }
-    bbc_load_disc(p_bbc,
-                  p_filename,
-                  i,
-                  disc_writeable_flag,
-                  disc_mutable_flag,
-                  convert_hfe_flag);
   }
 
   if (convert_hfe_flag) {

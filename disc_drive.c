@@ -2,6 +2,7 @@
 
 #include "disc.h"
 #include "ibm_disc_format.h"
+#include "log.h"
 #include "timing.h"
 #include "util.h"
 
@@ -20,6 +21,8 @@ enum {
    * worth of rotation.
    */
   k_disc_index_bytes = 62,
+
+  k_disc_max_discs_per_drive = 4,
 };
 
 struct disc_drive_struct {
@@ -33,8 +36,15 @@ struct disc_drive_struct {
   int is_side_upper;
   uint32_t track;
   uint32_t byte_position;
-  struct disc_struct* p_disc;
+  struct disc_struct* p_discs[k_disc_max_discs_per_drive + 1];
+  uint32_t discs_added;
+  uint32_t disc_index;
 };
+
+static struct disc_struct*
+disc_drive_get_disc(struct disc_drive_struct* p_drive) {
+  return p_drive->p_discs[p_drive->disc_index];
+}
 
 static void
 disc_drive_timer_callback(void* p) {
@@ -42,7 +52,7 @@ disc_drive_timer_callback(void* p) {
   uint8_t clocks_byte = 0;
 
   struct disc_drive_struct* p_drive = (struct disc_drive_struct*) p;
-  struct disc_struct* p_disc = p_drive->p_disc;
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
   uint32_t byte_position = p_drive->byte_position;
 
   if (p_disc != NULL) {
@@ -108,18 +118,56 @@ disc_drive_create(struct timing_struct* p_timing) {
 
 void
 disc_drive_destroy(struct disc_drive_struct* p_drive) {
+  uint32_t i;
+
   assert(!disc_drive_is_spinning(p_drive));
-  if (p_drive->p_disc != NULL) {
-    util_free(p_drive->p_disc);
+
+  for (i = 0; i < k_disc_max_discs_per_drive; ++i) {
+    struct disc_struct* p_disc = p_drive->p_discs[i];
+    if (p_disc != NULL) {
+      util_free(p_disc);
+    }
   }
+
   util_free(p_drive);
 }
 
 void
 disc_drive_add_disc(struct disc_drive_struct* p_drive,
                     struct disc_struct* p_disc) {
-  assert(p_drive->p_disc == NULL);
-  p_drive->p_disc = p_disc;
+  uint32_t discs_added = p_drive->discs_added;
+  if (discs_added == k_disc_max_discs_per_drive) {
+    util_bail("disc drive already at max discs");
+  }
+
+  p_drive->p_discs[discs_added] = p_disc;
+  p_drive->discs_added++;
+}
+
+void
+disc_drive_cycle_disc(struct disc_drive_struct* p_drive) {
+  /* NOTE: the instantaneous nature of this change may need revising. A real
+   * system will see some sequence of drive not ready / drive empty states!
+   */
+  struct disc_struct* p_disc;
+  const char* p_file_name;
+  uint32_t disc_index = p_drive->disc_index;
+
+  if (disc_index == p_drive->discs_added) {
+    disc_index = 0;
+  } else {
+    disc_index++;
+  }
+
+  p_drive->disc_index = disc_index;
+  p_disc = p_drive->p_discs[disc_index];
+  if (p_disc == NULL) {
+    p_file_name = "<none>";
+  } else {
+    p_file_name = disc_get_file_name(p_disc);
+  }
+
+  log_do_log(k_log_disc, k_log_info, "disc file now: %s", p_file_name);
 }
 
 void
@@ -139,7 +187,9 @@ disc_drive_get_track(struct disc_drive_struct* p_drive) {
 
 int
 disc_drive_is_index_pulse(struct disc_drive_struct* p_drive) {
-  if (p_drive->p_disc == NULL) {
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
+
+  if (p_disc == NULL) {
     /* With no disc loaded, a drive typically asserts INDEX all the time. */
     return 1;
   }
@@ -160,7 +210,7 @@ disc_drive_get_head_position(struct disc_drive_struct* p_drive) {
 
 int
 disc_drive_is_write_protect(struct disc_drive_struct* p_drive) {
-  struct disc_struct* p_disc = p_drive->p_disc;
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
 
   if (p_disc == NULL) {
     /* EMU: a drive will typically return write enabled with no disc in. */
@@ -184,7 +234,7 @@ disc_drive_start_spinning(struct disc_drive_struct* p_drive) {
 
 static void
 disc_drive_check_track_needs_write(struct disc_drive_struct* p_drive) {
-  struct disc_struct* p_disc = p_drive->p_disc;
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
   if (p_disc != NULL) {
     disc_flush_writes(p_disc);
   }
@@ -227,7 +277,7 @@ void
 disc_drive_write_byte(struct disc_drive_struct* p_drive,
                       uint8_t data,
                       uint8_t clocks) {
-  struct disc_struct* p_disc = p_drive->p_disc;
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
 
   if (p_disc == NULL) {
     return;

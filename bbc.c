@@ -1488,6 +1488,10 @@ bbc_cycles_timer_callback(void* p) {
     if (is_replay) {
       keyboard_end_replay(p_keyboard);
     }
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '0')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_0);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_1);
   }
 
   p_bbc->last_time_us = curr_time_us;
@@ -1654,12 +1658,12 @@ bbc_set_channel_handles(struct bbc_struct* p_bbc,
 }
 
 void
-bbc_load_disc(struct bbc_struct* p_bbc,
-              const char* p_filename,
-              int drive,
-              int is_writeable,
-              int is_mutable,
-              int convert_to_hfe) {
+bbc_add_disc(struct bbc_struct* p_bbc,
+             const char* p_filename,
+             int drive,
+             int is_writeable,
+             int is_mutable,
+             int convert_to_hfe) {
   struct disc_drive_struct* p_drive;
   struct disc_struct* p_disc;
 
