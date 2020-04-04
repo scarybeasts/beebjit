@@ -742,6 +742,22 @@ bbc_tick_timer_callback(void* p) {
       p_bbc->memory_access.p_last_tick_callback_obj);
 }
 
+static void
+bbc_virtual_keyboard_updated_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  /* Make sure interrupt state is synced with new keyboard state. */
+  (void) via_update_port_a(p_bbc->p_system_via);
+
+  /* Check for BREAK key. */
+  if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
+    /* The BBC break key is attached to the 6502 reset line. Other peripherals
+     * continue along without reset.
+     */
+    state_6502_set_reset_pending(p_bbc->p_state_6502);
+  }
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            uint8_t* p_os_rom,
@@ -985,12 +1001,13 @@ bbc_create(int mode,
     util_bail("via_create failed");
   }
 
-  p_bbc->p_keyboard = keyboard_create(p_timing,
-                                      p_bbc->p_system_via,
-                                      p_state_6502);
+  p_bbc->p_keyboard = keyboard_create(p_timing);
   if (p_bbc->p_keyboard == NULL) {
     util_bail("keyboard_create failed");
   }
+  keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
+                                        bbc_virtual_keyboard_updated_callback,
+                                        p_bbc);
 
   p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
   if (p_bbc->p_sound == NULL) {

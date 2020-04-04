@@ -36,8 +36,8 @@ struct keyboard_state {
 
 struct keyboard_struct {
   struct timing_struct* p_timing;
-  struct via_struct* p_system_via;
-  struct state_6502* p_state_6502;
+  void (*p_virtual_updated_callback)(void*);
+  void* p_virtual_updated_callback_object;
 
   /* The OS thread populates the queue of key events and the BBC thread
    * empties it from time to time.
@@ -493,15 +493,9 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
 
 static void
 keyboard_virtual_updated(struct keyboard_struct* p_keyboard) {
-  /* Make sure interrupt state is synced with new keyboard state. */
-  (void) via_update_port_a(p_keyboard->p_system_via);
-
-  /* Check for BREAK key. */
-  if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_f12)) {
-    /* The BBC break key is attached to the 6502 reset line. Other peripherals
-     * continue along without reset.
-     */
-    state_6502_set_reset_pending(p_keyboard->p_state_6502);
+  if (p_keyboard->p_virtual_updated_callback != NULL) {
+    p_keyboard->p_virtual_updated_callback(
+        p_keyboard->p_virtual_updated_callback_object);
   }
 }
 
@@ -548,15 +542,11 @@ keyboard_replay_timer_tick(struct keyboard_struct* p_keyboard) {
 }
 
 struct keyboard_struct*
-keyboard_create(struct timing_struct* p_timing,
-                struct via_struct* p_system_via,
-                struct state_6502* p_state_6502) {
+keyboard_create(struct timing_struct* p_timing) {
   struct keyboard_struct* p_keyboard =
       util_mallocz(sizeof(struct keyboard_struct));
 
   p_keyboard->p_timing = p_timing;
-  p_keyboard->p_system_via = p_system_via;
-  p_keyboard->p_state_6502 = p_state_6502;
   p_keyboard->p_lock = os_lock_create();
   p_keyboard->queue_pos = 0;
   p_keyboard->p_capture_file = NULL;
@@ -581,6 +571,14 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
   }
   os_lock_destroy(p_keyboard->p_lock);
   util_free(p_keyboard);
+}
+
+void
+keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
+                                      void (*p_callback)(void*),
+                                      void* p_callback_object) {
+  p_keyboard->p_virtual_updated_callback = p_callback;
+  p_keyboard->p_virtual_updated_callback_object = p_callback_object;
 }
 
 void

@@ -5,9 +5,7 @@
 
 struct keyboard_struct;
 
-struct state_6502;
 struct timing_struct;
-struct via_struct;
 
 enum {
   k_keyboard_key_escape = 128,
@@ -38,10 +36,12 @@ enum {
   k_keyboard_key_end = 153,
 };
 
-struct keyboard_struct* keyboard_create(struct timing_struct* p_timing,
-                                        struct via_struct* p_system_via,
-                                        struct state_6502* p_state_6502);
+struct keyboard_struct* keyboard_create(struct timing_struct* p_timing);
 void keyboard_destroy(struct keyboard_struct* p_keyboard);
+
+void keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
+                                           void (*p_callback)(void*),
+                                           void* p_callback_object);
 
 void keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                     const char* p_name);
