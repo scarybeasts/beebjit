@@ -139,7 +139,7 @@ struct video_struct {
   int in_vert_adjust;
   int in_vsync;
   int in_dummy_raster;
-  int had_vsync_this_frame;
+  int had_vsync_this_row;
   int display_enable_horiz;
   int display_enable_vert;
   int has_hit_cursor_line_start;
@@ -205,7 +205,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->vert_counter = 0;
   p_video->vert_adjust_counter = 0;
 
-  p_video->had_vsync_this_frame = 0;
+  p_video->had_vsync_this_row = 0;
   p_video->in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
   p_video->has_hit_cursor_line_start = 0;
@@ -279,11 +279,11 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
   struct via_struct* p_system_via = p_video->p_system_via;
 
   assert(!p_video->in_vsync);
-  assert(!p_video->had_vsync_this_frame);
+  assert(!p_video->had_vsync_this_row);
 
   p_video->num_vsyncs++;
   p_video->in_vsync = 1;
-  p_video->had_vsync_this_frame = 1;
+  p_video->had_vsync_this_row = 1;
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   if (p_system_via) {
     via_set_CA1(p_system_via, 1);
@@ -323,7 +323,7 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
   if ((p_video->vert_counter ==
        p_video->crtc_registers[k_crtc_reg_vert_sync_position]) &&
       (p_video->scanline_counter == 0) &&
-      !p_video->had_vsync_this_frame) {
+      !p_video->had_vsync_this_row) {
     return 1;
   }
   return 0;
@@ -399,7 +399,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     delta_crtc_ticks /= 2;
   }
 
-  goto recalculate_and_continue;
+  goto check_r6;
 
   while (delta_crtc_ticks--) {
     r0_hit = (p_video->horiz_counter == r0);
@@ -523,13 +523,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* End-of-line state transitions. */
     if (p_video->in_dummy_raster) {
       video_start_new_frame(p_video);
-      goto check_r6_r7;
+      goto check_r7;
     } else if (p_video->is_end_of_frame_latched) {
       if (p_video->is_odd_interlace_frame) {
         p_video->in_dummy_raster = 1;
       } else {
         video_start_new_frame(p_video);
-        goto check_r6_r7;
+        goto check_r7;
       }
     }
 
@@ -553,14 +553,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->address_counter_this_row = p_video->address_counter_next_row;
       p_video->has_hit_cursor_line_start = 0;
       p_video->has_hit_cursor_line_end = 0;
+      p_video->had_vsync_this_row = 0;
 
       p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
     }
 
-check_r6_r7:
+check_r6:
     r6_hit = (p_video->vert_counter == r6);
-    r7_hit = (p_video->vert_counter == r7);
-
     if (r6_hit &&
         p_video->display_enable_vert &&
         !p_video->is_first_frame_scanline) {
@@ -569,22 +568,24 @@ check_r6_r7:
       p_video->crtc_frames++;
       video_update_odd_even_frame(p_video);
     }
+
+check_r7:
+    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
+    r7_hit = (p_video->vert_counter == r7);
     if (r7_hit &&
         !p_video->is_odd_interlace_frame &&
-        !p_video->had_vsync_this_frame) {
+        !p_video->had_vsync_this_row) {
       assert(!check_vsync_at_half_r0);
 
       video_set_vsync_raise_state(p_video);
     }
 
-recalculate_and_continue:
     if (p_video->scanline_counter == p_video->cursor_start_line) {
       p_video->has_hit_cursor_line_start = 1;
     }
     render_set_RA(p_render, p_video->scanline_counter);
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
-    check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
 
     r4_hit = (p_video->vert_counter == r4);
     r5_hit = (p_video->vert_adjust_counter == r5);
@@ -627,13 +628,8 @@ video_is_at_vsync_start(struct video_struct* p_video) {
       return 0;
     }
   }
-  /* in_vsync will only be set if we didn't already have one this frame. We
-   * can't check had_vsync_this_frame because it will always be set at the
-   * first vsync.
-   */
-  if (!p_video->in_vsync) {
-    return 0;
-  }
+
+  assert(p_video->in_vsync);
 
   return 1;
 }
@@ -786,7 +782,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   p_video->prev_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
-  p_video->had_vsync_this_frame = 0;
+  p_video->had_vsync_this_row = 0;
   video_set_vsync_raise_state(p_video);
 
   p_video->timer_fire_force_vsync_start = 0;
@@ -806,7 +802,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
   uint32_t r0;
 
   assert(p_video->has_sane_framing_parameters);
-  assert(p_video->had_vsync_this_frame);
+  assert(p_video->had_vsync_this_row);
   assert(p_video->scanline_counter == 0);
   assert(p_video->vsync_scanline_counter == p_video->vsync_pulse_width);
   assert(p_video->vert_counter ==
@@ -1630,6 +1626,15 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   if (!does_not_change_framing) {
     video_recalculate_framing_sanity(p_video);
     video_framing_changed(p_video);
+  }
+
+  if (reg == k_crtc_reg_vert_sync_position) {
+    /* A special case after the vsync position register was changed. A change of
+     * this register is actually capable of triggering an immediate vsync + IRQ
+     * on the Hitachi 6845, even in the middle of a scanline. So we need to
+     * check for vsync hit.
+     */
+    video_advance_crtc_timing(p_video);
   }
 }
 

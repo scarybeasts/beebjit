@@ -356,6 +356,7 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->in_vsync);
 
   countdown = timing_advance_time(g_p_timing, (countdown - (15 * 128)));
@@ -369,15 +370,15 @@ video_test_6845_corner_cases() {
   video_crtc_write(g_p_video, 0, 7);
   video_crtc_write(g_p_video, 1, 31);
 
-  countdown = timing_advance_time(g_p_timing, (countdown - ((312 - 16) * 128)));
+  /* This advances to vert adjust in the same frame. We already took a vsync in
+   * this frame at C4=0. This tests that we can take multiple vsyncs per frame.
+   */
+  countdown = timing_advance_time(g_p_timing, (countdown - ((310 - 16) * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
-  test_expect_u32(0, g_p_video->vert_counter);
-  test_expect_u32(0, g_p_video->in_vsync);
-
-  countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
-  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(31, g_p_video->vert_counter);
+  test_expect_u32(2, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->in_vert_adjust);
   test_expect_u32(1, g_p_video->in_vsync);
 
@@ -402,6 +403,8 @@ video_test_6845_corner_cases() {
   countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(31, g_p_video->vert_counter);
+  test_expect_u32(3, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->in_vert_adjust);
   test_expect_u32(2, g_p_video->vert_adjust_counter);
   test_expect_u32(0, g_p_video->is_end_of_frame_latched);
@@ -428,6 +431,7 @@ video_test_6845_corner_cases() {
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(9, g_p_video->scanline_counter);
   test_expect_u32(30, g_p_video->vert_counter);
+  test_expect_u32(4, g_p_video->crtc_frames);
   /* Advance to mid-line because latch occurs at C0=2. */
   countdown = timing_advance_time(g_p_timing, (countdown - 64));
   video_advance_crtc_timing(g_p_video);
@@ -451,16 +455,74 @@ video_test_6845_corner_cases() {
   video_crtc_write(g_p_video, 1, 50);
   countdown = timing_get_countdown(g_p_timing);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
-  test_expect_u32(0, g_p_video->is_even_interlace_frame);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
   countdown = timing_advance_time(g_p_timing, (countdown - (310 * 128)));
   test_expect_u32(0, g_p_video->horiz_counter);
-  test_expect_u32(1, g_p_video->in_dummy_raster);
-  countdown = timing_advance_time(g_p_timing, (countdown - 128));
-  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  /* Frame counter didn't advance because R6 wasn't hit. */
+  test_expect_u32(4, g_p_video->crtc_frames);
   test_expect_u32(1, g_p_video->is_interlace);
-  test_expect_u32(1, g_p_video->is_odd_interlace_frame);
-  test_expect_u32(0, g_p_video->is_even_interlace_frame);
+  test_expect_u32(1, g_p_video->is_even_interlace_frame);
+  test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+
+  /* Test R6=0. */
+  countdown = timing_advance_time(g_p_timing, (countdown - (32 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  /* R6 to 0 and interlace off. */
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 0);
+  countdown = timing_advance_time(g_p_timing, (countdown - (278 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  /* Quirk: first scanline of new frame should still have display enabled. */
+  test_expect_u32(1, g_p_video->display_enable_vert);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->display_enable_vert);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->display_enable_vert);
+  test_expect_u32(5, g_p_video->crtc_frames);
+
+  /* Test that R6 and R7 can hit in the middle of a scanline. */
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 50);
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 50);
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  /* Turning off interlace changed countdown. */
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing, (countdown - (309 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(5, g_p_video->crtc_frames);
+  countdown = timing_advance_time(g_p_timing, (countdown - (15 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  countdown = timing_advance_time(g_p_timing, (countdown - 100));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(50, g_p_video->horiz_counter);
+  test_expect_u32(5, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->display_enable_vert);
+  test_expect_u32(0, g_p_video->in_vsync);
+  video_crtc_write(g_p_video, 0, 6);
+  video_crtc_write(g_p_video, 1, 1);
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 1);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing, (countdown - 2));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(51, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->display_enable_vert);
+  test_expect_u32(1, g_p_video->in_vsync);
 }
 
 static void
