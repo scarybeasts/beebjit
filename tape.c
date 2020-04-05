@@ -1,6 +1,7 @@
 #include "tape.h"
 
 #include "bbc_options.h"
+#include "log.h"
 #include "serial.h"
 #include "timing.h"
 #include "util.h"
@@ -368,4 +369,5 @@ tape_stop(struct tape_struct* p_tape) {
 void
 tape_rewind(struct tape_struct* p_tape) {
   p_tape->tape_buffer_pos = 0;
+  log_do_log(k_log_tape, k_log_info, "rewind");
 }

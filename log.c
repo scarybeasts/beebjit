@@ -27,6 +27,8 @@ log_module_to_string(int module) {
     return "misc";
   case k_log_audio:
     return "audio";
+  case k_log_tape:
+    return "tape";
   default:
     assert(0);
     return NULL;

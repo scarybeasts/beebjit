@@ -12,6 +12,7 @@ enum log_module {
   k_log_keyboard = 7,
   k_log_misc = 8,
   k_log_audio = 9,
+  k_log_tape = 10,
 };
 
 enum log_severity {
