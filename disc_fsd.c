@@ -307,6 +307,10 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
         }
         p_sector->truncated_size_bytes = 512;
       }
+    } else if (sector_error == 0x18) {
+      /* Some FSD files have spurious error $18 (sector not found). Ignore.
+       * Example: 571 Philosopher's Quest 40track.FSD
+       */
     } else if (sector_error != 0) {
       util_bail("fsd file sector error %d unsupported", sector_error);
     }
