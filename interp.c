@@ -17,6 +17,7 @@ enum {
   k_interp_special_callback = 2,
   k_interp_special_countdown = 4,
   k_interp_special_poll_irq = 8,
+  k_interp_special_exit = 16,
 };
 
 struct interp_struct {
@@ -704,7 +705,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int do_irq = 0;
 
   assert(countdown >= 0);
-  assert(!p_interp->driver.p_funcs->has_exited(&p_interp->driver));
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
@@ -714,6 +714,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
   }
   if (instruction_callback) {
     special_checks |= k_interp_special_callback;
+  }
+  if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
+    special_checks |= k_interp_special_exit;
   }
 
   /* Jump in at the checks / fetch. Checking for countdown==0 on entry is
@@ -1670,6 +1673,11 @@ do_special_checks:
       INTERP_TIMING_ADVANCE(0);
     }
 
+    /* Advancing the timing may have fired a timer that exited the CPU. */
+    if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
+      break;
+    }
+
 check_irq:
     if (!do_irq) {
       /* An IRQ may have been raised or unblocked after the poll point
@@ -1700,11 +1708,6 @@ check_irq:
         /* The instruction callback can elect to exit the interpreter. */
         break;
       }
-    }
-
-    /* Advancing the timing may have fired a timer that exited the CPU. */
-    if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
-      break;
     }
 
     if (do_irq) {
