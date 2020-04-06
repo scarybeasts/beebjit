@@ -36,7 +36,7 @@ struct interp_struct {
 
 static void
 interp_destroy(struct cpu_driver* p_cpu_driver) {
-  assert(p_cpu_driver->p_funcs->has_exited(p_cpu_driver));
+  assert(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) & k_cpu_flag_exited);
 
   util_free(p_cpu_driver);
 }
@@ -49,7 +49,7 @@ interp_enter(struct cpu_driver* p_cpu_driver) {
   countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
   (void) countdown;
 
-  return p_cpu_driver->has_exited;
+  return !!(p_cpu_driver->flags & k_cpu_flag_exited);
 }
 
 static char*
@@ -682,6 +682,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint16_t addr_temp;
   uint8_t v;
   int poll_irq;
+  uint32_t cpu_driver_flags;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
@@ -760,8 +761,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
     case 0x02: /* Extension: EXIT */
-      p_interp->driver.p_funcs->exit(&p_interp->driver,
-                                     (y << 16) | (x << 8) | a);
+      p_interp->driver.p_funcs->apply_flags(&p_interp->driver,
+                                            k_cpu_flag_exited,
+                                            0);
+      p_interp->driver.p_funcs->set_exit_value(&p_interp->driver,
+                                               ((y << 16) | (x << 8) | a));
       return countdown;
     case 0x04: /* NOP zp */ /* Undocumented. */
     case 0x44:
@@ -1669,9 +1673,24 @@ do_special_checks:
       INTERP_TIMING_ADVANCE(0);
     }
 
-    /* Advancing the timing may have fired a timer that exited the CPU. */
-    if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
-      break;
+    cpu_driver_flags = p_interp->driver.flags;
+    if (cpu_driver_flags != 0) {
+      /* Advancing the timing may have fired a timer that exited the CPU. */
+      if (cpu_driver_flags & k_cpu_flag_exited) {
+        break;
+      }
+      /* Advancing the timing may have registered a reset request. */
+      if (cpu_driver_flags & (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset)) {
+        void (*do_reset_callback)(void* p, uint32_t flags) =
+            p_interp->driver.do_reset_callback;
+        if (do_reset_callback != NULL) {
+          do_reset_callback(p_interp->driver.p_do_reset_callback_object,
+                            cpu_driver_flags);
+          state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
+          interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
+          do_irq = 0;
+        }
+      }
     }
 
 check_irq:
@@ -1685,10 +1704,6 @@ check_irq:
            !intf)) {
         special_checks |= k_interp_special_poll_irq;
       }
-    }
-    if (state_6502_check_and_do_reset(p_state_6502)) {
-      state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
-      interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
     }
 
     /* The instruction callback fires after an instruction executes. */
@@ -1742,5 +1757,5 @@ check_irq:
 
 void
 interp_testing_unexit(struct interp_struct* p_interp) {
-  p_interp->driver.has_exited = 0;
+  p_interp->driver.flags &= ~k_cpu_flag_exited;
 }

@@ -462,8 +462,12 @@ main(int argc, const char* argv[]) {
       if (os_window_is_closed(p_window)) {
         struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
         window_open = 0;
-        if (!p_cpu_driver->p_funcs->has_exited(p_cpu_driver)) {
-          p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFF);
+        if (!p_cpu_driver->p_funcs->get_flags(p_cpu_driver) &
+            k_cpu_flag_exited) {
+          p_cpu_driver->p_funcs->apply_flags(p_cpu_driver,
+                                             k_cpu_flag_exited,
+                                             0);
+          p_cpu_driver->p_funcs->set_exit_value(p_cpu_driver, 0xFFFFFFFF);
         }
       }
     }

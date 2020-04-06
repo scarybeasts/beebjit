@@ -749,7 +749,7 @@ bbc_break_reset(struct bbc_struct* p_bbc) {
    * are.
    */
   intel_fdc_break_reset(p_bbc->p_intel_fdc);
-  state_6502_set_reset_pending(p_bbc->p_state_6502);
+  state_6502_reset(p_bbc->p_state_6502);
 }
 
 static void
@@ -761,8 +761,30 @@ bbc_virtual_keyboard_updated_callback(void* p) {
 
   /* Check for BREAK key. */
   if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
+    /* We're in the middle of some timer callback. Let the CPU driver initiate
+     * the actual reset at a safe time.
+     */
+    struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+    p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_soft_reset, 0);
+  }
+}
+
+static void
+bbc_do_reset_callback(void* p, uint32_t flags) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  if (flags & k_cpu_flag_soft_reset) {
     bbc_break_reset(p_bbc);
   }
+  if (flags & k_cpu_flag_hard_reset) {
+    bbc_power_on_reset(p_bbc);
+  }
+
+  p_cpu_driver->p_funcs->apply_flags(
+      p_cpu_driver,
+      0,
+      (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset));
 }
 
 struct bbc_struct*
@@ -1092,6 +1114,9 @@ bbc_create(int mode,
   if (p_bbc->p_cpu_driver == NULL) {
     util_bail("cpu_driver_alloc failed");
   }
+  p_bbc->p_cpu_driver->p_funcs->set_reset_callback(p_bbc->p_cpu_driver,
+                                                   bbc_do_reset_callback,
+                                                   p_bbc);
 
   bbc_power_on_reset(p_bbc);
 
@@ -1526,6 +1551,12 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
     disc_drive_cycle_disc(p_bbc->p_drive_1);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'T')) {
     tape_rewind(p_bbc->p_tape);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'R')) {
+    /* We're in the middle of some timer callback. Let the CPU driver initiate
+     * the actual reset at a safe time.
+     */
+    struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+    p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
   }
 }
 
@@ -1671,7 +1702,7 @@ bbc_cpu_thread(void* p) {
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;
   assert(exited == 1);
-  assert(p_cpu_driver->p_funcs->has_exited(p_cpu_driver) == 1);
+  assert(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) & k_cpu_flag_exited);
 
   p_bbc->running = 0;
   p_bbc->exit_value = p_cpu_driver->p_funcs->get_exit_value(p_cpu_driver);
@@ -1760,7 +1791,8 @@ bbc_stop_cycles_timer_callback(void* p) {
 
   (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_stop_cycles);
 
-  p_cpu_driver->p_funcs->exit(p_cpu_driver, 0xFFFFFFFE);
+  p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_exited, 0);
+  p_cpu_driver->p_funcs->set_exit_value(p_cpu_driver, 0xFFFFFFFE);
 }
 
 void

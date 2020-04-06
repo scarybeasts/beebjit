@@ -576,6 +576,8 @@ static void
 inturbo_enter_interp(struct inturbo_struct* p_inturbo,
                      struct inturbo_enter_interp_ret* p_ret,
                      int64_t countdown) {
+  uint32_t cpu_driver_flags;
+
   struct cpu_driver* p_inturbo_cpu_driver = &p_inturbo->driver;
   struct interp_struct* p_interp = p_inturbo->p_interp;
 
@@ -584,9 +586,10 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo,
                                         inturbo_interp_instruction_callback,
                                         NULL);
 
+  cpu_driver_flags =
+      p_inturbo_cpu_driver->p_funcs->get_flags(p_inturbo_cpu_driver);
   p_ret->countdown = countdown;
-  p_ret->exited =
-      p_inturbo_cpu_driver->p_funcs->has_exited(p_inturbo_cpu_driver);
+  p_ret->exited = !!(cpu_driver_flags & k_cpu_flag_exited);
 }
 
 static void
@@ -639,19 +642,35 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 }
 
 static void
-inturbo_exit(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+inturbo_set_reset_callback(struct cpu_driver* p_cpu_driver,
+                           void (*do_reset_callback)(void* p, uint32_t flags),
+                           void* p_do_reset_callback_object) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
 
-  p_interp_driver->p_funcs->exit(p_interp_driver, exit_value);
+  p_interp_driver->p_funcs->set_reset_callback(p_interp_driver,
+                                               do_reset_callback,
+                                               p_do_reset_callback_object);
 }
 
-static int
-inturbo_has_exited(struct cpu_driver* p_cpu_driver) {
+static void
+inturbo_apply_flags(struct cpu_driver* p_cpu_driver,
+                    uint32_t flags_set,
+                    uint32_t flags_clear) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
 
-  return p_interp_driver->p_funcs->has_exited(p_interp_driver);
+  p_interp_driver->p_funcs->apply_flags(p_interp_driver,
+                                        flags_set,
+                                        flags_clear);
+}
+
+static uint32_t
+inturbo_get_flags(struct cpu_driver* p_cpu_driver) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  return p_interp_driver->p_funcs->get_flags(p_interp_driver);
 }
 
 static uint32_t
@@ -660,6 +679,14 @@ inturbo_get_exit_value(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
 
   return p_interp_driver->p_funcs->get_exit_value(p_interp_driver);
+}
+
+static void
+inturbo_set_exit_value(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  p_interp_driver->p_funcs->set_exit_value(p_interp_driver, exit_value);
 }
 
 static char*
@@ -687,9 +714,11 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = inturbo_destroy;
   p_funcs->enter = inturbo_enter;
-  p_funcs->exit = inturbo_exit;
-  p_funcs->has_exited = inturbo_has_exited;
+  p_funcs->set_reset_callback = inturbo_set_reset_callback;
+  p_funcs->apply_flags = inturbo_apply_flags;
+  p_funcs->get_flags = inturbo_get_flags;
   p_funcs->get_exit_value = inturbo_get_exit_value;
+  p_funcs->set_exit_value = inturbo_set_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(

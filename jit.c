@@ -206,6 +206,8 @@ jit_enter_interp(struct jit_struct* p_jit,
                  struct jit_enter_interp_ret* p_ret,
                  int64_t countdown,
                  uint64_t intel_rflags) {
+  uint32_t cpu_driver_flags;
+
   struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
   struct jit_compiler* p_compiler = p_jit->p_compiler;
   struct interp_struct* p_interp = p_jit->p_interp;
@@ -232,8 +234,9 @@ jit_enter_interp(struct jit_struct* p_jit,
                                         jit_interp_instruction_callback,
                                         p_jit);
 
+  cpu_driver_flags = p_jit_cpu_driver->p_funcs->get_flags(p_jit_cpu_driver);
   p_ret->countdown = countdown;
-  p_ret->exited = p_jit_cpu_driver->p_funcs->has_exited(p_jit_cpu_driver);
+  p_ret->exited = !!(cpu_driver_flags & k_cpu_flag_exited);
 }
 
 static void
@@ -290,20 +293,37 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
 }
 
 static void
-jit_exit(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+jit_set_reset_callback(struct cpu_driver* p_cpu_driver,
+                       void (*do_reset_callback)(void* p, uint32_t flags),
+                       void* p_do_reset_callback_object) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
 
-  p_interp_driver->p_funcs->exit(p_interp_driver, exit_value);
+  p_interp_driver->p_funcs->set_reset_callback(p_interp_driver,
+                                               do_reset_callback,
+                                               p_do_reset_callback_object);
 }
 
-static int
-jit_has_exited(struct cpu_driver* p_cpu_driver) {
+static void
+jit_apply_flags(struct cpu_driver* p_cpu_driver,
+                uint32_t flags_set,
+                uint32_t flags_clear) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
 
-  return p_interp_driver->p_funcs->has_exited(p_interp_driver);
+  p_interp_driver->p_funcs->apply_flags(p_interp_driver,
+                                        flags_set,
+                                        flags_clear);
 }
+
+static uint32_t
+jit_get_flags(struct cpu_driver* p_cpu_driver) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  return p_interp_driver->p_funcs->get_flags(p_interp_driver);
+}
+
 
 static uint32_t
 jit_get_exit_value(struct cpu_driver* p_cpu_driver) {
@@ -311,6 +331,14 @@ jit_get_exit_value(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
 
   return p_interp_driver->p_funcs->get_exit_value(p_interp_driver);
+}
+
+static void
+jit_set_exit_value(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+
+  p_interp_driver->p_funcs->set_exit_value(p_interp_driver, exit_value);
 }
 
 static void
@@ -742,9 +770,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
-  p_funcs->exit = jit_exit;
-  p_funcs->has_exited = jit_has_exited;
+  p_funcs->set_reset_callback = jit_set_reset_callback;
+  p_funcs->apply_flags = jit_apply_flags;
+  p_funcs->get_flags = jit_get_flags;
   p_funcs->get_exit_value = jit_get_exit_value;
+  p_funcs->set_exit_value = jit_set_exit_value;
   p_funcs->memory_range_invalidate = jit_memory_range_invalidate;
   p_funcs->get_address_info = jit_get_address_info;
   p_funcs->get_custom_counters = jit_get_custom_counters;

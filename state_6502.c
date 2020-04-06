@@ -10,7 +10,6 @@ struct state_6502*
 state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
   struct state_6502* p_state_6502 = util_mallocz(sizeof(struct state_6502));
 
-  p_state_6502->reset_pending = 0;
   p_state_6502->p_mem_read = p_mem_read;
   p_state_6502->p_timing = p_timing;
   p_state_6502->ticks_baseline = 0;
@@ -176,20 +175,4 @@ state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
   assert(fire);
 
   p_state_6502->irq_fire &= ~irq_value;
-}
-
-void
-state_6502_set_reset_pending(struct state_6502* p_state_6502) {
-  p_state_6502->reset_pending = 1;
-}
-
-int
-state_6502_check_and_do_reset(struct state_6502* p_state_6502) {
-  int ret = p_state_6502->reset_pending;
-
-  p_state_6502->reset_pending = 0;
-  if (ret) {
-    state_6502_reset(p_state_6502);
-  }
-  return ret;
 }

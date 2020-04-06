@@ -34,7 +34,6 @@ struct state_6502 {
   uint32_t reg_host_flags;
   uint32_t irq_high;
 
-  int reset_pending;
   uint8_t* p_mem_read;
   struct timing_struct* p_timing;
   uint64_t ticks_baseline;
@@ -77,8 +76,5 @@ void state_6502_set_irq_level(struct state_6502* p_state_6502,
 int state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq);
 void state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502,
                                          int irq);
-
-void state_6502_set_reset_pending(struct state_6502* p_state_6502);
-int state_6502_check_and_do_reset(struct state_6502* p_state_6502);
 
 #endif /* BEEBJIT_STATE_6502_H */
