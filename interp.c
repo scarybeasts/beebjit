@@ -17,7 +17,6 @@ enum {
   k_interp_special_callback = 2,
   k_interp_special_countdown = 4,
   k_interp_special_poll_irq = 8,
-  k_interp_special_exit = 16,
 };
 
 struct interp_struct {
@@ -714,9 +713,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   }
   if (instruction_callback) {
     special_checks |= k_interp_special_callback;
-  }
-  if (p_interp->driver.p_funcs->has_exited(&p_interp->driver)) {
-    special_checks |= k_interp_special_exit;
   }
 
   /* Jump in at the checks / fetch. Checking for countdown==0 on entry is
