@@ -290,9 +290,6 @@ via_create(int id,
            int externally_clocked,
            struct timing_struct* p_timing,
            struct bbc_struct* p_bbc) {
-  uint32_t t1_timer_id;
-  uint32_t t2_timer_id;
-
   struct via_struct* p_via = util_mallocz(sizeof(struct via_struct));
 
   p_via->id = id;
@@ -300,10 +297,22 @@ via_create(int id,
   p_via->p_bbc = p_bbc;
   p_via->p_timing = p_timing;
 
-  t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
-  t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
-  p_via->t1_timer_id = t1_timer_id;
-  p_via->t2_timer_id = t2_timer_id;
+  p_via->t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
+  p_via->t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
+
+  return p_via;
+}
+
+void
+via_destroy(struct via_struct* p_via) {
+  util_free(p_via);
+}
+
+void
+via_power_on_reset(struct via_struct* p_via) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t t1_timer_id = p_via->t1_timer_id;
+  uint32_t t2_timer_id = p_via->t2_timer_id;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
@@ -317,6 +326,15 @@ via_create(int id,
   p_via->DDRB = 0;
   p_via->ORA = 0;
   p_via->ORB = 0;
+  p_via->SR = 0;
+  p_via->ACR = 0;
+  p_via->PCR = 0;
+  p_via->IFR = 0;
+  p_via->IER = 0;
+  p_via->CA1 = 0;
+  p_via->CA2 = 0;
+  p_via->CB1 = 0;
+  p_via->CB2 = 0;
   /* EMU: the input registers seem to be initialized to 0xFF on a real
    * machine.
    */
@@ -329,17 +347,16 @@ via_create(int id,
   p_via->peripheral_a = 0xFF;
   p_via->peripheral_b = 0xFF;
 
-  via_set_t1c(p_via, 0xFFFF);
-  p_via->T1L = 0xFFFF;
-  via_set_t2c(p_via, 0xFFFF);
-  p_via->T2L = 0xFFFF;
-
   /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
   p_via->t1_pb7 = 1;
 
-  if (!externally_clocked) {
-    timing_start_timer(p_timing, t1_timer_id);
-    timing_start_timer(p_timing, t2_timer_id);
+  if (!p_via->externally_clocked) {
+    if (!timing_timer_is_running(p_timing, t1_timer_id)) {
+      timing_start_timer(p_timing, t1_timer_id);
+    }
+    if (!timing_timer_is_running(p_timing, t2_timer_id)) {
+      timing_start_timer(p_timing, t2_timer_id);
+    }
   }
 
   /* From the above data sheet:
@@ -351,12 +368,13 @@ via_create(int id,
   timing_set_firing(p_timing, t1_timer_id, 0);
   timing_set_firing(p_timing, t2_timer_id, 0);
 
-  return p_via;
-}
-
-void
-via_destroy(struct via_struct* p_via) {
-  util_free(p_via);
+  /* EMU: the counter values appear to be quasi-random on a real machine, but
+   * we'll initialize them to 0xFFFF for deterministic behavior.
+   */
+  via_set_t1c(p_via, 0xFFFF);
+  p_via->T1L = 0xFFFF;
+  via_set_t2c(p_via, 0xFFFF);
+  p_via->T2L = 0xFFFF;
 }
 
 void

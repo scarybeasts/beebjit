@@ -743,6 +743,16 @@ bbc_tick_timer_callback(void* p) {
 }
 
 static void
+bbc_break_reset(struct bbc_struct* p_bbc) {
+  /* The BBC break key is attached to the 6502 reset line.
+   * Many other peripherals are not connected to any reset on break, but a few
+   * are.
+   */
+  intel_fdc_break_reset(p_bbc->p_intel_fdc);
+  state_6502_set_reset_pending(p_bbc->p_state_6502);
+}
+
+static void
 bbc_virtual_keyboard_updated_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
@@ -751,12 +761,7 @@ bbc_virtual_keyboard_updated_callback(void* p) {
 
   /* Check for BREAK key. */
   if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
-    /* The BBC break key is attached to the 6502 reset line.
-     * Many other peripherals are not connected to any reset on break, but a
-     * few are.
-     */
-    intel_fdc_break_reset(p_bbc->p_intel_fdc);
-    state_6502_set_reset_pending(p_bbc->p_state_6502);
+    bbc_break_reset(p_bbc);
   }
 }
 
@@ -1223,6 +1228,8 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
   assert(p_bbc->is_romsel_invalidated == 0);
+  via_power_on_reset(p_bbc->p_system_via);
+  via_power_on_reset(p_bbc->p_user_via);
 
   state_6502_reset(p_state_6502);
 }
