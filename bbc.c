@@ -780,6 +780,8 @@ bbc_create(int mode,
   size_t map_size;
   size_t half_map_size;
   size_t map_offset;
+  uint8_t* p_mem_raw;
+  uint8_t* p_os_start;
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
@@ -849,11 +851,14 @@ bbc_create(int mode,
           (void*) (size_t) (K_BBC_MEM_RAW_ADDR - map_offset),
           0,
           map_size);
-  p_bbc->p_mem_raw = (os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) +
-                      map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_raw - map_offset), map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_raw + k_6502_addr_space_size),
-                             map_offset);
+  p_mem_raw = (os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) + map_offset);
+  p_bbc->p_mem_raw = p_mem_raw;
+  os_alloc_make_mapping_none((p_mem_raw - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_mem_raw + k_6502_addr_space_size), map_offset);
+
+  /* Copy in the OS ROM. */
+  p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
+  (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
 
   /* Runtime memory regions.
    * The write regions differ from the read regions for 6502 ROM addresses.
@@ -1173,11 +1178,12 @@ bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
   bbc_sideways_select(p_bbc, p_bbc->romsel);
 }
 
-void
-bbc_power_on_reset(struct bbc_struct* p_bbc) {
+static void
+bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
+  uint32_t i;
+
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
-  uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+  uint8_t* p_mem_sideways = p_bbc->p_mem_sideways;
 
   /* Clear memory. */
   /* EMU NOTE: skullduggery! On a lot of BBCs, the power-on DRAM state is 0xFF,
@@ -1187,14 +1193,36 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
    * We cater for both of these quirks below.
    * Full story: https://github.com/mattgodbolt/jsbeeb/issues/105
    */
-  (void) memset(p_mem_raw, '\xFF', k_6502_addr_space_size);
+  (void) memset(p_mem_raw, '\xFF', k_bbc_sideways_offset);
   (void) memset(p_mem_raw, '\0', 0x100);
 
-  /* Copy in OS ROM. */
-  (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
+  /* Clear sideways memory, if any. */
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    if (!p_bbc->is_sideways_ram_bank[i]) {
+      continue;
+    }
+    (void) memset((p_mem_sideways + (i * k_bbc_rom_size)),
+                  '\0',
+                  k_bbc_rom_size);
+  }
 
   p_bbc->is_romsel_invalidated = 1;
   bbc_sideways_select(p_bbc, 0);
+}
+
+static void
+bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
+  p_bbc->IC32 = 0;
+}
+
+void
+bbc_power_on_reset(struct bbc_struct* p_bbc) {
+  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+
+  bbc_power_on_memory_reset(p_bbc);
+  bbc_power_on_other_reset(p_bbc);
+  assert(p_bbc->romsel == 0);
+  assert(p_bbc->is_romsel_invalidated == 0);
 
   state_6502_reset(p_state_6502);
 }
