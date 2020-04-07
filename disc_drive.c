@@ -133,6 +133,22 @@ disc_drive_destroy(struct disc_drive_struct* p_drive) {
 }
 
 void
+disc_drive_power_on_reset(struct disc_drive_struct* p_drive) {
+  assert(!disc_drive_is_spinning(p_drive));
+
+  p_drive->is_side_upper = 0;
+  p_drive->track = 0;
+  p_drive->byte_position = 0;
+  /* NOTE: there's a decision here: does a power-on reset of the beeb change a
+   * user "physical" action -- changing the disc in the drive in this case.
+   * We decide it does. The disc in the drive is reset to the first in the
+   * cycle. This decision is so that a power-on reset can be used as a basis to
+   * replay state.
+   */
+  p_drive->disc_index = 0;
+}
+
+void
 disc_drive_add_disc(struct disc_drive_struct* p_drive,
                     struct disc_struct* p_disc) {
   uint32_t discs_added = p_drive->discs_added;

@@ -115,6 +115,11 @@ tape_set_status_callback(struct tape_struct* p_tape,
   p_tape->p_status_callback_object = p_status_callback_object;
 }
 
+void
+tape_power_on_reset(struct tape_struct* p_tape) {
+  tape_rewind(p_tape);
+}
+
 static uint16_t
 tape_read_u16(uint8_t* p_in_buf) {
   /* NOTE: not respecting endianness of host in these helpers. */

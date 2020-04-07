@@ -1255,6 +1255,12 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   assert(p_bbc->is_romsel_invalidated == 0);
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
+  sound_power_on_reset(p_bbc->p_sound);
+  tape_power_on_reset(p_bbc->p_tape);
+  /* Reset the controller before the drives so that spindown has been done. */
+  intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
+  disc_drive_power_on_reset(p_bbc->p_drive_0);
+  disc_drive_power_on_reset(p_bbc->p_drive_1);
 
   state_6502_reset(p_state_6502);
 }

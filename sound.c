@@ -281,9 +281,8 @@ struct sound_struct*
 sound_create(int synchronous,
              struct timing_struct* p_timing,
              struct bbc_options* p_options) {
-  size_t i;
+  uint32_t i;
   double volume_scale;
-  int16_t volume_max;
   int positive_silence;
 
   struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
@@ -330,52 +329,7 @@ sound_create(int synchronous,
     volume_scale *= pow(10.0, -0.1);
   } while (i > 0);
 
-  volume_max = p_sound->volumes[0xf];
   p_sound->volume_silence = p_sound->volumes[0];
-
-  /* EMU: initial sn76489 state and behavior is something no two sources seem
-   * to agree on. It doesn't matter a huge amount for BBC emulation because
-   * MOS sets the sound channels up on boot. But the intial BBC power-on
-   * noise does arise from power-on sn76489 state.
-   * I'm choosing a strategy that sets up the registers as if they're all zero
-   * initialized. This leads to max volume, lowest tone in all channels, and
-   * the noise channel is periodic.
-   */
-  /* EMU: note that there are various sn76489 references that cite that chips
-   * seem to start with random register values, e.g.:
-   * http://www.smspower.org/Development/SN76489
-   */
-  for (i = 0; i < 4; ++i) {
-    /* NOTE: b-em uses volume of 8, mid-way volume. */
-    p_sound->volume[i] = volume_max;
-    /* NOTE: b-em == 0x3ff, b2 == 0x3ff, jsbeeb == 0 -> 0x3ff, MAME == 0 -> 0.
-     * I'm willing to bet jsbeeb is closest but still wrong. jsbeeb flips the
-     * output signal to positive immediately as it traverses -1.
-     * beebjit is 0 -> 0x3ff, via direct integer underflow, with no output
-     * signal flip. This means our first waveform will start negative, sort of
-     * matching MAME which notes the sn76489 has "inverted" output.
-     */
-    p_sound->period[i] = 0;
-    /* NOTE: b-em randomizes these counters, maybe to get a phase effect? */
-    p_sound->counter[i] = 0;
-    p_sound->output[i] = 0;
-  }
-
-  /* EMU NOTE: if we zero initialize noise_frequency, this implies a period of
-   * 0x10 on the noise channel.
-   * The original BBC startup noise does sound like a more complicated tone
-   * than just square waves so maybe that is correct:
-   * http://www.8bs.com/sounds/bbc.wav
-   * I'm deviating from my "zero intiialization" policy here to select a
-   * noise frequency register value of 2, which is period 0x40, which sounds
-   * closer to the BBC boot sound we all love!
-   */
-  p_sound->noise_frequency = 2;
-  p_sound->period[3] = 0x40;
-  p_sound->noise_type = 0;
-  p_sound->last_channel = 0;
-  /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
-  p_sound->noise_rng = 0;
 
   return p_sound;
 }
@@ -441,6 +395,56 @@ sound_start_playing(struct sound_struct* p_sound) {
 void
 sound_set_output_enabled(struct sound_struct* p_sound, int is_enabled) {
   p_sound->is_output_enabled = is_enabled;
+}
+
+void
+sound_power_on_reset(struct sound_struct* p_sound) {
+  uint32_t i;
+  int16_t volume_max = p_sound->volumes[0xf];
+
+  /* EMU: initial sn76489 state and behavior is something no two sources seem
+   * to agree on. It doesn't matter a huge amount for BBC emulation because
+   * MOS sets the sound channels up on boot. But the intial BBC power-on
+   * noise does arise from power-on sn76489 state.
+   * I'm choosing a strategy that sets up the registers as if they're all zero
+   * initialized. This leads to max volume, lowest tone in all channels, and
+   * the noise channel is periodic.
+   */
+  /* EMU: note that there are various sn76489 references that cite that chips
+   * seem to start with random register values, e.g.:
+   * http://www.smspower.org/Development/SN76489
+   */
+  for (i = 0; i < 4; ++i) {
+    /* NOTE: b-em uses volume of 8, mid-way volume. */
+    p_sound->volume[i] = volume_max;
+    /* NOTE: b-em == 0x3ff, b2 == 0x3ff, jsbeeb == 0 -> 0x3ff, MAME == 0 -> 0.
+     * I'm willing to bet jsbeeb is closest but still wrong. jsbeeb flips the
+     * output signal to positive immediately as it traverses -1.
+     * beebjit is 0 -> 0x3ff, via direct integer underflow, with no output
+     * signal flip. This means our first waveform will start negative, sort of
+     * matching MAME which notes the sn76489 has "inverted" output.
+     */
+    p_sound->period[i] = 0;
+    /* NOTE: b-em randomizes these counters, maybe to get a phase effect? */
+    p_sound->counter[i] = 0;
+    p_sound->output[i] = 0;
+  }
+
+  /* EMU NOTE: if we zero initialize noise_frequency, this implies a period of
+   * 0x10 on the noise channel.
+   * The original BBC startup noise does sound like a more complicated tone
+   * than just square waves so maybe that is correct:
+   * http://www.8bs.com/sounds/bbc.wav
+   * I'm deviating from my "zero intiialization" policy here to select a
+   * noise frequency register value of 2, which is period 0x40, which sounds
+   * closer to the BBC boot sound we all love!
+   */
+  p_sound->noise_frequency = 2;
+  p_sound->period[3] = 0x40;
+  p_sound->noise_type = 0;
+  p_sound->last_channel = 0;
+  /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
+  p_sound->noise_rng = 0;
 }
 
 int

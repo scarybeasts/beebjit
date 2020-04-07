@@ -19,6 +19,8 @@ void tape_set_status_callback(struct tape_struct* p_tape,
                                                         int32_t value),
                               void* p_status_callback_object);
 
+void tape_power_on_reset(struct tape_struct* p_tape);
+
 void tape_load(struct tape_struct* p_disc, const char* p_filename);
 
 int tape_is_playing(struct tape_struct* p_tape);

@@ -269,6 +269,35 @@ intel_fdc_command_abort(struct intel_fdc_struct* p_fdc) {
 }
 
 void
+intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
+  /* The chip's reset line does take care of a lot of things.... */
+  intel_fdc_break_reset(p_fdc);
+  /* ... but not everything. Note that not all of these have been verified as
+   * to whether the reset line changes them or not.
+   */
+  assert(p_fdc->command == 0);
+  assert(p_fdc->state == k_intel_fdc_state_idle);
+  assert(p_fdc->drive_select == 0);
+  assert(p_fdc->p_current_drive == NULL);
+
+  p_fdc->result = 0;
+  p_fdc->data = 0;
+  p_fdc->logical_track[0] = 0;
+  p_fdc->logical_track[1] = 0;
+  p_fdc->drive_out = 0;
+  p_fdc->register_mode = 0;
+  p_fdc->register_head_step_rate = 0;
+  p_fdc->register_head_settle_time = 0;
+  p_fdc->register_head_load_unload = 0;
+  /* command_* and current_* variables don't need clearing -- they are set up
+   * when a new command is issued.
+   * Same for state_index_pulse_count, state_id_track, state_id_sector.
+   */
+  p_fdc->state_count = 0;
+  p_fdc->state_is_index_pulse = 0;
+}
+
+void
 intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc, k_log_info, "8271: reset");
@@ -282,8 +311,14 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   intel_fdc_select_drive(p_fdc, 0);
 
   assert(p_fdc->command == 0);
-  /* EMU: on a real machine, status appears to be cleared but result not. */
+  /* EMU: on a real machine, status appears to be cleared but result and data
+   * register not. */
   p_fdc->status = 0;
+
+  /* Any half-built command is cleared. */
+  p_fdc->command_pending = 0;
+  p_fdc->parameters_needed = 0;
+  p_fdc->parameters_index = 0;
 }
 
 struct intel_fdc_struct*

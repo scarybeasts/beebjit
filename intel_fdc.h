@@ -13,6 +13,7 @@ struct intel_fdc_struct* intel_fdc_create(struct state_6502* p_state_6502,
                                           struct bbc_options* p_options);
 void intel_fdc_destroy(struct intel_fdc_struct* p_fdc);
 
+void intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc);
 void intel_fdc_break_reset(struct intel_fdc_struct* p_fdc);
 
 /* Setup. */

@@ -16,6 +16,8 @@ void disc_drive_set_byte_callback(struct disc_drive_struct* p_drive,
                                                           uint8_t clock),
                                   void* p_byte_callback_object);
 
+void disc_drive_power_on_reset(struct disc_drive_struct* p_drive);
+
 void disc_drive_add_disc(struct disc_drive_struct* p_drive,
                          struct disc_struct* p_disc);
 void disc_drive_cycle_disc(struct disc_drive_struct* p_drive);
