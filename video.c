@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
 /* A real BBC in a non-interlaced bitmapped mode has a CRTC period of 19968us,
  * just short of 20ms.
@@ -1027,9 +1028,6 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_framebuffer_ready_callback = p_framebuffer_ready_callback;
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
   p_video->p_fast_flag = p_fast_flag;
-  p_video->is_framing_changed_for_render = 0;
-  p_video->is_wall_time_vsync_hit = 1;
-  p_video->is_rendering_active = 1;
 
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
@@ -1052,66 +1050,6 @@ video_create(uint8_t* p_bbc_mem,
                              p_options->p_opt_flags,
                              "video:render-every-ticks=");
 
-  p_video->crtc_frames = 0;
-  p_video->is_even_interlace_frame = 1;
-  p_video->is_odd_interlace_frame = 0;
-  p_video->is_first_frame_scanline = 1;
-
-  /* What initial state should we use for 6845 and Video ULA registers?
-   * The 6845 data sheets (all variations?) aren't much help, quoting:
-   * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
-   * "The CRTC registers will have an initial value at power up. When using
-   * a direct drive monitor (sans horizontal oscillator) these initial values
-   * may result in out-of-tolerance operation."
-   * It isn't specified whether those initial values are random or
-   * deterministic, or what they may be.
-   * Custom MOS ROM tests by Tom Seddon indicate fairly random values from boot
-   * to boot; sometimes the register values result in VSYNCs, sometimes not.
-   * We could argue it's not a huge deal because the MOS ROM sets values for
-   * the registers as part of selecting MODE7 at boot up. But we do want to
-   * avoid exotic 6845 setups (such as registers all zero) because the timing
-   * of exotic setups is more likely to change as bugs are fixed. And stable
-   * timing is desirable on account of record / playback support.
-   * So TL;DR: we'll set up MODE7.
-   */
-  p_video->crtc_registers[k_crtc_reg_horiz_total] = 63;
-  p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
-  p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
-  /* Horiz sync pulse width 4, vertical sync pulse width 2. */
-  p_video->hsync_pulse_width = 4;
-  p_video->vsync_pulse_width = 2;
-  p_video->crtc_registers[k_crtc_reg_sync_width] =
-      (p_video->hsync_pulse_width | (p_video->vsync_pulse_width << 4));
-  p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
-  p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
-  p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
-  /* NOTE: a real model B sets 28, even though AUG claims 27. */
-  p_video->crtc_registers[k_crtc_reg_vert_sync_position] = 28;
-  /* Interlace sync and video, 1 character display delay, 2 character cursor
-   * delay.
-   */
-  p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
-  p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
-  p_video->crtc_registers[k_crtc_reg_cursor_start] = 0x72;
-  p_video->crtc_registers[k_crtc_reg_cursor_end] = 0x13;
-
-  /* Set correctly as per above register values. */
-  p_video->is_interlace = 1;
-  p_video->is_interlace_sync_and_video = 1;
-  p_video->scanline_stride = 2;
-  p_video->scanline_mask = 0x1E;
-  p_video->is_master_display_enable = 1;
-  p_video->half_r0 = 32;
-  p_video->cursor_disabled = 0;
-  p_video->cursor_flashing = 1;
-  p_video->cursor_flash_mask = 0x10;
-  p_video->cursor_start_line = 18;
-  video_recalculate_framing_sanity(p_video);
-  p_video->clock_tick_multiplier = 2;
-
-  /* Teletext mode, 1MHz operation. */
-  p_video->video_ula_control = k_ula_teletext;
-
   if (p_system_via) {
     via_set_CB2_changed_callback(p_system_via,
                                  video_CB2_changed_callback,
@@ -1122,11 +1060,7 @@ video_create(uint8_t* p_bbc_mem,
     render_set_flyback_callback(p_render, video_flyback_callback, p_video);
   }
 
-  video_mode_updated(p_video);
-
   video_init_timer(p_video);
-  video_start_new_frame(p_video);
-  video_update_timer(p_video);
 
   return p_video;
 }
@@ -1175,6 +1109,124 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   }
 
   p_video->screen_wrap_add = screen_wrap_add;
+}
+
+static void
+video_ula_power_on_reset(struct video_struct* p_video) {
+  /* Teletext mode, 1MHz operation. */
+  p_video->video_ula_control = k_ula_teletext;
+  (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
+  p_video->screen_wrap_add = 0;
+  p_video->clock_tick_multiplier = 2;
+}
+
+static void
+video_crtc_power_on_reset(struct video_struct* p_video) {
+  /* What initial state should we use for 6845 and Video ULA registers?
+   * The 6845 data sheets (all variations?) aren't much help, quoting:
+   * http://bitsavers.trailing-edge.com/components/motorola/_dataSheets/6845.pdf
+   * "The CRTC registers will have an initial value at power up. When using
+   * a direct drive monitor (sans horizontal oscillator) these initial values
+   * may result in out-of-tolerance operation."
+   * It isn't specified whether those initial values are random or
+   * deterministic, or what they may be.
+   * Custom MOS ROM tests by Tom Seddon indicate fairly random values from boot
+   * to boot; sometimes the register values result in VSYNCs, sometimes not.
+   * We could argue it's not a huge deal because the MOS ROM sets values for
+   * the registers as part of selecting MODE7 at boot up. But we do want to
+   * avoid exotic 6845 setups (such as registers all zero) because the timing
+   * of exotic setups is more likely to change as bugs are fixed. And stable
+   * timing is desirable on account of record / playback support.
+   * So TL;DR: we'll set up MODE7.
+   */
+  p_video->crtc_registers[k_crtc_reg_horiz_total] = 63;
+  p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
+  p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
+  /* Horiz sync pulse width 4, vertical sync pulse width 2. */
+  p_video->crtc_registers[k_crtc_reg_sync_width] =
+      (p_video->hsync_pulse_width | (p_video->vsync_pulse_width << 4));
+  p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
+  p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
+  p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
+  /* NOTE: a real model B sets 28, even though AUG claims 27. */
+  p_video->crtc_registers[k_crtc_reg_vert_sync_position] = 28;
+  /* Interlace sync and video, 1 character display delay, 2 character cursor
+   * delay.
+   */
+  p_video->crtc_registers[k_crtc_reg_interlace] = (3 | (1 << 4) | (2 << 6));
+  p_video->crtc_registers[k_crtc_reg_lines_per_character] = 18;
+  /* Flashing cursor, scanlines 18 - 19. */
+  p_video->crtc_registers[k_crtc_reg_cursor_start] = 0x72;
+  p_video->crtc_registers[k_crtc_reg_cursor_end] = 0x13;
+  p_video->crtc_registers[k_crtc_reg_mem_addr_high] = 0;
+  p_video->crtc_registers[k_crtc_reg_mem_addr_low] = 0;
+  p_video->crtc_registers[k_crtc_reg_cursor_high] = 0;
+  p_video->crtc_registers[k_crtc_reg_cursor_low] = 0;
+  p_video->crtc_registers[k_crtc_reg_light_pen_high] = 0;
+  p_video->crtc_registers[k_crtc_reg_light_pen_low] = 0;
+
+  p_video->crtc_address_register = 0;
+
+  /* Set correctly as per above register values. */
+  p_video->is_interlace = 1;
+  p_video->is_interlace_sync_and_video = 1;
+  p_video->is_master_display_enable = 1;
+  p_video->scanline_stride = 2;
+  p_video->scanline_mask = 0x1E;
+  p_video->hsync_pulse_width = 4;
+  p_video->vsync_pulse_width = 2;
+  p_video->half_r0 = 32;
+  p_video->cursor_disabled = 0;
+  p_video->cursor_flashing = 1;
+  p_video->cursor_flash_mask = 0x10;
+  p_video->cursor_start_line = 18;
+
+  video_recalculate_framing_sanity(p_video);
+  assert(p_video->has_sane_framing_parameters);
+
+  /* CRTC non-register state. */
+  p_video->crtc_frames = 0;
+  p_video->is_even_interlace_frame = 1;
+  p_video->is_odd_interlace_frame = 0;
+  p_video->horiz_counter = 0;
+  p_video->scanline_counter = 0;
+  p_video->vert_counter = 0;
+  p_video->vert_adjust_counter = 0;
+  p_video->vsync_scanline_counter = 0;
+  p_video->address_counter = 0;
+  p_video->address_counter_this_row = 0;
+  p_video->address_counter_next_row = 0;
+  p_video->in_vert_adjust = 0;
+  p_video->in_vsync = 0;
+  p_video->in_dummy_raster = 0;
+  p_video->had_vsync_this_row = 0;
+  p_video->display_enable_horiz = 1;
+  p_video->display_enable_vert = 1;
+  p_video->has_hit_cursor_line_start = 0;
+  p_video->has_hit_cursor_line_end = 0;
+  p_video->is_end_of_main_latched = 0;
+  p_video->is_end_of_frame_latched = 0;
+  p_video->start_of_line_state_checks = 1;
+  p_video->is_first_frame_scanline = 1;
+}
+
+void
+video_power_on_reset(struct video_struct* p_video) {
+  video_crtc_power_on_reset(p_video);
+  video_ula_power_on_reset(p_video);
+
+  /* Other state that needs resetting. */
+  p_video->is_framing_changed_for_render = 1;
+  p_video->is_wall_time_vsync_hit = 1;
+  p_video->is_rendering_active = 1;
+  p_video->timer_fire_force_vsync_start = 0;
+  p_video->timer_fire_force_vsync_end = 0;
+  p_video->frame_skip_counter = 0;
+
+  /* Deliberately don't reset the counters. */
+
+  video_mode_updated(p_video);
+  video_update_timer(p_video);
 }
 
 uint64_t

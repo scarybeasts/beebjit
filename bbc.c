@@ -1261,6 +1261,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
+  video_power_on_reset(p_bbc->p_video);
 
   state_6502_reset(p_state_6502);
 }

@@ -1689,6 +1689,8 @@ do_special_checks:
           state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
           interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
           do_irq = 0;
+
+          countdown = timing_get_countdown(p_timing);
         }
       }
     }

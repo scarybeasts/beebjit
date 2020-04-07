@@ -50,6 +50,7 @@ video_test_init() {
                            NULL,
                            &g_test_fast_flag,
                            &g_p_options);
+  video_power_on_reset(g_p_video);
   g_test_fast_flag = 0;
 }
 

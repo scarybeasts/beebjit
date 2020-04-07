@@ -29,6 +29,8 @@ void video_destroy(struct video_struct* p_video);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
 
+void video_power_on_reset(struct video_struct* p_video);
+
 uint64_t video_get_num_vsyncs(struct video_struct* p_video);
 uint64_t video_get_num_crtc_advances(struct video_struct* p_video);
 struct render_struct* video_get_render(struct video_struct* p_video);
