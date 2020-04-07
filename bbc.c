@@ -1256,12 +1256,19 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
   sound_power_on_reset(p_bbc->p_sound);
+  /* Reset serial before the tape so that playing has been stopped. */
+  serial_power_on_reset(p_bbc->p_serial);
   tape_power_on_reset(p_bbc->p_tape);
   /* Reset the controller before the drives so that spindown has been done. */
   intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
+  keyboard_power_on_reset(p_bbc->p_keyboard);
   video_power_on_reset(p_bbc->p_video);
+
+  /* Not reset: teletext, render. They don't affect execution (only display) and
+   * will resync to the new display output pretty immediately.
+   */
 
   state_6502_reset(p_state_6502);
 }

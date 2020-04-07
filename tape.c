@@ -117,6 +117,7 @@ tape_set_status_callback(struct tape_struct* p_tape,
 
 void
 tape_power_on_reset(struct tape_struct* p_tape) {
+  assert(!tape_is_playing(p_tape));
   tape_rewind(p_tape);
 }
 

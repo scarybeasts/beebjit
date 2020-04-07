@@ -184,14 +184,6 @@ serial_create(struct state_6502* p_state_6502,
   p_serial->p_fast_flag = p_fast_flag;
   p_serial->fasttape_flag = fasttape_flag;
 
-  p_serial->acia_control = 0;
-  p_serial->acia_status = 0;
-  p_serial->acia_receive = 0;
-  p_serial->acia_transmit = 0;
-
-  p_serial->line_level_DCD = 0;
-  p_serial->line_level_CTS = 0;
-
   p_serial->handle_input = -1;
   p_serial->handle_output = -1;
 
@@ -270,6 +262,37 @@ serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
   p_serial->p_tape = p_tape;
 
   tape_set_status_callback(p_tape, serial_tape_receive_status, p_serial);
+}
+
+static void
+serial_acia_power_on_reset(struct serial_struct* p_serial) {
+  p_serial->acia_control = 0;
+  p_serial->acia_status = 0;
+  p_serial->acia_receive = 0;
+  p_serial->acia_transmit = 0;
+}
+
+static void
+serial_ula_power_on_reset(struct serial_struct* p_serial) {
+  if (p_serial->serial_ula_motor_on) {
+    tape_stop(p_serial->p_tape);
+  }
+  assert(p_serial->serial_tape_carrier_count == 0);
+  assert(p_serial->serial_tape_line_level_DCD == 0);
+
+  p_serial->serial_ula_motor_on = 0;
+  p_serial->serial_ula_rs423_selected = 0;
+}
+
+void
+serial_power_on_reset(struct serial_struct* p_serial) {
+  serial_acia_power_on_reset(p_serial);
+  serial_ula_power_on_reset(p_serial);
+
+  serial_check_line_levels(p_serial);
+  assert(p_serial->line_level_DCD == 0);
+  assert(p_serial->line_level_CTS == 0);
+  assert(p_serial->acia_status == 0);
 }
 
 void

@@ -43,6 +43,8 @@ void keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
                                            void (*p_callback)(void*),
                                            void* p_callback_object);
 
+void keyboard_power_on_reset(struct keyboard_struct* p_keyboard);
+
 void keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                     const char* p_name);
 void keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,

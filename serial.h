@@ -21,6 +21,8 @@ void serial_set_io_handles(struct serial_struct* p_serial,
 void serial_set_tape(struct serial_struct* p_serial,
                      struct tape_struct* p_tape);
 
+void serial_power_on_reset(struct serial_struct* p_serial);
+
 void serial_tick(struct serial_struct* p_serial);
 
 uint8_t serial_acia_read(struct serial_struct* p_serial, uint8_t reg);

@@ -582,6 +582,14 @@ keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
 }
 
 void
+keyboard_power_on_reset(struct keyboard_struct* p_keyboard) {
+  /* In case a replay on the virtual keyboard was in progress, clear it. */
+  (void) memset(&p_keyboard->virtual_keyboard,
+                '\0',
+                sizeof(p_keyboard->virtual_keyboard));
+}
+
+void
 keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                const char* p_name) {
   char buf[k_capture_header_size];
