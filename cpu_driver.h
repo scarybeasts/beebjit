@@ -21,6 +21,7 @@ enum {
   k_cpu_flag_exited = 1,
   k_cpu_flag_soft_reset = 2,
   k_cpu_flag_hard_reset = 4,
+  k_cpu_flag_replay = 8,
 };
 
 struct cpu_driver_funcs {

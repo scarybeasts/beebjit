@@ -773,6 +773,7 @@ static void
 bbc_do_reset_callback(void* p, uint32_t flags) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+  uint64_t curr_cycles = state_6502_get_cycles(p_bbc->p_state_6502);
 
   if (flags & k_cpu_flag_soft_reset) {
     bbc_break_reset(p_bbc);
@@ -780,11 +781,20 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
   if (flags & k_cpu_flag_hard_reset) {
     bbc_power_on_reset(p_bbc);
   }
+  if (flags & k_cpu_flag_replay) {
+    /* TODO: incorrect for non-2MHz CPU ticks. */
+    if (curr_cycles >= 2000000) {
+      curr_cycles -= 2000000;
+    } else {
+      curr_cycles = 0;
+    }
+    keyboard_rewind_capture(p_bbc->p_keyboard, curr_cycles);
+  }
 
   p_cpu_driver->p_funcs->apply_flags(
       p_cpu_driver,
       0,
-      (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset));
+      (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset | k_cpu_flag_replay));
 }
 
 struct bbc_struct*
@@ -1549,6 +1559,7 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
 static inline void
 bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
@@ -1569,8 +1580,16 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
     /* We're in the middle of some timer callback. Let the CPU driver initiate
      * the actual reset at a safe time.
      */
-    struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
     p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
+    /* "undo" -- go back 1 second if there is a current capture. */
+    if (keyboard_is_capturing(p_keyboard) &&
+        !keyboard_is_replaying(p_keyboard)) {
+      p_cpu_driver->p_funcs->apply_flags(
+          p_cpu_driver,
+          (k_cpu_flag_hard_reset | k_cpu_flag_replay),
+          0);
+    }
   }
 }
 

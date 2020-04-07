@@ -49,8 +49,11 @@ void keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                     const char* p_name);
 void keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                                    const char* p_name);
+int keyboard_is_capturing(struct keyboard_struct* p_keyboard);
 int keyboard_is_replaying(struct keyboard_struct* p_keyboard);
 void keyboard_end_replay(struct keyboard_struct* p_keyboard);
+void keyboard_rewind_capture(struct keyboard_struct* p_keyboard,
+                             uint64_t stop_cycles);
 
 void keyboard_read_queue(struct keyboard_struct* p_keyboard);
 

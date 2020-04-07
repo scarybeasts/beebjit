@@ -52,6 +52,7 @@ struct keyboard_struct {
   uint8_t replay_next_keys;
   int had_replay_eof;
   uint32_t replay_timer_id;
+  uint32_t rewind_timer_id;
 
   struct keyboard_state virtual_keyboard;
   struct keyboard_state physical_keyboard;
@@ -500,12 +501,13 @@ keyboard_virtual_updated(struct keyboard_struct* p_keyboard) {
 }
 
 static void
-keyboard_replay_timer_tick(struct keyboard_struct* p_keyboard) {
+keyboard_replay_timer_tick(void* p) {
   uint64_t ret;
   uint8_t i;
   uint8_t replay_keys[k_keyboard_queue_size];
   uint8_t replay_isdown[k_keyboard_queue_size];
 
+  struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
   struct util_file* p_replay_file = p_keyboard->p_replay_file;
   struct keyboard_state* p_state = &p_keyboard->virtual_keyboard;
   uint8_t num_keys = p_keyboard->replay_next_keys;
@@ -541,6 +543,23 @@ keyboard_replay_timer_tick(struct keyboard_struct* p_keyboard) {
   keyboard_read_replay_frame(p_keyboard);
 }
 
+static void
+keyboard_rewind_timer_fired(void* p) {
+  struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
+  struct util_file* p_replay_file = p_keyboard->p_replay_file;
+
+  assert(p_replay_file != NULL);
+  assert(p_keyboard->p_capture_file == NULL);
+
+  (void) timing_stop_timer(p_keyboard->p_timing, p_keyboard->rewind_timer_id);
+
+  p_keyboard->p_replay_file = NULL;
+  /* TODO: truncate capture file. */
+  p_keyboard->p_capture_file = p_replay_file;
+  p_keyboard->had_replay_eof = 1;
+  p_keyboard->p_active = &p_keyboard->physical_keyboard;
+}
+
 struct keyboard_struct*
 keyboard_create(struct timing_struct* p_timing) {
   struct keyboard_struct* p_keyboard =
@@ -557,6 +576,8 @@ keyboard_create(struct timing_struct* p_timing) {
 
   p_keyboard->replay_timer_id =
       timing_register_timer(p_timing, keyboard_replay_timer_tick, p_keyboard);
+  p_keyboard->rewind_timer_id =
+      timing_register_timer(p_timing, keyboard_rewind_timer_fired, p_keyboard);
 
   return p_keyboard;
 }
@@ -601,15 +622,16 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
   util_file_write(p_keyboard->p_capture_file, buf, sizeof(buf));
 }
 
-void
-keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
-                              const char* p_name) {
+static void
+keyboard_start_file_replay(struct keyboard_struct* p_keyboard,
+                           struct util_file* p_file) {
   char buf[k_capture_header_size];
   uint64_t ret;
-  struct util_file* p_file = util_file_open(p_name, 0, 0);
 
+  assert(p_keyboard->p_replay_file == NULL);
   p_keyboard->p_replay_file = p_file;
   p_keyboard->p_active = &p_keyboard->virtual_keyboard;
+  p_keyboard->had_replay_eof = 0;
 
   ret = util_file_read(p_file, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
@@ -625,6 +647,19 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
   keyboard_read_replay_frame(p_keyboard);
 }
 
+void
+keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
+                              const char* p_name) {
+  struct util_file* p_file = util_file_open(p_name, 0, 0);
+
+  keyboard_start_file_replay(p_keyboard, p_file);
+}
+
+int
+keyboard_is_capturing(struct keyboard_struct* p_keyboard) {
+  return (p_keyboard->p_capture_file != NULL);
+}
+
 int
 keyboard_is_replaying(struct keyboard_struct* p_keyboard) {
   return (p_keyboard->p_replay_file != NULL);
@@ -633,16 +668,36 @@ keyboard_is_replaying(struct keyboard_struct* p_keyboard) {
 void
 keyboard_end_replay(struct keyboard_struct* p_keyboard) {
   struct util_file* p_replay_file = p_keyboard->p_replay_file;
+  struct timing_struct* p_timing = p_keyboard->p_timing;
 
   assert(p_replay_file != NULL);
   assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
 
-  (void) timing_stop_timer(p_keyboard->p_timing, p_keyboard->replay_timer_id);
+  (void) timing_stop_timer(p_timing, p_keyboard->replay_timer_id);
+  if (timing_timer_is_running(p_timing, p_keyboard->rewind_timer_id)) {
+    return;
+  }
+
   util_file_close(p_replay_file);
 
-  p_keyboard->p_replay_file = 0;
+  p_keyboard->p_replay_file = NULL;
   p_keyboard->had_replay_eof = 1;
   p_keyboard->p_active = &p_keyboard->physical_keyboard;
+}
+
+void
+keyboard_rewind_capture(struct keyboard_struct* p_keyboard,
+                        uint64_t stop_cycles) {
+  struct util_file* p_capture_file = p_keyboard->p_capture_file;
+
+  assert(p_capture_file != NULL);
+  assert(p_keyboard->p_replay_file == NULL);
+
+  util_file_seek(p_keyboard->p_capture_file, 0);
+  keyboard_start_file_replay(p_keyboard, p_capture_file);
+  (void) timing_start_timer_with_value(p_keyboard->p_timing,
+                                       p_keyboard->rewind_timer_id,
+                                       stop_cycles);
 }
 
 int
