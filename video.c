@@ -77,7 +77,7 @@ struct video_struct {
   struct timing_struct* p_timing;
   struct teletext_struct* p_teletext;
   struct via_struct* p_system_via;
-  size_t video_timer_id;
+  uint32_t timer_id;
   void (*p_framebuffer_ready_callback)(void*, int, int);
   void* p_framebuffer_ready_object;
   int* p_fast_flag;
@@ -603,9 +603,7 @@ video_init_timer(struct video_struct* p_video) {
   if (p_video->externally_clocked) {
     return;
   }
-  (void) timing_start_timer_with_value(p_video->p_timing,
-                                       p_video->video_timer_id,
-                                       0);
+  (void) timing_start_timer_with_value(p_video->p_timing, p_video->timer_id, 0);
 }
 
 static inline int
@@ -761,7 +759,7 @@ video_update_timer(struct video_struct* p_video) {
   }
 
   (void) timing_set_timer_value(p_video->p_timing,
-                                p_video->video_timer_id,
+                                p_video->timer_id,
                                 timer_value);
 }
 
@@ -795,7 +793,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   timer_value = (p_video->vsync_pulse_width * (r0 + 1));
   timer_value *= p_video->clock_tick_multiplier;
   (void) timing_set_timer_value(p_video->p_timing,
-                                p_video->video_timer_id,
+                                p_video->timer_id,
                                 timer_value);
 }
 
@@ -826,7 +824,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
   timer_value -= (p_video->vsync_pulse_width * (r0 + 1));
   timer_value *= p_video->clock_tick_multiplier;
   (void) timing_set_timer_value(p_video->p_timing,
-                                p_video->video_timer_id,
+                                p_video->timer_id,
                                 timer_value);
 }
 
@@ -1036,9 +1034,9 @@ video_create(uint8_t* p_bbc_mem,
   p_video->num_vsyncs = 0;
   p_video->num_crtc_advances = 0;
 
-  p_video->video_timer_id = timing_register_timer(p_timing,
-                                                  video_timer_fired,
-                                                  p_video);
+  p_video->timer_id = timing_register_timer(p_timing,
+                                            video_timer_fired,
+                                            p_video);
 
   p_video->crtc_address_register = 0;
 

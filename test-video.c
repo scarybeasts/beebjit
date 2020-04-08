@@ -69,7 +69,7 @@ video_test_end() {
 
 static uint32_t
 video_test_get_timer() {
-  uint32_t timer_id = g_p_video->video_timer_id;
+  uint32_t timer_id = g_p_video->timer_id;
   return (uint32_t) timing_get_timer_value(g_p_timing, timer_id);
 }
 

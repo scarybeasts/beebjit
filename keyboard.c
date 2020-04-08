@@ -535,11 +535,10 @@ keyboard_replay_timer_tick(void* p) {
   uint8_t i;
 
   struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
-  struct util_file* p_replay_file = p_keyboard->p_replay_file;
   struct keyboard_state* p_state = &p_keyboard->virtual_keyboard;
   uint8_t num_keys = p_keyboard->replay_next_num_keys;
 
-  assert(p_replay_file != NULL);
+  assert(p_keyboard->p_replay_file != NULL);
   assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
   assert(num_keys > 0);
 

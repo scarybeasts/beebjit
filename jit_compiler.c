@@ -179,10 +179,6 @@ jit_compiler_create(struct memory_access* p_memory_access,
     p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;
   }
 
-  jit_compiler_memory_range_invalidate(p_compiler,
-                                       0,
-                                       (k_6502_addr_space_size - 1));
-
   /* Calculate lengths of sequences we need to know. */
   p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
   p_compiler->len_x64_countdown = (asm_x64_jit_check_countdown_END -
@@ -1972,11 +1968,12 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
 void
 jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                      uint16_t addr,
-                                     uint16_t len) {
+                                     uint32_t len) {
   uint32_t i;
 
   uint32_t addr_end = (addr + len);
 
+  assert(len <= k_6502_addr_space_size);
   assert(addr_end <= k_6502_addr_space_size);
 
   for (i = addr; i < addr_end; ++i) {

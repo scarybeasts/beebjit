@@ -31,7 +31,7 @@ int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
 
 void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
-                                          uint16_t len);
+                                          uint32_t len);
 
 uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
 

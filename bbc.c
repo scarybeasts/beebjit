@@ -130,7 +130,7 @@ struct bbc_struct {
   /* Timing support. */
   struct os_time_sleeper* p_sleeper;
   uint32_t timer_id_cycles;
-  uint32_t timer_id_tick;
+  uint32_t timer_id_last_tick_callback;
   uint32_t timer_id_stop_cycles;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
@@ -242,7 +242,7 @@ bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
      * see latest IRQ results to act on them.
      */
     (void) timing_start_timer_with_value(p_bbc->p_timing,
-                                         p_bbc->timer_id_tick,
+                                         p_bbc->timer_id_last_tick_callback,
                                          (1 + is_unaligned));
   }
 
@@ -733,10 +733,11 @@ bbc_framebuffer_ready_callback(void* p,
 }
 
 static void
-bbc_tick_timer_callback(void* p) {
+bbc_last_tick_callback(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_tick);
+  (void) timing_stop_timer(p_bbc->p_timing,
+                           p_bbc->timer_id_last_tick_callback);
 
   p_bbc->memory_access.memory_client_last_tick_callback(
       p_bbc->memory_access.p_last_tick_callback_obj);
@@ -783,8 +784,8 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
   }
   if (flags & k_cpu_flag_replay) {
     /* TODO: incorrect for non-2MHz CPU ticks. */
-    if (curr_ticks >= 2000000) {
-      curr_ticks -= 2000000;
+    if (curr_ticks >= (k_bbc_tick_rate * 5)) {
+      curr_ticks -= (k_bbc_tick_rate * 5);
     } else {
       curr_ticks = 0;
     }
@@ -1020,9 +1021,8 @@ bbc_create(int mode,
     util_bail("timing_create failed");
   }
   p_bbc->p_timing = p_timing;
-  p_bbc->timer_id_tick = timing_register_timer(p_timing,
-                                               bbc_tick_timer_callback,
-                                               p_bbc);
+  p_bbc->timer_id_last_tick_callback =
+      timing_register_timer(p_timing, bbc_last_tick_callback, p_bbc);
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
@@ -1224,6 +1224,7 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
 
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
   uint8_t* p_mem_sideways = p_bbc->p_mem_sideways;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   /* Clear memory. */
   /* EMU NOTE: skullduggery! On a lot of BBCs, the power-on DRAM state is 0xFF,
@@ -1248,11 +1249,24 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
 
   p_bbc->is_romsel_invalidated = 1;
   bbc_sideways_select(p_bbc, 0);
+
+  p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver,
+                                                 0,
+                                                 k_6502_addr_space_size);
 }
 
 static void
 bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
+  struct timing_struct* p_timing = p_bbc->p_timing;
+  uint32_t timer_id_last_tick_callback = p_bbc->timer_id_last_tick_callback;
+
   p_bbc->IC32 = 0;
+
+  if (timing_timer_is_running(p_timing, timer_id_last_tick_callback)) {
+    (void) timing_stop_timer(p_timing, timer_id_last_tick_callback);
+  }
+
+  /* TODO: decide if the stop cycles timer should be reset or not. */
 }
 
 void
@@ -1739,6 +1753,9 @@ bbc_cpu_thread(void* p) {
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   bbc_start_timer_tick(p_bbc);
+
+  /* Set up initial fast mode correctly. */
+  bbc_set_fast_mode(p_bbc, p_bbc->fast_flag);
 
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;

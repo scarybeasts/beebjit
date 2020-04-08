@@ -344,12 +344,13 @@ jit_set_exit_value(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
 static void
 jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
                             uint16_t addr,
-                            uint16_t len) {
+                            uint32_t len) {
   uint32_t i;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint32_t addr_end = (addr + len);
 
+  assert(len <= k_6502_addr_space_size);
   assert(addr_end <= k_6502_addr_space_size);
 
   if (p_jit->log_compile) {
@@ -365,6 +366,7 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   for (i = addr; i < addr_end; ++i) {
     jit_invalidate_code_at_address(p_jit, i);
     jit_invalidate_block_address(p_jit, i);
+    p_jit->jit_ptrs[i] = p_jit->jit_ptr_no_code;
   }
 
   jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr, len);
@@ -843,8 +845,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   asm_x64_emit_jit_call_compile_trampoline(p_temp_buf);
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
-    /* Initialize JIT code. */
-    jit_invalidate_block_address(p_jit, i);
     /* Initialize JIT trampoline. */
     util_buffer_setup(
         p_temp_buf,
@@ -858,6 +858,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * fast path doesn't need certain checks.
    */
   os_fault_register_handler(jit_handle_fault);
+
+  /* NOTE: the JIT code space hasn't been set up with the invalidation markers.
+   * Power-on reset has the responsibility of marking the entire address space
+   * as invalidated.
+   */
 }
 
 struct cpu_driver*

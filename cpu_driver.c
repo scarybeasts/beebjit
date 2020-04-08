@@ -11,7 +11,7 @@
 static void
 cpu_driver_memory_range_invalidate_dummy(struct cpu_driver* p_cpu_driver,
                                          uint16_t addr,
-                                         uint16_t len) {
+                                         uint32_t len) {
   (void) p_cpu_driver;
   (void) addr;
   (void) len;
