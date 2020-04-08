@@ -491,3 +491,30 @@ util_set_interrupt_callback(void (*p_interrupt_callback)(void)) {
     util_bail("signal failed");
   }
 }
+
+static uint8_t
+util_hex_char_to_val(char hex_char) {
+  int upper_char = toupper(hex_char);
+  uint8_t val = 0;
+
+  if ((upper_char >= '0') && (upper_char <= '9')) {
+    val = (upper_char - '0');
+  } else if ((upper_char >= 'A') && (upper_char <= 'F')) {
+    val = (upper_char - 'A' + 10);
+  }
+
+  return val;
+}
+
+uint8_t
+util_parse_hex2(const char* p_str) {
+  uint8_t val;
+
+  assert((*p_str != '\0') && (*(p_str + 1) != '\0'));
+
+  val = util_hex_char_to_val(p_str[0]);
+  val <<= 4;
+  val |= util_hex_char_to_val(p_str[1]);
+
+  return val;
+}

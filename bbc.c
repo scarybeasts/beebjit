@@ -1838,6 +1838,19 @@ bbc_add_disc(struct bbc_struct* p_bbc,
 }
 
 void
+bbc_add_raw_disc(struct bbc_struct* p_bbc,
+                 const char* p_filename,
+                 const char* p_spec) {
+  struct disc_struct* p_disc = disc_create_from_raw(p_filename, p_spec);
+
+  if (p_disc == NULL) {
+    util_bail("disc_create_from_raw failed");
+  }
+
+  disc_drive_add_disc(p_bbc->p_drive_0, p_disc);
+}
+
+void
 bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
   tape_load(p_bbc->p_tape, p_file_name);
 }

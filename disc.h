@@ -15,6 +15,8 @@ struct disc_struct* disc_create(const char* p_filename,
                                 int is_mutable,
                                 int convert_to_hfe,
                                 struct bbc_options* p_options);
+struct disc_struct* disc_create_from_raw(const char* p_file_name,
+                                         const char* p_raw_spec);
 void disc_destroy(struct disc_struct* p_disc);
 
 const char* disc_get_file_name(struct disc_struct* p_disc);

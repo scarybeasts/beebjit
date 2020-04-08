@@ -63,6 +63,8 @@ main(int argc, const char* argv[]) {
   const char* replay_name = NULL;
   const char* opt_flags = "";
   const char* log_flags = "";
+  const char* p_create_hfe_file = NULL;
+  const char* p_create_hfe_spec = NULL;
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
@@ -111,6 +113,10 @@ main(int argc, const char* argv[]) {
         util_bail("ROM bank number out of range");
       }
       rom_names[bank] = val2;
+      i_args += 2;
+    } else if (has_2 && (!strcmp(arg, "-create-hfe"))) {
+      p_create_hfe_file = val1;
+      p_create_hfe_spec = val2;
       i_args += 2;
     } else if (has_1 && !strcmp(arg, "-os")) {
       os_rom_name = val1;
@@ -330,6 +336,12 @@ main(int argc, const char* argv[]) {
                    disc_mutable_flag,
                    convert_hfe_flag);
     }
+  }
+  if (p_create_hfe_file) {
+    if (num_discs_0 == k_max_discs_per_drive) {
+      util_bail("can't create hfe, too many discs");
+    }
+    bbc_add_raw_disc(p_bbc, p_create_hfe_file, p_create_hfe_spec);
   }
 
   if (convert_hfe_flag) {

@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 struct disc_track {
   uint8_t data[k_ibm_disc_bytes_per_track];
@@ -109,6 +110,50 @@ disc_create(const char* p_file_name,
 
   p_disc->is_writeable = is_writeable;
   p_disc->is_mutable = is_mutable;
+
+  return p_disc;
+}
+
+struct disc_struct*
+disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
+  size_t len;
+  size_t spec_pos;
+  uint32_t track_pos;
+
+  struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
+
+  p_disc->p_file_name = util_strdup(p_file_name);
+  p_disc->p_file = util_file_open(p_file_name, 1, 1);
+  p_disc->is_writeable = 1;
+  p_disc->is_mutable = 1;
+
+  p_disc->is_dirty = 0;
+  p_disc->dirty_side = -1;
+  p_disc->dirty_track = -1;
+
+  /* Fill disc bytes from the raw spec. */
+  len = strlen(p_raw_spec);
+  spec_pos = 0;
+  track_pos = 0;
+  while ((spec_pos + 4) <= len) {
+    uint8_t data;
+    uint8_t clocks;
+
+    if (track_pos == k_ibm_disc_bytes_per_track) {
+      util_bail("disc spec too big for track");
+    }
+    data = util_parse_hex2(p_raw_spec + spec_pos);
+    clocks = util_parse_hex2(p_raw_spec + spec_pos + 2);
+
+    p_disc->lower_side.tracks[0].data[track_pos] = data;
+    p_disc->lower_side.tracks[0].clocks[track_pos] = clocks;
+
+    track_pos++;
+    spec_pos += 4;
+  }
+
+  disc_hfe_convert(p_disc);
+  p_disc->p_write_track_callback = disc_hfe_write_track;
 
   return p_disc;
 }
