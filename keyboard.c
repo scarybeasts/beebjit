@@ -1,5 +1,6 @@
 #include "keyboard.h"
 
+#include "bbc_options.h"
 #include "log.h"
 #include "os_thread.h"
 #include "state_6502.h"
@@ -8,6 +9,7 @@
 #include "via.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 
 static const char* k_capture_header = "beebjit-capture";
@@ -62,6 +64,8 @@ struct keyboard_struct {
   struct keyboard_state virtual_keyboard;
   struct keyboard_state physical_keyboard;
   struct keyboard_state* p_active;
+
+  int log_replay;
 };
 
 static void
@@ -433,11 +437,36 @@ keyboard_key_released(struct keyboard_state* p_state, uint8_t key) {
 }
 
 static void
+keyboard_log_keys(struct keyboard_struct* p_keyboard,
+                  const char* p_key_type,
+                  uint8_t num_keys,
+                  uint8_t* p_keys,
+                  uint8_t* p_is_downs) {
+  uint32_t i;
+
+  uint64_t timer_ticks = timing_get_total_timer_ticks(p_keyboard->p_timing);
+
+  for (i = 0; i < num_keys; ++i) {
+    const char* p_updown = "up";
+    if (p_is_downs[i]) {
+      p_updown = "down";
+    }
+    log_do_log(k_log_keyboard,
+               k_log_info,
+               "%s key %"PRIu8" %s at %"PRIu64,
+               p_key_type,
+               p_keys[i],
+               p_updown,
+               timer_ticks);
+  }
+}
+
+static void
 keyboard_capture_keys(struct keyboard_struct* p_keyboard,
                       int is_replay,
                       uint8_t num_keys,
-                      uint8_t* keys,
-                      uint8_t* is_downs) {
+                      uint8_t* p_keys,
+                      uint8_t* p_is_downs) {
   uint64_t time;
   uint64_t file_pos;
   struct util_file* p_capture_file = p_keyboard->p_capture_file;
@@ -461,14 +490,18 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
   time = timing_get_total_timer_ticks(p_keyboard->p_timing);
   util_file_write(p_capture_file, &time, sizeof(time));
   util_file_write(p_capture_file, &num_keys, sizeof(num_keys));
-  util_file_write(p_capture_file, keys, num_keys);
-  util_file_write(p_capture_file, is_downs, num_keys);
+  util_file_write(p_capture_file, p_keys, num_keys);
+  util_file_write(p_capture_file, p_is_downs, num_keys);
   /* Always maintain an EOF marker that is overwritten if there's another
    * record.
    */
   file_pos = util_file_get_pos(p_capture_file);
   util_file_write(p_capture_file, &k_keyboard_eof, sizeof(k_keyboard_eof));
   util_file_seek(p_capture_file, file_pos);
+
+  if (p_keyboard->log_replay) {
+    keyboard_log_keys(p_keyboard, "capture", num_keys, p_keys, p_is_downs);
+  }
 }
 
 static void
@@ -556,6 +589,14 @@ keyboard_replay_timer_tick(void* p) {
     }
   }
 
+  if (p_keyboard->log_replay) {
+    keyboard_log_keys(p_keyboard,
+                      "replay",
+                      num_keys,
+                      &p_keyboard->replay_next_keys[0],
+                      &p_keyboard->replay_next_isdown[0]);
+  }
+
   keyboard_virtual_updated(p_keyboard);
 
   keyboard_capture_keys(p_keyboard,
@@ -594,7 +635,7 @@ keyboard_rewind_timer_fired(void* p) {
 }
 
 struct keyboard_struct*
-keyboard_create(struct timing_struct* p_timing) {
+keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   struct keyboard_struct* p_keyboard =
       util_mallocz(sizeof(struct keyboard_struct));
 
@@ -610,6 +651,9 @@ keyboard_create(struct timing_struct* p_timing) {
       timing_register_timer(p_timing, keyboard_replay_timer_tick, p_keyboard);
   p_keyboard->rewind_timer_id =
       timing_register_timer(p_timing, keyboard_rewind_timer_fired, p_keyboard);
+
+  p_keyboard->log_replay = util_has_option(p_options->p_log_flags,
+                                           "keyboard:replay");
 
   return p_keyboard;
 }
@@ -732,6 +776,13 @@ keyboard_rewind_capture(struct keyboard_struct* p_keyboard,
   (void) timing_start_timer_with_value(p_keyboard->p_timing,
                                        p_keyboard->rewind_timer_id,
                                        stop_cycles);
+
+  if (p_keyboard->log_replay) {
+    log_do_log(k_log_keyboard,
+               k_log_info,
+               "rewind replay to %"PRIu64,
+               stop_cycles);
+  }
 }
 
 int

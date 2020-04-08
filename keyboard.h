@@ -5,6 +5,7 @@
 
 struct keyboard_struct;
 
+struct bbc_options;
 struct timing_struct;
 
 enum {
@@ -36,7 +37,8 @@ enum {
   k_keyboard_key_end = 153,
 };
 
-struct keyboard_struct* keyboard_create(struct timing_struct* p_timing);
+struct keyboard_struct* keyboard_create(struct timing_struct* p_timing,
+                                        struct bbc_options* p_options);
 void keyboard_destroy(struct keyboard_struct* p_keyboard);
 
 void keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,

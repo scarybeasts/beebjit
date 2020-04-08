@@ -1045,7 +1045,7 @@ bbc_create(int mode,
     util_bail("via_create failed");
   }
 
-  p_bbc->p_keyboard = keyboard_create(p_timing);
+  p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   if (p_bbc->p_keyboard == NULL) {
     util_bail("keyboard_create failed");
   }
