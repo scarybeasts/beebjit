@@ -56,6 +56,7 @@ struct util_file* util_file_open(const char* p_file_name,
                                  int writeable,
                                  int create);
 void util_file_close(struct util_file* p_file);
+uint64_t util_file_get_pos(struct util_file* p_file);
 uint64_t util_file_get_size(struct util_file* p_file);
 void util_file_seek(struct util_file* p_file, uint64_t pos);
 uint64_t util_file_read(struct util_file* p_file, void* p_buf, uint64_t length);

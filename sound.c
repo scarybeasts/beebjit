@@ -445,6 +445,8 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   p_sound->last_channel = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
   p_sound->noise_rng = 0;
+
+  p_sound->prev_system_ticks = 0;
 }
 
 int

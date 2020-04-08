@@ -268,6 +268,13 @@ util_file_close(struct util_file* p) {
 }
 
 uint64_t
+util_file_get_pos(struct util_file* p) {
+  FILE* p_file = (FILE*) p;
+
+  return ftell(p_file);
+}
+
+uint64_t
 util_file_get_size(struct util_file* p) {
   int ret;
   uint64_t pos;

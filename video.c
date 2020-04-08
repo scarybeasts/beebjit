@@ -9,6 +9,7 @@
 #include "via.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -385,6 +386,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   p_video->num_crtc_advances++;
 
   delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);
+  assert(delta_crtc_ticks < INT_MAX);
 
   if (clock_speed == 0) {
     /* Round down if we're advancing to an odd clock. */
@@ -1222,6 +1224,7 @@ video_power_on_reset(struct video_struct* p_video) {
   p_video->timer_fire_force_vsync_start = 0;
   p_video->timer_fire_force_vsync_end = 0;
   p_video->frame_skip_counter = 0;
+  p_video->prev_system_ticks = 0;
 
   /* Deliberately don't reset the counters. */
 

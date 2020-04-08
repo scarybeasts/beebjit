@@ -52,6 +52,11 @@ timing_destroy(struct timing_struct* p_timing) {
   util_free(p_timing);
 }
 
+void
+timing_reset_total_timer_ticks(struct timing_struct* p_timing) {
+  p_timing->total_timer_ticks = 0;
+}
+
 static inline uint64_t
 timing_get_countdown_adjustment(struct timing_struct* p_timing) {
   assert(p_timing->next_timer_expiry >= p_timing->countdown);

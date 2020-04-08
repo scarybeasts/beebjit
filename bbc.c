@@ -773,7 +773,7 @@ static void
 bbc_do_reset_callback(void* p, uint32_t flags) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
-  uint64_t curr_cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  uint64_t curr_ticks = timing_get_total_timer_ticks(p_bbc->p_timing);
 
   if (flags & k_cpu_flag_soft_reset) {
     bbc_break_reset(p_bbc);
@@ -783,12 +783,12 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
   }
   if (flags & k_cpu_flag_replay) {
     /* TODO: incorrect for non-2MHz CPU ticks. */
-    if (curr_cycles >= 2000000) {
-      curr_cycles -= 2000000;
+    if (curr_ticks >= 2000000) {
+      curr_ticks -= 2000000;
     } else {
-      curr_cycles = 0;
+      curr_ticks = 0;
     }
-    keyboard_rewind_capture(p_bbc->p_keyboard, curr_cycles);
+    keyboard_rewind_capture(p_bbc->p_keyboard, curr_ticks);
   }
 
   p_cpu_driver->p_funcs->apply_flags(
@@ -1257,8 +1257,9 @@ bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
 
 void
 bbc_power_on_reset(struct bbc_struct* p_bbc) {
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+  struct timing_struct* p_timing = p_bbc->p_timing;
 
+  timing_reset_total_timer_ticks(p_timing);
   bbc_power_on_memory_reset(p_bbc);
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
@@ -1280,7 +1281,8 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
    * will resync to the new display output pretty immediately.
    */
 
-  state_6502_reset(p_state_6502);
+  assert(timing_get_total_timer_ticks(p_timing) == 0);
+  state_6502_reset(p_bbc->p_state_6502);
 }
 
 struct cpu_driver*
@@ -1556,6 +1558,12 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
+static void
+bbc_set_fast_mode(struct bbc_struct* p_bbc, int is_fast) {
+  p_bbc->fast_flag = is_fast;
+  sound_set_output_enabled(p_bbc->p_sound, !is_fast);
+}
+
 static inline void
 bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
@@ -1563,8 +1571,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
 
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
-    p_bbc->fast_flag = !p_bbc->fast_flag;
-    sound_set_output_enabled(p_bbc->p_sound, !p_bbc->fast_flag);
+    bbc_set_fast_mode(p_bbc, !p_bbc->fast_flag);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
     /* Exit any in progress replay. */
     if (keyboard_is_replaying(p_keyboard)) {
@@ -1589,6 +1596,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
           p_cpu_driver,
           (k_cpu_flag_hard_reset | k_cpu_flag_replay),
           0);
+      bbc_set_fast_mode(p_bbc, 1);
     }
   }
 }
@@ -1613,7 +1621,7 @@ bbc_cycles_timer_callback(void* p) {
 
   /* Bit of a special case, but break out of fast mode if replay hits EOF. */
   if (keyboard_consume_had_replay_eof(p_keyboard)) {
-    p_bbc->fast_flag = 0;
+    bbc_set_fast_mode(p_bbc, 0);
   }
 
   /* Check for special alt key combos to change emulator behavior. */
