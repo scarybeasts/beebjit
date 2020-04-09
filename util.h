@@ -63,6 +63,7 @@ uint64_t util_file_read(struct util_file* p_file, void* p_buf, uint64_t length);
 void util_file_write(struct util_file* p_file,
                      const void* p_buf,
                      uint64_t length);
+void util_file_flush(struct util_file* p_file);
 
 uint64_t util_file_read_fully(const char* p_file_name,
                               uint8_t* p_buf,

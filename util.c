@@ -322,6 +322,16 @@ util_file_seek(struct util_file* p, uint64_t pos) {
   }
 }
 
+void
+util_file_flush(struct util_file* p) {
+  FILE* p_file = (FILE*) p;
+
+  int ret = fflush(p_file);
+  if (ret != 0) {
+    util_bail("fflush failed");
+  }
+}
+
 uint64_t
 util_file_read_fully(const char* p_file_name,
                      uint8_t* p_buf,

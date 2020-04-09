@@ -122,6 +122,12 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
 
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
 
+  /* For now, fill unused space with 1 bits, as opposed to empty disc surface,
+   * to get deterministic behavior.
+   */
+  (void) memset(&p_disc->lower_side, '\xff', sizeof(p_disc->lower_side));
+  (void) memset(&p_disc->upper_side, '\xff', sizeof(p_disc->upper_side));
+
   p_disc->p_file_name = util_strdup(p_file_name);
   p_disc->p_file = util_file_open(p_file_name, 1, 1);
   p_disc->is_writeable = 1;
@@ -223,6 +229,7 @@ disc_flush_writes(struct disc_struct* p_disc) {
                                  track,
                                  p_data,
                                  p_clocks);
+  util_file_flush(p_disc->p_file);
 }
 
 

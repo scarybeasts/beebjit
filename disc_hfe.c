@@ -449,4 +449,5 @@ disc_hfe_convert(struct disc_struct* p_disc) {
 
   util_file_seek(p_file, 512);
   util_file_write(p_file, p_metadata, 512);
+  util_file_flush(p_file);
 }
