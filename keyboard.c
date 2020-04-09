@@ -39,8 +39,10 @@ struct keyboard_state {
 
 struct keyboard_struct {
   struct timing_struct* p_timing;
-  void (*p_virtual_updated_callback)(void*);
+  void (*p_virtual_updated_callback)(void* p);
   void* p_virtual_updated_callback_object;
+  void (*p_set_fast_mode_callback)(void* p, int fast);
+  void* p_set_fast_mode_callback_object;
 
   /* The OS thread populates the queue of key events and the BBC thread
    * empties it from time to time.
@@ -52,7 +54,6 @@ struct keyboard_struct {
 
   struct util_file* p_capture_file;
   struct util_file* p_replay_file;
-  int had_replay_eof;
   uint32_t replay_timer_id;
   uint32_t rewind_timer_id;
 
@@ -615,7 +616,10 @@ keyboard_rewind_timer_fired(void* p) {
 
   (void) timing_stop_timer(p_timing, p_keyboard->rewind_timer_id);
 
-  p_keyboard->had_replay_eof = 1;
+  if (p_keyboard->p_set_fast_mode_callback) {
+    p_keyboard->p_set_fast_mode_callback(
+        p_keyboard->p_set_fast_mode_callback_object, 0);
+  }
 }
 
 struct keyboard_struct*
@@ -628,7 +632,6 @@ keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   p_keyboard->queue_pos = 0;
   p_keyboard->p_capture_file = NULL;
   p_keyboard->p_replay_file = NULL;
-  p_keyboard->had_replay_eof = 0;
   p_keyboard->p_active = &p_keyboard->physical_keyboard;
 
   p_keyboard->replay_timer_id =
@@ -663,6 +666,15 @@ keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
 }
 
 void
+keyboard_set_fast_mode_callback(struct keyboard_struct* p_keyboard,
+                                void (*p_set_fast_mode_callback)(void* p,
+                                                                int fast),
+                                void* p_set_fast_mode_callback_object) {
+  p_keyboard->p_set_fast_mode_callback = p_set_fast_mode_callback;
+  p_keyboard->p_set_fast_mode_callback_object = p_set_fast_mode_callback_object;
+}
+
+void
 keyboard_power_on_reset(struct keyboard_struct* p_keyboard) {
   /* In case a replay on the virtual keyboard was in progress, clear it. */
   (void) memset(&p_keyboard->virtual_keyboard,
@@ -691,7 +703,6 @@ keyboard_start_file_replay(struct keyboard_struct* p_keyboard,
   assert(p_keyboard->p_replay_file == NULL);
   p_keyboard->p_replay_file = p_file;
   p_keyboard->p_active = &p_keyboard->virtual_keyboard;
-  p_keyboard->had_replay_eof = 0;
 
   ret = util_file_read(p_file, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
@@ -741,8 +752,12 @@ keyboard_end_replay(struct keyboard_struct* p_keyboard) {
   util_file_close(p_replay_file);
 
   p_keyboard->p_replay_file = NULL;
-  p_keyboard->had_replay_eof = 1;
   p_keyboard->p_active = &p_keyboard->physical_keyboard;
+
+  if (p_keyboard->p_set_fast_mode_callback) {
+    p_keyboard->p_set_fast_mode_callback(
+        p_keyboard->p_set_fast_mode_callback_object, 0);
+  }
 }
 
 int
@@ -854,16 +869,6 @@ keyboard_put_key_in_queue(struct keyboard_struct* p_keyboard,
   p_keyboard->queue_pos++;
 
   os_lock_unlock(p_keyboard->p_lock);
-}
-
-int
-keyboard_consume_had_replay_eof(struct keyboard_struct* p_keyboard) {
-  if (!p_keyboard->had_replay_eof) {
-    return 0;
-  }
-
-  p_keyboard->had_replay_eof = 0;
-  return 1;
 }
 
 void

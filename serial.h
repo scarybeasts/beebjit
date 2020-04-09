@@ -10,10 +10,14 @@ struct state_6502;
 struct tape_struct;
 
 struct serial_struct* serial_create(struct state_6502* p_state_6502,
-                                    int* p_fast_flag,
                                     int fasttape_flag,
                                     struct bbc_options* p_options);
 void serial_destroy(struct serial_struct* p_serial);
+
+void serial_set_fast_mode_callback(struct serial_struct* p_serial,
+                                   void (*set_fast_mode_callback)(void* p,
+                                                                  int fast),
+                                   void* p_set_fast_mode_object);
 
 void serial_set_io_handles(struct serial_struct* p_serial,
                            intptr_t handle_input,

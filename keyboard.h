@@ -44,6 +44,10 @@ void keyboard_destroy(struct keyboard_struct* p_keyboard);
 void keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
                                            void (*p_callback)(void*),
                                            void* p_callback_object);
+void keyboard_set_fast_mode_callback(struct keyboard_struct* p_keyboard,
+                                     void (*p_set_fast_mode_callback)(void* p,
+                                                                      int fast),
+                                     void* p_set_fast_mode_callback_object);
 
 void keyboard_power_on_reset(struct keyboard_struct* p_keyboard);
 
@@ -69,7 +73,6 @@ int keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard);
 int keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key);
 int keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
                                    uint8_t key);
-int keyboard_consume_had_replay_eof(struct keyboard_struct* p_keyboard);
 
 /* Callbacks from the system code. */
 void keyboard_system_key_pressed(struct keyboard_struct* p_keyboard,

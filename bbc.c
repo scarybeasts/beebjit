@@ -798,6 +798,14 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
       (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset | k_cpu_flag_replay));
 }
 
+static void
+bbc_set_fast_mode(void* p, int is_fast) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  p_bbc->fast_flag = is_fast;
+  sound_set_output_enabled(p_bbc->p_sound, !is_fast);
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            uint8_t* p_os_rom,
@@ -1052,6 +1060,7 @@ bbc_create(int mode,
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
                                         bbc_virtual_keyboard_updated_callback,
                                         p_bbc);
+  keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
   p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
   if (p_bbc->p_sound == NULL) {
@@ -1100,13 +1109,11 @@ bbc_create(int mode,
     util_bail("tape_create failed");
   }
 
-  p_bbc->p_serial = serial_create(p_state_6502,
-                                  &p_bbc->fast_flag,
-                                  fasttape_flag,
-                                  &p_bbc->options);
+  p_bbc->p_serial = serial_create(p_state_6502, fasttape_flag, &p_bbc->options);
   if (p_bbc->p_serial == NULL) {
     util_bail("serial_create failed");
   }
+  serial_set_fast_mode_callback(p_bbc->p_serial, bbc_set_fast_mode, p_bbc);
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
@@ -1572,12 +1579,6 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
-static void
-bbc_set_fast_mode(struct bbc_struct* p_bbc, int is_fast) {
-  p_bbc->fast_flag = is_fast;
-  sound_set_output_enabled(p_bbc->p_sound, !is_fast);
-}
-
 static inline void
 bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
@@ -1631,11 +1632,6 @@ bbc_cycles_timer_callback(void* p) {
    * interrupts and checks for BREAK.
    */
   keyboard_read_queue(p_keyboard);
-
-  /* Bit of a special case, but break out of fast mode if replay hits EOF. */
-  if (keyboard_consume_had_replay_eof(p_keyboard)) {
-    bbc_set_fast_mode(p_bbc, 0);
-  }
 
   /* Check for special alt key combos to change emulator behavior. */
   bbc_check_alt_keys(p_bbc);

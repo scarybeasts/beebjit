@@ -34,7 +34,8 @@ enum {
 
 struct serial_struct {
   struct state_6502* p_state_6502;
-  int* p_fast_flag;
+  void (*set_fast_mode_callback)(void* p, int fast);
+  void* p_set_fast_mode_object;
   uint8_t acia_control;
   uint8_t acia_status;
   uint8_t acia_receive;
@@ -175,13 +176,11 @@ serial_acia_reset(struct serial_struct* p_serial) {
 
 struct serial_struct*
 serial_create(struct state_6502* p_state_6502,
-              int* p_fast_flag,
               int fasttape_flag,
               struct bbc_options* p_options) {
   struct serial_struct* p_serial = util_mallocz(sizeof(struct serial_struct));
 
   p_serial->p_state_6502 = p_state_6502;
-  p_serial->p_fast_flag = p_fast_flag;
   p_serial->fasttape_flag = fasttape_flag;
 
   p_serial->handle_input = -1;
@@ -205,6 +204,14 @@ serial_destroy(struct serial_struct* p_serial) {
   }
 
   util_free(p_serial);
+}
+
+void
+serial_set_fast_mode_callback(struct serial_struct* p_serial,
+                              void (*set_fast_mode_callback)(void* p, int fast),
+                              void* p_set_fast_mode_object) {
+  p_serial->set_fast_mode_callback = set_fast_mode_callback;
+  p_serial->p_set_fast_mode_object = p_set_fast_mode_object;
 }
 
 void
@@ -440,12 +447,16 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
   if (motor_on && !p_serial->serial_ula_motor_on) {
     tape_play(p_serial->p_tape);
     if (p_serial->fasttape_flag) {
-      *(p_serial->p_fast_flag) = 1;
+      if (p_serial->set_fast_mode_callback != NULL) {
+        p_serial->set_fast_mode_callback(p_serial->p_set_fast_mode_object, 1);
+      }
     }
   } else if (!motor_on && p_serial->serial_ula_motor_on) {
     tape_stop(p_serial->p_tape);
     if (p_serial->fasttape_flag) {
-      *(p_serial->p_fast_flag) = 0;
+      if (p_serial->set_fast_mode_callback != NULL) {
+        p_serial->set_fast_mode_callback(p_serial->p_set_fast_mode_object, 0);
+      }
     }
   }
   p_serial->serial_ula_motor_on = motor_on;
