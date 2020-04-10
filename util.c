@@ -45,6 +45,26 @@ util_strdup(const char* p_str) {
   return strdup(p_str);
 }
 
+char*
+util_strdup2(const char* p_str1, const char* p_str2) {
+  char* p_ret;
+
+  size_t len1 = strlen(p_str1);
+  size_t len2 = strlen(p_str2);
+  size_t len = (len1 + len2);
+
+  if (((len1 + len2) < len1) || ((len + 1) < len)) {
+    util_bail("integer overflow");
+  }
+
+  p_ret = malloc(len + 1);
+  (void) memcpy(p_ret, p_str1, len1);
+  (void) memcpy((p_ret + len1), p_str2, len2);
+  p_ret[len] = '\0';
+
+  return p_ret;
+}
+
 struct util_buffer {
   uint8_t* p_mem;
   size_t length;
@@ -353,6 +373,34 @@ util_file_write_fully(const char* p_file_name,
   struct util_file* p_file = util_file_open(p_file_name, 1, 1);
   util_file_write(p_file, p_buf, size);
   util_file_close(p_file);
+}
+
+void
+util_file_copy(const char* p_src_file_name, const char* p_dst_file_name) {
+  char buf[4096];
+  uint64_t to_go;
+
+  struct util_file* p_src_file = util_file_open(p_src_file_name, 0, 0);
+  struct util_file* p_dst_file = util_file_open(p_dst_file_name, 1, 1);
+
+  to_go = util_file_get_size(p_src_file);
+  while (to_go > 0) {
+    uint64_t ret;
+    uint64_t length = sizeof(buf);
+    if (to_go < length) {
+      length = to_go;
+    }
+    ret = util_file_read(p_src_file, buf, length);
+    if (ret != length) {
+      util_bail("util_file_read short read");
+    }
+    util_file_write(p_dst_file, buf, length);
+
+    to_go -= length;
+  }
+
+  util_file_close(p_src_file);
+  util_file_close(p_dst_file);
 }
 
 intptr_t

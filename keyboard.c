@@ -43,7 +43,7 @@ struct keyboard_struct {
   void (*p_set_fast_mode_callback)(void* p, int fast);
   void* p_set_fast_mode_callback_object;
 
-  /* The OS thread populates the queue of key events and the BBC thread
+  /* The OS thread populates the queue of physical key events and the BBC thread
    * empties it from time to time.
    */
   struct os_lock_struct* p_lock;
@@ -62,8 +62,8 @@ struct keyboard_struct {
   uint8_t replay_next_keys[k_keyboard_queue_size];
   uint8_t replay_next_isdown[k_keyboard_queue_size];
 
-  struct keyboard_state virtual_keyboard;
-  struct keyboard_state physical_keyboard;
+  struct keyboard_state* p_virtual_keyboard;
+  struct keyboard_state* p_physical_keyboard;
   struct keyboard_state* p_active;
 
   int log_replay;
@@ -559,11 +559,11 @@ keyboard_replay_timer_tick(void* p) {
   uint8_t i;
 
   struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
-  struct keyboard_state* p_state = &p_keyboard->virtual_keyboard;
+  struct keyboard_state* p_state = p_keyboard->p_virtual_keyboard;
   uint8_t num_keys = p_keyboard->replay_next_num_keys;
 
   assert(p_keyboard->p_replay_file != NULL);
-  assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
+  assert(p_keyboard->p_active == p_keyboard->p_virtual_keyboard);
   assert(num_keys > 0);
 
   if (num_keys > k_keyboard_queue_size) {
@@ -601,13 +601,36 @@ keyboard_replay_timer_tick(void* p) {
 }
 
 static void
+keyboard_flip_virtual_to_physical(struct keyboard_struct* p_keyboard) {
+  /* This little dance is because when a replay is ending, we can't just drop
+   * to the physical keyboard as this can cause keyboard state discontinuities.
+   * For example, if rewinding to a time where a key was pressed (virtually),
+   * but not pressed physically, the emulated code would stop seeing a key
+   * press but without a key press event being recording to any capture log
+   * -- disaster.
+   * The simplest way to avoid tricky bugs is to just adopt the virtual
+   * keyboard state into the physical keyboard state. This leads to stuck-down
+   * keys but you just press them again.
+   */
+  struct keyboard_state* p_temp = p_keyboard->p_virtual_keyboard;
+  p_keyboard->p_virtual_keyboard = p_keyboard->p_physical_keyboard;
+  p_keyboard->p_physical_keyboard = p_temp;
+
+  p_keyboard->p_active = p_keyboard->p_physical_keyboard;
+}
+
+static void
 keyboard_rewind_timer_fired(void* p) {
   struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
   struct timing_struct* p_timing = p_keyboard->p_timing;
 
-  assert(p_keyboard->p_replay_file != NULL);
-
   (void) timing_stop_timer(p_timing, p_keyboard->rewind_timer_id);
+
+  if (keyboard_is_capturing(p_keyboard) &&
+      timing_timer_is_running(p_timing, p_keyboard->replay_timer_id)) {
+    keyboard_end_replay(p_keyboard);
+    keyboard_flip_virtual_to_physical(p_keyboard);
+  }
 
   if (p_keyboard->p_set_fast_mode_callback) {
     p_keyboard->p_set_fast_mode_callback(
@@ -620,12 +643,15 @@ keyboard_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
   struct keyboard_struct* p_keyboard =
       util_mallocz(sizeof(struct keyboard_struct));
 
+  p_keyboard->p_physical_keyboard = util_mallocz(sizeof(struct keyboard_state));
+  p_keyboard->p_virtual_keyboard = util_mallocz(sizeof(struct keyboard_state));
+
   p_keyboard->p_timing = p_timing;
   p_keyboard->p_lock = os_lock_create();
   p_keyboard->queue_pos = 0;
   p_keyboard->p_capture_file = NULL;
   p_keyboard->p_replay_file = NULL;
-  p_keyboard->p_active = &p_keyboard->physical_keyboard;
+  p_keyboard->p_active = p_keyboard->p_physical_keyboard;
 
   p_keyboard->replay_timer_id =
       timing_register_timer(p_timing, keyboard_replay_timer_tick, p_keyboard);
@@ -653,6 +679,8 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
     util_free(p_keyboard->p_replay_file_name);
   }
   os_lock_destroy(p_keyboard->p_lock);
+  util_free(p_keyboard->p_physical_keyboard);
+  util_free(p_keyboard->p_virtual_keyboard);
   util_free(p_keyboard);
 }
 
@@ -676,15 +704,18 @@ keyboard_set_fast_mode_callback(struct keyboard_struct* p_keyboard,
 void
 keyboard_power_on_reset(struct keyboard_struct* p_keyboard) {
   /* In case a replay on the virtual keyboard was in progress, clear it. */
-  (void) memset(&p_keyboard->virtual_keyboard,
+  (void) memset(p_keyboard->p_virtual_keyboard,
                 '\0',
-                sizeof(p_keyboard->virtual_keyboard));
+                sizeof(struct keyboard_state));
 }
 
 void
 keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
                                const char* p_name) {
   char buf[k_capture_header_size];
+
+  assert(p_keyboard->p_capture_file == NULL);
+  assert(p_keyboard->p_capture_file_name == NULL);
 
   p_keyboard->p_capture_file = util_file_open(p_name, 1, 1);
   p_keyboard->p_capture_file_name = util_strdup(p_name);
@@ -702,7 +733,7 @@ keyboard_start_file_replay(struct keyboard_struct* p_keyboard,
 
   assert(p_keyboard->p_replay_file == NULL);
   p_keyboard->p_replay_file = p_file;
-  p_keyboard->p_active = &p_keyboard->virtual_keyboard;
+  p_keyboard->p_active = p_keyboard->p_virtual_keyboard;
 
   ret = util_file_read(p_file, buf, sizeof(buf));
   if (ret != sizeof(buf)) {
@@ -723,6 +754,9 @@ keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                               const char* p_name) {
   struct util_file* p_file = util_file_open(p_name, 0, 0);
 
+  assert(p_keyboard->p_replay_file == NULL);
+  assert(p_keyboard->p_replay_file_name == NULL);
+
   p_keyboard->p_replay_file_name = util_strdup(p_name);
 
   keyboard_start_file_replay(p_keyboard, p_file);
@@ -741,20 +775,25 @@ keyboard_is_replaying(struct keyboard_struct* p_keyboard) {
 void
 keyboard_end_replay(struct keyboard_struct* p_keyboard) {
   struct util_file* p_replay_file = p_keyboard->p_replay_file;
+  char* p_replay_file_name = p_keyboard->p_replay_file_name;
   struct timing_struct* p_timing = p_keyboard->p_timing;
 
   assert(p_replay_file != NULL);
-  assert(p_keyboard->p_active == &p_keyboard->virtual_keyboard);
+  assert(p_replay_file_name != NULL);
+  assert(p_keyboard->p_active == p_keyboard->p_virtual_keyboard);
 
   (void) timing_stop_timer(p_timing, p_keyboard->replay_timer_id);
+
+  util_file_close(p_replay_file);
+  p_keyboard->p_replay_file = NULL;
+  util_free(p_replay_file_name);
+  p_keyboard->p_replay_file_name = NULL;
+
   if (timing_timer_is_running(p_timing, p_keyboard->rewind_timer_id)) {
     return;
   }
 
-  util_file_close(p_replay_file);
-
-  p_keyboard->p_replay_file = NULL;
-  p_keyboard->p_active = &p_keyboard->physical_keyboard;
+  keyboard_flip_virtual_to_physical(p_keyboard);
 
   if (p_keyboard->p_set_fast_mode_callback) {
     p_keyboard->p_set_fast_mode_callback(
@@ -764,13 +803,26 @@ keyboard_end_replay(struct keyboard_struct* p_keyboard) {
 
 int
 keyboard_can_rewind(struct keyboard_struct* p_keyboard) {
+  int is_capturing;
+  int is_replaying;
+
   /* Can't rewind if we're already rewinding. */
   if (timing_timer_is_running(p_keyboard->p_timing,
                               p_keyboard->rewind_timer_id)) {
     return 0;
   }
 
-  if (keyboard_is_replaying(p_keyboard) && !keyboard_is_capturing(p_keyboard)) {
+  is_capturing = keyboard_is_capturing(p_keyboard);
+  is_replaying = keyboard_is_replaying(p_keyboard);
+
+  /* We don't yet have a behavior decided if both replaying and capturing at
+   * the same time.
+   */
+  if (is_capturing && is_replaying) {
+    return 0;
+  }
+
+  if (is_capturing || is_replaying) {
     return 1;
   }
 
@@ -779,22 +831,37 @@ keyboard_can_rewind(struct keyboard_struct* p_keyboard) {
 
 void
 keyboard_rewind(struct keyboard_struct* p_keyboard, uint64_t stop_cycles) {
-  struct timing_struct* p_timing;
-  struct util_file* p_replay_file;
+  struct timing_struct* p_timing = p_keyboard->p_timing;
+
+  int is_capturing = keyboard_is_capturing(p_keyboard);
+  int is_replaying = keyboard_is_replaying(p_keyboard);
 
   /* Replay may have ended in the interim. */
-  if (!keyboard_is_replaying(p_keyboard)) {
+  if (!is_capturing && !is_replaying) {
     return;
   }
 
-  p_timing = p_keyboard->p_timing;
-  p_replay_file = p_keyboard->p_replay_file;
+  if (is_capturing) {
+    char* p_capture_file_name = p_keyboard->p_capture_file_name;
+    char* p_new_replay_file_name = util_strdup2(p_capture_file_name, ".replay");
+    util_file_close(p_keyboard->p_capture_file);
+    p_keyboard->p_capture_file = NULL;
+    p_keyboard->p_capture_file_name = NULL;
+    util_file_copy(p_capture_file_name, p_new_replay_file_name);
 
-  (void) timing_stop_timer(p_timing, p_keyboard->replay_timer_id);
+    keyboard_set_capture_file_name(p_keyboard, p_capture_file_name);
+    util_free(p_capture_file_name);
+    keyboard_set_replay_file_name(p_keyboard, p_new_replay_file_name);
+    util_free(p_new_replay_file_name);
+  } else {
+    struct util_file* p_replay_file = p_keyboard->p_replay_file;
 
-  p_keyboard->p_replay_file = NULL;
-  util_file_seek(p_replay_file, 0);
-  keyboard_start_file_replay(p_keyboard, p_replay_file);
+    (void) timing_stop_timer(p_timing, p_keyboard->replay_timer_id);
+
+    p_keyboard->p_replay_file = NULL;
+    util_file_seek(p_replay_file, 0);
+    keyboard_start_file_replay(p_keyboard, p_replay_file);
+  }
 
   (void) timing_start_timer_with_value(p_timing,
                                        p_keyboard->rewind_timer_id,
@@ -849,7 +916,7 @@ keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
   /* NOTE: alt key activity always checks the physical keyboard only. This is
    * so that emulator keys work without tangling with the replay.
    */
-  struct keyboard_state* p_state = &p_keyboard->physical_keyboard;
+  struct keyboard_state* p_state = p_keyboard->p_physical_keyboard;
   int ret = !!(p_state->alt_key_state[key] &
                k_keyboard_state_flag_unconsumed_press);
   p_state->alt_key_state[key] &= ~k_keyboard_state_flag_unconsumed_press;
@@ -898,7 +965,7 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   uint8_t i;
   uint8_t num_keys;
 
-  struct keyboard_state* p_state = &p_keyboard->physical_keyboard;
+  struct keyboard_state* p_state = p_keyboard->p_physical_keyboard;
 
   /* Always check the physical keyboard. Even if we're replaying a replay, we
    * want to honor special emulator keys, i.e. Alt+combo.
@@ -932,7 +999,7 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
 
   keyboard_capture_keys(p_keyboard, 0, num_keys, keys, is_downs);
 
-  if (p_keyboard->p_active == &p_keyboard->physical_keyboard) {
+  if (p_keyboard->p_active == p_keyboard->p_physical_keyboard) {
     keyboard_virtual_updated(p_keyboard);
   }
 }

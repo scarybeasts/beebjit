@@ -9,6 +9,7 @@ void* util_malloc(size_t size);
 void* util_mallocz(size_t size);
 void util_free(void* p);
 char* util_strdup(const char* p_str);
+char* util_strdup2(const char* p_str1, const char* p_str2);
 
 /* Buffer. */
 struct util_buffer;
@@ -71,6 +72,7 @@ uint64_t util_file_read_fully(const char* p_file_name,
 void util_file_write_fully(const char* p_file_name,
                            const uint8_t* p_buf,
                            uint64_t size);
+void util_file_copy(const char* p_src_file_name, const char* p_dst_file_name);
 
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
