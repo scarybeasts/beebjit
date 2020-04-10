@@ -13,7 +13,6 @@
 #include <string.h>
 
 static const char* k_capture_header = "beebjit-capture";
-static const uint64_t k_keyboard_eof = (uint64_t) -2;
 
 enum {
   k_keyboard_state_flag_down = 1,
@@ -54,6 +53,8 @@ struct keyboard_struct {
 
   struct util_file* p_capture_file;
   struct util_file* p_replay_file;
+  char* p_capture_file_name;
+  char* p_replay_file_name;
   uint32_t replay_timer_id;
   uint32_t rewind_timer_id;
 
@@ -468,7 +469,6 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
                       uint8_t* p_keys,
                       uint8_t* p_is_downs) {
   uint64_t time;
-  uint64_t file_pos;
   struct util_file* p_capture_file = p_keyboard->p_capture_file;
   struct util_file* p_replay_file = p_keyboard->p_replay_file;
 
@@ -492,12 +492,7 @@ keyboard_capture_keys(struct keyboard_struct* p_keyboard,
   util_file_write(p_capture_file, &num_keys, sizeof(num_keys));
   util_file_write(p_capture_file, p_keys, num_keys);
   util_file_write(p_capture_file, p_is_downs, num_keys);
-  /* Always maintain an EOF marker that is overwritten if there's another
-   * record.
-   */
-  file_pos = util_file_get_pos(p_capture_file);
-  util_file_write(p_capture_file, &k_keyboard_eof, sizeof(k_keyboard_eof));
-  util_file_seek(p_capture_file, file_pos);
+  util_file_flush(p_capture_file);
 
   if (p_keyboard->log_replay) {
     keyboard_log_keys(p_keyboard, "capture", num_keys, p_keys, p_is_downs);
@@ -519,12 +514,10 @@ keyboard_read_replay_frame(struct keyboard_struct* p_keyboard) {
 
   ret = util_file_read(p_file, &replay_next_time, sizeof(replay_next_time));
   if (ret == 0) {
-    util_bail("unexpected replay file EOF");
-  }
-  if (replay_next_time == k_keyboard_eof) {
     keyboard_end_replay(p_keyboard);
     return;
   }
+
   ret += util_file_read(p_file, &num_keys, sizeof(num_keys));
   if (ret != (sizeof(replay_next_time) + sizeof(num_keys))) {
     util_bail("corrupt replay file, truncated frame header");
@@ -653,6 +646,12 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
   if (p_keyboard->p_replay_file != NULL) {
     util_file_close(p_keyboard->p_replay_file);
   }
+  if (p_keyboard->p_capture_file_name != NULL) {
+    util_free(p_keyboard->p_capture_file_name);
+  }
+  if (p_keyboard->p_replay_file_name != NULL) {
+    util_free(p_keyboard->p_replay_file_name);
+  }
   os_lock_destroy(p_keyboard->p_lock);
   util_free(p_keyboard);
 }
@@ -688,6 +687,7 @@ keyboard_set_capture_file_name(struct keyboard_struct* p_keyboard,
   char buf[k_capture_header_size];
 
   p_keyboard->p_capture_file = util_file_open(p_name, 1, 1);
+  p_keyboard->p_capture_file_name = util_strdup(p_name);
 
   (void) memset(buf, '\0', sizeof(buf));
   (void) memcpy(buf, k_capture_header, strlen(k_capture_header));
@@ -722,6 +722,8 @@ void
 keyboard_set_replay_file_name(struct keyboard_struct* p_keyboard,
                               const char* p_name) {
   struct util_file* p_file = util_file_open(p_name, 0, 0);
+
+  p_keyboard->p_replay_file_name = util_strdup(p_name);
 
   keyboard_start_file_replay(p_keyboard, p_file);
 }
