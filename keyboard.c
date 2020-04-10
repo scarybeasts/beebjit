@@ -804,6 +804,11 @@ keyboard_rewind(struct keyboard_struct* p_keyboard, uint64_t stop_cycles) {
                "rewind replay to %"PRIu64,
                stop_cycles);
   }
+
+  if (p_keyboard->p_set_fast_mode_callback) {
+    p_keyboard->p_set_fast_mode_callback(
+        p_keyboard->p_set_fast_mode_callback_object, 1);
+  }
 }
 
 int

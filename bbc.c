@@ -1610,7 +1610,6 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
           p_cpu_driver,
           (k_cpu_flag_hard_reset | k_cpu_flag_replay),
           0);
-      bbc_set_fast_mode(p_bbc, 1);
     }
   }
 }
