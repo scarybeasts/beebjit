@@ -617,6 +617,10 @@ keyboard_flip_virtual_to_physical(struct keyboard_struct* p_keyboard) {
   p_keyboard->p_physical_keyboard = p_temp;
 
   p_keyboard->p_active = p_keyboard->p_physical_keyboard;
+
+  (void) memset(p_keyboard->p_virtual_keyboard,
+                '\0',
+                sizeof(struct keyboard_state));
 }
 
 static void
@@ -624,13 +628,14 @@ keyboard_rewind_timer_fired(void* p) {
   struct keyboard_struct* p_keyboard = (struct keyboard_struct*) p;
   struct timing_struct* p_timing = p_keyboard->p_timing;
 
-  (void) timing_stop_timer(p_timing, p_keyboard->rewind_timer_id);
-
-  if (keyboard_is_capturing(p_keyboard) &&
-      timing_timer_is_running(p_timing, p_keyboard->replay_timer_id)) {
-    keyboard_end_replay(p_keyboard);
+  if (keyboard_is_capturing(p_keyboard)) {
+    if (timing_timer_is_running(p_timing, p_keyboard->replay_timer_id)) {
+      keyboard_end_replay(p_keyboard);
+    }
     keyboard_flip_virtual_to_physical(p_keyboard);
   }
+
+  (void) timing_stop_timer(p_timing, p_keyboard->rewind_timer_id);
 
   if (p_keyboard->p_set_fast_mode_callback) {
     p_keyboard->p_set_fast_mode_callback(
@@ -703,8 +708,10 @@ keyboard_set_fast_mode_callback(struct keyboard_struct* p_keyboard,
 
 void
 keyboard_power_on_reset(struct keyboard_struct* p_keyboard) {
-  /* In case a replay on the virtual keyboard was in progress, clear it. */
   (void) memset(p_keyboard->p_virtual_keyboard,
+                '\0',
+                sizeof(struct keyboard_state));
+  (void) memset(p_keyboard->p_physical_keyboard,
                 '\0',
                 sizeof(struct keyboard_state));
 }
