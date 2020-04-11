@@ -49,7 +49,7 @@ struct keyboard_struct {
   struct os_lock_struct* p_lock;
   uint8_t queue_key[k_keyboard_queue_size];
   uint8_t queue_isdown[k_keyboard_queue_size];
-  uint8_t queue_pos;
+  uint32_t queue_pos;
 
   struct util_file* p_capture_file;
   struct util_file* p_replay_file;
@@ -357,6 +357,11 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
 
   *p_row = row;
   *p_col = col;
+}
+
+static int
+keyboard_is_key_down(struct keyboard_state* p_state, uint8_t key) {
+  return !!(p_state->key_state[key] & k_keyboard_state_flag_down);
 }
 
 static void
@@ -969,15 +974,19 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   /* Called from the BBC thread. */
   uint8_t keys[k_keyboard_queue_size];
   uint8_t is_downs[k_keyboard_queue_size];
+  uint8_t filtered_keys[k_keyboard_queue_size];
+  uint8_t filtered_is_downs[k_keyboard_queue_size];
   uint8_t i;
-  uint8_t num_keys;
+  uint32_t num_keys;
+  uint32_t num_keys_filtered;
 
   struct keyboard_state* p_state = p_keyboard->p_physical_keyboard;
+  volatile uint32_t* p_queue_pos = &p_keyboard->queue_pos;
 
   /* Always check the physical keyboard. Even if we're replaying a replay, we
    * want to honor special emulator keys, i.e. Alt+combo.
    */
-  if (!p_keyboard->queue_pos) {
+  if (*p_queue_pos == 0) {
     return;
   }
 
@@ -993,6 +1002,27 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
     uint8_t is_down = p_keyboard->queue_isdown[i];
     keys[i] = key;
     is_downs[i] = is_down;
+  }
+
+  p_keyboard->queue_pos = 0;
+
+  os_lock_unlock(p_keyboard->p_lock);
+
+  num_keys_filtered = 0;
+  for (i = 0; i < num_keys; ++i) {
+    uint8_t key = keys[i];
+    uint8_t is_down = is_downs[i];
+    int curr_is_down = keyboard_is_key_down(p_state, key);
+    int is_spurious = (is_down == curr_is_down);
+
+    if (is_spurious) {
+      continue;
+    }
+
+    filtered_keys[num_keys_filtered] = key;
+    filtered_is_downs[num_keys_filtered] = is_down;
+    num_keys_filtered++;
+
     if (is_down) {
       keyboard_key_pressed(p_state, key);
     } else {
@@ -1000,11 +1030,15 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
     }
   }
 
-  p_keyboard->queue_pos = 0;
+  if (num_keys_filtered == 0) {
+    return;
+  }
 
-  os_lock_unlock(p_keyboard->p_lock);
-
-  keyboard_capture_keys(p_keyboard, 0, num_keys, keys, is_downs);
+  keyboard_capture_keys(p_keyboard,
+                        0,
+                        num_keys_filtered,
+                        filtered_keys,
+                        filtered_is_downs);
 
   if (p_keyboard->p_active == p_keyboard->p_physical_keyboard) {
     keyboard_virtual_updated(p_keyboard);
