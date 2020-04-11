@@ -79,6 +79,7 @@ struct bbc_struct {
   uint32_t exit_value;
   intptr_t mem_handle;
   int is_64k_mappings;
+  uint64_t rewind_to_cycles;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -774,7 +775,6 @@ static void
 bbc_do_reset_callback(void* p, uint32_t flags) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
-  uint64_t curr_ticks = timing_get_total_timer_ticks(p_bbc->p_timing);
 
   if (flags & k_cpu_flag_soft_reset) {
     bbc_break_reset(p_bbc);
@@ -783,13 +783,7 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
     bbc_power_on_reset(p_bbc);
   }
   if (flags & k_cpu_flag_replay) {
-    /* TODO: incorrect for non-2MHz CPU ticks. */
-    if (curr_ticks >= (k_bbc_tick_rate * 5)) {
-      curr_ticks -= (k_bbc_tick_rate * 5);
-    } else {
-      curr_ticks = 0;
-    }
-    keyboard_rewind(p_bbc->p_keyboard, curr_ticks);
+    keyboard_rewind(p_bbc->p_keyboard, p_bbc->rewind_to_cycles);
   }
 
   p_cpu_driver->p_funcs->apply_flags(
@@ -1579,6 +1573,30 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   p_bbc->last_c2 = curr_c2;
 }
 
+static int
+bbc_try_queue_rewind(struct bbc_struct* p_bbc, uint64_t rewind_cycles) {
+  uint64_t rewind_to_cycles;
+  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  if (!keyboard_can_rewind(p_bbc->p_keyboard)) {
+    return 0;
+  }
+
+  rewind_to_cycles = 0;
+  if (cycles > rewind_cycles) {
+    rewind_to_cycles = (cycles - rewind_cycles);
+  }
+  p_bbc->rewind_to_cycles = rewind_to_cycles;
+
+  p_cpu_driver->p_funcs->apply_flags(
+      p_cpu_driver,
+      (k_cpu_flag_hard_reset | k_cpu_flag_replay),
+      0);
+
+  return 1;
+}
+
 static inline void
 bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
@@ -1605,12 +1623,8 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
     p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
     /* "undo" -- go back 5 seconds if there is a current capture or replay. */
-    if (keyboard_can_rewind(p_keyboard)) {
-      p_cpu_driver->p_funcs->apply_flags(
-          p_cpu_driver,
-          (k_cpu_flag_hard_reset | k_cpu_flag_replay),
-          0);
-    }
+    /* TODO: not correct for non-2MHz tick rates. */
+    (void) bbc_try_queue_rewind(p_bbc, (5 * 2000000));
   }
 }
 
