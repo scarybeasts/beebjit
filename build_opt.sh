@@ -4,7 +4,7 @@ set -e
 gcc -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie -Wa,--noexecstack \
-    -O3 -DNDEBUG -g -o beebjit \
+    -O3 -DNDEBUG -o beebjit \
     main.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c \
     jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \
