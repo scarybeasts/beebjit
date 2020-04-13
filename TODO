@@ -6,8 +6,10 @@ IMPORTANT
 Known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed before the next release.
 
-- Investigate if the 1kHz system tick drives the audio too hard, or whether it
-can even block at that resolution.
+- Driving the audio subsystem too hard on Linux?
+- Poor granularity of system wakeup with audio subsystem as timer?
+- HFE files written to by Gotek + FlashFloppy no longer load correctly. (Files
+are fine.)
 
 
 Fix later
