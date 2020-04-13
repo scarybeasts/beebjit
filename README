@@ -2,7 +2,7 @@ Welcome to beebjit!
 I'm Chris Evans <scarybeasts@gmail.com>. Any and all feedback / suggestions very
 welcome. Please don't be shy!
 
-beebjit is an emulation for Acorn's BBC Micro 8-bit microcomputer from the
+beebjit is an emulator for Acorn's BBC Micro 8-bit microcomputer from the
 1980s. For more information see:
 https://en.wikipedia.org/wiki/BBC_Micro
 
@@ -32,8 +32,9 @@ code blocks as it encounters them. beebjit also has various tricks to handle
 self-modifying code without losing much speed. On top of this, attempts are made
 to implement system peripherals such as audio, video, timers etc. in a way that
 enables the JIT'ed code to motor along.
-In some tests, beebjit has run the 2MHz 6502 CPU at an effective speed of 10GHz,
-although 2GHz might be more typical when running a game with full accuracy.
+In some tests, beebjit has run the 2MHz 6502 CPU at an effective speed of well
+over 10GHz, although 3GHz might be more typical when running a game with full
+accuracy.
 
 - Loading original protected discs.
 The preservation of original BBC discs, copy protection and all, is not great.
@@ -61,13 +62,19 @@ state file with a saved state at every instruction. Replay can be stopped, and
 normal execution continued, at any point.
 As always, see EXAMPLES.
 
+- Rewind.
+Experimental, but if a capture is in progress, you may "rewind time" a few
+seconds by whacking Alt+Z. This will use beebjit's speed to replay the
+capture file (minus a few seconds), restarting from a power on reset. You
+can use this to fake being really good at Arcadians.
+
 
 In the "ok" category:
 - Accuracy.
-beebjit is towards the upper end of BBC emulators. You should expect it to run
-pretty much any game you throw at it, including well-known classics (Exile,
-Elite, Revs etc.) and tricky-to-emulate titles such as the original Nightshade
-tape, Tricky's Frogger / Scramble.
+beebjit is towards the upper end of BBC emulator accuracy. You should expect it
+to run pretty much any game you throw at it, including well-known classics
+(Exile, Elite, Revs etc.) and tricky-to-emulate titles such as the original
+Nightshade tape, and Tricky's Frogger / Scramble.
 
 - 6502 debugger.
 The built-in 6502 debugger is reasonably capable and could very quickly be
@@ -77,15 +84,17 @@ extended if there is demand.
 In the "worse" category:
 - Porting.
 Currently, beebjit was developed on Linux and there's an early port to Windows.
-If there's demand, this will be improved.
+If there's demand, this will be improved, probably by use the cross-platform
+SDL library.
 
 - GUI.
 There is no GUI for configuration or anything else. Currently, it's a deliberate
 philosophical decision. Cast your mind back to the original BBC: it dropped you
 at a text screen with no fancy GUI, and forced you to learn a little bit about
-and interact with it, even for something as simple as starting a tape loading.
+it and interact with it, even for something as simple as starting a tape
+loading.
 Similarly, you'll need to experiment a little with the beebjit command line and
-options to.
+options.
 (This decision may be grating to some. Adding some GUI assistance in the future
 may well happen, once a cross-platform solution, such as SDL, is selected.)
 
