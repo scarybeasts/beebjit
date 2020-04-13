@@ -13,6 +13,7 @@
 #include "state.h"
 #include "test.h"
 #include "util.h"
+#include "version.h"
 #include "video.h"
 
 #include <assert.h>
@@ -215,7 +216,7 @@ main(int argc, const char* argv[]) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-version") ||
                !strcmp(arg, "-v")) {
-      (void) printf("beebjit v0.21\n");
+      (void) printf("beebjit "BEEBJIT_VERSION"\n");
       exit(0);
     } else if (!strcmp(arg, "-help") ||
                !strcmp(arg, "--help") ||
