@@ -872,6 +872,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
     case k_intel_fdc_command_scan_sectors_with_deleted:
     case k_intel_fdc_command_scan_sectors:
       util_bail("unimplemented 8271 command %x", (val & 0x3F));
+      return;
     default:
       /* TODO: this isn't right. All the command IDs seem to do something,
        * usually a different-parameter version of another command.

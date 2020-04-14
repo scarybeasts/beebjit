@@ -24,7 +24,6 @@
 #include <string.h>
 
 static const uint32_t k_sound_default_rate = 48000;
-static const uint32_t k_sound_default_buffer_size = 512;
 static const uint32_t k_sound_default_num_periods = 4;
 enum {
   k_max_discs_per_drive = 4,
@@ -475,8 +474,8 @@ main(int argc, const char* argv[]) {
       if (os_window_is_closed(p_window)) {
         struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
         window_open = 0;
-        if (!p_cpu_driver->p_funcs->get_flags(p_cpu_driver) &
-            k_cpu_flag_exited) {
+        if (!(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) &
+              k_cpu_flag_exited)) {
           p_cpu_driver->p_funcs->apply_flags(p_cpu_driver,
                                              k_cpu_flag_exited,
                                              0);
