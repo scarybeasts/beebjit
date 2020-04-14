@@ -380,6 +380,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
 
+  if (p_video->externally_clocked) {
+    return;
+  }
+
   p_video->timer_fire_force_vsync_start = 0;
   p_video->timer_fire_force_vsync_end = 0;
 
@@ -944,9 +948,7 @@ video_CB2_changed_callback(void* p, int level, int output) {
    * the CRTC thinks it sees a real light pen pulse.
    * Needed by Pharoah's Curse to start.
    */
-  if (!p_video->externally_clocked) {
-    video_advance_crtc_timing(p_video);
-  }
+  video_advance_crtc_timing(p_video);
 
   p_video->crtc_registers[k_crtc_reg_light_pen_high] = (address_counter >> 8);
   p_video->crtc_registers[k_crtc_reg_light_pen_low] = (address_counter & 0xFF);
@@ -1104,9 +1106,7 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   }
 
   /* Changing the screen wrap addition could affect rendering, so catch up. */
-  if (!p_video->externally_clocked) {
-    video_advance_crtc_timing(p_video);
-  }
+  video_advance_crtc_timing(p_video);
 
   p_video->screen_wrap_add = screen_wrap_add;
 }
@@ -1400,7 +1400,7 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   int new_clock_speed;
   int old_clock_speed;
 
-  if (!p_video->externally_clocked && p_video->is_rendering_active) {
+  if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
 
@@ -1426,7 +1426,7 @@ video_ula_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   new_clock_speed = !!(val & k_ula_clock_speed);
 
   if (new_clock_speed != old_clock_speed) {
-    if (!p_video->externally_clocked && !p_video->is_rendering_active) {
+    if (!p_video->is_rendering_active) {
       video_advance_crtc_timing(p_video);
     }
     p_video->video_ula_control = val;
@@ -1621,10 +1621,8 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     break;
   }
 
-  if (!p_video->externally_clocked) {
-    if (p_video->is_rendering_active || !does_not_change_framing) {
-      video_advance_crtc_timing(p_video);
-    }
+  if (p_video->is_rendering_active || !does_not_change_framing) {
+    video_advance_crtc_timing(p_video);
   }
 
   p_video->crtc_registers[reg] = (val & mask);
@@ -1747,9 +1745,8 @@ video_get_crtc_state(struct video_struct* p_video,
                      uint8_t* p_scanline_counter,
                      uint8_t* p_vert_counter,
                      uint16_t* p_address_counter) {
-  if (!p_video->externally_clocked) {
-    video_advance_crtc_timing(p_video);
-  }
+  video_advance_crtc_timing(p_video);
+
   *p_horiz_counter = p_video->horiz_counter;
   *p_scanline_counter = p_video->scanline_counter;
   *p_vert_counter = p_video->vert_counter;
