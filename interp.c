@@ -649,6 +649,12 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_INSTR_SHY()                                                    \
   v = (y & ((addr_temp >> 8) + 1));
 
+#define INTERP_INSTR_SLO()                                                    \
+  cf = !!(v & 0x80);                                                          \
+  v <<= 1;                                                                    \
+  a |= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
+
 #define INTERP_INSTR_SRE()                                                    \
   cf = (v & 0x01);                                                            \
   v >>= 1;                                                                    \
@@ -846,6 +852,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x0E: /* ASL abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ASL());
+      break;
+    case 0x0F: /* SLO abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ(INTERP_INSTR_SLO());
       break;
     case 0x10: /* BPL */
       INTERP_INSTR_BRANCH(!nf);
