@@ -10,6 +10,10 @@ get addressed before the next release.
 - Poor granularity of system wakeup with audio subsystem as timer?
 - HFE files written to by Gotek + FlashFloppy no longer load correctly. (Files
 are fine.)
+- JIT mode crashes will illegal instruction on older processors.
+- Joey crashes during load.
+- Bone Cruncher crashes during load.
+- Crash with cpu-scale-factor.
 
 
 Fix later
