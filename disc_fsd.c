@@ -569,7 +569,11 @@ disc_fsd_load(struct disc_struct* p_disc,
                            i_track,
                            log_protection);
 
-    if (fsd_sectors > 10) {
+    if (fsd_sectors > 18) {
+      /* 256 VECTOR 2 V140 ACORN 1770.FSD uses 19 sectors; make it fit. */
+      gap1_ff_count = 6;
+      gap3_ff_count = 3;
+    } else if (fsd_sectors > 10) {
       /* Standard for 128 byte sectors. If we didn't lower the value here, the
        * track wouldn't fit.
        */
