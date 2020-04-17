@@ -12,7 +12,7 @@ enum {
 };
 
 enum {
-  k_6502_op_num_types = 66,
+  k_6502_op_num_types = 67,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 14,
 };
@@ -97,6 +97,7 @@ enum {
   k_lax = 63, /* Undocumented. */
   k_dcp = 64, /* Undocumented. */
   k_sre = 65, /* Undocumented. */
+  k_rla = 66, /* Undocumented. */
 };
 
 enum {

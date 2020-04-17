@@ -10,7 +10,7 @@ const char* g_p_opnames[k_6502_op_num_types] =
   "TAX", "BCS", "CLV", "TSX", "CPY", "CMP", "CPX", "DEC",
   "INY", "DEX", "BNE", "CLD", "SBC", "INX", "NOP", "INC",
   "BEQ", "SED", "SAX", "ALR", "SLO", "SHY", "ANC", "LAX",
-  "DCP", "SRE",
+  "DCP", "SRE", "RLA",
 };
 
 uint8_t g_opmem[k_6502_op_num_types] = {
@@ -22,7 +22,7 @@ uint8_t g_opmem[k_6502_op_num_types] = {
   k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_rw   ,
   k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_nomem, k_read , k_rw   ,
   k_nomem, k_nomem, k_write, k_nomem, k_rw   , k_write, k_nomem, k_read ,
-  k_rw   , k_rw   ,
+  k_rw   , k_rw   , k_rw   ,
 };
 
 uint8_t g_opbranch[k_6502_op_num_types] = {
@@ -34,7 +34,7 @@ uint8_t g_opbranch[k_6502_op_num_types] = {
   k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
   k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
   k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
-  k_bra_n, k_bra_n,
+  k_bra_n, k_bra_n, k_bra_n,
 };
 
 uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
@@ -46,7 +46,7 @@ uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0,
+  0, 0, 1,                /* RLA */
 };
 
 uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
@@ -58,7 +58,7 @@ uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 1, 1, 1, 0, /* CPY, CMP, CPX */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 1, 1, 0, 1, 0, /* ALR, SLO, ANC */
-  1, 1,                   /* DCP, SRE */
+  1, 1, 1,                /* DCP, SRE, RLA */
 };
 
 uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
@@ -70,7 +70,7 @@ uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
   0, 0, 1, 0, 0, 0, 0, 0, /* CLV */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0,
+  0, 0, 0,
 };
 
 /* TODO: need k_ax for LAX?? */
@@ -84,7 +84,7 @@ uint8_t g_optype_sets_register[k_6502_op_num_types] =
   k_x, 0  , 0  , k_x, 0  , 0  , 0  , 0  , /* TAX, TSX */
   k_y, k_x, 0  , 0  , k_a, k_x, 0  , 0  , /* INY, DEX, SBC, INX */
   0  , 0  , 0  , k_a, k_a, 0  , k_a, k_a, /* ALR, SLO, ANC, LAX */
-  0  , k_a,                               /* SRE */
+  0  , k_a, k_a,                          /* SRE, RLA */
 };
 
 uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
@@ -97,7 +97,7 @@ uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
   1, 0, 0, 1, 1, 1, 1, 1, /* TAX, TSX, CPY, CMP, CPX, DEC */
   1, 1, 0, 0, 1, 1, 0, 1, /* INY, DEX, SBC, INX, INC */
   0, 0, 0, 1, 1, 0, 1, 1, /* ALR, SLO, ANC, LAX */
-  1, 1,                   /* DCP, SRE */
+  1, 1, 1,                /* DCP, SRE, RLA */
 };
 
 uint8_t g_optypes[k_6502_op_num_opcodes] =
@@ -112,7 +112,7 @@ uint8_t g_optypes[k_6502_op_num_opcodes] =
   k_jsr, k_and, k_kil, k_unk, k_bit, k_and, k_rol, k_unk,
   k_plp, k_and, k_rol, k_unk, k_bit, k_and, k_rol, k_unk,
   /* 0x30 */
-  k_bmi, k_and, k_kil, k_unk, k_nop, k_and, k_rol, k_unk,
+  k_bmi, k_and, k_kil, k_rla, k_nop, k_and, k_rol, k_unk,
   k_sec, k_and, k_nop, k_unk, k_nop, k_and, k_rol, k_unk,
   /* 0x40 */
   k_rti, k_eor, k_kil, k_unk, k_nop, k_eor, k_lsr, k_unk,
@@ -164,7 +164,7 @@ uint8_t g_opmodes[k_6502_op_num_opcodes] =
   k_abs, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_acc, 0    , k_abs, k_abs, k_abs, 0    ,
   /* 0x30 */
-  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
+  k_rel, k_idy, 0    , k_idy, k_zpx, k_zpx, k_zpx, 0    ,
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_abx, 0    ,
   /* 0x40 */
   k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
@@ -216,7 +216,7 @@ uint8_t g_opcycles[k_6502_op_num_opcodes] =
   6, 6, 1, 0, 3, 3, 5, 0,
   4, 2, 2, 0, 4, 4, 6, 0,
   /* 0x30 */
-  2, 5, 0, 0, 4, 4, 6, 0,
+  2, 5, 0, 8, 4, 4, 6, 0,
   2, 4, 2, 0, 4, 4, 7, 0,
   /* 0x40 */
   6, 6, 0, 0, 3, 3, 5, 0,

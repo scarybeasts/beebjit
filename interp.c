@@ -593,6 +593,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   a |= v;                                                                     \
   INTERP_LOAD_NZ_FLAGS(a);
 
+#define INTERP_INSTR_RLA()                                                    \
+  temp_int = cf;                                                              \
+  cf = !!(v & 0x80);                                                          \
+  v <<= 1;                                                                    \
+  v |= temp_int;                                                              \
+  a &= v;                                                                     \
+  INTERP_LOAD_NZ_FLAGS(a);
+
 #define INTERP_INSTR_ROL()                                                    \
   temp_int = cf;                                                              \
   cf = !!(v & 0x80);                                                          \
@@ -964,6 +972,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x31: /* AND idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_AND());
+      break;
+    case 0x33: /* RLA idy */ /* Undocumented. */
+      INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_RLA());
       break;
     case 0x35: /* AND zpx */
       INTERP_MODE_ZPr_READ(x);

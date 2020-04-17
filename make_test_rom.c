@@ -1470,10 +1470,16 @@ main(int argc, const char* argv[]) {
   util_buffer_add_3b(p_buf, 0x4F, 0xF3, 0x00);
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_EQ(p_buf, 0x04);
-  emit_JMP(p_buf, k_abs, 0xD580);
+  /* RLA idy, used by the Bone Cruncher loader. */
+  util_buffer_add_2b(p_buf, 0x33, 0xF0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_zpg, 0xF3);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  emit_JMP(p_buf, k_abs, 0xD590);
 
   /* Test reading VIA input registers. */
-  set_new_index(p_buf, 0x1580);
+  set_new_index(p_buf, 0x1590);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_LDA(p_buf, k_imm, 0xFF);

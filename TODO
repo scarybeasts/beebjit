@@ -12,7 +12,6 @@ get addressed before the next release.
 are fine.)
 - JIT mode crashes will illegal instruction on older processors.
 - Joey crashes during load.
-- Bone Cruncher crashes during load.
 - Crash with cpu-scale-factor.
 
 

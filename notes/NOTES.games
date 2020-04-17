@@ -1,5 +1,7 @@
-zip files from Stairway To Hell archive and FSD files from Bill Carr's archive
-unless otherwise noted.
+Unless otherwise noted:
+- zip files from Stairway To Hell archive.
+- FSD files from Bill Carr's archive.
+- HFE files from my conversion of Bill Carr's archive.
 
 
 - 001 EXILE.FSD
@@ -87,6 +89,13 @@ times to get randomness and storing it as a pointer at $77. Later, at $5144,
 this random address is read via AND ($05,X). Depending on the randomness, this
 read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
+
+
+- Bone_Cruncher_FSD0433_1.hfe
+SHA256: f2efbdaa019de33e26a93cc51d8a10aa00f8e92b43972465847b9785a97fee06
+The copy protection has a little code copy routine at $6972 that copies from
+$3F00 to $6700. In the process, it overwrites itself resulting in opcode $33
+being executed at $6972. That's RLA idy, the first instance found of RLA!
 
 
 - Camelot.zip
