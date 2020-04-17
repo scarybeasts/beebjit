@@ -316,6 +316,15 @@ Writes to $FC69, $FC66, $FC63, $FC60... $FC51 as part of its writes, for
 unknown reasons. Doesn't do anything on an unexpanded model B.
 
 
+- Joey.zip
+SHA256: b41ea12b0e926e69f1a7b2bc455dc21353cf06f22106e0c4725154a6b9828251
+In the loader, at $5E93, sets EVNTV to $5E52, which contains:
+[ITRP] 5E52: AHX ($5E),Y
+[ITRP] 5E54: CMP #$04
+[ITRP] 5E56: BNE $5E8C
+That AHX is very rare, first one seen. Possibly an accident?
+
+
 - LunarJetman.zip
 SHA256: 1eeebe6dff5dddfe20e765e1bc3c62e2af5818aeead7d644fd14db74e110e3f4
 Notes:

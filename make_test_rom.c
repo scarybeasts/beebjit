@@ -1476,10 +1476,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x00);
   emit_LDA(p_buf, k_zpg, 0xF3);
   emit_REQUIRE_EQ(p_buf, 0x09);
-  emit_JMP(p_buf, k_abs, 0xD590);
+  /* AHX idy, used by the Bone Cruncher loader. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_LDY(p_buf, k_imm, 0x03);
+  util_buffer_add_2b(p_buf, 0x93, 0xF0);
+  emit_LDA(p_buf, k_zpg, 0xF3);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xD5A0);
 
   /* Test reading VIA input registers. */
-  set_new_index(p_buf, 0x1590);
+  set_new_index(p_buf, 0x15A0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -1494,12 +1501,12 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
-  emit_JMP(p_buf, k_abs, 0xD5C0);
+  emit_JMP(p_buf, k_abs, 0xD5D0);
 
   /* Test an interesting JIT metadata bug where an incorrect invalidation
    * address led to JIT code corruption.
    */
-  set_new_index(p_buf, 0x15C0);
+  set_new_index(p_buf, 0x15D0);
   emit_JSR(p_buf, 0x3160);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x3160);

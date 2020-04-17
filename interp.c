@@ -529,6 +529,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cf = (temp_int >= 0x100);                                                   \
   a = temp_int;
 
+#define INTERP_INSTR_AHX()                                                    \
+  v = (a & x & ((addr >> 8) + 1));
+
 #define INTERP_INSTR_AND()                                                    \
   a &= v;                                                                     \
   INTERP_LOAD_NZ_FLAGS(a);
@@ -1261,6 +1264,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x91: /* STA idy */
       INTERP_MODE_IDY_WRITE(INTERP_INSTR_STA());
+      break;
+    case 0x93: /* AHX idy */ /* Undocumented. */
+      INTERP_MODE_IDY_WRITE(INTERP_INSTR_AHX());
       break;
     case 0x94: /* STY zpx */
       v = y;
