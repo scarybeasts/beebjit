@@ -657,6 +657,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
    * perform an implicit seek.
    */
   switch (command) {
+  case k_intel_fdc_command_scan_sectors:
+  case k_intel_fdc_command_scan_sectors_with_deleted:
   case k_intel_fdc_command_write_sector_128:
   case k_intel_fdc_command_write_sectors:
   case k_intel_fdc_command_write_sector_deleted_128:
@@ -698,6 +700,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   }
 
   switch (command) {
+  case k_intel_fdc_command_scan_sectors_with_deleted:
   case k_intel_fdc_command_write_sector_deleted_128:
   case k_intel_fdc_command_write_sectors_deleted:
   case k_intel_fdc_command_read_sector_with_deleted_128:
@@ -718,6 +721,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->current_seek_count = 0;
 
   switch (command) {
+  case k_intel_fdc_command_scan_sectors:
+  case k_intel_fdc_command_scan_sectors_with_deleted:
   case k_intel_fdc_command_write_sector_128:
   case k_intel_fdc_command_write_sectors:
   case k_intel_fdc_command_write_sector_deleted_128:
@@ -871,8 +876,11 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       break;
     case k_intel_fdc_command_scan_sectors_with_deleted:
     case k_intel_fdc_command_scan_sectors:
-      util_bail("unimplemented 8271 command %x", (val & 0x3F));
-      return;
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "8271: scan sectors doesn't work in a beeb");
+      num_params = 5;
+      break;
     default:
       /* TODO: this isn't right. All the command IDs seem to do something,
        * usually a different-parameter version of another command.
@@ -948,12 +956,30 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 
 static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
-  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
-    intel_fdc_command_abort(p_fdc);
-    intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_late_dma);
-    return 0;
+  int ok = 1;
+  uint8_t command = p_fdc->command;
+
+  /* Abort command if it's any type of scan. The 8271 requires DMA to be wired
+   * up for scan commands, which is not done in the BBC application.
+   */
+  if ((command == k_intel_fdc_command_scan_sectors) ||
+      (command == k_intel_fdc_command_scan_sectors_with_deleted)) {
+    ok = 0;
   }
-  return 1;
+
+  /* Abort command if previous data byte wasn't picked up. */
+  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
+    ok = 0;
+  }
+
+  if (ok) {
+    return 1;
+  }
+
+  intel_fdc_command_abort(p_fdc);
+  intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_late_dma);
+
+  return 0;
 }
 
 static int

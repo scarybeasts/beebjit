@@ -455,6 +455,30 @@ Notes:
 [ITRP] 1057: LDA $FE01
 
 
+- Quick_Thinking_USE_WATFORD_DFS_FSD0597_1.hfe
+SHA256: fb3be25d224b83ab6926c9e013e0f8a6c7d2e1be5d5c8f9dd48d8bca72f0ce28
+Insane bug in the loader. Here's a sequence where it's doing various OSWORD $7F
+calls (the JSR routines do additional OSWORD $7Fs).
+[ITRP] 1491: JSR $15CD
+[ITRP] 1494: JSR $15D7
+[ITRP] 1497: JSR $15E9
+[ITRP] 149A: LDA #$7F
+[ITRP] 149C: JSR $FFF1
+[ITRP] 149F: LDA #$7F
+[ITRP] 14A1: JSR $FFF1
+As can be seen, the last the two calls set A but not X and Y so X and Y are
+effectively uninitialized, with values depending upon DFS type and version.
+For DFS-1.2, X and Y point to a parameter block at $1600 which is command $16
+but with no drive selected so it will hang (drive never goes ready).
+For DFS-0.9 and Watford DFS 1.44, X and Y point to a parameter block at $160C,
+full of 0. In the case of DFS-0.9, this hangs because it issues command $0,
+which takes 5 parameters, but doesn't follow up with parameters. In the case of
+Watford DFS 1.44, it issues command $0 with drive select 0, and follows up with
+5 parameters with value 0. "scan data" executes and on the BBC always fails,
+usually with $0A (late DMA) because DMA is not wired up. The loader doesn't
+seem to care and continues.
+
+
 - Repton2.zip
 SHA256: 2e72f2d0ca1f8fe043be9f7b7e78055d16340ea0ff32682df73f17ea072c200b
 Notes:
