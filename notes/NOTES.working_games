@@ -30,6 +30,7 @@ See also: https://stardot.org.uk/forums/viewtopic.php?t=8164
 - Pharaoh's Curse (fake lightpen triggering)
 - Lunar Jetman (needs accurate video ULA for separator line color)
 - Elite-A (needs accurate disc spindown and disc controller status reporting)
+- Quick Thinking (protected disc) (requires 8271 scan data implementation!!)
 
 Interesting, less well known games: working
 - Blast!, Audiogenic (nice Thrust-ish but different)
