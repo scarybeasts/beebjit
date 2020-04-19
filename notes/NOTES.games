@@ -114,6 +114,13 @@ But then the loop continues more normally, so possible accident?
 [ITRP] 25BB: STA $2398
 
 
+- Boffin(Addictive1985)(Run).uef
+(Unclear where it came from.)
+SHA256: 466d68d443b396cfb077e775e4e878848476fbf5b6842f14ac6601a91dc7799d
+Minor curiosity, first know case to hit the unusual opcode $03 == SLO idx, at
+PC $24D9.
+
+
 - Bone_Cruncher_FSD0433_1.hfe
 SHA256: f2efbdaa019de33e26a93cc51d8a10aa00f8e92b43972465847b9785a97fee06
 The copy protection has a little code copy routine at $6972 that copies from

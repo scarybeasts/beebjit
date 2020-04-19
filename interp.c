@@ -804,6 +804,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       p_interp->driver.p_funcs->set_exit_value(&p_interp->driver,
                                                ((y << 16) | (x << 8) | a));
       return countdown;
+    case 0x03: /* SLO idx */ /* Undocumented. */
+      INTERP_MODE_IDX_READ_WRITE(INTERP_INSTR_SLO());
+      break;
     case 0x04: /* NOP zp */ /* Undocumented. */
     case 0x44:
     case 0x64:
