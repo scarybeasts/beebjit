@@ -395,6 +395,26 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+#define INTERP_MODE_IDX_READ_WRITE(INSTR)                                     \
+  addr = p_mem_read[pc + 1];                                                  \
+  addr += x;                                                                  \
+  addr &= 0xFF;                                                               \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < read_write_callback_from) {                                      \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 8;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(5);                                                 \
+    INTERP_MEMORY_READ(addr);                                                 \
+    INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                       \
+    INSTR;                                                                    \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_IDY_READ(INSTR)                                           \
   addr_temp = p_mem_read[pc + 1];                                             \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
@@ -923,6 +943,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x21: /* AND idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_AND());
       break;
+    case 0x23: /* RLA idx */ /* Undocumented. */
+      INTERP_MODE_IDX_READ_WRITE(INTERP_INSTR_RLA());
+      break;
     case 0x24: /* BIT zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
@@ -1254,6 +1277,18 @@ interp_enter_with_details(struct interp_struct* p_interp,
       a = x;
       INTERP_LOAD_NZ_FLAGS(a);
       pc++;
+      cycles_this_instruction = 2;
+      break;
+    case 0x8B: /* XAA */ /* Undocumented and unstable. */
+      /* Battle Tank hit this! */
+      v = p_mem_read[pc + 1];
+      /* EMU NOTE: Using 0xEE for the magic constant as per jsbeeb and b-em, but
+       * on an Model B issue 3, I'm seeing the instability; magic constant it
+       * usually 0xE8 but sometimes 0x68.
+       * See: http://visual6502.org/wiki/index.php?title=6502_Opcode_8B_%28XAA,_ANE%29
+       */
+      a = ((a | 0xEE) & x & v);
+      pc += 2;
       cycles_this_instruction = 2;
       break;
     case 0x8C: /* STY abs */

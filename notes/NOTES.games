@@ -91,6 +91,29 @@ read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
 
 
+- Battletank.zip
+SHA256: 974876914fbb03a12dc7f2bb39a59df3321099349faca254cac3a3e5b29e2858
+1) Use of unstable XAA opcode $8B!
+[ITRP] 34DE: XAA #$36
+[ITRP] 34E0: STA $01C6,Y
+[ITRP] 34E3: DEY
+[ITRP] 34E4: BPL $34DD
+But then the loop continues more normally, so possible accident?
+[ITRP] 34DD: AND $8B,X
+[ITRP] 34DF: ROL $99,X
+[ITRP] 34E1: DEC $01
+[ITRP] 34E3: DEY
+[ITRP] 34E4: BPL $34DD
+2) Use of opcode $23, RLA idx, at $25B4
+[ITRP] 25A0: LDA $239B
+[ITRP] 25A3: BNE $25A6
+[ITRP] 25A6: BPL $25B4
+[ITRP] 25B4: ???: $23
+[ITRP] 25B6: LDA $2398
+[ITRP] 25B9: ADC #$28
+[ITRP] 25BB: STA $2398
+
+
 - Bone_Cruncher_FSD0433_1.hfe
 SHA256: f2efbdaa019de33e26a93cc51d8a10aa00f8e92b43972465847b9785a97fee06
 The copy protection has a little code copy routine at $6972 that copies from
