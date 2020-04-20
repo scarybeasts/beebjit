@@ -68,24 +68,32 @@ convert_windows_key_code(uint32_t vkey) {
     return '=';
   case VK_OEM_MINUS:
     return '-';
-  case VK_OEM_4:
-    return '[';
-  case VK_OEM_6:
-    return ']';
-  case VK_OEM_5:
-    return '\\';
   case VK_OEM_1:
     return ';';
+  case VK_OEM_2:
+    return '/';
+  case VK_OEM_3:
+    return '`';
+  case VK_OEM_4:
+    return '[';
+  case VK_OEM_5:
+    return '\\';
+  case VK_OEM_6:
+    return ']';
   case VK_OEM_7:
     return '\'';
   case VK_OEM_COMMA:
     return ',';
   case VK_OEM_PERIOD:
     return '.';
-  case VK_OEM_2:
-    return '/';
   case VK_MENU:
     return k_keyboard_key_alt_left;
+  case VK_PRIOR:
+    return k_keyboard_key_page_up;
+  case VK_NEXT:
+    return k_keyboard_key_page_down;
+  case VK_LWIN:
+    return k_keyboard_key_windows;
   default:
     break;
   }
@@ -97,6 +105,7 @@ LRESULT CALLBACK
 WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   struct keyboard_struct* p_keyboard = s_p_window->p_keyboard;
   uint8_t key;
+  int handled = 0;
 
   /* F10 and Alt are special and come in via WM_SYSKEYDOWN. */
 
@@ -112,6 +121,7 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     key = convert_windows_key_code((uint32_t) wParam);
     if (key != 0) {
       keyboard_system_key_pressed(p_keyboard, key);
+      handled = 1;
     }
     break;
   case WM_KEYUP:
@@ -119,6 +129,7 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     key = convert_windows_key_code((uint32_t) wParam);
     if (key != 0) {
       keyboard_system_key_released(p_keyboard, key);
+      handled = 1;
     }
     break;
   case WM_DESTROY:
@@ -126,6 +137,10 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     break;
   default:
     break;
+  }
+
+  if (handled) {
+    return 0;
   }
   return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

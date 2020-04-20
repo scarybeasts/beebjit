@@ -13,9 +13,7 @@ are fine.)
 - JIT mode crashes will illegal instruction on older processors.
 - Crash with cpu-scale-factor.
 - Caesar's Travels render is not stable and graphical corruption?!
-- Mapping for underscore / pound.
 - Report of Frak tape not loading.
-- Windows F10 key having side effects.
 - Ability to switch tapes at runtime.
 
 
