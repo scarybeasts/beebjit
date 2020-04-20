@@ -14,7 +14,6 @@ are fine.)
 - Crash with cpu-scale-factor.
 - Caesar's Travels render is not stable and graphical corruption?!
 - Report of Frak tape not loading.
-- Ability to switch tapes at runtime.
 
 
 Fix later
@@ -36,6 +35,12 @@ dependent on one another.
 - BCD support in JIT. It gives accurate results but slowly because it uses the
 interpreter. No evidence yet of intense BCD usage in anything that needs to go
 fast.
+
+
+FSD investigations
+==================
+
+- 249 WORLD WITHOUT WORDS.FSD
 
 
 Peformance tuning

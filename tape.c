@@ -11,6 +11,7 @@
 #include <string.h>
 
 enum {
+  k_tape_max_tapes = 4,
   k_tape_system_tick_rate = 2000000,
   k_tape_bit_rate = 1200,
   k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
@@ -45,22 +46,32 @@ struct tape_struct {
 
   uint32_t tick_rate;
 
-  int32_t* p_tape_buffer;
-  uint32_t num_tape_values;
+  char* p_tape_file_names[k_tape_max_tapes + 1];
+  int32_t* p_tape_buffers[k_tape_max_tapes + 1];
+  uint32_t num_tape_values[k_tape_max_tapes + 1];
+
+  uint32_t tapes_added;
+  uint32_t tape_index;
   uint64_t tape_buffer_pos;
 };
 
 static void
 tape_timer_callback(struct tape_struct* p_tape) {
   int32_t tape_value;
+
+  uint32_t tape_index = p_tape->tape_index;
+  uint64_t tape_buffer_pos = p_tape->tape_buffer_pos;
+  uint32_t num_tape_values = p_tape->num_tape_values[tape_index];
+  int32_t* p_tape_buffer = p_tape->p_tape_buffers[tape_index];
+ 
   int carrier = 0;
 
   (void) timing_set_timer_value(p_tape->p_timing,
                                 p_tape->timer_id,
                                 p_tape->tick_rate);
 
-  if (p_tape->tape_buffer_pos < p_tape->num_tape_values) {
-    tape_value = p_tape->p_tape_buffer[p_tape->tape_buffer_pos];
+  if (p_tape->tape_buffer_pos < num_tape_values) {
+    tape_value = p_tape_buffer[tape_buffer_pos];
   } else {
     tape_value = k_tape_uef_value_silence;
   }
@@ -93,14 +104,22 @@ tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
                              p_options->p_opt_flags,
                              "tape:tick-rate=");
 
+  p_tape->tapes_added = 0;
+  p_tape->tape_index = 0;
+  p_tape->tape_buffer_pos = 0;
+  p_tape->p_tape_buffers[0] = NULL;
+
   return p_tape;
 }
 
 void
 tape_destroy(struct tape_struct* p_tape) {
+  uint32_t i;
+
   assert(!tape_is_playing(p_tape));
-  if (p_tape->p_tape_buffer != NULL) {
-    util_free(p_tape->p_tape_buffer);
+  for (i = 0; i < p_tape->tapes_added; ++i) {
+    util_free(p_tape->p_tape_file_names[i]);
+    util_free(p_tape->p_tape_buffers[i]);
   }
   util_free(p_tape);
 }
@@ -133,7 +152,7 @@ tape_read_float(uint8_t* p_in_buf) {
 }
 
 void
-tape_load(struct tape_struct* p_tape, const char* p_file_name) {
+tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   static const size_t k_max_uef_size = (1024 * 1024);
   uint8_t* p_in_file_buf;
   int32_t* p_out_file_buf;
@@ -146,8 +165,13 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
   uint32_t num_tape_values;
   size_t tape_buffer_size;
   float temp_float;
+  int32_t* p_tape_buffer;
 
-  assert(p_tape->p_tape_buffer == NULL);
+  uint32_t tapes_added = p_tape->tapes_added;
+
+  if (tapes_added == k_tape_max_tapes) {
+    util_bail("too many tapes added");
+  }
 
   p_in_file_buf = util_malloc(k_max_uef_size);
   p_out_file_buf = util_malloc(k_max_uef_size * 4);
@@ -170,7 +194,7 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
     util_bail("uef file missing header");
   }
 
-  if ((p_in_buf[0] == 0x1B) && (p_in_buf[1] == 0x8B)) {
+  if ((p_in_buf[0] == 0x1F) && (p_in_buf[1] == 0x8B)) {
     util_bail("uef file needs unzipping first");
   }
   if (memcmp(p_in_buf, "UEF File!", 10) != 0) {
@@ -343,10 +367,17 @@ tape_load(struct tape_struct* p_tape, const char* p_file_name) {
 
   num_tape_values = (k_max_uef_size - buffer_remaining);
   tape_buffer_size = (num_tape_values * sizeof(int32_t));
-  p_tape->p_tape_buffer = util_malloc(tape_buffer_size);
+  p_tape_buffer = util_malloc(tape_buffer_size);
 
-  (void) memcpy(p_tape->p_tape_buffer, p_out_file_buf, tape_buffer_size);
-  p_tape->num_tape_values = num_tape_values;
+  p_tape->p_tape_file_names[tapes_added] = util_strdup(p_file_name);
+  p_tape->p_tape_buffers[tapes_added] = p_tape_buffer;
+  p_tape->num_tape_values[tapes_added] = num_tape_values;
+
+  (void) memcpy(p_tape_buffer, p_out_file_buf, tape_buffer_size);
+
+  /* Always end with an empty slot. */
+  p_tape->p_tape_buffers[tapes_added + 1] = NULL;
+  p_tape->tapes_added++;
 
   util_free(p_in_file_buf);
   util_free(p_out_file_buf);
@@ -373,7 +404,32 @@ tape_stop(struct tape_struct* p_tape) {
 }
 
 void
+tape_cycle_tape(struct tape_struct* p_tape) {
+  int32_t* p_tape_buffer;
+  char* p_file_name;
+
+  uint32_t tape_index = p_tape->tape_index;
+
+  if (tape_index == p_tape->tapes_added) {
+    tape_index = 0;
+  } else {
+    tape_index++;
+  }
+
+  p_tape->tape_index = tape_index;
+  p_tape_buffer = p_tape->p_tape_buffers[tape_index];
+  if (p_tape_buffer == NULL) {
+    p_file_name = "<none>";
+  } else {
+    p_file_name = p_tape->p_tape_file_names[tape_index];
+  }
+
+  log_do_log(k_log_tape, k_log_info, "tape file now: %s", p_file_name);
+
+  tape_rewind(p_tape);
+}
+
+void
 tape_rewind(struct tape_struct* p_tape) {
   p_tape->tape_buffer_pos = 0;
-  log_do_log(k_log_tape, k_log_info, "rewind");
 }

@@ -27,6 +27,7 @@ static const uint32_t k_sound_default_rate = 48000;
 static const uint32_t k_sound_default_num_periods = 4;
 enum {
   k_max_discs_per_drive = 4,
+  k_max_tapes = 4,
 };
 
 int
@@ -52,7 +53,7 @@ main(int argc, const char* argv[]) {
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
   const char* disc_names[2][k_max_discs_per_drive] = {};
-  const char* p_tape_file_name = NULL;
+  const char* p_tape_file_names[k_max_tapes] = {};
 
   struct os_window_struct* p_window = NULL;
   struct os_sound_struct* p_sound_driver = NULL;
@@ -86,6 +87,7 @@ main(int argc, const char* argv[]) {
   int window_open = 0;
   uint32_t num_discs_0 = 0;
   uint32_t num_discs_1 = 0;
+  uint32_t num_tapes = 0;
 
   rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
@@ -148,7 +150,11 @@ main(int argc, const char* argv[]) {
       ++num_discs_1;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-tape")) {
-      p_tape_file_name = val1;
+      if (num_tapes == k_max_tapes) {
+        util_bail("too many tapes");
+      }
+      p_tape_file_names[num_tapes] = val1;
+      ++num_tapes;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-opt")) {
       opt_flags = val1;
@@ -348,9 +354,12 @@ main(int argc, const char* argv[]) {
     exit(0);
   }
 
-  /* Load the tape! */
-  if (p_tape_file_name != NULL) {
-    bbc_load_tape(p_bbc, p_tape_file_name);
+  /* Load the tapes! */
+  for (i = 0; i < k_max_tapes; ++i) {
+    const char* p_file_name = p_tape_file_names[i];
+    if (p_file_name != NULL) {
+      bbc_add_tape(p_bbc, p_file_name);
+    }
   }
 
   /* Set up keyboard capture / replay. */

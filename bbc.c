@@ -1615,7 +1615,7 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
     disc_drive_cycle_disc(p_bbc->p_drive_1);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'T')) {
-    tape_rewind(p_bbc->p_tape);
+    tape_cycle_tape(p_bbc->p_tape);
   } else if (keyboard_consume_alt_key_press(p_keyboard, 'R')) {
     /* We're in the middle of some timer callback. Let the CPU driver initiate
      * the actual reset at a safe time.
@@ -1859,8 +1859,8 @@ bbc_add_raw_disc(struct bbc_struct* p_bbc,
 }
 
 void
-bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
-  tape_load(p_bbc->p_tape, p_file_name);
+bbc_add_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
+  tape_add_tape(p_bbc->p_tape, p_file_name);
 }
 
 static void
