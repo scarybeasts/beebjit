@@ -126,9 +126,9 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     row = 1;
     col = 8;
     break;
-  case k_keyboard_key_backspace: /* BBC DELETE */
-    row = 5;
-    col = 9;
+  case '\\':
+    row = 7;
+    col = 8;
     break;
   case k_keyboard_key_tab:
     row = 6;
@@ -174,17 +174,21 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     row = 3;
     col = 7;
     break;
-  case '[': /* BBC @ */
+  case '`': /* BBC @ */
     row = 4;
     col = 7;
     break;
-  case ']': /* BBC [ */
+  case '[': /* BBC [ */
     row = 3;
     col = 8;
     break;
-  case k_keyboard_key_enter: /* BBC RETURN */
+  case k_keyboard_key_page_up: /* BBC _ / pound */
+    row = 2;
+    col = 8;
+    break;
+  case k_keyboard_key_caps_lock:
     row = 4;
-    col = 9;
+    col = 0;
     break;
   case k_keyboard_key_ctrl:
     row = 0;
@@ -234,14 +238,22 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     row = 4;
     col = 8;
     break;
+  case ']':
+    row = 5;
+    col = 8;
+    break;
+  case k_keyboard_key_enter: /* BBC RETURN */
+    row = 4;
+    col = 9;
+    break;
+  case k_keyboard_key_windows: /* BBC SHIFT LOCK */
+    row = 5;
+    col = 0;
+    break;
   case k_keyboard_key_shift_left:
   case k_keyboard_key_shift_right:
     row = 0;
     col = 0;
-    break;
-  case '\\': /* BBC ] */
-    row = 5;
-    col = 8;
     break;
   case 'Z':
     row = 6;
@@ -286,10 +298,6 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
   case ' ':
     row = 6;
     col = 2;
-    break;
-  case k_keyboard_key_caps_lock:
-    row = 4;
-    col = 0;
     break;
   case k_keyboard_key_f1:
     row = 7;
@@ -345,6 +353,10 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
     break;
   case k_keyboard_key_arrow_down:
     row = 2;
+    col = 9;
+    break;
+  case k_keyboard_key_backspace: /* BBC DELETE */
+    row = 5;
     col = 9;
     break;
   case k_keyboard_key_end: /* BBC COPY */

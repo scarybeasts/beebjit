@@ -116,6 +116,9 @@ os_x11_keys_build_mapping() {
     case 48:
       val = '\'';
       break;
+    case 49:
+      val = '`';
+      break;
     case 50:
       val = k_keyboard_key_shift_left;
       break;
@@ -203,6 +206,9 @@ os_x11_keys_build_mapping() {
     case 111:
       val = k_keyboard_key_arrow_up;
       break;
+    case 112:
+      val = k_keyboard_key_page_up;
+      break;
     case 113:
       val = k_keyboard_key_arrow_left;
       break;
@@ -214,6 +220,12 @@ os_x11_keys_build_mapping() {
       break;
     case 116:
       val = k_keyboard_key_arrow_down;
+      break;
+    case 117:
+      val = k_keyboard_key_page_down;
+      break;
+    case 133:
+      val = k_keyboard_key_windows;
       break;
     default:
       break;
