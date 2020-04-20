@@ -98,11 +98,22 @@ picky.
 ./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/perf/clocksp.ssd
 And then in the emulator:
 CH."CLOCKSP"
+
+Or you can combine this with the headless mode above:
+echo 'CH."CLOCKSP"' | ./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/perf/clocksp.ssd -terminal -headless
+
 Overall CLOCKSP is about 7GHz on my old slow laptop. I've seen individual tests
 hit 10GHz but that was before the Intel meltdown / spectre fiasco and
 slowdowns!
 [NOTE: the long list of options is designed to get other subsystems out of the
 way for maximum speed but it is unclear how much benefit they bring.]
+
+Micro Power Chess works nicely in fast mode: you can play against its
+highest level (which, contrary to what its instructions say, is Level 6,
+not Level 9, see http://ssb22.user.srcf.net/bchess.html ) without having to
+wait hours for each of the computer's moves:
+
+./beebjit -fast -opt bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ChessMicroPower.ssd
 
 
 9) Capture and replay.

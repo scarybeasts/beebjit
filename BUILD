@@ -21,3 +21,6 @@ To directly just build the debug or optimized versions of beebjit, use:
 
 Building beebjit doesn't have many dependencies. You'll need gcc and standard
 system headers (including X11 and ALSA) but nothing exotic.
+
+To get ALSA headers on Debian/Ubuntu: sudo apt install libasound2-dev
+To get ALSA headers on Fedora: sudo dnf install alsa-lib-devel
