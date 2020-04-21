@@ -838,7 +838,7 @@ debug_print_registers(uint8_t reg_a,
                       uint64_t countdown) {
   (void) printf("[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
                 "F=%s PC=%.4"PRIX16" "
-                "cycles=%"PRIu64" countdowwn=%"PRIu64"]\n",
+                "cycles=%"PRIu64" countdown=%"PRIu64"]\n",
                 reg_a,
                 reg_x,
                 reg_y,
