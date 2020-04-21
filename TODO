@@ -11,7 +11,6 @@ get addressed before the next release.
 - HFE files written to by Gotek + FlashFloppy no longer load correctly. (Files
 are fine.)
 - JIT mode crashes will illegal instruction on older processors.
-- Crash with cpu-scale-factor.
 - Caesar's Travels render is not stable and graphical corruption?!
 - Report of Frak tape not loading.
 
@@ -39,8 +38,6 @@ fast.
 
 FSD investigations
 ==================
-
-- 249 WORLD WITHOUT WORDS.FSD
 
 
 Peformance tuning

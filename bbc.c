@@ -131,7 +131,6 @@ struct bbc_struct {
   /* Timing support. */
   struct os_time_sleeper* p_sleeper;
   uint32_t timer_id_cycles;
-  uint32_t timer_id_last_tick_callback;
   uint32_t timer_id_stop_cycles;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
@@ -144,6 +143,7 @@ struct bbc_struct {
   uint64_t last_hw_reg_hits;
   uint64_t last_c1;
   uint64_t last_c2;
+  uint32_t advance_cycles_expected;
 
   uint64_t num_hw_reg_hits;
   int log_speed;
@@ -206,12 +206,17 @@ bbc_is_1MHz_address(uint16_t addr) {
 }
 
 static void
-bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
-                                uint16_t addr,
-                                int do_last_tick_callback) {
+bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
+                                    uint16_t addr,
+                                    int do_last_tick_callback) {
   int is_unaligned;
   int do_ticking;
+  uint32_t cycles_left;
+  uint64_t curr_cycles;
+
   int is_1MHz = bbc_is_1MHz_address(addr);
+
+  p_bbc->advance_cycles_expected = 0;
 
   if (!is_1MHz) {
     if (do_last_tick_callback) {
@@ -224,34 +229,13 @@ bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
     return;
   }
 
-  is_unaligned = (state_6502_get_cycles(p_bbc->p_state_6502) & 1);
-
-  if (do_last_tick_callback) {
-    /* It is 1MHz. Last tick will be in 1 or two ticks depending on
-     * alignment.
-     */
-    /* NOTE: it's not the most efficient to start a one or two tick timer,
-     * but it's clean. Furthermore, this is uncommon. The common cases of
-     * LDA abs / STA abs for harware register access do not need the last
-     * tick callback because the IRQ check occurs before the potentially
-     * stretched cycle.
-     */
-    /* NOTE: there's an important subtlety here. We rely on this timer firing
-     * last if there are multiple timers firing at the same this. This
-     * guarantee _is_ made by timing API. What happens is that the older
-     * timers may raise (or lower) IRQs. And then this newest timer needs to
-     * see latest IRQ results to act on them.
-     */
-    (void) timing_start_timer_with_value(p_bbc->p_timing,
-                                         p_bbc->timer_id_last_tick_callback,
-                                         (1 + is_unaligned));
-  }
+  /* It is 1MHz. Last tick will be in 1 or two ticks depending on alignment. */
+  curr_cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  is_unaligned = (curr_cycles & 1);
+  cycles_left = (is_unaligned + 2);
 
   /* For 1MHz, the specific peripheral callback can opt to take on the timing
-   * ticking itself. The VIAs do this. For everything else, we fully tick to
-   * the end of the stretched cycle and then do the read or write.
-   * It's worth noting that this behavior is required for CRTC. If we fail to
-   * tick to the end of the stretched cycle, the writes take effect too soon.
+   * ticking itself. The VIAs do this.
    */
   do_ticking = 1;
   switch (addr & ~0x1F) {
@@ -263,8 +247,37 @@ bbc_do_read_write_tick_handling(struct bbc_struct* p_bbc,
     break;
   }
 
-  if (do_ticking) {
-    (void) timing_advance_time_delta(p_bbc->p_timing, (2 + is_unaligned));
+  if (!do_ticking) {
+    p_bbc->advance_cycles_expected = cycles_left;
+    return;
+  }
+
+  /* For most peripherals, we tick to the end of the stretched cycle and then do   * the read or write.
+   * It's worth noting that this behavior is required for CRTC. If we fail to
+   * tick to the end of the stretched cycle, the writes take effect too soon.
+   */
+  if (do_last_tick_callback) {
+    (void) timing_advance_time_delta(p_bbc->p_timing, (cycles_left - 1));
+    p_bbc->memory_access.memory_client_last_tick_callback(
+        p_bbc->memory_access.p_last_tick_callback_obj);
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+  } else {
+    (void) timing_advance_time_delta(p_bbc->p_timing, cycles_left);
+  }
+}
+
+static void
+bbc_timing_advancer(void* p, uint64_t cycles) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  assert(cycles <= p_bbc->advance_cycles_expected);
+
+  (void) timing_advance_time_delta(p_bbc->p_timing, cycles);
+  p_bbc->advance_cycles_expected -= cycles;
+
+  if (p_bbc->advance_cycles_expected == 1) {
+    p_bbc->memory_access.memory_client_last_tick_callback(
+        p_bbc->memory_access.p_last_tick_callback_obj);
   }
 }
 
@@ -275,7 +288,7 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
 
   p_bbc->num_hw_reg_hits++;
 
-  bbc_do_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -434,6 +447,8 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     break;
   }
 
+  assert(p_bbc->advance_cycles_expected == 0);
+
   return ret;
 }
 
@@ -564,7 +579,7 @@ bbc_write_callback(void* p,
 
   p_bbc->num_hw_reg_hits++;
 
-  bbc_do_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -681,6 +696,8 @@ bbc_write_callback(void* p,
     }
     break;
   }
+
+  assert(p_bbc->advance_cycles_expected == 0);
 }
 
 void
@@ -731,17 +748,6 @@ bbc_framebuffer_ready_callback(void* p,
     bbc_cpu_receive_message(p_bbc, &message);
     assert(message.data[0] == k_message_render_done);
   }
-}
-
-static void
-bbc_last_tick_callback(void* p) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-
-  (void) timing_stop_timer(p_bbc->p_timing,
-                           p_bbc->timer_id_last_tick_callback);
-
-  p_bbc->memory_access.memory_client_last_tick_callback(
-      p_bbc->memory_access.p_last_tick_callback_obj);
 }
 
 static void
@@ -1023,8 +1029,6 @@ bbc_create(int mode,
     util_bail("timing_create failed");
   }
   p_bbc->p_timing = p_timing;
-  p_bbc->timer_id_last_tick_callback =
-      timing_register_timer(p_timing, bbc_last_tick_callback, p_bbc);
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
@@ -1039,6 +1043,7 @@ bbc_create(int mode,
   if (p_bbc->p_system_via == NULL) {
     util_bail("via_create failed");
   }
+  via_set_timing_advancer(p_bbc->p_system_via, bbc_timing_advancer, p_bbc);
   p_bbc->p_user_via = via_create(k_via_user,
                                  externally_clocked_via,
                                  p_timing,
@@ -1046,6 +1051,7 @@ bbc_create(int mode,
   if (p_bbc->p_user_via == NULL) {
     util_bail("via_create failed");
   }
+  via_set_timing_advancer(p_bbc->p_user_via, bbc_timing_advancer, p_bbc);
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   if (p_bbc->p_keyboard == NULL) {
@@ -1258,14 +1264,7 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
 
 static void
 bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
-  struct timing_struct* p_timing = p_bbc->p_timing;
-  uint32_t timer_id_last_tick_callback = p_bbc->timer_id_last_tick_callback;
-
   p_bbc->IC32 = 0;
-
-  if (timing_timer_is_running(p_timing, timer_id_last_tick_callback)) {
-    (void) timing_stop_timer(p_timing, timer_id_last_tick_callback);
-  }
 
   /* TODO: decide if the stop cycles timer should be reset or not. */
 }

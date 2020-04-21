@@ -47,6 +47,8 @@ struct via_struct {
 
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
+  void (*p_timing_advancer)(void* p, uint64_t ticks);
+  void* p_timing_advancer_object;
 
   uint8_t IRA;
   uint8_t IRB;
@@ -386,6 +388,14 @@ via_set_CB2_changed_callback(struct via_struct* p_via,
   p_via->p_CB2_changed_object = p_CB2_changed_object;
 }
 
+void
+via_set_timing_advancer(struct via_struct* p_via,
+                        void (*p_timing_advancer)(void* p, uint64_t ticks),
+                        void* p_timing_advancer_object) {
+  p_via->p_timing_advancer = p_timing_advancer;
+  p_via->p_timing_advancer_object = p_timing_advancer_object;
+}
+
 static void
 via_time_advance(struct via_struct* p_via, uint64_t ticks) {
   int32_t t1c;
@@ -530,6 +540,11 @@ via_update_port_b(struct via_struct* p_via) {
   }
 }
 
+static void
+via_advance_ticks(struct via_struct* p_via, uint64_t ticks) {
+  p_via->p_timing_advancer(p_via->p_timing_advancer_object, ticks);
+}
+
 uint8_t
 via_read(struct via_struct* p_via, uint8_t reg) {
   uint8_t orb;
@@ -545,7 +560,6 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
   int t1_firing = via_is_t1_firing(p_via, ticks);
   int t2_firing = via_is_t2_firing(p_via, ticks);
-  struct timing_struct* p_timing = p_via->p_timing;
 
   /* Advance to the VIA mid-cycle.
    * EMU NOTE: do this first before processing the read. Interrupts fire at
@@ -553,7 +567,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  (void) timing_advance_time_delta(p_timing, (ticks + 1));
+  via_advance_ticks(p_via, (ticks + 1));
 
   t1_val = via_get_t1c(p_via);
   if (t1_firing) {
@@ -654,7 +668,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     break;
   }
 
-  (void) timing_advance_time_delta(p_timing, 1);
+  via_advance_ticks(p_via, 1);
 
   return ret;
 }
@@ -687,7 +701,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
    * likely be less fixing up that way around.
    */
   /* Advance to the VIA mid-cycle. */
-  (void) timing_advance_time_delta(p_timing, (ticks + 1));
+  via_advance_ticks(p_via, (ticks + 1));
 
   /* This is a bit subtle but we need to read the T1C value in order to force
    * the deferred calculation of timer value for one shot timers that have shot.
@@ -860,7 +874,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   }
 
-  (void) timing_advance_time_delta(p_timing, 1);
+  via_advance_ticks(p_via, 1);
 }
 
 void
