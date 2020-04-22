@@ -148,32 +148,6 @@ serial_check_line_levels(struct serial_struct* p_serial) {
   serial_acia_update_irq(p_serial);
 }
 
-static void
-serial_acia_reset(struct serial_struct* p_serial) {
-  if (p_serial->log_state) {
-    log_do_log(k_log_serial, k_log_info, "reset");
-  }
-
-  p_serial->acia_receive = 0;
-  p_serial->acia_transmit = 0;
-
-  p_serial->acia_status = 0;
-
-  /* Clear RDRF (receive data register full). */
-  p_serial->acia_status &= ~k_serial_acia_status_RDRF;
-  /* Set TDRE (transmit data register empty). */
-  p_serial->acia_status |= k_serial_acia_status_TDRE;
-  /* Clear latched DCD low -> high transition. */
-  p_serial->acia_status &= ~k_serial_acia_status_DCD;
-
-  /* Reset of the ACIA cannot change external line levels. Make sure they are
-   * kept.
-   */
-  serial_check_line_levels(p_serial);
-
-  serial_acia_update_irq(p_serial);
-}
-
 struct serial_struct*
 serial_create(struct state_6502* p_state_6502,
               int fasttape_flag,
@@ -187,8 +161,6 @@ serial_create(struct state_6502* p_state_6502,
   p_serial->handle_output = -1;
 
   p_serial->log_state = util_has_option(p_options->p_log_flags, "serial:state");
-
-  serial_acia_reset(p_serial);
 
   return p_serial;
 }
@@ -273,10 +245,25 @@ serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
 
 static void
 serial_acia_power_on_reset(struct serial_struct* p_serial) {
-  p_serial->acia_control = 0;
-  p_serial->acia_status = 0;
+  /* Power on reset is currently the same as writing master reset to CR. */
+  if (p_serial->log_state) {
+    log_do_log(k_log_serial, k_log_info, "reset");
+  }
+
   p_serial->acia_receive = 0;
   p_serial->acia_transmit = 0;
+
+  /* Set TDRE (transmit data register empty). Clear everything else. */
+  p_serial->acia_status = k_serial_acia_status_TDRE;
+
+  p_serial->acia_control = 0;
+
+  /* Reset of the ACIA cannot change external line levels. Make sure they are
+   * kept.
+   */
+  serial_check_line_levels(p_serial);
+
+  serial_acia_update_irq(p_serial);
 }
 
 static void
@@ -297,9 +284,6 @@ serial_power_on_reset(struct serial_struct* p_serial) {
   serial_ula_power_on_reset(p_serial);
 
   serial_check_line_levels(p_serial);
-  assert(p_serial->line_level_DCD == 0);
-  assert(p_serial->line_level_CTS == 0);
-  assert(p_serial->acia_status == 0);
 }
 
 void
@@ -398,11 +382,18 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
   if (reg == 0) {
     /* Control register. */
     if ((val & 0x03) == 0x03) {
-      /* TODO: the data sheet suggests this doesn't affect any control register
-       * bits and only does a reset.
-       * Testing on a real machine shows possible disagreement here.
+      /* Master reset. */
+      /* EMU NOTE: the data sheet says, "Master reset does not affect other
+       * Control Register bits.", however this does not seem to be fully
+       * correct. If there's an interrupt active at reset time, it is cleared
+       * after reset. This suggests it could be clearing CR, including the
+       * interrupt select bits. We clear CR, and this is sufficient to get the
+       * Frak tape to load.
+       * (After a master reset, the chip actually seems to be dormant until CR
+       * is written. One specific example is that TDRE is not indicated until
+       * CR is written -- a corner case we do not yet implement.)
        */
-      serial_acia_reset(p_serial);
+      serial_acia_power_on_reset(p_serial);
     } else {
       p_serial->acia_control = val;
     }
