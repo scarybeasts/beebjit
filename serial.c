@@ -415,12 +415,21 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
   } else {
     /* Data register, transmit byte. */
     assert(reg == 1);
-    assert(p_serial->acia_status & k_serial_acia_status_TDRE);
+    if (!(p_serial->acia_status & k_serial_acia_status_TDRE)) {
+      log_do_log(k_log_serial, k_log_unimplemented, "transmit buffer full");
+    }
 
     p_serial->acia_transmit = val;
 
-    /* Clear TDRE (transmit data register empty). */
-    p_serial->acia_status &= ~k_serial_acia_status_TDRE;
+    if (!p_serial->serial_ula_rs423_selected) {
+      /* If the tape is selected, just consume the byte immediately. It's needed
+       * to get Pro Boxing Simulator loading.
+       */
+      p_serial->acia_status |= k_serial_acia_status_TDRE;
+    } else {
+      /* Clear TDRE (transmit data register empty). */
+      p_serial->acia_status &= ~k_serial_acia_status_TDRE;
+    }
   }
 
   serial_acia_update_irq(p_serial);
