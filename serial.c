@@ -406,6 +406,12 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
     } else {
       p_serial->acia_control = val;
     }
+    if (p_serial->log_state) {
+      log_do_log(k_log_serial,
+                 k_log_info,
+                 "control register now: $%.2X",
+                 p_serial->acia_control);
+    }
   } else {
     /* Data register, transmit byte. */
     assert(reg == 1);
