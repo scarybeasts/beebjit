@@ -1,7 +1,12 @@
-Unless otherwise notes, tapes are from the Stairway To Hell tape archive:
+Unless otherwise noted, tapes are from the Stairway To Hell tape archive:
 https://www.stairwaytohell.com/bbc/tapeimages.html
 And the uef files are extracted from the zip file, and further gunzipped to
 raw uef data.
+
+See also:
+http://beebwiki.mdfs.net/List_of_copy_protected_software_titles_on_cassette
+for more ideas!
+
 
 - AticAtac_RUN_B.hq.uef
 879bdacf132fe1cc6d257f113b2dd45d0ac9535c75c800f87f43e32a478d6a44  AticAtac_RUN_B.hq.zip
@@ -18,6 +23,16 @@ b7ae768e9ffceeaf370bc0b31ea966072946e038c3d89cd79ce1ffe86f1fe113  Frak_B.zip
 Didn't load in beebjit. In the presence of an accurate serial ULA / MC6850
 implementation, also appears to need MC6850 reset handling to clear the control
 register.
+
+- Joust_RUN_B.hq.uef
+1b721ecb77bab0ede88e2937998c277b2ddcab42cb92440cfcab88f7b0d531df  Joust.zip
+Interesting custom loader that displays scrolling instructions as the tape
+loads.
+
+- Nightshade.uef
+Lineage unclear.
+An emulator rite of passage, although mainly for VIA and 6502 emulation
+accuracy, less so the tape stream (although it is still a custom one).
 
 - ProBoxingSimulator_B.hq.uef
 c8e9d5384087c4e201ef101d9eb3be9e755c0db8afb4ece6d668ef4b647961ae  ProBoxingSimulator_B.hq.zip
