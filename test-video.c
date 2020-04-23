@@ -4,11 +4,12 @@
 
 enum {
   k_ticks_mode7_per_scanline = (64 * 2),
+  k_ticks_mode7_per_half_scanline = (32 * 2),
   k_ticks_mode7_per_frame = ((((31 * 10) + 2) * k_ticks_mode7_per_scanline) +
-                             (k_ticks_mode7_per_scanline / 2)),
+                             k_ticks_mode7_per_half_scanline),
   k_ticks_mode7_to_vsync_odd = (28 * 10 * k_ticks_mode7_per_scanline),
   k_ticks_mode7_to_vsync_even = ((28 * 10 * k_ticks_mode7_per_scanline) +
-                                 (k_ticks_mode7_per_scanline / 2)),
+                                 k_ticks_mode7_per_half_scanline),
 };
 
 struct bbc_options g_p_options;
@@ -691,6 +692,28 @@ video_test_inactive_rendering() {
   test_expect_u32(1, g_p_video->clock_tick_multiplier);
 }
 
+static void
+video_test_R6_gt_R7() {
+  /* A separate test for an interesting corner case with R6 > R7. The Hitachi
+   * data sheet says "don't do that" but it seems to show that the decision to
+   * render a dummy raster or not is done and latched at R7 hit.
+   * Mirrorsoft's Caesar's Travels hits this.
+   */
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 10);
+
+  (void) timing_advance_time_delta(g_p_timing, k_ticks_mode7_per_frame);
+  video_advance_crtc_timing(g_p_video);
+
+  test_expect_u32(0, g_p_video->in_dummy_raster);
+
+  (void) timing_advance_time_delta(
+      g_p_timing, (k_ticks_mode7_per_frame - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+
+  test_expect_u32(1, g_p_video->in_dummy_raster);
+}
+
 void
 video_test() {
   video_test_init();
@@ -723,5 +746,9 @@ video_test() {
 
   video_test_init();
   video_test_inactive_rendering();
+  video_test_end();
+
+  video_test_init();
+  video_test_R6_gt_R7();
   video_test_end();
 }
