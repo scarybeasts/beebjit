@@ -135,11 +135,13 @@ struct video_struct {
   uint8_t vert_counter;
   uint8_t vert_adjust_counter;
   uint8_t vsync_scanline_counter;
+  uint8_t hsync_tick_counter;
   uint32_t address_counter;
   uint32_t address_counter_this_row;
   uint32_t address_counter_next_row;
   int in_vert_adjust;
   int in_vsync;
+  int in_hsync;
   int in_dummy_raster;
   int had_vsync_this_row;
   int display_enable_horiz;
@@ -467,10 +469,19 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       /* This ugly -1 here is just a code ordering issue related to an
        * optimization; we already incremented horiz_counter above.
        */
-      r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
-      if (r2_hit) {
-        render_hsync(p_render, (p_video->hsync_pulse_width *
-                                p_video->clock_tick_multiplier));
+      if (p_video->in_hsync) {
+        p_video->hsync_tick_counter--;
+        if (p_video->hsync_tick_counter == 0) {
+          p_video->in_hsync = 0;
+        }
+      } else {
+        r2_hit = (((uint8_t) (p_video->horiz_counter - 1)) == r2);
+        if (r2_hit && (p_video->hsync_pulse_width > 0)) {
+          render_hsync(p_render, (p_video->hsync_pulse_width *
+                                  p_video->clock_tick_multiplier));
+          p_video->in_hsync = 1;
+          p_video->hsync_tick_counter = p_video->hsync_pulse_width;
+        }
       }
       if (!p_video->cursor_disabled &&
           (p_video->address_counter == cursor_addr) &&
@@ -1193,11 +1204,13 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->vert_counter = 0;
   p_video->vert_adjust_counter = 0;
   p_video->vsync_scanline_counter = 0;
+  p_video->hsync_tick_counter = 0;
   p_video->address_counter = 0;
   p_video->address_counter_this_row = 0;
   p_video->address_counter_next_row = 0;
   p_video->in_vert_adjust = 0;
   p_video->in_vsync = 0;
+  p_video->in_hsync = 0;
   p_video->in_dummy_raster = 0;
   p_video->had_vsync_this_row = 0;
   p_video->display_enable_horiz = 1;
