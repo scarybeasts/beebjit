@@ -143,6 +143,10 @@ latency of the keyboard and sound subsystems. Maybe on your system, it drives
 too hard?
 ./beebjit -0 ~/Downloads/Superior/Galaforce.ssd -opt sound:buffer=2048,bbc:wakeup-rate=100
 
+If you have a high DPI display and the BBC window is too small,
+you can try doubling the pixels (at a very small speed cost),
+./beebjit -opt video:double-size
+
 
 11) Built-in 6502 debugger.
 ./beebjit -debug
