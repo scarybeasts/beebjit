@@ -295,6 +295,17 @@ This calls KEYV, stored at $0228, set to $219E, which calls through to a
 keyboard scan at $21A2 by jumping to $EF02.
 
 
+- Fun_House_FSD0326_1.hfe
+SHA256: 38f02089fee931fc0637dd4641760ed7d7ae63891c66ef5376e06aba99e715ca
+Notes:
+1) Loader is at $5000, uses some unusual undocumented opcodes:
+[ITRP] 500F: RLA $1A3B
+...
+[ITRP] 502B: RRA $4C43
+
+That's the first discovery of RRA.
+
+
 - Galaforce.zip
 SHA256: 923fa8a830bf80d5bc039d4ad328a9d499f4a7e3372e9b6a519f6be19111ce84
 Start PC: $4000

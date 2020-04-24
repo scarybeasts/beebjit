@@ -638,6 +638,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v |= (temp_int << 7);                                                       \
   INTERP_LOAD_NZ_FLAGS(v);
 
+#define INTERP_INSTR_RRA()                                                    \
+  temp_int = cf;                                                              \
+  cf = (v & 0x01);                                                            \
+  v >>= 1;                                                                    \
+  v |= (temp_int << 7);                                                       \
+  a &= v;                                                                     \
+  INTERP_INSTR_ADC();
+
 #define INTERP_INSTR_SAX()                                                    \
   v = (a & x);
 
@@ -1005,6 +1013,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x2E: /* ROL abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROL());
       break;
+    case 0x2F: /* RLA abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RLA());
+      break;
     case 0x30: /* BMI */
       INTERP_INSTR_BRANCH(nf);
       break;
@@ -1198,6 +1209,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x6E: /* ROR abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROR());
+      break;
+    case 0x6F: /* RRA abs */ /* Undocumented. */
+      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RRA());
       break;
     case 0x70: /* BVS */
       INTERP_INSTR_BRANCH(of);
