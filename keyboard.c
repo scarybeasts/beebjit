@@ -981,49 +981,21 @@ keyboard_system_key_released(struct keyboard_struct* p_keyboard, uint8_t key) {
   keyboard_put_key_in_queue(p_keyboard, key, 0);
 }
 
-void
-keyboard_read_queue(struct keyboard_struct* p_keyboard) {
-  /* Called from the BBC thread. */
-  uint8_t keys[k_keyboard_queue_size];
-  uint8_t is_downs[k_keyboard_queue_size];
-  uint8_t filtered_keys[k_keyboard_queue_size];
-  uint8_t filtered_is_downs[k_keyboard_queue_size];
-  uint8_t i;
-  uint32_t num_keys;
-  uint32_t num_keys_filtered;
+static void
+keyboard_apply_physical_keys(struct keyboard_struct* p_keyboard,
+                             uint8_t* p_keys,
+                             uint8_t* p_is_downs,
+                             uint32_t num_keys) {
+  uint8_t filtered_keys[256];
+  uint8_t filtered_is_downs[256];
+  uint32_t i;
 
+  uint32_t num_keys_filtered = 0;
   struct keyboard_state* p_state = p_keyboard->p_physical_keyboard;
-  volatile uint32_t* p_queue_pos = &p_keyboard->queue_pos;
 
-  /* Always check the physical keyboard. Even if we're replaying a replay, we
-   * want to honor special emulator keys, i.e. Alt+combo.
-   */
-  if (*p_queue_pos == 0) {
-    return;
-  }
-
-  /* Checking p_keyboard->queue_pos unlocked above should be safe as we'll
-   * recheck any potential work with the lock.
-   */
-  os_lock_lock(p_keyboard->p_lock);
-
-  num_keys = p_keyboard->queue_pos;
-  assert(num_keys <= k_keyboard_queue_size);
   for (i = 0; i < num_keys; ++i) {
-    uint8_t key = p_keyboard->queue_key[i];
-    uint8_t is_down = p_keyboard->queue_isdown[i];
-    keys[i] = key;
-    is_downs[i] = is_down;
-  }
-
-  p_keyboard->queue_pos = 0;
-
-  os_lock_unlock(p_keyboard->p_lock);
-
-  num_keys_filtered = 0;
-  for (i = 0; i < num_keys; ++i) {
-    uint8_t key = keys[i];
-    uint8_t is_down = is_downs[i];
+    uint8_t key = p_keys[i];
+    uint8_t is_down = p_is_downs[i];
     int curr_is_down = keyboard_is_key_down(p_state, key);
     int is_spurious = (is_down == curr_is_down);
 
@@ -1055,4 +1027,57 @@ keyboard_read_queue(struct keyboard_struct* p_keyboard) {
   if (p_keyboard->p_active == p_keyboard->p_physical_keyboard) {
     keyboard_virtual_updated(p_keyboard);
   }
+}
+
+void
+keyboard_read_queue(struct keyboard_struct* p_keyboard) {
+  /* Called from the BBC thread. */
+  uint8_t keys[k_keyboard_queue_size];
+  uint8_t is_downs[k_keyboard_queue_size];
+  uint32_t i;
+  uint32_t num_keys;
+
+  volatile uint32_t* p_queue_pos = &p_keyboard->queue_pos;
+
+  /* Always check the physical keyboard. Even if we're replaying a replay, we
+   * want to honor special emulator keys, i.e. Alt+combo.
+   */
+  if (*p_queue_pos == 0) {
+    return;
+  }
+
+  /* Checking p_keyboard->queue_pos unlocked above should be safe as we'll
+   * recheck any potential work with the lock.
+   */
+  os_lock_lock(p_keyboard->p_lock);
+
+  num_keys = p_keyboard->queue_pos;
+  assert(num_keys <= k_keyboard_queue_size);
+  for (i = 0; i < num_keys; ++i) {
+    uint8_t key = p_keyboard->queue_key[i];
+    uint8_t is_down = p_keyboard->queue_isdown[i];
+    keys[i] = key;
+    is_downs[i] = is_down;
+  }
+
+  p_keyboard->queue_pos = 0;
+
+  os_lock_unlock(p_keyboard->p_lock);
+
+  keyboard_apply_physical_keys(p_keyboard, keys, is_downs, num_keys);
+}
+
+void
+keyboard_release_all_physical_keys(struct keyboard_struct* p_keyboard) {
+  uint32_t i;
+
+  uint8_t keys[256];
+  uint8_t is_downs[256];
+
+  for (i = 0; i < 256; ++i) {
+    keys[i] = i;
+    is_downs[i] = 0;
+  }
+
+  keyboard_apply_physical_keys(p_keyboard, keys, is_downs, 256);
 }

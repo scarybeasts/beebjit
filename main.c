@@ -387,6 +387,7 @@ main(int argc, const char* argv[]) {
     window_open = 1;
     os_window_set_name(p_window, "beebjit technology preview");
     os_window_set_keyboard_callback(p_window, p_keyboard);
+    os_window_set_focus_lost_callback(p_window, bbc_focus_lost_callback, p_bbc);
     p_render_buffer = os_window_get_buffer(p_window);
     render_set_buffer(p_render, p_render_buffer);
 

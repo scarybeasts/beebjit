@@ -26,6 +26,8 @@ struct os_window_struct {
   uint32_t width;
   uint32_t height;
   struct keyboard_struct* p_keyboard;
+  void (*p_focus_lost_callback)(void* p);
+  void* p_focus_lost_callback_object;
   Display* d;
   Window w;
   GC gc;
@@ -284,7 +286,9 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "XSetWMProtocols failed");
   }
 
-  ret = XSelectInput(p_window->d, p_window->w, (KeyPressMask | KeyReleaseMask));
+  ret = XSelectInput(p_window->d,
+                     p_window->w,
+                     (KeyPressMask | KeyReleaseMask | FocusChangeMask));
   if (ret != 1) {
     errx(1, "XSelectInput failed");
   }
@@ -368,6 +372,14 @@ void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
   p_window->p_keyboard = p_keyboard;
+}
+
+void
+os_window_set_focus_lost_callback(struct os_window_struct* p_window,
+                                  void (*p_focus_lost_callback)(void* p),
+                                  void* p_focus_lost_callback_object) {
+  p_window->p_focus_lost_callback = p_focus_lost_callback;
+  p_window->p_focus_lost_callback_object = p_focus_lost_callback_object;
 }
 
 uint32_t*
@@ -490,6 +502,11 @@ os_window_process_events(struct os_window_struct* p_window) {
     case ClientMessage:
       if ((Atom) event.xclient.data.l[0] == p_window->atom_delete_message) {
         p_window->is_deleted = 1;
+      }
+      break;
+    case FocusOut:
+      if (p_window->p_focus_lost_callback) {
+        p_window->p_focus_lost_callback(p_window->p_focus_lost_callback_object);
       }
       break;
     default:

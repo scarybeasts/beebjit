@@ -19,6 +19,8 @@ struct os_window_struct {
   uint32_t* p_buffer;
   int is_destroyed;
   struct keyboard_struct* p_keyboard;
+  void (*p_focus_lost_callback)(void* p);
+  void* p_focus_lost_callback_object;
 };
 
 static uint8_t
@@ -134,6 +136,12 @@ WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     break;
   case WM_DESTROY:
     s_p_window->is_destroyed = 1;
+    break;
+  case WM_ACTIVATEAPP:
+    if ((wParam == FALSE) && s_p_window->p_focus_lost_callback) {
+      s_p_window->p_focus_lost_callback(
+          s_p_window->p_focus_lost_callback_object);
+    }
     break;
   default:
     break;
@@ -288,6 +296,14 @@ void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
   p_window->p_keyboard = p_keyboard;
+}
+
+void
+os_window_set_focus_lost_callback(struct os_window_struct* p_window,
+                                  void (*p_focus_lost_callback)(void* p),
+                                  void* p_focus_lost_callback_object) {
+  p_window->p_focus_lost_callback = p_focus_lost_callback;
+  p_window->p_focus_lost_callback_object = p_focus_lost_callback_object;
 }
 
 uint32_t*
