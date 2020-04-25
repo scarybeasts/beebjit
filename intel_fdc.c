@@ -799,6 +799,12 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     case k_intel_fdc_register_head_load_unload:
       temp_u8 = p_fdc->register_head_load_unload;
       break;
+    case k_intel_fdc_register_track_drive_0:
+      temp_u8 = p_fdc->logical_track[0];
+      break;
+    case k_intel_fdc_register_track_drive_1:
+      temp_u8 = p_fdc->logical_track[1];
+      break;
     case k_intel_fdc_register_mode:
       /* Phantom Combat (BBC B 32K version) reads this?! */
       temp_u8 = (0xC0 | p_fdc->register_mode);

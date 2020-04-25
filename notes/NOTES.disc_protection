@@ -264,6 +264,31 @@ offset $80 (i.e. the start of the overread) are expected to be:
 13DC: 5D 30 FF FF FF FF FF FF FF FF FF 00 00 00 00 00
 
 
+- 499 FUN PHONICS 8.fsd
+SHA256: 64401773e6a4afa1dfbb9eb97854822e2b27d2d1b6da525c32cd487ac659760d
+- Fun_Phonics_8_FSD0499_1.hfe
+SHA256: a9bbc0aec7ea53a09a1d2facceb901e615fbbc0b0a61a68e5e6a31588a993c33
+1) Protected track is track 6, consisting of 8 sector headers: 7x
+$00/$00/$00/$00 and 1x $00/$00/$25/$00.
+2) !BOOT executes at $0935. At $0948, it calls $09EF which uses OSWORD $7F to
+read 2 sectors from track 39 into $7000.
+3) After some unpacking, code at $0971 calls $09D6 which uses OSWORD $7F to
+read a single sector header from track 0.
+4) At $0979, $09EF is called again, this time to read a couple of sectors from
+track 6. This fails with $18 (sector not found) and the code checks that the
+read did not succeed ay $097C.
+5) At $0987, OSWORD $7F is called to "read special register" $12, which is
+the track register for drive 0!
+[ITRP] 098A: LDA $09D5
+[ITRP] 098D: CMP #$08
+[ITRP] 098F: JMP $09C2
+It looks like the author was considering checking the Intel 8271 quirk of the
+drive stepping a couple of tracks forward to extend the search when a sector
+cannot be found. In the end, though, the results of the CMP are never checked
+(and indeed at this time of writing, beebjit does not implement this 8271
+quirk).
+
+
 Copies with DD3 standard mode:
 - 001 EXILE.FSD
 - 005 Arcadians.FSD
