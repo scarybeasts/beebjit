@@ -334,11 +334,12 @@ asm_x64_restore_AXYS_PC_flags:
 .globl asm_x64_asm_emit_intel_flags_to_scratch_END
 asm_x64_asm_emit_intel_flags_to_scratch:
   lahf
-  # Add IF+DF, CF and "always set" (0x20)
+  # Add IF+DF, CF and "always set" (0x20).
   lea REG_SCRATCH3_32, [REG_6502_ID_F_64 + REG_6502_CF_64 + 0x20]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 58
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + REG_6502_OF_64]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 6
+  # Add OF.
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_OF_64 + K_ASM_TABLE_OF_TO_6502]
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + REG_SCRATCH1]
+
   movzx REG_SCRATCH1_32, ah
   movzx REG_SCRATCH1_32, BYTE PTR [REG_SCRATCH1 + K_ASM_TABLE_X64_FLAGS_TO_6502]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_SCRATCH3]

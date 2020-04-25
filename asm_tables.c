@@ -58,4 +58,8 @@ asm_tables_init() {
   for (i = 0; i < 0x200; ++i) {
     *p_dst++ = (i < 0x100);
   }
+
+  p_dst = (uint8_t*) K_ASM_TABLE_OF_TO_6502;
+  *p_dst++ = 0;
+  *p_dst++ = 0x40;
 }
