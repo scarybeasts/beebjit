@@ -225,8 +225,8 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch,
-                    ((uint32_t) -0x100 + n));
+                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch,
+                    (K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV + n));
 }
 
 void
@@ -253,15 +253,12 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
   asm_x64_copy(p_buf,
                asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
                asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_IND_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
+  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value += (addr & 0xFF);
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n_mov_patch,
                     value);
 }
 
@@ -275,15 +272,12 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf,
   asm_x64_copy(p_buf,
                asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
                asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_IND_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
+  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value += (addr & 0xFF);
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch,
                     value);
 }
 
