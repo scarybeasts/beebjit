@@ -10,7 +10,6 @@ get addressed before the next release.
 - Poor granularity of system wakeup with audio subsystem as timer?
 - HFE files written to by Gotek + FlashFloppy no longer load correctly. (Files
 are fine.)
-- JIT mode crashes will illegal instruction on older processors.
 - vsync assert is back if you flip MODE 7 -> MODE 3 in a loop.
 
 
