@@ -2,8 +2,8 @@
 
 #include "asm_x64_abi.h"
 #include "asm_x64_common.h"
-#include "asm_x64_defs.h"
 #include "asm_x64_inturbo.h"
+#include "asm_x64_inturbo_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
@@ -18,8 +18,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-static const size_t k_inturbo_bytes_per_opcode = 256;
-static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
+static const size_t k_inturbo_bytes_per_opcode = (1 << K_INTURBO_OPCODES_SHIFT);
+static void* k_inturbo_opcodes_addr = (void*) K_INTURBO_OPCODES;
 
 struct inturbo_struct {
   struct cpu_driver driver;

@@ -46,7 +46,9 @@ asm_x64_jit_compile_trampoline:
   call asm_x64_restore_AXYS_PC_flags
 
   lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
 
   # We're jumping out of a call so pop the return address.
@@ -103,7 +105,9 @@ not_exiting:
   call asm_x64_restore_AXYS_PC_flags
 
   lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
 
   jmp REG_SCRATCH1
@@ -441,7 +445,11 @@ asm_x64_jit_FLAG_MEM_END:
 .globl asm_x64_jit_JMP_SCRATCH
 .globl asm_x64_jit_JMP_SCRATCH_END
 asm_x64_jit_JMP_SCRATCH:
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
+  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
   jmp REG_SCRATCH1
 

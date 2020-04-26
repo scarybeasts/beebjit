@@ -1,4 +1,4 @@
-#include "asm_x64_defs.h"
+#include "asm_x64_inturbo_defs.h"
 
 .file "asm_x64_inturbo.S"
 .intel_syntax noprefix
@@ -134,8 +134,10 @@ asm_x64_inturbo_advance_pc_END:
 .globl asm_x64_inturbo_jump_opcode_END
 asm_x64_inturbo_jump_opcode:
 
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_inturbo_jump_opcode_END:
@@ -228,8 +230,10 @@ not_exiting:
   call asm_x64_restore_AXYS_PC_flags
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 
@@ -433,16 +437,20 @@ asm_x64_instruction_Bxx_interp_accurate_jb_patch:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + REG_SCRATCH1]
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_not_taken_target:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 2]
   lea REG_6502_PC, [REG_6502_PC + 2]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_END:

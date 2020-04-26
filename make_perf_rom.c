@@ -33,8 +33,11 @@ main(int argc, const char* argv[]) {
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
   /* Reset vector: jump to 0xC000, start of OS ROM. */
-  p_mem[0x3ffc] = 0x00;
-  p_mem[0x3ffd] = 0xc0;
+  p_mem[0x3FFC] = 0x00;
+  p_mem[0x3FFD] = 0xC0;
+
+  /* Some statically placed values that can be useful. */
+  p_mem[0x3F00] = 0x60; /* aka. RTS */
 
   /* Copy ROM to RAM. */
   util_buffer_set_pos(p_buf, 0x0000);
