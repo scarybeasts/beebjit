@@ -124,7 +124,7 @@ uint8_t g_optypes[k_6502_op_num_opcodes] =
   k_rts, k_adc, k_kil, k_unk, k_nop, k_adc, k_ror, k_unk,
   k_pla, k_adc, k_ror, k_unk, k_jmp, k_adc, k_ror, k_rra,
   /* 0x70 */
-  k_bvs, k_adc, k_kil, k_unk, k_nop, k_adc, k_ror, k_unk,
+  k_bvs, k_adc, k_kil, k_rra, k_nop, k_adc, k_ror, k_unk,
   k_sei, k_adc, k_nop, k_unk, k_nop, k_adc, k_ror, k_unk,
   /* 0x80 */
   k_nop, k_sta, k_nop, k_sax, k_sty, k_sta, k_stx, k_sax,
@@ -176,7 +176,7 @@ uint8_t g_opmodes[k_6502_op_num_opcodes] =
   k_nil, k_idx, 0    , 0    , k_zpg, k_zpg, k_zpg, 0    ,
   k_nil, k_imm, k_acc, 0    , k_ind, k_abs, k_abs, k_abs,
   /* 0x70 */
-  k_rel, k_idy, 0    , 0    , k_zpx, k_zpx, k_zpx, 0    ,
+  k_rel, k_idy, 0    , k_idy, k_zpx, k_zpx, k_zpx, 0    ,
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_abx, 0    ,
   /* 0x80 */
   k_imm, k_idx, k_imm, k_idx, k_zpg, k_zpg, k_zpg, k_zpg,
@@ -228,7 +228,7 @@ uint8_t g_opcycles[k_6502_op_num_opcodes] =
   6, 6, 0, 0, 3, 3, 5, 0,
   4, 2, 2, 0, 5, 4, 6, 6,
   /* 0x70 */
-  2, 5, 0, 0, 4, 4, 6, 0,
+  2, 5, 0, 8, 4, 4, 6, 0,
   2, 4, 2, 0, 4, 4, 7, 0,
   /* 0x80 */
   2, 6, 2, 6, 3, 3, 3, 3,

@@ -546,6 +546,11 @@ arriving in the last cycle of the LDA #$02 or the first three cycles of the
 BIT.
 
 
+- Shylock_Gnomes_The_Transylvanian_Terror_FSD1091_1.hfe
+SHA256: afdcf53052917a9c4cb7704f91d12468fb3f626ded6fe3496b3b328361e452f0
+Hits unusual undocumented opcode RRA idy in self-modifying loader at $60DF.
+
+
 - Snapper-v1.zip
 SHA256: 0829a362d305ee3ec238882780c279d27f26e18e9d4408f830d4e7d9b0e29a68
 IRQ1V @ $0204: $DC93 (default)

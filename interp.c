@@ -1219,6 +1219,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x71: /* ADC idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
       break;
+    case 0x73: /* RRA idy */ /* Undocumented. */
+      INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_RRA());
+      break;
     case 0x75: /* ADC zpx */
       INTERP_MODE_ZPr_READ(x);
       INTERP_INSTR_ADC();
