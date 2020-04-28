@@ -79,6 +79,7 @@ main(int argc, const char* argv[]) {
   int headless_flag = 0;
   int fasttape_flag = 0;
   int convert_hfe_flag = 0;
+  int no_dfs_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -88,9 +89,6 @@ main(int argc, const char* argv[]) {
   uint32_t num_discs_0 = 0;
   uint32_t num_discs_1 = 0;
   uint32_t num_tapes = 0;
-
-  rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
-  rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -217,6 +215,8 @@ main(int argc, const char* argv[]) {
       fasttape_flag = 1;
     } else if (!strcmp(arg, "-convert-hfe")) {
       convert_hfe_flag = 1;
+    } else if (!strcmp(arg, "-no-dfs")) {
+      no_dfs_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-version") ||
@@ -309,6 +309,13 @@ main(int argc, const char* argv[]) {
   }
   if (cycles != 0) {
     bbc_set_stop_cycles(p_bbc, cycles);
+  }
+
+  if (rom_names[k_bbc_default_basic_rom_slot] == NULL) {
+    rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
+  }
+  if (!no_dfs_flag && (rom_names[k_bbc_default_dfs_rom_slot] == NULL)) {
+    rom_names[k_bbc_default_dfs_rom_slot] = "roms/DFS-0.9.rom";
   }
 
   for (i = 0; i < k_bbc_num_roms; ++i) {
