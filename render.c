@@ -84,6 +84,8 @@ render_create(struct teletext_struct* p_teletext,
   uint32_t k_horiz_standard_offset = 15;
   uint32_t k_vert_standard_offset = 4;
 
+  const char* p_opt_flags = p_options->p_opt_flags;
+
   struct render_struct* p_render = util_mallocz(sizeof(struct render_struct));
 
   p_render->p_teletext = p_teletext;
@@ -93,24 +95,21 @@ render_create(struct teletext_struct* p_teletext,
    * If set to zero, standard modes will fit perfectly. If set larger than
    * zero, pixels rendered in "overscan" areas will start to be visible.
    */
-  (void) util_get_u32_option(&border_chars,
-                             p_options->p_opt_flags,
-                             "video:border-chars=");
+  (void) util_get_u32_option(&border_chars, p_opt_flags, "video:border-chars=");
   if (border_chars > 16) {
     util_bail("border-chars must be 16 or less");
   }
 
-  p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,
+  p_render->do_interlace_wobble = util_has_option(p_opt_flags,
                                                   "video:interlace-wobble");
 
   p_render->do_show_frame_boundaries = util_has_option(
-      p_options->p_opt_flags, "video:frame-boundaries");
+      p_opt_flags, "video:frame-boundaries");
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
 
-  if (util_has_option(
-      p_options->p_opt_flags, "video:double-size")) {
+  if (util_has_option(p_opt_flags, "video:double-size")) {
     width *= 2;
     height *= 2;
     p_render->is_double_size = 1;
@@ -667,7 +666,7 @@ void
 render_double_up_lines(struct render_struct* p_render) {
   /* TODO: only need to double up partial lines within the render border. */
   uint32_t width = p_render->width;
-  size_t line_size = (width * sizeof(uint32_t));
+  uint32_t line_size = (width * sizeof(uint32_t));
   uint32_t double_width = (width * 2);
   uint32_t* p_buffer = p_render->p_buffer;
   uint32_t* p_buffer_next_line = (p_buffer + width);
@@ -678,23 +677,24 @@ render_double_up_lines(struct render_struct* p_render) {
     int32_t lines = (p_render->height / 4);
     uint32_t half_width = (width / 2);
     for (line = 0; line < lines; ++line) {
-      for (column = half_width-1; column >= 0; --column) {
-        p_buffer[column * 2] = p_buffer[(column * 2) + 1] = p_buffer[column]; 
+      for (column = (half_width - 1); column >= 0; --column) {
+        p_buffer[column * 2] = p_buffer[column];
+        p_buffer[(column * 2) + 1] = p_buffer[column];
       }
       (void) memcpy(p_buffer_next_line, p_buffer, line_size);
       p_buffer += double_width;
       p_buffer_next_line += double_width;
     }
     p_buffer = p_render->p_buffer;
-    lines = p_render->height / 2;
-    for (line = lines - 1; line >= 0; --line) {
-      if (line) {
-        (void) memcpy(p_buffer + (2 * line * width), p_buffer + (line * width), line_size);
-      }
-      (void) memcpy(p_buffer+(2*line+1)*width, p_buffer+line*width, line_size);
+    lines = (p_render->height / 2);
+    for (line = (lines - 1); line >= 0; --line) {
+      uint32_t* p_buffer_src = (p_buffer + (line * width));
+      uint32_t* p_buffer_dest = (p_buffer + (2 * (line * width)));
+      (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
+      (void) memcpy((p_buffer_dest + width), p_buffer_src, line_size);
     }
-    
-  } else { /* not double size */
+  } else {
+    /* Not double size. */
     uint32_t line;
     uint32_t lines = (p_render->height / 2);
     for (line = 0; line < lines; ++line) {
