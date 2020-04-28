@@ -299,10 +299,6 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
 
 void
 intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
-  if (p_fdc->log_commands) {
-    log_do_log(k_log_disc, k_log_info, "8271: reset");
-  }
-
   /* Abort any in-progress command. */
   intel_fdc_command_abort(p_fdc);
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
@@ -951,6 +947,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
      * to the command register are ignored.
      */
     if (val == 1) {
+      if (p_fdc->log_commands) {
+        log_do_log(k_log_disc, k_log_info, "8271: reset");
+      }
       intel_fdc_break_reset(p_fdc);
     }
     break;
