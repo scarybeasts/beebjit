@@ -114,7 +114,9 @@ render_create(struct teletext_struct* p_teletext,
     width *= 2;
     height *= 2;
     p_render->is_double_size = 1;
-  } else p_render->is_double_size = 0;
+  } else {
+    p_render->is_double_size = 0;
+  }
 
   p_render->width = width;
   p_render->height = height;
@@ -665,18 +667,19 @@ void
 render_double_up_lines(struct render_struct* p_render) {
   /* TODO: only need to double up partial lines within the render border. */
   uint32_t width = p_render->width;
-  size_t line_size = width * sizeof(uint32_t);
+  size_t line_size = (width * sizeof(uint32_t));
   uint32_t double_width = (width * 2);
   uint32_t* p_buffer = p_render->p_buffer;
   uint32_t* p_buffer_next_line = (p_buffer + width);
   
   if (p_render->is_double_size) {
-    int32_t line, column; /* must be signed */
-    int32_t lines = p_render->height / 4;
-    uint32_t half_width = width / 2;
+    int32_t line;   /* Must be signed. */
+    int32_t column; /* Must be signed. */
+    int32_t lines = (p_render->height / 4);
+    uint32_t half_width = (width / 2);
     for (line = 0; line < lines; ++line) {
       for (column = half_width-1; column >= 0; --column) {
-        p_buffer[column*2] = p_buffer[column*2+1] = p_buffer[column]; 
+        p_buffer[column * 2] = p_buffer[(column * 2) + 1] = p_buffer[column]; 
       }
       (void) memcpy(p_buffer_next_line, p_buffer, line_size);
       p_buffer += double_width;
@@ -684,8 +687,10 @@ render_double_up_lines(struct render_struct* p_render) {
     }
     p_buffer = p_render->p_buffer;
     lines = p_render->height / 2;
-    for (line = lines-1; line >= 0; --line) {
-      if (line) (void) memcpy(p_buffer+2*line*width, p_buffer+line*width, line_size);
+    for (line = lines - 1; line >= 0; --line) {
+      if (line) {
+        (void) memcpy(p_buffer + (2 * line * width), p_buffer + (line * width), line_size);
+      }
       (void) memcpy(p_buffer+(2*line+1)*width, p_buffer+line*width, line_size);
     }
     
