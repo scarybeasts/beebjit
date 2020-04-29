@@ -132,7 +132,7 @@ os_window_create(uint32_t width, uint32_t height) {
   p_window->width = width;
   p_window->height = height;
 
-  if ((width > 1024) || (height > 1024)) {
+  if ((width > 2048) || (height > 2048)) {
     errx(1, "excessive dimension");
   }
 

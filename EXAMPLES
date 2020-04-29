@@ -175,3 +175,11 @@ overrides the default DFS ROM in that same slot. Furthermore, this ROM actually
 needs to be in a writeable sideways RAM bank to work, to the -swram d option
 is also needed.
 The pi.ssd test will calculate more digits if it detects $0E00 PAGE!
+
+
+14) Other significant parameter examples.
+
+If you have a high DPI display and the BBC window is too small,
+you can try doubling the pixels (at a very small speed cost),
+./beebjit -opt video:double-size
+
