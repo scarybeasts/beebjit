@@ -277,23 +277,6 @@ state_load(struct bbc_struct* p_bbc, const char* p_file_name) {
 }
 
 void
-state_load_memory(struct bbc_struct* p_bbc,
-                  const char* p_file_name,
-                  uint16_t addr,
-                  uint16_t len) {
-  struct bem_v2x* p_bem;
-  unsigned char snapshot[k_snapshot_size];
-
-  assert(((uint16_t)(addr + len)) >= addr);
-
-  state_read(snapshot, p_file_name);
-
-  p_bem = (struct bem_v2x*) snapshot;
-
-  bbc_set_memory_block(p_bbc, addr, len, p_bem->ram + addr);
-}
-
-void
 state_save(struct bbc_struct* p_bbc, const char* p_file_name) {
   struct bem_v2x* p_bem;
   uint8_t snapshot[k_snapshot_size];

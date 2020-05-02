@@ -828,6 +828,21 @@ debug_load_raw(struct debug_struct* p_debug,
 }
 
 static void
+debug_save_raw(struct debug_struct* p_debug,
+               const char* p_file_name,
+               uint16_t addr_6502,
+               uint16_t length) {
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+
+  if ((addr_6502 + length) > k_6502_addr_space_size) {
+    length = (k_6502_addr_space_size - addr_6502);
+  }
+
+  util_file_write_fully(p_file_name, (p_mem_read + addr_6502), length);
+}
+
+static void
 debug_print_registers(uint8_t reg_a,
                       uint8_t reg_x,
                       uint8_t reg_y,
@@ -1288,25 +1303,24 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                (parse_int < 65536)) {
       p_debug->debug_stop_addr = parse_int;
     } else if ((sscanf(input_buf,
-                      "lm %255s %"PRIx32" %"PRIx32,
-                      parse_string,
-                      &parse_int,
-                      &parse_int2) == 3) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536) &&
-               (parse_int2 >= 0) &&
-               (parse_int2 <= 65536) &&
-               (parse_int + parse_int2 <= 65536)) {
-      parse_string[255] = '\0';
-      state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
-    } else if ((sscanf(input_buf,
-                      "lr %255s %"PRIx32,
+                      "loadmem %255s %"PRIx32,
                       parse_string,
                       &parse_int) == 2) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       parse_string[255] = '\0';
       debug_load_raw(p_debug, parse_string, parse_int);
+    } else if ((sscanf(input_buf,
+                      "savemem %255s %"PRIx32" %"PRIx32,
+                      parse_string,
+                      &parse_int,
+                      &parse_int2) == 3) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536) &&
+               (parse_int2 >= 0) &&
+               (parse_int2 < 65536)) {
+      parse_string[255] = '\0';
+      debug_save_raw(p_debug, parse_string, parse_int, parse_int2);
     } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
@@ -1345,30 +1359,30 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             countdown);
     } else if (!strcmp(input_buf, "?")) {
       (void) printf(
-  "q                 : quit\n"
-  "c                 : continue\n"
-  "s                 : step one 6502 instuction\n"
-  "d <a>             : disassemble at <a>\n"
-  "t                 : trap into gdb\n"
-  "{b,break} <a>     : set breakpoint at 6502 address <a>\n"
-  "{bl,blist}        : list breakpoints\n"
-  "db <id>           : delete breakpoint <id>\n"
-  "bm <lo> (hi)      : set read/write memory breakpoint for 6502 range\n"
-  "bmr <lo> (hi)     : set read memory breakpoint for 6502 range\n"
-  "bmw <lo> (hi)     : set write memory breakpoint for 6502 range\n"
-  "bop <op>          : break on opcode <op>\n"
-  "m <a>             : show memory at <a>\n"
-  "writem <a> <v>    : write <v> to 6502 <a>\n"
-  "lm <f> <a> <l>    : load <l> memory at <a> from state <f>\n"
-  "lr <f> <a>        : load memory at <addr> from raw file <f>\n"
-  "ss <f>            : save state to BEM file <f>\n"
-  "{a,x,y,pc}=<v>    : set register to <v>\n"
-  "sys               : show system VIA registers\n"
-  "user              : show user VIA registers\n"
-  "r                 : show regular registers\n"
-  "stats             : toggle stats collection (default: off)\n"
-  "ds                : dump stats collected\n"
-  "cs                : clear stats collected\n"
+  "q                  : quit\n"
+  "c                  : continue\n"
+  "s                  : step one 6502 instuction\n"
+  "d <a>              : disassemble at <a>\n"
+  "t                  : trap into gdb\n"
+  "{b,break} <a>      : set breakpoint at 6502 address <a>\n"
+  "{bl,blist}         : list breakpoints\n"
+  "db <id>            : delete breakpoint <id>\n"
+  "bm <lo> (hi)       : set read/write memory breakpoint for 6502 range\n"
+  "bmr <lo> (hi)      : set read memory breakpoint for 6502 range\n"
+  "bmw <lo> (hi)      : set write memory breakpoint for 6502 range\n"
+  "bop <op>           : break on opcode <op>\n"
+  "m <a>              : show memory at <a>\n"
+  "writem <a> <v>     : write <v> to 6502 <a>\n"
+  "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
+  "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
+  "ss <f>             : save state to BEM file <f>\n"
+  "{a,x,y,pc}=<v>     : set register to <v>\n"
+  "sys                : show system VIA registers\n"
+  "user               : show user VIA registers\n"
+  "r                  : show regular registers\n"
+  "stats              : toggle stats collection (default: off)\n"
+  "ds                 : dump stats collected\n"
+  "cs                 : clear stats collected\n"
   );
     } else {
       (void) printf("???\n");
