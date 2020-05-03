@@ -1,0 +1,12 @@
+Generating some beeb disc protection schemes, most not-seen-before.
+
+1) Data hidden in clock bits.
+Has two different sector headers read into the same sector data, offset by 1
+bit. This leads to one header reading the data and the other reading the clocks
+associated with that data.
+There are a lot of constraints on what clock bits are valid with what data bits.
+Mainly, you can never have a 0 clock bit next to a 0 data bit.
+Within the constraints, simple deterministic schemes can be devised. It is
+unlikely this setup can be written without specialized hardware.
+
+./beebjit -create-hfe prot.hfe ffffffffffffffff00ff00ff.fec700ff00ff01ff01ffc2ffe2ff.ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00.8ffb.ffffffffffffffff00ff00ff.fec700ff00ff00ff01fff1ffd3ff.00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff.fbc7.ffff.c3fe.ffff.c37f.ffff.ff00.ffff.00ff.ffff
