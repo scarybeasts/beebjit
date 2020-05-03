@@ -141,9 +141,19 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
   len = strlen(p_raw_spec);
   spec_pos = 0;
   track_pos = 0;
-  while ((spec_pos + 4) <= len) {
+  while (spec_pos < len) {
     uint8_t data;
     uint8_t clocks;
+
+    /* Allow a . as a no-op to aid with clarity. */
+    if (p_raw_spec[spec_pos] == '.') {
+      spec_pos++;
+      continue;
+    }
+
+    if ((spec_pos + 4) > len) {
+      util_bail("malformed disc spec");
+    }
 
     if (track_pos == k_ibm_disc_bytes_per_track) {
       util_bail("disc spec too big for track");
