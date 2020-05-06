@@ -690,7 +690,11 @@ render_double_up_lines(struct render_struct* p_render) {
     for (line = (lines - 1); line >= 0; --line) {
       uint32_t* p_buffer_src = (p_buffer + (line * width));
       uint32_t* p_buffer_dest = (p_buffer + (2 * (line * width)));
-      (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
+      if (line == 0) {
+        /* Don't copy line 0 to line 2*0=0 (memcpy overlap = undefined) */
+      } else {
+        (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
+      }
       (void) memcpy((p_buffer_dest + width), p_buffer_src, line_size);
     }
   } else {
