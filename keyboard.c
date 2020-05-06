@@ -401,19 +401,15 @@ keyboard_key_pressed(struct keyboard_state* p_state, uint8_t key) {
   }
 
   keyboard_bbc_key_to_rowcol(key, &row, &col);
-  if (row == -1 && col == -1) {
+  if ((row < 0) || (col < 0)) {
     return;
   }
-  assert(row >= 0);
   assert(row < 16);
-  assert(col >= 0);
   assert(col < 16);
   if (p_state->bbc_keys[row][col]) {
     return;
   }
-  /* gcc 10.0.1 misidentifies the following line as accessing bbc_keys[-1]
-     and flags it as an error, hence pragma to turn off the check */
-  #pragma GCC diagnostic ignored "-Wstringop-overflow"
+
   p_state->bbc_keys[row][col] = 1;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
@@ -436,12 +432,10 @@ keyboard_key_released(struct keyboard_state* p_state, uint8_t key) {
         k_keyboard_state_flag_pressed_not_released);
 
   keyboard_bbc_key_to_rowcol(key, &row, &col);
-  if (row == -1 && col == -1) {
+  if ((row < 0) || (col < 0)) {
     return;
   }
-  assert(row >= 0);
   assert(row < 16);
-  assert(col >= 0);
   assert(col < 16);
   was_pressed = p_state->bbc_keys[row][col];
   p_state->bbc_keys[row][col] = 0;
@@ -449,12 +443,15 @@ keyboard_key_released(struct keyboard_state* p_state, uint8_t key) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
     return;
   }
-  if (was_pressed) {
-    assert(p_state->bbc_keys_count_col[col] > 0);
-    p_state->bbc_keys_count_col[col]--;
-    assert(p_state->bbc_keys_count > 0);
-    p_state->bbc_keys_count--;
+  if (!was_pressed) {
+    return;
   }
+
+  assert(p_state->bbc_keys_count_col[col] > 0);
+  assert(p_state->bbc_keys_count > 0);
+
+  p_state->bbc_keys_count_col[col]--;
+  p_state->bbc_keys_count--;
 }
 
 static void
