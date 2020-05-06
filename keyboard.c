@@ -411,6 +411,9 @@ keyboard_key_pressed(struct keyboard_state* p_state, uint8_t key) {
   if (p_state->bbc_keys[row][col]) {
     return;
   }
+  /* gcc 10.0.1 misidentifies the following line as accessing bbc_keys[-1]
+     and flags it as an error, hence pragma to turn off the check */
+  #pragma GCC diagnostic ignored "-Wstringop-overflow"
   p_state->bbc_keys[row][col] = 1;
   if (row == 0) {
     /* Row 0, notably including shift and ctrl, is not wired to interrupt. */
