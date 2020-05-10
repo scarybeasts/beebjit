@@ -1357,7 +1357,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             reg_pc,
                             cycles,
                             countdown);
-    } else if (!strcmp(input_buf, "?")) {
+    } else if (!strcmp(input_buf, "?") || !strcmp(input_buf, "help")) {
       (void) printf(
   "q                  : quit\n"
   "c                  : continue\n"
