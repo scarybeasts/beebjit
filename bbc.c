@@ -1089,11 +1089,11 @@ bbc_create(int mode,
     util_bail("video_create failed");
   }
 
-  p_bbc->p_drive_0 = disc_drive_create(p_timing);
+  p_bbc->p_drive_0 = disc_drive_create(0, p_timing, &p_bbc->options);
   if (p_bbc->p_drive_0 == NULL) {
     util_bail("disc_drive_create failed");
   }
-  p_bbc->p_drive_1 = disc_drive_create(p_timing);
+  p_bbc->p_drive_1 = disc_drive_create(1, p_timing, &p_bbc->options);
   if (p_bbc->p_drive_1 == NULL) {
     util_bail("disc_drive_create failed");
   }

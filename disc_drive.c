@@ -1,5 +1,6 @@
 #include "disc_drive.h"
 
+#include "bbc_options.h"
 #include "disc.h"
 #include "ibm_disc_format.h"
 #include "log.h"
@@ -32,12 +33,19 @@ struct disc_drive_struct {
   void (*p_byte_callback)(void*, uint8_t, uint8_t);
   void* p_byte_callback_object;
 
-  /* State of the drive. */
-  int is_side_upper;
-  uint32_t track;
-  uint32_t byte_position;
+  /* Properties of the drive. */
+  uint32_t id;
   struct disc_struct* p_discs[k_disc_max_discs_per_drive + 1];
   uint32_t discs_added;
+  int is_40_track;
+
+  /* State of the drive. */
+  int is_side_upper;
+  /* Physically always 80 tracks even if we're in 40 track mode. 40 track mode
+   * essentially double steps.
+   */
+  uint32_t track;
+  uint32_t byte_position;
   uint32_t disc_index;
 };
 
@@ -103,11 +111,22 @@ disc_drive_timer_callback(void* p) {
 }
 
 struct disc_drive_struct*
-disc_drive_create(struct timing_struct* p_timing) {
+disc_drive_create(uint32_t id,
+                  struct timing_struct* p_timing,
+                  struct bbc_options* p_options) {
   struct disc_drive_struct* p_drive =
       util_mallocz(sizeof(struct disc_drive_struct));
 
+  p_drive->id = id;
   p_drive->p_timing = p_timing;
+
+  if (id == 0) {
+    p_drive->is_40_track = util_has_option(p_options->p_opt_flags,
+                                           "disc:drive0-40");
+  } else if (id == 1) {
+    p_drive->is_40_track = util_has_option(p_options->p_opt_flags,
+                                           "disc:drive1-40");
+  }
 
   p_drive->timer_id = timing_register_timer(p_timing,
                                             disc_drive_timer_callback,
@@ -282,7 +301,12 @@ disc_drive_select_track(struct disc_drive_struct* p_drive, uint32_t track) {
 
 void
 disc_drive_seek_track(struct disc_drive_struct* p_drive, int32_t delta) {
-  int32_t new_track = ((int32_t) p_drive->track + delta);
+  int32_t new_track;
+
+  if (p_drive->is_40_track) {
+    delta *= 2;
+  }
+  new_track = ((int32_t) p_drive->track + delta);
   if (new_track < 0) {
     new_track = 0;
   }

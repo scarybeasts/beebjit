@@ -4,11 +4,14 @@
 #include <stdint.h>
 
 struct disc_drive_struct;
-struct disc_struct;
 
+struct bbc_options;
+struct disc_struct;
 struct timing_struct;
 
-struct disc_drive_struct* disc_drive_create(struct timing_struct* p_timing);
+struct disc_drive_struct* disc_drive_create(uint32_t id,
+                                            struct timing_struct* p_timing,
+                                            struct bbc_options* p_options);
 void disc_drive_destroy(struct disc_drive_struct* p_drive);
 void disc_drive_set_byte_callback(struct disc_drive_struct* p_drive,
                                   void (*p_byte_callback)(void* p,
