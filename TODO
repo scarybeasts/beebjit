@@ -12,6 +12,7 @@ get addressed before the next release.
 are fine.)
 - vsync assert is back if you flip MODE 7 -> MODE 3 in a loop.
 - Folio doesn't load.
+- Incorrect strip of corruption in Bladedancer select character with swram.
 
 
 Fix later
