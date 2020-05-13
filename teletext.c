@@ -173,6 +173,7 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
 static inline void
 teletext_new_frame_started(struct teletext_struct* p_teletext) {
   p_teletext->scanline = 0;
+  p_teletext->second_character_row_of_double = 0;
 
   p_teletext->flash_count++;
   if (p_teletext->flash_count == 48) {
