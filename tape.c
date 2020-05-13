@@ -30,6 +30,7 @@ enum {
   k_tape_uef_chunk_security_cycles = 0x0114,
   k_tape_uef_chunk_phase_change = 0x0115,
   k_tape_uef_chunk_gap_float = 0x0116,
+  k_tape_uef_chunk_data_encoding_format_change = 0x0117,
 };
 
 enum {
@@ -355,6 +356,16 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
         *p_out_buf++ = k_tape_uef_value_silence;
       }
       buffer_remaining -= len_u16_1;
+      break;
+    case k_tape_uef_chunk_data_encoding_format_change:
+      /* Example file is Swarm(ComputerConcepts).uef. */
+      /* Some protected tape streams flip between 300 baud and 1200 baud.
+       * Ignore it for now because we don't support different tape speeds. It
+       * seems to work, but isn't a good emulation. It would be possible for a
+       * tape loader to detect our subterfuge via either timing of tape bytes,
+       * or by mismatching on-tape baud vs. serial baud and checking for
+       * failure (we would succeed in passing the bytes along).
+       */
       break;
     default:
       util_bail("uef unknown chunk type 0x%.4"PRIx16, chunk_type);
