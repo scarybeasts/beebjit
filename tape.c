@@ -341,8 +341,10 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
         util_bail("uef file incorrect float gap chunk size");
       }
       temp_float = tape_read_float(p_in_buf);
-      /* Current record: 263.9s, ChipBuster_B.hq.zip. */
-      if ((temp_float > 360) || (temp_float < 0)) {
+      /* Current record: 907.9s:
+       * CompleteBBC,The(Audiogenic)[tape-2][side-1]_hq.uef.
+       */
+      if ((temp_float > 1200) || (temp_float < 0)) {
         util_bail("uef file strange float gap %f", temp_float);
       }
       len_u16_1 = (temp_float *
