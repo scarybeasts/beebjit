@@ -1079,6 +1079,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 5;
       break;
+    case 0x47: /* SRE zp */ /* Undocumented. */
+      addr = p_mem_read[pc + 1];
+      v = p_mem_read[addr];
+      INTERP_INSTR_SRE();
+      p_mem_write[addr] = v;
+      pc += 2;
+      cycles_this_instruction = 5;
+      break;
     case 0x48: /* PHA */
       p_stack[s--] = a;
       pc++;
@@ -1308,6 +1316,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
        * See: http://visual6502.org/wiki/index.php?title=6502_Opcode_8B_%28XAA,_ANE%29
        */
       a = ((a | 0xEE) & x & v);
+      INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 2;
       break;
@@ -1426,6 +1435,16 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0xAB: /* LAX imm */ /* Undocumented and unstable. */
+      /* Dune Rider hit this! */
+      v = p_mem_read[pc + 1];
+      /* EMU NOTE: Not mixing in the 0xEE magic constant as per jsbeeb and b-em,       * because the Model B issue 3 I have seems to do a plain AND with no
+       * shenanigans or variance.
+       */
+      INTERP_INSTR_LAX();
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0xAC: /* LDY abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_LDY());
       break;
@@ -1532,6 +1551,15 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0xCB: /* AXS imm */ /* Undocumented. */
+      v = p_mem_read[pc + 1];
+      x = (a & x);
+      cf = (x >= v);
+      x = (x - v);
+      INTERP_LOAD_NZ_FLAGS(x);
+      pc += 2;
+      cycles_this_instruction = 2;
+      break;
     case 0xCC: /* CPY abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(y));
       break;
@@ -1613,6 +1641,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 2;
       break;
     case 0xE9: /* SBC imm */
+    case 0xEB: /* Undocumented. */
       v = p_mem_read[pc + 1];
       INTERP_INSTR_SBC();
       pc += 2;

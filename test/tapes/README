@@ -18,6 +18,12 @@ Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/241
 Needs correct DCD flag management.
 Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/262
 
+- DuneRider(MicroPower).uef
+06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331  DuneRider(MicroPower).uef
+Custom loader with scrolling text.
+Tons of very esoteric undocumented opcodes.
+Seems to trigger a teletext double height bug in some emulators.
+
 - Frak_B.uef
 b7ae768e9ffceeaf370bc0b31ea966072946e038c3d89cd79ce1ffe86f1fe113  Frak_B.zip
 Didn't load in beebjit. In the presence of an accurate serial ULA / MC6850

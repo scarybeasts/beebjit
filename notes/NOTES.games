@@ -259,6 +259,40 @@ you'll get two hsyncs.
 - Sets T1 to fire in 100us or so.
 
 
+- DuneRider(MicroPower).uef
+From: https://stardot.org.uk/forums/viewtopic.php?f=4&p=268982#p267910
+(Also checked in to test/tapes)
+SHA256: 06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331
+Tons of very unusual undocumented opcodes at various points in the loader.
+First discovery of AXS.
+Uses them not only to obfuscate but also compute:
+[ITRP] 1C02: LAX $81
+[ITRP] 1C04: SAX $0213
+[ITRP] 1C07: LDA #$13
+[ITRP] 1C09: LDX #$FF
+[ITRP] 1C0B: SAX $0212
+[ITRP] 1C0E: AXS #$A1
+[ITRP] 1C10: STX $80
+[ITRP] 1C12: RTS
+...
+Page crossing JMP (ind):
+[ITRP] 1C6F: JMP ($04FF)    [A=C8 X=03 Y=00 S=FB F=C    1 N]
+...
+First ever instance of LAX imm (unstable!):
+[ITRP] 0401: LAX #$00
+[ITRP] 0403: SEI
+...
+Hits tape / serial hardware registers with undocumented instruction:
+[ITRP] 041A: LDA #$03
+[ITRP] 041C: SAX $FE08
+[ITRP] 041F: LDA #$9D
+[ITRP] 0421: SAX $FE10
+[ITRP] 0424: LDA #$91
+[ITRP] 0426: SAX $FE08
+...
+Undocumented alias for SBC imm at $0463 (opcode $EB).
+
+
 - Exile.zip
 SHA256: 67aac020f216178d8a89237faa86825611834fbaa79915c1604bd07b60d83268
 Start PC: $6075

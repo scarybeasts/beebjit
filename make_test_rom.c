@@ -1483,10 +1483,18 @@ main(int argc, const char* argv[]) {
   util_buffer_add_2b(p_buf, 0x93, 0xF0);
   emit_LDA(p_buf, k_zpg, 0xF3);
   emit_REQUIRE_EQ(p_buf, 0x01);
-  emit_JMP(p_buf, k_abs, 0xD5A0);
+  /* AXS, used by the Dune Rider tape loader. */
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x18);
+  emit_LDX(p_buf, k_imm, 0xAA);
+  util_buffer_add_2b(p_buf, 0xCB, 0x05);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x03);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD5B0);
 
   /* Test reading VIA input registers. */
-  set_new_index(p_buf, 0x15A0);
+  set_new_index(p_buf, 0x15B0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -1501,12 +1509,12 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
-  emit_JMP(p_buf, k_abs, 0xD5D0);
+  emit_JMP(p_buf, k_abs, 0xD5E0);
 
   /* Test an interesting JIT metadata bug where an incorrect invalidation
    * address led to JIT code corruption.
    */
-  set_new_index(p_buf, 0x15D0);
+  set_new_index(p_buf, 0x15E0);
   emit_JSR(p_buf, 0x3160);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x3160);
