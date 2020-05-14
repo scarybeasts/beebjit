@@ -594,6 +594,8 @@ jit_handle_fault(uintptr_t* p_host_rip,
   int ff_fault_fixup;
   int bcd_fault_fixup;
   int stack_wrap_fault_fixup;
+  int wrap_indirect_read;
+  int wrap_indirect_write;
   struct jit_struct* p_jit;
   uint16_t block_addr_6502;
   uint16_t addr_6502;
@@ -638,6 +640,11 @@ jit_handle_fault(uintptr_t* p_host_rip,
    * register.
    */
   stack_wrap_fault_fixup = 0;
+  /* The address space indirect wrap faults occurs if an indirect 16-bit access
+   * crosses the 0xFFFF address space boundary.
+   */
+  wrap_indirect_read = 0;
+  wrap_indirect_write = 0;
 
   /* TODO: more checks, etc. */
   if ((p_fault_addr >=
@@ -648,9 +655,17 @@ jit_handle_fault(uintptr_t* p_host_rip,
       inaccessible_indirect_page = 1;
     }
   }
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      (p_fault_addr <=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+    if (is_write) {
+      wrap_indirect_write = 1;
+    }
+  }
 
   /* From this point on, nothing else is a write fault. */
-  if (!inaccessible_indirect_page && is_write) {
+  if (!inaccessible_indirect_page && !wrap_indirect_write && is_write) {
     fault_reraise(p_fault_rip, p_fault_addr);
   }
 
@@ -659,6 +674,12 @@ jit_handle_fault(uintptr_t* p_host_rip,
       (p_fault_addr <
           ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
     inaccessible_indirect_page = 1;
+  }
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      (p_fault_addr <=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+    wrap_indirect_read = 1;
   }
   if (p_fault_addr ==
           ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
@@ -690,7 +711,9 @@ jit_handle_fault(uintptr_t* p_host_rip,
   if (!inaccessible_indirect_page &&
       !ff_fault_fixup &&
       !bcd_fault_fixup &&
-      !stack_wrap_fault_fixup) {
+      !stack_wrap_fault_fixup &&
+      !wrap_indirect_read &&
+      !wrap_indirect_write) {
     fault_reraise(p_fault_rip, p_fault_addr);
   }
 

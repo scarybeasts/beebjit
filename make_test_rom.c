@@ -1593,8 +1593,24 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abx, 0xBF01);
   emit_JMP(p_buf, k_abs, 0xD700);
 
-  /* End of test. */
+  /* Test 16-bit wrap with indirect mode accesses. */
   set_new_index(p_buf, 0x1700);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0x50);
+  emit_STA(p_buf, k_zpg, 0x51);
+  emit_LDA(p_buf, k_imm, 0xC3);
+  emit_STA(p_buf, k_zpg, 0xFE);
+  emit_LDY(p_buf, k_zpg, 0x50);
+  emit_LDA(p_buf, k_idy, 0x50);
+  emit_REQUIRE_EQ(p_buf, 0xC3);
+  emit_LDA(p_buf, k_imm, 0xD7);
+  emit_STA(p_buf, k_idy, 0x50);
+  emit_LDA(p_buf, k_zpg, 0xFE);
+  emit_REQUIRE_EQ(p_buf, 0xD7);
+  emit_JMP(p_buf, k_abs, 0xD740);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1740);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
