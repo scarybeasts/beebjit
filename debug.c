@@ -372,7 +372,7 @@ debug_get_details(int* p_addr_6502,
   *p_is_rom = (!*p_is_register && (*p_addr_6502 >= k_bbc_ram_size));
 }
 
-static void
+static uint16_t
 debug_disass(struct cpu_driver* p_cpu_driver,
              struct bbc_struct* p_bbc,
              uint16_t addr_6502) {
@@ -408,6 +408,8 @@ debug_disass(struct cpu_driver* p_cpu_driver,
                   opcode_buf);
     addr_6502 += oplen;
   }
+
+  return addr_6502;
 }
 
 static void
@@ -1139,6 +1141,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   while (1) {
     char* input_ret;
     size_t i;
+    size_t j;
     char parse_string[256];
     uint16_t parse_addr;
     int ret;
@@ -1207,23 +1210,31 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       p_debug->debug_running = 1;
       break;
     } else if (sscanf(input_buf, "m %"PRIx32, &parse_int) == 1) {
-      parse_addr = parse_int;
-      (void) printf("%.4"PRIX16":", parse_addr);
-      for (i = 0; i < 16; ++i) {
-        (void) printf(" %.2"PRIX8, p_mem_read[parse_addr]);
-        parse_addr++;
-      }
-      (void) printf("  ");
-      parse_addr = parse_int;
-      for (i = 0; i < 16; ++i) {
-        char c = p_mem_read[parse_addr];
-        if (!isprint(c)) {
-          c = '.';
+      for (j = 0; j < 4; ++j) {
+        parse_addr = parse_int;
+        (void) printf("%.4"PRIX16":", parse_addr);
+        for (i = 0; i < 16; ++i) {
+          (void) printf(" %.2"PRIX8, p_mem_read[parse_addr]);
+          parse_addr++;
         }
-        (void) printf("%c", c);
-        parse_addr++;
+        (void) printf("  ");
+        parse_addr = parse_int;
+        for (i = 0; i < 16; ++i) {
+          char c = p_mem_read[parse_addr];
+          if (!isprint(c)) {
+            c = '.';
+          }
+          (void) printf("%c", c);
+          parse_addr++;
+        }
+        (void) printf("\n");
+        parse_int += 16;
       }
-      (void) printf("\n");
+      /* Continue where we left off if just enter is hit next. */
+      (void) snprintf(p_debug->debug_old_input_buf,
+                      k_max_input_len,
+                      "m %x",
+                      (uint16_t) parse_int);
     } else if ((sscanf(input_buf, "b %"PRIx32, &parse_int) == 1) ||
                (sscanf(input_buf, "break %"PRIx32, &parse_int) == 1)) {
       parse_addr = parse_int;
@@ -1343,12 +1354,19 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (sscanf(input_buf, "s=%"PRIx32, &parse_int) == 1) {
       reg_s = parse_int;
     } else if (sscanf(input_buf, "pc=%"PRIx32, &parse_int) == 1) {
-      reg_pc = parse_int;
       /* TODO: setting PC broken in JIT mode? */
-    } else if (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1) {
-      debug_disass(p_cpu_driver, p_bbc, parse_int);
-    } else if (!strcmp(input_buf, "d")) {
-      debug_disass(p_cpu_driver, p_bbc, reg_pc);
+      reg_pc = parse_int;
+    } else if (!strcmp(input_buf, "d") ||
+               (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1)) {
+      if (parse_int == -1) {
+        parse_int = reg_pc;
+      }
+      parse_addr = debug_disass(p_cpu_driver, p_bbc, parse_int);
+      /* Continue where we left off if just enter is hit next. */
+      (void) snprintf(p_debug->debug_old_input_buf,
+                      k_max_input_len,
+                      "d %x",
+                      parse_addr);
     } else if (!strcmp(input_buf, "sys")) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {
@@ -1370,8 +1388,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "?") || !strcmp(input_buf, "help")) {
       (void) printf(
   "q                  : quit\n"
-  "c                  : continue\n"
-  "s                  : step one 6502 instuction\n"
+  "c, s, n, f         : continue, step (in), next (step over), finish (JSR)\n"
   "d <a>              : disassemble at <a>\n"
   "t                  : trap into gdb\n"
   "{b,break} <a>      : set breakpoint at 6502 address <a>\n"
