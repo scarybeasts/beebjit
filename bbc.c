@@ -489,6 +489,9 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t effective_new_bank;
   int curr_is_ram;
   int new_is_ram;
+  size_t map_size;
+  size_t half_map_size;
+  size_t map_offset;
 
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
@@ -526,48 +529,53 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
                                                  k_bbc_sideways_offset,
                                                  k_bbc_rom_size);
 
-  /* If we flipped from ROM to RAM or visa versa, we need to update the write
+  if (curr_is_ram == new_is_ram) {
+    return;
+  }
+
+  /* We flipped from ROM to RAM or visa versa, we need to update the write
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
    */
-  if (curr_is_ram ^ new_is_ram) {
-    size_t map_size = (k_6502_addr_space_size * 2);
-    size_t half_map_size = (map_size / 2);
-    size_t map_offset = (k_6502_addr_space_size / 2);
+  map_size = (k_6502_addr_space_size * 2);
+  half_map_size = (map_size / 2);
+  map_offset = (k_6502_addr_space_size / 2);
 
-    os_alloc_free_mapping(p_bbc->p_mapping_write_2);
-    os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_2);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
 
-    if (new_is_ram) {
-      intptr_t mem_handle = p_bbc->mem_handle;
+  if (new_is_ram) {
+    intptr_t mem_handle = p_bbc->mem_handle;
 
-      p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
-          mem_handle,
-          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
-          half_map_size,
-          half_map_size);
-      os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
-                                 k_bbc_rom_size);
-      p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
-          mem_handle,
-          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
-          half_map_size,
-          half_map_size);
-      os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
-                                 k_bbc_rom_size);
-    } else {
-      p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
-          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
-          half_map_size);
-      p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
-          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
-          half_map_size);
-    }
-    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
-                               map_offset);
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
+        mem_handle,
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size,
+        half_map_size);
+    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
+                               k_bbc_rom_size);
+    p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
+        mem_handle,
+        (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+        half_map_size,
+        half_map_size);
+    os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
+                               k_bbc_rom_size);
+  } else {
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size);
+    p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+        half_map_size);
     os_alloc_make_mapping_none(
-        (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
-        map_offset);
+        (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+        K_BBC_MEM_INACCESSIBLE_LEN);
   }
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
+  os_alloc_make_mapping_none(
+      (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+      map_offset);
 }
 
 void
