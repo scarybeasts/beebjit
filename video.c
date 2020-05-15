@@ -25,10 +25,6 @@
  */
 static const uint32_t k_video_us_per_vsync = 19968; /* about 20ms / 50Hz */
 
-enum {
-  k_crtc_num_registers = 18,
-};
-
 static const uint32_t k_crtc_register_mask = 0x1F;
 
 enum {
@@ -110,7 +106,7 @@ struct video_struct {
 
   /* 6845 registers and derivatives. */
   uint8_t crtc_address_register;
-  uint8_t crtc_registers[k_crtc_num_registers];
+  uint8_t crtc_registers[k_video_crtc_num_registers];
   int is_interlace;
   int is_interlace_sync_and_video;
   int is_master_display_enable;
@@ -1542,7 +1538,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
 
   reg = p_video->crtc_address_register;
 
-  if (reg >= k_crtc_num_registers) {
+  if (reg >= k_video_crtc_num_registers) {
     return;
   }
 
@@ -1742,7 +1738,7 @@ void
 video_get_crtc_registers(struct video_struct* p_video,
                          uint8_t* p_values) {
   uint32_t i;
-  for (i = 0; i < k_crtc_num_registers; ++i) {
+  for (i = 0; i < k_video_crtc_num_registers; ++i) {
     p_values[i] = p_video->crtc_registers[i];
   }
 }
@@ -1751,7 +1747,7 @@ void
 video_set_crtc_registers(struct video_struct* p_video,
                          const uint8_t* p_values) {
   uint32_t i;
-  for (i = 0; i < k_crtc_num_registers; ++i) {
+  for (i = 0; i < k_video_crtc_num_registers; ++i) {
     p_video->crtc_registers[i] = p_values[i];
   }
 }

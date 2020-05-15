@@ -484,10 +484,12 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
 
 static void
 debug_dump_crtc(struct bbc_struct* p_bbc) {
+  uint32_t i;
   uint8_t horiz_counter;
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t address_counter;
+  uint8_t regs[k_video_crtc_num_registers];
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
   video_get_crtc_state(p_video,
@@ -495,6 +497,7 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                        &scanline_counter,
                        &vert_counter,
                        &address_counter);
+  video_get_crtc_registers(p_video, &regs[0]);
 
   (void) printf("horiz %"PRId8" scanline %"PRId8" vert %"PRId8
                 " addr $%.4"PRIX16"\n",
@@ -502,6 +505,13 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                 scanline_counter,
                 vert_counter,
                 address_counter);
+  for (i = 0; i < k_video_crtc_num_registers; ++i) {
+    (void) printf("R%.2d $%.2X  ", i, regs[i]);
+    if ((i & 7) == 7) {
+      (void) printf("\n");
+    }
+  }
+  (void) printf("\n");
 }
 
 static struct debug_breakpoint*
