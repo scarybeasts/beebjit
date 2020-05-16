@@ -28,7 +28,6 @@ struct disc_fsd_sector {
   uint8_t* p_data;
   int is_deleted;
   int is_crc_error;
-  int is_weak_bits;
   int is_crc_included;
   int is_format_bytes;
 };
@@ -54,20 +53,27 @@ disc_fsd_calculate_track_total_bytes(uint32_t fsd_sectors,
   return ret;
 }
 
-static void
-disc_fsd_determine_sherston_weak_bits(struct disc_fsd_sector* p_sector) {
+static int
+disc_fsd_sector_has_weak_bits(uint32_t* p_out_weak_bits_start,
+                              struct disc_fsd_sector* p_sector,
+                              uint8_t* p_data,
+                              uint32_t data_length) {
   /* Sector error $0E only applies weak bits if the real and declared
    * sector sizes match. Otherwise various Sherston Software titles
    * fail. This also matches the logic in:
    * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
    */
   if (!p_sector->is_crc_error) {
-    return;
+    return 0;
   }
 
   /* Only sector error $0E needs to trigger. */
   if (p_sector->sector_error != 0x0E) {
-    return;
+    return 0;
+  }
+
+  if (data_length < 128) {
+    return 0;
   }
 
   /* Examples:
@@ -81,17 +87,24 @@ disc_fsd_determine_sherston_weak_bits(struct disc_fsd_sector* p_sector) {
    * Track 0 / sector 2 / logical size 256. Physical size 256.
    */
 
-  /* Sherston weak bits are track 39, sector 9 or track 0, sector 2. */
+  /* All known weak bits are track 39, sector 9 or track 0, sector 2. */
   if ((p_sector->logical_track == 39) && (p_sector->logical_sector == 9)) {
-    /* Yes. */
+    /* Usually Sherston Software but one known other example, Folio, which
+     * requires the weak bits to start later in the sector.
+     */
+    if ((data_length > 128) && !strcmp(((char*) p_data + 0x20), "Folio")) {
+      *p_out_weak_bits_start = 128;
+    } else {
+      *p_out_weak_bits_start = 24;
+    }
+    return 1;
   } else if ((p_sector->logical_track == 0) &&
              (p_sector->logical_sector == 2)) {
-    /* Yes. */
+    *p_out_weak_bits_start = 24;
+    return 1;
   } else {
-    return;
+    return 0;
   }
-
-  p_sector->is_weak_bits = 1;
 }
 
 static void
@@ -314,11 +327,6 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     } else if (sector_error != 0) {
       util_bail("fsd file sector error %d unsupported", sector_error);
     }
-
-    /* For now, try and determine whether it's a Sherston Software weak bits
-     * sector from just the header details.
-     */
-    disc_fsd_determine_sherston_weak_bits(p_sector);
 
     if (p_sector->truncated_size_bytes != p_sector->actual_size_bytes) {
       (*p_track_truncatable_sectors)++;
@@ -600,6 +608,8 @@ disc_fsd_load(struct disc_struct* p_disc,
     track_remaining -= (gap1_ff_count + 6);
 
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
+      uint32_t weak_bits_start;
+
       struct disc_fsd_sector* p_sector = &sectors[i_sector];
       uint32_t write_size_bytes = p_sector->write_size_bytes;
       uint8_t* p_data = p_sector->p_data;
@@ -638,22 +648,22 @@ disc_fsd_load(struct disc_struct* p_disc,
                                            k_ibm_disc_mark_clock_pattern);
       if (p_sector->is_format_bytes) {
         disc_build_append_repeat(p_disc, 0xE5, write_size_bytes);
-      } else if (!p_sector->is_weak_bits) {
+      } else if (!disc_fsd_sector_has_weak_bits(&weak_bits_start,
+                                                p_sector,
+                                                p_data,
+                                                write_size_bytes)) {
         disc_build_append_chunk(p_disc, p_data, write_size_bytes);
       } else {
         /* This is icky: the titles that rely on weak bits (mostly,
-         * hopefully exclusively? Sherston Software titles) rely on the weak
-         * bits being a little later in the sector as the code at the start
-         * of the sector is executed!!
+         * Sherston Software titles) rely on the weak bits being a little later
+         * in the sector as the code at the start of the sector is executed!!
          */
-        disc_build_append_chunk(p_disc, p_data, 24);
+        disc_build_append_chunk(p_disc, p_data, weak_bits_start);
         /* Our 8271 driver interprets empty disc surface (no data bits, no
          * clock bits) as weak bits. As does my real drive + 8271 combo.
          */
-        disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
-        disc_build_append_chunk(p_disc,
-                                (p_data + 32),
-                                (write_size_bytes - 32));
+        disc_build_append_repeat_with_clocks(
+            p_disc, 0x00, 0x00, (write_size_bytes - weak_bits_start));
       }
       if (!p_sector->is_crc_included) {
         if (p_sector->is_crc_error) {
