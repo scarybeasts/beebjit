@@ -56,7 +56,7 @@ struct sound_struct {
   int noise_frequency;
   /* 1 is white, 0 is periodic. */
   int noise_type;
-  int last_channel;
+  uint8_t latched_bits;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -442,7 +442,7 @@ sound_power_on_reset(struct sound_struct* p_sound) {
   p_sound->noise_frequency = 2;
   p_sound->period[3] = 0x40;
   p_sound->noise_type = 0;
-  p_sound->last_channel = 0;
+  p_sound->latched_bits = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
   p_sound->noise_rng = 0;
 
@@ -514,29 +514,31 @@ sound_tick(struct sound_struct* p_sound) {
 }
 
 void
-sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
-  int channel;
+sound_sn_write(struct sound_struct* p_sound, uint8_t value) {
+  uint8_t command;
+  uint8_t channel;
 
-  int new_period = -1;
+  int32_t new_period = -1;
 
   if (sound_is_active(p_sound) && p_sound->synchronous) {
     sound_advance_sn_timing(p_sound);
   }
 
-  if (data & 0x80) {
-    channel = ((data >> 5) & 0x03);
-    p_sound->last_channel = channel;
+  if (value & 0x80) {
+    p_sound->latched_bits = (value & 0x70);
+    command = (value & 0xF0);
   } else {
-    channel = p_sound->last_channel;
+    command = p_sound->latched_bits;
   }
+  channel = ((command >> 5) & 0x03);
 
-  if ((data & 0x90) == 0x90) {
+  if (command & 0x10) {
     /* Update volume of channel. */
-    uint8_t volume_index = (0x0f - (data & 0x0f));
+    uint8_t volume_index = (0x0f - (value & 0x0f));
     p_sound->volume[channel] = p_sound->volumes[volume_index];
   } else if (channel == 3) {
     /* For the noise channel, we only ever update the lower bits. */
-    int noise_frequency = (data & 0x03);
+    int noise_frequency = (value & 0x03);
     p_sound->noise_frequency = noise_frequency;
     if (noise_frequency == 0) {
       new_period = 0x10;
@@ -547,21 +549,22 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
     } else {
       new_period = p_sound->period[2];
     }
-    p_sound->noise_type = ((data & 0x04) >> 2);
+    p_sound->noise_type = ((value & 0x04) >> 2);
     p_sound->noise_rng = (1 << 14);
-  } else if (data & 0x80) {
+  } else if (command & 0x80) {
+    /* Period low bits. */
     uint16_t old_period = p_sound->period[channel];
-    new_period = (data & 0x0f);
+    new_period = (value & 0x0f);
     new_period |= (old_period & 0x3f0);
   } else {
     uint16_t old_period = p_sound->period[channel];
-    new_period = ((data & 0x3f) << 4);
+    new_period = ((value & 0x3f) << 4);
     new_period |= (old_period & 0x0f);
   }
 
   if (new_period != -1) {
     p_sound->period[channel] = new_period;
-    if (channel == 2 && p_sound->noise_frequency == 3) {
+    if ((channel == 2) && (p_sound->noise_frequency == 3)) {
       p_sound->period[3] = new_period;
     }
   }
@@ -597,7 +600,7 @@ sound_get_state(struct sound_struct* p_sound,
     p_outputs[i] = p_sound->output[i];
   }
 
-  *p_last_channel = p_sound->last_channel;
+  *p_last_channel = (p_sound->latched_bits >> 5);
   *p_noise_type = p_sound->noise_type;
   *p_noise_frequency = p_sound->noise_frequency;
   *p_noise_rng = p_sound->noise_rng;
@@ -621,7 +624,7 @@ sound_set_state(struct sound_struct* p_sound,
     p_sound->output[i] = p_outputs[i];
   }
 
-  p_sound->last_channel = last_channel;
+  p_sound->latched_bits = (last_channel << 5);
   p_sound->noise_type = noise_type;
   p_sound->noise_frequency = noise_frequency;
   p_sound->noise_rng = noise_rng;
