@@ -91,13 +91,18 @@ enum {
 };
 
 enum {
-  k_intel_fdc_state_idle = 0,
+  k_intel_fdc_state_null = 0,
+  k_intel_fdc_state_idle,
   k_intel_fdc_state_wait_no_index,
   k_intel_fdc_state_wait_index,
-  k_intel_fdc_state_search_id,
+  k_intel_fdc_state_syncing_for_id_wait,
+  k_intel_fdc_state_syncing_for_id,
+  k_intel_fdc_state_check_id_marker,
   k_intel_fdc_state_in_id,
   k_intel_fdc_state_in_id_crc,
-  k_intel_fdc_state_search_data,
+  k_intel_fdc_state_syncing_for_data_wait,
+  k_intel_fdc_state_syncing_for_data,
+  k_intel_fdc_state_check_data_marker,
   k_intel_fdc_state_in_data,
   k_intel_fdc_state_in_deleted_data,
   k_intel_fdc_state_in_data_crc,
@@ -144,6 +149,8 @@ struct intel_fdc_struct {
   int command_is_transfer_deleted;
   int command_is_verify_only;
   int command_is_write;
+  uint32_t shift_register;
+  uint32_t num_shifts;
 
   uint8_t current_sector;
   uint8_t current_sectors_left;
@@ -225,7 +232,12 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
   p_fdc->state = state;
   p_fdc->state_count = 0;
 
-  if (p_fdc->state != k_intel_fdc_state_idle) {
+  if ((state == k_intel_fdc_state_syncing_for_id) ||
+      (state == k_intel_fdc_state_syncing_for_data)) {
+    p_fdc->shift_register = 0;
+    p_fdc->num_shifts = 0;
+  }
+  if (state != k_intel_fdc_state_idle) {
     return;
   }
 
@@ -1034,7 +1046,7 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
      * A real 8271 permits two index pulses per sector, not per command.
      */
     p_fdc->state_index_pulse_count = 0;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id_wait);
   }
 }
 
@@ -1043,7 +1055,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
                                 uint8_t data_byte,
                                 uint8_t clocks_byte) {
   switch (p_fdc->state) {
-  case k_intel_fdc_state_search_id:
+  case k_intel_fdc_state_check_id_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         (data_byte == k_ibm_disc_id_mark_data_pattern)) {
       p_fdc->crc = ibm_disc_format_crc_init();
@@ -1052,6 +1064,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
                                        k_ibm_disc_id_mark_data_pattern);
 
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id);
+    } else {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
     }
     break;
   case k_intel_fdc_state_in_id:
@@ -1102,20 +1116,14 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         if (p_fdc->command_is_write) {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
         } else {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_data);
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data_wait);
         }
       } else {
-        intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id_wait);
       }
     }
     break;
-  case k_intel_fdc_state_search_data:
-    /* EMU TODO: implement these results from a real 8271: if another sector ID
-     * header is hit instead of the data mark, that's $10. Also, there are
-     * strict requirements on the sync bytes in between header and data. At
-     * least 14 bytes are needed post-header and at least the last 2 of these
-     * must be 0x00. Violations => $10.
-     */
+  case k_intel_fdc_state_check_data_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         ((data_byte == k_ibm_disc_data_mark_data_pattern) ||
             (data_byte == k_ibm_disc_deleted_data_mark_data_pattern))) {
@@ -1128,6 +1136,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
 
       intel_fdc_set_state(p_fdc, new_state);
+    } else {
+      intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_clock_error);
     }
     break;
   case k_intel_fdc_state_in_data:
@@ -1339,8 +1349,120 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
   }
 }
 
+static void
+intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
+  uint8_t clocks_byte;
+  uint8_t data_byte;
+  uint32_t shift_register;
+  uint32_t state_count;
+
+  switch (p_fdc->state) {
+  case k_intel_fdc_state_syncing_for_id_wait:
+    p_fdc->state_count++;
+    /* The controller seems to need recovery time after a sector header before
+     * it can sync to another one. Measuring the "read sector IDs" command, $1B,
+     * it needs 4 bytes to recover prior to the 2 bytes sync.
+     */
+    if (p_fdc->state_count == (4 * 8 * 2)) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+    }
+    break;
+  case k_intel_fdc_state_syncing_for_data_wait:
+    p_fdc->state_count++;
+    /* The controller enforces a minimum byte count of 12 before sync then
+     * sector data. 2 bytes of sync are needed, so absolute minumum gap here is
+     * 14. The controller formats to 17 (not user controllable).
+     */
+    if (p_fdc->state_count == (12 * 8 * 2)) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data);
+    }
+    break;
+  case k_intel_fdc_state_syncing_for_id:
+  case k_intel_fdc_state_syncing_for_data:
+    state_count = p_fdc->state_count;
+    /* Need to see a bit pattern of 1010101010.... to gather sync. This
+     * represents a string of 1 clock bits followed by 0 data bits.
+     */
+    if (bit == !(state_count & 1)) {
+      p_fdc->state_count++;
+    } else if ((p_fdc->state_count >= 32) && (state_count & 1)) {
+      /* Here, we hit a 1 data bit while in sync, so it's the start of a marker
+       * byte.
+       */
+      assert(bit == 1);
+      if (p_fdc->state == k_intel_fdc_state_syncing_for_id) {
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_check_id_marker);
+      } else {
+        assert(p_fdc->state == k_intel_fdc_state_syncing_for_data);
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_check_data_marker);
+      }
+      p_fdc->shift_register = 3;
+      p_fdc->num_shifts = 2;
+    } else {
+      /* Restart sync or error as appropriate. */
+      if (p_fdc->state == k_intel_fdc_state_syncing_for_id) {
+        p_fdc->state_count = 0;
+      } else {
+        assert(p_fdc->state == k_intel_fdc_state_syncing_for_data);
+        intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_clock_error);
+      }
+    }
+    break;
+  case k_intel_fdc_state_check_id_marker:
+  case k_intel_fdc_state_in_id:
+  case k_intel_fdc_state_in_id_crc:
+  case k_intel_fdc_state_check_data_marker:
+  case k_intel_fdc_state_in_data:
+  case k_intel_fdc_state_in_deleted_data:
+  case k_intel_fdc_state_in_data_crc:
+    shift_register = p_fdc->shift_register;
+    shift_register <<= 1;
+    shift_register |= bit;
+    p_fdc->shift_register = shift_register;
+    p_fdc->num_shifts++;
+
+    if (p_fdc->num_shifts != 16) {
+      break;
+    }
+    clocks_byte = 0;
+    data_byte = 0;
+    if (shift_register & 0x8000) clocks_byte |= 0x80;
+    if (shift_register & 0x2000) clocks_byte |= 0x40;
+    if (shift_register & 0x0800) clocks_byte |= 0x20;
+    if (shift_register & 0x0200) clocks_byte |= 0x10;
+    if (shift_register & 0x0080) clocks_byte |= 0x08;
+    if (shift_register & 0x0020) clocks_byte |= 0x04;
+    if (shift_register & 0x0008) clocks_byte |= 0x02;
+    if (shift_register & 0x0002) clocks_byte |= 0x01;
+    if (shift_register & 0x4000) data_byte |= 0x80;
+    if (shift_register & 0x1000) data_byte |= 0x40;
+    if (shift_register & 0x0400) data_byte |= 0x20;
+    if (shift_register & 0x0100) data_byte |= 0x10;
+    if (shift_register & 0x0040) data_byte |= 0x08;
+    if (shift_register & 0x0010) data_byte |= 0x04;
+    if (shift_register & 0x0004) data_byte |= 0x02;
+    if (shift_register & 0x0001) data_byte |= 0x01;
+
+    intel_fdc_byte_callback_reading(p_fdc, data_byte, clocks_byte);
+
+    p_fdc->shift_register = 0;
+    p_fdc->num_shifts = 0;
+    break;
+  case k_intel_fdc_state_idle:
+    /* This happens for a few bits after the end of the command if the disc
+     * surface data isn't byte aligned.
+     */
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 void
 intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+  uint32_t i;
+  int bit;
   int was_index_pulse;
   int did_step;
 
@@ -1414,7 +1536,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
       break;
     default:
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
       break;
     }
 
@@ -1429,7 +1551,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
     if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
     } else {
       assert(p_fdc->command == k_intel_fdc_command_format);
       if (p_fdc->current_format_gap5 != 0) {
@@ -1441,14 +1563,30 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       intel_fdc_byte_callback_writing(p_fdc);
     }
     break;
-  case k_intel_fdc_state_search_id:
+  case k_intel_fdc_state_syncing_for_id_wait:
+  case k_intel_fdc_state_syncing_for_id:
+  case k_intel_fdc_state_check_id_marker:
   case k_intel_fdc_state_in_id:
   case k_intel_fdc_state_in_id_crc:
-  case k_intel_fdc_state_search_data:
+  case k_intel_fdc_state_syncing_for_data_wait:
+  case k_intel_fdc_state_syncing_for_data:
+  case k_intel_fdc_state_check_data_marker:
   case k_intel_fdc_state_in_data:
   case k_intel_fdc_state_in_deleted_data:
   case k_intel_fdc_state_in_data_crc:
-    intel_fdc_byte_callback_reading(p_fdc, data_byte, clocks_byte);
+    /* Switch from a byte stream to a bit stream. This is to cater for HFE
+     * files where the bytes are not perfectly aligned to byte boundaries! We
+     * do not create any such HFEs but it's easy to get one if you write an
+     * HFE in a Gotek.
+     */
+    for (i = 0; i < 8; ++i) {
+      bit = !!(clocks_byte & 0x80);
+      intel_fdc_shift_data_bit(p_fdc, bit);
+      bit = !!(data_byte & 0x80);
+      intel_fdc_shift_data_bit(p_fdc, bit);
+      clocks_byte <<= 1;
+      data_byte <<= 1;
+    }
     break;
   case k_intel_fdc_state_write_gap_2:
   case k_intel_fdc_state_write_sector_data:
