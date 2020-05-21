@@ -92,26 +92,24 @@ enum {
 
 enum {
   k_intel_fdc_state_idle = 0,
-  k_intel_fdc_state_wait_no_index = 1,
-  k_intel_fdc_state_wait_index = 2,
-  k_intel_fdc_state_search_id = 3,
-  k_intel_fdc_state_in_id = 4,
-  k_intel_fdc_state_in_id_crc = 5,
-  k_intel_fdc_state_search_data = 6,
-  k_intel_fdc_state_in_data = 7,
-  k_intel_fdc_state_in_deleted_data = 8,
-  k_intel_fdc_state_in_data_crc = 9,
-  k_intel_fdc_state_write_gap_2 = 10,
-  k_intel_fdc_state_write_sector_data = 11,
-  k_intel_fdc_state_format_wait_no_index = 12,
-  k_intel_fdc_state_format_wait_index = 13,
-  k_intel_fdc_state_format_gap_1 = 14,
-  k_intel_fdc_state_format_write_id = 15,
-  k_intel_fdc_state_format_write_data = 16,
-  k_intel_fdc_state_format_gap_3 = 17,
-  k_intel_fdc_state_format_gap_4 = 18,
-  k_intel_fdc_state_seeking = 19,
-  k_intel_fdc_state_settling = 20,
+  k_intel_fdc_state_wait_no_index,
+  k_intel_fdc_state_wait_index,
+  k_intel_fdc_state_search_id,
+  k_intel_fdc_state_in_id,
+  k_intel_fdc_state_in_id_crc,
+  k_intel_fdc_state_search_data,
+  k_intel_fdc_state_in_data,
+  k_intel_fdc_state_in_deleted_data,
+  k_intel_fdc_state_in_data_crc,
+  k_intel_fdc_state_write_gap_2,
+  k_intel_fdc_state_write_sector_data,
+  k_intel_fdc_state_format_gap_1,
+  k_intel_fdc_state_format_write_id,
+  k_intel_fdc_state_format_write_data,
+  k_intel_fdc_state_format_gap_3,
+  k_intel_fdc_state_format_gap_4,
+  k_intel_fdc_state_seeking,
+  k_intel_fdc_state_settling,
 };
 
 struct intel_fdc_struct {
@@ -1040,98 +1038,11 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
   }
 }
 
-void
-intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
-  int was_index_pulse;
-  int did_step;
-
-  struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-
-  assert(p_current_drive != NULL);
-
-  was_index_pulse =  p_fdc->state_is_index_pulse;
-  p_fdc->state_is_index_pulse = intel_fdc_get_INDEX(p_fdc);
-
+static void
+intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
+                                uint8_t data_byte,
+                                uint8_t clocks_byte) {
   switch (p_fdc->state) {
-  case k_intel_fdc_state_idle:
-    /* If the write gate is open outside a command, it cleans flux transitions
-     * from the disc surface, effectively creating weak bits!
-     */
-    if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
-        !disc_drive_is_write_protect(p_current_drive)) {
-      disc_drive_write_byte(p_current_drive, 0x00, 0x00);
-    }
-    break;
-  case k_intel_fdc_state_seeking:
-    /* Seeking doesn't time out due to index pulse counting. */
-    p_fdc->state_index_pulse_count = 0;
-
-    if (p_fdc->current_seek_count) {
-      p_fdc->current_seek_count--;
-      break;
-    }
-
-    did_step = intel_fdc_do_seek_step(p_fdc);
-    p_fdc->current_needs_settle |= did_step;
-    if (did_step) {
-      /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
-       * or 2ms for 5.25" drives. 1ms might be your best guess from the
-       * datasheet, but timing on a real machine, it appears to be 2ms.
-       */
-      p_fdc->current_seek_count = (p_fdc->register_head_step_rate * 1000);
-      p_fdc->current_seek_count *= 2;
-      /* Calculate how many 64us chunks for the head step time. */
-      p_fdc->current_seek_count /= 64;
-      break;
-    }
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
-    break;
-  case k_intel_fdc_state_settling:
-    /* Settling doesn't time out due to index pulse counting. */
-    p_fdc->state_index_pulse_count = 0;
-
-    if (p_fdc->current_seek_count) {
-      p_fdc->current_seek_count--;
-      break;
-    }
-
-    if (p_fdc->current_needs_settle) {
-      p_fdc->current_needs_settle = 0;
-      /* EMU: all references state the units are 2ms for 5.25" drives. */
-      p_fdc->current_seek_count = (p_fdc->register_head_settle_time * 1000);
-      p_fdc->current_seek_count *= 2;
-      /* Calculate how many 64us chunks for the head step time. */
-      p_fdc->current_seek_count /= 64;
-      break;
-    }
-
-    switch (p_fdc->command) {
-    case k_intel_fdc_command_read_sector_ids:
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
-      break;
-    case k_intel_fdc_command_format:
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_wait_no_index);
-      break;
-    case k_intel_fdc_command_seek:
-      intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
-      break;
-    default:
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
-      break;
-    }
-
-    break;
-  case k_intel_fdc_state_wait_no_index:
-    if (!p_fdc->state_is_index_pulse) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_index);
-    }
-    break;
-  case k_intel_fdc_state_wait_index:
-    if (p_fdc->state_is_index_pulse) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
-    }
-    break;
   case k_intel_fdc_state_search_id:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         (data_byte == k_ibm_disc_id_mark_data_pattern)) {
@@ -1256,6 +1167,17 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       intel_fdc_check_completion(p_fdc);
     }
     break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void
+intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  switch (p_fdc->state) {
   case k_intel_fdc_state_write_gap_2:
     if (p_fdc->state_count < 11) {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
@@ -1301,19 +1223,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
                                       k_intel_fdc_result_ok);
     }
     break;
-  case k_intel_fdc_state_format_wait_no_index:
-    if (!p_fdc->state_is_index_pulse) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_wait_index);
-    }
-    break;
-  case k_intel_fdc_state_format_wait_index:
-    if (!p_fdc->state_is_index_pulse) {
-      break;
-    }
-    assert(p_fdc->current_format_gap5 == 0);
-    p_fdc->state_index_pulse_count = 0;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_1);
-    /* FALL THROUGH -- need to start writing immediately. */
   case k_intel_fdc_state_format_gap_1:
     if (p_fdc->state_count < p_fdc->current_format_gap1) {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
@@ -1423,6 +1332,132 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     } else {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     }
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+void
+intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+  int was_index_pulse;
+  int did_step;
+
+  struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  assert(p_current_drive != NULL);
+
+  was_index_pulse =  p_fdc->state_is_index_pulse;
+  p_fdc->state_is_index_pulse = intel_fdc_get_INDEX(p_fdc);
+
+  switch (p_fdc->state) {
+  case k_intel_fdc_state_idle:
+    /* If the write gate is open outside a command, it cleans flux transitions
+     * from the disc surface, effectively creating weak bits!
+     */
+    if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
+        !disc_drive_is_write_protect(p_current_drive)) {
+      disc_drive_write_byte(p_current_drive, 0x00, 0x00);
+    }
+    break;
+  case k_intel_fdc_state_seeking:
+    /* Seeking doesn't time out due to index pulse counting. */
+    p_fdc->state_index_pulse_count = 0;
+
+    if (p_fdc->current_seek_count) {
+      p_fdc->current_seek_count--;
+      break;
+    }
+
+    did_step = intel_fdc_do_seek_step(p_fdc);
+    p_fdc->current_needs_settle |= did_step;
+    if (did_step) {
+      /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
+       * or 2ms for 5.25" drives. 1ms might be your best guess from the
+       * datasheet, but timing on a real machine, it appears to be 2ms.
+       */
+      p_fdc->current_seek_count = (p_fdc->register_head_step_rate * 1000);
+      p_fdc->current_seek_count *= 2;
+      /* Calculate how many 64us chunks for the head step time. */
+      p_fdc->current_seek_count /= 64;
+      break;
+    }
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+    break;
+  case k_intel_fdc_state_settling:
+    /* Settling doesn't time out due to index pulse counting. */
+    p_fdc->state_index_pulse_count = 0;
+
+    if (p_fdc->current_seek_count) {
+      p_fdc->current_seek_count--;
+      break;
+    }
+
+    if (p_fdc->current_needs_settle) {
+      p_fdc->current_needs_settle = 0;
+      /* EMU: all references state the units are 2ms for 5.25" drives. */
+      p_fdc->current_seek_count = (p_fdc->register_head_settle_time * 1000);
+      p_fdc->current_seek_count *= 2;
+      /* Calculate how many 64us chunks for the head step time. */
+      p_fdc->current_seek_count /= 64;
+      break;
+    }
+
+    switch (p_fdc->command) {
+    case k_intel_fdc_command_read_sector_ids:
+    case k_intel_fdc_command_format:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+      break;
+    case k_intel_fdc_command_seek:
+      intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
+      break;
+    default:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+      break;
+    }
+
+    break;
+  case k_intel_fdc_state_wait_no_index:
+    if (!p_fdc->state_is_index_pulse) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_index);
+    }
+    break;
+  case k_intel_fdc_state_wait_index:
+    if (!p_fdc->state_is_index_pulse) {
+      break;
+    }
+    if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_search_id);
+    } else {
+      assert(p_fdc->command == k_intel_fdc_command_format);
+      if (p_fdc->current_format_gap5 != 0) {
+        util_bail("format GAP5 not supported");
+      }
+      p_fdc->state_index_pulse_count = 0;
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_1);
+      /* Need to start writing immediately. */
+      intel_fdc_byte_callback_writing(p_fdc);
+    }
+    break;
+  case k_intel_fdc_state_search_id:
+  case k_intel_fdc_state_in_id:
+  case k_intel_fdc_state_in_id_crc:
+  case k_intel_fdc_state_search_data:
+  case k_intel_fdc_state_in_data:
+  case k_intel_fdc_state_in_deleted_data:
+  case k_intel_fdc_state_in_data_crc:
+    intel_fdc_byte_callback_reading(p_fdc, data_byte, clocks_byte);
+    break;
+  case k_intel_fdc_state_write_gap_2:
+  case k_intel_fdc_state_write_sector_data:
+  case k_intel_fdc_state_format_gap_1:
+  case k_intel_fdc_state_format_write_id:
+  case k_intel_fdc_state_format_write_data:
+  case k_intel_fdc_state_format_gap_3:
+  case k_intel_fdc_state_format_gap_4:
+    intel_fdc_byte_callback_writing(p_fdc);
     break;
   default:
     assert(0);
