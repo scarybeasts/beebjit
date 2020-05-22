@@ -39,6 +39,9 @@ struct debug_breakpoint {
   int type;
   int32_t start;
   int32_t end;
+  int32_t a_value;
+  int32_t x_value;
+  int32_t y_value;
 };
 
 struct debug_struct {
@@ -91,6 +94,9 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   p_debug->breakpoints[i].type = 0;
   p_debug->breakpoints[i].start = -1;
   p_debug->breakpoints[i].end = -1;
+  p_debug->breakpoints[i].a_value = -1;
+  p_debug->breakpoints[i].x_value = -1;
+  p_debug->breakpoints[i].y_value = -1;
 }
 
 struct debug_struct*
@@ -534,7 +540,10 @@ static inline int
 debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
-                uint8_t opcode_6502) {
+                uint8_t opcode_6502,
+                uint8_t reg_a,
+                uint8_t reg_x,
+                uint8_t reg_y) {
   uint32_t i;
   uint8_t optype;
   uint8_t opmem;
@@ -546,10 +555,20 @@ debug_hit_break(struct debug_struct* p_debug,
       continue;
     }
 
+    if ((p_breakpoint->a_value != -1) && (reg_a != p_breakpoint->a_value)) {
+      break;
+    }
+    if ((p_breakpoint->x_value != -1) && (reg_x != p_breakpoint->x_value)) {
+      break;
+    }
+    if ((p_breakpoint->y_value != -1) && (reg_y != p_breakpoint->y_value)) {
+      break;
+    }
+
     type = p_breakpoint->type;
     switch (type) {
     case k_debug_breakpoint_exec:
-      if (reg_pc == p_breakpoint->start) {
+      if ((reg_pc >= p_breakpoint->start) && (reg_pc <= p_breakpoint->end)) {
         return 1;
       }
       break;
@@ -900,6 +919,69 @@ debug_print_state(char* p_address_info,
                 extra_buf);
 }
 
+static uint16_t
+debug_parse_number(const char* p_str, int is_hex) {
+  int32_t ret = -1;
+
+  if ((p_str[0] == '$') || (p_str[0] == '&')) {
+    (void) sscanf((p_str + 1), "%"PRIx32, &ret);
+  } else if (is_hex) {
+    (void) sscanf(p_str, "%"PRIx32, &ret);
+  } else {
+    (void) sscanf(p_str, "%"PRId32, &ret);
+  }
+
+  return ret;
+}
+
+static void
+debug_parse_breakpoint(struct debug_breakpoint* p_breakpoint,
+                       const char* p_str) {
+  char buf[256];
+  char c;
+  uint16_t value;
+  uint32_t len = 0;
+
+  p_breakpoint->is_in_use = 1;
+  p_breakpoint->type = k_debug_breakpoint_exec;
+
+  do {
+    c = *p_str;
+    if ((c == '\0') || isspace(c)) {
+      buf[len] = '\0';
+      if (len == 0) {
+        /* Nothing. */
+      } else if (!strcmp(buf, "b") || !strcmp(buf, "break")) {
+        /* Nothing. */
+      } else if (!strncmp(buf, "a=", 2)) {
+        p_breakpoint->a_value = debug_parse_number((buf + 2), 0);
+      } else if (!strncmp(buf, "x=", 2)) {
+        p_breakpoint->x_value = debug_parse_number((buf + 2), 0);
+      } else if (!strncmp(buf, "y=", 2)) {
+        p_breakpoint->y_value = debug_parse_number((buf + 2), 0);
+      } else {
+        value = debug_parse_number(buf, 1);
+        if (p_breakpoint->start == -1) {
+          p_breakpoint->start = value;
+        } else if (p_breakpoint->end == -1) {
+          p_breakpoint->end = value;
+        }
+      }
+      len = 0;
+    } else {
+      if (len < (sizeof(buf) - 1)) {
+        buf[len] = c;
+        len++;
+      }
+    }
+    p_str++;
+  } while (c != '\0');
+
+  if (p_breakpoint->end == -1) {
+    p_breakpoint->end = p_breakpoint->start;
+  }
+}
+
 void*
 debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   char opcode_buf[k_max_opcode_len];
@@ -1054,7 +1136,13 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       wrapped_8bit,
                       wrapped_16bit);
 
-  hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
+  hit_break = debug_hit_break(p_debug,
+                              reg_pc,
+                              addr_6502,
+                              opcode,
+                              reg_a,
+                              reg_x,
+                              reg_y);
 
   if (*p_interrupt_received) {
     *p_interrupt_received = 0;
@@ -1125,7 +1213,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     reg_s,
                     flags_buf,
                     extra_buf);
-  fflush(stdout);
+  (void) fflush(stdout);
 
   if (p_debug->debug_running && !hit_break) {
     return 0;
@@ -1235,18 +1323,14 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       k_max_input_len,
                       "m %x",
                       (uint16_t) parse_int);
-    } else if ((sscanf(input_buf, "b %"PRIx32, &parse_int) == 1) ||
-               (sscanf(input_buf, "break %"PRIx32, &parse_int) == 1)) {
-      parse_addr = parse_int;
+    } else if (!strncmp(input_buf, "b ", 2) ||
+               !strncmp(input_buf, "break", 5)) {
       p_breakpoint = debug_get_free_breakpoint(p_debug);
       if (p_breakpoint == NULL) {
         (void) printf("no free breakpoints\n");
         continue;
       }
-      p_breakpoint->is_in_use = 1;
-      p_breakpoint->type = k_debug_breakpoint_exec;
-      p_breakpoint->start = parse_addr;
-      p_breakpoint->end = parse_addr;
+      debug_parse_breakpoint(p_breakpoint, input_buf);
     } else if (!strcmp(input_buf, "bl") || !strcmp(input_buf, "blist")) {
       debug_dump_breakpoints(p_debug);
     } else if (sscanf(input_buf,
