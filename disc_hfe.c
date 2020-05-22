@@ -17,6 +17,7 @@ enum {
   k_hfe_v3_opcode_nop = 0xF0,
   k_hfe_v3_opcode_setindex = 0xF1,
   k_hfe_v3_opcode_setbitrate = 0xF2,
+  k_hfe_v3_opcode_skipbits = 0xF3,
   k_hfe_v3_opcode_rand = 0xF4,
 };
 
@@ -35,38 +36,6 @@ disc_hfe_byte_flip(uint8_t val) {
   if (val & 0x01) ret |= 0x80;
 
   return ret;
-}
-
-static void
-disc_hfe_extract_data(uint8_t* p_data, uint8_t* p_clock, uint8_t* p_src) {
-  uint8_t data = 0;
-  uint8_t clock = 0;
-
-  uint8_t b0 = p_src[0];
-  uint8_t b1 = p_src[1];
-  uint8_t b2 = p_src[2];
-  uint8_t b3 = p_src[3];
-
-  if (b0 & 0x10) data |= 0x80;
-  if (b0 & 0x01) data |= 0x40;
-  if (b1 & 0x10) data |= 0x20;
-  if (b1 & 0x01) data |= 0x10;
-  if (b2 & 0x10) data |= 0x08;
-  if (b2 & 0x01) data |= 0x04;
-  if (b3 & 0x10) data |= 0x02;
-  if (b3 & 0x01) data |= 0x01;
-  if (b0 & 0x40) clock |= 0x80;
-  if (b0 & 0x04) clock |= 0x40;
-  if (b1 & 0x40) clock |= 0x20;
-  if (b1 & 0x04) clock |= 0x10;
-  if (b2 & 0x40) clock |= 0x08;
-  if (b2 & 0x04) clock |= 0x04;
-  if (b3 & 0x40) clock |= 0x02;
-  if (b3 & 0x04) clock |= 0x01;
-
-
-  *p_data = data;
-  *p_clock = clock;
 }
 
 static void
@@ -271,12 +240,17 @@ disc_hfe_load(struct disc_struct* p_disc) {
     for (i_side = 0; i_side < 2; ++i_side) {
       uint8_t* p_data;
       uint8_t* p_clocks;
-      uint8_t bitbuf[4];
 
-      uint32_t i_bitbuf = 0;
       uint32_t bytes_written = 0;
       uint32_t buf_len = (hfe_track_len / 2);
       int is_setbitrate = 0;
+      int is_skipbits = 0;
+      uint32_t skipbits_length = 0;
+      uint8_t data = 0;
+      uint8_t clocks = 0;
+      uint32_t shift_counter = 0;
+      uint32_t bit_counter = 0;
+      int bit = 0;
 
       p_data = disc_get_raw_track_data(p_disc, i_side, i_track);
       (void) memset(p_data, '\0', k_ibm_disc_bytes_per_track);
@@ -284,12 +258,15 @@ disc_hfe_load(struct disc_struct* p_disc) {
       (void) memset(p_clocks, '\0', k_ibm_disc_bytes_per_track);
 
       for (i_byte = 0; i_byte < buf_len; ++i_byte) {
+        uint32_t i;
         uint32_t index;
+        uint8_t byte;
 
-        uint8_t data = 0;
-        uint8_t clock = 0;
-        int is_weak = 0;
-        uint8_t byte = p_track_data[i_byte];
+        uint32_t num_bits = 8;
+
+        if (bytes_written == k_ibm_disc_bytes_per_track) {
+          break;
+        }
 
         index = (i_byte / 256);
         index *= 512;
@@ -303,13 +280,26 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
         if (is_setbitrate) {
           is_setbitrate = 0;
-          if (byte != 72) {
-            util_bail("HFE v3 SETBITRATE not 250kbit: %d", (int) byte);
+          if ((byte < 64) || (byte > 80)) {
+            log_do_log(k_log_disc,
+                       k_log_warning,
+                       "HFE v3 SETBITRATE wild (72==250kbit): %d",
+                       (int) byte);
           }
           continue;
-        }
-
-        if (is_v3 && ((byte & k_hfe_v3_opcode_mask) == k_hfe_v3_opcode_mask)) {
+        } else if (is_skipbits) {
+          is_skipbits = 0;
+          if ((byte == 0) || (byte >= 8)) {
+            util_bail("HFE v3 invalid skipbits %d", (int) byte);
+          }
+          skipbits_length = byte;
+          continue;
+        } else if (skipbits_length) {
+          byte <<= (8 - skipbits_length);
+          num_bits = skipbits_length;
+          skipbits_length = 0;
+        } else if (is_v3 &&
+                   ((byte & k_hfe_v3_opcode_mask) == k_hfe_v3_opcode_mask)) {
           switch (byte) {
           case k_hfe_v3_opcode_nop:
             continue;
@@ -323,47 +313,51 @@ disc_hfe_load(struct disc_struct* p_disc) {
             is_setbitrate = 1;
             continue;
           case k_hfe_v3_opcode_rand:
-            /* Handled below. */
+            /* Internally we represent weak bits on disc as a no flux area. */
+            byte = 0;
             break;
+          case k_hfe_v3_opcode_skipbits:
+            is_skipbits = 1;
+            continue;
           default:
-            util_bail("HFE v3 unknown opcode %X", (int) byte);
+            util_bail("HFE v3 unknown opcode 0x%X", (int) byte);
             break;
           }
         }
 
-        if (is_v3 && (byte == k_hfe_v3_opcode_rand)) {
-          is_weak = 1;
-        }
-        bitbuf[i_bitbuf] = byte;
-        i_bitbuf++;
-        if (i_bitbuf < 4) {
-          continue;
-        }
-
-        disc_hfe_extract_data(&data, &clock, bitbuf);
-        /* Internally we represent weak bits on disc as a no flux area. */
-        if (is_weak) {
+        for (i = 0; i < num_bits; ++i) {
+          bit |= ((byte & 0x80) != 0);
+          byte <<= 1;
+          bit_counter++;
+          if (bit_counter == 1) {
+            continue;
+          }
+          bit_counter = 0;
+          if (!(shift_counter & 1)) {
+            clocks <<= 1;
+            clocks |= bit;
+          } else {
+            data <<= 1;
+            data |= bit;
+          }
+          bit = 0;
+          shift_counter++;
+          if (shift_counter != 16) {
+            continue;
+          }
+          /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
+           * it.
+           */
+          if (!is_double_sided && (i_side == 1)) {
+            data = 0;
+            clocks = 0;
+          }
+          p_data[bytes_written] = data;
+          p_clocks[bytes_written] = clocks;
+          bytes_written++;
+          clocks = 0;
           data = 0;
-          clock = 0;
-        }
-
-        i_bitbuf = 0;
-        is_weak = 0;
-
-        /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
-         * it.
-         */
-        if (!is_double_sided && (i_side == 1)) {
-          data = 0;
-          clock = 0;
-        }
-
-        p_data[bytes_written] = data;
-        p_clocks[bytes_written] = clock;
-        bytes_written++;
-
-        if (bytes_written == k_ibm_disc_bytes_per_track) {
-          break;
+          shift_counter = 0;
         }
       }
     }
