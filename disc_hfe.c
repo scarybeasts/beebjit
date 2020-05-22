@@ -192,7 +192,12 @@ disc_hfe_load(struct disc_struct* p_disc) {
     util_bail("hfe file revision not 0");
   }
   if (p_file_buf[11] != 2) {
-    util_bail("hfe encoding not ISOIBM_FM_ENCODING");
+    if (p_file_buf[11] == 0xFF) {
+      log_do_log(k_log_disc, k_log_warning, "unknown encoding, trying anyway");
+    } else {
+      util_bail("hfe encoding not ISOIBM_FM_ENCODING: %d",
+                (int) p_file_buf[11]);
+    }
   }
   if (p_file_buf[10] == 1) {
     is_double_sided = 0;
@@ -305,8 +310,10 @@ disc_hfe_load(struct disc_struct* p_disc) {
             continue;
           case k_hfe_v3_opcode_setindex:
             if (bytes_written != 0) {
-              util_bail("HFE v3 SETINDEX not at byte 0: %d",
-                        (int) bytes_written);
+              log_do_log(k_log_disc,
+                         k_log_warning,
+                         "HFE v3 SETINDEX not at byte 0: %d",
+                         (int) bytes_written);
             }
             continue;
           case k_hfe_v3_opcode_setbitrate:
