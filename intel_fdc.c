@@ -1189,6 +1189,12 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
 
   switch (p_fdc->state) {
   case k_intel_fdc_state_write_gap_2:
+    /* EMU NOTE: we don't know when the write head turns on. Put another way,
+     * where is the write splice created?
+     * Here, we re-write the entirety of GAP2 starting immediately after the
+     * checksum. It's possible a real chip has a delay, or only writes the 0's,
+     * or something more funky entirely.
+     */
     if (p_fdc->state_count < 11) {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     } else {
@@ -1448,10 +1454,11 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
     p_fdc->shift_register = 0;
     p_fdc->num_shifts = 0;
     break;
+  /* These happen for a few bits after the end of the command if the disc
+   * surface data isn't byte aligned.
+   */
   case k_intel_fdc_state_idle:
-    /* This happens for a few bits after the end of the command if the disc
-     * surface data isn't byte aligned.
-     */
+  case k_intel_fdc_state_write_gap_2:
     break;
   default:
     assert(0);
