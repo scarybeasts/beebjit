@@ -714,6 +714,37 @@ video_test_R6_gt_R7() {
   test_expect_u32(1, g_p_video->in_dummy_raster);
 }
 
+static void
+video_test_vsync_row_wraparound() {
+  /* A separate test for an evasive vsync assert. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  countdown = timing_advance_time(
+    g_p_timing,
+    (countdown - (k_ticks_mode7_per_scanline * 4)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(8, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->had_vsync_this_row);
+
+  /* Set R9 to 6 so that scanline counter fails to hit R9 until after it
+   * wraps.
+   */
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 6);
+  countdown = timing_get_countdown(g_p_timing);
+
+  countdown = timing_advance_time(
+    g_p_timing,
+    (countdown - (k_ticks_mode7_per_scanline * 12)));
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->had_vsync_this_row);
+}
+
 void
 video_test() {
   video_test_init();
@@ -750,5 +781,9 @@ video_test() {
 
   video_test_init();
   video_test_R6_gt_R7();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_row_wraparound();
   video_test_end();
 }

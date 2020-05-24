@@ -8,7 +8,6 @@ get addressed before the next release.
 
 - Driving the audio subsystem too hard on Linux?
 - Poor granularity of system wakeup with audio subsystem as timer?
-- vsync assert is back if you flip MODE 7 -> MODE 3 in a loop.
 
 
 Fix later

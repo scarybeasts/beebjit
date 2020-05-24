@@ -643,6 +643,9 @@ video_is_at_vsync_start(struct video_struct* p_video) {
       return 0;
     }
   }
+  if (p_video->had_vsync_this_row && !p_video->in_vsync) {
+    return 0;
+  }
 
   assert(p_video->in_vsync);
 
@@ -966,6 +969,7 @@ video_CB2_changed_callback(void* p, int level, int output) {
 
 static void
 video_recalculate_framing_sanity(struct video_struct* p_video) {
+  uint32_t sane_r9;
   int32_t frame_crtc_ticks = -1;
   int sane = 1;
 
@@ -991,7 +995,11 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
   if (r7 <= p_video->crtc_registers[k_crtc_reg_vert_displayed]) {
     sane = 0;
   }
-  if (r9 < 3) {
+  sane_r9 = 3;
+  if (p_video->is_interlace_sync_and_video) {
+    sane_r9 *= 2;
+  }
+  if (r9 < sane_r9) {
     sane = 0;
   }
 
