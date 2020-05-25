@@ -344,19 +344,6 @@ intel_fdc_create(struct state_6502* p_state_6502,
 }
 
 void
-intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
-                     struct disc_drive_struct* p_drive_0,
-                     struct disc_drive_struct* p_drive_1) {
-  assert(p_fdc->p_drive_0 == NULL);
-  assert(p_fdc->p_drive_1 == NULL);
-  p_fdc->p_drive_0 = p_drive_0;
-  p_fdc->p_drive_1 = p_drive_1;
-
-  disc_drive_set_byte_callback(p_drive_0, intel_fdc_byte_callback, p_fdc);
-  disc_drive_set_byte_callback(p_drive_1, intel_fdc_byte_callback, p_fdc);
-}
-
-void
 intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   struct disc_drive_struct* p_drive_0 = p_fdc->p_drive_0;
   struct disc_drive_struct* p_drive_1 = p_fdc->p_drive_1;
@@ -1466,7 +1453,7 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
   }
 }
 
-void
+static void
 intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   uint32_t i;
   int bit;
@@ -1635,4 +1622,17 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       }
     }
   }
+}
+
+void
+intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
+                     struct disc_drive_struct* p_drive_0,
+                     struct disc_drive_struct* p_drive_1) {
+  assert(p_fdc->p_drive_0 == NULL);
+  assert(p_fdc->p_drive_1 == NULL);
+  p_fdc->p_drive_0 = p_drive_0;
+  p_fdc->p_drive_1 = p_drive_1;
+
+  disc_drive_set_byte_callback(p_drive_0, intel_fdc_byte_callback, p_fdc);
+  disc_drive_set_byte_callback(p_drive_1, intel_fdc_byte_callback, p_fdc);
 }

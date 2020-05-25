@@ -25,6 +25,7 @@
 #include "util.h"
 #include "via.h"
 #include "video.h"
+#include "wd_fdc.h"
 
 #include <assert.h>
 #include <string.h>
@@ -81,6 +82,11 @@ struct bbc_struct {
   int is_64k_mappings;
   uint64_t rewind_to_cycles;
 
+  /* Machine configuration. */
+  int is_sideways_ram_bank[k_bbc_num_roms];
+  int is_extended_rom_addressing;
+  int is_wd_fdc;
+
   /* Settings. */
   uint8_t* p_os_rom;
   int debug_flag;
@@ -109,8 +115,6 @@ struct bbc_struct {
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
   uint8_t romsel;
-  int is_sideways_ram_bank[k_bbc_num_roms];
-  int is_extended_rom_addressing;
   int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -123,6 +127,7 @@ struct bbc_struct {
   struct disc_drive_struct* p_drive_0;
   struct disc_drive_struct* p_drive_1;
   struct intel_fdc_struct* p_intel_fdc;
+  struct wd_fdc_struct* p_wd_fdc;
   struct serial_struct* p_serial;
   struct tape_struct* p_tape;
   struct cpu_driver* p_cpu_driver;
@@ -362,7 +367,18 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
+    addr &= 0x07;
+    if (p_bbc->is_wd_fdc) {
+      /* The 1770 control register is not readable, and mirrored across its
+       * little range.
+       */
+      if (!(addr & 0x04)) {
+        break;
+      }
+      ret = wd_fdc_read(p_bbc->p_wd_fdc, addr);
+    } else {
+      ret = intel_fdc_read(p_bbc->p_intel_fdc, addr);
+    }
     break;
   case (k_addr_econet + 0):
   case (k_addr_econet + 4):
@@ -649,7 +665,12 @@ bbc_write_callback(void* p,
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    intel_fdc_write(p_bbc->p_intel_fdc, (addr & 0x7), val);
+    addr &= 0x07;
+    if (p_bbc->is_wd_fdc) {
+      wd_fdc_write(p_bbc->p_wd_fdc, addr, val);
+    } else {
+      intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
+    }
     break;
   case (k_addr_econet + 0):
     log_do_log(k_log_misc, k_log_unimplemented, "write of ECONET region");
@@ -764,7 +785,11 @@ bbc_break_reset(struct bbc_struct* p_bbc) {
    * Many other peripherals are not connected to any reset on break, but a few
    * are.
    */
-  intel_fdc_break_reset(p_bbc->p_intel_fdc);
+  if (p_bbc->is_wd_fdc) {
+    wd_fdc_break_reset(p_bbc->p_wd_fdc);
+  } else {
+    intel_fdc_break_reset(p_bbc->p_intel_fdc);
+  }
   state_6502_reset(p_bbc->p_state_6502);
 }
 
@@ -817,6 +842,7 @@ bbc_set_fast_mode(void* p, int is_fast) {
 struct bbc_struct*
 bbc_create(int mode,
            uint8_t* p_os_rom,
+           int wd_1770_flag,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -861,6 +887,7 @@ bbc_create(int mode,
   p_bbc->print_flag = print_flag;
   p_bbc->fast_flag = fast_flag;
   p_bbc->test_map_flag = test_map_flag;
+  p_bbc->is_wd_fdc = wd_1770_flag;
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
   p_bbc->handle_channel_read_bbc = -1;
@@ -1106,11 +1133,21 @@ bbc_create(int mode,
     util_bail("disc_drive_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
-  if (p_bbc->p_intel_fdc == NULL) {
-    util_bail("intel_fdc_create failed");
+  if (p_bbc->is_wd_fdc) {
+    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502, &p_bbc->options);
+    if (p_bbc->p_wd_fdc == NULL) {
+      util_bail("wd_fdc_create failed");
+    }
+    wd_fdc_set_drives(p_bbc->p_wd_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
+  } else {
+    p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
+    if (p_bbc->p_intel_fdc == NULL) {
+      util_bail("intel_fdc_create failed");
+    }
+    intel_fdc_set_drives(p_bbc->p_intel_fdc,
+                         p_bbc->p_drive_0,
+                         p_bbc->p_drive_1);
   }
-  intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
 
   p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
@@ -1173,7 +1210,12 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
-  intel_fdc_destroy(p_bbc->p_intel_fdc);
+  if (p_bbc->p_intel_fdc != NULL) {
+    intel_fdc_destroy(p_bbc->p_intel_fdc);
+  }
+  if (p_bbc->p_wd_fdc != NULL) {
+    wd_fdc_destroy(p_bbc->p_wd_fdc);
+  }
   disc_drive_destroy(p_bbc->p_drive_0);
   disc_drive_destroy(p_bbc->p_drive_1);
   state_6502_destroy(p_bbc->p_state_6502);
@@ -1299,7 +1341,12 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   serial_power_on_reset(p_bbc->p_serial);
   tape_power_on_reset(p_bbc->p_tape);
   /* Reset the controller before the drives so that spindown has been done. */
-  intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
+  if (p_bbc->p_intel_fdc != NULL) {
+    intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
+  }
+  if (p_bbc->p_wd_fdc != NULL) {
+    wd_fdc_power_on_reset(p_bbc->p_wd_fdc);
+  }
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
   keyboard_power_on_reset(p_bbc->p_keyboard);
