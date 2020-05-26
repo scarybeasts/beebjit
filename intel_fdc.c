@@ -376,9 +376,7 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
     log_do_log(k_log_disc, k_log_error, "edge triggered NMI already high");
   }
 
-  state_6502_set_irq_level(p_fdc->p_state_6502,
-                           k_state_6502_irq_nmi,
-                           level);
+  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, level);
 }
 
 static void
@@ -1505,11 +1503,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   case k_intel_fdc_state_settling:
     /* Settling doesn't time out due to index pulse counting. */
     p_fdc->state_index_pulse_count = 0;
-
-    if (p_fdc->current_seek_count) {
-      p_fdc->current_seek_count--;
-      break;
-    }
 
     if (p_fdc->current_needs_settle) {
       p_fdc->current_needs_settle = 0;
