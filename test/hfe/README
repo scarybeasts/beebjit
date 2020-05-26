@@ -11,8 +11,13 @@ Tests and results: Intel 8271.
 a) Demonstrating 16 0 data bits are required for sync:
 ./beebjit -create-hfe ff4002idcrcerr.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd2ff
 ./beebjit -create-hfe ff4001.7idcrcerr.hfe ffffffffffffffff80ff00fffec700ff00ff00ff01fff1ffd2ff
-The first HFE has 16 0 data bits in a row and syncs (error $0C) and the second
-HFE has 15 0 data bits in a row and does not sync (error $18).
+The first HFE has 16 0 data bits in a row; the second has 15 0 data bits in a
+row.
+8271: first syncs ($0C), second does not ($18).
+1770: both sync ($0C).
+Extra 1770 testing shows it can sync with just 4 0 data bits:
+./beebjit -create-hfe ff4000.4idcrcerr.hfe ffffffffffffffff.f0ff.fec7.00ff00ff00ff01fff1ffd2ff
+1770: syncs ($0C)
 
 b) Demonstrating that pre-0 sync bits don't have to be all 1:
 ./beebjit -create-hfe 554002idcrcerr.hfe 55ff55ff55ff55ff00ff00fffec700ff00ff00ff01fff1ffd2ff 
