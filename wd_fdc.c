@@ -17,6 +17,7 @@ enum {
   k_wd_fdc_command_step_in_with_update = 0x50,
   k_wd_fdc_command_step_out_with_update = 0x70,
   k_wd_fdc_command_read_sector = 0x80,
+  k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
 };
 
@@ -275,6 +276,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   case k_wd_fdc_command_read_sector:
     p_fdc->command_type = 2;
     break;
+  case k_wd_fdc_command_read_address:
+    p_fdc->command_type = 3;
+    break;
   default:
     util_bail("unimplemented command $%X", val);
     break;
@@ -434,6 +438,9 @@ static void
 wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
                      uint8_t clocks,
                      uint8_t data) {
+  int is_crc_error;
+  int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
+
   switch (p_fdc->state) {
   case k_wd_fdc_state_search_id:
     if ((clocks != k_ibm_disc_mark_clock_pattern) ||
@@ -450,6 +457,12 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     switch (p_fdc->state_count) {
     case 0:
       p_fdc->on_disc_track = data;
+      if (is_read_address) {
+        /* The datasheet says, "The Track Address of the ID field is written
+         * into the Sector register"
+         */
+        p_fdc->sector_register = data;
+      }
       break;
     case 2:
       p_fdc->on_disc_sector = data;
@@ -463,6 +476,10 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     default:
       break;
     }
+    if (is_read_address) {
+      /* Note that unlike the 8271, the CRC bytes are sent along too. */
+      wd_fdc_send_data_to_host(p_fdc, data);
+    }
     if (p_fdc->state_count < 4) {
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     } else {
@@ -473,12 +490,23 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     if (p_fdc->state_count != 6) {
       break;
     }
+
+    is_crc_error = (p_fdc->crc != p_fdc->on_disc_crc);
+
+    if (is_read_address) {
+      if (is_crc_error) {
+        p_fdc->status_register |= k_wd_fdc_status_crc_error;
+      }
+      wd_fdc_command_done(p_fdc);
+      break;
+    }
     if ((p_fdc->track_register != p_fdc->on_disc_track) ||
         (p_fdc->sector_register != p_fdc->on_disc_sector)) {
+      /* The data sheet specifies no CRC error unless the fields match. */
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
       break;
     }
-    if (p_fdc->crc != p_fdc->on_disc_crc) {
+    if (is_crc_error) {
       p_fdc->status_register |= k_wd_fdc_status_crc_error;
       /* Unlike the 8271, the 1770 keeps going. */
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
@@ -495,6 +523,9 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     if (data == k_ibm_disc_data_mark_data_pattern) {
       /* Nothing, continue through. */
     } else if (data == k_ibm_disc_deleted_data_mark_data_pattern) {
+      /* EMU TODO: on a multi-sector read, does this tag any sector or only
+       * the most recent sector?
+       */
       p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
     } else {
       break;
@@ -682,6 +713,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       state = k_wd_fdc_state_seek_step_once;
       break;
     case k_wd_fdc_command_read_sector:
+    case k_wd_fdc_command_read_address:
       state = k_wd_fdc_state_search_id;
       p_fdc->index_pulse_count = 0;
       break;
