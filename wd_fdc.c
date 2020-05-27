@@ -137,26 +137,10 @@ wd_fdc_destroy(struct wd_fdc_struct* p_fdc) {
   util_free(p_fdc);
 }
 
-void
-wd_fdc_break_reset(struct wd_fdc_struct* p_fdc) {
-  /* TODO: abort command etc. */
-  (void) p_fdc;
-}
-
-void
-wd_fdc_power_on_reset(struct wd_fdc_struct* p_fdc) {
-  wd_fdc_break_reset(p_fdc);
-  p_fdc->control_register = 0;
-  /* EMU NOTE: my WD1772 appears to have some non-zero values in some of these
-   * registers at power on. It's not known if that's just randomness or
-   * something else.
-   */
-  p_fdc->status_register = 0;
-  p_fdc->track_register = 0;
-  p_fdc->sector_register = 0;
-  p_fdc->data_register = 0;
-  p_fdc->is_intrq = 0;
-  p_fdc->is_drq = 0;
+static void
+wd_fdc_set_state(struct wd_fdc_struct* p_fdc, int state) {
+  p_fdc->state = state;
+  p_fdc->state_count = 0;
 }
 
 static void
@@ -170,6 +154,78 @@ wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
   }
 
   state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, level);
+}
+
+static void
+wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  int is_motor_on = !!(p_fdc->status_register & k_wd_fdc_status_motor_on);
+
+  if (p_current_drive != NULL) {
+    if (disc_drive_is_spinning(p_current_drive)) {
+      assert(is_motor_on);
+      disc_drive_stop_spinning(p_current_drive);
+    }
+  }
+  if ((val & k_wd_fdc_control_drive_0) ^ (val & k_wd_fdc_control_drive_1)) {
+    if (val & k_wd_fdc_control_drive_0) {
+      p_fdc->p_current_drive = p_fdc->p_drive_0;
+    } else {
+      p_fdc->p_current_drive = p_fdc->p_drive_1;
+    }
+  } else {
+    p_fdc->p_current_drive = NULL;
+  }
+  if (p_fdc->p_current_drive != NULL) {
+    if (is_motor_on) {
+      disc_drive_start_spinning(p_fdc->p_current_drive);
+    }
+    disc_drive_select_side(p_fdc->p_current_drive,
+                           !!(val & k_wd_fdc_control_side));
+  }
+
+  p_fdc->control_register = val;
+
+  /* Reset, active low. */
+  if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
+    p_fdc->status_register = 0;
+    /* EMU NOTE: on a real machine, the reset condition appears to hold the
+     * sector register at 1 but leave track / data alone (and permit changes
+     * to them).
+     */
+    p_fdc->sector_register = 1;
+    p_fdc->is_intrq = 0;
+    p_fdc->is_drq = 0;
+    wd_fdc_update_nmi(p_fdc);
+
+    p_fdc->mark_detector = 0;
+    p_fdc->data_shifter = 0;
+    p_fdc->data_shift_count = 0;
+  }
+}
+
+void
+wd_fdc_break_reset(struct wd_fdc_struct* p_fdc) {
+  /* This will:
+   * - Spin down.
+   * - Raise reset, which:
+   *   - Clears status register.
+   *   - Sets other registers as per how a real machine behaves.
+   *   - Clears IRQs.
+   */
+  wd_fdc_write_control(p_fdc, 0);
+}
+
+void
+wd_fdc_power_on_reset(struct wd_fdc_struct* p_fdc) {
+  wd_fdc_break_reset(p_fdc);
+  assert(p_fdc->control_register == 0);
+  assert(p_fdc->status_register == 0);
+
+  /* The reset line doesn't seem to affect the track or data registers. */
+  p_fdc->track_register = 0;
+  p_fdc->data_register = 0;
 }
 
 static void
@@ -191,12 +247,6 @@ wd_fdc_set_drq(struct wd_fdc_struct* p_fdc, int level) {
     p_fdc->status_register &= ~k_wd_fdc_status_type_II_III_drq;
   }
   wd_fdc_update_nmi(p_fdc);
-}
-
-static void
-wd_fdc_set_state(struct wd_fdc_struct* p_fdc, int state) {
-  p_fdc->state = state;
-  p_fdc->state_count = 0;
 }
 
 static void
@@ -357,17 +407,11 @@ wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
 
 void
 wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
-  struct disc_drive_struct* p_current_drive;
-  int is_motor_on;
-
   switch (addr) {
   case 0:
   case 1:
   case 2:
   case 3:
-    p_current_drive = p_fdc->p_current_drive;
-    is_motor_on = !!(p_fdc->status_register & k_wd_fdc_status_motor_on);
-
     if (p_fdc->log_commands) {
       log_do_log(k_log_disc,
                  k_log_info,
@@ -377,29 +421,7 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
     if (p_fdc->status_register & k_wd_fdc_status_busy) {
       util_bail("control register updated while busy");
     }
-    if (p_current_drive != NULL) {
-      if (disc_drive_is_spinning(p_current_drive)) {
-        assert(is_motor_on);
-        disc_drive_stop_spinning(p_current_drive);
-      }
-    }
-    if ((val & k_wd_fdc_control_drive_0) ^ (val & k_wd_fdc_control_drive_1)) {
-      if (val & k_wd_fdc_control_drive_0) {
-        p_fdc->p_current_drive = p_fdc->p_drive_0;
-      } else {
-        p_fdc->p_current_drive = p_fdc->p_drive_1;
-      }
-    } else {
-      p_fdc->p_current_drive = NULL;
-    }
-    if (p_fdc->p_current_drive != NULL) {
-      if (is_motor_on) {
-        disc_drive_start_spinning(p_fdc->p_current_drive);
-      }
-      disc_drive_select_side(p_fdc->p_current_drive,
-                             !!(val & k_wd_fdc_control_side));
-    }
-    p_fdc->control_register = val;
+    wd_fdc_write_control(p_fdc, val);
     break;
   case 4:
     wd_fdc_do_command(p_fdc, val);
@@ -505,6 +527,9 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       if (is_crc_error) {
         p_fdc->status_register |= k_wd_fdc_status_crc_error;
       }
+      /* Unlike the 8271, read address returns just a single record. It is also
+       * not synronized to the index pulse.
+       */
       wd_fdc_command_done(p_fdc);
       break;
     }
