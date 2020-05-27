@@ -556,13 +556,13 @@ debug_hit_break(struct debug_struct* p_debug,
     }
 
     if ((p_breakpoint->a_value != -1) && (reg_a != p_breakpoint->a_value)) {
-      break;
+      continue;
     }
     if ((p_breakpoint->x_value != -1) && (reg_x != p_breakpoint->x_value)) {
-      break;
+      continue;
     }
     if ((p_breakpoint->y_value != -1) && (reg_y != p_breakpoint->y_value)) {
-      break;
+      continue;
     }
 
     type = p_breakpoint->type;
