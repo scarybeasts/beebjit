@@ -17,6 +17,7 @@ enum {
   k_wd_fdc_command_step_in_with_update = 0x50,
   k_wd_fdc_command_step_out_with_update = 0x70,
   k_wd_fdc_command_read_sector = 0x80,
+  k_wd_fdc_command_write_sector = 0xA0,
   k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
 };
@@ -40,6 +41,7 @@ enum {
 
 enum {
   k_wd_fdc_status_motor_on = 0x80,
+  k_wd_fdc_status_write_protected = 0x40,
   k_wd_fdc_status_type_I_spin_up_done = 0x20,
   k_wd_fdc_status_type_II_III_deleted_mark = 0x20,
   k_wd_fdc_status_record_not_found = 0x10,
@@ -88,6 +90,7 @@ struct wd_fdc_struct {
   uint8_t command;
   uint8_t command_type;
   int is_command_settle;
+  int is_command_write;
   uint32_t command_step_ticks;
   uint32_t state;
   uint32_t state_count;
@@ -250,6 +253,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   command = (val & 0xF0);
   p_fdc->command = command;
   p_fdc->is_command_settle = 0;
+  p_fdc->is_command_write = 0;
 
   switch (command) {
   case k_wd_fdc_command_restore:
@@ -274,6 +278,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->command_step_ticks = ((step_rate_ms * 1000) / 64);
     break;
   case k_wd_fdc_command_read_sector:
+  case k_wd_fdc_command_write_sector:
     p_fdc->command_type = 2;
     break;
   case k_wd_fdc_command_read_address:
@@ -286,6 +291,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   if (((p_fdc->command_type == 2) || (p_fdc->command_type == 3)) &&
       (val & k_wd_fdc_command_bit_type_II_III_settle)) {
     p_fdc->is_command_settle = 1;
+  }
+  if (p_fdc->command == k_wd_fdc_command_write_sector) {
+    p_fdc->is_command_write = 1;
   }
 
   if (command == k_wd_fdc_command_force_interrupt) {
@@ -700,6 +708,11 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->state_count++;
       break;
     }
+    if (p_fdc->is_command_write) {
+      p_fdc->status_register |= k_wd_fdc_status_write_protected;
+      wd_fdc_command_done(p_fdc);
+      break;
+    }
     switch (p_fdc->command) {
     case k_wd_fdc_command_restore:
       p_fdc->track_register = 0xFF;
@@ -713,6 +726,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       state = k_wd_fdc_state_seek_step_once;
       break;
     case k_wd_fdc_command_read_sector:
+    case k_wd_fdc_command_write_sector:
     case k_wd_fdc_command_read_address:
       state = k_wd_fdc_state_search_id;
       p_fdc->index_pulse_count = 0;
