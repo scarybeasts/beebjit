@@ -287,14 +287,13 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
                p_fdc->control_register);
   }
 
+  assert(p_fdc->control_register & k_wd_fdc_control_reset);
+
   if (p_fdc->p_current_drive == NULL) {
     util_bail("command while no selected drive");
   }
   if (p_fdc->status_register & k_wd_fdc_status_busy) {
     util_bail("command while busy");
-  }
-  if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
-    util_bail("command while in reset");
   }
   if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
     util_bail("command while double density");
@@ -424,12 +423,21 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
     wd_fdc_write_control(p_fdc, val);
     break;
   case 4:
+    if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+      /* Ignore commands when the reset line is active. */
+      break;
+    }
     wd_fdc_do_command(p_fdc, val);
     break;
   case 5:
     p_fdc->track_register = val;
     break;
   case 6:
+    if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+      /* Ignore sector register changes when the reset line is active. */
+      /* EMU NOTE: track / data register changes seem to still be accepted! */
+      break;
+    }
     p_fdc->sector_register = val;
     break;
   case 7:
