@@ -157,13 +157,14 @@ static void
 wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
   struct state_6502* p_state_6502 = p_fdc->p_state_6502;
   int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
-  int level = (p_fdc->is_intrq || p_fdc->is_drq);
+  int old_level = state_6502_get_irq_level(p_state_6502, k_state_6502_irq_nmi);
+  int new_level = (p_fdc->is_intrq || p_fdc->is_drq);
 
-  if (firing && (level == 1)) {
-    log_do_log(k_log_disc, k_log_error, "edge triggered NMI already high");
+  if (new_level && !old_level && firing) {
+    log_do_log(k_log_disc, k_log_error, "1770 lost NMI positive edge");
   }
 
-  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, level);
+  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, new_level);
 }
 
 static void

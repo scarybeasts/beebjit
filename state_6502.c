@@ -132,6 +132,12 @@ state_6502_irq_is_edge_triggered(int irq) {
   return 0;
 }
 
+int
+state_6502_get_irq_level(struct state_6502* p_state_6502, int irq) {
+  int irq_value = (1 << irq);
+  return !!(p_state_6502->irq_high & irq_value);
+}
+
 void
 state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
   int irq_value = (1 << irq);

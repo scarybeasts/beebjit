@@ -70,6 +70,7 @@ void state_6502_set_a(struct state_6502* p_state_6502, uint8_t val);
 void state_6502_set_x(struct state_6502* p_state_6502, uint8_t val);
 void state_6502_set_y(struct state_6502* p_state_6502, uint8_t val);
 
+int state_6502_get_irq_level(struct state_6502* p_state_6502, int irq);
 void state_6502_set_irq_level(struct state_6502* p_state_6502,
                               int irq,
                               int level);
