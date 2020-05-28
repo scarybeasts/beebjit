@@ -240,7 +240,6 @@ wd_fdc_set_intrq(struct wd_fdc_struct* p_fdc, int level) {
 
 static void
 wd_fdc_set_drq(struct wd_fdc_struct* p_fdc, int level) {
-  assert((p_fdc->command_type == 2) || (p_fdc->command_type == 3));
   p_fdc->is_drq = level;
   if (level) {
     if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
@@ -262,9 +261,7 @@ wd_fdc_command_done(struct wd_fdc_struct* p_fdc) {
   wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
   p_fdc->index_pulse_count = 0;
 
-  if ((p_fdc->command_type == 2) || (p_fdc->command_type == 3)) {
-    wd_fdc_set_drq(p_fdc, 0);
-  }
+  /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
   wd_fdc_set_intrq(p_fdc, 1);
 
   if (p_fdc->log_commands) {
@@ -355,11 +352,12 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   }
 
   /* All commands except force interrupt (handled above):
-   * - Clear INTRQ.
+   * - Clear INTRQ and DRQ.
    * - Clear status register result bits.
    * - Set busy.
    * - Spin up if necessary and not inhibited.
    */
+  wd_fdc_set_drq(p_fdc, 0);
   wd_fdc_set_intrq(p_fdc, 0);
   p_fdc->status_register &= k_wd_fdc_status_motor_on;
   p_fdc->status_register |= k_wd_fdc_status_busy;
@@ -456,6 +454,7 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
 
 static void
 wd_fdc_send_data_to_host(struct wd_fdc_struct* p_fdc, uint8_t data) {
+  assert((p_fdc->command_type == 2) || (p_fdc->command_type == 3));
   wd_fdc_set_drq(p_fdc, 1);
   p_fdc->data_register = data;
 }
@@ -572,6 +571,14 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     } else if (data == k_ibm_disc_deleted_data_mark_data_pattern) {
       /* EMU TODO: on a multi-sector read, does this tag any sector or only
        * the most recent sector?
+       */
+      /* EMU NOTE: the datasheet is ambiguous on whether the deleted mark is
+       * visible in the status register immediately, or at the end of a read.
+       * The state machine diagram says "DAM in time" -> "Set Record Type in
+       * Status Bit 5". But later on it says "At the end of the Read... is
+       * recorded...".
+       * Testing on my 1772, the state machine diagram is correct: the bit is
+       * visible in the status register immediately during the read.
        */
       p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
     } else {
