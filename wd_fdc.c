@@ -541,7 +541,6 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
                      uint8_t data,
                      int is_index_pulse_positive_edge) {
   int is_crc_error;
-  int is_deleted;
   uint8_t command_type = p_fdc->command_type;
   int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
 
@@ -639,7 +638,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       break;
     }
     if (data == k_ibm_disc_data_mark_data_pattern) {
-      is_deleted = 0;
+      /* Nothing. */
     } else if (data == k_ibm_disc_deleted_data_mark_data_pattern) {
       /* EMU NOTE: the datasheet is ambiguous on whether the deleted mark is
        * visible in the status register immediately, or at the end of a read.
@@ -649,21 +648,17 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
        * Testing on my 1772, the state machine diagram is correct: the bit is
        * visible in the status register immediately during the read.
        */
-      is_deleted = 1;
+      /* EMU NOTE: on a multi-sector read, the deleted mark bit is set, and left
+       * set, if _any_ deleted data sector was encountered. The datasheet would
+       * seem to imply that only the most recent sector type is reflected in
+       * the bit, but testing on my 1772, the bit is set and left set even if
+       * a non-deleted sector is encountered subsequently.
+       */
+      p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
     } else {
       break;
     }
 
-    /* EMU NOTE: on a multi-sector read, we only tag the type of the most
-     * recently seen data marker. I believe this is what the data sheet is
-     * saying.
-     * (The 8271 instead reports an accumulation of whether _any_ data marker
-     * was deleted.
-     */
-    p_fdc->status_register &= ~k_wd_fdc_status_type_II_III_deleted_mark;
-    if (is_deleted) {
-      p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
-    }
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_in_data);
     /* CRC error is reset here. It's possible to hit a CRC error in a sector
      * header and then find an ok matching sector header.
