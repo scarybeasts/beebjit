@@ -214,7 +214,6 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->data_shifter = 0;
     p_fdc->data_shift_count = 0;
     p_fdc->is_index_pulse = 0;
-    p_fdc->is_interrupt_on_index_pulse = 0;
   }
 }
 
@@ -262,7 +261,7 @@ wd_fdc_set_drq(struct wd_fdc_struct* p_fdc, int level) {
 }
 
 static void
-wd_fdc_command_done(struct wd_fdc_struct* p_fdc) {
+wd_fdc_command_done(struct wd_fdc_struct* p_fdc, int do_raise_intrq) {
   assert(p_fdc->status_register & k_wd_fdc_status_busy);
   assert(p_fdc->state > k_wd_fdc_state_idle);
 
@@ -271,7 +270,9 @@ wd_fdc_command_done(struct wd_fdc_struct* p_fdc) {
   p_fdc->index_pulse_count = 0;
 
   /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
-  wd_fdc_set_intrq(p_fdc, 1);
+  if (do_raise_intrq) {
+    wd_fdc_set_intrq(p_fdc, 1);
+  }
 
   if (p_fdc->log_commands) {
     log_do_log(k_log_disc,
@@ -311,15 +312,37 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
     util_bail("command while double density");
   }
+  if (p_fdc->p_current_drive == NULL) {
+    util_bail("command while no selected drive");
+  }
 
   command = (val & 0xF0);
 
   if (command == k_wd_fdc_command_force_interrupt) {
     uint8_t force_interrupt_bits = (val & 0x0F);
-    if (force_interrupt_bits == 0) {
-      if (p_fdc->status_register & k_wd_fdc_status_busy) {
-        wd_fdc_command_done(p_fdc);
+    /* EMU NOTE: force interrupt is pretty unclear on the datasheet. From
+     * testing on a real 1772:
+     * - The command is aborted right away in all cases.
+     * - The command completion INTRQ / NMI is _inhibited_ for $D0. In
+     * particular, Watford Electronics DDFS will be unhappy unless you behave
+     * correctly here.
+     * - Force interrupt will spin up the motor and enter an idle state if
+     * the motor is off. The idle state behaves a little like a type 1 command
+     * insofar as index pulse appears to be reported in the status register.
+     * - Interrupt on index pulse is only active for the current command.
+     */
+    if (p_fdc->status_register & k_wd_fdc_status_busy) {
+      wd_fdc_command_done(p_fdc, 0);
+    } else {
+      assert(p_fdc->state == k_wd_fdc_state_idle);
+      p_fdc->command_type = 1;
+      p_fdc->status_register &= k_wd_fdc_status_motor_on;
+      if (!(p_fdc->status_register & k_wd_fdc_status_motor_on)) {
+        p_fdc->status_register |= k_wd_fdc_status_motor_on;
+        disc_drive_start_spinning(p_current_drive);
       }
+    }
+    if (force_interrupt_bits == 0) {
       p_fdc->is_interrupt_on_index_pulse = 0;
     } else if (force_interrupt_bits == 4) {
       p_fdc->is_interrupt_on_index_pulse = 1;
@@ -329,9 +352,6 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     return;
   }
 
-  if (p_fdc->p_current_drive == NULL) {
-    util_bail("command while no selected drive");
-  }
   if (p_fdc->status_register & k_wd_fdc_status_busy) {
     util_bail("command while busy");
   }
@@ -341,6 +361,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->is_command_write = 0;
   p_fdc->is_command_verify = 0;
   p_fdc->is_command_multi = 0;
+  p_fdc->is_interrupt_on_index_pulse = 0;
 
   switch (command) {
   case k_wd_fdc_command_restore:
@@ -583,7 +604,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       /* Unlike the 8271, read address returns just a single record. It is also
        * not synronized to the index pulse.
        */
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
       break;
     }
 
@@ -606,7 +627,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       break;
     }
     if (command_type == 1) {
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
     } else {
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_data);
     }
@@ -665,7 +686,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     if (p_fdc->crc != p_fdc->on_disc_crc) {
       p_fdc->status_register |= k_wd_fdc_status_crc_error;
       /* Sector data CRC error is terminal, even for a multi-sector read. */
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
       break;
     }
     if (p_fdc->is_command_multi) {
@@ -673,7 +694,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       p_fdc->index_pulse_count = 0;
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
     } else {
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
     }
     break;
   case k_wd_fdc_state_in_read_track:
@@ -681,7 +702,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       wd_fdc_send_data_to_host(p_fdc, data);
       break;
     }
-    wd_fdc_command_done(p_fdc);
+    wd_fdc_command_done(p_fdc, 1);
     break;
   default:
     assert(0);
@@ -830,7 +851,13 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       }
       disc_drive_stop_spinning(p_current_drive);
       p_fdc->status_register &= ~k_wd_fdc_status_motor_on;
-      /* EMU TODO: other bits get cleared? */
+      /* EMU NOTE: in my testing on a 1772, the polled type 1 status bits get
+       * cleared on spindown.
+       */
+      if (p_fdc->command_type == 1) {
+        p_fdc->status_register &=
+            ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+      }
     }
     break;
   case k_wd_fdc_state_spin_up_wait:
@@ -857,7 +884,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     if (p_fdc->is_command_write) {
       p_fdc->status_register |= k_wd_fdc_status_write_protected;
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
       break;
     }
     switch (p_fdc->command) {
@@ -947,7 +974,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->index_pulse_count = 0;
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
     } else {
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
     }
     break;
   case k_wd_fdc_state_wait_index:
@@ -974,7 +1001,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     assert(p_fdc->index_pulse_count <= 6);
     if (p_fdc->index_pulse_count == 6) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_command_done(p_fdc, 1);
     }
     break;
   default:
