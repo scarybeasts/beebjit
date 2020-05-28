@@ -283,17 +283,26 @@ wd_fdc_command_done(struct wd_fdc_struct* p_fdc) {
 static void
 wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   uint8_t command;
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   uint32_t step_rate_ms = 0;
 
   if (p_fdc->log_commands) {
+    int32_t track = -1;
+    int32_t head_pos = -1;
+    if (p_current_drive != NULL) {
+      track = disc_drive_get_track(p_current_drive);
+      head_pos = disc_drive_get_head_position(p_current_drive);
+    }
     log_do_log(k_log_disc,
                k_log_info,
-               "1770: command $%.2X tr %d sr %d dr %d cr $%.2X",
+               "1770: command $%.2X tr %d sr %d dr %d cr $%.2X ptrk %d hpos %d",
                val,
                p_fdc->track_register,
                p_fdc->sector_register,
                p_fdc->data_register,
-               p_fdc->control_register);
+               p_fdc->control_register,
+               track,
+               head_pos);
   }
 
   assert(p_fdc->control_register & k_wd_fdc_control_reset);
@@ -399,7 +408,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->index_pulse_count = 6;
   } else {
     p_fdc->status_register |= k_wd_fdc_status_motor_on;
-    disc_drive_start_spinning(p_fdc->p_current_drive);
+    disc_drive_start_spinning(p_current_drive);
   }
 
   wd_fdc_set_state(p_fdc, k_wd_fdc_state_spin_up_wait);
