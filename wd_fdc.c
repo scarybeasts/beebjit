@@ -17,6 +17,7 @@ enum {
   k_wd_fdc_command_step_in_with_update = 0x50,
   k_wd_fdc_command_step_out_with_update = 0x70,
   k_wd_fdc_command_read_sector = 0x80,
+  k_wd_fdc_command_read_sector_multi = 0x90,
   k_wd_fdc_command_write_sector = 0xA0,
   k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
@@ -27,6 +28,7 @@ enum {
   k_wd_fdc_command_bit_disable_spin_up = 0x08,
   k_wd_fdc_command_bit_type_I_verify = 0x04,
   k_wd_fdc_command_bit_type_II_III_settle = 0x04,
+  k_wd_fdc_command_bit_type_II_multi = 0x10,
 };
 
 /* The drive control register is documented here:
@@ -64,6 +66,7 @@ enum {
   k_wd_fdc_state_seek_step_wait,
   k_wd_fdc_state_seek_step_once,
   k_wd_fdc_state_seek_step_once_wait,
+  k_wd_fdc_state_seek_check_verify,
   k_wd_fdc_state_wait_index,
   k_wd_fdc_state_search_id,
   k_wd_fdc_state_in_id,
@@ -94,6 +97,8 @@ struct wd_fdc_struct {
   uint8_t command_type;
   int is_command_settle;
   int is_command_write;
+  int is_command_verify;
+  int is_command_multi;
   uint32_t command_step_ticks;
   uint32_t state;
   uint32_t state_count;
@@ -290,20 +295,34 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
 
   assert(p_fdc->control_register & k_wd_fdc_control_reset);
 
+  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+    util_bail("command while double density");
+  }
+
+  command = (val & 0xF0);
+
+  if (command == k_wd_fdc_command_force_interrupt) {
+    if ((val & 0x0F) != 0) {
+      util_bail("1770 force interrupt flags not handled");
+    }
+    if (p_fdc->status_register & k_wd_fdc_status_busy) {
+      wd_fdc_command_done(p_fdc);
+    }
+    return;
+  }
+
   if (p_fdc->p_current_drive == NULL) {
     util_bail("command while no selected drive");
   }
   if (p_fdc->status_register & k_wd_fdc_status_busy) {
     util_bail("command while busy");
   }
-  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
-    util_bail("command while double density");
-  }
 
-  command = (val & 0xF0);
   p_fdc->command = command;
   p_fdc->is_command_settle = 0;
   p_fdc->is_command_write = 0;
+  p_fdc->is_command_verify = 0;
+  p_fdc->is_command_multi = 0;
 
   switch (command) {
   case k_wd_fdc_command_restore:
@@ -311,6 +330,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   case k_wd_fdc_command_step_in_with_update:
   case k_wd_fdc_command_step_out_with_update:
     p_fdc->command_type = 1;
+    p_fdc->is_command_verify = !!(val & k_wd_fdc_command_bit_type_I_verify);
     switch (val & 0x03) {
     case 0:
       step_rate_ms = 6;
@@ -328,8 +348,10 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->command_step_ticks = ((step_rate_ms * 1000) / 64);
     break;
   case k_wd_fdc_command_read_sector:
+  case k_wd_fdc_command_read_sector_multi:
   case k_wd_fdc_command_write_sector:
     p_fdc->command_type = 2;
+    p_fdc->is_command_multi = !!(val & k_wd_fdc_command_bit_type_II_multi);
     break;
   case k_wd_fdc_command_read_address:
   case k_wd_fdc_command_read_track:
@@ -345,10 +367,6 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   }
   if (p_fdc->command == k_wd_fdc_command_write_sector) {
     p_fdc->is_command_write = 1;
-  }
-
-  if (command == k_wd_fdc_command_force_interrupt) {
-    util_bail("force interrupt");
   }
 
   /* All commands except force interrupt (handled above):
@@ -482,7 +500,14 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
                      uint8_t data,
                      int is_index_pulse_positive_edge) {
   int is_crc_error;
-  int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
+  int is_deleted;
+  int is_read_address = 0;
+  uint8_t command_type = p_fdc->command_type;
+
+  if (command_type == 3) {
+    assert(p_fdc->command == k_wd_fdc_command_read_address);
+    is_read_address = 1;
+  }
 
   switch (p_fdc->state) {
   case k_wd_fdc_state_search_id:
@@ -546,9 +571,16 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       wd_fdc_command_done(p_fdc);
       break;
     }
-    if ((p_fdc->track_register != p_fdc->on_disc_track) ||
+
+    /* The data sheet specifies no CRC error unless the fields match so check
+     * those first.
+     */
+    if (p_fdc->track_register != p_fdc->on_disc_track) {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+      break;
+    }
+    if ((command_type == 2) &&
         (p_fdc->sector_register != p_fdc->on_disc_sector)) {
-      /* The data sheet specifies no CRC error unless the fields match. */
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
       break;
     }
@@ -558,7 +590,11 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
       break;
     }
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_data);
+    if (command_type == 1) {
+      wd_fdc_command_done(p_fdc);
+    } else {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_data);
+    }
     break;
   case k_wd_fdc_state_search_data:
     /* TODO: enforce minumum and maximum bytes for this state. */
@@ -567,11 +603,8 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       break;
     }
     if (data == k_ibm_disc_data_mark_data_pattern) {
-      /* Nothing, continue through. */
+      is_deleted = 0;
     } else if (data == k_ibm_disc_deleted_data_mark_data_pattern) {
-      /* EMU TODO: on a multi-sector read, does this tag any sector or only
-       * the most recent sector?
-       */
       /* EMU NOTE: the datasheet is ambiguous on whether the deleted mark is
        * visible in the status register immediately, or at the end of a read.
        * The state machine diagram says "DAM in time" -> "Set Record Type in
@@ -580,9 +613,20 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
        * Testing on my 1772, the state machine diagram is correct: the bit is
        * visible in the status register immediately during the read.
        */
-      p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
+      is_deleted = 1;
     } else {
       break;
+    }
+
+    /* EMU NOTE: on a multi-sector read, we only tag the type of the most
+     * recently seen data marker. I believe this is what the data sheet is
+     * saying.
+     * (The 8271 instead reports an accumulation of whether _any_ data marker
+     * was deleted.
+     */
+    p_fdc->status_register &= ~k_wd_fdc_status_type_II_III_deleted_mark;
+    if (is_deleted) {
+      p_fdc->status_register |= k_wd_fdc_status_type_II_III_deleted_mark;
     }
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_in_data);
     /* CRC error is reset here. It's possible to hit a CRC error in a sector
@@ -609,7 +653,13 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       wd_fdc_command_done(p_fdc);
       break;
     }
-    wd_fdc_command_done(p_fdc);
+    if (p_fdc->is_command_multi) {
+      p_fdc->sector_register++;
+      p_fdc->index_pulse_count = 0;
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    } else {
+      wd_fdc_command_done(p_fdc);
+    }
     break;
   case k_wd_fdc_state_in_read_track:
     if (!is_index_pulse_positive_edge) {
@@ -804,6 +854,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       state = k_wd_fdc_state_seek_step_once;
       break;
     case k_wd_fdc_command_read_sector:
+    case k_wd_fdc_command_read_sector_multi:
     case k_wd_fdc_command_write_sector:
     case k_wd_fdc_command_read_address:
       state = k_wd_fdc_state_search_id;
@@ -821,7 +872,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     break;
   case k_wd_fdc_state_seek_step:
     if (p_fdc->track_register == p_fdc->data_register) {
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
       break;
     }
     if (p_fdc->track_register > p_fdc->data_register) {
@@ -833,7 +884,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if ((disc_drive_get_track(p_current_drive) == 0) &&
         (step_direction == -1)) {
       p_fdc->track_register = 0;
-      wd_fdc_command_done(p_fdc);
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
       break;
     }
     disc_drive_seek_track(p_current_drive, step_direction);
@@ -869,7 +920,15 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->state_count++;
       break;
     }
-    wd_fdc_command_done(p_fdc);
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
+    break;
+  case k_wd_fdc_state_seek_check_verify:
+    if (p_fdc->is_command_verify) {
+      p_fdc->index_pulse_count = 0;
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    } else {
+      wd_fdc_command_done(p_fdc);
+    }
     break;
   case k_wd_fdc_state_wait_index:
     if (!is_index_pulse_positive_edge) {
@@ -892,8 +951,8 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
                               data_byte,
                               is_index_pulse_positive_edge);
 
-    assert(p_fdc->index_pulse_count <= 5);
-    if (p_fdc->index_pulse_count == 5) {
+    assert(p_fdc->index_pulse_count <= 6);
+    if (p_fdc->index_pulse_count == 6) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
       wd_fdc_command_done(p_fdc);
     }
