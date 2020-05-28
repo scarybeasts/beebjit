@@ -20,6 +20,7 @@ enum {
   k_wd_fdc_command_write_sector = 0xA0,
   k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
+  k_wd_fdc_command_read_track = 0xE0,
 };
 
 enum {
@@ -63,10 +64,12 @@ enum {
   k_wd_fdc_state_seek_step_wait,
   k_wd_fdc_state_seek_step_once,
   k_wd_fdc_state_seek_step_once_wait,
+  k_wd_fdc_state_wait_index,
   k_wd_fdc_state_search_id,
   k_wd_fdc_state_in_id,
   k_wd_fdc_state_search_data,
   k_wd_fdc_state_in_data,
+  k_wd_fdc_state_in_read_track,
 };
 
 struct wd_fdc_struct {
@@ -202,6 +205,7 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->mark_detector = 0;
     p_fdc->data_shifter = 0;
     p_fdc->data_shift_count = 0;
+    p_fdc->is_index_pulse = 0;
   }
 }
 
@@ -331,6 +335,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->command_type = 2;
     break;
   case k_wd_fdc_command_read_address:
+  case k_wd_fdc_command_read_track:
     p_fdc->command_type = 3;
     break;
   default:
@@ -475,7 +480,8 @@ wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
 static void
 wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
                      uint8_t clocks,
-                     uint8_t data) {
+                     uint8_t data,
+                     int is_index_pulse_positive_edge) {
   int is_crc_error;
   int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
 
@@ -598,6 +604,13 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     }
     wd_fdc_command_done(p_fdc);
     break;
+  case k_wd_fdc_state_in_read_track:
+    if (!is_index_pulse_positive_edge) {
+      wd_fdc_send_data_to_host(p_fdc, data);
+      break;
+    }
+    wd_fdc_command_done(p_fdc);
+    break;
   default:
     assert(0);
     break;
@@ -681,21 +694,45 @@ wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
 }
 
 static void
-wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+wd_fdc_bitstream_received(struct wd_fdc_struct* p_fdc,
+                          uint8_t clocks_byte,
+                          uint8_t data_byte,
+                          int is_index_pulse_positive_edge) {
   uint32_t i;
+
+  for (i = 0; i < 8; ++i) {
+    int bit = !!(clocks_byte & 0x80);
+    clocks_byte <<= 1;
+    wd_fdc_bit_received(p_fdc, bit);
+    bit = !!(data_byte & 0x80);
+    data_byte <<= 1;
+    wd_fdc_bit_received(p_fdc, bit);
+  }
+  wd_fdc_byte_received(p_fdc,
+                       p_fdc->deliver_clocks,
+                       p_fdc->deliver_data,
+                       is_index_pulse_positive_edge);
+}
+
+static void
+wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   int state;
   int step_direction;
+  int is_index_pulse;
 
   struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int was_index_pulse = p_fdc->is_index_pulse;
+  int is_index_pulse_positive_edge = 0;
 
   assert(p_current_drive != NULL);
   assert(disc_drive_is_spinning(p_current_drive));
   assert(p_fdc->status_register & k_wd_fdc_status_motor_on);
 
-  p_fdc->is_index_pulse = disc_drive_is_index_pulse(p_fdc->p_current_drive);
-  if (p_fdc->is_index_pulse && !was_index_pulse) {
+  is_index_pulse = disc_drive_is_index_pulse(p_fdc->p_current_drive);
+  p_fdc->is_index_pulse = is_index_pulse;
+  if (is_index_pulse && !was_index_pulse) {
+    is_index_pulse_positive_edge = 1;
     p_fdc->index_pulse_count++;
   }
 
@@ -764,6 +801,10 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       state = k_wd_fdc_state_search_id;
       p_fdc->index_pulse_count = 0;
       break;
+    case k_wd_fdc_command_read_track:
+      state = k_wd_fdc_state_wait_index;
+      p_fdc->index_pulse_count = 0;
+      break;
     default:
       assert(0);
       break;
@@ -822,19 +863,26 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     wd_fdc_command_done(p_fdc);
     break;
+  case k_wd_fdc_state_wait_index:
+    if (!is_index_pulse_positive_edge) {
+      break;
+    }
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_in_read_track);
+    /* EMU NOTE: Need to include this byte (directly after the index pulse
+     * positive edge) in the read track data. Confirmed with a real 1772 +
+     * Gotek.
+     */
+    wd_fdc_bitstream_received(p_fdc, clocks_byte, data_byte, 0);
+    break;
   case k_wd_fdc_state_search_id:
   case k_wd_fdc_state_in_id:
   case k_wd_fdc_state_search_data:
   case k_wd_fdc_state_in_data:
-    for (i = 0; i < 8; ++i) {
-      int bit = !!(clocks_byte & 0x80);
-      clocks_byte <<= 1;
-      wd_fdc_bit_received(p_fdc, bit);
-      bit = !!(data_byte & 0x80);
-      data_byte <<= 1;
-      wd_fdc_bit_received(p_fdc, bit);
-    }
-    wd_fdc_byte_received(p_fdc, p_fdc->deliver_clocks, p_fdc->deliver_data);
+  case k_wd_fdc_state_in_read_track:
+    wd_fdc_bitstream_received(p_fdc,
+                              clocks_byte,
+                              data_byte,
+                              is_index_pulse_positive_edge);
 
     if (p_fdc->index_pulse_count == 5) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
