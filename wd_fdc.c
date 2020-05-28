@@ -19,6 +19,7 @@ enum {
   k_wd_fdc_command_read_sector = 0x80,
   k_wd_fdc_command_read_sector_multi = 0x90,
   k_wd_fdc_command_write_sector = 0xA0,
+  k_wd_fdc_command_write_sector_multi = 0xB0,
   k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
   k_wd_fdc_command_read_track = 0xE0,
@@ -357,6 +358,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   case k_wd_fdc_command_read_sector:
   case k_wd_fdc_command_read_sector_multi:
   case k_wd_fdc_command_write_sector:
+  case k_wd_fdc_command_write_sector_multi:
     p_fdc->command_type = 2;
     p_fdc->is_command_multi = !!(val & k_wd_fdc_command_bit_type_II_multi);
     break;
@@ -372,7 +374,8 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
       (val & k_wd_fdc_command_bit_type_II_III_settle)) {
     p_fdc->is_command_settle = 1;
   }
-  if (p_fdc->command == k_wd_fdc_command_write_sector) {
+  if ((p_fdc->command == k_wd_fdc_command_write_sector) ||
+      (p_fdc->command == k_wd_fdc_command_write_sector_multi)) {
     p_fdc->is_command_write = 1;
   }
 
@@ -862,6 +865,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     case k_wd_fdc_command_read_sector:
     case k_wd_fdc_command_read_sector_multi:
     case k_wd_fdc_command_write_sector:
+    case k_wd_fdc_command_write_sector_multi:
     case k_wd_fdc_command_read_address:
       state = k_wd_fdc_state_search_id;
       p_fdc->index_pulse_count = 0;
