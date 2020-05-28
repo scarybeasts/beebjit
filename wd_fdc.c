@@ -93,6 +93,7 @@ struct wd_fdc_struct {
 
   struct disc_drive_struct* p_current_drive;
   int is_index_pulse;
+  int is_interrupt_on_index_pulse;
   uint8_t command;
   uint8_t command_type;
   int is_command_settle;
@@ -211,6 +212,7 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->data_shifter = 0;
     p_fdc->data_shift_count = 0;
     p_fdc->is_index_pulse = 0;
+    p_fdc->is_interrupt_on_index_pulse = 0;
   }
 }
 
@@ -302,11 +304,16 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   command = (val & 0xF0);
 
   if (command == k_wd_fdc_command_force_interrupt) {
-    if ((val & 0x0F) != 0) {
+    uint8_t force_interrupt_bits = (val & 0x0F);
+    if (force_interrupt_bits == 0) {
+      if (p_fdc->status_register & k_wd_fdc_status_busy) {
+        wd_fdc_command_done(p_fdc);
+      }
+      p_fdc->is_interrupt_on_index_pulse = 0;
+    } else if (force_interrupt_bits == 4) {
+      p_fdc->is_interrupt_on_index_pulse = 1;
+    } else {
       util_bail("1770 force interrupt flags not handled");
-    }
-    if (p_fdc->status_register & k_wd_fdc_status_busy) {
-      wd_fdc_command_done(p_fdc);
     }
     return;
   }
@@ -501,13 +508,8 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
                      int is_index_pulse_positive_edge) {
   int is_crc_error;
   int is_deleted;
-  int is_read_address = 0;
   uint8_t command_type = p_fdc->command_type;
-
-  if (command_type == 3) {
-    assert(p_fdc->command == k_wd_fdc_command_read_address);
-    is_read_address = 1;
-  }
+  int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
 
   switch (p_fdc->state) {
   case k_wd_fdc_state_search_id:
@@ -790,6 +792,10 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   p_fdc->is_index_pulse = is_index_pulse;
   if (is_index_pulse && !was_index_pulse) {
     is_index_pulse_positive_edge = 1;
+  }
+
+  if (p_fdc->is_interrupt_on_index_pulse && is_index_pulse_positive_edge) {
+    wd_fdc_set_intrq(p_fdc, 1);
   }
 
   /* EMU NOTE: if the chip is idle after completion of a type I command), the
