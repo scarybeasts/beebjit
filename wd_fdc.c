@@ -733,7 +733,6 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   p_fdc->is_index_pulse = is_index_pulse;
   if (is_index_pulse && !was_index_pulse) {
     is_index_pulse_positive_edge = 1;
-    p_fdc->index_pulse_count++;
   }
 
   /* EMU NOTE: if the chip is idle after completion of a type I command), the
@@ -748,6 +747,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     /* EMU NOTE: different sources disagree on 10 vs. 9 index pulses for
      * spin down.
      */
+    assert(p_fdc->index_pulse_count <= 10);
     if (p_fdc->index_pulse_count == 10) {
       if (p_fdc->log_commands) {
         log_do_log(k_log_disc, k_log_info, "1770: automatic motor off");
@@ -758,6 +758,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
     break;
   case k_wd_fdc_state_spin_up_wait:
+    assert(p_fdc->index_pulse_count <= 6);
     if (p_fdc->index_pulse_count != 6) {
       break;
     }
@@ -884,6 +885,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
                               data_byte,
                               is_index_pulse_positive_edge);
 
+    assert(p_fdc->index_pulse_count <= 5);
     if (p_fdc->index_pulse_count == 5) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
       wd_fdc_command_done(p_fdc);
@@ -892,6 +894,10 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   default:
     assert(0);
     break;
+  }
+
+  if (is_index_pulse_positive_edge) {
+    p_fdc->index_pulse_count++;
   }
 }
 
