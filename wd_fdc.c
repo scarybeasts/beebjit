@@ -632,8 +632,17 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     }
     break;
   case k_wd_fdc_state_search_data:
-    /* TODO: enforce minumum and maximum bytes for this state. */
     p_fdc->state_count++;
+    /* Like the 8271, the data mark is only recognized if 14 bytes have passed.
+     * Unlike the 8271, it gives up after a while longer.
+     */
+    if (p_fdc->state_count <= 14) {
+      break;
+    }
+    if (p_fdc->state_count == 31) {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+      break;
+    }
     if (clocks != k_ibm_disc_mark_clock_pattern) {
       break;
     }
