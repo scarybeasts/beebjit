@@ -1390,13 +1390,8 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
       p_fdc->shift_register = 3;
       p_fdc->num_shifts = 2;
     } else {
-      /* Restart sync or error as appropriate. */
-      if (p_fdc->state == k_intel_fdc_state_syncing_for_id) {
-        p_fdc->state_count = 0;
-      } else {
-        assert(p_fdc->state == k_intel_fdc_state_syncing_for_data);
-        intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_clock_error);
-      }
+      /* Restart sync. */
+      p_fdc->state_count = 0;
     }
     break;
   case k_intel_fdc_state_check_id_marker:
