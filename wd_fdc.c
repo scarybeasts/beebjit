@@ -200,6 +200,11 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
   /* Reset, active low. */
   if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
+    if (p_fdc->p_current_drive != NULL) {
+      if (is_motor_on) {
+        disc_drive_stop_spinning(p_fdc->p_current_drive);
+      }
+    }
     p_fdc->status_register = 0;
     /* EMU NOTE: on a real machine, the reset condition appears to hold the
      * sector register at 1 but leave track / data alone (and permit changes
