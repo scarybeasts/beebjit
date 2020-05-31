@@ -357,8 +357,14 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     return;
   }
 
+  /* EMU NOTE: this is a very murky area. There does not appear to be a simple
+   * rule here. Whether a command will do anything when busy seems to depend on
+   * the current command, the new command and also the current place in the
+   * internal state machine!
+   */
   if (p_fdc->status_register & k_wd_fdc_status_busy) {
-    util_bail("command while busy");
+    log_do_log(k_log_disc, k_log_warning, "1770: command while busy, ignoring");
+    return;
   }
 
   p_fdc->command = command;
