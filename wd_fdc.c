@@ -340,6 +340,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
       wd_fdc_command_done(p_fdc, 0);
     } else {
       assert(p_fdc->state == k_wd_fdc_state_idle);
+      p_fdc->index_pulse_count = 0;
       p_fdc->command_type = 1;
       p_fdc->status_register &= k_wd_fdc_status_motor_on;
       if (!(p_fdc->status_register & k_wd_fdc_status_motor_on)) {
