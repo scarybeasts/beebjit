@@ -74,6 +74,7 @@ enum {
   k_wd_fdc_state_search_data,
   k_wd_fdc_state_in_data,
   k_wd_fdc_state_in_read_track,
+  k_wd_fdc_state_done,
 };
 
 struct wd_fdc_struct {
@@ -615,7 +616,14 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       /* Unlike the 8271, read address returns just a single record. It is also
        * not synronized to the index pulse.
        */
-      wd_fdc_command_done(p_fdc, 1);
+      /* EMU TODO: it's likely that timing is generally off for most states,
+       * i.e. the 1770 takes various numbers of internal clock cycles before it
+       * delivers the CRC error, before it goes not busy, etc.
+       */
+      /* EMU NOTE: must not clear busy flag right away. The 1770 delivers the
+       * last header byte DRQ separately from lowering the busy flag.
+       */
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_done);
       break;
     }
 
@@ -1019,6 +1027,9 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
       wd_fdc_command_done(p_fdc, 1);
     }
+    break;
+  case k_wd_fdc_state_done:
+    wd_fdc_command_done(p_fdc, 1);
     break;
   default:
     assert(0);
