@@ -451,7 +451,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
 
 uint8_t
 wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
-  uint8_t ret;
+  uint8_t ret = 0;
 
   switch (addr) {
   case 4:
@@ -833,9 +833,9 @@ wd_fdc_bitstream_received(struct wd_fdc_struct* p_fdc,
 
 static void
 wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
-  int state;
-  int step_direction;
   int is_index_pulse;
+  int state = k_wd_fdc_state_null;
+  int step_direction = 0;
 
   struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
