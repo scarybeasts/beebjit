@@ -62,12 +62,16 @@ disc_drive_timer_callback(void* p) {
   struct disc_drive_struct* p_drive = (struct disc_drive_struct*) p;
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
   uint32_t byte_position = p_drive->byte_position;
+  uint32_t track_length = k_ibm_disc_bytes_per_track;
+
+  assert(byte_position < k_disc_max_bytes_per_track);
 
   if (p_disc != NULL) {
     int is_side_upper = p_drive->is_side_upper;
     uint32_t track = p_drive->track;
     uint8_t* p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
     uint8_t* p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
+    track_length = disc_get_track_length(p_disc, is_side_upper, track);
 
     if (byte_position == 0) {
       disc_flush_writes(p_disc);
@@ -102,9 +106,15 @@ disc_drive_timer_callback(void* p) {
                              clocks_byte);
   }
 
-  assert(byte_position < k_ibm_disc_bytes_per_track);
+  assert(track_length < k_disc_max_bytes_per_track);
   byte_position++;
-  if (byte_position == k_ibm_disc_bytes_per_track) {
+  /* TODO: byte_position can end up being larger than track_length if we seek
+   * from a longer track to a shorter one.
+   * This is sort of handled here.
+   * A more correct solution is to treat the bitrate differently for different
+   * track lengths, and calculate byte delivery times more precisely.
+   */
+  if (byte_position >= track_length) {
     byte_position = 0;
   }
   p_drive->byte_position = byte_position;

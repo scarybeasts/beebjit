@@ -13,8 +13,9 @@
 #include <string.h>
 
 struct disc_track {
-  uint8_t data[k_ibm_disc_bytes_per_track];
-  uint8_t clocks[k_ibm_disc_bytes_per_track];
+  uint32_t length;
+  uint8_t data[k_disc_max_bytes_per_track];
+  uint8_t clocks[k_disc_max_bytes_per_track];
 };
 
 struct disc_side {
@@ -31,6 +32,7 @@ struct disc_struct {
   void (*p_write_track_callback)(struct disc_struct* p_disc,
                                  int is_side_upper,
                                  uint32_t track,
+                                 uint32_t length,
                                  uint8_t* p_data,
                                  uint8_t* p_clocks);
 
@@ -161,6 +163,7 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
     data = util_parse_hex2(p_raw_spec + spec_pos);
     clocks = util_parse_hex2(p_raw_spec + spec_pos + 2);
 
+    /* TODO: use disc_build APIs. */
     p_disc->lower_side.tracks[0].data[track_pos] = data;
     p_disc->lower_side.tracks[0].clocks[track_pos] = clocks;
 
@@ -214,6 +217,7 @@ void
 disc_flush_writes(struct disc_struct* p_disc) {
   uint8_t* p_data;
   uint8_t* p_clocks;
+  uint32_t length;
 
   int is_side_upper = p_disc->dirty_side;
   int32_t track = p_disc->dirty_track;
@@ -234,9 +238,11 @@ disc_flush_writes(struct disc_struct* p_disc) {
 
   p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
   p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
+  length = disc_get_track_length(p_disc, is_side_upper, track);
   p_disc->p_write_track_callback(p_disc,
                                  is_side_upper,
                                  track,
+                                 length,
                                  p_data,
                                  p_clocks);
   util_file_flush(p_disc->p_file);
@@ -247,12 +253,16 @@ void
 disc_build_track(struct disc_struct* p_disc,
                  int is_side_upper,
                  uint32_t track) {
+  struct disc_track* p_track;
+
   assert(!p_disc->is_dirty);
   if (is_side_upper) {
-    p_disc->p_track = &p_disc->upper_side.tracks[track];
+    p_track = &p_disc->upper_side.tracks[track];
   } else {
-    p_disc->p_track = &p_disc->lower_side.tracks[track];
+    p_track = &p_disc->lower_side.tracks[track];
   }
+  p_disc->p_track = p_track;
+  p_track->length = k_ibm_disc_bytes_per_track;
   p_disc->build_index = 0;
 }
 
@@ -374,6 +384,24 @@ disc_set_is_double_sided(struct disc_struct* p_disc, int is_double_sided) {
   p_disc->is_double_sided = is_double_sided;
 }
 
+void
+disc_set_track_length(struct disc_struct* p_disc,
+                      int is_side_upper,
+                      uint32_t track,
+                      uint32_t length) {
+  struct disc_track* p_track;
+  if (is_side_upper) {
+    p_track = &p_disc->upper_side.tracks[track];
+  } else {
+    p_track = &p_disc->lower_side.tracks[track];
+  }
+
+  assert(p_track->length == 0);
+  assert(length <= k_disc_max_bytes_per_track);
+  assert(length > 0);
+  p_track->length = length;
+}
+
 int
 disc_is_write_protected(struct disc_struct* p_disc) {
   return !p_disc->is_writeable;
@@ -404,6 +432,20 @@ disc_get_raw_track_clocks(struct disc_struct* p_disc,
   } else {
     return &p_disc->lower_side.tracks[track].clocks[0];
   }
+}
+
+uint32_t
+disc_get_track_length(struct disc_struct* p_disc,
+                      int is_side_upper,
+                      uint32_t track) {
+  struct disc_track* p_track;
+  if (is_side_upper) {
+    p_track = &p_disc->upper_side.tracks[track];
+  } else {
+    p_track = &p_disc->lower_side.tracks[track];
+  }
+
+  return p_track->length;
 }
 
 int

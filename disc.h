@@ -10,6 +10,10 @@ struct bbc_options;
 struct timing_struct;
 struct util_file;
 
+enum {
+  k_disc_max_bytes_per_track = (256 * 13),
+};
+
 struct disc_struct* disc_create(const char* p_filename,
                                 int is_writeable,
                                 int is_mutable,
@@ -24,6 +28,10 @@ struct util_file* disc_get_file(struct disc_struct* p_disc);
 uint8_t* disc_allocate_format_metadata(struct disc_struct* p_disc,
                                        size_t num_bytes);
 void disc_set_is_double_sided(struct disc_struct* p_disc, int is_double_sided);
+void disc_set_track_length(struct disc_struct* p_disc,
+                           int is_side_upper,
+                           uint32_t track,
+                           uint32_t length);
 
 int disc_is_double_sided(struct disc_struct* p_disc);
 int disc_is_write_protected(struct disc_struct* p_disc);
@@ -35,6 +43,9 @@ uint8_t* disc_get_raw_track_data(struct disc_struct* p_disc,
 uint8_t* disc_get_raw_track_clocks(struct disc_struct* p_disc,
                                    int is_side_upper,
                                    uint32_t track);
+uint32_t disc_get_track_length(struct disc_struct* p_disc,
+                               int is_side_upper,
+                               uint32_t track);
 
 void disc_write_byte(struct disc_struct* p_disc,
                      int is_side_upper,

@@ -17,10 +17,14 @@ void
 disc_ssd_write_track(struct disc_struct* p_disc,
                      int is_side_upper,
                      uint32_t track,
+                     uint32_t length,
                      uint8_t* p_data,
                      uint8_t* p_clocks) {
   uint32_t i_sector;
   uint64_t seek_pos;
+
+  (void) length;
+  assert(length == k_ibm_disc_bytes_per_track);
 
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);

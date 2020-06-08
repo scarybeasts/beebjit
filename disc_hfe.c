@@ -72,13 +72,14 @@ void
 disc_hfe_write_track(struct disc_struct* p_disc,
                      int is_side_upper,
                      uint32_t track,
+                     uint32_t length,
                      uint8_t* p_data,
                      uint8_t* p_clocks) {
   uint32_t hfe_track_offset;
   uint32_t hfe_track_len;
   uint32_t i_byte;
   uint32_t metadata_index;
-  uint8_t buffer[(k_ibm_disc_bytes_per_track * 4) + 3];
+  uint8_t buffer[(k_disc_max_bytes_per_track * 4) + 3];
   uint8_t hfe_chunk[256];
 
   struct util_file* p_file = disc_get_file(p_disc);
@@ -95,7 +96,7 @@ disc_hfe_write_track(struct disc_struct* p_disc,
     buffer[2] = disc_hfe_byte_flip(72);
     buffer_index += 3;
   }
-  for (i_byte = 0; i_byte < k_ibm_disc_bytes_per_track; ++i_byte) {
+  for (i_byte = 0; i_byte < length; ++i_byte) {
     uint8_t data = p_data[i_byte];
     uint8_t clocks = p_clocks[i_byte];
     if ((version == 3) && (data == 0) && (clocks == 0)) {
@@ -258,9 +259,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
       int bit = 0;
 
       p_data = disc_get_raw_track_data(p_disc, i_side, i_track);
-      (void) memset(p_data, '\0', k_ibm_disc_bytes_per_track);
       p_clocks = disc_get_raw_track_clocks(p_disc, i_side, i_track);
-      (void) memset(p_clocks, '\0', k_ibm_disc_bytes_per_track);
 
       for (i_byte = 0; i_byte < buf_len; ++i_byte) {
         uint32_t i;
@@ -269,7 +268,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
 
         uint32_t num_bits = 8;
 
-        if (bytes_written == k_ibm_disc_bytes_per_track) {
+        if (bytes_written == k_disc_max_bytes_per_track) {
           break;
         }
 
@@ -367,6 +366,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
           shift_counter = 0;
         }
       }
+      disc_set_track_length(p_disc, i_side, i_track, bytes_written);
     }
   }
 
@@ -431,6 +431,10 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     uint8_t* p_data;
     uint8_t* p_clocks;
     uint32_t index = (i_track * 4);
+
+    assert(disc_get_track_length(p_disc, 0, i_track) ==
+           k_ibm_disc_bytes_per_track);
+
     p_metadata[index] = (hfe_offset & 0xFF);
     p_metadata[index + 1] = (hfe_offset >> 8);
     p_metadata[index + 2] = (hfe_track_len & 0xFF);
@@ -438,11 +442,21 @@ disc_hfe_convert(struct disc_struct* p_disc) {
 
     p_data = disc_get_raw_track_data(p_disc, 0, i_track);
     p_clocks = disc_get_raw_track_clocks(p_disc, 0, i_track);
-    disc_hfe_write_track(p_disc, 0, i_track, p_data, p_clocks);
+    disc_hfe_write_track(p_disc,
+                         0,
+                         i_track,
+                         k_ibm_disc_bytes_per_track,
+                         p_data,
+                         p_clocks);
     if (is_double_sided) {
       p_data = disc_get_raw_track_data(p_disc, 1, i_track);
       p_clocks = disc_get_raw_track_clocks(p_disc, 1, i_track);
-      disc_hfe_write_track(p_disc, 1, i_track, p_data, p_clocks);
+      disc_hfe_write_track(p_disc,
+                           1,
+                           i_track,
+                           k_ibm_disc_bytes_per_track,
+                           p_data,
+                           p_clocks);
     }
 
     hfe_offset += hfe_offset_delta;
