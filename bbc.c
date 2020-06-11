@@ -621,6 +621,9 @@ bbc_write_callback(void* p,
   case (k_addr_serial_ula + 4):
     serial_ula_write(p_bbc->p_serial, val);
     break;
+  case (k_addr_master_adc + 0):
+  case (k_addr_master_adc + 4):
+    log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
