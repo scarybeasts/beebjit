@@ -24,6 +24,7 @@ struct disc_side {
 
 struct disc_struct {
   int log_protection;
+  int expand_to_80;
 
   char* p_file_name;
   struct util_file* p_file;
@@ -64,6 +65,8 @@ disc_create(const char* p_file_name,
 
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
+  p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
+                                         "disc:expand-to-80");
   p_disc->p_file_name = util_strdup(p_file_name);
   p_disc->p_file = NULL;
   p_disc->is_dirty = 0;
@@ -86,7 +89,7 @@ disc_create(const char* p_file_name,
   } else if (util_is_extension(p_file_name, "log")) {
     disc_fsd_load(p_disc, 0, p_disc->log_protection);
   } else if (util_is_extension(p_file_name, "hfe")) {
-    disc_hfe_load(p_disc);
+    disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
     is_hfe = 1;
   } else {

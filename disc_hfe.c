@@ -146,7 +146,7 @@ disc_hfe_write_track(struct disc_struct* p_disc,
 }
 
 void
-disc_hfe_load(struct disc_struct* p_disc) {
+disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   /* HFE (v1?):
    * https://hxc2001.com/download/floppy_drive_emulator/SDCard_HxC_Floppy_Emulator_HFE_file_format.pdf
    */
@@ -162,6 +162,7 @@ disc_hfe_load(struct disc_struct* p_disc) {
   struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = 0;
   int is_v3 = 0;
+  uint32_t expand_multiplier = 1;
 
   assert(p_file != NULL);
 
@@ -213,6 +214,9 @@ disc_hfe_load(struct disc_struct* p_disc) {
   if (hfe_tracks > k_ibm_disc_tracks_per_disc) {
     util_bail("hfe excessive tracks");
   }
+  if (expand_to_80 && ((hfe_tracks * 2) <= k_ibm_disc_tracks_per_disc)) {
+    expand_multiplier = 2;
+  }
 
   lut_offset = (p_file_buf[18] + (p_file_buf[19] << 8));
   lut_offset *= 512;
@@ -258,8 +262,12 @@ disc_hfe_load(struct disc_struct* p_disc) {
       uint32_t bit_counter = 0;
       int bit = 0;
 
-      p_data = disc_get_raw_track_data(p_disc, i_side, i_track);
-      p_clocks = disc_get_raw_track_clocks(p_disc, i_side, i_track);
+      p_data = disc_get_raw_track_data(p_disc,
+                                       i_side,
+                                       (i_track * expand_multiplier));
+      p_clocks = disc_get_raw_track_clocks(p_disc,
+                                           i_side,
+                                           (i_track * expand_multiplier));
 
       for (i_byte = 0; i_byte < buf_len; ++i_byte) {
         uint32_t i;
@@ -366,7 +374,10 @@ disc_hfe_load(struct disc_struct* p_disc) {
           shift_counter = 0;
         }
       }
-      disc_set_track_length(p_disc, i_side, i_track, bytes_written);
+      disc_set_track_length(p_disc,
+                            i_side,
+                            (i_track * expand_multiplier),
+                            bytes_written);
     }
   }
 
