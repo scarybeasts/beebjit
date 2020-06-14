@@ -23,13 +23,15 @@ enum {
   k_wd_fdc_command_read_address = 0xC0,
   k_wd_fdc_command_force_interrupt = 0xD0,
   k_wd_fdc_command_read_track = 0xE0,
+  k_wd_fdc_command_write_track = 0xF0,
 };
 
 enum {
+  k_wd_fdc_command_bit_type_II_multi = 0x10,
   k_wd_fdc_command_bit_disable_spin_up = 0x08,
   k_wd_fdc_command_bit_type_I_verify = 0x04,
   k_wd_fdc_command_bit_type_II_III_settle = 0x04,
-  k_wd_fdc_command_bit_type_II_multi = 0x10,
+  k_wd_fdc_command_bit_type_II_deleted = 0x01,
 };
 
 /* The drive control register is documented here:
@@ -74,6 +76,10 @@ enum {
   k_wd_fdc_state_search_data,
   k_wd_fdc_state_in_data,
   k_wd_fdc_state_in_read_track,
+  k_wd_fdc_state_write_sector,
+  k_wd_fdc_state_write_track_setup,
+  k_wd_fdc_state_in_write_track,
+  k_wd_fdc_state_check_multi,
   k_wd_fdc_state_done,
 };
 
@@ -96,12 +102,14 @@ struct wd_fdc_struct {
   struct disc_drive_struct* p_current_drive;
   int is_index_pulse;
   int is_interrupt_on_index_pulse;
+  int is_write_track_crc_second_byte;
   uint8_t command;
   uint8_t command_type;
   int is_command_settle;
   int is_command_write;
   int is_command_verify;
   int is_command_multi;
+  int is_command_deleted;
   uint32_t command_step_ticks;
   uint32_t state;
   uint32_t state_count;
@@ -374,7 +382,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->is_command_write = 0;
   p_fdc->is_command_verify = 0;
   p_fdc->is_command_multi = 0;
+  p_fdc->is_command_deleted = 0;
   p_fdc->is_interrupt_on_index_pulse = 0;
+  p_fdc->is_write_track_crc_second_byte = 0;
 
   switch (command) {
   case k_wd_fdc_command_restore:
@@ -408,6 +418,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     break;
   case k_wd_fdc_command_read_address:
   case k_wd_fdc_command_read_track:
+  case k_wd_fdc_command_write_track:
     p_fdc->command_type = 3;
     break;
   default:
@@ -419,8 +430,10 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->is_command_settle = 1;
   }
   if ((p_fdc->command == k_wd_fdc_command_write_sector) ||
-      (p_fdc->command == k_wd_fdc_command_write_sector_multi)) {
+      (p_fdc->command == k_wd_fdc_command_write_sector_multi) ||
+      (p_fdc->command == k_wd_fdc_command_write_track)) {
     p_fdc->is_command_write = 1;
+    p_fdc->is_command_deleted = (val & k_wd_fdc_command_bit_type_II_deleted);
   }
 
   /* All commands except force interrupt (handled above):
@@ -516,6 +529,9 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
     p_fdc->sector_register = val;
     break;
   case 7:
+    if ((p_fdc->command_type == 2) || (p_fdc->command_type == 3)) {
+      wd_fdc_set_drq(p_fdc, 0);
+    }
     p_fdc->data_register = val;
     break;
   default:
@@ -647,6 +663,8 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     }
     if (command_type == 1) {
       wd_fdc_command_done(p_fdc, 1);
+    } else if (p_fdc->is_command_write) {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector);
     } else {
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_data);
     }
@@ -713,13 +731,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
       wd_fdc_command_done(p_fdc, 1);
       break;
     }
-    if (p_fdc->is_command_multi) {
-      p_fdc->sector_register++;
-      p_fdc->index_pulse_count = 0;
-      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
-    } else {
-      wd_fdc_command_done(p_fdc, 1);
-    }
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_check_multi);
     break;
   case k_wd_fdc_state_in_read_track:
     if (!is_index_pulse_positive_edge) {
@@ -906,7 +918,8 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->state_count++;
       break;
     }
-    if (p_fdc->is_command_write) {
+    if (p_fdc->is_command_write &&
+        disc_drive_is_write_protect(p_current_drive)) {
       p_fdc->status_register |= k_wd_fdc_status_write_protected;
       wd_fdc_command_done(p_fdc, 1);
       break;
@@ -933,6 +946,10 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     case k_wd_fdc_command_read_track:
       state = k_wd_fdc_state_wait_index;
+      p_fdc->index_pulse_count = 0;
+      break;
+    case k_wd_fdc_command_write_track:
+      state = k_wd_fdc_state_write_track_setup;
       p_fdc->index_pulse_count = 0;
       break;
     default:
@@ -1027,6 +1044,121 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       p_fdc->status_register |= k_wd_fdc_status_record_not_found;
       wd_fdc_command_done(p_fdc, 1);
     }
+    break;
+  case k_wd_fdc_state_write_sector:
+    /* Following the data sheet here for byte-by-byte behavior. */
+    if (p_fdc->state_count < 12) {
+      if (p_fdc->state_count == 0) {
+        p_fdc->index_pulse_count = 0;
+        p_fdc->crc = ibm_disc_format_crc_init();
+      } else if (p_fdc->state_count == 2) {
+        wd_fdc_set_drq(p_fdc, 1);
+      } else if ((p_fdc->state_count == 11) &&
+                 (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq)) {
+        p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
+        wd_fdc_command_done(p_fdc, 1);
+      }
+    } else if (p_fdc->state_count < 18) {
+      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
+    } else if (p_fdc->state_count == 18) {
+      data_byte = k_ibm_disc_data_mark_data_pattern;
+      if (p_fdc->is_command_deleted) {
+        data_byte = k_ibm_disc_deleted_data_mark_data_pattern;
+      }
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+      disc_drive_write_byte(p_current_drive,
+                            data_byte,
+                            k_ibm_disc_mark_clock_pattern);
+    } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length)) {
+      data_byte = p_fdc->data_register;
+      if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
+        data_byte = 0;
+        p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
+        /* EMU NOTE: doesn't terminate command, like it would on the 8271. */
+      }
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+      disc_drive_write_byte(p_current_drive, data_byte, 0xFF);
+      if (p_fdc->state_count != (18 + 1 + p_fdc->on_disc_length - 1)) {
+        wd_fdc_set_drq(p_fdc, 1);
+      }
+    } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length + 2)) {
+      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      p_fdc->crc <<= 8;
+    } else {
+      disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_check_multi);
+    }
+    p_fdc->state_count++;
+    break;
+  case k_wd_fdc_state_check_multi:
+    if (p_fdc->is_command_multi) {
+      p_fdc->sector_register++;
+      p_fdc->index_pulse_count = 0;
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    } else {
+      wd_fdc_command_done(p_fdc, 1);
+    }
+    break;
+  case k_wd_fdc_state_write_track_setup:
+    if (p_fdc->state_count == 0) {
+      p_fdc->index_pulse_count = 0;
+      wd_fdc_set_drq(p_fdc, 1);
+    } else if (p_fdc->state_count == 3) {
+      if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
+        p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
+        wd_fdc_command_done(p_fdc, 1);
+      } else {
+        wd_fdc_set_state(p_fdc, k_wd_fdc_state_in_write_track);
+        break;
+      }
+    }
+    p_fdc->state_count++;
+    break;
+  case k_wd_fdc_state_in_write_track:
+    if ((p_fdc->state_count == 0) && !is_index_pulse_positive_edge) {
+      break;
+    }
+    if (is_index_pulse_positive_edge && (p_fdc->state_count > 0)) {
+      wd_fdc_command_done(p_fdc, 1);
+      break;
+    }
+    if (p_fdc->is_write_track_crc_second_byte) {
+      disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
+      p_fdc->is_write_track_crc_second_byte = 0;
+      wd_fdc_set_drq(p_fdc, 1);
+      break;
+    }
+    clocks_byte = 0xFF;
+    data_byte = p_fdc->data_register;
+    if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
+      data_byte = 0;
+      p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
+    }
+    /* TODO: 0xF5 and 0xF6 are "not allowed", wtf? */
+    switch (data_byte) {
+    case 0xF8:
+    case 0xF9:
+    case 0xFA:
+    case 0xFB:
+    case 0xFE:
+      clocks_byte = 0xC7;
+      p_fdc->crc = ibm_disc_format_crc_init();
+      break;
+    case 0xFC:
+      clocks_byte = 0xD7;
+      break;
+    default:
+      break;
+    }
+    if (data_byte == 0xF7) {
+      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      p_fdc->is_write_track_crc_second_byte = 1;
+    } else {
+      disc_drive_write_byte(p_current_drive, data_byte, clocks_byte);
+      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+      wd_fdc_set_drq(p_fdc, 1);
+    }
+    p_fdc->state_count++;
     break;
   case k_wd_fdc_state_done:
     wd_fdc_command_done(p_fdc, 1);
