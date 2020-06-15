@@ -1135,8 +1135,16 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       data_byte = 0;
       p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
     }
-    /* TODO: 0xF5 and 0xF6 are "not allowed", wtf? */
     switch (data_byte) {
+    case 0xF5:
+    case 0xF6:
+      /* EMU NOTE: these are documented as "not allowed" in FM mode. They
+       * actually write 0xA1 / 0xC2 respectively, as per MFM, but it's not
+       * known whether any clock bits are omitted, or whether CRC is preset,
+       * so bailing for now rather than guesing.
+       */
+      util_bail("not allowed FM byte");
+      break;
     case 0xF8:
     case 0xF9:
     case 0xFA:
