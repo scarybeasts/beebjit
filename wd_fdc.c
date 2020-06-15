@@ -505,8 +505,9 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
                  "1770: control register now $%.2X",
                  val);
     }
-    if (p_fdc->status_register & k_wd_fdc_status_busy) {
-      util_bail("control register updated while busy");
+    if ((p_fdc->status_register & k_wd_fdc_status_busy) &&
+        (val & k_wd_fdc_control_reset)) {
+      util_bail("control register updated while busy, without reset");
     }
     wd_fdc_write_control(p_fdc, val);
     break;
