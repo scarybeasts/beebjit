@@ -1,31 +1,15 @@
 #ifndef BEEBJIT_UTIL_H
 #define BEEBJIT_UTIL_H
 
-struct util_file_map_struct;
-
+#include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 
 /* Memory. */
+void* util_malloc(size_t size);
 void* util_mallocz(size_t size);
 void util_free(void* p);
-
-/* Memory mapping. */
-/* TODO: this should be in os_mapping.h because Windows will be different. */
-intptr_t util_get_memory_handle(size_t size);
-void* util_get_guarded_mapping(void* p_addr, size_t size);
-void* util_get_guarded_mapping_from_handle(intptr_t handle,
-                                           void* p_addr,
-                                           size_t size);
-void util_free_guarded_mapping(void* p_addr, size_t size);
-void util_make_mapping_read_only(void* p_addr, size_t size);
-void util_make_mapping_read_write(void* p_addr, size_t size);
-void util_make_mapping_read_write_exec(void* p_addr, size_t size);
-void util_make_mapping_none(void* p_addr, size_t size);
-void* util_get_fixed_anonymous_mapping(void* p_addr, size_t size);
-void* util_get_fixed_mapping_from_handle(intptr_t handle,
-                                         void* p_addr,
-                                         size_t size);
+char* util_strdup(const char* p_str);
+char* util_strdup2(const char* p_str1, const char* p_str2);
 
 /* Buffer. */
 struct util_buffer;
@@ -56,55 +40,46 @@ void util_buffer_add_5b(struct util_buffer* p_buf,
                         int b3,
                         int b4,
                         int b5);
-void util_buffer_add_int(struct util_buffer* p_buf, ssize_t i);
+void util_buffer_add_int(struct util_buffer* p_buf, int64_t i);
 void util_buffer_add_chunk(struct util_buffer* p_buf, void* p_src, size_t size);
 void util_buffer_fill_to_end(struct util_buffer* p_buf, char value);
 void util_buffer_fill(struct util_buffer* p_buf, char value, size_t len);
 
 /* File. */
+struct util_file;
+
 int util_is_extension(const char* p_name, const char* p_ext);
 enum {
   k_util_file_no_handle = -1,
 };
-intptr_t util_file_handle_open(const char* p_file_name,
-                               int writeable,
-                               int create);
-void util_file_handle_close(intptr_t handle);
-uint64_t util_file_handle_get_size(intptr_t handle);
-void util_file_handle_seek(intptr_t handle, uint64_t pos);
-void util_file_handle_write(intptr_t handle,
-                            const void* p_buf,
-                            uint64_t length);
-size_t util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length);
 
-size_t util_file_read_fully(uint8_t* p_buf,
-                            size_t max_size,
-                            const char* p_file_name);
+struct util_file* util_file_open(const char* p_file_name,
+                                 int writeable,
+                                 int create);
+void util_file_close(struct util_file* p_file);
+uint64_t util_file_get_pos(struct util_file* p_file);
+uint64_t util_file_get_size(struct util_file* p_file);
+void util_file_seek(struct util_file* p_file, uint64_t pos);
+uint64_t util_file_read(struct util_file* p_file, void* p_buf, uint64_t length);
+void util_file_write(struct util_file* p_file,
+                     const void* p_buf,
+                     uint64_t length);
+void util_file_flush(struct util_file* p_file);
+
+uint64_t util_file_read_fully(const char* p_file_name,
+                              uint8_t* p_buf,
+                              uint64_t max_size);
 void util_file_write_fully(const char* p_file_name,
                            const uint8_t* p_buf,
-                           size_t size);
-struct util_file_map* util_file_map(const char* p_file_name,
-                                    size_t max_size,
-                                    int writeable);
-void* util_file_map_get_ptr(struct util_file_map* p_map);
-size_t util_file_map_get_size(struct util_file_map* p_map);
-void util_file_unmap(struct util_file_map* p_map);
+                           uint64_t size);
+void util_file_copy(const char* p_src_file_name, const char* p_dst_file_name);
 
 /* Miscellaneous handle I/O. */
 intptr_t util_get_stdin_handle();
 intptr_t util_get_stdout_handle();
-void util_make_handle_unbuffered(intptr_t handle);
-size_t util_get_handle_readable_bytes(intptr_t handle);
 uint8_t util_handle_read_byte(intptr_t handle);
 void util_handle_write_byte(intptr_t handle, uint8_t val);
-
-/* Timing. */
-/* These quantities are in microseconds. */
-uint64_t util_gettime_us();
-void util_sleep_us(uint64_t us);
-
-/* Channels. */
-void util_get_channel_fds(int* fd1, int* fd2);
+void util_handle_close(intptr_t handle);
 
 /* Options. */
 int util_get_u32_option(uint32_t* p_opt_out,
@@ -114,5 +89,10 @@ int util_get_str_option(char** p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);
 int util_has_option(const char* p_opt_str, const char* p_opt_name);
+
+/* Misc. */
+void util_bail(const char* p_msg, ...) __attribute__((format(printf, 1, 2)));
+void util_set_interrupt_callback(void (*p_interrupt_callback)(void));
+uint8_t util_parse_hex2(const char* p_str);
 
 #endif /* BEEBJIT_UTIL_H */

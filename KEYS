@@ -1,0 +1,30 @@
+Knowing the keyboard is very important to using the BBC, and also to knowing
+how to use some important features of beebjit.
+
+General notes on modern keyboards
+=================================
+
+- To press a function key, such as F1, you often need to press Fn + F1.
+
+
+BBC keys
+========
+
+- BBC Break is mapped to F12
+- BBC F0 is mapped to F10
+- BBC @ is mapped to `
+- BBC Copy is mapped to End
+- BBC underscore / pound is mapped to PgUp
+- BBC Shift Lock is mapped to "windows key"
+
+
+beebjit special keys
+====================
+
+- Alt-F: toggle turbo mode on / off
+- Alt-0: cycle across disc list and an empty drive in drive 0
+- Alt-1: cycle across disc list and an empty drive in drive 0
+- Alt-T: cycle across tape list and a blank tape in the tape player
+- Alt-R: power-on reset
+- Alt-E: exit any in-progress replay
+- Alt-Z: rewind 5 seconds if there is any in-progress capture or replay

@@ -5,11 +5,9 @@
 #include "sound.h"
 #include "state_6502.h"
 #include "timing.h"
+#include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_via_ORB =   0x0,
@@ -49,6 +47,8 @@ struct via_struct {
 
   void (*p_CB2_changed_callback)(void* p, int level, int output);
   void* p_CB2_changed_object;
+  void (*p_timing_advancer)(void* p, uint64_t ticks);
+  void* p_timing_advancer_object;
 
   uint8_t IRA;
   uint8_t IRB;
@@ -262,7 +262,7 @@ via_t2_fired(void* p) {
 }
 
 static int
-via_is_t1_firing(struct via_struct* p_via) {
+via_is_t1_firing(struct via_struct* p_via, int32_t ticks_add) {
   int32_t val;
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t timer_id = p_via->t1_timer_id;
@@ -271,11 +271,11 @@ via_is_t1_firing(struct via_struct* p_via) {
   }
 
   val = via_get_t1c_raw(p_via);
-  return (val == -1);
+  return ((val - ticks_add) == -1);
 }
 
 static int
-via_is_t2_firing(struct via_struct* p_via) {
+via_is_t2_firing(struct via_struct* p_via, int32_t ticks_add) {
   int32_t val;
   struct timing_struct* p_timing = p_via->p_timing;
   uint32_t timer_id = p_via->t2_timer_id;
@@ -284,7 +284,7 @@ via_is_t2_firing(struct via_struct* p_via) {
   }
 
   val = via_get_t2c_raw(p_via);
-  return (val == -1);
+  return ((val - ticks_add) == -1);
 }
 
 struct via_struct*
@@ -292,25 +292,29 @@ via_create(int id,
            int externally_clocked,
            struct timing_struct* p_timing,
            struct bbc_struct* p_bbc) {
-  uint32_t t1_timer_id;
-  uint32_t t2_timer_id;
-
-  struct via_struct* p_via = malloc(sizeof(struct via_struct));
-
-  if (p_via == NULL) {
-    errx(1, "cannot allocate via_struct");
-  }
-  (void) memset(p_via, '\0', sizeof(struct via_struct));
+  struct via_struct* p_via = util_mallocz(sizeof(struct via_struct));
 
   p_via->id = id;
   p_via->externally_clocked = externally_clocked;
   p_via->p_bbc = p_bbc;
   p_via->p_timing = p_timing;
 
-  t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
-  t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
-  p_via->t1_timer_id = t1_timer_id;
-  p_via->t2_timer_id = t2_timer_id;
+  p_via->t1_timer_id = timing_register_timer(p_timing, via_t1_fired, p_via);
+  p_via->t2_timer_id = timing_register_timer(p_timing, via_t2_fired, p_via);
+
+  return p_via;
+}
+
+void
+via_destroy(struct via_struct* p_via) {
+  util_free(p_via);
+}
+
+void
+via_power_on_reset(struct via_struct* p_via) {
+  struct timing_struct* p_timing = p_via->p_timing;
+  uint32_t t1_timer_id = p_via->t1_timer_id;
+  uint32_t t2_timer_id = p_via->t2_timer_id;
 
   /* EMU NOTE:
    * We initialize the OR* / DDR* registers to 0. This matches jsbeeb and
@@ -324,6 +328,15 @@ via_create(int id,
   p_via->DDRB = 0;
   p_via->ORA = 0;
   p_via->ORB = 0;
+  p_via->SR = 0;
+  p_via->ACR = 0;
+  p_via->PCR = 0;
+  p_via->IFR = 0;
+  p_via->IER = 0;
+  p_via->CA1 = 0;
+  p_via->CA2 = 0;
+  p_via->CB1 = 0;
+  p_via->CB2 = 0;
   /* EMU: the input registers seem to be initialized to 0xFF on a real
    * machine.
    */
@@ -336,17 +349,16 @@ via_create(int id,
   p_via->peripheral_a = 0xFF;
   p_via->peripheral_b = 0xFF;
 
-  via_set_t1c(p_via, 0xFFFF);
-  p_via->T1L = 0xFFFF;
-  via_set_t2c(p_via, 0xFFFF);
-  p_via->T2L = 0xFFFF;
-
   /* EMU NOTE: needs to be initialized to 1 otherwise Planetoid doesn't run. */
   p_via->t1_pb7 = 1;
 
-  if (!externally_clocked) {
-    timing_start_timer(p_timing, t1_timer_id);
-    timing_start_timer(p_timing, t2_timer_id);
+  if (!p_via->externally_clocked) {
+    if (!timing_timer_is_running(p_timing, t1_timer_id)) {
+      timing_start_timer(p_timing, t1_timer_id);
+    }
+    if (!timing_timer_is_running(p_timing, t2_timer_id)) {
+      timing_start_timer(p_timing, t2_timer_id);
+    }
   }
 
   /* From the above data sheet:
@@ -358,12 +370,13 @@ via_create(int id,
   timing_set_firing(p_timing, t1_timer_id, 0);
   timing_set_firing(p_timing, t2_timer_id, 0);
 
-  return p_via;
-}
-
-void
-via_destroy(struct via_struct* p_via) {
-  free(p_via);
+  /* EMU: the counter values appear to be quasi-random on a real machine, but
+   * we'll initialize them to 0xFFFF for deterministic behavior.
+   */
+  via_set_t1c(p_via, 0xFFFF);
+  p_via->T1L = 0xFFFF;
+  via_set_t2c(p_via, 0xFFFF);
+  p_via->T2L = 0xFFFF;
 }
 
 void
@@ -373,6 +386,14 @@ via_set_CB2_changed_callback(struct via_struct* p_via,
                              void* p_CB2_changed_object) {
   p_via->p_CB2_changed_callback = p_CB2_changed_callback;
   p_via->p_CB2_changed_object = p_CB2_changed_object;
+}
+
+void
+via_set_timing_advancer(struct via_struct* p_via,
+                        void (*p_timing_advancer)(void* p, uint64_t ticks),
+                        void* p_timing_advancer_object) {
+  p_via->p_timing_advancer = p_timing_advancer;
+  p_via->p_timing_advancer_object = p_timing_advancer_object;
 }
 
 static void
@@ -519,20 +540,26 @@ via_update_port_b(struct via_struct* p_via) {
   }
 }
 
+static void
+via_advance_ticks(struct via_struct* p_via, uint64_t ticks) {
+  p_via->p_timing_advancer(p_via->p_timing_advancer_object, ticks);
+}
+
 uint8_t
 via_read(struct via_struct* p_via, uint8_t reg) {
   uint8_t orb;
   uint8_t ddrb;
   uint8_t port_val;
-  uint8_t val;
   int32_t t1_val;
   int32_t t2_val;
+  uint8_t ret;
 
-  /* We're at the VIA start-cycle. Will T1/T2 interrupt fire at the mid cycle?
+  /* Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
-  int t1_firing = via_is_t1_firing(p_via);
-  int t2_firing = via_is_t2_firing(p_via);
+  uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
+  int t1_firing = via_is_t1_firing(p_via, ticks);
+  int t2_firing = via_is_t2_firing(p_via, ticks);
 
   /* Advance to the VIA mid-cycle.
    * EMU NOTE: do this first before processing the read. Interrupts fire at
@@ -540,9 +567,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  (void) timing_advance_time_delta(p_via->p_timing, 1);
-
-  assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
+  via_advance_ticks(p_via, (ticks + 1));
 
   t1_val = via_get_t1c(p_via);
   if (t1_firing) {
@@ -560,23 +585,23 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     /* A read of VIA port B mixes input and output as indicated by DDRB. */
     orb = p_via->ORB;
     ddrb = p_via->DDRB;
-    val = (orb & ddrb);
+    ret = (orb & ddrb);
     if (p_via->ACR & 0x02) {
       port_val = p_via->IRB;
     } else {
       port_val = via_calculate_port_b(p_via);
     }
-    val |= (port_val & ~ddrb);
+    ret |= (port_val & ~ddrb);
 
     /* EMU NOTE: PB7 toggling is actually a mix-in of a separately maintained
      * bit, and it's mixed in to both IRB and ORB.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=16081
      */
     if (p_via->ACR & 0x80) {
-      val &= 0x7F;
-      val |= (p_via->t1_pb7 << 7);
+      ret &= 0x7F;
+      ret |= (p_via->t1_pb7 << 7);
     }
-    return val;
+    break;
   case k_via_ORA:
     assert((p_via->PCR & 0x0A) != 0x02);
     via_clear_interrupt(p_via, k_int_CA1);
@@ -587,48 +612,65 @@ via_read(struct via_struct* p_via, uint8_t reg) {
      * levels at the last latch, regardless of input vs. output configuration.
      */
     if (p_via->ACR & 0x01) {
-      val = p_via->IRA;
+      ret = p_via->IRA;
     } else {
-      val = via_calculate_port_a(p_via);
+      ret = via_calculate_port_a(p_via);
     }
-    return val;
+    break;
   case k_via_DDRB:
-    return p_via->DDRB;
+    ret = p_via->DDRB;
+    break;
   case k_via_DDRA:
-    return p_via->DDRA;
+    ret = p_via->DDRA;
+    break;
   case k_via_T1CL:
     if (!t1_firing) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
-    return (((uint16_t) t1_val) & 0xFF);
+    ret = (((uint16_t) t1_val) & 0xFF);
+    break;
   case k_via_T1CH:
-    return (((uint16_t) t1_val) >> 8);
+    ret = (((uint16_t) t1_val) >> 8);
+    break;
   case k_via_T1LL:
-    return (p_via->T1L & 0xFF);
+    ret = (p_via->T1L & 0xFF);
+    break;
   case k_via_T1LH:
-    return (p_via->T1L >> 8);
+    ret = (p_via->T1L >> 8);
+    break;
   case k_via_T2CL:
     if (!t2_firing) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
-    return (((uint16_t) t2_val) & 0xFF);
+    ret = (((uint16_t) t2_val) & 0xFF);
+    break;
   case k_via_T2CH:
-    return (((uint16_t) t2_val) >> 8);
+    ret = (((uint16_t) t2_val) >> 8);
+    break;
   case k_via_SR:
-    return p_via->SR;
+    ret = p_via->SR;
+    break;
   case k_via_ACR:
-    return p_via->ACR;
+    ret = p_via->ACR;
+    break;
   case k_via_PCR:
-    return p_via->PCR;
+    ret = p_via->PCR;
+    break;
   case k_via_IFR:
-    return p_via->IFR;
+    ret = p_via->IFR;
+    break;
   case k_via_IER:
-    return (p_via->IER | 0x80);
+    ret = (p_via->IER | 0x80);
+    break;
   default:
+    assert(0);
+    ret = 0;
     break;
   }
-  assert(0);
-  return 0;
+
+  via_advance_ticks(p_via, 1);
+
+  return ret;
 }
 
 static void
@@ -646,11 +688,12 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t t1_val;
   int32_t t2_val;
 
-  /* We're at the VIA start-cycle. Will T1/T2 interrupt fire at the mid cycle?
+  /* Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
-  int t1_firing = via_is_t1_firing(p_via);
-  int t2_firing = via_is_t2_firing(p_via);
+  uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
+  int t1_firing = via_is_t1_firing(p_via, ticks);
+  int t2_firing = via_is_t2_firing(p_via, ticks);
   struct timing_struct* p_timing = p_via->p_timing;
 
   /* TODO: the way things have worked out, it looks like we'll have less
@@ -658,9 +701,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
    * likely be less fixing up that way around.
    */
   /* Advance to the VIA mid-cycle. */
-  (void) timing_advance_time_delta(p_timing, 1);
-
-  assert(state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
+  via_advance_ticks(p_via, (ticks + 1));
 
   /* This is a bit subtle but we need to read the T1C value in order to force
    * the deferred calculation of timer value for one shot timers that have shot.
@@ -832,6 +873,8 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     assert(0);
     break;
   }
+
+  via_advance_ticks(p_via, 1);
 }
 
 void

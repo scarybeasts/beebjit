@@ -2,22 +2,14 @@
 
 #include "defs_6502.h"
 #include "timing.h"
+#include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 struct state_6502*
 state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
-  struct state_6502* p_state_6502 = malloc(sizeof(struct state_6502));
-  if (p_state_6502 == NULL) {
-    errx(1, "couldn't allocate state_6502");
-  }
+  struct state_6502* p_state_6502 = util_mallocz(sizeof(struct state_6502));
 
-  (void) memset(p_state_6502, '\0', sizeof(struct state_6502));
-
-  p_state_6502->reset_pending = 0;
   p_state_6502->p_mem_read = p_mem_read;
   p_state_6502->p_timing = p_timing;
   p_state_6502->ticks_baseline = 0;
@@ -27,7 +19,7 @@ state_6502_create(struct timing_struct* p_timing, uint8_t* p_mem_read) {
 
 void
 state_6502_destroy(struct state_6502* p_state_6502) {
-  free(p_state_6502);
+  util_free(p_state_6502);
 }
 
 void
@@ -140,6 +132,12 @@ state_6502_irq_is_edge_triggered(int irq) {
   return 0;
 }
 
+int
+state_6502_get_irq_level(struct state_6502* p_state_6502, int irq) {
+  int irq_value = (1 << irq);
+  return !!(p_state_6502->irq_high & irq_value);
+}
+
 void
 state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
   int irq_value = (1 << irq);
@@ -183,20 +181,4 @@ state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
   assert(fire);
 
   p_state_6502->irq_fire &= ~irq_value;
-}
-
-void
-state_6502_set_reset_pending(struct state_6502* p_state_6502) {
-  p_state_6502->reset_pending = 1;
-}
-
-int
-state_6502_check_and_do_reset(struct state_6502* p_state_6502) {
-  int ret = p_state_6502->reset_pending;
-
-  p_state_6502->reset_pending = 0;
-  if (ret) {
-    state_6502_reset(p_state_6502);
-  }
-  return ret;
 }

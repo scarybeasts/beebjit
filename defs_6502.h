@@ -12,23 +12,23 @@ enum {
 };
 
 enum {
-  k_6502_op_num_types = 66,
+  k_6502_op_num_types = 71,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 14,
 };
 
-const char* g_p_opnames[k_6502_op_num_types];
-uint8_t g_optypes[k_6502_op_num_opcodes];
-uint8_t g_opmodes[k_6502_op_num_opcodes];
-uint8_t g_opcycles[k_6502_op_num_opcodes];
-uint8_t g_opmodelens[k_6502_op_num_modes];
-uint8_t g_opmem[k_6502_op_num_types];
-uint8_t g_opbranch[k_6502_op_num_types];
-uint8_t g_optype_uses_carry[k_6502_op_num_types];
-uint8_t g_optype_changes_nz_flags[k_6502_op_num_types];
-uint8_t g_optype_changes_carry[k_6502_op_num_types];
-uint8_t g_optype_changes_overflow[k_6502_op_num_types];
-uint8_t g_optype_sets_register[k_6502_op_num_types];
+extern const char* g_p_opnames[k_6502_op_num_types];
+extern uint8_t g_optypes[k_6502_op_num_opcodes];
+extern uint8_t g_opmodes[k_6502_op_num_opcodes];
+extern uint8_t g_opcycles[k_6502_op_num_opcodes];
+extern uint8_t g_opmodelens[k_6502_op_num_modes];
+extern uint8_t g_opmem[k_6502_op_num_types];
+extern uint8_t g_opbranch[k_6502_op_num_types];
+extern uint8_t g_optype_uses_carry[k_6502_op_num_types];
+extern uint8_t g_optype_changes_nz_flags[k_6502_op_num_types];
+extern uint8_t g_optype_changes_carry[k_6502_op_num_types];
+extern uint8_t g_optype_changes_overflow[k_6502_op_num_types];
+extern uint8_t g_optype_sets_register[k_6502_op_num_types];
 
 enum {
   k_kil = 0,
@@ -97,6 +97,11 @@ enum {
   k_lax = 63, /* Undocumented. */
   k_dcp = 64, /* Undocumented. */
   k_sre = 65, /* Undocumented. */
+  k_rla = 66, /* Undocumented. */
+  k_ahx = 67, /* Undocumented. */
+  k_xaa = 68, /* Undocumented. */
+  k_rra = 69, /* Undocumented. */
+  k_axs = 70, /* Undocumented. */
 };
 
 enum {

@@ -39,6 +39,10 @@ struct render_struct* render_create(struct teletext_struct* p_teletext,
                                     struct bbc_options* p_options);
 void render_destroy(struct render_struct* p_render);
 
+void render_set_flyback_callback(struct render_struct* p_render,
+                                 void (*p_flyback_callback)(void* p),
+                                 void* p_callback_object);
+
 uint32_t render_get_width(struct render_struct* p_render);
 uint32_t render_get_height(struct render_struct* p_render);
 
@@ -64,7 +68,7 @@ void (*render_get_render_blank_function(struct render_struct* p_render))
 
 void render_clear_buffer(struct render_struct* p_render);
 void render_double_up_lines(struct render_struct* p_render);
-void render_hsync(struct render_struct* p_render);
+void render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks);
 void render_vsync(struct render_struct* p_render, int do_interlace_compensate);
 void render_frame_boundary(struct render_struct* p_render);
 void render_cursor(struct render_struct* p_render);

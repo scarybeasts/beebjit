@@ -296,6 +296,7 @@ asm_x64_instruction_Y_NZ_flags_END:
 .globl asm_x64_save_AXYS_PC_flags
 asm_x64_save_AXYS_PC_flags:
   # Save 6502 IP.
+  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_6502_PC_32
   # Save A, X, Y, S.
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
@@ -320,6 +321,7 @@ asm_x64_restore_AXYS_PC_flags:
   mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
   # Restore 6502 IP.
   mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
   # Restore 6502 flags.
   movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS]
 
@@ -332,11 +334,12 @@ asm_x64_restore_AXYS_PC_flags:
 .globl asm_x64_asm_emit_intel_flags_to_scratch_END
 asm_x64_asm_emit_intel_flags_to_scratch:
   lahf
-  # Add IF+DF, CF and "always set" (0x20)
+  # Add IF+DF, CF and "always set" (0x20).
   lea REG_SCRATCH3_32, [REG_6502_ID_F_64 + REG_6502_CF_64 + 0x20]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 58
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + REG_6502_OF_64]
-  rorx REG_6502_OF_64, REG_6502_OF_64, 6
+  # Add OF.
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_OF_64 + K_ASM_TABLE_OF_TO_6502]
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + REG_SCRATCH1]
+
   movzx REG_SCRATCH1_32, ah
   movzx REG_SCRATCH1_32, BYTE PTR [REG_SCRATCH1 + K_ASM_TABLE_X64_FLAGS_TO_6502]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_SCRATCH3]
@@ -348,17 +351,12 @@ asm_x64_asm_emit_intel_flags_to_scratch_END:
 .globl asm_x64_asm_set_intel_flags_from_scratch
 .globl asm_x64_asm_set_intel_flags_from_scratch_END
 asm_x64_asm_set_intel_flags_from_scratch:
-  mov REG_SCRATCH2_32, 0x40
-  mov REG_SCRATCH3_32, 0x01
-  # NOTE: in testing, pext is faster than bextr by about 10%.
-  # This is despite the Agner Fog tables as listing:
-  # pext : latency 3 throughput 1, port p1
-  # bextr: latency 2 thorughput 2, port 2p0156
-  # Interesting that bextr is listed as faster despite using 2uops vs. 1.
-  # But my guess is that because pext doesn't change flags, the mov ah / sahf
-  # can execute in parallel. bextr sets ZF.
-  pext REG_6502_OF_64, REG_SCRATCH1, REG_SCRATCH2
-  pext REG_6502_CF_64, REG_SCRATCH1, REG_SCRATCH3
+  mov REG_6502_OF_64, REG_SCRATCH1
+  and REG_6502_OF, 0x40
+  shr REG_6502_OF, 6
+  mov REG_6502_CF_64, REG_SCRATCH1
+  and REG_6502_CF, 0x01
+
   mov REG_6502_ID_F, [K_ASM_TABLE_6502_FLAGS_TO_MASK + REG_SCRATCH1]
   mov ah, [K_ASM_TABLE_6502_FLAGS_TO_X64 + REG_SCRATCH1]
   sahf
@@ -436,10 +434,10 @@ asm_x64_pull_word_to_scratch_END:
 .globl asm_x64_asm_enter_END
 asm_x64_asm_enter:
 
-  # param1, rdi == context
-  # param2, rsi == x64 start address
-  # param3, rdx == countdown
-  # param4, rcx == mem base
+  # param1, rdi/rcx == context
+  # param2, rsi/rdx == x64 start address
+  # param3, rdx/r8  == countdown
+  # param4, rcx/r9  == mem base
 
   push rbp
   # At this point: stack aligned to 16 bytes.
@@ -449,11 +447,16 @@ asm_x64_asm_enter:
   push r13
   push r14
   push r15
+  # Extra callee save registers in the Windows x64 calling convention.
+  push rdi
+  push rsi
 
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
   mov REG_MEM, REG_PARAM4
 
+  # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
+  # as it will be overwritten.
   push REG_PARAM2
   mov REG_CONTEXT, REG_PARAM1
   mov REG_COUNTDOWN, REG_PARAM3
@@ -481,6 +484,8 @@ asm_x64_asm_enter:
   # stack alignment.
   call REG_SCRATCH1
 
+  pop rsi
+  pop rdi
   pop r15
   pop r14
   pop r13
@@ -510,7 +515,10 @@ asm_x64_asm_debug:
   # currently rdi.
   mov REG_PARAM1, REG_CONTEXT
   mov REG_PARAM2, 0
+  # Win x64 shadow space convention.
+  sub rsp, 32
   call [REG_CONTEXT + K_CONTEXT_OFFSET_DEBUG_CALLBACK]
+  add rsp, 32
   pop REG_CONTEXT
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]

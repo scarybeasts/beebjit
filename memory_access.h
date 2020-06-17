@@ -9,13 +9,19 @@ struct memory_access {
 
   void* p_callback_obj;
   int (*memory_is_always_ram)(void* p, uint16_t addr);
-  uint16_t (*memory_read_needs_callback_above)(void* p);
-  uint16_t (*memory_write_needs_callback_above)(void* p);
+  uint16_t (*memory_read_needs_callback_from)(void* p);
+  uint16_t (*memory_write_needs_callback_from)(void* p);
   int (*memory_read_needs_callback)(void* p, uint16_t addr);
   int (*memory_write_needs_callback)(void* p, uint16_t addr);
 
-  uint8_t (*memory_read_callback)(void* p, uint16_t addr);
-  void (*memory_write_callback)(void* p, uint16_t addr, uint8_t val);
+  uint8_t (*memory_read_callback)(void* p, uint16_t addr, int do_tick_callback);
+  void (*memory_write_callback)(void* p,
+                                uint16_t addr,
+                                uint8_t val,
+                                int do_tick_callback);
+
+  void* p_last_tick_callback_obj;
+  void (*memory_client_last_tick_callback)(void* p);
 };
 
 #endif /* BEEBJIT_MEMORY_ACCESS_H */

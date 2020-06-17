@@ -2,37 +2,33 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termios.h>
-#include <time.h>
 #include <unistd.h>
 
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
+typedef void (*sighandler_t)(int);
 
-static const size_t k_guard_size = 4096;
+static void (*s_p_interrupt_callback)(void);
 
-struct util_file_map {
-  void* p_mmap;
-  size_t length;
-};
+void*
+util_malloc(size_t size) {
+  void* p_ret = malloc(size);
+  if (p_ret == NULL) {
+    util_bail("malloc failed");
+  }
+
+  return p_ret;
+}
 
 void*
 util_mallocz(size_t size) {
-  void* p_ret = malloc(size);
-  if (p_ret == NULL) {
-    errx(1, "malloc failed");
-  }
+  void* p_ret = util_malloc(size);
 
   (void) memset(p_ret, '\0', size);
 
@@ -44,172 +40,29 @@ util_free(void* p) {
   free(p);
 }
 
-
-intptr_t
-util_get_memory_handle(size_t size) {
-  int fd;
-  int ret;
-  char file_name[19];
-
-  (void) strcpy(file_name, "/tmp/beebjitXXXXXX");
-  fd = mkstemp(file_name);
-  if (fd < 0) {
-    errx(1, "mkstemp failed");
-  }
-
-  ret = unlink(file_name);
-  if (ret != 0) {
-    errx(1, "unlink failed");
-  }
-
-  ret = ftruncate(fd, size);
-  if (ret != 0) {
-    errx(1, "ftruncate failed");
-  }
-
-  return fd;
+char*
+util_strdup(const char* p_str) {
+  return strdup(p_str);
 }
 
-static void*
-util_get_mapping_from_handle(intptr_t handle,
-                             void* p_addr,
-                             size_t size,
-                             int fixed) {
-  int map_flags;
-  void* p_map;
+char*
+util_strdup2(const char* p_str1, const char* p_str2) {
+  char* p_ret;
 
-  if (handle == -1) {
-    map_flags = (MAP_PRIVATE | MAP_ANONYMOUS);
-  } else {
-    map_flags = MAP_SHARED;
-  }
-  if (fixed) {
-    map_flags |= MAP_FIXED;
+  size_t len1 = strlen(p_str1);
+  size_t len2 = strlen(p_str2);
+  size_t len = (len1 + len2);
+
+  if (((len1 + len2) < len1) || ((len + 1) < len)) {
+    util_bail("integer overflow");
   }
 
-  p_map = mmap(p_addr, size, (PROT_READ | PROT_WRITE), map_flags, handle, 0);
-  if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
-  }
+  p_ret = malloc(len + 1);
+  (void) memcpy(p_ret, p_str1, len1);
+  (void) memcpy((p_ret + len1), p_str2, len2);
+  p_ret[len] = '\0';
 
-  if ((p_addr != NULL) && (p_map != p_addr)) {
-    errx(1, "mmap in wrong location");
-  }
-
-  return p_map;
-}
-
-void*
-util_get_fixed_mapping_from_handle(intptr_t handle, void* p_addr, size_t size) {
-  return util_get_mapping_from_handle(handle, p_addr, size, 1);
-}
-
-void*
-util_get_guarded_mapping(void* p_addr, size_t size) {
-  return util_get_guarded_mapping_from_handle(-1, p_addr, size);
-}
-
-void*
-util_get_guarded_mapping_from_handle(intptr_t handle,
-                                     void* p_addr,
-                                     size_t size) {
-  void* p_map;
-  void* p_guard;
-
-  assert((size + (k_guard_size * 2)) > size);
-
-  p_map = util_get_mapping_from_handle(handle, p_addr, size, 0);
-
-  p_guard = mmap((p_map - k_guard_size),
-                 k_guard_size,
-                 PROT_NONE,
-                 (MAP_PRIVATE | MAP_ANONYMOUS),
-                 -1,
-                 0);
-  if (p_guard == MAP_FAILED) {
-    errx(1, "mmap failed");
-  }
-
-  if (p_guard != (p_map - k_guard_size)) {
-    errx(1, "mmap in wrong location");
-  }
-
-  p_guard = mmap((p_map + size),
-                 k_guard_size,
-                 PROT_NONE,
-                 (MAP_PRIVATE | MAP_ANONYMOUS),
-                 -1,
-                 0);
-  if (p_guard == MAP_FAILED) {
-    errx(1, "mmap failed");
-  }
-
-  if (p_guard != (p_map + size)) {
-    errx(1, "mmap in wrong location");
-  }
-
-  return p_map;
-}
-
-void*
-util_get_fixed_anonymous_mapping(void* p_addr, size_t size) {
-  void* p_map = mmap(p_addr,
-                     size,
-                     (PROT_READ | PROT_WRITE),
-                     (MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS),
-                     -1,
-                     0);
-  if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
-  }
-
-  if (p_map != p_addr) {
-    errx(1, "mmap in wrong location");
-  }
-
-  return p_map;
-}
-
-void
-util_free_guarded_mapping(void* p_addr, size_t size) {
-  uint8_t* p_map = (p_addr - k_guard_size);
-  size += (k_guard_size * 2);
-  int ret = munmap(p_map, size);
-  if (ret != 0) {
-    errx(1, "munmap failed");
-  }
-}
-
-void
-util_make_mapping_read_only(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, PROT_READ);
-  if (ret != 0) {
-    errx(1, "mprotect failed");
-  }
-}
-
-void
-util_make_mapping_read_write(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
-  if (ret != 0) {
-    errx(1, "mprotect failed");
-  }
-}
-
-void
-util_make_mapping_read_write_exec(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE | PROT_EXEC));
-  if (ret != 0) {
-    errx(1, "mprotect failed");
-  }
-}
-
-void
-util_make_mapping_none(void* p_addr, size_t size) {
-  int ret = mprotect(p_addr, size, PROT_NONE);
-  if (ret != 0) {
-    errx(1, "mprotect failed");
-  }
+  return p_ret;
 }
 
 struct util_buffer {
@@ -221,14 +74,7 @@ struct util_buffer {
 
 struct util_buffer*
 util_buffer_create() {
-  struct util_buffer* p_buf = malloc(sizeof(struct util_buffer));
-  if (p_buf == NULL) {
-    errx(1, "couldn't allocate util_buffer");
-  }
-  p_buf->p_mem = NULL;
-  p_buf->length = 0;
-  p_buf->pos = 0;
-  p_buf->p_base = NULL;
+  struct util_buffer* p_buf = util_mallocz(sizeof(struct util_buffer));
 
   return p_buf;
 }
@@ -337,7 +183,7 @@ util_buffer_add_5b(struct util_buffer* p_buf,
 }
 
 void
-util_buffer_add_int(struct util_buffer* p_buf, ssize_t i) {
+util_buffer_add_int(struct util_buffer* p_buf, int64_t i) {
   int b1;
   int b2;
   int b3;
@@ -410,161 +256,151 @@ util_is_extension(const char* p_file_name, const char* p_ext) {
   return 1;
 }
 
-intptr_t
-util_file_handle_open(const char* p_file_name, int writeable, int create) {
-  int flags;
-  int fd;
+struct util_file*
+util_file_open(const char* p_file_name, int writeable, int create) {
+  FILE* p_file;
+
+  /* Need the "b" aka. "binary" for Windows. */
+  const char* p_flags = "rb";
 
   if (writeable) {
-    flags = O_RDWR;
     if (create) {
-      flags |= O_CREAT;
+      p_flags = "wb+";
+    } else {
+      p_flags = "rb+";
     }
-  } else {
-    flags = O_RDONLY;
   }
 
-  fd = open(p_file_name, flags, 0600);
-  if (fd < 0) {
-    errx(1, "couldn't open %s", p_file_name);
+  p_file = fopen(p_file_name, p_flags);
+  if (p_file == NULL) {
+    util_bail("couldn't open %s", p_file_name);
   }
 
-  return (intptr_t) fd;
+  return (struct util_file*) p_file;
 }
 
 void
-util_file_handle_close(intptr_t handle) {
-  int fd = (int) handle;
-  int ret = close(fd);
+util_file_close(struct util_file* p) {
+  int ret = fclose((FILE*) p);
   if (ret != 0) {
-    errx(1, "close failed");
+    util_bail("close failed");
   }
 }
 
 uint64_t
-util_file_handle_get_size(intptr_t handle) {
-  struct stat stat_buf;
+util_file_get_pos(struct util_file* p) {
+  FILE* p_file = (FILE*) p;
 
-  int fd = (int) handle;
-  int ret = fstat(fd, &stat_buf);
-  if (ret != 0 || stat_buf.st_size < 0) {
-    errx(1, "fstat failed");
+  return ftell(p_file);
+}
+
+uint64_t
+util_file_get_size(struct util_file* p) {
+  int ret;
+  uint64_t pos;
+  FILE* p_file = (FILE*) p;
+
+  ret = fseek(p_file, 0, SEEK_END);
+  if (ret != 0) {
+    util_bail("fseek SEEK_END failed");
   }
 
-  return stat_buf.st_size;
+  pos = ftell(p_file);
+
+  ret = fseek(p_file, 0, SEEK_SET);
+  if (ret != 0) {
+    util_bail("fseek SEEK_SET failed");
+  }
+
+  return pos;
+}
+
+uint64_t
+util_file_read(struct util_file* p, void* p_buf, uint64_t length) {
+  FILE* p_file = (FILE*) p;
+
+  return fread(p_buf, 1, length, p_file);
 }
 
 void
-util_file_handle_seek(intptr_t handle, uint64_t pos) {
-  off_t ret;
-
-  int fd = (int) handle;
-
-  ret = lseek(fd, (off_t) pos, SEEK_SET);
-  if ((uint64_t) ret != pos) {
-    errx(1, "lseek failed");
+util_file_write(struct util_file* p, const void* p_buf, uint64_t length) {
+  FILE* p_file = (FILE*) p;
+  uint64_t ret = fwrite(p_buf, 1, length, p_file);
+  if (ret != length) {
+    util_bail("fwrite short write");
   }
 }
 
 void
-util_file_handle_write(intptr_t handle, const void* p_buf, uint64_t length) {
-  /* TODO: handle short writes here and below. */
-  int fd = (int) handle;
-  ssize_t ret = write(fd, p_buf, length);
-  if ((ret < 0) || ((uint64_t) ret != length)) {
-    errx(1, "write failed");
+util_file_seek(struct util_file* p, uint64_t pos) {
+  int ret;
+  FILE* p_file = (FILE*) p;
+
+  ret = fseek(p_file, pos, SEEK_SET);
+  if (ret != 0) {
+    util_bail("fseek SEEK_SET failed");
   }
 }
 
-size_t
-util_file_handle_read(intptr_t handle, void* p_buf, uint64_t length) {
-  int fd = (int) handle;
-  ssize_t ret = read(fd, p_buf, length);
-  if (ret < 0) {
-    errx(1, "read failed");
+void
+util_file_flush(struct util_file* p) {
+  FILE* p_file = (FILE*) p;
+
+  int ret = fflush(p_file);
+  if (ret != 0) {
+    util_bail("fflush failed");
   }
-  return (size_t) ret;
 }
 
-size_t
-util_file_read_fully(uint8_t* p_buf, size_t max_size, const char* p_file_name) {
-  size_t read_ret;
-  intptr_t handle = util_file_handle_open(p_file_name, 0, 0);
+uint64_t
+util_file_read_fully(const char* p_file_name,
+                     uint8_t* p_buf,
+                     uint64_t max_size) {
+  uint64_t ret;
+  struct util_file* p_file = util_file_open(p_file_name, 0, 0);
 
-  read_ret = util_file_handle_read(handle, p_buf, max_size);
+  ret = util_file_read(p_file, p_buf, max_size);
 
-  util_file_handle_close(handle);
+  util_file_close(p_file);
 
-  return read_ret;
+  return ret;
 }
 
 void
 util_file_write_fully(const char* p_file_name,
                       const uint8_t* p_buf,
-                      size_t size) {
-  intptr_t handle = util_file_handle_open(p_file_name, 1, 1);
-  util_file_handle_write(handle, p_buf, size);
-  util_file_handle_close(handle);
-}
-
-struct util_file_map*
-util_file_map(const char* p_file_name, size_t max_length, int writeable) {
-  struct util_file_map* p_map;
-  int mmap_prot;
-  void* p_mmap;
-  int64_t handle;
-  uint64_t size;
-
-  if (writeable) {
-    mmap_prot = (PROT_READ | PROT_WRITE);
-  } else {
-    mmap_prot = PROT_READ;
-  }
-
-  p_map = malloc(sizeof(struct util_file_map));
-  if (p_map == NULL) {
-    errx(1, "couldn't allocate util_file_map");
-  }
-  (void) memset(p_map, '\0', sizeof(struct util_file_map));
-
-  handle = util_file_handle_open(p_file_name, writeable, 0);
-  size = util_file_handle_get_size(handle);
-
-  if (size > max_length) {
-    errx(1, "file too large");
-  }
-
-  p_mmap = mmap(NULL, size, mmap_prot, MAP_SHARED, (int) handle, 0);
-  if (p_map == MAP_FAILED) {
-    errx(1, "mmap failed");
-  }
-
-  p_map->p_mmap = p_mmap;
-  p_map->length = size;
-
-  util_file_handle_close(handle);
-
-  return p_map;
-}
-
-void*
-util_file_map_get_ptr(struct util_file_map* p_map) {
-  return p_map->p_mmap;
-}
-
-size_t
-util_file_map_get_size(struct util_file_map* p_map) {
-  return p_map->length;
+                      uint64_t size) {
+  struct util_file* p_file = util_file_open(p_file_name, 1, 1);
+  util_file_write(p_file, p_buf, size);
+  util_file_close(p_file);
 }
 
 void
-util_file_unmap(struct util_file_map* p_map) {
-  int ret = munmap(p_map->p_mmap, p_map->length);
-  if (ret != 0) {
-    errx(1, "munmap failed");
+util_file_copy(const char* p_src_file_name, const char* p_dst_file_name) {
+  char buf[4096];
+  uint64_t to_go;
+
+  struct util_file* p_src_file = util_file_open(p_src_file_name, 0, 0);
+  struct util_file* p_dst_file = util_file_open(p_dst_file_name, 1, 1);
+
+  to_go = util_file_get_size(p_src_file);
+  while (to_go > 0) {
+    uint64_t ret;
+    uint64_t length = sizeof(buf);
+    if (to_go < length) {
+      length = to_go;
+    }
+    ret = util_file_read(p_src_file, buf, length);
+    if (ret != length) {
+      util_bail("util_file_read short read");
+    }
+    util_file_write(p_dst_file, buf, length);
+
+    to_go -= length;
   }
 
-  free(p_map);
+  util_file_close(p_src_file);
+  util_file_close(p_dst_file);
 }
 
 intptr_t
@@ -577,49 +413,13 @@ util_get_stdout_handle() {
   return fileno(stdout);
 }
 
-void
-util_make_handle_unbuffered(intptr_t handle) {
-  int ret;
-  struct termios termios;
-
-  if (!isatty(handle)) {
-    return;
-  }
-
-  ret = tcgetattr(handle, &termios);
-  if (ret != 0) {
-    errx(1, "tcgetattr failed");
-  }
-
-  termios.c_lflag &= ~ICANON;
-  termios.c_lflag &= ~ECHO;
-
-  ret = tcsetattr(handle, TCSANOW, &termios);
-  if (ret != 0) {
-    errx(1, "tcsetattr failed");
-  }
-}
-
-size_t
-util_get_handle_readable_bytes(intptr_t handle) {
-  int bytes_avail;
-
-  int ret = ioctl(handle, FIONREAD, &bytes_avail);
-  if (ret != 0) {
-    return 0;
-  }
-
-  assert(bytes_avail >= 0);
-  return bytes_avail;
-}
-
 uint8_t
 util_handle_read_byte(intptr_t handle) {
   uint8_t val;
 
   ssize_t ret = read(handle, &val, 1);
   if (ret != 1) {
-    errx(1, "failed to read byte from handle");
+    util_bail("failed to read byte from handle");
   }
 
   return val;
@@ -629,51 +429,17 @@ void
 util_handle_write_byte(intptr_t handle, uint8_t val) {
   ssize_t ret = write(handle, &val, 1);
   if (ret != 1) {
-    errx(1, "failed to write byte to handle");
+    util_bail("failed to write byte to handle");
   }
-}
-
-uint64_t
-util_gettime_us() {
-  struct timespec ts;
-
-  int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
-  if (ret != 0) {
-    errx(1, "clock_gettime failed");
-  }
-
-  return ((ts.tv_sec * (uint64_t) 1000000) + (ts.tv_nsec / 1000));
 }
 
 void
-util_sleep_us(uint64_t us) {
-  int ret;
-  struct timespec ts;
-
-  ts.tv_sec = (us / 1000000);
-  ts.tv_nsec = ((us % 1000000) * 1000);
-
-  do {
-    ret = nanosleep(&ts, &ts);
-    if (ret != 0) {
-      if (errno == EINTR) {
-        continue;
-      }
-      errx(1, "nanosleep failed");
-    }
-  } while (ret != 0);
-}
-
-void
-util_get_channel_fds(int* fd1, int* fd2) {
-  int fds[2];
-  int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
+util_handle_close(intptr_t handle) {
+  int fd = (int) handle;
+  int ret = close(fd);
   if (ret != 0) {
-    errx(1, "socketpair failed");
+    util_bail("close failed");
   }
-
-  *fd1 = fds[0];
-  *fd2 = fds[1];
 }
 
 static const char*
@@ -715,7 +481,9 @@ int
 util_get_str_option(char** p_opt_out,
                     const char* p_opt_str,
                     const char* p_opt_name) {
+  size_t len;
   const char* p_opt_end;
+  char* p_ret;
 
   const char* p_opt_pos = util_locate_option(p_opt_str, p_opt_name);
   if (p_opt_pos == NULL) {
@@ -727,7 +495,12 @@ util_get_str_option(char** p_opt_out,
     p_opt_end++;
   }
 
-  *p_opt_out = strndup(p_opt_pos, (p_opt_end - p_opt_pos));
+  /* NOTE: would use strndup() here but Windows doesn't have it verbatim. */
+  len = (p_opt_end - p_opt_pos);
+  p_ret = malloc(len + 1);
+  (void) memcpy(p_ret, p_opt_pos, len);
+  p_ret[len] = '\0';
+  *p_opt_out = p_ret;
 
   return 1;
 }
@@ -738,4 +511,68 @@ util_has_option(const char* p_opt_str, const char* p_opt_name) {
     return 1;
   }
   return 0;
+}
+
+void
+util_bail(const char* p_msg, ...) {
+  va_list args;
+  char msg[256];
+
+  va_start(args, p_msg);
+  msg[0] = '\0';
+  (void) vsnprintf(msg, sizeof(msg), p_msg, args);
+  va_end(args);
+
+  (void) fprintf(stderr, "BAILING: %s\n", msg);
+
+  exit(1);
+  /* Not reached. */
+}
+
+static void
+sigint_handler(int signum) {
+  if (signum != SIGINT) {
+    _exit(1);
+  }
+
+  s_p_interrupt_callback();
+}
+
+void
+util_set_interrupt_callback(void (*p_interrupt_callback)(void)) {
+  sighandler_t ret;
+
+  s_p_interrupt_callback = p_interrupt_callback;
+
+  ret = signal(SIGINT, sigint_handler);
+  if (ret == SIG_ERR) {
+    util_bail("signal failed");
+  }
+}
+
+static uint8_t
+util_hex_char_to_val(char hex_char) {
+  int upper_char = toupper(hex_char);
+  uint8_t val = 0;
+
+  if ((upper_char >= '0') && (upper_char <= '9')) {
+    val = (upper_char - '0');
+  } else if ((upper_char >= 'A') && (upper_char <= 'F')) {
+    val = (upper_char - 'A' + 10);
+  }
+
+  return val;
+}
+
+uint8_t
+util_parse_hex2(const char* p_str) {
+  uint8_t val;
+
+  assert((*p_str != '\0') && (*(p_str + 1) != '\0'));
+
+  val = util_hex_char_to_val(p_str[0]);
+  val <<= 4;
+  val |= util_hex_char_to_val(p_str[1]);
+
+  return val;
 }

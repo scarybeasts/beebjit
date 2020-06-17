@@ -6,7 +6,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -17,6 +16,7 @@ enum {
 
 struct disc_fsd_sector {
   char sector_spec[32];
+  uint8_t sector_error;
   uint8_t logical_track;
   uint8_t head;
   uint8_t logical_sector;
@@ -28,7 +28,6 @@ struct disc_fsd_sector {
   uint8_t* p_data;
   int is_deleted;
   int is_crc_error;
-  int is_weak_bits;
   int is_crc_included;
   int is_format_bytes;
 };
@@ -52,6 +51,60 @@ disc_fsd_calculate_track_total_bytes(uint32_t fsd_sectors,
   ret += (gap1_ff_count + 6);
 
   return ret;
+}
+
+static int
+disc_fsd_sector_has_weak_bits(uint32_t* p_out_weak_bits_start,
+                              struct disc_fsd_sector* p_sector,
+                              uint8_t* p_data,
+                              uint32_t data_length) {
+  /* Sector error $0E only applies weak bits if the real and declared
+   * sector sizes match. Otherwise various Sherston Software titles
+   * fail. This also matches the logic in:
+   * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
+   */
+  if (!p_sector->is_crc_error) {
+    return 0;
+  }
+
+  /* Only sector error $0E needs to trigger. */
+  if (p_sector->sector_error != 0x0E) {
+    return 0;
+  }
+
+  if (data_length < 128) {
+    return 0;
+  }
+
+  /* Examples:
+   * 1) 621 THREE LITTLE PIGS AT HOME - THE STORY.log
+   * Track 39 / sector 9 / logical size 256. Physical size 128.
+   *
+   * 2) 186 THE TEDDY BEARS' PICNIC SIDE 1.FSD
+   * Track 39 / sector 9 / logical size 256. Physical size 256.
+   *
+   * 3) 267 THE CIRCUS (80 TRACK).FSD
+   * Track 0 / sector 2 / logical size 256. Physical size 256.
+   */
+
+  /* All known weak bits are track 39, sector 9 or track 0, sector 2. */
+  if ((p_sector->logical_track == 39) && (p_sector->logical_sector == 9)) {
+    /* Usually Sherston Software but one known other example, Folio, which
+     * requires the weak bits to start later in the sector.
+     */
+    if ((data_length > 128) && !strcmp(((char*) p_data + 0x20), "Folio")) {
+      *p_out_weak_bits_start = 128;
+    } else {
+      *p_out_weak_bits_start = 24;
+    }
+    return 1;
+  } else if ((p_sector->logical_track == 0) &&
+             (p_sector->logical_sector == 2)) {
+    *p_out_weak_bits_start = 24;
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static void
@@ -81,7 +134,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
   *p_track_truncatable_sectors = 0;
 
   if (fsd_sectors > k_disc_fsd_max_sectors) {
-    errx(1, "fsd file excessive sectors");
+    util_bail("fsd file excessive sectors");
   }
 
   if ((fsd_sectors != 10) && log_protection) {
@@ -93,7 +146,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
   }
 
   if (file_remaining == 0) {
-    errx(1, "fsd file missing readable flag");
+    util_bail("fsd file missing readable flag");
   }
 
   if (*p_buf == 0) {
@@ -103,7 +156,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     }
     readable = 0;
   } else if (*p_buf != 0xFF) {
-    errx(1, "fsd file unknown readable byte value");
+    util_bail("fsd file unknown readable byte value");
   }
   p_buf++;
   file_remaining--;
@@ -118,7 +171,7 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     struct disc_fsd_sector* p_sector = &p_sectors[i_sector];
 
     if (file_remaining < 4) {
-      errx(1, "fsd file missing sector header");
+      util_bail("fsd file missing sector header");
     }
 
     p_sector->logical_track = p_buf[0];
@@ -169,23 +222,24 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     }
 
     if (file_remaining < 2) {
-      errx(1, "fsd file missing sector header");
+      util_bail("fsd file missing sector header");
     }
 
     actual_size_bytes = p_buf[0];
     sector_error = p_buf[1];
+    p_sector->sector_error = sector_error;
     p_buf += 2;
     file_remaining -= 2;
 
     if (actual_size_bytes > 4) {
-      errx(1, "fsd file excessive sector size");
+      util_bail("fsd file excessive sector size");
     }
     actual_size_bytes = (1 << (7 + actual_size_bytes));
     p_sector->actual_size_bytes = actual_size_bytes;
     p_sector->truncated_size_bytes = actual_size_bytes;
     p_sector->write_size_bytes = actual_size_bytes;
     if (file_remaining < actual_size_bytes) {
-      errx(1, "fsd file missing sector data");
+      util_bail("fsd file missing sector data");
     }
     p_sector->p_data = p_buf;
     p_buf += actual_size_bytes;
@@ -230,14 +284,6 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
        * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p74208
        */
       p_sector->is_crc_error = 1;
-      /* Sector error $0E only applies weak bits if the real and declared
-       * sector sizes match. Otherwise various Sherston Software titles
-       * fail. This also matches the logic in:
-       * https://github.com/stardot/beebem-windows/blob/fsd-disk-support/Src/disc8271.cpp
-           */
-      if (actual_size_bytes == logical_size_bytes) {
-        p_sector->is_weak_bits = 1;
-      }
     } else if (sector_error == 0x2E) {
       /* $2E isn't documented and neither are $20 / $0E documented as bit
        * fields, but it shows up anyway in The Wizard's Return.
@@ -265,17 +311,21 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
         p_sector->truncated_size_bytes = 128;
       } else if (sector_error == 0xE1) {
         if (p_sector->actual_size_bytes < 256) {
-          errx(1, "bad size for sector error $E1");
+          util_bail("bad size for sector error $E1");
         }
         p_sector->truncated_size_bytes = 256;
       } else {
         if (p_sector->actual_size_bytes < 512) {
-          errx(1, "bad size for sector error $E2");
+          util_bail("bad size for sector error $E2");
         }
         p_sector->truncated_size_bytes = 512;
       }
+    } else if (sector_error == 0x18) {
+      /* Some FSD files have spurious error $18 (sector not found). Ignore.
+       * Example: 571 Philosopher's Quest 40track.FSD
+       */
     } else if (sector_error != 0) {
-      errx(1, "fsd file sector error %d unsupported", sector_error);
+      util_bail("fsd file sector error %d unsupported", sector_error);
     }
 
     if (p_sector->truncated_size_bytes != p_sector->actual_size_bytes) {
@@ -339,8 +389,13 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
    */
 
   /* First attempt -- see if it fits if we lower the gap sizes a lot. */
-  /* NOTE: the 1770 is very sensitive to GAP2 size so we leave it alone.
-   * In tests, 9 0xFF's is ok, 7 is not. 11 is the default.
+  /* NOTE: the 1770 and 8271 controllers are very sensitive to GAP2 size so we
+   * leave it alone. (In tests, 9 0xFF's is ok, 7 is not. 11 is the default.)
+   * These gaps here are sufficient to enable certain tricky Tynesoft titles to
+   * work (Winter Olympiad, Boulderdash, etc.), which have very small inter-
+   * sector gaps. On the Winter Olympiad disc, the packed tracks have total
+   * gap sizes (FFs + 00s) as small as 4, but more typically 7 (1x FFs, 6x 00s).
+   * The total gap sizes here will be 9, which is still small enough to work.
    */
   *p_gap1_ff_count = 3;
   *p_gap3_ff_count = 3;
@@ -363,7 +418,7 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
 
   num_bytes_over = (track_total_bytes - k_ibm_disc_bytes_per_track);
   if (num_bytes_over >= track_truncatable_bytes) {
-    errx(1, "fsd sectors really cannot fit");
+    util_bail("fsd sectors really cannot fit");
   }
 
   track_total_bytes -= track_truncatable_bytes;
@@ -399,7 +454,7 @@ disc_fsd_load(struct disc_struct* p_disc,
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
   static const size_t k_max_fsd_size = (1024 * 1024);
-  uint8_t buf[k_max_fsd_size];
+  uint8_t* p_file_buf;
   size_t len;
   size_t file_remaining;
   uint8_t* p_buf;
@@ -407,31 +462,31 @@ disc_fsd_load(struct disc_struct* p_disc,
   uint32_t i_track;
   uint8_t title_char;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
-  assert(file_handle != k_util_file_no_handle);
+  struct util_file* p_file = disc_get_file(p_disc);
+  assert(p_file != NULL);
 
-  (void) memset(buf, '\0', sizeof(buf));
+  p_file_buf = util_malloc(k_max_fsd_size);
 
-  len = util_file_handle_read(file_handle, buf, sizeof(buf));
+  len = util_file_read(p_file, p_file_buf, k_max_fsd_size);
 
-  if (len == sizeof(buf)) {
-    errx(1, "fsd file too large");
+  if (len == k_max_fsd_size) {
+    util_bail("fsd file too large");
   }
 
-  p_buf = buf;
+  p_buf = p_file_buf;
   file_remaining = len;
   if (file_remaining < 8) {
-    errx(1, "fsd file no header");
+    util_bail("fsd file no header");
   }
   if (memcmp(p_buf, "FSD", 3) != 0) {
-    errx(1, "fsd file incorrect header");
+    util_bail("fsd file incorrect header");
   }
   p_buf += 8;
   file_remaining -= 8;
   if (has_file_name) {
     do {
       if (file_remaining == 0) {
-        errx(1, "fsd file missing title");
+        util_bail("fsd file missing title");
       }
       title_char = *p_buf;
       p_buf++;
@@ -440,7 +495,7 @@ disc_fsd_load(struct disc_struct* p_disc,
   }
 
   if (file_remaining == 0) {
-    errx(1, "fsd file missing tracks");
+    util_bail("fsd file missing tracks");
   }
   /* This appears to actually be "max zero-indexed track ID" so we add 1. */
   fsd_tracks = *p_buf;
@@ -448,7 +503,7 @@ disc_fsd_load(struct disc_struct* p_disc,
   p_buf++;
   file_remaining--;
   if (fsd_tracks > k_ibm_disc_tracks_per_disc) {
-    errx(1, "fsd file too many tracks: %d", fsd_tracks);
+    util_bail("fsd file too many tracks: %d", fsd_tracks);
   }
 
   for (i_track = 0; i_track < fsd_tracks; ++i_track) {
@@ -467,11 +522,21 @@ disc_fsd_load(struct disc_struct* p_disc,
     uint32_t gap2_ff_count = 11;
     uint32_t gap3_ff_count = 16;
 
+    /* Some files end prematurely but cleanly on a track boundary. These files
+     * seem to work ok if the remainder of tracks are left unformatted.
+     * Examples:
+     * 255 Felix meets the Evil Weevils.FSD
+     * 518 THE WORST WITCH.log
+     */
+    if (file_remaining == 0) {
+      break;
+    }
+
     if (file_remaining < 2) {
-      errx(1, "fsd file missing track header");
+      util_bail("fsd file missing track header");
     }
     if (p_buf[0] != i_track) {
-      errx(1, "fsd file unmatched track id");
+      util_bail("fsd file unmatched track id");
     }
 
     disc_build_track(p_disc, 0, i_track);
@@ -489,21 +554,15 @@ disc_fsd_load(struct disc_struct* p_disc,
       /* NOTE: "unformatted" track could mean a few different possibilities.
        * What it definitely means is that there are no detectable sector ID
        * markers. But it doesn't say why.
-       * For example, my original Elite disc has a genuinely unformatted track,
-       * i.e. no flux transitions. On the other hand, my original Labyrinth
-       * disc has flux transitions (of varinging width)!
-       * To keep things simple we write a track full of 0 data bits and no
-       * markers.
+       * For example, my original Elite and Castle Quest discs have a genuinely
+       * unformatted track, i.e. no flux transitions. On the other hand, my
+       * original Labyrinth disc has flux transitions (of varinging width)!
+       * Let's go with a genuinely unformatted track.
        */
-      disc_build_append_repeat(p_disc, 0, k_ibm_disc_bytes_per_track);
-      /* Some LOG files end prematurely after all the useful data, in the
-       * middle of a run of "unformatted track". We can detect and accept that
-       * here.
-       * Example: 518 THE WORST WITCH.log
-       */
-      if (file_remaining == 0) {
-        break;
-      }
+      disc_build_append_repeat_with_clocks(p_disc,
+                                           0,
+                                           0,
+                                           k_ibm_disc_bytes_per_track);
       continue;
     }
 
@@ -518,7 +577,11 @@ disc_fsd_load(struct disc_struct* p_disc,
                            i_track,
                            log_protection);
 
-    if (fsd_sectors > 10) {
+    if (fsd_sectors > 18) {
+      /* 256 VECTOR 2 V140 ACORN 1770.FSD uses 19 sectors; make it fit. */
+      gap1_ff_count = 6;
+      gap3_ff_count = 3;
+    } else if (fsd_sectors > 10) {
       /* Standard for 128 byte sectors. If we didn't lower the value here, the
        * track wouldn't fit.
        */
@@ -545,13 +608,15 @@ disc_fsd_load(struct disc_struct* p_disc,
     track_remaining -= (gap1_ff_count + 6);
 
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
+      uint32_t weak_bits_start;
+
       struct disc_fsd_sector* p_sector = &sectors[i_sector];
       uint32_t write_size_bytes = p_sector->write_size_bytes;
       uint8_t* p_data = p_sector->p_data;
       uint8_t sector_mark = k_ibm_disc_data_mark_data_pattern;
 
       if (track_remaining < (7 + (gap2_ff_count + 6))) {
-        errx(1, "fsd file track no space for sector header and gap");
+        util_bail("fsd file track no space for sector header and gap");
       }
       /* Sector header, aka. ID. */
       disc_build_reset_crc(p_disc);
@@ -574,7 +639,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       }
 
       if (track_remaining < (write_size_bytes + 3)) {
-        errx(1, "fsd file track no space for sector data");
+        util_bail("fsd file track no space for sector data");
       }
 
       disc_build_reset_crc(p_disc);
@@ -583,22 +648,22 @@ disc_fsd_load(struct disc_struct* p_disc,
                                            k_ibm_disc_mark_clock_pattern);
       if (p_sector->is_format_bytes) {
         disc_build_append_repeat(p_disc, 0xE5, write_size_bytes);
-      } else if (!p_sector->is_weak_bits) {
+      } else if (!disc_fsd_sector_has_weak_bits(&weak_bits_start,
+                                                p_sector,
+                                                p_data,
+                                                write_size_bytes)) {
         disc_build_append_chunk(p_disc, p_data, write_size_bytes);
       } else {
         /* This is icky: the titles that rely on weak bits (mostly,
-         * hopefully exclusively? Sherston Software titles) rely on the weak
-         * bits being a little later in the sector as the code at the start
-         * of the sector is executed!!
+         * Sherston Software titles) rely on the weak bits being a little later
+         * in the sector as the code at the start of the sector is executed!!
          */
-        disc_build_append_chunk(p_disc, p_data, 24);
+        disc_build_append_chunk(p_disc, p_data, weak_bits_start);
         /* Our 8271 driver interprets empty disc surface (no data bits, no
          * clock bits) as weak bits. As does my real drive + 8271 combo.
          */
-        disc_build_append_repeat_with_clocks(p_disc, 0x00, 0x00, 8);
-        disc_build_append_chunk(p_disc,
-                                (p_data + 32),
-                                (write_size_bytes - 32));
+        disc_build_append_repeat_with_clocks(
+            p_disc, 0x00, 0x00, (write_size_bytes - weak_bits_start));
       }
       if (!p_sector->is_crc_included) {
         if (p_sector->is_crc_error) {
@@ -635,7 +700,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       if (i_sector != (fsd_sectors - 1)) {
         /* Sync pattern between sectors, aka. GAP 3. */
         if (track_remaining < (gap3_ff_count + 6)) {
-          errx(1, "fsd file track no space for inter sector gap");
+          util_bail("fsd file track no space for inter sector gap");
         }
         disc_build_append_repeat(p_disc, 0xFF, gap3_ff_count);
         disc_build_append_repeat(p_disc, 0x00, 6);
@@ -644,10 +709,8 @@ disc_fsd_load(struct disc_struct* p_disc,
     } /* End of sectors loop. */
 
     /* Fill until end of track, aka. GAP 4. */
-    assert(disc_get_head_position(p_disc) <= k_ibm_disc_bytes_per_track);
-    disc_build_append_repeat(p_disc,
-                             0xFF,
-                             (k_ibm_disc_bytes_per_track -
-                              disc_get_head_position(p_disc)));
+    disc_build_fill(p_disc, 0xFF);
   } /* End of track loop. */
+
+  util_free(p_file_buf);
 }

@@ -264,6 +264,95 @@ offset $80 (i.e. the start of the overread) are expected to be:
 13DC: 5D 30 FF FF FF FF FF FF FF FF FF 00 00 00 00 00
 
 
+- 499 FUN PHONICS 8.fsd
+SHA256: 64401773e6a4afa1dfbb9eb97854822e2b27d2d1b6da525c32cd487ac659760d
+- Fun_Phonics_8_FSD0499_1.hfe
+SHA256: a9bbc0aec7ea53a09a1d2facceb901e615fbbc0b0a61a68e5e6a31588a993c33
+1) Protected track is track 6, consisting of 8 sector headers: 7x
+$00/$00/$00/$00 and 1x $00/$00/$25/$00.
+2) !BOOT executes at $0935. At $0948, it calls $09EF which uses OSWORD $7F to
+read 2 sectors from track 39 into $7000.
+3) After some unpacking, code at $0971 calls $09D6 which uses OSWORD $7F to
+read a single sector header from track 0.
+4) At $0979, $09EF is called again, this time to read a couple of sectors from
+track 6. This fails with $18 (sector not found) and the code checks that the
+read did not succeed ay $097C.
+5) At $0987, OSWORD $7F is called to "read special register" $12, which is
+the track register for drive 0!
+[ITRP] 098A: LDA $09D5
+[ITRP] 098D: CMP #$08
+[ITRP] 098F: JMP $09C2
+It looks like the author was considering checking the Intel 8271 quirk of the
+drive stepping a couple of tracks forward to extend the search when a sector
+cannot be found. In the end, though, the results of the CMP are never checked
+(and indeed at this time of writing, beebjit does not implement this 8271
+quirk).
+
+
+- Space_Mission_Mada_Part_1_HG_1.hfe
+SHA256: f32f1e1a349b86d69c2ade61d2707696b39d0ead8c3c087daa71048f1b0d5a12
+1) Let's start the journey by running *RUN W1S LINK. This skips the title
+screen which runs this *RUN OSCLI (from BASIC I think)?
+2) W1S executes at $0492. Various EOR decryption ensues, possibly working
+in $02xx values such that decryption will fail if vectors are modified?
+3) At $04A7, calls $052F which does verify track 1 / sector 0, expects success.
+($20 is returned).  There's more decryption etc. in more subroutines.
+4) At $04B0, we JMP $0780. $07B8 is called to clear out some "secrets"?
+5) $0788 calls $0130 which loads track 0 sector 6+3 into $0480. After RTS these
+bytes are EOR #$EE. At $07B5, JMP $04CE.
+6) $04CE calls $0496 to just-in-time decrypt some code at $04D1 for the RTS...
+which is JSR $0496 again... more decryption... yawn... arrives at $04DA.
+7) $04DE calls $04F3, which calls $0620 at $0519. $0620 loads some sectors
+into $3C00 with OSWORD $7F command $57 (read data and deleted). Of course there
+is EOR decrpytion of the sectors...
+8) $0551 calls $3C1A.
+9) $3C1E calls $3CA4, which calls $3CE8 from $3CAC, which calls $3D47 from
+$3CEB.
+10) $3D47 is getting interesting!! It calls OSWORD $7F to read special register
+$17.
+
+Branch A) -- Acorn 1770 DFS.
+11) The 1770 doesn't have special register $17 really, it's an 8271 thing, so
+$FE is the return code and we jump to $3D5D where ROMs are paged in and directly
+called into via service call $08. This seems to be checking for the ROM which
+handles OSWORD $7F. ROM number is stored in $8C and RTS to $3CEE.
+12) Loop at $3CF7. Calls $3D16. At $3DA7, it calls $3DBA a couple of times.
+Each $3BDA call prepares a _read track_ buffer at $1C00, padding with $01 or $02
+at the end. JSR $0130 calls 1770 command $E4 aka. read track. It then checks
+how many $01 or $02 at the end were overwritten, essentially getting a track
+length. At $3DFE, Y=$4D would represent a standard 3125 track length. Of the two
+read track calls, it takes the larger value (larger track length) and stores it
+in $86.
+13) The loop proceeds for tracks 1 - 8 inclusive, storing track lengths in a
+table at $3F71+.
+14) Loop ends, we're back at $3CAF. There's another loop at $3CB6, checking the
+results of the track read loop. The 8 track lengths are compared against a table
+stored at $3D9B:
+3D9B: 4D 4E 4E 4D 4D 4F 4F 4E A9 01 85 88 20 BA 3D 48  MNNMMOON.... .=H
+15) For each track, the length expectations are:
+- Must be equal to or within 1 of the length in the table.
+For example, $4D in the table means $4C, $4D, $4E are ok, corresponding to
+3124 - 3126.
+Full expectations, from track 1 onwards, each +-1:
+  3125, 3126, 3126, 3125, 3125, 3127, 3127, 3126
+Actual disc:
+  3125, 3126, 3126/7, 3125/6, 3126, 3127, 3128, 3126
+16) The grand total check at $3CC3! $82 started out as 8 and is decremented for
+every track that meets expectations. $82 is copied to $7B and RTS to $3C21.
+There's a CMP #2, saying that 7 or 8 out of 8 much match!
+
+Branch B) -- Acorn 8271 DFS
+11) Loop at $3CF7, as per 1770. But the call to $3D16 branches instead to $3D1D
+and calls $3E02 to set up and run the 8271 command "read sector 0, 512 bytes"
+at $3E47 -> $0130. First call is track 0. Results go to $1C00.
+12) At $3D39, reads from $1D03 (256 sector end + 3) and counts zeros. The count
+is stored in the table at $3F71+ as per the 1770 case.
+13) The expectations are checked as per the 1770 case. What is obviously going
+on is that the different track lengths correspond to a different number of 0
+bytes at the end of the track before the track wrap-around (to $FF bytes,
+although the write splice may cause a different non-zero value to be read).
+
+
 Copies with DD3 standard mode:
 - 001 EXILE.FSD
 - 005 Arcadians.FSD

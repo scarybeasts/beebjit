@@ -1,0 +1,59 @@
+Unless otherwise noted, tapes are from the Stairway To Hell tape archive:
+https://www.stairwaytohell.com/bbc/tapeimages.html
+And the uef files are extracted from the zip file, and further gunzipped to
+raw uef data.
+
+See also:
+http://beebwiki.mdfs.net/List_of_copy_protected_software_titles_on_cassette
+for more ideas!
+
+
+- AticAtac_RUN_B.hq.uef
+879bdacf132fe1cc6d257f113b2dd45d0ac9535c75c800f87f43e32a478d6a44  AticAtac_RUN_B.hq.zip
+Needs correct carrier tone handling if the motor is toggled in the tone.
+Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/241
+
+- CavemanCapers_B.hq.uef
+3af81f2e93b4d214f6706e864758851e605b79476d5138340f22b3611712b222  CavemanCapers_B.hq.zip
+Needs correct DCD flag management.
+Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/262
+
+- DuneRider(MicroPower).uef
+06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331  DuneRider(MicroPower).uef
+Custom loader with scrolling text.
+Tons of very esoteric undocumented opcodes.
+Seems to trigger a teletext double height bug in some emulators.
+
+- Frak_B.uef
+b7ae768e9ffceeaf370bc0b31ea966072946e038c3d89cd79ce1ffe86f1fe113  Frak_B.zip
+Didn't load in beebjit. In the presence of an accurate serial ULA / MC6850
+implementation, also appears to need MC6850 reset handling to clear the control
+register.
+
+- Joust_RUN_B.hq.uef
+1b721ecb77bab0ede88e2937998c277b2ddcab42cb92440cfcab88f7b0d531df  Joust.zip
+Interesting custom loader that displays scrolling instructions as the tape
+loads.
+
+- Nightshade.uef
+Lineage unclear.
+An emulator rite of passage, although mainly for VIA and 6502 emulation
+accuracy, less so the tape stream (although it is still a custom one).
+
+- ProBoxingSimulator_B.hq.uef
+c8e9d5384087c4e201ef101d9eb3be9e755c0db8afb4ece6d668ef4b647961ae  ProBoxingSimulator_B.hq.zip
+Does some form of unusual MC6850 writes at post-load. Copy protection? It hangs
+if not emulated correctly. Essentially you need to model accepting a byte
+written to the tape.
+Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/104
+
+- StarDrifter_B.hq.uef
+bffa104c57584c73f36e5dcb1f841f40bc521b824dd2b0a54faee2732bd1fdae  StarDrifter_B.hq.zip
+Needs correct serial ULA DCD behavior for very short carrier tones.
+Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/257
+
+- TheMusicSystem(IslandLogic)[Tape1Side1].uef
+From a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicSystem(IslandLogic)[Tape1Side1].rar
+a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicSystem(IslandLogic)[Tape1Side1].rar
+There's something interesting about this tape because it loads ok in beebjit
+but not in jsbeeb (which has reasonable tape / serial handling).

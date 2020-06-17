@@ -5,7 +5,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <string.h>
 
 enum {
@@ -15,85 +14,94 @@ enum {
 };
 
 void
-disc_ssd_write_track(struct disc_struct* p_disc) {
-  uint8_t* p_track_src;
+disc_ssd_write_track(struct disc_struct* p_disc,
+                     int is_side_upper,
+                     uint32_t track,
+                     uint32_t length,
+                     uint8_t* p_data,
+                     uint8_t* p_clocks) {
   uint32_t i_sector;
   uint64_t seek_pos;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
-  uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
-  uint32_t track = disc_get_track(p_disc);
+  (void) length;
+  assert(length == k_ibm_disc_bytes_per_track);
 
-  assert(disc_is_track_dirty(p_disc));
+  struct util_file* p_file = disc_get_file(p_disc);
+  uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
+  int is_dsd = disc_is_double_sided(p_disc);
+
+  (void) p_clocks;
 
   seek_pos = (track_size * track);
-  if (disc_is_double_sided(p_disc)) {
+  if (is_dsd) {
     seek_pos *= 2;
   }
-  if (disc_is_upper_side(p_disc)) {
+  if (is_side_upper) {
+    assert(is_dsd);
     seek_pos += track_size;
   }
-  util_file_handle_seek(file_handle, seek_pos);
+  util_file_seek(p_file, seek_pos);
 
-  p_track_src = disc_get_raw_track_data(p_disc);
   /* Skip GAP1. */
-  p_track_src += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
+  p_data += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
 
   for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
     /* Skip header, GAP2 and data marker. */
-    p_track_src += 7;
-    p_track_src += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
-    p_track_src += 1;
+    p_data += 7;
+    p_data += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
+    p_data += 1;
 
-    util_file_handle_write(file_handle, p_track_src, k_disc_ssd_sector_size);
-    p_track_src += k_disc_ssd_sector_size;
+    util_file_write(p_file, p_data, k_disc_ssd_sector_size);
+    p_data += k_disc_ssd_sector_size;
     /* Skip checksum. */
-    p_track_src += 2;
+    p_data += 2;
 
     /* Skip GAP3. */
-    p_track_src += (k_ibm_disc_std_10_sector_gap3_FFs +
-                    k_ibm_disc_std_sync_00s);
+    p_data += (k_ibm_disc_std_10_sector_gap3_FFs + k_ibm_disc_std_sync_00s);
   }
 }
 
 void
 disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
+  static const uint32_t k_max_ssd_size = (k_disc_ssd_sector_size *
+                                          k_disc_ssd_sectors_per_track *
+                                          k_disc_ssd_tracks_per_disc *
+                                          2);
   uint64_t file_size;
   size_t read_ret;
-  uint8_t buf[(k_disc_ssd_sector_size *
-               k_disc_ssd_sectors_per_track *
-               k_disc_ssd_tracks_per_disc *
-               2)];
+  uint8_t* p_file_buf;
   uint32_t i_side;
   uint32_t i_track;
   uint32_t i_sector;
 
-  intptr_t file_handle = disc_get_file_handle(p_disc);
-  uint64_t max_size = sizeof(buf);
-  uint8_t* p_ssd_data = buf;
+  struct util_file* p_file = disc_get_file(p_disc);
+  uint8_t* p_ssd_data;
   uint32_t num_sides = 2;
+  uint32_t max_size = k_max_ssd_size;
 
-  assert(file_handle != k_util_file_no_handle);
+  assert(p_file != NULL);
 
   disc_set_is_double_sided(p_disc, is_dsd);
 
-  (void) memset(buf, '\0', sizeof(buf));
+  /* Must zero it out because it is all read even if the file is short. */
+  p_file_buf = util_mallocz(k_max_ssd_size);
+  p_ssd_data = p_file_buf;
 
   if (!is_dsd) {
     max_size /= 2;
     num_sides = 1;
   }
-  file_size = util_file_handle_get_size(file_handle);
+  file_size = util_file_get_size(p_file);
   if (file_size > max_size) {
-    errx(1, "ssd/dsd file too large");
+    util_bail("ssd/dsd file too large");
   }
   if ((file_size % k_disc_ssd_sector_size) != 0) {
-    errx(1, "ssd/dsd file not a sector multiple");
+    util_bail("ssd/dsd file not a sector multiple");
   }
 
-  read_ret = util_file_handle_read(file_handle, buf, file_size);
+  read_ret = util_file_read(p_file, p_file_buf, file_size);
   if (read_ret != file_size) {
-    errx(1, "ssd/dsd file short read");
+    util_bail("ssd/dsd file short read");
   }
 
   for (i_track = 0; i_track < k_disc_ssd_tracks_per_disc; ++i_track) {
@@ -138,12 +146,11 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
           disc_build_append_repeat(p_disc, 0x00, k_ibm_disc_std_sync_00s);
         }
       } /* End of sectors loop. */
+
       /* Fill until end of track, aka. GAP 4. */
-      assert(disc_get_head_position(p_disc) <= k_ibm_disc_bytes_per_track);
-      disc_build_append_repeat(p_disc,
-                               0xFF,
-                               (k_ibm_disc_bytes_per_track -
-                                disc_get_head_position(p_disc)));
+      disc_build_fill(p_disc, 0xFF);
     } /* End of side loop. */
   } /* End of track loop. */
+
+  util_free(p_file_buf);
 }

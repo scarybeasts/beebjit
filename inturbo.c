@@ -2,40 +2,39 @@
 
 #include "asm_x64_abi.h"
 #include "asm_x64_common.h"
-#include "asm_x64_defs.h"
 #include "asm_x64_inturbo.h"
+#include "asm_x64_inturbo_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "interp.h"
 #include "memory_access.h"
+#include "os_alloc.h"
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
-static const size_t k_inturbo_bytes_per_opcode = 256;
-static void* k_inturbo_opcodes_addr = (void*) 0x40000000;
+static const size_t k_inturbo_bytes_per_opcode = (1 << K_INTURBO_OPCODES_SHIFT);
+static void* k_inturbo_opcodes_addr = (void*) K_INTURBO_OPCODES;
 
 struct inturbo_struct {
   struct cpu_driver driver;
 
   struct interp_struct* p_interp;
   int debug_subsystem_active;
+  struct os_alloc_mapping* p_mapping_base;
   uint8_t* p_inturbo_base;
 };
 
 static void
 inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   size_t i;
-  uint16_t special_addr_above;
-  uint16_t temp_u16;
+  uint16_t read_callback_from;
+  uint16_t write_callback_from;
 
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
@@ -47,13 +46,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
-  special_addr_above = p_memory_access->memory_read_needs_callback_above(
+  read_callback_from = p_memory_access->memory_read_needs_callback_from(
       p_memory_object);
-  temp_u16 = p_memory_access->memory_write_needs_callback_above(
+  write_callback_from = p_memory_access->memory_write_needs_callback_from(
       p_memory_object);
-  if (temp_u16 < special_addr_above) {
-    special_addr_above = temp_u16;
-  }
 
   for (i = 0;
        i < 256;
@@ -66,6 +62,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opreg = 0;
     uint8_t opcycles = g_opcycles[i];
     int check_page_crossing_read = 0;
+    uint16_t this_callback_from = read_callback_from;
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
@@ -95,6 +92,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     }
 
+    if ((opmem == k_write) || (opmem == k_rw)) {
+      this_callback_from = write_callback_from;
+    }
+
     switch (opmode) {
     case k_nil:
     case k_acc:
@@ -111,11 +112,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         break;
       }
       asm_x64_emit_inturbo_mode_abs(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_abx:
       asm_x64_emit_inturbo_mode_abx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
@@ -124,7 +125,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_aby:
       asm_x64_emit_inturbo_mode_aby(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
@@ -139,11 +140,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     case k_idx:
       asm_x64_emit_inturbo_mode_idx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_idy:
       asm_x64_emit_inturbo_mode_idy(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, special_addr_above);
+      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
@@ -571,9 +572,11 @@ struct inturbo_enter_interp_ret {
   int64_t exited;
 };
 
-static struct inturbo_enter_interp_ret
-inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
-  struct inturbo_enter_interp_ret ret;
+static void
+inturbo_enter_interp(struct inturbo_struct* p_inturbo,
+                     struct inturbo_enter_interp_ret* p_ret,
+                     int64_t countdown) {
+  uint32_t cpu_driver_flags;
 
   struct cpu_driver* p_inturbo_cpu_driver = &p_inturbo->driver;
   struct interp_struct* p_interp = p_inturbo->p_interp;
@@ -583,10 +586,10 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo, int64_t countdown) {
                                         inturbo_interp_instruction_callback,
                                         NULL);
 
-  ret.countdown = countdown;
-  ret.exited = p_inturbo_cpu_driver->p_funcs->has_exited(p_inturbo_cpu_driver);
-
-  return ret;
+  cpu_driver_flags =
+      p_inturbo_cpu_driver->p_funcs->get_flags(p_inturbo_cpu_driver);
+  p_ret->countdown = countdown;
+  p_ret->exited = !!(cpu_driver_flags & k_cpu_flag_exited);
 }
 
 static void
@@ -597,9 +600,8 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
 
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
-  util_free_guarded_mapping(p_inturbo->p_inturbo_base,
-                            (256 * k_inturbo_bytes_per_opcode));
-  free(p_inturbo);
+  os_alloc_free_mapping(p_inturbo->p_mapping_base);
+  util_free(p_inturbo);
 }
 
 static int
@@ -621,15 +623,13 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   /* The memory must be aligned to at least 0x10000 so that our register access
    * tricks work.
    */
-  assert((K_BBC_MEM_READ_FULL_ADDR & 0xffff) == 0);
+  assert((K_BBC_MEM_READ_FULL_ADDR & 0xff) == 0);
 
   p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
   p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
   p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
-                         K_BBC_MEM_READ_FULL_ADDR);
-  p_state_6502->reg_pc = ((p_state_6502->reg_pc & 0xFFFF) |
                          K_BBC_MEM_READ_FULL_ADDR);
 
   exited = asm_x64_asm_enter(p_cpu_driver,
@@ -641,12 +641,36 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   return exited;
 }
 
-static int
-inturbo_has_exited(struct cpu_driver* p_cpu_driver) {
+static void
+inturbo_set_reset_callback(struct cpu_driver* p_cpu_driver,
+                           void (*do_reset_callback)(void* p, uint32_t flags),
+                           void* p_do_reset_callback_object) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
 
-  return p_interp_driver->p_funcs->has_exited(p_interp_driver);
+  p_interp_driver->p_funcs->set_reset_callback(p_interp_driver,
+                                               do_reset_callback,
+                                               p_do_reset_callback_object);
+}
+
+static void
+inturbo_apply_flags(struct cpu_driver* p_cpu_driver,
+                    uint32_t flags_set,
+                    uint32_t flags_clear) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  p_interp_driver->p_funcs->apply_flags(p_interp_driver,
+                                        flags_set,
+                                        flags_clear);
+}
+
+static uint32_t
+inturbo_get_flags(struct cpu_driver* p_cpu_driver) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  return p_interp_driver->p_funcs->get_flags(p_interp_driver);
 }
 
 static uint32_t
@@ -655,6 +679,14 @@ inturbo_get_exit_value(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
 
   return p_interp_driver->p_funcs->get_exit_value(p_interp_driver);
+}
+
+static void
+inturbo_set_exit_value(struct cpu_driver* p_cpu_driver, uint32_t exit_value) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+
+  p_interp_driver->p_funcs->set_exit_value(p_interp_driver, exit_value);
 }
 
 static char*
@@ -669,6 +701,7 @@ static void
 inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
+  size_t mapping_size;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
@@ -681,8 +714,11 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
   p_funcs->destroy = inturbo_destroy;
   p_funcs->enter = inturbo_enter;
-  p_funcs->has_exited = inturbo_has_exited;
+  p_funcs->set_reset_callback = inturbo_set_reset_callback;
+  p_funcs->apply_flags = inturbo_apply_flags;
+  p_funcs->get_flags = inturbo_get_flags;
   p_funcs->get_exit_value = inturbo_get_exit_value;
+  p_funcs->set_exit_value = inturbo_set_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;
 
   debug_subsystem_active = p_options->debug_active_at_addr(
@@ -698,30 +734,28 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
                                                       p_timing,
                                                       p_options);
   if (p_interp == NULL) {
-    errx(1, "couldn't allocate interp_struct");
+    util_bail("couldn't allocate interp_struct");
   }
   p_inturbo->p_interp = p_interp;
 
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
-  p_inturbo->p_inturbo_base = util_get_guarded_mapping(
-      k_inturbo_opcodes_addr,
-      (256 * k_inturbo_bytes_per_opcode));
-  util_make_mapping_read_write_exec(
-      p_inturbo->p_inturbo_base,
-      (256 * k_inturbo_bytes_per_opcode));
+  mapping_size = (256 * k_inturbo_bytes_per_opcode);
+  p_inturbo->p_mapping_base = os_alloc_get_mapping(k_inturbo_opcodes_addr,
+                                                   mapping_size);
+  p_inturbo->p_inturbo_base =
+      os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
+  os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
+                                        mapping_size);
 
   inturbo_fill_tables(p_inturbo);
 }
 
 struct cpu_driver*
 inturbo_create(struct cpu_driver_funcs* p_funcs) {
-  struct inturbo_struct* p_inturbo = malloc(sizeof(struct inturbo_struct));
-  if (p_inturbo == NULL) {
-    errx(1, "couldn't allocate inturbo_struct");
-  }
-  (void) memset(p_inturbo, '\0', sizeof(struct inturbo_struct));
+  struct inturbo_struct* p_inturbo =
+      util_mallocz(sizeof(struct inturbo_struct));
 
   p_funcs->init = inturbo_init;
 

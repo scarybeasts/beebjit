@@ -1,11 +1,11 @@
 #include "os_poller.h"
 
+#include "util.h"
+
 #include <assert.h>
-#include <errno.h>
 #include <err.h>
+#include <errno.h>
 #include <poll.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_os_poller_max_handles = 2,
@@ -18,12 +18,8 @@ struct os_poller_struct {
 
 struct os_poller_struct*
 os_poller_create() {
-  struct os_poller_struct* p_poller = malloc(sizeof(struct os_poller_struct));
-  if (p_poller == NULL) {
-    errx(1, "couldn't allocate os_poller_struct");
-  }
-
-  (void) memset(p_poller, '\0', sizeof(struct os_poller_struct));
+  struct os_poller_struct* p_poller =
+      util_mallocz(sizeof(struct os_poller_struct));
 
   p_poller->num_used_handles = 0;
 
@@ -32,15 +28,15 @@ os_poller_create() {
 
 void
 os_poller_destroy(struct os_poller_struct* p_poller) {
-  free(p_poller);
+  util_free(p_poller);
 }
 
 void
-os_poller_add_handle(struct os_poller_struct* p_poller, uintptr_t handle) {
+os_poller_add_handle(struct os_poller_struct* p_poller, intptr_t handle) {
   uint32_t num_used_handles = p_poller->num_used_handles;
 
-  if (p_poller->num_used_handles == k_os_poller_max_handles) {
-    errx(1, "os_poller_add_handle out of handles");
+  if (num_used_handles == k_os_poller_max_handles) {
+    util_bail("os_poller_add_handle out of handles");
   }
 
   p_poller->poll_fds[num_used_handles].fd = handle;
@@ -69,7 +65,7 @@ os_poller_poll(struct os_poller_struct* p_poller) {
       if (errno == EINTR) {
         continue;
       }
-      errx(1, "poll failed");
+      util_bail("poll failed");
     } else {
       assert(0);
     }

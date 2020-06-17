@@ -95,7 +95,8 @@ enum {
   k_opcode_MODE_ABY,
   k_opcode_MODE_IND_8,
   k_opcode_MODE_IND_16,
-  k_opcode_MODE_IND_SCRATCH,
+  k_opcode_MODE_IND_SCRATCH_8,
+  k_opcode_MODE_IND_SCRATCH_16,
   k_opcode_MODE_ZPX,
   k_opcode_MODE_ZPY,
   k_opcode_PULL_16,
@@ -136,5 +137,7 @@ void jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1);
 
 struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);
+
+void jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode);
 
 #endif /* JIT_OPCODE_H */

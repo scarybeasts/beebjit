@@ -28,13 +28,16 @@ asm_x64_jit_compile_trampoline:
   # param4: Intel rflags
   # Needed because carry / overflow flags state could be here in certain
   # optimization conditions.
-  pushf
+  pushfq
   pop REG_PARAM4
 
   # One push prior to the call.
   # That takes us back to 16 bytes stack alignment.
   push REG_CONTEXT
+  # Win x64 shadow space convention.
+  sub rsp, 32
   call [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
+  add rsp, 32
   pop REG_CONTEXT
 
   mov REG_COUNTDOWN, REG_RETURN
@@ -42,8 +45,10 @@ asm_x64_jit_compile_trampoline:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 
-  mov REG_SCRATCH1_32, REG_6502_PC_32
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
 
   # We're jumping out of a call so pop the return address.
@@ -61,38 +66,48 @@ asm_x64_jit_interp:
   # Preserves RFLAGS
   call asm_x64_save_AXYS_PC_flags
 
-  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
-  # overwritten below.
-  mov REG_SCRATCH3, REG_CONTEXT
-  # param1 is interp object.
-  mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
-  # param2 is current countdown value.
-  mov REG_PARAM2, REG_COUNTDOWN
-  # param3: Intel rflags
-  # Needed because carry / overflow flags state could be here in certain
-  # optimization conditions.
-  pushf
-  pop REG_PARAM3
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
+  # AMD64 calling convention, which is overwritten below.
+  # Use REG_SCRATCH4 because that won't be overwritten as a parameter in either
+  # AMD64 or Win x64 calling convention.
+  mov REG_SCRATCH4, REG_CONTEXT
 
   # Double push to keep stack aligned to 16 bytes before the call.
-  push REG_SCRATCH3
-  push REG_SCRATCH3
-  call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  push REG_CONTEXT
+  push REG_CONTEXT
+  # param1 is interp object.
+  mov REG_PARAM1, [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  # param2 is stack storage for 2x int64 return values.
+  lea REG_PARAM2, [rsp - 16]
+  # param3 is current countdown value.
+  mov REG_PARAM3, REG_COUNTDOWN
+  # param4: Intel rflags
+  # Needed because carry / overflow flags state could be here in certain
+  # optimization conditions.
+  pushfq
+  pop REG_PARAM4
+
+  # Return value space and Win x64 shadow space convention.
+  sub rsp, 16 + 32
+  call [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  add rsp, 16 + 32
+  mov REG_COUNTDOWN, [rsp - 16]
+  mov REG_RETURN, [rsp - 8]
   pop REG_CONTEXT
   pop REG_CONTEXT
 
-  mov REG_COUNTDOWN, REG_RETURN
-  test REG_RETURN2, REG_RETURN2
+  test REG_RETURN, REG_RETURN
   je not_exiting
-  mov REG_RETURN, REG_RETURN2
   ret
 
 not_exiting:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_restore_AXYS_PC_flags
 
-  mov REG_SCRATCH1_32, REG_6502_PC_32
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
 
   jmp REG_SCRATCH1
@@ -114,7 +129,7 @@ asm_x64_jit_call_compile_trampoline_END:
 asm_x64_jit_jump_interp_trampoline:
   mov REG_6502_PC_32, 0x7fffffff
 asm_x64_jit_jump_interp_trampoline_pc_patch:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 asm_x64_jit_jump_interp_trampoline_jump_patch:
 
 asm_x64_jit_jump_interp_trampoline_END:
@@ -129,7 +144,7 @@ asm_x64_jit_check_countdown:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 asm_x64_jit_check_countdown_count_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_jit_check_countdown_jump_patch:
 
 asm_x64_jit_check_countdown_END:
@@ -144,7 +159,7 @@ asm_x64_jit_check_countdown_8bit:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 asm_x64_jit_check_countdown_8bit_count_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_jit_check_countdown_8bit_jump_patch:
 
 asm_x64_jit_check_countdown_8bit_END:
@@ -161,9 +176,9 @@ asm_x64_jit_call_debug_pc_patch:
   # Some optimizations cache values across opcodes in REG_SCRATCH1 or host
   # flags.
   # So they must be saved.
-  pushf
+  pushfq
   push REG_SCRATCH1
-  call 0
+  call asm_x64_unpatched_branch_target
 asm_x64_jit_call_debug_call_patch:
   pop REG_SCRATCH1
   popf
@@ -179,7 +194,7 @@ asm_x64_jit_call_debug_END:
 asm_x64_jit_jump_interp:
   mov REG_6502_PC_32, 0x7fffffff
 asm_x64_jit_jump_interp_pc_patch:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 asm_x64_jit_jump_interp_jump_patch:
 
 asm_x64_jit_jump_interp_END:
@@ -282,14 +297,12 @@ asm_x64_jit_CHECK_BCD_END:
 
 
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n
-.globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch
+.globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n:
   movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 - 0x100]
-asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch:
-  mov REG_SCRATCH3_32, 31
-  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
@@ -299,11 +312,11 @@ asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X:
-  lea REG_SCRATCH2_32, [REG_6502_X_64 - 0x10000100]
+  movzx REG_SCRATCH2_32, REG_6502_X
   movzx REG_SCRATCH3_32, REG_SCRATCH1_8
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_SCRATCH3]
-  mov REG_SCRATCH3_32, 31
-  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + \
+                                   REG_SCRATCH3 + \
+                                   K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END:
@@ -313,11 +326,11 @@ asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END:
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y:
-  lea REG_SCRATCH2_32, [REG_6502_Y_64 - 0x10000100]
+  movzx REG_SCRATCH2_32, REG_6502_Y
   movzx REG_SCRATCH3_32, REG_SCRATCH1_8
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_SCRATCH3]
-  mov REG_SCRATCH3_32, 31
-  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + \
+                                   REG_SCRATCH3 + \
+                                   K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END:
@@ -325,13 +338,12 @@ asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END:
 
 
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_X_n
-.globl asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch
+.globl asm_x64_jit_CHECK_PAGE_CROSSING_X_n_mov_patch
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END
 asm_x64_jit_CHECK_PAGE_CROSSING_X_n:
-  mov REG_SCRATCH3_32, 31
-  lea REG_SCRATCH2_32, [REG_6502_X_64 + 0x7fffffff]
-asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch:
-  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  movzx REG_SCRATCH2_32, REG_6502_X
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+asm_x64_jit_CHECK_PAGE_CROSSING_X_n_mov_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END:
@@ -339,13 +351,12 @@ asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END:
 
 
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_Y_n
-.globl asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch
+.globl asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch
 .globl asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END
 asm_x64_jit_CHECK_PAGE_CROSSING_Y_n:
-  mov REG_SCRATCH3_32, 31
-  lea REG_SCRATCH2_32, [REG_6502_Y_64 + 0x7fffffff]
-asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch:
-  shrx REG_SCRATCH2_32, REG_SCRATCH2_32, REG_SCRATCH3_32
+  movzx REG_SCRATCH2_32, REG_6502_Y
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END:
@@ -361,7 +372,7 @@ asm_x64_jit_CHECK_PENDING_IRQ:
   mov REG_SCRATCH1_32, [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
   bt REG_SCRATCH1_32, 31
-  jae 0
+  jae asm_x64_unpatched_branch_target
 asm_x64_jit_CHECK_PENDING_IRQ_jump_patch:
 
 asm_x64_jit_CHECK_PENDING_IRQ_END:
@@ -434,7 +445,11 @@ asm_x64_jit_FLAG_MEM_END:
 .globl asm_x64_jit_JMP_SCRATCH
 .globl asm_x64_jit_JMP_SCRATCH_END
 asm_x64_jit_JMP_SCRATCH:
-  rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
+  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lahf
+  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
   jmp REG_SCRATCH1
 
@@ -543,6 +558,8 @@ asm_x64_jit_MODE_ABY_END:
 .globl asm_x64_jit_MODE_IND_8_mov2_patch
 .globl asm_x64_jit_MODE_IND_8_END
 asm_x64_jit_MODE_IND_8:
+  # Deliberately done as 2x 8 byte loads, not 1x 16.
+  # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7f]
 asm_x64_jit_MODE_IND_8_mov1_patch:
   mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7f]
@@ -557,6 +574,8 @@ asm_x64_jit_MODE_IND_8_END:
 .globl asm_x64_jit_MODE_IND_16_mov2_patch
 .globl asm_x64_jit_MODE_IND_16_END
 asm_x64_jit_MODE_IND_16:
+  # Deliberately done as 2x 8 byte loads, not 1x 16.
+  # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7fffffff]
 asm_x64_jit_MODE_IND_16_mov1_patch:
   mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7fffffff]
@@ -566,10 +585,10 @@ asm_x64_jit_MODE_IND_16_END:
   ret
 
 
-.globl asm_x64_jit_MODE_IND_SCRATCH
-.globl asm_x64_jit_MODE_IND_SCRATCH_END
-asm_x64_jit_MODE_IND_SCRATCH:
-  # This faults (with a fixup handler) if we're trying to load from 0xFF,
+.globl asm_x64_jit_MODE_IND_SCRATCH_8
+.globl asm_x64_jit_MODE_IND_SCRATCH_8_END
+asm_x64_jit_MODE_IND_SCRATCH_8:
+  # This faults (with a fixup handler) if we're trying to load from $00FF,
   # which is highly unusual.
   mov REG_SCRATCH3_8, \
       [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
@@ -578,7 +597,24 @@ asm_x64_jit_MODE_IND_SCRATCH:
   mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
   mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
 
-asm_x64_jit_MODE_IND_SCRATCH_END:
+asm_x64_jit_MODE_IND_SCRATCH_8_END:
+  ret
+
+
+.globl asm_x64_jit_MODE_IND_SCRATCH_16
+.globl asm_x64_jit_MODE_IND_SCRATCH_16_END
+asm_x64_jit_MODE_IND_SCRATCH_16:
+  # This faults (with a fixup handler) if we're trying to load from $xxFF,
+  # which is highly unusual.
+  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
+  mov REG_SCRATCH3_8, \
+      [REG_SCRATCH3 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
+
+  mov REG_SCRATCH2, REG_SCRATCH1
+  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
+  mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
+
+asm_x64_jit_MODE_IND_SCRATCH_16_END:
   ret
 
 
@@ -776,8 +812,7 @@ asm_x64_jit_WRITE_INV_SCRATCH_n_END:
 .globl asm_x64_jit_WRITE_INV_SCRATCH_Y
 .globl asm_x64_jit_WRITE_INV_SCRATCH_Y_END
 asm_x64_jit_WRITE_INV_SCRATCH_Y:
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_Y_64]
-  movzx REG_SCRATCH2_32, REG_SCRATCH2_16
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_Y_64 - K_BBC_MEM_READ_IND_ADDR]
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
@@ -1013,7 +1048,7 @@ asm_x64_jit_ASL_ZPG_END:
 .globl asm_x64_jit_BCC
 .globl asm_x64_jit_BCC_END
 asm_x64_jit_BCC:
-  jae 0
+  jae asm_x64_unpatched_branch_target
 
 asm_x64_jit_BCC_END:
   ret
@@ -1031,7 +1066,7 @@ asm_x64_jit_BCC_8bit_END:
 .globl asm_x64_jit_BCS
 .globl asm_x64_jit_BCS_END
 asm_x64_jit_BCS:
-  jb 0
+  jb asm_x64_unpatched_branch_target
 
 asm_x64_jit_BCS_END:
   ret
@@ -1049,7 +1084,7 @@ asm_x64_jit_BCS_8bit_END:
 .globl asm_x64_jit_BEQ
 .globl asm_x64_jit_BEQ_END
 asm_x64_jit_BEQ:
-  je 0
+  je asm_x64_unpatched_branch_target
 
 asm_x64_jit_BEQ_END:
   ret
@@ -1085,7 +1120,7 @@ asm_x64_jit_BIT_ZPG_END:
 .globl asm_x64_jit_BMI
 .globl asm_x64_jit_BMI_END
 asm_x64_jit_BMI:
-  js 0
+  js asm_x64_unpatched_branch_target
 
 asm_x64_jit_BMI_END:
   ret
@@ -1103,7 +1138,7 @@ asm_x64_jit_BMI_8bit_END:
 .globl asm_x64_jit_BNE
 .globl asm_x64_jit_BNE_END
 asm_x64_jit_BNE:
-  jne 0
+  jne asm_x64_unpatched_branch_target
 
 asm_x64_jit_BNE_END:
   ret
@@ -1121,7 +1156,7 @@ asm_x64_jit_BNE_8bit_END:
 .globl asm_x64_jit_BPL
 .globl asm_x64_jit_BPL_END
 asm_x64_jit_BPL:
-  jns 0
+  jns asm_x64_unpatched_branch_target
 
 asm_x64_jit_BPL_END:
   ret
@@ -1139,7 +1174,7 @@ asm_x64_jit_BPL_8bit_END:
 .globl asm_x64_jit_BVC
 .globl asm_x64_jit_BVC_END
 asm_x64_jit_BVC:
-  jae 0
+  jae asm_x64_unpatched_branch_target
 
 asm_x64_jit_BVC_END:
   ret
@@ -1157,7 +1192,7 @@ asm_x64_jit_BVC_8bit_END:
 .globl asm_x64_jit_BVS
 .globl asm_x64_jit_BVS_END
 asm_x64_jit_BVS:
-  jb 0
+  jb asm_x64_unpatched_branch_target
 
 asm_x64_jit_BVS_END:
   ret
@@ -1489,7 +1524,7 @@ asm_x64_jit_INC_ZPG_END:
 .globl asm_x64_jit_JMP
 .globl asm_x64_jit_JMP_END
 asm_x64_jit_JMP:
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 
 asm_x64_jit_JMP_END:
   ret

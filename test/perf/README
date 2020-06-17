@@ -1,0 +1,8 @@
+These discs are interesting to test emulator performance.
+
+- Mandlebrot_Tricon_BurningShip.ssd
+From https://stardot.org.uk/forums/viewtopic.php?f=2&t=14919&p=217893#p217915
+
+- pi.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/115
+Aside from being a good performance test, seems to use a page-crossing JMP ind.

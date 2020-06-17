@@ -5,11 +5,12 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct render_struct {
+  void (*p_flyback_callback)(void*);
+  void* p_flyback_callback_object;
+
   uint32_t width;
   uint32_t height;
 
@@ -39,12 +40,12 @@ struct render_struct {
   int is_clock_2MHz;
   int is_rendering_black;
   uint32_t pixels_size;
-  uint32_t horiz_beam_pos;
-  uint32_t vert_beam_pos;
-  uint32_t horiz_beam_window_start_pos;
-  uint32_t horiz_beam_window_end_pos;
-  uint32_t vert_beam_window_start_pos;
-  uint32_t vert_beam_window_end_pos;
+  int32_t horiz_beam_pos;
+  int32_t vert_beam_pos;
+  int32_t horiz_beam_window_start_pos;
+  int32_t horiz_beam_window_end_pos;
+  int32_t vert_beam_window_start_pos;
+  int32_t vert_beam_window_end_pos;
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
@@ -52,6 +53,7 @@ struct render_struct {
   int do_show_frame_boundaries;
   int32_t cursor_segment_index;
   int cursor_segments[4];
+  int is_double_size;
 };
 
 static void
@@ -69,23 +71,22 @@ render_create(struct teletext_struct* p_teletext,
   uint32_t height;
   uint32_t i;
 
+  /* The border appears on all screen edges, and 1 character unit is the width /
+   * height of a MODE 4 glyph / character.
+   */
   uint32_t border_chars = 4;
 
   /* These numbers, 15 and 4, come from the delta between horiz/vert sync
-   * position and of line/frame, in a standard MODE.
+   * position and of line/frame, in a standard 1MHz MODE.
    * Note that AUG states R7 as 34 for a lot of the screen modes whereas it
    * should be 35!
    */
   uint32_t k_horiz_standard_offset = 15;
   uint32_t k_vert_standard_offset = 4;
 
-  struct render_struct* p_render = malloc(sizeof(struct render_struct));
-  if (p_render == NULL) {
-    errx(1, "cannot allocate render_struct");
-  }
+  const char* p_opt_flags = p_options->p_opt_flags;
 
-  /* Also sets the palette to black. */
-  (void) memset(p_render, '\0', sizeof(struct render_struct));
+  struct render_struct* p_render = util_mallocz(sizeof(struct render_struct));
 
   p_render->p_teletext = p_teletext;
 
@@ -94,21 +95,27 @@ render_create(struct teletext_struct* p_teletext,
    * If set to zero, standard modes will fit perfectly. If set larger than
    * zero, pixels rendered in "overscan" areas will start to be visible.
    */
-  (void) util_get_u32_option(&border_chars,
-                             p_options->p_opt_flags,
-                             "video:border-chars=");
+  (void) util_get_u32_option(&border_chars, p_opt_flags, "video:border-chars=");
   if (border_chars > 16) {
-    errx(1, "border-chars must be 16 or less");
+    util_bail("border-chars must be 16 or less");
   }
 
-  p_render->do_interlace_wobble = util_has_option(p_options->p_opt_flags,
+  p_render->do_interlace_wobble = util_has_option(p_opt_flags,
                                                   "video:interlace-wobble");
 
   p_render->do_show_frame_boundaries = util_has_option(
-      p_options->p_opt_flags, "video:frame-boundaries");
+      p_opt_flags, "video:frame-boundaries");
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
+
+  if (util_has_option(p_opt_flags, "video:double-size")) {
+    width *= 2;
+    height *= 2;
+    p_render->is_double_size = 1;
+  } else {
+    p_render->is_double_size = 0;
+  }
 
   p_render->width = width;
   p_render->height = height;
@@ -158,7 +165,15 @@ render_create(struct teletext_struct* p_teletext,
 
 void
 render_destroy(struct render_struct* p_render) {
-  free(p_render);
+  util_free(p_render);
+}
+
+void
+render_set_flyback_callback(struct render_struct* p_render,
+                            void (*p_flyback_callback)(void* p),
+                            void* p_flyback_callback_object) {
+  p_render->p_flyback_callback = p_flyback_callback;
+  p_render->p_flyback_callback_object = p_flyback_callback_object;
 }
 
 uint32_t
@@ -174,21 +189,6 @@ render_get_height(struct render_struct* p_render) {
 uint32_t*
 render_get_buffer(struct render_struct* p_render) {
   return p_render->p_buffer;
-}
-
-void
-render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
-  assert(p_render->p_buffer == NULL);
-  assert(p_buffer != NULL);
-  p_render->p_buffer = p_buffer;
-  p_render->p_buffer_end = p_buffer;
-  p_render->p_buffer_end += (p_render->width * p_render->height);
-
-  render_clear_buffer(p_render);
-
-  /* These reset p_render_pos. */
-  render_hsync(p_render);
-  render_vsync(p_render, 1);
 }
 
 static inline void
@@ -233,6 +233,21 @@ render_reset_render_pos(struct render_struct* p_render) {
                                     p_render->pixels_size);
 }
 
+void
+render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
+  assert(p_render->p_buffer == NULL);
+  assert(p_buffer != NULL);
+  p_render->p_buffer = p_buffer;
+  p_render->p_buffer_end = p_buffer;
+  p_render->p_buffer_end += (p_render->width * p_render->height);
+
+  render_clear_buffer(p_render);
+
+  p_render->horiz_beam_pos = 0;
+  p_render->vert_beam_pos = 0;
+  render_reset_render_pos(p_render);
+}
+
 static inline void
 render_check_cursor(struct render_struct* p_render,
                     uint32_t* p_render_pos,
@@ -274,7 +289,8 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
      * bytes that are off-screen, so that it can maintain state.
      */
     teletext_render_data(p_render->p_teletext, NULL, data);
-    if (p_render->horiz_beam_pos == p_render->horiz_beam_window_start_pos) {
+    if ((p_render->horiz_beam_pos & ~15) ==
+        p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
     }
   }
@@ -292,7 +308,7 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
     *p_character = p_render->p_render_table_1MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -313,7 +329,7 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
     p_render->p_render_pos += 16;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -331,7 +347,7 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
     *p_character = p_render->p_render_table_2MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -350,7 +366,7 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
     p_render->p_render_pos += 8;
-  } else if (p_render->horiz_beam_pos ==
+  } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
     render_reset_render_pos(p_render);
   }
@@ -649,39 +665,87 @@ render_clear_buffer(struct render_struct* p_render) {
 void
 render_double_up_lines(struct render_struct* p_render) {
   /* TODO: only need to double up partial lines within the render border. */
-  uint32_t line;
-
-  uint32_t lines = (p_render->height / 2);
   uint32_t width = p_render->width;
+  uint32_t line_size = (width * sizeof(uint32_t));
   uint32_t double_width = (width * 2);
   uint32_t* p_buffer = p_render->p_buffer;
   uint32_t* p_buffer_next_line = (p_buffer + width);
-
-  for (line = 0; line < lines; ++line) {
-    (void) memcpy(p_buffer_next_line, p_buffer, (width * 4));
-    p_buffer += double_width;
-    p_buffer_next_line += double_width;
+  
+  if (p_render->is_double_size) {
+    int32_t line;   /* Must be signed. */
+    int32_t column; /* Must be signed. */
+    int32_t lines = (p_render->height / 4);
+    uint32_t half_width = (width / 2);
+    for (line = 0; line < lines; ++line) {
+      for (column = (half_width - 1); column >= 0; --column) {
+        p_buffer[column * 2] = p_buffer[column];
+        p_buffer[(column * 2) + 1] = p_buffer[column];
+      }
+      (void) memcpy(p_buffer_next_line, p_buffer, line_size);
+      p_buffer += double_width;
+      p_buffer_next_line += double_width;
+    }
+    p_buffer = p_render->p_buffer;
+    lines = (p_render->height / 2);
+    for (line = (lines - 1); line >= 0; --line) {
+      uint32_t* p_buffer_src = (p_buffer + (line * width));
+      uint32_t* p_buffer_dest = (p_buffer + (2 * (line * width)));
+      if (line == 0) {
+        /* Don't copy line 0 to line 2*0=0 (memcpy overlap = undefined) */
+      } else {
+        (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
+      }
+      (void) memcpy((p_buffer_dest + width), p_buffer_src, line_size);
+    }
+  } else {
+    /* Not double size. */
+    uint32_t line;
+    uint32_t lines = (p_render->height / 2);
+    for (line = 0; line < lines; ++line) {
+      (void) memcpy(p_buffer_next_line, p_buffer, line_size);
+      p_buffer += double_width;
+      p_buffer_next_line += double_width;
+    }
   }
 }
 
 void
-render_hsync(struct render_struct* p_render) {
+render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
+  /* A real CRT appears to sync to the middle of the hsync pulse?!! This
+   * permits half-character horizontal scrolling.
+   * Used by tricky's RallyX demo.
+   * For now, handle just the special case.
+   */
   p_render->horiz_beam_pos = 0;
-  /* TODO: do a vertical flyback if beam pos gets too low. */
+  if (hsync_pulse_ticks & 1) {
+    p_render->horiz_beam_pos = -4;
+  }
   p_render->vert_beam_pos += 2;
+
+  /* If the CRT beam gets too low with no vsync signal in sight, it will do
+   * flyback anyway.
+   */
+  if (p_render->vert_beam_pos >= 768) {
+    render_vsync(p_render, 1);
+  }
 
   render_reset_render_pos(p_render);
 
-  /* NOTE: dodgy hack to get MODE7 shifted to the right by one character
+  /* NOTE: dodgy hack to get MODE7 shifted to the right by two characters
    * because we do not yet support 6845 skew.
    */
   if (p_render->render_mode == k_render_mode7) {
+    render_function_1MHz_blank(p_render, 0);
     render_function_1MHz_blank(p_render, 0);
   }
 }
 
 void
 render_vsync(struct render_struct* p_render, int do_interlace_compensate) {
+  if (p_render->p_flyback_callback) {
+    p_render->p_flyback_callback(p_render->p_flyback_callback_object);
+  }
+
   p_render->vert_beam_pos = 0;
   if (do_interlace_compensate &&
       !p_render->do_interlace_wobble &&

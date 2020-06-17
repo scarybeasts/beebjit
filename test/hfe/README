@@ -1,0 +1,71 @@
+beebjit can generate simple HFE files based on precise specification for FM
+data bits and clock bits on disc. These HFE files may then be loaded onto a
+Gotek + FlashFloppy to enable bit-precision testing of floppy disc controller
+behavior.
+In the below strings of hex digits, there are alternate bytes of data bits /
+clock bits. e.g. fec7 is data: $FE, clocks: $C7.
+
+Tests and results: Intel 8271.
+
+1) Sync requirements to recognize sector header.
+a) Demonstrating 16 0 data bits are required for sync:
+./beebjit -create-hfe ff4002idcrcerr.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd2ff
+./beebjit -create-hfe ff4001.7idcrcerr.hfe ffffffffffffffff80ff00fffec700ff00ff00ff01fff1ffd2ff
+The first HFE has 16 0 data bits in a row; the second has 15 0 data bits in a
+row.
+8271: first syncs ($0C), second does not ($18).
+1770: both sync ($0C).
+Extra 1770 testing shows it can sync with just 4 0 data bits:
+./beebjit -create-hfe ff4000.4idcrcerr.hfe ffffffffffffffff.f0ff.fec7.00ff00ff00ff01fff1ffd2ff
+1770: syncs ($0C)
+
+b) Demonstrating that pre-0 sync bits don't have to be all 1:
+./beebjit -create-hfe 554002idcrcerr.hfe 55ff55ff55ff55ff00ff00fffec700ff00ff00ff01fff1ffd2ff 
+(error $0C)
+
+c) Demonstrating that the 0 sync bits have to be contiguous:
+./beebjit -create-hfe ff3001ff1001idcrcerr.hfe ffffffffffff00ffffff00fffec700ff00ff00ff01fff1ffd2ff
+(error $18)
+
+
+2) Sync requirements to recognize sector data.
+a) Never any sector data:
+./beebjit -create-hfe ff4002idok.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff
+8271: error $08 (yes, clock error!) (success if you just do a read sector IDs)
+1770: error $18.
+
+b) Demonstrating minimum number of bytes requirement:
+./beebjit -create-hfe ff4002idok0014.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00fffbc7
+./beebjit -create-hfe ff4002idok0013.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00fffbc7
+8271: The 14 byte gap gives error $0E, the 13 byte gap gives error $08.
+1770: 14 is $0E, 13 is $18.
+Bonus 1770 test. Absolute minimum sync bits is 3x clock 1's with 3x data 0's.
+./beebjit -create-hfe ff4002idokff13.5000.3.hfe ffffffffffffffff00ff00ff.fec700ff00ff00ff01fff1ffd3ff.ffffffffffffffffffffffffffffffffffffffffffffffffffff.f8ff.fbc7
+1770: $0E. It's $18 with 2x clock 1's and 2x data 0's.
+
+c) Demonstrating no obvious maximum bytes requirement, and demonstrating again
+that 2 bytes $00 sync is sufficient:
+./beebjit -create-hfe ff4002idokff1024002.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff`python -c 'print "ffff"*1024'`00ff00fffbc7
+8271: error $0E
+1770: error $18. There is actually a max. Here is the 1770 boundary:
+./beebjit -create-hfe ff4002idokff27002.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff`python -c 'print "ffff"*27'`00ff00ff.fbc7
+1770: error $0E. Data is found.
+./beebjit -create-hfe ff4002idokff28002.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff`python -c 'print "ffff"*28'`00ff00ff.fbc7
+1770: error $18. Data not found.
+
+d) Demonstrating that pre-0 sync bits don't have to be all 1:
+./beebjit -create-hfe ff4002idok5512002.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff55ff55ff55ff55ff55ff55ff55ff55ff55ff55ff55ff55ff00ff00fffbc7
+(error $0E)
+
+
+3) Maximally packed sector headers.
+a) General size boundaries.
+./beebjit -create-hfe ff4002idok006idok.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff00ff00ff00ff00ff00ff00fffec700ff00ff01ff01ffc2ffe2ff
+./beebjit -create-hfe ff4002idok005idok.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff00ff00ff00ff00ff00fffec700ff00ff01ff01ffc2ffe2ff
+With 6 bytes between sector headers, both can be read with a read sector IDs.
+With just 5 bytes, only the first sector header is returned.
+
+b) Specific byte requirements.
+./beebjit -create-hfe ff4002idok554002idok.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff55ff55ff55ff55ff00ff00fffec700ff00ff01ff01ffc2ffe2ff
+./beebjit -create-hfe ff4002idok555001idok.hfe ffffffffffffffff00ff00fffec700ff00ff00ff01fff1ffd3ff55ff55ff55ff55ff55ff00fffec700ff00ff01ff01ffc2ffe2ff
+Of the 6 bytes needed, 4x$55 and 2x$00 is ok; 5x$55 and 1x$00 is not.

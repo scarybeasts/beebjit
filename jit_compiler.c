@@ -13,8 +13,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
 #include <string.h>
 
 struct jit_compiler {
@@ -22,12 +20,10 @@ struct jit_compiler {
   uint8_t* p_mem_read;
   void* (*get_block_host_address)(void* p, uint16_t addr);
   void* (*get_trampoline_host_address)(void* p, uint16_t addr);
-  uint16_t (*get_jit_ptr_block)(void* p, uint32_t jit_ptr);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int debug;
   int log_revalidate;
-  uint16_t needs_callback_above;
 
   int option_accurate_timings;
   int option_no_optimize;
@@ -84,60 +80,6 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
 }
 
-static void
-jit_invalidate_6502_jit_code(struct jit_compiler* p_compiler, uint16_t addr) {
-  uint8_t* p_host_ptr;
-
-  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-  if (jit_ptr == p_compiler->jit_ptr_no_code) {
-    return;
-  }
-
-  p_host_ptr = (uint8_t*) (uintptr_t) jit_ptr;
-  util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
-}
-
-static void
-jit_invalidate_block_with_addr(struct jit_compiler* p_compiler, uint16_t addr) {
-  uint16_t block_addr_6502;
-  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-  if (jit_ptr == p_compiler->jit_ptr_no_code) {
-    return;
-  }
-
-  block_addr_6502 =
-      p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object, jit_ptr);
-  /* If we're compiling in the middle of an existing block, invalidate the
-   * very start of that block so it gets recompiled when it is next hit.
-   */
-  jit_invalidate_6502_jit_code(p_compiler, block_addr_6502);
-
-  /* Also clear all of the JIT invalidation pointers for the existing block.
-   * They will typically get rewritten but some might otherwise get left stale
-   * if we recompile a small block exactly on top of an existing larger one.
-   */
-  while (1) {
-    uint16_t next_block_addr_6502;
-    addr++;
-    jit_ptr = p_compiler->p_jit_ptrs[addr];
-
-    if (jit_ptr == p_compiler->jit_ptr_dynamic_operand) {
-      continue;
-    }
-
-    next_block_addr_6502 =
-        p_compiler->get_jit_ptr_block(p_compiler->p_host_address_object,
-                                      jit_ptr);
-    if (next_block_addr_6502 != block_addr_6502) {
-      break;
-    }
-    p_compiler->p_jit_ptrs[addr] = p_compiler->jit_ptr_no_code;
-  }
-}
-
 static int
 jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   uint8_t* p_raw_ptr;
@@ -145,8 +87,16 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
   uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502];
+
   (void) p_host_ptr;
   assert(jit_ptr != (uint32_t) (size_t) p_host_ptr);
+
+  /* TODO: this shouldn't be necessary. Is invalidating a range not clearing
+   * JIT pointers properly?
+   */
+  if (p_compiler->addr_opcode[addr_6502] == -1) {
+    return 0;
+  }
 
   if (jit_ptr == p_compiler->jit_ptr_no_code) {
     return 0;
@@ -164,34 +114,25 @@ struct jit_compiler*
 jit_compiler_create(struct memory_access* p_memory_access,
                     void* (*get_block_host_address)(void*, uint16_t),
                     void* (*get_trampoline_host_address)(void*, uint16_t),
-                    uint16_t (*get_jit_ptr_block)(void*, uint32_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
                     int debug) {
-  size_t i;
+  uint32_t i;
   struct util_buffer* p_tmp_buf;
-  uint16_t needs_callback_above;
-  uint16_t temp_u16;
 
-  void* p_memory_object = p_memory_access->p_callback_obj;
   uint32_t max_6502_opcodes_per_block = 65536;
   uint32_t max_revalidate_count = 4;
 
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
 
-  struct jit_compiler* p_compiler = malloc(sizeof(struct jit_compiler));
-  if (p_compiler == NULL) {
-    errx(1, "cannot alloc jit_compiler");
-  }
-  (void) memset(p_compiler, '\0', sizeof(struct jit_compiler));
+  struct jit_compiler* p_compiler = util_mallocz(sizeof(struct jit_compiler));
 
   p_compiler->p_memory_access = p_memory_access;
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
   p_compiler->get_block_host_address = get_block_host_address;
   p_compiler->get_trampoline_host_address = get_trampoline_host_address;
-  p_compiler->get_jit_ptr_block = get_jit_ptr_block;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
@@ -215,20 +156,11 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->max_6502_opcodes_per_block = max_6502_opcodes_per_block;
   (void) util_get_u32_option(&max_revalidate_count,
                              p_options->p_opt_flags,
-                             "jit:max-revalidate");
+                             "jit:max-revalidate=");
   if (max_revalidate_count < 1) {
     max_revalidate_count = 1;
   }
   p_compiler->max_revalidate_count = max_revalidate_count;
-
-  needs_callback_above = p_memory_access->memory_read_needs_callback_above(
-      p_memory_object);
-  temp_u16 = p_memory_access->memory_write_needs_callback_above(
-      p_memory_object);
-  if (temp_u16 < needs_callback_above) {
-    needs_callback_above = temp_u16;
-  }
-  p_compiler->needs_callback_above = needs_callback_above;
 
   p_compiler->compile_for_code_in_zero_page = 0;
 
@@ -246,10 +178,6 @@ jit_compiler_create(struct memory_access* p_memory_access,
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;
   }
-
-  jit_compiler_memory_range_invalidate(p_compiler,
-                                       0,
-                                       (k_6502_addr_space_size - 1));
 
   /* Calculate lengths of sequences we need to know. */
   p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
@@ -281,7 +209,7 @@ void
 jit_compiler_destroy(struct jit_compiler* p_compiler) {
   util_buffer_destroy(p_compiler->p_single_opcode_buf);
   util_buffer_destroy(p_compiler->p_tmp_buf);
-  free(p_compiler);
+  util_free(p_compiler);
 }
 
 static void
@@ -412,7 +340,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = p_mem_read[addr_plus_1];
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH, addr_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH_8, addr_6502);
     p_uop++;
     break;
   case k_idy:
@@ -940,8 +868,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_MODE_IND_16:
     asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
     break;
-  case k_opcode_MODE_IND_SCRATCH:
-    asm_x64_emit_jit_MODE_IND_SCRATCH(p_dest_buf);
+  case k_opcode_MODE_IND_SCRATCH_8:
+    asm_x64_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
+    break;
+  case k_opcode_MODE_IND_SCRATCH_16:
+    asm_x64_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
     break;
   case k_opcode_MODE_ZPX:
     asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
@@ -1494,11 +1425,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t total_num_6502_opcodes = 0;
   int block_ended = 0;
   int is_block_start = 0;
-  int is_block_continuation = 0;
+  int is_next_block_continuation = 0;
 
   assert(!util_buffer_get_pos(p_buf));
-
-  jit_invalidate_block_with_addr(p_compiler, start_addr_6502);
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
@@ -1512,6 +1441,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
+  /* NOTE: p_compiler->addr_is_block_continuation[start_addr_6502] is left as
+   * it currently is.
+   * The only way to clear it is compile across the continuation boundary.
+   */
 
   /* Prepend opcodes at the start of every block. */
   addr_6502 = start_addr_6502;
@@ -1575,7 +1508,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * opcodes.
      */
     if (total_num_6502_opcodes == p_compiler->max_6502_opcodes_per_block) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       break;
     }
 
@@ -1584,7 +1517,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * to jump out of a block when the block doesn't fit.
      */
     if (total_num_opcodes == (k_max_opcodes_per_compile - 1)) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       break;
     }
 
@@ -1594,7 +1527,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
        * possibly needed opcode to jump out of a block that doesn't fit.
        */
       if (total_num_opcodes >= (k_max_opcodes_per_compile - 2)) {
-        is_block_continuation = 1;
+        is_next_block_continuation = 1;
         break;
       }
     }
@@ -1630,7 +1563,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     /* Check self-modified status for each opcode. Need to do this before we
      * start overwriting the existing host binary in the fourth step below.
      */
-    if (jit_has_invalidated_code(p_compiler, addr_6502)) {
+    if (jit_has_invalidated_code(p_compiler, addr_6502) &&
+        (p_details->len_bytes_6502_orig > 1)) {
       p_details->self_modify_invalidated = 1;
     }
 
@@ -1758,7 +1692,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * current position, and execute a jump to the block continuation.
      */
     if (util_buffer_remaining(p_buf) < buf_needed) {
-      is_block_continuation = 1;
+      is_next_block_continuation = 1;
       util_buffer_set_pos(p_single_opcode_buf, 0);
       for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
         p_uop = p_details->fixup_uops[i_uops];
@@ -1780,7 +1714,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->p_host_address = p_host_address;
   }
 
-  p_compiler->addr_is_block_continuation[addr_6502] = is_block_continuation;
+  p_compiler->addr_is_block_continuation[addr_6502] =
+      is_next_block_continuation;
 
   /* Fifth, update any values (metadata and/or binary) that may have changed
    * now we know the full extent of the emitted binary.
@@ -1839,9 +1774,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       if (addr_6502 != start_addr_6502) {
         jit_invalidate_jump_target(p_compiler, addr_6502);
         p_compiler->addr_is_block_start[addr_6502] = 0;
+        p_compiler->addr_is_block_continuation[addr_6502] = 0;
       }
-
-      p_compiler->addr_is_block_continuation[addr_6502] = 0;
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
       p_compiler->addr_nz_mem_fixup[addr_6502] = -1;
@@ -1856,8 +1790,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         int32_t revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
         if (opcode_6502 != p_compiler->addr_opcode[addr_6502]) {
           revalidate_count = 0;
-        } else if (p_details->self_modify_invalidated &&
-                   (p_details->len_bytes_6502_orig > 1)) {
+        } else if (p_details->self_modify_invalidated) {
           revalidate_count++;
           if (p_compiler->log_revalidate) {
             log_do_log(k_log_jit,
@@ -1961,7 +1894,10 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
 
-  assert(cycles_fixup > 0);
+  /* cycles_fixup can be 0 in the case the opcode is bouncing to the
+   * interpreter -- an invalid opcode, for example.
+   */
+  assert(cycles_fixup >= 0);
   countdown += cycles_fixup;
 
   if (a_fixup != -1) {
@@ -2032,12 +1968,13 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
 void
 jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                      uint16_t addr,
-                                     uint16_t len) {
+                                     uint32_t len) {
   uint32_t i;
 
   uint32_t addr_end = (addr + len);
 
-  assert(addr_end >= addr);
+  assert(len <= k_6502_addr_space_size);
+  assert(addr_end <= k_6502_addr_space_size);
 
   for (i = addr; i < addr_end; ++i) {
     p_compiler->addr_opcode[i] = -1;
@@ -2061,10 +1998,13 @@ jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler) {
   return p_compiler->max_revalidate_count;
 }
 
-int32_t
-jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
-                                  uint16_t addr_6502) {
-  return p_compiler->addr_revalidate_count[addr_6502];
+void
+jit_compiler_get_revalidation_details(struct jit_compiler* p_compiler,
+                                      int32_t* p_opcode,
+                                      int32_t* p_revalidate_count,
+                                      uint16_t addr_6502) {
+  *p_opcode = p_compiler->addr_opcode[addr_6502];
+  *p_revalidate_count = p_compiler->addr_revalidate_count[addr_6502];
 }
 
 int

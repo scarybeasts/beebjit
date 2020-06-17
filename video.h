@@ -29,6 +29,8 @@ void video_destroy(struct video_struct* p_video);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
 
+void video_power_on_reset(struct video_struct* p_video);
+
 uint64_t video_get_num_vsyncs(struct video_struct* p_video);
 uint64_t video_get_num_crtc_advances(struct video_struct* p_video);
 struct render_struct* video_get_render(struct video_struct* p_video);
@@ -48,10 +50,15 @@ void video_get_ula_full_palette(struct video_struct* p_video,
 void video_set_ula_palette(struct video_struct* p_video, uint8_t val);
 void video_set_ula_full_palette(struct video_struct* p_video,
                                 const uint8_t* p_values);
+
+enum {
+  k_video_crtc_num_registers = 18,
+};
 void video_get_crtc_registers(struct video_struct* p_video,
                               uint8_t* p_values);
 void video_set_crtc_registers(struct video_struct* p_video,
                               const uint8_t* p_values);
+
 void video_get_crtc_state(struct video_struct* p_video,
                           uint8_t* p_horiz_counter,
                           uint8_t* p_scanline_counter,

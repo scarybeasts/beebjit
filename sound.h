@@ -17,9 +17,13 @@ void sound_destroy(struct sound_struct* p_sound);
 void sound_set_driver(struct sound_struct* p_sound,
                       struct os_sound_struct* p_driver);
 void sound_start_playing(struct sound_struct* p_sound);
+void sound_set_output_enabled(struct sound_struct* p_sound, int is_enabled);
+
+void sound_power_on_reset(struct sound_struct* p_sound);
+
 int sound_is_active(struct sound_struct* p_sound);
 int sound_is_synchronous(struct sound_struct* p_sound);
-void sound_tick(struct sound_struct* p_sound, int blocking);
+void sound_tick(struct sound_struct* p_sound);
 
 void sound_get_state(struct sound_struct* p_sound,
                      uint8_t* p_volumes,

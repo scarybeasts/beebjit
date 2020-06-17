@@ -1470,10 +1470,31 @@ main(int argc, const char* argv[]) {
   util_buffer_add_3b(p_buf, 0x4F, 0xF3, 0x00);
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_EQ(p_buf, 0x04);
-  emit_JMP(p_buf, k_abs, 0xD580);
+  /* RLA idy, used by the Bone Cruncher loader. */
+  util_buffer_add_2b(p_buf, 0x33, 0xF0);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_zpg, 0xF3);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  /* AHX idy, used by the Bone Cruncher loader. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_LDY(p_buf, k_imm, 0x03);
+  util_buffer_add_2b(p_buf, 0x93, 0xF0);
+  emit_LDA(p_buf, k_zpg, 0xF3);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  /* AXS, used by the Dune Rider tape loader. */
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x18);
+  emit_LDX(p_buf, k_imm, 0xAA);
+  util_buffer_add_2b(p_buf, 0xCB, 0x05);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x03);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD5B0);
 
   /* Test reading VIA input registers. */
-  set_new_index(p_buf, 0x1580);
+  set_new_index(p_buf, 0x15B0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -1488,12 +1509,12 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
-  emit_JMP(p_buf, k_abs, 0xD5C0);
+  emit_JMP(p_buf, k_abs, 0xD5E0);
 
   /* Test an interesting JIT metadata bug where an incorrect invalidation
    * address led to JIT code corruption.
    */
-  set_new_index(p_buf, 0x15C0);
+  set_new_index(p_buf, 0x15E0);
   emit_JSR(p_buf, 0x3160);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x3160);
@@ -1533,8 +1554,63 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x7D);
   emit_JMP(p_buf, k_abs, 0xD680);
 
-  /* End of test. */
+  /* Test idy mode invalidations. */
   set_new_index(p_buf, 0x1680);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x3170);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  /* Flip INX to NOP. */
+  emit_LDA(p_buf, k_imm, 0x70);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x31);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  /* Cheesy way of setting Y=0 while avoiding "known-Y" optimization. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_PHA(p_buf);
+  emit_PLA(p_buf);
+  emit_TAY(p_buf);
+  emit_LDA(p_buf, k_imm, 0xEA);
+  emit_STA(p_buf, k_idy, 0xF0);
+  /* Check it. */
+  emit_JSR(p_buf, 0x3170);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xD6C0);
+
+  /* Test for crossing a boundary to $C000. */
+  set_new_index(p_buf, 0x16C0);
+  /* Avoid optimizations. */
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_PHA(p_buf);
+  emit_PLA(p_buf);
+  emit_TAX(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abx, 0xBFF8);
+  emit_LDA(p_buf, k_abx, 0xBFF8);
+  /* Should have read out the PHP at $C000. */
+  emit_REQUIRE_EQ(p_buf, 0x08);
+  emit_STA(p_buf, k_abx, 0xBF01);
+  emit_JMP(p_buf, k_abs, 0xD700);
+
+  /* Test 16-bit wrap with indirect mode accesses. */
+  set_new_index(p_buf, 0x1700);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0x50);
+  emit_STA(p_buf, k_zpg, 0x51);
+  emit_LDA(p_buf, k_imm, 0xC3);
+  emit_STA(p_buf, k_zpg, 0xFE);
+  emit_LDY(p_buf, k_zpg, 0x50);
+  emit_LDA(p_buf, k_idy, 0x50);
+  emit_REQUIRE_EQ(p_buf, 0xC3);
+  emit_LDA(p_buf, k_imm, 0xD7);
+  emit_STA(p_buf, k_idy, 0x50);
+  emit_LDA(p_buf, k_zpg, 0xFE);
+  emit_REQUIRE_EQ(p_buf, 0xD7);
+  emit_JMP(p_buf, k_abs, 0xD740);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1740);
   emit_LDA(p_buf, k_imm, 0x41);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDY(p_buf, k_imm, 0x43);
@@ -1710,6 +1786,11 @@ main(int argc, const char* argv[]) {
   emit_STX(p_buf, k_zpg, 0xF0);
   emit_INY(p_buf);
   emit_STY(p_buf, k_zpg, 0xF1);
+  emit_RTS(p_buf);
+
+  /* For an invalidation test using the idy addressing mode. */
+  set_new_index(p_buf, 0x3170);
+  emit_INX(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

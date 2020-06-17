@@ -6,6 +6,11 @@
 #include <limits.h>
 
 void
+asm_x64_unpatched_branch_target(void) {
+  asm __volatile__ ("int $3");
+}
+
+void
 asm_x64_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   size_t size = (p_end - p_start);
   util_buffer_add_chunk(p_buf, p_start, size);
@@ -18,7 +23,7 @@ asm_x64_patch_byte(struct util_buffer* p_buf,
                    void* p_patch,
                    uint8_t value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  ssize_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + (p_patch - p_start));
 
   assert(pos >= 1);
 
@@ -34,9 +39,9 @@ asm_x64_patch_u16(struct util_buffer* p_buf,
                   void* p_patch,
                   uint16_t value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  ssize_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + (p_patch - p_start));
 
-  assert(pos >= (ssize_t) sizeof(uint16_t));
+  assert(pos >= (int64_t) sizeof(uint16_t));
 
   util_buffer_set_pos(p_buf, (pos - 2));
   util_buffer_add_2b(p_buf, (value & 0xff), (value >> 8));
@@ -50,9 +55,9 @@ asm_x64_patch_int(struct util_buffer* p_buf,
                   void* p_patch,
                   int value) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  ssize_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + (p_patch - p_start));
 
-  assert(pos >= (ssize_t) sizeof(int));
+  assert(pos >= (int64_t) sizeof(int));
 
   util_buffer_set_pos(p_buf, (pos - 4));
   util_buffer_add_int(p_buf, value);
@@ -66,16 +71,16 @@ asm_x64_patch_jump(struct util_buffer* p_buf,
                    void* p_patch,
                    void* p_jump_target) {
   size_t original_pos = util_buffer_get_pos(p_buf);
-  ssize_t pos = (offset + (p_patch - p_start));
+  int64_t pos = (offset + (p_patch - p_start));
   void* p_jump_pc = (util_buffer_get_base_address(p_buf) + pos);
-  ssize_t jump_delta = (p_jump_target - p_jump_pc);
+  int64_t jump_delta = (p_jump_target - p_jump_pc);
 
-  assert(pos >= (ssize_t) sizeof(int));
+  assert(pos >= (int64_t) sizeof(int));
   assert(jump_delta <= INT_MAX);
   assert(jump_delta >= INT_MIN);
 
   util_buffer_set_pos(p_buf, (pos - 4));
-  util_buffer_add_int(p_buf, (int) jump_delta);
+  util_buffer_add_int(p_buf, jump_delta);
   util_buffer_set_pos(p_buf, original_pos);
 }
 

@@ -39,6 +39,7 @@ struct bbc_struct;
 
 struct bbc_struct* bbc_create(int mode,
                               uint8_t* p_os_rom,
+                              int wd_1770_flag,
                               int debug_flag,
                               int run_flag,
                               int print_flag,
@@ -51,6 +52,8 @@ struct bbc_struct* bbc_create(int mode,
                               int32_t debug_stop_addr);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
+void bbc_focus_lost_callback(void* p);
+
 void bbc_power_on_reset(struct bbc_struct* p_bbc);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   uint8_t index,
@@ -61,12 +64,16 @@ void bbc_save_rom(struct bbc_struct* p_bbc,
 void bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index);
 uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
-void bbc_load_disc(struct bbc_struct* p_bbc,
-                   const char* p_filename,
-                   int drive,
-                   int is_writeable,
-                   int is_mutable);
-void bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name);
+void bbc_add_disc(struct bbc_struct* p_bbc,
+                  const char* p_file_name,
+                  int drive,
+                  int is_writeable,
+                  int is_mutable,
+                  int convert_to_hfe);
+void bbc_add_raw_disc(struct bbc_struct* p_bbc,
+                      const char* p_file_name,
+                      const char* p_spec);
+void bbc_add_tape(struct bbc_struct* p_bbc, const char* p_file_name);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);
@@ -84,7 +91,6 @@ void bbc_set_registers(struct bbc_struct* p_bbc,
                        uint8_t s,
                        uint8_t flags,
                        uint16_t pc);
-size_t bbc_get_cycles(struct bbc_struct* p_bbc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 
 void bbc_run_async(struct bbc_struct* p_bbc);
@@ -99,6 +105,7 @@ struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);
 
 uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
 void bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val);
@@ -117,7 +124,11 @@ int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
 
-size_t bbc_get_client_handle(struct bbc_struct* p_bbc);
+void bbc_set_channel_handles(struct bbc_struct* p_bbc,
+                             intptr_t handle_channel_read_bbc,
+                             intptr_t handle_channel_write_bbc,
+                             intptr_t handle_channel_read_client,
+                             intptr_t handle_channel_write_client);
 
 struct bbc_message {
   uint8_t data[16];

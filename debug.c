@@ -5,20 +5,18 @@
 #include "defs_6502.h"
 #include "state.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 #include "via.h"
 #include "video.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <ctype.h>
-#include <err.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef void (*sighandler_t)(int);
 
 static const size_t k_max_opcode_len = 12 + 1;
 static const size_t k_max_extra_len = 32;
@@ -41,6 +39,9 @@ struct debug_breakpoint {
   int type;
   int32_t start;
   int32_t end;
+  int32_t a_value;
+  int32_t x_value;
+  int32_t y_value;
 };
 
 struct debug_struct {
@@ -75,19 +76,16 @@ struct debug_struct {
   uint64_t register_writes;
 
   /* Other. */
-  uint64_t time_basis;
-  size_t next_cycles;
   uint8_t warn_at_addr_count[k_6502_addr_space_size];
   char debug_old_input_buf[k_max_input_len];
 };
 
-static int g_sigint_received;
-static struct debug_struct* g_p_debug;
+static int s_interrupt_received;
+static struct debug_struct* s_p_debug;
 
 static void
-sigint_handler(int signum) {
-  (void) signum;
-  g_sigint_received = 1;
+debug_interrupt_callback(void) {
+  s_interrupt_received = 1;
 }
 
 static void
@@ -96,28 +94,27 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   p_debug->breakpoints[i].type = 0;
   p_debug->breakpoints[i].start = -1;
   p_debug->breakpoints[i].end = -1;
+  p_debug->breakpoints[i].a_value = -1;
+  p_debug->breakpoints[i].x_value = -1;
+  p_debug->breakpoints[i].y_value = -1;
 }
 
 struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
              int32_t debug_stop_addr) {
-  size_t i;
-  sighandler_t ret_sig;
+  uint32_t i;
   struct debug_struct* p_debug;
 
-  assert(g_p_debug == NULL);
+  assert(s_p_debug == NULL);
 
   p_debug = util_mallocz(sizeof(struct debug_struct));
   /* NOTE: using this singleton pattern for now so we can use qsort().
    * qsort_r() is a minor porting headache due to differing signatures.
    */
-  g_p_debug = p_debug;
+  s_p_debug = p_debug;
 
-  ret_sig = signal(SIGINT, sigint_handler);
-  if (ret_sig == SIG_ERR) {
-    errx(1, "signal failed");
-  }
+  util_set_interrupt_callback(debug_interrupt_callback);
 
   p_debug->p_bbc = p_bbc;
   p_debug->debug_active = debug_active;
@@ -125,8 +122,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
-  p_debug->time_basis = util_gettime_us();
-  p_debug->next_cycles = 0;
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
@@ -200,41 +195,41 @@ debug_print_opcode(char* buf,
     (void) snprintf(buf, buf_len, "%s A", opname);
     break;
   case k_imm:
-    (void) snprintf(buf, buf_len, "%s #$%.2X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s #$%.2"PRIX8, opname, operand1);
     break;
   case k_zpg:
-    (void) snprintf(buf, buf_len, "%s $%.2X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2"PRIX8, opname, operand1);
     break;
   case k_abs:
-    (void) snprintf(buf, buf_len, "%s $%.4X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4"PRIX16, opname, addr);
     break;
   case k_zpx:
-    (void) snprintf(buf, buf_len, "%s $%.2X,X", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2"PRIX8",X", opname, operand1);
     break;
   case k_zpy:
-    (void) snprintf(buf, buf_len, "%s $%.2X,Y", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s $%.2"PRIX8",Y", opname, operand1);
     break;
   case k_abx:
-    (void) snprintf(buf, buf_len, "%s $%.4X,X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4"PRIX16",X", opname, addr);
     break;
   case k_aby:
-    (void) snprintf(buf, buf_len, "%s $%.4X,Y", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4"PRIX16",Y", opname, addr);
     break;
   case k_idx:
-    (void) snprintf(buf, buf_len, "%s ($%.2X,X)", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s ($%.2"PRIX8",X)", opname, operand1);
     break;
   case k_idy:
-    (void) snprintf(buf, buf_len, "%s ($%.2X),Y", opname, operand1);
+    (void) snprintf(buf, buf_len, "%s ($%.2"PRIX8"),Y", opname, operand1);
     break;
   case k_ind:
-    (void) snprintf(buf, buf_len, "%s ($%.4X)", opname, addr);
+    (void) snprintf(buf, buf_len, "%s ($%.4"PRIX16")", opname, addr);
     break;
   case k_rel:
     addr = (reg_pc + 2 + (char) operand1);
-    (void) snprintf(buf, buf_len, "%s $%.4X", opname, addr);
+    (void) snprintf(buf, buf_len, "%s $%.4"PRIX16, opname, addr);
     break;
   default:
-    (void) snprintf(buf, buf_len, "%s: %.2x", opname, opcode);
+    (void) snprintf(buf, buf_len, "%s: $%.2"PRIX8, opname, opcode);
     break;
   }
 }
@@ -383,7 +378,7 @@ debug_get_details(int* p_addr_6502,
   *p_is_rom = (!*p_is_register && (*p_addr_6502 >= k_bbc_ram_size));
 }
 
-static void
+static uint16_t
 debug_disass(struct cpu_driver* p_cpu_driver,
              struct bbc_struct* p_bbc,
              uint16_t addr_6502) {
@@ -413,9 +408,14 @@ debug_disass(struct cpu_driver* p_cpu_driver,
                        addr_6502,
                        0,
                        NULL);
-    (void) printf("[%s] %.4X: %s\n", p_address_info, addr_6502, opcode_buf);
+    (void) printf("[%s] %.4"PRIX16": %s\n",
+                  p_address_info,
+                  addr_6502,
+                  opcode_buf);
     addr_6502 += oplen;
   }
+
+  return addr_6502;
 }
 
 static void
@@ -469,27 +469,35 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &t1_oneshot_fired,
                     &t2_oneshot_fired,
                     &t1_pb7);
-  (void) printf("IFR %.2X IER %.2X\n", IFR, IER);
-  (void) printf("ORA %.2X DDRA %.2X periph %.2X\n", ORA, DDRA, peripheral_a);
-  (void) printf("ORB %.2X DDRB %.2X periph %.2X\n", ORB, DDRB, peripheral_b);
-  (void) printf("SR %.2X ACR %.2X PCR %.2X\n", SR, ACR, PCR);
-  (void) printf("T1L %.4X T1C %.4X oneshot hit %d PB7 %d\n",
-                T1L,
+  (void) printf("IFR %.2"PRIX8" IER %.2"PRIX8"\n", IFR, IER);
+  (void) printf("ORA %.2"PRIX8" DDRA %.2"PRIX8" periph %.2"PRIX8"\n",
+                ORA,
+                DDRA,
+                peripheral_a);
+  (void) printf("ORB %.2"PRIX8" DDRB %.2"PRIX8" periph %.2"PRIX8"\n",
+                ORB,
+                DDRB,
+                peripheral_b);
+  (void) printf("SR %.2"PRIX8" ACR %.2"PRIX8" PCR %.2"PRIX8"\n", SR, ACR, PCR);
+  (void) printf("T1L %.4"PRIX16" T1C %.4"PRIX16" oneshot hit %d PB7 %d\n",
+                (uint16_t) T1L,
                 (uint16_t) (T1C_raw >> 1),
-                t1_oneshot_fired,
-                t1_pb7);
-  (void) printf("T2L %.4X T2C %.4X oneshot hit %d\n",
-                T2L,
+                (int) t1_oneshot_fired,
+                (int) t1_pb7);
+  (void) printf("T2L %.4"PRIX16" T2C %.4"PRIX16" oneshot hit %d\n",
+                (uint16_t) T2L,
                 (uint16_t) (T2C_raw >> 1),
-                t2_oneshot_fired);
+                (int) t2_oneshot_fired);
 }
 
 static void
 debug_dump_crtc(struct bbc_struct* p_bbc) {
+  uint32_t i;
   uint8_t horiz_counter;
   uint8_t scanline_counter;
   uint8_t vert_counter;
   uint16_t address_counter;
+  uint8_t regs[k_video_crtc_num_registers];
 
   struct video_struct* p_video = bbc_get_video(p_bbc);
   video_get_crtc_state(p_video,
@@ -497,12 +505,21 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
                        &scanline_counter,
                        &vert_counter,
                        &address_counter);
+  video_get_crtc_registers(p_video, &regs[0]);
 
-  (void) printf("horiz %d scanline %d vert %d addr $%.4X\n",
+  (void) printf("horiz %"PRId8" scanline %"PRId8" vert %"PRId8
+                " addr $%.4"PRIX16"\n",
                 horiz_counter,
                 scanline_counter,
                 vert_counter,
                 address_counter);
+  for (i = 0; i < k_video_crtc_num_registers; ++i) {
+    (void) printf("R%.2d $%.2X  ", i, regs[i]);
+    if ((i & 7) == 7) {
+      (void) printf("\n");
+    }
+  }
+  (void) printf("\n");
 }
 
 static struct debug_breakpoint*
@@ -523,7 +540,10 @@ static inline int
 debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
-                uint8_t opcode_6502) {
+                uint8_t opcode_6502,
+                uint8_t reg_a,
+                uint8_t reg_x,
+                uint8_t reg_y) {
   uint32_t i;
   uint8_t optype;
   uint8_t opmem;
@@ -535,10 +555,20 @@ debug_hit_break(struct debug_struct* p_debug,
       continue;
     }
 
+    if ((p_breakpoint->a_value != -1) && (reg_a != p_breakpoint->a_value)) {
+      continue;
+    }
+    if ((p_breakpoint->x_value != -1) && (reg_x != p_breakpoint->x_value)) {
+      continue;
+    }
+    if ((p_breakpoint->y_value != -1) && (reg_y != p_breakpoint->y_value)) {
+      continue;
+    }
+
     type = p_breakpoint->type;
     switch (type) {
     case k_debug_breakpoint_exec:
-      if (reg_pc == p_breakpoint->start) {
+      if ((reg_pc >= p_breakpoint->start) && (reg_pc <= p_breakpoint->end)) {
         return 1;
       }
       break;
@@ -586,14 +616,14 @@ static int
 debug_sort_opcodes(const void* p_op1, const void* p_op2) {
   uint8_t op1 = *(uint8_t*) p_op1;
   uint8_t op2 = *(uint8_t*) p_op2;
-  return (g_p_debug->count_opcode[op1] - g_p_debug->count_opcode[op2]);
+  return (s_p_debug->count_opcode[op1] - s_p_debug->count_opcode[op2]);
 }
 
 static int
 debug_sort_addrs(const void* p_addr1, const void* p_addr2) {
   uint16_t addr1 = *(uint16_t*) p_addr1;
   uint16_t addr2 = *(uint16_t*) p_addr2;
-  return (g_p_debug->count_addr[addr1] - g_p_debug->count_addr[addr2]);
+  return (s_p_debug->count_addr[addr1] - s_p_debug->count_addr[addr2]);
 }
 
 static void
@@ -642,7 +672,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     char opcode_buf[k_max_opcode_len];
     uint8_t opcode = sorted_opcodes[i];
-    size_t count = p_debug->count_opcode[opcode];
+    uint64_t count = p_debug->count_opcode[opcode];
     if (!count) {
       continue;
     }
@@ -654,7 +684,7 @@ debug_dump_stats(struct debug_struct* p_debug) {
                        0xFFFE,
                        0,
                        NULL);
-    (void) printf("%14s: %zu\n", opcode_buf, count);
+    (void) printf("%14s: %"PRIu64"\n", opcode_buf, count);
   }
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
@@ -667,27 +697,29 @@ debug_dump_stats(struct debug_struct* p_debug) {
   (void) printf("=== Addrs ===\n");
   for (i = k_6502_addr_space_size - 256; i < k_6502_addr_space_size; ++i) {
     uint16_t addr = sorted_addrs[i];
-    size_t count = p_debug->count_addr[addr];
+    uint64_t count = p_debug->count_addr[addr];
     if (!count) {
       continue;
     }
-    (void) printf("%4X: %zu\n", addr, count);
+    (void) printf("%4"PRIX16": %"PRIu64"\n", addr, count);
   }
-  (void) printf("--> rom_write_faults: %zu\n", p_debug->rom_write_faults);
-  (void) printf("--> branch (not taken, taken, page cross): %zu, %zu, %zu\n",
+  (void) printf("--> rom_write_faults: %"PRIu64"\n", p_debug->rom_write_faults);
+  (void) printf("--> branch (not taken, taken, page cross): "
+                "%"PRIu64", %"PRIu64", %"PRIu64"\n",
                 p_debug->branch_not_taken,
                 p_debug->branch_taken,
                 p_debug->branch_taken_page_crossing);
-  (void) printf("--> abn reads (total, page crossing): %zu, %zu\n",
+  (void) printf("--> abn reads (total, page crossing): %"PRIu64", %"PRIu64"\n",
                 p_debug->abn_reads,
                 p_debug->abn_reads_with_page_crossing);
-  (void) printf("--> idy reads (total, page crossing): %zu, %zu\n",
+  (void) printf("--> idy reads (total, page crossing): %"PRIu64", %"PRIu64"\n",
                 p_debug->idy_reads,
                 p_debug->idy_reads_with_page_crossing);
-  (void) printf("--> abc/sbc (total, with decimal flag): %zu, %zu\n",
+  (void) printf("--> abc/sbc (total, with decimal flag): "
+                "%"PRIu64", %"PRIu64"\n",
                 p_debug->adc_sbc_count,
                 p_debug->adc_sbc_with_decimal_count);
-  (void) printf("--> register hits (read / write): %zu, %zu\n",
+  (void) printf("--> register hits (read / write): %"PRIu64", %"PRIu64"\n",
                 p_debug->register_reads,
                 p_debug->register_writes);
 }
@@ -701,7 +733,7 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     if (!p_breakpoint->is_in_use) {
       continue;
     }
-    (void) printf("breakpoint %d: ", i);
+    (void) printf("breakpoint %"PRIu32": ", i);
     switch (p_breakpoint->type) {
     case k_debug_breakpoint_exec:
       p_type_name = "exec";
@@ -719,9 +751,9 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
       assert(0);
       break;
     }
-    (void) printf("%s @$%.4X", p_type_name, p_breakpoint->start);
+    (void) printf("%s @$%.4"PRIX16, p_type_name, p_breakpoint->start);
     if (p_breakpoint->end != p_breakpoint->start) {
-      (void) printf("-$%.4X", p_breakpoint->end);
+      (void) printf("-$%.4"PRIX16, p_breakpoint->end);
     }
     (void) printf("\n");
   }
@@ -751,7 +783,7 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
 
   if (is_register && (opmode == k_idx || opmode == k_idy)) {
     (void) printf("DEBUG (UNUSUAL): "
-                  "Indirect access to register $%.4X at $%.4X\n",
+                  "Indirect access to register $%.4"PRIX16" at $%.4"PRIX16"\n",
                   addr_6502,
                   reg_pc);
     warned = 1;
@@ -759,7 +791,8 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
 
   /* Handled via various means but worth noting. */
   if (is_write && is_rom) {
-    (void) printf("DEBUG: Code at $%.4X is writing to ROM at $%.4X\n",
+    (void) printf("DEBUG: Code at $%.4"PRIX16" is writing to ROM "
+                  "at $%.4"PRIX16"\n",
                   reg_pc,
                   addr_6502);
     warned = 1;
@@ -769,12 +802,13 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
   if ((opmode != k_rel) && wrapped_8bit) {
     if (opmode == k_idx) {
       (void) printf("DEBUG (VERY UNUSUAL): "
-                    "8-bit IDX ADDRESS WRAP at $%.4X to $%.4X\n",
+                    "8-bit IDX ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
                     reg_pc,
-                    ((uint8_t) (operand1 + reg_x)));
+                    (uint16_t) (uint8_t) (operand1 + reg_x));
       warned = 1;
     } else {
-      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at $%.4X to $%.4X\n",
+      (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at "
+                    "$%.4"PRIX16" to $%.4"PRIX16"\n",
                     reg_pc,
                     addr_6502);
       warned = 1;
@@ -782,17 +816,19 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
   }
   if (wrapped_16bit) {
     (void) printf("DEBUG (VERY UNUSUAL): "
-                  "16-bit ADDRESS WRAP at $%.4X to $%.4X\n",
+                  "16-bit ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
                   reg_pc,
                   addr_6502);
     warned = 1;
   }
 
   if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4X\n", reg_pc);
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
+                  reg_pc);
     warned = 1;
   } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
-    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4X\n", reg_pc);
+    (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
+                  reg_pc);
     warned = 1;
   }
 
@@ -812,14 +848,29 @@ static void
 debug_load_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502) {
-  size_t len;
+  uint64_t len;
   uint8_t buf[k_6502_addr_space_size];
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
-  len = util_file_read_fully(buf, sizeof(buf), p_file_name);
+  len = util_file_read_fully(p_file_name, buf, sizeof(buf));
 
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
+}
+
+static void
+debug_save_raw(struct debug_struct* p_debug,
+               const char* p_file_name,
+               uint16_t addr_6502,
+               uint16_t length) {
+  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+
+  if ((addr_6502 + length) > k_6502_addr_space_size) {
+    length = (k_6502_addr_space_size - addr_6502);
+  }
+
+  util_file_write_fully(p_file_name, (p_mem_read + addr_6502), length);
 }
 
 static void
@@ -829,15 +880,19 @@ debug_print_registers(uint8_t reg_a,
                       uint8_t reg_s,
                       const char* flags_buf,
                       uint16_t reg_pc,
-                      uint64_t cycles) {
-  (void) printf("[A=%.2X X=%.2X Y=%.2X S=%.2X F=%s PC=%.4X cycles=%zu]\n",
+                      uint64_t cycles,
+                      uint64_t countdown) {
+  (void) printf("[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" "
+                "F=%s PC=%.4"PRIX16" "
+                "cycles=%"PRIu64" countdown=%"PRIu64"]\n",
                 reg_a,
                 reg_x,
                 reg_y,
                 reg_s,
                 flags_buf,
                 reg_pc,
-                cycles);
+                cycles,
+                countdown);
 }
 
 static void
@@ -850,7 +905,9 @@ debug_print_state(char* p_address_info,
                   uint8_t reg_s,
                   const char* flags_buf,
                   const char* extra_buf) {
-  (void) printf("[%s] %.4X: %-14s [A=%.2X X=%.2X Y=%.2X S=%.2X F=%s] %s\n",
+  (void) printf("[%s] %.4"PRIX16": %-14s "
+                "[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" F=%s] "
+                "%s\n",
                 p_address_info,
                 reg_pc,
                 opcode_buf,
@@ -860,6 +917,69 @@ debug_print_state(char* p_address_info,
                 reg_s,
                 flags_buf,
                 extra_buf);
+}
+
+static uint16_t
+debug_parse_number(const char* p_str, int is_hex) {
+  int32_t ret = -1;
+
+  if ((p_str[0] == '$') || (p_str[0] == '&')) {
+    (void) sscanf((p_str + 1), "%"PRIx32, &ret);
+  } else if (is_hex) {
+    (void) sscanf(p_str, "%"PRIx32, &ret);
+  } else {
+    (void) sscanf(p_str, "%"PRId32, &ret);
+  }
+
+  return ret;
+}
+
+static void
+debug_parse_breakpoint(struct debug_breakpoint* p_breakpoint,
+                       const char* p_str) {
+  char buf[256];
+  char c;
+  uint16_t value;
+  uint32_t len = 0;
+
+  p_breakpoint->is_in_use = 1;
+  p_breakpoint->type = k_debug_breakpoint_exec;
+
+  do {
+    c = *p_str;
+    if ((c == '\0') || isspace(c)) {
+      buf[len] = '\0';
+      if (len == 0) {
+        /* Nothing. */
+      } else if (!strcmp(buf, "b") || !strcmp(buf, "break")) {
+        /* Nothing. */
+      } else if (!strncmp(buf, "a=", 2)) {
+        p_breakpoint->a_value = debug_parse_number((buf + 2), 0);
+      } else if (!strncmp(buf, "x=", 2)) {
+        p_breakpoint->x_value = debug_parse_number((buf + 2), 0);
+      } else if (!strncmp(buf, "y=", 2)) {
+        p_breakpoint->y_value = debug_parse_number((buf + 2), 0);
+      } else {
+        value = debug_parse_number(buf, 1);
+        if (p_breakpoint->start == -1) {
+          p_breakpoint->start = value;
+        } else if (p_breakpoint->end == -1) {
+          p_breakpoint->end = value;
+        }
+      }
+      len = 0;
+    } else {
+      if (len < (sizeof(buf) - 1)) {
+        buf[len] = c;
+        len++;
+      }
+    }
+    p_str++;
+  } while (c != '\0');
+
+  if (p_breakpoint->end == -1) {
+    p_breakpoint->end = p_breakpoint->start;
+  }
 }
 
 void*
@@ -889,7 +1009,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t flag_o;
   uint8_t flag_i;
   uint8_t flag_d;
-  uint64_t cycles;
   int wrapped_8bit;
   int wrapped_16bit;
   uint8_t opmode;
@@ -906,7 +1025,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
   int do_trap = 0;
   void* ret_intel_pc = 0;
-  volatile int* p_sigint_received = &g_sigint_received;
+  volatile int* p_interrupt_received = &s_interrupt_received;
 
   bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
   flag_z = !!(reg_flags & 0x02);
@@ -1017,10 +1136,16 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       wrapped_8bit,
                       wrapped_16bit);
 
-  hit_break = debug_hit_break(p_debug, reg_pc, addr_6502, opcode);
+  hit_break = debug_hit_break(p_debug,
+                              reg_pc,
+                              addr_6502,
+                              opcode,
+                              reg_a,
+                              reg_x,
+                              reg_y);
 
-  if (*p_sigint_received) {
-    *p_sigint_received = 0;
+  if (*p_interrupt_received) {
+    *p_interrupt_received = 0;
     p_debug->debug_running = 0;
   }
 
@@ -1028,13 +1153,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     return 0;
   }
 
-  cycles = state_6502_get_cycles(p_state_6502);
-
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
     (void) snprintf(extra_buf,
                     sizeof(extra_buf),
-                    "[addr=%.4X val=%.2X]",
+                    "[addr=%.4"PRIX16" val=%.2"PRIX8"]",
                     addr_6502,
                     p_mem_read[addr_6502]);
   } else if (branch_taken != -1) {
@@ -1090,7 +1213,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     reg_s,
                     flags_buf,
                     extra_buf);
-  fflush(stdout);
+  (void) fflush(stdout);
 
   if (p_debug->debug_running && !hit_break) {
     return 0;
@@ -1106,6 +1229,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   while (1) {
     char* input_ret;
     size_t i;
+    size_t j;
     char parse_string[256];
     uint16_t parse_addr;
     int ret;
@@ -1117,12 +1241,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     (void) printf("(6502db) ");
     ret = fflush(stdout);
     if (ret != 0) {
-      errx(1, "fflush() failed");
+      util_bail("fflush() failed");
     }
 
     input_ret = fgets(input_buf, sizeof(input_buf), stdin);
     if (input_ret == NULL) {
-      errx(1, "fgets failed");
+      util_bail("fgets failed");
     }
     for (i = 0; i < sizeof(input_buf); ++i) {
       char c = tolower(input_buf[i]);
@@ -1164,48 +1288,55 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       break;
     } else if (!strcmp(input_buf, "f")) {
       uint16_t finish_addr;
-      uint8_t stack = reg_s + 1;
+      uint8_t stack = (reg_s + 1);
       finish_addr = p_mem_read[k_6502_stack_addr + stack];
       stack++;
       finish_addr |= (p_mem_read[k_6502_stack_addr + stack] << 8);
       finish_addr++;
-      (void) printf("finish will stop at %04X\n", finish_addr);
+      (void) printf("finish will stop at $%.4"PRIX16"\n", finish_addr);
       p_debug->next_or_finish_stop_addr = finish_addr;
       p_debug->debug_running = 1;
       break;
-    } else if (sscanf(input_buf, "m %x", &parse_int) == 1) {
-      parse_addr = parse_int;
-      (void) printf("%04X:", parse_addr);
-      for (i = 0; i < 16; ++i) {
-        (void) printf(" %02X", p_mem_read[parse_addr]);
-        parse_addr++;
-      }
-      (void) printf("  ");
-      parse_addr = parse_int;
-      for (i = 0; i < 16; ++i) {
-        char c = p_mem_read[parse_addr];
-        if (!isprint(c)) {
-          c = '.';
+    } else if (sscanf(input_buf, "m %"PRIx32, &parse_int) == 1) {
+      for (j = 0; j < 4; ++j) {
+        parse_addr = parse_int;
+        (void) printf("%.4"PRIX16":", parse_addr);
+        for (i = 0; i < 16; ++i) {
+          (void) printf(" %.2"PRIX8, p_mem_read[parse_addr]);
+          parse_addr++;
         }
-        (void) printf("%c", c);
-        parse_addr++;
+        (void) printf("  ");
+        parse_addr = parse_int;
+        for (i = 0; i < 16; ++i) {
+          char c = p_mem_read[parse_addr];
+          if (!isprint(c)) {
+            c = '.';
+          }
+          (void) printf("%c", c);
+          parse_addr++;
+        }
+        (void) printf("\n");
+        parse_int += 16;
       }
-      (void) printf("\n");
-    } else if ((sscanf(input_buf, "b %x", &parse_int) == 1) ||
-               (sscanf(input_buf, "break %x", &parse_int) == 1)) {
-      parse_addr = parse_int;
+      /* Continue where we left off if just enter is hit next. */
+      (void) snprintf(p_debug->debug_old_input_buf,
+                      k_max_input_len,
+                      "m %x",
+                      (uint16_t) parse_int);
+    } else if (!strncmp(input_buf, "b ", 2) ||
+               !strncmp(input_buf, "break", 5)) {
       p_breakpoint = debug_get_free_breakpoint(p_debug);
       if (p_breakpoint == NULL) {
         (void) printf("no free breakpoints\n");
         continue;
       }
-      p_breakpoint->is_in_use = 1;
-      p_breakpoint->type = k_debug_breakpoint_exec;
-      p_breakpoint->start = parse_addr;
-      p_breakpoint->end = parse_addr;
+      debug_parse_breakpoint(p_breakpoint, input_buf);
     } else if (!strcmp(input_buf, "bl") || !strcmp(input_buf, "blist")) {
       debug_dump_breakpoints(p_debug);
-    } else if (sscanf(input_buf, "bm %x %x", &parse_int, &parse_int2) >= 1) {
+    } else if (sscanf(input_buf,
+                      "bm %"PRIx32" %"PRIx32,
+                      &parse_int,
+                      &parse_int2) >= 1) {
       parse_addr = parse_int;
       p_breakpoint = debug_get_free_breakpoint(p_debug);
       if (p_breakpoint == NULL) {
@@ -1219,7 +1350,10 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
-    } else if (sscanf(input_buf, "bmr %x %x", &parse_int, &parse_int2) >= 1) {
+    } else if (sscanf(input_buf,
+                      "bmr %"PRIx32" %"PRIx32,
+                      &parse_int,
+                      &parse_int2) >= 1) {
       parse_addr = parse_int;
       p_breakpoint = debug_get_free_breakpoint(p_debug);
       if (p_breakpoint == NULL) {
@@ -1233,7 +1367,10 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
-    } else if (sscanf(input_buf, "bmw %x %x", &parse_int, &parse_int2) >= 1) {
+    } else if (sscanf(input_buf,
+                      "bmw %"PRIx32" %"PRIx32,
+                      &parse_int,
+                      &parse_int2) >= 1) {
       parse_addr = parse_int;
       p_breakpoint = debug_get_free_breakpoint(p_debug);
       if (p_breakpoint == NULL) {
@@ -1247,67 +1384,73 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_addr = parse_int2;
       }
       p_breakpoint->end = parse_addr;
-    } else if ((sscanf(input_buf, "db %d", &parse_int) == 1) &&
+    } else if ((sscanf(input_buf, "db %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, parse_int);
-    } else if ((sscanf(input_buf, "bop %x", &parse_int) == 1) &&
+    } else if ((sscanf(input_buf, "bop %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 256)) {
       p_debug->debug_break_opcodes[parse_int] = 1;
     } else if ((sscanf(input_buf,
-                       "writem %x %x",
+                       "writem %"PRIx32" %"PRIx32,
                        &parse_int,
                        &parse_int2) == 2) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, parse_int2);
-    } else if ((sscanf(input_buf, "inv %x", &parse_int) == 1) &&
+    } else if ((sscanf(input_buf, "inv %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
-    } else if ((sscanf(input_buf, "stopat %x", &parse_int) == 1) &&
+    } else if ((sscanf(input_buf, "stopat %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       p_debug->debug_stop_addr = parse_int;
     } else if ((sscanf(input_buf,
-                      "lm %255s %x %x",
-                      parse_string,
-                      &parse_int,
-                      &parse_int2) == 3) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536) &&
-               (parse_int2 >= 0) &&
-               (parse_int2 <= 65536) &&
-               (parse_int + parse_int2 <= 65536)) {
-      parse_string[255] = '\0';
-      state_load_memory(p_bbc, parse_string, parse_int, parse_int2);
-    } else if ((sscanf(input_buf,
-                      "lr %255s %x",
+                      "loadmem %255s %"PRIx32,
                       parse_string,
                       &parse_int) == 2) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       parse_string[255] = '\0';
       debug_load_raw(p_debug, parse_string, parse_int);
+    } else if ((sscanf(input_buf,
+                      "savemem %255s %"PRIx32" %"PRIx32,
+                      parse_string,
+                      &parse_int,
+                      &parse_int2) == 3) &&
+               (parse_int >= 0) &&
+               (parse_int < 65536) &&
+               (parse_int2 >= 0) &&
+               (parse_int2 < 65536)) {
+      parse_string[255] = '\0';
+      debug_save_raw(p_debug, parse_string, parse_int, parse_int2);
     } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
-    } else if (sscanf(input_buf, "a=%x", &parse_int) == 1) {
+    } else if (sscanf(input_buf, "a=%"PRIx32, &parse_int) == 1) {
       reg_a = parse_int;
-    } else if (sscanf(input_buf, "x=%x", &parse_int) == 1) {
+    } else if (sscanf(input_buf, "x=%"PRIx32, &parse_int) == 1) {
       reg_x = parse_int;
-    } else if (sscanf(input_buf, "y=%x", &parse_int) == 1) {
+    } else if (sscanf(input_buf, "y=%"PRIx32, &parse_int) == 1) {
       reg_y = parse_int;
-    } else if (sscanf(input_buf, "s=%x", &parse_int) == 1) {
+    } else if (sscanf(input_buf, "s=%"PRIx32, &parse_int) == 1) {
       reg_s = parse_int;
-    } else if (sscanf(input_buf, "pc=%x", &parse_int) == 1) {
-      reg_pc = parse_int;
+    } else if (sscanf(input_buf, "pc=%"PRIx32, &parse_int) == 1) {
       /* TODO: setting PC broken in JIT mode? */
-    } else if (sscanf(input_buf, "d %x", &parse_int) == 1) {
-      debug_disass(p_cpu_driver, p_bbc, parse_int);
-    } else if (!strcmp(input_buf, "d")) {
-      debug_disass(p_cpu_driver, p_bbc, reg_pc);
+      reg_pc = parse_int;
+    } else if (!strcmp(input_buf, "d") ||
+               (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1)) {
+      if (parse_int == -1) {
+        parse_int = reg_pc;
+      }
+      parse_addr = debug_disass(p_cpu_driver, p_bbc, parse_int);
+      /* Continue where we left off if just enter is hit next. */
+      (void) snprintf(p_debug->debug_old_input_buf,
+                      k_max_input_len,
+                      "d %x",
+                      parse_addr);
     } else if (!strcmp(input_buf, "sys")) {
       debug_dump_via(p_bbc, k_via_system);
     } else if (!strcmp(input_buf, "user")) {
@@ -1315,39 +1458,42 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "crtc")) {
       debug_dump_crtc(p_bbc);
     } else if (!strcmp(input_buf, "r")) {
+      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      uint64_t countdown = timing_get_countdown(p_timing);
+      uint64_t cycles = state_6502_get_cycles(p_state_6502);
       debug_print_registers(reg_a,
                             reg_x,
                             reg_y,
                             reg_s,
                             flags_buf,
                             reg_pc,
-                            cycles);
-    } else if (!strcmp(input_buf, "?")) {
+                            cycles,
+                            countdown);
+    } else if (!strcmp(input_buf, "?") || !strcmp(input_buf, "help")) {
       (void) printf(
-  "q                 : quit\n"
-  "c                 : continue\n"
-  "s                 : step one 6502 instuction\n"
-  "d <a>             : disassemble at <a>\n"
-  "t                 : trap into gdb\n"
-  "{b,break} <a>     : set breakpoint at 6502 address <a>\n"
-  "{bl,blist}        : list breakpoints\n"
-  "db <id>           : delete breakpoint <id>\n"
-  "bm <lo> (hi)      : set read/write memory breakpoint for 6502 range\n"
-  "bmr <lo> (hi)     : set read memory breakpoint for 6502 range\n"
-  "bmw <lo> (hi)     : set write memory breakpoint for 6502 range\n"
-  "bop <op>          : break on opcode <op>\n"
-  "m <a>             : show memory at <a>\n"
-  "writem <a> <v>    : write <v> to 6502 <a>\n"
-  "lm <f> <a> <l>    : load <l> memory at <a> from state <f>\n"
-  "lr <f> <a>        : load memory at <addr> from raw file <f>\n"
-  "ss <f>            : save state to BEM file <f>\n"
-  "{a,x,y,pc}=<v>    : set register to <v>\n"
-  "sys               : show system VIA registers\n"
-  "user              : show user VIA registers\n"
-  "r                 : show regular registers\n"
-  "stats             : toggle stats collection (default: off)\n"
-  "ds                : dump stats collected\n"
-  "cs                : clear stats collected\n"
+  "q                  : quit\n"
+  "c, s, n, f         : continue, step (in), next (step over), finish (JSR)\n"
+  "d <a>              : disassemble at <a>\n"
+  "t                  : trap into gdb\n"
+  "{b,break} <a>      : set breakpoint at 6502 address <a>\n"
+  "{bl,blist}         : list breakpoints\n"
+  "db <id>            : delete breakpoint <id>\n"
+  "bm <lo> (hi)       : set read/write memory breakpoint for 6502 range\n"
+  "bmr <lo> (hi)      : set read memory breakpoint for 6502 range\n"
+  "bmw <lo> (hi)      : set write memory breakpoint for 6502 range\n"
+  "bop <op>           : break on opcode <op>\n"
+  "m <a>              : show memory at <a>\n"
+  "writem <a> <v>     : write <v> to 6502 <a>\n"
+  "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
+  "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
+  "ss <f>             : save state to BEM file <f>\n"
+  "{a,x,y,pc}=<v>     : set register to <v>\n"
+  "sys                : show system VIA registers\n"
+  "user               : show user VIA registers\n"
+  "r                  : show regular registers\n"
+  "stats              : toggle stats collection (default: off)\n"
+  "ds                 : dump stats collected\n"
+  "cs                 : clear stats collected\n"
   );
     } else {
       (void) printf("???\n");
@@ -1355,14 +1501,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     bbc_set_registers(p_bbc, reg_a, reg_x, reg_y, reg_s, reg_flags, reg_pc);
     ret = fflush(stdout);
     if (ret != 0) {
-      errx(1, "fflush() failed");
+      util_bail("fflush() failed");
     }
   }
   if (do_trap) {
-    int ret = raise(SIGTRAP);
-    if (ret != 0) {
-      errx(1, "raise failed");
-    }
+    __builtin_trap();
   }
   return ret_intel_pc;
 }

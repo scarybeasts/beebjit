@@ -13,7 +13,6 @@ struct jit_compiler* jit_compiler_create(
     struct memory_access* p_memory_access,
     void* (*get_block_host_address)(void* p, uint16_t addr),
     void* (*get_trampoline_host_address)(void* p, uint16_t addr),
-    uint16_t (*get_jit_ptr_block)(void* p, uint32_t jit_ptr),
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
     struct bbc_options* p_options,
@@ -32,14 +31,16 @@ int64_t jit_compiler_fixup_state(struct jit_compiler* p_compiler,
 
 void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
-                                          uint16_t len);
+                                          uint32_t len);
 
 uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
 
 int jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
                                        uint16_t addr_6502);
-int32_t jit_compiler_get_revalidate_count(struct jit_compiler* p_compiler,
-                                          uint16_t addr_6502);
+void jit_compiler_get_revalidation_details(struct jit_compiler* p_compiler,
+                                           int32_t* p_opcode,
+                                           int32_t* p_revalidate_count,
+                                           uint16_t addr_6502);
 
 int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);

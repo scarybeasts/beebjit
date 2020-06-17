@@ -9,6 +9,8 @@ struct timing_struct;
 struct timing_struct* timing_create(uint32_t scale_factor);
 void timing_destroy(struct timing_struct* p_timing);
 
+void timing_reset_total_timer_ticks(struct timing_struct* p_timing);
+
 uint64_t timing_get_total_timer_ticks(struct timing_struct* p_timing);
 uint64_t timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing);
 

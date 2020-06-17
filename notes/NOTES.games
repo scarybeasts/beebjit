@@ -1,5 +1,7 @@
-zip files from Stairway To Hell archive and FSD files from Bill Carr's archive
-unless otherwise noted.
+Unless otherwise noted:
+- zip files from Stairway To Hell archive.
+- FSD files from Bill Carr's archive.
+- HFE files from my conversion of Bill Carr's archive.
 
 
 - 001 EXILE.FSD
@@ -87,6 +89,43 @@ times to get randomness and storing it as a pointer at $77. Later, at $5144,
 this random address is read via AND ($05,X). Depending on the randomness, this
 read can and will read arbitrary hardware regsiters and that can and will have
 side effects!
+
+
+- Battletank.zip
+SHA256: 974876914fbb03a12dc7f2bb39a59df3321099349faca254cac3a3e5b29e2858
+1) Use of unstable XAA opcode $8B!
+[ITRP] 34DE: XAA #$36
+[ITRP] 34E0: STA $01C6,Y
+[ITRP] 34E3: DEY
+[ITRP] 34E4: BPL $34DD
+But then the loop continues more normally, so possible accident?
+[ITRP] 34DD: AND $8B,X
+[ITRP] 34DF: ROL $99,X
+[ITRP] 34E1: DEC $01
+[ITRP] 34E3: DEY
+[ITRP] 34E4: BPL $34DD
+2) Use of opcode $23, RLA idx, at $25B4
+[ITRP] 25A0: LDA $239B
+[ITRP] 25A3: BNE $25A6
+[ITRP] 25A6: BPL $25B4
+[ITRP] 25B4: ???: $23
+[ITRP] 25B6: LDA $2398
+[ITRP] 25B9: ADC #$28
+[ITRP] 25BB: STA $2398
+
+
+- Boffin(Addictive1985)(Run).uef
+(Unclear where it came from.)
+SHA256: 466d68d443b396cfb077e775e4e878848476fbf5b6842f14ac6601a91dc7799d
+Minor curiosity, first know case to hit the unusual opcode $03 == SLO idx, at
+PC $24D9.
+
+
+- Bone_Cruncher_FSD0433_1.hfe
+SHA256: f2efbdaa019de33e26a93cc51d8a10aa00f8e92b43972465847b9785a97fee06
+The copy protection has a little code copy routine at $6972 that copies from
+$3F00 to $6700. In the process, it overwrites itself resulting in opcode $33
+being executed at $6972. That's RLA idy, the first instance found of RLA!
 
 
 - Camelot.zip
@@ -220,6 +259,40 @@ you'll get two hsyncs.
 - Sets T1 to fire in 100us or so.
 
 
+- DuneRider(MicroPower).uef
+From: https://stardot.org.uk/forums/viewtopic.php?f=4&p=268982#p267910
+(Also checked in to test/tapes)
+SHA256: 06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331
+Tons of very unusual undocumented opcodes at various points in the loader.
+First discovery of AXS.
+Uses them not only to obfuscate but also compute:
+[ITRP] 1C02: LAX $81
+[ITRP] 1C04: SAX $0213
+[ITRP] 1C07: LDA #$13
+[ITRP] 1C09: LDX #$FF
+[ITRP] 1C0B: SAX $0212
+[ITRP] 1C0E: AXS #$A1
+[ITRP] 1C10: STX $80
+[ITRP] 1C12: RTS
+...
+Page crossing JMP (ind):
+[ITRP] 1C6F: JMP ($04FF)    [A=C8 X=03 Y=00 S=FB F=C    1 N]
+...
+First ever instance of LAX imm (unstable!):
+[ITRP] 0401: LAX #$00
+[ITRP] 0403: SEI
+...
+Hits tape / serial hardware registers with undocumented instruction:
+[ITRP] 041A: LDA #$03
+[ITRP] 041C: SAX $FE08
+[ITRP] 041F: LDA #$9D
+[ITRP] 0421: SAX $FE10
+[ITRP] 0424: LDA #$91
+[ITRP] 0426: SAX $FE08
+...
+Undocumented alias for SBC imm at $0463 (opcode $EB).
+
+
 - Exile.zip
 SHA256: 67aac020f216178d8a89237faa86825611834fbaa79915c1604bd07b60d83268
 Start PC: $6075
@@ -254,6 +327,17 @@ Notes:
 1) At $221D, uses OSBYTE 129 to read keyboard ($E713).
 This calls KEYV, stored at $0228, set to $219E, which calls through to a
 keyboard scan at $21A2 by jumping to $EF02.
+
+
+- Fun_House_FSD0326_1.hfe
+SHA256: 38f02089fee931fc0637dd4641760ed7d7ae63891c66ef5376e06aba99e715ca
+Notes:
+1) Loader is at $5000, uses some unusual undocumented opcodes:
+[ITRP] 500F: RLA $1A3B
+...
+[ITRP] 502B: RRA $4C43
+
+That's the first discovery of RRA.
 
 
 - Galaforce.zip
@@ -305,6 +389,15 @@ Notes:
 [1EFA] 1EFA: BPL $1EE7
 Writes to $FC69, $FC66, $FC63, $FC60... $FC51 as part of its writes, for
 unknown reasons. Doesn't do anything on an unexpanded model B.
+
+
+- Joey.zip
+SHA256: b41ea12b0e926e69f1a7b2bc455dc21353cf06f22106e0c4725154a6b9828251
+In the loader, at $5E93, sets EVNTV to $5E52, which contains:
+[ITRP] 5E52: AHX ($5E),Y
+[ITRP] 5E54: CMP #$04
+[ITRP] 5E56: BNE $5E8C
+That AHX is very rare, first one seen. Possibly an accident?
 
 
 - LunarJetman.zip
@@ -414,6 +507,30 @@ Notes:
 [ITRP] 1057: LDA $FE01
 
 
+- Quick_Thinking_USE_WATFORD_DFS_FSD0597_1.hfe
+SHA256: fb3be25d224b83ab6926c9e013e0f8a6c7d2e1be5d5c8f9dd48d8bca72f0ce28
+Insane bug in the loader. Here's a sequence where it's doing various OSWORD $7F
+calls (the JSR routines do additional OSWORD $7Fs).
+[ITRP] 1491: JSR $15CD
+[ITRP] 1494: JSR $15D7
+[ITRP] 1497: JSR $15E9
+[ITRP] 149A: LDA #$7F
+[ITRP] 149C: JSR $FFF1
+[ITRP] 149F: LDA #$7F
+[ITRP] 14A1: JSR $FFF1
+As can be seen, the last the two calls set A but not X and Y so X and Y are
+effectively uninitialized, with values depending upon DFS type and version.
+For DFS-1.2, X and Y point to a parameter block at $1600 which is command $16
+but with no drive selected so it will hang (drive never goes ready).
+For DFS-0.9 and Watford DFS 1.44, X and Y point to a parameter block at $160C,
+full of 0. In the case of DFS-0.9, this hangs because it issues command $0,
+which takes 5 parameters, but doesn't follow up with parameters. In the case of
+Watford DFS 1.44, it issues command $0 with drive select 0, and follows up with
+5 parameters with value 0. "scan data" executes and on the BBC always fails,
+usually with $0A (late DMA) because DMA is not wired up. The loader doesn't
+seem to care and continues.
+
+
 - Repton2.zip
 SHA256: 2e72f2d0ca1f8fe043be9f7b7e78055d16340ea0ff32682df73f17ea072c200b
 Notes:
@@ -461,6 +578,11 @@ handler is active. The MOS interrupt handler will take the vsync interrupt and
 clear the bit in $FE4D. So this loop, to exit, relies on the vsync interrupt
 arriving in the last cycle of the LDA #$02 or the first three cycles of the
 BIT.
+
+
+- Shylock_Gnomes_The_Transylvanian_Terror_FSD1091_1.hfe
+SHA256: afdcf53052917a9c4cb7704f91d12468fb3f626ded6fe3496b3b328361e452f0
+Hits unusual undocumented opcode RRA idy in self-modifying loader at $60DF.
 
 
 - Snapper-v1.zip

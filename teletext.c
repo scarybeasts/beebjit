@@ -38,10 +38,10 @@ static const uint8_t k_stretch_data[] = {
   5, 255, 0, 0,
 };
 
-static int g_teletext_was_generated;
+static int s_teletext_was_generated;
 
-static uint8_t g_teletext_generated_gfx[96 * 60];
-static uint8_t g_teletext_generated_sep_gfx[96 * 60];
+static uint8_t s_teletext_generated_gfx[96 * 60];
+static uint8_t s_teletext_generated_sep_gfx[96 * 60];
 
 struct teletext_struct {
   uint32_t palette[8];
@@ -81,11 +81,13 @@ static void
 teletext_generate() {
   uint32_t i;
 
+  s_teletext_was_generated = 1;
+
   /* 0x40 - 0x5F in graphics modes use the character glyph. */
-  (void) memcpy(&g_teletext_generated_gfx[(0x40 - 0x20) * 60],
+  (void) memcpy(&s_teletext_generated_gfx[(0x40 - 0x20) * 60],
                 &teletext_characters[(0x40 - 0x20) * 60],
                 (0x20 * 60));
-  (void) memcpy(&g_teletext_generated_sep_gfx[(0x40 - 0x20) * 60],
+  (void) memcpy(&s_teletext_generated_sep_gfx[(0x40 - 0x20) * 60],
                 &teletext_characters[(0x40 - 0x20) * 60],
                 (0x20 * 60));
 
@@ -98,8 +100,8 @@ teletext_generate() {
     if (i >= 0x20) {
       glyph_index += 0x20;
     }
-    p_gfx_dest = &g_teletext_generated_gfx[glyph_index * 60];
-    p_sep_gfx_dest = &g_teletext_generated_sep_gfx[glyph_index * 60];
+    p_gfx_dest = &s_teletext_generated_gfx[glyph_index * 60];
+    p_sep_gfx_dest = &s_teletext_generated_sep_gfx[glyph_index * 60];
 
     if (i & 0x01) {
       teletext_draw_block(p_gfx_dest, 0, 0, 3, 3);
@@ -132,9 +134,9 @@ static inline void
 teletext_set_active_characters(struct teletext_struct* p_teletext) {
   if (p_teletext->is_graphics_active) {
     if (p_teletext->is_separated_active) {
-      p_teletext->p_active_characters = &g_teletext_generated_sep_gfx[0];
+      p_teletext->p_active_characters = &s_teletext_generated_sep_gfx[0];
     } else {
-      p_teletext->p_active_characters = &g_teletext_generated_gfx[0];
+      p_teletext->p_active_characters = &s_teletext_generated_gfx[0];
     }
   } else {
     p_teletext->p_active_characters = &teletext_characters[0];
@@ -171,6 +173,7 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
 static inline void
 teletext_new_frame_started(struct teletext_struct* p_teletext) {
   p_teletext->scanline = 0;
+  p_teletext->second_character_row_of_double = 0;
 
   p_teletext->flash_count++;
   if (p_teletext->flash_count == 48) {
@@ -186,7 +189,7 @@ teletext_create() {
 
   (void) teletext_graphics;
   (void) teletext_separated_graphics;
-  if (!g_teletext_was_generated) {
+  if (!s_teletext_was_generated) {
     teletext_generate();
   }
 
@@ -370,7 +373,9 @@ teletext_render_data(struct teletext_struct* p_teletext,
 
   bg_color = p_teletext->bg_color;
 
-  /* TODO: this should be pre-calculated for sure. */
+  /* NOTE: would be nice to pre-calculate some of this but there are a huge
+   * number of glyph + color combinations.
+   */
   j = 0;
   for (i = 0; i < 16; ++i) {
     uint32_t color;

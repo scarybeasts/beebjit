@@ -2,14 +2,12 @@
 
 #include "bbc_options.h"
 #include "log.h"
+#include "os_terminal.h"
 #include "state_6502.h"
 #include "tape.h"
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_serial_acia_status_RDRF = 0x01,
@@ -36,7 +34,8 @@ enum {
 
 struct serial_struct {
   struct state_6502* p_state_6502;
-  int* p_fast_flag;
+  void (*set_fast_mode_callback)(void* p, int fast);
+  void* p_set_fast_mode_object;
   uint8_t acia_control;
   uint8_t acia_status;
   uint8_t acia_receive;
@@ -149,69 +148,42 @@ serial_check_line_levels(struct serial_struct* p_serial) {
   serial_acia_update_irq(p_serial);
 }
 
-static void
-serial_acia_reset(struct serial_struct* p_serial) {
-  if (p_serial->log_state) {
-    log_do_log(k_log_serial, k_log_info, "reset");
-  }
-
-  p_serial->acia_receive = 0;
-  p_serial->acia_transmit = 0;
-
-  p_serial->acia_status = 0;
-
-  /* Clear RDRF (receive data register full). */
-  p_serial->acia_status &= ~k_serial_acia_status_RDRF;
-  /* Set TDRE (transmit data register empty). */
-  p_serial->acia_status |= k_serial_acia_status_TDRE;
-  /* Clear latched DCD low -> high transition. */
-  p_serial->acia_status &= ~k_serial_acia_status_DCD;
-
-  /* Reset of the ACIA cannot change external line levels. Make sure they are
-   * kept.
-   */
-  serial_check_line_levels(p_serial);
-
-  serial_acia_update_irq(p_serial);
-}
-
 struct serial_struct*
 serial_create(struct state_6502* p_state_6502,
-              int* p_fast_flag,
               int fasttape_flag,
               struct bbc_options* p_options) {
-  struct serial_struct* p_serial = malloc(sizeof(struct serial_struct));
-  if (p_serial == NULL) {
-    errx(1, "cannot allocate serial_struct");
-  }
-
-  (void) memset(p_serial, '\0', sizeof(struct serial_struct));
+  struct serial_struct* p_serial = util_mallocz(sizeof(struct serial_struct));
 
   p_serial->p_state_6502 = p_state_6502;
-  p_serial->p_fast_flag = p_fast_flag;
   p_serial->fasttape_flag = fasttape_flag;
-
-  p_serial->acia_control = 0;
-  p_serial->acia_status = 0;
-  p_serial->acia_receive = 0;
-  p_serial->acia_transmit = 0;
-
-  p_serial->line_level_DCD = 0;
-  p_serial->line_level_CTS = 0;
 
   p_serial->handle_input = -1;
   p_serial->handle_output = -1;
 
   p_serial->log_state = util_has_option(p_options->p_log_flags, "serial:state");
 
-  serial_acia_reset(p_serial);
-
   return p_serial;
 }
 
 void
 serial_destroy(struct serial_struct* p_serial) {
-  free(p_serial);
+  struct tape_struct* p_tape = p_serial->p_tape;
+
+  tape_set_status_callback(p_tape, NULL, NULL);
+
+  if (tape_is_playing(p_tape)) {
+    tape_stop(p_tape);
+  }
+
+  util_free(p_serial);
+}
+
+void
+serial_set_fast_mode_callback(struct serial_struct* p_serial,
+                              void (*set_fast_mode_callback)(void* p, int fast),
+                              void* p_set_fast_mode_object) {
+  p_serial->set_fast_mode_callback = set_fast_mode_callback;
+  p_serial->p_set_fast_mode_object = p_set_fast_mode_object;
 }
 
 void
@@ -220,12 +192,6 @@ serial_set_io_handles(struct serial_struct* p_serial,
                       intptr_t handle_output) {
   p_serial->handle_input = handle_input;
   p_serial->handle_output = handle_output;
-}
-
-void
-serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
-  assert(p_serial->p_tape == NULL);
-  p_serial->p_tape = p_tape;
 }
 
 static void
@@ -237,6 +203,87 @@ serial_receive(struct serial_struct* p_serial, uint8_t byte) {
   p_serial->acia_receive = byte;
 
   serial_acia_update_irq(p_serial);
+}
+
+static void
+serial_tape_receive_status(void* p, int carrier, int32_t byte) {
+  struct serial_struct* p_serial = (struct serial_struct*) p;
+
+  if (!carrier) {
+    p_serial->serial_tape_carrier_count = 0;
+    p_serial->serial_tape_line_level_DCD = 0;
+  } else {
+    p_serial->serial_tape_carrier_count++;
+    /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
+     * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
+     * continuous tone appears".
+     * We use ~0.17s, measured on an issue 3 model B.
+     * Star Drifter doesn't load without this.
+     * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
+     */
+    if (p_serial->serial_tape_carrier_count == 20) {
+      p_serial->serial_tape_line_level_DCD = 1;
+    } else {
+      p_serial->serial_tape_line_level_DCD = 0;
+    }
+  }
+
+  serial_check_line_levels(p_serial);
+
+  if ((byte >= 0) && !p_serial->serial_ula_rs423_selected) {
+    serial_receive(p_serial, byte);
+  }
+}
+
+void
+serial_set_tape(struct serial_struct* p_serial, struct tape_struct* p_tape) {
+  assert(p_serial->p_tape == NULL);
+  p_serial->p_tape = p_tape;
+
+  tape_set_status_callback(p_tape, serial_tape_receive_status, p_serial);
+}
+
+static void
+serial_acia_power_on_reset(struct serial_struct* p_serial) {
+  /* Power on reset is currently the same as writing master reset to CR. */
+  if (p_serial->log_state) {
+    log_do_log(k_log_serial, k_log_info, "reset");
+  }
+
+  p_serial->acia_receive = 0;
+  p_serial->acia_transmit = 0;
+
+  /* Set TDRE (transmit data register empty). Clear everything else. */
+  p_serial->acia_status = k_serial_acia_status_TDRE;
+
+  p_serial->acia_control = 0;
+
+  /* Reset of the ACIA cannot change external line levels. Make sure they are
+   * kept.
+   */
+  serial_check_line_levels(p_serial);
+
+  serial_acia_update_irq(p_serial);
+}
+
+static void
+serial_ula_power_on_reset(struct serial_struct* p_serial) {
+  if (p_serial->serial_ula_motor_on) {
+    tape_stop(p_serial->p_tape);
+  }
+  assert(p_serial->serial_tape_carrier_count == 0);
+  assert(p_serial->serial_tape_line_level_DCD == 0);
+
+  p_serial->serial_ula_motor_on = 0;
+  p_serial->serial_ula_rs423_selected = 0;
+}
+
+void
+serial_power_on_reset(struct serial_struct* p_serial) {
+  serial_acia_power_on_reset(p_serial);
+  serial_ula_power_on_reset(p_serial);
+
+  serial_check_line_levels(p_serial);
 }
 
 void
@@ -252,7 +299,10 @@ serial_tick(struct serial_struct* p_serial) {
                       k_serial_acia_TCB_no_RTS_no_TIE);
     do_receive &= !(p_serial->acia_status & k_serial_acia_status_RDRF);
     if (do_receive) {
-      size_t avail = util_get_handle_readable_bytes(p_serial->handle_input);
+      /* TODO: this doesn't seem correct. The serial connection may not be via
+       * a host terminal?
+       */
+      size_t avail = os_terminal_readable_bytes(p_serial->handle_input);
       if (avail > 0) {
         uint8_t val = util_handle_read_byte(p_serial->handle_input);
         /* Rewrite \n to \r for BBC style input. */
@@ -332,23 +382,45 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
   if (reg == 0) {
     /* Control register. */
     if ((val & 0x03) == 0x03) {
-      /* TODO: the data sheet suggests this doesn't affect any control register
-       * bits and only does a reset.
-       * Testing on a real machine shows possible disagreement here.
+      /* Master reset. */
+      /* EMU NOTE: the data sheet says, "Master reset does not affect other
+       * Control Register bits.", however this does not seem to be fully
+       * correct. If there's an interrupt active at reset time, it is cleared
+       * after reset. This suggests it could be clearing CR, including the
+       * interrupt select bits. We clear CR, and this is sufficient to get the
+       * Frak tape to load.
+       * (After a master reset, the chip actually seems to be dormant until CR
+       * is written. One specific example is that TDRE is not indicated until
+       * CR is written -- a corner case we do not yet implement.)
        */
-      serial_acia_reset(p_serial);
+      serial_acia_power_on_reset(p_serial);
     } else {
       p_serial->acia_control = val;
+    }
+    if (p_serial->log_state) {
+      log_do_log(k_log_serial,
+                 k_log_info,
+                 "control register now: $%.2X",
+                 p_serial->acia_control);
     }
   } else {
     /* Data register, transmit byte. */
     assert(reg == 1);
-    assert(p_serial->acia_status & k_serial_acia_status_TDRE);
+    if (!(p_serial->acia_status & k_serial_acia_status_TDRE)) {
+      log_do_log(k_log_serial, k_log_unimplemented, "transmit buffer full");
+    }
 
     p_serial->acia_transmit = val;
 
-    /* Clear TDRE (transmit data register empty). */
-    p_serial->acia_status &= ~k_serial_acia_status_TDRE;
+    if (!p_serial->serial_ula_rs423_selected) {
+      /* If the tape is selected, just consume the byte immediately. It's needed
+       * to get Pro Boxing Simulator loading.
+       */
+      p_serial->acia_status |= k_serial_acia_status_TDRE;
+    } else {
+      /* Clear TDRE (transmit data register empty). */
+      p_serial->acia_status &= ~k_serial_acia_status_TDRE;
+    }
   }
 
   serial_acia_update_irq(p_serial);
@@ -381,12 +453,16 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
   if (motor_on && !p_serial->serial_ula_motor_on) {
     tape_play(p_serial->p_tape);
     if (p_serial->fasttape_flag) {
-      *(p_serial->p_fast_flag) = 1;
+      if (p_serial->set_fast_mode_callback != NULL) {
+        p_serial->set_fast_mode_callback(p_serial->p_set_fast_mode_object, 1);
+      }
     }
   } else if (!motor_on && p_serial->serial_ula_motor_on) {
     tape_stop(p_serial->p_tape);
     if (p_serial->fasttape_flag) {
-      *(p_serial->p_fast_flag) = 0;
+      if (p_serial->set_fast_mode_callback != NULL) {
+        p_serial->set_fast_mode_callback(p_serial->p_set_fast_mode_object, 0);
+      }
     }
   }
   p_serial->serial_ula_motor_on = motor_on;
@@ -405,36 +481,5 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
    * physical line levels, as can switching off the tape motor if tape is
    * selected.
    */
-  serial_check_line_levels(p_serial);
-}
-
-void
-serial_tape_receive_byte(struct serial_struct* p_serial, uint8_t byte) {
-  if (!p_serial->serial_ula_rs423_selected) {
-    serial_receive(p_serial, byte);
-  }
-}
-
-void
-serial_tape_set_carrier(struct serial_struct* p_serial, int carrier) {
-  if (!carrier) {
-    p_serial->serial_tape_carrier_count = 0;
-    p_serial->serial_tape_line_level_DCD = 0;
-  } else {
-    p_serial->serial_tape_carrier_count++;
-    /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
-     * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
-     * continuous tone appears".
-     * We use ~0.17s, measured on an issue 3 model B.
-     * Star Drifter doesn't load without this.
-     * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
-     */
-    if (p_serial->serial_tape_carrier_count == 20) {
-      p_serial->serial_tape_line_level_DCD = 1;
-    } else {
-      p_serial->serial_tape_line_level_DCD = 0;
-    }
-  }
-
   serial_check_line_levels(p_serial);
 }

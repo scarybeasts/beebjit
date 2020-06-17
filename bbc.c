@@ -6,11 +6,15 @@
 #include "debug.h"
 #include "defs_6502.h"
 #include "disc.h"
+#include "disc_drive.h"
 #include "intel_fdc.h"
 #include "keyboard.h"
 #include "log.h"
 #include "memory_access.h"
+#include "os_alloc.h"
+#include "os_channel.h"
 #include "os_thread.h"
+#include "os_time.h"
 #include "render.h"
 #include "serial.h"
 #include "sound.h"
@@ -21,10 +25,9 @@
 #include "util.h"
 #include "via.h"
 #include "video.h"
+#include "wd_fdc.h"
 
 #include <assert.h>
-#include <err.h>
-#include <stdio.h>
 #include <string.h>
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
@@ -70,10 +73,19 @@ struct bbc_struct {
   struct os_thread_struct* p_thread_cpu;
   int thread_allocated;
   int running;
-  int message_cpu_fd;
-  int message_client_fd;
+  intptr_t handle_channel_read_bbc;
+  intptr_t handle_channel_write_bbc;
+  intptr_t handle_channel_read_client;
+  intptr_t handle_channel_write_client;
   uint32_t exit_value;
   intptr_t mem_handle;
+  int is_64k_mappings;
+  uint64_t rewind_to_cycles;
+
+  /* Machine configuration. */
+  int is_sideways_ram_bank[k_bbc_num_roms];
+  int is_extended_rom_addressing;
+  int is_wd_fdc;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -89,6 +101,13 @@ struct bbc_struct {
   struct state_6502* p_state_6502;
   struct memory_access memory_access;
   struct timing_struct* p_timing;
+  struct os_alloc_mapping* p_mapping_raw;
+  struct os_alloc_mapping* p_mapping_read;
+  struct os_alloc_mapping* p_mapping_write;
+  struct os_alloc_mapping* p_mapping_write_2;
+  struct os_alloc_mapping* p_mapping_read_ind;
+  struct os_alloc_mapping* p_mapping_write_ind;
+  struct os_alloc_mapping* p_mapping_write_ind_2;
   uint8_t* p_mem_raw;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
@@ -96,8 +115,6 @@ struct bbc_struct {
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
   uint8_t romsel;
-  int is_sideways_ram_bank[k_bbc_num_roms];
-  int is_extended_rom_addressing;
   int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -107,16 +124,19 @@ struct bbc_struct {
   struct render_struct* p_render;
   struct teletext_struct* p_teletext;
   struct video_struct* p_video;
-  struct disc_struct* p_disc_0;
-  struct disc_struct* p_disc_1;
+  struct disc_drive_struct* p_drive_0;
+  struct disc_drive_struct* p_drive_1;
   struct intel_fdc_struct* p_intel_fdc;
+  struct wd_fdc_struct* p_wd_fdc;
   struct serial_struct* p_serial;
   struct tape_struct* p_tape;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
 
   /* Timing support. */
-  uint32_t timer_id;
+  struct os_time_sleeper* p_sleeper;
+  uint32_t timer_id_cycles;
+  uint32_t timer_id_stop_cycles;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
@@ -126,6 +146,10 @@ struct bbc_struct {
   uint64_t last_frames;
   uint64_t last_crtc_advances;
   uint64_t last_hw_reg_hits;
+  uint64_t last_c1;
+  uint64_t last_c2;
+  uint32_t advance_cycles_expected;
+
   uint64_t num_hw_reg_hits;
   int log_speed;
 };
@@ -138,7 +162,7 @@ bbc_is_always_ram_address(void* p, uint16_t addr) {
 }
 
 static uint16_t
-bbc_read_needs_callback_above(void* p) {
+bbc_read_needs_callback_from(void* p) {
   (void) p;
 
   /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF,
@@ -148,22 +172,18 @@ bbc_read_needs_callback_above(void* p) {
 }
 
 static uint16_t
-bbc_write_needs_callback_above(void* p) {
+bbc_write_needs_callback_from(void* p) {
   (void) p;
 
-  /* Selects 0xFC00 - 0xFFFF. */
-  /* Doesn't select the whole ROM region 0x8000 - 0xFC00 because ROM write
-   * squashing is handled by writing to to the "write" mapping, which has the
-   * ROM regions backed by dummy RAM.
-   */
-  return 0xFC00;
+  /* TODO: we can do better on Linux: 0xFC00. */
+  return k_bbc_os_rom_offset;
 }
 
 static int
 bbc_read_needs_callback(void* p, uint16_t addr) {
   (void) p;
 
-  if (addr >= 0xFC00 && addr < 0xFF00) {
+  if ((addr >= 0xFC00) && (addr < 0xFF00)) {
     return 1;
   }
 
@@ -174,44 +194,7 @@ static int
 bbc_write_needs_callback(void* p, uint16_t addr) {
   (void) p;
 
-  /* Same range as for reads. */
-  return bbc_read_needs_callback(p, addr);
-}
-
-int
-bbc_is_special_read_address(struct bbc_struct* p_bbc,
-                            uint16_t addr_low,
-                            uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_bbc_registers_start &&
-      addr_low < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_high >= k_bbc_registers_start &&
-      addr_high < k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  if (addr_low < k_bbc_registers_start &&
-      addr_high >= k_bbc_registers_start + k_bbc_registers_len) {
-    return 1;
-  }
-  return 0;
-}
-
-int
-bbc_is_special_write_address(struct bbc_struct* p_bbc,
-                             uint16_t addr_low,
-                             uint16_t addr_high) {
-  (void) p_bbc;
-
-  if (addr_low >= k_bbc_sideways_offset) {
-    return 1;
-  }
-  if (addr_high >= k_bbc_sideways_offset) {
-    return 1;
-  }
-  return 0;
+  return (addr >= k_bbc_os_rom_offset);
 }
 
 static inline int
@@ -227,25 +210,90 @@ bbc_is_1MHz_address(uint16_t addr) {
   return 1;
 }
 
-uint8_t
-bbc_read_callback(void* p, uint16_t addr) {
-  int is_1MHz;
+static void
+bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
+                                    uint16_t addr,
+                                    int do_last_tick_callback) {
+  int is_unaligned;
+  int do_ticking;
+  uint32_t cycles_left;
+  uint64_t curr_cycles;
 
+  int is_1MHz = bbc_is_1MHz_address(addr);
+
+  p_bbc->advance_cycles_expected = 0;
+
+  if (!is_1MHz) {
+    if (do_last_tick_callback) {
+      /* If it's not 1MHz, this is the last tick. */
+      p_bbc->memory_access.memory_client_last_tick_callback(
+          p_bbc->memory_access.p_last_tick_callback_obj);
+    }
+    /* Currently, all 2MHz peripherals are handled as tick then access. */
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    return;
+  }
+
+  /* It is 1MHz. Last tick will be in 1 or two ticks depending on alignment. */
+  curr_cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  is_unaligned = (curr_cycles & 1);
+  cycles_left = (is_unaligned + 2);
+
+  /* For 1MHz, the specific peripheral callback can opt to take on the timing
+   * ticking itself. The VIAs do this.
+   */
+  do_ticking = 1;
+  switch (addr & ~0x1F) {
+  case k_addr_sysvia:
+  case k_addr_uservia:
+    do_ticking = 0;
+    break;
+  default:
+    break;
+  }
+
+  if (!do_ticking) {
+    p_bbc->advance_cycles_expected = cycles_left;
+    return;
+  }
+
+  /* For most peripherals, we tick to the end of the stretched cycle and then do   * the read or write.
+   * It's worth noting that this behavior is required for CRTC. If we fail to
+   * tick to the end of the stretched cycle, the writes take effect too soon.
+   */
+  if (do_last_tick_callback) {
+    (void) timing_advance_time_delta(p_bbc->p_timing, (cycles_left - 1));
+    p_bbc->memory_access.memory_client_last_tick_callback(
+        p_bbc->memory_access.p_last_tick_callback_obj);
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+  } else {
+    (void) timing_advance_time_delta(p_bbc->p_timing, cycles_left);
+  }
+}
+
+static void
+bbc_timing_advancer(void* p, uint64_t cycles) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  assert(cycles <= p_bbc->advance_cycles_expected);
+
+  (void) timing_advance_time_delta(p_bbc->p_timing, cycles);
+  p_bbc->advance_cycles_expected -= cycles;
+
+  if (p_bbc->advance_cycles_expected == 1) {
+    p_bbc->memory_access.memory_client_last_tick_callback(
+        p_bbc->memory_access.p_last_tick_callback_obj);
+  }
+}
+
+uint8_t
+bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   uint8_t ret = 0xFE;
 
   p_bbc->num_hw_reg_hits++;
 
-  is_1MHz = bbc_is_1MHz_address(addr);
-
-  if (is_1MHz) {
-    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
-     * the 1Mhz train.
-     */
-    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -319,7 +367,18 @@ bbc_read_callback(void* p, uint16_t addr) {
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
+    addr &= 0x07;
+    if (p_bbc->is_wd_fdc) {
+      /* The 1770 control register is not readable, and mirrored across its
+       * little range.
+       */
+      if (!(addr & 0x04)) {
+        break;
+      }
+      ret = wd_fdc_read(p_bbc->p_wd_fdc, addr);
+    } else {
+      ret = intel_fdc_read(p_bbc->p_intel_fdc, addr);
+    }
     break;
   case (k_addr_econet + 0):
   case (k_addr_econet + 4):
@@ -378,15 +437,21 @@ bbc_read_callback(void* p, uint16_t addr) {
     /* Not present. */
     break;
   default:
-    /* We have an imprecise match for abx and aby addressing modes so we may get
-     * here with a non-registers address, or also for the 0xFF00 - 0xFFFF range.
-     */
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
+      /* If we miss the registers, it will be:
+       * 1) $FF00 - $FFFF on account of trapping on anything above $FC00, or
+       * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
+       * 3) Temporarily(?) $BFxx on account of $BFxx,X uncertainty and we're
+       * trapping $C000+ on all ports (only really needed on Windows). This
+       * should only be able to hit with the uncarried address read for
+       * something like a page-crossing LDA $BFFF,X
+       */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+      assert(addr >= (k_bbc_os_rom_offset - 0x100));
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
-      /* We should have every byte covered above. */
+      /* We should have every address covered above. */
       assert(0);
     } else {
       /* EMU: This value, as well as the 0xFE default,  copied from b-em /
@@ -398,12 +463,7 @@ bbc_read_callback(void* p, uint16_t addr) {
     break;
   }
 
-  if (is_1MHz) {
-    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
-    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  assert(p_bbc->advance_cycles_expected == 0);
 
   return ret;
 }
@@ -411,6 +471,24 @@ bbc_read_callback(void* p, uint16_t addr) {
 uint8_t
 bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
+}
+
+static uint8_t
+bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
+  romsel &= 0xF;
+
+  if (!p_bbc->is_extended_rom_addressing) {
+    /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
+     * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
+     * The STH Castle Quest image needs this due to a misguided "Master
+     * compatability" fix.
+     * See http://beebwiki.mdfs.net/Paged_ROM.
+     */
+    romsel &= 0x3;
+    romsel += 0xC;
+  }
+
+  return romsel;
 }
 
 void
@@ -427,26 +505,18 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t effective_new_bank;
   int curr_is_ram;
   int new_is_ram;
+  size_t map_size;
+  size_t half_map_size;
+  size_t map_offset;
 
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
 
-  effective_curr_bank = p_bbc->romsel;
-  effective_new_bank = (index & 0xF);
-
-  if (!p_bbc->is_extended_rom_addressing) {
-    /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
-     * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
-     * The STH Castle Quest image needs this due to a misguided "Master
-     * compatability" fix.
-     * See http://beebwiki.mdfs.net/Paged_ROM.
-     */
-    effective_curr_bank &= 0x3;
-    effective_curr_bank += 0xC;
-    effective_new_bank &= 0x3;
-    effective_new_bank += 0xC;
-  }
+  effective_curr_bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
+  effective_new_bank = bbc_get_effective_bank(p_bbc, index);
+  assert(!(effective_curr_bank & 0xF0));
+  assert(!(effective_new_bank & 0xF0));
 
   p_bbc->romsel = index;
 
@@ -457,8 +527,8 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 
   p_bbc->is_romsel_invalidated = 0;
 
-  curr_is_ram = (p_bbc->is_sideways_ram_bank[effective_curr_bank] != 0);
-  new_is_ram = (p_bbc->is_sideways_ram_bank[effective_new_bank] != 0);
+  curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
+  new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
 
   p_sideways_src += (effective_new_bank * k_bbc_rom_size);
 
@@ -475,48 +545,65 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
                                                  k_bbc_sideways_offset,
                                                  k_bbc_rom_size);
 
-  /* If we flipped from ROM to RAM or visa versa, we need to update the write
+  if (curr_is_ram == new_is_ram) {
+    return;
+  }
+
+  /* We flipped from ROM to RAM or visa versa, we need to update the write
    * mapping with either a dummy area (ROM) or the real sideways area (RAM).
    */
-  if (curr_is_ram ^ new_is_ram) {
-    if (new_is_ram) {
-      (void) util_get_fixed_mapping_from_handle(
-          p_bbc->mem_handle,
-          p_bbc->p_mem_write,
-          (k_bbc_sideways_offset + k_bbc_rom_size));
-      (void) util_get_fixed_mapping_from_handle(
-          p_bbc->mem_handle,
-          p_bbc->p_mem_write_ind,
-          (k_bbc_sideways_offset + k_bbc_rom_size));
-    } else {
-      (void) util_get_fixed_anonymous_mapping(
-          (p_bbc->p_mem_write + k_bbc_sideways_offset),
-          k_bbc_rom_size);
-      (void) util_get_fixed_anonymous_mapping(
-          (p_bbc->p_mem_write_ind + k_bbc_sideways_offset),
-          k_bbc_rom_size);
-    }
+  map_size = (k_6502_addr_space_size * 2);
+  half_map_size = (map_size / 2);
+  map_offset = (k_6502_addr_space_size / 2);
+
+  os_alloc_free_mapping(p_bbc->p_mapping_write_2);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+
+  if (new_is_ram) {
+    intptr_t mem_handle = p_bbc->mem_handle;
+
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping_from_handle(
+        mem_handle,
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size,
+        half_map_size);
+    os_alloc_make_mapping_none((p_bbc->p_mem_write + k_bbc_os_rom_offset),
+                               k_bbc_rom_size);
+    p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping_from_handle(
+        mem_handle,
+        (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+        half_map_size,
+        half_map_size);
+    os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_bbc_os_rom_offset),
+                               k_bbc_rom_size);
+  } else {
+    p_bbc->p_mapping_write_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+        half_map_size);
+    p_bbc->p_mapping_write_ind_2 = os_alloc_get_mapping(
+        (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+        half_map_size);
+    os_alloc_make_mapping_none(
+        (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+        K_BBC_MEM_INACCESSIBLE_LEN);
   }
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
+  os_alloc_make_mapping_none(
+      (p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+      map_offset);
 }
 
 void
-bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
-  int is_1MHz;
-
+bbc_write_callback(void* p,
+                   uint16_t addr,
+                   uint8_t val,
+                   int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
   p_bbc->num_hw_reg_hits++;
 
-  is_1MHz = bbc_is_1MHz_address(addr);
-
-  if (is_1MHz) {
-    /* If a 1Mhz peripheral is accessed on a odd cycle, wait a cycle to catch
-     * the 1Mhz train.
-     */
-    if (state_6502_get_cycles(p_bbc->p_state_6502) & 1) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -534,6 +621,9 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_serial_ula + 4):
     serial_ula_write(p_bbc->p_serial, val);
     break;
+  case (k_addr_master_adc + 0):
+  case (k_addr_master_adc + 4):
+    log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
     break;
   case (k_addr_video_ula + 0):
   case (k_addr_video_ula + 4):
@@ -578,10 +668,15 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    intel_fdc_write(p_bbc->p_intel_fdc, (addr & 0x7), val);
+    addr &= 0x07;
+    if (p_bbc->is_wd_fdc) {
+      wd_fdc_write(p_bbc->p_wd_fdc, addr, val);
+    } else {
+      intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
+    }
     break;
   case (k_addr_econet + 0):
-    printf("ignoring ECONET write\n");
+    log_do_log(k_log_misc, k_log_unimplemented, "write of ECONET region");
     break;
   case (k_addr_adc + 0):
   case (k_addr_adc + 4):
@@ -615,78 +710,57 @@ bbc_write_callback(void* p, uint16_t addr, uint8_t val) {
         break;
       }
     } else {
-      printf("ignoring tube write\n");
+      log_do_log(k_log_misc, k_log_unimplemented, "write of TUBE region");
     }
     break;
   default:
-    /* TODO: this comment may now be incorrect? */
-    /* We bounce here for ROM writes as well as register writes; ROM writes
-     * are simply squashed.
-     */
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
-      uint8_t* p_mem_write = bbc_get_mem_write(p_bbc);
-      if (addr < k_bbc_os_rom_offset) {
-        /* Possible to get here for a write at the end of a RAM region, e.g.
-         * STA $7F01,X
-         */
-        /* TODO: needs to invalidate potential JIT here? */
-        p_mem_write[addr] = val;
-      }
+      /* If we miss the registers, it will be:
+       * 1) $FF00 - $FFFF on account of trapping on anything above $FC00, or
+       * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
+       * 3) The Windows port needs a wider range to trap ROM writes.
+       */
+      assert(addr >= k_bbc_os_rom_offset);
     } else if (addr >= k_addr_shiela) {
-      printf("unknown write: %x, %x\n", addr, val);
+      /* We should have every address covered above. */
       assert(0);
     }
     break;
   }
 
-  if (is_1MHz) {
-    /* If the 1MHz peripheral handler didn't do the stretch, take care of it. */
-    if (!(state_6502_get_cycles(p_bbc->p_state_6502) & 1)) {
-      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
-    }
-  }
+  assert(p_bbc->advance_cycles_expected == 0);
 }
 
 void
 bbc_client_send_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_message) {
-  int ret = write(p_bbc->message_client_fd,
-                  p_message,
-                  sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "write failed");
-  }
+  os_channel_write(p_bbc->handle_channel_write_client,
+                   p_message,
+                   sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_send_message(struct bbc_struct* p_bbc, struct bbc_message* p_message) {
-  int ret = write(p_bbc->message_cpu_fd, p_message, sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "write failed");
-  }
+  os_channel_write(p_bbc->handle_channel_write_bbc,
+                   p_message,
+                   sizeof(struct bbc_message));
 }
 
 void
 bbc_client_receive_message(struct bbc_struct* p_bbc,
                            struct bbc_message* p_out_message) {
-  int ret = read(p_bbc->message_client_fd,
-                 p_out_message,
-                 sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "read failed");
-  }
+  os_channel_read(p_bbc->handle_channel_read_client,
+                  p_out_message,
+                  sizeof(struct bbc_message));
 }
 
 static void
 bbc_cpu_receive_message(struct bbc_struct* p_bbc,
                         struct bbc_message* p_out_message) {
-  int ret = read(p_bbc->message_cpu_fd,
-                 p_out_message,
-                 sizeof(struct bbc_message));
-  if (ret != sizeof(struct bbc_message)) {
-    errx(1, "read failed");
-  }
+  os_channel_read(p_bbc->handle_channel_read_bbc,
+                  p_out_message,
+                  sizeof(struct bbc_message));
 }
 
 static void
@@ -708,9 +782,70 @@ bbc_framebuffer_ready_callback(void* p,
   }
 }
 
+static void
+bbc_break_reset(struct bbc_struct* p_bbc) {
+  /* The BBC break key is attached to the 6502 reset line.
+   * Many other peripherals are not connected to any reset on break, but a few
+   * are.
+   */
+  if (p_bbc->is_wd_fdc) {
+    wd_fdc_break_reset(p_bbc->p_wd_fdc);
+  } else {
+    intel_fdc_break_reset(p_bbc->p_intel_fdc);
+  }
+  state_6502_reset(p_bbc->p_state_6502);
+}
+
+static void
+bbc_virtual_keyboard_updated_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  /* Make sure interrupt state is synced with new keyboard state. */
+  (void) via_update_port_a(p_bbc->p_system_via);
+
+  /* Check for BREAK key. */
+  if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
+    /* We're in the middle of some timer callback. Let the CPU driver initiate
+     * the actual reset at a safe time.
+     */
+    struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+    p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_soft_reset, 0);
+  }
+}
+
+static void
+bbc_do_reset_callback(void* p, uint32_t flags) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  if (flags & k_cpu_flag_soft_reset) {
+    bbc_break_reset(p_bbc);
+  }
+  if (flags & k_cpu_flag_hard_reset) {
+    bbc_power_on_reset(p_bbc);
+  }
+  if (flags & k_cpu_flag_replay) {
+    keyboard_rewind(p_bbc->p_keyboard, p_bbc->rewind_to_cycles);
+  }
+
+  p_cpu_driver->p_funcs->apply_flags(
+      p_cpu_driver,
+      0,
+      (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset | k_cpu_flag_replay));
+}
+
+static void
+bbc_set_fast_mode(void* p, int is_fast) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  p_bbc->fast_flag = is_fast;
+  sound_set_output_enabled(p_bbc->p_sound, !is_fast);
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            uint8_t* p_os_rom,
+           int wd_1770_flag,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -724,9 +859,12 @@ bbc_create(int mode,
   struct timing_struct* p_timing;
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
-  int pipefd[2];
-  int ret;
   uint32_t cpu_scale_factor;
+  size_t map_size;
+  size_t half_map_size;
+  size_t map_offset;
+  uint8_t* p_mem_raw;
+  uint8_t* p_os_start;
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
@@ -743,13 +881,6 @@ bbc_create(int mode,
                              p_opt_flags,
                              "bbc:cpu-scale-factor=");
 
-  ret = pipe(&pipefd[0]);
-  if (ret != 0) {
-    errx(1, "pipe failed");
-  }
-
-  util_get_channel_fds(&p_bbc->message_cpu_fd, &p_bbc->message_client_fd);
-
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
   p_bbc->p_os_rom = p_os_rom;
@@ -759,13 +890,19 @@ bbc_create(int mode,
   p_bbc->print_flag = print_flag;
   p_bbc->fast_flag = fast_flag;
   p_bbc->test_map_flag = test_map_flag;
+  p_bbc->is_wd_fdc = wd_1770_flag;
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
+  p_bbc->handle_channel_read_bbc = -1;
+  p_bbc->handle_channel_write_bbc = -1;
+  p_bbc->handle_channel_read_client = -1;
+  p_bbc->handle_channel_write_client = -1;
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
   }
 
+  p_bbc->p_sleeper = os_time_create_sleeper();
   p_bbc->last_time_us = 0;
   p_bbc->last_time_us_perf = 0;
   p_bbc->last_cycles = 0;
@@ -775,16 +912,37 @@ bbc_create(int mode,
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
 
-  p_bbc->mem_handle = util_get_memory_handle(k_6502_addr_space_size);
+  /* We allocate 2 times the 6502 64k address space size. This is so we can
+   * place it in the middle of a 128k region and straddle a 64k boundary in the
+   * middle. We need that for a satisfactory mappings setup on Windows, which
+   * only has 64k allocation resolution. This way, the stuff that is usually
+   * RAM is below the boundary and the stuff that is usually ROM is above the
+   * boundary, permitting a high performance setup.
+   */
+  map_size = (k_6502_addr_space_size * 2);
+  half_map_size = (map_size / 2);
+  map_offset = (k_6502_addr_space_size / 2);
+  p_bbc->mem_handle = os_alloc_get_memory_handle(map_size);
   if (p_bbc->mem_handle < 0) {
-    errx(1, "util_get_memory_handle failed");
+    util_bail("os_alloc_get_memory_handle failed");
   }
 
-  p_bbc->p_mem_raw =
-      util_get_guarded_mapping_from_handle(
+  p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
+
+  p_bbc->p_mapping_raw =
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_RAW_ADDR,
-          k_6502_addr_space_size);
+          (void*) (size_t) (K_BBC_MEM_RAW_ADDR - map_offset),
+          0,
+          map_size);
+  p_mem_raw = (os_alloc_get_mapping_addr(p_bbc->p_mapping_raw) + map_offset);
+  p_bbc->p_mem_raw = p_mem_raw;
+  os_alloc_make_mapping_none((p_mem_raw - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_mem_raw + k_6502_addr_space_size), map_offset);
+
+  /* Copy in the OS ROM. */
+  p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
+  (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
 
   /* Runtime memory regions.
    * The write regions differ from the read regions for 6502 ROM addresses.
@@ -796,53 +954,80 @@ bbc_create(int mode,
    * access for indirect reads and writes) but work for the exceptional case
    * via a fault + fixup.
    */
+  p_bbc->p_mapping_read_ind =
+      os_alloc_get_mapping_from_handle(
+          p_bbc->mem_handle,
+          (void*) (size_t) (K_BBC_MEM_READ_IND_ADDR - map_offset),
+          0,
+          map_size);
   p_bbc->p_mem_read_ind =
-      util_get_guarded_mapping_from_handle(
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind + k_6502_addr_space_size),
+                             map_offset);
+  p_bbc->p_mapping_write_ind =
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_READ_IND_ADDR,
-          k_6502_addr_space_size);
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR - map_offset),
+          0,
+          half_map_size);
+  /* Writeable dummy ROM region. */
+  p_bbc->p_mapping_write_ind_2 =
+      os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+          half_map_size);
   p_bbc->p_mem_write_ind =
-      util_get_guarded_mapping_from_handle(
-          p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_WRITE_IND_ADDR,
-          k_6502_addr_space_size);
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+                             map_offset);
 
-  p_bbc->p_mem_read =
-      util_get_guarded_mapping_from_handle(
+  p_bbc->p_mapping_read =
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_READ_FULL_ADDR,
-          k_6502_addr_space_size);
-  p_bbc->p_mem_write =
-      util_get_guarded_mapping_from_handle(
+          (void*) (size_t) (K_BBC_MEM_READ_FULL_ADDR - map_offset),
+          0,
+          map_size);
+  p_bbc->p_mem_read = (os_alloc_get_mapping_addr(p_bbc->p_mapping_read) +
+                       map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read + k_6502_addr_space_size),
+                             map_offset);
+  p_bbc->p_mapping_write =
+      os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
-          (void*) (size_t) K_BBC_MEM_WRITE_FULL_ADDR,
-          k_6502_addr_space_size);
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR - map_offset),
+          0,
+          half_map_size);
+  /* Writeable dummy ROM region. */
+  p_bbc->p_mapping_write_2 =
+      os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_FULL_ADDR + map_offset),
+          half_map_size);
+  p_bbc->p_mem_write = (os_alloc_get_mapping_addr(p_bbc->p_mapping_write) +
+                        map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write + k_6502_addr_space_size),
+                             map_offset);
 
   p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
 
-  /* Install the dummy writeable ROM regions. */
-  (void) util_get_fixed_anonymous_mapping(
-      (p_bbc->p_mem_write + k_bbc_ram_size),
-      (k_6502_addr_space_size - k_bbc_ram_size));
-  (void) util_get_fixed_anonymous_mapping(
-      (p_bbc->p_mem_write_ind + k_bbc_ram_size),
-      (k_6502_addr_space_size - k_bbc_ram_size));
-
+  /* TODO: we can widen what we make read-only? */
   /* Make the ROM readonly in the read mappings used at runtime. */
-  util_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
-                              (k_6502_addr_space_size - k_bbc_ram_size));
-  util_make_mapping_read_only((p_bbc->p_mem_read_ind + k_bbc_ram_size),
-                              (k_6502_addr_space_size - k_bbc_ram_size));
+  os_alloc_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
+                                  (k_6502_addr_space_size - k_bbc_ram_size));
+  os_alloc_make_mapping_read_only((p_bbc->p_mem_read_ind + k_bbc_ram_size),
+                                  (k_6502_addr_space_size - k_bbc_ram_size));
 
   /* Make the registers page inaccessible in the indirect read / write
    * mappings. This enables an optimization: indirect reads and writes can
    * avoid expensive checks for hitting registers, which is rare, and rely
    * instead on a fault + fixup.
    */
-  util_make_mapping_none(
+  os_alloc_make_mapping_none(
       (p_bbc->p_mem_read_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
       K_BBC_MEM_INACCESSIBLE_LEN);
-  util_make_mapping_none(
+  os_alloc_make_mapping_none(
       (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
       K_BBC_MEM_INACCESSIBLE_LEN);
 
@@ -850,10 +1035,10 @@ bbc_create(int mode,
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
   p_bbc->memory_access.p_callback_obj = p_bbc;
   p_bbc->memory_access.memory_is_always_ram = bbc_is_always_ram_address;
-  p_bbc->memory_access.memory_read_needs_callback_above =
-      bbc_read_needs_callback_above;
-  p_bbc->memory_access.memory_write_needs_callback_above =
-      bbc_write_needs_callback_above;
+  p_bbc->memory_access.memory_read_needs_callback_from =
+      bbc_read_needs_callback_from;
+  p_bbc->memory_access.memory_write_needs_callback_from =
+      bbc_write_needs_callback_from;
   p_bbc->memory_access.memory_read_needs_callback = bbc_read_needs_callback;
   p_bbc->memory_access.memory_write_needs_callback = bbc_write_needs_callback;
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
@@ -879,13 +1064,13 @@ bbc_create(int mode,
 
   p_timing = timing_create(cpu_scale_factor);
   if (p_timing == NULL) {
-    errx(1, "timing_create failed");
+    util_bail("timing_create failed");
   }
   p_bbc->p_timing = p_timing;
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
   if (p_state_6502 == NULL) {
-    errx(1, "state_6502_create failed");
+    util_bail("state_6502_create failed");
   }
   p_bbc->p_state_6502 = p_state_6502;
 
@@ -894,35 +1079,39 @@ bbc_create(int mode,
                                    p_timing,
                                    p_bbc);
   if (p_bbc->p_system_via == NULL) {
-    errx(1, "via_create failed");
+    util_bail("via_create failed");
   }
+  via_set_timing_advancer(p_bbc->p_system_via, bbc_timing_advancer, p_bbc);
   p_bbc->p_user_via = via_create(k_via_user,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
   if (p_bbc->p_user_via == NULL) {
-    errx(1, "via_create failed");
+    util_bail("via_create failed");
   }
+  via_set_timing_advancer(p_bbc->p_user_via, bbc_timing_advancer, p_bbc);
 
-  p_bbc->p_keyboard = keyboard_create(p_timing,
-                                      p_bbc->p_system_via,
-                                      p_state_6502);
+  p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
   if (p_bbc->p_keyboard == NULL) {
-    errx(1, "keyboard_create failed");
+    util_bail("keyboard_create failed");
   }
+  keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
+                                        bbc_virtual_keyboard_updated_callback,
+                                        p_bbc);
+  keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
   p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
   if (p_bbc->p_sound == NULL) {
-    errx(1, "sound_create failed");
+    util_bail("sound_create failed");
   }
 
   p_bbc->p_teletext = teletext_create();
   if (p_bbc->p_teletext == NULL) {
-    errx(1, "teletext_create failed");
+    util_bail("teletext_create failed");
   }
   p_bbc->p_render = render_create(p_bbc->p_teletext, &p_bbc->options);
   if (p_bbc->p_render == NULL) {
-    errx(1, "render_create failed");
+    util_bail("render_create failed");
   }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 externally_clocked_crtc,
@@ -935,47 +1124,49 @@ bbc_create(int mode,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
   if (p_bbc->p_video == NULL) {
-    errx(1, "video_create failed");
+    util_bail("video_create failed");
   }
 
-  p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
-  if (p_bbc->p_intel_fdc == NULL) {
-    errx(1, "intel_fdc_create failed");
+  p_bbc->p_drive_0 = disc_drive_create(0, p_timing, &p_bbc->options);
+  if (p_bbc->p_drive_0 == NULL) {
+    util_bail("disc_drive_create failed");
+  }
+  p_bbc->p_drive_1 = disc_drive_create(1, p_timing, &p_bbc->options);
+  if (p_bbc->p_drive_1 == NULL) {
+    util_bail("disc_drive_create failed");
   }
 
-  p_bbc->p_disc_0 = disc_create(p_timing,
-                                intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc,
-                                &p_bbc->options);
-  if (p_bbc->p_disc_0 == NULL) {
-    errx(1, "disc_create failed");
-  }
-  p_bbc->p_disc_1 = disc_create(p_timing,
-                                intel_fdc_byte_callback,
-                                p_bbc->p_intel_fdc,
-                                &p_bbc->options);
-  if (p_bbc->p_disc_1 == NULL) {
-    errx(1, "disc_create failed");
-  }
-  intel_fdc_set_drives(p_bbc->p_intel_fdc, p_bbc->p_disc_0, p_bbc->p_disc_1);
-
-  p_bbc->p_serial = serial_create(p_state_6502,
-                                  &p_bbc->fast_flag,
-                                  fasttape_flag,
-                                  &p_bbc->options);
-  if (p_bbc->p_serial == NULL) {
-    errx(1, "serial_create failed");
+  if (p_bbc->is_wd_fdc) {
+    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502, &p_bbc->options);
+    if (p_bbc->p_wd_fdc == NULL) {
+      util_bail("wd_fdc_create failed");
+    }
+    wd_fdc_set_drives(p_bbc->p_wd_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
+  } else {
+    p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
+    if (p_bbc->p_intel_fdc == NULL) {
+      util_bail("intel_fdc_create failed");
+    }
+    intel_fdc_set_drives(p_bbc->p_intel_fdc,
+                         p_bbc->p_drive_0,
+                         p_bbc->p_drive_1);
   }
 
-  p_bbc->p_tape = tape_create(p_timing, p_bbc->p_serial, &p_bbc->options);
+  p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
   if (p_bbc->p_tape == NULL) {
-    errx(1, "tape_create failed");
+    util_bail("tape_create failed");
   }
+
+  p_bbc->p_serial = serial_create(p_state_6502, fasttape_flag, &p_bbc->options);
+  if (p_bbc->p_serial == NULL) {
+    util_bail("serial_create failed");
+  }
+  serial_set_fast_mode_callback(p_bbc->p_serial, bbc_set_fast_mode, p_bbc);
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
   if (p_debug == NULL) {
-    errx(1, "debug_create failed");
+    util_bail("debug_create failed");
   }
 
   p_bbc->options.p_debug_object = p_debug;
@@ -986,8 +1177,11 @@ bbc_create(int mode,
                                          p_timing,
                                          &p_bbc->options);
   if (p_bbc->p_cpu_driver == NULL) {
-    errx(1, "cpu_driver_alloc failed");
+    util_bail("cpu_driver_alloc failed");
   }
+  p_bbc->p_cpu_driver->p_funcs->set_reset_callback(p_bbc->p_cpu_driver,
+                                                   bbc_do_reset_callback,
+                                                   p_bbc);
 
   bbc_power_on_reset(p_bbc);
 
@@ -1010,8 +1204,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
 
   debug_destroy(p_bbc->p_debug);
-  tape_destroy(p_bbc->p_tape);
   serial_destroy(p_bbc->p_serial);
+  tape_destroy(p_bbc->p_tape);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
   render_destroy(p_bbc->p_render);
@@ -1019,20 +1213,35 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
-  disc_destroy(p_bbc->p_disc_0);
-  disc_destroy(p_bbc->p_disc_1);
-  intel_fdc_destroy(p_bbc->p_intel_fdc);
+  if (p_bbc->p_intel_fdc != NULL) {
+    intel_fdc_destroy(p_bbc->p_intel_fdc);
+  }
+  if (p_bbc->p_wd_fdc != NULL) {
+    wd_fdc_destroy(p_bbc->p_wd_fdc);
+  }
+  disc_drive_destroy(p_bbc->p_drive_0);
+  disc_drive_destroy(p_bbc->p_drive_1);
   state_6502_destroy(p_bbc->p_state_6502);
   timing_destroy(p_bbc->p_timing);
-  util_free_guarded_mapping(p_bbc->p_mem_raw, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_read, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_write, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_read_ind, k_6502_addr_space_size);
-  util_free_guarded_mapping(p_bbc->p_mem_write_ind, k_6502_addr_space_size);
-  util_file_handle_close(p_bbc->mem_handle);
+  os_alloc_free_mapping(p_bbc->p_mapping_raw);
+  os_alloc_free_mapping(p_bbc->p_mapping_read);
+  os_alloc_free_mapping(p_bbc->p_mapping_write);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_2);
+  os_alloc_free_mapping(p_bbc->p_mapping_read_ind);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
+  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+  os_alloc_free_memory_handle(p_bbc->mem_handle);
+
+  os_time_free_sleeper(p_bbc->p_sleeper);
 
   util_free(p_bbc->p_mem_sideways);
   util_free(p_bbc);
+}
+
+void
+bbc_focus_lost_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  keyboard_release_all_physical_keys(p_bbc->p_keyboard);
 }
 
 void
@@ -1075,11 +1284,13 @@ bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index) {
   bbc_sideways_select(p_bbc, p_bbc->romsel);
 }
 
-void
-bbc_power_on_reset(struct bbc_struct* p_bbc) {
+static void
+bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
+  uint32_t i;
+
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
-  uint8_t* p_os_start = (p_mem_raw + k_bbc_os_rom_offset);
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
+  uint8_t* p_mem_sideways = p_bbc->p_mem_sideways;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   /* Clear memory. */
   /* EMU NOTE: skullduggery! On a lot of BBCs, the power-on DRAM state is 0xFF,
@@ -1089,16 +1300,67 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
    * We cater for both of these quirks below.
    * Full story: https://github.com/mattgodbolt/jsbeeb/issues/105
    */
-  (void) memset(p_mem_raw, '\xFF', k_6502_addr_space_size);
+  (void) memset(p_mem_raw, '\xFF', k_bbc_sideways_offset);
   (void) memset(p_mem_raw, '\0', 0x100);
 
-  /* Copy in OS ROM. */
-  (void) memcpy(p_os_start, p_bbc->p_os_rom, k_bbc_rom_size);
+  /* Clear sideways memory, if any. */
+  for (i = 0; i < k_bbc_num_roms; ++i) {
+    if (!p_bbc->is_sideways_ram_bank[i]) {
+      continue;
+    }
+    (void) memset((p_mem_sideways + (i * k_bbc_rom_size)),
+                  '\0',
+                  k_bbc_rom_size);
+  }
 
   p_bbc->is_romsel_invalidated = 1;
   bbc_sideways_select(p_bbc, 0);
 
-  state_6502_reset(p_state_6502);
+  p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver,
+                                                 0,
+                                                 k_6502_addr_space_size);
+}
+
+static void
+bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
+  p_bbc->IC32 = 0;
+
+  /* TODO: decide if the stop cycles timer should be reset or not. */
+}
+
+void
+bbc_power_on_reset(struct bbc_struct* p_bbc) {
+  struct timing_struct* p_timing = p_bbc->p_timing;
+
+  timing_reset_total_timer_ticks(p_timing);
+  bbc_power_on_memory_reset(p_bbc);
+  bbc_power_on_other_reset(p_bbc);
+  assert(p_bbc->romsel == 0);
+  assert(p_bbc->is_romsel_invalidated == 0);
+  via_power_on_reset(p_bbc->p_system_via);
+  via_power_on_reset(p_bbc->p_user_via);
+  sound_power_on_reset(p_bbc->p_sound);
+  /* Reset serial before the tape so that playing has been stopped. */
+  serial_power_on_reset(p_bbc->p_serial);
+  tape_power_on_reset(p_bbc->p_tape);
+  /* Reset the controller before the drives so that spindown has been done. */
+  if (p_bbc->p_intel_fdc != NULL) {
+    intel_fdc_power_on_reset(p_bbc->p_intel_fdc);
+  }
+  if (p_bbc->p_wd_fdc != NULL) {
+    wd_fdc_power_on_reset(p_bbc->p_wd_fdc);
+  }
+  disc_drive_power_on_reset(p_bbc->p_drive_0);
+  disc_drive_power_on_reset(p_bbc->p_drive_1);
+  keyboard_power_on_reset(p_bbc->p_keyboard);
+  video_power_on_reset(p_bbc->p_video);
+
+  /* Not reset: teletext, render. They don't affect execution (only display) and
+   * will resync to the new display output pretty immediately.
+   */
+
+  assert(timing_get_total_timer_ticks(p_timing) == 0);
+  state_6502_reset(p_bbc->p_state_6502);
 }
 
 struct cpu_driver*
@@ -1116,12 +1378,6 @@ bbc_get_registers(struct bbc_struct* p_bbc,
                   uint16_t* pc) {
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
-}
-
-size_t
-bbc_get_cycles(struct bbc_struct* p_bbc) {
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-  return state_6502_get_cycles(p_state_6502);
 }
 
 void
@@ -1180,6 +1436,11 @@ bbc_get_render(struct bbc_struct* p_bbc) {
 struct serial_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
+}
+
+struct timing_struct*
+bbc_get_timing(struct bbc_struct* p_bbc) {
+  return p_bbc->p_timing;
 }
 
 uint8_t
@@ -1283,7 +1544,7 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
   p_bbc->last_time_us = next_wakeup_time_us;
 
   if (spare_time_us >= 0) {
-    util_sleep_us(spare_time_us);
+    os_time_sleeper_sleep_us(p_bbc->p_sleeper, spare_time_us);
   } else {
     /* Missed a tick.
      * In all cases, don't sleep.
@@ -1304,20 +1565,28 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
 
 static void
 bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
-  struct video_struct* p_video = p_bbc->p_video;
   uint64_t curr_cycles;
   uint64_t curr_frames;
   uint64_t curr_crtc_advances;
   uint64_t curr_hw_reg_hits;
+  uint64_t curr_c1;
+  uint64_t curr_c2;
   uint64_t delta_cycles;
   uint64_t delta_frames;
   uint64_t delta_crtc_advances;
   uint64_t delta_hw_reg_hits;
+  uint64_t delta_c1;
+  uint64_t delta_c2;
   double delta_s;
   double fps;
   double mhz;
   double crtc_ps;
   double hw_reg_ps;
+  double c1_ps;
+  double c2_ps;
+
+  struct video_struct* p_video = p_bbc->p_video;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
   if (p_bbc->last_time_us_perf == 0) {
     p_bbc->last_time_us_perf = curr_time_us;
@@ -1331,31 +1600,95 @@ bbc_do_log_speed(struct bbc_struct* p_bbc, uint64_t curr_time_us) {
   curr_frames = video_get_num_vsyncs(p_video);
   curr_crtc_advances = video_get_num_crtc_advances(p_video);
   curr_hw_reg_hits = p_bbc->num_hw_reg_hits;
+  p_cpu_driver->p_funcs->get_custom_counters(p_cpu_driver, &curr_c1, &curr_c2);
 
   delta_cycles = (curr_cycles - p_bbc->last_cycles);
   delta_frames = (curr_frames - p_bbc->last_frames);
   delta_crtc_advances = (curr_crtc_advances - p_bbc->last_crtc_advances);
   delta_hw_reg_hits = (curr_hw_reg_hits - p_bbc->last_hw_reg_hits);
   delta_s = ((curr_time_us - p_bbc->last_time_us_perf) / 1000000.0);
+  delta_c1 = (curr_c1 - p_bbc->last_c1);
+  delta_c2 = (curr_c2 - p_bbc->last_c2);
 
   fps = (delta_frames / delta_s);
   mhz = ((delta_cycles / delta_s) / 1000000.0);
   crtc_ps = (delta_crtc_advances / delta_s);
   hw_reg_ps = (delta_hw_reg_hits / delta_s);
+  c1_ps = (delta_c1 / delta_s);
+  c2_ps = (delta_c2 / delta_s);
 
   log_do_log(k_log_perf,
              k_log_info,
-             " %.1f fps, %.1f Mhz, %.1f crtc/s %.1f hwreg/s",
+             " %.1f fps, %.1f Mhz, %.1f crtc/s %.1f hw/s %.1f c1/s %.1f c2/s",
              fps,
              mhz,
              crtc_ps,
-             hw_reg_ps);
+             hw_reg_ps,
+             c1_ps,
+             c2_ps);
 
   p_bbc->last_cycles = curr_cycles;
   p_bbc->last_frames = curr_frames;
   p_bbc->last_crtc_advances = curr_crtc_advances;
   p_bbc->last_hw_reg_hits = curr_hw_reg_hits;
   p_bbc->last_time_us_perf = curr_time_us;
+  p_bbc->last_c1 = curr_c1;
+  p_bbc->last_c2 = curr_c2;
+}
+
+static int
+bbc_try_queue_rewind(struct bbc_struct* p_bbc, uint64_t rewind_cycles) {
+  uint64_t rewind_to_cycles;
+  uint64_t cycles = state_6502_get_cycles(p_bbc->p_state_6502);
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  if (!keyboard_can_rewind(p_bbc->p_keyboard)) {
+    return 0;
+  }
+
+  rewind_to_cycles = 0;
+  if (cycles > rewind_cycles) {
+    rewind_to_cycles = (cycles - rewind_cycles);
+  }
+  p_bbc->rewind_to_cycles = rewind_to_cycles;
+
+  p_cpu_driver->p_funcs->apply_flags(
+      p_cpu_driver,
+      (k_cpu_flag_hard_reset | k_cpu_flag_replay),
+      0);
+
+  return 1;
+}
+
+static inline void
+bbc_check_alt_keys(struct bbc_struct* p_bbc) {
+  struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
+    /* Toggle fast mode. */
+    bbc_set_fast_mode(p_bbc, !p_bbc->fast_flag);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
+    /* Exit any in progress replay. */
+    if (keyboard_is_replaying(p_keyboard)) {
+      keyboard_end_replay(p_keyboard);
+    }
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '0')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_0);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, '1')) {
+    disc_drive_cycle_disc(p_bbc->p_drive_1);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'T')) {
+    tape_cycle_tape(p_bbc->p_tape);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'R')) {
+    /* We're in the middle of some timer callback. Let the CPU driver initiate
+     * the actual reset at a safe time.
+     */
+    p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_hard_reset, 0);
+  } else if (keyboard_consume_alt_key_press(p_keyboard, 'Z')) {
+    /* "undo" -- go back 5 seconds if there is a current capture or replay. */
+    /* TODO: not correct for non-2MHz tick rates. */
+    (void) bbc_try_queue_rewind(p_bbc, (5 * 2000000));
+  }
 }
 
 static void
@@ -1363,14 +1696,12 @@ bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
   int64_t refreshed_time;
-  int sound_blocking;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
-  uint64_t curr_time_us = util_gettime_us();
+  uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
-  int is_replay = keyboard_is_replaying(p_keyboard);
 
   /* Pull physical key events from system thread, always.
    * If this ends up updating the virtual keyboard, this call also syncs
@@ -1378,21 +1709,8 @@ bbc_cycles_timer_callback(void* p) {
    */
   keyboard_read_queue(p_keyboard);
 
-  /* Bit of a special case, but break out of fast mode if replay hits EOF. */
-  if (keyboard_consume_had_replay_eof(p_keyboard)) {
-    p_bbc->fast_flag = 0;
-  }
-
   /* Check for special alt key combos to change emulator behavior. */
-  if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
-    /* Toggle fast mode. */
-    p_bbc->fast_flag = !p_bbc->fast_flag;
-  } else if (keyboard_consume_alt_key_press(p_keyboard, 'E')) {
-    /* Exit any in progress replay. */
-    if (is_replay) {
-      keyboard_end_replay(p_keyboard);
-    }
-  }
+  bbc_check_alt_keys(p_bbc);
 
   p_bbc->last_time_us = curr_time_us;
 
@@ -1425,7 +1743,7 @@ bbc_cycles_timer_callback(void* p) {
 
   (void) timing_adjust_timer_value(p_timing,
                                    &refreshed_time,
-                                   p_bbc->timer_id,
+                                   p_bbc->timer_id_cycles,
                                    cycles_next_run);
 
   assert(refreshed_time > 0);
@@ -1438,8 +1756,7 @@ bbc_cycles_timer_callback(void* p) {
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
 
   /* Prod the sound module in case it's in synchronous mode. */
-  sound_blocking = !p_bbc->fast_flag;
-  sound_tick(p_bbc->p_sound, sound_blocking);
+  sound_tick(p_bbc->p_sound);
 
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.
@@ -1458,9 +1775,9 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
 
   struct timing_struct* p_timing = p_bbc->p_timing;
 
-  p_bbc->timer_id = timing_register_timer(p_timing,
-                                          bbc_cycles_timer_callback,
-                                          p_bbc);
+  p_bbc->timer_id_cycles = timing_register_timer(p_timing,
+                                                 bbc_cycles_timer_callback,
+                                                 p_bbc);
 
   /* Normal mode is when the system is running at real time, aka. "slow" mode.
    * Fast mode is when the system is running the CPU as fast as possible.
@@ -1493,9 +1810,9 @@ bbc_start_timer_tick(struct bbc_struct* p_bbc) {
     p_bbc->cycles_per_run_fast = option_cycles_per_run;
   }
 
-  (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id, 1);
+  (void) timing_start_timer_with_value(p_timing, p_bbc->timer_id_cycles, 1);
 
-  p_bbc->last_time_us = util_gettime_us();
+  p_bbc->last_time_us = os_time_get_us();
 }
 
 static void*
@@ -1508,10 +1825,13 @@ bbc_cpu_thread(void* p) {
 
   bbc_start_timer_tick(p_bbc);
 
+  /* Set up initial fast mode correctly. */
+  bbc_set_fast_mode(p_bbc, p_bbc->fast_flag);
+
   exited = p_cpu_driver->p_funcs->enter(p_cpu_driver);
   (void) exited;
   assert(exited == 1);
-  assert(p_cpu_driver->p_funcs->has_exited(p_cpu_driver) == 1);
+  assert(p_cpu_driver->p_funcs->get_flags(p_cpu_driver) & k_cpu_flag_exited);
 
   p_bbc->running = 0;
   p_bbc->exit_value = p_cpu_driver->p_funcs->get_exit_value(p_cpu_driver);
@@ -1546,46 +1866,83 @@ bbc_get_run_result(struct bbc_struct* p_bbc) {
   return *p_ret;
 }
 
-size_t
-bbc_get_client_handle(struct bbc_struct* p_bbc) {
-  return p_bbc->message_client_fd;
+void
+bbc_set_channel_handles(struct bbc_struct* p_bbc,
+                        intptr_t handle_channel_read_bbc,
+                        intptr_t handle_channel_write_bbc,
+                        intptr_t handle_channel_read_client,
+                        intptr_t handle_channel_write_client) {
+  p_bbc->handle_channel_read_bbc = handle_channel_read_bbc;
+  p_bbc->handle_channel_write_bbc = handle_channel_write_bbc;
+  p_bbc->handle_channel_read_client = handle_channel_read_client;
+  p_bbc->handle_channel_write_client = handle_channel_write_client;
 }
 
 void
-bbc_load_disc(struct bbc_struct* p_bbc,
-              const char* p_filename,
-              int drive,
-              int is_writeable,
-              int is_mutable) {
+bbc_add_disc(struct bbc_struct* p_bbc,
+             const char* p_filename,
+             int drive,
+             int is_writeable,
+             int is_mutable,
+             int convert_to_hfe) {
+  struct disc_drive_struct* p_drive;
   struct disc_struct* p_disc;
 
   assert((drive >= 0) && (drive <= 1));
 
   if (drive == 0) {
-    p_disc = p_bbc->p_disc_0;
+    p_drive = p_bbc->p_drive_0;
   } else {
-    p_disc = p_bbc->p_disc_1;
+    p_drive = p_bbc->p_drive_1;
   }
 
-  disc_load(p_disc, p_filename, is_writeable, is_mutable);
+  p_disc = disc_create(p_filename,
+                       is_writeable,
+                       is_mutable,
+                       convert_to_hfe,
+                       &p_bbc->options);
+  if (p_disc == NULL) {
+    util_bail("disc_create failed");
+  }
+
+  disc_drive_add_disc(p_drive, p_disc);
 }
 
 void
-bbc_load_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
-  tape_load(p_bbc->p_tape, p_file_name);
+bbc_add_raw_disc(struct bbc_struct* p_bbc,
+                 const char* p_filename,
+                 const char* p_spec) {
+  struct disc_struct* p_disc = disc_create_from_raw(p_filename, p_spec);
+
+  if (p_disc == NULL) {
+    util_bail("disc_create_from_raw failed");
+  }
+
+  disc_drive_add_disc(p_bbc->p_drive_0, p_disc);
+}
+
+void
+bbc_add_tape(struct bbc_struct* p_bbc, const char* p_file_name) {
+  tape_add_tape(p_bbc->p_tape, p_file_name);
 }
 
 static void
 bbc_stop_cycles_timer_callback(void* p) {
-  (void) p;
-  __builtin_trap();
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
+
+  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_stop_cycles);
+
+  p_cpu_driver->p_funcs->apply_flags(p_cpu_driver, k_cpu_flag_exited, 0);
+  p_cpu_driver->p_funcs->set_exit_value(p_cpu_driver, 0xFFFFFFFE);
 }
 
 void
 bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
   struct timing_struct* p_timing = p_bbc->p_timing;
-  size_t id = timing_register_timer(p_bbc->p_timing,
-                                    bbc_stop_cycles_timer_callback,
-                                    NULL);
+  uint32_t id = timing_register_timer(p_bbc->p_timing,
+                                      bbc_stop_cycles_timer_callback,
+                                      p_bbc);
+  p_bbc->timer_id_stop_cycles = id;
   (void) timing_start_timer_with_value(p_timing, id, cycles);
 }

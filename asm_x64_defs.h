@@ -1,15 +1,19 @@
 #ifndef BEEBJIT_ASM_X64_DEFS_H
 #define BEEBJIT_ASM_X64_DEFS_H
 
-#define K_BBC_MEM_RAW_ADDR                      0x0f000000
-#define K_BBC_MEM_READ_IND_ADDR                 0x10000000
-#define K_BBC_MEM_WRITE_IND_ADDR                0x11000000
-#define K_BBC_MEM_READ_FULL_ADDR                0x12000000
-#define K_BBC_MEM_WRITE_FULL_ADDR               0x13000000
+/* For REG_PARAM1 etc. */
+#include "os_asm_abi.h"
+
+#define K_BBC_MEM_RAW_ADDR                      0x0f008000
+#define K_BBC_MEM_READ_IND_ADDR                 0x10008000
+#define K_BBC_MEM_WRITE_IND_ADDR                0x11008000
+#define K_BBC_MEM_READ_FULL_ADDR                0x12008000
+#define K_BBC_MEM_WRITE_FULL_ADDR               0x13008000
 #define K_BBC_MEM_OFFSET_TO_WRITE_IND           0x01000000
 #define K_BBC_MEM_OFFSET_TO_READ_FULL           0x02000000
 #define K_BBC_MEM_OFFSET_TO_WRITE_FULL          0x03000000
 #define K_BBC_MEM_OFFSET_READ_TO_WRITE          0x01000000
+#define K_BBC_MEM_OS_ROM_OFFSET                 0xC000
 #define K_BBC_MEM_INACCESSIBLE_OFFSET           0xF000
 #define K_BBC_MEM_INACCESSIBLE_LEN              0x1000
 #define K_6502_ADDR_SPACE_SIZE                  0x10000
@@ -17,6 +21,8 @@
 #define K_ASM_TABLE_6502_FLAGS_TO_X64           0x50000000
 #define K_ASM_TABLE_6502_FLAGS_TO_MASK          0x50000100
 #define K_ASM_TABLE_X64_FLAGS_TO_6502           0x50000200
+#define K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV     0x50000300
+#define K_ASM_TABLE_OF_TO_6502                  0x50000500
 
 #define K_CONTEXT_OFFSET_STATE_6502             8
 #define K_CONTEXT_OFFSET_DEBUG_CALLBACK         16
@@ -24,7 +30,7 @@
 #define K_CONTEXT_OFFSET_INTERP_CALLBACK        32
 #define K_CONTEXT_OFFSET_INTERP_OBJECT          40
 #define K_CONTEXT_OFFSET_ABI_END                48
-#define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 32)
+#define K_CONTEXT_OFFSET_DRIVER_END             (K_CONTEXT_OFFSET_ABI_END + 56)
 
 #define K_STATE_6502_OFFSET_REG_A               0
 #define K_STATE_6502_OFFSET_REG_X               4
@@ -82,14 +88,5 @@
 #define REG_SCRATCH4_32    r11d
 
 #define REG_RETURN         rax
-#define REG_RETURN2        rdx
-#define REG_PARAM1         rdi
-#define REG_PARAM1_32      edi
-#define REG_PARAM2         rsi
-#define REG_PARAM2_32      esi
-#define REG_PARAM3         rdx
-#define REG_PARAM3_32      edx
-#define REG_PARAM4         rcx
-#define REG_PARAM4_32      ecx
 
 #endif /* BEEBJIT_ASM_X64_DEFS_H */

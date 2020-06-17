@@ -7,10 +7,7 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 #include <math.h>
-#include <stdlib.h>
-#include <string.h>
 
 static const uint32_t k_sound_clock_rate = 250000;
 /* BBC master clock 2MHz, 8x divider for 250kHz sn76489 chip. */
@@ -28,6 +25,7 @@ struct sound_struct {
   /* Configuration. */
   int synchronous;
   uint32_t driver_buffer_size;
+  int is_output_enabled;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
@@ -58,7 +56,7 @@ struct sound_struct {
   int noise_frequency;
   /* 1 is white, 0 is periodic. */
   int noise_type;
-  int last_channel;
+  uint8_t latched_bits;
 
   /* Timing. */
   struct timing_struct* p_timing;
@@ -84,7 +82,7 @@ sound_fill_sn76489_buffer(struct sound_struct* p_sound,
 
   if ((sn_frames_filled + num_frames) >
       p_sound->sn_frames_per_driver_buffer_size) {
-    errx(1, "p_sn_frames overflowed");
+    util_bail("p_sn_frames overflowed");
   }
 
   for (i = 0; i < num_frames; ++i) {
@@ -207,6 +205,43 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   return num_driver_frames;
 }
 
+static void
+sound_direct_write_driver_frames(struct sound_struct* p_sound,
+                                 int16_t* p_volumes,
+                                 uint16_t* p_periods,
+                                 uint16_t noise_rng,
+                                 int noise_type,
+                                 uint32_t num_frames) {
+  uint32_t num_driver_frames;
+  int16_t* p_driver_frames = p_sound->p_driver_frames;
+  double num_sn_frames;
+
+  num_sn_frames = (num_frames * p_sound->sn_frames_per_driver_frame);
+
+  p_sound->sn_frames_filled = 0;
+  sound_fill_sn76489_buffer(p_sound,
+                            (uint32_t) num_sn_frames,
+                            p_volumes,
+                            p_periods,
+                            noise_rng,
+                            noise_type);
+
+  num_driver_frames = sound_resample_to_driver_buffer(p_sound);
+
+  /* TODO: the rounding errors causing this need looking into in more detail. */
+  if (num_driver_frames < num_frames) {
+    int16_t sample = 0;
+    if (num_driver_frames > 0) {
+      sample = p_driver_frames[num_driver_frames - 1];
+    }
+    p_driver_frames[num_driver_frames] = sample;
+    num_driver_frames++;
+  }
+  assert(num_driver_frames == num_frames);
+
+  os_sound_write(p_sound->p_driver, p_driver_frames, num_driver_frames);
+}
+
 static void*
 sound_play_thread(void* p) {
   int16_t volume[4];
@@ -214,6 +249,7 @@ sound_play_thread(void* p) {
 
   struct sound_struct* p_sound = (struct sound_struct*) p;
   struct os_sound_struct* p_sound_driver = p_sound->p_driver;
+  uint32_t period_frames = os_sound_get_period_size(p_sound_driver);
 
   /* We read these but the main thread writes them. */
   volatile int* p_do_exit = &p_sound->do_exit;
@@ -224,30 +260,18 @@ sound_play_thread(void* p) {
 
   while (!*p_do_exit) {
     uint32_t i;
-    uint32_t num_driver_frames = os_sound_wait_for_frame_space(p_sound_driver);
-    uint32_t num_sn_frames = (num_driver_frames *
-                              p_sound->sn_frames_per_driver_frame);
-    assert(num_driver_frames <= p_sound->driver_buffer_size);
-    assert(num_sn_frames <= p_sound->sn_frames_per_driver_buffer_size);
 
     for (i = 0; i < 4; ++i) {
       volume[i] = p_volume[i];
       period[i] = p_period[i];
     }
-    sound_fill_sn76489_buffer(p_sound,
-                              num_sn_frames,
-                              volume,
-                              period,
-                              *p_noise_rng,
-                              *p_noise_type);
 
-    /* Note: num_driver_frames may be one less than desired due to rounding
-     * down.
-     */
-    num_driver_frames = sound_resample_to_driver_buffer(p_sound);
-    os_sound_write(p_sound_driver,
-                   p_sound->p_driver_frames,
-                   num_driver_frames);
+    sound_direct_write_driver_frames(p_sound,
+                                     volume,
+                                     period,
+                                     *p_noise_rng,
+                                     *p_noise_type,
+                                     period_frames);
   }
 
   return NULL;
@@ -257,22 +281,17 @@ struct sound_struct*
 sound_create(int synchronous,
              struct timing_struct* p_timing,
              struct bbc_options* p_options) {
-  size_t i;
+  uint32_t i;
   double volume_scale;
-  int16_t volume_max;
   int positive_silence;
 
-  struct sound_struct* p_sound = malloc(sizeof(struct sound_struct));
-  if (p_sound == NULL) {
-    errx(1, "couldn't allocate sound_struct");
-  }
-
-  (void) memset(p_sound, '\0', sizeof(struct sound_struct));
+  struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
 
   p_sound->p_timing = p_timing;
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
+  p_sound->is_output_enabled = 1;
 
   p_sound->average_sample_value = 0.0;
   p_sound->average_sample_count = 0.0;
@@ -310,8 +329,78 @@ sound_create(int synchronous,
     volume_scale *= pow(10.0, -0.1);
   } while (i > 0);
 
-  volume_max = p_sound->volumes[0xf];
   p_sound->volume_silence = p_sound->volumes[0];
+
+  return p_sound;
+}
+
+void
+sound_destroy(struct sound_struct* p_sound) {
+  if (p_sound->thread_running) {
+    assert(p_sound->p_driver != NULL);
+    assert(!p_sound->do_exit);
+    p_sound->do_exit = 1;
+    (void) os_thread_destroy(p_sound->p_thread_sound);
+  }
+  if (p_sound->p_driver_frames) {
+    util_free(p_sound->p_driver_frames);
+  }
+  if (p_sound->p_sn_frames) {
+    util_free(p_sound->p_sn_frames);
+  }
+  util_free(p_sound);
+}
+
+void
+sound_set_driver(struct sound_struct* p_sound,
+                 struct os_sound_struct* p_driver) {
+  uint32_t driver_buffer_size;
+  uint32_t sample_rate;
+
+  assert(p_sound->p_driver == NULL);
+  assert(!p_sound->thread_running);
+
+  p_sound->p_driver = p_driver;
+
+  sample_rate = os_sound_get_sample_rate(p_driver);
+  driver_buffer_size = os_sound_get_buffer_size(p_driver);
+
+  p_sound->driver_buffer_size = driver_buffer_size;
+  /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
+  p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
+                                         (double) sample_rate);
+  p_sound->sn_frames_per_driver_buffer_size =
+      floor(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
+
+  p_sound->p_driver_frames = util_mallocz(driver_buffer_size * sizeof(int16_t));
+  p_sound->p_sn_frames = util_mallocz(
+      p_sound->sn_frames_per_driver_buffer_size * sizeof(int16_t));
+}
+
+void
+sound_start_playing(struct sound_struct* p_sound) {
+  if (p_sound->p_driver == NULL) {
+    return;
+  }
+
+  if (p_sound->synchronous) {
+    return;
+  }
+
+  assert(!p_sound->thread_running);
+  p_sound->p_thread_sound = os_thread_create(sound_play_thread, p_sound);
+  p_sound->thread_running = 1;
+}
+
+void
+sound_set_output_enabled(struct sound_struct* p_sound, int is_enabled) {
+  p_sound->is_output_enabled = is_enabled;
+}
+
+void
+sound_power_on_reset(struct sound_struct* p_sound) {
+  uint32_t i;
+  int16_t volume_max = p_sound->volumes[0xf];
 
   /* EMU: initial sn76489 state and behavior is something no two sources seem
    * to agree on. It doesn't matter a huge amount for BBC emulation because
@@ -353,91 +442,19 @@ sound_create(int synchronous,
   p_sound->noise_frequency = 2;
   p_sound->period[3] = 0x40;
   p_sound->noise_type = 0;
-  p_sound->last_channel = 0;
+  p_sound->latched_bits = 0;
   /* NOTE: MAME, b-em, b2 initialize here to 0x4000. */
   p_sound->noise_rng = 0;
 
-  return p_sound;
-}
-
-void
-sound_destroy(struct sound_struct* p_sound) {
-  if (p_sound->thread_running) {
-    assert(p_sound->p_driver != NULL);
-    assert(!p_sound->do_exit);
-    p_sound->do_exit = 1;
-    (void) os_thread_destroy(p_sound->p_thread_sound);
-  }
-  if (p_sound->p_driver_frames) {
-    free(p_sound->p_driver_frames);
-  }
-  if (p_sound->p_sn_frames) {
-    free(p_sound->p_sn_frames);
-  }
-  free(p_sound);
-}
-
-void
-sound_set_driver(struct sound_struct* p_sound,
-                 struct os_sound_struct* p_driver) {
-  uint32_t driver_buffer_size;
-  uint32_t driver_chunk_size;
-  uint32_t sample_rate;
-
-  assert(!sound_is_active(p_sound));
-  assert(p_sound->p_driver == NULL);
-  assert(!p_sound->thread_running);
-
-  p_sound->p_driver = p_driver;
-
-  sample_rate = os_sound_get_sample_rate(p_driver);
-  driver_buffer_size = os_sound_get_buffer_size(p_driver);
-  driver_chunk_size = os_sound_get_period_size(p_driver);
-  (void) driver_chunk_size;
-  assert(driver_chunk_size > 0);
-
-  p_sound->driver_buffer_size = driver_buffer_size;
-  /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
-  p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
-                                         (double) sample_rate);
-  p_sound->sn_frames_per_driver_buffer_size =
-      floor(driver_buffer_size * p_sound->sn_frames_per_driver_frame);
-
-  p_sound->p_driver_frames = malloc(driver_buffer_size * sizeof(int16_t));
-  if (p_sound->p_driver_frames == NULL) {
-    errx(1, "couldn't allocate p_driver_frames");
-  }
-  (void) memset(p_sound->p_driver_frames,
-                '\0',
-                (driver_buffer_size * sizeof(int16_t)));
-  p_sound->p_sn_frames = malloc(p_sound->sn_frames_per_driver_buffer_size *
-                                sizeof(int16_t));
-  if (p_sound->p_sn_frames == NULL) {
-    errx(1, "couldn't allocate p_sn_frames");
-  }
-  (void) memset(p_sound->p_sn_frames,
-                '\0',
-                (p_sound->sn_frames_per_driver_buffer_size * sizeof(int16_t)));
-}
-
-void
-sound_start_playing(struct sound_struct* p_sound) {
-  if (!sound_is_active(p_sound)) {
-    return;
-  }
-
-  if (p_sound->synchronous) {
-    return;
-  }
-
-  assert(!p_sound->thread_running);
-  p_sound->p_thread_sound = os_thread_create(sound_play_thread, p_sound);
-  p_sound->thread_running = 1;
+  p_sound->prev_system_ticks = 0;
 }
 
 int
 sound_is_active(struct sound_struct* p_sound) {
-  return (p_sound->p_driver != NULL);
+  if (p_sound->p_driver == NULL) {
+    return 0;
+  }
+  return p_sound->is_output_enabled;
 }
 
 int
@@ -460,7 +477,9 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
   prev_sn_ticks = (p_sound->prev_system_ticks / k_sound_clock_divider);
   curr_sn_ticks = (curr_system_ticks / k_sound_clock_divider);
   delta_sn_ticks = (curr_sn_ticks - prev_sn_ticks);
-  /* In fast mode, the ticks delta will be insanely huge and needs capping. */
+  /* When switching from output disabled (e.g. fast mode) to enabled, the ticks
+   * delta will be insanely huge and needs capping.
+   */
   if ((sn_frames_filled + delta_sn_ticks) > sn_frames_per_driver_buffer_size) {
     delta_sn_ticks = (sn_frames_per_driver_buffer_size - sn_frames_filled);
   }
@@ -476,7 +495,7 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
 }
 
 void
-sound_tick(struct sound_struct* p_sound, int blocking) {
+sound_tick(struct sound_struct* p_sound) {
   uint32_t num_driver_frames;
 
   struct os_sound_struct* p_driver = p_sound->p_driver;
@@ -491,39 +510,35 @@ sound_tick(struct sound_struct* p_sound, int blocking) {
   sound_advance_sn_timing(p_sound);
 
   num_driver_frames = sound_resample_to_driver_buffer(p_sound);
-  if (!blocking) {
-    uint32_t driver_frames_space = os_sound_get_frame_space(p_driver);
-    if (num_driver_frames > driver_frames_space) {
-      num_driver_frames = driver_frames_space;
-    }
-  }
   os_sound_write(p_driver, p_sound->p_driver_frames, num_driver_frames);
 }
 
 void
-sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
-  int channel;
+sound_sn_write(struct sound_struct* p_sound, uint8_t value) {
+  uint8_t command;
+  uint8_t channel;
 
-  int new_period = -1;
+  int32_t new_period = -1;
 
   if (sound_is_active(p_sound) && p_sound->synchronous) {
     sound_advance_sn_timing(p_sound);
   }
 
-  if (data & 0x80) {
-    channel = ((data >> 5) & 0x03);
-    p_sound->last_channel = channel;
+  if (value & 0x80) {
+    p_sound->latched_bits = (value & 0x70);
+    command = (value & 0xF0);
   } else {
-    channel = p_sound->last_channel;
+    command = p_sound->latched_bits;
   }
+  channel = ((command >> 5) & 0x03);
 
-  if ((data & 0x90) == 0x90) {
+  if (command & 0x10) {
     /* Update volume of channel. */
-    uint8_t volume_index = (0x0f - (data & 0x0f));
+    uint8_t volume_index = (0x0f - (value & 0x0f));
     p_sound->volume[channel] = p_sound->volumes[volume_index];
   } else if (channel == 3) {
     /* For the noise channel, we only ever update the lower bits. */
-    int noise_frequency = (data & 0x03);
+    int noise_frequency = (value & 0x03);
     p_sound->noise_frequency = noise_frequency;
     if (noise_frequency == 0) {
       new_period = 0x10;
@@ -534,21 +549,22 @@ sound_sn_write(struct sound_struct* p_sound, uint8_t data) {
     } else {
       new_period = p_sound->period[2];
     }
-    p_sound->noise_type = ((data & 0x04) >> 2);
+    p_sound->noise_type = ((value & 0x04) >> 2);
     p_sound->noise_rng = (1 << 14);
-  } else if (data & 0x80) {
+  } else if (command & 0x80) {
+    /* Period low bits. */
     uint16_t old_period = p_sound->period[channel];
-    new_period = (data & 0x0f);
+    new_period = (value & 0x0f);
     new_period |= (old_period & 0x3f0);
   } else {
     uint16_t old_period = p_sound->period[channel];
-    new_period = ((data & 0x3f) << 4);
+    new_period = ((value & 0x3f) << 4);
     new_period |= (old_period & 0x0f);
   }
 
   if (new_period != -1) {
     p_sound->period[channel] = new_period;
-    if (channel == 2 && p_sound->noise_frequency == 3) {
+    if ((channel == 2) && (p_sound->noise_frequency == 3)) {
       p_sound->period[3] = new_period;
     }
   }
@@ -584,7 +600,7 @@ sound_get_state(struct sound_struct* p_sound,
     p_outputs[i] = p_sound->output[i];
   }
 
-  *p_last_channel = p_sound->last_channel;
+  *p_last_channel = (p_sound->latched_bits >> 5);
   *p_noise_type = p_sound->noise_type;
   *p_noise_frequency = p_sound->noise_frequency;
   *p_noise_rng = p_sound->noise_rng;
@@ -608,7 +624,7 @@ sound_set_state(struct sound_struct* p_sound,
     p_sound->output[i] = p_outputs[i];
   }
 
-  p_sound->last_channel = last_channel;
+  p_sound->latched_bits = (last_channel << 5);
   p_sound->noise_type = noise_type;
   p_sound->noise_frequency = noise_frequency;
   p_sound->noise_rng = noise_rng;

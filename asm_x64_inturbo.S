@@ -1,4 +1,4 @@
-#include "asm_x64_defs.h"
+#include "asm_x64_inturbo_defs.h"
 
 .file "asm_x64_inturbo.S"
 .intel_syntax noprefix
@@ -10,7 +10,7 @@
 .globl asm_x64_inturbo_JMP_scratch_plus_1_interp_END
 asm_x64_inturbo_JMP_scratch_plus_1_interp:
 
-  lea REG_6502_PC_16, [REG_SCRATCH1 + 1]
+  lea REG_6502_PC_32, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + 1]
 
 asm_x64_inturbo_JMP_scratch_plus_1_interp_END:
   ret
@@ -20,7 +20,8 @@ asm_x64_inturbo_JMP_scratch_plus_1_interp_END:
 .globl asm_x64_inturbo_load_pc_from_pc_END
 asm_x64_inturbo_load_pc_from_pc:
 
-  mov REG_6502_PC_16, [REG_6502_PC + 1]
+  movzx REG_6502_PC_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_inturbo_load_pc_from_pc_END:
   ret
@@ -35,7 +36,7 @@ asm_x64_inturbo_check_special_address:
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
 asm_x64_inturbo_check_special_address_lea_patch:
   bt REG_SCRATCH2_32, 16
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_check_special_address_jb_patch:
 
 asm_x64_inturbo_check_special_address_END:
@@ -51,7 +52,7 @@ asm_x64_inturbo_check_countdown:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_x64_inturbo_check_countdown_lea_patch:
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_check_countdown_jb_patch:
 
 asm_x64_inturbo_check_countdown_END:
@@ -68,7 +69,7 @@ asm_x64_inturbo_check_countdown_with_page_crossing:
 asm_x64_inturbo_check_countdown_with_page_crossing_lea_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_check_countdown_with_page_crossing_jb_patch:
 
 asm_x64_inturbo_check_countdown_with_page_crossing_END:
@@ -81,7 +82,7 @@ asm_x64_inturbo_check_countdown_with_page_crossing_END:
 asm_x64_inturbo_check_decimal:
 
   bt REG_6502_ID_F_64, 3
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_check_decimal_jb_patch:
 
 asm_x64_inturbo_check_decimal_END:
@@ -98,7 +99,7 @@ asm_x64_inturbo_check_interrupt:
       DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
   bt REG_SCRATCH1_32, 31
-  jae 0
+  jae asm_x64_unpatched_branch_target
 asm_x64_inturbo_check_interrupt_jae_patch:
 
 asm_x64_inturbo_check_interrupt_END:
@@ -133,8 +134,10 @@ asm_x64_inturbo_advance_pc_END:
 .globl asm_x64_inturbo_jump_opcode_END
 asm_x64_inturbo_jump_opcode:
 
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_inturbo_jump_opcode_END:
@@ -145,7 +148,7 @@ asm_x64_inturbo_jump_opcode_END:
 .globl asm_x64_inturbo_enter_debug_END
 asm_x64_inturbo_enter_debug:
 
-  call 0
+  call asm_x64_unpatched_branch_target
 asm_x64_inturbo_enter_debug_END:
   ret
 
@@ -155,7 +158,7 @@ asm_x64_inturbo_enter_debug_END:
 .globl asm_x64_inturbo_jump_call_interp_jmp_patch
 asm_x64_inturbo_jump_call_interp:
 
-  jmp 0
+  jmp asm_x64_unpatched_branch_target
 asm_x64_inturbo_jump_call_interp_jmp_patch:
 
 asm_x64_inturbo_jump_call_interp_END:
@@ -166,7 +169,7 @@ asm_x64_inturbo_jump_call_interp_END:
 .globl asm_x64_inturbo_pc_plus_2_to_scratch_END
 asm_x64_inturbo_pc_plus_2_to_scratch:
 
-  lea REG_SCRATCH1, [REG_6502_PC + 2]
+  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR + 2]
 
 asm_x64_inturbo_pc_plus_2_to_scratch_END:
   ret
@@ -176,7 +179,8 @@ asm_x64_inturbo_pc_plus_2_to_scratch_END:
 .globl asm_x64_inturbo_interrupt_vector_END
 asm_x64_inturbo_interrupt_vector:
 
-  mov REG_6502_PC_16, [K_BBC_MEM_READ_FULL_ADDR + K_6502_VECTOR_IRQ]
+  movzx REG_6502_PC_32, WORD PTR [K_BBC_MEM_READ_FULL_ADDR + K_6502_VECTOR_IRQ]
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_inturbo_interrupt_vector_END:
   ret
@@ -194,22 +198,31 @@ asm_x64_inturbo_call_interp:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_x64_save_AXYS_PC_flags
 
-  # Save REG_CONTEXT because it's currently the same as REG_PARAM1, which is
-  # overwritten below.
+  # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
+  # AMD64 calling convention, which is overwritten below.
   mov REG_SCRATCH3, REG_CONTEXT
+
+  # Double push, including a dummy push, to keep stack correctly aligned.
+  push REG_CONTEXT
   push REG_CONTEXT
   # param1 is interp object.
   mov REG_PARAM1, [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_OBJECT]
-  # param2 is current countdown value.
-  mov REG_PARAM2, REG_COUNTDOWN
+  # param2 is stack storage for 2x int64 return values.
+  lea REG_PARAM2, [rsp - 16]
+  # param3 is current countdown value.
+  mov REG_PARAM3, REG_COUNTDOWN
 
+  # Return value space and Win x64 shadow space convention.
+  sub rsp, 16 + 32
   call [REG_SCRATCH3 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  add rsp, 16 + 32
+  mov REG_COUNTDOWN, [rsp - 16]
+  mov REG_RETURN, [rsp - 8]
+  pop REG_CONTEXT
   pop REG_CONTEXT
 
-  mov REG_COUNTDOWN, REG_RETURN
-  test REG_RETURN2, REG_RETURN2
+  test REG_RETURN, REG_RETURN
   je not_exiting
-  mov REG_RETURN, REG_RETURN2
   ret
 
 not_exiting:
@@ -217,8 +230,10 @@ not_exiting:
   call asm_x64_restore_AXYS_PC_flags
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 
@@ -334,7 +349,7 @@ asm_x64_inturbo_mode_idx:
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_mode_idx_jump_patch:
 
 asm_x64_inturbo_mode_idx_END:
@@ -355,7 +370,7 @@ asm_x64_inturbo_mode_idy:
 
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_inturbo_mode_idy_jump_patch:
 
 asm_x64_inturbo_mode_idy_END:
@@ -417,21 +432,25 @@ asm_x64_instruction_Bxx_interp_accurate:
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
   bt REG_COUNTDOWN, 63
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_instruction_Bxx_interp_accurate_jb_patch:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + REG_SCRATCH1]
   lea REG_6502_PC, [REG_6502_PC + REG_SCRATCH1]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_not_taken_target:
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 2]
   lea REG_6502_PC, [REG_6502_PC + 2]
-  rorx REG_SCRATCH3, REG_SCRATCH3, 56
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + 0x40000000]
+  lahf
+  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
   jmp REG_SCRATCH3
 
 asm_x64_instruction_Bxx_interp_accurate_END:
@@ -577,7 +596,7 @@ asm_x64_instruction_BCC_interp_END:
 asm_x64_instruction_BCC_interp_accurate:
 
   bt REG_6502_CF_64, 0
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_instruction_BCC_interp_accurate_jump_patch:
 
 asm_x64_instruction_BCC_interp_accurate_END:
@@ -605,7 +624,7 @@ asm_x64_instruction_BCS_interp_END:
 asm_x64_instruction_BCS_interp_accurate:
 
   bt REG_6502_CF_64, 0
-  jae 0
+  jae asm_x64_unpatched_branch_target
 asm_x64_instruction_BCS_interp_accurate_jump_patch:
 
 asm_x64_instruction_BCS_interp_accurate_END:
@@ -631,7 +650,7 @@ asm_x64_instruction_BEQ_interp_END:
 .globl asm_x64_instruction_BEQ_interp_accurate_jump_patch
 asm_x64_instruction_BEQ_interp_accurate:
 
-  jne 0
+  jne asm_x64_unpatched_branch_target
 asm_x64_instruction_BEQ_interp_accurate_jump_patch:
 
 asm_x64_instruction_BEQ_interp_accurate_END:
@@ -667,7 +686,7 @@ asm_x64_instruction_BMI_interp_END:
 .globl asm_x64_instruction_BMI_interp_accurate_jump_patch
 asm_x64_instruction_BMI_interp_accurate:
 
-  jns 0
+  jns asm_x64_unpatched_branch_target
 asm_x64_instruction_BMI_interp_accurate_jump_patch:
 
 asm_x64_instruction_BMI_interp_accurate_END:
@@ -693,7 +712,7 @@ asm_x64_instruction_BNE_interp_END:
 .globl asm_x64_instruction_BNE_interp_accurate_jump_patch
 asm_x64_instruction_BNE_interp_accurate:
 
-  je 0
+  je asm_x64_unpatched_branch_target
 asm_x64_instruction_BNE_interp_accurate_jump_patch:
 
 asm_x64_instruction_BNE_interp_accurate_END:
@@ -719,7 +738,7 @@ asm_x64_instruction_BPL_interp_END:
 .globl asm_x64_instruction_BPL_interp_accurate_jump_patch
 asm_x64_instruction_BPL_interp_accurate:
 
-  js 0
+  js asm_x64_unpatched_branch_target
 asm_x64_instruction_BPL_interp_accurate_jump_patch:
 
 asm_x64_instruction_BPL_interp_accurate_END:
@@ -747,7 +766,7 @@ asm_x64_instruction_BVC_interp_END:
 asm_x64_instruction_BVC_interp_accurate:
 
   bt REG_6502_OF_64, 0
-  jb 0
+  jb asm_x64_unpatched_branch_target
 asm_x64_instruction_BVC_interp_accurate_jump_patch:
 
 asm_x64_instruction_BVC_interp_accurate_END:
@@ -775,7 +794,7 @@ asm_x64_instruction_BVS_interp_END:
 asm_x64_instruction_BVS_interp_accurate:
 
   bt REG_6502_OF_64, 0
-  jae 0
+  jae asm_x64_unpatched_branch_target
 asm_x64_instruction_BVS_interp_accurate_jump_patch:
 
 asm_x64_instruction_BVS_interp_accurate_END:
@@ -941,7 +960,7 @@ asm_x64_instruction_INC_scratch_interp_based_END:
 .globl asm_x64_instruction_JMP_scratch_interp_END
 asm_x64_instruction_JMP_scratch_interp:
 
-  mov REG_6502_PC_16, REG_SCRATCH1_16
+  lea REG_6502_PC_32, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_x64_instruction_JMP_scratch_interp_END:
   ret

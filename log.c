@@ -1,7 +1,8 @@
 #include "log.h"
 
+#include "util.h"
+
 #include <assert.h>
-#include <err.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -24,6 +25,10 @@ log_module_to_string(int module) {
     return "keyboard";
   case k_log_misc:
     return "misc";
+  case k_log_audio:
+    return "audio";
+  case k_log_tape:
+    return "tape";
   default:
     assert(0);
     return NULL;
@@ -36,11 +41,13 @@ log_severity_to_string(int severity) {
   case k_log_info:
     return "info";
   case k_log_unusual:
-    return "UNUSUAL";
+    return "unusual";
   case k_log_unimplemented:
-    return "UNIMPLEMENTED";
+    return "unimplemented";
   case k_log_error:
     return "ERROR";
+  case k_log_warning:
+    return "WARNING";
   default:
     assert(0);
     return NULL;
@@ -60,11 +67,15 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
   ret = vsnprintf(msg, sizeof(msg), p_msg, args);
   va_end(args);
   if (ret <= 0) {
-    errx(1, "vsnprintf failed");
+    util_bail("vsnprintf failed");
   }
 
   ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
   if (ret <= 0) {
-    errx(1, "fprintf failed");
+    util_bail("fprintf failed");
+  }
+  ret = fflush(stdout);
+  if (ret != 0) {
+    util_bail("fflush failed");
   }
 }

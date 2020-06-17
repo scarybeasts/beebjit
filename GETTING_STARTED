@@ -1,0 +1,30 @@
+Let's get quickly started!
+Once you have read this, you may also wish to read EXAMPLES.
+Do also considering reading KEYS for a list of important keys.
+
+1) Starting up with no disc or tape media.
+You can just run the executable with no command line arguments, i.e.
+./beebjit
+or
+beebjit.exe
+
+A BBC Micro should fire up. Even with no media loaded, it's still reasonably
+capable because it boots up to a command prompt with a full BASIC language at
+your disposal. The most typical way of demonstrating your BASIC prowess would
+be to type in these three lines, pressing Enter at the end of each:
+
+10 PRINT "HELLO OMG"
+20 GOTO 10
+RUN
+
+
+2) Booting up a disc image.
+You can run the executable with a single command line argument to put a disc
+image in drive 0, which is the default drive:
+./beebjit -0 test/games/Disc108-FroggerRSCB.ssd
+
+To boot from the disc, the BBC had a special keyboard combination. You hold down
+Shift and then press and release Break while the Shift key remains pressed.
+Break is mapped to the F12 key on a modern keyboard, which requires Fn + F12 to
+be pressed on many systems. So the full gymnastics would be: hold down Shift and
+Fn simultaneously and while holding them down, tap and release F12.

@@ -7,7 +7,6 @@
 #include "util.h"
 
 #include <assert.h>
-#include <err.h>
 
 static void
 asm_x64_emit_jit_jump(struct util_buffer* p_buf,
@@ -17,7 +16,7 @@ asm_x64_emit_jit_jump(struct util_buffer* p_buf,
                       void* p_jmp_8bit,
                       void* p_jmp_end_8bit) {
   int32_t len_x64;
-  ssize_t delta;
+  int64_t delta;
 
   size_t offset = util_buffer_get_pos(p_buf);
   void* p_source = (util_buffer_get_base_address(p_buf) + offset);
@@ -60,7 +59,7 @@ asm_x64_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
                     offset,
                     asm_x64_jit_jump_interp_trampoline,
                     asm_x64_jit_jump_interp_trampoline_pc_patch,
-                    addr);
+                    (addr + K_BBC_MEM_READ_FULL_ADDR));
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_jit_jump_interp_trampoline,
@@ -114,7 +113,7 @@ asm_x64_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_call_debug,
                     asm_x64_jit_call_debug_pc_patch,
-                    addr);
+                    (addr + K_BBC_MEM_READ_FULL_ADDR));
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_jit_call_debug,
@@ -137,7 +136,7 @@ asm_x64_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
                     offset,
                     asm_x64_jit_jump_interp,
                     asm_x64_jit_jump_interp_pc_patch,
-                    addr);
+                    (addr + K_BBC_MEM_READ_FULL_ADDR));
   asm_x64_patch_jump(p_buf,
                      offset,
                      asm_x64_jit_jump_interp,
@@ -226,8 +225,8 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_lea_patch,
-                    ((uint32_t) -0x100 + n));
+                    asm_x64_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch,
+                    (K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV + n));
 }
 
 void
@@ -254,15 +253,12 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
   asm_x64_copy(p_buf,
                asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
                asm_x64_jit_CHECK_PAGE_CROSSING_X_n_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_IND_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
+  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value += (addr & 0xFF);
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_X_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n_lea_patch,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_X_n_mov_patch,
                     value);
 }
 
@@ -276,15 +272,12 @@ asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf,
   asm_x64_copy(p_buf,
                asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
                asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_END);
-  /* This chicanery ensures a 32-bit integer overflow if there's a page
-   * crossing, leaving a 0 in the most significant bit.
-   */
-  value = (~K_BBC_MEM_READ_IND_ADDR & 0xFFFFFF00);
-  value |= (addr & 0xFF);
+  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value += (addr & 0xFF);
   asm_x64_patch_int(p_buf,
                     offset,
                     asm_x64_jit_CHECK_PAGE_CROSSING_Y_n,
-                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_lea_patch,
+                    asm_x64_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch,
                     value);
 }
 
@@ -425,7 +418,7 @@ asm_x64_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t value) {
                     offset,
                     asm_x64_jit_MODE_ABX,
                     asm_x64_jit_MODE_ABX_lea_patch,
-                    value);
+                    (value - (K_BBC_MEM_RAW_ADDR & 0xFFFF)));
 }
 
 void
@@ -437,7 +430,7 @@ asm_x64_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value) {
                     offset,
                     asm_x64_jit_MODE_ABY,
                     asm_x64_jit_MODE_ABY_lea_patch,
-                    value);
+                    (value - (K_BBC_MEM_RAW_ADDR & 0xFFFF)));
 }
 
 void
@@ -481,7 +474,6 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
     next_addr = (addr + 1);
   }
 
-  /* TODO: why aren't we doing a 16-bit load here for the common case? */
   asm_x64_copy(p_buf, asm_x64_jit_MODE_IND_16, asm_x64_jit_MODE_IND_16_END);
   asm_x64_patch_int(p_buf,
                     offset,
@@ -496,10 +488,17 @@ asm_x64_emit_jit_MODE_IND_16(struct util_buffer* p_buf,
 }
 
 void
-asm_x64_emit_jit_MODE_IND_SCRATCH(struct util_buffer* p_buf) {
+asm_x64_emit_jit_MODE_IND_SCRATCH_8(struct util_buffer* p_buf) {
   asm_x64_copy(p_buf,
-               asm_x64_jit_MODE_IND_SCRATCH,
-               asm_x64_jit_MODE_IND_SCRATCH_END);
+               asm_x64_jit_MODE_IND_SCRATCH_8,
+               asm_x64_jit_MODE_IND_SCRATCH_8_END);
+}
+
+void
+asm_x64_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf) {
+  asm_x64_copy(p_buf,
+               asm_x64_jit_MODE_IND_SCRATCH_16,
+               asm_x64_jit_MODE_IND_SCRATCH_16_END);
 }
 
 void

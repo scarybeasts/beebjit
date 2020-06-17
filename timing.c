@@ -1,9 +1,8 @@
 #include "timing.h"
 
+#include "util.h"
+
 #include <assert.h>
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
 
 enum {
   k_timing_num_timers = 16,
@@ -35,12 +34,7 @@ struct timing_struct {
 
 struct timing_struct*
 timing_create(uint32_t scale_factor) {
-  struct timing_struct* p_timing = malloc(sizeof(struct timing_struct));
-  if (p_timing == NULL) {
-    errx(1, "couldn't allocate timing_struct");
-  }
-
-  (void) memset(p_timing, '\0', sizeof(struct timing_struct));
+  struct timing_struct* p_timing = util_mallocz(sizeof(struct timing_struct));
 
   p_timing->scale_factor = scale_factor;
   p_timing->total_timer_ticks = 0;
@@ -55,7 +49,12 @@ timing_create(uint32_t scale_factor) {
 
 void
 timing_destroy(struct timing_struct* p_timing) {
-  free(p_timing);
+  util_free(p_timing);
+}
+
+void
+timing_reset_total_timer_ticks(struct timing_struct* p_timing) {
+  p_timing->total_timer_ticks = 0;
 }
 
 static inline uint64_t
@@ -116,7 +115,7 @@ timing_register_timer(struct timing_struct* p_timing,
     }
   }
   if (i == k_timing_num_timers) {
-    errx(1, "out of timer ids");
+    util_bail("out of timer ids");
   }
 
   p_timer = &p_timing->timers[i];
@@ -143,7 +142,7 @@ timing_insert_expiring_timer(struct timing_struct* p_timing,
   assert(p_timer->ticking);
   assert(p_timer->firing);
 
-  while ((p_iter != NULL) && (p_timer->value > p_iter->value)) {
+  while ((p_iter != NULL) && (p_timer->value >= p_iter->value)) {
     assert((p_prev == NULL) || (p_iter->value >= p_prev->value));
     if (p_iter->p_expiry_next) {
       assert(p_iter->p_expiry_next->p_expiry_prev == p_iter);
