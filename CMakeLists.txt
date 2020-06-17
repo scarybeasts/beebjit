@@ -12,13 +12,18 @@ foreach (ASM_SRC ${BEEBJIT_ASM_FILES})
     set_property(SOURCE ${ASM_SRC} PROPERTY LANGUAGE C)
 endforeach ()
 
-set(BEEBJIT_SRC_FILES main.c bbc.c jit.c defs_6502.c debug.c util.c state.c video.c via.c
-        emit_6502.c interp.c inturbo.c state_6502.c sound.c intel_fdc.c timing.c
+set(BEEBJIT_SRC_FILES
+        main.c bbc.c defs_6502.c state.c video.c via.c
+        emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c
         jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c
         asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c
-        jit_optimizer.c jit_opcode.c keyboard.c os.c
-        teletext.c render.c serial.c log.c test.c disc.c ibm_disc_format.c tape.c
-        disc_fsd.c disc_hfe.c disc_ssd.c)
+        asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S
+        jit_optimizer.c jit_opcode.c keyboard.c
+        teletext.c render.c serial.c log.c test.c tape.c
+        intel_fdc.c wd_fdc.c
+        disc_drive.c disc.c disc_fsd.c disc_hfe.c disc_ssd.c ibm_disc_format.c
+        debug.c jit.c util.c
+        os.c)
 
 
 add_executable(beebjit ${BEEBJIT_SRC_FILES} ${BEEBJIT_ASM_FILES})
