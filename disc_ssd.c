@@ -20,17 +20,15 @@ disc_ssd_write_track(struct disc_struct* p_disc,
                      uint32_t length,
                      uint8_t* p_data,
                      uint8_t* p_clocks) {
-  uint32_t i_sector;
+  uint32_t i;
   uint64_t seek_pos;
+  int32_t sector = -1;
 
-  (void) length;
   assert(length == k_ibm_disc_bytes_per_track);
 
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
   int is_dsd = disc_is_double_sided(p_disc);
-
-  (void) p_clocks;
 
   seek_pos = (track_size * track);
   if (is_dsd) {
@@ -40,24 +38,29 @@ disc_ssd_write_track(struct disc_struct* p_disc,
     assert(is_dsd);
     seek_pos += track_size;
   }
-  util_file_seek(p_file, seek_pos);
 
-  /* Skip GAP1. */
-  p_data += (k_ibm_disc_std_gap1_FFs + k_ibm_disc_std_sync_00s);
+  for (i = 0; i < length; ++i) {
+    if ((i + 1 + k_disc_ssd_sector_size) > length) {
+      break;
+    }
+    if (p_clocks[i] != k_ibm_disc_mark_clock_pattern) {
+      continue;
+    }
+    if (p_data[i] == k_ibm_disc_id_mark_data_pattern) {
+      sector = p_data[i + 3];
+      continue;
+    }
+    if (p_data[i] != k_ibm_disc_data_mark_data_pattern) {
+      continue;
+    }
+    if ((sector < 0) || (sector > 9)) {
+      continue;
+    }
 
-  for (i_sector = 0; i_sector < k_disc_ssd_sectors_per_track; ++i_sector) {
-    /* Skip header, GAP2 and data marker. */
-    p_data += 7;
-    p_data += (k_ibm_disc_std_gap2_FFs + k_ibm_disc_std_sync_00s);
-    p_data += 1;
-
-    util_file_write(p_file, p_data, k_disc_ssd_sector_size);
-    p_data += k_disc_ssd_sector_size;
-    /* Skip checksum. */
-    p_data += 2;
-
-    /* Skip GAP3. */
-    p_data += (k_ibm_disc_std_10_sector_gap3_FFs + k_ibm_disc_std_sync_00s);
+    util_file_seek(p_file, (seek_pos + (sector * k_disc_ssd_sector_size)));
+    i += 1;
+    util_file_write(p_file, &p_data[i], k_disc_ssd_sector_size);
+    i += k_disc_ssd_sector_size;
   }
 }
 
