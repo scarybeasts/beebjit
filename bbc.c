@@ -804,7 +804,8 @@ bbc_virtual_keyboard_updated_callback(void* p) {
   (void) via_update_port_a(p_bbc->p_system_via);
 
   /* Check for BREAK key. */
-  if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12)) {
+  if (keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_f12) ||
+      keyboard_consume_key_press(p_bbc->p_keyboard, k_keyboard_key_delete)) {
     /* We're in the middle of some timer callback. Let the CPU driver initiate
      * the actual reset at a safe time.
      */

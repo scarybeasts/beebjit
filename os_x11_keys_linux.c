@@ -224,6 +224,9 @@ os_x11_keys_build_mapping() {
     case 117:
       val = k_keyboard_key_page_down;
       break;
+    case 119:
+      val = k_keyboard_key_delete;
+      break;
     case 133:
       val = k_keyboard_key_windows;
       break;

@@ -96,6 +96,8 @@ convert_windows_key_code(uint32_t vkey) {
     return k_keyboard_key_page_down;
   case VK_LWIN:
     return k_keyboard_key_windows;
+  case VK_DELETE:
+    return k_keyboard_key_delete;
   default:
     break;
   }
