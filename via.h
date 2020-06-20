@@ -38,6 +38,11 @@ void via_write(struct via_struct* p_via, uint8_t reg, uint8_t val);
 void via_update_port_a(struct via_struct* p_via);
 void via_update_port_b(struct via_struct* p_via);
 
+void via_get_all_CAB(struct via_struct* p_via,
+                     int* p_CA1,
+                     int* p_CA2,
+                     int* p_CB1,
+                     int* p_CB2);
 void via_set_CA1(struct via_struct* p_via, int level);
 void via_set_CA2(struct via_struct* p_via, int level);
 void via_set_CB1(struct via_struct* p_via, int level);

@@ -878,6 +878,18 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
 }
 
 void
+via_get_all_CAB(struct via_struct* p_via,
+                int* p_CA1,
+                int* p_CA2,
+                int* p_CB1,
+                int* p_CB2) {
+  *p_CA1 = p_via->CA1;
+  *p_CA2 = p_via->CA2;
+  *p_CB1 = p_via->CB1;
+  *p_CB2 = p_via->CB2;
+}
+
+void
 via_set_CA1(struct via_struct* p_via, int level) {
   int trigger_level;
 

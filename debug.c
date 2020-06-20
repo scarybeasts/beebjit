@@ -439,6 +439,10 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
   uint8_t t1_oneshot_fired;
   uint8_t t2_oneshot_fired;
   uint8_t t1_pb7;
+  int CA1;
+  int CA2;
+  int CB1;
+  int CB2;
 
   if (id == k_via_system) {
     (void) printf("System VIA\n");
@@ -469,6 +473,7 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                     &t1_oneshot_fired,
                     &t2_oneshot_fired,
                     &t1_pb7);
+  via_get_all_CAB(p_via, &CA1, &CA2, &CB1, &CB2);
   (void) printf("IFR %.2"PRIX8" IER %.2"PRIX8"\n", IFR, IER);
   (void) printf("ORA %.2"PRIX8" DDRA %.2"PRIX8" periph %.2"PRIX8"\n",
                 ORA,
@@ -488,6 +493,12 @@ debug_dump_via(struct bbc_struct* p_bbc, int id) {
                 (uint16_t) T2L,
                 (uint16_t) (T2C_raw >> 1),
                 (int) t2_oneshot_fired);
+  (void) printf("CA1 %d CA2 %d CB1 %d CB2 %d\n", CA1, CA2, CB1, CB2);
+  /* IC32 isn't really a VIA thing but put it here for convenience. */
+  if (id == k_via_system) {
+    uint8_t IC32 = bbc_get_IC32(p_bbc);
+    (void) printf("IC32 %.2"PRIX8"\n", IC32);
+  }
 }
 
 static void
