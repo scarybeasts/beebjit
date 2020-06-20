@@ -581,7 +581,12 @@ via_read(struct via_struct* p_via, uint8_t reg) {
 
   switch (reg) {
   case k_via_ORB:
+    /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0xA0) != 0x20);
+
+    via_clear_interrupt(p_via, k_int_CB1);
+    via_clear_interrupt(p_via, k_int_CB2);
+
     /* A read of VIA port B mixes input and output as indicated by DDRB. */
     orb = p_via->ORB;
     ddrb = p_via->DDRB;
@@ -603,6 +608,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     }
     break;
   case k_via_ORA:
+    /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
     via_clear_interrupt(p_via, k_int_CA1);
     via_clear_interrupt(p_via, k_int_CA2);
@@ -716,16 +722,26 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
 
   switch (reg) {
   case k_via_ORB:
+    /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0xA0) != 0x20);
+    /* Handshake mode not supported yet. */
     assert((p_via->PCR & 0xE0) != 0x80);
+    /* Pulse output not supported yet. */
     assert((p_via->PCR & 0xE0) != 0xA0);
     p_via->ORB = val;
+    via_clear_interrupt(p_via, k_int_CB1);
+    via_clear_interrupt(p_via, k_int_CB2);
     via_update_port_b(p_via);
     break;
   case k_via_ORA:
+    /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
+    /* Handshake mode not supported yet. */
     assert((p_via->PCR & 0x0E) != 0x08);
+    /* Pulse output not supported yet. */
     assert((p_via->PCR & 0x0E) != 0x0A);
+    via_clear_interrupt(p_via, k_int_CA1);
+    via_clear_interrupt(p_via, k_int_CA2);
   /* Fall through. */
   case k_via_ORAnh:
     p_via->ORA = val;
