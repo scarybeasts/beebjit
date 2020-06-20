@@ -96,17 +96,33 @@ via_check_interrupt(struct via_struct* p_via) {
 }
 
 static void
+via_set_IFR(struct via_struct* p_via, uint8_t val) {
+  int was_CA2 = (p_via->IFR & k_int_CA2);
+  p_via->IFR = val;
+  /* NOTE: special case hack here to handle keyboard correctly while maintaining
+   * speed.
+   * If we're lowering the keyboard interrupt, give it a chance to raise again
+   * immediately. Real hardware behaves this way when the keyboard is in
+   * auto-scan mode and a key is down because the CA2 input line is toggling
+   * on->off->on->off. It toggles as the auto-scan iterates across columns and
+   * hits the one with the key down once per iteration.
+   */
+  if ((p_via->id == k_via_system) && was_CA2 && !(val & k_int_CA2)) {
+    via_update_port_a(p_via);
+  }
+  via_check_interrupt(p_via);
+}
+
+static void
 via_raise_interrupt(struct via_struct* p_via, uint8_t val) {
   assert(!(val & 0x80));
-  p_via->IFR |= val;
-  via_check_interrupt(p_via);
+  via_set_IFR(p_via, (p_via->IFR | val));
 }
 
 static void
 via_clear_interrupt(struct via_struct* p_via, uint8_t val) {
   assert(!(val & 0x80));
-  p_via->IFR &= ~val;
-  via_check_interrupt(p_via);
+  via_set_IFR(p_via, (p_via->IFR & ~val));
 }
 
 static void
@@ -486,6 +502,11 @@ sysvia_update_port_a(struct via_struct* p_via) {
     }
   } else {
     if (keyboard_bbc_is_any_key_pressed(p_keyboard)) {
+      /* Make sure the CA2 line toggles. This is how real hardware behaves in
+       * auto-scan mode because it iterates across key columns and will hit
+       * the active column as well as the inactive columns.
+       */
+      via_set_CA2(p_via, 0);
       fire = 1;
     }
   }
@@ -693,6 +714,7 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
   int32_t timer_val;
   int32_t t1_val;
   int32_t t2_val;
+  uint8_t new_IFR;
 
   /* Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
@@ -863,19 +885,19 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     }
     break;
   case k_via_IFR:
-    p_via->IFR &= ~(val & 0x7F);
+    new_IFR = (p_via->IFR & ~(val & 0x7F));
     if (t1_firing) {
       /* Timer firing wins over a write to IFR. */
-      p_via->IFR |= k_int_TIMER1;
+      new_IFR |= k_int_TIMER1;
     }
     /* EMU TODO: assuming the same logic applies for T2, although it's untested
      * on a real BBC.
      */
     if (t2_firing) {
       /* Timer firing wins over a write to IFR. */
-      p_via->IFR |= k_int_TIMER2;
+      new_IFR |= k_int_TIMER2;
     }
-    via_check_interrupt(p_via);
+    via_set_IFR(p_via, new_IFR);
     break;
   case k_via_IER:
     if (val & 0x80) {
