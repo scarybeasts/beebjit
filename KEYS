@@ -10,7 +10,8 @@ General notes on modern keyboards
 BBC keys
 ========
 
-- BBC Break is mapped to F12
+- BBC Break is mapped to F12 and Delete
+  You may have better luck for BBC Ctrl+Break with Ctrl+Delete
 - BBC F0 is mapped to F10
 - BBC @ is mapped to `
 - BBC Copy is mapped to End
