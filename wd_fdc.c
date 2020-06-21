@@ -846,6 +846,9 @@ wd_fdc_bitstream_received(struct wd_fdc_struct* p_fdc,
 
 static void
 wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+  /* NOTE: this callback routine is also used for seek / settle timing,
+   * which is not a precise 64us basis.
+   */
   int is_index_pulse;
   int state = k_wd_fdc_state_null;
   int step_direction = 0;

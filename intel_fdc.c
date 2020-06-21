@@ -1039,6 +1039,9 @@ static void
 intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
                                 uint8_t data_byte,
                                 uint8_t clocks_byte) {
+  /* NOTE: this callback routine is also used for seek / settle timing,
+   * which is not a precise 64us basis.
+   */
   switch (p_fdc->state) {
   case k_intel_fdc_state_check_id_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&

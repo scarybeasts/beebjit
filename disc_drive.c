@@ -12,16 +12,11 @@
 enum {
   /* This is 300RPM == 0.2s == 200000us per revolution, 3125 bytes per track,
    * 2 system ticks per us.
-   * Or if you like, exactly 64us / 128 ticks.
-   * We can get away without floating point here because it's exact. If we had
-   * to support different rotational speeds or stretched / compressed disc
-   * signal, we'd need to crack out the floating point.
    */
-  k_disc_ticks_per_byte = (200000 / 3125 * 2),
-  /* My Chinon drive holds the index pulse low for about 4ms, which is 62 bytes
-   * worth of rotation.
-   */
-  k_disc_index_bytes = 62,
+  k_disc_system_ticks_per_rev = 400000,
+  k_disc_ticks_scale_up = 10000,
+  /* My Chinon drive holds the index pulse low for about 4ms. */
+  k_disc_index_ticks = (4000 * 2 * k_disc_ticks_scale_up),
 
   k_disc_max_discs_per_drive = 4,
 };
@@ -40,13 +35,13 @@ struct disc_drive_struct {
   int is_40_track;
 
   /* State of the drive. */
+  uint32_t disc_index;
   int is_side_upper;
   /* Physically always 80 tracks even if we're in 40 track mode. 40 track mode
    * essentially double steps.
    */
   uint32_t track;
-  uint32_t byte_position;
-  uint32_t disc_index;
+  uint32_t head_position;
 };
 
 static struct disc_struct*
@@ -54,36 +49,94 @@ disc_drive_get_disc(struct disc_drive_struct* p_drive) {
   return p_drive->p_discs[p_drive->disc_index];
 }
 
+static uint32_t
+disc_drive_get_byte_position(struct disc_drive_struct* p_drive,
+                             uint32_t* p_track_length,
+                             uint32_t* p_per_byte_ticks) {
+  uint32_t byte_position;
+  uint32_t track_length;
+  uint32_t per_byte_ticks;
+
+  struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
+  uint32_t per_rev_ticks = (400000u * 10000);
+
+  track_length = k_ibm_disc_bytes_per_track;
+  if (p_disc != NULL) {
+    track_length = disc_get_track_length(p_disc,
+                                         p_drive->is_side_upper,
+                                         p_drive->track);
+  }
+  assert(track_length < k_disc_max_bytes_per_track);
+  per_byte_ticks = (per_rev_ticks / track_length);
+  byte_position = (p_drive->head_position / per_byte_ticks);
+
+  assert(byte_position < track_length);
+
+  if (p_track_length != NULL) {
+    *p_track_length = track_length;
+  }
+  if (p_per_byte_ticks != NULL) {
+    *p_per_byte_ticks = per_byte_ticks;
+  }
+
+  return byte_position;
+}
+
 static void
 disc_drive_timer_callback(void* p) {
+  uint32_t track_length;
+  uint32_t byte_position;
+  uint32_t per_byte_ticks;
+  uint32_t new_head_position;
+  uint64_t this_ticks;
+  uint64_t next_ticks;
+  uint32_t ticks_delta;
+
   uint8_t data_byte = 0;
   uint8_t clocks_byte = 0;
 
   struct disc_drive_struct* p_drive = (struct disc_drive_struct*) p;
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
-  uint32_t byte_position = p_drive->byte_position;
-  uint32_t track_length = k_ibm_disc_bytes_per_track;
+  uint32_t head_position = p_drive->head_position;
+  uint32_t track = p_drive->track;
+  int is_side_upper = p_drive->is_side_upper;
 
-  assert(byte_position < k_disc_max_bytes_per_track);
+  byte_position = disc_drive_get_byte_position(p_drive,
+                                               &track_length,
+                                               &per_byte_ticks);
 
   if (p_disc != NULL) {
-    int is_side_upper = p_drive->is_side_upper;
-    uint32_t track = p_drive->track;
     uint8_t* p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
     uint8_t* p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
-    track_length = disc_get_track_length(p_disc, is_side_upper, track);
-
-    if (byte_position == 0) {
-      disc_flush_writes(p_disc);
-    }
 
     data_byte = p_data[byte_position];
     clocks_byte = p_clocks[byte_position];
   }
 
+  byte_position++;
+  if (byte_position == track_length) {
+    byte_position = 0;
+
+    if (p_disc != NULL) {
+      disc_flush_writes(p_disc);
+    }
+  }
+
+  new_head_position = (byte_position * per_byte_ticks);
+  this_ticks = (head_position / 10000);
+  if (new_head_position == 0) {
+    next_ticks = 400000;
+  } else {
+    next_ticks = (new_head_position / 10000);
+  }
+  ticks_delta = (next_ticks - this_ticks);
+  /* This can happen when seeking between tracks of different length. */
+  if (ticks_delta == 0) {
+    ticks_delta = 1;
+  }
   (void) timing_set_timer_value(p_drive->p_timing,
                                 p_drive->timer_id,
-                                k_disc_ticks_per_byte);
+                                ticks_delta);
 
   /* If there's an empty patch on the disc surface, the disc drive's head
    * amplifier will typically desperately seek for a signal in the noise,
@@ -106,18 +159,7 @@ disc_drive_timer_callback(void* p) {
                              clocks_byte);
   }
 
-  assert(track_length < k_disc_max_bytes_per_track);
-  byte_position++;
-  /* TODO: byte_position can end up being larger than track_length if we seek
-   * from a longer track to a shorter one.
-   * This is sort of handled here.
-   * A more correct solution is to treat the bitrate differently for different
-   * track lengths, and calculate byte delivery times more precisely.
-   */
-  if (byte_position >= track_length) {
-    byte_position = 0;
-  }
-  p_drive->byte_position = byte_position;
+  p_drive->head_position = new_head_position;
 }
 
 struct disc_drive_struct*
@@ -167,7 +209,7 @@ disc_drive_power_on_reset(struct disc_drive_struct* p_drive) {
 
   p_drive->is_side_upper = 0;
   p_drive->track = 0;
-  p_drive->byte_position = 0;
+  p_drive->head_position = 0;
   /* NOTE: there's a decision here: does a power-on reset of the beeb change a
    * user "physical" action -- changing the disc in the drive in this case.
    * We decide it does. The disc in the drive is reset to the first in the
@@ -242,7 +284,7 @@ disc_drive_is_index_pulse(struct disc_drive_struct* p_drive) {
   /* EMU: the 8271 datasheet says that the index pulse must be held for over
    * 0.5us.
    */
-  if (p_drive->byte_position < k_disc_index_bytes) {
+  if (p_drive->head_position < k_disc_index_ticks) {
     return 1;
   }
   return 0;
@@ -250,7 +292,11 @@ disc_drive_is_index_pulse(struct disc_drive_struct* p_drive) {
 
 uint32_t
 disc_drive_get_head_position(struct disc_drive_struct* p_drive) {
-  return p_drive->byte_position;
+  /* This is currently used for logging. Scale to 0-3124. */
+  uint32_t ret = (p_drive->head_position / k_disc_ticks_scale_up);
+  ret *= k_ibm_disc_bytes_per_track;
+  ret /= k_disc_system_ticks_per_rev;
+  return ret;
 }
 
 int
@@ -272,9 +318,7 @@ disc_drive_is_spinning(struct disc_drive_struct* p_drive) {
 
 void
 disc_drive_start_spinning(struct disc_drive_struct* p_drive) {
-  (void) timing_start_timer_with_value(p_drive->p_timing,
-                                       p_drive->timer_id,
-                                       k_disc_ticks_per_byte);
+  (void) timing_start_timer_with_value(p_drive->p_timing, p_drive->timer_id, 1);
 }
 
 static void
@@ -327,16 +371,19 @@ void
 disc_drive_write_byte(struct disc_drive_struct* p_drive,
                       uint8_t data,
                       uint8_t clocks) {
+  uint32_t byte_position;
+
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
 
   if (p_disc == NULL) {
     return;
   }
 
+  byte_position = disc_drive_get_byte_position(p_drive, NULL, NULL);
   disc_write_byte(p_disc,
                   p_drive->is_side_upper,
                   p_drive->track,
-                  p_drive->byte_position,
+                  byte_position,
                   data,
                   clocks);
 }
