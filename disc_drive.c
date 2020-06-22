@@ -60,11 +60,14 @@ disc_drive_get_byte_position(struct disc_drive_struct* p_drive,
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
   uint32_t per_rev_ticks = (400000u * 10000);
 
-  track_length = k_ibm_disc_bytes_per_track;
+  track_length = 0;
   if (p_disc != NULL) {
     track_length = disc_get_track_length(p_disc,
                                          p_drive->is_side_upper,
                                          p_drive->track);
+  }
+  if (track_length == 0) {
+    track_length = k_ibm_disc_bytes_per_track;
   }
   assert(track_length < k_disc_max_bytes_per_track);
   per_byte_ticks = (per_rev_ticks / track_length);
