@@ -404,8 +404,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   (void) strcpy((char*) header, k_hfe_header_v3);
   /* Revision 0. */
   header[8] = 0;
-  /* 80 tracks, sides as appropriate. */
-  header[9] = 80;
   if (disc_is_double_sided(p_disc)) {
     header[10] = 2;
   } else {
@@ -430,9 +428,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   header[24] = 0xFF;
   header[25] = 0xFF;
 
-  util_file_seek(p_file, 0);
-  util_file_write(p_file, header, 512);
-
   p_metadata = disc_allocate_format_metadata(p_disc,
                                              k_hfe_format_metadata_size);
   /* HFE v3. */
@@ -442,9 +437,13 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     uint8_t* p_data;
     uint8_t* p_clocks;
     uint32_t index = (i_track * 4);
+    uint32_t track_length = disc_get_track_length(p_disc, 0, i_track);
 
-    assert(disc_get_track_length(p_disc, 0, i_track) ==
-           k_ibm_disc_bytes_per_track);
+    if (track_length == 0) {
+      /* Stop when we hit uninitialized tracks. */
+      break;
+    }
+    assert(track_length == k_ibm_disc_bytes_per_track);
 
     p_metadata[index] = (hfe_offset & 0xFF);
     p_metadata[index + 1] = (hfe_offset >> 8);
@@ -473,6 +472,11 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     hfe_offset += hfe_offset_delta;
   }
 
+  /* Number of valid tracks is now known so fill it in. */
+  header[9] = i_track;
+
+  util_file_seek(p_file, 0);
+  util_file_write(p_file, header, 512);
   util_file_seek(p_file, 512);
   util_file_write(p_file, p_metadata, 512);
   util_file_flush(p_file);
