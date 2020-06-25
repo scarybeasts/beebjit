@@ -373,7 +373,11 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
    * internal state machine!
    */
   if (p_fdc->status_register & k_wd_fdc_status_busy) {
-    log_do_log(k_log_disc, k_log_warning, "1770: command while busy, ignoring");
+    log_do_log(k_log_disc,
+               k_log_warning,
+               "1770: command $%.2X while busy with $%.2X, ignoring",
+               val,
+               p_fdc->command);
     return;
   }
 
@@ -446,9 +450,6 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   wd_fdc_set_intrq(p_fdc, 0);
   p_fdc->status_register &= k_wd_fdc_status_motor_on;
   p_fdc->status_register |= k_wd_fdc_status_busy;
-  if (val & k_wd_fdc_command_bit_disable_spin_up) {
-    util_bail("spin up disabled");
-  }
 
   p_fdc->index_pulse_count = 0;
   if (p_fdc->status_register & k_wd_fdc_status_motor_on) {
@@ -457,6 +458,20 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   } else {
     p_fdc->status_register |= k_wd_fdc_status_motor_on;
     disc_drive_start_spinning(p_current_drive);
+    /* Short circuit spin-up if command requests it. */
+    /* NOTE: disabling spin-up wait is a strange facility. It makes a lot of
+     * sense for a seek because the disc head can usefully get moving while the
+     * motor is spinning up. But other commands like a read track also seem to
+     * start immediately. It is unclear whether such a command would be
+     * unreliable on a drive that takes a while to come up to speed.
+     */
+    if (val & k_wd_fdc_command_bit_disable_spin_up) {
+      p_fdc->index_pulse_count = 6;
+      log_do_log(k_log_disc,
+                 k_log_warning,
+                 "1770: command $%.2X spin up wait disabled, motor was off",
+                 val);
+    }
   }
 
   wd_fdc_set_state(p_fdc, k_wd_fdc_state_spin_up_wait);
