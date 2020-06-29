@@ -745,6 +745,43 @@ video_test_vsync_row_wraparound() {
   test_expect_u32(1, g_p_video->had_vsync_this_row);
 }
 
+static void
+video_test_vsync_tiny_frame() {
+  int64_t countdown;
+
+  /* Interlace off. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  /* No vertical adjust. */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 0);
+  /* 4 characters, 1 scanline, 1 row. */
+  video_crtc_write(g_p_video, 0, 0);
+  video_crtc_write(g_p_video, 1, 3);
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 0);
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 0);
+  /* vsync at row 0. */
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 0);
+
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing, (countdown - 2));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->had_vsync_this_row);
+  countdown = timing_advance_time(g_p_timing, (countdown - 6));
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->had_vsync_this_row);
+}
+
 void
 video_test() {
   video_test_init();
@@ -785,5 +822,9 @@ video_test() {
 
   video_test_init();
   video_test_vsync_row_wraparound();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_tiny_frame();
   video_test_end();
 }
