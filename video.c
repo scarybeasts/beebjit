@@ -326,7 +326,8 @@ video_is_check_vsync_at_half_r0(struct video_struct* p_video) {
   if ((p_video->vert_counter ==
        p_video->crtc_registers[k_crtc_reg_vert_sync_position]) &&
       (p_video->scanline_counter == 0) &&
-      !p_video->had_vsync_this_row) {
+      !p_video->had_vsync_this_row &&
+      !p_video->in_vsync) {
     return 1;
   }
   return 0;
@@ -591,7 +592,8 @@ check_r7:
     r7_hit = (p_video->vert_counter == r7);
     if (r7_hit &&
         !p_video->is_odd_interlace_frame &&
-        !p_video->had_vsync_this_row) {
+        !p_video->had_vsync_this_row &&
+        !p_video->in_vsync) {
       assert(!check_vsync_at_half_r0);
 
       video_set_vsync_raise_state(p_video);
