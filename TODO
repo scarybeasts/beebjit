@@ -8,7 +8,6 @@ get addressed before the next release.
 
 - Driving the audio subsystem too hard on Linux?
 - Poor granularity of system wakeup with audio subsystem as timer?
-- Log to file.
 - Re-investigate MODE7 parrot test case.
 - Intel 8271 2x steps on track mismatch.
 - Don't bail on 1770 double density commands.

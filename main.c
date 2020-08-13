@@ -192,6 +192,9 @@ main(int argc, const char* argv[]) {
     } else if (has_1 && !strcmp(arg, "-expect")) {
       (void) sscanf(val1, "%"PRIx32, &expect);
       ++i_args;
+    } else if (has_1 && !strcmp(arg, "-log-file")) {
+      log_set_log_filename(val1);
+      ++i_args;
     } else if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
     } else if (!strcmp(arg, "-run")) {
@@ -222,6 +225,8 @@ main(int argc, const char* argv[]) {
       wd_1770_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
+    } else if (!strcmp(arg, "-no-log-stdout")) {
+      log_set_do_log_to_stdout(0);
     } else if (!strcmp(arg, "-version") ||
                !strcmp(arg, "-v")) {
       (void) printf("beebjit "BEEBJIT_VERSION"\n");
@@ -244,6 +249,7 @@ main(int argc, const char* argv[]) {
 "-print             : if -debug, print every instruction run.\n"
 "-mode              : CPU emulation driver: jit,interp,inturbo (default jit).\n"
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
+"-log-file       <f>: log to file <f> as well as stdout.\n"
 "");
       exit(0);
     } else {

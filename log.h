@@ -24,6 +24,9 @@ enum log_severity {
   k_log_warning = 5,
 };
 
+void log_set_log_filename(const char* p_filename);
+void log_set_do_log_to_stdout(int do_log_to_stdout);
+
 void log_do_log(int module, int severity, const char* p_msg, ...)
     __attribute__((format(printf, 3, 4)));
 

@@ -5,6 +5,10 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+
+static int s_do_log_to_stdout = 1;
+static struct util_file* s_p_log_file = NULL;
 
 static const char*
 log_module_to_string(int module) {
@@ -55,9 +59,24 @@ log_severity_to_string(int severity) {
 }
 
 void
+log_set_log_filename(const char* p_filename) {
+  if (s_p_log_file != NULL) {
+    util_bail("already have a log filename");
+  }
+  /* bails if cannot open. */
+  s_p_log_file = util_file_open(p_filename, 1, 1);
+}
+
+void
+log_set_do_log_to_stdout(int do_log_to_stdout) {
+  s_do_log_to_stdout = do_log_to_stdout;
+}
+
+void
 log_do_log(int module, int severity, const char* p_msg, ...) {
   va_list args;
   char msg[256];
+  char msg2[256];
   int ret;
 
   const char* p_module_str = log_module_to_string(module);
@@ -70,12 +89,25 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
     util_bail("vsnprintf failed");
   }
 
-  ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
-  if (ret <= 0) {
-    util_bail("fprintf failed");
+  if (s_do_log_to_stdout) {
+    ret = fprintf(stdout, "%s:%s:%s\n", p_severity_str, p_module_str, msg);
+    if (ret <= 0) {
+      util_bail("fprintf failed");
+    }
+    ret = fflush(stdout);
+    if (ret != 0) {
+      util_bail("fflush failed");
+    }
   }
-  ret = fflush(stdout);
-  if (ret != 0) {
-    util_bail("fflush failed");
+
+  if (s_p_log_file != NULL) {
+    (void) snprintf(msg2,
+                    sizeof(msg2),
+                    "%s:%s:%s\n",
+                    p_severity_str,
+                    p_module_str,
+                    msg);
+    util_file_write(s_p_log_file, msg2, strlen(msg2));
+    util_file_flush(s_p_log_file);
   }
 }
