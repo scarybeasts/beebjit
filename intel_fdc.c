@@ -833,6 +833,11 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
      */
     if (p_fdc->status & k_intel_fdc_status_flag_busy) {
       /* Need parameters or command busy. Get out. */
+      log_do_log(k_log_disc,
+                 k_log_warning,
+                 "8271: command $%.2X while busy with $%.2X, ignoring",
+                 val,
+                 p_fdc->command);
       return;
     }
 
