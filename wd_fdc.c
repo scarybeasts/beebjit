@@ -324,7 +324,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   assert(p_fdc->control_register & k_wd_fdc_control_reset);
 
   if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
-    util_bail("command while double density");
+    log_do_log(k_log_disc, k_log_unimplemented, "double density 1770 command");
   }
   if (p_fdc->p_current_drive == NULL) {
     util_bail("command while no selected drive");
@@ -860,6 +860,20 @@ wd_fdc_bitstream_received(struct wd_fdc_struct* p_fdc,
 }
 
 static void
+wd_write_byte(struct wd_fdc_struct* p_fdc,
+              uint8_t data_byte,
+              uint8_t clocks_byte) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  /* No support for double density yet so write weak bits. */
+  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+    data_byte = 0;
+    clocks_byte = 0;
+  }
+  disc_drive_write_byte(p_current_drive, data_byte, clocks_byte);
+}
+
+static void
 wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   /* NOTE: this callback routine is also used for seek / settle timing,
    * which is not a precise 64us basis.
@@ -876,6 +890,14 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   assert(p_current_drive != NULL);
   assert(disc_drive_is_spinning(p_current_drive));
   assert(p_fdc->status_register & k_wd_fdc_status_motor_on);
+
+  /* No support for double density yet so make sure to not read any markers in
+   * that case.
+   */
+  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+    data_byte = 0xFF;
+    clocks_byte = 0xFF;
+  }
 
   is_index_pulse = disc_drive_is_index_pulse(p_fdc->p_current_drive);
   p_fdc->is_index_pulse = is_index_pulse;
@@ -1078,16 +1100,14 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
         wd_fdc_command_done(p_fdc, 1);
       }
     } else if (p_fdc->state_count < 18) {
-      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
+      wd_write_byte(p_fdc, 0x00, 0xFF);
     } else if (p_fdc->state_count == 18) {
       data_byte = k_ibm_disc_data_mark_data_pattern;
       if (p_fdc->is_command_deleted) {
         data_byte = k_ibm_disc_deleted_data_mark_data_pattern;
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-      disc_drive_write_byte(p_current_drive,
-                            data_byte,
-                            k_ibm_disc_mark_clock_pattern);
+      wd_write_byte(p_fdc, data_byte, k_ibm_disc_mark_clock_pattern);
     } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length)) {
       data_byte = p_fdc->data_register;
       if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
@@ -1096,15 +1116,15 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
         /* EMU NOTE: doesn't terminate command, like it would on the 8271. */
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-      disc_drive_write_byte(p_current_drive, data_byte, 0xFF);
+      wd_write_byte(p_fdc, data_byte, 0xFF);
       if (p_fdc->state_count != (18 + 1 + p_fdc->on_disc_length - 1)) {
         wd_fdc_set_drq(p_fdc, 1);
       }
     } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length + 2)) {
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      wd_write_byte(p_fdc, (p_fdc->crc >> 8), 0xFF);
       p_fdc->crc <<= 8;
     } else {
-      disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
+      wd_write_byte(p_fdc, 0xFF, 0xFF);
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_check_multi);
     }
     p_fdc->state_count++;
@@ -1142,7 +1162,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
     if (p_fdc->is_write_track_crc_second_byte) {
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
+      wd_write_byte(p_fdc, (p_fdc->crc & 0xFF), 0xFF);
       p_fdc->is_write_track_crc_second_byte = 0;
       wd_fdc_set_drq(p_fdc, 1);
       break;
@@ -1178,10 +1198,10 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
     if (data_byte == 0xF7) {
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      wd_write_byte(p_fdc, (p_fdc->crc >> 8), 0xFF);
       p_fdc->is_write_track_crc_second_byte = 1;
     } else {
-      disc_drive_write_byte(p_current_drive, data_byte, clocks_byte);
+      wd_write_byte(p_fdc, data_byte, clocks_byte);
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
       wd_fdc_set_drq(p_fdc, 1);
     }

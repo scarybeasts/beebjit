@@ -10,7 +10,6 @@ get addressed before the next release.
 - Poor granularity of system wakeup with audio subsystem as timer?
 - Re-investigate MODE7 parrot test case.
 - Intel 8271 2x steps on track mismatch.
-- Don't bail on 1770 double density commands.
 
 
 Fix later
