@@ -1,5 +1,8 @@
 #include "os_sound.h"
 
+#include "log.h"
+#include "util.h"
+
 #include <alsa/asoundlib.h>
 
 static const char* k_os_sound_default_device = "default";
@@ -46,7 +49,7 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
   if (p_driver->playback_handle != NULL) {
     int ret = snd_pcm_close(p_driver->playback_handle);
     if (ret != 0) {
-      errx(1, "snd_pcm_close failed");
+      util_bail("snd_pcm_close failed");
     }
   }
 
@@ -74,7 +77,7 @@ os_sound_init(struct os_sound_struct* p_driver) {
                      SND_PCM_STREAM_PLAYBACK,
                      0);
   if (ret != 0) {
-    fprintf(stderr, "snd_pcm_open failed\n");
+    log_do_log(k_log_audio, k_log_error, "snd_pcm_open failed");
     return -1;
   }
 
@@ -83,104 +86,106 @@ os_sound_init(struct os_sound_struct* p_driver) {
   /* Blocking is default but be explicit. */
   ret = snd_pcm_nonblock(playback_handle, 0);
   if (ret < 0) {
-    errx(1, "snd_pcm_nonblock failed");
+    util_bail("snd_pcm_nonblock failed");
   }
 
   snd_pcm_hw_params_alloca(&hw_params);
 
   ret = snd_pcm_hw_params_any(p_driver->playback_handle, hw_params);
   if (ret < 0) {
-    errx(1, "snd_pcm_hw_params_any failed");
+    util_bail("snd_pcm_hw_params_any failed");
   }
   ret = snd_pcm_hw_params_set_access(playback_handle,
                                      hw_params,
                                      SND_PCM_ACCESS_RW_INTERLEAVED);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_access failed");
+    util_bail("snd_pcm_hw_params_set_access failed");
   }
   ret = snd_pcm_hw_params_set_format(playback_handle,
                                      hw_params,
                                      SND_PCM_FORMAT_S16_LE);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_format failed");
+    util_bail("snd_pcm_hw_params_set_format failed");
   }
   ret = snd_pcm_hw_params_set_rate_near(playback_handle,
                                         hw_params,
                                         &rate_ret,
                                         0);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_rate_near failed");
+    util_bail("snd_pcm_hw_params_set_rate_near failed");
   }
   if (rate_ret != rate) {
-    errx(1, "snd_pcm_hw_params_set_rate_near, rate %d unavailable", rate);
+    util_bail("snd_pcm_hw_params_set_rate_near, rate %d unavailable", rate);
   }
   ret = snd_pcm_hw_params_set_channels(playback_handle, hw_params, 1);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_channels failed");
+    util_bail("snd_pcm_hw_params_set_channels failed");
   }
   /* Buffer size is in frames, not bytes. */
   ret = snd_pcm_hw_params_set_buffer_size(playback_handle,
                                           hw_params,
                                           p_driver->buffer_size);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_buffer_size failed");
+    util_bail("snd_pcm_hw_params_set_buffer_size failed");
   }
   ret = snd_pcm_hw_params_set_periods(playback_handle,
                                       hw_params,
                                       num_periods,
                                       0);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_set_periods failed");
+    util_bail("snd_pcm_hw_params_set_periods failed");
   }
   ret = snd_pcm_hw_params(playback_handle, hw_params);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params failed");
+    util_bail("snd_pcm_hw_params failed");
   }
 
   ret = snd_pcm_hw_params_get_channels(hw_params, &tmp_uint);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_channels failed");
+    util_bail("snd_pcm_hw_params_get_channels failed");
   }
   if (tmp_uint != 1) {
-    errx(1, "channels is not 1");
+    util_bail("channels is not 1");
   }
   ret = snd_pcm_hw_params_get_rate(hw_params, &tmp_uint, NULL);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_rate failed");
+    util_bail("snd_pcm_hw_params_get_rate failed");
   }
   if (tmp_uint != p_driver->sample_rate) {
-    errx(1, "sample rate is not %u", p_driver->sample_rate);
+    util_bail("sample rate is not %u", p_driver->sample_rate);
   }
   ret = snd_pcm_hw_params_get_buffer_size(hw_params, &tmp_uframes_t);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_buffer_size failed");
+    util_bail("snd_pcm_hw_params_get_buffer_size failed");
   }
   if (tmp_uframes_t != p_driver->buffer_size) {
-    errx(1, "buffer size is not %u", p_driver->buffer_size);
+    util_bail("buffer size is not %u", p_driver->buffer_size);
   }
   ret = snd_pcm_hw_params_get_periods(hw_params, &periods, NULL);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_periods failed");
+    util_bail("snd_pcm_hw_params_get_periods failed");
   }
   if (periods != num_periods) {
-    errx(1, "periods is not %d", num_periods);
+    util_bail("periods is not %d", num_periods);
   }
   ret = snd_pcm_hw_params_get_period_size(hw_params, &period_size, NULL);
   if (ret != 0) {
-    errx(1, "snd_pcm_hw_params_get_period_size failed");
+    util_bail("snd_pcm_hw_params_get_period_size failed");
   }
   if ((period_size * num_periods) != p_driver->buffer_size) {
-    errx(1, "unexpected period size %zu", period_size);
+    util_bail("unexpected period size %zu", period_size);
   }
 
   p_driver->period_size = period_size;
 
-  printf("Sound device: %s, rate %d, buffer %d, periods %d, period size %d\n",
-         snd_pcm_name(playback_handle),
-         (int) p_driver->sample_rate,
-         (int) p_driver->buffer_size,
-         (int) periods,
-         (int) period_size);
+  log_do_log(k_log_audio,
+             k_log_info,
+             "device: %s, rate %d, buffer %d, periods %d, period size %d",
+             snd_pcm_name(playback_handle),
+             (int) p_driver->sample_rate,
+             (int) p_driver->buffer_size,
+             (int) periods,
+             (int) period_size);
 
   ret = snd_pcm_prepare(playback_handle);
   if (ret != 0) {
@@ -212,7 +217,7 @@ os_sound_handle_xrun(struct os_sound_struct* p_driver) {
   int ret = snd_pcm_prepare(playback_handle);
 
   if (ret != 0) {
-    errx(1, "snd_pcm_prepare failed");
+    util_bail("snd_pcm_prepare failed");
   }
 }
 
@@ -230,7 +235,7 @@ os_sound_write(struct os_sound_struct* p_driver,
       if (ret == -EPIPE) {
         os_sound_handle_xrun(p_driver);
       } else {
-        errx(1, "snd_pcm_writei failed: %ld", ret);
+        util_bail("snd_pcm_writei failed: %ld", ret);
       }
     } else if (ret == num_frames) {
       break;
