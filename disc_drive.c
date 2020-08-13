@@ -69,7 +69,7 @@ disc_drive_get_byte_position(struct disc_drive_struct* p_drive,
   if (track_length == 0) {
     track_length = k_ibm_disc_bytes_per_track;
   }
-  assert(track_length < k_disc_max_bytes_per_track);
+  assert(track_length <= k_disc_max_bytes_per_track);
   per_byte_ticks = (per_rev_ticks / track_length);
   byte_position = (p_drive->head_position / per_byte_ticks);
 

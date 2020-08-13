@@ -277,6 +277,10 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
         uint32_t num_bits = 8;
 
         if (bytes_written == k_disc_max_bytes_per_track) {
+          log_do_log(k_log_disc,
+                     k_log_warning,
+                     "HFE track %d truncated",
+                     i_track);
           break;
         }
 
