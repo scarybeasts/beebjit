@@ -953,6 +953,9 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
       intel_fdc_break_reset(p_fdc);
     }
     break;
+  case 3:
+    log_do_log(k_log_disc, k_log_info, "8271: write to unmapped register 3");
+    break;
   default:
     assert(0);
     break;

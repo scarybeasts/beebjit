@@ -676,6 +676,13 @@ bbc_write_callback(void* p,
     }
     break;
   case (k_addr_econet + 0):
+  case (k_addr_econet + 4):
+  case (k_addr_econet + 8):
+  case (k_addr_econet + 12):
+  case (k_addr_econet + 16):
+  case (k_addr_econet + 20):
+  case (k_addr_econet + 24):
+  case (k_addr_econet + 28):
     log_do_log(k_log_misc, k_log_unimplemented, "write of ECONET region");
     break;
   case (k_addr_adc + 0):
