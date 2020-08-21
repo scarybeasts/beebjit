@@ -740,6 +740,7 @@ video_test_vsync_row_wraparound() {
   countdown = timing_advance_time(
     g_p_timing,
     (countdown - (k_ticks_mode7_per_scanline * 12)));
+  video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->in_vsync);
   test_expect_u32(1, g_p_video->had_vsync_this_row);
@@ -780,6 +781,93 @@ video_test_vsync_tiny_frame() {
   test_expect_u32(0, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->had_vsync_this_row);
+}
+
+static void
+video_test_vsync_change_interlace() {
+  /* A separate test for an evasive vsync assert. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(2, g_p_video->vsync_scanline_counter);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->vsync_scanline_counter);
+
+  /* Switch from interlace sync and video to just interlace. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 1);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+}
+
+static void
+video_test_vsync_change_interlace_2() {
+  /* A separate test for an evasive vsync assert. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(2, g_p_video->vsync_scanline_counter);
+
+  /* Switch from interlace sync and video to just interlace. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 1);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(1, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->vsync_scanline_counter);
+
+  /* Switch back to interlace sync and video.
+   * This has a slightly strange property of masking the scanline back to 0.
+   * (This is a beebjit quirk to keep things simple and not necessarily how
+   * the hardware works.)
+   */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 3);
+  countdown = timing_get_countdown(g_p_timing);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->vsync_scanline_counter);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(1, g_p_video->vsync_scanline_counter);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->vsync_scanline_counter);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_half_scanline));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(2, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->vsync_scanline_counter);
 }
 
 void
@@ -826,5 +914,13 @@ video_test() {
 
   video_test_init();
   video_test_vsync_tiny_frame();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_change_interlace();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_change_interlace_2();
   video_test_end();
 }

@@ -282,6 +282,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
 
   assert(!p_video->in_vsync);
   assert(!p_video->had_vsync_this_row);
+  assert(p_video->vsync_scanline_counter == 0);
 
   p_video->num_vsyncs++;
   p_video->in_vsync = 1;
@@ -648,6 +649,16 @@ video_is_at_vsync_start(struct video_struct* p_video) {
   if (p_video->had_vsync_this_row && !p_video->in_vsync) {
     return 0;
   }
+  /* TODO: not 100% correct? Probably want to maintain the system time at the
+   * last vsync raise and just compare to that?
+   */
+  /* This can occur when to interlace sync and video, while on scanline 1,
+   * which masks the scanline back to 0, causing another match on vsync
+   * position.
+   */
+  if (p_video->vsync_scanline_counter != p_video->vsync_pulse_width) {
+    return 0;
+  }
 
   assert(p_video->in_vsync);
 
@@ -660,8 +671,11 @@ video_is_at_vsync_end(struct video_struct* p_video) {
       p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
     return 0;
   }
-  if (p_video->scanline_counter !=
-      (p_video->vsync_pulse_width * p_video->scanline_stride)) {
+  if (p_video->scanline_counter == 0) {
+    return 0;
+  }
+  if (p_video->vsync_scanline_counter != 0) {
+    assert(p_video->in_vsync);
     return 0;
   }
   if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
@@ -799,7 +813,6 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
     }
   }
   p_video->scanline_counter = 0;
-  p_video->vsync_scanline_counter = p_video->vsync_pulse_width;
   p_video->prev_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   p_video->had_vsync_this_row = 0;
