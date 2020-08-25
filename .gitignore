@@ -1,6 +1,5 @@
 # Build and test artifacts.
 beebjit
-beebjit.exe
 make_perf_rom
 make_test_rom
 make_timing_rom
@@ -9,3 +8,10 @@ test.rom
 timing.rom
 /.dir-locals.el
 /TAGS
+
+# CLion/Cmake crap
+cmake-*
+.idea
+
+# Linux perf profiler
+perf.data*
