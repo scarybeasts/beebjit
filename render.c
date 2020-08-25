@@ -256,6 +256,13 @@ render_check_cursor(struct render_struct* p_render,
     return;
   }
 
+  /* NOTE: the -16 here is a dodgy hack to shift the cursor to the left
+   * while we don't support 6845 skew.
+   */
+  if (p_render->render_mode == k_render_mode7) {
+    p_render_pos -= 16;
+  }
+
   if (p_render->cursor_segments[p_render->cursor_segment_index] &&
       (p_render_pos >= p_render->p_render_pos_row)) {
     uint32_t i;
@@ -279,10 +286,7 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     teletext_render_data(p_render->p_teletext, p_character, data);
-    /* NOTE: the -16 here is a dodgy hack to shift the cursor to the left
-     * while we don't support 6845 skew.
-     */
-    render_check_cursor(p_render, (p_render_pos - 16), 16);
+    render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
   } else {
     /* In teletext mode, we still need to tell the SAA5050 chip about data
@@ -328,6 +332,7 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
+    render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
@@ -365,6 +370,7 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
 
   if (p_render_pos < p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
+    render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
