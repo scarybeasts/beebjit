@@ -1,4 +1,5 @@
 #include "bbc.h"
+#include "config.h"
 #include "cpu_driver.h"
 #include "keyboard.h"
 #include "log.h"
@@ -81,6 +82,7 @@ main(int argc, const char* argv[]) {
   int convert_hfe_flag = 0;
   int no_dfs_flag = 0;
   int wd_1770_flag = 0;
+  int is_master_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -223,6 +225,8 @@ main(int argc, const char* argv[]) {
       no_dfs_flag = 1;
     } else if (!strcmp(arg, "-1770")) {
       wd_1770_flag = 1;
+    } else if (!strcmp(arg, "-master")) {
+      is_master_flag = 1;
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
@@ -250,6 +254,7 @@ main(int argc, const char* argv[]) {
 "-mode              : CPU emulation driver: jit,interp,inturbo (default jit).\n"
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
 "-log-file       <f>: log to file <f> as well as stdout.\n"
+"-master            : set up a Master 128 with MOS 3.20.\n"
 "");
       exit(0);
     } else {
@@ -262,6 +267,18 @@ main(int argc, const char* argv[]) {
 
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
+
+  if (is_master_flag) {
+    config_apply_master_128_mos320(&os_rom_name,
+                                   &rom_names[0],
+                                   &sideways_ram[0]);
+    if (mode != k_cpu_mode_interp) {
+      log_do_log(k_log_misc,
+                 k_log_info,
+                 "master mode requires interp mode CPU; switching");
+      mode = k_cpu_mode_interp;
+    }
+  }
 
   read_ret = util_file_read_fully(os_rom_name, os_rom, k_bbc_rom_size);
   if (read_ret != k_bbc_rom_size) {
@@ -293,6 +310,7 @@ main(int argc, const char* argv[]) {
   }
 
   p_bbc = bbc_create(mode,
+                     is_master_flag,
                      os_rom,
                      wd_1770_flag,
                      debug_flag,

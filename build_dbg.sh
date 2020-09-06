@@ -5,7 +5,7 @@ gcc -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie -Wa,--noexecstack \
     -g -o beebjit \
-    main.c bbc.c defs_6502.c state.c video.c via.c \
+    main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
     jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \

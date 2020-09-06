@@ -63,6 +63,7 @@ struct cpu_driver {
 };
 
 struct cpu_driver* cpu_driver_alloc(int mode,
+                                    int is_65c12,
                                     struct state_6502* p_state_6502,
                                     struct memory_access* p_memory_access,
                                     struct timing_struct* p_timing,

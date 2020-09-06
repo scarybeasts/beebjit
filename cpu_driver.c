@@ -71,6 +71,7 @@ cpu_driver_set_exit_value_default(struct cpu_driver* p_cpu_driver,
 
 struct cpu_driver*
 cpu_driver_alloc(int mode,
+                 int is_65c12,
                  struct state_6502* p_state_6502,
                  struct memory_access* p_memory_access,
                  struct timing_struct* p_timing,
@@ -79,9 +80,13 @@ cpu_driver_alloc(int mode,
   struct cpu_driver_funcs* p_funcs =
       util_mallocz(sizeof(struct cpu_driver_funcs));
 
+  if (is_65c12) {
+    assert(mode == k_cpu_mode_interp);
+  }
+
   switch (mode) {
   case k_cpu_mode_interp:
-    p_cpu_driver = interp_create(p_funcs);
+    p_cpu_driver = interp_create(p_funcs, is_65c12);
     if (p_cpu_driver == NULL) {
       util_bail("interp_create() failed");
     }

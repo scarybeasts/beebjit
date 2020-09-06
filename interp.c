@@ -21,6 +21,7 @@ enum {
 
 struct interp_struct {
   struct cpu_driver driver;
+  int is_65c12;
   uint64_t counter_bcd;
 
   uint8_t* p_mem_read;
@@ -121,9 +122,10 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 }
 
 struct cpu_driver*
-interp_create(struct cpu_driver_funcs* p_funcs) {
+interp_create(struct cpu_driver_funcs* p_funcs, int is_65c12) {
   struct interp_struct* p_interp = util_mallocz(sizeof(struct interp_struct));
 
+  p_interp->is_65c12 = is_65c12;
   p_funcs->init = interp_init;
 
   return &p_interp->driver;

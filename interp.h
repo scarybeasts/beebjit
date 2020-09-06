@@ -7,7 +7,8 @@ struct cpu_driver;
 struct cpu_driver_funcs;
 struct interp_struct;
 
-struct cpu_driver* interp_create(struct cpu_driver_funcs* p_funcs);
+struct cpu_driver* interp_create(struct cpu_driver_funcs* p_funcs,
+                                 int is_65c12);
 
 int64_t interp_enter_with_details(
     struct interp_struct* p_interp,

@@ -729,6 +729,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
    * such as IRQs, hardware accesses, etc.
    */
   p_interp = (struct interp_struct*) cpu_driver_alloc(k_cpu_mode_interp,
+                                                      0,
                                                       p_state_6502,
                                                       p_memory_access,
                                                       p_timing,

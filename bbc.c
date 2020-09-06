@@ -83,6 +83,7 @@ struct bbc_struct {
   uint64_t rewind_to_cycles;
 
   /* Machine configuration. */
+  int is_master;
   int is_sideways_ram_bank[k_bbc_num_roms];
   int is_extended_rom_addressing;
   int is_wd_fdc;
@@ -332,12 +333,18 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
      */
     break;
   case (k_addr_rom_select + 0):
+    /* ROMSEL is readable on a Master but not on a model B. */
+    if (p_bbc->is_master) {
+      ret = p_bbc->romsel;
+    }
+    break;
   case (k_addr_rom_select + 4):
+    if (p_bbc->is_master) {
+      util_bail("RAMSEL read");
+    }
+    break;
   case (k_addr_rom_select + 8):
   case (k_addr_rom_select + 12):
-    /* ROMSEL is readable on a Master but not on a model B, so break out to
-     * default return.
-     */
     break;
   case (k_addr_sysvia + 0):
   case (k_addr_sysvia + 4):
@@ -513,6 +520,10 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
   uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
 
+  if (p_bbc->is_master && (index & 0x80)) {
+    util_bail("ROMSEL RAM bit set");
+  }
+
   effective_curr_bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
   effective_new_bank = bbc_get_effective_bank(p_bbc, index);
   assert(!(effective_curr_bank & 0xF0));
@@ -635,10 +646,20 @@ bbc_write_callback(void* p,
     }
     break;
   case (k_addr_rom_select + 0):
+    bbc_sideways_select(p_bbc, val);
+    break;
   case (k_addr_rom_select + 4):
+    if (p_bbc->is_master) {
+      util_bail("RAMSEL write");
+    } else {
+      bbc_sideways_select(p_bbc, val);
+    }
+    break;
   case (k_addr_rom_select + 8):
   case (k_addr_rom_select + 12):
-    bbc_sideways_select(p_bbc, val);
+    if (!p_bbc->is_master) {
+      bbc_sideways_select(p_bbc, val);
+    }
     break;
   case (k_addr_sysvia + 0):
   case (k_addr_sysvia + 4):
@@ -852,6 +873,7 @@ bbc_set_fast_mode(void* p, int is_fast) {
 
 struct bbc_struct*
 bbc_create(int mode,
+           int is_master,
            uint8_t* p_os_rom,
            int wd_1770_flag,
            int debug_flag,
@@ -877,6 +899,7 @@ bbc_create(int mode,
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
   int synchronous_sound = 0;
+  int is_65c12 = is_master;
 
   struct bbc_struct* p_bbc = util_mallocz(sizeof(struct bbc_struct));
 
@@ -891,6 +914,7 @@ bbc_create(int mode,
 
   p_bbc->thread_allocated = 0;
   p_bbc->running = 0;
+  p_bbc->is_master = is_master;
   p_bbc->p_os_rom = p_os_rom;
   p_bbc->is_extended_rom_addressing = 0;
   p_bbc->debug_flag = debug_flag;
@@ -1180,6 +1204,7 @@ bbc_create(int mode,
   p_bbc->options.p_debug_object = p_debug;
 
   p_bbc->p_cpu_driver = cpu_driver_alloc(mode,
+                                         is_65c12,
                                          p_state_6502,
                                          &p_bbc->memory_access,
                                          p_timing,
