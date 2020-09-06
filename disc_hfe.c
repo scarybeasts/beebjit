@@ -206,13 +206,13 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   } else if (p_file_buf[10] == 2) {
     is_double_sided = 1;
   } else {
-    util_bail("hfe invalid number of sides");
+    util_bail("hfe invalid number of sides: %d", (int) p_file_buf[10]);
   }
   disc_set_is_double_sided(p_disc, is_double_sided);
 
   hfe_tracks = p_file_buf[9];
   if (hfe_tracks > k_ibm_disc_tracks_per_disc) {
-    util_bail("hfe excessive tracks");
+    util_bail("hfe excessive tracks: %d", (int) hfe_tracks);
   }
   if (expand_to_80 && ((hfe_tracks * 2) <= k_ibm_disc_tracks_per_disc)) {
     expand_multiplier = 2;
