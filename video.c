@@ -152,8 +152,7 @@ struct video_struct {
 };
 
 static inline uint32_t
-video_calculate_bbc_address(uint32_t* p_out_screen_address,
-                            uint32_t address_counter,
+video_calculate_bbc_address(uint32_t address_counter,
                             uint8_t scanline_counter,
                             uint32_t screen_wrap_add) {
   uint32_t address;
@@ -182,9 +181,6 @@ video_calculate_bbc_address(uint32_t* p_out_screen_address,
     address &= 0x7FFF;
   }
 
-  if (p_out_screen_address != NULL) {
-    *p_out_screen_address = screen_address;
-  }
   return address;
 }
 
@@ -499,8 +495,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
 
       if (!r0_hit) {
-        bbc_address = video_calculate_bbc_address(NULL,
-                                                  p_video->address_counter,
+        bbc_address = video_calculate_bbc_address(p_video->address_counter,
                                                   p_video->scanline_counter,
                                                   p_video->screen_wrap_add);
         data = p_bbc_mem[bbc_address];
@@ -1375,8 +1370,7 @@ video_render_full_frame(struct video_struct* p_video) {
       for (i_cols = 0; i_cols < num_cols; ++i_cols) {
         uint32_t bbc_address;
         crtc_line_address &= 0x3FFF;
-        bbc_address = video_calculate_bbc_address(NULL,
-                                                  crtc_line_address,
+        bbc_address = video_calculate_bbc_address(crtc_line_address,
                                                   i_lines,
                                                   screen_wrap_add);
         func_render_data(p_render, p_bbc_mem[bbc_address]);
