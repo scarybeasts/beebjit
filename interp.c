@@ -700,6 +700,17 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_INSTR_STY()                                                    \
   v = y;
 
+#define INTERP_INSTR_STZ()                                                    \
+  v = 0;
+
+#define INTERP_INSTR_TRB()                                                    \
+  zf = !(v & a);                                                              \
+  v &= ~a;
+
+#define INTERP_INSTR_TSB()                                                    \
+  zf = !(v & a);                                                              \
+  v |= a;
+
 int64_t
 interp_enter_with_details(struct interp_struct* p_interp,
                           int64_t countdown,
@@ -750,6 +761,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int special_checks = 0;
   uint16_t addr = 0;
   int do_irq = 0;
+  int is_65c12 = p_interp->is_65c12;
 
   assert(countdown >= 0);
 
@@ -817,20 +829,22 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x03: /* SLO idx */ /* Undocumented. */
       INTERP_MODE_IDX_READ_WRITE(INTERP_INSTR_SLO());
       break;
-    case 0x04: /* NOP zp */ /* Undocumented. */
-    case 0x44:
-    case 0x64:
-      pc += 2;
-      cycles_this_instruction = 3;
+    case 0x04: /* NOP zpg */ /* Undocumented. */ /* TSB zpg */
+      if (is_65c12) {
+        util_bail("TSB zpg");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 3;
+      }
       break;
-    case 0x05: /* ORA zp */
+    case 0x05: /* ORA zpg */
       addr = p_mem_read[pc + 1];
       a |= p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x06: /* ASL zp */
+    case 0x06: /* ASL zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_ASL();
@@ -838,7 +852,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 5;
       break;
-    case 0x07: /* SLO zp */ /* Undocumented. */
+    case 0x07: /* SLO zpg */ /* Undocumented. */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       cf = !!(v & 0x80);
@@ -877,8 +891,12 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 2;
       break;
-    case 0x0C: /* NOP abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ(INTERP_INSTR_NOP());
+    case 0x0C: /* NOP abs */ /* Undocumented. */ /* TSB abs */
+      if (is_65c12) {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_TSB());
+      } else {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_NOP());
+      }
       break;
     case 0x0D: /* ORA abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_ORA());
@@ -895,14 +913,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x11: /* ORA idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_ORA());
       break;
-    case 0x14: /* NOP zpx */ /* Undocumented. */
-    case 0x34:
-    case 0x54:
-    case 0x74:
-    case 0xD4:
-    case 0xF4:
-      pc += 2;
-      cycles_this_instruction = 4;
+    case 0x14: /* NOP zpx */ /* Undocumented. */ /* TRB zpg */
+      if (is_65c12) {
+        util_bail("TRB zpg");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 4;
+      }
       break;
     case 0x15: /* ORA zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -922,22 +939,20 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x19: /* ORA aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), y);
       break;
-    case 0x1A: /* NOP */ /* Undocumented. */
-    case 0x3A:
-    case 0x5A:
-    case 0x7A:
-    case 0xDA:
-    case 0xFA:
-      pc++;
-      cycles_this_instruction = 2;
+    case 0x1A: /* NOP */ /* Undocumented. */ /* INC A */
+      if (is_65c12) {
+        util_bail("INC A");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
       break;
-    case 0x1C: /* NOP abx */ /* Undocumented. */
-    case 0x3C:
-    case 0x5C:
-    case 0x7C:
-    case 0xDC:
-    case 0xFC:
-      INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+    case 0x1C: /* NOP abx */ /* Undocumented. */ /* TRB abs */
+      if (is_65c12) {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_TRB());
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+      }
       break;
     case 0x1D: /* ORA abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), x);
@@ -966,14 +981,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x25: /* AND zp */
+    case 0x25: /* AND zpg */
       addr = p_mem_read[pc + 1];
       a &= p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x26: /* ROL zp */
+    case 0x26: /* ROL zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_ROL();
@@ -1027,6 +1042,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x33: /* RLA idy */ /* Undocumented. */
       INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_RLA());
       break;
+    case 0x34: /* NOP zpx */ /* Undocumented. */ /* BIT zpx */
+      if (is_65c12) {
+        util_bail("BIT zpx");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 4;
+      }
+      break;
     case 0x35: /* AND zpx */
       INTERP_MODE_ZPr_READ(x);
       a &= v;
@@ -1044,6 +1067,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x39: /* AND aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_AND(), y);
+      break;
+    case 0x3A: /* NOP */ /* Undocumented. */ /* DEC A */
+      if (is_65c12) {
+        util_bail("DEC A");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
+      break;
+    case 0x3C: /* NOP abx */ /* Undocumented. */ /* BIT abx */
+      if (is_65c12) {
+        util_bail("BIT abx");
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+      }
       break;
     case 0x3D: /* AND abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_AND(), x);
@@ -1066,14 +1104,18 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x41: /* EOR idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_EOR());
       break;
-    case 0x45: /* EOR zp */
+    case 0x44: /* NOP zpg */ /* Undocumented. */
+      pc += 2;
+      cycles_this_instruction = 3;
+      break;
+    case 0x45: /* EOR zpg */
       addr = p_mem_read[pc + 1];
       a ^= p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x46: /* LSR zp */
+    case 0x46: /* LSR zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_LSR();
@@ -1081,7 +1123,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 5;
       break;
-    case 0x47: /* SRE zp */ /* Undocumented. */
+    case 0x47: /* SRE zpg */ /* Undocumented. */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_SRE();
@@ -1135,6 +1177,12 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x51: /* EOR idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_EOR());
       break;
+    case 0x54: /* NOP zpx */ /* Undocumented. */
+    case 0xD4:
+    case 0xF4:
+      pc += 2;
+      cycles_this_instruction = 4;
+      break;
     case 0x55: /* EOR zpx */
       INTERP_MODE_ZPr_READ(x);
       a ^= v;
@@ -1157,6 +1205,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x59: /* EOR aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), y);
       break;
+    case 0x5A: /* NOP */ /* Undocumented. */ /* PHY */
+      if (is_65c12) {
+        util_bail("PHY");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
+      break;
+    case 0x5C: /* NOP abx */ /* Undocumented. */ /* NOP abs (8) */
+      if (is_65c12) {
+        util_bail("NOP abs (8)");
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+      }
+      break;
     case 0x5D: /* EOR abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), x);
       break;
@@ -1172,14 +1235,22 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x61: /* ADC idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_ADC());
       break;
-    case 0x65: /* ADC zp */
+    case 0x64: /* NOP zpg */ /* Undocumented. */ /* STZ zpg */
+      if (is_65c12) {
+        util_bail("STZ zpg");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 3;
+      }
+      break;
+    case 0x65: /* ADC zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_ADC();
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x66: /* ROR zp */
+    case 0x66: /* ROR zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_ROR();
@@ -1232,6 +1303,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x73: /* RRA idy */ /* Undocumented. */
       INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_RRA());
       break;
+    case 0x74: /* NOP zpx */ /* Undocumented. */ /* STZ zpx */
+      if (is_65c12) {
+        util_bail("STZ zpx");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 4;
+      }
+      break;
     case 0x75: /* ADC zpx */
       INTERP_MODE_ZPr_READ(x);
       INTERP_INSTR_ADC();
@@ -1253,45 +1332,66 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x79: /* ADC aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
       break;
+    case 0x7A: /* NOP */ /* Undocumented. */ /* PLY */
+      if (is_65c12) {
+        util_bail("PLY");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
+      break;
+    case 0x7C: /* NOP abx */ /* Undocumented. */ /* JMP iax */
+      if (is_65c12) {
+        util_bail("JMP iax");
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+      }
+      break;
     case 0x7D: /* ADC abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
       break;
     case 0x7E: /* ROR abx */
       INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
       break;
-    case 0x80: /* NOP imm */ /* Undocumented. */
-    case 0x82:
-    case 0x89:
+    case 0x80: /* NOP imm */ /* Undocumented. */ /* BRA */
+      if (is_65c12) {
+        INTERP_INSTR_BRANCH(1);
+      } else {
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
+      break;
+    case 0x81: /* STA idx */
+      INTERP_MODE_IDX_WRITE(INTERP_INSTR_STA());
+      break;
+    case 0x82: /* NOP imm */ /* Undocumented. */
     case 0xC2:
     case 0xE2:
       pc += 2;
       cycles_this_instruction = 2;
       break;
-    case 0x81: /* STA idx */
-      INTERP_MODE_IDX_WRITE(INTERP_INSTR_STA());
-      break;
     case 0x83: /* SAX idx */ /* Undocumented. */
       INTERP_MODE_IDX_WRITE(INTERP_INSTR_SAX());
       break;
-    case 0x84: /* STY zp */
+    case 0x84: /* STY zpg */
       addr = p_mem_read[pc + 1];
       p_mem_write[addr] = y;
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x85: /* STA zp */
+    case 0x85: /* STA zpg */
       addr = p_mem_read[pc + 1];
       p_mem_write[addr] = a;
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x86: /* STX zp */
+    case 0x86: /* STX zpg */
       addr = p_mem_read[pc + 1];
       p_mem_write[addr] = x;
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0x87: /* SAX zp */ /* Undocumented. */
+    case 0x87: /* SAX zpg */ /* Undocumented. */
       addr = p_mem_read[pc + 1];
       p_mem_write[addr] = (a & x);
       pc += 2;
@@ -1302,6 +1402,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_LOAD_NZ_FLAGS(y);
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0x89: /* NOP imm */ /* Undocumented. */ /* BIT imm */
+      if (is_65c12) {
+        util_bail("BIT imm");
+      } else {
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0x8A: /* TXA */
       a = x;
@@ -1369,11 +1477,22 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0x9C: /* SHY abx */ /* Undocumented. */
-      INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHY(), x);
+    case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
+      if (is_65c12) {
+        INTERP_MODE_ABS_WRITE(INTERP_INSTR_STZ());
+      } else {
+        INTERP_MODE_ABr_WRITE(INTERP_INSTR_SHY(), x);
+      }
       break;
     case 0x9D: /* STA abx */
       INTERP_MODE_ABr_WRITE(INTERP_INSTR_STA(), x);
+      break;
+    case 0x9E: /* SHX aby */ /* Undocumented. */ /* STZ abx */
+      if (is_65c12) {
+        util_bail("STZ abx");
+      } else {
+        util_bail("SHX aby");
+      }
       break;
     case 0xA0: /* LDY imm */
       y = p_mem_read[pc + 1];
@@ -1390,21 +1509,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 2;
       break;
-    case 0xA4: /* LDY zp */
+    case 0xA4: /* LDY zpg */
       addr = p_mem_read[pc + 1];
       y = p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(y);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xA5: /* LDA zp */
+    case 0xA5: /* LDA zpg */
       addr = p_mem_read[pc + 1];
       a = p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xA6: /* LDX zp */
+    case 0xA6: /* LDX zpg */
       addr = p_mem_read[pc + 1];
       x = p_mem_read[addr];
       INTERP_LOAD_NZ_FLAGS(x);
@@ -1512,21 +1631,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xC1: /* CMP idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_CMP(a));
       break;
-    case 0xC4: /* CPY zp */
+    case 0xC4: /* CPY zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_CMP(y);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xC5: /* CMP zp */
+    case 0xC5: /* CMP zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_CMP(a);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xC6: /* DEC zp */
+    case 0xC6: /* DEC zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       v--;
@@ -1598,6 +1717,22 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xD9: /* CMP aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), y);
       break;
+    case 0xDA: /* NOP */ /* Undocumented. */ /* PHX */
+      if (is_65c12) {
+        util_bail("PHX");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
+      break;
+    case 0xDC: /* NOP abx */ /* NOP abs */ /* Both undocumented. */
+    case 0xFC:
+      if (is_65c12) {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_NOP());
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_NOP(), x);
+      }
+      break;
     case 0xDD: /* CMP abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), x);
       break;
@@ -1613,21 +1748,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xE1: /* SBC idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_SBC());
       break;
-    case 0xE4: /* CPX zp */
+    case 0xE4: /* CPX zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_CMP(x);
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xE5: /* SBC zp */
+    case 0xE5: /* SBC zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       INTERP_INSTR_SBC();
       pc += 2;
       cycles_this_instruction = 3;
       break;
-    case 0xE6: /* INC zp */
+    case 0xE6: /* INC zpg */
       addr = p_mem_read[pc + 1];
       v = p_mem_read[addr];
       v++;
@@ -1668,8 +1803,12 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xF1: /* SBC idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
       break;
-    case 0xF2: /* Extension: CRASH */
-      *((volatile uint8_t*) 0xdead) = '\x41';
+    case 0xF2: /* Extension: CRASH */ /* SBC idp */
+      if (is_65c12) {
+        util_bail("SBC idp");
+      } else {
+        *((volatile uint8_t*) 0xdead) = '\x41';
+      }
       break;
     case 0xF5: /* SBC zpx */
       INTERP_MODE_ZPr_READ(x);
@@ -1688,6 +1827,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xF9: /* SBC aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), y);
+      break;
+    case 0xFA: /* NOP */ /* Undocumented. */ /* PLX */
+      if (is_65c12) {
+        util_bail("PLX");
+      } else {
+        pc++;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0xFD: /* SBC abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);

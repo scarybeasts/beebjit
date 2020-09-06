@@ -116,6 +116,7 @@ struct bbc_struct {
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
   uint8_t romsel;
+  uint8_t ramsel;
   int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -340,7 +341,7 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     break;
   case (k_addr_rom_select + 4):
     if (p_bbc->is_master) {
-      util_bail("RAMSEL read");
+      ret = p_bbc->ramsel;
     }
     break;
   case (k_addr_rom_select + 8):
@@ -650,7 +651,9 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_rom_select + 4):
     if (p_bbc->is_master) {
-      util_bail("RAMSEL write");
+      if (val != 0) {
+        util_bail("RAMSEL write");
+      }
     } else {
       bbc_sideways_select(p_bbc, val);
     }
