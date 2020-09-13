@@ -1070,7 +1070,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x3A: /* NOP */ /* Undocumented. */ /* DEC A */
       if (is_65c12) {
-        util_bail("DEC A");
+        a--;
+        pc++;
+        cycles_this_instruction = 2;
       } else {
         pc++;
         cycles_this_instruction = 2;
@@ -1207,7 +1209,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x5A: /* NOP */ /* Undocumented. */ /* PHY */
       if (is_65c12) {
-        util_bail("PHY");
+        p_stack[s--] = y;
+        pc++;
+        cycles_this_instruction = 3;
       } else {
         pc++;
         cycles_this_instruction = 2;
@@ -1237,7 +1241,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x64: /* NOP zpg */ /* Undocumented. */ /* STZ zpg */
       if (is_65c12) {
-        util_bail("STZ zpg");
+        addr = p_mem_read[pc + 1];
+        p_mem_read[addr] = 0;
+        pc += 2;
+        cycles_this_instruction = 3;
       } else {
         pc += 2;
         cycles_this_instruction = 3;
@@ -1405,7 +1412,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x89: /* NOP imm */ /* Undocumented. */ /* BIT imm */
       if (is_65c12) {
-        util_bail("BIT imm");
+        v = p_mem_read[pc + 1];
+        INTERP_INSTR_BIT();
+        pc += 2;
+        cycles_this_instruction = 2;
       } else {
         pc += 2;
         cycles_this_instruction = 2;
@@ -1719,7 +1729,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xDA: /* NOP */ /* Undocumented. */ /* PHX */
       if (is_65c12) {
-        util_bail("PHX");
+        p_stack[s--] = x;
+        pc++;
+        cycles_this_instruction = 3;
       } else {
         pc++;
         cycles_this_instruction = 2;

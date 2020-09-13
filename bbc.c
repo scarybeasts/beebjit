@@ -32,6 +32,7 @@
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
+static const size_t k_bbc_hazel_size = 0x2000;
 
 static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz. */
 static const size_t k_bbc_default_wakeup_rate = 1000; /* 1ms / 1kHz. */
@@ -66,6 +67,13 @@ enum {
   k_addr_econet = 0xFEA0,
   k_addr_adc = 0xFEC0,
   k_addr_tube = 0xFEE0,
+};
+
+enum {
+  k_ramsel_display_lynne = 1,
+  k_ramsel_write_lynne_from_os = 2,
+  k_ramsel_lynne = 4,
+  k_ramsel_hazel = 8,
 };
 
 struct bbc_struct {
@@ -115,6 +123,9 @@ struct bbc_struct {
   uint8_t* p_mem_read_ind;
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
+  uint8_t* p_mem_lynne;
+  uint8_t* p_mem_hazel;
+  uint8_t* p_mem_andy;
   uint8_t romsel;
   uint8_t ramsel;
   int is_romsel_invalidated;
@@ -607,11 +618,56 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 }
 
 void
+bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
+  /* TODO: Many things. */
+  uint8_t curr_ramsel = p_bbc->ramsel;
+  uint8_t curr_lynne = (curr_ramsel & k_ramsel_lynne);
+  uint8_t curr_hazel = (curr_ramsel & k_ramsel_hazel);
+  uint8_t new_display_lynne = (curr_ramsel & k_ramsel_display_lynne);
+  uint8_t new_write_lynne_from_os = (new_ramsel & k_ramsel_write_lynne_from_os);
+  uint8_t new_lynne = (new_ramsel & k_ramsel_lynne);
+  uint8_t new_hazel = (new_ramsel & k_ramsel_hazel);
+
+  assert(p_bbc->is_master);
+  assert(!new_display_lynne);
+  assert(!new_write_lynne_from_os);
+
+  if (curr_lynne ^ new_lynne) {
+    if (new_lynne) {
+      log_do_log(k_log_misc, k_log_unimplemented, "paging in LYNNE");
+    } else {
+      log_do_log(k_log_misc, k_log_unimplemented, "paging out LYNNE");
+    }
+  }
+
+  p_bbc->ramsel = new_ramsel;
+
+  /* HAZEL paging. */
+  if (curr_hazel ^ new_hazel) {
+    uint8_t* p_raw_mem_hazel = (p_bbc->p_mem_raw + k_bbc_os_rom_offset);
+    if (new_hazel) {
+      (void) memcpy(p_raw_mem_hazel, p_bbc->p_mem_hazel, k_bbc_hazel_size);
+    } else {
+      (void) memcpy(p_bbc->p_mem_hazel, p_raw_mem_hazel, k_bbc_hazel_size);
+      (void) memcpy(p_raw_mem_hazel, p_bbc->p_os_rom, k_bbc_hazel_size);
+    }
+  }
+}
+
+void
 bbc_write_callback(void* p,
                    uint16_t addr,
                    uint8_t val,
                    int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  if (p_bbc->is_master) {
+    if ((p_bbc->ramsel & k_ramsel_hazel) &&
+        (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
+      p_bbc->p_mem_raw[addr] = val;
+      return;
+    }
+  }
 
   p_bbc->num_hw_reg_hits++;
 
@@ -651,9 +707,7 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_rom_select + 4):
     if (p_bbc->is_master) {
-      if (val != 0) {
-        util_bail("RAMSEL write");
-      }
+      bbc_set_ramsel(p_bbc, val);
     } else {
       bbc_sideways_select(p_bbc, val);
     }
@@ -1066,6 +1120,13 @@ bbc_create(int mode,
       (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
       K_BBC_MEM_INACCESSIBLE_LEN);
 
+  /* Special memory chunks on a Master. */
+  if (p_bbc->is_master) {
+    p_bbc->p_mem_lynne = util_mallocz(0x5000);
+    p_bbc->p_mem_hazel = util_mallocz(k_bbc_hazel_size);
+    p_bbc->p_mem_andy = util_mallocz(0x1000);
+  }
+
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
   p_bbc->memory_access.p_mem_write = p_bbc->p_mem_write;
   p_bbc->memory_access.p_callback_obj = p_bbc;
@@ -1271,6 +1332,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_time_free_sleeper(p_bbc->p_sleeper);
 
   util_free(p_bbc->p_mem_sideways);
+  util_free(p_bbc->p_mem_lynne);
+  util_free(p_bbc->p_mem_hazel);
+  util_free(p_bbc->p_mem_andy);
   util_free(p_bbc);
 }
 
