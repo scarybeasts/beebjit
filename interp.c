@@ -853,12 +853,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0x06: /* ASL zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_ASL();
-      p_mem_write[addr] = v;
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ASL());
       break;
     case 0x07: /* SLO zpg */ /* Undocumented. */
       addr = p_mem_read[pc + 1];
@@ -1000,12 +995,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0x26: /* ROL zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_ROL();
-      p_mem_write[addr] = v;
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ROL());
       break;
     case 0x28: /* PLP */
       /* PLP fiddles with the interrupt disable flag so we need to tick it
@@ -1130,12 +1120,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0x46: /* LSR zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_LSR();
-      p_mem_write[addr] = v;
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_LSR());
       break;
     case 0x47: /* SRE zpg */ /* Undocumented. */
       addr = p_mem_read[pc + 1];
@@ -1270,12 +1255,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0x66: /* ROR zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_ROR();
-      p_mem_write[addr] = v;
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ROR());
       break;
     case 0x68: /* PLA */
       a = p_stack[++s];
@@ -1676,13 +1656,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0xC6: /* DEC zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      v--;
-      p_mem_write[addr] = v;
-      INTERP_LOAD_NZ_FLAGS(v);
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_DEC());
       break;
     case 0xC8: /* INY */
       y++;
@@ -1795,13 +1769,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0xE6: /* INC zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      v++;
-      p_mem_write[addr] = v;
-      INTERP_LOAD_NZ_FLAGS(v);
-      pc += 2;
-      cycles_this_instruction = 5;
+      INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_INC());
       break;
     case 0xE8: /* INX */
       x++;
