@@ -1755,6 +1755,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xD1: /* CMP idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_CMP(a));
       break;
+    case 0xD2: /* KIL */ /* Undocumented. */ /* CMP id */
+      if (is_65c12) {
+        INTERP_MODE_ID_READ(INTERP_INSTR_CMP(a));
+      } else {
+        util_bail("KIL");
+      }
+      break;
     case 0xD3: /* DCP idy */
       INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_DCP());
       break;
