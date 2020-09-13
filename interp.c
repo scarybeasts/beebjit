@@ -417,6 +417,40 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+#define INTERP_MODE_ID_READ(INSTR)                                            \
+  addr = p_mem_read[pc + 1];                                                  \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 5;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    INTERP_MEMORY_READ(addr);                                                 \
+    INSTR;                                                                    \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_ID_WRITE(INSTR)                                           \
+  addr = p_mem_read[pc + 1];                                                  \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < write_callback_from) {                                           \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 5;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    INSTR;                                                                    \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_IDY_READ(INSTR)                                           \
   addr_temp = p_mem_read[pc + 1];                                             \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
@@ -1176,6 +1210,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x51: /* EOR idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_EOR());
       break;
+    case 0x52: /* KIL */ /* Undocumented. */ /* EOR id */
+      if (is_65c12) {
+        INTERP_MODE_ID_READ(INTERP_INSTR_EOR());
+      } else {
+        util_bail("KIL");
+      }
+      break;
     case 0x54: /* NOP zpx */ /* Undocumented. */
     case 0xD4:
     case 0xF4:
@@ -1458,6 +1499,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x91: /* STA idy */
       INTERP_MODE_IDY_WRITE(INTERP_INSTR_STA());
       break;
+    case 0x92: /* KIL */ /* Undocumented. */ /* STA id */
+      if (is_65c12) {
+        INTERP_MODE_ID_WRITE(INTERP_INSTR_STA());
+      } else {
+        util_bail("KIL");
+      }
+      break;
     case 0x93: /* AHX idy */ /* Undocumented. */
       INTERP_MODE_IDY_WRITE(INTERP_INSTR_AHX());
       break;
@@ -1593,6 +1641,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xB1: /* LDA idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_LDA());
+      break;
+    case 0xB2: /* KIL */ /* Undocumented. */ /* LDA id */
+      if (is_65c12) {
+        INTERP_MODE_ID_READ(INTERP_INSTR_LDA());
+      } else {
+        util_bail("KIL");
+      }
       break;
     case 0xB4: /* LDY zpx */
       INTERP_MODE_ZPr_READ(x);
