@@ -1341,6 +1341,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x71: /* ADC idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
       break;
+    case 0x72: /* KIL */ /* Undocumented. */ /* ADC id */
+      if (is_65c12) {
+        INTERP_MODE_ID_READ(INTERP_INSTR_ADC());
+      } else {
+        util_bail("KIL");
+      }
+      break;
     case 0x73: /* RRA idy */ /* Undocumented. */
       INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_RRA());
       break;
