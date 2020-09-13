@@ -627,14 +627,14 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
    */
   uint8_t effective_curr_bank;
   uint8_t effective_new_bank;
-  int is_curr_andy;
-  int is_new_andy;
   int is_sideways_slot_changing;
 
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
   uint8_t* p_sideways_old = p_bbc->p_mem_sideways;
   uint8_t* p_sideways_new = p_bbc->p_mem_sideways;
   uint8_t curr_romsel = p_bbc->romsel;
+  int is_curr_andy = 0;
+  int is_new_andy = 0;
 
   /* TODO: mask so it reads back correctly on Master. */
   p_bbc->romsel = val;
