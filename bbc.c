@@ -32,7 +32,9 @@
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
+static const size_t k_bbc_lynne_size = 0x5000;
 static const size_t k_bbc_hazel_size = 0x2000;
+static const size_t k_bbc_andy_size = 0x1000;
 
 static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz. */
 static const size_t k_bbc_default_wakeup_rate = 1000; /* 1ms / 1kHz. */
@@ -70,10 +72,14 @@ enum {
 };
 
 enum {
-  k_ramsel_display_lynne = 1,
-  k_ramsel_write_lynne_from_os = 2,
-  k_ramsel_lynne = 4,
-  k_ramsel_hazel = 8,
+  k_romsel_andy = 0x80,
+};
+
+enum {
+  k_ramsel_display_lynne = 0x01,
+  k_ramsel_write_lynne_from_os = 0x02,
+  k_ramsel_lynne = 0x04,
+  k_ramsel_hazel = 0x08,
 };
 
 struct bbc_struct {
@@ -178,18 +184,22 @@ static uint16_t
 bbc_read_needs_callback_from(void* p) {
   (void) p;
 
-  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF,
-   * but that's fine.
+  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
+   * for hardware registers, but that's fine.
    */
   return 0xFC00;
 }
 
 static uint16_t
 bbc_write_needs_callback_from(void* p) {
-  (void) p;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  /* TODO: we can do better on Linux: 0xFC00. */
-  return k_bbc_os_rom_offset;
+  /* TODO: we can do better on Linux in both cases: 0xFC00. */
+  if (p_bbc->is_master) {
+    return k_bbc_sideways_offset;
+  } else {
+    return k_bbc_os_rom_offset;
+  }
 }
 
 static int
@@ -205,9 +215,13 @@ bbc_read_needs_callback(void* p, uint16_t addr) {
 
 static int
 bbc_write_needs_callback(void* p, uint16_t addr) {
-  (void) p;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  return (addr >= k_bbc_os_rom_offset);
+  if (p_bbc->is_master) {
+    return (addr >= k_bbc_sideways_offset);
+  } else {
+    return (addr >= k_bbc_os_rom_offset);
+  }
 }
 
 static inline int
@@ -465,15 +479,21 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
        * trapping $C000+ on all ports (only really needed on Windows). This
        * should only be able to hit with the uncarried address read for
        * something like a page-crossing LDA $BFFF,X
+       * 4) Master mode, which needs a write callback >= 0x8000; and a
+       * read-modify-write instruction can cause the read to come in here too.
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-      assert(addr >= (k_bbc_os_rom_offset - 0x100));
+      if (p_bbc->is_master) {
+        assert(addr >= k_bbc_sideways_offset);
+      } else {
+        assert(addr >= (k_bbc_os_rom_offset - 0x100));
+      }
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
       assert(0);
     } else {
-      /* EMU: This value, as well as the 0xFE default,  copied from b-em /
+      /* EMU: This value, as well as the 0xFE default, copied from b-em /
        * jsbeeb, and checked against a real BBC, see:
        * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
        */
@@ -497,6 +517,7 @@ bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
   romsel &= 0xF;
 
   if (!p_bbc->is_extended_rom_addressing) {
+    assert(!p_bbc->is_master);
     /* EMU NOTE: unless the BBC has a sideways ROM / RAM board installed, all
      * of the 0x0 - 0xF ROMSEL range is aliased into 0xC - 0xF.
      * The STH Castle Quest image needs this due to a misguided "Master
@@ -510,59 +531,36 @@ bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
   return romsel;
 }
 
-void
-bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
-  /* The broad approach here is: slower sideways bank switching in order to
-   * enable faster memory accesses at runtime.
-   * Other emulators (jsbeeb, b-em) appear to make a different tradeoff: faster
-   * bank switching but slower memory accesses.
-   * By just copying ROM bytes into the single memory chunk representing the
-   * 6502 address space, memory access at runtime can be direct, instead of
-   * having to go through lookup arrays.
-   */
-  uint8_t effective_curr_bank;
-  uint8_t effective_new_bank;
-  int curr_is_ram;
-  int new_is_ram;
+static void
+bbc_page_rom(struct bbc_struct* p_bbc,
+             uint8_t effective_curr_bank,
+             uint8_t effective_new_bank,
+             uint8_t* p_sideways_old,
+             uint8_t* p_sideways_new) {
   size_t map_size;
   size_t half_map_size;
   size_t map_offset;
 
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
-  uint8_t* p_sideways_src = p_bbc->p_mem_sideways;
+  int curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
+  int new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
   uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
-
-  if (p_bbc->is_master && (index & 0x80)) {
-    util_bail("ROMSEL RAM bit set");
-  }
-
-  effective_curr_bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
-  effective_new_bank = bbc_get_effective_bank(p_bbc, index);
-  assert(!(effective_curr_bank & 0xF0));
-  assert(!(effective_new_bank & 0xF0));
-
-  p_bbc->romsel = index;
-
-  if ((effective_new_bank == effective_curr_bank) &&
-      !p_bbc->is_romsel_invalidated) {
-    return;
-  }
-
-  p_bbc->is_romsel_invalidated = 0;
-
-  curr_is_ram = p_bbc->is_sideways_ram_bank[effective_curr_bank];
-  new_is_ram = p_bbc->is_sideways_ram_bank[effective_new_bank];
-
-  p_sideways_src += (effective_new_bank * k_bbc_rom_size);
 
   /* If current bank is RAM, save it. */
   if (curr_is_ram) {
-    uint8_t* p_sideways_dest = p_bbc->p_mem_sideways;
-    p_sideways_dest += (effective_curr_bank * k_bbc_rom_size);
-    (void) memcpy(p_sideways_dest, p_mem_sideways, k_bbc_rom_size);
+    (void) memcpy(p_sideways_old, p_mem_sideways, k_bbc_rom_size);
   }
 
-  (void) memcpy(p_mem_sideways, p_sideways_src, k_bbc_rom_size);
+  (void) memcpy(p_mem_sideways, p_sideways_new, k_bbc_rom_size);
+
+  /* The BBC Master mode does not support JIT (so no invalidate required).
+   * The BBC Master has all sorts of pageable regions, and the virtual memory
+   * tricks possible with the model B's clean RAM / sideways / OS ROM split
+   * are not possible.
+   */
+  if (p_bbc->is_master) {
+    return;
+  }
 
   p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver,
                                                  k_bbc_sideways_offset,
@@ -618,6 +616,79 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index) {
 }
 
 void
+bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
+  /* The broad approach here is: slower sideways bank switching in order to
+   * enable faster memory accesses at runtime.
+   * Other emulators (jsbeeb, b-em) appear to make a different tradeoff: faster
+   * bank switching but slower memory accesses.
+   * By just copying ROM bytes into the single memory chunk representing the
+   * 6502 address space, memory access at runtime can be direct, instead of
+   * having to go through lookup arrays.
+   */
+  uint8_t effective_curr_bank;
+  uint8_t effective_new_bank;
+  int is_curr_andy;
+  int is_new_andy;
+  int is_sideways_slot_changing;
+
+  uint8_t* p_mem_sideways = (p_bbc->p_mem_raw + k_bbc_sideways_offset);
+  uint8_t* p_sideways_old = p_bbc->p_mem_sideways;
+  uint8_t* p_sideways_new = p_bbc->p_mem_sideways;
+  uint8_t curr_romsel = p_bbc->romsel;
+
+  /* TODO: mask so it reads back correctly on Master. */
+  p_bbc->romsel = val;
+
+  effective_curr_bank = bbc_get_effective_bank(p_bbc, curr_romsel);
+  effective_new_bank = bbc_get_effective_bank(p_bbc, val);
+  assert(!(effective_curr_bank & 0xF0));
+  assert(!(effective_new_bank & 0xF0));
+
+  is_sideways_slot_changing = 0;
+  if ((effective_new_bank != effective_curr_bank) ||
+      p_bbc->is_romsel_invalidated) {
+    is_sideways_slot_changing = 1;
+  }
+
+  p_sideways_new += (effective_new_bank * k_bbc_rom_size);
+  p_sideways_old += (effective_curr_bank * k_bbc_rom_size);
+
+  if (p_bbc->is_master) {
+    is_curr_andy = (curr_romsel & k_romsel_andy);
+    is_new_andy = (val & k_romsel_andy);
+    if (is_curr_andy) {
+      if (!is_new_andy || is_sideways_slot_changing) {
+        /* Save ANDY back to its store. */
+        (void) memcpy(p_bbc->p_mem_andy, p_mem_sideways, k_bbc_andy_size);
+        /* Restore what is underneath ANDY. */
+        (void) memcpy(p_mem_sideways, p_sideways_old, k_bbc_andy_size);
+      }
+    }
+  }
+
+  if (is_sideways_slot_changing) {
+    bbc_page_rom(p_bbc,
+                 effective_curr_bank,
+                 effective_new_bank,
+                 p_sideways_old,
+                 p_sideways_new);
+  }
+
+  p_bbc->is_romsel_invalidated = 0;
+
+  if (p_bbc->is_master) {
+    if (is_new_andy) {
+      if (!is_curr_andy || is_sideways_slot_changing) {
+        /* Save data underneath ANDY in case it is RAM. */
+        (void) memcpy(p_sideways_new, p_mem_sideways, k_bbc_andy_size);
+        /* Copy in ANDY memory. */
+        (void) memcpy(p_mem_sideways, p_bbc->p_mem_andy, k_bbc_andy_size);
+      }
+    }
+  }
+}
+
+void
 bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   /* TODO: Many things. */
   uint8_t curr_ramsel = p_bbc->ramsel;
@@ -629,8 +700,13 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   uint8_t new_hazel = (new_ramsel & k_ramsel_hazel);
 
   assert(p_bbc->is_master);
-  assert(!new_display_lynne);
-  assert(!new_write_lynne_from_os);
+
+  if (new_display_lynne) {
+    log_do_log(k_log_misc, k_log_unimplemented, "displaying LYNNE");
+  }
+  if (new_write_lynne_from_os) {
+    log_do_log(k_log_misc, k_log_unimplemented, "writing LYNNE from MOS VDU");
+  }
 
   if (curr_lynne ^ new_lynne) {
     if (new_lynne) {
@@ -661,12 +737,31 @@ bbc_write_callback(void* p,
                    int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  if (p_bbc->is_master) {
-    if ((p_bbc->ramsel & k_ramsel_hazel) &&
-        (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
-      p_bbc->p_mem_raw[addr] = val;
+  if (p_bbc->is_master && (addr < k_addr_fred)) {
+    uint8_t* p_mem_raw = p_bbc->p_mem_raw;
+    assert(addr >= k_bbc_sideways_offset);
+    /* Sideways region is writeable is RAM is paged in. This is true regardless
+     * of whether ANDY is paged in or not.
+     */
+    if ((addr < k_bbc_os_rom_offset) &&
+        p_bbc->is_sideways_ram_bank[p_bbc->romsel & 0x0F]) {
+      p_mem_raw[addr] = val;
       return;
     }
+    /* ANDY is writeable if paged in. */
+    if ((addr < (k_bbc_sideways_offset + k_bbc_andy_size)) &&
+        (p_bbc->romsel & k_romsel_andy)) {
+      p_mem_raw[addr] = val;
+      return;
+    }
+    /* HAZEL is writeable if paged in. */
+    if ((addr >= k_bbc_os_rom_offset) &&
+        (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size)) &&
+        (p_bbc->ramsel & k_ramsel_hazel)) {
+      p_mem_raw[addr] = val;
+      return;
+    }
+    return;
   }
 
   p_bbc->num_hw_reg_hits++;
@@ -973,7 +1068,7 @@ bbc_create(int mode,
   p_bbc->running = 0;
   p_bbc->is_master = is_master;
   p_bbc->p_os_rom = p_os_rom;
-  p_bbc->is_extended_rom_addressing = 0;
+  p_bbc->is_extended_rom_addressing = is_master;
   p_bbc->debug_flag = debug_flag;
   p_bbc->run_flag = run_flag;
   p_bbc->print_flag = print_flag;
@@ -1122,9 +1217,9 @@ bbc_create(int mode,
 
   /* Special memory chunks on a Master. */
   if (p_bbc->is_master) {
-    p_bbc->p_mem_lynne = util_mallocz(0x5000);
+    p_bbc->p_mem_lynne = util_mallocz(k_bbc_lynne_size);
     p_bbc->p_mem_hazel = util_mallocz(k_bbc_hazel_size);
-    p_bbc->p_mem_andy = util_mallocz(0x1000);
+    p_bbc->p_mem_andy = util_mallocz(k_bbc_andy_size);
   }
 
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
@@ -1411,6 +1506,15 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
     (void) memset((p_mem_sideways + (i * k_bbc_rom_size)),
                   '\0',
                   k_bbc_rom_size);
+  }
+
+  /* Clear Master memory. */
+  if (p_bbc->is_master) {
+    (void) memset(p_bbc->p_mem_lynne, '\0', k_bbc_lynne_size);
+    (void) memset(p_bbc->p_mem_hazel, '\0', k_bbc_hazel_size);
+    (void) memset(p_bbc->p_mem_andy, '\0', k_bbc_andy_size);
+
+    bbc_set_ramsel(p_bbc, 0);
   }
 
   p_bbc->is_romsel_invalidated = 1;
