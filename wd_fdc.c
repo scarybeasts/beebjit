@@ -38,9 +38,12 @@ enum {
  * https://www.cloud9.co.uk/james/BBCMicro/Documentation/wd1770.html
  */
 enum {
-  k_wd_fdc_control_reset = 0x20,
-  k_wd_fdc_control_density = 0x08,
-  k_wd_fdc_control_side = 0x04,
+  k_wd_fdc_control_reset_b = 0x20,
+  k_wd_fdc_control_density_master = 0x20,
+  k_wd_fdc_control_side_master = 0x10,
+  k_wd_fdc_control_density_b = 0x08,
+  k_wd_fdc_control_side_b = 0x04,
+  k_wd_fdc_control_reset_master = 0x04,
   k_wd_fdc_control_drive_1 = 0x02,
   k_wd_fdc_control_drive_0 = 0x01,
 };
@@ -85,6 +88,7 @@ enum {
 
 struct wd_fdc_struct {
   struct state_6502* p_state_6502;
+  int is_master;
 
   int log_commands;
 
@@ -127,10 +131,13 @@ struct wd_fdc_struct {
 };
 
 struct wd_fdc_struct*
-wd_fdc_create(struct state_6502* p_state_6502, struct bbc_options* p_options) {
+wd_fdc_create(struct state_6502* p_state_6502,
+              int is_master,
+              struct bbc_options* p_options) {
   struct wd_fdc_struct* p_fdc = util_mallocz(sizeof(struct wd_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
+  p_fdc->is_master = is_master;
 
   p_fdc->log_commands = util_has_option(p_options->p_log_flags,
                                         "disc:commands");
@@ -176,6 +183,44 @@ wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
   state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, new_level);
 }
 
+static int
+wd_fdc_is_reset(struct wd_fdc_struct* p_fdc, uint8_t cr) {
+  int ret;
+
+  /* Reset is active low. */
+  if (p_fdc->is_master) {
+    ret = !(cr & k_wd_fdc_control_reset_master);
+  } else {
+    ret = !(cr & k_wd_fdc_control_reset_b);
+  }
+  return ret;
+}
+
+static int
+wd_fdc_is_side(struct wd_fdc_struct* p_fdc, uint8_t cr) {
+  int ret;
+
+  if (p_fdc->is_master) {
+    ret = !!(cr & k_wd_fdc_control_side_master);
+  } else {
+    ret = !!(cr & k_wd_fdc_control_side_b);
+  }
+  return ret;
+}
+
+static int
+wd_fdc_is_double_density(struct wd_fdc_struct* p_fdc, uint8_t cr) {
+  int ret;
+
+  /* Double density (aka. MFM) is active low. */
+  if (p_fdc->is_master) {
+    ret = !(cr & k_wd_fdc_control_density_master);
+  } else {
+    ret = !(cr & k_wd_fdc_control_density_b);
+  }
+  return ret;
+}
+
 static void
 wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
@@ -200,14 +245,13 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     if (is_motor_on) {
       disc_drive_start_spinning(p_fdc->p_current_drive);
     }
-    disc_drive_select_side(p_fdc->p_current_drive,
-                           !!(val & k_wd_fdc_control_side));
+    disc_drive_select_side(p_fdc->p_current_drive, wd_fdc_is_side(p_fdc, val));
   }
 
   p_fdc->control_register = val;
 
   /* Reset, active low. */
-  if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+  if (wd_fdc_is_reset(p_fdc, val)) {
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
     if (p_fdc->p_current_drive != NULL) {
       if (is_motor_on) {
@@ -321,9 +365,9 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
                head_pos);
   }
 
-  assert(p_fdc->control_register & k_wd_fdc_control_reset);
+  assert(!wd_fdc_is_reset(p_fdc, p_fdc->control_register));
 
-  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
     log_do_log(k_log_disc, k_log_unimplemented, "double density 1770 command");
   }
   if (p_fdc->p_current_drive == NULL) {
@@ -521,13 +565,13 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
                  val);
     }
     if ((p_fdc->status_register & k_wd_fdc_status_busy) &&
-        (val & k_wd_fdc_control_reset)) {
+        !wd_fdc_is_reset(p_fdc, val)) {
       util_bail("control register updated while busy, without reset");
     }
     wd_fdc_write_control(p_fdc, val);
     break;
   case 4:
-    if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+    if (wd_fdc_is_reset(p_fdc, p_fdc->control_register)) {
       /* Ignore commands when the reset line is active. */
       break;
     }
@@ -537,7 +581,7 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
     p_fdc->track_register = val;
     break;
   case 6:
-    if (!(p_fdc->control_register & k_wd_fdc_control_reset)) {
+    if (wd_fdc_is_reset(p_fdc, p_fdc->control_register)) {
       /* Ignore sector register changes when the reset line is active. */
       /* EMU NOTE: track / data register changes seem to still be accepted! */
       break;
@@ -866,7 +910,7 @@ wd_write_byte(struct wd_fdc_struct* p_fdc,
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
   /* No support for double density yet so write weak bits. */
-  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
     data_byte = 0;
     clocks_byte = 0;
   }
@@ -894,7 +938,7 @@ wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   /* No support for double density yet so make sure to not read any markers in
    * that case.
    */
-  if (!(p_fdc->control_register & k_wd_fdc_control_density)) {
+  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
     data_byte = 0xFF;
     clocks_byte = 0xFF;
   }

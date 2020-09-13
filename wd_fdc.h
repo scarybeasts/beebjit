@@ -10,6 +10,7 @@ struct disc_drive_struct;
 struct state_6502;
 
 struct wd_fdc_struct* wd_fdc_create(struct state_6502* p_state_6502,
+                                    int is_master,
                                     struct bbc_options* p_options);
 void wd_fdc_destroy(struct wd_fdc_struct* p_fdc);
 

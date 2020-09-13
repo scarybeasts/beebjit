@@ -58,7 +58,9 @@ enum {
   k_addr_master_adc = 0xFE18,
   /* &FE20 - &FE2F. */
   k_addr_video_ula = 0xFE20,
-  /* &FE30 - &FE3F. */
+  /* &FE30 - &FE3F on model B. */
+  k_addr_master_floppy  = 0xFE24,
+  /* &FE24 - &FE2F. */
   k_addr_rom_select = 0xFE30,
   /* &FE40 - &FE5F. */
   k_addr_sysvia = 0xFE40,
@@ -226,6 +228,7 @@ bbc_write_needs_callback(void* p, uint16_t addr) {
 
 static inline int
 bbc_is_1MHz_address(uint16_t addr) {
+  /* TODO: update for Master, i.e. Master 1770 region is stretched. */
   if ((addr & 0xFF00) == k_addr_shiela) {
     return k_FE_1mhz_array[((addr >> 5) & 7)];
   }
@@ -350,13 +353,23 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     log_do_log(k_log_misc, k_log_unimplemented, "read of $FE1C region");
     break;
   case (k_addr_video_ula + 0):
-  case (k_addr_video_ula + 4):
-  case (k_addr_video_ula + 8):
-  case (k_addr_video_ula + 12):
     /* EMU NOTE: ULA is write-only, and reads don't seem to be wired up.
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
      * Break out to default 0xFE return.
      */
+    break;
+  case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
+  case (k_addr_master_floppy + 4):
+    if (p_bbc->is_master) {
+      if (addr & 0x4) {
+        /* TODO: work out if this is readable on Master or not. */
+        util_bail("FDC CR read");
+        break;
+      }
+      ret = wd_fdc_read(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7));
+    }
+    break;
+  case (k_addr_video_ula + 12):
     break;
   case (k_addr_rom_select + 0):
     /* ROMSEL is readable on a Master but not on a model B. */
@@ -400,17 +413,18 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    addr &= 0x07;
-    if (p_bbc->is_wd_fdc) {
-      /* The 1770 control register is not readable, and mirrored across its
-       * little range.
-       */
-      if (!(addr & 0x04)) {
-        break;
+    if (!p_bbc->is_master) {
+      if (p_bbc->is_wd_fdc) {
+        /* The 1770 control register is not readable, and mirrored across its
+         * little range.
+         */
+        if (!(addr & 0x4)) {
+          break;
+        }
+        ret = wd_fdc_read(p_bbc->p_wd_fdc, (addr & 0x7));
+      } else {
+        ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
       }
-      ret = wd_fdc_read(p_bbc->p_wd_fdc, addr);
-    } else {
-      ret = intel_fdc_read(p_bbc->p_intel_fdc, addr);
     }
     break;
   case (k_addr_econet + 0):
@@ -789,10 +803,22 @@ bbc_write_callback(void* p,
     log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
     break;
   case (k_addr_video_ula + 0):
-  case (k_addr_video_ula + 4):
-  case (k_addr_video_ula + 8):
-  case (k_addr_video_ula + 12):
     {
+      struct video_struct* p_video = bbc_get_video(p_bbc);
+      video_ula_write(p_video, (addr & 0x1), val);
+    }
+    break;
+  case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
+  case (k_addr_master_floppy + 4):
+    if (p_bbc->is_master) {
+      wd_fdc_write(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7), val);
+    } else {
+      struct video_struct* p_video = bbc_get_video(p_bbc);
+      video_ula_write(p_video, (addr & 0x1), val);
+    }
+    break;
+  case (k_addr_video_ula + 12):
+    if (!p_bbc->is_master) {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
     }
@@ -841,11 +867,12 @@ bbc_write_callback(void* p,
   case (k_addr_floppy + 20):
   case (k_addr_floppy + 24):
   case (k_addr_floppy + 28):
-    addr &= 0x07;
-    if (p_bbc->is_wd_fdc) {
-      wd_fdc_write(p_bbc->p_wd_fdc, addr, val);
-    } else {
-      intel_fdc_write(p_bbc->p_intel_fdc, addr, val);
+    if (!p_bbc->is_master) {
+      if (p_bbc->is_wd_fdc) {
+        wd_fdc_write(p_bbc->p_wd_fdc, (addr & 0x7), val);
+      } else {
+        intel_fdc_write(p_bbc->p_intel_fdc, (addr & 0x7), val);
+      }
     }
     break;
   case (k_addr_econet + 0):
@@ -1054,6 +1081,10 @@ bbc_create(int mode,
   int is_65c12 = is_master;
 
   struct bbc_struct* p_bbc = util_mallocz(sizeof(struct bbc_struct));
+
+  if (is_master) {
+    wd_1770_flag = 1;
+  }
 
   p_bbc->wakeup_rate = k_bbc_default_wakeup_rate;
   (void) util_get_u32_option(&p_bbc->wakeup_rate,
@@ -1328,7 +1359,7 @@ bbc_create(int mode,
   }
 
   if (p_bbc->is_wd_fdc) {
-    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502, &p_bbc->options);
+    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502, is_master, &p_bbc->options);
     if (p_bbc->p_wd_fdc == NULL) {
       util_bail("wd_fdc_create failed");
     }
