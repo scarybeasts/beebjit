@@ -8,6 +8,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <string.h>
 
 enum {
   /* Read. */
@@ -70,7 +71,7 @@ enum {
 };
 
 enum {
-  k_intel_fdc_register_scan_sector = 0x06,
+  k_intel_fdc_register_current_sector = 0x06,
   k_intel_fdc_register_head_step_rate = 0x0D,
   k_intel_fdc_register_head_settle_time = 0x0E,
   k_intel_fdc_register_head_load_unload = 0x0F,
@@ -117,6 +118,10 @@ enum {
   k_intel_fdc_state_settling,
 };
 
+enum {
+  k_intel_num_registers = 32,
+};
+
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
 
@@ -129,7 +134,7 @@ struct intel_fdc_struct {
   uint8_t status;
   uint8_t result;
   uint8_t data;
-  uint8_t logical_track[2];
+  uint8_t regs[k_intel_num_registers];
   uint8_t command_pending;
   uint8_t drive_select;
   uint8_t command;
@@ -137,10 +142,6 @@ struct intel_fdc_struct {
   uint8_t parameters_index;
   uint8_t parameters[k_intel_fdc_max_params];
   uint8_t drive_out;
-  uint8_t register_mode;
-  uint8_t register_head_step_rate;
-  uint8_t register_head_settle_time;
-  uint8_t register_head_load_unload;
 
   uint8_t command_track;
   uint8_t command_sector;
@@ -152,7 +153,6 @@ struct intel_fdc_struct {
   uint32_t shift_register;
   uint32_t num_shifts;
 
-  uint8_t current_sector;
   uint8_t current_sectors_left;
   int current_had_deleted_data;
   int current_needs_settle;
@@ -241,7 +241,7 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
     return;
   }
 
-  head_unload_count = (p_fdc->register_head_load_unload >> 4);
+  head_unload_count = (p_fdc->regs[k_intel_fdc_register_head_load_unload] >> 4);
 
   p_fdc->state_index_pulse_count = 0;
   if (head_unload_count == 0) {
@@ -292,13 +292,8 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->result = 0;
   p_fdc->data = 0;
-  p_fdc->logical_track[0] = 0;
-  p_fdc->logical_track[1] = 0;
+  (void) memset(&p_fdc->regs[0], '\0', sizeof(p_fdc->regs));
   p_fdc->drive_out = 0;
-  p_fdc->register_mode = 0;
-  p_fdc->register_head_step_rate = 0;
-  p_fdc->register_head_settle_time = 0;
-  p_fdc->register_head_load_unload = 0;
   /* command_* and current_* variables don't need clearing -- they are set up
    * when a new command is issued.
    * Same for state_index_pulse_count, state_id_track, state_id_sector.
@@ -488,9 +483,9 @@ intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
   assert(p_current_drive != NULL);
 
   if (p_current_drive == p_fdc->p_drive_0) {
-    p_logical_track = &p_fdc->logical_track[0];
+    p_logical_track = &p_fdc->regs[k_intel_fdc_register_track_drive_0];
   } else {
-    p_logical_track = &p_fdc->logical_track[1];
+    p_logical_track = &p_fdc->regs[k_intel_fdc_register_track_drive_1];
   }
 
   /* A seek is generally a number of head steps relative to the logical track
@@ -532,30 +527,11 @@ static void
 intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
                                  uint8_t reg,
                                  uint8_t val) {
+  if (reg < k_intel_num_registers) {
+    p_fdc->regs[reg] = val;
+    return;
+  }
   switch (reg) {
-  case k_intel_fdc_register_head_step_rate:
-    p_fdc->register_head_step_rate = val;
-    break;
-  case k_intel_fdc_register_head_settle_time:
-    p_fdc->register_head_settle_time = val;
-    break;
-  case k_intel_fdc_register_head_load_unload:
-    p_fdc->register_head_load_unload = val;
-    break;
-  case k_intel_fdc_register_track_drive_0:
-    p_fdc->logical_track[0] = val;
-    break;
-  case k_intel_fdc_register_track_drive_1:
-    p_fdc->logical_track[1] = val;
-    break;
-  case k_intel_fdc_register_mode:
-    p_fdc->register_mode = (val & 0x07);
-    break;
-  case k_intel_fdc_register_bad_track_1_drive_0:
-  case k_intel_fdc_register_bad_track_2_drive_0:
-  case k_intel_fdc_register_bad_track_1_drive_1:
-  case k_intel_fdc_register_bad_track_2_drive_1:
-    break;
   case k_intel_fdc_register_drive_out:
     /* Bit 0x20 is important as it's used to select the side of the disc for
      * double sided discs.
@@ -730,7 +706,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     /* Not all of these variable are used by all of the commands but set them
      * all for simplicity.
      */
-    p_fdc->current_sector = p_fdc->command_sector;
+    p_fdc->regs[k_intel_fdc_register_current_sector] = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
     p_fdc->current_format_gap1 = param4;
     p_fdc->current_format_gap3 = param1;
@@ -774,39 +750,18 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_command_read_special_register:
     temp_u8 = 0;
-    switch (param0) {
-    case k_intel_fdc_register_scan_sector:
-      /* DFS-0.9 reads this register after an error. It is used to report the
-       * sector in error.
-       */
-      temp_u8 = p_fdc->current_sector;
-      break;
-    case k_intel_fdc_register_head_step_rate:
-      temp_u8 = p_fdc->register_head_step_rate;
-      break;
-    case k_intel_fdc_register_head_settle_time:
-      temp_u8 = p_fdc->register_head_settle_time;
-      break;
-    case k_intel_fdc_register_head_load_unload:
-      temp_u8 = p_fdc->register_head_load_unload;
-      break;
-    case k_intel_fdc_register_track_drive_0:
-      temp_u8 = p_fdc->logical_track[0];
-      break;
-    case k_intel_fdc_register_track_drive_1:
-      temp_u8 = p_fdc->logical_track[1];
-      break;
-    case k_intel_fdc_register_mode:
-      /* Phantom Combat (BBC B 32K version) reads this?! */
-      temp_u8 = (0xC0 | p_fdc->register_mode);
-      break;
-    case k_intel_fdc_register_drive_out:
-      /* DFS-1.2 reads drive out in normal operation. */
-      temp_u8 = p_fdc->drive_out;
-      break;
-    default:
-      assert(0);
-      break;
+    if (param0 < k_intel_num_registers) {
+      temp_u8 = p_fdc->regs[param0];
+    } else {
+      switch (param0) {
+      case k_intel_fdc_register_drive_out:
+        /* DFS-1.2 reads drive out in normal operation. */
+        temp_u8 = p_fdc->drive_out;
+        break;
+      default:
+        assert(0);
+        break;
+      }
     }
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
@@ -1034,7 +989,7 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
   if (p_fdc->current_sectors_left == 0) {
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
   } else {
-    p_fdc->current_sector++;
+    p_fdc->regs[k_intel_fdc_register_current_sector]++;
     /* EMU: Reset the index pulse counter.
      * A real 8271 permits two index pulses per sector, not per command.
      */
@@ -1107,7 +1062,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         intel_fdc_set_command_result(p_fdc,
                                      1,
                                      k_intel_fdc_result_sector_not_found);
-      } else if (p_fdc->state_id_sector == p_fdc->current_sector) {
+      } else if (p_fdc->state_id_sector ==
+                 p_fdc->regs[k_intel_fdc_register_current_sector]) {
         p_fdc->state_index_pulse_count = 0;
         if (p_fdc->command_is_write) {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
@@ -1498,7 +1454,8 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
        * or 2ms for 5.25" drives. 1ms might be your best guess from the
        * datasheet, but timing on a real machine, it appears to be 2ms.
        */
-      p_fdc->current_seek_count = (p_fdc->register_head_step_rate * 1000);
+      p_fdc->current_seek_count =
+          (p_fdc->regs[k_intel_fdc_register_head_step_rate] * 1000);
       p_fdc->current_seek_count *= 2;
       /* Calculate how many 64us chunks for the head step time. */
       p_fdc->current_seek_count /= 64;
@@ -1513,9 +1470,10 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if (p_fdc->current_needs_settle) {
       p_fdc->current_needs_settle = 0;
       /* EMU: all references state the units are 2ms for 5.25" drives. */
-      p_fdc->current_seek_count = (p_fdc->register_head_settle_time * 1000);
+      p_fdc->current_seek_count =
+          (p_fdc->regs[k_intel_fdc_register_head_settle_time] * 1000);
       p_fdc->current_seek_count *= 2;
-      /* Calculate how many 64us chunks for the head step time. */
+      /* Calculate how many 64us chunks for the head settle time. */
       p_fdc->current_seek_count /= 64;
       break;
     }
