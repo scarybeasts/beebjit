@@ -698,7 +698,7 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   uint8_t curr_ramsel = p_bbc->ramsel;
   uint8_t curr_lynne = (curr_ramsel & k_ramsel_lynne);
   uint8_t curr_hazel = (curr_ramsel & k_ramsel_hazel);
-  uint8_t new_display_lynne = (curr_ramsel & k_ramsel_display_lynne);
+  uint8_t new_display_lynne = (new_ramsel & k_ramsel_display_lynne);
   uint8_t new_write_lynne_from_os = (new_ramsel & k_ramsel_write_lynne_from_os);
   uint8_t new_lynne = (new_ramsel & k_ramsel_lynne);
   uint8_t new_hazel = (new_ramsel & k_ramsel_hazel);

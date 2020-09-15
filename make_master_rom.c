@@ -42,7 +42,14 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0);
   emit_LDA(p_buf, k_abs, 0xFE34);
   emit_REQUIRE_EQ(p_buf, 0);
-  emit_JMP(p_buf, k_abs, 0xC040);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE30);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0xFE30);
+  emit_REQUIRE_EQ(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0xFE34);
+  emit_REQUIRE_EQ(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE000);
 
   /* Exit sequence. */
   set_new_index(p_buf, 0x0040);
@@ -50,6 +57,40 @@ main(int argc, const char* argv[]) {
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
   emit_EXIT(p_buf);
+
+  /* Host this at $E000 so we can page HAZEL without corrupting our own code. */
+  set_new_index(p_buf, 0x2000);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xC000);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_CMP(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Page in HAZEL. */
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xC000);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Page out HAZEL. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_CMP(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* In again. */
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0xC000);
+  emit_CMP(p_buf, k_imm, 0xFF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Out again. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_JMP(p_buf, k_abs, 0xC040);
 
   fd = open("master.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
