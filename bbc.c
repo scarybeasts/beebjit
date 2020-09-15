@@ -1,5 +1,6 @@
 #include "bbc.h"
 
+#include "adc.h"
 #include "asm_x64_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
@@ -343,9 +344,13 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     break;
   case (k_addr_master_adc + 0):
     /* Syncron reads this even on a model B. */
-    /* EMU: returns 0 on an issue 3. */
-    ret = 0;
-    log_do_log(k_log_misc, k_log_unimplemented, "read of $FE18 region");
+    if (p_bbc->is_master) {
+      ret = adc_read(addr & 3);
+    } else {
+      /* EMU: returns 0 on an issue 3. */
+      ret = 0;
+      log_do_log(k_log_misc, k_log_unimplemented, "read of $FE18 region");
+    }
     break;
   case 0xFE1C:
     /* EMU: a hole here. Returns 0 on an issue 3. */
@@ -444,26 +449,11 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
   case (k_addr_adc + 20):
   case (k_addr_adc + 24):
   case (k_addr_adc + 28):
-    switch (addr & 3) {
-    case 0: /* Status. */
-      /* Return ADC conversion complete (bit 6). */
-      ret = 0x40;
-      break;
-    case 1: /* ADC high. */
-      /* Return 0x8000 across high and low, which is "central position" for
-       * the joystick.
-       */
-      ret = 0x80;
-      break;
-    case 2: /* ADC low. */
-      ret = 0;
-      break;
-    case 3:
-      ret = 0;
-      log_do_log(k_log_misc, k_log_unimplemented, "ADC read of index 3");
-      break;
+    if (!p_bbc->is_master) {
+      ret = adc_read(addr & 3);
+    } else {
+      log_do_log(k_log_misc, k_log_unimplemented, "read of $FEC0-$FEDF region");
     }
-    break;
   case (k_addr_tube + 0):
   case (k_addr_tube + 4):
   case (k_addr_tube + 8):
@@ -799,8 +789,14 @@ bbc_write_callback(void* p,
     serial_ula_write(p_bbc->p_serial, val);
     break;
   case (k_addr_master_adc + 0):
+    if (p_bbc->is_master) {
+      adc_write((addr & 3), val);
+    } else {
+      log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
+    }
+    break;
   case (k_addr_master_adc + 4):
-    log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
+    log_do_log(k_log_misc, k_log_unimplemented, "write of $FE1C region");
     break;
   case (k_addr_video_ula + 0):
     {
@@ -893,7 +889,13 @@ bbc_write_callback(void* p,
   case (k_addr_adc + 20):
   case (k_addr_adc + 24):
   case (k_addr_adc + 28):
-    /* TODO: ADC, even with nothing connected, isn't correctly emulated yet. */
+    if (!p_bbc->is_master) {
+      adc_write((addr & 3), val);
+    } else {
+      log_do_log(k_log_misc,
+                 k_log_unimplemented,
+                 "write of $FEC0-$FEDF region");
+    }
     break;
   case (k_addr_tube + 0):
   case (k_addr_tube + 4):
