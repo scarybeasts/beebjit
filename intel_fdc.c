@@ -130,7 +130,8 @@ enum {
   k_intel_fdc_state_format_gap_4,
   k_intel_fdc_state_seek_setup,
   k_intel_fdc_state_seeking,
-  k_intel_fdc_state_settling,
+  k_intel_fdc_state_settle_or_load_setup,
+  k_intel_fdc_state_settle_or_load,
 };
 
 enum {
@@ -256,6 +257,7 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
     return;
   }
 
+  p_fdc->drive_out &= ~k_intel_fdc_drive_out_write_enable;
   head_unload_count = (p_fdc->regs[k_intel_fdc_register_head_load_unload] >> 4);
 
   p_fdc->state_index_pulse_count = 0;
@@ -588,34 +590,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                head_pos);
   }
 
-  /* Many commands ensure the head is loaded. The same set of commands also
-   * perform an implicit seek.
-   */
-  switch (command) {
-  case k_intel_fdc_command_scan_sectors:
-  case k_intel_fdc_command_scan_sectors_with_deleted:
-  case k_intel_fdc_command_write_sector_128:
-  case k_intel_fdc_command_write_sectors:
-  case k_intel_fdc_command_write_sector_deleted_128:
-  case k_intel_fdc_command_write_sectors_deleted:
-  case k_intel_fdc_command_read_sector_128:
-  case k_intel_fdc_command_read_sectors:
-  case k_intel_fdc_command_read_sector_with_deleted_128:
-  case k_intel_fdc_command_read_sectors_with_deleted:
-  case k_intel_fdc_command_read_sector_ids:
-  case k_intel_fdc_command_verify_sector_128:
-  case k_intel_fdc_command_verify_sectors:
-  case k_intel_fdc_command_format:
-  case k_intel_fdc_command_seek:
-    temp_u8 = p_fdc->drive_out;
-    temp_u8 &= ~k_intel_fdc_drive_out_write_enable;
-    temp_u8 |= k_intel_fdc_drive_out_load_head;
-    intel_fdc_set_drive_out(p_fdc, temp_u8);
-  default:
-    break;
-  }
-
   /* The write commands bail if the disc is write protected. */
+  /* TODO: this is done at the wrong time. The 8271 ROM disassembly shows it is
+   * done after the seek / load.
+   */
   switch (command) {
   case k_intel_fdc_command_write_sector_128:
   case k_intel_fdc_command_write_sectors:
@@ -1448,9 +1426,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if (new_track == 0) {
       curr_track = 255;
     }
-    /* Skip to settling if there's no seek. */
+    /* Skip to head load if there's no seek. */
     if (new_track == curr_track) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
       break;
     }
     if (new_track > curr_track) {
@@ -1496,10 +1474,10 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if ((disc_drive_get_track(p_current_drive) == 0) &&
         (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
       /* Seek to 0 done, TRK0 detected. */
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
       break;
     } else if (p_fdc->regs[k_intel_fdc_register_internal_seek_count] == 0) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
       break;
     }
 
@@ -1524,18 +1502,40 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
     break;
   }
-  case k_intel_fdc_state_settling:
-    /* Settling doesn't time out due to index pulse counting. */
-    p_fdc->state_index_pulse_count = 0;
+  case k_intel_fdc_state_settle_or_load_setup:
+    assert(p_fdc->current_seek_count == 0);
 
     if (p_fdc->current_needs_settle) {
       p_fdc->current_needs_settle = 0;
-      /* EMU: all references state the units are 2ms for 5.25" drives. */
       p_fdc->current_seek_count =
-          (p_fdc->regs[k_intel_fdc_register_head_settle_time] * 1000);
+          p_fdc->regs[k_intel_fdc_register_head_settle_time];
+      /* EMU: all references state the units are 2ms for 5.25" drives. */
       p_fdc->current_seek_count *= 2;
-      /* Calculate how many 64us chunks for the head settle time. */
-      p_fdc->current_seek_count /= 64;
+    }
+
+    /* The head load wait replaces the settle delay if there is both. */
+    if (!(p_fdc->drive_out & k_intel_fdc_drive_out_load_head)) {
+      intel_fdc_set_drive_out(
+          p_fdc,
+          (p_fdc->drive_out & k_intel_fdc_drive_out_load_head));
+      p_fdc->current_seek_count =
+          (p_fdc->regs[k_intel_fdc_register_head_load_unload] & 0x0F);
+      /* Head load units are 4ms. */
+      p_fdc->current_seek_count *= 4;
+    }
+
+    /* Calculate how many 64us chunks for the head settle or load time. */
+    p_fdc->current_seek_count *= 1000;
+    p_fdc->current_seek_count /= 64;
+
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load);
+    break;
+  case k_intel_fdc_state_settle_or_load:
+    /* Settling or loading doesn't time out due to index pulse counting. */
+    p_fdc->state_index_pulse_count = 0;
+
+    if (p_fdc->current_seek_count) {
+      p_fdc->current_seek_count--;
       break;
     }
 
