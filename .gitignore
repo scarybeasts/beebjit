@@ -1,9 +1,11 @@
 # Build and test artifacts.
 beebjit
 beebjit.exe
+make_master_rom
 make_perf_rom
 make_test_rom
 make_timing_rom
+master.rom
 perf.rom
 test.rom
 timing.rom

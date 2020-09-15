@@ -227,6 +227,9 @@ main(int argc, const char* argv[]) {
       wd_1770_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
+      config_apply_master_128_mos320(&os_rom_name,
+                                     &rom_names[0],
+                                     &sideways_ram[0]);
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
@@ -269,9 +272,6 @@ main(int argc, const char* argv[]) {
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
   if (is_master_flag) {
-    config_apply_master_128_mos320(&os_rom_name,
-                                   &rom_names[0],
-                                   &sideways_ram[0]);
     if (mode != k_cpu_mode_interp) {
       log_do_log(k_log_misc,
                  k_log_info,

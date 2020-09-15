@@ -8,10 +8,13 @@ gcc -Wall -W -Werror -g -o make_test_rom make_test_rom.c \
     util.c defs_6502.c emit_6502.c test_helper.c
 gcc -Wall -W -Werror -g -o make_timing_rom make_timing_rom.c \
     util.c defs_6502.c emit_6502.c test_helper.c
+gcc -Wall -W -Werror -g -o make_master_rom make_master_rom.c \
+    util.c defs_6502.c emit_6502.c test_helper.c
 gcc -Wall -W -Werror -g -o make_perf_rom make_perf_rom.c \
     util.c defs_6502.c emit_6502.c test_helper.c
 ./make_test_rom
 ./make_timing_rom
+./make_master_rom
 
 echo 'Running built-in unit tests.'
 ./beebjit -test
@@ -46,5 +49,8 @@ echo 'Running timing.rom, jit, fast.'
 echo 'Running timing.rom, jit, fast, debug.'
 ./beebjit -os timing.rom -test-map -expect C0C1C2 -mode jit -fast -accurate \
     -debug -run
+
+echo 'Running master.rom, interpreter.'
+./beebjit -master -os master.rom -test-map -expect C0C1C2 -mode interp
 
 echo 'All is well!'
