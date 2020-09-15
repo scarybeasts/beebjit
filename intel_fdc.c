@@ -71,6 +71,7 @@ enum {
 };
 
 enum {
+  k_intel_fdc_register_internal_seek_retry_count = 0x01,
   k_intel_fdc_register_current_sector = 0x06,
   k_intel_fdc_register_internal_seek_count = 0x0A,
   k_intel_fdc_register_internal_seek_target_1 = 0x0B,
@@ -535,6 +536,8 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
 
   command = (p_fdc->command_pending & 0x3F);
   p_fdc->command = command;
+
+  p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
 
   /* For the single 128 byte sector commands, fake the parameters. */
   switch (command) {
@@ -1021,12 +1024,17 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
         intel_fdc_check_completion(p_fdc);
       } else if (p_fdc->state_id_track != p_fdc->command_track) {
-        /* EMU TODO: upon any mismatch of found track vs. expected track,
+        /* EMU NOTE: upon any mismatch of found track vs. expected track,
          * the drive will try twice more on the next two tracks.
          */
-        intel_fdc_set_command_result(p_fdc,
-                                     1,
-                                     k_intel_fdc_result_sector_not_found);
+        p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count]++;
+        if (p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] == 3) {
+          intel_fdc_set_command_result(p_fdc,
+                                       1,
+                                       k_intel_fdc_result_sector_not_found);
+        } else {
+          intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+        }
       } else if (p_fdc->state_id_sector ==
                  p_fdc->regs[k_intel_fdc_register_current_sector]) {
         p_fdc->state_index_pulse_count = 0;
@@ -1407,6 +1415,8 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     uint8_t* p_track_regs;
     uint8_t curr_track;
     uint8_t new_track = p_fdc->command_track;
+    new_track += p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count];
+
     if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
       p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_1];
     } else {

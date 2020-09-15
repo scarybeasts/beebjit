@@ -8,7 +8,6 @@ get addressed before the next release.
 
 - Driving the audio subsystem too hard on Linux?
 - Poor granularity of system wakeup with audio subsystem as timer?
-- Intel 8271 2x steps on track mismatch.
 
 
 Fix later
