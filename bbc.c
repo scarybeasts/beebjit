@@ -33,6 +33,7 @@
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
 static const size_t k_bbc_sideways_offset = 0x8000;
+static const size_t k_bbc_shadow_offset = 0x3000;
 static const size_t k_bbc_lynne_size = 0x5000;
 static const size_t k_bbc_hazel_size = 0x2000;
 static const size_t k_bbc_andy_size = 0x1000;
@@ -713,10 +714,15 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   }
 
   if (curr_lynne ^ new_lynne) {
-    if (new_lynne) {
-      log_do_log(k_log_misc, k_log_unimplemented, "paging in LYNNE");
-    } else {
-      log_do_log(k_log_misc, k_log_unimplemented, "paging out LYNNE");
+    size_t val;
+    uint32_t i;
+    uint32_t count = (k_bbc_lynne_size / sizeof(val));
+    size_t* p1 = (size_t*) p_bbc->p_mem_lynne;
+    size_t* p2 = (size_t*) (p_bbc->p_mem_raw + k_bbc_shadow_offset);
+    for (i = 0; i < count; ++i) {
+      val = p1[i];
+      p1[i] = p2[i];
+      p2[i] = val;
     }
   }
 

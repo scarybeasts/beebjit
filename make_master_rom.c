@@ -51,8 +51,33 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE000);
 
-  /* Exit sequence. */
+  /* Check LYNNE paging. */
   set_new_index(p_buf, 0x0040);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x41);
+  emit_STA(p_buf, k_abs, 0x3000);
+  /* Page in LYNNE. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_STA(p_buf, k_abs, 0x3000);
+  /* Out again. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x3000);
+  emit_REQUIRE_EQ(p_buf, 0x41);
+  /* In again. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x3000);
+  emit_REQUIRE_EQ(p_buf, 0x42);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_JMP(p_buf, k_abs, 0xC080);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0080);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -73,8 +98,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0xC000);
   emit_LDA(p_buf, k_abs, 0xC000);
-  emit_CMP(p_buf, k_imm, 0xFF);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
   /* Page out HAZEL. */
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE34);
@@ -85,8 +109,7 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x08);
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_abs, 0xC000);
-  emit_CMP(p_buf, k_imm, 0xFF);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
   /* Out again. */
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE34);
