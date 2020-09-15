@@ -72,6 +72,9 @@ enum {
 
 enum {
   k_intel_fdc_register_current_sector = 0x06,
+  k_intel_fdc_register_internal_seek_count = 0x0A,
+  k_intel_fdc_register_internal_seek_target_1 = 0x0B,
+  k_intel_fdc_register_internal_seek_target_2 = 0x0C,
   k_intel_fdc_register_head_step_rate = 0x0D,
   k_intel_fdc_register_head_settle_time = 0x0E,
   k_intel_fdc_register_head_load_unload = 0x0F,
@@ -86,9 +89,19 @@ enum {
 };
 
 enum {
+  k_intel_fdc_drive_out_select_1 = 0x80,
+  k_intel_fdc_drive_out_select_0 = 0x40,
   k_intel_fdc_drive_out_side = 0x20,
+  k_intel_fdc_drive_out_low_head_current = 0x10,
   k_intel_fdc_drive_out_load_head = 0x08,
+  k_intel_fdc_drive_out_direction = 0x04,
+  k_intel_fdc_drive_out_step = 0x02,
   k_intel_fdc_drive_out_write_enable = 0x01,
+};
+
+enum {
+  k_intel_fdc_mode_single_actuator = 0x02,
+  k_intel_fdc_mode_dma = 0x01,
 };
 
 enum {
@@ -114,6 +127,7 @@ enum {
   k_intel_fdc_state_format_write_data,
   k_intel_fdc_state_format_gap_3,
   k_intel_fdc_state_format_gap_4,
+  k_intel_fdc_state_seek_setup,
   k_intel_fdc_state_seeking,
   k_intel_fdc_state_settling,
 };
@@ -474,55 +488,6 @@ intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
   return disc_drive_is_spinning(p_current_drive);
 }
 
-static int
-intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
-  int32_t delta;
-  uint8_t* p_logical_track;
-
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  assert(p_current_drive != NULL);
-
-  if (p_current_drive == p_fdc->p_drive_0) {
-    p_logical_track = &p_fdc->regs[k_intel_fdc_register_track_drive_0];
-  } else {
-    p_logical_track = &p_fdc->regs[k_intel_fdc_register_track_drive_1];
-  }
-
-  /* A seek is generally a number of head steps relative to the logical track
-   * register, which may not match the physical head position.
-   * An important exception is a seek to track 0, which head steps until the
-   * TRK0 signal is detected.
-   * EMU: the special TRK0 logic for track 0 applies to both an explicit seek
-   * command as well as the implicit seek present in many non-seek commands.
-   */
-  if (p_fdc->command_track == 0) {
-    if (disc_drive_get_track(p_current_drive) == 0) {
-      *p_logical_track = 0;
-      return 0;
-    }
-    disc_drive_seek_track(p_current_drive, -1);
-    return 1;
-  }
-
-  if (p_fdc->command_track == *p_logical_track) {
-    return 0;
-  }
-
-  /* EMU TODO: I was seeing weirdness on real hardware with large logical
-   * track numbers (0xFx). Signedness issue or bad track register issue?
-   */
-  if (p_fdc->command_track > *p_logical_track) {
-    delta = 1;
-  } else {
-    delta = -1;
-  }
-
-  disc_drive_seek_track(p_current_drive, delta);
-  *p_logical_track += delta;
-
-  return 1;
-}
-
 static void
 intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
                                  uint8_t reg,
@@ -711,7 +676,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     p_fdc->current_format_gap1 = param4;
     p_fdc->current_format_gap3 = param1;
     p_fdc->current_format_gap5 = param3;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seeking);
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
     break;
   case k_intel_fdc_command_read_drive_status:
     temp_u8 = 0x80;
@@ -1418,7 +1383,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   uint32_t i;
   int bit;
   int was_index_pulse;
-  int did_step;
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
@@ -1438,7 +1402,79 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       disc_drive_write_byte(p_current_drive, 0x00, 0x00);
     }
     break;
+  case k_intel_fdc_state_seek_setup:
+  {
+    uint8_t* p_track_regs;
+    uint8_t curr_track;
+    uint8_t new_track = p_fdc->command_track;
+    if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
+      p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_1];
+    } else {
+      p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_0];
+    }
+    /* Add one to requested track for each bad track covered. */
+    /* EMU NOTE: this is based on a disassembly of the real 8271 ROM and yes,
+     * integer overflow does occur!
+     */
+    if (new_track > 0) {
+      if (p_track_regs[0] <= new_track) {
+        ++new_track;
+      }
+      if (p_track_regs[1] <= new_track) {
+        ++new_track;
+      }
+    }
+    p_fdc->regs[k_intel_fdc_register_internal_seek_target_1] = new_track;
+    p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] = new_track;
+    /* Set LOW HEAD CURRENT in drive output depending on track. */
+    if (new_track >= 43) {
+      p_fdc->drive_out |= k_intel_fdc_drive_out_low_head_current;
+    } else {
+      p_fdc->drive_out &= ~k_intel_fdc_drive_out_low_head_current;
+    }
+    /* Work out seek direction and total number of steps. */
+    curr_track = p_track_regs[2];
+    /* Pretend current track is 255 if a seek to 0. */
+    if (new_track == 0) {
+      curr_track = 255;
+    }
+    /* Skip to settling if there's no seek. */
+    if (new_track == curr_track) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+      break;
+    }
+    if (new_track > curr_track) {
+      p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
+          (new_track - curr_track);
+      p_fdc->drive_out |= k_intel_fdc_drive_out_direction;
+    } else if (curr_track > new_track) {
+      p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
+          (curr_track - new_track);
+      p_fdc->drive_out &= ~k_intel_fdc_drive_out_direction;
+    }
+    /* Seek pulses out of the 8271 are about 10us, so let's just lower the
+     * output bit and make them unobservable as I suspect they are on a real
+     * machine.
+     */
+    p_fdc->drive_out &= ~k_intel_fdc_drive_out_step;
+    /* Current track register(s) are updated here before the actual step
+     * sequence.
+     */
+    p_track_regs[2] = p_fdc->regs[k_intel_fdc_register_internal_seek_target_2];
+    /* Update both track registers if "single actuator" flag is set. */
+    if (p_fdc->regs[k_intel_fdc_register_mode] &
+        k_intel_fdc_mode_single_actuator) {
+      p_fdc->regs[k_intel_fdc_register_track_drive_0] = p_track_regs[2];
+      p_fdc->regs[k_intel_fdc_register_track_drive_1] = p_track_regs[2];
+    }
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seeking);
+    break;
+  }
   case k_intel_fdc_state_seeking:
+  {
+    struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+    assert(p_current_drive != NULL);
+
     /* Seeking doesn't time out due to index pulse counting. */
     p_fdc->state_index_pulse_count = 0;
 
@@ -1447,22 +1483,37 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
 
-    did_step = intel_fdc_do_seek_step(p_fdc);
-    p_fdc->current_needs_settle |= did_step;
-    if (did_step) {
-      /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
-       * or 2ms for 5.25" drives. 1ms might be your best guess from the
-       * datasheet, but timing on a real machine, it appears to be 2ms.
-       */
-      p_fdc->current_seek_count =
-          (p_fdc->regs[k_intel_fdc_register_head_step_rate] * 1000);
-      p_fdc->current_seek_count *= 2;
-      /* Calculate how many 64us chunks for the head step time. */
-      p_fdc->current_seek_count /= 64;
+    if ((disc_drive_get_track(p_current_drive) == 0) &&
+        (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
+      /* Seek to 0 done, TRK0 detected. */
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+      break;
+    } else if (p_fdc->regs[k_intel_fdc_register_internal_seek_count] == 0) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
       break;
     }
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settling);
+
+    p_fdc->regs[k_intel_fdc_register_internal_seek_count]--;
+    p_fdc->current_needs_settle = 1;
+
+    if (p_fdc->drive_out & k_intel_fdc_drive_out_direction) {
+      disc_drive_seek_track(p_current_drive, 1);
+    } else {
+      disc_drive_seek_track(p_current_drive, -1);
+    }
+
+    /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
+     * or 2ms for 5.25" drives. 1ms might be your best guess from the
+     * datasheet, but timing on a real machine, it appears to be 2ms.
+     */
+    p_fdc->current_seek_count =
+        (p_fdc->regs[k_intel_fdc_register_head_step_rate] * 1000);
+    p_fdc->current_seek_count *= 2;
+    /* Calculate how many 64us chunks for the head step time. */
+    p_fdc->current_seek_count /= 64;
+
     break;
+  }
   case k_intel_fdc_state_settling:
     /* Settling doesn't time out due to index pulse counting. */
     p_fdc->state_index_pulse_count = 0;

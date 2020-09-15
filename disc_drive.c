@@ -347,11 +347,17 @@ disc_drive_select_side(struct disc_drive_struct* p_drive, int side) {
 }
 
 void
-disc_drive_select_track(struct disc_drive_struct* p_drive, uint32_t track) {
+disc_drive_select_track(struct disc_drive_struct* p_drive, int32_t track) {
   disc_drive_check_track_needs_write(p_drive);
 
-  if (track >= k_ibm_disc_tracks_per_disc) {
+  if (track < 0) {
+    track = 0;
+    log_do_log(k_log_disc, k_log_unusual, "clang! disc head stopper @ track 0");
+  } else if (track >= k_ibm_disc_tracks_per_disc) {
     track = (k_ibm_disc_tracks_per_disc - 1);
+    log_do_log(k_log_disc,
+               k_log_unusual,
+               "clang! disc head stopper @ track max");
   }
   p_drive->track = track;
 }
@@ -364,9 +370,6 @@ disc_drive_seek_track(struct disc_drive_struct* p_drive, int32_t delta) {
     delta *= 2;
   }
   new_track = ((int32_t) p_drive->track + delta);
-  if (new_track < 0) {
-    new_track = 0;
-  }
   disc_drive_select_track(p_drive, new_track);
 }
 
