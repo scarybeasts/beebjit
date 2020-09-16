@@ -489,7 +489,10 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
       if (p_bbc->is_master) {
-        assert(addr >= k_bbc_sideways_offset);
+        /* TODO: this may not be neccessary once 65c12 uncarried address reads
+         * are sorted out.
+         */
+        assert(addr >= (k_bbc_sideways_offset - 0x100));
       } else {
         assert(addr >= (k_bbc_os_rom_offset - 0x100));
       }

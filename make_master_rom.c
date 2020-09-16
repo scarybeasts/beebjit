@@ -76,8 +76,28 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_JMP(p_buf, k_abs, 0xC080);
 
-  /* Exit sequence. */
+  /* Test write of ROM via page wrap to 0x8000. */
   set_new_index(p_buf, 0x0080);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0xFE30);
+  emit_LDA(p_buf, k_abs, 0x8000);
+  emit_STA(p_buf, k_abs, 0x1000);
+  /* Set up pointer to $7FFF in zero page. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0xBB);
+  /* Write to $7FFF + 1 */
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_idy, 0xF0);
+  emit_LDA(p_buf, k_abs, 0x8000);
+  emit_CMP(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC0C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x00C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
