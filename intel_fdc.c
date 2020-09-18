@@ -491,16 +491,43 @@ intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
   return disc_drive_is_spinning(p_current_drive);
 }
 
+static uint8_t
+intel_fdc_read_special_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
+  uint8_t ret = 0;
+
+  reg = (reg & 0x3F);
+  if (reg < k_intel_num_registers) {
+    return p_fdc->regs[reg];
+  }
+  reg = (reg & 0x07);
+  switch (reg) {
+  case k_intel_fdc_register_drive_out:
+    /* DFS-1.2 reads drive out in normal operation. */
+    ret = p_fdc->drive_out;
+    break;
+  default:
+    log_do_log(k_log_disc,
+               k_log_unimplemented,
+               "direct read to MMIO register %d",
+               reg);
+    break;
+  }
+
+  return ret;
+}
+
 static void
 intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
                                  uint8_t reg,
                                  uint8_t val) {
+  reg = (reg & 0x3F);
   if (reg < k_intel_num_registers) {
     p_fdc->regs[reg] = val;
     return;
   }
+  reg = (reg & 0x07);
   switch (reg) {
-  case k_intel_fdc_register_drive_out:
+  case (k_intel_fdc_register_drive_out & 0x07):
     /* Bit 0x20 is important as it's used to select the side of the disc for
      * double sided discs.
      * Bit 0x08 is important as it provides manual head load / unload control,
@@ -515,7 +542,10 @@ intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
     intel_fdc_set_drive_out(p_fdc, val);
     break;
   default:
-    assert(0);
+    log_do_log(k_log_disc,
+               k_log_unimplemented,
+               "direct write to MMIO register %d",
+               reg);
     break;
   }
 }
@@ -695,20 +725,7 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_read_special_register:
-    temp_u8 = 0;
-    if (param0 < k_intel_num_registers) {
-      temp_u8 = p_fdc->regs[param0];
-    } else {
-      switch (param0) {
-      case k_intel_fdc_register_drive_out:
-        /* DFS-1.2 reads drive out in normal operation. */
-        temp_u8 = p_fdc->drive_out;
-        break;
-      default:
-        assert(0);
-        break;
-      }
-    }
+    temp_u8 = intel_fdc_read_special_register(p_fdc, param0);
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_write_special_register:
