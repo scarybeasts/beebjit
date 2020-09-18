@@ -1318,13 +1318,17 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 2;
       break;
     case 0x6C: /* JMP ind */
-      /* TODO: fix for 65c12. */
       addr = *(uint16_t*) &p_mem_read[pc + 1];
-      addr_temp = ((addr + 1) & 0xFF);
-      addr_temp |= (addr & 0xFF00);
-      pc = p_mem_read[addr];
-      pc |= (p_mem_read[addr_temp] << 8);
-      cycles_this_instruction = 5;
+      if (is_65c12) {
+        pc = *(uint16_t*) &p_mem_read[addr];
+        cycles_this_instruction = 6;
+      } else {
+        addr_temp = ((addr + 1) & 0xFF);
+        addr_temp |= (addr & 0xFF00);
+        pc = p_mem_read[addr];
+        pc |= (p_mem_read[addr_temp] << 8);
+        cycles_this_instruction = 5;
+      }
       break;
     case 0x6D: /* ADC abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_ADC());

@@ -96,8 +96,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC0C0);
 
-  /* Exit sequence. */
+  /* Test fixed behavior of JMP (ind) page crossing on 65c12. */
   set_new_index(p_buf, 0x00C0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x10FF);
+  emit_LDA(p_buf, k_imm, 0xE1);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0xC1);
+  emit_STA(p_buf, k_abs, 0x1100);
+  emit_JMP(p_buf, k_ind, 0x10FF);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0100);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -134,6 +144,10 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_JMP(p_buf, k_abs, 0xC040);
+
+  /* Host a crash gadget at 0xE100. */
+  set_new_index(p_buf, 0x2100);
+  emit_CRASH(p_buf);
 
   fd = open("master.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
