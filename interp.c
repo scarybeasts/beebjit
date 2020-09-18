@@ -855,6 +855,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       p_stack[s--] = v;
       pc = (p_mem_read[addr] | (p_mem_read[(uint16_t) (addr + 1)] << 8));
       intf = 1;
+      if (is_65c12) {
+        df = 0;
+      }
       do_irq = 0;
       cycles_this_instruction = 4;
       break;

@@ -35,6 +35,9 @@ main(int argc, const char* argv[]) {
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
+  /* IRQ vector, @0xFF00 */
+  p_mem[0x3FFE] = 0x00;
+  p_mem[0x3FFF] = 0xFF;
 
   /* Check ROMSEL / RAMSEL readability and initial state. */
   set_new_index(p_buf, 0x0000);
@@ -106,8 +109,14 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x1100);
   emit_JMP(p_buf, k_ind, 0x10FF);
 
-  /* Exit sequence. */
   set_new_index(p_buf, 0x0100);
+  emit_SED(p_buf);
+  emit_BRK(p_buf);
+  emit_NOP(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC140);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0140);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -148,6 +157,14 @@ main(int argc, const char* argv[]) {
   /* Host a crash gadget at 0xE100. */
   set_new_index(p_buf, 0x2100);
   emit_CRASH(p_buf);
+
+  /* IRQ handler at 0xFF00. */
+  set_new_index(p_buf, 0x3F00);
+  emit_PHP(p_buf);
+  emit_PLA(p_buf);
+  emit_AND(p_buf, k_imm, 0x08);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_RTI(p_buf);
 
   fd = open("master.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {
