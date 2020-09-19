@@ -33,6 +33,8 @@ log_module_to_string(int module) {
     return "audio";
   case k_log_tape:
     return "tape";
+  case k_log_cmos:
+    return "cmos";
   default:
     assert(0);
     return NULL;

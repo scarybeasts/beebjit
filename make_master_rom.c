@@ -115,8 +115,56 @@ main(int argc, const char* argv[]) {
   emit_NOP(p_buf);
   emit_JMP(p_buf, k_abs, 0xC140);
 
-  /* Exit sequence. */
+  /* Test CMOS read.
+   * This sequence used to prod the CMOS is the same as the terminal ROM in
+   * MOS3.20, specifically at $8E76.
+   */
   set_new_index(p_buf, 0x0140);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* Standard MOS3.20 DDRB value. */
+  emit_LDA(p_buf, k_imm, 0xCF);
+  emit_STA(p_buf, k_abs, 0xFE42);
+  /* Begin $8E76 sequence, to read CMOS $18. */
+  emit_LDX(p_buf, k_imm, 0x18);
+  /* Data select low, then address select high. */
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  emit_LDA(p_buf, k_imm, 0x82);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* DDRA to output, and set CMOS address. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE43);
+  emit_STX(p_buf, k_abs, 0xFE4F);
+  /* CMOS enable, address select still high. */
+  emit_LDA(p_buf, k_imm, 0xC2);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* CMOS enable, address select low -> latch address. */
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* CMOS enable, read high. */
+  emit_LDA(p_buf, k_imm, 0x49);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* DDRA to input. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE43);
+  /* CMOS enable, data select high. */
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* Read it!! */
+  emit_LDY(p_buf, k_abs, 0xFE4F);
+  /* CMOS enable, data select low. */
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  /* CMOS disable. */
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x17);
+  emit_JMP(p_buf, k_abs, 0xC1C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x01C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

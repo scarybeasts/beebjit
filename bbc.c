@@ -3,6 +3,7 @@
 #include "adc.h"
 #include "asm_x64_defs.h"
 #include "bbc_options.h"
+#include "cmos.h"
 #include "cpu_driver.h"
 #include "debug.h"
 #include "defs_6502.h"
@@ -153,6 +154,7 @@ struct bbc_struct {
   struct wd_fdc_struct* p_wd_fdc;
   struct serial_struct* p_serial;
   struct tape_struct* p_tape;
+  struct cmos_struct* p_cmos;
   struct cpu_driver* p_cpu_driver;
   struct debug_struct* p_debug;
 
@@ -1307,6 +1309,10 @@ bbc_create(int mode,
   }
   p_bbc->p_state_6502 = p_state_6502;
 
+  if (is_master) {
+    p_bbc->p_cmos = cmos_create(&p_bbc->options);
+  }
+
   p_bbc->p_system_via = via_create(k_via_system,
                                    externally_clocked_via,
                                    p_timing,
@@ -1447,6 +1453,9 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
+  if (p_bbc->p_cmos != NULL) {
+    cmos_destroy(p_bbc->p_cmos);
+  }
   if (p_bbc->p_intel_fdc != NULL) {
     intel_fdc_destroy(p_bbc->p_intel_fdc);
   }
@@ -1682,6 +1691,11 @@ bbc_get_render(struct bbc_struct* p_bbc) {
 struct serial_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
+}
+
+struct cmos_struct*
+bbc_get_cmos(struct bbc_struct* p_bbc) {
+  return p_bbc->p_cmos;
 }
 
 struct timing_struct*

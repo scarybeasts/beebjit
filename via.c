@@ -1,6 +1,7 @@
 #include "via.h"
 
 #include "bbc.h"
+#include "cmos.h"
 #include "keyboard.h"
 #include "sound.h"
 #include "state_6502.h"
@@ -486,11 +487,17 @@ static void
 sysvia_update_port_a(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
   struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
+  struct cmos_struct* p_cmos = bbc_get_cmos(p_bbc);
   uint8_t bus_val = via_calculate_port_a(p_via);
   uint8_t keyrow = ((bus_val >> 4) & 7);
   uint8_t keycol = (bus_val & 0xf);
   int fire = 0;
   uint8_t IC32 = bbc_get_IC32(p_bbc);
+
+  p_via->peripheral_a = 0xFF;
+  if (p_cmos != NULL) {
+    p_via->peripheral_a &= cmos_get_bus_value(p_cmos);
+  }
 
   p_via->peripheral_a |= 0x80;
   if (!(IC32 & 0x08)) {
@@ -524,6 +531,7 @@ sysvia_update_port_a(struct via_struct* p_via) {
 static void
 sysvia_update_port_b(struct via_struct* p_via) {
   struct bbc_struct* p_bbc = p_via->p_bbc;
+  struct cmos_struct* p_cmos = bbc_get_cmos(p_bbc);
   uint8_t old_IC32 = bbc_get_IC32(p_bbc);
   uint8_t bus_val = via_calculate_port_b(p_via);
   uint8_t port_bit = (1 << (bus_val & 7));
@@ -534,6 +542,13 @@ sysvia_update_port_b(struct via_struct* p_via) {
     IC32 |= port_bit;
   } else {
     IC32 &= ~port_bit;
+  }
+
+  if (p_cmos != NULL) {
+    cmos_update_external_inputs(p_cmos,
+                                bus_val,
+                                via_calculate_port_a(p_via),
+                                IC32);
   }
 
   bbc_set_IC32(p_bbc, IC32);

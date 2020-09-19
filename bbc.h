@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct cmos_struct;
 struct cpu_driver;
 struct keyboard_struct;
 struct serial_struct;
@@ -106,6 +107,7 @@ struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct cmos_struct* bbc_get_cmos(struct bbc_struct* p_bbc);
 struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);
 
 uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
