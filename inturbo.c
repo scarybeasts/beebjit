@@ -35,6 +35,9 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   size_t i;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
+  uint8_t* p_opcode_types;
+  uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_cycles;
 
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
@@ -51,16 +54,21 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   write_callback_from = p_memory_access->memory_write_needs_callback_from(
       p_memory_object);
 
+  p_inturbo->driver.p_funcs->get_opcode_maps(&p_inturbo->driver,
+                                             &p_opcode_types,
+                                             &p_opcode_modes,
+                                             &p_opcode_cycles);
+
   for (i = 0;
        i < 256;
        (p_inturbo_opcodes_ptr += k_inturbo_bytes_per_opcode), ++i) {
     uint8_t pc_advance;
 
-    uint8_t opmode = g_opmodes[i];
-    uint8_t optype = g_optypes[i];
+    uint8_t optype = p_opcode_types[i];
+    uint8_t opmode = p_opcode_modes[i];
     uint8_t opmem = g_opmem[optype];
     uint8_t opreg = 0;
-    uint8_t opcycles = g_opcycles[i];
+    uint8_t opcycles = p_opcode_cycles[i];
     int check_page_crossing_read = 0;
     uint16_t this_callback_from = read_callback_from;
 

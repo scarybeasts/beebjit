@@ -49,6 +49,9 @@ struct debug_struct {
   int debug_active;
   int debug_running;
   int debug_running_print;
+  uint8_t* p_opcode_types;
+  uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_cycles;
 
   /* Breakpointing. */
   int32_t debug_stop_addr;
@@ -135,6 +138,15 @@ debug_create(struct bbc_struct* p_bbc,
 }
 
 void
+debug_init(struct debug_struct* p_debug) {
+  struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_debug->p_bbc);
+  p_cpu_driver->p_funcs->get_opcode_maps(p_cpu_driver,
+                                         &p_debug->p_opcode_types,
+                                         &p_debug->p_opcode_modes,
+                                         &p_debug->p_opcode_cycles);
+}
+
+void
 debug_destroy(struct debug_struct* p_debug) {
   free(p_debug);
 }
@@ -158,7 +170,8 @@ debug_active_at_addr(void* p, uint16_t addr_6502) {
 }
 
 static void
-debug_print_opcode(char* buf,
+debug_print_opcode(struct debug_struct* p_debug,
+                   char* buf,
                    size_t buf_len,
                    uint8_t opcode,
                    uint8_t operand1,
@@ -166,6 +179,7 @@ debug_print_opcode(char* buf,
                    uint16_t reg_pc,
                    int do_irq,
                    struct state_6502* p_state_6502) {
+  uint8_t optype;
   uint8_t opmode;
   const char* opname;
   uint16_t addr;
@@ -183,8 +197,9 @@ debug_print_opcode(char* buf,
     return;
   }
 
-  opmode = g_opmodes[opcode];
-  opname = g_p_opnames[g_optypes[opcode]];
+  optype = p_debug->p_opcode_types[opcode];
+  opmode = p_debug->p_opcode_modes[opcode];
+  opname = g_p_opnames[optype];
   addr = (operand1 | (operand2 << 8));
 
   switch (opmode) {
@@ -379,7 +394,8 @@ debug_get_details(int* p_addr_6502,
 }
 
 static uint16_t
-debug_disass(struct cpu_driver* p_cpu_driver,
+debug_disass(struct debug_struct* p_debug,
+             struct cpu_driver* p_cpu_driver,
              struct bbc_struct* p_bbc,
              uint16_t addr_6502) {
   size_t i;
@@ -392,7 +408,7 @@ debug_disass(struct cpu_driver* p_cpu_driver,
     uint16_t addr_plus_1 = (addr_6502 + 1);
     uint16_t addr_plus_2 = (addr_6502 + 2);
     uint8_t opcode = p_mem_read[addr_6502];
-    uint8_t opmode = g_opmodes[opcode];
+    uint8_t opmode = p_debug->p_opcode_modes[opcode];
     uint8_t oplen = g_opmodelens[opmode];
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
@@ -400,7 +416,8 @@ debug_disass(struct cpu_driver* p_cpu_driver,
     char* p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
                                                                    addr_6502);
 
-    debug_print_opcode(opcode_buf,
+    debug_print_opcode(p_debug,
+                       opcode_buf,
                        sizeof(opcode_buf),
                        opcode,
                        operand1,
@@ -552,12 +569,11 @@ debug_hit_break(struct debug_struct* p_debug,
                 uint16_t reg_pc,
                 int addr_6502,
                 uint8_t opcode_6502,
+                uint8_t opmem,
                 uint8_t reg_a,
                 uint8_t reg_x,
                 uint8_t reg_y) {
   uint32_t i;
-  uint8_t optype;
-  uint8_t opmem;
 
   for (i = 0; i < k_max_break; ++i) {
     int type;
@@ -590,8 +606,6 @@ debug_hit_break(struct debug_struct* p_debug,
           (addr_6502 > p_breakpoint->end)) {
         break;
       }
-      optype = g_optypes[opcode_6502];
-      opmem = g_opmem[optype];
       if ((opmem == k_read) || (opmem == k_rw)) {
         if ((type == k_debug_breakpoint_mem_read) ||
             (type == k_debug_breakpoint_mem_read_write)) {
@@ -687,7 +701,8 @@ debug_dump_stats(struct debug_struct* p_debug) {
     if (!count) {
       continue;
     }
-    debug_print_opcode(opcode_buf,
+    debug_print_opcode(p_debug,
+                       opcode_buf,
                        sizeof(opcode_buf),
                        opcode,
                        0,
@@ -1024,6 +1039,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   int wrapped_16bit;
   uint8_t opmode;
   uint8_t optype;
+  uint8_t opmem;
   uint8_t oplen;
   int is_write;
   int is_rom;
@@ -1049,8 +1065,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   if (do_irq) {
     opcode = 0;
   }
-  opmode = g_opmodes[opcode];
-  optype = g_optypes[opcode];
+  optype = p_debug->p_opcode_types[opcode];
+  opmode = p_debug->p_opcode_modes[opcode];
+
   reg_pc_plus_1 = (reg_pc + 1);
   reg_pc_plus_2 = (reg_pc + 2);
   operand1 = p_mem_read[reg_pc_plus_1];
@@ -1147,10 +1164,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       wrapped_8bit,
                       wrapped_16bit);
 
+  opmem = g_opmem[optype];
   hit_break = debug_hit_break(p_debug,
                               reg_pc,
                               addr_6502,
                               opcode,
+                              opmem,
                               reg_a,
                               reg_x,
                               reg_y);
@@ -1181,7 +1200,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   flag_i = !!(reg_flags & 0x04);
 
-  debug_print_opcode(opcode_buf,
+  debug_print_opcode(p_debug,
+                     opcode_buf,
                      sizeof(opcode_buf),
                      opcode,
                      operand1,
@@ -1456,7 +1476,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       if (parse_int == -1) {
         parse_int = reg_pc;
       }
-      parse_addr = debug_disass(p_cpu_driver, p_bbc, parse_int);
+      parse_addr = debug_disass(p_debug, p_cpu_driver, p_bbc, parse_int);
       /* Continue where we left off if just enter is hit next. */
       (void) snprintf(p_debug->debug_old_input_buf,
                       k_max_input_len,

@@ -18,9 +18,6 @@ enum {
 };
 
 extern const char* g_p_opnames[k_6502_op_num_types];
-extern uint8_t g_optypes[k_6502_op_num_opcodes];
-extern uint8_t g_opmodes[k_6502_op_num_opcodes];
-extern uint8_t g_opcycles[k_6502_op_num_opcodes];
 extern uint8_t g_opmodelens[k_6502_op_num_modes];
 extern uint8_t g_opmem[k_6502_op_num_types];
 extern uint8_t g_opbranch[k_6502_op_num_types];
@@ -156,5 +153,14 @@ enum {
   k_flag_overflow = 6,
   k_flag_negative = 7,
 };
+
+void defs_6502_init();
+
+uint8_t* defs_6502_get_6502_optype_map();
+uint8_t* defs_6502_get_6502_opmode_map();
+uint8_t* defs_6502_get_6502_opcycles_map();
+uint8_t* defs_6502_get_65c12_optype_map();
+uint8_t* defs_6502_get_65c12_opmode_map();
+uint8_t* defs_6502_get_65c12_opcycles_map();
 
 #endif /* BEEBJIT_DEFS_6502_H */

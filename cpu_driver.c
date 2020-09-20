@@ -1,5 +1,6 @@
 #include "cpu_driver.h"
 
+#include "defs_6502.h"
 #include "interp.h"
 #include "inturbo.h"
 #include "jit.h"
@@ -69,6 +70,30 @@ cpu_driver_set_exit_value_default(struct cpu_driver* p_cpu_driver,
   p_cpu_driver->exit_value = exit_value;
 }
 
+static void
+cpu_driver_get_6502_opcode_maps(struct cpu_driver* p_cpu_driver,
+                                uint8_t** p_out_optypes,
+                                uint8_t** p_out_opmodes,
+                                uint8_t** p_out_opcycles) {
+  (void) p_cpu_driver;
+
+  *p_out_optypes = defs_6502_get_6502_optype_map();
+  *p_out_opmodes = defs_6502_get_6502_opmode_map();
+  *p_out_opcycles = defs_6502_get_6502_opcycles_map();
+}
+
+static void
+cpu_driver_get_65c12_opcode_maps(struct cpu_driver* p_cpu_driver,
+                                 uint8_t** p_out_optypes,
+                                 uint8_t** p_out_opmodes,
+                                 uint8_t** p_out_opcycles) {
+  (void) p_cpu_driver;
+
+  *p_out_optypes = defs_6502_get_65c12_optype_map();
+  *p_out_opmodes = defs_6502_get_65c12_opmode_map();
+  *p_out_opcycles = defs_6502_get_65c12_opcycles_map();
+}
+
 struct cpu_driver*
 cpu_driver_alloc(int mode,
                  int is_65c12,
@@ -112,6 +137,7 @@ cpu_driver_alloc(int mode,
                    p_memory_access,
                    p_options,
                    p_state_6502);
+  defs_6502_init();
 
   p_cpu_driver->p_memory_access = p_memory_access;
   p_cpu_driver->p_timing = p_timing;
@@ -126,6 +152,11 @@ cpu_driver_alloc(int mode,
   p_funcs->memory_range_invalidate = cpu_driver_memory_range_invalidate_dummy;
   p_funcs->get_address_info = cpu_driver_get_address_info_dummy;
   p_funcs->get_custom_counters = cpu_driver_get_custom_counters_dummy;
+  if (is_65c12) {
+    p_funcs->get_opcode_maps = cpu_driver_get_65c12_opcode_maps;
+  } else {
+    p_funcs->get_opcode_maps = cpu_driver_get_6502_opcode_maps;
+  }
 
   p_funcs->init(p_cpu_driver);
 

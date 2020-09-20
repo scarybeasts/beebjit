@@ -24,6 +24,9 @@ struct jit_compiler {
   uint32_t* p_jit_ptrs;
   int debug;
   int log_revalidate;
+  uint8_t* p_opcode_types;
+  uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_cycles;
 
   int option_accurate_timings;
   int option_no_optimize;
@@ -117,7 +120,10 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     struct bbc_options* p_options,
-                    int debug) {
+                    int debug,
+                    uint8_t* p_opcode_types,
+                    uint8_t* p_opcode_modes,
+                    uint8_t* p_opcode_cycles) {
   uint32_t i;
   struct util_buffer* p_tmp_buf;
 
@@ -136,6 +142,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->debug = debug;
+  p_compiler->p_opcode_types = p_opcode_types;
+  p_compiler->p_opcode_modes = p_opcode_modes;
+  p_compiler->p_opcode_cycles = p_opcode_cycles;
 
   p_compiler->option_accurate_timings = util_has_option(p_options->p_opt_flags,
                                                         "jit:accurate-timings");
@@ -241,8 +250,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->num_uops = 0;
 
   opcode_6502 = p_mem_read[addr_6502];
-  optype = g_optypes[opcode_6502];
-  opmode = g_opmodes[opcode_6502];
+  optype = p_compiler->p_opcode_types[opcode_6502];
+  opmode = p_compiler->p_opcode_modes[opcode_6502];
   opmem = g_opmem[optype];
 
   p_details->opcode_6502 = opcode_6502;
@@ -356,7 +365,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->operand_6502 = operand_6502;
 
-  p_details->max_cycles_orig = g_opcycles[opcode_6502];
+  p_details->max_cycles_orig = p_compiler->p_opcode_cycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
     if ((opmem == k_read) &&
         (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
@@ -515,6 +524,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (!main_written) {
     jit_opcode_make_uop1(p_uop, opcode_6502, operand_6502);
     p_uop->uoptype = optype;
+    p_uop->uopmode = opmode;
     /* Set value2 to the address, which will be used to bounce unhandled
      * opcodes into the interpreter.
      */

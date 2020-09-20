@@ -7,6 +7,7 @@ struct jit_uop {
   /* Static details. */
   int32_t uopcode;
   int32_t uoptype;
+  int32_t uopmode;
   int32_t value1;
   int32_t value2;
 
@@ -23,6 +24,8 @@ struct jit_opcode_details {
   /* Static details. */
   uint16_t addr_6502;
   uint8_t opcode_6502;
+  uint8_t optype;
+  uint8_t opmode;
   uint16_t operand_6502;
   uint8_t len_bytes_6502_orig;
   uint8_t max_cycles_orig;

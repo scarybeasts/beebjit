@@ -100,7 +100,7 @@ uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
   1, 1, 1, 0, 1, 1, 1,    /* DCP, SRE, RLA, XAA, RRA, AXS */
 };
 
-uint8_t g_optypes[k_6502_op_num_opcodes] =
+uint8_t g_optypes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_brk, k_ora, k_kil, k_slo, k_nop, k_ora, k_asl, k_slo,
@@ -152,7 +152,7 @@ uint8_t g_optypes[k_6502_op_num_opcodes] =
   k_sed, k_sbc, k_nop, k_unk, k_nop, k_sbc, k_inc, k_unk,
 };
 
-uint8_t g_opmodes[k_6502_op_num_opcodes] =
+uint8_t g_opmodes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_imm, k_idx, 0    , k_idx, k_zpg, k_zpg, k_zpg, k_zpg,
@@ -204,7 +204,7 @@ uint8_t g_opmodes[k_6502_op_num_opcodes] =
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_abx, 0    ,
 };
 
-uint8_t g_opcycles[k_6502_op_num_opcodes] =
+uint8_t g_opcycles_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   7, 6, 1, 8, 3, 3, 5, 5,
@@ -274,3 +274,37 @@ uint8_t g_opmodelens[k_6502_op_num_modes] =
   3, /* ind */
   2, /* rel */
 };
+
+uint8_t*
+defs_6502_get_6502_optype_map() {
+  return g_optypes_6502;
+}
+
+uint8_t*
+defs_6502_get_6502_opmode_map() {
+  return g_opmodes_6502;
+}
+
+uint8_t*
+defs_6502_get_6502_opcycles_map() {
+  return g_opcycles_6502;
+}
+
+uint8_t*
+defs_6502_get_65c12_optype_map() {
+  return 0;
+}
+
+uint8_t*
+defs_6502_get_65c12_opmode_map() {
+  return 0;
+}
+
+uint8_t*
+defs_6502_get_65c12_opcycles_map() {
+  return 0;
+}
+
+void
+defs_6502_init() {
+}

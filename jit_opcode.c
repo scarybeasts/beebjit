@@ -62,6 +62,7 @@ jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1) {
   p_uop->uopcode = uopcode;
   /* TODO: get rid of? */
   p_uop->uoptype = -1;
+  p_uop->uopmode = -1;
   p_uop->value1 = value1;
 }
 

@@ -16,7 +16,10 @@ struct jit_compiler* jit_compiler_create(
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
     struct bbc_options* p_options,
-    int debug);
+    int debug,
+    uint8_t* p_opcode_types,
+    uint8_t* p_opcode_modes,
+    uint8_t* p_opcode_cycles);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
 uint32_t jit_compiler_compile_block(struct jit_compiler* p_compiler,

@@ -49,6 +49,9 @@ struct jit_struct {
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
   uint8_t jit_invalidation_sequence[2];
+  uint8_t* p_opcode_types;
+  uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_cycles;
 
   int log_compile;
 
@@ -159,8 +162,8 @@ jit_interp_instruction_callback(void* p,
   uint16_t next_block_prev;
 
   struct jit_struct* p_jit = (struct jit_struct*) p;
-  uint8_t opmode = g_opmodes[done_opcode];
-  uint8_t optype = g_optypes[done_opcode];
+  uint8_t optype = p_jit->p_opcode_types[done_opcode];
+  uint8_t opmode = p_jit->p_opcode_modes[done_opcode];
   uint8_t opmem = g_opmem[optype];
 
   if ((opmem == k_write || opmem == k_rw) && (opmode != k_acc)) {
@@ -792,6 +795,10 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
+  p_funcs->get_opcode_maps(p_cpu_driver,
+                           &p_jit->p_opcode_types,
+                           &p_jit->p_opcode_modes,
+                           &p_jit->p_opcode_cycles);
 
   p_funcs->destroy = jit_destroy;
   p_funcs->enter = jit_enter;
@@ -854,7 +861,10 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit,
       &p_jit->jit_ptrs[0],
       p_options,
-      debug);
+      debug,
+      p_jit->p_opcode_types,
+      p_jit->p_opcode_modes,
+      p_jit->p_opcode_cycles);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   p_jit->p_compile_buf = util_buffer_create();

@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+/* TODO: replace direct references to defs_6502_get_6502_optype_map(). */
+
 static const int32_t k_value_unknown = -1;
 
 static void
@@ -42,7 +44,7 @@ static int
 jit_optimizer_uopcode_can_jump(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     uint8_t opbranch = g_opbranch[optype];
     if (opbranch != k_bra_n) {
       ret = 1;
@@ -67,8 +69,8 @@ jit_optimizer_uop_could_write(struct jit_uop* p_uop, uint16_t addr) {
   int32_t uopcode = p_uop->uopcode;
 
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
-    uint8_t opmode = g_opmodes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
     uint8_t opmem = g_opmem[optype];
     if ((opmem == k_write) || (opmem == k_rw)) {
       switch (opmode) {
@@ -118,7 +120,7 @@ static int
 jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
   int ret;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     ret = g_optype_changes_nz_flags[optype];
   } else {
     switch (uopcode) {
@@ -168,7 +170,7 @@ static int
 jit_optimizer_uopcode_overwrites_a(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_lda:
     case k_pla:
@@ -196,8 +198,8 @@ static int
 jit_optimizer_uopcode_needs_a(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
-    uint8_t opmode = g_opmodes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
     switch (optype) {
     case k_ora:
     case k_and:
@@ -255,7 +257,7 @@ static int
 jit_optimizer_uopcode_overwrites_x(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_ldx:
     case k_tax:
@@ -281,8 +283,8 @@ static int
 jit_optimizer_uopcode_needs_x(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
-    uint8_t opmode = g_opmodes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
     switch (optype) {
     case k_stx:
     case k_txa:
@@ -326,7 +328,7 @@ static int
 jit_optimizer_uopcode_overwrites_y(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_ldy:
     case k_tay:
@@ -351,8 +353,8 @@ static int
 jit_optimizer_uopcode_needs_y(int32_t uopcode) {
   int ret = 0;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
-    uint8_t opmode = g_opmodes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
     switch (optype) {
     case k_sty:
     case k_dey:
@@ -417,7 +419,7 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
   }
 
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_nop:
     case k_adc:
@@ -494,7 +496,7 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
   /* Many things need or trash overflow so we'll just enumerate what's safe. */
   int ret = 1;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_nop:
     case k_adc:
@@ -575,7 +577,7 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
   /* Many things need or trash carry so we'll just enumerate what's safe. */
   int ret = 1;
   if (uopcode <= 0xFF) {
-    uint8_t optype = g_optypes[uopcode];
+    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     switch (optype) {
     case k_nop:
     case k_cmp:
@@ -753,7 +755,7 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
       continue;
     }
 
-    opmode = g_opmodes[opcode_6502];
+    opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
     page_crossing_search_uopcode = -1;
     page_crossing_replace_uopcode = -1;
     write_inv_search_uopcode = -1;
@@ -935,9 +937,9 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
     uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
-    uint8_t optype = g_optypes[opcode_6502];
+    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
     uint8_t opreg = g_optype_sets_register[optype];
-    uint8_t opmode = g_opmodes[opcode_6502];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
     int changes_carry = g_optype_changes_carry[optype];
 
     /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */

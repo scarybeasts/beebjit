@@ -10,6 +10,8 @@ struct cpu_driver;
 struct debug_struct* debug_create(struct bbc_struct* p_bbc,
                                   int debug_active,
                                   int32_t debug_stop_addr);
+/* debug_init() is called after the cpu_driver is set up. */
+void debug_init(struct debug_struct* p_debug);
 void debug_destroy(struct debug_struct* p_debug);
 
 int debug_subsystem_active(void* p);

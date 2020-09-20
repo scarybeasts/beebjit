@@ -1423,6 +1423,8 @@ bbc_create(int mode,
                                                    bbc_do_reset_callback,
                                                    p_bbc);
 
+  debug_init(p_debug);
+
   bbc_power_on_reset(p_bbc);
 
   return p_bbc;
