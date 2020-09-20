@@ -499,7 +499,6 @@ sysvia_update_port_a(struct via_struct* p_via) {
     p_via->peripheral_a &= cmos_get_bus_value(p_cmos);
   }
 
-  p_via->peripheral_a |= 0x80;
   if (!(IC32 & 0x08)) {
     if (!keyboard_bbc_is_key_pressed(p_keyboard, keyrow, keycol)) {
       p_via->peripheral_a &= 0x7F;

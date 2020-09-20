@@ -125,6 +125,9 @@ main(int argc, const char* argv[]) {
   /* Standard MOS3.20 DDRB value. */
   emit_LDA(p_buf, k_imm, 0xCF);
   emit_STA(p_buf, k_abs, 0xFE42);
+  /* Keyboard to column mode. */
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_abs, 0xFE40);
   /* Begin $8E76 sequence, to read CMOS $18. */
   emit_LDX(p_buf, k_imm, 0x18);
   /* Data select low, then address select high. */
@@ -153,14 +156,20 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE40);
   /* Read it!! */
   emit_LDY(p_buf, k_abs, 0xFE4F);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x17);
+  /* Check it's still ok with keyboard in autoscan mode. */
+  emit_LDA(p_buf, k_imm, 0x4B);
+  emit_STA(p_buf, k_abs, 0xFE40);
+  emit_LDY(p_buf, k_abs, 0xFE4F);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x17);
   /* CMOS enable, data select low. */
   emit_LDA(p_buf, k_imm, 0x42);
   emit_STA(p_buf, k_abs, 0xFE40);
   /* CMOS disable. */
   emit_LDA(p_buf, k_imm, 0x02);
   emit_STA(p_buf, k_abs, 0xFE40);
-  emit_TYA(p_buf);
-  emit_REQUIRE_EQ(p_buf, 0x17);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Exit sequence. */
