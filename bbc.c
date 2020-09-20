@@ -1768,6 +1768,51 @@ bbc_memory_write(struct bbc_struct* p_bbc,
   p_cpu_driver->p_funcs->memory_range_invalidate(p_cpu_driver, addr_6502, 1);
 }
 
+void
+bbc_get_address_details(struct bbc_struct* p_bbc,
+                        int* p_out_is_register,
+                        int* p_out_is_rom,
+                        uint16_t addr_6502) {
+  /* 0x0000 - 0x7FFF */
+  if (addr_6502 < k_bbc_sideways_offset) {
+    *p_out_is_register = 0;
+    *p_out_is_rom = 0;
+    return;
+  }
+  /* 0x8000 - 0xBFFF */
+  if (addr_6502 < k_bbc_os_rom_offset) {
+    uint8_t bank = bbc_get_effective_bank(p_bbc, p_bbc->romsel);
+    *p_out_is_register = 0;
+    if (p_bbc->is_sideways_ram_bank[bank]) {
+      *p_out_is_rom = 0;
+      return;
+    }
+    if (p_bbc->is_master &&
+        (p_bbc->romsel & k_romsel_andy) &&
+        (addr_6502 < (k_bbc_sideways_offset + k_bbc_andy_size))) {
+      *p_out_is_rom = 0;
+      return;
+    }
+    *p_out_is_rom = 1;
+    return;
+  }
+  /* 0xC000 - 0xFFFF */
+  if ((addr_6502 >= k_bbc_registers_start) &&
+      (addr_6502 < ((k_bbc_registers_start + k_bbc_registers_len)))) {
+    *p_out_is_register = 1;
+    *p_out_is_rom = 0;
+    return;
+  }
+  *p_out_is_register = 0;
+  if (p_bbc->is_master &&
+      (p_bbc->ramsel & k_ramsel_hazel) &&
+      (addr_6502 < (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
+    *p_out_is_rom = 0;
+    return;
+  }
+  *p_out_is_rom = 1;
+}
+
 int
 bbc_get_run_flag(struct bbc_struct* p_bbc) {
   return p_bbc->run_flag;

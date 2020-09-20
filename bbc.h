@@ -122,6 +122,10 @@ void bbc_set_memory_block(struct bbc_struct* p_bbc,
 void bbc_memory_write(struct bbc_struct* p_bbc,
                       uint16_t addr_6502,
                       uint8_t val);
+void bbc_get_address_details(struct bbc_struct* p_bbc,
+                             int* p_out_is_register,
+                             int* p_out_is_rom,
+                             uint16_t addr_6502);
 
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);

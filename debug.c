@@ -266,6 +266,7 @@ debug_get_details(int* p_addr_6502,
                   int* p_is_register,
                   int* p_wrapped_8bit,
                   int* p_wrapped_16bit,
+                  struct bbc_struct* p_bbc,
                   uint16_t reg_pc,
                   uint8_t opmode,
                   uint8_t optype,
@@ -408,10 +409,7 @@ debug_get_details(int* p_addr_6502,
   *p_is_write = ((opmem == k_write || opmem == k_rw) &&
                  opmode != k_nil &&
                  opmode != k_acc);
-  *p_is_register = (*p_addr_6502 >= k_bbc_registers_start &&
-                    *p_addr_6502 <
-                        (k_bbc_registers_start + k_bbc_registers_len));
-  *p_is_rom = (!*p_is_register && (*p_addr_6502 >= k_bbc_ram_size));
+  bbc_get_address_details(p_bbc, p_is_register, p_is_rom, *p_addr_6502);
 }
 
 static uint16_t
@@ -1101,6 +1099,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     &is_register,
                     &wrapped_8bit,
                     &wrapped_16bit,
+                    p_bbc,
                     reg_pc,
                     opmode,
                     optype,
