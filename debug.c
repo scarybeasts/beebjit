@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const size_t k_max_opcode_len = 12 + 1;
+static const size_t k_max_opcode_len = (13 + 1);
 static const size_t k_max_extra_len = 32;
 enum {
   k_max_break = 16,
@@ -243,8 +243,17 @@ debug_print_opcode(struct debug_struct* p_debug,
     addr = (reg_pc + 2 + (char) operand1);
     (void) snprintf(buf, buf_len, "%s $%.4"PRIX16, opname, addr);
     break;
-  default:
+  case k_iax:
+    (void) snprintf(buf, buf_len, "%s ($%.4"PRIX16",X)", opname, addr);
+    break;
+  case k_id:
+    (void) snprintf(buf, buf_len, "%s ($%.2"PRIX8")", opname, operand1);
+    break;
+  case 0:
     (void) snprintf(buf, buf_len, "%s: $%.2"PRIX8, opname, opcode);
+    break;
+  default:
+    assert(0);
     break;
   }
 }
@@ -333,6 +342,15 @@ debug_get_details(int* p_addr_6502,
     check_wrap_8bit = 0;
     *p_addr_6502 = (uint16_t) addr;
     break;
+  case k_id:
+    if (operand1 == 0xFF) {
+      *p_wrapped_8bit = 1;
+    }
+    addr = p_mem[(uint8_t) (operand1 + 1)];
+    addr <<= 8;
+    addr |= p_mem[operand1];
+    *p_addr_6502 = (uint16_t) addr;
+    break;
   case k_rel:
     addr_addr = (reg_pc + 2);
     addr = (uint16_t) (addr_addr + (char) operand1);
@@ -361,6 +379,9 @@ debug_get_details(int* p_addr_6502,
       break;
     case k_beq:
       *p_branch_taken = flag_z;
+      break;
+    case k_bra:
+      *p_branch_taken = 1;
       break;
     default:
       assert(0);

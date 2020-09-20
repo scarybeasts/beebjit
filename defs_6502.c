@@ -1,5 +1,7 @@
 #include "defs_6502.h"
 
+#include <assert.h>
+
 const char* g_p_opnames[k_6502_op_num_types] =
 {
   "!!!", "???", "BRK", "ORA", "ASL", "PHP", "BPL", "CLC",
@@ -10,7 +12,8 @@ const char* g_p_opnames[k_6502_op_num_types] =
   "TAX", "BCS", "CLV", "TSX", "CPY", "CMP", "CPX", "DEC",
   "INY", "DEX", "BNE", "CLD", "SBC", "INX", "NOP", "INC",
   "BEQ", "SED", "SAX", "ALR", "SLO", "SHY", "ANC", "LAX",
-  "DCP", "SRE", "RLA", "AHX", "XAA", "RRA", "AXS",
+  "DCP", "SRE", "RLA", "AHX", "XAA", "RRA", "AXS", "TSB",
+  "TRB", "STZ", "BRA", "PHX", "PHY", "PLX", "PLY",
 };
 
 uint8_t g_opmem[k_6502_op_num_types] = {
@@ -22,7 +25,8 @@ uint8_t g_opmem[k_6502_op_num_types] = {
   k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_rw   ,
   k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_nomem, k_read , k_rw   ,
   k_nomem, k_nomem, k_write, k_nomem, k_rw   , k_write, k_nomem, k_read ,
-  k_rw   , k_rw   , k_rw   , k_write, k_nomem, k_rw   , k_nomem,
+  k_rw   , k_rw   , k_rw   , k_write, k_nomem, k_rw   , k_nomem, k_rw   ,
+  k_rw   , k_write, k_nomem, k_nomem, k_nomem, k_nomem, k_nomem,
 };
 
 uint8_t g_opbranch[k_6502_op_num_types] = {
@@ -34,7 +38,8 @@ uint8_t g_opbranch[k_6502_op_num_types] = {
   k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
   k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
   k_bra_m, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
-  k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
+  k_bra_n, k_bra_n, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n,
 };
 
 uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
@@ -46,7 +51,8 @@ uint8_t g_optype_uses_carry[k_6502_op_num_types] = {
   0, 1, 0, 0, 0, 0, 0, 0, /* BCS */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 1, 0, 0, 0,       /* RLA */
+  0, 0, 1, 0, 0, 0, 0, 0, /* RLA */
+  0, 0, 0, 0, 0, 0, 0,
 };
 
 uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
@@ -58,7 +64,8 @@ uint8_t g_optype_changes_carry[k_6502_op_num_types] = {
   0, 0, 0, 0, 1, 1, 1, 0, /* CPY, CMP, CPX */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 1, 1, 0, 1, 0, /* ALR, SLO, ANC */
-  1, 1, 1, 0, 0, 1, 1,    /* DCP, SRE, RLA, RRA, AXS */
+  1, 1, 1, 0, 0, 1, 1, 0, /* DCP, SRE, RLA, RRA, AXS */
+  0, 0, 0, 0, 0, 0, 0,
 };
 
 uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
@@ -70,7 +77,8 @@ uint8_t g_optype_changes_overflow[k_6502_op_num_types] = {
   0, 0, 1, 0, 0, 0, 0, 0, /* CLV */
   0, 0, 0, 0, 1, 0, 0, 0, /* SBC */
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 1,       /* RRA */
+  0, 0, 0, 0, 0, 1, 0, 0, /* RRA */
+  0, 0, 0, 0, 0, 0, 0,
 };
 
 /* TODO: need k_ax for LAX?? */
@@ -84,9 +92,11 @@ uint8_t g_optype_sets_register[k_6502_op_num_types] =
   k_x, 0  , 0  , k_x, 0  , 0  , 0  , 0  , /* TAX, TSX */
   k_y, k_x, 0  , 0  , k_a, k_x, 0  , 0  , /* INY, DEX, SBC, INX */
   0  , 0  , 0  , k_a, k_a, 0  , k_a, k_a, /* ALR, SLO, ANC, LAX */
-  0  , k_a, k_a, 0  , k_a, k_a, k_x,      /* SRE, RLA, XAA, RRA, AXS */
+  0  , k_a, k_a, 0  , k_a, k_a, k_x, 0  , /* SRE, RLA, XAA, RRA, AXS */
+  0  , 0  , 0  , 0  , 0  , k_x, k_y,      /* PLX, PLY */
 };
 
+/* NOTE: TSB, TRB only change Z. */
 uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
 {
   0, 0, 0, 1, 1, 0, 0, 0, /* ORA, ASL */
@@ -97,10 +107,11 @@ uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
   1, 0, 0, 1, 1, 1, 1, 1, /* TAX, TSX, CPY, CMP, CPX, DEC */
   1, 1, 0, 0, 1, 1, 0, 1, /* INY, DEX, SBC, INX, INC */
   0, 0, 0, 1, 1, 0, 1, 1, /* ALR, SLO, ANC, LAX */
-  1, 1, 1, 0, 1, 1, 1,    /* DCP, SRE, RLA, XAA, RRA, AXS */
+  1, 1, 1, 0, 1, 1, 1, 1, /* DCP, SRE, RLA, XAA, RRA, AXS, TSB */
+  1, 0, 0, 0, 0, 1, 1,    /* TRB, PLX, PLY */
 };
 
-uint8_t g_optypes_6502[k_6502_op_num_opcodes] =
+uint8_t s_optypes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_brk, k_ora, k_kil, k_slo, k_nop, k_ora, k_asl, k_slo,
@@ -152,7 +163,7 @@ uint8_t g_optypes_6502[k_6502_op_num_opcodes] =
   k_sed, k_sbc, k_nop, k_unk, k_nop, k_sbc, k_inc, k_unk,
 };
 
-uint8_t g_opmodes_6502[k_6502_op_num_opcodes] =
+uint8_t s_opmodes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_imm, k_idx, 0    , k_idx, k_zpg, k_zpg, k_zpg, k_zpg,
@@ -204,7 +215,7 @@ uint8_t g_opmodes_6502[k_6502_op_num_opcodes] =
   k_nil, k_aby, k_nil, 0    , k_abx, k_abx, k_abx, 0    ,
 };
 
-uint8_t g_opcycles_6502[k_6502_op_num_opcodes] =
+uint8_t s_opcycles_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   7, 6, 1, 8, 3, 3, 5, 5,
@@ -256,6 +267,9 @@ uint8_t g_opcycles_6502[k_6502_op_num_opcodes] =
   2, 4, 2, 0, 4, 4, 7, 0,
 };
 
+uint8_t s_optypes_65c12[k_6502_op_num_opcodes];
+uint8_t s_opmodes_65c12[k_6502_op_num_opcodes];
+uint8_t s_opcycles_65c12[k_6502_op_num_opcodes];
 
 uint8_t g_opmodelens[k_6502_op_num_modes] =
 {
@@ -275,36 +289,143 @@ uint8_t g_opmodelens[k_6502_op_num_modes] =
   2, /* rel */
 };
 
+static int s_inited;
+
 uint8_t*
 defs_6502_get_6502_optype_map() {
-  return g_optypes_6502;
+  return s_optypes_6502;
 }
 
 uint8_t*
 defs_6502_get_6502_opmode_map() {
-  return g_opmodes_6502;
+  return s_opmodes_6502;
 }
 
 uint8_t*
 defs_6502_get_6502_opcycles_map() {
-  return g_opcycles_6502;
+  return s_opcycles_6502;
 }
 
 uint8_t*
 defs_6502_get_65c12_optype_map() {
-  return 0;
+  return s_optypes_65c12;
 }
 
 uint8_t*
 defs_6502_get_65c12_opmode_map() {
-  return 0;
+  return s_opmodes_65c12;
 }
 
 uint8_t*
 defs_6502_get_65c12_opcycles_map() {
-  return 0;
+  return s_opcycles_65c12;
+}
+
+static void
+defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
+  uint8_t cycles = 0;
+  int is_rmw = (g_opmem[type] == k_rw);
+
+  switch (mode) {
+  case k_nil:
+    switch (type) {
+    case k_phx:
+    case k_phy:
+      cycles = 3;
+      break;
+    case k_plx:
+    case k_ply:
+      cycles = 4;
+      break;
+    default:
+      assert(0);
+      break;
+    }
+    break;
+  case k_zpg:
+    cycles = (3 + (is_rmw * 2));
+    break;
+  case k_abs:
+  case k_zpx:
+    cycles = (4 + (is_rmw * 2));
+    break;
+  case k_abx:
+    cycles = 4;
+    if (g_opmem[type] == k_write) {
+      cycles++;
+    }
+    break;
+  case k_acc:
+  case k_imm:
+  case k_rel:
+    cycles = 2;
+    break;
+  case k_iax:
+    cycles = 6;
+    break;
+  case k_id:
+    cycles = 5;
+    break;
+  default:
+    assert(0);
+  }
+  assert(s_opcycles_65c12[opcode] == 0);
+  s_optypes_65c12[opcode] = type;
+  s_opmodes_65c12[opcode] = mode;
+  s_opcycles_65c12[opcode] = cycles;
 }
 
 void
 defs_6502_init() {
+  uint32_t i;
+
+  if (s_inited) {
+    return;
+  }
+  s_inited = 1;
+
+  /* 65c12 setup. */
+  /* Copy across common opcodes. */
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    uint8_t optype = s_optypes_6502[i];
+    s_optypes_65c12[i] = k_unk;
+    if (optype == k_unk) {
+      continue;
+    }
+    if (optype == k_kil) {
+      continue;
+    }
+    if (optype > k_last_6502_documented) {
+      continue;
+    }
+    if ((optype == k_nop) && (i != 0xEA)) {
+      continue;
+    }
+    s_optypes_65c12[i] = optype;
+    s_opmodes_65c12[i] = s_opmodes_6502[i];
+    s_opcycles_65c12[i] = s_opcycles_6502[i];
+  }
+  /* Set up 65c12 specific opcodes. */
+  defs_65c12_set_opcode(0x04, k_tsb, k_zpg);
+  defs_65c12_set_opcode(0x0C, k_tsb, k_abs);
+  defs_65c12_set_opcode(0x14, k_trb, k_zpg);
+  defs_65c12_set_opcode(0x1A, k_inc, k_acc);
+  defs_65c12_set_opcode(0x1C, k_trb, k_abs);
+  defs_65c12_set_opcode(0x3A, k_dec, k_acc);
+  defs_65c12_set_opcode(0x3C, k_bit, k_abx);
+  defs_65c12_set_opcode(0x52, k_eor, k_id);
+  defs_65c12_set_opcode(0x5A, k_phy, k_nil);
+  defs_65c12_set_opcode(0x64, k_stz, k_zpg);
+  defs_65c12_set_opcode(0x74, k_stz, k_zpx);
+  defs_65c12_set_opcode(0x7A, k_ply, k_nil);
+  defs_65c12_set_opcode(0x7C, k_jmp, k_iax);
+  defs_65c12_set_opcode(0x80, k_bra, k_rel);
+  defs_65c12_set_opcode(0x89, k_bit, k_imm);
+  defs_65c12_set_opcode(0x92, k_sta, k_id);
+  defs_65c12_set_opcode(0x9C, k_stz, k_abs);
+  defs_65c12_set_opcode(0x9E, k_stz, k_abx);
+  defs_65c12_set_opcode(0xB2, k_lda, k_id);
+  defs_65c12_set_opcode(0xD2, k_cmp, k_id);
+  defs_65c12_set_opcode(0xDA, k_phx, k_nil);
+  defs_65c12_set_opcode(0xFA, k_plx, k_nil);
 }

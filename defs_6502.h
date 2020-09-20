@@ -12,7 +12,7 @@ enum {
 };
 
 enum {
-  k_6502_op_num_types = 71,
+  k_6502_op_num_types = 79,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 14,
 };
@@ -86,6 +86,7 @@ enum {
   k_inc = 55,
   k_beq = 56,
   k_sed = 57,
+  k_last_6502_documented = 57,
   k_sax = 58, /* Undocumented. */
   k_alr = 59, /* Undocumented. */
   k_slo = 60, /* Undocumented. */
@@ -99,6 +100,14 @@ enum {
   k_xaa = 68, /* Undocumented. */
   k_rra = 69, /* Undocumented. */
   k_axs = 70, /* Undocumented. */
+  k_tsb = 71, /* 65c12. */
+  k_trb = 72, /* 65c12. */
+  k_stz = 73, /* 65c12. */
+  k_bra = 74, /* 65c12. */
+  k_phx = 75, /* 65c12. */
+  k_phy = 76, /* 65c12. */
+  k_plx = 77, /* 65c12. */
+  k_ply = 78, /* 65c12. */
 };
 
 enum {
@@ -115,13 +124,16 @@ enum {
   k_idy = 11,
   k_ind = 12,
   k_rel = 13,
+  /* Two new modes in the 65c12. */
+  k_iax = 14,
+  k_id = 15,
   /* Additional address modes supported for efficient self-modifying code. */
-  k_imm_dyn = 14,
-  k_zpg_dyn = 15,
-  k_abs_dyn = 16,
-  k_abx_dyn = 17,
-  k_aby_dyn = 18,
-  k_idy_dyn = 19,
+  k_imm_dyn = 16,
+  k_zpg_dyn = 17,
+  k_abs_dyn = 18,
+  k_abx_dyn = 19,
+  k_aby_dyn = 20,
+  k_idy_dyn = 21,
 };
 
 enum {
