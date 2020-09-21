@@ -30,8 +30,7 @@ void video_destroy(struct video_struct* p_video);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
 void video_shadow_mode_updated(struct video_struct* p_video,
-                               int is_shadow_displayed,
-                               int is_shadow_paged);
+                               int is_shadow_displayed);
 
 void video_power_on_reset(struct video_struct* p_video);
 

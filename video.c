@@ -105,7 +105,6 @@ struct video_struct {
   uint32_t screen_wrap_add;
   uint32_t clock_tick_multiplier;
   int is_shadow_displayed;
-  int is_shadow_paged;
 
   /* 6845 registers and derivatives. */
   uint8_t crtc_address_register;
@@ -154,29 +153,25 @@ struct video_struct {
   int is_first_frame_scanline;
 };
 
-static inline uint32_t
-video_calculate_bbc_address(uint32_t address_counter,
-                            uint8_t scanline_counter,
-                            uint32_t screen_wrap_add) {
+static inline uint8_t
+video_read_data_byte(struct video_struct* p_video,
+                     uint32_t address_counter,
+                     uint8_t scanline_counter,
+                     uint32_t screen_wrap_add) {
   uint32_t address;
-  uint32_t screen_address;
 
+  /* If MA13 set => MODE7 style addressing. */
   if (address_counter & 0x2000) {
-    address = (address_counter & 0x3FF);
-    /* MA13 set => MODE7 style addressing. */
-    if (address_counter & 0x800) {
-      /* Normal MODE7. */
-      screen_address = 0x7C00;
-    } else {
-      /* Unusual quirk -- model B only, not Master. */
-      screen_address = 0x3C00;
+    /* Normal MODE7. */
+    address = (0x7C00 | (address_counter & 0x3FF));
+    /* Model B machines have this quirky extension to address 0x3C00. */
+    if (!(address_counter & 0x800) && (p_video->p_shadow_mem == NULL)) {
+      address = (0x3C00 | (address_counter & 0x3FF));
     }
-    address |= screen_address;
   } else {
     /* Normal bitmapped mode. */
     address = (address_counter * 8);
     address += (scanline_counter & 0x7);
-    screen_address = (0x8000 - screen_wrap_add);
     if (address_counter & 0x1000) {
       /* MA12 set => screen address wrap around. */
       address -= screen_wrap_add;
@@ -184,7 +179,12 @@ video_calculate_bbc_address(uint32_t address_counter,
     address &= 0x7FFF;
   }
 
-  return address;
+  if (p_video->is_shadow_displayed) {
+    /* TODO: won't display correctly for ANDY / HAZEL if they are paged in. */
+    return p_video->p_shadow_mem[address];
+  } else {
+    return p_video->p_bbc_mem[address];
+  }
 }
 
 static inline int
@@ -343,7 +343,6 @@ video_update_odd_even_frame(struct video_struct* p_video) {
 
 static void
 video_advance_crtc_timing(struct video_struct* p_video) {
-  uint32_t bbc_address;
   uint8_t data;
   uint64_t delta_crtc_ticks;
   int check_vsync_at_half_r0;
@@ -360,7 +359,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   void (*func_render)(struct render_struct*, uint8_t);
 
   struct render_struct* p_render = p_video->p_render;
-  uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   uint64_t curr_system_ticks =
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   int clock_speed = video_get_clock_speed(p_video);
@@ -498,10 +496,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
 
       if (!r0_hit) {
-        bbc_address = video_calculate_bbc_address(p_video->address_counter,
-                                                  p_video->scanline_counter,
-                                                  p_video->screen_wrap_add);
-        data = p_bbc_mem[bbc_address];
+        data = video_read_data_byte(p_video,
+                                    p_video->address_counter,
+                                    p_video->scanline_counter,
+                                    p_video->screen_wrap_add);
         func_render(p_render, data);
       }
     }
@@ -1148,13 +1146,11 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
 
 void
 video_shadow_mode_updated(struct video_struct* p_video,
-                          int is_shadow_displayed,
-                          int is_shadow_paged) {
+                          int is_shadow_displayed) {
   if (p_video->is_rendering_active) {
     video_advance_crtc_timing(p_video);
   }
   p_video->is_shadow_displayed = is_shadow_displayed;
-  p_video->is_shadow_paged = is_shadow_paged;
 }
 
 static void
@@ -1165,7 +1161,6 @@ video_ula_power_on_reset(struct video_struct* p_video) {
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_multiplier = 2;
   p_video->is_shadow_displayed = 0;
-  p_video->is_shadow_paged = 0;
 }
 
 static void
@@ -1353,7 +1348,6 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t num_cols = p_regs[k_crtc_reg_horiz_displayed];
   uint32_t num_pre_lines = 0;
   uint32_t num_pre_cols = 0;
-  uint8_t* p_bbc_mem = p_video->p_bbc_mem;
   struct teletext_struct* p_teletext = p_video->p_teletext;
   uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width *
                                 p_video->clock_tick_multiplier);
@@ -1388,12 +1382,13 @@ video_render_full_frame(struct video_struct* p_video) {
         func_render_blank(p_render, 0x00);
       }
       for (i_cols = 0; i_cols < num_cols; ++i_cols) {
-        uint32_t bbc_address;
+        uint8_t data;
         crtc_line_address &= 0x3FFF;
-        bbc_address = video_calculate_bbc_address(crtc_line_address,
-                                                  i_lines,
-                                                  screen_wrap_add);
-        func_render_data(p_render, p_bbc_mem[bbc_address]);
+        data = video_read_data_byte(p_video,
+                                    crtc_line_address,
+                                    i_lines,
+                                    screen_wrap_add);
+        func_render_data(p_render, data);
         crtc_line_address++;
       }
       (void) render_hsync(p_render, hsync_pulse_ticks);
