@@ -134,6 +134,7 @@ struct bbc_struct {
   uint8_t* p_mem_read_ind;
   uint8_t* p_mem_write_ind;
   uint8_t* p_mem_sideways;
+  uint8_t* p_mem_master;
   uint8_t* p_mem_lynne;
   uint8_t* p_mem_hazel;
   uint8_t* p_mem_andy;
@@ -702,6 +703,7 @@ void
 bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   /* TODO: Many things. */
   uint8_t curr_ramsel = p_bbc->ramsel;
+  uint8_t curr_display_lynne = (curr_ramsel & k_ramsel_display_lynne);
   uint8_t curr_lynne = (curr_ramsel & k_ramsel_lynne);
   uint8_t curr_hazel = (curr_ramsel & k_ramsel_hazel);
   uint8_t new_display_lynne = (new_ramsel & k_ramsel_display_lynne);
@@ -711,9 +713,6 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
 
   assert(p_bbc->is_master);
 
-  if (new_display_lynne) {
-    log_do_log(k_log_misc, k_log_unimplemented, "displaying LYNNE");
-  }
   if (new_write_lynne_from_os) {
     log_do_log(k_log_misc, k_log_unimplemented, "writing LYNNE from MOS VDU");
   }
@@ -729,6 +728,16 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
       p1[i] = p2[i];
       p2[i] = val;
     }
+  }
+
+  /* The video subsystem needs to know if it is displaying shadow RAM or not.
+   * It's a wart that we also have to tell it whether shadow RAM is paged in
+   * or not. This is because our design is to not "page" shadown RAM in host
+   * memory but instead copy it around. (There's opportunity to actually page
+   * it on Linux but not Windows.
+   */
+  if ((new_display_lynne != curr_display_lynne) || (new_lynne != curr_lynne)) {
+    video_shadow_mode_updated(p_bbc->p_video, new_display_lynne, new_lynne);
   }
 
   p_bbc->ramsel = new_ramsel;
@@ -1261,9 +1270,11 @@ bbc_create(int mode,
 
   /* Special memory chunks on a Master. */
   if (p_bbc->is_master) {
-    p_bbc->p_mem_lynne = util_mallocz(k_bbc_lynne_size);
-    p_bbc->p_mem_hazel = util_mallocz(k_bbc_hazel_size);
-    p_bbc->p_mem_andy = util_mallocz(k_bbc_andy_size);
+    p_bbc->p_mem_master = util_mallocz(
+        k_bbc_andy_size + k_bbc_hazel_size + k_bbc_lynne_size);
+    p_bbc->p_mem_andy = p_bbc->p_mem_master;
+    p_bbc->p_mem_hazel = (p_bbc->p_mem_andy + k_bbc_andy_size);
+    p_bbc->p_mem_lynne = (p_bbc->p_mem_hazel + k_bbc_hazel_size);
   }
 
   p_bbc->memory_access.p_mem_read = p_bbc->p_mem_read;
@@ -1353,6 +1364,7 @@ bbc_create(int mode,
     util_bail("render_create failed");
   }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
+                                p_bbc->p_mem_master,
                                 externally_clocked_crtc,
                                 p_timing,
                                 p_bbc->p_render,
@@ -1480,9 +1492,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_time_free_sleeper(p_bbc->p_sleeper);
 
   util_free(p_bbc->p_mem_sideways);
-  util_free(p_bbc->p_mem_lynne);
-  util_free(p_bbc->p_mem_hazel);
-  util_free(p_bbc->p_mem_andy);
+  util_free(p_bbc->p_mem_master);
   util_free(p_bbc);
 }
 
@@ -1593,6 +1603,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   bbc_power_on_memory_reset(p_bbc);
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
+  assert(p_bbc->ramsel == 0);
   assert(p_bbc->is_romsel_invalidated == 0);
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);

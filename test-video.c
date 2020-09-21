@@ -42,6 +42,7 @@ video_test_init() {
   g_p_teletext = teletext_create();
   g_p_render = render_create(g_p_teletext, &g_p_options);
   g_p_video = video_create(g_p_bbc_mem,
+                           NULL,
                            0,
                            g_p_timing,
                            g_p_render,

@@ -69,6 +69,7 @@ enum {
 
 struct video_struct {
   uint8_t* p_bbc_mem;
+  uint8_t* p_shadow_mem;
   int externally_clocked;
   struct timing_struct* p_timing;
   struct teletext_struct* p_teletext;
@@ -103,6 +104,8 @@ struct video_struct {
   uint8_t ula_palette[16];
   uint32_t screen_wrap_add;
   uint32_t clock_tick_multiplier;
+  int is_shadow_displayed;
+  int is_shadow_paged;
 
   /* 6845 registers and derivatives. */
   uint8_t crtc_address_register;
@@ -1036,6 +1039,7 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
 
 struct video_struct*
 video_create(uint8_t* p_bbc_mem,
+             uint8_t* p_shadow_mem,
              int externally_clocked,
              struct timing_struct* p_timing,
              struct render_struct* p_render,
@@ -1050,6 +1054,7 @@ video_create(uint8_t* p_bbc_mem,
   struct video_struct* p_video = util_mallocz(sizeof(struct video_struct));
 
   p_video->p_bbc_mem = p_bbc_mem;
+  p_video->p_shadow_mem = p_shadow_mem;
   p_video->externally_clocked = externally_clocked;
   p_video->p_timing = p_timing;
   p_video->p_render = p_render;
@@ -1141,6 +1146,17 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   p_video->screen_wrap_add = screen_wrap_add;
 }
 
+void
+video_shadow_mode_updated(struct video_struct* p_video,
+                          int is_shadow_displayed,
+                          int is_shadow_paged) {
+  if (p_video->is_rendering_active) {
+    video_advance_crtc_timing(p_video);
+  }
+  p_video->is_shadow_displayed = is_shadow_displayed;
+  p_video->is_shadow_paged = is_shadow_paged;
+}
+
 static void
 video_ula_power_on_reset(struct video_struct* p_video) {
   /* Teletext mode, 1MHz operation. */
@@ -1148,6 +1164,8 @@ video_ula_power_on_reset(struct video_struct* p_video) {
   (void) memset(&p_video->ula_palette, '\0', sizeof(p_video->ula_palette));
   p_video->screen_wrap_add = 0;
   p_video->clock_tick_multiplier = 2;
+  p_video->is_shadow_displayed = 0;
+  p_video->is_shadow_paged = 0;
 }
 
 static void

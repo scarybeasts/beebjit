@@ -13,6 +13,7 @@ struct timing_struct;
 struct via_struct;
 
 struct video_struct* video_create(uint8_t* p_mem,
+                                  uint8_t* p_shadow_mem,
                                   int externally_clocked,
                                   struct timing_struct* p_timing,
                                   struct render_struct* p_render,
@@ -28,6 +29,9 @@ struct video_struct* video_create(uint8_t* p_mem,
 void video_destroy(struct video_struct* p_video);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
+void video_shadow_mode_updated(struct video_struct* p_video,
+                               int is_shadow_displayed,
+                               int is_shadow_paged);
 
 void video_power_on_reset(struct video_struct* p_video);
 
