@@ -1134,7 +1134,9 @@ video_IC32_updated(struct video_struct* p_video, uint8_t IC32) {
   }
 
   /* Changing the screen wrap addition could affect rendering, so catch up. */
-  video_advance_crtc_timing(p_video);
+  if (p_video->is_rendering_active) {
+    video_advance_crtc_timing(p_video);
+  }
 
   p_video->screen_wrap_add = screen_wrap_add;
 }
