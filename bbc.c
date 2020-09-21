@@ -703,21 +703,22 @@ void
 bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   /* TODO: Many things. */
   uint8_t curr_ramsel = p_bbc->ramsel;
-  uint8_t curr_display_lynne = (curr_ramsel & k_ramsel_display_lynne);
-  uint8_t curr_lynne = (curr_ramsel & k_ramsel_lynne);
-  uint8_t curr_hazel = (curr_ramsel & k_ramsel_hazel);
-  uint8_t new_display_lynne = (new_ramsel & k_ramsel_display_lynne);
-  uint8_t new_write_lynne_from_os = (new_ramsel & k_ramsel_write_lynne_from_os);
-  uint8_t new_lynne = (new_ramsel & k_ramsel_lynne);
-  uint8_t new_hazel = (new_ramsel & k_ramsel_hazel);
+  int is_curr_display_lynne = !!(curr_ramsel & k_ramsel_display_lynne);
+  int is_curr_lynne = !!(curr_ramsel & k_ramsel_lynne);
+  int is_curr_hazel = !!(curr_ramsel & k_ramsel_hazel);
+  int is_new_display_lynne = !!(new_ramsel & k_ramsel_display_lynne);
+  int is_new_write_lynne_from_os =
+      !!(new_ramsel & k_ramsel_write_lynne_from_os);
+  int is_new_lynne = !!(new_ramsel & k_ramsel_lynne);
+  int is_new_hazel = !!(new_ramsel & k_ramsel_hazel);
 
   assert(p_bbc->is_master);
 
-  if (new_write_lynne_from_os) {
+  if (is_new_write_lynne_from_os) {
     log_do_log(k_log_misc, k_log_unimplemented, "writing LYNNE from MOS VDU");
   }
 
-  if (curr_lynne ^ new_lynne) {
+  if (is_curr_lynne ^ is_new_lynne) {
     size_t val;
     uint32_t i;
     uint32_t count = (k_bbc_lynne_size / sizeof(val));
@@ -731,23 +732,24 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
   }
 
   /* The video subsystem needs to know if it is displaying shadow RAM or not. */
-  if ((new_display_lynne != curr_display_lynne) || (new_lynne != curr_lynne)) {
+  if ((is_new_display_lynne != is_curr_display_lynne) ||
+      (is_new_lynne != is_curr_lynne)) {
     /* We currently do copying, not paging, of shadow RAM, thanks to Windows
      * paging limitations.
      * This means we need to display "shadow" RAM in non-shadow mode, if the
      * shadow RAM is paged in. This is because in that case, the normal RAM
      * for normal mode will have been copied / swapped with the shadow RAM.
      */
-    int is_shadow_display = (new_display_lynne ^ new_lynne);
+    int is_shadow_display = (is_new_display_lynne ^ is_new_lynne);
     video_shadow_mode_updated(p_bbc->p_video, is_shadow_display);
   }
 
   p_bbc->ramsel = new_ramsel;
 
   /* HAZEL paging. */
-  if (curr_hazel ^ new_hazel) {
+  if (is_curr_hazel ^ is_new_hazel) {
     uint8_t* p_raw_mem_hazel = (p_bbc->p_mem_raw + k_bbc_os_rom_offset);
-    if (new_hazel) {
+    if (is_new_hazel) {
       (void) memcpy(p_raw_mem_hazel, p_bbc->p_mem_hazel, k_bbc_hazel_size);
     } else {
       (void) memcpy(p_bbc->p_mem_hazel, p_raw_mem_hazel, k_bbc_hazel_size);
