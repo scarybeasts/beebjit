@@ -204,6 +204,7 @@ debug_print_opcode(struct debug_struct* p_debug,
 
   switch (opmode) {
   case k_nil:
+  case k_nil1:
     (void) snprintf(buf, buf_len, "%s", opname);
     break;
   case k_acc:
