@@ -363,6 +363,27 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+/* An optimization on the 65c12 only. */
+#define INTERP_MODE_ABX_READ_WRITE_6_CYC(INSTR)                               \
+  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr = (addr_temp + x);                                                     \
+  pc += 3;                                                                    \
+  page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  if (addr < read_write_callback_from) {                                      \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    p_mem_write[addr] = v;                                                    \
+    cycles_this_instruction = 6;                                              \
+    cycles_this_instruction += page_crossing;                                 \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3 + page_crossing);                                 \
+    INTERP_MEMORY_READ(addr);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_MEMORY_WRITE(addr);                                                \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_IDX_READ(INSTR)                                           \
   addr = p_mem_read[pc + 1];                                                  \
   addr += x;                                                                  \
@@ -1018,7 +1039,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABr_READ(INTERP_INSTR_ORA(), x);
       break;
     case 0x1E: /* ASL abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ASL());
+      if (is_65c12) {
+        INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ASL());
+      } else {
+        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ASL());
+      }
       break;
     case 0x20: /* JSR */
       addr = *(uint16_t*) &p_mem_read[pc + 1];
@@ -1155,7 +1180,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABr_READ(INTERP_INSTR_AND(), x);
       break;
     case 0x3E: /* ROL abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROL());
+      if (is_65c12) {
+        INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ROL());
+      } else {
+        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROL());
+      }
       break;
     case 0x40: /* RTI */
       /* RTI fiddles with the interrupt disable flag so we need to tick it
@@ -1312,7 +1341,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABr_READ(INTERP_INSTR_EOR(), x);
       break;
     case 0x5E: /* LSR abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_LSR());
+      if (is_65c12) {
+        INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_LSR());
+      } else {
+        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_LSR());
+      }
       break;
     case 0x60: /* RTS */
       pc = p_stack[++s];
@@ -1469,7 +1502,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
       break;
     case 0x7E: /* ROR abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
+      if (is_65c12) {
+        INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ROR());
+      } else {
+        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
+      }
       break;
     case 0x80: /* NOP imm */ /* Undocumented. */ /* BRA */
       if (is_65c12) {

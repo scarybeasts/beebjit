@@ -172,8 +172,40 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE40);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
-  /* Exit sequence. */
+  /* Check instruction timings that are different on 65c12. */
   set_new_index(p_buf, 0x01C0);
+  emit_CYCLES_RESET(p_buf);
+  emit_NOP1(p_buf);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 5);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0xC2);
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_CYCLES_RESET(p_buf);
+  emit_JMP(p_buf, k_ind, 0x1000);
+
+  /* ROR, ROL, LSR, ASL abx all take 6 cycles if no page crossing on 65c12. */
+  set_new_index(p_buf, 0x0200);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 10);
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_CYCLES_RESET(p_buf);
+  emit_ROR(p_buf, k_abx, 0x1000);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 10);
+  emit_CYCLES_RESET(p_buf);
+  emit_ROR(p_buf, k_abx, 0x1001);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 11);
+  emit_CYCLES_RESET(p_buf);
+  emit_INC(p_buf, k_abx, 0x1000);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 11);
+  emit_JMP(p_buf, k_abs, 0xC240);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0240);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
