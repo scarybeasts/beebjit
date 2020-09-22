@@ -287,6 +287,9 @@ uint8_t g_opmodelens[k_6502_op_num_modes] =
   2, /* idy */
   3, /* ind */
   2, /* rel */
+  3, /* iax */
+  2, /* id */
+  1, /* nil1 */
 };
 
 static int s_inited;
@@ -366,6 +369,9 @@ defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
   case k_id:
     cycles = 5;
     break;
+  case k_nil1:
+    cycles = 1;
+    break;
   default:
     assert(0);
   }
@@ -428,4 +434,8 @@ defs_6502_init() {
   defs_65c12_set_opcode(0xD2, k_cmp, k_id);
   defs_65c12_set_opcode(0xDA, k_phx, k_nil);
   defs_65c12_set_opcode(0xFA, k_plx, k_nil);
+  /* TODO: remaining 1-byte NOPs. */
+  for (i = 0; i < 16; ++i) {
+    defs_65c12_set_opcode(((i * 0x10) + 0x03), k_nop, k_nil1);
+  }
 }

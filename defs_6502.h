@@ -14,7 +14,7 @@ enum {
 enum {
   k_6502_op_num_types = 79,
   k_6502_op_num_opcodes = 256,
-  k_6502_op_num_modes = 14,
+  k_6502_op_num_modes = 17,
 };
 
 extern const char* g_p_opnames[k_6502_op_num_types];
@@ -124,16 +124,17 @@ enum {
   k_idy = 11,
   k_ind = 12,
   k_rel = 13,
-  /* Two new modes in the 65c12. */
+  /* Three new modes in the 65c12. */
   k_iax = 14,
   k_id = 15,
+  k_nil1 = 16,
   /* Additional address modes supported for efficient self-modifying code. */
-  k_imm_dyn = 16,
-  k_zpg_dyn = 17,
-  k_abs_dyn = 18,
-  k_abx_dyn = 19,
-  k_aby_dyn = 20,
-  k_idy_dyn = 21,
+  k_imm_dyn = 17,
+  k_zpg_dyn = 18,
+  k_abs_dyn = 19,
+  k_abx_dyn = 20,
+  k_aby_dyn = 21,
+  k_idy_dyn = 22,
 };
 
 enum {
