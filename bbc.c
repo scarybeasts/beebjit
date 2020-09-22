@@ -523,6 +523,11 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
   return p_bbc->romsel;
 }
 
+uint8_t
+bbc_get_ramsel(struct bbc_struct* p_bbc) {
+  return p_bbc->ramsel;
+}
+
 static uint8_t
 bbc_get_effective_bank(struct bbc_struct* p_bbc, uint8_t romsel) {
   romsel &= 0xF;

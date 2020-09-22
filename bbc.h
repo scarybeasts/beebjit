@@ -65,6 +65,7 @@ void bbc_save_rom(struct bbc_struct* p_bbc,
                   uint8_t* p_dest);
 void bbc_make_sideways_ram(struct bbc_struct* p_bbc, uint8_t index);
 uint8_t bbc_get_romsel(struct bbc_struct* p_bbc);
+uint8_t bbc_get_ramsel(struct bbc_struct* p_bbc);
 void bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t index);
 void bbc_add_disc(struct bbc_struct* p_bbc,
                   const char* p_file_name,
