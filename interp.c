@@ -235,8 +235,10 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_MEMORY_READ_POLL_IRQ(addr_read)                                \
   p_interp->callback_intf = intf;                                             \
+  assert((p_interp->callback_do_irq = -1) == -1);                             \
   v= memory_read_callback(p_memory_obj, addr_read, 1);                        \
   do_irq = p_interp->callback_do_irq;                                         \
+  assert(do_irq != -1);                                                       \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MEMORY_WRITE(addr_write)                                       \
@@ -245,8 +247,10 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 #define INTERP_MEMORY_WRITE_POLL_IRQ(addr_write)                              \
   p_interp->callback_intf = intf;                                             \
+  assert((p_interp->callback_do_irq = -1) == -1);                             \
   memory_write_callback(p_memory_obj, addr_write, v, 1);                      \
   do_irq = p_interp->callback_do_irq;                                         \
+  assert(do_irq != -1);                                                       \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MODE_ABS_READ(INSTR)                                           \

@@ -770,6 +770,8 @@ bbc_write_callback(void* p,
                    int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
+  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+
   if (p_bbc->is_master && (addr < k_addr_fred)) {
     uint8_t* p_mem_raw = p_bbc->p_mem_raw;
     assert(addr >= k_bbc_sideways_offset);
@@ -798,8 +800,6 @@ bbc_write_callback(void* p,
   }
 
   p_bbc->num_hw_reg_hits++;
-
-  bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
