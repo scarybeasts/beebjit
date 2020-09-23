@@ -318,8 +318,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
     if (page_crossing) {                                                      \
-      INTERP_TIMING_ADVANCE(3);                                               \
-      INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                              \
+      if (is_65c12) {                                                         \
+        INTERP_TIMING_ADVANCE(3);                                             \
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);                     \
+        INTERP_TIMING_ADVANCE(1);                                             \
+      } else {                                                                \
+        INTERP_TIMING_ADVANCE(3);                                             \
+        INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                            \
+      }                                                                       \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(2);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
@@ -500,8 +506,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
     if (page_crossing) {                                                      \
-      INTERP_TIMING_ADVANCE(4);                                               \
-      INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                              \
+      if (is_65c12) {                                                         \
+        INTERP_TIMING_ADVANCE(4);                                             \
+        interp_poll_irq_now(&do_irq, p_state_6502, intf);                     \
+        INTERP_TIMING_ADVANCE(1);                                             \
+      } else {                                                                \
+        INTERP_TIMING_ADVANCE(4);                                             \
+        INTERP_MEMORY_READ_POLL_IRQ(addr - 0x100);                            \
+      }                                                                       \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
