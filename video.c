@@ -79,6 +79,10 @@ struct video_struct {
   void* p_framebuffer_ready_object;
   int* p_fast_flag;
 
+  uint32_t log_count_horiz_total;
+  uint32_t log_count_hsync_width;
+  uint32_t log_count_vsync_width;
+
   /* Rendering. */
   struct render_struct* p_render;
   int is_framing_changed_for_render;
@@ -1062,6 +1066,10 @@ video_create(uint8_t* p_bbc_mem,
   p_video->p_framebuffer_ready_object = p_framebuffer_ready_object;
   p_video->p_fast_flag = p_fast_flag;
 
+  p_video->log_count_horiz_total = 16;
+  p_video->log_count_hsync_width = 16;
+  p_video->log_count_vsync_width = 16;
+
   p_video->wall_time = 0;
   p_video->vsync_next_time = 0;
   p_video->num_vsyncs = 0;
@@ -1581,32 +1589,33 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   /* R0 */
   case k_crtc_reg_horiz_total:
     if ((val != 63) && (val != 127)) {
-      log_do_log(k_log_video, k_log_unusual, "horizontal total: %u", val);
+      log_do_log_max_count(&p_video->log_count_horiz_total,
+                           k_log_video,
+                           k_log_unusual,
+                           "horizontal total: %u",
+                           val);
     }
     break;
   /* R3 */
   case k_crtc_reg_sync_width:
     hsync_pulse_width = (val & 0xF);
-    /* NOTE: width of 9 exempted here because some awesome tricky demos use
-     * it for half-character horizontal scrolling.
-     */
-    if ((hsync_pulse_width != 8) &&
-        (hsync_pulse_width != 4) &&
-        (hsync_pulse_width != 9)) {
-      log_do_log(k_log_video,
-                 k_log_unusual,
-                 "hsync pulse width: %u",
-                 hsync_pulse_width);
+    if ((hsync_pulse_width != 8) && (hsync_pulse_width != 4)) {
+      log_do_log_max_count(&p_video->log_count_hsync_width,
+                           k_log_video,
+                           k_log_unusual,
+                           "hsync pulse width: %u",
+                           hsync_pulse_width);
     }
     vsync_pulse_width = (val >> 4);
     if (vsync_pulse_width == 0) {
       vsync_pulse_width = 16;
     }
     if (vsync_pulse_width != 2) {
-      log_do_log(k_log_video,
-                 k_log_unusual,
-                 "vsync pulse width: %u",
-                 vsync_pulse_width);
+      log_do_log_max_count(&p_video->log_count_vsync_width,
+                           k_log_video,
+                           k_log_unusual,
+                           "vsync pulse width: %u",
+                           vsync_pulse_width);
     }
     break;
   /* R4 */

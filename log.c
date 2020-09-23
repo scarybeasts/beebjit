@@ -74,9 +74,8 @@ log_set_do_log_to_stdout(int do_log_to_stdout) {
   s_do_log_to_stdout = do_log_to_stdout;
 }
 
-void
-log_do_log(int module, int severity, const char* p_msg, ...) {
-  va_list args;
+static void
+log_do_log_va_list(int module, int severity, const char* p_msg, va_list args) {
   char msg[256];
   char msg2[256];
   int ret;
@@ -84,9 +83,7 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
   const char* p_module_str = log_module_to_string(module);
   const char* p_severity_str = log_severity_to_string(severity);
 
-  va_start(args, p_msg);
   ret = vsnprintf(msg, sizeof(msg), p_msg, args);
-  va_end(args);
   if (ret <= 0) {
     util_bail("vsnprintf failed");
   }
@@ -111,5 +108,34 @@ log_do_log(int module, int severity, const char* p_msg, ...) {
                     msg);
     util_file_write(s_p_log_file, msg2, strlen(msg2));
     util_file_flush(s_p_log_file);
+  }
+}
+
+void
+log_do_log(int module, int severity, const char* p_msg, ...) {
+  va_list args;
+  va_start(args, p_msg);
+  log_do_log_va_list(module, severity, p_msg, args);
+  va_end(args);
+}
+
+void
+log_do_log_max_count(uint32_t* p_counter,
+                     int module,
+                     int severity,
+                     const char* p_msg,
+                     ...) {
+  va_list args;
+  uint32_t counter = *p_counter;
+  if (counter == 0) {
+    return;
+  }
+  counter--;
+  *p_counter = counter;
+  va_start(args, p_msg);
+  log_do_log_va_list(module, severity, p_msg, args);
+  va_end(args);
+  if (counter == 0) {
+    log_do_log(module, severity, "(log max count hit)");
   }
 }

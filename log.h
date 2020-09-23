@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_LOG_H
 #define BEEBJIT_LOG_H
 
+#include <stdint.h>
+
 enum log_module {
   k_log_null_module = 0,
   k_log_perf = 1,
@@ -30,5 +32,11 @@ void log_set_do_log_to_stdout(int do_log_to_stdout);
 
 void log_do_log(int module, int severity, const char* p_msg, ...)
     __attribute__((format(printf, 3, 4)));
+void log_do_log_max_count(uint32_t* p_counter,
+                          int module,
+                          int severity,
+                          const char* p_msg,
+                          ...)
+    __attribute__((format(printf, 4, 5)));
 
 #endif /* BEEBJIT_LOG_H */
