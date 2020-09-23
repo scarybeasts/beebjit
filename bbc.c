@@ -734,6 +734,22 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
     log_do_log(k_log_misc, k_log_unimplemented, "writing LYNNE from MOS VDU");
   }
 
+  /* The video subsystem needs to know if it is displaying shadow RAM or not. */
+  /* This needs to happen before we page the RAM around, so that the video
+   * rendering can catch up with the current setup.
+   */
+  if ((is_new_display_lynne != is_curr_display_lynne) ||
+      (is_new_lynne != is_curr_lynne)) {
+    /* We currently do copying, not paging, of shadow RAM, thanks to Windows
+     * paging limitations.
+     * This means we need to display "shadow" RAM in non-shadow mode, if the
+     * shadow RAM is paged in. This is because in that case, the normal RAM
+     * for normal mode will have been copied / swapped with the shadow RAM.
+     */
+    int is_shadow_display = (is_new_display_lynne ^ is_new_lynne);
+    video_shadow_mode_updated(p_bbc->p_video, is_shadow_display);
+  }
+
   if (is_curr_lynne ^ is_new_lynne) {
     size_t val;
     uint32_t i;
@@ -745,19 +761,6 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
       p1[i] = p2[i];
       p2[i] = val;
     }
-  }
-
-  /* The video subsystem needs to know if it is displaying shadow RAM or not. */
-  if ((is_new_display_lynne != is_curr_display_lynne) ||
-      (is_new_lynne != is_curr_lynne)) {
-    /* We currently do copying, not paging, of shadow RAM, thanks to Windows
-     * paging limitations.
-     * This means we need to display "shadow" RAM in non-shadow mode, if the
-     * shadow RAM is paged in. This is because in that case, the normal RAM
-     * for normal mode will have been copied / swapped with the shadow RAM.
-     */
-    int is_shadow_display = (is_new_display_lynne ^ is_new_lynne);
-    video_shadow_mode_updated(p_bbc->p_video, is_shadow_display);
   }
 
   p_bbc->ramsel = new_ramsel;
