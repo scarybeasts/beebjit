@@ -204,8 +204,22 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 11);
   emit_JMP(p_buf, k_abs, 0xC240);
 
-  /* Exit sequence. */
+  /* Check floppy cycle stretch region timing, which differs on the Master. */
   set_new_index(p_buf, 0x0240);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_abs, 0xFE24);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 8);
+  emit_LDX(p_buf, k_abs, 0xFE00);
+  emit_CYCLES_RESET(p_buf);
+  emit_STA(p_buf, k_abs, 0xFE29);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 10);
+  emit_JMP(p_buf, k_abs, 0xC280);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0280);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);

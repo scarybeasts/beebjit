@@ -232,10 +232,21 @@ bbc_write_needs_callback(void* p, uint16_t addr) {
 }
 
 static inline int
-bbc_is_1MHz_address(uint16_t addr) {
-  /* TODO: update for Master, i.e. Master 1770 region is stretched. */
+bbc_is_1MHz_address(struct bbc_struct* p_bbc, uint16_t addr) {
   if ((addr & 0xFF00) == k_addr_shiela) {
-    return k_FE_1mhz_array[((addr >> 5) & 7)];
+    if (p_bbc->is_master) {
+      /* See https://stardot.org.uk/forums/viewtopic.php?f=4&t=16114#p221935,
+       * thanks Tom Seddon!
+       */
+      if ((addr > 0xFEA0) ||
+          ((addr >= 0xFE20) && (addr < 0xFE28)) ||
+          ((addr >= 0xFE2C) && (addr < 0xFE40))) {
+        return 0;
+      }
+      return 1;
+    } else {
+      return k_FE_1mhz_array[((addr >> 5) & 7)];
+    }
   }
 
   if ((addr < k_addr_fred) || (addr > k_addr_shiela_end)) {
@@ -254,7 +265,7 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
   uint32_t cycles_left;
   uint64_t curr_cycles;
 
-  int is_1MHz = bbc_is_1MHz_address(addr);
+  int is_1MHz = bbc_is_1MHz_address(p_bbc, addr);
 
   p_bbc->advance_cycles_expected = 0;
 
