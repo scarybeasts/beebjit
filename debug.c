@@ -1510,9 +1510,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "crtc")) {
       debug_dump_crtc(p_bbc);
     } else if (!strcmp(input_buf, "bbc")) {
-      (void) printf("ROMSEL %.2X RAMSEL %.2X IC32 %.2X\n",
+      (void) printf("ROMSEL $%.2X ACCCON $%.2X IC32 $%.2X\n",
                     bbc_get_romsel(p_bbc),
-                    bbc_get_ramsel(p_bbc),
+                    bbc_get_acccon(p_bbc),
                     bbc_get_IC32(p_bbc));
     } else if (!strcmp(input_buf, "r")) {
       struct timing_struct* p_timing = bbc_get_timing(p_bbc);

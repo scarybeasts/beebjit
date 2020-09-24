@@ -81,10 +81,10 @@ enum {
 };
 
 enum {
-  k_ramsel_display_lynne = 0x01,
-  k_ramsel_write_lynne_from_os = 0x02,
-  k_ramsel_lynne = 0x04,
-  k_ramsel_hazel = 0x08,
+  k_acccon_display_lynne = 0x01,
+  k_acccon_write_lynne_from_os = 0x02,
+  k_acccon_lynne = 0x04,
+  k_acccon_hazel = 0x08,
 };
 
 struct bbc_struct {
@@ -139,7 +139,7 @@ struct bbc_struct {
   uint8_t* p_mem_hazel;
   uint8_t* p_mem_andy;
   uint8_t romsel;
-  uint8_t ramsel;
+  uint8_t acccon;
   int is_romsel_invalidated;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -399,7 +399,7 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
     break;
   case (k_addr_rom_select + 4):
     if (p_bbc->is_master) {
-      ret = p_bbc->ramsel;
+      ret = p_bbc->acccon;
     }
     break;
   case (k_addr_rom_select + 8):
@@ -535,8 +535,8 @@ bbc_get_romsel(struct bbc_struct* p_bbc) {
 }
 
 uint8_t
-bbc_get_ramsel(struct bbc_struct* p_bbc) {
-  return p_bbc->ramsel;
+bbc_get_acccon(struct bbc_struct* p_bbc) {
+  return p_bbc->acccon;
 }
 
 static uint8_t
@@ -716,17 +716,17 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
 }
 
 void
-bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
+bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   /* TODO: Many things. */
-  uint8_t curr_ramsel = p_bbc->ramsel;
-  int is_curr_display_lynne = !!(curr_ramsel & k_ramsel_display_lynne);
-  int is_curr_lynne = !!(curr_ramsel & k_ramsel_lynne);
-  int is_curr_hazel = !!(curr_ramsel & k_ramsel_hazel);
-  int is_new_display_lynne = !!(new_ramsel & k_ramsel_display_lynne);
+  uint8_t curr_acccon = p_bbc->acccon;
+  int is_curr_display_lynne = !!(curr_acccon & k_acccon_display_lynne);
+  int is_curr_lynne = !!(curr_acccon & k_acccon_lynne);
+  int is_curr_hazel = !!(curr_acccon & k_acccon_hazel);
+  int is_new_display_lynne = !!(new_acccon & k_acccon_display_lynne);
   int is_new_write_lynne_from_os =
-      !!(new_ramsel & k_ramsel_write_lynne_from_os);
-  int is_new_lynne = !!(new_ramsel & k_ramsel_lynne);
-  int is_new_hazel = !!(new_ramsel & k_ramsel_hazel);
+      !!(new_acccon & k_acccon_write_lynne_from_os);
+  int is_new_lynne = !!(new_acccon & k_acccon_lynne);
+  int is_new_hazel = !!(new_acccon & k_acccon_hazel);
 
   assert(p_bbc->is_master);
 
@@ -763,7 +763,7 @@ bbc_set_ramsel(struct bbc_struct* p_bbc, uint8_t new_ramsel) {
     }
   }
 
-  p_bbc->ramsel = new_ramsel;
+  p_bbc->acccon = new_acccon;
 
   /* HAZEL paging. */
   if (is_curr_hazel ^ is_new_hazel) {
@@ -806,7 +806,7 @@ bbc_write_callback(void* p,
     /* HAZEL is writeable if paged in. */
     if ((addr >= k_bbc_os_rom_offset) &&
         (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size)) &&
-        (p_bbc->ramsel & k_ramsel_hazel)) {
+        (p_bbc->acccon & k_acccon_hazel)) {
       p_mem_raw[addr] = val;
       return;
     }
@@ -867,7 +867,7 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_rom_select + 4):
     if (p_bbc->is_master) {
-      bbc_set_ramsel(p_bbc, val);
+      bbc_set_acccon(p_bbc, val);
     } else {
       bbc_sideways_select(p_bbc, val);
     }
@@ -1600,7 +1600,7 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
     (void) memset(p_bbc->p_mem_hazel, '\0', k_bbc_hazel_size);
     (void) memset(p_bbc->p_mem_andy, '\0', k_bbc_andy_size);
 
-    bbc_set_ramsel(p_bbc, 0);
+    bbc_set_acccon(p_bbc, 0);
   }
 
   p_bbc->is_romsel_invalidated = 1;
@@ -1626,7 +1626,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   bbc_power_on_memory_reset(p_bbc);
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
-  assert(p_bbc->ramsel == 0);
+  assert(p_bbc->acccon == 0);
   assert(p_bbc->is_romsel_invalidated == 0);
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
@@ -1839,7 +1839,7 @@ bbc_get_address_details(struct bbc_struct* p_bbc,
   }
   *p_out_is_register = 0;
   if (p_bbc->is_master &&
-      (p_bbc->ramsel & k_ramsel_hazel) &&
+      (p_bbc->acccon & k_acccon_hazel) &&
       (addr_6502 < (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
     *p_out_is_rom = 0;
     return;
