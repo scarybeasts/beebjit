@@ -26,9 +26,6 @@ struct interp_struct {
 
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
-  uint16_t read_callback_from;
-  uint16_t write_callback_from;
-  uint16_t read_write_callback_from;
   int debug_subsystem_active;
 
   uint8_t callback_intf;
@@ -98,24 +95,9 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
   p_interp->p_mem_write = p_memory_access->p_mem_write;
-  p_interp->read_callback_from =
-      p_memory_access->memory_read_needs_callback_from(
-          p_memory_access->p_callback_obj);
-  p_interp->write_callback_from =
-      p_memory_access->memory_write_needs_callback_from(
-          p_memory_access->p_callback_obj);
-  p_interp->read_write_callback_from = p_interp->read_callback_from;
-  if (p_interp->write_callback_from < p_interp->read_callback_from) {
-    p_interp->read_write_callback_from = p_interp->write_callback_from;
-  }
 
   p_memory_access->memory_client_last_tick_callback = interp_last_tick_callback;
   p_memory_access->p_last_tick_callback_obj = p_interp;
-
-  /* The code assumes that zero page and stack accesses don't incur special
-   * handling.
-   */
-  assert(p_interp->read_write_callback_from >= 0x200);
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
@@ -288,7 +270,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
-  if (addr < read_write_callback_from) {                                      \
+  if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -357,7 +339,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
   addr = (addr_temp + x);                                                     \
   pc += 3;                                                                    \
-  if (addr < read_write_callback_from) {                                      \
+  if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -385,7 +367,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr = (addr_temp + x);                                                     \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
-  if (addr < read_write_callback_from) {                                      \
+  if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -444,7 +426,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
   pc += 2;                                                                    \
-  if (addr < read_write_callback_from) {                                      \
+  if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -549,7 +531,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
   pc += 2;                                                                    \
-  if (addr < read_write_callback_from) {                                      \
+  if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
     INSTR;                                                                    \
     p_mem_write[addr] = v;                                                    \
@@ -830,6 +812,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t v;
   int poll_irq;
   uint32_t cpu_driver_flags;
+  uint16_t read_callback_from;
+  uint16_t write_callback_from;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
@@ -842,9 +826,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t* p_mem_read = p_interp->p_mem_read;
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
-  uint16_t read_callback_from = p_interp->read_callback_from;
-  uint16_t write_callback_from = p_interp->write_callback_from;
-  uint16_t read_write_callback_from = p_interp->read_write_callback_from;
   int64_t cycles_this_instruction = 0;
   uint8_t opcode = 0;
   int special_checks = 0;
@@ -853,6 +834,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int is_65c12 = p_interp->is_65c12;
 
   assert(countdown >= 0);
+
+  read_callback_from =
+      p_memory_access->memory_read_needs_callback_from(p_memory_obj);
+  write_callback_from =
+      p_memory_access->memory_write_needs_callback_from(p_memory_obj);
+  /* We use write_callback_from for read-modify-write. */
+  if (read_callback_from < write_callback_from) {
+    write_callback_from = read_callback_from;
+  }
+  /* The code assumes that zero page and stack accesses don't incur special
+   * handling.
+   */
+  assert(write_callback_from >= 0x200);
 
   state_6502_get_registers(p_state_6502, &a, &x, &y, &s, &flags, &pc);
   interp_set_flags(flags, &zf, &nf, &cf, &of, &df, &intf);
