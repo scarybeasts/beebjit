@@ -224,13 +224,19 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MEMORY_WRITE(addr_write)                                       \
-  memory_write_callback(p_memory_obj, addr_write, v, 0);                      \
+  if (memory_write_callback(p_memory_obj, addr_write, v, pc, 0) != 0) {       \
+    write_callback_from =                                                     \
+        p_memory_access->memory_write_needs_callback_from(p_memory_obj);      \
+  }                                                                           \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MEMORY_WRITE_POLL_IRQ(addr_write)                              \
   p_interp->callback_intf = intf;                                             \
   assert((p_interp->callback_do_irq = -1) == -1);                             \
-  memory_write_callback(p_memory_obj, addr_write, v, 1);                      \
+  if (memory_write_callback(p_memory_obj, addr_write, v, pc, 0) != 0) {       \
+    write_callback_from =                                                     \
+        p_memory_access->memory_write_needs_callback_from(p_memory_obj);      \
+  }                                                                           \
   do_irq = p_interp->callback_do_irq;                                         \
   assert(do_irq != -1);                                                       \
   countdown = timing_get_countdown(p_timing);
@@ -820,7 +826,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
   uint8_t (*memory_read_callback)(void*, uint16_t, int) =
       p_memory_access->memory_read_callback;
-  void (*memory_write_callback)(void*, uint16_t, uint8_t, int) =
+  int (*memory_write_callback)(void*, uint16_t, uint8_t, uint16_t, int) =
       p_memory_access->memory_write_callback;
   void* p_memory_obj = p_memory_access->p_callback_obj;
   uint8_t* p_mem_read = p_interp->p_mem_read;

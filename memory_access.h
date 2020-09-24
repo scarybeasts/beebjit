@@ -15,10 +15,15 @@ struct memory_access {
   int (*memory_write_needs_callback)(void* p, uint16_t addr);
 
   uint8_t (*memory_read_callback)(void* p, uint16_t addr, int do_tick_callback);
-  void (*memory_write_callback)(void* p,
-                                uint16_t addr,
-                                uint8_t val,
-                                int do_tick_callback);
+  /* The memory write callback is permitted to change the ranges that require
+   * callbacks. It returns non-zero if it did this.
+   * It is also enabled to make decisions based on 6502 PC.
+   */
+  int (*memory_write_callback)(void* p,
+                               uint16_t addr,
+                               uint8_t val,
+                               uint16_t pc,
+                               int do_tick_callback);
 
   void* p_last_tick_callback_obj;
   void (*memory_client_last_tick_callback)(void* p);

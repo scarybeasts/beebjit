@@ -777,12 +777,15 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   }
 }
 
-void
+int
 bbc_write_callback(void* p,
                    uint16_t addr,
                    uint8_t val,
+                   uint16_t pc,
                    int do_last_tick_callback) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  (void) pc;
 
   bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
 
@@ -795,22 +798,22 @@ bbc_write_callback(void* p,
     if ((addr < k_bbc_os_rom_offset) &&
         p_bbc->is_sideways_ram_bank[p_bbc->romsel & 0x0F]) {
       p_mem_raw[addr] = val;
-      return;
+      return 0;
     }
     /* ANDY is writeable if paged in. */
     if ((addr < (k_bbc_sideways_offset + k_bbc_andy_size)) &&
         (p_bbc->romsel & k_romsel_andy)) {
       p_mem_raw[addr] = val;
-      return;
+      return 0;
     }
     /* HAZEL is writeable if paged in. */
     if ((addr >= k_bbc_os_rom_offset) &&
         (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size)) &&
         (p_bbc->acccon & k_acccon_hazel)) {
       p_mem_raw[addr] = val;
-      return;
+      return 0;
     }
-    return;
+    return 0;
   }
 
   p_bbc->num_hw_reg_hits++;
@@ -982,6 +985,7 @@ bbc_write_callback(void* p,
   }
 
   assert(p_bbc->advance_cycles_expected == 0);
+  return 0;
 }
 
 void
