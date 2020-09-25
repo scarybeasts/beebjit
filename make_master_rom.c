@@ -218,8 +218,31 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 10);
   emit_JMP(p_buf, k_abs, 0xC280);
 
-  /* Exit sequence. */
+  /* Check MOS VDU access to LYNNE (shadow RAM). */
   set_new_index(p_buf, 0x0280);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x55);
+  emit_STA(p_buf, k_abs, 0x4000);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0xAA);
+  emit_STA(p_buf, k_abs, 0x4000);
+  /* Set ACCCON E bit and access LYNNE because PC=0xCxxx. */
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0xFB);
+  emit_STA(p_buf, k_abs, 0x4000);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x55);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0xFB);
+  emit_JMP(p_buf, k_abs, 0xC2C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x02C0);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
