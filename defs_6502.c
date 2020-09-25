@@ -422,6 +422,7 @@ defs_6502_init() {
   defs_65c12_set_opcode(0x52, k_eor, k_id);
   defs_65c12_set_opcode(0x5A, k_phy, k_nil);
   defs_65c12_set_opcode(0x64, k_stz, k_zpg);
+  defs_65c12_set_opcode(0x72, k_adc, k_id);
   defs_65c12_set_opcode(0x74, k_stz, k_zpx);
   defs_65c12_set_opcode(0x7A, k_ply, k_nil);
   defs_65c12_set_opcode(0x7C, k_jmp, k_iax);
