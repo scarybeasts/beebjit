@@ -82,7 +82,7 @@ enum {
 
 enum {
   k_acccon_display_lynne = 0x01,
-  k_acccon_write_lynne_from_os = 0x02,
+  k_acccon_access_lynne_from_os = 0x02,
   k_acccon_lynne = 0x04,
   k_acccon_hazel = 0x08,
 };
@@ -141,6 +141,7 @@ struct bbc_struct {
   uint8_t romsel;
   uint8_t acccon;
   int is_romsel_invalidated;
+  uint16_t read_callback_from;
   uint16_t write_callback_from;
   struct via_struct* p_system_via;
   struct via_struct* p_user_via;
@@ -190,24 +191,22 @@ bbc_is_always_ram_address(void* p, uint16_t addr) {
 
 static uint16_t
 bbc_read_needs_callback_from(void* p) {
-  (void) p;
-
-  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
-   * for hardware registers, but that's fine.
-   */
-  return 0xFC00;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  return p_bbc->read_callback_from;
 }
 
 static uint16_t
 bbc_write_needs_callback_from(void* p) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-
   return p_bbc->write_callback_from;
 }
 
 static int
 bbc_read_needs_callback(void* p, uint16_t addr) {
-  (void) p;
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+
+  (void) p_bbc;
+  assert(!p_bbc->is_master);
 
   if ((addr >= 0xFC00) && (addr < 0xFF00)) {
     return 1;
@@ -220,11 +219,10 @@ static int
 bbc_write_needs_callback(void* p, uint16_t addr) {
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
 
-  if (p_bbc->is_master) {
-    return (addr >= k_bbc_sideways_offset);
-  } else {
-    return (addr >= k_bbc_os_rom_offset);
-  }
+  (void) p_bbc;
+  assert(!p_bbc->is_master);
+
+  return (addr >= k_bbc_os_rom_offset);
 }
 
 static inline int
@@ -328,14 +326,93 @@ bbc_timing_advancer(void* p, uint64_t cycles) {
   }
 }
 
-uint8_t
-bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
-  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
-  uint8_t ret = 0xFE;
+static inline uint8_t
+bbc_do_master_ram_read(struct bbc_struct* p_bbc, uint16_t addr, uint16_t pc) {
+  uint8_t* p_mem_raw = p_bbc->p_mem_raw;
+  if (addr < k_bbc_sideways_offset) {
+    int read_shadow = 0;
+    int shadow_paged = !!(p_bbc->acccon & k_acccon_lynne);
+    assert(addr >= k_bbc_shadow_offset);
+    assert(p_bbc->acccon & k_acccon_access_lynne_from_os);
+    assert(!(p_bbc->acccon & k_acccon_hazel));
+    if ((pc > k_bbc_os_rom_offset) &&
+        (pc <= (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
+      read_shadow = 1;
+    } else {
+      read_shadow = shadow_paged;
+    }
+    if (read_shadow ^ shadow_paged) {
+      return p_bbc->p_mem_master[addr];
+    }
+  }
 
-  p_bbc->num_hw_reg_hits++;
+  return p_mem_raw[addr];
+}
+
+static inline void
+bbc_do_master_ram_write(struct bbc_struct* p_bbc,
+                        uint16_t addr,
+                        uint8_t val,
+                        uint16_t pc) {
+  uint8_t* p_mem_raw = p_bbc->p_mem_raw;
+  if (addr < k_bbc_sideways_offset) {
+    int write_shadow = 0;
+    int shadow_paged = !!(p_bbc->acccon & k_acccon_lynne);
+    assert(addr >= k_bbc_shadow_offset);
+    assert(p_bbc->acccon & k_acccon_access_lynne_from_os);
+    assert(!(p_bbc->acccon & k_acccon_hazel));
+    if ((pc > k_bbc_os_rom_offset) &&
+        (pc <= (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
+      write_shadow = 1;
+    } else {
+      write_shadow = shadow_paged;
+    }
+    if (write_shadow ^ shadow_paged) {
+      p_bbc->p_mem_master[addr] = val;
+    } else {
+      p_mem_raw[addr] = val;
+    }
+    return;
+  }
+  /* Sideways region is writeable is RAM is paged in. This is true regardless
+   * of whether ANDY is paged in or not.
+   */
+  if ((addr < k_bbc_os_rom_offset) &&
+      p_bbc->is_sideways_ram_bank[p_bbc->romsel & 0x0F]) {
+    p_mem_raw[addr] = val;
+    return;
+  }
+  /* ANDY is writeable if paged in. */
+  if ((addr < (k_bbc_sideways_offset + k_bbc_andy_size)) &&
+      (p_bbc->romsel & k_romsel_andy)) {
+    p_mem_raw[addr] = val;
+    return;
+  }
+  /* HAZEL is writeable if paged in. */
+  if ((addr >= k_bbc_os_rom_offset) &&
+      (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size)) &&
+      (p_bbc->acccon & k_acccon_hazel)) {
+    p_mem_raw[addr] = val;
+    return;
+  }
+}
+
+uint8_t
+bbc_read_callback(void* p,
+                  uint16_t addr,
+                  uint16_t pc,
+                  int do_last_tick_callback) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  uint8_t ret;
 
   bbc_do_pre_read_write_tick_handling(p_bbc, addr, do_last_tick_callback);
+
+  if (p_bbc->is_master && (addr < k_addr_fred)) {
+    return bbc_do_master_ram_read(p_bbc, addr, pc);
+  }
+
+  ret = 0xFE;
+  p_bbc->num_hw_reg_hits++;
 
   switch (addr & ~3) {
   case (k_addr_crtc + 0):
@@ -494,15 +571,11 @@ bbc_read_callback(void* p, uint16_t addr, int do_last_tick_callback) {
        * trapping $C000+ on all ports (only really needed on Windows). This
        * should only be able to hit with the uncarried address read for
        * something like a page-crossing LDA $BFFF,X
-       * 4) Master mode, which needs a write callback >= 0x3000; and a
-       * read-modify-write instruction can cause the read to come in here too.
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-      if (p_bbc->is_master) {
-        assert(addr >= k_bbc_shadow_offset);
-      } else {
-        assert(addr >= (k_bbc_os_rom_offset - 0x100));
-      }
+      assert(!p_bbc->is_master);
+      assert(addr >= (k_bbc_os_rom_offset - 0x100));
+
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -715,8 +788,8 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
   int is_curr_lynne = !!(curr_acccon & k_acccon_lynne);
   int is_curr_hazel = !!(curr_acccon & k_acccon_hazel);
   int is_new_display_lynne = !!(new_acccon & k_acccon_display_lynne);
-  int is_new_write_lynne_from_os =
-      !!(new_acccon & k_acccon_write_lynne_from_os);
+  int is_new_access_lynne_from_os =
+      !!(new_acccon & k_acccon_access_lynne_from_os);
   int is_new_lynne = !!(new_acccon & k_acccon_lynne);
   int is_new_hazel = !!(new_acccon & k_acccon_hazel);
 
@@ -764,63 +837,17 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
     }
   }
 
-  /* Trap writes to 0x3000 - 0x7FFF if the crazy MOS ROM VDU access is on. */
-  if (is_new_write_lynne_from_os && !is_new_hazel) {
+  /* Trap access to 0x3000 - 0x7FFF if the crazy MOS ROM VDU access is on. */
+  if (is_new_access_lynne_from_os && !is_new_hazel) {
     p_bbc->write_callback_from = k_bbc_shadow_offset;
+    p_bbc->read_callback_from = k_bbc_shadow_offset;
   } else {
     p_bbc->write_callback_from = k_bbc_sideways_offset;
+    p_bbc->read_callback_from = 0xFC00;
   }
 
   /* Always force reload of write callback address. */
   return 1;
-}
-
-static inline void
-bbc_do_master_ram_write(struct bbc_struct* p_bbc,
-                        uint16_t addr,
-                        uint8_t val,
-                        uint16_t pc) {
-  uint8_t* p_mem_raw = p_bbc->p_mem_raw;
-  if (addr < k_bbc_sideways_offset) {
-    int write_shadow = 0;
-    int shadow_paged = !!(p_bbc->acccon & k_acccon_lynne);
-    assert(addr >= k_bbc_shadow_offset);
-    assert(p_bbc->acccon & k_acccon_write_lynne_from_os);
-    assert(!(p_bbc->acccon & k_acccon_hazel));
-    if ((pc > k_bbc_os_rom_offset) &&
-        (pc <= (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
-      write_shadow = 1;
-    } else {
-      write_shadow = shadow_paged;
-    }
-    if (write_shadow ^ shadow_paged) {
-      p_bbc->p_mem_master[addr] = val;
-    } else {
-      p_mem_raw[addr] = val;
-    }
-    return;
-  }
-  /* Sideways region is writeable is RAM is paged in. This is true regardless
-   * of whether ANDY is paged in or not.
-   */
-  if ((addr < k_bbc_os_rom_offset) &&
-      p_bbc->is_sideways_ram_bank[p_bbc->romsel & 0x0F]) {
-    p_mem_raw[addr] = val;
-    return;
-  }
-  /* ANDY is writeable if paged in. */
-  if ((addr < (k_bbc_sideways_offset + k_bbc_andy_size)) &&
-      (p_bbc->romsel & k_romsel_andy)) {
-    p_mem_raw[addr] = val;
-    return;
-  }
-  /* HAZEL is writeable if paged in. */
-  if ((addr >= k_bbc_os_rom_offset) &&
-      (addr < (k_bbc_os_rom_offset + k_bbc_hazel_size)) &&
-      (p_bbc->acccon & k_acccon_hazel)) {
-    p_mem_raw[addr] = val;
-    return;
-  }
 }
 
 int
@@ -999,6 +1026,7 @@ bbc_write_callback(void* p,
        * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
        * 3) The Windows port needs a wider range to trap ROM writes.
        */
+      assert(!p_bbc->is_master);
       assert(addr >= k_bbc_os_rom_offset);
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -1641,6 +1669,11 @@ bbc_power_on_memory_reset(struct bbc_struct* p_bbc) {
 static void
 bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
   p_bbc->IC32 = 0;
+
+  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
+   * for hardware registers, but that's fine.
+   */
+  p_bbc->read_callback_from = 0xFC00;
 
   /* TODO: we can do better (less callbacking). */
   if (p_bbc->is_master) {

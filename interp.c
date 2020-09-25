@@ -212,13 +212,13 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   countdown = timing_advance_time(p_timing, countdown);                       \
 
 #define INTERP_MEMORY_READ(addr_read)                                         \
-  v = memory_read_callback(p_memory_obj, addr_read, 0);                       \
+  v = memory_read_callback(p_memory_obj, addr_read, pc, 0);                   \
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MEMORY_READ_POLL_IRQ(addr_read)                                \
   p_interp->callback_intf = intf;                                             \
   assert((p_interp->callback_do_irq = -1) == -1);                             \
-  v= memory_read_callback(p_memory_obj, addr_read, 1);                        \
+  v= memory_read_callback(p_memory_obj, addr_read, pc, 1);                    \
   do_irq = p_interp->callback_do_irq;                                         \
   assert(do_irq != -1);                                                       \
   countdown = timing_get_countdown(p_timing);
@@ -227,6 +227,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   if (memory_write_callback(p_memory_obj, addr_write, v, pc, 0) != 0) {       \
     write_callback_from =                                                     \
         p_memory_access->memory_write_needs_callback_from(p_memory_obj);      \
+    read_callback_from =                                                      \
+        p_memory_access->memory_read_needs_callback_from(p_memory_obj);       \
+    assert(read_callback_from >= write_callback_from);                        \
   }                                                                           \
   countdown = timing_get_countdown(p_timing);
 
@@ -236,6 +239,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   if (memory_write_callback(p_memory_obj, addr_write, v, pc, 0) != 0) {       \
     write_callback_from =                                                     \
         p_memory_access->memory_write_needs_callback_from(p_memory_obj);      \
+    read_callback_from =                                                      \
+        p_memory_access->memory_read_needs_callback_from(p_memory_obj);       \
+    assert(read_callback_from >= write_callback_from);                        \
   }                                                                           \
   do_irq = p_interp->callback_do_irq;                                         \
   assert(do_irq != -1);                                                       \
@@ -523,9 +529,15 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
-    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
-    INTERP_TIMING_ADVANCE(4);                                                 \
-    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    if (is_65c12) {                                                           \
+      INTERP_TIMING_ADVANCE(4);                                               \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                     \
+      INTERP_TIMING_ADVANCE(4);                                               \
+      INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                 \
+    }                                                                         \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     goto check_irq;                                                           \
@@ -824,7 +836,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
   struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
-  uint8_t (*memory_read_callback)(void*, uint16_t, int) =
+  uint8_t (*memory_read_callback)(void*, uint16_t, uint16_t, int) =
       p_memory_access->memory_read_callback;
   int (*memory_write_callback)(void*, uint16_t, uint8_t, uint16_t, int) =
       p_memory_access->memory_write_callback;
@@ -846,9 +858,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   write_callback_from =
       p_memory_access->memory_write_needs_callback_from(p_memory_obj);
   /* We use write_callback_from for read-modify-write. */
-  if (read_callback_from < write_callback_from) {
-    write_callback_from = read_callback_from;
-  }
+  assert(read_callback_from >= write_callback_from);
   /* The code assumes that zero page and stack accesses don't incur special
    * handling.
    */
