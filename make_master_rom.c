@@ -52,7 +52,8 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 1);
   emit_LDA(p_buf, k_abs, 0xFE34);
   emit_REQUIRE_EQ(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xE000);
+  emit_JSR(p_buf, 0xE000);
+  emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check LYNNE paging. */
   set_new_index(p_buf, 0x0040);
@@ -243,6 +244,7 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_abs, 0x4000);
   emit_REQUIRE_EQ(p_buf, 0x55);
+  emit_JSR(p_buf, 0xE200);
   emit_JMP(p_buf, k_abs, 0xC300);
 
   /* Exit sequence. */
@@ -282,11 +284,31 @@ main(int argc, const char* argv[]) {
   /* Out again. */
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE34);
-  emit_JMP(p_buf, k_abs, 0xC040);
+  emit_RTS(p_buf);
 
   /* Host a crash gadget at 0xE100. */
   set_new_index(p_buf, 0x2100);
   emit_CRASH(p_buf);
+
+  /* More code that needs to be here because it pages in HAZEL. */
+  set_new_index(p_buf, 0x2200);
+  /* Bit E with HAZEL paged in and LYNNE paged out. */
+  emit_LDA(p_buf, k_imm, 0x0A);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x55);
+  emit_LDA(p_buf, k_imm, 0x97);
+  emit_STA(p_buf, k_abs, 0x4000);
+  /* Bit E with HAZEL paged in and LYNNE paged in. */
+  emit_LDA(p_buf, k_imm, 0x0E);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0xFB);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x97);
+  emit_RTS(p_buf);
 
   /* IRQ handler at 0xFF00. */
   set_new_index(p_buf, 0x3F00);
