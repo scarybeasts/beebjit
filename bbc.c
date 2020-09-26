@@ -1024,6 +1024,17 @@ bbc_write_callback(void* p,
         /* &FEE1: reset cycles count. */
         state_6502_set_cycles(p_bbc->p_state_6502, 0);
         break;
+      case (k_addr_tube + 2):
+        /* &FEE2: exit. */
+        if (val != 0xA5) {
+          *((volatile uint8_t*) 0xdead) = '\x41';
+        }
+        p_bbc->p_cpu_driver->p_funcs->apply_flags(p_bbc->p_cpu_driver,
+                                                  k_cpu_flag_exited,
+                                                  0);
+        p_bbc->p_cpu_driver->p_funcs->set_exit_value(p_bbc->p_cpu_driver,
+                                                     0x434241);
+        break;
       default:
         break;
       }

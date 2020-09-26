@@ -713,9 +713,6 @@ main(int argc, const char* argv[]) {
 
   /* Exit sequence. */
   set_new_index(p_buf, 0x0A40);
-  emit_LDA(p_buf, k_imm, 0xC2);
-  emit_LDX(p_buf, k_imm, 0xC1);
-  emit_LDY(p_buf, k_imm, 0xC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

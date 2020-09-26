@@ -39,18 +39,18 @@ echo 'Running test.rom, inturbo, fast, accurate.'
 ./beebjit -os test.rom -test-map -expect 434241 -mode inturbo -fast -accurate
 
 echo 'Running timing.rom, interpreter, slow.'
-./beebjit -os timing.rom -test-map -expect C0C1C2 -mode interp
+./beebjit -os timing.rom -test-map -expect 434241 -mode interp
 echo 'Running timing.rom, interpreter, fast.'
-./beebjit -os timing.rom -test-map -expect C0C1C2 -mode interp -fast -accurate
+./beebjit -os timing.rom -test-map -expect 434241 -mode interp -fast -accurate
 echo 'Running timing.rom, inturbo, fast.'
-./beebjit -os timing.rom -test-map -expect C0C1C2 -mode inturbo -fast -accurate
+./beebjit -os timing.rom -test-map -expect 434241 -mode inturbo -fast -accurate
 echo 'Running timing.rom, jit, fast.'
-./beebjit -os timing.rom -test-map -expect C0C1C2 -mode jit -fast -accurate
+./beebjit -os timing.rom -test-map -expect 434241 -mode jit -fast -accurate
 echo 'Running timing.rom, jit, fast, debug.'
-./beebjit -os timing.rom -test-map -expect C0C1C2 -mode jit -fast -accurate \
+./beebjit -os timing.rom -test-map -expect 434241 -mode jit -fast -accurate \
     -debug -run
 
 echo 'Running master.rom, interpreter.'
-./beebjit -master -os master.rom -test-map -expect C0C1C2 -mode interp
+./beebjit -master -os master.rom -test-map -expect 434241 -mode interp
 
 echo 'All is well!'

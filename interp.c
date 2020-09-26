@@ -921,13 +921,12 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x01: /* ORA idx */
       INTERP_MODE_IDX_READ(INTERP_INSTR_ORA());
       break;
-    case 0x02: /* Extension: EXIT */
-      p_interp->driver.p_funcs->apply_flags(&p_interp->driver,
-                                            k_cpu_flag_exited,
-                                            0);
-      p_interp->driver.p_funcs->set_exit_value(&p_interp->driver,
-                                               ((y << 16) | (x << 8) | a));
-      return countdown;
+    case 0x02: /* KIL */ /* NOP imm */
+      if (is_65c12) {
+      } else {
+        util_bail("KIL");
+      }
+      break;
     case 0x03: /* SLO idx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
         pc++;
@@ -2192,13 +2191,27 @@ do_special_checks:
       INTERP_TIMING_ADVANCE(0);
     }
 
+check_irq:
+    if (!do_irq) {
+      /* An IRQ may have been raised or unblocked after the poll point
+       * (including at the instruction boundary). If an IRQ is asserted,
+       * make sure to check the next poll point to see if it needs to fire.
+       */
+      if (p_state_6502->irq_fire &&
+          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
+           !intf)) {
+        special_checks |= k_interp_special_poll_irq;
+      }
+    }
+
+    /* Advancing the timing or hardware register access may have triggered
+     * exit or reset.
+     */
     cpu_driver_flags = p_interp->driver.flags;
     if (cpu_driver_flags != 0) {
-      /* Advancing the timing may have fired a timer that exited the CPU. */
       if (cpu_driver_flags & k_cpu_flag_exited) {
         break;
       }
-      /* Advancing the timing may have registered a reset request. */
       if (cpu_driver_flags & (k_cpu_flag_soft_reset | k_cpu_flag_hard_reset)) {
         void (*do_reset_callback)(void* p, uint32_t flags) =
             p_interp->driver.do_reset_callback;
@@ -2211,19 +2224,6 @@ do_special_checks:
 
           countdown = timing_get_countdown(p_timing);
         }
-      }
-    }
-
-check_irq:
-    if (!do_irq) {
-      /* An IRQ may have been raised or unblocked after the poll point
-       * (including at the instruction boundary). If an IRQ is asserted,
-       * make sure to check the next poll point to see if it needs to fire.
-       */
-      if (p_state_6502->irq_fire &&
-          (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi) ||
-           !intf)) {
-        special_checks |= k_interp_special_poll_irq;
       }
     }
 

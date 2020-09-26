@@ -207,6 +207,7 @@ main(int argc, const char* argv[]) {
       fast_flag = 1;
     } else if (!strcmp(arg, "-test")) {
       test_flag = 1;
+      test_map_flag = 1;
     } else if (!strcmp(arg, "-accurate")) {
       accurate_flag = 1;
     } else if (!strcmp(arg, "-writeable")) {
@@ -539,7 +540,7 @@ main(int argc, const char* argv[]) {
   run_result = bbc_get_run_result(p_bbc);
   if (expect) {
     if (run_result != expect) {
-      util_bail("run result %x is not as expected", run_result);
+      util_bail("run result %X is not as expected (%X)", run_result, expect);
     }
   }
 

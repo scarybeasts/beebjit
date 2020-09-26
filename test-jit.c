@@ -4,6 +4,7 @@
 
 #include "bbc.h"
 #include "emit_6502.h"
+#include "video.h"
 
 static struct cpu_driver* s_p_cpu_driver = NULL;
 static struct jit_struct* s_p_jit = NULL;
@@ -15,7 +16,20 @@ static struct jit_compiler* s_p_compiler = NULL;
 static void
 jit_test_init(struct bbc_struct* p_bbc) {
   struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
+  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+
+  (void) p_timing;
+
   assert(p_cpu_driver->p_funcs->init == jit_init);
+
+  /* Timers firing interfere with the tests.
+   * Make sure the video subsystem is in a reasonable state by setting the vsync
+   * row very high.
+   */
+  video_crtc_write(p_video, 0, 7);
+  video_crtc_write(p_video, 1, 0xFF);
+  assert(timing_get_countdown(p_timing) > 10000);
 
   s_p_cpu_driver = p_cpu_driver;
   s_p_jit = (struct jit_struct*) p_cpu_driver;

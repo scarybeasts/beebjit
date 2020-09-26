@@ -1612,9 +1612,6 @@ main(int argc, const char* argv[]) {
 
   /* End of test. */
   set_new_index(p_buf, 0x1740);
-  emit_LDA(p_buf, k_imm, 0x41);
-  emit_LDX(p_buf, k_imm, 0x42);
-  emit_LDY(p_buf, k_imm, 0x43);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
