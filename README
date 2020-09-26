@@ -42,10 +42,11 @@ accuracy.
 The preservation of original BBC discs, copy protection and all, is not great.
 One of the highlights here is @billcarr2005's (on stardot.org.uk) work to
 generate FSD files from original discs. beebjit will load FSD files, and coupled
-to its fairly accurate Intel 8271 disc controller emulation, will run a large
-range of protected titles as they would have been originally experienced.
+to its fairly accurate Intel 8271 or Western Digital 1770 disc controller
+emulation, will run a large range of protected titles as they would have been
+originally experienced.
 beebjit is also capable of converting FSD files to the more standard HFE files,
-and writing to these.
+and reading / writing to these.
 Putting it all together, beebjit is capable of tricks such as loading the
 original protected Disc Duplicator III disc, copying the original protected
 Exile disc, and booting the copy -- all under emulation!
@@ -82,6 +83,11 @@ Nightshade tape, and Tricky's Frogger / Scramble.
 The built-in 6502 debugger is reasonably capable and could very quickly be
 extended if there is demand.
 
+- Model support.
+beebjit supports the BBC model B or Master 128 with some small configurability
+such as extra ROMs and sideways RAM. There is no model A, Master Compact,
+Master Turbo, etc.
+
 
 In the "worse" category:
 - Porting.
@@ -99,11 +105,6 @@ Similarly, you'll need to experiment a little with the beebjit command line and
 options.
 (This decision may be grating to some. Adding some GUI assistance in the future
 may well happen, once a cross-platform solution, such as SDL, is selected.)
-
-- Model support.
-Currently, beebjit only supports the BBC model B with some small
-configurability such as extra ROMs and sideways RAM. Disappointingly, there is
-not yet any Master support yet alone Master Compact, Master Turbo, etc.
 
 - Peripheral support.
 beebjit does support the basics: discs, tapes, sideways RAM... and not much
