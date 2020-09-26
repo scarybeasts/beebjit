@@ -52,32 +52,13 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 1);
   emit_LDA(p_buf, k_abs, 0xFE34);
   emit_REQUIRE_EQ(p_buf, 1);
+  /* Check HAZEL paging. */
   emit_JSR(p_buf, 0xE000);
   emit_JMP(p_buf, k_abs, 0xC040);
 
   /* Check LYNNE paging. */
   set_new_index(p_buf, 0x0040);
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE34);
-  emit_LDA(p_buf, k_imm, 0x41);
-  emit_STA(p_buf, k_abs, 0x3000);
-  /* Page in LYNNE. */
-  emit_LDA(p_buf, k_imm, 0x04);
-  emit_STA(p_buf, k_abs, 0xFE34);
-  emit_LDA(p_buf, k_imm, 0x42);
-  emit_STA(p_buf, k_abs, 0x3000);
-  /* Out again. */
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE34);
-  emit_LDA(p_buf, k_abs, 0x3000);
-  emit_REQUIRE_EQ(p_buf, 0x41);
-  /* In again. */
-  emit_LDA(p_buf, k_imm, 0x04);
-  emit_STA(p_buf, k_abs, 0xFE34);
-  emit_LDA(p_buf, k_abs, 0x3000);
-  emit_REQUIRE_EQ(p_buf, 0x42);
-  emit_LDA(p_buf, k_imm, 0x00);
-  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_JSR(p_buf, 0xE300);
   emit_JMP(p_buf, k_abs, 0xC080);
 
   /* Test write of ROM via page wrap to 0x8000. */
@@ -219,13 +200,13 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 10);
   emit_JMP(p_buf, k_abs, 0xC280);
 
-  /* Check MOS VDU access to LYNNE (shadow RAM). */
+  /* Check MOS VDU access to LYNNE (shadow RAM) or main. */
   set_new_index(p_buf, 0x0280);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_imm, 0x55);
   emit_STA(p_buf, k_abs, 0x4000);
-  emit_LDA(p_buf, k_imm, 0x04);
+  emit_LDA(p_buf, k_imm, 0x06);
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_imm, 0xAA);
   emit_STA(p_buf, k_abs, 0x4000);
@@ -236,7 +217,7 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x4000);
   emit_LDA(p_buf, k_abs, 0x4000);
   emit_REQUIRE_EQ(p_buf, 0xFB);
-  emit_LDA(p_buf, k_imm, 0x04);
+  emit_LDA(p_buf, k_imm, 0x06);
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_abs, 0x4000);
   emit_REQUIRE_EQ(p_buf, 0xFB);
@@ -247,8 +228,26 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0xE200);
   emit_JMP(p_buf, k_abs, 0xC300);
 
-  /* Exit sequence. */
+  /* Check MOS VDU access to main, perhaps the most surpring combination. */
   set_new_index(p_buf, 0x0300);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x07);
+  emit_STA(p_buf, k_abs, 0x4000);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0x4000);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x07);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_JMP(p_buf, k_abs, 0xC340);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0340);
   emit_LDA(p_buf, k_imm, 0xC2);
   emit_LDX(p_buf, k_imm, 0xC1);
   emit_LDY(p_buf, k_imm, 0xC0);
@@ -308,6 +307,31 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_LDA(p_buf, k_abs, 0x4000);
   emit_REQUIRE_EQ(p_buf, 0x97);
+  emit_RTS(p_buf);
+
+  /* This needs to be here to avoid triggering MOS VDU access. */
+  set_new_index(p_buf, 0x2300);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x41);
+  emit_STA(p_buf, k_abs, 0x3000);
+  /* Page in LYNNE. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_imm, 0x42);
+  emit_STA(p_buf, k_abs, 0x3000);
+  /* Out again. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x3000);
+  emit_REQUIRE_EQ(p_buf, 0x41);
+  /* In again. */
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDA(p_buf, k_abs, 0x3000);
+  emit_REQUIRE_EQ(p_buf, 0x42);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
   emit_RTS(p_buf);
 
   /* IRQ handler at 0xFF00. */

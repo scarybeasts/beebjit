@@ -100,6 +100,7 @@ struct bbc_struct {
   intptr_t mem_handle;
   int is_64k_mappings;
   uint64_t rewind_to_cycles;
+  uint32_t log_count_shadow_speed;
 
   /* Machine configuration. */
   int is_master;
@@ -140,6 +141,7 @@ struct bbc_struct {
   uint8_t* p_mem_andy;
   uint8_t romsel;
   uint8_t acccon;
+  int is_acccon_usr_mos_different;
   int is_romsel_invalidated;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
@@ -330,18 +332,10 @@ static inline uint8_t
 bbc_do_master_ram_read(struct bbc_struct* p_bbc, uint16_t addr, uint16_t pc) {
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
   if (addr < k_bbc_sideways_offset) {
-    int read_shadow = 0;
-    int shadow_paged = !!(p_bbc->acccon & k_acccon_lynne);
     assert(addr >= k_bbc_shadow_offset);
-    assert(p_bbc->acccon & k_acccon_access_lynne_from_os);
-    assert(!(p_bbc->acccon & k_acccon_hazel));
+    assert(p_bbc->is_acccon_usr_mos_different);
     if ((pc > k_bbc_os_rom_offset) &&
         (pc <= (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
-      read_shadow = 1;
-    } else {
-      read_shadow = shadow_paged;
-    }
-    if (read_shadow ^ shadow_paged) {
       return p_bbc->p_mem_master[addr];
     }
   }
@@ -356,21 +350,13 @@ bbc_do_master_ram_write(struct bbc_struct* p_bbc,
                         uint16_t pc) {
   uint8_t* p_mem_raw = p_bbc->p_mem_raw;
   if (addr < k_bbc_sideways_offset) {
-    int write_shadow = 0;
-    int shadow_paged = !!(p_bbc->acccon & k_acccon_lynne);
     assert(addr >= k_bbc_shadow_offset);
-    assert(p_bbc->acccon & k_acccon_access_lynne_from_os);
-    assert(!(p_bbc->acccon & k_acccon_hazel));
+    assert(p_bbc->is_acccon_usr_mos_different);
     if ((pc > k_bbc_os_rom_offset) &&
         (pc <= (k_bbc_os_rom_offset + k_bbc_hazel_size))) {
-      write_shadow = 1;
-    } else {
-      write_shadow = shadow_paged;
-    }
-    if (write_shadow ^ shadow_paged) {
       p_bbc->p_mem_master[addr] = val;
     } else {
-      p_mem_raw[addr] = val;
+      p_bbc->p_mem_raw[addr] = val;
     }
     return;
   }
@@ -783,6 +769,7 @@ bbc_sideways_select(struct bbc_struct* p_bbc, uint8_t val) {
 
 static int
 bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
+  int mos_access_shadow;
   uint8_t curr_acccon = p_bbc->acccon;
   int is_curr_display_lynne = !!(curr_acccon & k_acccon_display_lynne);
   int is_curr_lynne = !!(curr_acccon & k_acccon_lynne);
@@ -837,11 +824,37 @@ bbc_set_acccon(struct bbc_struct* p_bbc, uint8_t new_acccon) {
     }
   }
 
-  /* Trap access to 0x3000 - 0x7FFF if the crazy MOS ROM VDU access is on. */
-  if (is_new_access_lynne_from_os && !is_new_hazel) {
+  /* Trap access to 0x3000 - 0x7FFF if the crazy MOS ROM VDU access is different
+   * to normal access.
+   */
+  /* Reference: b2 source code. Thanks Tom Seddon.
+   * Also, see test/games/Nubium 20181214 b.ssd, which doesn't run correctly
+   * on a correctly emulated Master, see:
+   * https://stardot.org.uk/forums/viewtopic.php?p=223299#p223299
+   * Note that the combination that surprises me is HAZEL=0, LYNNE=1, E=0.
+   * This causes the MOS VDU code region to access _main_ RAM, not LYNNE as
+   * you might expect.
+   */
+  mos_access_shadow = ((is_new_hazel && is_new_lynne) ||
+                       (!is_new_hazel && is_new_access_lynne_from_os));
+  if (mos_access_shadow != is_new_lynne) {
+    if (!p_bbc->is_acccon_usr_mos_different) {
+      log_do_log_max_count(&p_bbc->log_count_shadow_speed,
+                           k_log_misc,
+                           k_log_info,
+                           "shadow region SLOW access");
+    }
+    p_bbc->is_acccon_usr_mos_different = 1;
     p_bbc->write_callback_from = k_bbc_shadow_offset;
     p_bbc->read_callback_from = k_bbc_shadow_offset;
   } else {
+    if (p_bbc->is_acccon_usr_mos_different) {
+      log_do_log_max_count(&p_bbc->log_count_shadow_speed,
+                           k_log_misc,
+                           k_log_info,
+                           "shadow region fast access");
+    }
+    p_bbc->is_acccon_usr_mos_different = 0;
     p_bbc->write_callback_from = k_bbc_sideways_offset;
     p_bbc->read_callback_from = 0xFC00;
   }
@@ -1243,6 +1256,7 @@ bbc_create(int mode,
   }
 
   p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
+  p_bbc->log_count_shadow_speed = 16;
 
   p_bbc->p_mapping_raw =
       os_alloc_get_mapping_from_handle(
@@ -1694,6 +1708,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   bbc_power_on_other_reset(p_bbc);
   assert(p_bbc->romsel == 0);
   assert(p_bbc->acccon == 0);
+  assert(!p_bbc->is_acccon_usr_mos_different);
   assert(p_bbc->is_romsel_invalidated == 0);
   via_power_on_reset(p_bbc->p_system_via);
   via_power_on_reset(p_bbc->p_user_via);
