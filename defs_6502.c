@@ -412,28 +412,39 @@ defs_6502_init() {
     s_opcycles_65c12[i] = s_opcycles_6502[i];
   }
   /* Set up 65c12 specific opcodes. */
+  defs_65c12_set_opcode(0x02, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x04, k_tsb, k_zpg);
   defs_65c12_set_opcode(0x0C, k_tsb, k_abs);
+  defs_65c12_set_opcode(0x12, k_ora, k_id);
   defs_65c12_set_opcode(0x14, k_trb, k_zpg);
   defs_65c12_set_opcode(0x1A, k_inc, k_acc);
   defs_65c12_set_opcode(0x1C, k_trb, k_abs);
+  defs_65c12_set_opcode(0x22, k_nop, k_imm); /* Undocumented. */
+  defs_65c12_set_opcode(0x32, k_and, k_id);
+  defs_65c12_set_opcode(0x34, k_bit, k_zpx);
   defs_65c12_set_opcode(0x3A, k_dec, k_acc);
   defs_65c12_set_opcode(0x3C, k_bit, k_abx);
+  defs_65c12_set_opcode(0x42, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x52, k_eor, k_id);
   defs_65c12_set_opcode(0x5A, k_phy, k_nil);
+  defs_65c12_set_opcode(0x62, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x64, k_stz, k_zpg);
   defs_65c12_set_opcode(0x72, k_adc, k_id);
   defs_65c12_set_opcode(0x74, k_stz, k_zpx);
   defs_65c12_set_opcode(0x7A, k_ply, k_nil);
   defs_65c12_set_opcode(0x7C, k_jmp, k_iax);
   defs_65c12_set_opcode(0x80, k_bra, k_rel);
+  defs_65c12_set_opcode(0x82, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x89, k_bit, k_imm);
   defs_65c12_set_opcode(0x92, k_sta, k_id);
   defs_65c12_set_opcode(0x9C, k_stz, k_abs);
   defs_65c12_set_opcode(0x9E, k_stz, k_abx);
   defs_65c12_set_opcode(0xB2, k_lda, k_id);
+  defs_65c12_set_opcode(0xC2, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0xD2, k_cmp, k_id);
   defs_65c12_set_opcode(0xDA, k_phx, k_nil);
+  defs_65c12_set_opcode(0xE2, k_nop, k_imm); /* Undocumented. */
+  defs_65c12_set_opcode(0xF2, k_sbc, k_id);
   defs_65c12_set_opcode(0xFA, k_plx, k_nil);
   /* TODO: remaining 1-byte NOPs. */
   for (i = 0; i < 16; ++i) {
