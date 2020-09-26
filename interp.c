@@ -236,7 +236,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MEMORY_WRITE_POLL_IRQ(addr_write)                              \
   p_interp->callback_intf = intf;                                             \
   assert((p_interp->callback_do_irq = -1) == -1);                             \
-  if (memory_write_callback(p_memory_obj, addr_write, v, pc, 0) != 0) {       \
+  if (memory_write_callback(p_memory_obj, addr_write, v, pc, 1) != 0) {       \
     write_callback_from =                                                     \
         p_memory_access->memory_write_needs_callback_from(p_memory_obj);      \
     read_callback_from =                                                      \

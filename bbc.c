@@ -1163,6 +1163,21 @@ bbc_set_fast_mode(void* p, int is_fast) {
   sound_set_output_enabled(p_bbc->p_sound, !is_fast);
 }
 
+static void
+bbc_reset_callback_baselines(struct bbc_struct* p_bbc) {
+  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
+   * for hardware registers, but that's fine.
+   */
+  p_bbc->read_callback_from = 0xFC00;
+
+  /* TODO: we can do better (less callbacking). */
+  if (p_bbc->is_master) {
+    p_bbc->write_callback_from = k_bbc_sideways_offset;
+  } else {
+    p_bbc->write_callback_from = k_bbc_os_rom_offset;
+  }
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            int is_master,
@@ -1239,6 +1254,8 @@ bbc_create(int mode,
   p_bbc->last_hw_reg_hits = 0;
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
+
+  bbc_reset_callback_baselines(p_bbc);
 
   /* We allocate 2 times the 6502 64k address space size. This is so we can
    * place it in the middle of a 128k region and straddle a 64k boundary in the
@@ -1684,17 +1701,7 @@ static void
 bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
   p_bbc->IC32 = 0;
 
-  /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
-   * for hardware registers, but that's fine.
-   */
-  p_bbc->read_callback_from = 0xFC00;
-
-  /* TODO: we can do better (less callbacking). */
-  if (p_bbc->is_master) {
-    p_bbc->write_callback_from = k_bbc_sideways_offset;
-  } else {
-    p_bbc->write_callback_from = k_bbc_os_rom_offset;
-  }
+  bbc_reset_callback_baselines(p_bbc);
 
   /* TODO: decide if the stop cycles timer should be reset or not. */
 }
