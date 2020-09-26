@@ -163,7 +163,7 @@ emit_CPY(struct util_buffer* p_buf, int mode, uint16_t addr) {
 
 void
 emit_CRASH(struct util_buffer* p_buf) {
-  util_buffer_add_1b(p_buf, 0xF2);
+  emit_STA(p_buf, k_abs, 0xFEE0);
 }
 
 void

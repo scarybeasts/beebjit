@@ -2051,11 +2051,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xF1: /* SBC idy */
       INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
       break;
-    case 0xF2: /* Extension: CRASH */ /* SBC idp */
+    case 0xF2: /* KIL */ /* SBC idp */
       if (is_65c12) {
         util_bail("SBC idp");
       } else {
-        *((volatile uint8_t*) 0xdead) = '\x41';
+        util_bail("KIL");
       }
       break;
     case 0xF3: /* ISC idy */ /* Undocumented. */ /* NOP1 */

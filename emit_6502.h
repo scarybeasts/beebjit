@@ -5,6 +5,10 @@
 
 struct util_buffer;
 
+enum {
+  k_emit_crash_len = 3,
+};
+
 void emit_ADC(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_AND(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_ASL(struct util_buffer* p_buf, int mode, uint16_t addr);

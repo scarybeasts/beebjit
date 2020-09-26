@@ -66,10 +66,10 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE6B); /* User VIA ACR to PB7 mode. */
   emit_LDA(p_buf, k_abs, 0xFE60); /* User VIA ORB. */
   emit_REQUIRE_EQ(p_buf, 0xFF);   /* PB7 initial state should be 1. */
-  emit_JMP(p_buf, k_abs, 0xC040);
+  emit_JMP(p_buf, k_abs, 0xC050);
 
   /* Check TSX / TXS stack setup. */
-  set_new_index(p_buf, 0x0040);
+  set_new_index(p_buf, 0x0050);
   emit_TSX(p_buf);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_LDX(p_buf, k_imm, 0xFF);
@@ -132,10 +132,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_NF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 0);
   emit_REQUIRE_OF(p_buf, 0);
-  emit_JMP(p_buf, k_abs, 0xC140);
+  emit_JMP(p_buf, k_abs, 0xC150);
 
   /* Some ROR / ROL tests. */
-  set_new_index(p_buf, 0x0140);
+  set_new_index(p_buf, 0x0150);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_SEC(p_buf);
   emit_ROR(p_buf, k_acc, 0);
@@ -150,10 +150,10 @@ main(int argc, const char* argv[]) {
   emit_ROL(p_buf, k_acc, 0);
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_EQ(p_buf, 0x81);
-  emit_JMP(p_buf, k_abs, 0xC180);
+  emit_JMP(p_buf, k_abs, 0xC190);
 
   /* Test BRK! */
-  set_new_index(p_buf, 0x0180);
+  set_new_index(p_buf, 0x0190);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_STX(p_buf, k_zpg, 0x00);
   emit_LDX(p_buf, k_imm, 0xFF);
@@ -477,22 +477,22 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_aby, 0xFFFF);
   emit_REQUIRE_EQ(p_buf, 0xFF);
-  emit_JMP(p_buf, k_abs, 0xC660);
+  emit_JMP(p_buf, k_abs, 0xC670);
 
   /* Test an interesting bug we had with self-modifying code where two
    * adjacent instructions are clobbered.
    */
-  set_new_index(p_buf, 0x0660);
+  set_new_index(p_buf, 0x0670);
   emit_NOP(p_buf);
   emit_JSR(p_buf, 0x3050);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x3050);
   emit_STA(p_buf, k_abs, 0x3051);
   emit_JSR(p_buf, 0x3050);
-  emit_JMP(p_buf, k_abs, 0xC680);
+  emit_JMP(p_buf, k_abs, 0xC690);
 
   /* Test JIT invalidation through different write modes. */
-  set_new_index(p_buf, 0x0680);
+  set_new_index(p_buf, 0x0690);
   emit_JSR(p_buf, 0x3050);
   emit_LDX(p_buf, k_imm, 0x01);
   emit_LDY(p_buf, k_imm, 0x02);
@@ -604,7 +604,8 @@ main(int argc, const char* argv[]) {
    * fire :)
    */
   emit_CLI(p_buf);
-  emit_BVC(p_buf, 1);             /* Skip CRASH to test RTI PC miss bug. */
+  emit_BVC(p_buf,
+           k_emit_crash_len);     /* Skip CRASH to test RTI PC miss bug. */
   emit_CRASH(p_buf);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_zpg, 0x00);
@@ -650,12 +651,12 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_LDA(p_buf, k_imm, 0x20);   /* clear, TIMER2 */
   emit_STA(p_buf, k_abs, 0xFE7E); /* uservia IER */
-  emit_JMP(p_buf, k_abs, 0xC840);
+  emit_JMP(p_buf, k_abs, 0xC850);
 
   /* Test dynamic operands for a branch instruction, and a no-operands
    * instruction.
     */
-  set_new_index(p_buf, 0x0840);
+  set_new_index(p_buf, 0x0850);
   emit_JSR(p_buf, 0x3080);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_STA(p_buf, k_abs, 0x3083);
@@ -974,10 +975,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x40);
 
   emit_CLD(p_buf);
-  emit_JMP(p_buf, k_abs, 0xCD00);
+  emit_JMP(p_buf, k_abs, 0xCD10);
 
   /* Test ROR flags for memory-based RORs. */
-  set_new_index(p_buf, 0x0D00);
+  set_new_index(p_buf, 0x0D10);
   emit_CLC(p_buf);
   emit_LDX(p_buf, k_imm, 0x01);
   emit_LDA(p_buf, k_imm, 0x81);   /* Sets NF, spotting failure to clear it. */
@@ -993,10 +994,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 0);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_REQUIRE_NF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xCD40);
+  emit_JMP(p_buf, k_abs, 0xCD50);
 
   /* Test for a JIT optimization bug that missed ROL A changing A. */
-  set_new_index(p_buf, 0x0D40);
+  set_new_index(p_buf, 0x0D50);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_SEC(p_buf);
   emit_ROL(p_buf, k_acc, 0);
@@ -1169,10 +1170,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_REQUIRE_CF(p_buf, 1);
   /* Part 2: Fault + fixup + self modifying code. */
-  emit_JSR(p_buf, 0x30C0);
+  emit_JSR(p_buf, 0x3180);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
-  emit_STA(p_buf, k_abs, 0x30C9);
-  emit_JSR(p_buf, 0x30C0);
+  emit_STA(p_buf, k_abs, 0x3189);
+  emit_JSR(p_buf, 0x3180);
   emit_REQUIRE_OF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD080);
 
@@ -1310,10 +1311,10 @@ main(int argc, const char* argv[]) {
 
   /* Test JIT ROR NZ flag optimization corner case. */
   set_new_index(p_buf, 0x12C0);
-  emit_JSR(p_buf, 0x3100);
+  emit_JSR(p_buf, 0x31A0);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
-  emit_STA(p_buf, k_abs, 0x3109);
-  emit_JSR(p_buf, 0x3100);
+  emit_STA(p_buf, k_abs, 0x31A9);
+  emit_JSR(p_buf, 0x31A0);
   emit_REQUIRE_CF(p_buf, 1);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD300);
@@ -1491,10 +1492,10 @@ main(int argc, const char* argv[]) {
   emit_TXA(p_buf);
   emit_REQUIRE_EQ(p_buf, 0x03);
   emit_REQUIRE_CF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xD5B0);
+  emit_JMP(p_buf, k_abs, 0xD5D0);
 
   /* Test reading VIA input registers. */
-  set_new_index(p_buf, 0x15B0);
+  set_new_index(p_buf, 0x15D0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
   emit_LDA(p_buf, k_imm, 0xFF);
@@ -1509,12 +1510,12 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_STA(p_buf, k_abs, 0xFE6B);
-  emit_JMP(p_buf, k_abs, 0xD5E0);
+  emit_JMP(p_buf, k_abs, 0xD600);
 
   /* Test an interesting JIT metadata bug where an incorrect invalidation
    * address led to JIT code corruption.
    */
-  set_new_index(p_buf, 0x15E0);
+  set_new_index(p_buf, 0x1600);
   emit_JSR(p_buf, 0x3160);
   emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
   emit_STA(p_buf, k_abs, 0x3160);
@@ -1526,12 +1527,12 @@ main(int argc, const char* argv[]) {
    */
   emit_STA(p_buf, k_abs, 0x3161);
   emit_JSR(p_buf, 0x3160);
-  emit_JMP(p_buf, k_abs, 0xD600);
+  emit_JMP(p_buf, k_abs, 0xD620);
 
   /* Test VIA port A reads for real bus levels, and keyboard pull-low
    * dominance.
    */
-  set_new_index(p_buf, 0x1600);
+  set_new_index(p_buf, 0x1620);
   emit_LDA(p_buf, k_imm, 0x0F);
   emit_STA(p_buf, k_abs, 0xFE42);
   emit_LDA(p_buf, k_imm, 3);      /* Keyboard auto-scan off. */
@@ -1697,19 +1698,6 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_RTS(p_buf);
 
-  /* For a JIT overflag flag fixup test, part 2. */
-  set_new_index(p_buf, 0x30C0);
-  emit_CLC(p_buf);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_ADC(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_zpg, 0xE0);
-  emit_LDA(p_buf, k_idy, 0xC0);
-  emit_NOP(p_buf);
-  emit_LDA(p_buf, k_imm, 0x7F);
-  emit_ADC(p_buf, k_imm, 0x01);
-  emit_REQUIRE_OF(p_buf, 1);
-  emit_RTS(p_buf);
-
   /* For another JIT overflow flag fixup test. */
   set_new_index(p_buf, 0x30E0);
   emit_CLC(p_buf);
@@ -1727,17 +1715,6 @@ main(int argc, const char* argv[]) {
   emit_ROL(p_buf, k_zpg, 0xA0);
   emit_ROL(p_buf, k_zpg, 0xA0);
   emit_REQUIRE_NF(p_buf, 0);
-  emit_RTS(p_buf);
-
-  /* For JIT ROR zpg flag optimization corner case. */
-  set_new_index(p_buf, 0x3100);
-  emit_CLC(p_buf);
-  emit_LDA(p_buf, k_imm, 0x01);
-  emit_STA(p_buf, k_zpg, 0xA0);
-  emit_ROR(p_buf, k_zpg, 0xA0);
-  emit_STA(p_buf, k_zpg, 0xA0);
-  emit_ROR(p_buf, k_zpg, 0xA0);
-  emit_REQUIRE_NF(p_buf, 1);
   emit_RTS(p_buf);
 
   /* For JIT SBC optimization vs. self-modify. */
@@ -1791,6 +1768,30 @@ main(int argc, const char* argv[]) {
   /* For an invalidation test using the idy addressing mode. */
   set_new_index(p_buf, 0x3170);
   emit_INX(p_buf);
+  emit_RTS(p_buf);
+
+  /* For a JIT overflag flag fixup test, part 2. */
+  set_new_index(p_buf, 0x3180);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xE0);
+  emit_LDA(p_buf, k_idy, 0xC0);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_RTS(p_buf);
+
+  /* For JIT ROR zpg flag optimization corner case. */
+  set_new_index(p_buf, 0x31A0);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xA0);
+  emit_ROR(p_buf, k_zpg, 0xA0);
+  emit_STA(p_buf, k_zpg, 0xA0);
+  emit_ROR(p_buf, k_zpg, 0xA0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

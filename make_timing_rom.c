@@ -68,10 +68,10 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abx, 0x10FF); /* STA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 9);
-  emit_JMP(p_buf, k_abs, 0xC060);
+  emit_JMP(p_buf, k_abs, 0xC070);
 
   /* Check instruction timings for page crossings in idy mode. */
-  set_new_index(p_buf, 0x0060);
+  set_new_index(p_buf, 0x0070);
   emit_LDA(p_buf, k_imm, 0xFF);
   emit_STA(p_buf, k_abs, 0x00B0);
   emit_LDA(p_buf, k_imm, 0x10);
@@ -94,10 +94,10 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 10);
-  emit_JMP(p_buf, k_abs, 0xC0B0);
+  emit_JMP(p_buf, k_abs, 0xC0C0);
 
   /* Check instruction timings for branching. */
-  set_new_index(p_buf, 0x00B0);
+  set_new_index(p_buf, 0x00C0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
   emit_BNE(p_buf, -2);            /* Branch, not taken, 2 cycles. */
@@ -108,7 +108,7 @@ main(int argc, const char* argv[]) {
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 7);
   emit_CYCLES_RESET(p_buf);
-  emit_BEQ(p_buf, 0x2F);          /* Branch, taken, page crossing, 4 cycles. */
+  emit_BEQ(p_buf, 0x1B);          /* Branch, taken, page crossing, 4 cycles. */
 
   set_new_index(p_buf, 0x0100);
   /* This is the landing point for the BEQ above. */
@@ -135,11 +135,11 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE00); /* Read CRTC, even cycle start, 6 cycles. */
   emit_CYCLES(p_buf);
   emit_REQUIRE_EQ(p_buf, 10);
-  emit_JMP(p_buf, k_abs, 0xC180);
+  emit_JMP(p_buf, k_abs, 0xC190);
 
   /* Check T1 timer tick values. */
   /* T1, latch (e.g.) 4, ticks 4... 3... 2... 1... 0... -1... 4... */
-  set_new_index(p_buf, 0x0180);
+  set_new_index(p_buf, 0x0190);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
   emit_LDA(p_buf, k_imm, 0x06);
@@ -159,11 +159,11 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_abs, 0x1002);
   emit_REQUIRE_EQ(p_buf, 0x02);
-  emit_JMP(p_buf, k_abs, 0xC1C0);
+  emit_JMP(p_buf, k_abs, 0xC1E0);
 
   /* Check T2 timer tick values. */
   /* T2 ticks (e.g.) 4... 3... 2... 1... 0... FFFF (-1)... FFFE */
-  set_new_index(p_buf, 0x01C0);
+  set_new_index(p_buf, 0x01E0);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
   emit_LDA(p_buf, k_imm, 0x06);
@@ -183,10 +183,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_LDA(p_buf, k_abs, 0x1002);
   emit_REQUIRE_EQ(p_buf, 0xFA);
-  emit_JMP(p_buf, k_abs, 0xC200);
+  emit_JMP(p_buf, k_abs, 0xC230);
 
   /* Check an interrupt fires immediately when T1 expires. */
-  set_new_index(p_buf, 0x0200);
+  set_new_index(p_buf, 0x0230);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_JSR(p_buf, 0xF000);
@@ -199,11 +199,11 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_LDA(p_buf, k_zpg, 0x12);
   emit_REQUIRE_EQ(p_buf, 0x42);
-  emit_JMP(p_buf, k_abs, 0xC240);
+  emit_JMP(p_buf, k_abs, 0xC260);
 
   /* Check T1 reload in continuous mode. */
   /* Also checks that IFR flag is visible the same VIA cycle the IRQ fires. */
-  set_new_index(p_buf, 0x0240);
+  set_new_index(p_buf, 0x0260);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
   emit_LDA(p_buf, k_imm, 0x40);
@@ -222,10 +222,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x40);
   emit_TYA(p_buf);
   emit_REQUIRE_EQ(p_buf, 0x40);
-  emit_JMP(p_buf, k_abs, 0xC280);
+  emit_JMP(p_buf, k_abs, 0xC2A0);
 
   /* Check an interrupt is delayed when hitting too late in an instruction. */
-  set_new_index(p_buf, 0x0280);
+  set_new_index(p_buf, 0x02A0);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDA(p_buf, k_imm, 0x01);
   emit_JSR(p_buf, 0xF000);
@@ -240,10 +240,10 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_LDA(p_buf, k_zpg, 0x12);
   emit_REQUIRE_EQ(p_buf, 0x43);
-  emit_JMP(p_buf, k_abs, 0xC2C0);
+  emit_JMP(p_buf, k_abs, 0xC2D0);
 
   /* Test that a pending interrupt fires the instruction after a CLI. */
-  set_new_index(p_buf, 0x02C0);
+  set_new_index(p_buf, 0x02D0);
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_JSR(p_buf, 0xF000);
