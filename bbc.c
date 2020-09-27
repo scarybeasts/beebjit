@@ -548,6 +548,7 @@ bbc_read_callback(void* p,
     /* Not present. */
     break;
   default:
+    assert(addr >= (k_bbc_os_rom_offset - 0x100));
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
       /* If we miss the registers, it will be:
@@ -559,9 +560,6 @@ bbc_read_callback(void* p,
        * something like a page-crossing LDA $BFFF,X
        */
       uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
-      assert(!p_bbc->is_master);
-      assert(addr >= (k_bbc_os_rom_offset - 0x100));
-
       ret = p_mem_read[addr];
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
@@ -1043,6 +1041,7 @@ bbc_write_callback(void* p,
     }
     break;
   default:
+    assert(addr >= (k_bbc_os_rom_offset - 0x100));
     if ((addr < k_bbc_registers_start) ||
         (addr >= (k_bbc_registers_start + k_bbc_registers_len))) {
       /* If we miss the registers, it will be:
@@ -1050,8 +1049,6 @@ bbc_write_callback(void* p,
        * 2) $FBxx on account of the X uncertainty of $FBxx,X, or
        * 3) The Windows port needs a wider range to trap ROM writes.
        */
-      assert(!p_bbc->is_master);
-      assert(addr >= k_bbc_os_rom_offset);
     } else if (addr >= k_addr_shiela) {
       /* We should have every address covered above. */
       assert(0);

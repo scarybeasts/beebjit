@@ -246,8 +246,16 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0xFE34);
   emit_JMP(p_buf, k_abs, 0xC340);
 
-  /* Exit sequence. */
+  /* Test ROM reads / writes above the registers. */
   set_new_index(p_buf, 0x0340);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFFFF);
+  emit_LDA(p_buf, k_abs, 0xFFFF);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xC380);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0380);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */
