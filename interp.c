@@ -347,9 +347,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
-#define INTERP_MODE_ABX_READ_WRITE(INSTR)                                     \
+#define INTERP_MODE_ABr_READ_WRITE(INSTR, reg_name)                           \
   addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
-  addr = (addr_temp + x);                                                     \
+  addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
@@ -1000,13 +1000,18 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0x0B: /* ANC imm */ /* Undocumented. */
-      v = p_mem_read[pc + 1];
-      a &= v;
-      INTERP_LOAD_NZ_FLAGS(a);
-      cf = nf;
-      pc += 2;
-      cycles_this_instruction = 2;
+    case 0x0B: /* ANC imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        v = p_mem_read[pc + 1];
+        a &= v;
+        INTERP_LOAD_NZ_FLAGS(a);
+        cf = nf;
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0x0C: /* NOP abs */ /* Undocumented. */ /* TSB abs */
       if (is_65c12) {
@@ -1088,6 +1093,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0x1B: /* SLO aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_SLO(), y);
+      }
+      break;
     case 0x1C: /* NOP abx */ /* Undocumented. */ /* TRB abs */
       if (is_65c12) {
         INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_TRB());
@@ -1102,7 +1115,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ASL());
       } else {
-        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ASL());
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ASL(), x);
       }
       break;
     case 0x20: /* JSR */
@@ -1173,6 +1186,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
       a = v;
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0x2B: /* ANC imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        v = p_mem_read[pc + 1];
+        a &= v;
+        INTERP_LOAD_NZ_FLAGS(a);
+        cf = nf;
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0x2C: /* BIT abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_BIT());
@@ -1250,6 +1276,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0x3B: /* RLA aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_RLA(), y);
+      }
+      break;
     case 0x3C: /* NOP abx */ /* Undocumented. */ /* BIT abx */
       if (is_65c12) {
         INTERP_MODE_ABr_READ(INTERP_INSTR_BIT(), x);
@@ -1264,7 +1298,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ROL());
       } else {
-        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROL());
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ROL(), x);
       }
       break;
     case 0x40: /* RTI */
@@ -1334,14 +1368,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0x4B: /* ALR imm */ /* Undocumented. */
-      v = p_mem_read[pc + 1];
-      a &= v;
-      cf = (a & 0x01);
-      a >>= 1;
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 2;
+    case 0x4B: /* ALR imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        v = p_mem_read[pc + 1];
+        a &= v;
+        cf = (a & 0x01);
+        a >>= 1;
+        INTERP_LOAD_NZ_FLAGS(a);
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0x4C: /* JMP abs */
       pc = *(uint16_t*) &p_mem_read[pc + 1];
@@ -1421,6 +1460,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0x5B: /* SRE aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_SRE(), y);
+      }
+      break;
     case 0x5C: /* NOP abx */ /* Undocumented. */ /* NOP abs (8) */
       if (is_65c12) {
         util_bail("NOP abs (8)");
@@ -1435,7 +1482,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_LSR());
       } else {
-        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_LSR());
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_LSR(), x);
       }
       break;
     case 0x60: /* RTS */
@@ -1503,6 +1550,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       a = v;
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0x6B: /* ARR imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("ARR");
+      }
       break;
     case 0x6C: /* JMP ind */
       addr = *(uint16_t*) &p_mem_read[pc + 1];
@@ -1594,6 +1649,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0x7B: /* RRA aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_RRA(), y);
+      }
+      break;
     case 0x7C: /* NOP abx */ /* Undocumented. */ /* JMP iax */
       if (is_65c12) {
         addr = *(uint16_t*) &p_mem_read[pc + 1];
@@ -1611,7 +1674,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       if (is_65c12) {
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ROR());
       } else {
-        INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_ROR());
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ROR(), x);
       }
       break;
     case 0x80: /* NOP imm */ /* Undocumented. */ /* BRA */
@@ -1679,18 +1742,23 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0x8B: /* XAA */ /* Undocumented and unstable. */
-      /* Battle Tank hit this! */
-      v = p_mem_read[pc + 1];
-      /* EMU NOTE: Using 0xEE for the magic constant as per jsbeeb and b-em, but
-       * on an Model B issue 3, I'm seeing the instability; magic constant it
-       * usually 0xE8 but sometimes 0x68.
-       * See: http://visual6502.org/wiki/index.php?title=6502_Opcode_8B_%28XAA,_ANE%29
-       */
-      a = ((a | 0xEE) & x & v);
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 2;
+    case 0x8B: /* XAA */ /* Undocumented and unstable. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        /* Battle Tank hit this! */
+        v = p_mem_read[pc + 1];
+        /* EMU NOTE: Using 0xEE for the magic constant as per jsbeeb and b-em,
+         * but on a Model B issue 3, I'm seeing the instability; magic constant
+         * is usually 0xE8 but sometimes 0x68.
+         * See: http://visual6502.org/wiki/index.php?title=6502_Opcode_8B_%28XAA,_ANE%29
+         */
+        a = ((a | 0xEE) & x & v);
+        INTERP_LOAD_NZ_FLAGS(a);
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0x8C: /* STY abs */
       INTERP_MODE_ABS_WRITE(INTERP_INSTR_STY());
@@ -1755,6 +1823,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       s = x;
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0x9B: /* TAS aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("TAS");
+      }
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
       if (is_65c12) {
@@ -1831,15 +1907,21 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0xAB: /* LAX imm */ /* Undocumented and unstable. */
-      /* Dune Rider hit this! */
-      v = p_mem_read[pc + 1];
-      /* EMU NOTE: Not mixing in the 0xEE magic constant as per jsbeeb and b-em,       * because the Model B issue 3 I have seems to do a plain AND with no
-       * shenanigans or variance.
-       */
-      INTERP_INSTR_LAX();
-      pc += 2;
-      cycles_this_instruction = 2;
+    case 0xAB: /* LAX imm */ /* Undocumented and unstable. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        /* Dune Rider hit this! */
+        v = p_mem_read[pc + 1];
+        /* EMU NOTE: Not mixing in the 0xEE magic constant as per jsbeeb and
+         * b-em, because the Model B issue 3 I have seems to do a plain AND with
+         * no shenanigans or variance.
+         */
+        INTERP_INSTR_LAX();
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0xAC: /* LDY abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_LDY());
@@ -1905,6 +1987,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
+    case 0xBB: /* LAS aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("LAS");
+      }
+      break;
     case 0xBC: /* LDY abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_LDY(), x);
       break;
@@ -1966,14 +2056,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc++;
       cycles_this_instruction = 2;
       break;
-    case 0xCB: /* AXS imm */ /* Undocumented. */
-      v = p_mem_read[pc + 1];
-      x = (a & x);
-      cf = (x >= v);
-      x = (x - v);
-      INTERP_LOAD_NZ_FLAGS(x);
-      pc += 2;
-      cycles_this_instruction = 2;
+    case 0xCB: /* AXS imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        v = p_mem_read[pc + 1];
+        x = (a & x);
+        cf = (x >= v);
+        x = (x - v);
+        INTERP_LOAD_NZ_FLAGS(x);
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0xCC: /* CPY abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(y));
@@ -2040,6 +2135,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0xDB: /* DCP aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_DCP(), y);
+      }
+      break;
     case 0xDC: /* NOP abx */ /* NOP abs */ /* Both undocumented. */
     case 0xFC:
       if (is_65c12) {
@@ -2052,7 +2155,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ABr_READ(INTERP_INSTR_CMP(a), x);
       break;
     case 0xDE: /* DEC abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_DEC());
+      INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_DEC(), x);
       break;
     case 0xE0: /* CPX imm */
       v = p_mem_read[pc + 1];
@@ -2095,7 +2198,6 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 2;
       break;
     case 0xE9: /* SBC imm */
-    case 0xEB: /* Undocumented. */
       v = p_mem_read[pc + 1];
       INTERP_INSTR_SBC();
       pc += 2;
@@ -2104,6 +2206,17 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xEA: /* NOP */
       pc++;
       cycles_this_instruction = 2;
+      break;
+    case 0xEB: /* SBC imm */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        v = p_mem_read[pc + 1];
+        INTERP_INSTR_SBC();
+        pc += 2;
+        cycles_this_instruction = 2;
+      }
       break;
     case 0xEC: /* CPX abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(x));
@@ -2171,11 +2284,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 2;
       }
       break;
+    case 0xFB: /* ISC aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("ISC");
+      }
+      break;
     case 0xFD: /* SBC abx */
       INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);
       break;
     case 0xFE: /* INC abx */
-      INTERP_MODE_ABX_READ_WRITE(INTERP_INSTR_INC());
+      INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_INC(), x);
       break;
     default:
       log_do_log(k_log_instruction,
