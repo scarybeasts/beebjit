@@ -12,7 +12,7 @@ enum {
 };
 
 enum {
-  k_6502_op_num_types = 79,
+  k_6502_op_num_types = 80,
   k_6502_op_num_opcodes = 256,
   k_6502_op_num_modes = 17,
 };
@@ -100,14 +100,15 @@ enum {
   k_xaa = 68, /* Undocumented. */
   k_rra = 69, /* Undocumented. */
   k_axs = 70, /* Undocumented. */
-  k_tsb = 71, /* 65c12. */
-  k_trb = 72, /* 65c12. */
-  k_stz = 73, /* 65c12. */
-  k_bra = 74, /* 65c12. */
-  k_phx = 75, /* 65c12. */
-  k_phy = 76, /* 65c12. */
-  k_plx = 77, /* 65c12. */
-  k_ply = 78, /* 65c12. */
+  k_isc = 71, /* Undocumented. */
+  k_tsb = 72, /* 65c12. */
+  k_trb = 73, /* 65c12. */
+  k_stz = 74, /* 65c12. */
+  k_bra = 75, /* 65c12. */
+  k_phx = 76, /* 65c12. */
+  k_phy = 77, /* 65c12. */
+  k_plx = 78, /* 65c12. */
+  k_ply = 79, /* 65c12. */
 };
 
 enum {
