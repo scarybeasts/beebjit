@@ -967,11 +967,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x05: /* ORA zpg */
-      addr = p_mem_read[pc + 1];
-      a |= p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_ORA());
       break;
     case 0x06: /* ASL zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ASL());
@@ -1137,18 +1133,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x24: /* BIT zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_BIT();
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_BIT());
       break;
     case 0x25: /* AND zpg */
-      addr = p_mem_read[pc + 1];
-      a &= p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_AND());
       break;
     case 0x26: /* ROL zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ROL());
@@ -1315,11 +1303,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 3;
       break;
     case 0x45: /* EOR zpg */
-      addr = p_mem_read[pc + 1];
-      a ^= p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_EOR());
       break;
     case 0x46: /* LSR zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_LSR());
@@ -1481,21 +1465,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x64: /* NOP zpg */ /* Undocumented. */ /* STZ zpg */
       if (is_65c12) {
-        addr = p_mem_read[pc + 1];
-        p_mem_read[addr] = 0;
-        pc += 2;
-        cycles_this_instruction = 3;
+        INTERP_MODE_ZPG_WRITE(INTERP_INSTR_STZ());
       } else {
         pc += 2;
         cycles_this_instruction = 3;
       }
       break;
     case 0x65: /* ADC zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_ADC();
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_ADC());
       break;
     case 0x66: /* ROR zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ROR());
@@ -1663,22 +1640,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x84: /* STY zpg */
-      addr = p_mem_read[pc + 1];
-      p_mem_write[addr] = y;
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_WRITE(INTERP_INSTR_STY());
       break;
     case 0x85: /* STA zpg */
-      addr = p_mem_read[pc + 1];
-      p_mem_write[addr] = a;
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_WRITE(INTERP_INSTR_STA());
       break;
     case 0x86: /* STX zpg */
-      addr = p_mem_read[pc + 1];
-      p_mem_write[addr] = x;
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_WRITE(INTERP_INSTR_STX());
       break;
     case 0x87: /* SAX zpg */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -1829,25 +1797,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0xA4: /* LDY zpg */
-      addr = p_mem_read[pc + 1];
-      y = p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(y);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_LDY());
       break;
     case 0xA5: /* LDA zpg */
-      addr = p_mem_read[pc + 1];
-      a = p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(a);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_LDA());
       break;
     case 0xA6: /* LDX zpg */
-      addr = p_mem_read[pc + 1];
-      x = p_mem_read[addr];
-      INTERP_LOAD_NZ_FLAGS(x);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_LDX());
       break;
     case 0xA7: /* LAX zpg */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -1976,18 +1932,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0xC4: /* CPY zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_CMP(y);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_CMP(y));
       break;
     case 0xC5: /* CMP zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_CMP(a);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_CMP(a));
       break;
     case 0xC6: /* DEC zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_DEC());
@@ -2124,18 +2072,10 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0xE4: /* CPX zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_CMP(x);
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_CMP(x));
       break;
     case 0xE5: /* SBC zpg */
-      addr = p_mem_read[pc + 1];
-      v = p_mem_read[addr];
-      INTERP_INSTR_SBC();
-      pc += 2;
-      cycles_this_instruction = 3;
+      INTERP_MODE_ZPG_READ(INTERP_INSTR_SBC());
       break;
     case 0xE6: /* INC zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_INC());
