@@ -1026,8 +1026,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x0E: /* ASL abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ASL());
       break;
-    case 0x0F: /* SLO abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ(INTERP_INSTR_SLO());
+    case 0x0F: /* SLO abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_SLO());
+      }
       break;
     case 0x10: /* BPL */
       INTERP_INSTR_BRANCH(!nf);
@@ -1116,6 +1121,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ASL());
       } else {
         INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ASL(), x);
+      }
+      break;
+    case 0x1F: /* SLO abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_SLO(), x);
       }
       break;
     case 0x20: /* JSR */
@@ -1209,8 +1222,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x2E: /* ROL abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROL());
       break;
-    case 0x2F: /* RLA abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RLA());
+    case 0x2F: /* RLA abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RLA());
+      }
       break;
     case 0x30: /* BMI */
       INTERP_INSTR_BRANCH(nf);
@@ -1299,6 +1317,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         INTERP_MODE_ABX_READ_WRITE_6_CYC(INTERP_INSTR_ROL());
       } else {
         INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ROL(), x);
+      }
+      break;
+    case 0x3F: /* RLA abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_RLA(), x);
       }
       break;
     case 0x40: /* RTI */
@@ -1392,8 +1418,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x4E: /* LSR abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_LSR());
       break;
-    case 0x4F: /* SRE abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_SRE());
+    case 0x4F: /* SRE abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_SRE());
+      }
       break;
     case 0x50: /* BVC */
       INTERP_INSTR_BRANCH(!of);
@@ -1485,6 +1516,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_LSR(), x);
       }
       break;
+    case 0x5F: /* SRE abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_SRE(), x);
+      }
+      break;
     case 0x60: /* RTS */
       pc = p_stack[++s];
       pc |= (p_stack[++s] << 8);
@@ -1556,7 +1595,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ARR");
+        util_bail("ARR imm");
       }
       break;
     case 0x6C: /* JMP ind */
@@ -1578,8 +1617,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x6E: /* ROR abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROR());
       break;
-    case 0x6F: /* RRA abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RRA());
+    case 0x6F: /* RRA abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_RRA());
+      }
       break;
     case 0x70: /* BVS */
       INTERP_INSTR_BRANCH(of);
@@ -1677,6 +1721,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ROR(), x);
       }
       break;
+    case 0x7F: /* RRA abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_RRA(), x);
+      }
+      break;
     case 0x80: /* NOP imm */ /* Undocumented. */ /* BRA */
       if (is_65c12) {
         INTERP_INSTR_BRANCH(1);
@@ -1769,8 +1821,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x8E: /* STX abs */
       INTERP_MODE_ABS_WRITE(INTERP_INSTR_STX());
       break;
-    case 0x8F: /* SAX abs */ /* Undocumented. */
-      INTERP_MODE_ABS_WRITE(INTERP_INSTR_SAX());
+    case 0x8F: /* SAX abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_WRITE(INTERP_INSTR_SAX());
+      }
       break;
     case 0x90: /* BCC */
       INTERP_INSTR_BRANCH(!cf);
@@ -1829,7 +1886,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("TAS");
+        util_bail("TAS aby");
       }
       break;
     case 0x9C: /* SHY abx */ /* Undocumented. */ /* STZ abs */
@@ -1847,6 +1904,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
         INTERP_MODE_ABr_WRITE(INTERP_INSTR_STZ(), x);
       } else {
         util_bail("SHX aby");
+      }
+      break;
+    case 0x9F: /* AHX aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_WRITE(INTERP_INSTR_AHX(), y);
       }
       break;
     case 0xA0: /* LDY imm */
@@ -1932,8 +1997,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xAE: /* LDX abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_LDX());
       break;
-    case 0xAF: /* LAX abs */ /* Undocumented. */
-      INTERP_MODE_ABS_READ(INTERP_INSTR_LAX());
+    case 0xAF: /* LAX abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_LAX());
+      }
       break;
     case 0xB0: /* BCS */
       INTERP_INSTR_BRANCH(cf);
@@ -1992,7 +2062,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("LAS");
+        util_bail("LAS aby");
       }
       break;
     case 0xBC: /* LDY abx */
@@ -2003,6 +2073,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xBE: /* LDX aby */
       INTERP_MODE_ABr_READ(INTERP_INSTR_LDX(), y);
+      break;
+    case 0xBF: /* LAX aby */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_LAX(), y);
+      }
       break;
     case 0xC0: /* CPY imm */
       v = p_mem_read[pc + 1];
@@ -2078,6 +2156,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xCE: /* DEC abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_DEC());
+      break;
+    case 0xCF: /* DCP abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_DCP());
+      }
       break;
     case 0xD0: /* BNE */
       INTERP_INSTR_BRANCH(!zf);
@@ -2157,6 +2243,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xDE: /* DEC abx */
       INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_DEC(), x);
       break;
+    case 0xDF: /* DCP abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_DCP(), x);
+      }
+      break;
     case 0xE0: /* CPX imm */
       v = p_mem_read[pc + 1];
       INTERP_INSTR_CMP(x);
@@ -2171,7 +2265,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC");
+        util_bail("ISC idx");
       }
       break;
     case 0xE4: /* CPX zpg */
@@ -2188,7 +2282,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC");
+        util_bail("ISC zpg");
       }
       break;
     case 0xE8: /* INX */
@@ -2227,6 +2321,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xEE: /* INC abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_INC());
       break;
+    case 0xEF: /* ISC abs */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("ISC abs");
+      }
+      break;
     case 0xF0: /* BEQ */
       INTERP_INSTR_BRANCH(zf);
       break;
@@ -2245,7 +2347,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC");
+        util_bail("ISC idy");
       }
       break;
     case 0xF5: /* SBC zpx */
@@ -2262,7 +2364,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC");
+        util_bail("ISC zpx");
       }
       break;
     case 0xF8: /* SED */
@@ -2289,7 +2391,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC");
+        util_bail("ISC aby");
       }
       break;
     case 0xFD: /* SBC abx */
@@ -2297,6 +2399,14 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xFE: /* INC abx */
       INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_INC(), x);
+      break;
+    case 0xFF: /* ISC abx */ /* Undocumented. */ /* NOP1 */
+      if (is_65c12) {
+        pc++;
+        cycles_this_instruction = 1;
+      } else {
+        util_bail("ISC abx");
+      }
       break;
     default:
       log_do_log(k_log_instruction,
