@@ -76,6 +76,7 @@ enum {
 
 enum {
   k_intel_fdc_register_internal_pointer = 0x00,
+  k_intel_fdc_register_internal_count_msb_copy = 0x00,
   k_intel_fdc_register_internal_param_count = 0x01,
   k_intel_fdc_register_internal_seek_retry_count = 0x01,
   k_intel_fdc_register_internal_param_5 = 0x03,
@@ -93,6 +94,8 @@ enum {
   k_intel_fdc_register_bad_track_1_drive_0 = 0x10,
   k_intel_fdc_register_bad_track_2_drive_0 = 0x11,
   k_intel_fdc_register_track_drive_0 = 0x12,
+  k_intel_fdc_register_internal_count_lsb = 0x13,
+  k_intel_fdc_register_internal_count_msb = 0x14,
   k_intel_fdc_register_internal_result = 0x16,
   k_intel_fdc_register_mode = 0x17,
   k_intel_fdc_register_internal_status = 0x17,
@@ -168,21 +171,14 @@ struct intel_fdc_struct {
   uint8_t regs[k_intel_num_registers];
   uint8_t drive_out;
 
-  uint8_t command_track;
-  uint8_t command_num_sectors;
-  uint32_t command_sector_size;
   int command_is_transfer_deleted;
   int command_is_verify_only;
   int command_is_write;
   uint32_t shift_register;
   uint32_t num_shifts;
 
-  uint8_t current_sectors_left;
   int current_had_deleted_data;
   int current_needs_settle;
-  uint8_t current_format_gap1;
-  uint8_t current_format_gap3;
-  uint8_t current_format_gap5;
   int32_t current_head_unload_count;
   uint32_t current_seek_count;
 
@@ -209,6 +205,24 @@ intel_fdc_set_status(struct intel_fdc_struct* p_fdc, uint8_t status) {
 static inline uint8_t
 intel_fdc_get_select_bits(struct intel_fdc_struct* p_fdc) {
   return (p_fdc->drive_out & 0xC0);
+}
+
+static inline uint32_t
+intel_fdc_get_sector_size(struct intel_fdc_struct* p_fdc) {
+  uint32_t size = (p_fdc->regs[k_intel_fdc_register_internal_param_3] >> 5);
+  size = (128 << size);
+  return size;
+}
+
+static inline void
+intel_fdc_setup_sector_size(struct intel_fdc_struct* p_fdc) {
+  /* TODO: actually use this as the decrementing count. */
+  uint32_t size = intel_fdc_get_sector_size(p_fdc);
+  uint32_t msb = ((size / 128) - 1);
+  p_fdc->regs[k_intel_fdc_register_internal_count_lsb] = 0x80;
+  p_fdc->regs[k_intel_fdc_register_internal_count_msb] = msb;
+  /* NOTE: this is R0, i.e. R0 is trashed here. */
+  p_fdc->regs[k_intel_fdc_register_internal_count_msb_copy] = msb;
 }
 
 static void
@@ -617,12 +631,9 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
 
-  p_fdc->command_track = param1;
   /* EMU: this is correct even for read sector IDs ($1B), even though the
    * datasheet suggests all the bits are relevant.
    */
-  p_fdc->command_num_sectors = (param3 & 0x1F);
-  p_fdc->command_sector_size = (128 << (param3 >> 5));
   p_fdc->command_is_transfer_deleted = 0;
   p_fdc->command_is_verify_only = 0;
   p_fdc->command_is_write = 0;
@@ -686,13 +697,6 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_command_read_sector_ids:
   case k_intel_fdc_command_format:
   case k_intel_fdc_command_seek:
-    /* Not all of these variable are used by all of the commands but set them
-     * all for simplicity.
-     */
-    p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    p_fdc->current_format_gap1 = param5;
-    p_fdc->current_format_gap3 = param2;
-    p_fdc->current_format_gap5 = param4;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
     break;
   case k_intel_fdc_command_read_drive_status:
@@ -936,15 +940,16 @@ intel_fdc_check_crc(struct intel_fdc_struct* p_fdc, uint8_t error) {
 
 static void
 intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
-  p_fdc->current_sectors_left--;
-  /* Specifying 0 sectors seems to result in 32 read, presumably due to
-   * underflow of the 5-bit counter.
+  /* Specifying 0 sectors seems to result in 32 read, due to underflow of the
+   * 5-bit counter.
+   * On commands other than READ_ID, any underflow has other side effects
+   * such as modifying the sector size.
    */
-  p_fdc->current_sectors_left &= 0x1F;
-  if (p_fdc->current_sectors_left == 0) {
+  p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
+  if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
     intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
   } else {
-    p_fdc->regs[k_intel_fdc_register_current_sector]++;
+    p_fdc->regs[k_intel_fdc_register_internal_param_2]++;
     /* EMU: Reset the index pulse counter.
      * A real 8271 permits two index pulses per sector, not per command.
      */
@@ -1012,7 +1017,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
           k_intel_fdc_command_read_sector_ids) {
         intel_fdc_check_completion(p_fdc);
-      } else if (p_fdc->state_id_track != p_fdc->command_track) {
+      } else if (p_fdc->state_id_track !=
+                 p_fdc->regs[k_intel_fdc_register_internal_param_1]) {
         /* EMU NOTE: upon any mismatch of found track vs. expected track,
          * the drive will try twice more on the next two tracks.
          */
@@ -1025,7 +1031,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
         }
       } else if (p_fdc->state_id_sector ==
-                 p_fdc->regs[k_intel_fdc_register_current_sector]) {
+                 p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
         p_fdc->state_index_pulse_count = 0;
         if (p_fdc->command_is_write) {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
@@ -1062,7 +1068,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       }
     }
     p_fdc->state_count++;
-    if (p_fdc->state_count == p_fdc->command_sector_size) {
+    if (p_fdc->state_count == intel_fdc_get_sector_size(p_fdc)) {
       p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
@@ -1075,7 +1081,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       }
     }
     p_fdc->state_count++;
-    if (p_fdc->state_count == p_fdc->command_sector_size) {
+    if (p_fdc->state_count == intel_fdc_get_sector_size(p_fdc)) {
       p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
@@ -1132,20 +1138,20 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
                             k_ibm_disc_mark_clock_pattern);
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, mark_byte);
-    } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
+    } else if (p_fdc->state_count < (intel_fdc_get_sector_size(p_fdc) + 1)) {
       if (!intel_fdc_consume_data_byte(p_fdc)) {
         break;
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->data);
-    } else if (p_fdc->state_count == (p_fdc->command_sector_size + 1)) {
+    } else if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 1)) {
       disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
-    } else if (p_fdc->state_count == (p_fdc->command_sector_size + 2)) {
+    } else if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 2)) {
       disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
     }
     p_fdc->state_count++;
-    if (p_fdc->state_count == (p_fdc->command_sector_size + 3)) {
+    if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 3)) {
       intel_fdc_check_completion(p_fdc);
-    } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
+    } else if (p_fdc->state_count < (intel_fdc_get_sector_size(p_fdc) + 1)) {
       intel_fdc_set_status_result(p_fdc,
                                   (intel_fdc_get_status(p_fdc) |
                                       k_intel_fdc_status_flag_nmi |
@@ -1154,13 +1160,16 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     }
     break;
   case k_intel_fdc_state_format_gap_1:
-    if (p_fdc->state_count < p_fdc->current_format_gap1) {
+    if (p_fdc->state_count <
+            p_fdc->regs[k_intel_fdc_register_internal_param_5]) {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     } else {
       disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
     }
     p_fdc->state_count++;
-    if (p_fdc->state_count == (uint32_t) (p_fdc->current_format_gap1 + 6)) {
+    if (p_fdc->state_count ==
+            (uint32_t) (p_fdc->regs[k_intel_fdc_register_internal_param_5] +
+                            6)) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_id);
     }
     break;
@@ -1217,15 +1226,15 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
                             k_ibm_disc_mark_clock_pattern);
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, byte);
-    } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
+    } else if (p_fdc->state_count < (intel_fdc_get_sector_size(p_fdc) + 1)) {
       uint8_t byte = 0xE5;
       disc_drive_write_byte(p_current_drive, byte, 0xFF);
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, byte);
-    } else if (p_fdc->state_count == (p_fdc->command_sector_size + 1)) {
+    } else if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 1)) {
       /* Formatted sector data is constant so we can check our CRC algorithm
        * here with this assert.
        */
-      if (p_fdc->command_sector_size == 256) {
+      if (intel_fdc_get_sector_size(p_fdc) == 256) {
         assert(p_fdc->crc == 0xA40C);
       }
       disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
@@ -1234,10 +1243,9 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     }
 
     p_fdc->state_count++;
-    if (p_fdc->state_count == (p_fdc->command_sector_size + 3)) {
-      p_fdc->current_sectors_left--;
-      p_fdc->current_sectors_left &= 0x1F;
-      if (p_fdc->current_sectors_left == 0) {
+    if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 3)) {
+      p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
+      if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
         intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_4);
       } else {
         intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_3);
@@ -1245,13 +1253,16 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     }
     break;
   case k_intel_fdc_state_format_gap_3:
-    if (p_fdc->state_count < p_fdc->current_format_gap3) {
+    if (p_fdc->state_count <
+            p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     } else {
       disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
     }
     p_fdc->state_count++;
-    if (p_fdc->state_count == (uint32_t) (p_fdc->current_format_gap3 + 6)) {
+    if (p_fdc->state_count ==
+            (uint32_t) (p_fdc->regs[k_intel_fdc_register_internal_param_2] +
+                            6)) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_id);
     }
     break;
@@ -1403,7 +1414,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   {
     uint8_t* p_track_regs;
     uint8_t curr_track;
-    uint8_t new_track = p_fdc->command_track;
+    uint8_t new_track = p_fdc->regs[k_intel_fdc_register_internal_param_1];
     new_track += p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count];
 
     if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
@@ -1552,13 +1563,17 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
     switch (p_fdc->regs[k_intel_fdc_register_internal_command]) {
     case k_intel_fdc_command_read_sector_ids:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+      break;
     case k_intel_fdc_command_format:
+      intel_fdc_setup_sector_size(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
       break;
     case k_intel_fdc_command_seek:
       intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
       break;
     default:
+      intel_fdc_setup_sector_size(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
       break;
     }
@@ -1579,7 +1594,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     } else {
       assert(p_fdc->regs[k_intel_fdc_register_internal_command] ==
           k_intel_fdc_command_format);
-      if (p_fdc->current_format_gap5 != 0) {
+      if (p_fdc->regs[k_intel_fdc_register_internal_param_4] != 0) {
         util_bail("format GAP5 not supported");
       }
       p_fdc->state_index_pulse_count = 0;
