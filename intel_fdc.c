@@ -166,7 +166,6 @@ struct intel_fdc_struct {
   uint8_t data;
   int parameter_accept;
   uint8_t regs[k_intel_num_registers];
-  uint8_t drive_select;
   uint8_t drive_out;
 
   uint8_t command_track;
@@ -207,6 +206,11 @@ intel_fdc_set_status(struct intel_fdc_struct* p_fdc, uint8_t status) {
   p_fdc->regs[k_intel_fdc_register_internal_status] = status;
 }
 
+static inline uint8_t
+intel_fdc_get_select_bits(struct intel_fdc_struct* p_fdc) {
+  return (p_fdc->drive_out & 0xC0);
+}
+
 static void
 intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
@@ -232,7 +236,7 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
                        uint8_t new_drive_select) {
   uint8_t new_drive_out;
 
-  if (new_drive_select == p_fdc->drive_select) {
+  if (new_drive_select == intel_fdc_get_select_bits(p_fdc)) {
     return;
   }
 
@@ -245,7 +249,6 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
   new_drive_out |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
   intel_fdc_set_drive_out(p_fdc, new_drive_out);
 
-  p_fdc->drive_select = new_drive_select;
   if (new_drive_select == 0x40) {
     p_fdc->p_current_drive = p_fdc->p_drive_0;
   } else if (new_drive_select == 0x80) {
@@ -319,7 +322,7 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
    */
   assert(p_fdc->parameter_accept == k_intel_fdc_parameter_accept_none);
   assert(p_fdc->state == k_intel_fdc_state_idle);
-  assert(p_fdc->drive_select == 0);
+  assert(intel_fdc_get_select_bits(p_fdc) == 0);
   assert(p_fdc->p_current_drive == NULL);
 
   p_fdc->result = 0;
@@ -595,7 +598,7 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
                "ptrk %d hpos %d",
                command,
-               p_fdc->drive_select,
+               intel_fdc_get_select_bits(p_fdc),
                param1,
                param2,
                param3,
@@ -702,11 +705,11 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
       /* TRK0 */
       temp_u8 |= 0x02;
     }
-    if (p_fdc->drive_select & 0x40) {
+    if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
       /* RDY0 */
       temp_u8 |= 0x04;
     }
-    if (p_fdc->drive_select & 0x80) {
+    if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
       /* RDY1 */
       temp_u8 |= 0x40;
     }
