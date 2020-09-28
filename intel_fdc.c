@@ -27,7 +27,9 @@ enum {
 };
 
 enum {
-  k_intel_fdc_max_params = 5,
+  k_intel_fdc_parameter_accept_none = 1,
+  k_intel_fdc_parameter_accept_command = 2,
+  k_intel_fdc_parameter_accept_specify = 3,
 };
 
 enum {
@@ -54,6 +56,8 @@ enum {
 
 enum {
   k_intel_fdc_status_flag_busy = 0x80,
+  k_intel_fdc_status_flag_command_full = 0x40,
+  k_intel_fdc_status_flag_param_full = 0x20,
   k_intel_fdc_status_flag_result_ready = 0x10,
   k_intel_fdc_status_flag_nmi = 0x08,
   k_intel_fdc_status_flag_need_data = 0x04,
@@ -71,8 +75,15 @@ enum {
 };
 
 enum {
+  k_intel_fdc_register_internal_pointer = 0x00,
+  k_intel_fdc_register_internal_param_count = 0x01,
   k_intel_fdc_register_internal_seek_retry_count = 0x01,
+  k_intel_fdc_register_internal_param_5 = 0x03,
+  k_intel_fdc_register_internal_param_4 = 0x04,
+  k_intel_fdc_register_internal_param_3 = 0x05,
   k_intel_fdc_register_current_sector = 0x06,
+  k_intel_fdc_register_internal_param_2 = 0x06,
+  k_intel_fdc_register_internal_param_1 = 0x07,
   k_intel_fdc_register_internal_seek_count = 0x0A,
   k_intel_fdc_register_internal_seek_target_1 = 0x0B,
   k_intel_fdc_register_internal_seek_target_2 = 0x0C,
@@ -82,10 +93,14 @@ enum {
   k_intel_fdc_register_bad_track_1_drive_0 = 0x10,
   k_intel_fdc_register_bad_track_2_drive_0 = 0x11,
   k_intel_fdc_register_track_drive_0 = 0x12,
+  k_intel_fdc_register_internal_result = 0x16,
   k_intel_fdc_register_mode = 0x17,
+  k_intel_fdc_register_internal_status = 0x17,
   k_intel_fdc_register_bad_track_1_drive_1 = 0x18,
   k_intel_fdc_register_bad_track_2_drive_1 = 0x19,
   k_intel_fdc_register_track_drive_1 = 0x1A,
+  k_intel_fdc_register_internal_parameter = 0x1E,
+  k_intel_fdc_register_internal_command = 0x1F,
   k_intel_fdc_register_drive_out = 0x23,
 };
 
@@ -147,20 +162,14 @@ struct intel_fdc_struct {
   struct disc_drive_struct* p_drive_1;
   struct disc_drive_struct* p_current_drive;
 
-  uint8_t status;
   uint8_t result;
   uint8_t data;
+  int parameter_accept;
   uint8_t regs[k_intel_num_registers];
-  uint8_t command_pending;
   uint8_t drive_select;
-  uint8_t command;
-  uint8_t parameters_needed;
-  uint8_t parameters_index;
-  uint8_t parameters[k_intel_fdc_max_params];
   uint8_t drive_out;
 
   uint8_t command_track;
-  uint8_t command_sector;
   uint8_t command_num_sectors;
   uint32_t command_sector_size;
   int command_is_transfer_deleted;
@@ -187,6 +196,16 @@ struct intel_fdc_struct {
   uint16_t crc;
   uint16_t on_disc_crc;
 };
+
+static inline uint8_t
+intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
+  return p_fdc->regs[k_intel_fdc_register_internal_status];
+}
+
+static inline void
+intel_fdc_set_status(struct intel_fdc_struct* p_fdc, uint8_t status) {
+  p_fdc->regs[k_intel_fdc_register_internal_status] = status;
+}
 
 static void
 intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
@@ -217,15 +236,13 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
     return;
   }
 
-  /* A change of drive select bits clears various bits in the drive output.
+  /* A change of drive select bits clears all drive out bits other than side
+   * select.
    * For example, the newly selected drive won't have the load head signal
-   * active.
-   * This also spins down the previously selected drive.
+   * active. This spins down any previously selected drive.
    */
-  new_drive_out = (p_fdc->drive_out & ~0xC0);
-  new_drive_out |= new_drive_select;
-  new_drive_out &= ~k_intel_fdc_drive_out_load_head;
-  new_drive_out &= ~k_intel_fdc_drive_out_write_enable;
+  new_drive_out = new_drive_select;
+  new_drive_out |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
   intel_fdc_set_drive_out(p_fdc, new_drive_out);
 
   p_fdc->drive_select = new_drive_select;
@@ -270,8 +287,6 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
   } else {
     p_fdc->current_head_unload_count = head_unload_count;
   }
-
-  p_fdc->command = 0;
 }
 
 static void
@@ -302,7 +317,7 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
   /* ... but not everything. Note that not all of these have been verified as
    * to whether the reset line changes them or not.
    */
-  assert(p_fdc->command == 0);
+  assert(p_fdc->parameter_accept == k_intel_fdc_parameter_accept_none);
   assert(p_fdc->state == k_intel_fdc_state_idle);
   assert(p_fdc->drive_select == 0);
   assert(p_fdc->p_current_drive == NULL);
@@ -324,19 +339,14 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   /* Abort any in-progress command. */
   intel_fdc_command_abort(p_fdc);
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
+  p_fdc->parameter_accept = k_intel_fdc_parameter_accept_none;
 
   /* Deselect any drive; ensures spin-down. */
   intel_fdc_select_drive(p_fdc, 0);
 
-  assert(p_fdc->command == 0);
   /* EMU: on a real machine, status appears to be cleared but result and data
    * register not. */
-  p_fdc->status = 0;
-
-  /* Any half-built command is cleared. */
-  p_fdc->command_pending = 0;
-  p_fdc->parameters_needed = 0;
-  p_fdc->parameters_index = 0;
+  intel_fdc_set_status(p_fdc, 0);
 }
 
 struct intel_fdc_struct*
@@ -381,7 +391,7 @@ intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
   int level = !!(status & k_intel_fdc_status_flag_nmi);
   int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
 
-  p_fdc->status = status;
+  intel_fdc_set_status(p_fdc, status);
   p_fdc->result = result;
 
   if (firing && (level == 1)) {
@@ -420,10 +430,10 @@ uint8_t
 intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   switch (addr & 0x07) {
   case k_intel_fdc_status:
-    return p_fdc->status;
+    return intel_fdc_get_status(p_fdc);
   case k_intel_fdc_result:
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status &
+                                (intel_fdc_get_status(p_fdc) &
                                  ~(k_intel_fdc_status_flag_result_ready |
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
@@ -436,7 +446,7 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   case (k_intel_fdc_data + 2):
   case (k_intel_fdc_data + 3):
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status &
+                                (intel_fdc_get_status(p_fdc) &
                                  ~(k_intel_fdc_status_flag_need_data |
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
@@ -551,50 +561,25 @@ intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
 }
 
 static void
-intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
+intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
-  uint8_t command;
 
-  uint8_t param0 = p_fdc->parameters[0];
-  uint8_t param1 = p_fdc->parameters[1];
-  uint8_t param2 = p_fdc->parameters[2];
-  uint8_t param3 = p_fdc->parameters[3];
-  uint8_t param4 = p_fdc->parameters[4];
+  uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
+  uint8_t param1 = p_fdc->regs[k_intel_fdc_register_internal_param_1];
+  uint8_t param2 = p_fdc->regs[k_intel_fdc_register_internal_param_2];
+  uint8_t param3 = p_fdc->regs[k_intel_fdc_register_internal_param_3];
+  uint8_t param4 = p_fdc->regs[k_intel_fdc_register_internal_param_4];
+  uint8_t param5 = p_fdc->regs[k_intel_fdc_register_internal_param_5];
 
-  assert(p_fdc->state == k_intel_fdc_state_idle);
-  assert(p_fdc->state_count == 0);
-  assert(p_fdc->command == 0);
-  assert(p_fdc->parameters_needed == 0);
+  /* TODO: the 8271 reads drive status here and changes R21 + R27. */
 
-  command = (p_fdc->command_pending & 0x3F);
-  p_fdc->command = command;
+  p_fdc->parameter_accept = k_intel_fdc_parameter_accept_none;
 
-  p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
-
-  /* For the single 128 byte sector commands, fake the parameters. */
-  switch (command) {
-  case k_intel_fdc_command_write_sector_128:
-  case k_intel_fdc_command_write_sector_deleted_128:
-  case k_intel_fdc_command_read_sector_128:
-  case k_intel_fdc_command_read_sector_with_deleted_128:
-  case k_intel_fdc_command_verify_sector_128:
-    param2 = 1;
-  default:
-    break;
-  }
-
-  p_fdc->command_track = param0;
-  p_fdc->command_sector = param1;
-  /* EMU: this is correct even for read sector IDs ($1B), even though the
-   * data sheet suggests all the bits are relevant.
-   */
-  p_fdc->command_num_sectors = (param2 & 0x1F);
-  p_fdc->command_sector_size = (128 << (param2 >> 5));
-  p_fdc->command_is_transfer_deleted = 0;
-  p_fdc->command_is_verify_only = 0;
-  p_fdc->command_is_write = 0;
-
-  intel_fdc_select_drive(p_fdc, (p_fdc->command_pending & 0xC0));
+  /* Select the drive before logging so that head position is reported. */
+  intel_fdc_select_drive(p_fdc, (command & 0xC0));
+  /* Mask out drive select bits from command register. */
+  command &= 0x3F;
+  p_fdc->regs[k_intel_fdc_register_internal_command] = command;
 
   if (p_fdc->log_commands) {
     int32_t head_pos = -1;
@@ -611,14 +596,33 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
                "ptrk %d hpos %d",
                command,
                p_fdc->drive_select,
-               param0,
                param1,
                param2,
                param3,
                param4,
+               param5,
                track,
                head_pos);
   }
+
+  if ((command == k_intel_fdc_command_scan_sectors_with_deleted) ||
+      (command == k_intel_fdc_command_scan_sectors)) {
+    log_do_log(k_log_disc,
+               k_log_unusual,
+               "8271: scan sectors doesn't work in a beeb");
+  }
+
+  p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
+
+  p_fdc->command_track = param1;
+  /* EMU: this is correct even for read sector IDs ($1B), even though the
+   * datasheet suggests all the bits are relevant.
+   */
+  p_fdc->command_num_sectors = (param3 & 0x1F);
+  p_fdc->command_sector_size = (128 << (param3 >> 5));
+  p_fdc->command_is_transfer_deleted = 0;
+  p_fdc->command_is_verify_only = 0;
+  p_fdc->command_is_write = 0;
 
   /* The write commands bail if the disc is write protected. */
   /* TODO: this is done at the wrong time. The 8271 ROM disassembly shows it is
@@ -682,11 +686,10 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     /* Not all of these variable are used by all of the commands but set them
      * all for simplicity.
      */
-    p_fdc->regs[k_intel_fdc_register_current_sector] = p_fdc->command_sector;
     p_fdc->current_sectors_left = p_fdc->command_num_sectors;
-    p_fdc->current_format_gap1 = param4;
-    p_fdc->current_format_gap3 = param1;
-    p_fdc->current_format_gap5 = param3;
+    p_fdc->current_format_gap1 = param5;
+    p_fdc->current_format_gap3 = param2;
+    p_fdc->current_format_gap5 = param4;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
     break;
   case k_intel_fdc_command_read_drive_status:
@@ -718,18 +721,16 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_specify:
-    intel_fdc_write_special_register(p_fdc, param0, param1);
-    intel_fdc_write_special_register(p_fdc, (param0 + 1), param2);
-    intel_fdc_write_special_register(p_fdc, (param0 + 2), param3);
-    /* EMU: return value matches real 8271. */
-    intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
+    p_fdc->regs[k_intel_fdc_register_internal_pointer] = param1;
+    p_fdc->regs[k_intel_fdc_register_internal_param_count] = 3;
+    p_fdc->parameter_accept = k_intel_fdc_parameter_accept_specify;
     break;
   case k_intel_fdc_command_read_special_register:
-    temp_u8 = intel_fdc_read_special_register(p_fdc, param0);
+    temp_u8 = intel_fdc_read_special_register(p_fdc, param1);
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_write_special_register:
-    intel_fdc_write_special_register(p_fdc, param0, param1);
+    intel_fdc_write_special_register(p_fdc, param1, param2);
     /* EMU: checked on a real 8271.  */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
@@ -738,117 +739,105 @@ intel_fdc_do_command(struct intel_fdc_struct* p_fdc) {
   }
 }
 
+static void
+intel_fdc_command_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
+  uint8_t num_params;
+
+  uint8_t status = intel_fdc_get_status(p_fdc);
+
+  if (status & k_intel_fdc_status_flag_busy) {
+    log_do_log(k_log_disc,
+               k_log_unusual,
+               "8271: command $%.2X while busy with $%.2X",
+               val,
+               p_fdc->regs[k_intel_fdc_register_internal_command]);
+  }
+
+  /* Set command. */
+  p_fdc->regs[k_intel_fdc_register_internal_command] = val;
+  /* Set busy, lower command full in status. */
+  status |= k_intel_fdc_status_flag_busy;
+  status &= ~k_intel_fdc_status_flag_command_full;
+  intel_fdc_set_status(p_fdc, status);
+  /* Set result to zero. */
+  p_fdc->regs[k_intel_fdc_register_internal_result] = 0;
+  p_fdc->result = 0;
+
+  /* Default parameters. This supports the 1x128 byte sector commands. */
+  p_fdc->regs[k_intel_fdc_register_internal_param_3] = 1;
+  p_fdc->regs[k_intel_fdc_register_internal_param_4] = 1;
+
+  /* Calculate parameters expected. This is the exact logic in the 8271 ROM. */
+  num_params = 5;
+  if (p_fdc->regs[k_intel_fdc_register_internal_command] & 0x18) {
+    num_params = (p_fdc->regs[k_intel_fdc_register_internal_command] & 0x03);
+  }
+
+  /* Expectation goes in R1. */
+  p_fdc->regs[k_intel_fdc_register_internal_param_count] = num_params;
+
+  /* Exit to wait for parameters if necessary. */
+  if (num_params > 0) {
+    /* Parameters write into R7 downwards. */
+    p_fdc->regs[k_intel_fdc_register_internal_pointer] = 7;
+    p_fdc->parameter_accept = k_intel_fdc_parameter_accept_command;
+    return;
+  }
+
+  intel_fdc_start_command(p_fdc);
+}
+
+static void
+intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
+  uint8_t pointer;
+
+  p_fdc->regs[k_intel_fdc_register_internal_parameter] = val;
+
+  switch (p_fdc->parameter_accept) {
+  case k_intel_fdc_parameter_accept_none:
+    break;
+  case k_intel_fdc_parameter_accept_command:
+    pointer = p_fdc->regs[k_intel_fdc_register_internal_pointer];
+    p_fdc->regs[pointer] = p_fdc->regs[k_intel_fdc_register_internal_parameter];
+    p_fdc->regs[k_intel_fdc_register_internal_pointer]--;
+    p_fdc->regs[k_intel_fdc_register_internal_param_count]--;
+    if (p_fdc->regs[k_intel_fdc_register_internal_param_count] == 0) {
+      intel_fdc_start_command(p_fdc);
+    }
+    break;
+  case k_intel_fdc_parameter_accept_specify:
+    pointer = p_fdc->regs[k_intel_fdc_register_internal_pointer];
+    p_fdc->regs[pointer] = p_fdc->regs[k_intel_fdc_register_internal_parameter];
+    p_fdc->regs[k_intel_fdc_register_internal_pointer]++;
+    p_fdc->regs[k_intel_fdc_register_internal_param_count]--;
+    if (p_fdc->regs[k_intel_fdc_register_internal_param_count] == 0) {
+      /* EMU: return value matches real 8271. */
+      intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
+    }
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 void
 intel_fdc_write(struct intel_fdc_struct* p_fdc,
                 uint16_t addr,
                 uint8_t val) {
-  uint8_t num_params;
-
   switch (addr & 0x07) {
   case k_intel_fdc_command:
-    /* TODO: this isn't correct. A new command will actually replace the old
-     * one despite it being decried as illegal.
-     */
-    if (p_fdc->status & k_intel_fdc_status_flag_busy) {
-      /* Need parameters or command busy. Get out. */
-      log_do_log(k_log_disc,
-                 k_log_warning,
-                 "8271: command $%.2X while busy with $%.2X, ignoring",
-                 val,
-                 p_fdc->command);
-      return;
-    }
-
-    assert(p_fdc->state == k_intel_fdc_state_idle);
-    assert(p_fdc->state_count == 0);
-    assert(p_fdc->command == 0);
-
-    p_fdc->command_pending = val;
-
-    switch (val & 0x3F) {
-    case k_intel_fdc_command_read_drive_status:
-      num_params = 0;
-      break;
-    case k_intel_fdc_command_seek:
-    case k_intel_fdc_command_read_special_register:
-      num_params = 1;
-      break;
-    case k_intel_fdc_command_write_sector_128:
-    case k_intel_fdc_command_write_sector_deleted_128:
-    case k_intel_fdc_command_read_sector_128:
-    case k_intel_fdc_command_read_sector_with_deleted_128:
-    case k_intel_fdc_command_verify_sector_128:
-    case k_intel_fdc_command_write_special_register:
-      num_params = 2;
-      break;
-    case k_intel_fdc_command_write_sectors:
-    case k_intel_fdc_command_read_sectors:
-    case k_intel_fdc_command_read_sectors_with_deleted:
-    case k_intel_fdc_command_read_sector_ids:
-    case k_intel_fdc_command_verify_sectors:
-      num_params = 3;
-      break;
-    case k_intel_fdc_command_specify:
-      num_params = 4;
-      break;
-    case k_intel_fdc_command_format:
-      num_params = 5;
-      break;
-    case k_intel_fdc_command_scan_sectors_with_deleted:
-    case k_intel_fdc_command_scan_sectors:
-      log_do_log(k_log_disc,
-                 k_log_info,
-                 "8271: scan sectors doesn't work in a beeb");
-      num_params = 5;
-      break;
-    default:
-      /* TODO: this isn't right. All the command IDs seem to do something,
-       * usually a different-parameter version of another command.
-       */
-      intel_fdc_set_command_result(p_fdc,
-                                   1,
-                                   k_intel_fdc_result_sector_not_found);
-      return;
-    }
-
-    p_fdc->parameters_needed = num_params;
-    p_fdc->parameters_index = 0;
-
-    if (p_fdc->parameters_needed == 0) {
-      intel_fdc_do_command(p_fdc);
-    } else {
-      /* TODO: check this, sometimes I see result ready indicated on a real
-       * 8271??
-       */
-      intel_fdc_set_status_result(p_fdc,
-                                  k_intel_fdc_status_flag_busy,
-                                  k_intel_fdc_result_ok);
-    }
+    intel_fdc_command_written(p_fdc, val);
     break;
   case k_intel_fdc_parameter:
-    if (p_fdc->parameters_needed == 0) {
-      break;
-    }
-
-    assert(p_fdc->status & k_intel_fdc_status_flag_busy);
-    assert(p_fdc->state == k_intel_fdc_state_idle);
-    assert(p_fdc->state_count == 0);
-    assert(p_fdc->command == 0);
-
-    p_fdc->parameters[p_fdc->parameters_index] = val;
-    p_fdc->parameters_index++;
-    p_fdc->parameters_needed--;
-
-    if (p_fdc->parameters_needed == 0) {
-      intel_fdc_do_command(p_fdc);
-    }
+    intel_fdc_param_written(p_fdc, val);
     break;
   case k_intel_fdc_data:
   case (k_intel_fdc_data + 1):
   case (k_intel_fdc_data + 2):
   case (k_intel_fdc_data + 3):
     intel_fdc_set_status_result(p_fdc,
-                                (p_fdc->status &
+                                (intel_fdc_get_status(p_fdc) &
                                  ~(k_intel_fdc_status_flag_need_data |
                                    k_intel_fdc_status_flag_nmi)),
                                 p_fdc->result);
@@ -883,7 +872,7 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   int ok = 1;
-  uint8_t command = p_fdc->command;
+  uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
 
   /* Abort command if it's any type of scan. The 8271 requires DMA to be wired
    * up for scan commands, which is not done in the BBC application.
@@ -894,7 +883,7 @@ intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   }
 
   /* Abort command if previous data byte wasn't picked up. */
-  if (p_fdc->status & k_intel_fdc_status_flag_need_data) {
+  if (intel_fdc_get_status(p_fdc) & k_intel_fdc_status_flag_need_data) {
     ok = 0;
   }
 
@@ -915,10 +904,10 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
   }
   p_fdc->data = byte;
   intel_fdc_set_status_result(p_fdc,
-                              (k_intel_fdc_status_flag_busy |
+                              (intel_fdc_get_status(p_fdc) |
                                   k_intel_fdc_status_flag_nmi |
                                   k_intel_fdc_status_flag_need_data),
-                                  k_intel_fdc_result_ok);
+                              k_intel_fdc_result_ok);
   return 1;
 }
 
@@ -984,7 +973,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_state_in_id:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+    if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
+            k_intel_fdc_command_read_sector_ids) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
@@ -1016,7 +1006,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_id_crc_error)) {
         break;
       }
-      if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+      if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
+          k_intel_fdc_command_read_sector_ids) {
         intel_fdc_check_completion(p_fdc);
       } else if (p_fdc->state_id_track != p_fdc->command_track) {
         /* EMU NOTE: upon any mismatch of found track vs. expected track,
@@ -1153,10 +1144,10 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       intel_fdc_check_completion(p_fdc);
     } else if (p_fdc->state_count < (p_fdc->command_sector_size + 1)) {
       intel_fdc_set_status_result(p_fdc,
-                                  (k_intel_fdc_status_flag_busy |
+                                  (intel_fdc_get_status(p_fdc) |
                                       k_intel_fdc_status_flag_nmi |
                                       k_intel_fdc_status_flag_need_data),
-                                      k_intel_fdc_result_ok);
+                                  k_intel_fdc_result_ok);
     }
     break;
   case k_intel_fdc_state_format_gap_1:
@@ -1199,10 +1190,10 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     p_fdc->state_count++;
     if (p_fdc->state_count < 5) {
       intel_fdc_set_status_result(p_fdc,
-                                  (k_intel_fdc_status_flag_busy |
+                                  (intel_fdc_get_status(p_fdc) |
                                       k_intel_fdc_status_flag_nmi |
                                       k_intel_fdc_status_flag_need_data),
-                                      k_intel_fdc_result_ok);
+                                  k_intel_fdc_result_ok);
     } else if (p_fdc->state_count == (7 + 11 + 6)) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_data);
     }
@@ -1556,7 +1547,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
 
-    switch (p_fdc->command) {
+    switch (p_fdc->regs[k_intel_fdc_register_internal_command]) {
     case k_intel_fdc_command_read_sector_ids:
     case k_intel_fdc_command_format:
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
@@ -1579,10 +1570,12 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if (!p_fdc->state_is_index_pulse) {
       break;
     }
-    if (p_fdc->command == k_intel_fdc_command_read_sector_ids) {
+    if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
+        k_intel_fdc_command_read_sector_ids) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
     } else {
-      assert(p_fdc->command == k_intel_fdc_command_format);
+      assert(p_fdc->regs[k_intel_fdc_register_internal_command] ==
+          k_intel_fdc_command_format);
       if (p_fdc->current_format_gap5 != 0) {
         util_bail("format GAP5 not supported");
       }
