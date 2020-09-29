@@ -10,6 +10,33 @@
 #include <assert.h>
 #include <string.h>
 
+/* Public command constants from the datasheet, included here for reference.
+ * These are not used internally. Internally, the command is derived by
+ * shifting right by 2. The remaining bits are used to describe parameter
+ * counts and variants.
+enum {
+  k_intel_fdc_command_scan_sectors = 0x00,
+  k_intel_fdc_command_scan_sectors_with_deleted = 0x04,
+  k_intel_fdc_command_write_sector_128 = 0x0A,
+  k_intel_fdc_command_write_sectors = 0x0B,
+  k_intel_fdc_command_write_sector_deleted_128 = 0x0E,
+  k_intel_fdc_command_write_sectors_deleted = 0x0F,
+  k_intel_fdc_command_read_sector_128 = 0x12,
+  k_intel_fdc_command_read_sectors = 0x13,
+  k_intel_fdc_command_read_sector_with_deleted_128 = 0x16,
+  k_intel_fdc_command_read_sectors_with_deleted = 0x17,
+  k_intel_fdc_command_read_sector_ids = 0x1B,
+  k_intel_fdc_command_verify_sector_128 = 0x1E,
+  k_intel_fdc_command_verify_sectors = 0x1F,
+  k_intel_fdc_command_format = 0x23,
+  k_intel_fdc_command_seek = 0x29,
+  k_intel_fdc_command_read_drive_status = 0x2C,
+  k_intel_fdc_command_specify = 0x35,
+  k_intel_fdc_command_write_special_register = 0x3A,
+  k_intel_fdc_command_read_special_register = 0x3D,
+};
+*/
+
 enum {
   /* Read. */
   k_intel_fdc_status = 0,
@@ -33,28 +60,6 @@ enum {
 };
 
 enum {
-  k_intel_fdc_command_scan_sectors = 0x00,
-  k_intel_fdc_command_scan_sectors_with_deleted = 0x04,
-  k_intel_fdc_command_write_sector_128 = 0x0A,
-  k_intel_fdc_command_write_sectors = 0x0B,
-  k_intel_fdc_command_write_sector_deleted_128 = 0x0E,
-  k_intel_fdc_command_write_sectors_deleted = 0x0F,
-  k_intel_fdc_command_read_sector_128 = 0x12,
-  k_intel_fdc_command_read_sectors = 0x13,
-  k_intel_fdc_command_read_sector_with_deleted_128 = 0x16,
-  k_intel_fdc_command_read_sectors_with_deleted = 0x17,
-  k_intel_fdc_command_read_sector_ids = 0x1B,
-  k_intel_fdc_command_verify_sector_128 = 0x1E,
-  k_intel_fdc_command_verify_sectors = 0x1F,
-  k_intel_fdc_command_format = 0x23,
-  k_intel_fdc_command_seek = 0x29,
-  k_intel_fdc_command_read_drive_status = 0x2C,
-  k_intel_fdc_command_specify = 0x35,
-  k_intel_fdc_command_write_special_register = 0x3A,
-  k_intel_fdc_command_read_special_register = 0x3D,
-};
-
-enum {
   k_intel_fdc_status_flag_busy = 0x80,
   k_intel_fdc_status_flag_command_full = 0x40,
   k_intel_fdc_status_flag_param_full = 0x20,
@@ -75,10 +80,30 @@ enum {
 };
 
 enum {
+  k_intel_fdc_command_SCAN_DATA = 0,
+  k_intel_fdc_command_SCAN_DATA_AND_DELETED = 1,
+  k_intel_fdc_command_WRITE_DATA = 2,
+  k_intel_fdc_command_WRITE_DELETED_DATA = 3,
+  k_intel_fdc_command_READ_DATA = 4,
+  k_intel_fdc_command_READ_DATA_AND_DELETED = 5,
+  k_intel_fdc_command_READ_ID = 6,
+  k_intel_fdc_command_VERIFY = 7,
+  k_intel_fdc_command_FORMAT = 8,
+  k_intel_fdc_command_UNUSED_9 = 9,
+  k_intel_fdc_command_SEEK = 10,
+  k_intel_fdc_command_READ_DRIVE_STATUS = 11,
+  k_intel_fdc_command_UNUSED_12 = 12,
+  k_intel_fdc_command_SPECIFY = 13,
+  k_intel_fdc_command_WRITE_SPECIAL_REGISTER = 14,
+  k_intel_fdc_command_READ_SPECIAL_REGISTER = 15,
+};
+
+enum {
   k_intel_fdc_register_internal_pointer = 0x00,
   k_intel_fdc_register_internal_count_msb_copy = 0x00,
   k_intel_fdc_register_internal_param_count = 0x01,
   k_intel_fdc_register_internal_seek_retry_count = 0x01,
+  k_intel_fdc_register_internal_param_data_marker = 0x02,
   k_intel_fdc_register_internal_param_5 = 0x03,
   k_intel_fdc_register_internal_param_4 = 0x04,
   k_intel_fdc_register_internal_param_3 = 0x05,
@@ -171,9 +196,6 @@ struct intel_fdc_struct {
   uint8_t regs[k_intel_num_registers];
   uint8_t drive_out;
 
-  int command_is_transfer_deleted;
-  int command_is_verify_only;
-  int command_is_write;
   uint32_t shift_register;
   uint32_t num_shifts;
 
@@ -200,6 +222,24 @@ intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
 static inline void
 intel_fdc_set_status(struct intel_fdc_struct* p_fdc, uint8_t status) {
   p_fdc->regs[k_intel_fdc_register_internal_status] = status;
+}
+
+static inline uint8_t
+intel_fdc_get_internal_command(struct intel_fdc_struct* p_fdc) {
+  uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
+  command &= 0x3C;
+  return (command >> 2);
+}
+
+static int
+intel_fdc_command_is_writing(struct intel_fdc_struct* p_fdc) {
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
+  if ((command == k_intel_fdc_command_WRITE_DATA) ||
+      (command == k_intel_fdc_command_WRITE_DELETED_DATA) ||
+      (command == k_intel_fdc_command_FORMAT)) {
+    return 1;
+  }
+  return 0;
 }
 
 static inline uint8_t
@@ -580,8 +620,10 @@ intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
 static void
 intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
+  uint8_t command;
 
-  uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
+  uint8_t command_reg = p_fdc->regs[k_intel_fdc_register_internal_command];
+  uint8_t orig_command = command_reg;
   uint8_t param1 = p_fdc->regs[k_intel_fdc_register_internal_param_1];
   uint8_t param2 = p_fdc->regs[k_intel_fdc_register_internal_param_2];
   uint8_t param3 = p_fdc->regs[k_intel_fdc_register_internal_param_3];
@@ -593,10 +635,10 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->parameter_accept = k_intel_fdc_parameter_accept_none;
 
   /* Select the drive before logging so that head position is reported. */
-  intel_fdc_select_drive(p_fdc, (command & 0xC0));
-  /* Mask out drive select bits from command register. */
-  command &= 0x3F;
-  p_fdc->regs[k_intel_fdc_register_internal_command] = command;
+  intel_fdc_select_drive(p_fdc, (command_reg & 0xC0));
+  /* Mask out drive select bits from command register, and parameter count. */
+  command_reg &= 0x3C;
+  p_fdc->regs[k_intel_fdc_register_internal_command] = command_reg;
 
   if (p_fdc->log_commands) {
     int32_t head_pos = -1;
@@ -611,7 +653,7 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                k_log_info,
                "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
                "ptrk %d hpos %d",
-               command,
+               orig_command,
                intel_fdc_get_select_bits(p_fdc),
                param1,
                param2,
@@ -622,8 +664,10 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                head_pos);
   }
 
-  if ((command == k_intel_fdc_command_scan_sectors_with_deleted) ||
-      (command == k_intel_fdc_command_scan_sectors)) {
+  command = intel_fdc_get_internal_command(p_fdc);
+
+  if ((command == k_intel_fdc_command_SCAN_DATA) ||
+      (command == k_intel_fdc_command_SCAN_DATA_AND_DELETED)) {
     log_do_log(k_log_disc,
                k_log_unusual,
                "8271: scan sectors doesn't work in a beeb");
@@ -631,75 +675,17 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
 
-  /* EMU: this is correct even for read sector IDs ($1B), even though the
-   * datasheet suggests all the bits are relevant.
-   */
-  p_fdc->command_is_transfer_deleted = 0;
-  p_fdc->command_is_verify_only = 0;
-  p_fdc->command_is_write = 0;
-
-  /* The write commands bail if the disc is write protected. */
-  /* TODO: this is done at the wrong time. The 8271 ROM disassembly shows it is
-   * done after the seek / load.
-   */
-  switch (command) {
-  case k_intel_fdc_command_write_sector_128:
-  case k_intel_fdc_command_write_sectors:
-  case k_intel_fdc_command_write_sector_deleted_128:
-  case k_intel_fdc_command_write_sectors_deleted:
-  case k_intel_fdc_command_format:
-    if (intel_fdc_get_WRPROT(p_fdc)) {
-      intel_fdc_set_command_result(p_fdc,
-                                   1,
-                                   k_intel_fdc_result_write_protected);
-      return;
-    }
-    p_fdc->command_is_write = 1;
-    break;
-  default:
-    break;
-  }
-
-  switch (command) {
-  case k_intel_fdc_command_scan_sectors_with_deleted:
-  case k_intel_fdc_command_write_sector_deleted_128:
-  case k_intel_fdc_command_write_sectors_deleted:
-  case k_intel_fdc_command_read_sector_with_deleted_128:
-  case k_intel_fdc_command_read_sectors_with_deleted:
-    p_fdc->command_is_transfer_deleted = 1;
-    break;
-  case k_intel_fdc_command_verify_sector_128:
-  case k_intel_fdc_command_verify_sectors:
-    p_fdc->command_is_verify_only = 1;
-    break;
-  default:
-    break;
-  }
-
   p_fdc->state_index_pulse_count = 0;
   p_fdc->current_had_deleted_data = 0;
   p_fdc->current_needs_settle = 0;
   p_fdc->current_seek_count = 0;
 
   switch (command) {
-  case k_intel_fdc_command_scan_sectors:
-  case k_intel_fdc_command_scan_sectors_with_deleted:
-  case k_intel_fdc_command_write_sector_128:
-  case k_intel_fdc_command_write_sectors:
-  case k_intel_fdc_command_write_sector_deleted_128:
-  case k_intel_fdc_command_write_sectors_deleted:
-  case k_intel_fdc_command_read_sector_128:
-  case k_intel_fdc_command_read_sectors:
-  case k_intel_fdc_command_read_sector_with_deleted_128:
-  case k_intel_fdc_command_read_sectors_with_deleted:
-  case k_intel_fdc_command_verify_sector_128:
-  case k_intel_fdc_command_verify_sectors:
-  case k_intel_fdc_command_read_sector_ids:
-  case k_intel_fdc_command_format:
-  case k_intel_fdc_command_seek:
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+  case k_intel_fdc_command_UNUSED_9:
+  case k_intel_fdc_command_UNUSED_12:
+    util_bail("unused 8271 command");
     break;
-  case k_intel_fdc_command_read_drive_status:
+  case k_intel_fdc_command_READ_DRIVE_STATUS:
     temp_u8 = 0x80;
     if (!intel_fdc_current_disc_is_spinning(p_fdc)) {
       intel_fdc_set_command_result(p_fdc, 0, temp_u8);
@@ -727,22 +713,30 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
     }
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
-  case k_intel_fdc_command_specify:
+  case k_intel_fdc_command_SPECIFY:
     p_fdc->regs[k_intel_fdc_register_internal_pointer] = param1;
     p_fdc->regs[k_intel_fdc_register_internal_param_count] = 3;
     p_fdc->parameter_accept = k_intel_fdc_parameter_accept_specify;
     break;
-  case k_intel_fdc_command_read_special_register:
-    temp_u8 = intel_fdc_read_special_register(p_fdc, param1);
-    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
-    break;
-  case k_intel_fdc_command_write_special_register:
+  case k_intel_fdc_command_WRITE_SPECIAL_REGISTER:
     intel_fdc_write_special_register(p_fdc, param1, param2);
     /* EMU: checked on a real 8271.  */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
+  case k_intel_fdc_command_READ_SPECIAL_REGISTER:
+    temp_u8 = intel_fdc_read_special_register(p_fdc, param1);
+    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
+    break;
   default:
-    assert(0);
+    if (command == k_intel_fdc_command_WRITE_DATA) {
+      p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
+          k_ibm_disc_data_mark_data_pattern;
+    } else if (command == k_intel_fdc_command_WRITE_DELETED_DATA) {
+      p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
+          k_ibm_disc_deleted_data_mark_data_pattern;
+    }
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+    break;
   }
 }
 
@@ -879,13 +873,13 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
 static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   int ok = 1;
-  uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   /* Abort command if it's any type of scan. The 8271 requires DMA to be wired
    * up for scan commands, which is not done in the BBC application.
    */
-  if ((command == k_intel_fdc_command_scan_sectors) ||
-      (command == k_intel_fdc_command_scan_sectors_with_deleted)) {
+  if ((command == k_intel_fdc_command_SCAN_DATA) ||
+      (command == k_intel_fdc_command_SCAN_DATA_AND_DELETED)) {
     ok = 0;
   }
 
@@ -965,6 +959,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
   /* NOTE: this callback routine is also used for seek / settle timing,
    * which is not a precise 64us basis.
    */
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
+
   switch (p_fdc->state) {
   case k_intel_fdc_state_check_id_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
@@ -981,8 +977,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_state_in_id:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
-            k_intel_fdc_command_read_sector_ids) {
+    if (command == k_intel_fdc_command_READ_ID) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
@@ -1014,8 +1009,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_id_crc_error)) {
         break;
       }
-      if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
-          k_intel_fdc_command_read_sector_ids) {
+      if (command == k_intel_fdc_command_READ_ID) {
         intel_fdc_check_completion(p_fdc);
       } else if (p_fdc->state_id_track !=
                  p_fdc->regs[k_intel_fdc_register_internal_param_1]) {
@@ -1033,7 +1027,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       } else if (p_fdc->state_id_sector ==
                  p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
         p_fdc->state_index_pulse_count = 0;
-        if (p_fdc->command_is_write) {
+        if (intel_fdc_command_is_writing(p_fdc)) {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
         } else {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data_wait);
@@ -1062,7 +1056,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_state_in_data:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (!p_fdc->command_is_verify_only) {
+    if (command != k_intel_fdc_command_VERIFY) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
@@ -1075,7 +1069,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     break;
   case k_intel_fdc_state_in_deleted_data:
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-    if (!p_fdc->command_is_verify_only && p_fdc->command_is_transfer_deleted) {
+    if (command == k_intel_fdc_command_READ_DATA_AND_DELETED) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
@@ -1127,12 +1121,8 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_state_write_sector_data:
     if (p_fdc->state_count == 0) {
-      uint8_t mark_byte;
-      if (p_fdc->command_is_transfer_deleted) {
-        mark_byte = k_ibm_disc_deleted_data_mark_data_pattern;
-      } else {
-        mark_byte = k_ibm_disc_data_mark_data_pattern;
-      }
+      uint8_t mark_byte =
+          p_fdc->regs[k_intel_fdc_register_internal_param_data_marker];
       disc_drive_write_byte(p_current_drive,
                             mark_byte,
                             k_ibm_disc_mark_clock_pattern);
@@ -1394,6 +1384,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   assert(p_current_drive != NULL);
 
@@ -1561,15 +1552,15 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
 
-    switch (p_fdc->regs[k_intel_fdc_register_internal_command]) {
-    case k_intel_fdc_command_read_sector_ids:
+    switch (command) {
+    case k_intel_fdc_command_READ_ID:
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
       break;
-    case k_intel_fdc_command_format:
+    case k_intel_fdc_command_FORMAT:
       intel_fdc_setup_sector_size(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
       break;
-    case k_intel_fdc_command_seek:
+    case k_intel_fdc_command_SEEK:
       intel_fdc_set_command_result(p_fdc, 1, k_intel_fdc_result_ok);
       break;
     default:
@@ -1578,6 +1569,11 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
 
+    if (intel_fdc_command_is_writing(p_fdc) && intel_fdc_get_WRPROT(p_fdc)) {
+      intel_fdc_set_command_result(p_fdc,
+                                   1,
+                                   k_intel_fdc_result_write_protected);
+    }
     break;
   case k_intel_fdc_state_wait_no_index:
     if (!p_fdc->state_is_index_pulse) {
@@ -1588,12 +1584,10 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if (!p_fdc->state_is_index_pulse) {
       break;
     }
-    if (p_fdc->regs[k_intel_fdc_register_internal_command] ==
-        k_intel_fdc_command_read_sector_ids) {
+    if (command == k_intel_fdc_command_READ_ID) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
     } else {
-      assert(p_fdc->regs[k_intel_fdc_register_internal_command] ==
-          k_intel_fdc_command_format);
+      assert(command == k_intel_fdc_command_FORMAT);
       if (p_fdc->regs[k_intel_fdc_register_internal_param_4] != 0) {
         util_bail("format GAP5 not supported");
       }
