@@ -628,66 +628,15 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
 }
 
 static void
-intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
+intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_header_pointer] = 0x0C;
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+}
+
+static void
+intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
-  uint8_t command;
-
-  uint8_t command_reg = p_fdc->regs[k_intel_fdc_register_internal_command];
-  uint8_t orig_command = command_reg;
-  uint8_t param1 = p_fdc->regs[k_intel_fdc_register_internal_param_1];
-  uint8_t param2 = p_fdc->regs[k_intel_fdc_register_internal_param_2];
-  uint8_t param3 = p_fdc->regs[k_intel_fdc_register_internal_param_3];
-  uint8_t param4 = p_fdc->regs[k_intel_fdc_register_internal_param_4];
-  uint8_t param5 = p_fdc->regs[k_intel_fdc_register_internal_param_5];
-
-  /* TODO: the 8271 reads drive status here and changes R21 + R27. */
-
-  p_fdc->parameter_accept = k_intel_fdc_parameter_accept_none;
-
-  /* Select the drive before logging so that head position is reported. */
-  intel_fdc_select_drive(p_fdc, (command_reg & 0xC0));
-  /* Mask out drive select bits from command register, and parameter count. */
-  command_reg &= 0x3C;
-  p_fdc->regs[k_intel_fdc_register_internal_command] = command_reg;
-
-  if (p_fdc->log_commands) {
-    int32_t head_pos = -1;
-    int32_t track = -1;
-    struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-
-    if (p_current_drive != NULL) {
-      head_pos = (int32_t) disc_drive_get_head_position(p_current_drive);
-      track = (int32_t) disc_drive_get_track(p_current_drive);
-    }
-    log_do_log(k_log_disc,
-               k_log_info,
-               "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
-               "ptrk %d hpos %d",
-               (orig_command & 0x3F),
-               intel_fdc_get_select_bits(p_fdc),
-               param1,
-               param2,
-               param3,
-               param4,
-               param5,
-               track,
-               head_pos);
-  }
-
-  command = intel_fdc_get_internal_command(p_fdc);
-
-  if ((command == k_intel_fdc_command_SCAN_DATA) ||
-      (command == k_intel_fdc_command_SCAN_DATA_AND_DELETED)) {
-    log_do_log(k_log_disc,
-               k_log_unusual,
-               "8271: scan sectors doesn't work in a beeb");
-  }
-
-  p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] = 0;
-
-  p_fdc->state_index_pulse_count = 0;
-  p_fdc->current_needs_settle = 0;
-  p_fdc->current_seek_count = 0;
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   switch (command) {
   case k_intel_fdc_command_UNUSED_9:
@@ -723,18 +672,37 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
     break;
   case k_intel_fdc_command_SPECIFY:
-    p_fdc->regs[k_intel_fdc_register_internal_pointer] = param1;
+    p_fdc->regs[k_intel_fdc_register_internal_pointer] =
+        p_fdc->regs[k_intel_fdc_register_internal_param_1];
     p_fdc->regs[k_intel_fdc_register_internal_param_count] = 3;
     p_fdc->parameter_accept = k_intel_fdc_parameter_accept_specify;
     break;
   case k_intel_fdc_command_WRITE_SPECIAL_REGISTER:
-    intel_fdc_write_register(p_fdc, param1, param2);
+    intel_fdc_write_register(
+        p_fdc,
+        p_fdc->regs[k_intel_fdc_register_internal_param_1],
+        p_fdc->regs[k_intel_fdc_register_internal_param_2]);
     /* EMU: checked on a real 8271.  */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_command_READ_SPECIAL_REGISTER:
-    temp_u8 = intel_fdc_read_special_register(p_fdc, param1);
+    temp_u8 = intel_fdc_read_special_register(
+        p_fdc, p_fdc->regs[k_intel_fdc_register_internal_param_1]);
     intel_fdc_set_command_result(p_fdc, 0, temp_u8);
+    break;
+  case k_intel_fdc_command_READ_ID:
+    /* First dispatch for the command, we go through the seek / wait for index /
+     * etc. rigamarole. The command is re-dispatched for the second and further
+     * headers, where we just straight to searching for header sync.
+     * This can also be used as an undocumented mode of READ_ID where a
+     * non-zero value to the second parameter will skip syncing to the index
+     * pulse.
+     */
+    if (p_fdc->regs[k_intel_fdc_register_internal_param_2] == 0) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+    } else {
+      intel_fdc_start_syncing_for_header(p_fdc);
+    }
     break;
   default:
     if (command == k_intel_fdc_command_WRITE_DATA) {
@@ -747,6 +715,63 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
     break;
   }
+}
+
+static void
+intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
+  uint8_t command;
+
+  uint8_t command_reg = p_fdc->regs[k_intel_fdc_register_internal_command];
+  uint8_t orig_command = command_reg;
+
+  /* TODO: the 8271 reads drive status here and changes R21 + R27. */
+
+  p_fdc->parameter_accept = k_intel_fdc_parameter_accept_none;
+
+  /* Select the drive before logging so that head position is reported. */
+  intel_fdc_select_drive(p_fdc, (command_reg & 0xC0));
+  /* Mask out drive select bits from command register, and parameter count. */
+  command_reg &= 0x3C;
+  p_fdc->regs[k_intel_fdc_register_internal_command] = command_reg;
+
+  if (p_fdc->log_commands) {
+    int32_t head_pos = -1;
+    int32_t track = -1;
+    struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+    if (p_current_drive != NULL) {
+      head_pos = (int32_t) disc_drive_get_head_position(p_current_drive);
+      track = (int32_t) disc_drive_get_track(p_current_drive);
+    }
+    log_do_log(k_log_disc,
+               k_log_info,
+               "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
+               "ptrk %d hpos %d",
+               (orig_command & 0x3F),
+               intel_fdc_get_select_bits(p_fdc),
+               p_fdc->regs[k_intel_fdc_register_internal_param_1],
+               p_fdc->regs[k_intel_fdc_register_internal_param_2],
+               p_fdc->regs[k_intel_fdc_register_internal_param_3],
+               p_fdc->regs[k_intel_fdc_register_internal_param_4],
+               p_fdc->regs[k_intel_fdc_register_internal_param_5],
+               track,
+               head_pos);
+  }
+
+  command = intel_fdc_get_internal_command(p_fdc);
+
+  if ((command == k_intel_fdc_command_SCAN_DATA) ||
+      (command == k_intel_fdc_command_SCAN_DATA_AND_DELETED)) {
+    log_do_log(k_log_disc,
+               k_log_unusual,
+               "8271: scan sectors doesn't work in a beeb");
+  }
+
+  p_fdc->state_index_pulse_count = 0;
+  p_fdc->current_needs_settle = 0;
+  p_fdc->current_seek_count = 0;
+
+  intel_fdc_do_command_dispatch(p_fdc);
 }
 
 static void
@@ -954,23 +979,24 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
    * On commands other than READ_ID, any underflow has other side effects
    * such as modifying the sector size.
    */
+  /* TODO: 8271 does a check drive ready here. */
+  /* Lower WRITE_ENABLE. */
+  p_fdc->drive_out &= ~k_intel_fdc_drive_out_write_enable;
+  /* One less sector to go. */
   p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
   if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
     intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_ok);
   } else {
-    p_fdc->regs[k_intel_fdc_register_internal_param_2]++;
-    /* EMU: Reset the index pulse counter.
-     * A real 8271 permits two index pulses per sector, not per command.
+    /* This looks strange as it is set up to be just an increment (R4==1 in
+     * sector operations), but it is what the 8271 ROM does.
      */
-    p_fdc->state_index_pulse_count = 0;
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id_wait);
+    p_fdc->regs[k_intel_fdc_register_internal_param_2] +=
+        (p_fdc->regs[k_intel_fdc_register_internal_param_4] & 0x3F);
+    /* This is also what the 8271 ROM does, just re-dispatches the current
+     * command.
+     */
+    intel_fdc_do_command_dispatch(p_fdc);
   }
-}
-
-static void
-intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
-  p_fdc->regs[k_intel_fdc_register_internal_header_pointer] = 0x0C;
-  intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
 }
 
 static void
