@@ -110,9 +110,12 @@ enum {
   k_intel_fdc_register_current_sector = 0x06,
   k_intel_fdc_register_internal_param_2 = 0x06,
   k_intel_fdc_register_internal_param_1 = 0x07,
+  k_intel_fdc_register_internal_header_pointer = 0x08,
   k_intel_fdc_register_internal_seek_count = 0x0A,
+  k_intel_fdc_register_internal_id_sector = 0x0A,
   k_intel_fdc_register_internal_seek_target_1 = 0x0B,
   k_intel_fdc_register_internal_seek_target_2 = 0x0C,
+  k_intel_fdc_register_internal_id_track = 0x0C,
   k_intel_fdc_register_head_step_rate = 0x0D,
   k_intel_fdc_register_head_settle_time = 0x0E,
   k_intel_fdc_register_head_load_unload = 0x0F,
@@ -206,8 +209,6 @@ struct intel_fdc_struct {
   uint32_t state_count;
   int state_is_index_pulse;
   uint32_t state_index_pulse_count;
-  uint8_t state_id_track;
-  uint8_t state_id_sector;
   uint16_t crc;
   uint16_t on_disc_crc;
 };
@@ -484,7 +485,7 @@ intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
 
 static void
 intel_fdc_merge_command_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
-  result |= intel_fdc_get_status(p_fdc);
+  result |= intel_fdc_get_result(p_fdc);
   intel_fdc_set_command_result(p_fdc, 1, result);
 }
 
@@ -593,9 +594,9 @@ intel_fdc_read_special_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
 }
 
 static void
-intel_fdc_write_special_register(struct intel_fdc_struct* p_fdc,
-                                 uint8_t reg,
-                                 uint8_t val) {
+intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
+                         uint8_t reg,
+                         uint8_t val) {
   reg = (reg & 0x3F);
   if (reg < k_intel_num_registers) {
     p_fdc->regs[reg] = val;
@@ -662,7 +663,7 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                k_log_info,
                "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
                "ptrk %d hpos %d",
-               orig_command,
+               (orig_command & 0x3F),
                intel_fdc_get_select_bits(p_fdc),
                param1,
                param2,
@@ -727,7 +728,7 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
     p_fdc->parameter_accept = k_intel_fdc_parameter_accept_specify;
     break;
   case k_intel_fdc_command_WRITE_SPECIAL_REGISTER:
-    intel_fdc_write_special_register(p_fdc, param1, param2);
+    intel_fdc_write_register(p_fdc, param1, param2);
     /* EMU: checked on a real 8271.  */
     intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
     break;
@@ -797,16 +798,16 @@ intel_fdc_command_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
 
 static void
 intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
-  uint8_t pointer;
-
   p_fdc->regs[k_intel_fdc_register_internal_parameter] = val;
 
   switch (p_fdc->parameter_accept) {
   case k_intel_fdc_parameter_accept_none:
     break;
   case k_intel_fdc_parameter_accept_command:
-    pointer = p_fdc->regs[k_intel_fdc_register_internal_pointer];
-    p_fdc->regs[pointer] = p_fdc->regs[k_intel_fdc_register_internal_parameter];
+    intel_fdc_write_register(
+        p_fdc,
+        p_fdc->regs[k_intel_fdc_register_internal_pointer],
+        p_fdc->regs[k_intel_fdc_register_internal_parameter]);
     p_fdc->regs[k_intel_fdc_register_internal_pointer]--;
     p_fdc->regs[k_intel_fdc_register_internal_param_count]--;
     if (p_fdc->regs[k_intel_fdc_register_internal_param_count] == 0) {
@@ -814,8 +815,10 @@ intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
     }
     break;
   case k_intel_fdc_parameter_accept_specify:
-    pointer = p_fdc->regs[k_intel_fdc_register_internal_pointer];
-    p_fdc->regs[pointer] = p_fdc->regs[k_intel_fdc_register_internal_parameter];
+    intel_fdc_write_register(
+        p_fdc,
+        p_fdc->regs[k_intel_fdc_register_internal_pointer],
+        p_fdc->regs[k_intel_fdc_register_internal_parameter]);
     p_fdc->regs[k_intel_fdc_register_internal_pointer]++;
     p_fdc->regs[k_intel_fdc_register_internal_param_count]--;
     if (p_fdc->regs[k_intel_fdc_register_internal_param_count] == 0) {
@@ -965,6 +968,12 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
 }
 
 static void
+intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_header_pointer] = 0x0C;
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+}
+
+static void
 intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
                                 uint8_t data_byte,
                                 uint8_t clocks_byte) {
@@ -984,7 +993,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
 
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id);
     } else {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+      intel_fdc_start_syncing_for_header(p_fdc);
     }
     break;
   case k_intel_fdc_state_in_id:
@@ -994,18 +1003,13 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         break;
       }
     }
-    switch (p_fdc->state_count) {
-    case 0:
-      p_fdc->state_id_track = data_byte;
-      break;
-    case 2:
-      p_fdc->state_id_sector = data_byte;
-      break;
-    default:
-      break;
-    }
-    p_fdc->state_count++;
-    if (p_fdc->state_count == 4) {
+    intel_fdc_write_register(
+        p_fdc,
+        p_fdc->regs[k_intel_fdc_register_internal_header_pointer],
+        data_byte);
+    p_fdc->regs[k_intel_fdc_register_internal_header_pointer]--;
+    if ((p_fdc->regs[k_intel_fdc_register_internal_header_pointer] & 0x07) ==
+            0) {
       p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id_crc);
     }
@@ -1023,7 +1027,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       }
       if (command == k_intel_fdc_command_READ_ID) {
         intel_fdc_check_completion(p_fdc);
-      } else if (p_fdc->state_id_track !=
+      } else if (p_fdc->regs[k_intel_fdc_register_internal_id_track] !=
                  p_fdc->regs[k_intel_fdc_register_internal_param_1]) {
         /* EMU NOTE: upon any mismatch of found track vs. expected track,
          * the drive will try twice more on the next two tracks.
@@ -1035,7 +1039,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         } else {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
         }
-      } else if (p_fdc->state_id_sector ==
+      } else if (p_fdc->regs[k_intel_fdc_register_internal_id_sector] ==
                  p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
         p_fdc->state_index_pulse_count = 0;
         if (intel_fdc_command_is_writing(p_fdc)) {
@@ -1299,7 +1303,7 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
      * it needs 4 bytes to recover prior to the 2 bytes sync.
      */
     if (p_fdc->state_count == (4 * 8 * 2)) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+      intel_fdc_start_syncing_for_header(p_fdc);
     }
     break;
   case k_intel_fdc_state_syncing_for_data_wait:
@@ -1579,7 +1583,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     default:
       intel_fdc_setup_sector_size(p_fdc);
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+      intel_fdc_start_syncing_for_header(p_fdc);
       break;
     }
 
@@ -1598,7 +1602,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
     if (command == k_intel_fdc_command_READ_ID) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+      intel_fdc_start_syncing_for_header(p_fdc);
     } else {
       assert(command == k_intel_fdc_command_FORMAT);
       if (p_fdc->regs[k_intel_fdc_register_internal_param_4] != 0) {
