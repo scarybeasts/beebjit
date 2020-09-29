@@ -212,7 +212,6 @@ struct intel_fdc_struct {
   uint32_t num_shifts;
 
   int current_needs_settle;
-  int32_t current_head_unload_count;
   uint32_t current_seek_count;
 
   int state;
@@ -1114,7 +1113,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
             (data_byte == k_ibm_disc_deleted_data_mark_data_pattern))) {
       int new_state = k_intel_fdc_state_in_data;
       if (data_byte == k_ibm_disc_deleted_data_mark_data_pattern) {
-        p_fdc->regs[k_intel_fdc_register_internal_status] =
+        p_fdc->regs[k_intel_fdc_register_internal_result] =
             k_intel_fdc_result_flag_deleted_data;
         new_state = k_intel_fdc_state_in_deleted_data;
       }
