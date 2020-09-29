@@ -226,14 +226,44 @@ intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
   return p_fdc->regs[k_intel_fdc_register_internal_status];
 }
 
+static void
+intel_fdc_update_nmi(struct intel_fdc_struct* p_fdc) {
+  struct state_6502* p_state_6502 = p_fdc->p_state_6502;
+  uint8_t status = intel_fdc_get_status(p_fdc);
+  int level = !!(status & k_intel_fdc_status_flag_nmi);
+  int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
+
+  if (firing && (level == 1)) {
+    log_do_log(k_log_disc, k_log_error, "edge triggered NMI already high");
+  }
+
+  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, level);
+}
+
 static inline void
-intel_fdc_set_status(struct intel_fdc_struct* p_fdc, uint8_t status) {
-  p_fdc->regs[k_intel_fdc_register_internal_status] = status;
+intel_fdc_status_raise(struct intel_fdc_struct* p_fdc, uint8_t bits) {
+  p_fdc->regs[k_intel_fdc_register_internal_status] |= bits;
+  if (bits & k_intel_fdc_status_flag_nmi) {
+    intel_fdc_update_nmi(p_fdc);
+  }
+}
+
+static inline void
+intel_fdc_status_lower(struct intel_fdc_struct* p_fdc, uint8_t bits) {
+  p_fdc->regs[k_intel_fdc_register_internal_status] &= ~bits;
+  if (bits & k_intel_fdc_status_flag_nmi) {
+    intel_fdc_update_nmi(p_fdc);
+  }
 }
 
 static inline uint8_t
 intel_fdc_get_result(struct intel_fdc_struct* p_fdc) {
   return p_fdc->regs[k_intel_fdc_register_internal_result];
+}
+
+static void
+intel_fdc_set_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
+  p_fdc->regs[k_intel_fdc_register_internal_result] = result;
 }
 
 static inline uint8_t
@@ -347,9 +377,26 @@ intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
 }
 
 static void
-intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
-  uint8_t head_unload_count;
+intel_fdc_clear_callbacks(struct intel_fdc_struct* p_fdc) {
+  p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
+  p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
+}
 
+static void
+intel_fdc_lower_busy_and_log(struct intel_fdc_struct* p_fdc) {
+  intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_busy);
+
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "8271: status $%x result $%x",
+               intel_fdc_get_status(p_fdc),
+               intel_fdc_get_result(p_fdc));
+  }
+}
+
+static void
+intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
   p_fdc->state = state;
   p_fdc->state_count = 0;
 
@@ -358,14 +405,19 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
     p_fdc->shift_register = 0;
     p_fdc->num_shifts = 0;
   }
-  if (state != k_intel_fdc_state_idle) {
-    return;
-  }
+}
 
-  p_fdc->drive_out &= ~k_intel_fdc_drive_out_write_enable;
+static void
+intel_fdc_finish_simple_command(struct intel_fdc_struct* p_fdc) {
+  uint8_t head_unload_count;
+
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
+  intel_fdc_lower_busy_and_log(p_fdc);
+  /* TODO: lower PARAM, RESULT too?! */
+  intel_fdc_clear_callbacks(p_fdc);
+
   head_unload_count = (p_fdc->regs[k_intel_fdc_register_head_load_unload] >> 4);
 
-  p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
   if (head_unload_count == 0) {
     /* Unload immediately. */
     intel_fdc_select_drive(p_fdc, 0);
@@ -376,6 +428,20 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
         head_unload_count;
     p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_spindown;
   }
+}
+
+static void
+intel_fdc_finish_command(struct intel_fdc_struct* p_fdc, uint8_t result) {
+  if (result != k_intel_fdc_result_ok) {
+    intel_fdc_drive_out_lower(p_fdc, (k_intel_fdc_drive_out_direction |
+                                          k_intel_fdc_drive_out_step |
+                                          k_intel_fdc_drive_out_write_enable));
+  }
+  result |= intel_fdc_get_result(p_fdc);
+  intel_fdc_set_result(p_fdc, result);
+  /* Raise command completion IRQ. */
+  intel_fdc_status_raise(p_fdc, k_intel_fdc_status_flag_nmi);
+  intel_fdc_finish_simple_command(p_fdc);
 }
 
 static void
@@ -422,15 +488,14 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   /* Abort any in-progress command. */
   intel_fdc_command_abort(p_fdc);
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
-  p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
-  p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
+  intel_fdc_clear_callbacks(p_fdc);
 
   /* Deselect any drive; ensures spin-down. */
   intel_fdc_select_drive(p_fdc, 0);
 
   /* EMU: on a real machine, status appears to be cleared but result and data
    * register not. */
-  intel_fdc_set_status(p_fdc, 0);
+  intel_fdc_status_lower(p_fdc, intel_fdc_get_status(p_fdc));
 }
 
 struct intel_fdc_struct*
@@ -467,59 +532,6 @@ intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   util_free(p_fdc);
 }
 
-static void
-intel_fdc_set_status_result(struct intel_fdc_struct* p_fdc,
-                            uint8_t status,
-                            uint8_t result) {
-  struct state_6502* p_state_6502 = p_fdc->p_state_6502;
-  int level = !!(status & k_intel_fdc_status_flag_nmi);
-  int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
-
-  intel_fdc_set_status(p_fdc, status);
-  p_fdc->regs[k_intel_fdc_register_internal_result] = result;
-
-  if (firing && (level == 1)) {
-    log_do_log(k_log_disc, k_log_error, "edge triggered NMI already high");
-  }
-
-  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, level);
-}
-
-static void
-intel_fdc_set_command_result(struct intel_fdc_struct* p_fdc,
-                             int do_nmi,
-                             uint8_t result) {
-  /* TODO: update status, don't replace it. */
-  uint8_t status = k_intel_fdc_status_flag_result_ready;
-  if (do_nmi) {
-    status |= k_intel_fdc_status_flag_nmi;
-  }
-
-  if (p_fdc->log_commands) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "8271: status $%x result $%x",
-               status,
-               result);
-  }
-
-  intel_fdc_set_status_result(p_fdc, status, result);
-
-  intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
-}
-
-static void
-intel_fdc_merge_command_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
-  if (result != k_intel_fdc_result_ok) {
-    intel_fdc_drive_out_lower(p_fdc, (k_intel_fdc_drive_out_direction |
-                                          k_intel_fdc_drive_out_step |
-                                          k_intel_fdc_drive_out_write_enable));
-  }
-  result |= intel_fdc_get_result(p_fdc);
-  p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
-  intel_fdc_set_command_result(p_fdc, 1, result);
-}
-
 uint8_t
 intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   uint8_t result;
@@ -529,11 +541,8 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
     return intel_fdc_get_status(p_fdc);
   case k_intel_fdc_result:
     result = intel_fdc_get_result(p_fdc);
-    intel_fdc_set_status_result(p_fdc,
-                                (intel_fdc_get_status(p_fdc) &
-                                     ~(k_intel_fdc_status_flag_result_ready |
-                                           k_intel_fdc_status_flag_nmi)),
-                                result);
+    intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_result_ready |
+                                       k_intel_fdc_status_flag_nmi));
     return result;
   /* EMU: on a real model B, the i8271 has the data register mapped for all of
    * register address 4 - 7.
@@ -543,11 +552,8 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   case (k_intel_fdc_data + 2):
   case (k_intel_fdc_data + 3):
     result = intel_fdc_get_result(p_fdc);
-    intel_fdc_set_status_result(p_fdc,
-                                (intel_fdc_get_status(p_fdc) &
-                                     ~(k_intel_fdc_status_flag_need_data |
-                                           k_intel_fdc_status_flag_nmi)),
-                                result);
+    intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_need_data |
+                                       k_intel_fdc_status_flag_nmi));
     return p_fdc->regs[k_intel_fdc_register_internal_data];
   case k_intel_fdc_unknown_read_2:
   case k_intel_fdc_unknown_read_3:
@@ -600,7 +606,7 @@ intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
 }
 
 static uint8_t
-intel_fdc_read_special_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
+intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   uint8_t ret = 0;
 
   reg = (reg & 0x3F);
@@ -676,31 +682,30 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_command_READ_DRIVE_STATUS:
     temp_u8 = 0x80;
-    if (!intel_fdc_current_disc_is_spinning(p_fdc)) {
-      intel_fdc_set_command_result(p_fdc, 0, temp_u8);
-      break;
+    if (intel_fdc_current_disc_is_spinning(p_fdc)) {
+      if (intel_fdc_get_TRK0(p_fdc)) {
+        /* TRK0 */
+        temp_u8 |= 0x02;
+      }
+      if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
+        /* RDY0 */
+        temp_u8 |= 0x04;
+      }
+      if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
+        /* RDY1 */
+        temp_u8 |= 0x40;
+      }
+      if (intel_fdc_get_WRPROT(p_fdc)) {
+        /* WR PROT */
+        temp_u8 |= 0x08;
+      }
+      if (intel_fdc_get_INDEX(p_fdc)) {
+        /* INDEX */
+        temp_u8 |= 0x10;
+      }
     }
-    if (intel_fdc_get_TRK0(p_fdc)) {
-      /* TRK0 */
-      temp_u8 |= 0x02;
-    }
-    if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
-      /* RDY0 */
-      temp_u8 |= 0x04;
-    }
-    if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
-      /* RDY1 */
-      temp_u8 |= 0x40;
-    }
-    if (intel_fdc_get_WRPROT(p_fdc)) {
-      /* WR PROT */
-      temp_u8 |= 0x08;
-    }
-    if (intel_fdc_get_INDEX(p_fdc)) {
-      /* INDEX */
-      temp_u8 |= 0x10;
-    }
-    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
+    intel_fdc_set_result(p_fdc, temp_u8);
+    intel_fdc_finish_simple_command(p_fdc);
     break;
   case k_intel_fdc_command_SPECIFY:
     p_fdc->regs[k_intel_fdc_register_internal_pointer] =
@@ -713,13 +718,16 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
         p_fdc,
         p_fdc->regs[k_intel_fdc_register_internal_param_1],
         p_fdc->regs[k_intel_fdc_register_internal_param_2]);
-    /* EMU: checked on a real 8271.  */
-    intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
+    /* WRITE_SPECIAL_REGISTER tidies up in a much simpler way than other
+     * commands.
+     */
+    intel_fdc_lower_busy_and_log(p_fdc);
     break;
   case k_intel_fdc_command_READ_SPECIAL_REGISTER:
-    temp_u8 = intel_fdc_read_special_register(
+    temp_u8 = intel_fdc_read_register(
         p_fdc, p_fdc->regs[k_intel_fdc_register_internal_param_1]);
-    intel_fdc_set_command_result(p_fdc, 0, temp_u8);
+    intel_fdc_set_result(p_fdc, temp_u8);
+    intel_fdc_finish_simple_command(p_fdc);
     break;
   case k_intel_fdc_command_READ_ID:
     /* First dispatch for the command, we go through the seek / wait for index /
@@ -820,12 +828,10 @@ intel_fdc_command_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
 
   /* Set command. */
   p_fdc->regs[k_intel_fdc_register_internal_command] = val;
-  /* Set busy, lower command full in status. */
-  status |= k_intel_fdc_status_flag_busy;
-  status &= ~k_intel_fdc_status_flag_command_full;
-  intel_fdc_set_status(p_fdc, status);
-  /* Set result to zero. */
-  p_fdc->regs[k_intel_fdc_register_internal_result] = 0;
+  /* Set busy, lower command full in status, result to 0. */
+  intel_fdc_status_raise(p_fdc, k_intel_fdc_status_flag_busy);
+  intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_command_full);
+  intel_fdc_set_result(p_fdc, 0);
 
   /* Default parameters. This supports the 1x128 byte sector commands. */
   p_fdc->regs[k_intel_fdc_register_internal_param_3] = 1;
@@ -870,6 +876,12 @@ intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
     }
     break;
   case k_intel_fdc_parameter_accept_specify:
+    if (p_fdc->log_commands) {
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "8271: specify param $%x",
+                 p_fdc->regs[k_intel_fdc_register_internal_parameter]);
+    }
     intel_fdc_write_register(
         p_fdc,
         p_fdc->regs[k_intel_fdc_register_internal_pointer],
@@ -877,8 +889,7 @@ intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->regs[k_intel_fdc_register_internal_pointer]++;
     p_fdc->regs[k_intel_fdc_register_internal_param_count]--;
     if (p_fdc->regs[k_intel_fdc_register_internal_param_count] == 0) {
-      /* EMU: return value matches real 8271. */
-      intel_fdc_set_command_result(p_fdc, 0, k_intel_fdc_result_ok);
+      intel_fdc_finish_simple_command(p_fdc);
     }
     break;
   default:
@@ -891,8 +902,6 @@ void
 intel_fdc_write(struct intel_fdc_struct* p_fdc,
                 uint16_t addr,
                 uint8_t val) {
-  uint8_t result;
-
   switch (addr & 0x07) {
   case k_intel_fdc_command:
     intel_fdc_command_written(p_fdc, val);
@@ -904,12 +913,8 @@ intel_fdc_write(struct intel_fdc_struct* p_fdc,
   case (k_intel_fdc_data + 1):
   case (k_intel_fdc_data + 2):
   case (k_intel_fdc_data + 3):
-    result = intel_fdc_get_result(p_fdc);
-    intel_fdc_set_status_result(p_fdc,
-                                (intel_fdc_get_status(p_fdc) &
-                                     ~(k_intel_fdc_status_flag_need_data |
-                                           k_intel_fdc_status_flag_nmi)),
-                                result);
+    intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_need_data |
+                                       k_intel_fdc_status_flag_nmi));
     p_fdc->regs[k_intel_fdc_register_internal_data] = val;
     break;
   case k_intel_fdc_reset:
@@ -961,7 +966,7 @@ intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   }
 
   intel_fdc_command_abort(p_fdc);
-  intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_late_dma);
+  intel_fdc_finish_command(p_fdc, k_intel_fdc_result_late_dma);
 
   return 0;
 }
@@ -972,11 +977,8 @@ intel_fdc_provide_data_byte(struct intel_fdc_struct* p_fdc, uint8_t byte) {
     return 0;
   }
   p_fdc->regs[k_intel_fdc_register_internal_data] = byte;
-  intel_fdc_set_status_result(p_fdc,
-                              (intel_fdc_get_status(p_fdc) |
-                                  k_intel_fdc_status_flag_nmi |
-                                  k_intel_fdc_status_flag_need_data),
-                              k_intel_fdc_result_ok);
+  intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
+                                     k_intel_fdc_status_flag_need_data));
   return 1;
 }
 
@@ -998,7 +1000,7 @@ intel_fdc_check_crc(struct intel_fdc_struct* p_fdc, uint8_t error) {
     return 1;
   }
 
-  intel_fdc_merge_command_result(p_fdc, error);
+  intel_fdc_finish_command(p_fdc, error);
   return 0;
 }
 
@@ -1011,11 +1013,11 @@ intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
    */
   /* TODO: 8271 does a check drive ready here. */
   /* Lower WRITE_ENABLE. */
-  p_fdc->drive_out &= ~k_intel_fdc_drive_out_write_enable;
+  intel_fdc_drive_out_lower(p_fdc, k_intel_fdc_drive_out_write_enable);
   /* One less sector to go. */
   p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
   if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
-    intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_ok);
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
   } else {
     /* This looks strange as it is set up to be just an increment (R4==1 in
      * sector operations), but it is what the 8271 ROM does.
@@ -1090,8 +1092,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
          */
         p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count]++;
         if (p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] == 3) {
-          intel_fdc_merge_command_result(p_fdc,
-                                         k_intel_fdc_result_sector_not_found);
+          intel_fdc_finish_command(p_fdc, k_intel_fdc_result_sector_not_found);
         } else {
           intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
         }
@@ -1113,8 +1114,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
             (data_byte == k_ibm_disc_deleted_data_mark_data_pattern))) {
       int new_state = k_intel_fdc_state_in_data;
       if (data_byte == k_ibm_disc_deleted_data_mark_data_pattern) {
-        p_fdc->regs[k_intel_fdc_register_internal_result] =
-            k_intel_fdc_result_flag_deleted_data;
+        intel_fdc_set_result(p_fdc, k_intel_fdc_result_flag_deleted_data);
         new_state = k_intel_fdc_state_in_deleted_data;
       }
       p_fdc->crc = ibm_disc_format_crc_init();
@@ -1122,7 +1122,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
 
       intel_fdc_set_state(p_fdc, new_state);
     } else {
-      intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_clock_error);
+      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_clock_error);
     }
     break;
   case k_intel_fdc_state_in_data:
@@ -1214,11 +1214,8 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 3)) {
       intel_fdc_check_completion(p_fdc);
     } else if (p_fdc->state_count < (intel_fdc_get_sector_size(p_fdc) + 1)) {
-      intel_fdc_set_status_result(p_fdc,
-                                  (intel_fdc_get_status(p_fdc) |
-                                      k_intel_fdc_status_flag_nmi |
-                                      k_intel_fdc_status_flag_need_data),
-                                  k_intel_fdc_result_ok);
+      intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
+                                         k_intel_fdc_status_flag_need_data));
     }
     break;
   case k_intel_fdc_state_format_gap_1:
@@ -1264,11 +1261,8 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
 
     p_fdc->state_count++;
     if (p_fdc->state_count < 5) {
-      intel_fdc_set_status_result(p_fdc,
-                                  (intel_fdc_get_status(p_fdc) |
-                                      k_intel_fdc_status_flag_nmi |
-                                      k_intel_fdc_status_flag_need_data),
-                                  k_intel_fdc_result_ok);
+      intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
+                                         k_intel_fdc_status_flag_need_data));
     } else if (p_fdc->state_count == (7 + 11 + 6)) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_data);
     }
@@ -1324,7 +1318,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
   case k_intel_fdc_state_format_gap_4:
     /* GAP 4 writes until the index pulse is hit, at which point we are done. */
     if (p_fdc->state_is_index_pulse) {
-      intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_ok);
+      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
     } else {
       disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     }
@@ -1463,8 +1457,7 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
      */
     p_fdc->regs[k_intel_fdc_register_internal_index_pulse_count]--;
     if (p_fdc->regs[k_intel_fdc_register_internal_index_pulse_count] == 0) {
-      intel_fdc_merge_command_result(p_fdc,
-                                     k_intel_fdc_result_sector_not_found);
+      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_sector_not_found);
     }
     break;
   case k_intel_fdc_index_pulse_spindown:
@@ -1664,7 +1657,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
       break;
     case k_intel_fdc_command_SEEK:
-      intel_fdc_merge_command_result(p_fdc, k_intel_fdc_result_ok);
+      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
       break;
     default:
       intel_fdc_setup_sector_size(p_fdc);
@@ -1674,8 +1667,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     }
 
     if (intel_fdc_command_is_writing(p_fdc) && intel_fdc_get_WRPROT(p_fdc)) {
-      intel_fdc_merge_command_result(p_fdc,
-                                     k_intel_fdc_result_write_protected);
+      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
     }
     break;
   case k_intel_fdc_state_wait_no_index:
