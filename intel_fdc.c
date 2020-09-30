@@ -131,6 +131,7 @@ enum {
   k_intel_fdc_register_internal_count_lsb = 0x13,
   k_intel_fdc_register_internal_count_msb = 0x14,
   k_intel_fdc_register_internal_drive_in_copy = 0x15,
+  k_intel_fdc_register_internal_gap2_skip = 0x15,
   k_intel_fdc_register_internal_result = 0x16,
   k_intel_fdc_register_mode = 0x17,
   k_intel_fdc_register_internal_status = 0x17,
@@ -172,12 +173,12 @@ enum {
   k_intel_fdc_state_check_id_marker,
   k_intel_fdc_state_in_id,
   k_intel_fdc_state_in_id_crc,
-  k_intel_fdc_state_syncing_for_data_wait,
   k_intel_fdc_state_syncing_for_data,
   k_intel_fdc_state_check_data_marker,
   k_intel_fdc_state_in_data,
   k_intel_fdc_state_in_deleted_data,
   k_intel_fdc_state_in_data_crc,
+  k_intel_fdc_state_skip_gap_2,
   k_intel_fdc_state_write_gap_2,
   k_intel_fdc_state_write_sector_data,
   k_intel_fdc_state_format_gap_1,
@@ -1078,6 +1079,29 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
   uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   switch (p_fdc->state) {
+  case k_intel_fdc_state_skip_gap_2:
+    /* The controller requires a minimum byte count of 12 before sync then
+     * sector data. 2 bytes of sync are needed, so absolute minumum gap here is
+     * 14. The controller formats to 17 (not user controllable).
+     */
+    /* TODO: the controller enforced gap skip is 11 bytes of read, as per the
+     * ROM. The practical count of 12 is likely because the controller takes
+     * some number of microseconds to start the sync detector after this
+     * counter expires.
+     */
+    p_fdc->regs[k_intel_fdc_register_internal_gap2_skip]--;
+    if (p_fdc->regs[k_intel_fdc_register_internal_gap2_skip] != 0) {
+      break;
+    }
+    /* TODO: this isn't 100% correct. In the microcontroller, the context for
+     * what to do next was pushed onto the stack much earlier.
+     */
+    if (intel_fdc_command_is_writing(p_fdc)) {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
+    } else {
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data);
+    }
+    break;
   case k_intel_fdc_state_check_id_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         (data_byte == k_ibm_disc_id_mark_data_pattern)) {
@@ -1120,7 +1144,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (!intel_fdc_check_crc(p_fdc, k_intel_fdc_result_id_crc_error)) {
         break;
       }
-      if (command == k_intel_fdc_command_READ_ID) {
+      /* This is a test for the READ_ID command. */
+      if (p_fdc->regs[k_intel_fdc_register_internal_command] == 0x18) {
         intel_fdc_check_completion(p_fdc);
       } else if (p_fdc->regs[k_intel_fdc_register_internal_id_track] !=
                  p_fdc->regs[k_intel_fdc_register_internal_param_1]) {
@@ -1135,11 +1160,8 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         }
       } else if (p_fdc->regs[k_intel_fdc_register_internal_id_sector] ==
                  p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
-        if (intel_fdc_command_is_writing(p_fdc)) {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
-        } else {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data_wait);
-        }
+        p_fdc->regs[k_intel_fdc_register_internal_gap2_skip] = 11;
+        intel_fdc_set_state(p_fdc, k_intel_fdc_state_skip_gap_2);
       } else {
         intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id_wait);
       }
@@ -1211,19 +1233,9 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
 
   switch (p_fdc->state) {
   case k_intel_fdc_state_write_gap_2:
-    /* EMU NOTE: we don't know when the write head turns on. Put another way,
-     * where is the write splice created?
-     * Here, we re-write the entirety of GAP2 starting immediately after the
-     * checksum. It's possible a real chip has a delay, or only writes the 0's,
-     * or something more funky entirely.
-     */
-    if (p_fdc->state_count < 11) {
-      disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
-    } else {
-      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
-    }
+    disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
     p_fdc->state_count++;
-    if (p_fdc->state_count == (11 + 6)) {
+    if (p_fdc->state_count == 6) {
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_sector_data);
     }
     break;
@@ -1385,16 +1397,6 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
       intel_fdc_start_syncing_for_header(p_fdc);
     }
     break;
-  case k_intel_fdc_state_syncing_for_data_wait:
-    p_fdc->state_count++;
-    /* The controller enforces a minimum byte count of 12 before sync then
-     * sector data. 2 bytes of sync are needed, so absolute minumum gap here is
-     * 14. The controller formats to 17 (not user controllable).
-     */
-    if (p_fdc->state_count == (12 * 8 * 2)) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data);
-    }
-    break;
   case k_intel_fdc_state_syncing_for_id:
   case k_intel_fdc_state_syncing_for_data:
     state_count = p_fdc->state_count;
@@ -1428,6 +1430,7 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
   case k_intel_fdc_state_in_data:
   case k_intel_fdc_state_in_deleted_data:
   case k_intel_fdc_state_in_data_crc:
+  case k_intel_fdc_state_skip_gap_2:
     shift_register = p_fdc->shift_register;
     shift_register <<= 1;
     shift_register |= bit;
@@ -1735,7 +1738,7 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
   case k_intel_fdc_state_check_id_marker:
   case k_intel_fdc_state_in_id:
   case k_intel_fdc_state_in_id_crc:
-  case k_intel_fdc_state_syncing_for_data_wait:
+  case k_intel_fdc_state_skip_gap_2:
   case k_intel_fdc_state_syncing_for_data:
   case k_intel_fdc_state_check_data_marker:
   case k_intel_fdc_state_in_data:
