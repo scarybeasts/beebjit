@@ -130,16 +130,19 @@ enum {
   k_intel_fdc_register_track_drive_0 = 0x12,
   k_intel_fdc_register_internal_count_lsb = 0x13,
   k_intel_fdc_register_internal_count_msb = 0x14,
+  k_intel_fdc_register_internal_drive_in_copy = 0x15,
   k_intel_fdc_register_internal_result = 0x16,
   k_intel_fdc_register_mode = 0x17,
   k_intel_fdc_register_internal_status = 0x17,
   k_intel_fdc_register_bad_track_1_drive_1 = 0x18,
   k_intel_fdc_register_bad_track_2_drive_1 = 0x19,
   k_intel_fdc_register_track_drive_1 = 0x1A,
+  k_intel_fdc_register_internal_drive_in_latched = 0x1B,
   k_intel_fdc_register_internal_index_pulse_count = 0x1C,
   k_intel_fdc_register_internal_data = 0x1D,
   k_intel_fdc_register_internal_parameter = 0x1E,
   k_intel_fdc_register_internal_command = 0x1F,
+  k_intel_fdc_register_drive_in = 0x22,
   k_intel_fdc_register_drive_out = 0x23,
 };
 
@@ -621,6 +624,35 @@ intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
 }
 
 static uint8_t
+intel_fdc_read_drive_in(struct intel_fdc_struct* p_fdc) {
+  /* EMU NOTE: on my machine, bit 7 and bit 0 appear to be set all the time. */
+  uint8_t drive_in = 0x81;
+  if (intel_fdc_current_disc_is_spinning(p_fdc)) {
+    if (intel_fdc_get_TRK0(p_fdc)) {
+      /* TRK0 */
+      drive_in |= 0x02;
+    }
+    if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
+      /* RDY0 */
+      drive_in |= 0x04;
+    }
+    if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
+      /* RDY1 */
+      drive_in |= 0x40;
+    }
+    if (intel_fdc_get_WRPROT(p_fdc)) {
+      /* WR PROT */
+      drive_in |= 0x08;
+    }
+    if (intel_fdc_get_INDEX(p_fdc)) {
+      /* INDEX */
+      drive_in |= 0x10;
+    }
+  }
+  return drive_in;
+}
+
+static uint8_t
 intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   uint8_t ret = 0;
 
@@ -630,6 +662,9 @@ intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   }
   reg = (reg & 0x07);
   switch (reg) {
+  case k_intel_fdc_register_drive_in:
+    ret = intel_fdc_read_drive_in(p_fdc);
+    break;
   case k_intel_fdc_register_drive_out:
     /* DFS-1.2 reads drive out in normal operation. */
     ret = p_fdc->drive_out;
@@ -685,6 +720,16 @@ intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
 }
 
+static uint8_t
+intel_fdc_do_read_drive_status(struct intel_fdc_struct* p_fdc) {
+  uint8_t drive_in = intel_fdc_read_drive_in(p_fdc);
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_copy] = drive_in;
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] |= 0xBB;
+  drive_in &= p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched];
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] = drive_in;
+  return drive_in;
+}
+
 static void
 intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
   uint8_t temp_u8;
@@ -696,30 +741,10 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
     util_bail("unused 8271 command");
     break;
   case k_intel_fdc_command_READ_DRIVE_STATUS:
-    temp_u8 = 0x80;
-    if (intel_fdc_current_disc_is_spinning(p_fdc)) {
-      if (intel_fdc_get_TRK0(p_fdc)) {
-        /* TRK0 */
-        temp_u8 |= 0x02;
-      }
-      if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
-        /* RDY0 */
-        temp_u8 |= 0x04;
-      }
-      if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
-        /* RDY1 */
-        temp_u8 |= 0x40;
-      }
-      if (intel_fdc_get_WRPROT(p_fdc)) {
-        /* WR PROT */
-        temp_u8 |= 0x08;
-      }
-      if (intel_fdc_get_INDEX(p_fdc)) {
-        /* INDEX */
-        temp_u8 |= 0x10;
-      }
-    }
+    temp_u8 = intel_fdc_do_read_drive_status(p_fdc);
     intel_fdc_set_result(p_fdc, temp_u8);
+    p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] =
+        p_fdc->regs[k_intel_fdc_register_internal_drive_in_copy];
     intel_fdc_finish_simple_command(p_fdc);
     break;
   case k_intel_fdc_command_SPECIFY:
@@ -778,7 +803,10 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   uint8_t command_reg = p_fdc->regs[k_intel_fdc_register_internal_command];
   uint8_t orig_command = command_reg;
 
-  /* TODO: the 8271 reads drive status here and changes R21 + R27. */
+  /* This updates R21 ($15) and R27 ($1B). R27 is later referenced for checking
+   * the write protect bit.
+   */
+  (void) intel_fdc_do_read_drive_status(p_fdc);
 
   p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
 
@@ -1683,7 +1711,8 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
       break;
     }
 
-    if (intel_fdc_command_is_writing(p_fdc) && intel_fdc_get_WRPROT(p_fdc)) {
+    if (intel_fdc_command_is_writing(p_fdc) &&
+        (p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & 0x08)) {
       intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
     }
     break;
