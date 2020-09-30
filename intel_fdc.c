@@ -287,11 +287,6 @@ intel_fdc_command_is_writing(struct intel_fdc_struct* p_fdc) {
   return 0;
 }
 
-static inline uint8_t
-intel_fdc_get_select_bits(struct intel_fdc_struct* p_fdc) {
-  return (p_fdc->drive_out & 0xC0);
-}
-
 static inline uint32_t
 intel_fdc_get_sector_size(struct intel_fdc_struct* p_fdc) {
   uint32_t size = (p_fdc->regs[k_intel_fdc_register_internal_param_3] >> 5);
@@ -333,16 +328,31 @@ intel_fdc_start_index_pulse_timeout(struct intel_fdc_struct* p_fdc) {
 
 static void
 intel_fdc_set_drive_out(struct intel_fdc_struct* p_fdc, uint8_t drive_out) {
+  uint8_t select_bits;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
   if (p_current_drive != NULL) {
-    if ((p_fdc->drive_out & k_intel_fdc_drive_out_load_head) !=
-        (drive_out & k_intel_fdc_drive_out_load_head)) {
-      if (drive_out & k_intel_fdc_drive_out_load_head) {
-        disc_drive_start_spinning(p_current_drive);
-      } else {
-        disc_drive_stop_spinning(p_current_drive);
-      }
+    if (p_fdc->drive_out & k_intel_fdc_drive_out_load_head) {
+      disc_drive_stop_spinning(p_current_drive);
+    }
+    p_current_drive = NULL;
+  }
+
+  /* NOTE: unclear what to do if both drives are selected. We select no drive
+   * for now, to avoid shenanigans.
+   */
+  select_bits = (drive_out & 0xC0);
+  if (select_bits == 0x40) {
+    p_current_drive = p_fdc->p_drive_0;
+  } else if (select_bits == 0x80) {
+    p_current_drive = p_fdc->p_drive_1;
+  }
+
+  p_fdc->p_current_drive = p_current_drive;
+
+  if (p_current_drive != NULL) {
+    if (drive_out & k_intel_fdc_drive_out_load_head) {
+      disc_drive_start_spinning(p_current_drive);
     }
     disc_drive_select_side(p_current_drive,
                            !!(drive_out & k_intel_fdc_drive_out_side));
@@ -361,37 +371,6 @@ static void
 intel_fdc_drive_out_lower(struct intel_fdc_struct* p_fdc, uint8_t bits) {
   uint8_t drive_out = (p_fdc->drive_out & ~bits);
   intel_fdc_set_drive_out(p_fdc, drive_out);
-}
-
-static void
-intel_fdc_select_drive(struct intel_fdc_struct* p_fdc,
-                       uint8_t new_drive_select) {
-  uint8_t new_drive_out;
-
-  if (new_drive_select == intel_fdc_get_select_bits(p_fdc)) {
-    return;
-  }
-
-  /* TODO: doesn't belong here. */
-  /* A change of drive select bits clears all drive out bits other than side
-   * select.
-   * For example, the newly selected drive won't have the load head signal
-   * active. This spins down any previously selected drive.
-   */
-  new_drive_out = new_drive_select;
-  new_drive_out |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
-  intel_fdc_set_drive_out(p_fdc, new_drive_out);
-
-  if (new_drive_select == 0x40) {
-    p_fdc->p_current_drive = p_fdc->p_drive_0;
-  } else if (new_drive_select == 0x80) {
-    p_fdc->p_current_drive = p_fdc->p_drive_1;
-  } else {
-    /* NOTE: I'm not sure what selecting no drive or selecting both drives is
-     * supposed to do.
-     */
-    p_fdc->p_current_drive = NULL;
-  }
 }
 
 static void
@@ -426,6 +405,14 @@ intel_fdc_set_state(struct intel_fdc_struct* p_fdc, int state) {
 }
 
 static void
+intel_fdc_spindown(struct intel_fdc_struct* p_fdc) {
+  intel_fdc_drive_out_lower(p_fdc,
+                            (k_intel_fdc_drive_out_select_1 |
+                                 k_intel_fdc_drive_out_select_0 |
+                                 k_intel_fdc_drive_out_load_head));
+}
+
+static void
 intel_fdc_finish_simple_command(struct intel_fdc_struct* p_fdc) {
   uint8_t head_unload_count;
 
@@ -438,7 +425,7 @@ intel_fdc_finish_simple_command(struct intel_fdc_struct* p_fdc) {
 
   if (head_unload_count == 0) {
     /* Unload immediately. */
-    intel_fdc_select_drive(p_fdc, 0);
+    intel_fdc_spindown(p_fdc);
   } else if (head_unload_count == 0xF) {
     /* Never automatically unload. */
   } else {
@@ -492,11 +479,10 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
    */
   assert(p_fdc->parameter_callback == k_intel_fdc_parameter_accept_none);
   assert(p_fdc->state == k_intel_fdc_state_idle);
-  assert(intel_fdc_get_select_bits(p_fdc) == 0);
   assert(p_fdc->p_current_drive == NULL);
+  assert(p_fdc->drive_out == 0);
 
   (void) memset(&p_fdc->regs[0], '\0', sizeof(p_fdc->regs));
-  p_fdc->drive_out = 0;
   p_fdc->state_count = 0;
   p_fdc->state_is_index_pulse = 0;
 }
@@ -509,7 +495,7 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   intel_fdc_clear_callbacks(p_fdc);
 
   /* Deselect any drive; ensures spin-down. */
-  intel_fdc_select_drive(p_fdc, 0);
+  intel_fdc_set_drive_out(p_fdc, 0);
 
   /* EMU: on a real machine, status appears to be cleared but result and data
    * register not. */
@@ -632,11 +618,11 @@ intel_fdc_read_drive_in(struct intel_fdc_struct* p_fdc) {
       /* TRK0 */
       drive_in |= 0x02;
     }
-    if (intel_fdc_get_select_bits(p_fdc) & 0x40) {
+    if (p_fdc->drive_out & 0x40) {
       /* RDY0 */
       drive_in |= 0x04;
     }
-    if (intel_fdc_get_select_bits(p_fdc) & 0x80) {
+    if (p_fdc->drive_out & 0x80) {
       /* RDY1 */
       drive_in |= 0x40;
     }
@@ -699,10 +685,6 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
      * The parameter also includes drive select bits which override those in
      * the command.
      */
-    /* Select the drive as a separate call to avoid recursion between
-     * these two functions.
-     */
-    intel_fdc_select_drive(p_fdc, (val & 0xC0));
     intel_fdc_set_drive_out(p_fdc, val);
     break;
   default:
@@ -799,6 +781,7 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
 static void
 intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   uint8_t command;
+  uint8_t select_bits;
 
   uint8_t command_reg = p_fdc->regs[k_intel_fdc_register_internal_command];
   uint8_t orig_command = command_reg;
@@ -811,7 +794,17 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
 
   /* Select the drive before logging so that head position is reported. */
-  intel_fdc_select_drive(p_fdc, (command_reg & 0xC0));
+  select_bits = (command_reg & 0xC0);
+  if (select_bits != (p_fdc->drive_out & 0xC0)) {
+    /* A change of drive select bits clears all drive out bits other than side
+     * select.
+     * For example, the newly selected drive won't have the load head signal
+     * active. This spins down any previously selected drive.
+     */
+    select_bits |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
+    intel_fdc_set_drive_out(p_fdc, select_bits);
+  }
+
   /* Mask out drive select bits from command register, and parameter count. */
   command_reg &= 0x3C;
   p_fdc->regs[k_intel_fdc_register_internal_command] = command_reg;
@@ -830,7 +823,7 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                "8271: command $%x sel $%x params $%x $%x $%x $%x $%x "
                "ptrk %d hpos %d",
                (orig_command & 0x3F),
-               intel_fdc_get_select_bits(p_fdc),
+               select_bits,
                p_fdc->regs[k_intel_fdc_register_internal_param_1],
                p_fdc->regs[k_intel_fdc_register_internal_param_2],
                p_fdc->regs[k_intel_fdc_register_internal_param_3],
@@ -1511,8 +1504,7 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
       if (p_fdc->log_commands) {
         log_do_log(k_log_disc, k_log_info, "8271: automatic head unload");
       }
-      intel_fdc_drive_out_lower(p_fdc, k_intel_fdc_drive_out_load_head);
-      intel_fdc_select_drive(p_fdc, 0);
+      intel_fdc_spindown(p_fdc);
       p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
     }
     break;
