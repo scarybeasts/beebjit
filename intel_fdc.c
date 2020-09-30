@@ -307,6 +307,21 @@ intel_fdc_setup_sector_size(struct intel_fdc_struct* p_fdc) {
   p_fdc->regs[k_intel_fdc_register_internal_count_msb_copy] = msb;
 }
 
+static int
+intel_fdc_decrement_counter(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_count_lsb]--;
+  if (p_fdc->regs[k_intel_fdc_register_internal_count_lsb] != 0) {
+    return 0;
+  }
+  p_fdc->regs[k_intel_fdc_register_internal_count_msb]--;
+  if (p_fdc->regs[k_intel_fdc_register_internal_count_msb] != 0xFF) {
+    p_fdc->regs[k_intel_fdc_register_internal_count_lsb] = 0x80;
+    return 0;
+  }
+  p_fdc->regs[k_intel_fdc_register_internal_count_msb] = 0;
+  return 1;
+}
+
 static void
 intel_fdc_start_index_pulse_timeout(struct intel_fdc_struct* p_fdc) {
   p_fdc->regs[k_intel_fdc_register_internal_index_pulse_count] = 3;
@@ -555,14 +570,14 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
     intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_need_data |
                                        k_intel_fdc_status_flag_nmi));
     return p_fdc->regs[k_intel_fdc_register_internal_data];
+  /* EMU: register address 2 and 3 are not documented as having anything
+   * wired up for reading, BUT on a model B, they appear to give the MSB and
+   * LSB of the sector byte counter in internal registers 19 ($13) and 20 ($14).
+   */
   case k_intel_fdc_unknown_read_2:
+    return p_fdc->regs[k_intel_fdc_register_internal_count_msb];
   case k_intel_fdc_unknown_read_3:
-    /* EMU: register address 2 and 3 are not documented as having anything
-     * wired up for reading, BUT on a model B, I'm seeing:
-     * R2 == 255, R3 == 184 after machine power on.
-     * Both 0 after some successful disc operation.
-     */
-    return 0;
+    return p_fdc->regs[k_intel_fdc_register_internal_count_lsb];
   default:
     assert(0);
     return 0;
@@ -1038,6 +1053,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
   /* NOTE: this callback routine is also used for seek / settle timing,
    * which is not a precise 64us basis.
    */
+  int is_done;
   uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   switch (p_fdc->state) {
@@ -1126,27 +1142,27 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     }
     break;
   case k_intel_fdc_state_in_data:
+    is_done = intel_fdc_decrement_counter(p_fdc);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
     if (command != k_intel_fdc_command_VERIFY) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
     }
-    p_fdc->state_count++;
-    if (p_fdc->state_count == intel_fdc_get_sector_size(p_fdc)) {
+    if (is_done) {
       p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
     break;
   case k_intel_fdc_state_in_deleted_data:
+    is_done = intel_fdc_decrement_counter(p_fdc);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
     if (command == k_intel_fdc_command_READ_DATA_AND_DELETED) {
       if (!intel_fdc_provide_data_byte(p_fdc, data_byte)) {
         break;
       }
     }
-    p_fdc->state_count++;
-    if (p_fdc->state_count == intel_fdc_get_sector_size(p_fdc)) {
+    if (is_done) {
       p_fdc->on_disc_crc = 0;
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data_crc);
     }
@@ -1200,6 +1216,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, mark_byte);
     } else if (p_fdc->state_count < (intel_fdc_get_sector_size(p_fdc) + 1)) {
+      /* TODO: wire in sector data counter. */
       uint8_t data = p_fdc->regs[k_intel_fdc_register_internal_data];
       if (!intel_fdc_consume_data_byte(p_fdc)) {
         break;
