@@ -662,10 +662,10 @@ intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   }
   reg = (reg & 0x07);
   switch (reg) {
-  case k_intel_fdc_register_drive_in:
+  case (k_intel_fdc_register_drive_in & 0x07):
     ret = intel_fdc_read_drive_in(p_fdc);
     break;
-  case k_intel_fdc_register_drive_out:
+  case (k_intel_fdc_register_drive_out & 0x07):
     /* DFS-1.2 reads drive out in normal operation. */
     ret = p_fdc->drive_out;
     break;
