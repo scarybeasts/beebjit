@@ -268,6 +268,7 @@ intel_fdc_get_result(struct intel_fdc_struct* p_fdc) {
 static void
 intel_fdc_set_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
   p_fdc->regs[k_intel_fdc_register_internal_result] = result;
+  intel_fdc_status_raise(p_fdc, k_intel_fdc_status_flag_result_ready);
 }
 
 static inline uint8_t
