@@ -898,6 +898,8 @@ intel_fdc_command_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
 static void
 intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->regs[k_intel_fdc_register_internal_parameter] = val;
+  /* From testing, writing parameter appears to clear "result ready". */
+  intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_result_ready);
 
   switch (p_fdc->parameter_callback) {
   case k_intel_fdc_parameter_accept_none:

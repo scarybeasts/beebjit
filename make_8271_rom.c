@@ -59,16 +59,54 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x10);
   emit_LDA(p_buf, k_abs, 0xFE81);
   emit_REQUIRE_EQ(p_buf, 0x81);
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_REQUIRE_EQ(p_buf, 0x00);
   emit_JMP(p_buf, k_abs, 0xC080);
 
-  /* Exit sequence. */
+  /* Track status more closely across a multi-parameter but simple command. */
   set_new_index(p_buf, 0x0080);
+  /* WRITE_SPECIAL_REGISTER */
+  emit_LDA(p_buf, k_imm, 0x3A);
+  emit_JSR(p_buf, 0xE040);
+  emit_REQUIRE_EQ(p_buf, 0x90);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE080);
+  emit_REQUIRE_EQ(p_buf, 0x80);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_JMP(p_buf, k_abs, 0xC0C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x00C0);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
+  /* Wait until done. */
   set_new_index(p_buf, 0x2000);
   emit_LDA(p_buf, k_abs, 0xFE80);
   emit_BMI(p_buf, -5);
+  emit_RTS(p_buf);
+
+  /* Write command and wait until accepted. */
+  set_new_index(p_buf, 0x2040);
+  emit_STA(p_buf, k_abs, 0xFE80);
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_TAX(p_buf);
+  emit_AND(p_buf, k_imm, 0x40);
+  emit_BNE(p_buf, -8);
+  emit_TXA(p_buf);
+  emit_RTS(p_buf);
+
+  /* Write parameter and wait until accepted. */
+  set_new_index(p_buf, 0x2080);
+  emit_STA(p_buf, k_abs, 0xFE81);
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_TAX(p_buf);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_BNE(p_buf, -8);
+  emit_TXA(p_buf);
   emit_RTS(p_buf);
 
   fd = open("8271.rom", O_CREAT | O_WRONLY, 0600);
