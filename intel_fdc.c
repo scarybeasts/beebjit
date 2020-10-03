@@ -440,7 +440,7 @@ intel_fdc_finish_simple_command(struct intel_fdc_struct* p_fdc) {
 
   intel_fdc_set_state(p_fdc, k_intel_fdc_state_idle);
   intel_fdc_lower_busy_and_log(p_fdc);
-  /* TODO: lower PARAM, RESULT too?! */
+  /* TODO: lower PARAM, RESULT too?! (see ROM code). */
   intel_fdc_clear_callbacks(p_fdc);
 
   head_unload_count = (p_fdc->regs[k_intel_fdc_register_head_load_unload] >> 4);

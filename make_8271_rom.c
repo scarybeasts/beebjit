@@ -89,8 +89,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x00);
   emit_JMP(p_buf, k_abs, 0xC100);
 
-  /* Exit sequence. */
+  /* Check return values for READ_SPECIAL_REGISTER. */
   set_new_index(p_buf, 0x0100);
+  emit_LDA(p_buf, k_imm, 0x07);
+  /* Read special register. */
+  emit_JSR(p_buf, 0xE100);
+  emit_REQUIRE_EQ(p_buf, 0x10);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_EQ(p_buf, 0x07);
+  emit_JMP(p_buf, k_abs, 0xC140);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0140);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
@@ -129,6 +139,16 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_zpg, 0xF0);
   emit_JSR(p_buf, 0xE080);
   emit_LDA(p_buf, k_zpg, 0xF1);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_RTS(p_buf);
+
+  /* Read special register. */
+  set_new_index(p_buf, 0x2100);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x3D);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
   emit_JSR(p_buf, 0xE080);
   emit_JSR(p_buf, 0xE000);
   emit_RTS(p_buf);
