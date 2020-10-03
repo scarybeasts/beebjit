@@ -78,8 +78,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x00);
   emit_JMP(p_buf, k_abs, 0xC0C0);
 
-  /* Exit sequence. */
+  /* Set up "mode" register and check status is still correct. */
   set_new_index(p_buf, 0x00C0);
+  emit_LDA(p_buf, k_imm, 0x17);
+  emit_LDX(p_buf, k_imm, 0xC1);
+  /* Write special register. */
+  emit_JSR(p_buf, 0xE0C0);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_JMP(p_buf, k_abs, 0xC100);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0100);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
@@ -107,6 +118,19 @@ main(int argc, const char* argv[]) {
   emit_AND(p_buf, k_imm, 0x20);
   emit_BNE(p_buf, -8);
   emit_TXA(p_buf);
+  emit_RTS(p_buf);
+
+  /* Write special register. */
+  set_new_index(p_buf, 0x20C0);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_STX(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x3A);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_zpg, 0xF1);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
   emit_RTS(p_buf);
 
   fd = open("8271.rom", O_CREAT | O_WRONLY, 0600);

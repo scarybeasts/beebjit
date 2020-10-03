@@ -230,6 +230,26 @@ intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
   return p_fdc->regs[k_intel_fdc_register_internal_status];
 }
 
+static inline uint8_t
+intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
+  uint8_t status = intel_fdc_get_status(p_fdc);
+  /* The internal status register appears to be shared with some mode bits that
+   * must be masked out.
+   */
+  status &= ~0x03;
+
+  /* TODO: "command register full", bit value 0x40, isn't understood. In
+   * particular, the mode register (shared with the status register we
+   * believe) is set to 0xC1 in typical operation. This would seem to raise
+   * 0x40 after it has been lowered at command register acceptance. However,
+   * the bit is not returned.
+   * Don't return it, ever, for now.
+   */
+  status &= ~0x40;
+
+  return status;
+}
+
 static void
 intel_fdc_update_nmi(struct intel_fdc_struct* p_fdc) {
   struct state_6502* p_state_6502 = p_fdc->p_state_6502;
@@ -389,7 +409,7 @@ intel_fdc_lower_busy_and_log(struct intel_fdc_struct* p_fdc) {
     log_do_log(k_log_disc,
                k_log_info,
                "8271: status $%x result $%x",
-               intel_fdc_get_status(p_fdc),
+               intel_fdc_get_external_status(p_fdc),
                intel_fdc_get_result(p_fdc));
   }
 }
@@ -544,7 +564,7 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
 
   switch (addr & 0x07) {
   case k_intel_fdc_status:
-    return intel_fdc_get_status(p_fdc);
+    return intel_fdc_get_external_status(p_fdc);
   case k_intel_fdc_result:
     result = intel_fdc_get_result(p_fdc);
     intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_result_ready |
