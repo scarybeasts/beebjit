@@ -122,7 +122,8 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0xE140);
   emit_REQUIRE_EQ(p_buf, 0x18);
   emit_LDA(p_buf, k_abs, 0xFE81);
-  emit_REQUIRE_EQ(p_buf, 0x00);
+  /* Not ready. */
+  emit_REQUIRE_EQ(p_buf, 0x10);
   emit_LDA(p_buf, k_zpg, 0x51);
   emit_REQUIRE_EQ(p_buf, 0x01);
   /* Check for track 0. */
@@ -130,10 +131,15 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_abs, 0xFE81);
   emit_AND(p_buf, k_imm, 0x02);
   emit_REQUIRE_ZF(p_buf, 0);
-  emit_JMP(p_buf, k_abs, 0xC180);
+  /* Read drive status again, should clear not ready. */
+  emit_JSR(p_buf, 0xE180);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_AND(p_buf, k_imm, 0x04);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC1C0);
 
   /* Exit sequence. */
-  set_new_index(p_buf, 0x0180);
+  set_new_index(p_buf, 0x01C0);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */

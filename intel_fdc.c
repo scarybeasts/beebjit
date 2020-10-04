@@ -81,6 +81,7 @@ enum {
   k_intel_fdc_result_late_dma = 0x0A,
   k_intel_fdc_result_id_crc_error = 0x0C,
   k_intel_fdc_result_data_crc_error = 0x0E,
+  k_intel_fdc_result_drive_not_ready = 0x10,
   k_intel_fdc_result_write_protected = 0x12,
   k_intel_fdc_result_sector_not_found = 0x18,
   k_intel_fdc_result_flag_deleted_data = 0x20,
@@ -556,14 +557,115 @@ intel_fdc_set_timer_ms(struct intel_fdc_struct* p_fdc,
   (void) timing_start_timer_with_value(p_timing, timer_id, (wait_ms * 2000));
 }
 
+static int
+intel_fdc_get_WRPROT(struct intel_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_current_drive == NULL) {
+    return 0;
+  }
+  return disc_drive_is_write_protect(p_current_drive);
+}
+
+static int
+intel_fdc_get_TRK0(struct intel_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_current_drive == NULL) {
+    return 0;
+  }
+  return (disc_drive_get_track(p_current_drive) == 0);
+}
+
+static int
+intel_fdc_get_INDEX(struct intel_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_current_drive == NULL) {
+    return 0;
+  }
+  return disc_drive_is_index_pulse(p_current_drive);
+}
+
+static int
+intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_current_drive == NULL) {
+    return 0;
+  }
+  return disc_drive_is_spinning(p_current_drive);
+}
+
+static uint8_t
+intel_fdc_read_drive_in(struct intel_fdc_struct* p_fdc) {
+  /* EMU NOTE: on my machine, bit 7 and bit 0 appear to be set all the time. */
+  uint8_t drive_in = 0x81;
+  if (intel_fdc_current_disc_is_spinning(p_fdc)) {
+    if (intel_fdc_get_TRK0(p_fdc)) {
+      /* TRK0 */
+      drive_in |= 0x02;
+    }
+    if (p_fdc->drive_out & 0x40) {
+      /* RDY0 */
+      drive_in |= 0x04;
+    }
+    if (p_fdc->drive_out & 0x80) {
+      /* RDY1 */
+      drive_in |= 0x40;
+    }
+    if (intel_fdc_get_WRPROT(p_fdc)) {
+      /* WR PROT */
+      drive_in |= 0x08;
+    }
+    if (intel_fdc_get_INDEX(p_fdc)) {
+      /* INDEX */
+      drive_in |= 0x10;
+    }
+  }
+  return drive_in;
+}
+
+static uint8_t
+intel_fdc_do_read_drive_status(struct intel_fdc_struct* p_fdc) {
+  uint8_t drive_in = intel_fdc_read_drive_in(p_fdc);
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_copy] = drive_in;
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] |= 0xBB;
+  drive_in &= p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched];
+  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] = drive_in;
+  return drive_in;
+}
+
+static int
+intel_fdc_check_drive_ready(struct intel_fdc_struct* p_fdc) {
+  uint8_t mask;
+
+  (void) intel_fdc_do_read_drive_status(p_fdc);
+
+  if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
+    mask = 0x40;
+  } else {
+    mask = 0x04;
+  }
+
+  if (!(p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & mask)) {
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_drive_not_ready);
+    return 0;
+  }
+
+  return 1;
+}
+
 static void
 intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
   /* TODO: not correct to reference command here. Context is on the byte
    * processor stack.
    */
-  uint8_t command = intel_fdc_get_internal_command(p_fdc);
+  uint8_t command;
 
   p_fdc->timer_state = k_intel_fdc_timer_none;
+
+  if (!intel_fdc_check_drive_ready(p_fdc)) {
+    return;
+  }
+
+  command = intel_fdc_get_internal_command(p_fdc);
 
   switch (command) {
   case k_intel_fdc_command_READ_ID:
@@ -757,71 +859,6 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
   }
 }
 
-static int
-intel_fdc_get_WRPROT(struct intel_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_current_drive == NULL) {
-    return 0;
-  }
-  return disc_drive_is_write_protect(p_current_drive);
-}
-
-static int
-intel_fdc_get_TRK0(struct intel_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_current_drive == NULL) {
-    return 0;
-  }
-  return (disc_drive_get_track(p_current_drive) == 0);
-}
-
-static int
-intel_fdc_get_INDEX(struct intel_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_current_drive == NULL) {
-    return 0;
-  }
-  return disc_drive_is_index_pulse(p_current_drive);
-}
-
-static int
-intel_fdc_current_disc_is_spinning(struct intel_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_current_drive == NULL) {
-    return 0;
-  }
-  return disc_drive_is_spinning(p_current_drive);
-}
-
-static uint8_t
-intel_fdc_read_drive_in(struct intel_fdc_struct* p_fdc) {
-  /* EMU NOTE: on my machine, bit 7 and bit 0 appear to be set all the time. */
-  uint8_t drive_in = 0x81;
-  if (intel_fdc_current_disc_is_spinning(p_fdc)) {
-    if (intel_fdc_get_TRK0(p_fdc)) {
-      /* TRK0 */
-      drive_in |= 0x02;
-    }
-    if (p_fdc->drive_out & 0x40) {
-      /* RDY0 */
-      drive_in |= 0x04;
-    }
-    if (p_fdc->drive_out & 0x80) {
-      /* RDY1 */
-      drive_in |= 0x40;
-    }
-    if (intel_fdc_get_WRPROT(p_fdc)) {
-      /* WR PROT */
-      drive_in |= 0x08;
-    }
-    if (intel_fdc_get_INDEX(p_fdc)) {
-      /* INDEX */
-      drive_in |= 0x10;
-    }
-  }
-  return drive_in;
-}
-
 static uint8_t
 intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   uint8_t ret = 0;
@@ -878,16 +915,6 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
                reg);
     break;
   }
-}
-
-static uint8_t
-intel_fdc_do_read_drive_status(struct intel_fdc_struct* p_fdc) {
-  uint8_t drive_in = intel_fdc_read_drive_in(p_fdc);
-  p_fdc->regs[k_intel_fdc_register_internal_drive_in_copy] = drive_in;
-  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] |= 0xBB;
-  drive_in &= p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched];
-  p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] = drive_in;
-  return drive_in;
 }
 
 static void
@@ -1292,15 +1319,20 @@ intel_fdc_check_crc(struct intel_fdc_struct* p_fdc, uint8_t error) {
 
 static void
 intel_fdc_check_completion(struct intel_fdc_struct* p_fdc) {
+  if (!intel_fdc_check_drive_ready(p_fdc)) {
+    return;
+  }
+
+  /* Lower WRITE_ENABLE. */
+  intel_fdc_drive_out_lower(p_fdc, k_intel_fdc_drive_out_write_enable);
+  intel_fdc_clear_callbacks(p_fdc);
+
+  /* One less sector to go. */
   /* Specifying 0 sectors seems to result in 32 read, due to underflow of the
    * 5-bit counter.
    * On commands other than READ_ID, any underflow has other side effects
    * such as modifying the sector size.
    */
-  /* TODO: 8271 does a check drive ready here. */
-  /* Lower WRITE_ENABLE. */
-  intel_fdc_drive_out_lower(p_fdc, k_intel_fdc_drive_out_write_enable);
-  /* One less sector to go. */
   p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
   if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
     intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
