@@ -1511,7 +1511,9 @@ bbc_create(int mode,
     }
     wd_fdc_set_drives(p_bbc->p_wd_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
   } else {
-    p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502, &p_bbc->options);
+    p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502,
+                                          p_timing,
+                                          &p_bbc->options);
     if (p_bbc->p_intel_fdc == NULL) {
       util_bail("intel_fdc_create failed");
     }

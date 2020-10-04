@@ -5,6 +5,7 @@
 #include "ibm_disc_format.h"
 #include "log.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
@@ -117,6 +118,8 @@ enum {
   k_intel_fdc_register_internal_param_2 = 0x06,
   k_intel_fdc_register_internal_param_1 = 0x07,
   k_intel_fdc_register_internal_header_pointer = 0x08,
+  k_intel_fdc_register_internal_ms_count_hi = 0x08,
+  k_intel_fdc_register_internal_ms_count_lo = 0x09,
   k_intel_fdc_register_internal_seek_count = 0x0A,
   k_intel_fdc_register_internal_id_sector = 0x0A,
   k_intel_fdc_register_internal_seek_target_1 = 0x0B,
@@ -186,10 +189,12 @@ enum {
   k_intel_fdc_state_format_write_data,
   k_intel_fdc_state_format_gap_3,
   k_intel_fdc_state_format_gap_4,
-  k_intel_fdc_state_seek_setup,
-  k_intel_fdc_state_seeking,
-  k_intel_fdc_state_settle_or_load_setup,
-  k_intel_fdc_state_settle_or_load,
+};
+
+enum {
+  k_intel_fdc_timer_none = 0,
+  k_intel_fdc_timer_seek_step = 1,
+  k_intel_fdc_timer_post_seek = 2,
 };
 
 enum {
@@ -198,6 +203,8 @@ enum {
 
 struct intel_fdc_struct {
   struct state_6502* p_state_6502;
+  struct timing_struct* p_timing;
+  uint32_t timer_id;
 
   int log_commands;
 
@@ -208,15 +215,13 @@ struct intel_fdc_struct {
   /* Event callbacks. */
   int parameter_callback;
   int index_pulse_callback;
+  int timer_state;
 
   uint8_t regs[k_intel_num_registers];
   uint8_t drive_out;
 
   uint32_t shift_register;
   uint32_t num_shifts;
-
-  int current_needs_settle;
-  uint32_t current_seek_count;
 
   int state;
   uint32_t state_count;
@@ -399,6 +404,10 @@ static void
 intel_fdc_clear_callbacks(struct intel_fdc_struct* p_fdc) {
   p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
   p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
+  if (p_fdc->timer_state != k_intel_fdc_timer_none) {
+    (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
+    p_fdc->timer_state = k_intel_fdc_timer_none;
+  }
 }
 
 static void
@@ -500,6 +509,8 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
    * to whether the reset line changes them or not.
    */
   assert(p_fdc->parameter_callback == k_intel_fdc_parameter_accept_none);
+  assert(p_fdc->index_pulse_callback == k_intel_fdc_index_pulse_none);
+  assert(p_fdc->timer_state == k_intel_fdc_timer_none);
   assert(p_fdc->state == k_intel_fdc_state_idle);
   assert(p_fdc->p_current_drive == NULL);
   assert(p_fdc->drive_out == 0);
@@ -524,13 +535,164 @@ intel_fdc_break_reset(struct intel_fdc_struct* p_fdc) {
   intel_fdc_status_lower(p_fdc, intel_fdc_get_status(p_fdc));
 }
 
+static void
+intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_header_pointer] = 0x0C;
+  intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
+}
+
+static void
+intel_fdc_set_timer_ms(struct intel_fdc_struct* p_fdc,
+                       int timer_state,
+                       uint32_t wait_ms) {
+  struct timing_struct* p_timing = p_fdc->p_timing;
+  uint32_t timer_id = p_fdc->timer_id;
+
+  if (timing_timer_is_running(p_fdc->p_timing, timer_id)) {
+    (void) timing_stop_timer(p_timing, timer_id);
+  }
+
+  p_fdc->timer_state = timer_state;
+  (void) timing_start_timer_with_value(p_timing, timer_id, (wait_ms * 2000));
+}
+
+static void
+intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
+  /* TODO: not correct to reference command here. Context is on the byte
+   * processor stack.
+   */
+  uint8_t command = intel_fdc_get_internal_command(p_fdc);
+
+  p_fdc->timer_state = k_intel_fdc_timer_none;
+
+  switch (command) {
+  case k_intel_fdc_command_READ_ID:
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+    break;
+  case k_intel_fdc_command_FORMAT:
+    intel_fdc_setup_sector_size(p_fdc);
+    /* EMU: note that format doesn't set an index pulse timeout. No matter how
+     * large the format sector size request, even 16384, the command never
+     * exits due to 2 index pulses counted. This differs from read _and_
+     * write. Format will exit on the next index pulse after all the sectors
+     * have been written.
+     * Disc Duplicator III needs this to work correctly when deformatting
+     * tracks.
+     */
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+    break;
+  case k_intel_fdc_command_SEEK:
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
+    break;
+  default:
+    intel_fdc_setup_sector_size(p_fdc);
+    intel_fdc_start_index_pulse_timeout(p_fdc);
+    intel_fdc_start_syncing_for_header(p_fdc);
+    break;
+  }
+
+  if (intel_fdc_command_is_writing(p_fdc) &&
+      (p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & 0x08)) {
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
+  }
+}
+
+static void
+intel_fdc_do_load_head(struct intel_fdc_struct* p_fdc, int is_settle) {
+  uint32_t post_seek_time;
+
+  /* The head load wait replaces the settle delay if there is both. */
+  if (!(p_fdc->drive_out & k_intel_fdc_drive_out_load_head)) {
+    intel_fdc_drive_out_raise(p_fdc, k_intel_fdc_drive_out_load_head);
+    post_seek_time =
+        (p_fdc->regs[k_intel_fdc_register_head_load_unload] & 0x0F);
+    /* Head load units are 4ms. */
+    post_seek_time *= 4;
+  } else if (is_settle) {
+    /* EMU: all references state the units are 2ms for 5.25" drives. */
+    post_seek_time = (p_fdc->regs[k_intel_fdc_register_head_settle_time] * 2);
+  }
+
+  if (post_seek_time > 0) {
+    intel_fdc_set_timer_ms(p_fdc, k_intel_fdc_timer_post_seek, post_seek_time);
+  } else {
+    intel_fdc_post_seek_dispatch(p_fdc);
+  }
+}
+
+static void
+intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
+  uint32_t step_rate;
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  assert(p_current_drive != NULL);
+
+  if ((disc_drive_get_track(p_current_drive) == 0) &&
+      (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
+    /* Seek to 0 done, TRK0 detected. */
+    intel_fdc_do_load_head(p_fdc, 1);
+    return;
+  } else if (p_fdc->regs[k_intel_fdc_register_internal_seek_count] == 0) {
+    intel_fdc_do_load_head(p_fdc, 1);
+    return;
+  }
+
+  p_fdc->regs[k_intel_fdc_register_internal_seek_count]--;
+
+  if (p_fdc->drive_out & k_intel_fdc_drive_out_direction) {
+    disc_drive_seek_track(p_current_drive, 1);
+  } else {
+    disc_drive_seek_track(p_current_drive, -1);
+  }
+
+  step_rate = p_fdc->regs[k_intel_fdc_register_head_step_rate];
+  if (step_rate == 0) {
+    util_bail("drive timed seek not handled");
+  }
+
+  /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
+   * or 2ms for 5.25" drives. 1ms might be your best guess from the
+   * datasheet, but timing on a real machine, it appears to be 2ms.
+   */
+  intel_fdc_set_timer_ms(p_fdc, k_intel_fdc_timer_seek_step, (step_rate * 2));
+}
+
+static void
+intel_fdc_timer_fired(void* p) {
+  struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
+
+  (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
+
+  /* Counting milliseconds is done with R8 and R9, which are left at zero
+   * after a busy wait.
+   */
+  p_fdc->regs[k_intel_fdc_register_internal_ms_count_hi] = 0;
+  p_fdc->regs[k_intel_fdc_register_internal_ms_count_lo] = 0;
+
+  switch (p_fdc->timer_state) {
+  case k_intel_fdc_timer_seek_step:
+    intel_fdc_do_seek_step(p_fdc);
+    break;
+  case k_intel_fdc_timer_post_seek:
+    intel_fdc_post_seek_dispatch(p_fdc);
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 struct intel_fdc_struct*
 intel_fdc_create(struct state_6502* p_state_6502,
+                 struct timing_struct* p_timing,
                  struct bbc_options* p_options) {
   struct intel_fdc_struct* p_fdc =
       util_mallocz(sizeof(struct intel_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
+  p_fdc->p_timing = p_timing;
+  p_fdc->timer_id = timing_register_timer(p_timing,
+                                          intel_fdc_timer_fired,
+                                          p_fdc);
 
   p_fdc->log_commands = util_has_option(p_options->p_log_flags,
                                         "disc:commands");
@@ -718,12 +880,6 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
   }
 }
 
-static void
-intel_fdc_start_syncing_for_header(struct intel_fdc_struct* p_fdc) {
-  p_fdc->regs[k_intel_fdc_register_internal_header_pointer] = 0x0C;
-  intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_id);
-}
-
 static uint8_t
 intel_fdc_do_read_drive_status(struct intel_fdc_struct* p_fdc) {
   uint8_t drive_in = intel_fdc_read_drive_in(p_fdc);
@@ -732,6 +888,79 @@ intel_fdc_do_read_drive_status(struct intel_fdc_struct* p_fdc) {
   drive_in &= p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched];
   p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] = drive_in;
   return drive_in;
+}
+
+static void
+intel_fdc_do_seek(struct intel_fdc_struct* p_fdc) {
+  uint8_t* p_track_regs;
+  uint8_t curr_track;
+  uint8_t new_track = p_fdc->regs[k_intel_fdc_register_internal_param_1];
+  new_track += p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count];
+
+  if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
+    p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_1];
+  } else {
+    p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_0];
+  }
+  /* Add one to requested track for each bad track covered. */
+  /* EMU NOTE: this is based on a disassembly of the real 8271 ROM and yes,
+   * integer overflow does occur!
+   */
+  if (new_track > 0) {
+    if (p_track_regs[0] <= new_track) {
+      ++new_track;
+    }
+    if (p_track_regs[1] <= new_track) {
+      ++new_track;
+    }
+  }
+  p_fdc->regs[k_intel_fdc_register_internal_seek_target_1] = new_track;
+  p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] = new_track;
+  /* Set LOW HEAD CURRENT in drive output depending on track. */
+  if (new_track >= 43) {
+    p_fdc->drive_out |= k_intel_fdc_drive_out_low_head_current;
+  } else {
+    p_fdc->drive_out &= ~k_intel_fdc_drive_out_low_head_current;
+  }
+  /* Work out seek direction and total number of steps. */
+  curr_track = p_track_regs[2];
+  /* Pretend current track is 255 if a seek to 0. */
+  if (new_track == 0) {
+    curr_track = 255;
+  }
+
+  /* Skip to head load if there's no seek. */
+  if (new_track == curr_track) {
+    intel_fdc_do_load_head(p_fdc, 0);
+    return;
+  }
+
+  if (new_track > curr_track) {
+    p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
+        (new_track - curr_track);
+    p_fdc->drive_out |= k_intel_fdc_drive_out_direction;
+  } else if (curr_track > new_track) {
+    p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
+        (curr_track - new_track);
+    p_fdc->drive_out &= ~k_intel_fdc_drive_out_direction;
+  }
+  /* Seek pulses out of the 8271 are about 10us, so let's just lower the
+   * output bit and make them unobservable as I suspect they are on a real
+   * machine.
+   */
+  p_fdc->drive_out &= ~k_intel_fdc_drive_out_step;
+  /* Current track register(s) are updated here before the actual step
+   * sequence.
+   */
+  p_track_regs[2] = p_fdc->regs[k_intel_fdc_register_internal_seek_target_2];
+  /* Update both track registers if "single actuator" flag is set. */
+  if (p_fdc->regs[k_intel_fdc_register_mode] &
+      k_intel_fdc_mode_single_actuator) {
+    p_fdc->regs[k_intel_fdc_register_track_drive_0] = p_track_regs[2];
+    p_fdc->regs[k_intel_fdc_register_track_drive_1] = p_track_regs[2];
+  }
+
+  intel_fdc_do_seek_step(p_fdc);
 }
 
 static void
@@ -782,7 +1011,7 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
      * pulse.
      */
     if (p_fdc->regs[k_intel_fdc_register_internal_param_2] == 0) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+      intel_fdc_do_seek(p_fdc);
     } else {
       intel_fdc_start_syncing_for_header(p_fdc);
     }
@@ -795,7 +1024,7 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
       p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
           k_ibm_disc_deleted_data_mark_data_pattern;
     }
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+    intel_fdc_do_seek(p_fdc);
     break;
   }
 }
@@ -863,9 +1092,6 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
                k_log_unusual,
                "8271: scan sectors doesn't work in a beeb");
   }
-
-  p_fdc->current_needs_settle = 0;
-  p_fdc->current_seek_count = 0;
 
   intel_fdc_do_command_dispatch(p_fdc);
 }
@@ -1179,7 +1405,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         if (p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] == 3) {
           intel_fdc_finish_command(p_fdc, k_intel_fdc_result_sector_not_found);
         } else {
-          intel_fdc_set_state(p_fdc, k_intel_fdc_state_seek_setup);
+          intel_fdc_do_seek(p_fdc);
         }
       } else if (p_fdc->regs[k_intel_fdc_register_internal_id_sector] ==
                  p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
@@ -1558,180 +1784,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
         !disc_drive_is_write_protect(p_current_drive)) {
       disc_drive_write_byte(p_current_drive, 0x00, 0x00);
-    }
-    break;
-  case k_intel_fdc_state_seek_setup:
-  {
-    uint8_t* p_track_regs;
-    uint8_t curr_track;
-    uint8_t new_track = p_fdc->regs[k_intel_fdc_register_internal_param_1];
-    new_track += p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count];
-
-    if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
-      p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_1];
-    } else {
-      p_track_regs = &p_fdc->regs[k_intel_fdc_register_bad_track_1_drive_0];
-    }
-    /* Add one to requested track for each bad track covered. */
-    /* EMU NOTE: this is based on a disassembly of the real 8271 ROM and yes,
-     * integer overflow does occur!
-     */
-    if (new_track > 0) {
-      if (p_track_regs[0] <= new_track) {
-        ++new_track;
-      }
-      if (p_track_regs[1] <= new_track) {
-        ++new_track;
-      }
-    }
-    p_fdc->regs[k_intel_fdc_register_internal_seek_target_1] = new_track;
-    p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] = new_track;
-    /* Set LOW HEAD CURRENT in drive output depending on track. */
-    if (new_track >= 43) {
-      p_fdc->drive_out |= k_intel_fdc_drive_out_low_head_current;
-    } else {
-      p_fdc->drive_out &= ~k_intel_fdc_drive_out_low_head_current;
-    }
-    /* Work out seek direction and total number of steps. */
-    curr_track = p_track_regs[2];
-    /* Pretend current track is 255 if a seek to 0. */
-    if (new_track == 0) {
-      curr_track = 255;
-    }
-    /* Skip to head load if there's no seek. */
-    if (new_track == curr_track) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
-      break;
-    }
-    if (new_track > curr_track) {
-      p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
-          (new_track - curr_track);
-      p_fdc->drive_out |= k_intel_fdc_drive_out_direction;
-    } else if (curr_track > new_track) {
-      p_fdc->regs[k_intel_fdc_register_internal_seek_count] =
-          (curr_track - new_track);
-      p_fdc->drive_out &= ~k_intel_fdc_drive_out_direction;
-    }
-    /* Seek pulses out of the 8271 are about 10us, so let's just lower the
-     * output bit and make them unobservable as I suspect they are on a real
-     * machine.
-     */
-    p_fdc->drive_out &= ~k_intel_fdc_drive_out_step;
-    /* Current track register(s) are updated here before the actual step
-     * sequence.
-     */
-    p_track_regs[2] = p_fdc->regs[k_intel_fdc_register_internal_seek_target_2];
-    /* Update both track registers if "single actuator" flag is set. */
-    if (p_fdc->regs[k_intel_fdc_register_mode] &
-        k_intel_fdc_mode_single_actuator) {
-      p_fdc->regs[k_intel_fdc_register_track_drive_0] = p_track_regs[2];
-      p_fdc->regs[k_intel_fdc_register_track_drive_1] = p_track_regs[2];
-    }
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_seeking);
-    break;
-  }
-  case k_intel_fdc_state_seeking:
-  {
-    struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-    assert(p_current_drive != NULL);
-
-    if (p_fdc->current_seek_count) {
-      p_fdc->current_seek_count--;
-      break;
-    }
-
-    if ((disc_drive_get_track(p_current_drive) == 0) &&
-        (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
-      /* Seek to 0 done, TRK0 detected. */
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
-      break;
-    } else if (p_fdc->regs[k_intel_fdc_register_internal_seek_count] == 0) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load_setup);
-      break;
-    }
-
-    p_fdc->regs[k_intel_fdc_register_internal_seek_count]--;
-    p_fdc->current_needs_settle = 1;
-
-    if (p_fdc->drive_out & k_intel_fdc_drive_out_direction) {
-      disc_drive_seek_track(p_current_drive, 1);
-    } else {
-      disc_drive_seek_track(p_current_drive, -1);
-    }
-
-    /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
-     * or 2ms for 5.25" drives. 1ms might be your best guess from the
-     * datasheet, but timing on a real machine, it appears to be 2ms.
-     */
-    p_fdc->current_seek_count =
-        (p_fdc->regs[k_intel_fdc_register_head_step_rate] * 1000);
-    p_fdc->current_seek_count *= 2;
-    /* Calculate how many 64us chunks for the head step time. */
-    p_fdc->current_seek_count /= 64;
-
-    break;
-  }
-  case k_intel_fdc_state_settle_or_load_setup:
-    assert(p_fdc->current_seek_count == 0);
-
-    if (p_fdc->current_needs_settle) {
-      p_fdc->current_needs_settle = 0;
-      p_fdc->current_seek_count =
-          p_fdc->regs[k_intel_fdc_register_head_settle_time];
-      /* EMU: all references state the units are 2ms for 5.25" drives. */
-      p_fdc->current_seek_count *= 2;
-    }
-
-    /* The head load wait replaces the settle delay if there is both. */
-    if (!(p_fdc->drive_out & k_intel_fdc_drive_out_load_head)) {
-      intel_fdc_drive_out_raise(p_fdc, k_intel_fdc_drive_out_load_head);
-      p_fdc->current_seek_count =
-          (p_fdc->regs[k_intel_fdc_register_head_load_unload] & 0x0F);
-      /* Head load units are 4ms. */
-      p_fdc->current_seek_count *= 4;
-    }
-
-    /* Calculate how many 64us chunks for the head settle or load time. */
-    p_fdc->current_seek_count *= 1000;
-    p_fdc->current_seek_count /= 64;
-
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_settle_or_load);
-    break;
-  case k_intel_fdc_state_settle_or_load:
-    if (p_fdc->current_seek_count) {
-      p_fdc->current_seek_count--;
-      break;
-    }
-
-    switch (command) {
-    case k_intel_fdc_command_READ_ID:
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
-      break;
-    case k_intel_fdc_command_FORMAT:
-      intel_fdc_setup_sector_size(p_fdc);
-      /* EMU: note that format doesn't set an index pulse timeout. No matter how
-       * large the format sector size request, even 16384, the command never
-       * exits due to 2 index pulses counted. This differs from read _and_
-       * write. Format will exit on the next index pulse after all the sectors
-       * have been written.
-       * Disc Duplicator III needs this to work correctly when deformatting
-       * tracks.
-       */
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
-      break;
-    case k_intel_fdc_command_SEEK:
-      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
-      break;
-    default:
-      intel_fdc_setup_sector_size(p_fdc);
-      intel_fdc_start_index_pulse_timeout(p_fdc);
-      intel_fdc_start_syncing_for_header(p_fdc);
-      break;
-    }
-
-    if (intel_fdc_command_is_writing(p_fdc) &&
-        (p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & 0x08)) {
-      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
     }
     break;
   case k_intel_fdc_state_wait_no_index:

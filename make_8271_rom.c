@@ -35,9 +35,15 @@ main(int argc, const char* argv[]) {
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
+  /* NMI vector. */
+  p_mem[0x3FFA] = 0x00;
+  p_mem[0x3FFB] = 0x0D;
 
   /* Check initial status, result, data register operation. */
   set_new_index(p_buf, 0x0000);
+  /* Drive 0. */
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_zpg, 0x50);
   emit_LDA(p_buf, k_abx, 0xFE80);
   emit_REQUIRE_EQ(p_buf, 0x00);
   emit_LDA(p_buf, k_abx, 0xFE81);
@@ -99,8 +105,35 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x07);
   emit_JMP(p_buf, k_abs, 0xC140);
 
-  /* Exit sequence. */
+  /* The simplest non-simple command: seek to 0 while already at 0. */
   set_new_index(p_buf, 0x0140);
+  /* Deselect everything to ensure spindown. */
+  emit_LDA(p_buf, k_imm, 0x23);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE0C0);
+  /* Install NMI handler. */
+  emit_JSR(p_buf, 0xE1C0);
+  /* Set spindown count to 2. */
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_LDX(p_buf, k_imm, 0x20);
+  emit_JSR(p_buf, 0xE0C0);
+  /* Seek to 0. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE140);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_zpg, 0x51);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  /* Check for track 0. */
+  emit_JSR(p_buf, 0xE180);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_AND(p_buf, k_imm, 0x02);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC180);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0180);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
@@ -130,7 +163,7 @@ main(int argc, const char* argv[]) {
   emit_TXA(p_buf);
   emit_RTS(p_buf);
 
-  /* Write special register. */
+  /* WRITE SPECIAL REGISTER */
   set_new_index(p_buf, 0x20C0);
   emit_STA(p_buf, k_zpg, 0xF0);
   emit_STX(p_buf, k_zpg, 0xF1);
@@ -143,7 +176,7 @@ main(int argc, const char* argv[]) {
   emit_JSR(p_buf, 0xE000);
   emit_RTS(p_buf);
 
-  /* Read special register. */
+  /* READ SPECIAL REGISTER */
   set_new_index(p_buf, 0x2100);
   emit_STA(p_buf, k_zpg, 0xF0);
   emit_LDA(p_buf, k_imm, 0x3D);
@@ -151,6 +184,38 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_zpg, 0xF0);
   emit_JSR(p_buf, 0xE080);
   emit_JSR(p_buf, 0xE000);
+  emit_RTS(p_buf);
+
+  /* SEEK */
+  set_new_index(p_buf, 0x2140);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x29);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_RTS(p_buf);
+
+  /* READ DRIVE STATUS */
+  set_new_index(p_buf, 0x2180);
+  emit_LDA(p_buf, k_imm, 0x2C);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_JSR(p_buf, 0xE000);
+  emit_RTS(p_buf);
+
+  /* Install simple NMI handler. */
+  set_new_index(p_buf, 0x21C0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x51);
+  /* INC $51, RTI */
+  emit_LDA(p_buf, k_imm, 0xE6);
+  emit_STA(p_buf, k_abs, 0x0D00);
+  emit_LDA(p_buf, k_imm, 0x51);
+  emit_STA(p_buf, k_abs, 0x0D01);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_abs, 0x0D02);
   emit_RTS(p_buf);
 
   fd = open("8271.rom", O_CREAT | O_WRONLY, 0600);

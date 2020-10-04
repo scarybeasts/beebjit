@@ -8,8 +8,10 @@ struct intel_fdc_struct;
 struct bbc_options;
 struct disc_drive_struct;
 struct state_6502;
+struct timing_struct;
 
 struct intel_fdc_struct* intel_fdc_create(struct state_6502* p_state_6502,
+                                          struct timing_struct* p_timing,
                                           struct bbc_options* p_options);
 void intel_fdc_destroy(struct intel_fdc_struct* p_fdc);
 
