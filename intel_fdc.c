@@ -199,6 +199,15 @@ enum {
 };
 
 enum {
+  k_intel_fdc_seek_unchanged = 1,
+  k_intel_fdc_seek_seek = 2,
+  k_intel_fdc_seek_read_id = 3,
+  k_intel_fdc_seek_read = 4,
+  k_intel_fdc_seek_write = 5,
+  k_intel_fdc_seek_format = 6,
+};
+
+enum {
   k_intel_num_registers = 32,
 };
 
@@ -213,10 +222,11 @@ struct intel_fdc_struct {
   struct disc_drive_struct* p_drive_1;
   struct disc_drive_struct* p_current_drive;
 
-  /* Event callbacks. */
+  /* Event callbacks and execution contexts. */
   int parameter_callback;
   int index_pulse_callback;
   int timer_state;
+  int seek_context;
 
   uint8_t regs[k_intel_num_registers];
   uint8_t drive_out;
@@ -302,17 +312,6 @@ intel_fdc_get_internal_command(struct intel_fdc_struct* p_fdc) {
   uint8_t command = p_fdc->regs[k_intel_fdc_register_internal_command];
   command &= 0x3C;
   return (command >> 2);
-}
-
-static int
-intel_fdc_command_is_writing(struct intel_fdc_struct* p_fdc) {
-  uint8_t command = intel_fdc_get_internal_command(p_fdc);
-  if ((command == k_intel_fdc_command_WRITE_DATA) ||
-      (command == k_intel_fdc_command_WRITE_DELETED_DATA) ||
-      (command == k_intel_fdc_command_FORMAT)) {
-    return 1;
-  }
-  return 0;
 }
 
 static inline uint32_t
@@ -653,25 +652,28 @@ intel_fdc_check_drive_ready(struct intel_fdc_struct* p_fdc) {
 }
 
 static void
-intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
-  /* TODO: not correct to reference command here. Context is on the byte
-   * processor stack.
-   */
-  uint8_t command;
+intel_fdc_check_write_protect(struct intel_fdc_struct* p_fdc) {
+  if (p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & 0x08) {
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
+  }
+}
 
+static void
+intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
   p_fdc->timer_state = k_intel_fdc_timer_none;
 
   if (!intel_fdc_check_drive_ready(p_fdc)) {
     return;
   }
 
-  command = intel_fdc_get_internal_command(p_fdc);
-
-  switch (command) {
-  case k_intel_fdc_command_READ_ID:
+  switch (p_fdc->seek_context) {
+  case k_intel_fdc_seek_seek:
+    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
+    break;
+  case k_intel_fdc_seek_read_id:
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
     break;
-  case k_intel_fdc_command_FORMAT:
+  case k_intel_fdc_seek_format:
     intel_fdc_setup_sector_size(p_fdc);
     /* EMU: note that format doesn't set an index pulse timeout. No matter how
      * large the format sector size request, even 16384, the command never
@@ -682,20 +684,20 @@ intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
      * tracks.
      */
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+    intel_fdc_check_write_protect(p_fdc);
     break;
-  case k_intel_fdc_command_SEEK:
-    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
-    break;
-  default:
+  case k_intel_fdc_seek_read:
+  case k_intel_fdc_seek_write:
     intel_fdc_setup_sector_size(p_fdc);
     intel_fdc_start_index_pulse_timeout(p_fdc);
     intel_fdc_start_syncing_for_header(p_fdc);
+    if (p_fdc->seek_context == k_intel_fdc_seek_write) {
+      intel_fdc_check_write_protect(p_fdc);
+    }
     break;
-  }
-
-  if (intel_fdc_command_is_writing(p_fdc) &&
-      (p_fdc->regs[k_intel_fdc_register_internal_drive_in_latched] & 0x08)) {
-    intel_fdc_finish_command(p_fdc, k_intel_fdc_result_write_protected);
+  default:
+    assert(0);
+    break;
   }
 }
 
@@ -918,10 +920,16 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
 }
 
 static void
-intel_fdc_do_seek(struct intel_fdc_struct* p_fdc) {
+intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, int seek_context) {
   uint8_t* p_track_regs;
   uint8_t curr_track;
-  uint8_t new_track = p_fdc->regs[k_intel_fdc_register_internal_param_1];
+  uint8_t new_track;
+
+  if (seek_context != k_intel_fdc_seek_unchanged) {
+    p_fdc->seek_context = seek_context;
+  }
+
+  new_track = p_fdc->regs[k_intel_fdc_register_internal_param_1];
   new_track += p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count];
 
   if (p_fdc->drive_out & k_intel_fdc_drive_out_select_1) {
@@ -1038,20 +1046,36 @@ intel_fdc_do_command_dispatch(struct intel_fdc_struct* p_fdc) {
      * pulse.
      */
     if (p_fdc->regs[k_intel_fdc_register_internal_param_2] == 0) {
-      intel_fdc_do_seek(p_fdc);
+      intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_read_id);
     } else {
       intel_fdc_start_syncing_for_header(p_fdc);
     }
     break;
+  case k_intel_fdc_command_SEEK:
+    intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_seek);
+    break;
+  case k_intel_fdc_command_READ_DATA:
+  case k_intel_fdc_command_READ_DATA_AND_DELETED:
+  case k_intel_fdc_command_VERIFY:
+  case k_intel_fdc_command_SCAN_DATA:
+  case k_intel_fdc_command_SCAN_DATA_AND_DELETED:
+    intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_read);
+    break;
+  case k_intel_fdc_command_WRITE_DATA:
+    p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
+        k_ibm_disc_data_mark_data_pattern;
+    intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_write);
+    break;
+  case k_intel_fdc_command_WRITE_DELETED_DATA:
+    p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
+        k_ibm_disc_deleted_data_mark_data_pattern;
+    intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_write);
+    break;
+  case k_intel_fdc_command_FORMAT:
+    intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_format);
+    break;
   default:
-    if (command == k_intel_fdc_command_WRITE_DATA) {
-      p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
-          k_ibm_disc_data_mark_data_pattern;
-    } else if (command == k_intel_fdc_command_WRITE_DELETED_DATA) {
-      p_fdc->regs[k_intel_fdc_register_internal_param_data_marker] =
-          k_ibm_disc_deleted_data_mark_data_pattern;
-    }
-    intel_fdc_do_seek(p_fdc);
+    assert(0);
     break;
   }
 }
@@ -1374,13 +1398,16 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     if (p_fdc->regs[k_intel_fdc_register_internal_gap2_skip] != 0) {
       break;
     }
-    /* TODO: this isn't 100% correct. In the microcontroller, the context for
-     * what to do next was pushed onto the stack much earlier.
-     */
-    if (intel_fdc_command_is_writing(p_fdc)) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
-    } else {
+    switch (p_fdc->seek_context) {
+    case k_intel_fdc_seek_read:
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_syncing_for_data);
+      break;
+    case k_intel_fdc_seek_write:
+      intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_gap_2);
+      break;
+    default:
+      assert(0);
+      break;
     }
     break;
   case k_intel_fdc_state_check_id_marker:
@@ -1437,7 +1464,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         if (p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] == 3) {
           intel_fdc_finish_command(p_fdc, k_intel_fdc_result_sector_not_found);
         } else {
-          intel_fdc_do_seek(p_fdc);
+          intel_fdc_do_seek(p_fdc, k_intel_fdc_seek_unchanged);
         }
       } else if (p_fdc->regs[k_intel_fdc_register_internal_id_sector] ==
                  p_fdc->regs[k_intel_fdc_register_internal_param_2]) {
