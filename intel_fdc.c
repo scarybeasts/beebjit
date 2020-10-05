@@ -64,6 +64,9 @@ enum {
   k_intel_fdc_index_pulse_none = 1,
   k_intel_fdc_index_pulse_timeout = 2,
   k_intel_fdc_index_pulse_spindown = 3,
+  k_intel_fdc_index_pulse_start_read_id = 4,
+  k_intel_fdc_index_pulse_start_format = 5,
+  k_intel_fdc_index_pulse_stop_format = 6,
 };
 
 enum {
@@ -172,8 +175,6 @@ enum {
 enum {
   k_intel_fdc_state_null = 0,
   k_intel_fdc_state_idle,
-  k_intel_fdc_state_wait_no_index,
-  k_intel_fdc_state_wait_index,
   k_intel_fdc_state_syncing_for_id_wait,
   k_intel_fdc_state_syncing_for_id,
   k_intel_fdc_state_check_id_marker,
@@ -678,19 +679,11 @@ intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
     intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
     break;
   case k_intel_fdc_call_read_id:
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+    p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_start_read_id;
     break;
   case k_intel_fdc_call_format:
     intel_fdc_setup_sector_size(p_fdc);
-    /* EMU: note that format doesn't set an index pulse timeout. No matter how
-     * large the format sector size request, even 16384, the command never
-     * exits due to 2 index pulses counted. This differs from read _and_
-     * write. Format will exit on the next index pulse after all the sectors
-     * have been written.
-     * Disc Duplicator III needs this to work correctly when deformatting
-     * tracks.
-     */
-    intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_no_index);
+    p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_start_format;
     intel_fdc_check_write_protect(p_fdc);
     break;
   case k_intel_fdc_call_read:
@@ -1707,6 +1700,11 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     if (p_fdc->state_count == (intel_fdc_get_sector_size(p_fdc) + 3)) {
       p_fdc->regs[k_intel_fdc_register_internal_param_3]--;
       if ((p_fdc->regs[k_intel_fdc_register_internal_param_3] & 0x1F) == 0) {
+        /* Reset param 3 to 1, to ensure immediate exit in the command exit
+         * path in intel_fdc_check_completion().
+         */
+        p_fdc->regs[k_intel_fdc_register_internal_param_3] = 1;
+        p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_stop_format;
         intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_4);
       } else {
         intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_3);
@@ -1728,12 +1726,11 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     }
     break;
   case k_intel_fdc_state_format_gap_4:
-    /* GAP 4 writes until the index pulse is hit, at which point we are done. */
-    if (p_fdc->state_is_index_pulse) {
-      intel_fdc_finish_command(p_fdc, k_intel_fdc_result_ok);
-    } else {
-      disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
-    }
+    /* GAP 4 writes until the index pulse is hit, which is handled in the index
+     * pulse callback.
+     */
+    p_fdc->mmio_data = 0xFF;
+    disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     break;
   default:
     assert(0);
@@ -1873,6 +1870,34 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
       p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
     }
     break;
+  case k_intel_fdc_index_pulse_start_format:
+    /* EMU: note that format doesn't set an index pulse timeout. No matter how
+     * large the format sector size request, even 16384, the command never
+     * exits due to 2 index pulses counted. This differs from read _and_
+     * write. Format will exit on the next index pulse after all the sectors
+     * have been written.
+     * Disc Duplicator III needs this to work correctly when deformatting
+     * tracks.
+     */
+    if (p_fdc->regs[k_intel_fdc_register_internal_param_4] != 0) {
+      util_bail("format GAP5 not supported");
+    }
+    /* This will start writing immediately because we check index pulse
+     * callbacks before we process read/write state.
+     */
+    p_fdc->index_pulse_callback = k_intel_fdc_index_pulse_none;
+    intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_1);
+    break;
+  case k_intel_fdc_index_pulse_stop_format:
+    intel_fdc_check_completion(p_fdc);
+    break;
+  case k_intel_fdc_index_pulse_start_read_id:
+    intel_fdc_start_index_pulse_timeout(p_fdc);
+    intel_fdc_start_syncing_for_header(p_fdc);
+    break;
+  default:
+    assert(0);
+    break;
   }
 }
 
@@ -1883,7 +1908,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  uint8_t command = intel_fdc_get_internal_command(p_fdc);
 
   assert(p_current_drive != NULL);
 
@@ -1897,28 +1921,6 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
     if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
         !disc_drive_is_write_protect(p_current_drive)) {
       disc_drive_write_byte(p_current_drive, 0x00, 0x00);
-    }
-    break;
-  case k_intel_fdc_state_wait_no_index:
-    if (!p_fdc->state_is_index_pulse) {
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_wait_index);
-    }
-    break;
-  case k_intel_fdc_state_wait_index:
-    if (!p_fdc->state_is_index_pulse) {
-      break;
-    }
-    if (command == k_intel_fdc_command_READ_ID) {
-      intel_fdc_start_index_pulse_timeout(p_fdc);
-      intel_fdc_start_syncing_for_header(p_fdc);
-    } else {
-      assert(command == k_intel_fdc_command_FORMAT);
-      if (p_fdc->regs[k_intel_fdc_register_internal_param_4] != 0) {
-        util_bail("format GAP5 not supported");
-      }
-      intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_gap_1);
-      /* Need to start writing immediately. */
-      intel_fdc_byte_callback_writing(p_fdc);
     }
     break;
   case k_intel_fdc_state_syncing_for_id_wait:
