@@ -1103,13 +1103,15 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
   p_fdc->parameter_callback = k_intel_fdc_parameter_accept_none;
 
   /* Select the drive before logging so that head position is reported. */
-  select_bits = (command_reg & 0xC0);
-  if (select_bits != (p_fdc->drive_out & 0xC0)) {
+  /* The MMIO clocks register really is used as temporary storage for this. */
+  p_fdc->mmio_clocks = (command_reg & 0xC0);
+  if (p_fdc->mmio_clocks != (p_fdc->drive_out & 0xC0)) {
     /* A change of drive select bits clears all drive out bits other than side
      * select.
      * For example, the newly selected drive won't have the load head signal
      * active. This spins down any previously selected drive.
      */
+    select_bits = p_fdc->mmio_clocks;
     select_bits |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
     intel_fdc_set_drive_out(p_fdc, select_bits);
   }
@@ -1334,7 +1336,7 @@ intel_fdc_consume_data_byte(struct intel_fdc_struct* p_fdc) {
     return 0;
   }
 
-  disc_drive_write_byte(p_fdc->p_current_drive, data, 0xFF);
+  p_fdc->mmio_data = data;
   return 1;
 }
 
@@ -1384,12 +1386,9 @@ static void
 intel_fdc_do_write_run(struct intel_fdc_struct* p_fdc,
                        int call_context,
                        uint8_t byte) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-
   p_fdc->mmio_data = byte;
   p_fdc->mmio_clocks = 0xFF;
   p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->mmio_data);
-  disc_drive_write_byte(p_current_drive, p_fdc->mmio_data, 0xFF);
   p_fdc->regs[k_intel_fdc_register_internal_write_run_data] = byte;
   intel_fdc_drive_out_raise(p_fdc, k_intel_fdc_drive_out_write_enable);
   p_fdc->call_context = call_context;
@@ -1597,13 +1596,11 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       p_fdc->mmio_data =
           p_fdc->regs[k_intel_fdc_register_internal_write_run_data];
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, p_fdc->mmio_data);
-      disc_drive_write_byte(p_current_drive, p_fdc->mmio_data, 0xFF);
       break;
     }
     switch (p_fdc->call_context) {
     case k_intel_fdc_call_write:
       p_fdc->mmio_data = 0x00;
-      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_data_mark);
       break;
     case k_intel_fdc_call_format_GAP1_or_GAP3_FFs:
@@ -1615,7 +1612,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       break;
     case k_intel_fdc_call_format_GAP1_or_GAP3_00s:
       p_fdc->mmio_data = 0x00;
-      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
       intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
                                          k_intel_fdc_status_flag_need_data));
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_id_marker);
@@ -1629,12 +1625,10 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       break;
     case k_intel_fdc_call_format_GAP2_00s:
       p_fdc->mmio_data = 0x00;
-      disc_drive_write_byte(p_current_drive, 0x00, 0xFF);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_data_marker);
       break;
     case k_intel_fdc_call_format_data:
-      p_fdc->mmio_data = 0xFF;
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      p_fdc->mmio_data = (p_fdc->crc >> 8);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_data_crc_2);
       break;
     default:
@@ -1646,7 +1640,8 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     data = p_fdc->regs[k_intel_fdc_register_internal_param_data_marker];
     p_fdc->crc = ibm_disc_format_crc_init();
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
-    disc_drive_write_byte(p_current_drive, data, k_ibm_disc_mark_clock_pattern);
+    p_fdc->mmio_data = data;
+    p_fdc->mmio_clocks = k_ibm_disc_mark_clock_pattern;
     intel_fdc_reset_sector_byte_count(p_fdc);
     /* This strange decrement is how the ROM does it. */
     p_fdc->regs[k_intel_fdc_register_internal_count_lsb]--;
@@ -1655,6 +1650,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_sector_data);
     break;
   case k_intel_fdc_state_write_sector_data:
+    p_fdc->mmio_clocks = 0xFF;
     data = p_fdc->regs[k_intel_fdc_register_internal_data];
     if (!intel_fdc_consume_data_byte(p_fdc)) {
       break;
@@ -1669,11 +1665,11 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     }
     break;
   case k_intel_fdc_state_write_crc_2:
-    disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
+    p_fdc->mmio_data = (p_fdc->crc & 0xFF);
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_crc_3);
     break;
   case k_intel_fdc_state_write_crc_3:
-    disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
+    p_fdc->mmio_data = 0xFF;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_dynamic_dispatch);
     break;
   case k_intel_fdc_state_dynamic_dispatch:
@@ -1690,8 +1686,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       /* TODO: does this raise IRQ here? */
       break;
     case 1:
-      p_fdc->mmio_data = 0xFF;
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      p_fdc->mmio_data = (p_fdc->crc >> 8);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_crc_2);
       break;
     case 2:
@@ -1717,8 +1712,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       break;
     /* 8 write the sector header CRC. */
     case 8:
-      p_fdc->mmio_data = 0xFF;
-      disc_drive_write_byte(p_current_drive, (p_fdc->crc >> 8), 0xFF);
+      p_fdc->mmio_data = (p_fdc->crc >> 8);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_id_crc_2);
       break;
     /* 9 write GAP2 */
@@ -1733,8 +1727,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       intel_fdc_write_FFs_and_00s(p_fdc, k_intel_fdc_call_format_GAP2_FFs, -1);
       break;
     case 10:
-      p_fdc->mmio_data = 0xE5;
-      p_fdc->mmio_clocks = 0xFF;
       intel_fdc_reset_sector_byte_count(p_fdc);
       intel_fdc_do_write_run(p_fdc, k_intel_fdc_call_format_data, 0xE5);
       break;
@@ -1767,7 +1759,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_state_format_write_id_marker:
     data = k_ibm_disc_id_mark_data_pattern;
-    disc_drive_write_byte(p_current_drive, data, k_ibm_disc_mark_clock_pattern);
     p_fdc->crc = ibm_disc_format_crc_init();
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     p_fdc->mmio_data = data;
@@ -1775,16 +1766,15 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_dynamic_dispatch);
     break;
   case k_intel_fdc_state_format_id_crc_2:
-    disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
+    p_fdc->mmio_data = (p_fdc->crc & 0xFF);
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_id_crc_3);
     break;
   case k_intel_fdc_state_format_id_crc_3:
-    disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
+    p_fdc->mmio_data = 0xFF;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_dynamic_dispatch);
     break;
   case k_intel_fdc_state_format_write_data_marker:
     data = k_ibm_disc_data_mark_data_pattern;
-    disc_drive_write_byte(p_current_drive, data, k_ibm_disc_mark_clock_pattern);
     p_fdc->crc = ibm_disc_format_crc_init();
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     p_fdc->mmio_data = data;
@@ -1792,11 +1782,11 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_dynamic_dispatch);
     break;
   case k_intel_fdc_state_format_data_crc_2:
-    disc_drive_write_byte(p_current_drive, (p_fdc->crc & 0xFF), 0xFF);
+    p_fdc->mmio_data = (p_fdc->crc & 0xFF);
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_data_crc_3);
     break;
   case k_intel_fdc_state_format_data_crc_3:
-    disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
+    p_fdc->mmio_data = 0xFF;
     intel_fdc_set_state(p_fdc, k_intel_fdc_state_dynamic_dispatch);
     break;
   case k_intel_fdc_state_format_gap_4:
@@ -1804,7 +1794,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
      * pulse callback.
      */
     p_fdc->mmio_data = 0xFF;
-    disc_drive_write_byte(p_current_drive, 0xFF, 0xFF);
     break;
   default:
     assert(0);
@@ -1994,15 +1983,18 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
 
   intel_fdc_check_index_pulse(p_fdc);
 
+  /* All writing occurs here. */
+  /* NOTE: a nice 8271 quirk: if the write gate is open outside a command, it
+   * still writes to disc, often effectively creating weak bits.
+   */
+  if (p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) {
+    disc_drive_write_byte(p_current_drive,
+                          p_fdc->mmio_data,
+                          p_fdc->mmio_clocks);
+  }
+
   switch (p_fdc->state) {
   case k_intel_fdc_state_idle:
-    /* If the write gate is open outside a command, it cleans flux transitions
-     * from the disc surface, effectively creating weak bits!
-     */
-    if ((p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) &&
-        !disc_drive_is_write_protect(p_current_drive)) {
-      disc_drive_write_byte(p_current_drive, 0x00, 0x00);
-    }
     break;
   case k_intel_fdc_state_syncing_for_id_wait:
   case k_intel_fdc_state_syncing_for_id:

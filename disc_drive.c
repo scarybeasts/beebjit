@@ -379,6 +379,11 @@ disc_drive_write_byte(struct disc_drive_struct* p_drive,
                       uint8_t clocks) {
   uint32_t byte_position;
 
+  /* All drives I've seen have a write protect failsafe on the drive itself. */
+  if (disc_drive_is_write_protect(p_drive)) {
+    return;
+  }
+
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
 
   if (p_disc == NULL) {
