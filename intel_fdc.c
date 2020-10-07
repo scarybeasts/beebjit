@@ -243,6 +243,7 @@ struct intel_fdc_struct {
   int call_context;
 
   uint8_t regs[k_intel_num_registers];
+  int is_result_ready;
   uint8_t mmio_data;
   uint8_t mmio_clocks;
   uint8_t drive_out;
@@ -269,6 +270,14 @@ intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
    * must be masked out.
    */
   status &= ~0x03;
+  /* Current best thinking is that the internal register uses bit value 0x10 for
+   * something different, and that "result ready" is maintained by the external
+   * register logic.
+   */
+  status &= ~k_intel_fdc_status_flag_result_ready;
+  if (p_fdc->is_result_ready) {
+    status |= k_intel_fdc_status_flag_result_ready;
+  }
 
   /* TODO: "command register full", bit value 0x40, isn't understood. In
    * particular, the mode register (shared with the status register we
@@ -277,7 +286,8 @@ intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
    * the bit is not returned.
    * Don't return it, ever, for now.
    */
-  status &= ~0x40;
+  /* Also avoid "parameter register full". */
+  status &= ~0x60;
 
   return status;
 }
@@ -320,7 +330,7 @@ intel_fdc_get_result(struct intel_fdc_struct* p_fdc) {
 static void
 intel_fdc_set_result(struct intel_fdc_struct* p_fdc, uint8_t result) {
   p_fdc->regs[k_intel_fdc_register_internal_result] = result;
-  intel_fdc_status_raise(p_fdc, k_intel_fdc_status_flag_result_ready);
+  p_fdc->is_result_ready = 1;
 }
 
 static inline uint8_t
@@ -530,6 +540,7 @@ intel_fdc_power_on_reset(struct intel_fdc_struct* p_fdc) {
   assert(p_fdc->drive_out == 0);
 
   (void) memset(&p_fdc->regs[0], '\0', sizeof(p_fdc->regs));
+  p_fdc->is_result_ready = 0;
   p_fdc->mmio_data = 0;
   p_fdc->mmio_clocks = 0;
   p_fdc->state_count = 0;
@@ -840,8 +851,8 @@ intel_fdc_read(struct intel_fdc_struct* p_fdc, uint16_t addr) {
     return intel_fdc_get_external_status(p_fdc);
   case k_intel_fdc_result:
     result = intel_fdc_get_result(p_fdc);
-    intel_fdc_status_lower(p_fdc, (k_intel_fdc_status_flag_result_ready |
-                                       k_intel_fdc_status_flag_nmi));
+    p_fdc->is_result_ready = 0;
+    intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_nmi);
     return result;
   /* EMU: on a real model B, the i8271 has the data register mapped for all of
    * register address 4 - 7.
@@ -1205,7 +1216,7 @@ static void
 intel_fdc_param_written(struct intel_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->regs[k_intel_fdc_register_internal_parameter] = val;
   /* From testing, writing parameter appears to clear "result ready". */
-  intel_fdc_status_lower(p_fdc, k_intel_fdc_status_flag_result_ready);
+  p_fdc->is_result_ready = 0;
 
   switch (p_fdc->parameter_callback) {
   case k_intel_fdc_parameter_accept_none:
