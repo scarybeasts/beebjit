@@ -357,6 +357,16 @@ intel_fdc_setup_sector_size(struct intel_fdc_struct* p_fdc) {
   p_fdc->regs[k_intel_fdc_register_internal_count_msb_copy] = msb;
 }
 
+static void
+intel_fdc_start_irq_callbacks(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_status] |= 0x30;
+}
+
+static void
+intel_fdc_stop_irq_callbacks(struct intel_fdc_struct* p_fdc) {
+  p_fdc->regs[k_intel_fdc_register_internal_status] &= ~0x30;
+}
+
 static int
 intel_fdc_decrement_counter(struct intel_fdc_struct* p_fdc) {
   p_fdc->regs[k_intel_fdc_register_internal_count_lsb]--;
@@ -369,6 +379,7 @@ intel_fdc_decrement_counter(struct intel_fdc_struct* p_fdc) {
     return 0;
   }
   p_fdc->regs[k_intel_fdc_register_internal_count_msb] = 0;
+  intel_fdc_stop_irq_callbacks(p_fdc);
   return 1;
 }
 
@@ -475,7 +486,7 @@ intel_fdc_finish_simple_command(struct intel_fdc_struct* p_fdc) {
   uint8_t head_unload_count;
 
   intel_fdc_lower_busy_and_log(p_fdc);
-  /* TODO: lower PARAM, RESULT too?! (see ROM code). */
+  intel_fdc_stop_irq_callbacks(p_fdc);
   intel_fdc_clear_callbacks(p_fdc);
 
   head_unload_count = (p_fdc->regs[k_intel_fdc_register_head_load_unload] >> 4);
@@ -1451,6 +1462,9 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
           ibm_disc_format_crc_add_byte(p_fdc->crc,
                                        k_ibm_disc_id_mark_data_pattern);
 
+      if (command == k_intel_fdc_command_READ_ID) {
+        intel_fdc_start_irq_callbacks(p_fdc);
+      }
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id);
     } else {
       intel_fdc_start_syncing_for_header(p_fdc);
@@ -1471,6 +1485,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
     if ((p_fdc->regs[k_intel_fdc_register_internal_header_pointer] & 0x07) ==
             0) {
       p_fdc->on_disc_crc = 0;
+      intel_fdc_stop_irq_callbacks(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_id_crc);
     }
     break;
@@ -1518,9 +1533,20 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         ((data_byte == k_ibm_disc_data_mark_data_pattern) ||
             (data_byte == k_ibm_disc_deleted_data_mark_data_pattern))) {
       int new_state = k_intel_fdc_state_in_data;
+      int do_irqs = 1;
       if (data_byte == k_ibm_disc_deleted_data_mark_data_pattern) {
+        if ((p_fdc->regs[k_intel_fdc_register_internal_command] & 0x04) == 0) {
+          do_irqs = 0;
+        }
         intel_fdc_set_result(p_fdc, k_intel_fdc_result_flag_deleted_data);
         new_state = k_intel_fdc_state_in_deleted_data;
+      }
+      /* No IRQ callbacks if verify. */
+      if (p_fdc->regs[k_intel_fdc_register_internal_command] == 0x1C) {
+        do_irqs = 0;
+      }
+      if (do_irqs) {
+        intel_fdc_start_irq_callbacks(p_fdc);
       }
       p_fdc->crc = ibm_disc_format_crc_init();
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
@@ -1612,6 +1638,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     switch (p_fdc->call_context) {
     case k_intel_fdc_call_write:
       p_fdc->mmio_data = 0x00;
+      intel_fdc_start_irq_callbacks(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_write_data_mark);
       break;
     case k_intel_fdc_call_format_GAP1_or_GAP3_FFs:
@@ -1636,6 +1663,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
       break;
     case k_intel_fdc_call_format_GAP2_00s:
       p_fdc->mmio_data = 0x00;
+      intel_fdc_start_irq_callbacks(p_fdc);
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_format_write_data_marker);
       break;
     case k_intel_fdc_call_format_data:
@@ -1711,6 +1739,9 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     case 5:
     case 6:
     case 7:
+      if (routine == 6) {
+        intel_fdc_stop_irq_callbacks(p_fdc);
+      }
       data = p_fdc->regs[k_intel_fdc_register_internal_data];
       if (!intel_fdc_consume_data_byte(p_fdc)) {
         break;
