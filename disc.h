@@ -37,44 +37,44 @@ int disc_is_double_sided(struct disc_struct* p_disc);
 int disc_is_write_protected(struct disc_struct* p_disc);
 
 uint8_t* disc_get_format_metadata(struct disc_struct* p_disc);
-uint8_t* disc_get_raw_track_data(struct disc_struct* p_disc,
-                                 int is_side_upper,
-                                 uint32_t track);
-uint8_t* disc_get_raw_track_clocks(struct disc_struct* p_disc,
-                                   int is_side_upper,
-                                   uint32_t track);
 uint32_t disc_get_track_length(struct disc_struct* p_disc,
                                int is_side_upper,
                                uint32_t track);
+uint32_t disc_get_raw_pulses(struct disc_struct* p_disc,
+                             int is_side_upper,
+                             uint32_t track,
+                             uint32_t pos);
+uint32_t* disc_get_raw_pulses_buffer(struct disc_struct* p_disc,
+                                     int is_side_upper,
+                                     uint32_t track);
 
-void disc_write_byte(struct disc_struct* p_disc,
-                     int is_side_upper,
-                     uint32_t track,
-                     uint32_t pos,
-                     uint8_t data,
-                     uint8_t clocks);
+void disc_write_pulses(struct disc_struct* p_disc,
+                       int is_side_upper,
+                       uint32_t track,
+                       uint32_t pos,
+                       uint32_t pulses);
 void disc_flush_writes(struct disc_struct* p_disc);
 
 void disc_build_track(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track);
 void disc_build_reset_crc(struct disc_struct* p_disc);
-void disc_build_append_single_with_clocks(struct disc_struct* p_disc,
+void disc_build_append_fm_data_and_clocks(struct disc_struct* p_disc,
                                           uint8_t data,
                                           uint8_t clocks);
-void disc_build_append_single(struct disc_struct* p_disc, uint8_t data);
-void disc_build_append_repeat(struct disc_struct* p_disc,
-                              uint8_t data,
-                              size_t num);
-void disc_build_append_repeat_with_clocks(struct disc_struct* p_disc,
-                                          uint8_t data,
-                                          uint8_t clocks,
-                                          size_t num);
-void disc_build_append_chunk(struct disc_struct* p_disc,
-                             uint8_t* p_src,
-                             size_t num);
+void disc_build_append_fm_byte(struct disc_struct* p_disc, uint8_t data);
+void disc_build_append_repeat_fm_byte(struct disc_struct* p_disc,
+                                      uint8_t data,
+                                      size_t num);
+void disc_build_append_repeat_fm_byte_with_clocks(struct disc_struct* p_disc,
+                                                  uint8_t data,
+                                                  uint8_t clocks,
+                                                  size_t num);
+void disc_build_append_fm_chunk(struct disc_struct* p_disc,
+                                uint8_t* p_src,
+                                size_t num);
 void disc_build_append_crc(struct disc_struct* p_disc);
 void disc_build_append_bad_crc(struct disc_struct* p_disc);
-void disc_build_fill(struct disc_struct* p_disc, uint8_t data);
+void disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data);
 
 #endif /* BEEBJIT_DISC_H */

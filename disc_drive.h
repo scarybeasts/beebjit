@@ -13,11 +13,10 @@ struct disc_drive_struct* disc_drive_create(uint32_t id,
                                             struct timing_struct* p_timing,
                                             struct bbc_options* p_options);
 void disc_drive_destroy(struct disc_drive_struct* p_drive);
-void disc_drive_set_byte_callback(struct disc_drive_struct* p_drive,
-                                  void (*p_byte_callback)(void* p,
-                                                          uint8_t data,
-                                                          uint8_t clock),
-                                  void* p_byte_callback_object);
+void disc_drive_set_pulses_callback(struct disc_drive_struct* p_drive,
+                                    void (*p_pulses_callback)(void* p,
+                                                              uint32_t pulses),
+                                    void* p_pulses_callback_object);
 
 void disc_drive_power_on_reset(struct disc_drive_struct* p_drive);
 
@@ -38,8 +37,7 @@ void disc_drive_select_side(struct disc_drive_struct* p_drive,
                             int is_upper_side);
 void disc_drive_select_track(struct disc_drive_struct* p_drive, int32_t track);
 void disc_drive_seek_track(struct disc_drive_struct* p_drive, int32_t delta);
-void disc_drive_write_byte(struct disc_drive_struct* p_drive,
-                           uint8_t data,
-                           uint8_t clocks);
+void disc_drive_write_pulses(struct disc_drive_struct* p_drive,
+                             uint32_t pulses);
 
 #endif /* BEEBJIT_DISC_DRIVE_H */

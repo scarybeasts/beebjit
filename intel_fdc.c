@@ -532,7 +532,8 @@ intel_fdc_command_abort(struct intel_fdc_struct* p_fdc) {
    * schemes under emulation.
    */
   if (p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) {
-    disc_drive_write_byte(p_fdc->p_current_drive, 0xFF, 0xFF);
+    uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(0xFF, 0xFF);
+    disc_drive_write_pulses(p_fdc->p_current_drive, pulses);
   }
 
   /* Lower any NMI assertion. This is particularly important for error $0A,
@@ -847,8 +848,8 @@ intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   struct disc_drive_struct* p_drive_0 = p_fdc->p_drive_0;
   struct disc_drive_struct* p_drive_1 = p_fdc->p_drive_1;
 
-  disc_drive_set_byte_callback(p_drive_0, NULL, NULL);
-  disc_drive_set_byte_callback(p_drive_1, NULL, NULL);
+  disc_drive_set_pulses_callback(p_drive_0, NULL, NULL);
+  disc_drive_set_pulses_callback(p_drive_1, NULL, NULL);
 
   if (disc_drive_is_spinning(p_drive_0)) {
     disc_drive_stop_spinning(p_drive_0);
@@ -1968,12 +1969,16 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
 }
 
 static void
-intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+intel_fdc_pulses_callback(void* p, uint32_t pulses) {
   uint32_t i;
   int bit;
+  uint8_t clocks_byte;
+  uint8_t data_byte;
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  ibm_disc_format_2us_pulses_to_fm(&clocks_byte, &data_byte, pulses);
 
   assert(p_current_drive != NULL);
 
@@ -1984,9 +1989,9 @@ intel_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
    * still writes to disc, often effectively creating weak bits.
    */
   if (p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) {
-    disc_drive_write_byte(p_current_drive,
-                          p_fdc->mmio_data,
-                          p_fdc->mmio_clocks);
+    uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(p_fdc->mmio_clocks,
+                                                       p_fdc->mmio_data);
+    disc_drive_write_pulses(p_current_drive, pulses);
   }
 
   switch (p_fdc->state) {
@@ -2046,6 +2051,6 @@ intel_fdc_set_drives(struct intel_fdc_struct* p_fdc,
   p_fdc->p_drive_0 = p_drive_0;
   p_fdc->p_drive_1 = p_drive_1;
 
-  disc_drive_set_byte_callback(p_drive_0, intel_fdc_byte_callback, p_fdc);
-  disc_drive_set_byte_callback(p_drive_1, intel_fdc_byte_callback, p_fdc);
+  disc_drive_set_pulses_callback(p_drive_0, intel_fdc_pulses_callback, p_fdc);
+  disc_drive_set_pulses_callback(p_drive_1, intel_fdc_pulses_callback, p_fdc);
 }

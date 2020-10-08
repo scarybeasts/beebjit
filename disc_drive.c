@@ -25,8 +25,8 @@ struct disc_drive_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
-  void (*p_byte_callback)(void*, uint8_t, uint8_t);
-  void* p_byte_callback_object;
+  void (*p_pulses_callback)(void*, uint32_t);
+  void* p_pulses_callback_object;
 
   /* Properties of the drive. */
   uint32_t id;
@@ -95,8 +95,7 @@ disc_drive_timer_callback(void* p) {
   uint64_t next_ticks;
   uint32_t ticks_delta;
 
-  uint8_t data_byte = 0;
-  uint8_t clocks_byte = 0;
+  uint32_t pulses = 0;
 
   struct disc_drive_struct* p_drive = (struct disc_drive_struct*) p;
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
@@ -109,11 +108,7 @@ disc_drive_timer_callback(void* p) {
                                                &per_byte_ticks);
 
   if (p_disc != NULL) {
-    uint8_t* p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
-    uint8_t* p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
-
-    data_byte = p_data[byte_position];
-    clocks_byte = p_clocks[byte_position];
+    pulses = disc_get_raw_pulses(p_disc, is_side_upper, track, byte_position);
   }
 
   byte_position++;
@@ -148,18 +143,17 @@ disc_drive_timer_callback(void* p) {
    * has a Motorola MC3470AP head amplifier.
    * We need to return an inconsistent yet deterministic set of weak bits.
    */
-  if ((data_byte == 0) && (clocks_byte == 0)) {
+  if (pulses == 0) {
     uint64_t ticks = timing_get_total_timer_ticks(p_drive->p_timing);
-    data_byte = ticks;
-    data_byte ^= (ticks >> 8);
-    data_byte ^= (ticks >> 16);
-    data_byte ^= (ticks >> 24);
+    uint8_t fm_data = (ticks & 0xFF);
+    fm_data ^= (ticks >> 8);
+    fm_data ^= (ticks >> 16);
+    fm_data ^= (ticks >> 24);
+    pulses = ibm_disc_format_fm_to_2us_pulses(0xFF, fm_data);
   }
 
-  if (p_drive->p_byte_callback != NULL) {
-    p_drive->p_byte_callback(p_drive->p_byte_callback_object,
-                             data_byte,
-                             clocks_byte);
+  if (p_drive->p_pulses_callback != NULL) {
+    p_drive->p_pulses_callback(p_drive->p_pulses_callback_object, pulses);
   }
 
   p_drive->head_position = new_head_position;
@@ -261,13 +255,12 @@ disc_drive_cycle_disc(struct disc_drive_struct* p_drive) {
 }
 
 void
-disc_drive_set_byte_callback(struct disc_drive_struct* p_drive,
-                             void (*p_byte_callback)(void* p,
-                                                     uint8_t data,
-                                                     uint8_t clock),
-                             void* p_byte_callback_object) {
-  p_drive->p_byte_callback = p_byte_callback;
-  p_drive->p_byte_callback_object = p_byte_callback_object;
+disc_drive_set_pulses_callback(struct disc_drive_struct* p_drive,
+                               void (*p_pulses_callback)(void* p,
+                                                         uint32_t pulses),
+                               void* p_pulses_callback_object) {
+  p_drive->p_pulses_callback = p_pulses_callback;
+  p_drive->p_pulses_callback_object = p_pulses_callback_object;
 }
 
 uint32_t
@@ -374,9 +367,7 @@ disc_drive_seek_track(struct disc_drive_struct* p_drive, int32_t delta) {
 }
 
 void
-disc_drive_write_byte(struct disc_drive_struct* p_drive,
-                      uint8_t data,
-                      uint8_t clocks) {
+disc_drive_write_pulses(struct disc_drive_struct* p_drive, uint32_t pulses) {
   uint32_t byte_position;
 
   /* All drives I've seen have a write protect failsafe on the drive itself. */
@@ -391,10 +382,9 @@ disc_drive_write_byte(struct disc_drive_struct* p_drive,
   }
 
   byte_position = disc_drive_get_byte_position(p_drive, NULL, NULL);
-  disc_write_byte(p_disc,
-                  p_drive->is_side_upper,
-                  p_drive->track,
-                  byte_position,
-                  data,
-                  clocks);
+  disc_write_pulses(p_disc,
+                    p_drive->is_side_upper,
+                    p_drive->track,
+                    byte_position,
+                    pulses);
 }

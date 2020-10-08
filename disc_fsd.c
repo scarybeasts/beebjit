@@ -559,10 +559,10 @@ disc_fsd_load(struct disc_struct* p_disc,
        * original Labyrinth disc has flux transitions (of varinging width)!
        * Let's go with a genuinely unformatted track.
        */
-      disc_build_append_repeat_with_clocks(p_disc,
-                                           0,
-                                           0,
-                                           k_ibm_disc_bytes_per_track);
+      disc_build_append_repeat_fm_byte_with_clocks(p_disc,
+                                                   0,
+                                                   0,
+                                                   k_ibm_disc_bytes_per_track);
       continue;
     }
 
@@ -603,8 +603,8 @@ disc_fsd_load(struct disc_struct* p_disc,
      * Note that GAP 5 (with index address mark) is typically not used in BBC
      * formatted discs.
      */
-    disc_build_append_repeat(p_disc, 0xFF, gap1_ff_count);
-    disc_build_append_repeat(p_disc, 0x00, 6);
+    disc_build_append_repeat_fm_byte(p_disc, 0xFF, gap1_ff_count);
+    disc_build_append_repeat_fm_byte(p_disc, 0x00, 6);
     track_remaining -= (gap1_ff_count + 6);
 
     for (i_sector = 0; i_sector < fsd_sectors; ++i_sector) {
@@ -620,18 +620,18 @@ disc_fsd_load(struct disc_struct* p_disc,
       }
       /* Sector header, aka. ID. */
       disc_build_reset_crc(p_disc);
-      disc_build_append_single_with_clocks(p_disc,
+      disc_build_append_fm_data_and_clocks(p_disc,
                                            k_ibm_disc_id_mark_data_pattern,
                                            k_ibm_disc_mark_clock_pattern);
-      disc_build_append_single(p_disc, p_sector->logical_track);
-      disc_build_append_single(p_disc, p_sector->head);
-      disc_build_append_single(p_disc, p_sector->logical_sector);
-      disc_build_append_single(p_disc, p_sector->logical_size);
+      disc_build_append_fm_byte(p_disc, p_sector->logical_track);
+      disc_build_append_fm_byte(p_disc, p_sector->head);
+      disc_build_append_fm_byte(p_disc, p_sector->logical_sector);
+      disc_build_append_fm_byte(p_disc, p_sector->logical_size);
       disc_build_append_crc(p_disc);
 
       /* Sync pattern between sector header and sector data, aka. GAP 2. */
-      disc_build_append_repeat(p_disc, 0xFF, gap2_ff_count);
-      disc_build_append_repeat(p_disc, 0x00, 6);
+      disc_build_append_repeat_fm_byte(p_disc, 0xFF, gap2_ff_count);
+      disc_build_append_repeat_fm_byte(p_disc, 0x00, 6);
       track_remaining -= (7 + (gap2_ff_count + 6));
 
       if (p_sector->is_deleted) {
@@ -643,26 +643,26 @@ disc_fsd_load(struct disc_struct* p_disc,
       }
 
       disc_build_reset_crc(p_disc);
-      disc_build_append_single_with_clocks(p_disc,
+      disc_build_append_fm_data_and_clocks(p_disc,
                                            sector_mark,
                                            k_ibm_disc_mark_clock_pattern);
       if (p_sector->is_format_bytes) {
-        disc_build_append_repeat(p_disc, 0xE5, write_size_bytes);
+        disc_build_append_repeat_fm_byte(p_disc, 0xE5, write_size_bytes);
       } else if (!disc_fsd_sector_has_weak_bits(&weak_bits_start,
                                                 p_sector,
                                                 p_data,
                                                 write_size_bytes)) {
-        disc_build_append_chunk(p_disc, p_data, write_size_bytes);
+        disc_build_append_fm_chunk(p_disc, p_data, write_size_bytes);
       } else {
         /* This is icky: the titles that rely on weak bits (mostly,
          * Sherston Software titles) rely on the weak bits being a little later
          * in the sector as the code at the start of the sector is executed!!
          */
-        disc_build_append_chunk(p_disc, p_data, weak_bits_start);
+        disc_build_append_fm_chunk(p_disc, p_data, weak_bits_start);
         /* Our 8271 driver interprets empty disc surface (no data bits, no
          * clock bits) as weak bits. As does my real drive + 8271 combo.
          */
-        disc_build_append_repeat_with_clocks(
+        disc_build_append_repeat_fm_byte_with_clocks(
             p_disc, 0x00, 0x00, (write_size_bytes - weak_bits_start));
       }
       if (!p_sector->is_crc_included) {
@@ -692,8 +692,8 @@ disc_fsd_load(struct disc_struct* p_disc,
          * byte read. This happens if the valid 256 byte sector CRC is
          * followed by all 0x00 and an 0x00 CRC.
          */
-        disc_build_append_repeat(p_disc, 0x00, (256 - 2));
-        disc_build_append_repeat(p_disc, 0xFF, 2);
+        disc_build_append_repeat_fm_byte(p_disc, 0x00, (256 - 2));
+        disc_build_append_repeat_fm_byte(p_disc, 0xFF, 2);
         track_remaining -= 256;
       }
 
@@ -702,14 +702,14 @@ disc_fsd_load(struct disc_struct* p_disc,
         if (track_remaining < (gap3_ff_count + 6)) {
           util_bail("fsd file track no space for inter sector gap");
         }
-        disc_build_append_repeat(p_disc, 0xFF, gap3_ff_count);
-        disc_build_append_repeat(p_disc, 0x00, 6);
+        disc_build_append_repeat_fm_byte(p_disc, 0xFF, gap3_ff_count);
+        disc_build_append_repeat_fm_byte(p_disc, 0x00, 6);
         track_remaining -= (gap3_ff_count + 6);
       }
     } /* End of sectors loop. */
 
     /* Fill until end of track, aka. GAP 4. */
-    disc_build_fill(p_disc, 0xFF);
+    disc_build_fill_fm_byte(p_disc, 0xFF);
   } /* End of track loop. */
 
   util_free(p_file_buf);

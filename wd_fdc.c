@@ -150,8 +150,8 @@ wd_fdc_destroy(struct wd_fdc_struct* p_fdc) {
   struct disc_drive_struct* p_drive_0 = p_fdc->p_drive_0;
   struct disc_drive_struct* p_drive_1 = p_fdc->p_drive_1;
 
-  disc_drive_set_byte_callback(p_drive_0, NULL, NULL);
-  disc_drive_set_byte_callback(p_drive_1, NULL, NULL);
+  disc_drive_set_pulses_callback(p_drive_0, NULL, NULL);
+  disc_drive_set_pulses_callback(p_drive_1, NULL, NULL);
 
   if (disc_drive_is_spinning(p_drive_0)) {
     disc_drive_stop_spinning(p_drive_0);
@@ -907,6 +907,7 @@ static void
 wd_write_byte(struct wd_fdc_struct* p_fdc,
               uint8_t data_byte,
               uint8_t clocks_byte) {
+  uint32_t pulses;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
   /* No support for double density yet so write weak bits. */
@@ -914,22 +915,28 @@ wd_write_byte(struct wd_fdc_struct* p_fdc,
     data_byte = 0;
     clocks_byte = 0;
   }
-  disc_drive_write_byte(p_current_drive, data_byte, clocks_byte);
+
+  pulses = ibm_disc_format_fm_to_2us_pulses(clocks_byte, data_byte);
+  disc_drive_write_pulses(p_current_drive, pulses);
 }
 
 static void
-wd_fdc_byte_callback(void* p, uint8_t data_byte, uint8_t clocks_byte) {
+wd_fdc_pulses_callback(void* p, uint32_t pulses) {
   /* NOTE: this callback routine is also used for seek / settle timing,
    * which is not a precise 64us basis.
    */
   int is_index_pulse;
+  uint8_t clocks_byte;
+  uint8_t data_byte;
+
   int state = k_wd_fdc_state_null;
   int step_direction = 0;
-
   struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int was_index_pulse = p_fdc->is_index_pulse;
   int is_index_pulse_positive_edge = 0;
+
+  ibm_disc_format_2us_pulses_to_fm(&clocks_byte, &data_byte, pulses);
 
   assert(p_current_drive != NULL);
   assert(disc_drive_is_spinning(p_current_drive));
@@ -1273,6 +1280,6 @@ wd_fdc_set_drives(struct wd_fdc_struct* p_fdc,
   p_fdc->p_drive_0 = p_drive_0;
   p_fdc->p_drive_1 = p_drive_1;
 
-  disc_drive_set_byte_callback(p_drive_0, wd_fdc_byte_callback, p_fdc);
-  disc_drive_set_byte_callback(p_drive_1, wd_fdc_byte_callback, p_fdc);
+  disc_drive_set_pulses_callback(p_drive_0, wd_fdc_pulses_callback, p_fdc);
+  disc_drive_set_pulses_callback(p_drive_1, wd_fdc_pulses_callback, p_fdc);
 }

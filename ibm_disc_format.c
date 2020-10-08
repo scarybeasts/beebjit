@@ -31,3 +31,50 @@ ibm_disc_format_crc_add_byte(uint16_t crc, uint8_t byte) {
 
   return crc;
 }
+
+uint32_t
+ibm_disc_format_fm_to_2us_pulses(uint8_t clocks, uint8_t data) {
+  uint32_t i;
+  uint32_t ret = 0;
+
+  for (i = 0; i < 8; ++i) {
+    ret <<= 4;
+    if (clocks & 0x80) {
+      ret |= 0x04;
+    }
+    if (data & 0x80) {
+      ret |= 0x01;
+    }
+    clocks <<= 1;
+    data <<= 1;
+  }
+
+  return ret;
+}
+
+void
+ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
+                                 uint8_t* p_data,
+                                 uint32_t pulses) {
+  uint32_t i;
+  uint8_t clocks = 0;
+  uint8_t data = 0;
+
+  /* This downsamples 2us resolution pulses into 4us FM pulses, splitting clocks
+   * from data.
+   */
+  for (i = 0; i < 8; ++i) {
+    clocks <<= 1;
+    data <<= 1;
+    if (pulses & 0xC0000000) {
+      clocks |= 1;
+    }
+    if (pulses & 0x30000000) {
+      data |= 1;
+    }
+    pulses <<= 4;
+  }
+
+  *p_clocks = clocks;
+  *p_data = data;
+}

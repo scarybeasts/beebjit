@@ -14,8 +14,7 @@
 
 struct disc_track {
   uint32_t length;
-  uint8_t data[k_disc_max_bytes_per_track];
-  uint8_t clocks[k_disc_max_bytes_per_track];
+  uint32_t pulses2us[k_disc_max_bytes_per_track];
 };
 
 struct disc_side {
@@ -34,8 +33,7 @@ struct disc_struct {
                                  int is_side_upper,
                                  uint32_t track,
                                  uint32_t length,
-                                 uint8_t* p_data,
-                                 uint8_t* p_clocks);
+                                 uint32_t* p_pulses);
 
   /* State of the disc. */
   struct disc_side lower_side;
@@ -146,6 +144,9 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
   len = strlen(p_raw_spec);
   spec_pos = 0;
   track_pos = 0;
+
+  disc_build_track(p_disc, 0, 0);
+
   while (spec_pos < len) {
     uint8_t data;
     uint8_t clocks;
@@ -166,11 +167,8 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
     data = util_parse_hex2(p_raw_spec + spec_pos);
     clocks = util_parse_hex2(p_raw_spec + spec_pos + 2);
 
-    /* TODO: use disc_build APIs. */
-    p_disc->lower_side.tracks[0].data[track_pos] = data;
-    p_disc->lower_side.tracks[0].clocks[track_pos] = clocks;
+    disc_build_append_fm_data_and_clocks(p_disc, data, clocks);
 
-    track_pos++;
     spec_pos += 4;
   }
 
@@ -194,14 +192,14 @@ disc_destroy(struct disc_struct* p_disc) {
 }
 
 void
-disc_write_byte(struct disc_struct* p_disc,
-                int is_side_upper,
-                uint32_t track,
-                uint32_t pos,
-                uint8_t data,
-                uint8_t clocks) {
-  uint8_t* p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
-  uint8_t* p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
+disc_write_pulses(struct disc_struct* p_disc,
+                  int is_side_upper,
+                  uint32_t track,
+                  uint32_t pos,
+                  uint32_t pulses) {
+  uint32_t* p_pulses = disc_get_raw_pulses_buffer(p_disc, is_side_upper, track);
+
+  assert(pos < disc_get_track_length(p_disc, is_side_upper, track));
 
   if (p_disc->is_dirty) {
     assert(is_side_upper == p_disc->dirty_side);
@@ -212,14 +210,12 @@ disc_write_byte(struct disc_struct* p_disc,
   p_disc->dirty_side = is_side_upper;
   p_disc->dirty_track = track;
 
-  p_data[pos] = data;
-  p_clocks[pos] = clocks;
+  p_pulses[pos] = pulses;
 }
 
 void
 disc_flush_writes(struct disc_struct* p_disc) {
-  uint8_t* p_data;
-  uint8_t* p_clocks;
+  uint32_t* p_pulses;
   uint32_t length;
 
   int is_side_upper = p_disc->dirty_side;
@@ -239,42 +235,46 @@ disc_flush_writes(struct disc_struct* p_disc) {
     return;
   }
 
-  p_data = disc_get_raw_track_data(p_disc, is_side_upper, track);
-  p_clocks = disc_get_raw_track_clocks(p_disc, is_side_upper, track);
+  p_pulses = disc_get_raw_pulses_buffer(p_disc, is_side_upper, track);
   length = disc_get_track_length(p_disc, is_side_upper, track);
   p_disc->p_write_track_callback(p_disc,
                                  is_side_upper,
                                  track,
                                  length,
-                                 p_data,
-                                 p_clocks);
+                                 p_pulses);
   util_file_flush(p_disc->p_file);
 }
 
-
-void
-disc_build_track(struct disc_struct* p_disc,
-                 int is_side_upper,
-                 uint32_t track) {
+static struct disc_track*
+disc_get_track(struct disc_struct* p_disc, int is_side_upper, uint32_t track) {
   struct disc_track* p_track;
 
-  assert(!p_disc->is_dirty);
   if (is_side_upper) {
     p_track = &p_disc->upper_side.tracks[track];
   } else {
     p_track = &p_disc->lower_side.tracks[track];
   }
+
+  return p_track;
+}
+
+void
+disc_build_track(struct disc_struct* p_disc,
+                 int is_side_upper,
+                 uint32_t track) {
+  struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
+
   p_disc->p_track = p_track;
   p_track->length = k_ibm_disc_bytes_per_track;
   p_disc->build_index = 0;
 }
 
 static void
-disc_put_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
+disc_put_fm_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
   struct disc_track* p_track = p_disc->p_track;
+  uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(clocks, data);
 
-  p_track->data[p_disc->build_index] = data;
-  p_track->clocks[p_disc->build_index] = clocks;
+  p_track->pulses2us[p_disc->build_index] = pulses;
   p_disc->build_index++;
   assert(p_disc->build_index <= k_ibm_disc_bytes_per_track);
 }
@@ -285,49 +285,49 @@ disc_build_reset_crc(struct disc_struct* p_disc) {
 }
 
 void
-disc_build_append_single_with_clocks(struct disc_struct* p_disc,
+disc_build_append_fm_data_and_clocks(struct disc_struct* p_disc,
                                      uint8_t data,
                                      uint8_t clocks) {
-  disc_put_byte(p_disc, data, clocks);
+  disc_put_fm_byte(p_disc, data, clocks);
   p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, data);
 }
 
 void
-disc_build_append_single(struct disc_struct* p_disc, uint8_t data) {
-  disc_build_append_single_with_clocks(p_disc, data, 0xFF);
+disc_build_append_fm_byte(struct disc_struct* p_disc, uint8_t data) {
+  disc_build_append_fm_data_and_clocks(p_disc, data, 0xFF);
 }
 
 void
-disc_build_append_repeat(struct disc_struct* p_disc,
-                         uint8_t data,
-                         size_t num) {
+disc_build_append_repeat_fm_byte(struct disc_struct* p_disc,
+                                 uint8_t data,
+                                 size_t num) {
   size_t i;
 
   for (i = 0; i < num; ++i) {
-    disc_build_append_single(p_disc, data);
+    disc_build_append_fm_byte(p_disc, data);
   }
 }
 
 void
-disc_build_append_repeat_with_clocks(struct disc_struct* p_disc,
-                                     uint8_t data,
-                                     uint8_t clocks,
-                                     size_t num) {
+disc_build_append_repeat_fm_byte_with_clocks(struct disc_struct* p_disc,
+                                             uint8_t data,
+                                             uint8_t clocks,
+                                             size_t num) {
   size_t i;
 
   for (i = 0; i < num; ++i) {
-    disc_build_append_single_with_clocks(p_disc, data, clocks);
+    disc_build_append_fm_data_and_clocks(p_disc, data, clocks);
   }
 }
 
 void
-disc_build_append_chunk(struct disc_struct* p_disc,
-                        uint8_t* p_src,
-                        size_t num) {
+disc_build_append_fm_chunk(struct disc_struct* p_disc,
+                           uint8_t* p_src,
+                           size_t num) {
   size_t i;
 
   for (i = 0; i < num; ++i) {
-    disc_build_append_single(p_disc, p_src[i]);
+    disc_build_append_fm_byte(p_disc, p_src[i]);
   }
 }
 
@@ -336,8 +336,8 @@ disc_build_append_crc(struct disc_struct* p_disc) {
   /* Cache the crc because the calls below will corrupt it. */
   uint16_t crc = p_disc->crc;
 
-  disc_build_append_single(p_disc, (crc >> 8));
-  disc_build_append_single(p_disc, (crc & 0xFF));
+  disc_build_append_fm_byte(p_disc, (crc >> 8));
+  disc_build_append_fm_byte(p_disc, (crc & 0xFF));
 }
 
 void
@@ -348,17 +348,17 @@ disc_build_append_bad_crc(struct disc_struct* p_disc) {
     crc = 0xFFFE;
   }
 
-  disc_build_append_single(p_disc, (crc >> 8));
-  disc_build_append_single(p_disc, (crc & 0xFF));
+  disc_build_append_fm_byte(p_disc, (crc >> 8));
+  disc_build_append_fm_byte(p_disc, (crc & 0xFF));
 }
 
 void
-disc_build_fill(struct disc_struct* p_disc, uint8_t data) {
+disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data) {
   uint32_t build_index = p_disc->build_index;
   assert(p_disc->build_index <= k_ibm_disc_bytes_per_track);
-  disc_build_append_repeat(p_disc,
-                           data,
-                           (k_ibm_disc_bytes_per_track - build_index));
+  disc_build_append_repeat_fm_byte(p_disc,
+                                   data,
+                                   (k_ibm_disc_bytes_per_track - build_index));
 }
 
 const char*
@@ -392,12 +392,7 @@ disc_set_track_length(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track,
                       uint32_t length) {
-  struct disc_track* p_track;
-  if (is_side_upper) {
-    p_track = &p_disc->upper_side.tracks[track];
-  } else {
-    p_track = &p_disc->lower_side.tracks[track];
-  }
+  struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
 
   assert(p_track->length == 0);
   assert(length <= k_disc_max_bytes_per_track);
@@ -415,40 +410,33 @@ disc_get_format_metadata(struct disc_struct* p_disc) {
   return p_disc->p_format_metadata;
 }
 
-uint8_t*
-disc_get_raw_track_data(struct disc_struct* p_disc,
-                        int is_side_upper,
-                        uint32_t track) {
-  if (is_side_upper) {
-    return &p_disc->upper_side.tracks[track].data[0];
-  } else {
-    return &p_disc->lower_side.tracks[track].data[0];
-  }
-}
-
-uint8_t*
-disc_get_raw_track_clocks(struct disc_struct* p_disc,
-                          int is_side_upper,
-                          uint32_t track) {
-  if (is_side_upper) {
-    return &p_disc->upper_side.tracks[track].clocks[0];
-  } else {
-    return &p_disc->lower_side.tracks[track].clocks[0];
-  }
-}
-
 uint32_t
 disc_get_track_length(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track) {
-  struct disc_track* p_track;
-  if (is_side_upper) {
-    p_track = &p_disc->upper_side.tracks[track];
-  } else {
-    p_track = &p_disc->lower_side.tracks[track];
-  }
+  struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
 
   return p_track->length;
+}
+
+uint32_t
+disc_get_raw_pulses(struct disc_struct* p_disc,
+                    int is_side_upper,
+                    uint32_t track,
+                    uint32_t pos) {
+  struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
+
+  assert(pos < p_track->length);
+
+  return p_track->pulses2us[pos];
+}
+
+uint32_t*
+disc_get_raw_pulses_buffer(struct disc_struct* p_disc,
+                           int is_side_upper,
+                           uint32_t track) {
+  struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
+  return &p_track->pulses2us[0];
 }
 
 int
