@@ -348,6 +348,7 @@ void
 disc_hfe_convert(struct disc_struct* p_disc) {
   uint32_t i_track;
   uint8_t header[512];
+  uint8_t zero_chunk[512];
   uint8_t* p_metadata;
 
   /* 4 bytes per data byte, 3 "header" HFEv3 bytes, 2 sides. */
@@ -356,6 +357,8 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   uint32_t hfe_offset_delta = ((hfe_track_len / 512) + 1);
   struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = disc_is_double_sided(p_disc);
+
+  (void) memset(zero_chunk, '\0', sizeof(zero_chunk));
 
   /* Fill with 0xFF; that is what the command line HFE tools do, and also, 0xFF
    * appears to be the byte used for the default / sane boolean option.
@@ -394,6 +397,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   p_metadata[k_hfe_format_metadata_offset_version] = 3;
 
   for (i_track = 0; i_track < k_ibm_disc_tracks_per_disc; ++i_track) {
+    uint32_t j;
     uint32_t* p_pulses;
     uint32_t index = (i_track * 4);
     uint32_t track_length = disc_get_track_length(p_disc, 0, i_track);
@@ -403,6 +407,15 @@ disc_hfe_convert(struct disc_struct* p_disc) {
       break;
     }
     assert(track_length == k_ibm_disc_bytes_per_track);
+
+    /* Write all zeros to the track's backing store. Without this, the file
+     * wasn't getting extended correctly for any unused upper side of the
+     * last track.
+     */
+    util_file_seek(p_file, (hfe_offset * 512));
+    for (j = 0; j < hfe_offset_delta; ++j) {
+      util_file_write(p_file, zero_chunk, 512);
+    }
 
     p_metadata[index] = (hfe_offset & 0xFF);
     p_metadata[index + 1] = (hfe_offset >> 8);
