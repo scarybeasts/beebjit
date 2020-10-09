@@ -1505,7 +1505,10 @@ bbc_create(int mode,
   }
 
   if (p_bbc->is_wd_fdc) {
-    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502, is_master, &p_bbc->options);
+    p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502,
+                                    is_master,
+                                    p_timing,
+                                    &p_bbc->options);
     if (p_bbc->p_wd_fdc == NULL) {
       util_bail("wd_fdc_create failed");
     }

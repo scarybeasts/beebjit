@@ -5,11 +5,12 @@
 #include "ibm_disc_format.h"
 #include "log.h"
 #include "state_6502.h"
+#include "timing.h"
 #include "util.h"
 
 #include <assert.h>
 
-static const uint32_t k_wd_fdc_1770_settle_ticks = ((30 * 1000) / 64);
+static const uint32_t k_wd_fdc_1770_settle_ms = 30;
 
 enum {
   k_wd_fdc_command_restore = 0x00,
@@ -65,14 +66,8 @@ enum {
 enum {
   k_wd_fdc_state_null = 0,
   k_wd_fdc_state_idle,
+  k_wd_fdc_state_timer_wait,
   k_wd_fdc_state_spin_up_wait,
-  k_wd_fdc_state_settle,
-  k_wd_fdc_state_settle_wait,
-  k_wd_fdc_state_seek_step,
-  k_wd_fdc_state_seek_step_wait,
-  k_wd_fdc_state_seek_step_once,
-  k_wd_fdc_state_seek_step_once_wait,
-  k_wd_fdc_state_seek_check_verify,
   k_wd_fdc_state_wait_index,
   k_wd_fdc_state_search_id,
   k_wd_fdc_state_in_id,
@@ -86,9 +81,17 @@ enum {
   k_wd_fdc_state_done,
 };
 
+enum {
+  k_wd_fdc_timer_none = 1,
+  k_wd_fdc_timer_settle = 2,
+  k_wd_fdc_timer_seek = 3,
+};
+
 struct wd_fdc_struct {
   struct state_6502* p_state_6502;
   int is_master;
+  struct timing_struct* p_timing;
+  uint32_t timer_id;
 
   int log_commands;
 
@@ -114,8 +117,9 @@ struct wd_fdc_struct {
   int is_command_verify;
   int is_command_multi;
   int is_command_deleted;
-  uint32_t command_step_ticks;
+  uint32_t command_step_rate_ms;
   uint32_t state;
+  uint32_t timer_state;
   uint32_t state_count;
   uint32_t index_pulse_count;
   uint32_t mark_detector;
@@ -130,14 +134,240 @@ struct wd_fdc_struct {
   uint16_t on_disc_crc;
 };
 
+static void
+wd_fdc_clear_timer(struct wd_fdc_struct* p_fdc) {
+  if (timing_timer_is_running(p_fdc->p_timing, p_fdc->timer_id)) {
+    assert(p_fdc->timer_state != k_wd_fdc_timer_none);
+    (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
+    p_fdc->timer_state = k_wd_fdc_timer_none;
+  }
+}
+
+static void
+wd_fdc_set_state(struct wd_fdc_struct* p_fdc, int state) {
+  p_fdc->state = state;
+  p_fdc->state_count = 0;
+}
+
+static void
+wd_fdc_clear_state(struct wd_fdc_struct* p_fdc) {
+  wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
+  wd_fdc_clear_timer(p_fdc);
+  p_fdc->index_pulse_count = 0;
+}
+
+static void
+wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
+  struct state_6502* p_state_6502 = p_fdc->p_state_6502;
+  int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
+  int old_level = state_6502_get_irq_level(p_state_6502, k_state_6502_irq_nmi);
+  int new_level = (p_fdc->is_intrq || p_fdc->is_drq);
+
+  if (new_level && !old_level && firing) {
+    log_do_log(k_log_disc, k_log_error, "1770 lost NMI positive edge");
+  }
+
+  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, new_level);
+}
+
+static void
+wd_fdc_set_intrq(struct wd_fdc_struct* p_fdc, int level) {
+  p_fdc->is_intrq = level;
+  wd_fdc_update_nmi(p_fdc);
+}
+
+static void
+wd_fdc_command_done(struct wd_fdc_struct* p_fdc, int do_raise_intrq) {
+  assert(p_fdc->status_register & k_wd_fdc_status_busy);
+
+  p_fdc->status_register &= ~k_wd_fdc_status_busy;
+  wd_fdc_clear_state(p_fdc);
+
+  /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
+  if (do_raise_intrq) {
+    wd_fdc_set_intrq(p_fdc, 1);
+  }
+
+  if (p_fdc->log_commands) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "1770: result status $%.2X",
+               p_fdc->status_register);
+  }
+}
+
+static void
+wd_fdc_check_verify(struct wd_fdc_struct* p_fdc) {
+  if (p_fdc->is_command_verify) {
+    p_fdc->index_pulse_count = 0;
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+  } else {
+    wd_fdc_command_done(p_fdc, 1);
+  }
+}
+
+static void
+wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_fdc->command_type != 1) {
+    return;
+  }
+
+  p_fdc->status_register &=
+      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+  if (disc_drive_get_track(p_current_drive) == 0) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
+  }
+  if (disc_drive_is_index_pulse(p_current_drive)) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
+  }
+}
+
+static void
+wd_fdc_start_timer(struct wd_fdc_struct* p_fdc,
+                   int timer_state,
+                   uint32_t wait_ms) {
+  assert(p_fdc->status_register & k_wd_fdc_status_busy);
+  assert(p_fdc->timer_state == k_wd_fdc_timer_none);
+  p_fdc->timer_state = timer_state;
+  p_fdc->state = k_wd_fdc_state_timer_wait;
+  (void) timing_start_timer_with_value(p_fdc->p_timing,
+                                       p_fdc->timer_id,
+                                       (wait_ms * 2000));
+}
+
+static void
+wd_fdc_do_seek_step(struct wd_fdc_struct* p_fdc, int step_direction) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  assert(p_current_drive != NULL);
+
+  disc_drive_seek_track(p_current_drive, step_direction);
+  p_fdc->track_register += step_direction;
+  /* TRK0 signal may have raised or lowered. */
+  wd_fdc_update_type_I_status_bits(p_fdc);
+  wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_seek, p_fdc->command_step_rate_ms);
+}
+
+static void
+wd_fdc_do_seek_step_or_verify(struct wd_fdc_struct* p_fdc) {
+  int step_direction;
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  assert(p_current_drive != NULL);
+
+  if (p_fdc->track_register == p_fdc->data_register) {
+    wd_fdc_check_verify(p_fdc);
+    return;
+  }
+
+  if (p_fdc->track_register > p_fdc->data_register) {
+    step_direction = -1;
+  } else {
+    step_direction = 1;
+  }
+  if ((disc_drive_get_track(p_current_drive) == 0) &&
+      (step_direction == -1)) {
+    p_fdc->track_register = 0;
+    wd_fdc_check_verify(p_fdc);
+    return;
+  }
+
+  wd_fdc_do_seek_step(p_fdc, step_direction);
+}
+
+static void
+wd_fdc_dispatch_command(struct wd_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+
+  assert(p_current_drive != NULL);
+
+  if (p_fdc->is_command_write && disc_drive_is_write_protect(p_current_drive)) {
+    p_fdc->status_register |= k_wd_fdc_status_write_protected;
+    wd_fdc_command_done(p_fdc, 1);
+    return;
+  }
+
+  switch (p_fdc->command) {
+  case k_wd_fdc_command_restore:
+    p_fdc->track_register = 0xFF;
+    p_fdc->data_register = 0;
+    /* Fall through. */
+  case k_wd_fdc_command_seek:
+    wd_fdc_do_seek_step_or_verify(p_fdc);
+    break;
+  case k_wd_fdc_command_step_in_with_update:
+    wd_fdc_do_seek_step(p_fdc, 1);
+    break;
+  case k_wd_fdc_command_step_out_with_update:
+    wd_fdc_do_seek_step(p_fdc, -1);
+    break;
+  case k_wd_fdc_command_read_sector:
+  case k_wd_fdc_command_read_sector_multi:
+  case k_wd_fdc_command_write_sector:
+  case k_wd_fdc_command_write_sector_multi:
+  case k_wd_fdc_command_read_address:
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
+    p_fdc->index_pulse_count = 0;
+    break;
+  case k_wd_fdc_command_read_track:
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_wait_index);
+    p_fdc->index_pulse_count = 0;
+    break;
+  case k_wd_fdc_command_write_track:
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_track_setup);
+    p_fdc->index_pulse_count = 0;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void
+wd_fdc_timer_fired(void* p) {
+  struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
+  uint32_t timer_state = p_fdc->timer_state;
+
+  assert(p_fdc->status_register & k_wd_fdc_status_busy);
+
+  (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
+  p_fdc->timer_state = k_wd_fdc_timer_none;
+
+  switch (timer_state) {
+  case k_wd_fdc_timer_settle:
+    wd_fdc_dispatch_command(p_fdc);
+    assert(p_fdc->state != k_wd_fdc_state_timer_wait);
+    break;
+  case k_wd_fdc_timer_seek:
+    if ((p_fdc->command == k_wd_fdc_command_step_in_with_update) ||
+        (p_fdc->command == k_wd_fdc_command_step_out_with_update)) {
+      wd_fdc_check_verify(p_fdc);
+    } else {
+      wd_fdc_do_seek_step_or_verify(p_fdc);
+    }
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 struct wd_fdc_struct*
 wd_fdc_create(struct state_6502* p_state_6502,
               int is_master,
+              struct timing_struct* p_timing,
               struct bbc_options* p_options) {
   struct wd_fdc_struct* p_fdc = util_mallocz(sizeof(struct wd_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
   p_fdc->is_master = is_master;
+  p_fdc->p_timing = p_timing;
+  p_fdc->timer_id = timing_register_timer(p_timing,
+                                          wd_fdc_timer_fired,
+                                          p_fdc);
+
+  p_fdc->state = k_wd_fdc_state_idle;
+  p_fdc->timer_state = k_wd_fdc_timer_none;
 
   p_fdc->log_commands = util_has_option(p_options->p_log_flags,
                                         "disc:commands");
@@ -159,28 +389,11 @@ wd_fdc_destroy(struct wd_fdc_struct* p_fdc) {
   if (disc_drive_is_spinning(p_drive_1)) {
     disc_drive_stop_spinning(p_drive_1);
   }
-
-  util_free(p_fdc);
-}
-
-static void
-wd_fdc_set_state(struct wd_fdc_struct* p_fdc, int state) {
-  p_fdc->state = state;
-  p_fdc->state_count = 0;
-}
-
-static void
-wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
-  struct state_6502* p_state_6502 = p_fdc->p_state_6502;
-  int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
-  int old_level = state_6502_get_irq_level(p_state_6502, k_state_6502_irq_nmi);
-  int new_level = (p_fdc->is_intrq || p_fdc->is_drq);
-
-  if (new_level && !old_level && firing) {
-    log_do_log(k_log_disc, k_log_error, "1770 lost NMI positive edge");
+  if (timing_timer_is_running(p_fdc->p_timing, p_fdc->timer_id)) {
+    (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
   }
 
-  state_6502_set_irq_level(p_state_6502, k_state_6502_irq_nmi, new_level);
+  util_free(p_fdc);
 }
 
 static int
@@ -252,7 +465,8 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
 
   /* Reset, active low. */
   if (wd_fdc_is_reset(p_fdc, val)) {
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
+    /* Go idle, etc. */
+    wd_fdc_clear_state(p_fdc);
     if (p_fdc->p_current_drive != NULL) {
       if (is_motor_on) {
         disc_drive_stop_spinning(p_fdc->p_current_drive);
@@ -292,16 +506,12 @@ wd_fdc_power_on_reset(struct wd_fdc_struct* p_fdc) {
   wd_fdc_break_reset(p_fdc);
   assert(p_fdc->control_register == 0);
   assert(p_fdc->status_register == 0);
+  assert(p_fdc->state == k_wd_fdc_state_idle);
+  assert(p_fdc->timer_state == k_wd_fdc_timer_none);
 
   /* The reset line doesn't seem to affect the track or data registers. */
   p_fdc->track_register = 0;
   p_fdc->data_register = 0;
-}
-
-static void
-wd_fdc_set_intrq(struct wd_fdc_struct* p_fdc, int level) {
-  p_fdc->is_intrq = level;
-  wd_fdc_update_nmi(p_fdc);
 }
 
 static void
@@ -316,28 +526,6 @@ wd_fdc_set_drq(struct wd_fdc_struct* p_fdc, int level) {
     p_fdc->status_register &= ~k_wd_fdc_status_type_II_III_drq;
   }
   wd_fdc_update_nmi(p_fdc);
-}
-
-static void
-wd_fdc_command_done(struct wd_fdc_struct* p_fdc, int do_raise_intrq) {
-  assert(p_fdc->status_register & k_wd_fdc_status_busy);
-  assert(p_fdc->state > k_wd_fdc_state_idle);
-
-  p_fdc->status_register &= ~k_wd_fdc_status_busy;
-  wd_fdc_set_state(p_fdc, k_wd_fdc_state_idle);
-  p_fdc->index_pulse_count = 0;
-
-  /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
-  if (do_raise_intrq) {
-    wd_fdc_set_intrq(p_fdc, 1);
-  }
-
-  if (p_fdc->log_commands) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "1770: result status $%.2X",
-               p_fdc->status_register);
-  }
 }
 
 static void
@@ -455,7 +643,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
       step_rate_ms = 30;
       break;
     }
-    p_fdc->command_step_ticks = ((step_rate_ms * 1000) / 64);
+    p_fdc->command_step_rate_ms = step_rate_ms;
     break;
   case k_wd_fdc_command_read_sector:
   case k_wd_fdc_command_read_sector_multi:
@@ -498,7 +686,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   p_fdc->index_pulse_count = 0;
   if (p_fdc->status_register & k_wd_fdc_status_motor_on) {
     /* Short circuit spin-up if motor is on. */
-    p_fdc->index_pulse_count = 6;
+    wd_fdc_dispatch_command(p_fdc);
   } else {
     p_fdc->status_register |= k_wd_fdc_status_motor_on;
     disc_drive_start_spinning(p_current_drive);
@@ -515,10 +703,11 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
                  k_log_warning,
                  "1770: command $%.2X spin up wait disabled, motor was off",
                  val);
+      wd_fdc_dispatch_command(p_fdc);
+    } else {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_spin_up_wait);
     }
   }
-
-  wd_fdc_set_state(p_fdc, k_wd_fdc_state_spin_up_wait);
 }
 
 uint8_t
@@ -605,23 +794,6 @@ wd_fdc_send_data_to_host(struct wd_fdc_struct* p_fdc, uint8_t data) {
   assert((p_fdc->command_type == 2) || (p_fdc->command_type == 3));
   wd_fdc_set_drq(p_fdc, 1);
   p_fdc->data_register = data;
-}
-
-static void
-wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_fdc->command_type != 1) {
-    return;
-  }
-
-  p_fdc->status_register &=
-      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
-  if (disc_drive_get_track(p_current_drive) == 0) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
-  }
-  if (disc_drive_is_index_pulse(p_current_drive)) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
-  }
 }
 
 static void
@@ -929,8 +1101,6 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses) {
   uint8_t clocks_byte;
   uint8_t data_byte;
 
-  int state = k_wd_fdc_state_null;
-  int step_direction = 0;
   struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int was_index_pulse = p_fdc->is_index_pulse;
@@ -988,6 +1158,8 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses) {
       }
     }
     break;
+  case k_wd_fdc_state_timer_wait:
+    break;
   case k_wd_fdc_state_spin_up_wait:
     assert(p_fdc->index_pulse_count <= 6);
     if (p_fdc->index_pulse_count != 6) {
@@ -996,118 +1168,10 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses) {
     if (p_fdc->command_type == 1) {
       p_fdc->status_register |= k_wd_fdc_status_type_I_spin_up_done;
     }
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_settle);
-    break;
-  case k_wd_fdc_state_settle:
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_settle_wait);
-    if (!p_fdc->is_command_settle) {
-      /* Short circuit settle if not selected. */
-      p_fdc->state_count = k_wd_fdc_1770_settle_ticks;
-    }
-    break;
-  case k_wd_fdc_state_settle_wait:
-    if (p_fdc->state_count != k_wd_fdc_1770_settle_ticks) {
-      p_fdc->state_count++;
-      break;
-    }
-    if (p_fdc->is_command_write &&
-        disc_drive_is_write_protect(p_current_drive)) {
-      p_fdc->status_register |= k_wd_fdc_status_write_protected;
-      wd_fdc_command_done(p_fdc, 1);
-      break;
-    }
-    switch (p_fdc->command) {
-    case k_wd_fdc_command_restore:
-      p_fdc->track_register = 0xFF;
-      p_fdc->data_register = 0;
-      /* Fall through. */
-    case k_wd_fdc_command_seek:
-      state = k_wd_fdc_state_seek_step;
-      break;
-    case k_wd_fdc_command_step_in_with_update:
-    case k_wd_fdc_command_step_out_with_update:
-      state = k_wd_fdc_state_seek_step_once;
-      break;
-    case k_wd_fdc_command_read_sector:
-    case k_wd_fdc_command_read_sector_multi:
-    case k_wd_fdc_command_write_sector:
-    case k_wd_fdc_command_write_sector_multi:
-    case k_wd_fdc_command_read_address:
-      state = k_wd_fdc_state_search_id;
-      p_fdc->index_pulse_count = 0;
-      break;
-    case k_wd_fdc_command_read_track:
-      state = k_wd_fdc_state_wait_index;
-      p_fdc->index_pulse_count = 0;
-      break;
-    case k_wd_fdc_command_write_track:
-      state = k_wd_fdc_state_write_track_setup;
-      p_fdc->index_pulse_count = 0;
-      break;
-    default:
-      assert(0);
-      break;
-    }
-    wd_fdc_set_state(p_fdc, state);
-    break;
-  case k_wd_fdc_state_seek_step:
-    if (p_fdc->track_register == p_fdc->data_register) {
-      wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
-      break;
-    }
-    if (p_fdc->track_register > p_fdc->data_register) {
-      step_direction = -1;
+    if (p_fdc->is_command_settle) {
+      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, k_wd_fdc_1770_settle_ms);
     } else {
-      step_direction = 1;
-    }
-    p_fdc->track_register += step_direction;
-    if ((disc_drive_get_track(p_current_drive) == 0) &&
-        (step_direction == -1)) {
-      p_fdc->track_register = 0;
-      wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
-      break;
-    }
-    disc_drive_seek_track(p_current_drive, step_direction);
-    /* TRK0 signal may have raised or lowered. */
-    wd_fdc_update_type_I_status_bits(p_fdc);
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_step_wait);
-    break;
-  case k_wd_fdc_state_seek_step_wait:
-    if (p_fdc->state_count != p_fdc->command_step_ticks) {
-      p_fdc->state_count++;
-      break;
-    }
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_step);
-    break;
-  case k_wd_fdc_state_seek_step_once:
-    switch (p_fdc->command) {
-    case k_wd_fdc_command_step_in_with_update:
-      step_direction = 1;
-      break;
-    case k_wd_fdc_command_step_out_with_update:
-      step_direction = -1;
-      break;
-    default:
-      assert(0);
-      break;
-    }
-    disc_drive_seek_track(p_current_drive, step_direction);
-    p_fdc->track_register += step_direction;
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_step_once_wait);
-    break;
-  case k_wd_fdc_state_seek_step_once_wait:
-    if (p_fdc->state_count != p_fdc->command_step_ticks) {
-      p_fdc->state_count++;
-      break;
-    }
-    wd_fdc_set_state(p_fdc, k_wd_fdc_state_seek_check_verify);
-    break;
-  case k_wd_fdc_state_seek_check_verify:
-    if (p_fdc->is_command_verify) {
-      p_fdc->index_pulse_count = 0;
-      wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
-    } else {
-      wd_fdc_command_done(p_fdc, 1);
+      wd_fdc_dispatch_command(p_fdc);
     }
     break;
   case k_wd_fdc_state_wait_index:

@@ -857,6 +857,9 @@ intel_fdc_destroy(struct intel_fdc_struct* p_fdc) {
   if (disc_drive_is_spinning(p_drive_1)) {
     disc_drive_stop_spinning(p_drive_1);
   }
+  if (timing_timer_is_running(p_fdc->p_timing, p_fdc->timer_id)) {
+    (void) timing_stop_timer(p_fdc->p_timing, p_fdc->timer_id);
+  }
 
   util_free(p_fdc);
 }
