@@ -420,10 +420,10 @@ disc_get_track_length(struct disc_struct* p_disc,
 }
 
 uint32_t
-disc_get_raw_pulses(struct disc_struct* p_disc,
-                    int is_side_upper,
-                    uint32_t track,
-                    uint32_t pos) {
+disc_read_pulses(struct disc_struct* p_disc,
+                 int is_side_upper,
+                 uint32_t track,
+                 uint32_t pos) {
   struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
 
   assert(pos < p_track->length);
