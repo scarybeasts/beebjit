@@ -740,7 +740,7 @@ intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
 
 static void
 intel_fdc_do_load_head(struct intel_fdc_struct* p_fdc, int is_settle) {
-  uint32_t post_seek_time;
+  uint32_t post_seek_time = 0;
 
   /* The head load wait replaces the settle delay if there is both. */
   if (!(p_fdc->drive_out & k_intel_fdc_drive_out_load_head)) {
