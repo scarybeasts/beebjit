@@ -15,8 +15,13 @@ struct disc_drive_struct* disc_drive_create(uint32_t id,
 void disc_drive_destroy(struct disc_drive_struct* p_drive);
 void disc_drive_set_pulses_callback(struct disc_drive_struct* p_drive,
                                     void (*p_pulses_callback)(void* p,
-                                                              uint32_t pulses),
+                                                              uint32_t pulses,
+                                                              uint32_t count),
                                     void* p_pulses_callback_object);
+/* Normally, 64us worth of pulses (32x 2us each) are delivered, suitable for FM.
+ * This selects 32us worth (16x 2us each), suitable for MFM.
+ */
+void disc_drive_set_32us_mode(struct disc_drive_struct* p_drive, int on);
 
 void disc_drive_power_on_reset(struct disc_drive_struct* p_drive);
 

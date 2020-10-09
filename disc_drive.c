@@ -25,8 +25,9 @@ struct disc_drive_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
-  void (*p_pulses_callback)(void*, uint32_t);
+  void (*p_pulses_callback)(void*, uint32_t, uint32_t);
   void* p_pulses_callback_object;
+  int is_32us_mode;
 
   /* Properties of the drive. */
   uint32_t id;
@@ -153,7 +154,7 @@ disc_drive_timer_callback(void* p) {
   }
 
   if (p_drive->p_pulses_callback != NULL) {
-    p_drive->p_pulses_callback(p_drive->p_pulses_callback_object, pulses);
+    p_drive->p_pulses_callback(p_drive->p_pulses_callback_object, pulses, 32);
   }
 
   p_drive->head_position = new_head_position;
@@ -257,10 +258,16 @@ disc_drive_cycle_disc(struct disc_drive_struct* p_drive) {
 void
 disc_drive_set_pulses_callback(struct disc_drive_struct* p_drive,
                                void (*p_pulses_callback)(void* p,
-                                                         uint32_t pulses),
+                                                         uint32_t pulses,
+                                                         uint32_t count),
                                void* p_pulses_callback_object) {
   p_drive->p_pulses_callback = p_pulses_callback;
   p_drive->p_pulses_callback_object = p_pulses_callback_object;
+}
+
+void
+disc_drive_set_32us_mode(struct disc_drive_struct* p_drive, int on) {
+  p_drive->is_32us_mode = on;
 }
 
 uint32_t

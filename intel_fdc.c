@@ -1972,11 +1972,14 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
 }
 
 static void
-intel_fdc_pulses_callback(void* p, uint32_t pulses) {
+intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   uint32_t i;
   int bit;
   uint8_t clocks_byte;
   uint8_t data_byte;
+
+  (void) count;
+  assert(count == 32);
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;

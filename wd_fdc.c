@@ -436,6 +436,7 @@ wd_fdc_is_double_density(struct wd_fdc_struct* p_fdc, uint8_t cr) {
 
 static void
 wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
+  int is_double_density;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int is_motor_on = !!(p_fdc->status_register & k_wd_fdc_status_motor_on);
 
@@ -460,6 +461,11 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     }
     disc_drive_select_side(p_fdc->p_current_drive, wd_fdc_is_side(p_fdc, val));
   }
+
+  /* Set up single or double density. */
+  is_double_density = wd_fdc_is_double_density(p_fdc, val);
+  disc_drive_set_32us_mode(p_fdc->p_drive_0, is_double_density);
+  disc_drive_set_32us_mode(p_fdc->p_drive_1, is_double_density);
 
   p_fdc->control_register = val;
 
@@ -1093,7 +1099,7 @@ wd_write_byte(struct wd_fdc_struct* p_fdc,
 }
 
 static void
-wd_fdc_pulses_callback(void* p, uint32_t pulses) {
+wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   /* NOTE: this callback routine is also used for seek / settle timing,
    * which is not a precise 64us basis.
    */
@@ -1105,6 +1111,9 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses) {
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int was_index_pulse = p_fdc->is_index_pulse;
   int is_index_pulse_positive_edge = 0;
+
+  (void) count;
+  assert(count == 32);
 
   ibm_disc_format_2us_pulses_to_fm(&clocks_byte, &data_byte, pulses);
 
