@@ -82,6 +82,7 @@ main(int argc, const char* argv[]) {
   int convert_hfe_flag = 0;
   int no_dfs_flag = 0;
   int wd_1770_flag = 0;
+  int watford_flag = 0;
   int is_master_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
@@ -226,6 +227,8 @@ main(int argc, const char* argv[]) {
       no_dfs_flag = 1;
     } else if (!strcmp(arg, "-1770")) {
       wd_1770_flag = 1;
+    } else if (!strcmp(arg, "-watford")) {
+      watford_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
@@ -258,6 +261,7 @@ main(int argc, const char* argv[]) {
 "-mode              : CPU emulation driver: jit,interp,inturbo (default jit).\n"
 "-fast              : run CPU as fast as host can; lowers accuracy.\n"
 "-log-file       <f>: log to file <f> as well as stdout.\n"
+"-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
 "");
       exit(0);
@@ -346,9 +350,17 @@ main(int argc, const char* argv[]) {
   if (!no_dfs_flag && (rom_names[k_bbc_default_dfs_rom_slot] == NULL)) {
     const char* p_dfs_rom_name;
     if (wd_1770_flag) {
-      p_dfs_rom_name = "roms/DFS226";
+      if (watford_flag) {
+        p_dfs_rom_name = "roms/WDDFS154T";
+      } else {
+        p_dfs_rom_name = "roms/DFS226";
+      }
     } else {
-      p_dfs_rom_name = "roms/DFS-0.9.rom";
+      if (watford_flag) {
+        p_dfs_rom_name = "roms/WDFS144";
+      } else {
+        p_dfs_rom_name = "roms/DFS-0.9.rom";
+      }
     }
     rom_names[k_bbc_default_dfs_rom_slot] = p_dfs_rom_name;
   }
