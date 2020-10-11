@@ -11,8 +11,13 @@
  * CRC for freshly formatted sector (full of 0xE5) is 0xA4 0x0C.
  */
 uint16_t
-ibm_disc_format_crc_init() {
-  return 0xFFFF;
+ibm_disc_format_crc_init(int is_mfm) {
+  if (is_mfm) {
+    /* MFM starts with 3x 0xA1 sync bytes added. */
+    return 0xCDB4;
+  } else {
+    return 0xFFFF;
+  }
 }
 
 uint16_t
@@ -77,4 +82,42 @@ ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
 
   *p_clocks = clocks;
   *p_data = data;
+}
+
+uint16_t
+ibm_disc_format_mfm_to_2us_pulses(int* p_last_mfm_bit, uint8_t byte) {
+  uint16_t pulses = 0;
+  uint32_t i;
+  int last_bit = *p_last_mfm_bit;
+
+  for (i = 0; i < 8; ++i) {
+    int bit = !!(byte & 0x80);
+    pulses <<= 2;
+    byte <<= 1;
+    if (bit) {
+      pulses |= 0x01;
+    } else if (!last_bit) {
+      pulses |= 0x02;
+    }
+    last_bit = bit;
+  }
+
+  *p_last_mfm_bit = last_bit;
+  return pulses;
+}
+
+uint8_t
+ibm_disc_format_2us_pulses_to_mfm(uint16_t pulses) {
+  uint32_t i;
+  uint8_t byte = 0;
+
+  for (i = 0; i < 8; ++i) {
+    byte <<= 1;
+    if ((pulses & 0xC000) == 0x4000) {
+      byte |= 1;
+    }
+    pulses <<= 2;
+  }
+
+  return byte;
 }

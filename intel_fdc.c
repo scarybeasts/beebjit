@@ -1451,7 +1451,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
   case k_intel_fdc_state_check_id_marker:
     if ((clocks_byte == k_ibm_disc_mark_clock_pattern) &&
         (data_byte == k_ibm_disc_id_mark_data_pattern)) {
-      p_fdc->crc = ibm_disc_format_crc_init();
+      p_fdc->crc = ibm_disc_format_crc_init(0);
       p_fdc->crc =
           ibm_disc_format_crc_add_byte(p_fdc->crc,
                                        k_ibm_disc_id_mark_data_pattern);
@@ -1535,7 +1535,7 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
       if (do_irqs) {
         intel_fdc_start_irq_callbacks(p_fdc);
       }
-      p_fdc->crc = ibm_disc_format_crc_init();
+      p_fdc->crc = ibm_disc_format_crc_init(0);
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
 
       intel_fdc_set_state(p_fdc, k_intel_fdc_state_in_data);
@@ -1654,7 +1654,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_state_write_data_mark:
     data = p_fdc->regs[k_intel_fdc_register_internal_param_data_marker];
-    p_fdc->crc = ibm_disc_format_crc_init();
+    p_fdc->crc = ibm_disc_format_crc_init(0);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     p_fdc->mmio_data = data;
     p_fdc->mmio_clocks = k_ibm_disc_mark_clock_pattern;
@@ -1760,7 +1760,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_state_format_write_id_marker:
     data = k_ibm_disc_id_mark_data_pattern;
-    p_fdc->crc = ibm_disc_format_crc_init();
+    p_fdc->crc = ibm_disc_format_crc_init(0);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     p_fdc->mmio_data = data;
     p_fdc->mmio_clocks = k_ibm_disc_mark_clock_pattern;
@@ -1776,7 +1776,7 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     break;
   case k_intel_fdc_state_format_write_data_marker:
     data = k_ibm_disc_data_mark_data_pattern;
-    p_fdc->crc = ibm_disc_format_crc_init();
+    p_fdc->crc = ibm_disc_format_crc_init(0);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     p_fdc->mmio_data = data;
     p_fdc->mmio_clocks = k_ibm_disc_mark_clock_pattern;

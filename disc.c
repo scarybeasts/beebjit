@@ -281,7 +281,7 @@ disc_put_fm_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
 
 void
 disc_build_reset_crc(struct disc_struct* p_disc) {
-  p_disc->crc = ibm_disc_format_crc_init();
+  p_disc->crc = ibm_disc_format_crc_init(0);
 }
 
 void

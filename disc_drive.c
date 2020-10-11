@@ -121,6 +121,11 @@ disc_drive_timer_callback(void* p) {
   assert((pulse_position == 0) || (pulse_position == 16));
   if ((pulse_position == 16) || p_drive->is_32us_mode) {
     num_pulses = 16;
+    if (pulse_position == 0) {
+      pulses >>= 16;
+    } else {
+      pulses &= 0xFFFF;
+    }
   } else {
     num_pulses = 32;
   }

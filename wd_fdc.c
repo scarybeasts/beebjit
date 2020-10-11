@@ -74,7 +74,12 @@ enum {
   k_wd_fdc_state_search_data,
   k_wd_fdc_state_in_data,
   k_wd_fdc_state_in_read_track,
-  k_wd_fdc_state_write_sector,
+  k_wd_fdc_state_write_sector_delay,
+  k_wd_fdc_state_write_sector_lead_in_fm,
+  k_wd_fdc_state_write_sector_lead_in_mfm,
+  k_wd_fdc_state_write_sector_marker_fm,
+  k_wd_fdc_state_write_sector_marker_mfm,
+  k_wd_fdc_state_write_sector_body,
   k_wd_fdc_state_write_track_setup,
   k_wd_fdc_state_in_write_track,
   k_wd_fdc_state_check_multi,
@@ -122,16 +127,17 @@ struct wd_fdc_struct {
   uint32_t timer_state;
   uint32_t state_count;
   uint32_t index_pulse_count;
-  uint32_t mark_detector;
-  uint16_t data_shifter;
+  uint64_t mark_detector;
+  uint32_t data_shifter;
   uint32_t data_shift_count;
-  uint8_t deliver_clocks;
   uint8_t deliver_data;
+  int deliver_is_marker;
   uint16_t crc;
   uint8_t on_disc_track;
   uint8_t on_disc_sector;
   uint32_t on_disc_length;
   uint16_t on_disc_crc;
+  int last_mfm_bit;
 };
 
 static void
@@ -492,6 +498,9 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     p_fdc->data_shifter = 0;
     p_fdc->data_shift_count = 0;
     p_fdc->is_index_pulse = 0;
+    p_fdc->last_mfm_bit = 0;
+    p_fdc->deliver_data = 0;
+    p_fdc->deliver_is_marker = 0;
   }
 }
 
@@ -561,9 +570,6 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
 
   assert(!wd_fdc_is_reset(p_fdc, p_fdc->control_register));
 
-  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
-    log_do_log(k_log_disc, k_log_unimplemented, "double density 1770 command");
-  }
   if (p_fdc->p_current_drive == NULL) {
     util_bail("command while no selected drive");
   }
@@ -804,21 +810,23 @@ wd_fdc_send_data_to_host(struct wd_fdc_struct* p_fdc, uint8_t data) {
 
 static void
 wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
-                     uint8_t clocks,
-                     uint8_t data,
                      int is_index_pulse_positive_edge) {
   int is_crc_error;
   uint8_t command_type = p_fdc->command_type;
   int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
+  uint8_t data = p_fdc->deliver_data;
+  int is_marker = p_fdc->deliver_is_marker;
+  int is_mfm = wd_fdc_is_double_density(p_fdc, p_fdc->control_register);
+
+  p_fdc->deliver_is_marker = 0;
 
   switch (p_fdc->state) {
   case k_wd_fdc_state_search_id:
-    if ((clocks != k_ibm_disc_mark_clock_pattern) ||
-        (data != k_ibm_disc_id_mark_data_pattern)) {
+    if (!is_marker || (data != k_ibm_disc_id_mark_data_pattern)) {
       break;
     }
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_in_id);
-    p_fdc->crc = ibm_disc_format_crc_init();
+    p_fdc->crc = ibm_disc_format_crc_init(is_mfm);
     p_fdc->crc =
           ibm_disc_format_crc_add_byte(p_fdc->crc,
                                        k_ibm_disc_id_mark_data_pattern);
@@ -902,7 +910,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     if (command_type == 1) {
       wd_fdc_command_done(p_fdc, 1);
     } else if (p_fdc->is_command_write) {
-      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector);
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_delay);
     } else {
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_data);
     }
@@ -912,14 +920,14 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
     /* Like the 8271, the data mark is only recognized if 14 bytes have passed.
      * Unlike the 8271, it gives up after a while longer.
      */
-    if (p_fdc->state_count <= 14) {
+    if (p_fdc->state_count <= (14 * ((uint32_t) is_mfm + 1))) {
       break;
     }
-    if (p_fdc->state_count == 31) {
+    if (p_fdc->state_count >= (31 * ((uint32_t) is_mfm + 1))) {
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
       break;
     }
-    if (clocks != k_ibm_disc_mark_clock_pattern) {
+    if (!is_marker) {
       break;
     }
     if (data == k_ibm_disc_data_mark_data_pattern) {
@@ -949,7 +957,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
      * header and then find an ok matching sector header.
      */
     p_fdc->status_register &= ~k_wd_fdc_status_crc_error;
-    p_fdc->crc = ibm_disc_format_crc_init();
+    p_fdc->crc = ibm_disc_format_crc_init(is_mfm);
     p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data);
     break;
   case k_wd_fdc_state_in_data:
@@ -984,66 +992,71 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
   }
 }
 
-static uint8_t
-wd_fdc_extract_clocks(uint16_t unseparated) {
-  uint8_t ret = 0;
+static int
+wd_fdc_mark_detector_triggered(struct wd_fdc_struct* p_fdc) {
+  uint64_t mark_detector = p_fdc->mark_detector;
 
-  if (unseparated & 0x8000) ret |= 0x80;
-  if (unseparated & 0x2000) ret |= 0x40;
-  if (unseparated & 0x0800) ret |= 0x20;
-  if (unseparated & 0x0200) ret |= 0x10;
-  if (unseparated & 0x0080) ret |= 0x08;
-  if (unseparated & 0x0020) ret |= 0x04;
-  if (unseparated & 0x0008) ret |= 0x02;
-  if (unseparated & 0x0002) ret |= 0x01;
+  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
+    /* EMU NOTE: unsure as to exactly when MFM sync bytes are spotted. Here we
+     * look for MFM 0x00 then MFM 0xA1 (sync).
+     * The documented sequence is 12x 0x00, 3x 0xA1 (sync).
+     */
+    if ((mark_detector & 0x00000000FFFFFFFFull) == 0x00000000AAAA4489ull) {
+      p_fdc->deliver_data = 0xA1;
+      return 1;
+    }
+    /* This other sync byte is less critical, used for index markers at the
+     * start of the track in some cases.
+     */
+    if ((mark_detector & 0x00000000FFFFFFFFull) == 0x00000000AAAA5224ull) {
+      p_fdc->deliver_data = 0xC2;
+      return 1;
+    }
+    /* Tag the byte after 3 sync bytes as a marker. */
+    if ((mark_detector & 0xFFFFFFFFFFFF0000ull) == 0x4489448944890000ull) {
+      p_fdc->deliver_is_marker = 1;
+    }
+  } else {
+    /* The FM mark detector appears to need 4 data bits' worth of 0, with clock
+     * bits set to 1, to be able to trigger.
+     * Tried on my real 1772 based machine.
+     */
+    if ((mark_detector & 0x0000FFFF00000000ull) == 0x0000888800000000ull) {
+      uint8_t clocks;
+      uint8_t data;
+      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
+      if (clocks == 0xC7) {
+        /* TODO: see http://info-coach.fr/atari/documents/_mydoc/WD1772-JLG.pdf
+         * This suggests that a wider ranges of byte values will function as
+         * markers. It may also differ FM vs. MFM.
+         */
+        if ((data == 0xF8) || (data == 0xFB) || (data == 0xFE)) {
+          /* Resync to marker. */
+          p_fdc->deliver_data = data;
+          p_fdc->deliver_is_marker = 1;
+          return 1;
+        }
+      }
+    }
+  }
 
-  return ret;
-}
-
-static uint8_t
-wd_fdc_extract_data(uint16_t unseparated) {
-  uint8_t ret = 0;
-
-  if (unseparated & 0x4000) ret |= 0x80;
-  if (unseparated & 0x1000) ret |= 0x40;
-  if (unseparated & 0x0400) ret |= 0x20;
-  if (unseparated & 0x0100) ret |= 0x10;
-  if (unseparated & 0x0040) ret |= 0x08;
-  if (unseparated & 0x0010) ret |= 0x04;
-  if (unseparated & 0x0004) ret |= 0x02;
-  if (unseparated & 0x0001) ret |= 0x01;
-
-  return ret;
+  return 0;
 }
 
 static void
 wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
-  uint8_t clocks;
-  uint8_t data;
-  uint32_t mark_detector;
-  uint16_t data_shifter;
+  uint32_t data_shifter;
 
   /* Always run the mark detector. For a command like "read track", the 1770
    * will re-sync in the middle of the command as appropriate.
    */
   p_fdc->mark_detector <<= 1;
   p_fdc->mark_detector |= bit;
-  mark_detector = p_fdc->mark_detector;
-  /* The mark detector appears to need 4 data bits' worth of 0, with 1 clock
-   * bits, to be able to trigger.
-   */
-  if ((p_fdc->mark_detector & 0x00FF0000) == 0x00AA0000) {
-    clocks = wd_fdc_extract_clocks(mark_detector & 0xFFFF);
-    data = wd_fdc_extract_data(mark_detector & 0xFFFF);
-    if (clocks == 0xC7) {
-      if ((data == 0xF8) || (data == 0xFB) || (data == 0xFE)) {
-        /* Resync to marker. */
-        p_fdc->deliver_clocks = clocks;
-        p_fdc->deliver_data = data;
-        p_fdc->data_shift_count = 0;
-        return;
-      }
-    }
+
+  if (wd_fdc_mark_detector_triggered(p_fdc)) {
+    p_fdc->data_shifter = 0;
+    p_fdc->data_shift_count = 0;
+    return;
   }
 
   data_shifter = p_fdc->data_shifter;
@@ -1051,50 +1064,89 @@ wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
   data_shifter |= bit;
   p_fdc->data_shifter = data_shifter;
   p_fdc->data_shift_count++;
-  if (p_fdc->data_shift_count == 16) {
-    clocks = wd_fdc_extract_clocks(data_shifter);
-    data = wd_fdc_extract_data(data_shifter);
-    p_fdc->deliver_clocks = clocks;
-    p_fdc->deliver_data = data;
-    p_fdc->data_shift_count = 0;
+
+  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
+    if (p_fdc->data_shift_count == 16) {
+      p_fdc->deliver_data = ibm_disc_format_2us_pulses_to_mfm(data_shifter);
+      p_fdc->data_shifter = 0;
+      p_fdc->data_shift_count = 0;
+    }
+  } else {
+    if (p_fdc->data_shift_count == 32) {
+      uint8_t unused_clocks;
+      ibm_disc_format_2us_pulses_to_fm(&unused_clocks,
+                                       &p_fdc->deliver_data,
+                                       data_shifter);
+      p_fdc->data_shifter = 0;
+      p_fdc->data_shift_count = 0;
+    }
   }
 }
 
 static void
 wd_fdc_bitstream_received(struct wd_fdc_struct* p_fdc,
-                          uint8_t clocks_byte,
-                          uint8_t data_byte,
+                          uint32_t pulses,
+                          uint32_t pulses_count,
                           int is_index_pulse_positive_edge) {
   uint32_t i;
 
-  for (i = 0; i < 8; ++i) {
-    int bit = !!(clocks_byte & 0x80);
-    clocks_byte <<= 1;
+  pulses <<= (32 - pulses_count);
+
+  for (i = 0; i < pulses_count; ++i) {
+    int bit = !!(pulses & 0x80000000);
     wd_fdc_bit_received(p_fdc, bit);
-    bit = !!(data_byte & 0x80);
-    data_byte <<= 1;
-    wd_fdc_bit_received(p_fdc, bit);
+    pulses <<= 1;
   }
-  wd_fdc_byte_received(p_fdc,
-                       p_fdc->deliver_clocks,
-                       p_fdc->deliver_data,
-                       is_index_pulse_positive_edge);
+  wd_fdc_byte_received(p_fdc, is_index_pulse_positive_edge);
 }
 
 static void
 wd_write_byte(struct wd_fdc_struct* p_fdc,
-              uint8_t data_byte,
-              uint8_t clocks_byte) {
+              int is_mfm,
+              uint8_t byte,
+              int is_marker) {
   uint32_t pulses;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
-  /* No support for double density yet so write weak bits. */
-  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
-    data_byte = 0;
-    clocks_byte = 0;
+  if (is_mfm) {
+    if (is_marker) {
+      switch (byte) {
+      case 0xA1:
+        /* The famous 0x4489. */
+        pulses = k_ibm_disc_mfm_a1_sync;
+        break;
+      case 0xC2:
+        pulses = k_ibm_disc_mfm_c2_sync;
+        break;
+      default:
+        assert(0);
+        break;
+      }
+    } else {
+      pulses = ibm_disc_format_mfm_to_2us_pulses(&p_fdc->last_mfm_bit, byte);
+    }
+  } else {
+    uint8_t clocks = 0xFF;
+    if (is_marker) {
+      switch (byte) {
+      case 0xFC:
+        clocks = 0xD7;
+        break;
+      case 0xF8:
+      case 0xF9:
+      case 0xFA:
+      case 0xFB:
+      case 0xFE:
+        clocks = k_ibm_disc_mark_clock_pattern;
+        break;
+      default:
+        assert(0);
+        break;
+      }
+    }
+    pulses = ibm_disc_format_fm_to_2us_pulses(clocks, byte);
   }
 
-  pulses = ibm_disc_format_fm_to_2us_pulses(clocks_byte, data_byte);
   disc_drive_write_pulses(p_current_drive, pulses);
 }
 
@@ -1104,30 +1156,19 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
    * which is not a precise 64us basis.
    */
   int is_index_pulse;
-  uint8_t clocks_byte;
+  int is_marker;
+  int is_preset_crc;
   uint8_t data_byte;
 
   struct wd_fdc_struct* p_fdc = (struct wd_fdc_struct*) p;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
   int was_index_pulse = p_fdc->is_index_pulse;
   int is_index_pulse_positive_edge = 0;
-
-  (void) count;
-  assert(count == 32);
-
-  ibm_disc_format_2us_pulses_to_fm(&clocks_byte, &data_byte, pulses);
+  int is_mfm = (count == 16);
 
   assert(p_current_drive != NULL);
   assert(disc_drive_is_spinning(p_current_drive));
   assert(p_fdc->status_register & k_wd_fdc_status_motor_on);
-
-  /* No support for double density yet so make sure to not read any markers in
-   * that case.
-   */
-  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
-    data_byte = 0xFF;
-    clocks_byte = 0xFF;
-  }
 
   is_index_pulse = disc_drive_is_index_pulse(p_fdc->p_current_drive);
   p_fdc->is_index_pulse = is_index_pulse;
@@ -1192,7 +1233,7 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
      * positive edge) in the read track data. Confirmed with a real 1772 +
      * Gotek.
      */
-    wd_fdc_bitstream_received(p_fdc, clocks_byte, data_byte, 0);
+    wd_fdc_bitstream_received(p_fdc, pulses, count, 0);
     break;
   case k_wd_fdc_state_search_id:
   case k_wd_fdc_state_in_id:
@@ -1200,8 +1241,8 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   case k_wd_fdc_state_in_data:
   case k_wd_fdc_state_in_read_track:
     wd_fdc_bitstream_received(p_fdc,
-                              clocks_byte,
-                              data_byte,
+                              pulses,
+                              count,
                               is_index_pulse_positive_edge);
 
     assert(p_fdc->index_pulse_count <= 6);
@@ -1210,29 +1251,72 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
       wd_fdc_command_done(p_fdc, 1);
     }
     break;
-  case k_wd_fdc_state_write_sector:
+  case k_wd_fdc_state_write_sector_delay:
     /* Following the data sheet here for byte-by-byte behavior. */
-    if (p_fdc->state_count < 12) {
-      if (p_fdc->state_count == 0) {
-        p_fdc->index_pulse_count = 0;
-        p_fdc->crc = ibm_disc_format_crc_init();
-      } else if (p_fdc->state_count == 2) {
-        wd_fdc_set_drq(p_fdc, 1);
-      } else if ((p_fdc->state_count == 11) &&
-                 (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq)) {
-        p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
-        wd_fdc_command_done(p_fdc, 1);
+    if (p_fdc->state_count == 0) {
+      p_fdc->index_pulse_count = 0;
+    } else if (p_fdc->state_count == 1) {
+      wd_fdc_set_drq(p_fdc, 1);
+    } else if ((p_fdc->state_count == 10) &&
+               p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
+      p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
+      wd_fdc_command_done(p_fdc, 1);
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 12) {
+      if (is_mfm) {
+        wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_lead_in_mfm);
+      } else {
+        wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_lead_in_fm);
       }
-    } else if (p_fdc->state_count < 18) {
-      wd_write_byte(p_fdc, 0x00, 0xFF);
-    } else if (p_fdc->state_count == 18) {
+    }
+    break;
+  case k_wd_fdc_state_write_sector_lead_in_fm:
+    wd_write_byte(p_fdc, is_mfm, 0x00, 0);
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 6) {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_marker_fm);
+    }
+    break;
+  case k_wd_fdc_state_write_sector_lead_in_mfm:
+    if (p_fdc->state_count < 11) {
+      /* Nothing. */
+    } else {
+      wd_write_byte(p_fdc, is_mfm, 0x00, 0);
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 23) {
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_marker_mfm);
+    }
+    break;
+  case k_wd_fdc_state_write_sector_marker_fm:
+    data_byte = k_ibm_disc_data_mark_data_pattern;
+    if (p_fdc->is_command_deleted) {
+      data_byte = k_ibm_disc_deleted_data_mark_data_pattern;
+    }
+    p_fdc->crc = ibm_disc_format_crc_init(0);
+    p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+    wd_write_byte(p_fdc, 0, data_byte, 1);
+    wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_body);
+    break;
+  case k_wd_fdc_state_write_sector_marker_mfm:
+    if (p_fdc->state_count < 3) {
+      wd_write_byte(p_fdc, 1, 0xA1, 1);
+    }
+    p_fdc->state_count++;
+    if (p_fdc->state_count == 4) {
       data_byte = k_ibm_disc_data_mark_data_pattern;
       if (p_fdc->is_command_deleted) {
         data_byte = k_ibm_disc_deleted_data_mark_data_pattern;
       }
+      p_fdc->crc = ibm_disc_format_crc_init(1);
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-      wd_write_byte(p_fdc, data_byte, k_ibm_disc_mark_clock_pattern);
-    } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length)) {
+      wd_write_byte(p_fdc, 1, data_byte, 0);
+      wd_fdc_set_state(p_fdc, k_wd_fdc_state_write_sector_body);
+    }
+    break;
+  case k_wd_fdc_state_write_sector_body:
+    if (p_fdc->state_count < p_fdc->on_disc_length) {
       data_byte = p_fdc->data_register;
       if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
         data_byte = 0;
@@ -1240,15 +1324,15 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
         /* EMU NOTE: doesn't terminate command, like it would on the 8271. */
       }
       p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
-      wd_write_byte(p_fdc, data_byte, 0xFF);
-      if (p_fdc->state_count != (18 + 1 + p_fdc->on_disc_length - 1)) {
+      wd_write_byte(p_fdc, is_mfm, data_byte, 0);
+      if (p_fdc->state_count != (p_fdc->on_disc_length - 1)) {
         wd_fdc_set_drq(p_fdc, 1);
       }
-    } else if (p_fdc->state_count < (18 + 1 + p_fdc->on_disc_length + 2)) {
-      wd_write_byte(p_fdc, (p_fdc->crc >> 8), 0xFF);
+    } else if (p_fdc->state_count < (p_fdc->on_disc_length + 2)) {
+      wd_write_byte(p_fdc, is_mfm, (p_fdc->crc >> 8), 0);
       p_fdc->crc <<= 8;
     } else {
-      wd_write_byte(p_fdc, 0xFF, 0xFF);
+      wd_write_byte(p_fdc, is_mfm, 0xFF, 0);
       wd_fdc_set_state(p_fdc, k_wd_fdc_state_check_multi);
     }
     p_fdc->state_count++;
@@ -1286,47 +1370,72 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
       break;
     }
     if (p_fdc->is_write_track_crc_second_byte) {
-      wd_write_byte(p_fdc, (p_fdc->crc & 0xFF), 0xFF);
+      wd_write_byte(p_fdc, is_mfm, (p_fdc->crc & 0xFF), 0);
       p_fdc->is_write_track_crc_second_byte = 0;
       wd_fdc_set_drq(p_fdc, 1);
       break;
     }
-    clocks_byte = 0xFF;
     data_byte = p_fdc->data_register;
     if (p_fdc->status_register & k_wd_fdc_status_type_II_III_drq) {
       data_byte = 0;
       p_fdc->status_register |= k_wd_fdc_status_type_II_III_lost_byte;
     }
+    is_marker = 0;
+    is_preset_crc = 0;
     switch (data_byte) {
+    /* 0xF5 and 0xF6 are documented as "not allowed" in FM mode. They
+     * actually write 0xA1 / 0xC2 respectively, as per MFM, but it's not
+     * known whether any clock bits are omitted, or whether CRC is preset,
+     * so bailing for now rather than guesing.
+     */
     case 0xF5:
+      if (is_mfm) {
+        is_marker = 1;
+        is_preset_crc = 1;
+        data_byte = 0xA1;
+      } else {
+        util_bail("not allowed FM byte");
+      }
+      break;
     case 0xF6:
-      /* EMU NOTE: these are documented as "not allowed" in FM mode. They
-       * actually write 0xA1 / 0xC2 respectively, as per MFM, but it's not
-       * known whether any clock bits are omitted, or whether CRC is preset,
-       * so bailing for now rather than guesing.
-       */
-      util_bail("not allowed FM byte");
+      if (is_mfm) {
+        is_marker = 1;
+        data_byte = 0xC2;
+      } else {
+        util_bail("not allowed FM byte");
+      }
       break;
     case 0xF8:
     case 0xF9:
     case 0xFA:
     case 0xFB:
     case 0xFE:
-      clocks_byte = 0xC7;
-      p_fdc->crc = ibm_disc_format_crc_init();
+      if (!is_mfm) {
+        is_marker = 1;
+        is_preset_crc = 1;
+      }
       break;
     case 0xFC:
-      clocks_byte = 0xD7;
+      if (!is_mfm) {
+        is_marker = 1;
+      }
       break;
     default:
       break;
     }
+    if (is_preset_crc) {
+      p_fdc->crc = ibm_disc_format_crc_init(is_mfm);
+    }
     if (data_byte == 0xF7) {
-      wd_write_byte(p_fdc, (p_fdc->crc >> 8), 0xFF);
+      wd_write_byte(p_fdc, is_mfm, (p_fdc->crc >> 8), 0);
       p_fdc->is_write_track_crc_second_byte = 1;
     } else {
-      wd_write_byte(p_fdc, data_byte, clocks_byte);
-      p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+      wd_write_byte(p_fdc, is_mfm, data_byte, is_marker);
+      if (is_mfm && is_preset_crc) {
+        /* Nothing. */
+      } else {
+        p_fdc->crc = ibm_disc_format_crc_add_byte(p_fdc->crc, data_byte);
+      }
       wd_fdc_set_drq(p_fdc, 1);
     }
     p_fdc->state_count++;
