@@ -85,9 +85,13 @@ disc_get_time_for_position(uint32_t track_length,
 static uint32_t
 disc_drive_get_track_length(struct disc_drive_struct* p_drive) {
   struct disc_struct* p_disc = disc_drive_get_disc(p_drive);
-  uint32_t track_length = disc_get_track_length(p_disc,
-                                                p_drive->is_side_upper,
-                                                p_drive->track);
+  uint32_t track_length = 0;
+
+  if (p_disc != NULL) {
+    track_length = disc_get_track_length(p_disc,
+                                         p_drive->is_side_upper,
+                                         p_drive->track);
+  }
   if (track_length == 0) {
     track_length = k_ibm_disc_bytes_per_track;
   }
