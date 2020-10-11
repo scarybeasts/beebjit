@@ -234,6 +234,11 @@ main(int argc, const char* argv[]) {
       config_apply_master_128_mos320(&os_rom_name,
                                      &rom_names[0],
                                      &sideways_ram[0]);
+    } else if (!strcmp(arg, "-compact")) {
+      is_master_flag = 1;
+      config_apply_master_compact(&os_rom_name,
+                                  &rom_names[0],
+                                  &sideways_ram[0]);
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
@@ -263,6 +268,7 @@ main(int argc, const char* argv[]) {
 "-log-file       <f>: log to file <f> as well as stdout.\n"
 "-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
+"-compact           : set up a BBC Master Compact.\n"
 "");
       exit(0);
     } else {
