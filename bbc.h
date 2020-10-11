@@ -41,7 +41,7 @@ struct bbc_struct;
 struct bbc_struct* bbc_create(int mode,
                               int is_master,
                               uint8_t* p_os_rom,
-                              int wd_1770_flag,
+                              int wd_1770_type,
                               int debug_flag,
                               int run_flag,
                               int print_flag,

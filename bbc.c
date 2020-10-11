@@ -107,6 +107,7 @@ struct bbc_struct {
   int is_sideways_ram_bank[k_bbc_num_roms];
   int is_extended_rom_addressing;
   int is_wd_fdc;
+  int is_wd_1772;
 
   /* Settings. */
   uint8_t* p_os_rom;
@@ -1190,7 +1191,7 @@ struct bbc_struct*
 bbc_create(int mode,
            int is_master,
            uint8_t* p_os_rom,
-           int wd_1770_flag,
+           int wd_1770_type,
            int debug_flag,
            int run_flag,
            int print_flag,
@@ -1218,10 +1219,6 @@ bbc_create(int mode,
 
   struct bbc_struct* p_bbc = util_mallocz(sizeof(struct bbc_struct));
 
-  if (is_master) {
-    wd_1770_flag = 1;
-  }
-
   p_bbc->wakeup_rate = k_bbc_default_wakeup_rate;
   (void) util_get_u32_option(&p_bbc->wakeup_rate,
                              p_opt_flags,
@@ -1241,7 +1238,8 @@ bbc_create(int mode,
   p_bbc->print_flag = print_flag;
   p_bbc->fast_flag = fast_flag;
   p_bbc->test_map_flag = test_map_flag;
-  p_bbc->is_wd_fdc = wd_1770_flag;
+  p_bbc->is_wd_fdc = (wd_1770_type > 0);
+  p_bbc->is_wd_1772 = (wd_1770_type == 2);
   p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
   p_bbc->handle_channel_read_bbc = -1;
@@ -1507,6 +1505,7 @@ bbc_create(int mode,
   if (p_bbc->is_wd_fdc) {
     p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502,
                                     is_master,
+                                    p_bbc->is_wd_1772,
                                     p_timing,
                                     &p_bbc->options);
     if (p_bbc->p_wd_fdc == NULL) {

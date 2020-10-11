@@ -3,7 +3,8 @@
 void
 config_apply_master_128_mos320(const char** p_os_rom_name,
                                const char** p_rom_names,
-                               int* p_sideways_ram) {
+                               int* p_sideways_ram,
+                               int* p_wd_1770_type) {
   *p_os_rom_name = "roms/mos3.20/mos.rom";
 
   p_rom_names[0x9] = "roms/mos3.20/dfs.rom";
@@ -18,12 +19,16 @@ config_apply_master_128_mos320(const char** p_os_rom_name,
   p_sideways_ram[0x5] = 1;
   p_sideways_ram[0x6] = 1;
   p_sideways_ram[0x7] = 1;
+
+  /* Plain 1770. */
+  *p_wd_1770_type = 1;
 }
 
 void
 config_apply_master_compact(const char** p_os_rom_name,
                             const char** p_rom_names,
-                            int* p_sideways_ram) {
+                            int* p_sideways_ram,
+                            int* p_wd_1770_type) {
   *p_os_rom_name = "roms/compact/os51";
 
   p_rom_names[0xD] = "roms/compact/adfs210";
@@ -34,4 +39,10 @@ config_apply_master_compact(const char** p_os_rom_name,
   p_sideways_ram[0x5] = 1;
   p_sideways_ram[0x6] = 1;
   p_sideways_ram[0x7] = 1;
+
+  /* The BBC Master Compact has a WD1772.
+   * It's mostly the same as a 1770 but it settles faster (15ms vs. 30ms) and
+   * optionally can step a lot faster. ADFS does use this, at 3ms.
+   */
+  *p_wd_1770_type = 2;
 }

@@ -81,7 +81,7 @@ main(int argc, const char* argv[]) {
   int fasttape_flag = 0;
   int convert_hfe_flag = 0;
   int no_dfs_flag = 0;
-  int wd_1770_flag = 0;
+  int wd_1770_type = 0;
   int watford_flag = 0;
   int is_master_flag = 0;
   int32_t debug_stop_addr = -1;
@@ -226,19 +226,21 @@ main(int argc, const char* argv[]) {
     } else if (!strcmp(arg, "-no-dfs")) {
       no_dfs_flag = 1;
     } else if (!strcmp(arg, "-1770")) {
-      wd_1770_flag = 1;
+      wd_1770_type = 1;
     } else if (!strcmp(arg, "-watford")) {
       watford_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
                                      &rom_names[0],
-                                     &sideways_ram[0]);
+                                     &sideways_ram[0],
+                                     &wd_1770_type);
     } else if (!strcmp(arg, "-compact")) {
       is_master_flag = 1;
       config_apply_master_compact(&os_rom_name,
                                   &rom_names[0],
-                                  &sideways_ram[0]);
+                                  &sideways_ram[0],
+                                  &wd_1770_type);
     } else if (!strcmp(arg, "-test-map")) {
       test_map_flag = 1;
     } else if (!strcmp(arg, "-no-log-stdout")) {
@@ -323,7 +325,7 @@ main(int argc, const char* argv[]) {
   p_bbc = bbc_create(mode,
                      is_master_flag,
                      os_rom,
-                     wd_1770_flag,
+                     wd_1770_type,
                      debug_flag,
                      run_flag,
                      print_flag,
@@ -355,7 +357,7 @@ main(int argc, const char* argv[]) {
   }
   if (!no_dfs_flag && (rom_names[k_bbc_default_dfs_rom_slot] == NULL)) {
     const char* p_dfs_rom_name;
-    if (wd_1770_flag) {
+    if (wd_1770_type > 0) {
       if (watford_flag) {
         p_dfs_rom_name = "roms/WDDFS154T";
       } else {

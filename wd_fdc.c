@@ -95,6 +95,7 @@ enum {
 struct wd_fdc_struct {
   struct state_6502* p_state_6502;
   int is_master;
+  int is_1772;
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
@@ -361,12 +362,14 @@ wd_fdc_timer_fired(void* p) {
 struct wd_fdc_struct*
 wd_fdc_create(struct state_6502* p_state_6502,
               int is_master,
+              int is_1772,
               struct timing_struct* p_timing,
               struct bbc_options* p_options) {
   struct wd_fdc_struct* p_fdc = util_mallocz(sizeof(struct wd_fdc_struct));
 
   p_fdc->p_state_6502 = p_state_6502;
   p_fdc->is_master = is_master;
+  p_fdc->is_1772 = is_1772;
   p_fdc->p_timing = p_timing;
   p_fdc->timer_id = timing_register_timer(p_timing,
                                           wd_fdc_timer_fired,
@@ -649,10 +652,18 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
       step_rate_ms = 12;
       break;
     case 2:
-      step_rate_ms = 20;
+      if (p_fdc->is_1772) {
+        step_rate_ms = 2;
+      } else {
+        step_rate_ms = 20;
+      }
       break;
     case 3:
-      step_rate_ms = 30;
+      if (p_fdc->is_1772) {
+        step_rate_ms = 3;
+      } else {
+        step_rate_ms = 30;
+      }
       break;
     }
     p_fdc->command_step_rate_ms = step_rate_ms;
@@ -1219,7 +1230,11 @@ wd_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
       p_fdc->status_register |= k_wd_fdc_status_type_I_spin_up_done;
     }
     if (p_fdc->is_command_settle) {
-      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, k_wd_fdc_1770_settle_ms);
+      uint32_t settle_ms = k_wd_fdc_1770_settle_ms;
+      if (p_fdc->is_1772) {
+        settle_ms /= 2;
+      }
+      wd_fdc_start_timer(p_fdc, k_wd_fdc_timer_settle, settle_ms);
     } else {
       wd_fdc_dispatch_command(p_fdc);
     }

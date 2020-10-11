@@ -12,6 +12,7 @@ struct timing_struct;
 
 struct wd_fdc_struct* wd_fdc_create(struct state_6502* p_state_6502,
                                     int is_master,
+                                    int is_1772,
                                     struct timing_struct* p_timing,
                                     struct bbc_options* p_options);
 void wd_fdc_destroy(struct wd_fdc_struct* p_fdc);
