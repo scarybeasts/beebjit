@@ -171,11 +171,11 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   if (p_file_buf[8] != '\0') {
     util_bail("hfe file revision not 0");
   }
-  if (p_file_buf[11] != 2) {
+  if ((p_file_buf[11] != 2) && (p_file_buf[11] != 0)) {
     if (p_file_buf[11] == 0xFF) {
       log_do_log(k_log_disc, k_log_warning, "unknown encoding, trying anyway");
     } else {
-      util_bail("hfe encoding not ISOIBM_FM_ENCODING: %d",
+      util_bail("hfe encoding not ISOIBM_(M)FM_ENCODING: %d",
                 (int) p_file_buf[11]);
     }
   }
