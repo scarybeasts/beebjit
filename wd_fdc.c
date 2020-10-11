@@ -1016,13 +1016,11 @@ wd_fdc_mark_detector_triggered(struct wd_fdc_struct* p_fdc) {
       p_fdc->deliver_data = 0xA1;
       return 1;
     }
-    /* This other sync byte is less critical, used for index markers at the
-     * start of the track in some cases.
+    /* TODO: sync to C2 (5224).
+     * Note that an early, naive attempt had it triggering in the middle of
+     * the sector data, so we'll need to study how it actually works in
+     * detail.
      */
-    if ((mark_detector & 0x00000000FFFFFFFFull) == 0x00000000AAAA5224ull) {
-      p_fdc->deliver_data = 0xC2;
-      return 1;
-    }
     /* Tag the byte after 3 sync bytes as a marker. */
     if ((mark_detector & 0xFFFFFFFFFFFF0000ull) == 0x4489448944890000ull) {
       p_fdc->deliver_is_marker = 1;
