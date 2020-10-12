@@ -1,6 +1,8 @@
 # Build and test artifacts.
+8271.rom
 beebjit
 beebjit.exe
+make_8271_rom
 make_master_rom
 make_perf_rom
 make_test_rom
