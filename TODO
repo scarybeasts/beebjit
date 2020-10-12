@@ -8,14 +8,13 @@ get addressed before the next release.
 
 - Driving the audio subsystem too hard on Linux?
 - Poor granularity of system wakeup with audio subsystem as timer?
-- ADL file format support.
-- Fuzzy bits as weak bits.
 
 
 Fix later
 =========
 Bugs and issues not serious enough to warrant fixing before the next release.
 
+- Fuzzy bits as weak bits.
 - Update BCD for 65c12.
 - Update BRK vs. IRQ/NMI for 65c12.
 - 1 cycle 65c12 NOP vs. IRQ.

@@ -1,6 +1,7 @@
 #include "disc.h"
 
 #include "bbc_options.h"
+#include "disc_adl.h"
 #include "disc_fsd.h"
 #include "disc_hfe.h"
 #include "disc_ssd.h"
@@ -48,6 +49,8 @@ struct disc_struct {
   /* Track building. */
   struct disc_track* p_track;
   uint32_t build_index;
+  uint32_t build_pulses_index;
+  int build_last_mfm_bit;
   uint16_t crc;
 };
 
@@ -82,6 +85,9 @@ disc_create(const char* p_file_name,
   } else if (util_is_extension(p_file_name, "dsd")) {
     disc_ssd_load(p_disc, 1);
     p_disc->p_write_track_callback = disc_ssd_write_track;
+  } else if (util_is_extension(p_file_name, "adl")) {
+    disc_adl_load(p_disc);
+    p_disc->p_write_track_callback = disc_adl_write_track;
   } else if (util_is_extension(p_file_name, "fsd")) {
     disc_fsd_load(p_disc, 1, p_disc->log_protection);
   } else if (util_is_extension(p_file_name, "log")) {
@@ -267,6 +273,8 @@ disc_build_track(struct disc_struct* p_disc,
   p_disc->p_track = p_track;
   p_track->length = k_ibm_disc_bytes_per_track;
   p_disc->build_index = 0;
+  p_disc->build_pulses_index = 0;
+  p_disc->build_last_mfm_bit = 0;
 }
 
 static void
@@ -331,13 +339,90 @@ disc_build_append_fm_chunk(struct disc_struct* p_disc,
   }
 }
 
-void
-disc_build_append_crc(struct disc_struct* p_disc) {
-  /* Cache the crc because the calls below will corrupt it. */
-  uint16_t crc = p_disc->crc;
+static void
+disc_build_append_mfm_pulses(struct disc_struct* p_disc, uint16_t pulses) {
+  uint32_t merged_pulses;
+  struct disc_track* p_track = p_disc->p_track;
 
-  disc_build_append_fm_byte(p_disc, (crc >> 8));
-  disc_build_append_fm_byte(p_disc, (crc & 0xFF));
+  merged_pulses = p_track->pulses2us[p_disc->build_index];
+  if (p_disc->build_pulses_index == 0) {
+    p_disc->build_pulses_index = 16;
+    merged_pulses &= 0x0000FFFF;
+    merged_pulses |= (pulses << 16);
+  } else {
+    p_disc->build_pulses_index = 0;
+    merged_pulses &= 0xFFFF0000;
+    merged_pulses |= pulses;
+  }
+  p_track->pulses2us[p_disc->build_index] = merged_pulses;
+
+  if (p_disc->build_pulses_index == 0) {
+    p_disc->build_index++;
+    assert(p_disc->build_index <= k_ibm_disc_bytes_per_track);
+  }
+}
+
+void
+disc_build_append_mfm_byte(struct disc_struct* p_disc, uint8_t data) {
+  uint16_t pulses =
+      ibm_disc_format_mfm_to_2us_pulses(&p_disc->build_last_mfm_bit, data);
+
+  disc_build_append_mfm_pulses(p_disc, pulses);
+
+  p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, data);
+}
+
+void
+disc_build_append_repeat_mfm_byte(struct disc_struct* p_disc,
+                                  uint8_t data,
+                                  uint32_t count) {
+  uint32_t i;
+  for (i = 0; i < count; ++i) {
+    disc_build_append_mfm_byte(p_disc, data);
+  }
+}
+
+void
+disc_build_append_mfm_3x_A1_sync(struct disc_struct* p_disc) {
+  uint32_t i;
+  for (i = 0; i < 3; ++i) {
+    disc_build_append_mfm_pulses(p_disc, k_ibm_disc_mfm_a1_sync);
+    p_disc->crc = ibm_disc_format_crc_add_byte(p_disc->crc, 0xA1);
+  }
+}
+
+void
+disc_build_append_mfm_chunk(struct disc_struct* p_disc,
+                            uint8_t* p_src,
+                            uint32_t count) {
+  uint32_t i;
+  for (i = 0; i < count; ++i) {
+    disc_build_append_mfm_byte(p_disc, p_src[i]);
+  }
+}
+
+void
+disc_build_fill_mfm_byte(struct disc_struct* p_disc, uint8_t data) {
+  assert(p_disc->build_index <= k_ibm_disc_bytes_per_track);
+
+  while (p_disc->build_index < k_ibm_disc_bytes_per_track) {
+    disc_build_append_mfm_byte(p_disc, data);
+  }
+}
+
+void
+disc_build_append_crc(struct disc_struct* p_disc, int is_mfm) {
+  uint16_t crc = p_disc->crc;
+  uint8_t first_byte = (crc >> 8);
+  uint8_t second_byte = (crc & 0xFF);
+
+  if (is_mfm) {
+    disc_build_append_mfm_byte(p_disc, first_byte);
+    disc_build_append_mfm_byte(p_disc, second_byte);
+  } else {
+    disc_build_append_fm_byte(p_disc, first_byte);
+    disc_build_append_fm_byte(p_disc, second_byte);
+  }
 }
 
 void

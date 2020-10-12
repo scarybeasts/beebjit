@@ -23,11 +23,11 @@ disc_ssd_write_track(struct disc_struct* p_disc,
   uint64_t seek_pos;
   int32_t sector = -1;
 
-  assert(length == k_ibm_disc_bytes_per_track);
-
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
   int is_dsd = disc_is_double_sided(p_disc);
+
+  assert(length == k_ibm_disc_bytes_per_track);
 
   seek_pos = (track_size * track);
   if (is_dsd) {
@@ -138,7 +138,7 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
         disc_build_append_fm_byte(p_disc, 0);
         disc_build_append_fm_byte(p_disc, i_sector);
         disc_build_append_fm_byte(p_disc, 1);
-        disc_build_append_crc(p_disc);
+        disc_build_append_crc(p_disc, 0);
 
         /* Sync pattern between sector header and sector data, aka. GAP 2. */
         disc_build_append_repeat_fm_byte(p_disc, 0xFF, k_ibm_disc_std_gap2_FFs);
@@ -150,7 +150,7 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
                                              k_ibm_disc_data_mark_data_pattern,
                                              k_ibm_disc_mark_clock_pattern);
         disc_build_append_fm_chunk(p_disc, p_ssd_data, k_disc_ssd_sector_size);
-        disc_build_append_crc(p_disc);
+        disc_build_append_crc(p_disc, 0);
 
         p_ssd_data += k_disc_ssd_sector_size;
 

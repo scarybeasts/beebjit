@@ -59,6 +59,7 @@ void disc_build_track(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track);
 void disc_build_reset_crc(struct disc_struct* p_disc);
+/* FM */
 void disc_build_append_fm_data_and_clocks(struct disc_struct* p_disc,
                                           uint8_t data,
                                           uint8_t clocks);
@@ -73,7 +74,18 @@ void disc_build_append_repeat_fm_byte_with_clocks(struct disc_struct* p_disc,
 void disc_build_append_fm_chunk(struct disc_struct* p_disc,
                                 uint8_t* p_src,
                                 size_t num);
-void disc_build_append_crc(struct disc_struct* p_disc);
+/* MFM */
+void disc_build_append_mfm_byte(struct disc_struct* p_disc, uint8_t data);
+void disc_build_append_repeat_mfm_byte(struct disc_struct* p_disc,
+                                       uint8_t data,
+                                       uint32_t count);
+void disc_build_append_mfm_3x_A1_sync(struct disc_struct* p_disc);
+void disc_build_append_mfm_chunk(struct disc_struct* p_disc,
+                                 uint8_t* p_src,
+                                 uint32_t count);
+void disc_build_fill_mfm_byte(struct disc_struct* p_disc, uint8_t data);
+
+void disc_build_append_crc(struct disc_struct* p_disc, int is_mfm);
 void disc_build_append_bad_crc(struct disc_struct* p_disc);
 void disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data);
 

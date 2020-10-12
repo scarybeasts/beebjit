@@ -627,7 +627,7 @@ disc_fsd_load(struct disc_struct* p_disc,
       disc_build_append_fm_byte(p_disc, p_sector->head);
       disc_build_append_fm_byte(p_disc, p_sector->logical_sector);
       disc_build_append_fm_byte(p_disc, p_sector->logical_size);
-      disc_build_append_crc(p_disc);
+      disc_build_append_crc(p_disc, 0);
 
       /* Sync pattern between sector header and sector data, aka. GAP 2. */
       disc_build_append_repeat_fm_byte(p_disc, 0xFF, gap2_ff_count);
@@ -669,7 +669,7 @@ disc_fsd_load(struct disc_struct* p_disc,
         if (p_sector->is_crc_error) {
           disc_build_append_bad_crc(p_disc);
         } else {
-          disc_build_append_crc(p_disc);
+          disc_build_append_crc(p_disc, 0);
         }
       }
 
