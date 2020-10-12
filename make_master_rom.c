@@ -254,8 +254,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_JMP(p_buf, k_abs, 0xC380);
 
-  /* Exit sequence. */
+  /* Test for an assert that hit with Stryker's Run. */
   set_new_index(p_buf, 0x0380);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE34);
+  emit_LDX(p_buf, k_imm, 0x80);
+  emit_LDA(p_buf, k_abx, 0x7F80);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  /* This asserted due to page crossing. */
+  emit_STA(p_buf, k_abx, 0x7F80);
+  emit_LDA(p_buf, k_abs, 0x8000);
+  emit_CMP(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xC3C0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x03C0);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */

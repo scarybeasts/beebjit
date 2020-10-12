@@ -218,7 +218,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_MEMORY_READ_POLL_IRQ(addr_read)                                \
   p_interp->callback_intf = intf;                                             \
   assert((p_interp->callback_do_irq = -1) == -1);                             \
-  v= memory_read_callback(p_memory_obj, addr_read, pc, 1);                    \
+  v = memory_read_callback(p_memory_obj, addr_read, pc, 1);                   \
   do_irq = p_interp->callback_do_irq;                                         \
   assert(do_irq != -1);                                                       \
   countdown = timing_get_countdown(p_timing);
@@ -339,9 +339,15 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
-    addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
-    INTERP_TIMING_ADVANCE(3);                                                 \
-    INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                   \
+    if (is_65c12) {                                                           \
+      INTERP_TIMING_ADVANCE(3);                                               \
+      interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
+      INTERP_TIMING_ADVANCE(1);                                               \
+    } else {                                                                  \
+      addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                     \
+      INTERP_TIMING_ADVANCE(3);                                               \
+      INTERP_MEMORY_READ_POLL_IRQ(addr_temp);                                 \
+    }                                                                         \
     INSTR;                                                                    \
     INTERP_MEMORY_WRITE(addr);                                                \
     goto check_irq;                                                           \
