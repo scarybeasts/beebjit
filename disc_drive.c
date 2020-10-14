@@ -43,7 +43,6 @@ struct disc_drive_struct {
   uint32_t head_position;
   /* Extra precision for head position, needed for MFM. */
   uint32_t pulse_position;
-  uint32_t last_ticks;
 };
 
 static struct disc_struct*
@@ -57,8 +56,12 @@ disc_get_fraction_for_position(uint32_t track_length,
                                uint32_t pulse_position) {
   double ret;
 
-  assert(head_position < track_length);
-  assert(pulse_position <= 32);
+  assert(head_position <= track_length);
+  if (head_position == track_length) {
+    assert(pulse_position == 0);
+  } else {
+    assert(pulse_position < 32);
+  }
 
   ret = head_position;
   ret += (pulse_position / (double) 32);
@@ -98,9 +101,8 @@ disc_drive_get_track_length(struct disc_drive_struct* p_drive) {
 static void
 disc_drive_timer_callback(void* p) {
   uint32_t track_length;
-  uint64_t next_ticks;
-  uint64_t last_ticks;
-  uint32_t ticks_delta;
+  uint32_t this_ticks;
+  uint32_t next_ticks;
   uint32_t num_pulses;
 
   uint32_t pulses = 0;
@@ -111,9 +113,6 @@ disc_drive_timer_callback(void* p) {
   int is_side_upper = p_drive->is_side_upper;
   uint32_t head_position = p_drive->head_position;
   uint32_t pulse_position = p_drive->pulse_position;
-
-  head_position = p_drive->head_position;
-  track_length = disc_drive_get_track_length(p_drive);
 
   if (p_disc != NULL) {
     pulses = disc_read_pulses(p_disc, is_side_upper, track, head_position);
@@ -153,6 +152,17 @@ disc_drive_timer_callback(void* p) {
                                num_pulses);
   }
 
+  /* Reload in case the callback changed things. */
+  head_position = p_drive->head_position;
+  pulse_position = p_drive->pulse_position;
+  track_length = disc_drive_get_track_length(p_drive);
+  assert(head_position < track_length);
+
+  this_ticks = disc_get_time_for_position(track_length,
+                                          head_position,
+                                          pulse_position);
+
+  /* Advance head position. */
   if (num_pulses == 16) {
     if (pulse_position == 0) {
       pulse_position = 16;
@@ -164,7 +174,12 @@ disc_drive_timer_callback(void* p) {
     head_position++;
   }
 
+  next_ticks = disc_get_time_for_position(track_length,
+                                          head_position,
+                                          pulse_position);
+
   if (head_position == track_length) {
+    assert(pulse_position == 0);
     head_position = 0;
 
     if (p_disc != NULL) {
@@ -172,33 +187,14 @@ disc_drive_timer_callback(void* p) {
     }
   }
 
-  next_ticks = disc_get_time_for_position(track_length,
-                                          head_position,
-                                          pulse_position);
-  last_ticks = p_drive->last_ticks;
-  assert(last_ticks < k_disc_drive_ticks_per_revolution);
-
-  if (next_ticks == 0) {
-    /* Handle initial state, or track wrap-around. */
-    if (last_ticks == 0) {
-      ticks_delta = 1;
-    } else {
-      /* Track wrap-around. */
-      ticks_delta = (k_disc_drive_ticks_per_revolution - last_ticks);
-    }
-  } else {
-    ticks_delta = (next_ticks - last_ticks);
-  }
-
-  p_drive->last_ticks = next_ticks;
-
-  assert(ticks_delta > 0);
-  (void) timing_set_timer_value(p_drive->p_timing,
-                                p_drive->timer_id,
-                                ticks_delta);
-
   p_drive->head_position = head_position;
   p_drive->pulse_position = pulse_position;
+
+  assert(next_ticks > this_ticks);
+
+  (void) timing_set_timer_value(p_drive->p_timing,
+                                p_drive->timer_id,
+                                (next_ticks - this_ticks));
 }
 
 struct disc_drive_struct*
@@ -250,7 +246,6 @@ disc_drive_power_on_reset(struct disc_drive_struct* p_drive) {
   p_drive->track = 0;
   p_drive->head_position = 0;
   p_drive->pulse_position = 0;
-  p_drive->last_ticks = 0;
   /* NOTE: there's a decision here: does a power-on reset of the beeb change a
    * user "physical" action -- changing the disc in the drive in this case.
    * We decide it does. The disc in the drive is reset to the first in the
@@ -287,9 +282,6 @@ disc_drive_set_position_fraction(struct disc_drive_struct* p_drive,
   uint32_t new_head_position = (track_length * fraction);
   p_drive->head_position = new_head_position;
   p_drive->pulse_position = 0;
-  p_drive->last_ticks = disc_get_time_for_position(track_length,
-                                                   new_head_position,
-                                                   0);
 }
 
 void
