@@ -1137,16 +1137,17 @@ intel_fdc_start_command(struct intel_fdc_struct* p_fdc) {
 
   /* Select the drive before logging so that head position is reported. */
   /* The MMIO clocks register really is used as temporary storage for this. */
-  p_fdc->mmio_clocks = (command_reg & 0xC0);
-  if (p_fdc->mmio_clocks != (p_fdc->drive_out & 0xC0)) {
+  select_bits = (command_reg & 0xC0);
+  p_fdc->mmio_clocks = select_bits;
+  if (select_bits != (p_fdc->drive_out & 0xC0)) {
+    uint8_t new_select_bits = select_bits;
     /* A change of drive select bits clears all drive out bits other than side
      * select.
      * For example, the newly selected drive won't have the load head signal
      * active. This spins down any previously selected drive.
      */
-    select_bits = p_fdc->mmio_clocks;
-    select_bits |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
-    intel_fdc_set_drive_out(p_fdc, select_bits);
+    new_select_bits |= (p_fdc->drive_out & k_intel_fdc_drive_out_side);
+    intel_fdc_set_drive_out(p_fdc, new_select_bits);
   }
 
   /* Mask out drive select bits from command register, and parameter count. */
@@ -1591,9 +1592,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
   int is_done;
   uint8_t data;
   uint8_t routine;
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-
-  assert(p_current_drive != NULL);
 
   if (intel_fdc_is_irq_callbacks(p_fdc)) {
     if (!intel_fdc_check_data_loss_ok(p_fdc)) {

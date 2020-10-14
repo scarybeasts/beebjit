@@ -1114,7 +1114,7 @@ wd_write_byte(struct wd_fdc_struct* p_fdc,
               int is_mfm,
               uint8_t byte,
               int is_marker) {
-  uint32_t pulses;
+  uint32_t pulses = 0;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
 
   if (is_mfm) {

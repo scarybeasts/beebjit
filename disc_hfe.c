@@ -400,9 +400,10 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     uint32_t j;
     uint32_t* p_pulses;
     uint32_t index = (i_track * 4);
-    uint32_t track_length = disc_get_track_length(p_disc, 0, i_track);
 
-    assert(track_length == k_ibm_disc_bytes_per_track);
+    assert(disc_get_track_length(p_disc, 0, i_track) ==
+               k_ibm_disc_bytes_per_track);
+
     /* Stop when we hit unused tracks. */
     if (!disc_is_track_used(p_disc, i_track)) {
       break;
