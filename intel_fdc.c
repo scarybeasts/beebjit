@@ -765,9 +765,8 @@ static void
 intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
   uint32_t step_rate;
   struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  assert(p_current_drive != NULL);
 
-  if ((disc_drive_get_track(p_current_drive) == 0) &&
+  if (intel_fdc_get_TRK0(p_fdc) &&
       (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
     /* Seek to 0 done, TRK0 detected. */
     intel_fdc_do_load_head(p_fdc, 1);
@@ -779,22 +778,27 @@ intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
 
   p_fdc->regs[k_intel_fdc_register_internal_seek_count]--;
 
-  if (p_fdc->drive_out & k_intel_fdc_drive_out_direction) {
-    disc_drive_seek_track(p_current_drive, 1);
-  } else {
-    disc_drive_seek_track(p_current_drive, -1);
+  if (p_current_drive != NULL) {
+    if (p_fdc->drive_out & k_intel_fdc_drive_out_direction) {
+      disc_drive_seek_track(p_current_drive, 1);
+    } else {
+      disc_drive_seek_track(p_current_drive, -1);
+    }
   }
 
   step_rate = p_fdc->regs[k_intel_fdc_register_head_step_rate];
   if (step_rate == 0) {
-    util_bail("drive timed seek not handled");
+    /* Seek time is up to drive. Let's just say it can handle 3ms. */
+    step_rate = 3;
+  } else {
+    /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
+     * or 2ms for 5.25" drives. 1ms might be your best guess from the
+     * datasheet, but timing on a real machine, it appears to be 2ms.
+     */
+    step_rate *= 2;
   }
 
-  /* EMU NOTE: the datasheet is ambiguous about whether the units are 1ms
-   * or 2ms for 5.25" drives. 1ms might be your best guess from the
-   * datasheet, but timing on a real machine, it appears to be 2ms.
-   */
-  intel_fdc_set_timer_ms(p_fdc, k_intel_fdc_timer_seek_step, (step_rate * 2));
+  intel_fdc_set_timer_ms(p_fdc, k_intel_fdc_timer_seek_step, step_rate);
 }
 
 static void
