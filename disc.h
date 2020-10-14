@@ -23,6 +23,8 @@ struct disc_struct* disc_create_from_raw(const char* p_file_name,
                                          const char* p_raw_spec);
 void disc_destroy(struct disc_struct* p_disc);
 
+int disc_is_track_used(struct disc_struct* p_disc, uint32_t track);
+
 const char* disc_get_file_name(struct disc_struct* p_disc);
 struct util_file* disc_get_file(struct disc_struct* p_disc);
 uint8_t* disc_allocate_format_metadata(struct disc_struct* p_disc,

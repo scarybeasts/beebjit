@@ -45,6 +45,7 @@ struct disc_struct {
   int is_dirty;
   int32_t dirty_side;
   int32_t dirty_track;
+  uint32_t tracks_used;
 
   /* Track building. */
   struct disc_track* p_track;
@@ -54,6 +55,23 @@ struct disc_struct {
   uint16_t crc;
 };
 
+static void
+disc_init_surface(struct disc_struct* p_disc, uint8_t byte) {
+  uint32_t i;
+  for (i = 0; i < k_ibm_disc_tracks_per_disc; ++i) {
+    p_disc->lower_side.tracks[i].length = k_ibm_disc_bytes_per_track;
+    (void) memset(&p_disc->lower_side.tracks[i].pulses2us,
+                  byte,
+                  sizeof(p_disc->lower_side.tracks[i].pulses2us));
+    p_disc->upper_side.tracks[i].length = k_ibm_disc_bytes_per_track;
+    (void) memset(&p_disc->upper_side.tracks[i].pulses2us,
+                  byte,
+                  sizeof(p_disc->upper_side.tracks[i].pulses2us));
+  }
+
+  p_disc->tracks_used = 0;
+}
+
 struct disc_struct*
 disc_create(const char* p_file_name,
             int is_writeable,
@@ -62,7 +80,9 @@ disc_create(const char* p_file_name,
             struct bbc_options* p_options) {
   int is_file_writeable = 0;
   int is_hfe = 0;
+
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
+  disc_init_surface(p_disc, 0x00);
 
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
@@ -73,6 +93,7 @@ disc_create(const char* p_file_name,
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
   p_disc->dirty_track = -1;
+  p_disc->tracks_used = 0;
 
   if (is_mutable) {
     is_file_writeable = 1;
@@ -130,12 +151,10 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
   uint32_t track_pos;
 
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
-
   /* For now, fill unused space with 1 bits, as opposed to empty disc surface,
    * to get deterministic behavior.
    */
-  (void) memset(&p_disc->lower_side, '\xff', sizeof(p_disc->lower_side));
-  (void) memset(&p_disc->upper_side, '\xff', sizeof(p_disc->upper_side));
+  disc_init_surface(p_disc, 0xFF);
 
   p_disc->p_file_name = util_strdup(p_file_name);
   p_disc->p_file = util_file_open(p_file_name, 1, 1);
@@ -145,6 +164,7 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
   p_disc->dirty_track = -1;
+  p_disc->tracks_used = 0;
 
   /* Fill disc bytes from the raw spec. */
   len = strlen(p_raw_spec);
@@ -197,6 +217,21 @@ disc_destroy(struct disc_struct* p_disc) {
   util_free(p_disc);
 }
 
+static void
+disc_set_track_used(struct disc_struct* p_disc, uint32_t track) {
+  if ((track + 1) > p_disc->tracks_used) {
+    p_disc->tracks_used = (track + 1);
+  }
+}
+
+int
+disc_is_track_used(struct disc_struct* p_disc, uint32_t track) {
+  if (track < p_disc->tracks_used) {
+    return 1;
+  }
+  return 0;
+}
+
 void
 disc_write_pulses(struct disc_struct* p_disc,
                   int is_side_upper,
@@ -232,6 +267,11 @@ disc_flush_writes(struct disc_struct* p_disc) {
     assert(track == -1);
     return;
   }
+
+  assert(is_side_upper != -1);
+  assert(track != -1);
+
+  disc_set_track_used(p_disc, track);
 
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
@@ -275,6 +315,8 @@ disc_build_track(struct disc_struct* p_disc,
   p_disc->build_index = 0;
   p_disc->build_pulses_index = 0;
   p_disc->build_last_mfm_bit = 0;
+
+  disc_set_track_used(p_disc, track);
 }
 
 static void
@@ -479,7 +521,6 @@ disc_set_track_length(struct disc_struct* p_disc,
                       uint32_t length) {
   struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
 
-  assert(p_track->length == 0);
   assert(length <= k_disc_max_bytes_per_track);
   assert(length > 0);
   p_track->length = length;
@@ -499,9 +540,11 @@ uint32_t
 disc_get_track_length(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track) {
+  uint32_t length;
   struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
-
-  return p_track->length;
+  length = p_track->length;
+  assert(length > 0);
+  return length;
 }
 
 uint32_t

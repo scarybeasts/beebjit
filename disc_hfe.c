@@ -402,11 +402,11 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     uint32_t index = (i_track * 4);
     uint32_t track_length = disc_get_track_length(p_disc, 0, i_track);
 
-    if (track_length == 0) {
-      /* Stop when we hit uninitialized tracks. */
+    assert(track_length == k_ibm_disc_bytes_per_track);
+    /* Stop when we hit unused tracks. */
+    if (!disc_is_track_used(p_disc, i_track)) {
       break;
     }
-    assert(track_length == k_ibm_disc_bytes_per_track);
 
     /* Write all zeros to the track's backing store. Without this, the file
      * wasn't getting extended correctly for any unused upper side of the
