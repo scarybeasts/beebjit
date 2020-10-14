@@ -65,6 +65,7 @@ struct keyboard_struct {
   struct keyboard_state* p_virtual_keyboard;
   struct keyboard_state* p_physical_keyboard;
   struct keyboard_state* p_active;
+  uint8_t keyboard_links;
 
   int log_replay;
 };
@@ -707,6 +708,11 @@ keyboard_destroy(struct keyboard_struct* p_keyboard) {
 }
 
 void
+keyboard_set_links(struct keyboard_struct* p_keyboard, uint8_t bits) {
+  p_keyboard->keyboard_links = bits;
+}
+
+void
 keyboard_set_virtual_updated_callback(struct keyboard_struct* p_keyboard,
                                       void (*p_callback)(void*),
                                       void* p_callback_object) {
@@ -725,12 +731,24 @@ keyboard_set_fast_mode_callback(struct keyboard_struct* p_keyboard,
 
 void
 keyboard_power_on_reset(struct keyboard_struct* p_keyboard) {
+  uint32_t i;
+  uint8_t keyboard_links = p_keyboard->keyboard_links;
+
   (void) memset(p_keyboard->p_virtual_keyboard,
                 '\0',
                 sizeof(struct keyboard_state));
   (void) memset(p_keyboard->p_physical_keyboard,
                 '\0',
                 sizeof(struct keyboard_state));
+
+  for (i = 0; i < 8; ++i) {
+    int bit = (keyboard_links & 1);
+    keyboard_links >>= 1;
+    if (bit) {
+      p_keyboard->p_virtual_keyboard->bbc_keys[0][9 - i] = 1;
+      p_keyboard->p_physical_keyboard->bbc_keys[0][9 - i] = 1;
+    }
+  }
 }
 
 void

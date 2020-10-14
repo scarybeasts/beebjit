@@ -1558,8 +1558,6 @@ bbc_create(int mode,
 
   debug_init(p_debug);
 
-  bbc_power_on_reset(p_bbc);
-
   return p_bbc;
 }
 

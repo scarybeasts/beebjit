@@ -93,6 +93,7 @@ main(int argc, const char* argv[]) {
   uint32_t num_discs_0 = 0;
   uint32_t num_discs_1 = 0;
   uint32_t num_tapes = 0;
+  int keyboard_links = -1;
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -197,6 +198,9 @@ main(int argc, const char* argv[]) {
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-log-file")) {
       log_set_log_filename(val1);
+      ++i_args;
+    } else if (has_1 && !strcmp(arg, "-keyboard-links")) {
+      (void) sscanf(val1, "%"PRIx32, &keyboard_links);
       ++i_args;
     } else if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
@@ -424,13 +428,16 @@ main(int argc, const char* argv[]) {
     }
   }
 
-  /* Set up keyboard capture / replay. */
+  /* Set up keyboard capture / replay / links. */
   p_keyboard = bbc_get_keyboard(p_bbc);
   if (capture_name) {
     keyboard_set_capture_file_name(p_keyboard, capture_name);
   }
   if (replay_name) {
     keyboard_set_replay_file_name(p_keyboard, replay_name);
+  }
+  if (keyboard_links != -1) {
+    keyboard_set_links(p_keyboard, keyboard_links);
   }
 
   p_render = bbc_get_render(p_bbc);
@@ -497,6 +504,8 @@ main(int argc, const char* argv[]) {
                           handle_channel_write_bbc,
                           handle_channel_read_ui,
                           handle_channel_write_ui);
+
+  bbc_power_on_reset(p_bbc);
 
   bbc_run_async(p_bbc);
 
