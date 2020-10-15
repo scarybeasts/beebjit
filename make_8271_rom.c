@@ -138,7 +138,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
-  /* Format then read IDs test. */
+  /* Format, read IDs, write, read test. */
   set_new_index(p_buf, 0x01C0);
   /* Go ready, seek 0, seek 10. */
   emit_JSR(p_buf, 0xE200);
@@ -169,10 +169,39 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x09);
   emit_LDA(p_buf, k_abs, 0x1027);
   emit_REQUIRE_EQ(p_buf, 0x01);
-  emit_JMP(p_buf, k_abs, 0xC240);
+  /* Write a sector, read it back. */
+  emit_LDX(p_buf, k_imm, 0);
+  emit_TXA(p_buf);
+  emit_STA(p_buf, k_abx, 0x1000);
+  emit_INX(p_buf);
+  emit_BNE(p_buf, -7);
+  /* Write. */
+  emit_LDA(p_buf, k_imm, 10);
+  emit_LDX(p_buf, k_imm, 2);
+  emit_LDY(p_buf, k_imm, 0x21);
+  emit_JSR(p_buf, 0xE340);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_STA(p_buf, k_abs, 0x10FF);
+  /* Read. */
+  emit_LDA(p_buf, k_imm, 10);
+  emit_LDX(p_buf, k_imm, 2);
+  emit_LDY(p_buf, k_imm, 0x21);
+  emit_JSR(p_buf, 0xE380);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_abs, 0x1001);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_LDA(p_buf, k_abs, 0x10FF);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_JMP(p_buf, k_abs, 0xC280);
 
   /* Exit sequence. */
-  set_new_index(p_buf, 0x0240);
+  set_new_index(p_buf, 0x0280);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
@@ -363,6 +392,50 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0);
   emit_JSR(p_buf, 0xE080);
   emit_LDA(p_buf, k_imm, 0x0A);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_LDX(p_buf, k_abs, 0xFE81);
+  emit_RTS(p_buf);
+
+  /* WRITE DATA */
+  set_new_index(p_buf, 0x2340);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_STX(p_buf, k_zpg, 0xF1);
+  emit_STY(p_buf, k_zpg, 0xF2);
+  /* Reset buffers and NMI handler, for write. */
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xE2C0);
+  /* Write data, 3 parameters. Track, sector, length / sectors. */
+  emit_LDA(p_buf, k_imm, 0x0B);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_zpg, 0xF1);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_zpg, 0xF2);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_LDX(p_buf, k_abs, 0xFE81);
+  emit_RTS(p_buf);
+
+  /* READ DATA */
+  set_new_index(p_buf, 0x2380);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_STX(p_buf, k_zpg, 0xF1);
+  emit_STY(p_buf, k_zpg, 0xF2);
+  /* Reset buffers and NMI handler, for read. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE2C0);
+  /* Read data, 3 parameters. Track, sector, length / sectors. */
+  emit_LDA(p_buf, k_imm, 0x13);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_zpg, 0xF1);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_zpg, 0xF2);
   emit_JSR(p_buf, 0xE080);
   emit_JSR(p_buf, 0xE000);
   emit_LDX(p_buf, k_abs, 0xFE81);
