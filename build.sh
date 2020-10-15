@@ -55,4 +55,8 @@ echo 'Running timing.rom, jit, fast, debug.'
 echo 'Running master.rom, interpreter.'
 ./beebjit -master -os master.rom -test-map -expect 434241 -mode interp
 
+echo 'Running 8271.rom, interpreter.'
+./beebjit -os 8271.rom -0 test/empty/0bytefile.ssd -writeable -test-map \
+    -mode interp
+
 echo 'All is well!'

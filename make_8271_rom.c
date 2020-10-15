@@ -32,10 +32,10 @@ main(int argc, const char* argv[]) {
   (void) memset(p_mem, '\xF2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
-  /* Reset vector: jump to 0xC000, start of OS ROM. */
+  /* Reset vector: jump to $C000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
-  /* NMI vector. */
+  /* NMI vector: $0D00 */
   p_mem[0x3FFA] = 0x00;
   p_mem[0x3FFB] = 0x0D;
 
@@ -138,8 +138,41 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC1C0);
 
-  /* Exit sequence. */
+  /* Format then read IDs test. */
   set_new_index(p_buf, 0x01C0);
+  /* Go ready, seek 0, seek 10. */
+  emit_JSR(p_buf, 0xE200);
+  emit_LDA(p_buf, k_imm, 0);
+  emit_JSR(p_buf, 0xE140);
+  emit_LDA(p_buf, k_imm, 10);
+  emit_JSR(p_buf, 0xE140);
+  /* Set up format buffer, format. */
+  emit_LDA(p_buf, k_imm, 10);
+  emit_JSR(p_buf, 0xE240);
+  emit_LDA(p_buf, k_imm, 10);
+  emit_JSR(p_buf, 0xE280);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Read IDs. */
+  emit_LDA(p_buf, k_imm, 10);
+  emit_JSR(p_buf, 0xE300);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Check the last ID read back ok. */
+  emit_LDA(p_buf, k_abs, 0x1024);
+  emit_REQUIRE_EQ(p_buf, 0x0A);
+  emit_LDA(p_buf, k_abs, 0x1025);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_LDA(p_buf, k_abs, 0x1026);
+  emit_REQUIRE_EQ(p_buf, 0x09);
+  emit_LDA(p_buf, k_abs, 0x1027);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xC240);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0240);
   emit_EXIT(p_buf);
 
   /* Helper functions at $E000+. */
@@ -201,6 +234,11 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_zpg, 0xF0);
   emit_JSR(p_buf, 0xE080);
   emit_JSR(p_buf, 0xE000);
+  /* TODO: apart from returning the result, this is needed to clear the
+   * completion interrupt flag. But on real hardware, I'm not sure I'm seeing
+   * completion interrupt for seek. The datasheet says there should be one.
+   */
+  emit_LDX(p_buf, k_abs, 0xFE81);
   emit_RTS(p_buf);
 
   /* READ DRIVE STATUS */
@@ -223,6 +261,150 @@ main(int argc, const char* argv[]) {
   emit_LDA(p_buf, k_imm, 0x40);
   emit_STA(p_buf, k_abs, 0x0D02);
   emit_RTS(p_buf);
+
+  /* Go ready. */
+  set_new_index(p_buf, 0x2200);
+  /* Select drive 0, load head. */
+  emit_LDA(p_buf, k_imm, 0x23);
+  emit_LDX(p_buf, k_imm, 0x48);
+  emit_JSR(p_buf, 0xE0C0);
+  /* Wait for drive ready. */
+  emit_JSR(p_buf, 0xE180);
+  emit_LDA(p_buf, k_abs, 0xFE81);
+  emit_AND(p_buf, k_imm, 0x04);
+  emit_BEQ(p_buf, -10);
+  emit_RTS(p_buf);
+
+  /* Set up format buffer. */
+  set_new_index(p_buf, 0x2240);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  /* Buffer pointer, 0x60 pointing to 0x1000. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x60);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x61);
+  emit_LDX(p_buf, k_imm, 0);
+  emit_LDY(p_buf, k_imm, 0);
+  /* Loop here. */
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_STA(p_buf, k_idy, 0x60);
+  emit_INY(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_idy, 0x60);
+  emit_INY(p_buf);
+  emit_TXA(p_buf);
+  emit_STA(p_buf, k_idy, 0x60);
+  emit_INY(p_buf);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_idy, 0x60);
+  emit_INY(p_buf);
+  emit_INX(p_buf);
+  emit_CPX(p_buf, k_imm, 0x10);
+  emit_BNE(p_buf, -24);
+  emit_RTS(p_buf);
+
+  /* FORMAT */
+  set_new_index(p_buf, 0x2280);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  /* Reset buffers and NMI handler, for write. */
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0xE2C0);
+  /* Format, 5 parameters. Track, GAP3, length / sectors, GAP5, GAP1. */
+  emit_LDA(p_buf, k_imm, 0x23);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 21);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 0x2A);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 16);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_LDX(p_buf, k_abs, 0xFE81);
+  emit_RTS(p_buf);
+
+  /* Reset buffers and NMI handler. */
+  set_new_index(p_buf, 0x22C0);
+  /* Save write flag. */
+  emit_STA(p_buf, k_zpg, 0x62);
+  /* Buffer pointer. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x60);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x61);
+  /* Non-data NMI count. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x63);
+  /* $0D00 to JMP $F000. */
+  emit_LDA(p_buf, k_imm, 0x4C);
+  emit_STA(p_buf, k_abs, 0x0D00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x0D01);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_STA(p_buf, k_abs, 0x0D02);
+  emit_RTS(p_buf);
+
+  /* READ ID */
+  set_new_index(p_buf, 0x2300);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  /* Reset buffers and NMI handler, for read. */
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE2C0);
+  /* Read ID, 3 parameters. Track, 0, sectors. */
+  emit_LDA(p_buf, k_imm, 0x1B);
+  emit_ORA(p_buf, k_zpg, 0x50);
+  emit_JSR(p_buf, 0xE040);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 0);
+  emit_JSR(p_buf, 0xE080);
+  emit_LDA(p_buf, k_imm, 0x0A);
+  emit_JSR(p_buf, 0xE080);
+  emit_JSR(p_buf, 0xE000);
+  emit_LDX(p_buf, k_abs, 0xFE81);
+  emit_RTS(p_buf);
+
+  /* Jack of all trades NMI handler. */
+  set_new_index(p_buf, 0x3000);
+  emit_PHA(p_buf);
+  emit_TYA(p_buf);
+  emit_PHA(p_buf);
+  emit_LDA(p_buf, k_abs, 0xFE80);
+  emit_AND(p_buf, k_imm, 0x04);
+  emit_BNE(p_buf, 54);
+  /* Non-data NMI. */
+  emit_INC(p_buf, k_zpg, 0x63);
+  emit_PLA(p_buf);
+  emit_TAY(p_buf);
+  emit_PLA(p_buf);
+  emit_RTI(p_buf);
+  set_new_index(p_buf, 0x3040);
+  /* Data NMI. */
+  emit_LDA(p_buf, k_zpg, 0x62);
+  emit_BEQ(p_buf, 60);
+  /* Write NMI. */
+  emit_LDY(p_buf, k_imm, 0);
+  emit_LDA(p_buf, k_idy, 0x60);
+  emit_STA(p_buf, k_abs, 0xFE84);
+  emit_INC(p_buf, k_zpg, 0x60);
+  emit_PLA(p_buf);
+  emit_TAY(p_buf);
+  emit_PLA(p_buf);
+  emit_RTI(p_buf);
+  set_new_index(p_buf, 0x3080);
+  /* Read NMI. */
+  emit_LDA(p_buf, k_abs, 0xFE84);
+  emit_LDY(p_buf, k_imm, 0);
+  emit_STA(p_buf, k_idy, 0x60);
+  emit_INC(p_buf, k_zpg, 0x60);
+  emit_PLA(p_buf);
+  emit_TAY(p_buf);
+  emit_PLA(p_buf);
+  emit_RTI(p_buf);
 
   fd = open("8271.rom", O_CREAT | O_WRONLY, 0600);
   if (fd < 0) {

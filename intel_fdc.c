@@ -1606,8 +1606,6 @@ intel_fdc_byte_callback_writing(struct intel_fdc_struct* p_fdc) {
     if (!intel_fdc_check_data_loss_ok(p_fdc)) {
       return;
     }
-    data = p_fdc->regs[k_intel_fdc_register_internal_data];
-    p_fdc->mmio_data = data;
     intel_fdc_status_raise(p_fdc, (k_intel_fdc_status_flag_nmi |
                                        k_intel_fdc_status_flag_need_data));
   }
@@ -1981,7 +1979,9 @@ intel_fdc_check_index_pulse(struct intel_fdc_struct* p_fdc) {
 static void
 intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   uint32_t i;
+  uint8_t data_register;
 
+  (void) count;
   assert(count == 32);
 
   struct intel_fdc_struct* p_fdc = (struct intel_fdc_struct*) p;
@@ -2000,6 +2000,14 @@ intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
                                                        p_fdc->mmio_data);
     disc_drive_write_pulses(p_current_drive, pulses);
   }
+
+  /* The external data register is always copied across to the bit processor's
+   * MMIO data register. If a write command is in a state where it needed to
+   * provide a data byte internally (i.e. a GAP byte, marker, etc.), it
+   * overrides by re-writing the MMIO data register in the state machine below.
+   */
+  data_register = p_fdc->regs[k_intel_fdc_register_internal_data];
+  p_fdc->mmio_data = data_register;
 
   switch (p_fdc->state) {
   case k_intel_fdc_state_idle:
