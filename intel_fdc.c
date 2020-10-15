@@ -2014,11 +2014,6 @@ intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
   case k_intel_fdc_state_check_data_marker:
   case k_intel_fdc_state_in_data:
   case k_intel_fdc_state_in_data_crc:
-    /* Switch from a byte stream to a bit stream. This is to cater for HFE
-     * files where the bytes are not perfectly aligned to byte boundaries! We
-     * do not create any such HFEs but it's easy to get one if you write an
-     * HFE in a Gotek.
-     */
     for (i = 0; i < 16; ++i) {
       int bit = !!(pulses & 0xC0000000);
       pulses <<= 2;
