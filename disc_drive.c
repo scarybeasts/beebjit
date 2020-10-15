@@ -98,6 +98,16 @@ disc_drive_get_track_length(struct disc_drive_struct* p_drive) {
   return track_length;
 }
 
+uint32_t
+disc_drive_get_quasi_random_pulses(struct disc_drive_struct* p_drive) {
+  uint64_t ticks = timing_get_total_timer_ticks(p_drive->p_timing);
+  uint8_t fm_data = (ticks & 0xFF);
+  fm_data ^= (ticks >> 8);
+  fm_data ^= (ticks >> 16);
+  fm_data ^= (ticks >> 24);
+  return ibm_disc_format_fm_to_2us_pulses(0xFF, fm_data);
+}
+
 static void
 disc_drive_timer_callback(void* p) {
   uint32_t track_length;
@@ -138,12 +148,7 @@ disc_drive_timer_callback(void* p) {
    * We need to return an inconsistent yet deterministic set of weak bits.
    */
   if (pulses == 0) {
-    uint64_t ticks = timing_get_total_timer_ticks(p_drive->p_timing);
-    uint8_t fm_data = (ticks & 0xFF);
-    fm_data ^= (ticks >> 8);
-    fm_data ^= (ticks >> 16);
-    fm_data ^= (ticks >> 24);
-    pulses = ibm_disc_format_fm_to_2us_pulses(0xFF, fm_data);
+    pulses = disc_drive_get_quasi_random_pulses(p_drive);
   }
 
   if (p_drive->p_pulses_callback != NULL) {

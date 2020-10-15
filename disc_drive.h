@@ -36,6 +36,8 @@ int disc_drive_is_index_pulse(struct disc_drive_struct* p_drive);
 uint32_t disc_drive_get_head_position(struct disc_drive_struct* p_drive);
 int disc_drive_is_write_protect(struct disc_drive_struct* p_drive);
 
+uint32_t disc_drive_get_quasi_random_pulses(struct disc_drive_struct* p_drive);
+
 void disc_drive_start_spinning(struct disc_drive_struct* p_drive);
 void disc_drive_stop_spinning(struct disc_drive_struct* p_drive);
 void disc_drive_select_side(struct disc_drive_struct* p_drive,

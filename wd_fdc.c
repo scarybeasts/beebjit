@@ -1083,6 +1083,13 @@ wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
   } else {
     if (p_fdc->data_shift_count == 32) {
       uint8_t unused_clocks;
+      /* If we're reading MFM as FM, the pulses won't all fall on 4us
+       * boundaries. This is fuzzy bits. We'll return a non-stable read.
+       */
+      if ((data_shifter & 0x55555555) && (data_shifter & 0xAAAAAAAA)) {
+        struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+        data_shifter = disc_drive_get_quasi_random_pulses(p_current_drive);
+      }
       ibm_disc_format_2us_pulses_to_fm(&unused_clocks,
                                        &p_fdc->deliver_data,
                                        data_shifter);
