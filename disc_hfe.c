@@ -50,6 +50,48 @@ disc_hfe_encode_data(uint8_t* p_dest, uint32_t pulses) {
   }
 }
 
+static void
+disc_hfe_get_track_offset_and_length(struct disc_struct* p_disc,
+                                     uint32_t* p_offset,
+                                     uint32_t* p_length,
+                                     uint32_t track) {
+  uint8_t* p_metadata = disc_get_format_metadata(p_disc);
+  uint32_t metadata_index = (track * 4);
+  uint32_t hfe_track_offset = (p_metadata[metadata_index] +
+                                   (p_metadata[metadata_index + 1] << 8));
+  uint32_t hfe_track_length = (p_metadata[metadata_index + 2] +
+                                   (p_metadata[metadata_index + 3] << 8));
+  hfe_track_offset *= 512;
+
+  *p_offset = hfe_track_offset;
+  *p_length = hfe_track_length;
+}
+
+static void
+disc_hfe_zero_track_in_file(struct disc_struct* p_disc, uint32_t track) {
+  uint32_t hfe_track_offset;
+  uint32_t hfe_track_length;
+  uint32_t written = 0;
+  uint8_t zero_chunk[512];
+
+  struct util_file* p_file = disc_get_file(p_disc);
+
+  (void) memset(zero_chunk, '\0', sizeof(zero_chunk));
+
+
+  disc_hfe_get_track_offset_and_length(p_disc,
+                                       &hfe_track_offset,
+                                       &hfe_track_length,
+                                       track);
+
+  util_file_seek(p_file, hfe_track_offset);
+
+  while (written < hfe_track_length) {
+    util_file_write(p_file, zero_chunk, 512);
+    written += 512;
+  }
+}
+
 void
 disc_hfe_write_track(struct disc_struct* p_disc,
                      int is_side_upper,
@@ -57,9 +99,8 @@ disc_hfe_write_track(struct disc_struct* p_disc,
                      uint32_t length,
                      uint32_t* p_pulses) {
   uint32_t hfe_track_offset;
-  uint32_t hfe_track_len;
+  uint32_t hfe_track_length;
   uint32_t i_byte;
-  uint32_t metadata_index;
   uint8_t buffer[(k_disc_max_bytes_per_track * 4) + 3];
   uint8_t hfe_chunk[256];
 
@@ -68,8 +109,20 @@ disc_hfe_write_track(struct disc_struct* p_disc,
   uint8_t version = p_metadata[k_hfe_format_metadata_offset_version];
   uint32_t buffer_index = 0;
   uint32_t write_pos = 0;
+  uint32_t num_tracks = disc_get_num_tracks_used(p_disc);
 
   assert(p_file != NULL);
+
+  /* This track write might in fact have extended the HFE file so make sure the
+   * track count in the header is kept up to date.
+   */
+  if (track >= num_tracks) {
+    uint8_t new_num_tracks = (uint8_t) (track + 1);
+    util_file_seek(p_file, 9);
+    util_file_write(p_file, &new_num_tracks, 1);
+
+    disc_hfe_zero_track_in_file(p_disc, track);
+  }
 
   if (version == 3) {
     buffer[0] = disc_hfe_byte_flip(k_hfe_v3_opcode_setindex);
@@ -89,18 +142,16 @@ disc_hfe_write_track(struct disc_struct* p_disc,
     buffer_index += 4;
   }
 
-  metadata_index = (track * 4);
-  hfe_track_offset = (p_metadata[metadata_index] +
-                      (p_metadata[metadata_index + 1] << 8));
-  hfe_track_offset *= 512;
-  hfe_track_len = (p_metadata[metadata_index + 2] +
-                   (p_metadata[metadata_index + 3] << 8));
-
   i_byte = 0;
   write_pos = 0;
   if (is_side_upper) {
     write_pos = 256;
   }
+
+  disc_hfe_get_track_offset_and_length(p_disc,
+                                       &hfe_track_offset,
+                                       &hfe_track_length,
+                                       track);
 
   while (i_byte < buffer_index) {
     uint32_t chunk_len = 256;
@@ -115,7 +166,7 @@ disc_hfe_write_track(struct disc_struct* p_disc,
     util_file_seek(p_file, (hfe_track_offset + write_pos));
     util_file_write(p_file, hfe_chunk, 256);
     write_pos += 512;
-    if (write_pos >= hfe_track_len) {
+    if (write_pos >= hfe_track_length) {
       break;
     }
 
@@ -134,7 +185,6 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   uint32_t hfe_tracks;
   uint32_t i_track;
   uint32_t lut_offset;
-  uint8_t* p_lut;
   uint8_t* p_metadata;
 
   struct util_file* p_file = disc_get_file(p_disc);
@@ -204,32 +254,30 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   }
 
   (void) memcpy(p_metadata, (p_file_buf + lut_offset), 512);
-  p_lut = p_metadata;
 
   for (i_track = 0; i_track < hfe_tracks; ++i_track) {
-    uint32_t track_offset;
-    uint32_t hfe_track_len;
-    uint8_t* p_track_lut;
+    uint32_t hfe_track_offset;
+    uint32_t hfe_track_length;
     uint8_t* p_track_data;
     uint32_t i_byte;
     uint32_t i_side;
 
-    p_track_lut = (p_lut + (i_track * 4));
-    track_offset = (p_track_lut[0] + (p_track_lut[1] << 8));
-    track_offset *= 512;
-    hfe_track_len = (p_track_lut[2] + (p_track_lut[3] << 8));
+    disc_hfe_get_track_offset_and_length(p_disc,
+                                         &hfe_track_offset,
+                                         &hfe_track_length,
+                                         i_track);
 
-    if ((track_offset + hfe_track_len) > file_len) {
+    if ((hfe_track_offset + hfe_track_length) > file_len) {
       util_bail("hfe track doesn't fit");
     }
 
-    p_track_data = (p_file_buf + track_offset);
+    p_track_data = (p_file_buf + hfe_track_offset);
 
     for (i_side = 0; i_side < 2; ++i_side) {
       uint32_t* p_pulses;
 
       uint32_t bytes_written = 0;
-      uint32_t buf_len = (hfe_track_len / 2);
+      uint32_t buf_len = (hfe_track_length / 2);
       int is_setbitrate = 0;
       int is_skipbits = 0;
       uint32_t skipbits_length = 0;
@@ -348,7 +396,6 @@ void
 disc_hfe_convert(struct disc_struct* p_disc) {
   uint32_t i_track;
   uint8_t header[512];
-  uint8_t zero_chunk[512];
   uint8_t* p_metadata;
 
   /* 4 bytes per data byte, 3 "header" HFEv3 bytes, 2 sides. */
@@ -357,8 +404,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   uint32_t hfe_offset_delta = ((hfe_track_len / 512) + 1);
   struct util_file* p_file = disc_get_file(p_disc);
   int is_double_sided = disc_is_double_sided(p_disc);
-
-  (void) memset(zero_chunk, '\0', sizeof(zero_chunk));
+  uint32_t num_tracks = disc_get_num_tracks_used(p_disc);
 
   /* Fill with 0xFF; that is what the command line HFE tools do, and also, 0xFF
    * appears to be the byte used for the default / sane boolean option.
@@ -367,6 +413,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   (void) strcpy((char*) header, k_hfe_header_v3);
   /* Revision 0. */
   header[8] = 0;
+  header[9] = num_tracks;
   if (disc_is_double_sided(p_disc)) {
     header[10] = 2;
   } else {
@@ -396,32 +443,23 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   /* HFE v3. */
   p_metadata[k_hfe_format_metadata_offset_version] = 3;
 
-  for (i_track = 0; i_track < k_ibm_disc_tracks_per_disc; ++i_track) {
-    uint32_t j;
+  for (i_track = 0; i_track < num_tracks; ++i_track) {
     uint32_t* p_pulses;
     uint32_t index = (i_track * 4);
 
     assert(disc_get_track_length(p_disc, 0, i_track) ==
                k_ibm_disc_bytes_per_track);
 
-    /* Stop when we hit unused tracks. */
-    if (!disc_is_track_used(p_disc, i_track)) {
-      break;
-    }
+    p_metadata[index] = (hfe_offset & 0xFF);
+    p_metadata[index + 1] = (hfe_offset >> 8);
+    p_metadata[index + 2] = (hfe_track_len & 0xFF);
+    p_metadata[index + 3] = (hfe_track_len >> 8);
 
     /* Write all zeros to the track's backing store. Without this, the file
      * wasn't getting extended correctly for any unused upper side of the
      * last track.
      */
-    util_file_seek(p_file, (hfe_offset * 512));
-    for (j = 0; j < hfe_offset_delta; ++j) {
-      util_file_write(p_file, zero_chunk, 512);
-    }
-
-    p_metadata[index] = (hfe_offset & 0xFF);
-    p_metadata[index + 1] = (hfe_offset >> 8);
-    p_metadata[index + 2] = (hfe_track_len & 0xFF);
-    p_metadata[index + 3] = (hfe_track_len >> 8);
+    disc_hfe_zero_track_in_file(p_disc, i_track);
 
     p_pulses = disc_get_raw_pulses_buffer(p_disc, 0, i_track);
     disc_hfe_write_track(p_disc,
@@ -440,9 +478,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
 
     hfe_offset += hfe_offset_delta;
   }
-
-  /* Number of valid tracks is now known so fill it in. */
-  header[9] = i_track;
 
   util_file_seek(p_file, 0);
   util_file_write(p_file, header, 512);

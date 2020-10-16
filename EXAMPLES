@@ -183,3 +183,10 @@ If you have a high DPI display and the BBC window is too small,
 you can try doubling the pixels (at a very small speed cost),
 ./beebjit -opt video:double-size
 
+
+15) Using double density (MFM) DFS's to format to an HFE.
+
+cp test/empty/empty_80T_DS_DD.hfe testing.hfe
+./beebjit -0 testing.hfe -1770 -opus -writeable -mutable
+(Then *FORMAT for the Opus formatter.)
+

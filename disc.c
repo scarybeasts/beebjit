@@ -224,12 +224,9 @@ disc_set_track_used(struct disc_struct* p_disc, uint32_t track) {
   }
 }
 
-int
-disc_is_track_used(struct disc_struct* p_disc, uint32_t track) {
-  if (track < p_disc->tracks_used) {
-    return 1;
-  }
-  return 0;
+uint32_t
+disc_get_num_tracks_used(struct disc_struct* p_disc) {
+  return p_disc->tracks_used;
 }
 
 void
@@ -271,8 +268,6 @@ disc_flush_writes(struct disc_struct* p_disc) {
   assert(is_side_upper != -1);
   assert(track != -1);
 
-  disc_set_track_used(p_disc, track);
-
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
   p_disc->dirty_track = -1;
@@ -289,6 +284,11 @@ disc_flush_writes(struct disc_struct* p_disc) {
                                  length,
                                  p_pulses);
   util_file_flush(p_disc->p_file);
+
+  /* Mark the track used after the write track callback, so that the file
+   * handler can tell if this was a file extension or not.
+   */
+  disc_set_track_used(p_disc, track);
 }
 
 static struct disc_track*
@@ -524,6 +524,8 @@ disc_set_track_length(struct disc_struct* p_disc,
   assert(length <= k_disc_max_bytes_per_track);
   assert(length > 0);
   p_track->length = length;
+
+  disc_set_track_used(p_disc, track);
 }
 
 int
