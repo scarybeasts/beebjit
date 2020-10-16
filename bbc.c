@@ -495,12 +495,6 @@ bbc_read_callback(void* p,
   case (k_addr_floppy + 28):
     if (!p_bbc->is_master) {
       if (p_bbc->is_wd_fdc) {
-        /* The 1770 control register is not readable, and mirrored across its
-         * little range.
-         */
-        if (!(addr & 0x4)) {
-          break;
-        }
         ret = wd_fdc_read(p_bbc->p_wd_fdc, (addr & 0x7));
       } else {
         ret = intel_fdc_read(p_bbc->p_intel_fdc, (addr & 0x7));
@@ -1836,6 +1830,11 @@ bbc_get_cmos(struct bbc_struct* p_bbc) {
 struct timing_struct*
 bbc_get_timing(struct bbc_struct* p_bbc) {
   return p_bbc->p_timing;
+}
+
+struct wd_fdc_struct*
+bbc_get_wd_fdc(struct bbc_struct* p_bbc) {
+  return p_bbc->p_wd_fdc;
 }
 
 uint8_t

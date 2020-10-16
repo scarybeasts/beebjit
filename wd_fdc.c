@@ -96,6 +96,7 @@ struct wd_fdc_struct {
   struct state_6502* p_state_6502;
   int is_master;
   int is_1772;
+  int is_opus;
   struct timing_struct* p_timing;
   uint32_t timer_id;
 
@@ -168,7 +169,10 @@ wd_fdc_update_nmi(struct wd_fdc_struct* p_fdc) {
   struct state_6502* p_state_6502 = p_fdc->p_state_6502;
   int firing = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
   int old_level = state_6502_get_irq_level(p_state_6502, k_state_6502_irq_nmi);
-  int new_level = (p_fdc->is_intrq || p_fdc->is_drq);
+  int new_level = p_fdc->is_drq;
+  if (!p_fdc->is_opus) {
+    new_level |= p_fdc->is_intrq;
+  }
 
   if (new_level && !old_level && firing) {
     log_do_log(k_log_disc, k_log_error, "1770 lost NMI positive edge");
@@ -733,9 +737,48 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
   }
 }
 
+static uint16_t
+wd_fdc_opus_remap_addr(uint16_t addr) {
+  if (addr < 4) {
+    return (4 + addr);
+  } else {
+    return (addr - 4);
+  }
+}
+
+static uint8_t
+wd_fdc_opus_remap_val(uint16_t addr, uint8_t val) {
+  uint8_t new_val;
+
+  /* Only remap control register values. */
+  if (addr >= 4) {
+    return val;
+  }
+
+  /* TODO: should we re-map the Master control register similarly? */
+  new_val = k_wd_fdc_control_reset_b;
+  if (val & 0x01) {
+    new_val |= k_wd_fdc_control_drive_1;
+  } else {
+    new_val |= k_wd_fdc_control_drive_0;
+  }
+  if (val & 0x02) {
+    new_val |= k_wd_fdc_control_side_b;
+  }
+  if (!(val & 0x40)) {
+    new_val |= k_wd_fdc_control_density_b;
+  }
+
+  return new_val;
+}
+
 uint8_t
 wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
   uint8_t ret = 0;
+
+  if (p_fdc->is_opus) {
+    addr = wd_fdc_opus_remap_addr(addr);
+  }
 
   switch (addr) {
   case 4:
@@ -755,6 +798,13 @@ wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
     }
     ret = p_fdc->data_register;
     break;
+  case 0:
+  case 1:
+  case 2:
+  case 3:
+    /* Control register isn't readable. */
+    ret = 0xFE;
+    break;
   default:
     assert(0);
     break;
@@ -765,6 +815,11 @@ wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
 
 void
 wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
+  if (p_fdc->is_opus) {
+    addr = wd_fdc_opus_remap_addr(addr);
+    val = wd_fdc_opus_remap_val(addr, val);
+  }
+
   switch (addr) {
   case 0:
   case 1:
@@ -1484,4 +1539,9 @@ wd_fdc_set_drives(struct wd_fdc_struct* p_fdc,
 
   disc_drive_set_pulses_callback(p_drive_0, wd_fdc_pulses_callback, p_fdc);
   disc_drive_set_pulses_callback(p_drive_1, wd_fdc_pulses_callback, p_fdc);
+}
+
+void
+wd_fdc_set_is_opus(struct wd_fdc_struct* p_fdc, int is_opus) {
+  p_fdc->is_opus = is_opus;
 }

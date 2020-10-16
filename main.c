@@ -16,6 +16,7 @@
 #include "util.h"
 #include "version.h"
 #include "video.h"
+#include "wd_fdc.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -83,6 +84,7 @@ main(int argc, const char* argv[]) {
   int no_dfs_flag = 0;
   int wd_1770_type = 0;
   int watford_flag = 0;
+  int opus_flag = 0;
   int is_master_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
@@ -233,6 +235,8 @@ main(int argc, const char* argv[]) {
       wd_1770_type = 1;
     } else if (!strcmp(arg, "-watford")) {
       watford_flag = 1;
+    } else if (!strcmp(arg, "-opus")) {
+      opus_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
@@ -359,11 +363,17 @@ main(int argc, const char* argv[]) {
   if (rom_names[k_bbc_default_basic_rom_slot] == NULL) {
     rom_names[k_bbc_default_basic_rom_slot] = "roms/basic.rom";
   }
+  if ((wd_1770_type > 0) && opus_flag) {
+    struct wd_fdc_struct* p_wd_fdc = bbc_get_wd_fdc(p_bbc);
+    wd_fdc_set_is_opus(p_wd_fdc, 1);
+  }
   if (!no_dfs_flag && (rom_names[k_bbc_default_dfs_rom_slot] == NULL)) {
     const char* p_dfs_rom_name;
     if (wd_1770_type > 0) {
       if (watford_flag) {
         p_dfs_rom_name = "roms/WDDFS154T";
+      } else if (opus_flag) {
+        p_dfs_rom_name = "roms/ODDOS346";
       } else {
         p_dfs_rom_name = "roms/DFS226";
       }

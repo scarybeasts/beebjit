@@ -18,6 +18,7 @@ struct wd_fdc_struct* wd_fdc_create(struct state_6502* p_state_6502,
 void wd_fdc_destroy(struct wd_fdc_struct* p_fdc);
 
 /* Setup. */
+void wd_fdc_set_is_opus(struct wd_fdc_struct* p_fdc, int is_opus);
 void wd_fdc_set_drives(struct wd_fdc_struct* p_fdc,
                        struct disc_drive_struct* p_drive_0,
                        struct disc_drive_struct* p_drive_1);

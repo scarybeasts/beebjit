@@ -110,6 +110,7 @@ struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
 struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
 struct cmos_struct* bbc_get_cmos(struct bbc_struct* p_bbc);
 struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);
+struct wd_fdc_struct* bbc_get_wd_fdc(struct bbc_struct* p_bbc);
 
 uint8_t bbc_get_IC32(struct bbc_struct* p_bbc);
 void bbc_set_IC32(struct bbc_struct* p_bbc, uint8_t val);
