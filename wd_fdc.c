@@ -39,12 +39,9 @@ enum {
  * https://www.cloud9.co.uk/james/BBCMicro/Documentation/wd1770.html
  */
 enum {
-  k_wd_fdc_control_reset_b = 0x20,
-  k_wd_fdc_control_density_master = 0x20,
-  k_wd_fdc_control_side_master = 0x10,
-  k_wd_fdc_control_density_b = 0x08,
-  k_wd_fdc_control_side_b = 0x04,
-  k_wd_fdc_control_reset_master = 0x04,
+  k_wd_fdc_control_reset = 0x20,
+  k_wd_fdc_control_density = 0x08,
+  k_wd_fdc_control_side = 0x04,
   k_wd_fdc_control_drive_1 = 0x02,
   k_wd_fdc_control_drive_0 = 0x01,
 };
@@ -410,41 +407,20 @@ wd_fdc_destroy(struct wd_fdc_struct* p_fdc) {
 }
 
 static int
-wd_fdc_is_reset(struct wd_fdc_struct* p_fdc, uint8_t cr) {
-  int ret;
-
+wd_fdc_is_reset(uint8_t cr) {
   /* Reset is active low. */
-  if (p_fdc->is_master) {
-    ret = !(cr & k_wd_fdc_control_reset_master);
-  } else {
-    ret = !(cr & k_wd_fdc_control_reset_b);
-  }
-  return ret;
+  return !(cr & k_wd_fdc_control_reset);
 }
 
 static int
-wd_fdc_is_side(struct wd_fdc_struct* p_fdc, uint8_t cr) {
-  int ret;
-
-  if (p_fdc->is_master) {
-    ret = !!(cr & k_wd_fdc_control_side_master);
-  } else {
-    ret = !!(cr & k_wd_fdc_control_side_b);
-  }
-  return ret;
+wd_fdc_is_side(uint8_t cr) {
+  return !!(cr & k_wd_fdc_control_side);
 }
 
 static int
-wd_fdc_is_double_density(struct wd_fdc_struct* p_fdc, uint8_t cr) {
-  int ret;
-
+wd_fdc_is_double_density(uint8_t cr) {
   /* Double density (aka. MFM) is active low. */
-  if (p_fdc->is_master) {
-    ret = !(cr & k_wd_fdc_control_density_master);
-  } else {
-    ret = !(cr & k_wd_fdc_control_density_b);
-  }
-  return ret;
+  return !(cr & k_wd_fdc_control_density);
 }
 
 static void
@@ -472,18 +448,18 @@ wd_fdc_write_control(struct wd_fdc_struct* p_fdc, uint8_t val) {
     if (is_motor_on) {
       disc_drive_start_spinning(p_fdc->p_current_drive);
     }
-    disc_drive_select_side(p_fdc->p_current_drive, wd_fdc_is_side(p_fdc, val));
+    disc_drive_select_side(p_fdc->p_current_drive, wd_fdc_is_side(val));
   }
 
   /* Set up single or double density. */
-  is_double_density = wd_fdc_is_double_density(p_fdc, val);
+  is_double_density = wd_fdc_is_double_density(val);
   disc_drive_set_32us_mode(p_fdc->p_drive_0, is_double_density);
   disc_drive_set_32us_mode(p_fdc->p_drive_1, is_double_density);
 
   p_fdc->control_register = val;
 
   /* Reset, active low. */
-  if (wd_fdc_is_reset(p_fdc, val)) {
+  if (wd_fdc_is_reset(val)) {
     /* Go idle, etc. */
     wd_fdc_clear_state(p_fdc);
     if (p_fdc->p_current_drive != NULL) {
@@ -575,7 +551,7 @@ wd_fdc_do_command(struct wd_fdc_struct* p_fdc, uint8_t val) {
                head_pos);
   }
 
-  assert(!wd_fdc_is_reset(p_fdc, p_fdc->control_register));
+  assert(!wd_fdc_is_reset(p_fdc->control_register));
 
   if (p_fdc->p_current_drive == NULL) {
     util_bail("command while no selected drive");
@@ -747,7 +723,7 @@ wd_fdc_opus_remap_addr(uint16_t addr) {
 }
 
 static uint8_t
-wd_fdc_opus_remap_val(uint16_t addr, uint8_t val) {
+wd_fdc_opus_remap_val(uint16_t addr, uint16_t val) {
   uint8_t new_val;
 
   /* Only remap control register values. */
@@ -755,18 +731,46 @@ wd_fdc_opus_remap_val(uint16_t addr, uint8_t val) {
     return val;
   }
 
-  /* TODO: should we re-map the Master control register similarly? */
-  new_val = k_wd_fdc_control_reset_b;
+  new_val = k_wd_fdc_control_reset;
   if (val & 0x01) {
     new_val |= k_wd_fdc_control_drive_1;
   } else {
     new_val |= k_wd_fdc_control_drive_0;
   }
   if (val & 0x02) {
-    new_val |= k_wd_fdc_control_side_b;
+    new_val |= k_wd_fdc_control_side;
   }
   if (!(val & 0x40)) {
-    new_val |= k_wd_fdc_control_density_b;
+    new_val |= k_wd_fdc_control_density;
+  }
+
+  return new_val;
+}
+
+static uint8_t
+wd_fdc_master_remap_val(uint16_t addr, uint8_t val) {
+  uint8_t new_val;
+
+  /* Only remap control register values. */
+  if (addr >= 4) {
+    return val;
+  }
+
+  new_val = 0;
+  if (val & 0x04) {
+    new_val |= k_wd_fdc_control_reset;
+  }
+  if (val & 0x01) {
+    new_val |= k_wd_fdc_control_drive_0;
+  }
+  if (val & 0x02) {
+    new_val |= k_wd_fdc_control_drive_1;
+  }
+  if (val & 0x10) {
+    new_val |= k_wd_fdc_control_side;
+  }
+  if (val & 0x20) {
+    new_val |= k_wd_fdc_control_density;
   }
 
   return new_val;
@@ -815,7 +819,9 @@ wd_fdc_read(struct wd_fdc_struct* p_fdc, uint16_t addr) {
 
 void
 wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
-  if (p_fdc->is_opus) {
+  if (p_fdc->is_master) {
+    val = wd_fdc_master_remap_val(addr, val);
+  } else if (p_fdc->is_opus) {
     addr = wd_fdc_opus_remap_addr(addr);
     val = wd_fdc_opus_remap_val(addr, val);
   }
@@ -832,13 +838,13 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
                  val);
     }
     if ((p_fdc->status_register & k_wd_fdc_status_busy) &&
-        !wd_fdc_is_reset(p_fdc, val)) {
+        !wd_fdc_is_reset(val)) {
       util_bail("control register updated while busy, without reset");
     }
     wd_fdc_write_control(p_fdc, val);
     break;
   case 4:
-    if (wd_fdc_is_reset(p_fdc, p_fdc->control_register)) {
+    if (wd_fdc_is_reset(p_fdc->control_register)) {
       /* Ignore commands when the reset line is active. */
       break;
     }
@@ -848,7 +854,7 @@ wd_fdc_write(struct wd_fdc_struct* p_fdc, uint16_t addr, uint8_t val) {
     p_fdc->track_register = val;
     break;
   case 6:
-    if (wd_fdc_is_reset(p_fdc, p_fdc->control_register)) {
+    if (wd_fdc_is_reset(p_fdc->control_register)) {
       /* Ignore sector register changes when the reset line is active. */
       /* EMU NOTE: track / data register changes seem to still be accepted! */
       break;
@@ -882,7 +888,7 @@ wd_fdc_byte_received(struct wd_fdc_struct* p_fdc,
   int is_read_address = (p_fdc->command == k_wd_fdc_command_read_address);
   uint8_t data = p_fdc->deliver_data;
   int is_marker = p_fdc->deliver_is_marker;
-  int is_mfm = wd_fdc_is_double_density(p_fdc, p_fdc->control_register);
+  int is_mfm = wd_fdc_is_double_density(p_fdc->control_register);
 
   p_fdc->deliver_is_marker = 0;
 
@@ -1062,7 +1068,7 @@ static int
 wd_fdc_mark_detector_triggered(struct wd_fdc_struct* p_fdc) {
   uint64_t mark_detector = p_fdc->mark_detector;
 
-  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
+  if (wd_fdc_is_double_density(p_fdc->control_register)) {
     /* EMU NOTE: unsure as to exactly when MFM sync bytes are spotted. Here we
      * look for MFM 0x00 then MFM 0xA1 (sync).
      * The documented sequence is 12x 0x00, 3x 0xA1 (sync).
@@ -1129,7 +1135,7 @@ wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
   p_fdc->data_shifter = data_shifter;
   p_fdc->data_shift_count++;
 
-  if (wd_fdc_is_double_density(p_fdc, p_fdc->control_register)) {
+  if (wd_fdc_is_double_density(p_fdc->control_register)) {
     if (p_fdc->data_shift_count == 16) {
       p_fdc->deliver_data = ibm_disc_format_2us_pulses_to_mfm(data_shifter);
       p_fdc->data_shifter = 0;
