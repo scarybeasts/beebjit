@@ -264,6 +264,19 @@ intel_fdc_get_status(struct intel_fdc_struct* p_fdc) {
 
 static inline uint8_t
 intel_fdc_get_external_status(struct intel_fdc_struct* p_fdc) {
+  /* EMU NOTE: currently, the emulation responds instantly to getting commands
+   * started, accepting parameters, transitioning between states, etc.
+   * This is inaccurate.
+   * The real 8271 is an asynchronously running general purpose microcontroller,
+   * where each instruction takes 2us+ and processing between states uses a
+   * large and variable number of instructions.
+   * Some food for though, latency timings on a BBC + 8271, including setup:
+   * WRITE SPECIAL REGISTER:                   211us
+   * WRITE SPECIAL REGISTER (0 param version): 157us
+   * READ DRIVE STATUS:                        188us
+   * write $35 to parameter register:           31us
+   * write 3rd SPECIFY parameter:               27us
+   */
   uint8_t status = intel_fdc_get_status(p_fdc);
   /* The internal status register appears to be shared with some mode bits that
    * must be masked out.
