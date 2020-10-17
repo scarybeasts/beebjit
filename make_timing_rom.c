@@ -803,7 +803,10 @@ main(int argc, const char* argv[]) {
   if ((size_t) write_ret != k_rom_size) {
     errx(1, "can't write output rom");
   }
-  close(fd);
+  if (0 != close(fd)) {
+    errx(1, "can't close output file descriptor for rom");
+  }
+
 
   util_buffer_destroy(p_buf);
   free(p_mem);
