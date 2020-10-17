@@ -528,7 +528,7 @@ bbc_read_callback(void* p,
     } else {
       log_do_log(k_log_misc, k_log_unimplemented, "read of $FEC0-$FEDF region");
     }
-    /* fall through */
+    /* fallthrough */
   case (k_addr_tube + 0):
   case (k_addr_tube + 4):
   case (k_addr_tube + 8):
