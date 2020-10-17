@@ -764,22 +764,9 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abx, 0x7F01);
   emit_CMP(p_buf, k_abs, 0x7F01);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xCA40);
-
-  /* Test for an interesting bug in the interpreter where NOP was reading the
-   * previous instruction's address.
-   * We can actually use the i8271 floppy controller for the simplest case of
-   * a read having an observable side effect.
-   */
-  set_new_index(p_buf, 0x0A40);
-  emit_LDA(p_buf, k_imm, 0x2C);
-  emit_STA(p_buf, k_abs, 0xFE80); /* Command: get drive status. */
-  emit_STA(p_buf, k_abs, 0xFE81); /* Parameter: spurious, effective no-op. */
-  emit_NOP(p_buf);                /* Should be no-op! */
-  emit_LDA(p_buf, k_abs, 0xFE80);
-  emit_CMP(p_buf, k_imm, 0x10);
-  emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xCA80);
+
+  /* Gap here for re-use. */
 
   /* Test that paging ROMs invalidates any previous artifcats, e.g. JIT
    * compilation.
@@ -815,8 +802,8 @@ main(int argc, const char* argv[]) {
   /* Tests triggering a simple NMI. */
   set_new_index(p_buf, 0x0AE0);
   emit_SEI(p_buf);
-  emit_LDA(p_buf, k_imm, 0x30); /* $30 is an invalid command for the 8271. */
-  emit_STA(p_buf, k_abs, 0xFE80);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFEE3);  /* Test mapping: raise NMI. */
   emit_TAY(p_buf);
   emit_BEQ(p_buf, -3);
   emit_JMP(p_buf, k_abs, 0xCB00);

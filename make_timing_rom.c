@@ -711,8 +711,43 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 22);
   emit_JMP(p_buf, k_abs, 0xCA40);
 
-  /* Exit sequence. */
+  /* Test for an interesting bug in the interpreter where NOP was reading the
+   * previous instruction's address.
+   */
   set_new_index(p_buf, 0x0A40);
+  /* Get T2 running. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  /* Clear T2 IER / IFR. */
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE6D);
+  emit_STA(p_buf, k_abs, 0xFE6E);
+  /* Start T2 again, soon to expire. */
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  /* Write addr $FE68; read of $FE68 would clear IFR. */
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_NOP(p_buf);                /* Should be no-ops! */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  /* IFR should still be high. */
+  emit_LDA(p_buf, k_abs, 0xFE6D);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xCA80);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0A80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

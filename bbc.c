@@ -1029,6 +1029,11 @@ bbc_write_callback(void* p,
         p_bbc->p_cpu_driver->p_funcs->set_exit_value(p_bbc->p_cpu_driver,
                                                      0x434241);
         break;
+      case (k_addr_tube + 3):
+        /* &FEE3: raise NMI. */
+        state_6502_set_irq_level(p_bbc->p_state_6502, k_state_6502_irq_nmi, 0);
+        state_6502_set_irq_level(p_bbc->p_state_6502, k_state_6502_irq_nmi, 1);
+        break;
       default:
         break;
       }
