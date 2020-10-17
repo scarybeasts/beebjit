@@ -77,7 +77,10 @@ log_set_do_log_to_stdout(int do_log_to_stdout) {
 static void
 log_do_log_va_list(int module, int severity, const char* p_msg, va_list args) {
   char msg[256];
-  char msg2[256];
+  char msg2[sizeof(msg)
+	    + 13 /* longest severity */
+	    + 11 /* longest module */
+	    + 3 /* separators */];
   int ret;
 
   const char* p_module_str = log_module_to_string(module);
