@@ -1529,15 +1529,15 @@ intel_fdc_byte_callback_reading(struct intel_fdc_struct* p_fdc,
         /* EMU NOTE: upon any mismatch of found track vs. expected track,
          * the drive will try twice more on the next two tracks.
          */
-        if (p_fdc->log_commands) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "8271: stepping due to track mismatch");
-        }
         p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count]++;
         if (p_fdc->regs[k_intel_fdc_register_internal_seek_retry_count] == 3) {
           intel_fdc_finish_command(p_fdc, k_intel_fdc_result_sector_not_found);
         } else {
+          if (p_fdc->log_commands) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "8271: stepping due to track mismatch");
+          }
           intel_fdc_do_seek(p_fdc, k_intel_fdc_call_unchanged);
         }
       } else if (p_fdc->regs[k_intel_fdc_register_internal_id_sector] ==
