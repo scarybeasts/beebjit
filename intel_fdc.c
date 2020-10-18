@@ -152,8 +152,10 @@ enum {
   k_intel_fdc_register_internal_data = 0x1D,
   k_intel_fdc_register_internal_parameter = 0x1E,
   k_intel_fdc_register_internal_command = 0x1F,
-  k_intel_fdc_register_drive_in = 0x22,
-  k_intel_fdc_register_drive_out = 0x23,
+  k_intel_fdc_register_mmio_drive_in = 0x22,
+  k_intel_fdc_register_mmio_drive_out = 0x23,
+  k_intel_fdc_register_mmio_clocks = 0x24,
+  k_intel_fdc_register_mmio_data = 0x25,
 };
 
 enum {
@@ -928,12 +930,18 @@ intel_fdc_read_register(struct intel_fdc_struct* p_fdc, uint8_t reg) {
   }
   reg = (reg & 0x07);
   switch (reg) {
-  case (k_intel_fdc_register_drive_in & 0x07):
+  case (k_intel_fdc_register_mmio_drive_in & 0x07):
     ret = intel_fdc_read_drive_in(p_fdc);
     break;
-  case (k_intel_fdc_register_drive_out & 0x07):
+  case (k_intel_fdc_register_mmio_drive_out & 0x07):
     /* DFS-1.2 reads drive out in normal operation. */
     ret = p_fdc->drive_out;
+    break;
+  case (k_intel_fdc_register_mmio_clocks & 0x07):
+    ret = p_fdc->mmio_clocks;
+    break;
+  case (k_intel_fdc_register_mmio_data & 0x07):
+    ret = p_fdc->mmio_data;
     break;
   default:
     log_do_log(k_log_disc,
@@ -957,7 +965,7 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
   }
   reg = (reg & 0x07);
   switch (reg) {
-  case (k_intel_fdc_register_drive_out & 0x07):
+  case (k_intel_fdc_register_mmio_drive_out & 0x07):
     /* Bit 0x20 is important as it's used to select the side of the disc for
      * double sided discs.
      * Bit 0x08 is important as it provides manual head load / unload control,
@@ -966,6 +974,12 @@ intel_fdc_write_register(struct intel_fdc_struct* p_fdc,
      * the command.
      */
     intel_fdc_set_drive_out(p_fdc, val);
+    break;
+  case (k_intel_fdc_register_mmio_clocks & 0x07):
+    p_fdc->mmio_clocks = val;
+    break;
+  case (k_intel_fdc_register_mmio_data & 0x07):
+    p_fdc->mmio_data = val;
     break;
   default:
     log_do_log(k_log_disc,
