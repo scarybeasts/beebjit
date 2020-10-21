@@ -171,7 +171,7 @@ enum {
 
 enum {
   k_intel_fdc_mode_single_actuator = 0x02,
-  k_intel_fdc_mode_dma = 0x01,
+  k_intel_fdc_mode_no_dma = 0x01,
 };
 
 enum {
@@ -1358,6 +1358,11 @@ static int
 intel_fdc_check_data_loss_ok(struct intel_fdc_struct* p_fdc) {
   int ok = 1;
   uint8_t command = intel_fdc_get_internal_command(p_fdc);
+
+  /* Abort if DMA transfer is selected. This is not supported in a BBC. */
+  if (!(p_fdc->regs[k_intel_fdc_register_mode] & k_intel_fdc_mode_no_dma)) {
+    ok = 0;
+  }
 
   /* Abort command if it's any type of scan. The 8271 requires DMA to be wired
    * up for scan commands, which is not done in the BBC application.
