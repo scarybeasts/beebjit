@@ -2028,8 +2028,16 @@ intel_fdc_pulses_callback(void* p, uint32_t pulses, uint32_t count) {
    * still writes to disc, often effectively creating weak bits.
    */
   if (p_fdc->drive_out & k_intel_fdc_drive_out_write_enable) {
-    uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(p_fdc->mmio_clocks,
-                                                       p_fdc->mmio_data);
+    uint8_t clocks = p_fdc->mmio_clocks;
+    uint8_t data = p_fdc->mmio_data;
+    uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(clocks, data);
+    if ((clocks != 0xFF) && (clocks != k_ibm_disc_mark_clock_pattern)) {
+      log_do_log(k_log_disc,
+                 k_log_unusual,
+                 "8271: writing unusual clocks $%.2x, data $%.2x",
+                 clocks,
+                 data);
+    }
     disc_drive_write_pulses(p_current_drive, pulses);
   }
 
