@@ -268,7 +268,11 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
                                          i_track);
 
     if ((hfe_track_offset + hfe_track_length) > file_len) {
-      util_bail("hfe track doesn't fit");
+      util_bail("hfe track %d doesn't fit (length %d offset %d file length %d)",
+                i_track,
+                hfe_track_length,
+                hfe_track_offset,
+                file_len);
     }
 
     p_track_data = (p_file_buf + hfe_track_offset);
