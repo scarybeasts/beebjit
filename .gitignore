@@ -11,5 +11,6 @@ master.rom
 perf.rom
 test.rom
 timing.rom
+win/
 /.dir-locals.el
 /TAGS
