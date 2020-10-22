@@ -313,7 +313,11 @@ disc_drive_cycle_disc(struct disc_drive_struct* p_drive) {
     p_file_name = disc_get_file_name(p_disc);
   }
 
-  log_do_log(k_log_disc, k_log_info, "disc file now: %s", p_file_name);
+  log_do_log(k_log_disc,
+             k_log_info,
+             "drive %d file now: %s",
+             p_drive->id,
+             p_file_name);
 
   disc_drive_set_position_fraction(p_drive, fraction);
 }
