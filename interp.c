@@ -859,6 +859,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint32_t cpu_driver_flags;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
+  int is_nmi;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
   struct timing_struct* p_timing = p_interp->driver.p_timing;
@@ -923,25 +924,33 @@ interp_enter_with_details(struct interp_struct* p_interp,
         temp_u8 = (1 << k_flag_brk);
         pc += 2;
       }
-      /* EMU NOTE: if an NMI hits early enough in the 7-cycle interrupt / BRK
-       * sequence for a non-NMI interrupt, the NMI overrides and in the case of
-       * BRK the BRK can go missing!
-       */
       INTERP_TIMING_ADVANCE(3);
-      if (state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi)) {
+      v = interp_get_flags(zf, nf, cf, of, df, intf);
+      v |= (temp_u8 | (1 << k_flag_always_set));
+      is_nmi = state_6502_check_irq_firing(p_state_6502, k_state_6502_irq_nmi);
+      if (is_65c12) {
+        /* CMOS */
+        /* The CMOS part clears DF. */
+        df = 0;
+        /* The CMOS part allegedly clears up BRK vs. NMI. Needs testing. */
+        if (!do_irq && is_nmi) {
+          is_nmi = 0;
+          /* NOTE: unsure if this is necessary or if it should be an assert. */
+          special_checks |= k_interp_special_poll_irq;
+        }
+      }
+      /* EMU NOTE: for the NMOS part, if an NMI hits early enough in the 7-cycle
+       * BRK sequence, the NMI overrides and the BRK can go missing!
+       */
+      if (is_nmi) {
         state_6502_clear_edge_triggered_irq(p_state_6502, k_state_6502_irq_nmi);
         addr = k_6502_vector_nmi;
       }
       p_stack[s--] = (pc >> 8);
       p_stack[s--] = (pc & 0xFF);
-      v = interp_get_flags(zf, nf, cf, of, df, intf);
-      v |= (temp_u8 | (1 << k_flag_always_set));
       p_stack[s--] = v;
       pc = (p_mem_read[addr] | (p_mem_read[(uint16_t) (addr + 1)] << 8));
       intf = 1;
-      if (is_65c12) {
-        df = 0;
-      }
       do_irq = 0;
       cycles_this_instruction = 4;
       break;

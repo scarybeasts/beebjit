@@ -1,0 +1,20 @@
+The NMOS 6502 has what are considered bugs in BRK vs. IRQ handling.
+
+Some visual6502.org simulations:
+1) BRK colliding with IRQ.
+http://www.visual6502.org/JSSim/expert.html?logmore=nmi,irq&a=0&d=eaea00e8e8000000&a=10&d=4000000000000000&a=fffa&d=1000&a=fffe&d=1000&irq0=7
+- Test: IRQ fires before BRK but after the NOP poll point.
+BRK flag set.
+PC incremented by 2.
+IRQ/BRK vector used.
+RTIs to opcode at PC=4 which executes IRQ instead of the INX.
+(Seems ok.)
+
+
+2) BRK colliding with NMI.
+http://www.visual6502.org/JSSim/expert.html?logmore=nmi,irq&a=0&d=eaea00e800000000&a=10&d=4000000000000000&a=fffa&d=1000&a=fffe&d=1000&nmi0=7
+- Test: NMI fires before BRK but after the NOP poll point.
+BRK flag set.
+PC incremented by 2.
+NMI vector used.
+(BRK lost.)

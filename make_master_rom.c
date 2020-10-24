@@ -32,6 +32,9 @@ main(int argc, const char* argv[]) {
   (void) memset(p_mem, '\xF2', k_rom_size);
   util_buffer_setup(p_buf, p_mem, k_rom_size);
 
+  /* NMI vector, @0xFF80 */
+  p_mem[0x3FFA] = 0x80;
+  p_mem[0x3FFB] = 0xFF;
   /* Reset vector: jump to 0xC000, start of OS ROM. */
   p_mem[0x3FFC] = 0x00;
   p_mem[0x3FFD] = 0xC0;
@@ -91,10 +94,12 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x1100);
   emit_JMP(p_buf, k_ind, 0x10FF);
 
+  /* Test 65c12 behavior of clearing the D flag on BRK / IRQ. */
   set_new_index(p_buf, 0x0100);
   emit_SED(p_buf);
   emit_BRK(p_buf);
   emit_NOP(p_buf);
+  emit_CLD(p_buf);
   emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Test CMOS read.
@@ -269,8 +274,24 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC3C0);
 
-  /* Exit sequence. */
+  /* Test 65c12 BRK / NMI collision, both should run. */
   set_new_index(p_buf, 0x03C0);
+  emit_STZ(p_buf, k_zpg, 0x10);
+  emit_STZ(p_buf, k_zpg, 0x11);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0xFEE3);
+  emit_BRK(p_buf);
+  emit_INX(p_buf);
+  emit_TXA(p_buf);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_zpg, 0x10);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_LDA(p_buf, k_zpg, 0x11);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC400);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0400);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */
@@ -360,6 +381,12 @@ main(int argc, const char* argv[]) {
   emit_PLA(p_buf);
   emit_AND(p_buf, k_imm, 0x08);
   emit_REQUIRE_ZF(p_buf, 1);
+  emit_INC(p_buf, k_zpg, 0x10);
+  emit_RTI(p_buf);
+
+  /* NMI handler at 0xFF80. */
+  set_new_index(p_buf, 0x3F80);
+  emit_INC(p_buf, k_zpg, 0x11);
   emit_RTI(p_buf);
 
   fd = open("master.rom", O_CREAT | O_WRONLY, 0600);

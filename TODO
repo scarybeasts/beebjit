@@ -16,7 +16,6 @@ Fix later
 Bugs and issues not serious enough to warrant fixing before the next release.
 
 - Update BCD for 65c12.
-- Update BRK vs. IRQ/NMI for 65c12.
 - 1 cycle 65c12 NOP vs. IRQ.
 - "back in time" support in the debugger via fast replay.
 - JIT block timing code improvements. Currently, there's a non-trivial

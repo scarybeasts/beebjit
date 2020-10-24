@@ -399,6 +399,16 @@ emit_STY(struct util_buffer* p_buf, int mode, uint16_t addr) {
 }
 
 void
+emit_STZ(struct util_buffer* p_buf, int mode, uint16_t addr) {
+  static unsigned char s_bytes[k_6502_op_num_modes] =
+  { 0x00,
+    0x00, 0x00, 0x00, 0x64, 0x9C, 0x74, 0x00, 0x9E, 0x00, 0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00, 0x00 };
+  emit_from_array(p_buf, &s_bytes[0], mode, addr);
+}
+
+void
 emit_TAX(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0xAA);
 }

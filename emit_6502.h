@@ -60,6 +60,7 @@ void emit_SEI(struct util_buffer* p_buf);
 void emit_STA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_STX(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_STY(struct util_buffer* p_buf, int mode, uint16_t addr);
+void emit_STZ(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_TAX(struct util_buffer* p_buf);
 void emit_TAY(struct util_buffer* p_buf);
 void emit_TSX(struct util_buffer* p_buf);
