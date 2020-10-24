@@ -2477,8 +2477,7 @@ do_special_checks:
       assert(cycles_this_instruction);
       assert(countdown >= 0);
 
-      /* TODO: 65c12 1-cycle NOPs don't have an IRQ poll point. */
-      if (cycles_this_instruction <= 2) {
+      if (cycles_this_instruction == 2) {
         INTERP_TIMING_ADVANCE(0);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
@@ -2504,10 +2503,16 @@ do_special_checks:
           interp_poll_irq_now(&do_irq, p_state_6502, intf);
           INTERP_TIMING_ADVANCE(2);
         }
-      } else {
+      } else if (cycles_this_instruction > 2) {
         INTERP_TIMING_ADVANCE(cycles_this_instruction - 2);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(2);
+      } else {
+        /* 1-cycle instructions, notably the 65c12 1 byte NOP, don't poll
+         * IRQs.
+         * See https://stardot.org.uk/forums/viewtopic.php?f=54&t=20411&p=286803
+         */
+        INTERP_TIMING_ADVANCE(cycles_this_instruction);
       }
     } else if (countdown == 0) {
       /* Make sure to always run timer callbacks at the instruction boundary. */

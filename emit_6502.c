@@ -310,6 +310,11 @@ emit_PHP(struct util_buffer* p_buf) {
 }
 
 void
+emit_PHX(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xDA);
+}
+
+void
 emit_PLA(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x68);
 }
@@ -317,6 +322,11 @@ emit_PLA(struct util_buffer* p_buf) {
 void
 emit_PLP(struct util_buffer* p_buf) {
   util_buffer_add_1b(p_buf, 0x28);
+}
+
+void
+emit_PLX(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0xFA);
 }
 
 void

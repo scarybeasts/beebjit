@@ -290,8 +290,20 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xC400);
 
-  /* Exit sequence. */
+  /* Test 65c12 quirk where there's no IRQ poll on 1-byte NOPs. */
   set_new_index(p_buf, 0x0400);
+  emit_STA(p_buf, k_abs, 0xFEE3);
+  emit_NOP1(p_buf);
+  emit_NOP1(p_buf);
+  emit_NOP1(p_buf);
+  emit_NOP1(p_buf);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x12);
+  emit_REQUIRE_EQ(p_buf, 0x08);
+  emit_JMP(p_buf, k_abs, 0xC440);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0440);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */
@@ -387,6 +399,17 @@ main(int argc, const char* argv[]) {
   /* NMI handler at 0xFF80. */
   set_new_index(p_buf, 0x3F80);
   emit_INC(p_buf, k_zpg, 0x11);
+  emit_PHA(p_buf);
+  emit_PHX(p_buf);
+  emit_TSX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_LDA(p_buf, k_abx, 0x0100);
+  emit_STA(p_buf, k_zpg, 0x12);
+  emit_PLX(p_buf);
+  emit_PLA(p_buf);
   emit_RTI(p_buf);
 
   fd = open("master.rom", O_CREAT | O_WRONLY, 0600);
