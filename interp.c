@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "cpu_driver.h"
+#include "debug.h"
 #include "defs_6502.h"
 #include "log.h"
 #include "memory_access.h"
@@ -27,6 +28,7 @@ struct interp_struct {
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
   int debug_subsystem_active;
+  volatile int* p_debug_interrupt;
 
   uint8_t callback_intf;
   int callback_do_irq;
@@ -88,6 +90,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
   struct bbc_options* p_options = p_cpu_driver->p_options;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
+  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
 
   p_funcs->destroy = interp_destroy;
   p_funcs->enter = interp_enter;
@@ -101,6 +104,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
 
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
+  p_interp->p_debug_interrupt = debug_get_interrupt(p_debug);
 }
 
 struct cpu_driver*
@@ -168,8 +172,9 @@ interp_call_debugger(struct interp_struct* p_interp,
       p_options->debug_active_at_addr;
   struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_interp;
   struct debug_struct* p_debug_object = p_cpu_driver->abi.p_debug_object;
+  volatile int* p_debug_interrupt = p_interp->p_debug_interrupt;
 
-  if (debug_active_at_addr(p_debug_object, *p_pc)) {
+  if (debug_active_at_addr(p_debug_object, *p_pc) || *p_debug_interrupt) {
     void* (*debug_callback)(struct cpu_driver*, int) =
         p_cpu_driver->abi.p_debug_callback;
 
@@ -976,6 +981,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint8_t* p_mem_read = p_interp->p_mem_read;
   uint8_t* p_mem_write = p_interp->p_mem_write;
   uint8_t* p_stack = (p_mem_write + k_6502_stack_addr);
+  volatile int* p_debug_interrupt = p_interp->p_debug_interrupt;
   int64_t cycles_this_instruction = 0;
   uint8_t opcode = 0;
   int special_checks = 0;
@@ -2821,7 +2827,7 @@ check_irq:
     }
 
     /* The debug callout fires before the next instruction executes. */
-    if (p_interp->debug_subsystem_active) {
+    if (p_interp->debug_subsystem_active || *p_debug_interrupt) {
       INTERP_TIMING_ADVANCE(0);
       interp_call_debugger(p_interp,
                            &a,

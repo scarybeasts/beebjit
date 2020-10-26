@@ -14,6 +14,7 @@ struct debug_struct* debug_create(struct bbc_struct* p_bbc,
 void debug_init(struct debug_struct* p_debug);
 void debug_destroy(struct debug_struct* p_debug);
 
+volatile int* debug_get_interrupt(struct debug_struct* p_debug);
 int debug_subsystem_active(void* p);
 int debug_active_at_addr(void* p, uint16_t addr_6502);
 

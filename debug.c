@@ -151,6 +151,12 @@ debug_destroy(struct debug_struct* p_debug) {
   free(p_debug);
 }
 
+volatile int*
+debug_get_interrupt(struct debug_struct* p_debug) {
+  (void) p_debug;
+  return &s_interrupt_received;
+}
+
 int
 debug_subsystem_active(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
