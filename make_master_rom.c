@@ -302,8 +302,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x08);
   emit_JMP(p_buf, k_abs, 0xC440);
 
-  /* Exit sequence. */
+  /* Test BCD timing includes extra cycle. */
   set_new_index(p_buf, 0x0440);
+  emit_SED(p_buf);
+  emit_CYCLES_RESET(p_buf);
+  emit_ADC(p_buf, k_zpg, 0x00);
+  emit_CYCLES(p_buf);
+  emit_CLD(p_buf);
+  emit_REQUIRE_EQ(p_buf, 8);
+  emit_JMP(p_buf, k_abs, 0xC480);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0480);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */

@@ -263,6 +263,21 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     goto check_irq;                                                           \
   }
 
+#define INTERP_MODE_65c12_BCD_ABS_READ(INSTR)                                 \
+  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  pc += 3;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 5;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(3);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
+    goto check_irq;                                                           \
+  }
+
 #define INTERP_MODE_ABS_WRITE(INSTR)                                          \
   addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
   pc += 3;                                                                    \
@@ -327,6 +342,28 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     }                                                                         \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_65c12_BCD_ABr_READ(INSTR, reg_name)                       \
+  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr = (addr_temp + reg_name);                                              \
+  pc += 3;                                                                    \
+  page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 5;                                              \
+    cycles_this_instruction += page_crossing;                                 \
+  } else {                                                                    \
+    if (page_crossing) {                                                      \
+      INTERP_TIMING_ADVANCE(4);                                               \
+    } else {                                                                  \
+      INTERP_TIMING_ADVANCE(3);                                               \
+    }                                                                         \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     goto check_irq;                                                           \
   }
 
@@ -416,6 +453,24 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_TIMING_ADVANCE(1);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
+    goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_65c12_BCD_IDX_READ(INSTR)                                 \
+  addr = p_mem_read[pc + 1];                                                  \
+  addr += x;                                                                  \
+  addr &= 0xFF;                                                               \
+  addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
+  pc += 2;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 7;                                              \
+  } else {                                                                    \
+    INTERP_TIMING_ADVANCE(5);                                                 \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
     goto check_irq;                                                           \
   }
 
@@ -522,6 +577,29 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_MEMORY_READ(addr);                                                 \
     INSTR;                                                                    \
     goto check_irq;                                                           \
+  }
+
+#define INTERP_MODE_65c12_BCD_IDY_READ(INSTR)                                 \
+  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
+      p_mem_read[addr_temp]);                                                 \
+  addr = (addr_temp + y);                                                     \
+  page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
+  pc += 2;                                                                    \
+  if (addr < read_callback_from) {                                            \
+    v = p_mem_read[addr];                                                     \
+    INSTR;                                                                    \
+    cycles_this_instruction = 6;                                              \
+    cycles_this_instruction += page_crossing;                                 \
+  } else {                                                                    \
+    if (page_crossing) {                                                      \
+      INTERP_TIMING_ADVANCE(5);                                               \
+    } else {                                                                  \
+      INTERP_TIMING_ADVANCE(4);                                               \
+    }                                                                         \
+    INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
+    INSTR;                                                                    \
+    INTERP_TIMING_ADVANCE(1);                                                 \
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
@@ -1573,7 +1651,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x61: /* ADC idx */
       if (df) {
-        INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_ADC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_IDX_READ(INTERP_INSTR_BCD_ADC());
+        } else {
+          INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_ADC());
+        }
       } else {
         INTERP_MODE_IDX_READ(INTERP_INSTR_ADC());
       }
@@ -1605,6 +1687,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x65: /* ADC zpg */
       if (df) {
         INTERP_MODE_ZPG_READ(INTERP_INSTR_BCD_ADC());
+        if (is_65c12) {
+          cycles_this_instruction = 4;
+        }
       } else {
         INTERP_MODE_ZPG_READ(INTERP_INSTR_ADC());
       }
@@ -1631,6 +1716,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 2;
       if (df) {
+        if (is_65c12) {
+          cycles_this_instruction = 3;
+        }
         INTERP_INSTR_BCD_ADC();
       } else {
         INTERP_INSTR_ADC();
@@ -1666,7 +1754,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x6D: /* ADC abs */
       if (df) {
-        INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_ADC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABS_READ(INTERP_INSTR_BCD_ADC());
+        } else {
+          INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_ADC());
+        }
       } else {
         INTERP_MODE_ABS_READ(INTERP_INSTR_ADC());
       }
@@ -1687,7 +1779,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x71: /* ADC idy */
       if (df) {
-        INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_ADC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_IDY_READ(INTERP_INSTR_BCD_ADC());
+        } else {
+          INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_ADC());
+        }
       } else {
         INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
       }
@@ -1722,6 +1818,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0x75: /* ADC zpx */
       if (df) {
         INTERP_MODE_ZPr_READ(INTERP_INSTR_BCD_ADC(), x);
+        if (is_65c12) {
+          cycles_this_instruction = 5;
+        }
       } else {
         INTERP_MODE_ZPr_READ(INTERP_INSTR_ADC(), x);
       }
@@ -1750,7 +1849,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       goto check_irq;
     case 0x79: /* ADC aby */
       if (df) {
-        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), y);
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABr_READ(INTERP_INSTR_BCD_ADC(), y);
+        } else {
+          INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), y);
+        }
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
       }
@@ -1786,7 +1889,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x7D: /* ADC abx */
       if (df) {
-        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), x);
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABr_READ(INTERP_INSTR_BCD_ADC(), x);
+        } else {
+          INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), x);
+        }
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
       }
@@ -2336,7 +2443,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xE1: /* SBC idx */
       if (df) {
-        INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_SBC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_IDX_READ(INTERP_INSTR_BCD_SBC());
+        } else {
+          INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_SBC());
+        }
       } else {
         INTERP_MODE_IDX_READ(INTERP_INSTR_SBC());
       }
@@ -2355,6 +2466,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xE5: /* SBC zpg */
       if (df) {
         INTERP_MODE_ZPG_READ(INTERP_INSTR_BCD_SBC());
+        if (is_65c12) {
+          cycles_this_instruction = 4;
+        }
       } else {
         INTERP_MODE_ZPG_READ(INTERP_INSTR_SBC());
       }
@@ -2381,6 +2495,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
       pc += 2;
       cycles_this_instruction = 2;
       if (df) {
+        if (is_65c12) {
+          cycles_this_instruction = 3;
+        }
         INTERP_INSTR_BCD_SBC();
       } else {
         INTERP_INSTR_SBC();
@@ -2410,7 +2527,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xED: /* SBC abs */
       if (df) {
-        INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_SBC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABS_READ(INTERP_INSTR_BCD_SBC());
+        } else {
+          INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_SBC());
+        }
       } else {
         INTERP_MODE_ABS_READ(INTERP_INSTR_SBC());
       }
@@ -2431,7 +2552,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xF1: /* SBC idy */
       if (df) {
-        INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_SBC());
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_IDY_READ(INTERP_INSTR_BCD_SBC());
+        } else {
+          INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_SBC());
+        }
       } else {
         INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
       }
@@ -2458,6 +2583,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
     case 0xF5: /* SBC zpx */
       if (df) {
         INTERP_MODE_ZPr_READ(INTERP_INSTR_BCD_SBC(), x);
+        if (is_65c12) {
+          cycles_this_instruction = 5;
+        }
       } else {
         INTERP_MODE_ZPr_READ(INTERP_INSTR_SBC(), x);
       }
@@ -2483,7 +2611,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xF9: /* SBC aby */
       if (df) {
-        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), y);
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABr_READ(INTERP_INSTR_BCD_SBC(), y);
+        } else {
+          INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), y);
+        }
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), y);
       }
@@ -2509,7 +2641,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xFD: /* SBC abx */
       if (df) {
-        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), x);
+        if (is_65c12) {
+          INTERP_MODE_65c12_BCD_ABr_READ(INTERP_INSTR_BCD_SBC(), x);
+        } else {
+          INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), x);
+        }
       } else {
         INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);
       }
