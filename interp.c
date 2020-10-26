@@ -2719,7 +2719,10 @@ do_special_checks:
         INTERP_TIMING_ADVANCE(0);
         interp_poll_irq_now(&do_irq, p_state_6502, intf);
         INTERP_TIMING_ADVANCE(cycles_this_instruction);
-      } else if (interp_is_branch_opcode(opcode)) {
+      } else if (interp_is_branch_opcode(opcode) && !is_65c12) {
+        /* Quirky IRQ poll point handling only applies to NMOS 6502.
+         * See: https://stardot.org.uk/forums/viewtopic.php?f=3&t=15631
+         */
         /* NOTE: branch & not taken case handled above for cycles == 2. */
         INTERP_TIMING_ADVANCE(0);
         /* EMU NOTE: Taken branches have a different interrupt poll location. */
