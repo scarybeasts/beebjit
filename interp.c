@@ -642,6 +642,15 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 #define INTERP_INSTR_ADC()                                                    \
   temp_int = (a + v + cf);                                                    \
   zf = !(temp_int & 0xFF);                                                    \
+  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
+  of = !!((a ^ temp_int) & (v ^ temp_int) & 0x80);                            \
+  nf = !!(temp_int & 0x80);                                                   \
+  cf = (temp_int >= 0x100);                                                   \
+  a = temp_int;
+
+#define INTERP_INSTR_BCD_ADC()                                                \
+  temp_int = (a + v + cf);                                                    \
+  zf = !(temp_int & 0xFF);                                                    \
   if (df) {                                                                   \
     interp_check_log_bcd(p_interp);                                           \
     /* Fix up decimal carry on first nibble. */                               \
@@ -762,12 +771,29 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v >>= 1;                                                                    \
   v |= (temp_int << 7);                                                       \
   a &= v;                                                                     \
-  INTERP_INSTR_ADC();
+  if (df) {                                                                   \
+    INTERP_INSTR_BCD_ADC();                                                   \
+  } else {                                                                    \
+    INTERP_INSTR_ADC();                                                       \
+  }
 
 #define INTERP_INSTR_SAX()                                                    \
   v = (a & x);
 
 #define INTERP_INSTR_SBC()                                                    \
+  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
+  /* "SBC simply takes the ones complement of the second value and then       \
+   * performs an ADC"                                                         \
+   */                                                                         \
+  temp_int = (a + (uint8_t) ~v + cf);                                         \
+  /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
+  of = !!((a ^ temp_int) & ((uint8_t) ~v ^ temp_int) & 0x80);                 \
+  /* In decimal mode, NZ flags are based on this interim value. */            \
+  INTERP_LOAD_NZ_FLAGS((temp_int & 0xFF));                                    \
+  cf = !!(temp_int & 0x100);                                                  \
+  a = temp_int;
+
+#define INTERP_INSTR_BCD_SBC()                                                \
   /* http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html */   \
   /* "SBC simply takes the ones complement of the second value and then       \
    * performs an ADC"                                                         \
@@ -1546,7 +1572,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 6;
       break;
     case 0x61: /* ADC idx */
-      INTERP_MODE_IDX_READ(INTERP_INSTR_ADC());
+      if (df) {
+        INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_ADC());
+      } else {
+        INTERP_MODE_IDX_READ(INTERP_INSTR_ADC());
+      }
       break;
     case 0x62: /* KIL */ /* Undocumented. */ /* NOP imm */
       if (is_65c12) {
@@ -1573,7 +1603,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x65: /* ADC zpg */
-      INTERP_MODE_ZPG_READ(INTERP_INSTR_ADC());
+      if (df) {
+        INTERP_MODE_ZPG_READ(INTERP_INSTR_BCD_ADC());
+      } else {
+        INTERP_MODE_ZPG_READ(INTERP_INSTR_ADC());
+      }
       break;
     case 0x66: /* ROR zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ROR());
@@ -1594,9 +1628,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0x69: /* ADC imm */
       v = p_mem_read[pc + 1];
-      INTERP_INSTR_ADC();
       pc += 2;
       cycles_this_instruction = 2;
+      if (df) {
+        INTERP_INSTR_BCD_ADC();
+      } else {
+        INTERP_INSTR_ADC();
+      }
       break;
     case 0x6A: /* ROR A */
       v = a;
@@ -1627,7 +1665,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x6D: /* ADC abs */
-      INTERP_MODE_ABS_READ(INTERP_INSTR_ADC());
+      if (df) {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_ADC());
+      } else {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_ADC());
+      }
       break;
     case 0x6E: /* ROR abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ROR());
@@ -1644,11 +1686,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_INSTR_BRANCH(of);
       break;
     case 0x71: /* ADC idy */
-      INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
+      if (df) {
+        INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_ADC());
+      } else {
+        INTERP_MODE_IDY_READ(INTERP_INSTR_ADC());
+      }
       break;
     case 0x72: /* KIL */ /* Undocumented. */ /* ADC id */
       if (is_65c12) {
-        INTERP_MODE_ID_READ(INTERP_INSTR_ADC());
+        if (df) {
+          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_ADC());
+        } else {
+          INTERP_MODE_ID_READ(INTERP_INSTR_ADC());
+        }
       } else {
         INTERP_INSTR_KIL();
       }
@@ -1670,7 +1720,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x75: /* ADC zpx */
-      INTERP_MODE_ZPr_READ(INTERP_INSTR_ADC(), x);
+      if (df) {
+        INTERP_MODE_ZPr_READ(INTERP_INSTR_BCD_ADC(), x);
+      } else {
+        INTERP_MODE_ZPr_READ(INTERP_INSTR_ADC(), x);
+      }
       break;
     case 0x76: /* ROR zpx */
       INTERP_MODE_ZPX_READ_WRITE();
@@ -1695,7 +1749,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_TIMING_ADVANCE(2);
       goto check_irq;
     case 0x79: /* ADC aby */
-      INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
+      if (df) {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), y);
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), y);
+      }
       break;
     case 0x7A: /* NOP */ /* Undocumented. */ /* PLY */
       if (is_65c12) {
@@ -1727,7 +1785,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0x7D: /* ADC abx */
-      INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
+      if (df) {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_ADC(), x);
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_ADC(), x);
+      }
       break;
     case 0x7E: /* ROR abx */
       if (is_65c12) {
@@ -2273,7 +2335,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 2;
       break;
     case 0xE1: /* SBC idx */
-      INTERP_MODE_IDX_READ(INTERP_INSTR_SBC());
+      if (df) {
+        INTERP_MODE_IDX_READ(INTERP_INSTR_BCD_SBC());
+      } else {
+        INTERP_MODE_IDX_READ(INTERP_INSTR_SBC());
+      }
       break;
     case 0xE3: /* ISC idx */ /* Undocumented. */ /* NOP1 */
       if (is_65c12) {
@@ -2287,7 +2353,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_MODE_ZPG_READ(INTERP_INSTR_CMP(x));
       break;
     case 0xE5: /* SBC zpg */
-      INTERP_MODE_ZPG_READ(INTERP_INSTR_SBC());
+      if (df) {
+        INTERP_MODE_ZPG_READ(INTERP_INSTR_BCD_SBC());
+      } else {
+        INTERP_MODE_ZPG_READ(INTERP_INSTR_SBC());
+      }
       break;
     case 0xE6: /* INC zpg */
       INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_INC());
@@ -2308,9 +2378,13 @@ interp_enter_with_details(struct interp_struct* p_interp,
       break;
     case 0xE9: /* SBC imm */
       v = p_mem_read[pc + 1];
-      INTERP_INSTR_SBC();
       pc += 2;
       cycles_this_instruction = 2;
+      if (df) {
+        INTERP_INSTR_BCD_SBC();
+      } else {
+        INTERP_INSTR_SBC();
+      }
       break;
     case 0xEA: /* NOP */
       pc++;
@@ -2322,16 +2396,24 @@ interp_enter_with_details(struct interp_struct* p_interp,
         cycles_this_instruction = 1;
       } else {
         v = p_mem_read[pc + 1];
-        INTERP_INSTR_SBC();
         pc += 2;
         cycles_this_instruction = 2;
+        if (df) {
+          INTERP_INSTR_BCD_SBC();
+        } else {
+          INTERP_INSTR_SBC();
+        }
       }
       break;
     case 0xEC: /* CPX abs */
       INTERP_MODE_ABS_READ(INTERP_INSTR_CMP(x));
       break;
     case 0xED: /* SBC abs */
-      INTERP_MODE_ABS_READ(INTERP_INSTR_SBC());
+      if (df) {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_BCD_SBC());
+      } else {
+        INTERP_MODE_ABS_READ(INTERP_INSTR_SBC());
+      }
       break;
     case 0xEE: /* INC abs */
       INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_INC());
@@ -2348,11 +2430,19 @@ interp_enter_with_details(struct interp_struct* p_interp,
       INTERP_INSTR_BRANCH(zf);
       break;
     case 0xF1: /* SBC idy */
-      INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
+      if (df) {
+        INTERP_MODE_IDY_READ(INTERP_INSTR_BCD_SBC());
+      } else {
+        INTERP_MODE_IDY_READ(INTERP_INSTR_SBC());
+      }
       break;
     case 0xF2: /* KIL */ /* Undocumented. */ /* SBC id */
       if (is_65c12) {
-        INTERP_MODE_ID_READ(INTERP_INSTR_SBC());
+        if (df) {
+          INTERP_MODE_ID_READ(INTERP_INSTR_BCD_SBC());
+        } else {
+          INTERP_MODE_ID_READ(INTERP_INSTR_SBC());
+        }
       } else {
         INTERP_INSTR_KIL();
       }
@@ -2366,7 +2456,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0xF5: /* SBC zpx */
-      INTERP_MODE_ZPr_READ(INTERP_INSTR_SBC(), x);
+      if (df) {
+        INTERP_MODE_ZPr_READ(INTERP_INSTR_BCD_SBC(), x);
+      } else {
+        INTERP_MODE_ZPr_READ(INTERP_INSTR_SBC(), x);
+      }
       break;
     case 0xF6: /* INC zpx */
       INTERP_MODE_ZPX_READ_WRITE();
@@ -2388,7 +2482,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       cycles_this_instruction = 2;
       break;
     case 0xF9: /* SBC aby */
-      INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), y);
+      if (df) {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), y);
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), y);
+      }
       break;
     case 0xFA: /* NOP */ /* Undocumented. */ /* PLX */
       if (is_65c12) {
@@ -2410,7 +2508,11 @@ interp_enter_with_details(struct interp_struct* p_interp,
       }
       break;
     case 0xFD: /* SBC abx */
-      INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);
+      if (df) {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_BCD_SBC(), x);
+      } else {
+        INTERP_MODE_ABr_READ(INTERP_INSTR_SBC(), x);
+      }
       break;
     case 0xFE: /* INC abx */
       INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_INC(), x);
