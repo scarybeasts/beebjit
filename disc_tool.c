@@ -80,7 +80,8 @@ disc_tool_get_pulses(struct disc_tool_struct* p_tool) {
 
 void
 disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
-                       uint8_t* p_buf,
+                       uint8_t* p_clocks,
+                       uint8_t* p_data,
                        uint32_t len) {
   uint32_t i;
   uint8_t clocks;
@@ -89,7 +90,8 @@ disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
   uint32_t* p_pulses = disc_tool_get_pulses(p_tool);
 
   if (p_pulses == NULL) {
-    (void) memset(p_buf, '\0', len);
+    (void) memset(p_clocks, '\0', len);
+    (void) memset(p_data, '\0', len);
     return;
   }
 
@@ -98,7 +100,8 @@ disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
       pos = 0;
     }
     ibm_disc_format_2us_pulses_to_fm(&clocks, &data, p_pulses[pos]);
-    p_buf[i] = data;
+    p_clocks[i] = clocks;
+    p_data[i] = data;
     pos++;
   }
 

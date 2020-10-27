@@ -1316,7 +1316,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     size_t i;
     size_t j;
     char parse_string[256];
-    uint8_t disc_data[16];
+    uint8_t disc_data[64];
+    uint8_t clocks_data[64];
     uint16_t parse_addr;
     int ret;
     struct debug_breakpoint* p_breakpoint;
@@ -1557,9 +1558,20 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         disc_tool_set_pos(p_tool, parse_int);
       }
       parse_int = disc_tool_get_pos(p_tool);
-      disc_tool_read_fm_data(p_tool, &disc_data[0], 64);
+      disc_tool_read_fm_data(p_tool, &clocks_data[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
+      }
+    } else if (!strcmp(input_buf, "drfmc") ||
+               (sscanf(input_buf, "drfmc %"PRId32, &parse_int) == 1)) {
+      if (parse_int >= 0) {
+        disc_tool_set_pos(p_tool, parse_int);
+      }
+      parse_int = disc_tool_get_pos(p_tool);
+      disc_tool_read_fm_data(p_tool, &clocks_data[0], &disc_data[0], 64);
+      for (j = 0; j < 4; ++j) {
+        debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
+        debug_print_hex_line(&clocks_data[0], (j * 16), parse_int);
       }
     } else if (!strcmp(input_buf, "?") ||
                !strcmp(input_buf, "help") ||
@@ -1591,6 +1603,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "ddrive <d>         : set debug disc drive to <d>\n"
   "dtrack <t>         : set debug disc track to <t>\n"
   "drfm (pos)         : read FM encoded data\n"
+  "drfmc (pos)        : read FM encoded data, and show clocks too\n"
   );
     } else if (!strcmp(input_buf, "more")) {
       (void) printf(
