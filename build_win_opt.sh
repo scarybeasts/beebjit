@@ -12,7 +12,7 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     jit_optimizer.c jit_opcode.c keyboard.c \
     teletext.c render.c serial.c log.c test.c tape.c adc.c cmos.c \
     intel_fdc.c wd_fdc.c \
-    disc_drive.c disc.c ibm_disc_format.c \
+    disc_drive.c disc.c ibm_disc_format.c disc_tool.c \
     disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c \
     debug.c jit.c util.c \
     os.c \

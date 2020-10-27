@@ -45,7 +45,7 @@ struct disc_drive_struct {
   uint32_t pulse_position;
 };
 
-static struct disc_struct*
+struct disc_struct*
 disc_drive_get_disc(struct disc_drive_struct* p_drive) {
   return p_drive->p_discs[p_drive->disc_index];
 }

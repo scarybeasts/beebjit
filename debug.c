@@ -3,6 +3,7 @@
 #include "bbc.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
+#include "disc_tool.h"
 #include "state.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -46,6 +47,7 @@ struct debug_breakpoint {
 
 struct debug_struct {
   struct bbc_struct* p_bbc;
+  struct disc_tool_struct* p_tool;
   int debug_active;
   int debug_running;
   int debug_running_print;
@@ -125,6 +127,8 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
+  p_debug->p_tool = disc_tool_create(bbc_get_drive_0(p_bbc),
+                                     bbc_get_drive_1(p_bbc));
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
@@ -148,6 +152,7 @@ debug_init(struct debug_struct* p_debug) {
 
 void
 debug_destroy(struct debug_struct* p_debug) {
+  disc_tool_destroy(p_debug->p_tool);
   free(p_debug);
 }
 
@@ -1034,8 +1039,28 @@ debug_parse_breakpoint(struct debug_breakpoint* p_breakpoint,
   }
 }
 
+static void
+debug_print_hex_line(uint8_t* p_buf, uint32_t pos, uint32_t base) {
+  uint32_t i;
+
+  (void) printf("%.4"PRIX16":", (base + pos));
+  for (i = 0; i < 16; ++i) {
+    (void) printf(" %.2"PRIX8, p_buf[pos + i]);
+  }
+  (void) printf("  ");
+  for (i = 0; i < 16; ++i) {
+    char c = p_buf[pos + i];
+    if (!isprint(c)) {
+      c = '.';
+    }
+    (void) printf("%c", c);
+  }
+  (void) printf("\n");
+}
+
 void*
 debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
+  struct disc_tool_struct* p_tool;
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   char input_buf[k_max_input_len];
@@ -1284,11 +1309,14 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   oplen = g_opmodelens[opmode];
 
+  p_tool = p_debug->p_tool;
+
   while (1) {
     char* input_ret;
     size_t i;
     size_t j;
     char parse_string[256];
+    uint8_t disc_data[16];
     uint16_t parse_addr;
     int ret;
     struct debug_breakpoint* p_breakpoint;
@@ -1357,23 +1385,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       break;
     } else if (sscanf(input_buf, "m %"PRIx32, &parse_int) == 1) {
       for (j = 0; j < 4; ++j) {
-        parse_addr = parse_int;
-        (void) printf("%.4"PRIX16":", parse_addr);
-        for (i = 0; i < 16; ++i) {
-          (void) printf(" %.2"PRIX8, p_mem_read[parse_addr]);
-          parse_addr++;
-        }
-        (void) printf("  ");
-        parse_addr = parse_int;
-        for (i = 0; i < 16; ++i) {
-          char c = p_mem_read[parse_addr];
-          if (!isprint(c)) {
-            c = '.';
-          }
-          (void) printf("%c", c);
-          parse_addr++;
-        }
-        (void) printf("\n");
+        debug_print_hex_line(p_mem_read, parse_int, 0);
         parse_int += 16;
       }
       /* Continue where we left off if just enter is hit next. */
@@ -1532,31 +1544,62 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             reg_pc,
                             cycles,
                             countdown);
-    } else if (!strcmp(input_buf, "?") || !strcmp(input_buf, "help")) {
+    } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
+               (parse_int >= 0) &&
+               (parse_int <= 3)) {
+      disc_tool_set_drive(p_tool, parse_int);
+    } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
+               (parse_int >= 0)) {
+      disc_tool_set_track(p_tool, parse_int);
+    } else if (!strcmp(input_buf, "drfm") ||
+               (sscanf(input_buf, "drfm %"PRId32, &parse_int) == 1)) {
+      if (parse_int >= 0) {
+        disc_tool_set_pos(p_tool, parse_int);
+      }
+      parse_int = disc_tool_get_pos(p_tool);
+      disc_tool_read_fm_data(p_tool, &disc_data[0], 64);
+      for (j = 0; j < 4; ++j) {
+        debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
+      }
+    } else if (!strcmp(input_buf, "?") ||
+               !strcmp(input_buf, "help") ||
+               !strcmp(input_buf, "h")) {
       (void) printf(
   "q                  : quit\n"
   "c, s, n, f         : continue, step (in), next (step over), finish (JSR)\n"
   "d <a>              : disassemble at <a>\n"
-  "t                  : trap into gdb\n"
   "{b,break} <a>      : set breakpoint at 6502 address <a>\n"
   "{bl,blist}         : list breakpoints\n"
   "db <id>            : delete breakpoint <id>\n"
   "bm <lo> (hi)       : set read/write memory breakpoint for 6502 range\n"
   "bmr <lo> (hi)      : set read memory breakpoint for 6502 range\n"
   "bmw <lo> (hi)      : set write memory breakpoint for 6502 range\n"
-  "bop <op>           : break on opcode <op>\n"
   "m <a>              : show memory at <a>\n"
   "writem <a> <v>     : write <v> to 6502 <a>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
-  "ss <f>             : save state to BEM file <f>\n"
   "{a,x,y,pc}=<v>     : set register to <v>\n"
   "sys                : show system VIA registers\n"
   "user               : show user VIA registers\n"
   "r                  : show regular registers\n"
+  "bbc                : show other BBC registers (ACCCON, ROMSEL, IC32, etc.)\n"
+  "disc               : show disc commands\n"
+  "more               : show more commands\n"
+  );
+    } else if (!strcmp(input_buf, "disc")) {
+      (void) printf(
+  "ddrive <d>         : set debug disc drive to <d>\n"
+  "dtrack <t>         : set debug disc track to <t>\n"
+  "drfm (pos)         : read FM encoded data\n"
+  );
+    } else if (!strcmp(input_buf, "more")) {
+      (void) printf(
+  "bop <op>           : break on opcode <op>\n"
   "stats              : toggle stats collection (default: off)\n"
   "ds                 : dump stats collected\n"
   "cs                 : clear stats collected\n"
+  "t                  : trap into gdb\n"
+  "ss <f>             : save state to BEM file <f> (deprecated)\n"
   );
     } else {
       (void) printf("???\n");

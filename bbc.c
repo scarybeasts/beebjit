@@ -1843,6 +1843,16 @@ bbc_get_wd_fdc(struct bbc_struct* p_bbc) {
   return p_bbc->p_wd_fdc;
 }
 
+struct disc_drive_struct*
+bbc_get_drive_0(struct bbc_struct* p_bbc) {
+  return p_bbc->p_drive_0;
+}
+
+struct disc_drive_struct*
+bbc_get_drive_1(struct bbc_struct* p_bbc) {
+  return p_bbc->p_drive_1;
+}
+
 uint8_t
 bbc_get_IC32(struct bbc_struct* p_bbc) {
   return p_bbc->IC32;

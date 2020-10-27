@@ -29,6 +29,7 @@ void disc_drive_add_disc(struct disc_drive_struct* p_drive,
                          struct disc_struct* p_disc);
 void disc_drive_cycle_disc(struct disc_drive_struct* p_drive);
 
+struct disc_struct* disc_drive_get_disc(struct disc_drive_struct* p_drive);
 int disc_drive_is_spinning(struct disc_drive_struct* p_drive);
 int disc_drive_is_upper_side(struct disc_drive_struct* p_drive);
 uint32_t disc_drive_get_track(struct disc_drive_struct* p_drive);
