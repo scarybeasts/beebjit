@@ -116,6 +116,7 @@ struct bbc_struct {
   int print_flag;
   int fast_flag;
   int test_map_flag;
+  int autoboot_flag;
   int vsync_wait_for_render;
   struct bbc_options options;
 
@@ -168,6 +169,7 @@ struct bbc_struct {
   struct os_time_sleeper* p_sleeper;
   uint32_t timer_id_cycles;
   uint32_t timer_id_stop_cycles;
+  int32_t timer_id_autoboot;
   uint32_t wakeup_rate;
   uint64_t cycles_per_run_fast;
   uint64_t cycles_per_run_normal;
@@ -1246,6 +1248,7 @@ bbc_create(int mode,
   p_bbc->handle_channel_write_bbc = -1;
   p_bbc->handle_channel_read_client = -1;
   p_bbc->handle_channel_write_client = -1;
+  p_bbc->timer_id_autoboot = -1;
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
@@ -1720,6 +1723,14 @@ bbc_power_on_other_reset(struct bbc_struct* p_bbc) {
 void
 bbc_power_on_reset(struct bbc_struct* p_bbc) {
   struct timing_struct* p_timing = p_bbc->p_timing;
+  struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+  int32_t timer_id_autoboot = p_bbc->timer_id_autoboot;
+
+  if (timer_id_autoboot != -1) {
+    if (timing_timer_is_running(p_timing, timer_id_autoboot)) {
+      (void) timing_stop_timer(p_timing, timer_id_autoboot);
+    }
+  }
 
   timing_reset_total_timer_ticks(p_timing);
   bbc_power_on_memory_reset(p_bbc);
@@ -1743,7 +1754,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   }
   disc_drive_power_on_reset(p_bbc->p_drive_0);
   disc_drive_power_on_reset(p_bbc->p_drive_1);
-  keyboard_power_on_reset(p_bbc->p_keyboard);
+  keyboard_power_on_reset(p_keyboard);
   video_power_on_reset(p_bbc->p_video);
 
   /* Not reset: teletext, render. They don't affect execution (only display) and
@@ -1752,6 +1763,12 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
 
   assert(timing_get_total_timer_ticks(p_timing) == 0);
   state_6502_reset(p_bbc->p_state_6502);
+
+  if (p_bbc->autoboot_flag) {
+    keyboard_system_key_pressed(p_keyboard, k_keyboard_key_shift_left);
+    /* 1.5s is enough for the Master Compact, which is slowest. */
+    (void) timing_start_timer_with_value(p_timing, timer_id_autoboot, 3000000);
+  }
 }
 
 struct cpu_driver*
@@ -2401,4 +2418,25 @@ bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles) {
                                       p_bbc);
   p_bbc->timer_id_stop_cycles = id;
   (void) timing_start_timer_with_value(p_timing, id, cycles);
+}
+
+static void
+bbc_autoboot_timer_callback(void* p) {
+  struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
+
+  (void) timing_stop_timer(p_bbc->p_timing, p_bbc->timer_id_autoboot);
+
+  keyboard_system_key_released(p_keyboard, k_keyboard_key_shift_left);
+}
+
+void
+bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag) {
+  if (autoboot_flag && (p_bbc->timer_id_autoboot == -1)) {
+    p_bbc->timer_id_autoboot =
+        timing_register_timer(p_bbc->p_timing,
+                              bbc_autoboot_timer_callback,
+                              p_bbc);
+  }
+  p_bbc->autoboot_flag = autoboot_flag;
 }

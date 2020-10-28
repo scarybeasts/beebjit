@@ -86,6 +86,7 @@ main(int argc, const char* argv[]) {
   int watford_flag = 0;
   int opus_flag = 0;
   int is_master_flag = 0;
+  int autoboot_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -237,6 +238,8 @@ main(int argc, const char* argv[]) {
       watford_flag = 1;
     } else if (!strcmp(arg, "-opus")) {
       opus_flag = 1;
+    } else if (!strcmp(arg, "-autoboot")) {
+      autoboot_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
@@ -264,6 +267,7 @@ main(int argc, const char* argv[]) {
 "The most common command line flags follow. See EXAMPLES for more.\n"
 "-0 -disc -disc0 <f>: load disc image file <f> into drive 0/2.\n"
 "-1 -disc1       <f>: load disc image file <f> into drive 1/3.\n"
+"-autoboot          : do a shift+break boot at startup.\n"
 "-writeable         : discs are not write protected (by default they are).\n"
 "-mutable           : disc image changes are written back to host image file.\n"
 "-tape           <f>: load tape image file <f>.\n"
@@ -448,6 +452,9 @@ main(int argc, const char* argv[]) {
   }
   if (keyboard_links != -1) {
     keyboard_set_links(p_keyboard, keyboard_links);
+  }
+  if (autoboot_flag) {
+    bbc_set_autoboot(p_bbc, 1);
   }
 
   p_render = bbc_get_render(p_bbc);
