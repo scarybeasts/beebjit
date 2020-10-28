@@ -32,6 +32,28 @@ enum {
   k_max_tapes = 4,
 };
 
+static void
+main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
+  char file_name[256];
+  struct util_file* p_file;
+  uint32_t width = render_get_width(p_render);
+  uint32_t height = render_get_height(p_render);
+  uint32_t* p_buffer = render_get_buffer(p_render);
+
+  (void) snprintf(file_name,
+                  sizeof(file_name),
+                  "beebjit_frame_%d.rgba",
+                  save_frame_count);
+  p_file = util_file_open(&file_name[0], 1, 1);
+  if (p_file == NULL) {
+    util_bail("util_file_open failed");
+  }
+
+  util_file_write(p_file, p_buffer, (width * height * 4));
+
+  util_file_close(p_file);
+}
+
 int
 main(int argc, const char* argv[]) {
   int i_args;
@@ -97,6 +119,9 @@ main(int argc, const char* argv[]) {
   uint32_t num_discs_1 = 0;
   uint32_t num_tapes = 0;
   int keyboard_links = -1;
+  uint32_t save_frame_count = 0;
+  uint64_t frame_cycles = 0;
+  uint32_t max_frames = 1;
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -196,6 +221,12 @@ main(int argc, const char* argv[]) {
     } else if (has_1 && !strcmp(arg, "-cycles")) {
       (void) sscanf(val1, "%"PRIu64, &cycles);
       ++i_args;
+    } else if (has_1 && !strcmp(arg, "-frame-cycles")) {
+      (void) sscanf(val1, "%"PRIu64, &frame_cycles);
+      ++i_args;
+    } else if (has_1 && !strcmp(arg, "-max-frames")) {
+      (void) sscanf(val1, "%"PRIu32, &max_frames);
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-expect")) {
       (void) sscanf(val1, "%"PRIx32, &expect);
       ++i_args;
@@ -264,7 +295,7 @@ main(int argc, const char* argv[]) {
                !strcmp(arg, "--help") ||
                !strcmp(arg, "-h")) {
       (void) printf(
-"The most common command line flags follow. See EXAMPLES for more.\n"
+"The most common command line flags follow. See EXAMPLES or -more for more.\n"
 "-0 -disc -disc0 <f>: load disc image file <f> into drive 0/2.\n"
 "-1 -disc1       <f>: load disc image file <f> into drive 1/3.\n"
 "-autoboot          : do a shift+break boot at startup.\n"
@@ -283,6 +314,16 @@ main(int argc, const char* argv[]) {
 "-1770              : emulate a 1770 instead of an 8271 floppy controller.\n"
 "-master            : set up a Master 128 with MOS 3.20.\n"
 "-compact           : set up a BBC Master Compact.\n"
+"-help              : show this help text.\n"
+"-more              : show more, less common options.\n"
+"");
+      exit(0);
+    } else if (!strcmp(arg, "-more")) {
+      (void) printf(
+"-frame-cycles   <c>: start saving frame images after <c> cycles.\n"
+"-max-frames     <m>: max frame images to save, default 1.\n"
+"-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
+"-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
 "");
       exit(0);
     } else {
@@ -538,35 +579,52 @@ main(int argc, const char* argv[]) {
 
     if (os_poller_handle_triggered(p_poller, 0)) {
       struct bbc_message message;
+      int do_full_render;
+      int framing_changed;
+      int save_frame;
+      uint64_t cycles;
+
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
         break;
-      } else {
-        int do_full_render;
-        int framing_changed;
-        assert(message.data[0] == k_message_vsync);
-        do_full_render = message.data[1];
-        framing_changed = message.data[2];
-        if (window_open) {
-          if (do_full_render) {
-            video_render_full_frame(p_video);
-          }
-          render_double_up_lines(p_render);
-          os_window_sync_buffer_to_screen(p_window);
-          if (framing_changed) {
-            /* NOTE: in accurate mode, it would be more correct to clear the
-             * buffer from the framing change to the end of that frame, as well
-             * as for the next frame.
-             */
-            render_clear_buffer(p_render);
-          }
+      }
+
+      assert(message.data[0] == k_message_vsync);
+      do_full_render = message.data[1];
+      framing_changed = message.data[2];
+      cycles = message.data[3];
+      save_frame = 0;
+      if ((frame_cycles > 0) &&
+          (cycles >= frame_cycles) &&
+          (save_frame_count < max_frames)) {
+        save_frame = 1;
+      }
+      if (window_open || save_frame) {
+        if (do_full_render) {
+          video_render_full_frame(p_video);
         }
-        if (bbc_get_vsync_wait_for_render(p_bbc)) {
-          message.data[0] = k_message_render_done;
-          bbc_client_send_message(p_bbc, &message);
+        render_double_up_lines(p_render);
+        if (window_open) {
+          os_window_sync_buffer_to_screen(p_window);
+        }
+        if (save_frame) {
+          main_save_frame(p_render, save_frame_count);
+          save_frame_count++;
+        }
+        if (framing_changed) {
+          /* NOTE: in accurate mode, it would be more correct to clear the
+           * buffer from the framing change to the end of that frame, as well
+           * as for the next frame.
+           */
+          render_clear_buffer(p_render);
         }
       }
+      if (bbc_get_vsync_wait_for_render(p_bbc)) {
+        message.data[0] = k_message_render_done;
+        bbc_client_send_message(p_bbc, &message);
+      }
     }
+
     if (window_open && os_poller_handle_triggered(p_poller, 1)) {
       os_window_process_events(p_window);
       if (os_window_is_closed(p_window)) {

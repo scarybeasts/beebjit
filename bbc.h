@@ -143,11 +143,11 @@ void bbc_set_channel_handles(struct bbc_struct* p_bbc,
                              intptr_t handle_channel_write_client);
 
 struct bbc_message {
-  uint8_t data[16];
+  uint64_t data[4];
 };
 void bbc_client_send_message(struct bbc_struct* p_bbc,
                              struct bbc_message* p_message);
 void bbc_client_receive_message(struct bbc_struct* p_bbc,
                                 struct bbc_message* p_out_message);
 
-#endif /* BEEJIT_JIT_H */
+#endif /* BEEBJIT_BBC_H */

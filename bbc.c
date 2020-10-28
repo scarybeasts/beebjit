@@ -1105,6 +1105,7 @@ bbc_framebuffer_ready_callback(void* p,
   message.data[0] = k_message_vsync;
   message.data[1] = do_full_render;
   message.data[2] = framing_changed;
+  message.data[3] = timing_get_total_timer_ticks(p_bbc->p_timing);
   bbc_cpu_send_message(p_bbc, &message);
   if (bbc_get_vsync_wait_for_render(p_bbc)) {
     struct bbc_message message;
