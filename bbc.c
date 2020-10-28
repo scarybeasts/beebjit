@@ -1541,6 +1541,7 @@ bbc_create(int mode,
     util_bail("debug_create failed");
   }
 
+  p_bbc->p_debug = p_debug;
   p_bbc->options.p_debug_object = p_debug;
 
   p_bbc->p_cpu_driver = cpu_driver_alloc(mode,
