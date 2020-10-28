@@ -252,6 +252,17 @@ disc_write_pulses(struct disc_struct* p_disc,
 }
 
 void
+disc_dirty_and_flush(struct disc_struct* p_disc,
+                     int is_side_upper,
+                     uint32_t track) {
+  p_disc->is_dirty = 1;
+  p_disc->dirty_side = is_side_upper;
+  p_disc->dirty_track = track;
+
+  disc_flush_writes(p_disc);
+}
+
+void
 disc_flush_writes(struct disc_struct* p_disc) {
   uint32_t* p_pulses;
   uint32_t length;

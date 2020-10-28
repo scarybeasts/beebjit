@@ -23,5 +23,12 @@ void disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
                             uint8_t* p_clocks,
                             uint8_t* p_data,
                             uint32_t len);
+void disc_tool_write_fm_data(struct disc_tool_struct* p_tool,
+                             uint8_t* p_data,
+                             uint32_t len);
+void disc_tool_write_fm_data_with_clocks(struct disc_tool_struct* p_tool,
+                                         uint8_t data,
+                                         uint8_t clocks);
+void disc_tool_fill_fm_data(struct disc_tool_struct* p_tool, uint8_t data);
 
 #endif /* BEEBJIT_DISC_TOOL_H */

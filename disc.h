@@ -55,6 +55,9 @@ void disc_write_pulses(struct disc_struct* p_disc,
                        uint32_t track,
                        uint32_t pos,
                        uint32_t pulses);
+void disc_dirty_and_flush(struct disc_struct* p_disc,
+                          int is_side_upper,
+                          uint32_t track);
 void disc_flush_writes(struct disc_struct* p_disc);
 
 void disc_build_track(struct disc_struct* p_disc,

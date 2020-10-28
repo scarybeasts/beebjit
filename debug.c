@@ -1317,13 +1317,19 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     size_t j;
     char parse_string[256];
     uint8_t disc_data[64];
-    uint8_t clocks_data[64];
+    uint8_t disc_clocks[64];
     uint16_t parse_addr;
     int ret;
     struct debug_breakpoint* p_breakpoint;
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
+    int32_t parse_int3 = -1;
+    int32_t parse_int4 = -1;
+    int32_t parse_int5 = -1;
+    int32_t parse_int6 = -1;
+    int32_t parse_int7 = -1;
+    int32_t parse_int8 = -1;
 
     (void) printf("(6502db) ");
     ret = fflush(stdout);
@@ -1552,13 +1558,22 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
+    } else if (sscanf(input_buf, "dset %"PRIx8, &parse_int) == 1) {
+      disc_tool_fill_fm_data(p_tool, parse_int);
+    } else if (!strcmp(input_buf, "dpos") ||
+               (sscanf(input_buf, "dpos %"PRId32, &parse_int) == 1)) {
+      if (parse_int >= 0) {
+        disc_tool_set_pos(p_tool, parse_int);
+      } else {
+        (void) printf("dpos is %d\n", disc_tool_get_pos(p_tool));
+      }
     } else if (!strcmp(input_buf, "drfm") ||
                (sscanf(input_buf, "drfm %"PRId32, &parse_int) == 1)) {
       if (parse_int >= 0) {
         disc_tool_set_pos(p_tool, parse_int);
       }
       parse_int = disc_tool_get_pos(p_tool);
-      disc_tool_read_fm_data(p_tool, &clocks_data[0], &disc_data[0], 64);
+      disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
       }
@@ -1568,11 +1583,38 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         disc_tool_set_pos(p_tool, parse_int);
       }
       parse_int = disc_tool_get_pos(p_tool);
-      disc_tool_read_fm_data(p_tool, &clocks_data[0], &disc_data[0], 64);
+      disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
-        debug_print_hex_line(&clocks_data[0], (j * 16), parse_int);
+        debug_print_hex_line(&disc_clocks[0], (j * 16), parse_int);
       }
+    } else if ((strncmp(input_buf, "dwfmc", 5) == 0) &&
+               (sscanf(input_buf,
+                      "dwfmc %"PRIx8" %"PRIx8,
+                       &parse_int,
+                       &parse_int2) == 2)) {
+      disc_tool_write_fm_data_with_clocks(p_tool, parse_int, parse_int2);
+    } else if ((ret = sscanf(input_buf,
+                             "dwfm "
+                             "%"PRIx8" %"PRIx8" %"PRIx8" %"PRIx8
+                             "%"PRIx8" %"PRIx8" %"PRIx8" %"PRIx8,
+                             &parse_int,
+                             &parse_int2,
+                             &parse_int3,
+                             &parse_int4,
+                             &parse_int5,
+                             &parse_int6,
+                             &parse_int7,
+                             &parse_int8)) > 0) {
+      disc_data[0] = parse_int;
+      disc_data[1] = parse_int2;
+      disc_data[2] = parse_int3;
+      disc_data[3] = parse_int4;
+      disc_data[4] = parse_int5;
+      disc_data[5] = parse_int6;
+      disc_data[6] = parse_int7;
+      disc_data[7] = parse_int8;
+      disc_tool_write_fm_data(p_tool, &disc_data[0], ret);
     } else if (!strcmp(input_buf, "?") ||
                !strcmp(input_buf, "help") ||
                !strcmp(input_buf, "h")) {
@@ -1602,8 +1644,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       (void) printf(
   "ddrive <d>         : set debug disc drive to <d>\n"
   "dtrack <t>         : set debug disc track to <t>\n"
+  "dpos <p>           : set debug disc position to <p>\n"
   "drfm (pos)         : read FM encoded data\n"
   "drfmc (pos)        : read FM encoded data, and show clocks too\n"
+  "dwfm <...>         : write FM encoded data, up to 8 bytes\n"
+  "dwfmc <d> <c>      : write one byte of FM encoded data, with given clocks\n"
+  "dset <d>           : fill the track with FM encoded data <d>\n"
   );
     } else if (!strcmp(input_buf, "more")) {
       (void) printf(
