@@ -1845,8 +1845,9 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
   uint8_t data_byte;
   uint32_t shift_register;
   uint32_t state_count;
+  int state = p_fdc->state;
 
-  switch (p_fdc->state) {
+  switch (state) {
   case k_intel_fdc_state_syncing_for_id_wait:
     p_fdc->state_count++;
     /* The controller seems to need recovery time after a sector header before
@@ -1918,7 +1919,15 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
     if (shift_register & 0x0004) data_byte |= 0x02;
     if (shift_register & 0x0001) data_byte |= 0x01;
 
-    intel_fdc_byte_callback_reading(p_fdc, data_byte, clocks_byte);
+    if ((clocks_byte != 0xFF) &&
+        (state != k_intel_fdc_state_check_id_marker) &&
+        (state != k_intel_fdc_state_check_data_marker)) {
+      /* Nothing. From testing, the 8271 doesn't deliver bytes with missing
+       * clock bits in the middle of a synced byte stream.
+       */
+    } else {
+      intel_fdc_byte_callback_reading(p_fdc, data_byte, clocks_byte);
+    }
 
     p_fdc->shift_register = 0;
     p_fdc->num_shifts = 0;
