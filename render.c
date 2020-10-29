@@ -16,6 +16,7 @@ struct render_struct {
 
   uint32_t* p_buffer;
   uint32_t* p_buffer_end;
+  int is_buffer_owned;
 
   struct teletext_struct* p_teletext;
 
@@ -165,6 +166,9 @@ render_create(struct teletext_struct* p_teletext,
 
 void
 render_destroy(struct render_struct* p_render) {
+  if (p_render->is_buffer_owned) {
+    util_free(p_render->p_buffer);
+  }
   util_free(p_render);
 }
 
@@ -189,6 +193,11 @@ render_get_height(struct render_struct* p_render) {
 uint32_t*
 render_get_buffer(struct render_struct* p_render) {
   return p_render->p_buffer;
+}
+
+uint32_t
+render_get_buffer_size(struct render_struct* p_render) {
+  return (p_render->width * p_render->height * 4);
 }
 
 static inline void
@@ -233,11 +242,9 @@ render_reset_render_pos(struct render_struct* p_render) {
                                     p_render->pixels_size);
 }
 
-void
-render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
-  assert(p_render->p_buffer == NULL);
-  assert(p_buffer != NULL);
-  p_render->p_buffer = p_buffer;
+static void
+render_setup_new_buffer(struct render_struct* p_render) {
+  uint32_t* p_buffer = p_render->p_buffer;
   p_render->p_buffer_end = p_buffer;
   p_render->p_buffer_end += (p_render->width * p_render->height);
 
@@ -246,6 +253,26 @@ render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
   p_render->horiz_beam_pos = 0;
   p_render->vert_beam_pos = 0;
   render_reset_render_pos(p_render);
+}
+
+void
+render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer) {
+  assert(p_render->p_buffer == NULL);
+  assert(p_buffer != NULL);
+
+  p_render->p_buffer = p_buffer;
+  p_render->is_buffer_owned = 0;
+  render_setup_new_buffer(p_render);
+}
+
+void
+render_create_internal_buffer(struct render_struct* p_render) {
+  uint32_t size = render_get_buffer_size(p_render);
+  assert(p_render->p_buffer == NULL);
+
+  p_render->p_buffer = util_malloc(size);
+  p_render->is_buffer_owned = 1;
+  render_setup_new_buffer(p_render);
 }
 
 static inline void
@@ -664,7 +691,7 @@ render_set_RA(struct render_struct* p_render, uint32_t row_address) {
 
 void
 render_clear_buffer(struct render_struct* p_render) {
-  uint32_t size = (p_render->width * p_render->height * 4);
+  uint32_t size = render_get_buffer_size(p_render);
   (void) memset(p_render->p_buffer, '\0', size);
 }
 

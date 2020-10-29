@@ -36,9 +36,8 @@ static void
 main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
   char file_name[256];
   struct util_file* p_file;
-  uint32_t width = render_get_width(p_render);
-  uint32_t height = render_get_height(p_render);
   uint32_t* p_buffer = render_get_buffer(p_render);
+  uint32_t size = render_get_buffer_size(p_render);
 
   (void) snprintf(file_name,
                   sizeof(file_name),
@@ -49,7 +48,7 @@ main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
     util_bail("util_file_open failed");
   }
 
-  util_file_write(p_file, p_buffer, (width * height * 4));
+  util_file_write(p_file, p_buffer, size);
 
   util_file_close(p_file);
 }
@@ -519,6 +518,8 @@ main(int argc, const char* argv[]) {
     render_set_buffer(p_render, p_render_buffer);
 
     window_handle = os_window_get_handle(p_window);
+  } else if (frame_cycles > 0) {
+    render_create_internal_buffer(p_render);
   }
 
   if (!headless_flag && !util_has_option(opt_flags, "sound:off")) {
