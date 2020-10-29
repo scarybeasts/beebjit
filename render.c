@@ -691,8 +691,12 @@ render_set_RA(struct render_struct* p_render, uint32_t row_address) {
 
 void
 render_clear_buffer(struct render_struct* p_render) {
-  uint32_t size = render_get_buffer_size(p_render);
-  (void) memset(p_render->p_buffer, '\0', size);
+  uint32_t i;
+  uint32_t size = (render_get_buffer_size(p_render) / 4);
+  uint32_t* p_buf = p_render->p_buffer;
+  for (i = 0; i < size; ++i) {
+    p_buf[i] = 0xff000000;
+  }
 }
 
 void
