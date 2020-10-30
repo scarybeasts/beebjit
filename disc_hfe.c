@@ -113,6 +113,18 @@ disc_hfe_write_track(struct disc_struct* p_disc,
 
   assert(p_file != NULL);
 
+  disc_hfe_get_track_offset_and_length(p_disc,
+                                       &hfe_track_offset,
+                                       &hfe_track_length,
+                                       track);
+  if (hfe_track_offset < 1024) {
+    log_do_log(k_log_disc,
+               k_log_error,
+               "track %d unallocated in HFE, ignoring write",
+               track);
+    return;
+  }
+
   /* This track write might in fact have extended the HFE file so make sure the
    * track count in the header is kept up to date.
    */
@@ -147,11 +159,6 @@ disc_hfe_write_track(struct disc_struct* p_disc,
   if (is_side_upper) {
     write_pos = 256;
   }
-
-  disc_hfe_get_track_offset_and_length(p_disc,
-                                       &hfe_track_offset,
-                                       &hfe_track_length,
-                                       track);
 
   while (i_byte < buffer_index) {
     uint32_t chunk_len = 256;
