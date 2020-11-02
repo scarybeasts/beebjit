@@ -41,7 +41,7 @@ main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
 
   (void) snprintf(file_name,
                   sizeof(file_name),
-                  "beebjit_frame_%d.rgba",
+                  "beebjit_frame_%d.bgra",
                   save_frame_count);
   p_file = util_file_open(&file_name[0], 1, 1);
   if (p_file == NULL) {
