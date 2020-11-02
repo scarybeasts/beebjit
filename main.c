@@ -108,6 +108,7 @@ main(int argc, const char* argv[]) {
   int opus_flag = 0;
   int is_master_flag = 0;
   int autoboot_flag = 0;
+  int extended_roms_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   int mode = k_cpu_mode_jit;
@@ -270,6 +271,8 @@ main(int argc, const char* argv[]) {
       opus_flag = 1;
     } else if (!strcmp(arg, "-autoboot")) {
       autoboot_flag = 1;
+    } else if (!strcmp(arg, "-extended-roms")) {
+      extended_roms_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
@@ -323,6 +326,7 @@ main(int argc, const char* argv[]) {
 "-max-frames     <m>: max frame images to save, default 1.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
+"-extended-roms     : disable ROM slot aliasing.\n"
 "");
       exit(0);
     } else {
@@ -431,6 +435,9 @@ main(int argc, const char* argv[]) {
     rom_names[k_bbc_default_dfs_rom_slot] = p_dfs_rom_name;
   }
 
+  if (extended_roms_flag) {
+    bbc_enable_extended_rom_addressing(p_bbc);
+  }
   for (i = 0; i < k_bbc_num_roms; ++i) {
     const char* p_rom_name = rom_names[i];
     if (p_rom_name != NULL) {

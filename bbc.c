@@ -1627,6 +1627,13 @@ bbc_focus_lost_callback(void* p) {
 }
 
 void
+bbc_enable_extended_rom_addressing(struct bbc_struct* p_bbc) {
+  p_bbc->is_extended_rom_addressing = 1;
+  p_bbc->is_romsel_invalidated = 1;
+  bbc_sideways_select(p_bbc, p_bbc->romsel);
+}
+
+void
 bbc_load_rom(struct bbc_struct* p_bbc,
              uint8_t index,
              uint8_t* p_rom_src) {

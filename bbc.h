@@ -57,6 +57,7 @@ void bbc_destroy(struct bbc_struct* p_bbc);
 void bbc_focus_lost_callback(void* p);
 
 void bbc_power_on_reset(struct bbc_struct* p_bbc);
+void bbc_enable_extended_rom_addressing(struct bbc_struct* p_bbc);
 void bbc_load_rom(struct bbc_struct* p_bbc,
                   uint8_t index,
                   uint8_t* p_rom_src);
