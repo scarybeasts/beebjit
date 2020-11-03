@@ -33,7 +33,9 @@ enum {
 };
 
 static void
-main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
+main_save_frame(const char* p_frames_dir,
+                uint32_t save_frame_count,
+                struct render_struct* p_render) {
   char file_name[256];
   struct util_file* p_file;
   uint32_t* p_buffer = render_get_buffer(p_render);
@@ -41,7 +43,8 @@ main_save_frame(struct render_struct* p_render, uint32_t save_frame_count) {
 
   (void) snprintf(file_name,
                   sizeof(file_name),
-                  "beebjit_frame_%d.bgra",
+                  "%s/beebjit_frame_%d.bgra",
+                  p_frames_dir,
                   save_frame_count);
   p_file = util_file_open(&file_name[0], 1, 1);
   if (p_file == NULL) {
@@ -89,6 +92,7 @@ main(int argc, const char* argv[]) {
   const char* log_flags = "";
   const char* p_create_hfe_file = NULL;
   const char* p_create_hfe_spec = NULL;
+  const char* p_frames_dir = ".";
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
@@ -227,6 +231,9 @@ main(int argc, const char* argv[]) {
     } else if (has_1 && !strcmp(arg, "-max-frames")) {
       (void) sscanf(val1, "%"PRIu32, &max_frames);
       ++i_args;
+    } else if (has_1 && !strcmp(arg, "-frames-dir")) {
+      p_frames_dir = val1;
+      ++i_args;
     } else if (has_1 && !strcmp(arg, "-expect")) {
       (void) sscanf(val1, "%"PRIx32, &expect);
       ++i_args;
@@ -324,6 +331,7 @@ main(int argc, const char* argv[]) {
       (void) printf(
 "-frame-cycles   <c>: start saving frame images after <c> cycles.\n"
 "-max-frames     <m>: max frame images to save, default 1.\n"
+"-frames-dir     <d>: directory for frame files, default '.'.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
@@ -616,7 +624,7 @@ main(int argc, const char* argv[]) {
           os_window_sync_buffer_to_screen(p_window);
         }
         if (save_frame) {
-          main_save_frame(p_render, save_frame_count);
+          main_save_frame(p_frames_dir, save_frame_count, p_render);
           save_frame_count++;
         }
         if (framing_changed) {
