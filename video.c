@@ -1386,6 +1386,8 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t num_rows = p_regs[k_crtc_reg_vert_displayed];
   uint32_t num_lines = p_regs[k_crtc_reg_lines_per_character];
   uint32_t num_cols = p_regs[k_crtc_reg_horiz_displayed];
+  uint32_t vert_total = (p_regs[k_crtc_reg_vert_total] + 1);
+  uint32_t horiz_total = (p_regs[k_crtc_reg_horiz_total] + 1);
   uint32_t num_pre_lines = 0;
   uint32_t num_pre_cols = 0;
   struct teletext_struct* p_teletext = p_video->p_teletext;
@@ -1400,15 +1402,13 @@ video_render_full_frame(struct video_struct* p_video) {
   } else {
     num_lines += 1;
   }
-  if (p_regs[k_crtc_reg_vert_total] > p_regs[k_crtc_reg_vert_sync_position]) {
-    num_pre_lines = (p_regs[k_crtc_reg_vert_total] -
-                     p_regs[k_crtc_reg_vert_sync_position]);
+  if (vert_total > p_regs[k_crtc_reg_vert_sync_position]) {
+    num_pre_lines = (vert_total - p_regs[k_crtc_reg_vert_sync_position]);
     num_pre_lines *= num_lines;
   }
   num_pre_lines += p_regs[k_crtc_reg_vert_adjust];
-  if (p_regs[k_crtc_reg_horiz_total] > p_regs[k_crtc_reg_horiz_position]) {
-    num_pre_cols = (p_regs[k_crtc_reg_horiz_total] -
-                    p_regs[k_crtc_reg_horiz_position]);
+  if (horiz_total > p_regs[k_crtc_reg_horiz_position]) {
+    num_pre_cols = (horiz_total - p_regs[k_crtc_reg_horiz_position]);
   }
 
   render_vsync(p_render, 0);

@@ -205,9 +205,9 @@ render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;
   uint32_t window_vert_pos;
 
-  p_render->p_render_pos = p_render->p_buffer_end;
-  p_render->p_render_pos_row = p_render->p_buffer_end;
-  p_render->p_render_pos_row_max = p_render->p_buffer_end;
+  p_render->p_render_pos = (p_render->p_buffer_end + 1);
+  p_render->p_render_pos_row = (p_render->p_buffer_end + 1);
+  p_render->p_render_pos_row_max = NULL;
 
   if (p_render->p_buffer == NULL) {
     return;
@@ -311,7 +311,7 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 16;
 
-  if (p_render_pos < p_render->p_render_pos_row_max) {
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
     teletext_render_data(p_render->p_teletext, p_character, data);
     render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
@@ -335,7 +335,7 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 16;
 
-  if (p_render_pos < p_render->p_render_pos_row_max) {
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_1MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
@@ -357,7 +357,7 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
    */
   p_render->horiz_beam_pos += 16;
 
-  if (p_render_pos < p_render->p_render_pos_row_max) {
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_1MHz_black;
     render_check_cursor(p_render, p_render_pos, 16);
     p_render->p_render_pos += 16;
@@ -375,7 +375,7 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 8;
 
-  if (p_render_pos < p_render->p_render_pos_row_max) {
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->p_render_table_2MHz->values[data];
     render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
@@ -395,7 +395,7 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
 
   p_render->horiz_beam_pos += 8;
 
-  if (p_render_pos < p_render->p_render_pos_row_max) {
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
     *p_character = p_render->render_character_2MHz_black;
     render_check_cursor(p_render, p_render_pos, 8);
     p_render->p_render_pos += 8;
