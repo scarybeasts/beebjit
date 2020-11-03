@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -470,7 +471,25 @@ util_get_u32_option(uint32_t* p_opt_out,
     return 0;
   }
 
-  matches = sscanf(p_opt_pos, "%u", p_opt_out);
+  matches = sscanf(p_opt_pos, "%"PRIu32, p_opt_out);
+  if (matches != 1) {
+    return 0;
+  }
+  return 1;
+}
+
+int
+util_get_u64_option(uint64_t* p_opt_out,
+                    const char* p_opt_str,
+                    const char* p_opt_name) {
+  int matches;
+
+  const char* p_opt_pos = util_locate_option(p_opt_str, p_opt_name);
+  if (p_opt_pos == NULL) {
+    return 0;
+  }
+
+  matches = sscanf(p_opt_pos, "%"PRIu64, p_opt_out);
   if (matches != 1) {
     return 0;
   }
