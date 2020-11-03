@@ -102,6 +102,9 @@ struct video_struct {
   int timer_fire_force_vsync_end;
   uint64_t num_vsyncs;
   uint64_t num_crtc_advances;
+  uint64_t paint_start_cycles;
+  uint64_t paint_cycles;
+  uint64_t paint_next_cycles;
 
   /* Video ULA state and derivatives. */
   uint8_t video_ula_control;
@@ -243,6 +246,8 @@ static void
 video_do_paint(struct video_struct* p_video) {
   int do_full_render;
 
+  p_video->is_wall_time_vsync_hit = 0;
+
   /* If we're in fast mode and internally clocked, give rendering and painting
    * a rest after each paint consideration.
    * We'll get prodded to start again by the 50Hz real time tick, which will
@@ -250,7 +255,6 @@ video_do_paint(struct video_struct* p_video) {
    */
   if (!p_video->externally_clocked && *p_video->p_fast_flag) {
     p_video->is_rendering_active = 0;
-    p_video->is_wall_time_vsync_hit = 0;
   }
 
   /* Skip the paint for the appropriate option. */
@@ -266,6 +270,22 @@ video_do_paint(struct video_struct* p_video) {
                                         do_full_render,
                                         p_video->is_framing_changed_for_render);
   p_video->is_framing_changed_for_render = 0;
+}
+
+static int
+video_is_painting_time(struct video_struct* p_video) {
+  uint64_t paint_next_cycles = p_video->paint_next_cycles;
+  if (paint_next_cycles == 0) {
+    return p_video->is_wall_time_vsync_hit;
+  } else {
+    struct timing_struct* p_timing = p_video->p_timing;
+    uint64_t curr_cycles = timing_get_total_timer_ticks(p_timing);
+    if (curr_cycles < paint_next_cycles) {
+      return 0;
+    }
+    p_video->paint_next_cycles += p_video->paint_cycles;
+    return 1;
+  }
 }
 
 static void
@@ -1090,6 +1110,18 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u32_option(&p_video->render_every_ticks,
                              p_options->p_opt_flags,
                              "video:render-every-ticks=");
+  p_video->paint_start_cycles = 0;
+  (void) util_get_u64_option(&p_video->paint_start_cycles,
+                             p_options->p_opt_flags,
+                             "video:paint-start-cycles=");
+  /* If paint cycle counting is active (default: no), then after the start
+   * threshold is crossed, paint at a perfect virtual 50Hz.
+   */
+  p_video->paint_cycles = 40000;
+  (void) util_get_u64_option(&p_video->paint_cycles,
+                             p_options->p_opt_flags,
+                             "video:paint-cycles=");
+  p_video->paint_next_cycles = p_video->paint_start_cycles;
 
   if (p_system_via) {
     via_set_CB2_changed_callback(p_system_via,
@@ -1307,25 +1339,27 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   wall_time = (p_video->wall_time + delta);
   p_video->wall_time = wall_time;
 
-  if (wall_time < p_video->vsync_next_time) {
-    return;
-  }
-
-  while (p_video->vsync_next_time <= wall_time) {
-    p_video->vsync_next_time += k_video_us_per_vsync;
+  if (wall_time >= p_video->vsync_next_time) {
+    p_video->is_wall_time_vsync_hit = 1;
+    while (p_video->vsync_next_time <= wall_time) {
+      p_video->vsync_next_time += k_video_us_per_vsync;
+    }
   }
 
   if (!p_video->externally_clocked) {
-    p_video->is_wall_time_vsync_hit = 1;
     return;
   }
 
-  p_system_via = p_video->p_system_via;
-  via_set_CA1(p_system_via, 0);
-  via_set_CA1(p_system_via, 1);
+  if (p_video->is_wall_time_vsync_hit) {
+    p_system_via = p_video->p_system_via;
+    via_set_CA1(p_system_via, 0);
+    via_set_CA1(p_system_via, 1);
+    p_video->num_vsyncs++;
+  }
 
-  video_do_paint(p_video);
-  p_video->num_vsyncs++;
+  if (video_is_painting_time(p_video)) {
+    video_do_paint(p_video);
+  }
 }
 
 void
@@ -1340,8 +1374,6 @@ video_render_full_frame(struct video_struct* p_video) {
       render_get_render_data_function(p_render);
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
-
-  assert(p_video->externally_clocked);
 
   /* This render function is typically called on a different thread to the
    * BBC thread, so make sure to reload register values from memory.
@@ -1359,6 +1391,8 @@ video_render_full_frame(struct video_struct* p_video) {
   struct teletext_struct* p_teletext = p_video->p_teletext;
   uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width *
                                 p_video->clock_tick_multiplier);
+
+  assert(p_video->externally_clocked);
 
   if ((p_regs[k_crtc_reg_interlace] & 0x03) == 0x03) {
     num_lines += 2;
