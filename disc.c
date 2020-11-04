@@ -5,6 +5,7 @@
 #include "disc_fsd.h"
 #include "disc_hfe.h"
 #include "disc_ssd.h"
+#include "disc_rfi.h"
 #include "ibm_disc_format.h"
 #include "log.h"
 #include "util.h"
@@ -117,6 +118,8 @@ disc_create(const char* p_file_name,
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
     is_hfe = 1;
+  } else if (util_is_extension(p_file_name, "rfi")) {
+    disc_rfi_load(p_disc);
   } else {
     util_bail("unknown disc filename extension");
   }

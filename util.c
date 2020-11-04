@@ -353,6 +353,13 @@ util_file_flush(struct util_file* p) {
   }
 }
 
+int
+util_file_feof(struct util_file* p) {
+  FILE* p_file = (FILE*) p;
+
+  return feof(p_file);
+}
+
 uint64_t
 util_file_read_fully(const char* p_file_name,
                      uint8_t* p_buf,
