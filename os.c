@@ -12,7 +12,8 @@
 #include "os_thread_linux.c"
 #include "os_time_posix.c"
 #include "os_window_x11.c"
-#include "os_x11_keys_linux.c"
+/* #include "os_x11_keys_linux.c" */
+#include "os_x11_keys_generic.c"
 
 #elif defined(WIN32)
 

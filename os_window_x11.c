@@ -316,7 +316,7 @@ os_window_create(uint32_t width, uint32_t height) {
     errx(1, "XFlush failed");
   }
 
-  p_window->p_key_map = os_x11_keys_get_mapping();
+  p_window->p_key_map = os_x11_keys_get_mapping(p_window->d);
 
   return p_window;
 }
