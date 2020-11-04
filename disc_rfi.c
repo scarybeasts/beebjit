@@ -170,7 +170,7 @@ disc_rfi_readtrack(struct disc_struct* p_disc, const int track, const int side, 
 
       // Is this the track we want?
       if ((rfi_track == track) && (rfi_side == side) && (rfi_trackencoding[0] != 0) && (rfi_trackdatalen != 0)) {
-        log_do_log(k_log_disc, k_log_info, "rfi track : %s", metabuffer);
+        //log_do_log(k_log_disc, k_log_info, "rfi track : %s", metabuffer);
 
         // Make sure we have an RPM
         if (rfi_rpm == -1)
