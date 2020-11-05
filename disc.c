@@ -4,6 +4,7 @@
 #include "disc_adl.h"
 #include "disc_fsd.h"
 #include "disc_hfe.h"
+#include "disc_rfi.h"
 #include "disc_ssd.h"
 #include "ibm_disc_format.h"
 #include "log.h"
@@ -113,6 +114,8 @@ disc_create(const char* p_file_name,
     disc_fsd_load(p_disc, 1, p_disc->log_protection);
   } else if (util_is_extension(p_file_name, "log")) {
     disc_fsd_load(p_disc, 0, p_disc->log_protection);
+  } else if (util_is_extension(p_file_name, "rfi")) {
+    disc_rfi_load(p_disc);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
