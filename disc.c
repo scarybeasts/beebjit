@@ -11,6 +11,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -24,8 +25,12 @@ struct disc_side {
 };
 
 struct disc_struct {
+  /* Options. */
   int log_protection;
+  int log_iffy_pulses;
   int expand_to_80;
+  uint32_t rev;
+  char rev_spec[256];
 
   char* p_file_name;
   struct util_file* p_file;
@@ -81,14 +86,29 @@ disc_create(const char* p_file_name,
             struct bbc_options* p_options) {
   int is_file_writeable = 0;
   int is_hfe = 0;
+  char* p_rev_spec = NULL;
 
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
   disc_init_surface(p_disc, 0x00);
 
   p_disc->log_protection = util_has_option(p_options->p_log_flags,
                                            "disc:protection");
+  p_disc->log_iffy_pulses = util_has_option(p_options->p_log_flags,
+                                            "disc:iffy-pulses");
   p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
                                          "disc:expand-to-80");
+  p_disc->rev = 0;
+  (void) util_get_u32_option(&p_disc->rev, p_options->p_opt_flags, "disc:rev=");
+  (void) util_get_str_option(&p_rev_spec,
+                             p_options->p_opt_flags,
+                             "disc:rev-spec=");
+  if (p_rev_spec != NULL) {
+    (void) snprintf(&p_disc->rev_spec[0],
+                    sizeof(p_disc->rev_spec),
+                    "%s",
+                    p_rev_spec);
+    util_free(p_rev_spec);
+  }
   p_disc->p_file_name = util_strdup(p_file_name);
   p_disc->p_file = NULL;
   p_disc->is_dirty = 0;
@@ -115,7 +135,10 @@ disc_create(const char* p_file_name,
   } else if (util_is_extension(p_file_name, "log")) {
     disc_fsd_load(p_disc, 0, p_disc->log_protection);
   } else if (util_is_extension(p_file_name, "rfi")) {
-    disc_rfi_load(p_disc);
+    disc_rfi_load(p_disc,
+                  p_disc->rev,
+                  &p_disc->rev_spec[0],
+                  p_disc->log_iffy_pulses);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
@@ -338,9 +361,10 @@ disc_put_fm_byte(struct disc_struct* p_disc, uint8_t data, uint8_t clocks) {
   struct disc_track* p_track = p_disc->p_track;
   uint32_t pulses = ibm_disc_format_fm_to_2us_pulses(clocks, data);
 
+  assert(p_disc->build_index < k_ibm_disc_bytes_per_track);
+
   p_track->pulses2us[p_disc->build_index] = pulses;
   p_disc->build_index++;
-  assert(p_disc->build_index <= k_ibm_disc_bytes_per_track);
 }
 
 void
@@ -500,6 +524,29 @@ disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data) {
   disc_build_append_repeat_fm_byte(p_disc,
                                    data,
                                    (k_ibm_disc_bytes_per_track - build_index));
+}
+
+void
+disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us) {
+  uint32_t num_2us_units = roundf(delta_us / 2.0);
+  while (num_2us_units--) {
+    if (num_2us_units == 0) {
+      uint32_t val = (0x80000000 >> p_disc->build_pulses_index);
+      assert(p_disc->build_index < k_disc_max_bytes_per_track);
+      p_disc->p_track->pulses2us[p_disc->build_index] |= val;
+    }
+    p_disc->build_pulses_index++;
+    if (p_disc->build_pulses_index == 32) {
+      p_disc->build_pulses_index = 0;
+      p_disc->build_index++;
+    }
+  }
+}
+
+void
+disc_build_set_track_length(struct disc_struct* p_disc) {
+  assert(p_disc->build_index <= k_disc_max_bytes_per_track);
+  p_disc->p_track->length = p_disc->build_index;
 }
 
 const char*

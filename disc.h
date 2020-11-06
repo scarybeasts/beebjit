@@ -63,7 +63,9 @@ void disc_flush_writes(struct disc_struct* p_disc);
 void disc_build_track(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track);
+void disc_build_set_track_length(struct disc_struct* p_disc);
 void disc_build_reset_crc(struct disc_struct* p_disc);
+
 /* FM */
 void disc_build_append_fm_data_and_clocks(struct disc_struct* p_disc,
                                           uint8_t data,
@@ -93,5 +95,8 @@ void disc_build_fill_mfm_byte(struct disc_struct* p_disc, uint8_t data);
 void disc_build_append_crc(struct disc_struct* p_disc, int is_mfm);
 void disc_build_append_bad_crc(struct disc_struct* p_disc);
 void disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data);
+
+/* Raw pulses. */
+void disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us);
 
 #endif /* BEEBJIT_DISC_H */

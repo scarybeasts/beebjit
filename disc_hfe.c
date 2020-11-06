@@ -458,9 +458,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     uint32_t* p_pulses;
     uint32_t index = (i_track * 4);
 
-    assert(disc_get_track_length(p_disc, 0, i_track) ==
-               k_ibm_disc_bytes_per_track);
-
     p_metadata[index] = (hfe_offset & 0xFF);
     p_metadata[index + 1] = (hfe_offset >> 8);
     p_metadata[index + 2] = (hfe_track_len & 0xFF);
