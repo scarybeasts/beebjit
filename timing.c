@@ -30,6 +30,7 @@ struct timing_struct {
 
   uint64_t next_timer_expiry;
   uint64_t countdown;
+  uint32_t num_timers;
 };
 
 struct timing_struct*
@@ -127,6 +128,8 @@ timing_register_timer(struct timing_struct* p_timing,
   p_timer->firing = 1;
   p_timer->p_expiry_prev = NULL;
   p_timer->p_expiry_next = NULL;
+
+  p_timing->num_timers++;
 
   return i;
 }

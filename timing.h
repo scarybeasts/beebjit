@@ -17,6 +17,8 @@ uint64_t timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing);
 uint32_t timing_register_timer(struct timing_struct* p_timing,
                                void* p_callback,
                                void* p_object);
+void timing_free_timer(struct timing_struct* p_timing, uint32_t id);
+
 int64_t timing_start_timer(struct timing_struct* p_timing, uint32_t id);
 int64_t timing_start_timer_with_value(struct timing_struct* p_timing,
                                       uint32_t id,
