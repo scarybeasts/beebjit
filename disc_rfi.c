@@ -203,7 +203,9 @@ disc_rfi_load(struct disc_struct* p_disc,
                        delta_us);
           }
         }
-        disc_build_append_pulse_delta(p_disc, delta_us);
+        if (!disc_build_append_pulse_delta(p_disc, delta_us)) {
+          log_do_log(k_log_disc, k_log_warning, "RFI truncating track %d", i);
+        }
         last_ticks_pulse_pos = ticks_pos;
       }
     }

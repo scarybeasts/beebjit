@@ -52,10 +52,16 @@ int util_is_extension(const char* p_name, const char* p_ext);
 enum {
   k_util_file_no_handle = -1,
 };
+void util_file_name_split(char** p_file_name_base,
+                          char** p_file_name,
+                          const char* p_full_file_name);
+char* util_file_name_join(const char* p_file_name_base,
+                          const char* p_file_name);
 
 struct util_file* util_file_open(const char* p_file_name,
                                  int writeable,
                                  int create);
+struct util_file* util_file_try_read_open(const char* p_file_name);
 void util_file_close(struct util_file* p_file);
 uint64_t util_file_get_pos(struct util_file* p_file);
 uint64_t util_file_get_size(struct util_file* p_file);

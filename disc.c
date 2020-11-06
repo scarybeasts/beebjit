@@ -4,6 +4,7 @@
 #include "disc_adl.h"
 #include "disc_fsd.h"
 #include "disc_hfe.h"
+#include "disc_kryo.h"
 #include "disc_rfi.h"
 #include "disc_ssd.h"
 #include "ibm_disc_format.h"
@@ -139,6 +140,8 @@ disc_create(const char* p_file_name,
                   p_disc->rev,
                   &p_disc->rev_spec[0],
                   p_disc->log_iffy_pulses);
+  } else if (util_is_extension(p_file_name, "raw")) {
+    disc_kryo_load(p_disc, p_file_name, p_disc->rev, p_disc->log_iffy_pulses);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
@@ -526,7 +529,7 @@ disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data) {
                                    (k_ibm_disc_bytes_per_track - build_index));
 }
 
-void
+int
 disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us) {
   uint32_t num_2us_units = roundf(delta_us / 2.0);
   while (num_2us_units--) {
@@ -539,14 +542,21 @@ disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us) {
     if (p_disc->build_pulses_index == 32) {
       p_disc->build_pulses_index = 0;
       p_disc->build_index++;
+      if (p_disc->build_index == k_disc_max_bytes_per_track) {
+        return 0;
+      }
     }
   }
+  return 1;
 }
 
 void
 disc_build_set_track_length(struct disc_struct* p_disc) {
-  assert(p_disc->build_index <= k_disc_max_bytes_per_track);
-  p_disc->p_track->length = p_disc->build_index;
+  uint32_t build_index = p_disc->build_index;
+  assert(build_index <= k_disc_max_bytes_per_track);
+  if (build_index != 0) {
+    p_disc->p_track->length = build_index;
+  }
 }
 
 const char*

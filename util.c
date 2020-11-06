@@ -257,6 +257,49 @@ util_is_extension(const char* p_file_name, const char* p_ext) {
   return 1;
 }
 
+void
+util_file_name_split(char** p_file_name_base,
+                     char** p_file_name,
+                     const char* p_full_file_name) {
+  size_t len;
+  const char* p_sep = NULL;
+  const char* p_str = p_full_file_name;
+
+  /* TODO: respect Windows separator? */
+  while (*p_str != '\0') {
+    if (*p_str == '/') {
+      p_sep = p_str;
+    }
+    p_str++;
+  }
+
+  if (p_sep == NULL) {
+    *p_file_name_base = NULL;
+    *p_file_name = strdup(p_full_file_name);
+  }
+
+  len = (p_sep - p_full_file_name);
+  *p_file_name_base = strndup(p_full_file_name, len);
+  *p_file_name = strdup(p_sep + 1);
+}
+
+char*
+util_file_name_join(const char* p_file_name_base, const char* p_file_name) {
+  char file_name_buf[4096];
+
+  if (p_file_name_base == NULL) {
+    return strdup(p_file_name);
+  }
+
+  /* TODO: respect Windows separator? */
+  (void) snprintf(file_name_buf,
+                  sizeof(file_name_buf),
+                  "%s/%s",
+                  p_file_name_base,
+                  p_file_name);
+  return strdup(&file_name_buf[0]);
+}
+
 struct util_file*
 util_file_open(const char* p_file_name, int writeable, int create) {
   FILE* p_file;
@@ -277,6 +320,12 @@ util_file_open(const char* p_file_name, int writeable, int create) {
     util_bail("couldn't open %s", p_file_name);
   }
 
+  return (struct util_file*) p_file;
+}
+
+struct util_file*
+util_file_try_read_open(const char* p_file_name) {
+  FILE* p_file = fopen(p_file_name, "rb");
   return (struct util_file*) p_file;
 }
 
