@@ -30,6 +30,7 @@ struct disc_struct {
   int log_protection;
   int log_iffy_pulses;
   int expand_to_80;
+  int quantize_fm;
   uint32_t rev;
   char rev_spec[256];
 
@@ -98,6 +99,8 @@ disc_create(const char* p_file_name,
                                             "disc:iffy-pulses");
   p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
                                          "disc:expand-to-80");
+  p_disc->quantize_fm = util_has_option(p_options->p_opt_flags,
+                                        "disc:quantize-fm");
   p_disc->rev = 0;
   (void) util_get_u32_option(&p_disc->rev, p_options->p_opt_flags, "disc:rev=");
   (void) util_get_str_option(&p_rev_spec,
@@ -139,9 +142,14 @@ disc_create(const char* p_file_name,
     disc_rfi_load(p_disc,
                   p_disc->rev,
                   &p_disc->rev_spec[0],
+                  p_disc->quantize_fm,
                   p_disc->log_iffy_pulses);
   } else if (util_is_extension(p_file_name, "raw")) {
-    disc_kryo_load(p_disc, p_file_name, p_disc->rev, p_disc->log_iffy_pulses);
+    disc_kryo_load(p_disc,
+                   p_file_name,
+                   p_disc->rev,
+                   p_disc->quantize_fm,
+                   p_disc->log_iffy_pulses);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
@@ -530,8 +538,17 @@ disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data) {
 }
 
 int
-disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us) {
-  uint32_t num_2us_units = roundf(delta_us / 2.0);
+disc_build_append_pulse_delta(struct disc_struct* p_disc,
+                              float delta_us,
+                              int is_mfm) {
+  uint32_t num_2us_units;
+  if (is_mfm) {
+    num_2us_units = roundf(delta_us / 2.0);
+  } else {
+    num_2us_units = roundf(delta_us / 4.0);
+    num_2us_units *= 2;
+  }
+
   while (num_2us_units--) {
     if (num_2us_units == 0) {
       uint32_t val = (0x80000000 >> p_disc->build_pulses_index);

@@ -251,6 +251,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   }
   if (expand_to_80 && ((hfe_tracks * 2) <= k_ibm_disc_tracks_per_disc)) {
     expand_multiplier = 2;
+    log_do_log(k_log_disc, k_log_info, "HFE: expanding 40 to 80");
   }
 
   lut_offset = (p_file_buf[18] + (p_file_buf[19] << 8));

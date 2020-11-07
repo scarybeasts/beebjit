@@ -32,4 +32,6 @@ void ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
 uint16_t ibm_disc_format_mfm_to_2us_pulses(int* p_last_mfm_bit, uint8_t byte);
 uint8_t ibm_disc_format_2us_pulses_to_mfm(uint16_t pulses);
 
+int ibm_disc_format_check_pulse(float pulse_us, int is_mfm);
+
 #endif /* BEEBJIT_IBM_DISC_FORMAT_H */

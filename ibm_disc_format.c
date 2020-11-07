@@ -121,3 +121,22 @@ ibm_disc_format_2us_pulses_to_mfm(uint16_t pulses) {
 
   return byte;
 }
+
+int
+ibm_disc_format_check_pulse(float pulse_us, int is_mfm) {
+  if (pulse_us < 3.5) {
+    return 0;
+  }
+  if (pulse_us > 8.5) {
+    return 0;
+  }
+
+  if (is_mfm && (pulse_us > 5.5) && (pulse_us < 6.5)) {
+    return 1;
+  }
+
+  if ((pulse_us > 4.5) && (pulse_us < 7.5)) {
+    return 0;
+  }
+  return 1;
+}

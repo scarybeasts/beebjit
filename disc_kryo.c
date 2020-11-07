@@ -15,6 +15,7 @@ void
 disc_kryo_load(struct disc_struct* p_disc,
                const char* p_full_file_name,
                uint32_t capture_rev,
+               int quantize_fm,
                int log_iffy_pulses) {
   static const size_t k_max_kryo_track_size = (1024 * 1024);
   uint32_t i_track;
@@ -189,17 +190,18 @@ disc_kryo_load(struct disc_struct* p_disc,
           float delta_us = (sample_value / 24.027428);
           ticks_pos += sample_value;
           if (log_iffy_pulses) {
-            if ((delta_us < 3.5) || (delta_us > 8.5)) {
+            if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
               log_do_log(k_log_disc,
                          k_log_info,
-                         "track %d pos %d dpos %d iffy pulse %f",
+                         "track %d pos %d dpos %d iffy pulse %f (%s)",
                          i_track,
                          ticks_pos,
                          i_data,
-                         delta_us);
+                         delta_us,
+                         (quantize_fm ? "fm" : "mfm"));
             }
           }
-          if (!disc_build_append_pulse_delta(p_disc, delta_us)) {
+          if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
             log_do_log(k_log_disc,
                        k_log_warning,
                        "Kryo truncating track %d",

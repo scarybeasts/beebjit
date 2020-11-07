@@ -44,6 +44,7 @@ void
 disc_rfi_load(struct disc_struct* p_disc,
               uint32_t rev,
               char* p_rev_spec,
+              int quantize_fm,
               int log_iffy_pulses) {
   static const size_t k_max_rfi_track_size = (1024 * 1024);
   uint32_t i;
@@ -193,17 +194,18 @@ disc_rfi_load(struct disc_struct* p_disc,
         float delta_us = (ticks_pos - last_ticks_pulse_pos);
         delta_us /= 12.5;
         if (log_iffy_pulses) {
-          if ((delta_us < 3.5) || (delta_us > 8.5)) {
+          if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
             log_do_log(k_log_disc,
                        k_log_info,
-                       "track %d pos %d dpos %d iffy pulse %f",
+                       "track %d pos %d dpos %d iffy pulse %f (%s)",
                        i,
                        ticks_pos,
                        j,
-                       delta_us);
+                       delta_us,
+                       (quantize_fm ? "fm" : "mfm"));
           }
         }
-        if (!disc_build_append_pulse_delta(p_disc, delta_us)) {
+        if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
           log_do_log(k_log_disc, k_log_warning, "RFI truncating track %d", i);
         }
         last_ticks_pulse_pos = ticks_pos;
