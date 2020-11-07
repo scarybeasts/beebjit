@@ -219,10 +219,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
     }
     chunk_type = (p_in_buf[1] << 8);
     chunk_type |= p_in_buf[0];
-    chunk_len = (p_in_buf[5] << 24);
-    chunk_len |= (p_in_buf[4] << 16);
-    chunk_len |= (p_in_buf[3] << 8);
-    chunk_len |= p_in_buf[2];
+    chunk_len = util_read_le32(&p_in_buf[2]);
     p_in_buf += 6;
     file_remaining -= 6;
     if (chunk_len > file_remaining) {

@@ -14,7 +14,8 @@ gcc -Wall -W -Werror \
     teletext.c render.c serial.c log.c test.c tape.c adc.c cmos.c \
     intel_fdc.c wd_fdc.c \
     disc_drive.c disc.c ibm_disc_format.c disc_tool.c \
-    disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c disc_rfi.c disc_kryo.c \
+    disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c \
+    disc_rfi.c disc_kryo.c disc_scp.c \
     debug.c jit.c util.c \
     os.c \
     -lm -lX11 -lXext -lpthread -lasound

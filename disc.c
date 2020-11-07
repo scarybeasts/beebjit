@@ -6,6 +6,7 @@
 #include "disc_hfe.h"
 #include "disc_kryo.h"
 #include "disc_rfi.h"
+#include "disc_scp.h"
 #include "disc_ssd.h"
 #include "ibm_disc_format.h"
 #include "log.h"
@@ -150,6 +151,11 @@ disc_create(const char* p_file_name,
                    p_disc->rev,
                    p_disc->quantize_fm,
                    p_disc->log_iffy_pulses);
+  } else if (util_is_extension(p_file_name, "scp")) {
+    disc_scp_load(p_disc,
+                  p_disc->rev,
+                  p_disc->quantize_fm,
+                  p_disc->log_iffy_pulses);
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;

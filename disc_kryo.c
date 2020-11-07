@@ -133,10 +133,7 @@ disc_kryo_load(struct disc_struct* p_disc,
                 if (num_index_pulses == k_kryo_max_index_pulses) {
                   util_bail("Kryo too many index pulses");
                 }
-                index_pulse_index = p_raw_buf[i_data];
-                index_pulse_index += (p_raw_buf[i_data + 1] << 8);
-                index_pulse_index += (p_raw_buf[i_data + 2] << 16);
-                index_pulse_index += (p_raw_buf[i_data + 3] << 24);
+                index_pulse_index = util_read_le32(&p_raw_buf[i_data]);
                 index_pulse_indexes[num_index_pulses] = index_pulse_index;
                 num_index_pulses++;
               }

@@ -644,3 +644,19 @@ util_parse_hex2(const char* p_str) {
 
   return val;
 }
+
+uint16_t
+util_read_be16(uint8_t* p_buf) {
+  uint16_t ret = p_buf[1];
+  ret += (p_buf[0] << 8);
+  return ret;
+}
+
+uint32_t
+util_read_le32(uint8_t* p_buf) {
+  uint32_t ret = p_buf[0];
+  ret += (p_buf[1] << 8);
+  ret += (p_buf[2] << 16);
+  ret += (p_buf[3] << 24);
+  return ret;
+}
