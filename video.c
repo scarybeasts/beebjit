@@ -104,7 +104,7 @@ struct video_struct {
   uint64_t num_crtc_advances;
   uint64_t paint_start_cycles;
   uint64_t paint_cycles;
-  uint64_t paint_next_cycles;
+  uint32_t paint_timer_id;
 
   /* Video ULA state and derivatives. */
   uint8_t video_ula_control;
@@ -270,22 +270,6 @@ video_do_paint(struct video_struct* p_video) {
                                         do_full_render,
                                         p_video->is_framing_changed_for_render);
   p_video->is_framing_changed_for_render = 0;
-}
-
-static int
-video_is_painting_time(struct video_struct* p_video) {
-  uint64_t paint_next_cycles = p_video->paint_next_cycles;
-  if (paint_next_cycles == 0) {
-    return p_video->is_wall_time_vsync_hit;
-  } else {
-    struct timing_struct* p_timing = p_video->p_timing;
-    uint64_t curr_cycles = timing_get_total_timer_ticks(p_timing);
-    if (curr_cycles < paint_next_cycles) {
-      return 0;
-    }
-    p_video->paint_next_cycles += p_video->paint_cycles;
-    return 1;
-  }
 }
 
 static void
@@ -1059,6 +1043,16 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
   p_video->frame_crtc_ticks = frame_crtc_ticks;
 }
 
+static void
+video_paint_timer_fired(void* p) {
+  struct video_struct* p_video = (struct video_struct*) p;
+
+  video_do_paint(p_video);
+  (void) timing_set_timer_value(p_video->p_timing,
+                                p_video->paint_timer_id,
+                                p_video->paint_cycles);
+}
+
 struct video_struct*
 video_create(uint8_t* p_bbc_mem,
              uint8_t* p_shadow_mem,
@@ -1114,6 +1108,14 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u64_option(&p_video->paint_start_cycles,
                              p_options->p_opt_flags,
                              "video:paint-start-cycles=");
+  if (p_video->paint_start_cycles > 0) {
+    p_video->paint_timer_id = timing_register_timer(p_timing,
+                                                    video_paint_timer_fired,
+                                                    p_video);
+    (void) timing_start_timer_with_value(p_timing,
+                                         p_video->paint_timer_id,
+                                         p_video->paint_start_cycles);
+  }
   /* If paint cycle counting is active (default: no), then after the start
    * threshold is crossed, paint at a perfect virtual 50Hz.
    */
@@ -1121,7 +1123,6 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u64_option(&p_video->paint_cycles,
                              p_options->p_opt_flags,
                              "video:paint-cycles=");
-  p_video->paint_next_cycles = p_video->paint_start_cycles;
 
   if (p_system_via) {
     via_set_CB2_changed_callback(p_system_via,
@@ -1350,16 +1351,19 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     return;
   }
 
-  if (p_video->is_wall_time_vsync_hit) {
-    p_system_via = p_video->p_system_via;
-    via_set_CA1(p_system_via, 0);
-    via_set_CA1(p_system_via, 1);
-    p_video->num_vsyncs++;
+  if (p_video->paint_start_cycles > 0) {
+    return;
+  }
+  if (!p_video->is_wall_time_vsync_hit) {
+    return;
   }
 
-  if (video_is_painting_time(p_video)) {
-    video_do_paint(p_video);
-  }
+  p_system_via = p_video->p_system_via;
+  via_set_CA1(p_system_via, 0);
+  via_set_CA1(p_system_via, 1);
+  p_video->num_vsyncs++;
+
+  video_do_paint(p_video);
 }
 
 void
@@ -1557,7 +1561,13 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
    */
   if (addr == 0) {
-    /* CRTC latched register is read-only. */
+    /* Special hack: if custom paint timing is active, also paint upon read of
+     * the write-only register $FE00.
+     */
+    if (p_video->paint_start_cycles > 0) {
+      video_do_paint(p_video);
+    }
+    /* CRTC latched register is write-only. */
     return 0;
   }
 
