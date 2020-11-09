@@ -892,6 +892,11 @@ bbc_write_callback(void* p,
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
     serial_ula_write(p_bbc->p_serial, val);
+    /* A special hack for custom frame rendering for the BBC Micro bot.
+     * Only does anything if custom paint handling is active
+     * (-opt video:paint-start-cycles).
+     */
+    video_serial_ula_written_hack(p_bbc->p_video, val);
     break;
   case (k_addr_master_adc + 0):
     if (p_bbc->is_master) {

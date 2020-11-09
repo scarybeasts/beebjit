@@ -1443,6 +1443,19 @@ video_render_full_frame(struct video_struct* p_video) {
   }
 }
 
+void
+video_serial_ula_written_hack(struct video_struct* p_video, uint8_t val) {
+  /* Only activate if custom paint handling is active. */
+  if (p_video->paint_start_cycles == 0) {
+    return;
+  }
+  /* Activate on MOTOR ON. */
+  if (!(val & 0x80)) {
+    return;
+  }
+  video_do_paint(p_video);
+}
+
 static void
 video_update_real_color(struct video_struct* p_video, uint8_t index) {
   uint32_t color;
@@ -1561,12 +1574,6 @@ video_crtc_read(struct video_struct* p_video, uint8_t addr) {
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
    */
   if (addr == 0) {
-    /* Special hack: if custom paint timing is active, also paint upon read of
-     * the write-only register $FE00.
-     */
-    if (p_video->paint_start_cycles > 0) {
-      video_do_paint(p_video);
-    }
     /* CRTC latched register is write-only. */
     return 0;
   }

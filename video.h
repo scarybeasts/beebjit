@@ -45,6 +45,7 @@ uint8_t video_crtc_read(struct video_struct* p_video, uint8_t addr);
 void video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val);
 
 void video_render_full_frame(struct video_struct* p_video);
+void video_serial_ula_written_hack(struct video_struct* p_video, uint8_t val);
 
 uint8_t video_get_ula_control(struct video_struct* p_video);
 void video_set_ula_control(struct video_struct* p_video, uint8_t val);
