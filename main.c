@@ -75,6 +75,8 @@ main(int argc, const char* argv[]) {
   intptr_t handle_channel_write_bbc;
   intptr_t handle_channel_read_bbc;
   intptr_t handle_channel_write_ui;
+  char* p_opt_flags;
+  char* p_log_flags;
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
@@ -88,8 +90,6 @@ main(int argc, const char* argv[]) {
   const char* load_name = NULL;
   const char* capture_name = NULL;
   const char* replay_name = NULL;
-  const char* opt_flags = "";
-  const char* log_flags = "";
   const char* p_create_hfe_file = NULL;
   const char* p_create_hfe_spec = NULL;
   const char* p_frames_dir = ".";
@@ -126,6 +126,9 @@ main(int argc, const char* argv[]) {
   uint32_t save_frame_count = 0;
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
+
+  p_opt_flags = util_mallocz(1);
+  p_log_flags = util_mallocz(1);
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -192,10 +195,20 @@ main(int argc, const char* argv[]) {
       ++num_tapes;
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-opt")) {
-      opt_flags = val1;
+      char* p_old_opt_flags = p_opt_flags;
+      p_opt_flags = util_strdup2(p_opt_flags, ",");
+      util_free(p_old_opt_flags);
+      p_old_opt_flags = p_opt_flags;
+      p_opt_flags = util_strdup2(p_opt_flags, val1);
+      util_free(p_old_opt_flags);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-log")) {
-      log_flags = val1;
+      char* p_old_log_flags = p_log_flags;
+      p_log_flags = util_strdup2(p_log_flags, ",");
+      util_free(p_old_log_flags);
+      p_old_log_flags = p_log_flags;
+      p_log_flags = util_strdup2(p_log_flags, val1);
+      util_free(p_old_log_flags);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-stopat")) {
       (void) sscanf(val1, "%"PRIx32, &debug_stop_addr);
@@ -397,8 +410,8 @@ main(int argc, const char* argv[]) {
                      accurate_flag,
                      fasttape_flag,
                      test_map_flag,
-                     opt_flags,
-                     log_flags,
+                     p_opt_flags,
+                     p_log_flags,
                      debug_stop_addr);
   if (p_bbc == NULL) {
     util_bail("bbc_create failed");
@@ -537,16 +550,18 @@ main(int argc, const char* argv[]) {
     render_create_internal_buffer(p_render);
   }
 
-  if (!headless_flag && !util_has_option(opt_flags, "sound:off")) {
+  if (!headless_flag && !util_has_option(p_opt_flags, "sound:off")) {
     int ret;
     char* p_device_name = NULL;
     uint32_t sound_sample_rate = k_sound_default_rate;
     uint32_t sound_buffer_size = os_sound_get_default_buffer_size();
     uint32_t num_periods = k_sound_default_num_periods;
-    (void) util_get_u32_option(&sound_sample_rate, opt_flags, "sound:rate=");
-    (void) util_get_u32_option(&sound_buffer_size, opt_flags, "sound:buffer=");
-    (void) util_get_u32_option(&num_periods, opt_flags, "sound:periods=");
-    (void) util_get_str_option(&p_device_name, opt_flags, "sound:dev=");
+    (void) util_get_u32_option(&sound_sample_rate, p_opt_flags, "sound:rate=");
+    (void) util_get_u32_option(&sound_buffer_size,
+                               p_opt_flags,
+                               "sound:buffer=");
+    (void) util_get_u32_option(&num_periods, p_opt_flags, "sound:periods=");
+    (void) util_get_str_option(&p_device_name, p_opt_flags, "sound:dev=");
 
     p_sound_driver = os_sound_create(p_device_name,
                                      sound_sample_rate,
@@ -678,6 +693,9 @@ main(int argc, const char* argv[]) {
   if (p_sound_driver != NULL) {
     os_sound_destroy(p_sound_driver);
   }
+
+  util_free(p_opt_flags);
+  util_free(p_log_flags);
 
   return 0;
 }
