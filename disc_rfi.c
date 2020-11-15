@@ -86,7 +86,7 @@ disc_rfi_load(struct disc_struct* p_disc,
     util_bail("RFI can't get rate");
   }
 
-  if (sides != 1) {
+  if ((sides != 1) && (sides != 2)) {
     util_bail("RFI unsupported sides");
   }
   if ((tracks == 0) || (tracks > k_ibm_disc_tracks_per_disc)) {
@@ -99,123 +99,127 @@ disc_rfi_load(struct disc_struct* p_disc,
   p_rfi_data = util_malloc(k_max_rfi_track_size);
 
   for (i = 0; i < tracks; ++i) {
-    uint32_t j;
-    int level;
-    float rpm;
-    uint32_t ticks_pos;
-    uint32_t last_ticks_pulse_pos;
-    uint32_t ticks_rev;
-    uint32_t ticks_start;
-    uint32_t ticks_end;
-    uint32_t track = 0;
-    uint32_t side = 0;
-    uint32_t data_len = 0;
-    uint32_t track_rev = rev;
+    uint32_t i_sides;
+    for (i_sides = 0; i_sides < sides; ++i_sides) {
+      uint32_t j;
+      int level;
+      float rpm;
+      uint32_t ticks_pos;
+      uint32_t last_ticks_pulse_pos;
+      uint32_t ticks_rev;
+      uint32_t ticks_start;
+      uint32_t ticks_end;
+      uint32_t track = 0;
+      uint32_t side = 0;
+      uint32_t data_len = 0;
+      uint32_t track_rev = rev;
 
-    len = disc_rfi_get_stanza(&meta_buf[0], sizeof(meta_buf), p_file);
-    if (len == 0) {
-      util_bail("RFI missing track %d", i);
-    }
-    p_buf = strstr(meta_buf, "track:");
-    if ((p_buf == NULL) || (sscanf(p_buf, "track:%"PRIu32, &track) != 1)) {
-      util_bail("RFI can't get track");
-    }
-    p_buf = strstr(meta_buf, "side:");
-    if ((p_buf == NULL) || (sscanf(p_buf, "side:%"PRIu32, &side) != 1)) {
-      util_bail("RFI can't get side");
-    }
-    p_buf = strstr(meta_buf, "len:");
-    if ((p_buf == NULL) || (sscanf(p_buf, "len:%"PRIu32, &data_len) != 1)) {
-      util_bail("RFI can't get len");
-    }
-    p_buf = strstr(meta_buf, "rpm:");
-    if ((p_buf == NULL) || (sscanf(p_buf, "rpm:%f", &rpm) != 1)) {
-      util_bail("RFI can't get rpm");
-    }
-    if (strstr(meta_buf, "enc:\"rle\"") == NULL) {
-      util_bail("RFI encoding not rle");
-    }
-    if (track != i) {
-      util_bail("RFI track mismatch");
-    }
-    if (side != 0) {
-      util_bail("RFI side not 0");
-    }
-    if ((rpm < 200) || (rpm > 400)) {
-      util_bail("RFI dodgy rpm");
-    }
-
-    if (data_len > k_max_rfi_track_size) {
-      util_bail("RFI track data too big");
-    }
-    len = util_file_read(p_file, p_rfi_data, data_len);
-    if (len != data_len) {
-      util_bail("RFI track data EOF");
-    }
-
-    if (i < num_rev_spec_tracks) {
-      char val = p_rev_spec[i];
-      if ((val >= '0') && (val <= '2')) {
-        track_rev = (val - '0');
+      len = disc_rfi_get_stanza(&meta_buf[0], sizeof(meta_buf), p_file);
+      if (len == 0) {
+        util_bail("RFI missing track %d", i);
       }
-    }
+      p_buf = strstr(meta_buf, "track:");
+      if ((p_buf == NULL) || (sscanf(p_buf, "track:%"PRIu32, &track) != 1)) {
+        util_bail("RFI can't get track");
+      }
+      p_buf = strstr(meta_buf, "side:");
+      if ((p_buf == NULL) || (sscanf(p_buf, "side:%"PRIu32, &side) != 1)) {
+        util_bail("RFI can't get side");
+      }
+      p_buf = strstr(meta_buf, "len:");
+      if ((p_buf == NULL) || (sscanf(p_buf, "len:%"PRIu32, &data_len) != 1)) {
+        util_bail("RFI can't get len");
+      }
+      p_buf = strstr(meta_buf, "rpm:");
+      if ((p_buf == NULL) || (sscanf(p_buf, "rpm:%f", &rpm) != 1)) {
+        util_bail("RFI can't get rpm");
+      }
+      if (strstr(meta_buf, "enc:\"rle\"") == NULL) {
+        util_bail("RFI encoding not rle");
+      }
+      if (track != i) {
+        util_bail("RFI track mismatch");
+      }
+      if (side != i_sides) {
+        util_bail("RFI sides mismatch");
+      }
+      if ((rpm < 200) || (rpm > 400)) {
+        util_bail("RFI dodgy rpm");
+      }
 
-    disc_build_track(p_disc, 0, i);
+      if (data_len > k_max_rfi_track_size) {
+        util_bail("RFI track data too big");
+      }
+      len = util_file_read(p_file, p_rfi_data, data_len);
+      if (len != data_len) {
+        util_bail("RFI track data EOF");
+      }
 
-    ticks_rev = (12500000.0 * (1.0 / (rpm / 60.0)));
-    ticks_start = (ticks_rev * track_rev);
-    ticks_end = (ticks_start + ticks_rev);
-
-    ticks_pos = 0;
-    last_ticks_pulse_pos = ticks_start;
-    level = 0;
-    j = 0;
-    while (j < data_len) {
-      uint32_t data = p_rfi_data[j];
-      j++;
-      if (data == 0xFF) {
-        if ((j + 2) > data_len) {
-          util_bail("RFI long run overread");
+      if (i < num_rev_spec_tracks) {
+        char val = p_rev_spec[i];
+        if ((val >= '0') && (val <= '2')) {
+          track_rev = (val - '0');
         }
-        data = (p_rfi_data[j] * 256);
-        data += p_rfi_data[j + 1];
-        data += 255;
-        j += 2;
       }
-      ticks_pos += data;
-      if (ticks_pos < ticks_start) {
-        continue;
-      }
-      if (ticks_pos >= ticks_end) {
-        break;
-      }
-      level = !level;
-      if (level) {
-        float delta_us = (ticks_pos - last_ticks_pulse_pos);
-        delta_us /= 12.5;
-        if (log_iffy_pulses) {
-          if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
-            log_do_log(k_log_disc,
-                       k_log_info,
-                       "track %d pos %d dpos %d iffy pulse %f (%s)",
-                       i,
-                       ticks_pos,
-                       j,
-                       delta_us,
-                       (quantize_fm ? "fm" : "mfm"));
+
+      disc_build_track(p_disc, i_sides, i);
+
+      ticks_rev = (12500000.0 * (1.0 / (rpm / 60.0)));
+      ticks_start = (ticks_rev * track_rev);
+      ticks_end = (ticks_start + ticks_rev);
+
+      ticks_pos = 0;
+      last_ticks_pulse_pos = ticks_start;
+      level = 0;
+      j = 0;
+      while (j < data_len) {
+        uint32_t data = p_rfi_data[j];
+        j++;
+        if (data == 0xFF) {
+          if ((j + 2) > data_len) {
+            util_bail("RFI long run overread");
           }
+          data = (p_rfi_data[j] * 256);
+          data += p_rfi_data[j + 1];
+          data += 255;
+          j += 2;
         }
-        if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
-          log_do_log(k_log_disc, k_log_warning, "RFI truncating track %d", i);
+        ticks_pos += data;
+        if (ticks_pos < ticks_start) {
+          continue;
         }
-        last_ticks_pulse_pos = ticks_pos;
+        if (ticks_pos >= ticks_end) {
+          break;
+        }
+        level = !level;
+        if (level) {
+          float delta_us = (ticks_pos - last_ticks_pulse_pos);
+          delta_us /= 12.5;
+          if (log_iffy_pulses) {
+            if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
+              log_do_log(k_log_disc,
+                         k_log_info,
+                         "side %d track %d pos %d dpos %d iffy pulse %f (%s)",
+                         i_sides,
+                         i,
+                         ticks_pos,
+                         j,
+                         delta_us,
+                         (quantize_fm ? "fm" : "mfm"));
+            }
+          }
+          if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
+            log_do_log(k_log_disc, k_log_warning, "RFI truncating track %d", i);
+          }
+          last_ticks_pulse_pos = ticks_pos;
+        }
       }
-    }
-    if (j == data_len) {
-      log_do_log(k_log_disc, k_log_warning, "RFI data ran out track %d", i);
-    }
-    disc_build_set_track_length(p_disc);
-  }
+      if (j == data_len) {
+        log_do_log(k_log_disc, k_log_warning, "RFI data ran out track %d", i);
+      }
+      disc_build_set_track_length(p_disc);
+    } /* End of sides loop. */
+  } /* End of track loop. */
 
   util_free(p_rfi_data);
 }
