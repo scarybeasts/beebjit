@@ -53,6 +53,7 @@ disc_rfi_load(struct disc_struct* p_disc,
   char* p_buf;
   uint8_t* p_rfi_data;
   uint32_t num_rev_spec_tracks;
+  float rate_divider;
   uint32_t tracks = 0;
   uint32_t sides = 0;
   uint32_t rate = 0;
@@ -92,9 +93,11 @@ disc_rfi_load(struct disc_struct* p_disc,
   if ((tracks == 0) || (tracks > k_ibm_disc_tracks_per_disc)) {
     util_bail("RFI bad track count");
   }
-  if (rate != 12500000) {
-    util_bail("RFI unsupported rate");
+  if ((rate < 5000000) || (rate > 50000000)) {
+    util_bail("RFI wild rate");
   }
+
+  rate_divider = (rate / 1000000.0);
 
   p_rfi_data = util_malloc(k_max_rfi_track_size);
 
@@ -164,7 +167,7 @@ disc_rfi_load(struct disc_struct* p_disc,
 
       disc_build_track(p_disc, i_sides, i);
 
-      ticks_rev = (12500000.0 * (1.0 / (rpm / 60.0)));
+      ticks_rev = (rate * (1.0 / (rpm / 60.0)));
       ticks_start = (ticks_rev * track_rev);
       ticks_end = (ticks_start + ticks_rev);
 
@@ -194,7 +197,7 @@ disc_rfi_load(struct disc_struct* p_disc,
         level = !level;
         if (level) {
           float delta_us = (ticks_pos - last_ticks_pulse_pos);
-          delta_us /= 12.5;
+          delta_us /= rate_divider;
           if (log_iffy_pulses) {
             if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
               log_do_log(k_log_disc,

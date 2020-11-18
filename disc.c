@@ -556,6 +556,9 @@ disc_build_append_pulse_delta(struct disc_struct* p_disc,
   }
 
   while (num_2us_units--) {
+    if (p_disc->build_index == k_disc_max_bytes_per_track) {
+      return 0;
+    }
     if (num_2us_units == 0) {
       uint32_t val = (0x80000000 >> p_disc->build_pulses_index);
       assert(p_disc->build_index < k_disc_max_bytes_per_track);
@@ -565,9 +568,6 @@ disc_build_append_pulse_delta(struct disc_struct* p_disc,
     if (p_disc->build_pulses_index == 32) {
       p_disc->build_pulses_index = 0;
       p_disc->build_index++;
-      if (p_disc->build_index == k_disc_max_bytes_per_track) {
-        return 0;
-      }
     }
   }
   return 1;
