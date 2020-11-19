@@ -278,6 +278,7 @@ render_create_internal_buffer(struct render_struct* p_render) {
 static inline void
 render_check_cursor(struct render_struct* p_render,
                     uint32_t* p_render_pos,
+                    uint32_t* p_next_render_pos,
                     uint32_t num_pixels) {
   if (p_render->cursor_segment_index == -1) {
     return;
@@ -288,6 +289,7 @@ render_check_cursor(struct render_struct* p_render,
    */
   if (p_render->render_mode == k_render_mode7) {
     p_render_pos -= 16;
+    p_next_render_pos -= 16;
   }
 
   if (p_render->cursor_segments[p_render->cursor_segment_index] &&
@@ -295,6 +297,7 @@ render_check_cursor(struct render_struct* p_render,
     uint32_t i;
     for (i = 0; i < num_pixels; ++i) {
       p_render_pos[i] ^= 0x00ffffff;
+      p_next_render_pos[i] ^= 0x00ffffff;
     }
   }
   p_render->cursor_segment_index++;
@@ -306,20 +309,23 @@ render_check_cursor(struct render_struct* p_render,
 static void
 render_function_teletext(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
-  struct render_character_1MHz* p_character =
-      (struct render_character_1MHz*) p_render_pos;
 
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    teletext_render_data(p_render->p_teletext, p_character, data);
-    render_check_cursor(p_render, p_render_pos, 16);
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+
+    teletext_render_data(p_render->p_teletext,
+                         (struct render_character_1MHz*) p_render_pos,
+                         (struct render_character_1MHz*) p_next_render_pos,
+                         data);
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
     p_render->p_render_pos += 16;
   } else {
     /* In teletext mode, we still need to tell the SAA5050 chip about data
      * bytes that are off-screen, so that it can maintain state.
      */
-    teletext_render_data(p_render->p_teletext, NULL, data);
+    teletext_render_data(p_render->p_teletext, NULL, NULL, data);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
@@ -330,14 +336,16 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
 static void
 render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
-  struct render_character_1MHz* p_character =
-      (struct render_character_1MHz*) p_render_pos;
 
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    *p_character = p_render->p_render_table_1MHz->values[data];
-    render_check_cursor(p_render, p_render_pos, 16);
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    struct render_character_1MHz* p_value =
+        &p_render->p_render_table_1MHz->values[data];
+    *(struct render_character_1MHz*) p_render_pos = *p_value;
+    *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
     p_render->p_render_pos += 16;
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
@@ -348,8 +356,6 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
 static void
 render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
-  struct render_character_1MHz* p_character =
-      (struct render_character_1MHz*) p_render_pos;
 
   (void) data;
   /* TODO: If we're maintaining the canvas background correctly as black, we
@@ -358,8 +364,12 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    *p_character = p_render->render_character_1MHz_black;
-    render_check_cursor(p_render, p_render_pos, 16);
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    struct render_character_1MHz* p_value =
+        &p_render->render_character_1MHz_black;
+    *(struct render_character_1MHz*) p_render_pos = *p_value;
+    *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
     p_render->p_render_pos += 16;
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
@@ -370,14 +380,16 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
 static void
 render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
-  struct render_character_2MHz* p_character =
-      (struct render_character_2MHz*) p_render_pos;
 
   p_render->horiz_beam_pos += 8;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    *p_character = p_render->p_render_table_2MHz->values[data];
-    render_check_cursor(p_render, p_render_pos, 8);
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    struct render_character_2MHz* p_value =
+        &p_render->p_render_table_2MHz->values[data];
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
     p_render->p_render_pos += 8;
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
@@ -388,16 +400,18 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
 static void
 render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
-  struct render_character_2MHz* p_character =
-      (struct render_character_2MHz*) p_render_pos;
 
   (void) data;
 
   p_render->horiz_beam_pos += 8;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    *p_character = p_render->render_character_2MHz_black;
-    render_check_cursor(p_render, p_render_pos, 8);
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    struct render_character_2MHz* p_value =
+        &p_render->render_character_2MHz_black;
+    *(struct render_character_2MHz*) p_render_pos = *p_value;
+    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
     p_render->p_render_pos += 8;
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
@@ -700,49 +714,43 @@ render_clear_buffer(struct render_struct* p_render) {
 }
 
 void
-render_double_up_lines(struct render_struct* p_render) {
-  /* TODO: only need to double up partial lines within the render border. */
-  uint32_t width = p_render->width;
-  uint32_t line_size = (width * sizeof(uint32_t));
-  uint32_t double_width = (width * 2);
-  uint32_t* p_buffer = p_render->p_buffer;
-  uint32_t* p_buffer_next_line = (p_buffer + width);
+render_process_full_buffer(struct render_struct* p_render) {
+  uint32_t width;
+  uint32_t line_size;
+  uint32_t* p_buffer;
+  int32_t line;   /* Must be signed. */
+  int32_t column; /* Must be signed. */
+  int32_t lines;
+  uint32_t half_width;
+
+  if (!p_render->is_double_size) {
+    return;
+  }
+
+  width = p_render->width;
+  line_size = (width * sizeof(uint32_t));
+  p_buffer = p_render->p_buffer;
+  lines = (p_render->height / 2);
+  half_width = (width / 2);
   
-  if (p_render->is_double_size) {
-    int32_t line;   /* Must be signed. */
-    int32_t column; /* Must be signed. */
-    int32_t lines = (p_render->height / 4);
-    uint32_t half_width = (width / 2);
-    for (line = 0; line < lines; ++line) {
-      for (column = (half_width - 1); column >= 0; --column) {
-        p_buffer[column * 2] = p_buffer[column];
-        p_buffer[(column * 2) + 1] = p_buffer[column];
-      }
-      (void) memcpy(p_buffer_next_line, p_buffer, line_size);
-      p_buffer += double_width;
-      p_buffer_next_line += double_width;
+  for (line = 0; line < lines; ++line) {
+    for (column = (half_width - 1); column >= 0; --column) {
+      p_buffer[column * 2] = p_buffer[column];
+      p_buffer[(column * 2) + 1] = p_buffer[column];
     }
-    p_buffer = p_render->p_buffer;
-    lines = (p_render->height / 2);
-    for (line = (lines - 1); line >= 0; --line) {
-      uint32_t* p_buffer_src = (p_buffer + (line * width));
-      uint32_t* p_buffer_dest = (p_buffer + (2 * (line * width)));
-      if (line == 0) {
-        /* Don't copy line 0 to line 2*0=0 (memcpy overlap = undefined) */
-      } else {
-        (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
-      }
-      (void) memcpy((p_buffer_dest + width), p_buffer_src, line_size);
+    p_buffer += width;
+  }
+
+  p_buffer = p_render->p_buffer;
+  for (line = (lines - 1); line >= 0; --line) {
+    uint32_t* p_buffer_src = (p_buffer + (line * width));
+    uint32_t* p_buffer_dest = (p_buffer + (2 * (line * width)));
+    if (line == 0) {
+      /* Don't copy line 0 to line 2*0=0 (memcpy overlap = undefined) */
+    } else {
+      (void) memcpy(p_buffer_dest, p_buffer_src, line_size);
     }
-  } else {
-    /* Not double size. */
-    uint32_t line;
-    uint32_t lines = (p_render->height / 2);
-    for (line = 0; line < lines; ++line) {
-      (void) memcpy(p_buffer_next_line, p_buffer, line_size);
-      p_buffer += double_width;
-      p_buffer_next_line += double_width;
-    }
+    (void) memcpy((p_buffer_dest + width), p_buffer_src, line_size);
   }
 }
 

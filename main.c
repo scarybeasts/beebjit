@@ -634,7 +634,7 @@ main(int argc, const char* argv[]) {
         if (do_full_render) {
           video_render_full_frame(p_video);
         }
-        render_double_up_lines(p_render);
+        render_process_full_buffer(p_render);
         if (window_open) {
           os_window_sync_buffer_to_screen(p_window);
         }

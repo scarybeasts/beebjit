@@ -113,6 +113,45 @@ teletext_stretch_12_to_16(uint8_t* p_dest, uint8_t* p_src) {
 }
 
 static void
+teletext_smooth_diagonals(uint8_t* p_dest, uint8_t* p_src) {
+  uint32_t x;
+  uint32_t y;
+
+  (void) memcpy(p_dest, p_src, (12 * 20));
+
+  /* NOTE: could visit less rows / columns here but keeping it simple. */
+  for (y = 1; y < 19; ++y) {
+    for (x = 1; x < 11; ++x) {
+      uint8_t* p_pixel = (p_src + (y * 12) + x);
+      int up = *(p_pixel - 12);
+      int down = *(p_pixel + 12);
+      int left = *(p_pixel - 1);
+      int right = *(p_pixel + 1);
+      int down_left = *(p_pixel + 11);
+      int up_right = *(p_pixel - 11);
+      int down_right = *(p_pixel + 13);
+      int up_left = *(p_pixel - 13);
+      int smooth = 0;
+      if (down && left && !down_left) {
+        smooth = 1;
+      }
+      if (up && right && !up_right) {
+        smooth = 1;
+      }
+      if (down && right && !down_right) {
+        smooth = 1;
+      }
+      if (up && left && !up_left) {
+        smooth = 1;
+      }
+      if (smooth) {
+        p_dest[(y * 12) + x] = 1;
+      }
+    }
+  }
+}
+
+static void
 teletext_generate() {
   uint32_t i;
 
@@ -120,13 +159,15 @@ teletext_generate() {
 
   /* Make the ROM glyphs pretty. */
   for (i = 0; i < 96; ++i) {
+    uint8_t double_glyph[12 * 20];
     uint8_t pretty_glyph[12 * 20];
     uint8_t* p_glyph = &teletext_characters[i * 60];
 
     /* 6x10 to 12x20. */
-    teletext_double_up_pixels(&pretty_glyph[0], p_glyph);
+    teletext_double_up_pixels(&double_glyph[0], p_glyph);
 
-    /* TODO: smooth the diagonals. */
+    /* Smooth the diagonals. */
+    teletext_smooth_diagonals(&pretty_glyph[0], &double_glyph[0]);
 
     /* Stretch 12 pixels wide to 16, with anti-aliasing. */
     teletext_stretch_12_to_16(&s_teletext_generated_glyphs[i * 320],
@@ -364,6 +405,7 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
 void
 teletext_render_data(struct teletext_struct* p_teletext,
                      struct render_character_1MHz* p_out,
+                     struct render_character_1MHz* p_next_out,
                      uint8_t data) {
   uint32_t i;
   uint32_t bg_color;
@@ -434,6 +476,18 @@ teletext_render_data(struct teletext_struct* p_teletext,
 
   bg_color = p_teletext->bg_color;
 
+  for (i = 0; i < 16; ++i) {
+    uint32_t color;
+    uint8_t val = p_src_data[i];
+
+    color = (val * fg_color);
+    color += ((255 - val) * bg_color);
+
+    p_out->host_pixels[i] = (color | 0xff000000);
+  }
+
+  p_src_data += 16;
+  p_out = p_next_out;
   for (i = 0; i < 16; ++i) {
     uint32_t color;
     uint8_t val = p_src_data[i];
