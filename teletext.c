@@ -17,31 +17,34 @@
 
 #include <string.h>
 
-/* Used for stretching 6 pixels wide into 16. */
+/* Used for stretching 12 pixels wide into 16. */
 static const uint8_t k_stretch_data[] = {
-  0, 255, 0, 0,
-  0, 255, 0, 0,
-  0, 170, 1, 85,
-  1, 255, 0, 0,
-  1, 255, 0, 0,
-  1, 85,  2, 170,
-  2, 255, 0, 0,
-  2, 255, 0, 0,
+  0,  255, 0,  0,
+  0,  85,  1,  170,
+  1,  170, 2,  85,
+  2,  255, 0,  0,
 
-  3, 255, 0, 0,
-  3, 255, 0, 0,
-  3, 170, 4, 85,
-  4, 255, 0, 0,
-  4, 255, 0, 0,
-  4, 85,  5, 170,
-  5, 255, 0, 0,
-  5, 255, 0, 0,
+  3,  255, 0,  0,
+  3,  85,  4,  170,
+  4,  170, 5,  85,
+  5,  255, 0,  0,
+
+  6,  255, 0,  0,
+  6,  85,  7,  170,
+  7,  170, 8,  85,
+  8,  255, 0,  0,
+
+  9,  255, 0,  0,
+  9,  85,  10, 170,
+  10, 170, 11, 85,
+  11, 255, 0,  0,
 };
 
 static int s_teletext_was_generated;
 
-static uint8_t s_teletext_generated_gfx[96 * 60];
-static uint8_t s_teletext_generated_sep_gfx[96 * 60];
+static uint8_t s_teletext_generated_glyphs[96 * 16 * 20];
+static uint8_t s_teletext_generated_gfx[96 * 16 * 20];
+static uint8_t s_teletext_generated_sep_gfx[96 * 16 * 20];
 
 struct teletext_struct {
   uint32_t palette[8];
@@ -78,55 +81,112 @@ teletext_draw_block(uint8_t* p_glyph,
 }
 
 static void
+teletext_double_up_pixels(uint8_t* p_dest, uint8_t* p_src) {
+  uint32_t x;
+  uint32_t y;
+  for (y = 0; y < 10; ++y) {
+    for (x = 0; x < 6; ++x) {
+      uint8_t* p_pixel_block = (p_dest + (y * 12 * 2) + (x * 2));
+      uint8_t val = p_src[(y * 6) + x];
+      *p_pixel_block = val;
+      *(p_pixel_block + 1) = val;
+      *(p_pixel_block + 12) = val;
+      *(p_pixel_block + 12 + 1) = val;
+    }
+  }
+}
+
+static void
+teletext_stretch_12_to_16(uint8_t* p_dest, uint8_t* p_src) {
+  uint32_t x;
+  uint32_t y;
+  for (y = 0; y < 20; ++y) {
+    const uint8_t* p_stretch_data = &k_stretch_data[0];
+    for (x = 0; x < 16; ++x) {
+      uint8_t val = (p_src[p_stretch_data[0]] * p_stretch_data[1]);
+      val += (p_src[p_stretch_data[2]] * p_stretch_data[3]);
+      *p_dest++ = val;
+      p_stretch_data += 4;
+    }
+    p_src += 12;
+  }
+}
+
+static void
 teletext_generate() {
   uint32_t i;
 
   s_teletext_was_generated = 1;
 
-  /* 0x40 - 0x5F in graphics modes use the character glyph. */
-  (void) memcpy(&s_teletext_generated_gfx[(0x40 - 0x20) * 60],
-                &teletext_characters[(0x40 - 0x20) * 60],
-                (0x20 * 60));
-  (void) memcpy(&s_teletext_generated_sep_gfx[(0x40 - 0x20) * 60],
-                &teletext_characters[(0x40 - 0x20) * 60],
-                (0x20 * 60));
+  /* Make the ROM glyphs pretty. */
+  for (i = 0; i < 96; ++i) {
+    uint8_t pretty_glyph[12 * 20];
+    uint8_t* p_glyph = &teletext_characters[i * 60];
 
+    /* 6x10 to 12x20. */
+    teletext_double_up_pixels(&pretty_glyph[0], p_glyph);
+
+    /* TODO: smooth the diagonals. */
+
+    /* Stretch 12 pixels wide to 16, with anti-aliasing. */
+    teletext_stretch_12_to_16(&s_teletext_generated_glyphs[i * 320],
+                              &pretty_glyph[0]);
+  }
+
+  /* 0x40 - 0x5F in graphics modes use the character glyph. */
+  (void) memcpy(&s_teletext_generated_gfx[(0x40 - 0x20) * 320],
+                &s_teletext_generated_glyphs[(0x40 - 0x20) * 320],
+                (0x20 * 320));
+  (void) memcpy(&s_teletext_generated_sep_gfx[(0x40 - 0x20) * 320],
+                &s_teletext_generated_glyphs[(0x40 - 0x20) * 320],
+                (0x20 * 320));
+
+  /* Generate the graphics glphys, which are on a 2x3 grid. */
   for (i = 0; i < 0x40; ++i) {
     uint8_t glyph_index;
-    uint8_t* p_gfx_dest;
-    uint8_t* p_sep_gfx_dest;
+    uint8_t gfx_buf[6 * 10];
+    uint8_t sep_gfx_buf[6 * 10];
+    uint8_t doubled_gfx_glyph[12 * 20];
+
+    (void) memset(gfx_buf, '\0', sizeof(gfx_buf));
+    (void) memset(sep_gfx_buf, '\0', sizeof(sep_gfx_buf));
+
+    if (i & 0x01) {
+      teletext_draw_block(&gfx_buf[0], 0, 0, 3, 3);
+      teletext_draw_block(&sep_gfx_buf[0], 1, 0, 2, 2);
+    }
+    if (i & 0x02) {
+      teletext_draw_block(&gfx_buf[0], 3, 0, 3, 3);
+      teletext_draw_block(&sep_gfx_buf[0], 4, 0, 2, 2);
+    }
+    if (i & 0x04) {
+      teletext_draw_block(&gfx_buf[0], 0, 3, 3, 4);
+      teletext_draw_block(&sep_gfx_buf[0], 1, 3, 2, 3);
+    }
+    if (i & 0x08) {
+      teletext_draw_block(&gfx_buf[0], 3, 3, 3, 4);
+      teletext_draw_block(&sep_gfx_buf[0], 4, 3, 2, 3);
+    }
+    if (i & 0x10) {
+      teletext_draw_block(&gfx_buf[0], 0, 7, 3, 3);
+      teletext_draw_block(&sep_gfx_buf[0], 1, 7, 2, 2);
+    }
+    if (i & 0x20) {
+      teletext_draw_block(&gfx_buf[0], 3, 7, 3, 3);
+      teletext_draw_block(&sep_gfx_buf[0], 4, 7, 2, 2);
+    }
 
     glyph_index = i;
     if (i >= 0x20) {
       glyph_index += 0x20;
     }
-    p_gfx_dest = &s_teletext_generated_gfx[glyph_index * 60];
-    p_sep_gfx_dest = &s_teletext_generated_sep_gfx[glyph_index * 60];
 
-    if (i & 0x01) {
-      teletext_draw_block(p_gfx_dest, 0, 0, 3, 3);
-      teletext_draw_block(p_sep_gfx_dest, 1, 0, 2, 2);
-    }
-    if (i & 0x02) {
-      teletext_draw_block(p_gfx_dest, 3, 0, 3, 3);
-      teletext_draw_block(p_sep_gfx_dest, 4, 0, 2, 2);
-    }
-    if (i & 0x04) {
-      teletext_draw_block(p_gfx_dest, 0, 3, 3, 4);
-      teletext_draw_block(p_sep_gfx_dest, 1, 3, 2, 3);
-    }
-    if (i & 0x08) {
-      teletext_draw_block(p_gfx_dest, 3, 3, 3, 4);
-      teletext_draw_block(p_sep_gfx_dest, 4, 3, 2, 3);
-    }
-    if (i & 0x10) {
-      teletext_draw_block(p_gfx_dest, 0, 7, 3, 3);
-      teletext_draw_block(p_sep_gfx_dest, 1, 7, 2, 2);
-    }
-    if (i & 0x20) {
-      teletext_draw_block(p_gfx_dest, 3, 7, 3, 3);
-      teletext_draw_block(p_sep_gfx_dest, 4, 7, 2, 2);
-    }
+    teletext_double_up_pixels(&doubled_gfx_glyph[0], &gfx_buf[0]);
+    teletext_stretch_12_to_16(&s_teletext_generated_gfx[glyph_index * 320],
+                              &doubled_gfx_glyph[0]);
+
+    teletext_double_up_pixels(&doubled_gfx_glyph[0], &sep_gfx_buf[0]);
+    teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],                               &doubled_gfx_glyph[0]);
   }
 }
 
@@ -139,7 +199,7 @@ teletext_set_active_characters(struct teletext_struct* p_teletext) {
       p_teletext->p_active_characters = &s_teletext_generated_gfx[0];
     }
   } else {
-    p_teletext->p_active_characters = &teletext_characters[0];
+    p_teletext->p_active_characters = &s_teletext_generated_glyphs[0];
   }
 }
 
@@ -153,7 +213,7 @@ teletext_scanline_ended(struct teletext_struct* p_teletext) {
   p_teletext->bg_color = p_teletext->palette[0];
   p_teletext->is_hold_graphics = 0;
   /* This is space. */
-  p_teletext->p_held_character = &teletext_characters[0];
+  p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
 
   teletext_set_active_characters(p_teletext);
 
@@ -306,7 +366,6 @@ teletext_render_data(struct teletext_struct* p_teletext,
                      struct render_character_1MHz* p_out,
                      uint8_t data) {
   uint32_t i;
-  uint32_t j;
   uint32_t bg_color;
 
   /* Foreground color and active characters are set-after so load them before
@@ -321,7 +380,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
   data &= 0x7F;
 
   if (data >= 0x20) {
-    p_src_data += (60 * (data - 0x20));
+    p_src_data += (320 * (data - 0x20));
     /* EMU NOTE: from the Teletext spec, "the "Held-Mosaic" character inserted
      * is the most recent mosaics character with bit 6 = '1' in its code on
      * that row".
@@ -336,7 +395,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
         p_teletext->p_held_character = p_src_data;
       }
     } else {
-      p_teletext->p_held_character = &teletext_characters[0];
+      p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
     }
   } else {
     uint8_t* p_held_character = p_teletext->p_held_character;
@@ -348,7 +407,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     if (is_graphics_active && is_hold_graphics) {
       p_src_data = p_held_character;
     } else {
-      p_teletext->p_held_character = &teletext_characters[0];
+      p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
     }
   }
 
@@ -360,36 +419,29 @@ teletext_render_data(struct teletext_struct* p_teletext,
       (p_teletext->second_character_row_of_double &&
        !p_teletext->double_active)) {
     /* Re-route to space. */
-    p_src_data = &teletext_characters[0];
+    p_src_data = &s_teletext_generated_glyphs[0];
   }
+
+  src_data_scanline *= 2;
   if (p_teletext->double_active) {
-    src_data_scanline >>= 1;
+    src_data_scanline /= 2;
     if (p_teletext->second_character_row_of_double) {
-      src_data_scanline += 5;
+      src_data_scanline += 10;
     }
   }
 
-  p_src_data += (src_data_scanline * 6);
+  p_src_data += (src_data_scanline * 16);
 
   bg_color = p_teletext->bg_color;
 
-  /* NOTE: would be nice to pre-calculate some of this but there are a huge
-   * number of glyph + color combinations.
-   */
-  j = 0;
   for (i = 0; i < 16; ++i) {
     uint32_t color;
-    uint8_t p1 = p_src_data[k_stretch_data[j]];
-    uint8_t p2 = p_src_data[k_stretch_data[j + 2]];
-    uint32_t c1 = (p1 ? fg_color : bg_color);
-    uint32_t c2 = (p2 ? fg_color : bg_color);
+    uint8_t val = p_src_data[i];
 
-    color = (c1 * k_stretch_data[j + 1]);
-    color += (c2 * k_stretch_data[j + 3]);
+    color = (val * fg_color);
+    color += ((255 - val) * bg_color);
 
     p_out->host_pixels[i] = (color | 0xff000000);
-
-    j += 4;
   }
 }
 
