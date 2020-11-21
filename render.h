@@ -71,8 +71,9 @@ void (*render_get_render_blank_function(struct render_struct* p_render))
 void render_clear_buffer(struct render_struct* p_render);
 void render_process_full_buffer(struct render_struct* p_render);
 void render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks);
-void render_vsync(struct render_struct* p_render, int do_interlace_compensate);
+void render_vsync(struct render_struct* p_render);
 void render_frame_boundary(struct render_struct* p_render);
 void render_cursor(struct render_struct* p_render);
+void render_set_horiz_beam_pos(struct render_struct* p_render, uint32_t pos);
 
 #endif /* BEEBJIT_RENDER_H */

@@ -773,7 +773,7 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
    * flyback anyway.
    */
   if (p_render->vert_beam_pos >= 768) {
-    render_vsync(p_render, 1);
+    render_vsync(p_render);
   }
 
   render_reset_render_pos(p_render);
@@ -788,19 +788,21 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
 }
 
 void
-render_vsync(struct render_struct* p_render, int do_interlace_compensate) {
+render_vsync(struct render_struct* p_render) {
   if (p_render->p_flyback_callback) {
     p_render->p_flyback_callback(p_render->p_flyback_callback_object);
   }
 
   p_render->vert_beam_pos = 0;
-  if (do_interlace_compensate &&
-      !p_render->do_interlace_wobble &&
-      (p_render->horiz_beam_pos < 512)) {
-    /* TODO: the interlace wobble, if enabled, is wobbling too much. It wobbles
-     * 1 full vertical scanline (2 host pixels) instead of a half scanline.
-     */
-    p_render->vert_beam_pos = 2;
+
+  if (p_render->horiz_beam_pos >= 512) {
+    /* We're transitioning from the even to the odd interlace frame. */
+    if (p_render->do_interlace_wobble) {
+      /* TODO: we also need to only render single scanlines. */
+      p_render->vert_beam_pos = -1;
+    } else {
+      p_render->vert_beam_pos = -2;
+    }
   }
   render_reset_render_pos(p_render);
 }
@@ -825,4 +827,10 @@ render_frame_boundary(struct render_struct* p_render) {
 void
 render_cursor(struct render_struct* p_render) {
   p_render->cursor_segment_index = 0;
+}
+
+void
+render_set_horiz_beam_pos(struct render_struct* p_render, uint32_t pos) {
+  p_render->horiz_beam_pos = pos;
+  render_reset_render_pos(p_render);
 }

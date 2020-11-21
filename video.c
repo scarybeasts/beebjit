@@ -304,7 +304,7 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
     /* Painting occurs in the renderer's flyback callback;
      * see video_flyback_callback().
      */
-    render_vsync(p_video->p_render, 1);
+    render_vsync(p_video->p_render);
   }
 }
 
@@ -896,13 +896,15 @@ video_timer_fired(void* p) {
     /* Wrestle the renderer to match the current odd or even interlace frame
      * state.
      */
+    if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
+      render_set_horiz_beam_pos(p_render, 512);
+    } else {
+      render_set_horiz_beam_pos(p_render, 0);
+    }
     /* NOTE: need to call render_vsync() prior to marking rendering active
      * again, otherwise the flyback callback would attempt to paint.
      */
-    render_vsync(p_render, 0);
-    if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
-      render_hsync(p_render, 0);
-    }
+    render_vsync(p_render);
 
     p_video->is_rendering_active = 1;
     p_video->is_wall_time_vsync_hit = 0;
@@ -1415,7 +1417,7 @@ video_render_full_frame(struct video_struct* p_video) {
     num_pre_cols = (horiz_total - p_regs[k_crtc_reg_horiz_position]);
   }
 
-  render_vsync(p_render, 0);
+  render_vsync(p_render);
   teletext_VSYNC_changed(p_teletext, 0);
 
   for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
