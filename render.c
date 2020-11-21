@@ -767,6 +767,8 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
   }
   p_render->vert_beam_pos += 2;
 
+  p_render->cursor_segment_index = -1;
+
   /* If the CRT beam gets too low with no vsync signal in sight, it will do
    * flyback anyway.
    */
