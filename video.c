@@ -88,6 +88,7 @@ struct video_struct {
   int is_framing_changed_for_render;
   int is_wall_time_vsync_hit;
   int is_rendering_active;
+  int is_rendering_every_vsync;
 
   /* Options. */
   uint32_t frames_skip;
@@ -253,7 +254,9 @@ video_do_paint(struct video_struct* p_video) {
    * We'll get prodded to start again by the 50Hz real time tick, which will
    * get noticed in video_timer_fired().
    */
-  if (!p_video->externally_clocked && *p_video->p_fast_flag) {
+  if (!p_video->externally_clocked &&
+      *p_video->p_fast_flag &&
+      !p_video->is_rendering_every_vsync) {
     p_video->is_rendering_active = 0;
   }
 
@@ -890,6 +893,8 @@ video_timer_fired(void* p) {
    * next paint at the next vsync raise.
    */
   if (!p_video->is_rendering_active &&
+      ((p_video->paint_start_cycles == 0) ||
+           p_video->is_rendering_every_vsync) &&
       p_video->is_wall_time_vsync_hit &&
       video_is_at_vsync_start(p_video)) {
     struct render_struct* p_render = p_video->p_render;
@@ -1046,13 +1051,38 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
 }
 
 static void
+video_do_custom_paint_event(struct video_struct* p_video) {
+  struct timing_struct* p_timing = p_video->p_timing;
+  uint32_t timer_id = p_video->paint_timer_id;
+
+  if (!p_video->externally_clocked) {
+    /* For accurate mode, this triggers the start of painting, and paint will
+     * occur at the usual 50Hz virtual time.
+     */
+    if (timing_timer_is_running(p_timing, timer_id)) {
+      p_video->is_wall_time_vsync_hit = 1;
+      p_video->is_rendering_every_vsync = 1;
+      (void) timing_stop_timer(p_timing, timer_id);
+    }
+  } else {
+    /* For fast mode, this paints, and restarts the recurring paint cycles
+     * timer.
+     */
+    video_do_paint(p_video);
+    (void) timing_set_timer_value(p_timing, timer_id, p_video->paint_cycles);
+  }
+}
+
+static void
 video_paint_timer_fired(void* p) {
+  /* The dance for when we render (draw pixels), paint (blast render buffer to
+   * screen), etc. is getting complicated.
+   * This paint timer here is not part of the default path. It is only used
+   * when some unusual custom options are used.
+   */
   struct video_struct* p_video = (struct video_struct*) p;
 
-  video_do_paint(p_video);
-  (void) timing_set_timer_value(p_video->p_timing,
-                                p_video->paint_timer_id,
-                                p_video->paint_cycles);
+  video_do_custom_paint_event(p_video);
 }
 
 struct video_struct*
@@ -1090,6 +1120,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->vsync_next_time = 0;
   p_video->num_vsyncs = 0;
   p_video->num_crtc_advances = 0;
+  p_video->is_rendering_every_vsync = 0;
 
   p_video->timer_id = timing_register_timer(p_timing,
                                             video_timer_fired,
@@ -1306,8 +1337,13 @@ video_power_on_reset(struct video_struct* p_video) {
 
   /* Other state that needs resetting. */
   p_video->is_framing_changed_for_render = 1;
-  p_video->is_wall_time_vsync_hit = 1;
-  p_video->is_rendering_active = 1;
+  if ((p_video->paint_start_cycles != 0) && !p_video->is_rendering_active) {
+    /* Nothing. */
+  } else {
+    /* TODO: default these next two to 0 and change unit test? */
+    p_video->is_wall_time_vsync_hit = 1;
+    p_video->is_rendering_active = 1;
+  }
   p_video->timer_fire_force_vsync_start = 0;
   p_video->timer_fire_force_vsync_end = 0;
   p_video->frame_skip_counter = 0;
@@ -1455,7 +1491,8 @@ video_serial_ula_written_hack(struct video_struct* p_video, uint8_t val) {
   if (!(val & 0x80)) {
     return;
   }
-  video_do_paint(p_video);
+
+  video_do_custom_paint_event(p_video);
 }
 
 static void
