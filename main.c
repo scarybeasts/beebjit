@@ -126,6 +126,7 @@ main(int argc, const char* argv[]) {
   uint32_t save_frame_count = 0;
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
+  int is_exit_on_max_frames_flag = 0;
 
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
@@ -293,6 +294,8 @@ main(int argc, const char* argv[]) {
       autoboot_flag = 1;
     } else if (!strcmp(arg, "-extended-roms")) {
       extended_roms_flag = 1;
+    } else if (!strcmp(arg, "-exit-on-max-frames")) {
+      is_exit_on_max_frames_flag = 1;
     } else if (!strcmp(arg, "-master")) {
       is_master_flag = 1;
       config_apply_master_128_mos320(&os_rom_name,
@@ -344,6 +347,7 @@ main(int argc, const char* argv[]) {
       (void) printf(
 "-frame-cycles   <c>: start saving frame images after <c> cycles.\n"
 "-max-frames     <m>: max frame images to save, default 1.\n"
+"-exit-on-max-frames: exit the process once max-frames is hit.\n"
 "-frames-dir     <d>: directory for frame files, default '.'.\n"
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
@@ -641,6 +645,9 @@ main(int argc, const char* argv[]) {
         if (save_frame) {
           main_save_frame(p_frames_dir, save_frame_count, p_render);
           save_frame_count++;
+          if (is_exit_on_max_frames_flag && (save_frame_count == max_frames)) {
+            exit(0);
+          }
         }
         if (framing_changed) {
           /* NOTE: in accurate mode, it would be more correct to clear the
