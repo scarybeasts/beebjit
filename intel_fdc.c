@@ -242,6 +242,7 @@ struct intel_fdc_struct {
   int index_pulse_callback;
   int timer_state;
   int call_context;
+  int did_seek_step;
 
   uint8_t regs[k_intel_num_registers];
   int is_result_ready;
@@ -754,7 +755,7 @@ intel_fdc_post_seek_dispatch(struct intel_fdc_struct* p_fdc) {
 }
 
 static void
-intel_fdc_do_load_head(struct intel_fdc_struct* p_fdc, int is_settle) {
+intel_fdc_do_load_head(struct intel_fdc_struct* p_fdc) {
   uint32_t post_seek_time = 0;
 
   /* The head load wait replaces the settle delay if there is both. */
@@ -764,7 +765,7 @@ intel_fdc_do_load_head(struct intel_fdc_struct* p_fdc, int is_settle) {
         (p_fdc->regs[k_intel_fdc_register_head_load_unload] & 0x0F);
     /* Head load units are 4ms. */
     post_seek_time *= 4;
-  } else if (is_settle) {
+  } else if (p_fdc->did_seek_step) {
     /* EMU: all references state the units are 2ms for 5.25" drives. */
     post_seek_time = (p_fdc->regs[k_intel_fdc_register_head_settle_time] * 2);
   }
@@ -784,12 +785,17 @@ intel_fdc_do_seek_step(struct intel_fdc_struct* p_fdc) {
   if (intel_fdc_get_TRK0(p_fdc) &&
       (p_fdc->regs[k_intel_fdc_register_internal_seek_target_2] == 0)) {
     /* Seek to 0 done, TRK0 detected. */
-    intel_fdc_do_load_head(p_fdc, 1);
+    intel_fdc_do_load_head(p_fdc);
     return;
   } else if (p_fdc->regs[k_intel_fdc_register_internal_seek_count] == 0) {
-    intel_fdc_do_load_head(p_fdc, 1);
+    intel_fdc_do_load_head(p_fdc);
     return;
   }
+
+  /* We're going to actually step so we'll need settle if the head is already
+   * loaded.
+   */
+  p_fdc->did_seek_step = 1;
 
   p_fdc->regs[k_intel_fdc_register_internal_seek_count]--;
 
@@ -1035,9 +1041,11 @@ intel_fdc_do_seek(struct intel_fdc_struct* p_fdc, int call_context) {
     curr_track = 255;
   }
 
+  p_fdc->did_seek_step = 0;
+
   /* Skip to head load if there's no seek. */
   if (new_track == curr_track) {
-    intel_fdc_do_load_head(p_fdc, 0);
+    intel_fdc_do_load_head(p_fdc);
     return;
   }
 
