@@ -190,3 +190,17 @@ cp test/empty/empty_80T_DS_DD.hfe testing.hfe
 ./beebjit -0 testing.hfe -1770 -opus -writeable -mutable
 (Then *FORMAT for the Opus formatter.)
 
+
+16) Command-line timed event control.
+
+This example waits for the beeb to start up a bit, then injects some memory at
+$1900 from file 'bmem' (the raw memory of a BASIC program), and then uses
+further delays and commands to inject 'RUN<return>' to the keyboard.
+
+./beebjit -commands 'breakat 1000000;c;loadmem bmem 1900;keydown 82;breakat 1100000;c;keyup 82;keydown 85;breakat 1200000;c;keyup 85;keydown 78;breakat 1300000;c;r;keyup 78;keydown 131;breakat 1400000;c;keyup 131;c'
+
+(WARNING: the commands are those available in the debugger. The example above
+runs even without -debug and the appeal of it is that it runs at full speed.
+Certain debug commands won't work without -debug though, such as those that
+require examining state at every instruction. Most notably, this includes
+breakpoints.)

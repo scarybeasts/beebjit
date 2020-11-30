@@ -93,6 +93,7 @@ main(int argc, const char* argv[]) {
   const char* p_create_hfe_file = NULL;
   const char* p_create_hfe_spec = NULL;
   const char* p_frames_dir = ".";
+  const char* p_commands = NULL;
   int debug_flag = 0;
   int run_flag = 0;
   int print_flag = 0;
@@ -256,6 +257,9 @@ main(int argc, const char* argv[]) {
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-keyboard-links")) {
       (void) sscanf(val1, "%"PRIx32, &keyboard_links);
+      ++i_args;
+    } else if (has_1 && !strcmp(arg, "-commands")) {
+      p_commands = val1;
       ++i_args;
     } else if (!strcmp(arg, "-debug")) {
       debug_flag = 1;
@@ -431,6 +435,9 @@ main(int argc, const char* argv[]) {
   }
   if (cycles != 0) {
     bbc_set_stop_cycles(p_bbc, cycles);
+  }
+  if (p_commands != NULL) {
+    bbc_set_commands(p_bbc, p_commands);
   }
 
   if (rom_names[k_bbc_default_basic_rom_slot] == NULL) {

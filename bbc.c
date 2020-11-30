@@ -2453,3 +2453,8 @@ bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag) {
   }
   p_bbc->autoboot_flag = autoboot_flag;
 }
+
+void
+bbc_set_commands(struct bbc_struct* p_bbc, const char* p_commands) {
+  debug_set_commands(p_bbc->p_debug, p_commands);
+}

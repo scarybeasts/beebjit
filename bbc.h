@@ -80,6 +80,7 @@ void bbc_add_raw_disc(struct bbc_struct* p_bbc,
 void bbc_add_tape(struct bbc_struct* p_bbc, const char* p_file_name);
 void bbc_set_stop_cycles(struct bbc_struct* p_bbc, uint64_t cycles);
 void bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag);
+void bbc_set_commands(struct bbc_struct* p_bbc, const char* p_commands);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);
 void bbc_get_registers(struct bbc_struct* p_bbc,

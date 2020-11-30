@@ -4,6 +4,7 @@
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "disc_tool.h"
+#include "keyboard.h"
 #include "state.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -25,7 +26,7 @@ enum {
   k_max_break = 16,
 };
 enum {
-  k_max_input_len = 256,
+  k_max_input_len = 1024,
 };
 
 enum {
@@ -82,7 +83,9 @@ struct debug_struct {
 
   /* Other. */
   uint8_t warn_at_addr_count[k_6502_addr_space_size];
-  char debug_old_input_buf[k_max_input_len];
+  int32_t timer_id_debug;
+  char previous_commands[k_max_input_len];
+  char current_commands[k_max_input_len];
 };
 
 static int s_interrupt_received;
@@ -104,12 +107,22 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   p_debug->breakpoints[i].y_value = -1;
 }
 
+static void
+debug_timer_callback(void* p) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
+  (void) timing_stop_timer(p_timing, p_debug->timer_id_debug);
+
+  s_interrupt_received = 1;
+}
+
 struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
              int32_t debug_stop_addr) {
   uint32_t i;
   struct debug_struct* p_debug;
+  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
 
   assert(s_p_debug == NULL);
 
@@ -137,6 +150,11 @@ debug_create(struct bbc_struct* p_bbc,
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     p_debug->warn_at_addr_count[i] = 10;
   }
+
+  p_debug->timer_id_debug = timing_register_timer(p_timing,
+                                                  debug_timer_callback,
+                                                  p_debug);
+  p_debug->current_commands[0] = '\0';
 
   return p_debug;
 }
@@ -1063,7 +1081,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   struct disc_tool_struct* p_tool;
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
-  char input_buf[k_max_input_len];
   char flags_buf[9];
   /* NOTE: not correct for execution in hardware registers. */
   uint8_t opcode;
@@ -1312,15 +1329,16 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   p_tool = p_debug->p_tool;
 
   while (1) {
-    char* input_ret;
     size_t i;
     size_t j;
     char parse_string[256];
     uint8_t disc_data[64];
     uint8_t disc_clocks[64];
     uint16_t parse_addr;
+    uint64_t parse_u64;
     int ret;
     struct debug_breakpoint* p_breakpoint;
+    char input_buf[k_max_input_len];
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
@@ -1337,22 +1355,42 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       util_bail("fflush() failed");
     }
 
-    input_ret = fgets(input_buf, sizeof(input_buf), stdin);
-    if (input_ret == NULL) {
-      util_bail("fgets failed");
-    }
-    for (i = 0; i < sizeof(input_buf); ++i) {
-      char c = tolower(input_buf[i]);
-      if (c == '\n') {
-        c = 0;
+    if (p_debug->current_commands[0] != '\0') {
+      (void) printf("%s\n", &p_debug->current_commands[0]);
+    } else {
+      char* p_input_ret = fgets(&p_debug->current_commands[0],
+                                sizeof(p_debug->current_commands),
+                                stdin);
+      if (p_input_ret == NULL) {
+        util_bail("fgets failed");
       }
-      input_buf[i] = c;
     }
 
-    if (!strcmp(input_buf, "")) {
-      (void) memcpy(input_buf, p_debug->debug_old_input_buf, k_max_input_len);
+    if (p_debug->current_commands[0] == '\n') {
+      (void) strcpy(&p_debug->current_commands[0],
+                    &p_debug->previous_commands[0]);
     } else {
-      (void) memcpy(p_debug->debug_old_input_buf, input_buf, k_max_input_len);
+      (void) strcpy(&p_debug->previous_commands[0],
+                    &p_debug->current_commands[0]);
+    }
+
+    /* Split off ; separated command list. */
+    for (i = 0; i < k_max_input_len; ++i) {
+      char c = p_debug->current_commands[i];
+      if ((c == '\n') || (c == '\0')) {
+        input_buf[i] = '\0';
+        p_debug->current_commands[0] = '\0';
+        break;
+      } else if (c == ';') {
+        char* p_next_command = &p_debug->current_commands[i + 1];
+        input_buf[i] = '\0';
+        (void) memmove(&p_debug->current_commands[0],
+                       p_next_command,
+                       (strlen(p_next_command) + 1));
+        break;
+      } else {
+        input_buf[i] = c;
+      }
     }
 
     if (!strcmp(input_buf, "q")) {
@@ -1396,10 +1434,22 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         parse_int += 16;
       }
       /* Continue where we left off if just enter is hit next. */
-      (void) snprintf(p_debug->debug_old_input_buf,
+      (void) snprintf(&p_debug->previous_commands[0],
                       k_max_input_len,
                       "m %x",
                       (uint16_t) parse_int);
+    } else if (sscanf(input_buf, "breakat %"PRIu64, &parse_u64) == 1) {
+      uint64_t ticks_delta;
+      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      uint32_t timer_id = p_debug->timer_id_debug;
+      uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
+      if (timing_timer_is_running(p_timing, timer_id)) {
+        (void) timing_stop_timer(p_timing, timer_id);
+      }
+      if (parse_u64 > curr_cycles) {
+        ticks_delta = (parse_u64 - curr_cycles);
+        (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
+      }
     } else if (!strncmp(input_buf, "b ", 2) ||
                !strncmp(input_buf, "break", 5)) {
       p_breakpoint = debug_get_free_breakpoint(p_debug);
@@ -1524,7 +1574,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       }
       parse_addr = debug_disass(p_debug, p_cpu_driver, p_bbc, parse_int);
       /* Continue where we left off if just enter is hit next. */
-      (void) snprintf(p_debug->debug_old_input_buf,
+      (void) snprintf(&p_debug->previous_commands[0],
                       k_max_input_len,
                       "d %x",
                       parse_addr);
@@ -1615,6 +1665,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       disc_data[6] = parse_int7;
       disc_data[7] = parse_int8;
       disc_tool_write_fm_data(p_tool, &disc_data[0], ret);
+    } else if (sscanf(input_buf, "keydown %"PRId32, &parse_int) == 1) {
+      struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
+      keyboard_system_key_pressed(p_keyboard, (uint8_t) parse_int);
+    } else if (sscanf(input_buf, "keyup %"PRId32, &parse_int) == 1) {
+      struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
+      keyboard_system_key_released(p_keyboard, (uint8_t) parse_int);
     } else if (!strcmp(input_buf, "?") ||
                !strcmp(input_buf, "help") ||
                !strcmp(input_buf, "h")) {
@@ -1658,6 +1714,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "ds                 : dump stats collected\n"
   "cs                 : clear stats collected\n"
   "t                  : trap into gdb\n"
+  "breakat <c>        : break at <c> cycles\n"
+  "keydown <k>        : simulate key press <k>\n"
+  "keyup <k>          : simulate key release <k>\n"
   "ss <f>             : save state to BEM file <f> (deprecated)\n"
   );
     } else {
@@ -1673,4 +1732,15 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     __builtin_trap();
   }
   return ret_intel_pc;
+}
+
+void
+debug_set_commands(struct debug_struct* p_debug, const char* p_commands) {
+  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
+
+  (void) snprintf(p_debug->current_commands,
+                  sizeof(p_debug->current_commands),
+                  "%s",
+                  p_commands);
+  (void) timing_start_timer_with_value(p_timing, p_debug->timer_id_debug, 1);
 }
