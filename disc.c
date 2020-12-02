@@ -8,6 +8,7 @@
 #include "disc_rfi.h"
 #include "disc_scp.h"
 #include "disc_ssd.h"
+#include "disc_tool.h"
 #include "ibm_disc_format.h"
 #include "log.h"
 #include "util.h"
@@ -87,6 +88,7 @@ disc_create(const char* p_file_name,
             int is_mutable,
             int convert_to_hfe,
             struct bbc_options* p_options) {
+  int do_check_for_crc_errors = 0;
   int is_file_writeable = 0;
   int is_hfe = 0;
   char* p_rev_spec = NULL;
@@ -145,17 +147,20 @@ disc_create(const char* p_file_name,
                   &p_disc->rev_spec[0],
                   p_disc->quantize_fm,
                   p_disc->log_iffy_pulses);
+    do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "raw")) {
     disc_kryo_load(p_disc,
                    p_file_name,
                    p_disc->rev,
                    p_disc->quantize_fm,
                    p_disc->log_iffy_pulses);
+    do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "scp")) {
     disc_scp_load(p_disc,
                   p_disc->rev,
                   p_disc->quantize_fm,
                   p_disc->log_iffy_pulses);
+    do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
     p_disc->p_write_track_callback = disc_hfe_write_track;
@@ -183,6 +188,12 @@ disc_create(const char* p_file_name,
 
   p_disc->is_writeable = is_writeable;
   p_disc->is_mutable = is_mutable;
+
+  if (do_check_for_crc_errors || p_disc->log_protection) {
+    disc_tool_log_summary(p_disc,
+                          do_check_for_crc_errors,
+                          p_disc->log_protection);
+  }
 
   return p_disc;
 }

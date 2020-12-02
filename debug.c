@@ -3,6 +3,7 @@
 #include "bbc.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
+#include "disc_drive.h"
 #include "disc_tool.h"
 #include "keyboard.h"
 #include "state.h"
@@ -140,8 +141,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
-  p_debug->p_tool = disc_tool_create(bbc_get_drive_0(p_bbc),
-                                     bbc_get_drive_1(p_bbc));
+  p_debug->p_tool = disc_tool_create();
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
@@ -1568,7 +1568,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       /* TODO: setting PC broken in JIT mode? */
       reg_pc = parse_int;
     } else if (!strcmp(input_buf, "d") ||
-               (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1)) {
+               (!strncmp(input_buf, "d ", 2) &&
+                    (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1))) {
       if (parse_int == -1) {
         parse_int = reg_pc;
       }
@@ -1604,7 +1605,20 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int <= 3)) {
-      disc_tool_set_drive(p_tool, parse_int);
+      struct disc_struct* p_disc;
+      struct disc_drive_struct* p_drive;
+      if (parse_int & 1) {
+        p_drive = bbc_get_drive_1(p_bbc);
+      } else {
+        p_drive = bbc_get_drive_0(p_bbc);
+      }
+      p_disc = disc_drive_get_disc(p_drive);
+      disc_tool_set_disc(p_tool, p_disc);
+      if (parse_int & 2) {
+        disc_tool_set_is_side_upper(p_tool, 1);
+      } else {
+        disc_tool_set_is_side_upper(p_tool, 0);
+      }
     } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
@@ -1613,16 +1627,16 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "dpos") ||
                (sscanf(input_buf, "dpos %"PRId32, &parse_int) == 1)) {
       if (parse_int >= 0) {
-        disc_tool_set_pos(p_tool, parse_int);
+        disc_tool_set_byte_pos(p_tool, parse_int);
       } else {
-        (void) printf("dpos is %d\n", disc_tool_get_pos(p_tool));
+        (void) printf("dpos is %d\n", disc_tool_get_byte_pos(p_tool));
       }
     } else if (!strcmp(input_buf, "drfm") ||
                (sscanf(input_buf, "drfm %"PRId32, &parse_int) == 1)) {
       if (parse_int >= 0) {
-        disc_tool_set_pos(p_tool, parse_int);
+        disc_tool_set_byte_pos(p_tool, parse_int);
       }
-      parse_int = disc_tool_get_pos(p_tool);
+      parse_int = disc_tool_get_byte_pos(p_tool);
       disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
@@ -1630,9 +1644,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "drfmc") ||
                (sscanf(input_buf, "drfmc %"PRId32, &parse_int) == 1)) {
       if (parse_int >= 0) {
-        disc_tool_set_pos(p_tool, parse_int);
+        disc_tool_set_byte_pos(p_tool, parse_int);
       }
-      parse_int = disc_tool_get_pos(p_tool);
+      parse_int = disc_tool_get_byte_pos(p_tool);
       disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
         debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
@@ -1700,7 +1714,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       (void) printf(
   "ddrive <d>         : set debug disc drive to <d>\n"
   "dtrack <t>         : set debug disc track to <t>\n"
-  "dpos <p>           : set debug disc position to <p>\n"
+  "dpos <p>           : set debug disc byte position to <p>\n"
   "drfm (pos)         : read FM encoded data\n"
   "drfmc (pos)        : read FM encoded data, and show clocks too\n"
   "dwfm <...>         : write FM encoded data, up to 8 bytes\n"

@@ -3,21 +3,39 @@
 
 #include <stdint.h>
 
+struct disc_tool_sector {
+  uint32_t bit_pos_header;
+  uint32_t bit_pos_data;
+  uint8_t sector_track;
+  uint8_t sector_head;
+  uint8_t sector_sector;
+  uint8_t sector_size;
+  uint16_t header_crc_on_disc;
+  uint32_t byte_length;
+  uint16_t data_crc_on_disc;
+  int has_header_crc_error;
+  int has_data_crc_error;
+};
+
 struct disc_tool_struct;
 
-struct disc_drive_struct;
+struct disc_struct;
 
-struct disc_tool_struct* disc_tool_create(struct disc_drive_struct* p_drive_0,
-                                          struct disc_drive_struct* p_drive_1);
+void disc_tool_log_summary(struct disc_struct* p_disc,
+                           int log_crc_errors,
+                           int log_protection);
+
+struct disc_tool_struct* disc_tool_create();
 void disc_tool_destroy(struct disc_tool_struct* p_tool);
 
-uint32_t disc_tool_get_pos(struct disc_tool_struct* p_tool);
+uint32_t disc_tool_get_byte_pos(struct disc_tool_struct* p_tool);
 
-void disc_tool_set_drive(struct disc_tool_struct* p_tool, uint32_t drive);
+void disc_tool_set_disc(struct disc_tool_struct* p_tool,
+                        struct disc_struct* p_disc);
 void disc_tool_set_is_side_upper(struct disc_tool_struct* p_tool,
                                  int is_side_upper);
 void disc_tool_set_track(struct disc_tool_struct* p_tool, uint32_t track);
-void disc_tool_set_pos(struct disc_tool_struct* p_tool, uint32_t pos);
+void disc_tool_set_byte_pos(struct disc_tool_struct* p_tool, uint32_t pos);
 
 void disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
                             uint8_t* p_clocks,
@@ -30,5 +48,10 @@ void disc_tool_write_fm_data_with_clocks(struct disc_tool_struct* p_tool,
                                          uint8_t data,
                                          uint8_t clocks);
 void disc_tool_fill_fm_data(struct disc_tool_struct* p_tool, uint8_t data);
+
+void disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm);
+struct disc_tool_sector* disc_tool_get_sectors(struct disc_tool_struct* p_tool,
+                                               uint32_t* p_num_sectors);
+
 
 #endif /* BEEBJIT_DISC_TOOL_H */
