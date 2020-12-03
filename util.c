@@ -660,3 +660,33 @@ util_read_le32(uint8_t* p_buf) {
   ret += (p_buf[3] << 24);
   return ret;
 }
+
+uint32_t
+util_crc32_init() {
+  return 0xFFFFFFFF;
+}
+
+uint32_t
+util_crc32_add(uint32_t crc, uint8_t* p_buf, uint32_t len) {
+  uint32_t i;
+  uint32_t j;
+
+  for (i = 0; i < len; ++i) {
+    uint8_t byte = p_buf[i];
+    crc = (crc ^ byte);
+    for (j = 0; j < 8; ++j) {
+      int do_eor = (crc & 1);
+      crc = (crc >> 1);
+      if (do_eor) {
+        crc ^= 0xEDB88320;
+      }
+    }
+  }
+
+  return crc;
+}
+
+uint32_t
+util_crc32_finish(uint32_t crc) {
+  return ~crc;
+}

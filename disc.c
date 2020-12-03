@@ -88,6 +88,7 @@ disc_create(const char* p_file_name,
             int is_mutable,
             int convert_to_hfe,
             struct bbc_options* p_options) {
+  int do_fingerprint;
   int do_check_for_crc_errors = 0;
   int is_file_writeable = 0;
   int is_hfe = 0;
@@ -100,6 +101,7 @@ disc_create(const char* p_file_name,
                                            "disc:protection");
   p_disc->log_iffy_pulses = util_has_option(p_options->p_log_flags,
                                             "disc:iffy-pulses");
+  do_fingerprint = util_has_option(p_options->p_log_flags, "disc:fingerprint");
   p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
                                          "disc:expand-to-80");
   p_disc->quantize_fm = util_has_option(p_options->p_opt_flags,
@@ -189,10 +191,11 @@ disc_create(const char* p_file_name,
   p_disc->is_writeable = is_writeable;
   p_disc->is_mutable = is_mutable;
 
-  if (do_check_for_crc_errors || p_disc->log_protection) {
+  if (do_check_for_crc_errors || p_disc->log_protection || do_fingerprint) {
     disc_tool_log_summary(p_disc,
                           do_check_for_crc_errors,
-                          p_disc->log_protection);
+                          p_disc->log_protection,
+                          do_fingerprint);
   }
 
   return p_disc;

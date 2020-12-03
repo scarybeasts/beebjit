@@ -416,15 +416,21 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
 void
 disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_crc_errors,
-                      int log_protection) {
+                      int log_protection,
+                      int log_fingerprint) {
   uint32_t i_tracks;
+  uint32_t disc_crc;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
 
-  if (max_track < 40) {
-    max_track = 40;
-  } else if ((max_track > 41) && (max_track < 80)) {
-    max_track = 80;
+  if (max_track < 41) {
+    max_track = 41;
+  } else if ((max_track > 41) && (max_track < 81)) {
+    max_track = 81;
+  }
+
+  if (log_fingerprint) {
+    disc_crc = util_crc32_init();
   }
 
   disc_tool_set_disc(p_tool, p_disc);
@@ -433,6 +439,11 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     struct disc_tool_sector* p_sectors;
     uint32_t num_sectors;
     uint8_t seen_sectors[256];
+    uint32_t track_crc;
+
+    if (log_fingerprint) {
+      track_crc = util_crc32_init();
+    }
 
     disc_tool_set_track(p_tool, i_tracks);
     disc_tool_find_sectors(p_tool, 0);
@@ -453,7 +464,9 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                    p_tool->track_length);
       }
       if (num_sectors == 0) {
-        log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
+        if (i_tracks != (max_track - 1)) {
+          log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
+        }
       } else if (num_sectors != 10) {
         log_do_log(k_log_disc,
                    k_log_info,
@@ -466,6 +479,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     (void) memset(seen_sectors, '\0', sizeof(seen_sectors));
     for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
       char sector_spec[14];
+      uint8_t sector_data[k_disc_tool_max_sector_length + 1];
       uint8_t sector_track = p_sectors->header_bytes[0];
       uint8_t sector_head = p_sectors->header_bytes[1];
       uint8_t sector_sector = p_sectors->header_bytes[2];
@@ -526,8 +540,34 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                      i_sectors);
         }
       }
+      if (log_fingerprint) {
+        if (!p_sectors->has_header_crc_error &&
+            !p_sectors->has_data_crc_error) {
+          uint32_t crc_length = (p_sectors->byte_length + 1);
+          /* -32 to include the marker byte. */
+          p_tool->pos = (p_sectors->bit_pos_data - 32);
+          disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], crc_length);
+          track_crc = util_crc32_add(track_crc, &sector_data[0], crc_length);
+        }
+      }
       p_sectors++;
     }
+
+    if (log_fingerprint) {
+      track_crc = util_crc32_finish(track_crc);
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "track %d CRC32 fingerprint %.8X",
+                 i_tracks,
+                 track_crc);
+      /* NOTE: not endian safe. */
+      disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
+    }
+  }
+
+  if (log_fingerprint) {
+    disc_crc = util_crc32_finish(disc_crc);
+    log_do_log(k_log_disc, k_log_info, "disc CRC32 fingerprint %.8X", disc_crc);
   }
 
   disc_tool_destroy(p_tool);
