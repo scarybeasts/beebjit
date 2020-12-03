@@ -6,11 +6,9 @@
 struct disc_tool_sector {
   uint32_t bit_pos_header;
   uint32_t bit_pos_data;
-  uint8_t sector_track;
-  uint8_t sector_head;
-  uint8_t sector_sector;
-  uint8_t sector_size;
+  uint8_t header_bytes[6];
   uint16_t header_crc_on_disc;
+  int is_deleted;
   uint32_t byte_length;
   uint16_t data_crc_on_disc;
   int has_header_crc_error;
@@ -42,11 +40,9 @@ void disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
                             uint8_t* p_data,
                             uint32_t len);
 void disc_tool_write_fm_data(struct disc_tool_struct* p_tool,
+                             uint8_t* p_clocks,
                              uint8_t* p_data,
                              uint32_t len);
-void disc_tool_write_fm_data_with_clocks(struct disc_tool_struct* p_tool,
-                                         uint8_t data,
-                                         uint8_t clocks);
 void disc_tool_fill_fm_data(struct disc_tool_struct* p_tool, uint8_t data);
 
 void disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm);

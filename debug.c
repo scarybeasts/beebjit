@@ -1657,7 +1657,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       "dwfmc %"PRIx8" %"PRIx8,
                        &parse_int,
                        &parse_int2) == 2)) {
-      disc_tool_write_fm_data_with_clocks(p_tool, parse_int, parse_int2);
+      uint8_t data = parse_int;
+      uint8_t clocks = parse_int2;
+      disc_tool_write_fm_data(p_tool, &clocks, &data, 1);
     } else if ((ret = sscanf(input_buf,
                              "dwfm "
                              "%"PRIx8" %"PRIx8" %"PRIx8" %"PRIx8
@@ -1678,7 +1680,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       disc_data[5] = parse_int6;
       disc_data[6] = parse_int7;
       disc_data[7] = parse_int8;
-      disc_tool_write_fm_data(p_tool, &disc_data[0], ret);
+      disc_tool_write_fm_data(p_tool, NULL, &disc_data[0], ret);
     } else if (sscanf(input_buf, "keydown %"PRId32, &parse_int) == 1) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_pressed(p_keyboard, (uint8_t) parse_int);
