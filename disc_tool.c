@@ -310,6 +310,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
     uint16_t disc_crc;
     struct disc_tool_sector* p_sector = &p_tool->sectors[i_sectors];
     uint8_t sector_data[2048 + 2];
+    uint32_t sector_start_byte;
+    uint32_t sector_end_byte;
     uint32_t sector_size;
 
     assert(p_sector->bit_pos_header != 0);
@@ -331,25 +333,50 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
                  p_tool->track);
       continue;
     }
-    p_tool->pos = p_sector->bit_pos_data;
-    crc = ibm_disc_format_crc_init(0);
+
     if (p_sector->is_deleted) {
       data = k_ibm_disc_deleted_data_mark_data_pattern;
     } else {
       data = k_ibm_disc_data_mark_data_pattern;
     }
-    crc = ibm_disc_format_crc_add_byte(crc, data);
-    sector_size = (128 << (p_sector->header_bytes[3] & 0x07));
-    if (sector_size > 2048) {
+
+    sector_start_byte = (p_sector->bit_pos_data / 32);
+    sector_end_byte = track_length;
+    if (i_sectors != (num_sectors - 1)) {
+      sector_end_byte = (p_tool->sectors[i_sectors + 1].bit_pos_header / 32);
+    }
+    sector_size = (sector_end_byte - sector_start_byte);
+    /* Account for CRC and sync bytes. */
+    sector_size -= 5;
+    if (sector_size < 256) {
+      sector_size = 128;
+    } else if (sector_size < 512) {
+      sector_size = 256;
+    } else if (sector_size < 1024) {
+      sector_size = 512;
+    } else if (sector_size < 2048) {
+      sector_size = 1024;
+    } else {
       sector_size = 2048;
     }
-    disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], (sector_size + 2));
-    crc = disc_tool_crc_add_run(crc, &sector_data[0], sector_size);
-    disc_crc = (sector_data[sector_size] << 8);
-    disc_crc |= sector_data[sector_size + 1];
-    if (crc != disc_crc) {
-      p_sector->has_data_crc_error = 1;
-    }
+
+    p_sector->has_data_crc_error = 1;
+    do {
+      p_sector->byte_length = sector_size;
+
+      p_tool->pos = p_sector->bit_pos_data;
+      crc = ibm_disc_format_crc_init(0);
+      crc = ibm_disc_format_crc_add_byte(crc, data);
+      disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], (sector_size + 2));
+      crc = disc_tool_crc_add_run(crc, &sector_data[0], sector_size);
+      disc_crc = (sector_data[sector_size] << 8);
+      disc_crc |= sector_data[sector_size + 1];
+      if (crc == disc_crc) {
+        p_sector->has_data_crc_error = 0;
+        break;
+      }
+      sector_size /= 2;
+    } while (sector_size >= 128);
   }
 
   p_tool->num_sectors = num_sectors;
