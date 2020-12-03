@@ -138,9 +138,9 @@ disc_create(const char* p_file_name,
     disc_adl_load(p_disc);
     p_disc->p_write_track_callback = disc_adl_write_track;
   } else if (util_is_extension(p_file_name, "fsd")) {
-    disc_fsd_load(p_disc, 1, p_disc->log_protection);
+    disc_fsd_load(p_disc, 1);
   } else if (util_is_extension(p_file_name, "log")) {
-    disc_fsd_load(p_disc, 0, p_disc->log_protection);
+    disc_fsd_load(p_disc, 0);
   } else if (util_is_extension(p_file_name, "rfi")) {
     disc_rfi_load(p_disc,
                   p_disc->rev,

@@ -114,17 +114,13 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
                        uint32_t* p_track_truncatable_sectors,
                        uint8_t** p_p_buf,
                        size_t* p_file_remaining,
-                       uint32_t fsd_sectors,
-                       uint32_t track,
-                       int log_protection) {
-  uint8_t sector_seen[256];
+                       uint32_t fsd_sectors) {
   uint32_t i_sector;
 
   int readable = 1;
   uint8_t* p_buf = *p_p_buf;
   size_t file_remaining = *p_file_remaining;
 
-  (void) memset(sector_seen, '\0', sizeof(sector_seen));
   (void) memset(p_sectors,
                 '\0',
                 (sizeof(struct disc_fsd_sector) * k_disc_fsd_max_sectors));
@@ -137,23 +133,12 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     util_bail("fsd file excessive sectors");
   }
 
-  if ((fsd_sectors != 10) && log_protection) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "FSD: non-standard sector count track %d count %d",
-               track,
-               fsd_sectors);
-  }
-
   if (file_remaining == 0) {
     util_bail("fsd file missing readable flag");
   }
 
   if (*p_buf == 0) {
     /* "unreadable" track. */
-    if (log_protection) {
-      log_do_log(k_log_disc, k_log_info, "FSD: unreadable track %d", track);
-    }
     readable = 0;
   } else if (*p_buf != 0xFF) {
     util_bail("fsd file unknown readable byte value");
@@ -190,21 +175,6 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
                     p_sector->head,
                     logical_sector,
                     p_sector->logical_size);
-    if ((p_sector->logical_track != track) && log_protection) {
-      log_do_log(k_log_disc,
-                 k_log_info,
-                 "FSD: track mismatch physical %d: %s",
-                 track,
-                 p_sector->sector_spec);
-    }
-    if (sector_seen[logical_sector] && log_protection) {
-      log_do_log(k_log_disc,
-                 k_log_info,
-                 "FSD: duplicate logical sector, track %d: %s",
-                 track,
-                 p_sector->sector_spec);
-    }
-    sector_seen[logical_sector] = 1;
 
     if (!readable) {
       /* Invent some "unreadable" data. I looked at Exile's "unreadable"
@@ -248,38 +218,15 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
     *p_track_data_bytes += actual_size_bytes;
     logical_size_bytes = (1 << (7 + logical_size));
 
-    if ((actual_size_bytes != logical_size_bytes) && log_protection) {
-      log_do_log(k_log_disc,
-                 k_log_info,
-                 "FSD: real size mismatch track %d size %d: %s",
-                 track,
-                 actual_size_bytes,
-                 p_sector->sector_spec);
-    }
-
     if (logical_size_bytes < actual_size_bytes) {
       p_sector->truncated_size_bytes = logical_size_bytes;
     }
 
     if (sector_error == 0x20) {
       /* Deleted data. */
-      if (log_protection) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "FSD: deleted sector track %d: %s",
-                   track,
-                   p_sector->sector_spec);
-      }
       p_sector->is_deleted = 1;
     } else if (sector_error == 0x0E) {
       /* Sector has data CRC error. */
-      if (log_protection) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "FSD: CRC error sector track %d: %s",
-                   track,
-                   p_sector->sector_spec);
-      }
       /* CRC error in the FSD format appears to also imply weak bits. See:
        * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=30#p74208
        */
@@ -288,24 +235,9 @@ disc_fsd_parse_sectors(struct disc_fsd_sector* p_sectors,
       /* $2E isn't documented and neither are $20 / $0E documented as bit
        * fields, but it shows up anyway in The Wizard's Return.
        */
-      if (log_protection) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "FSD: deleted and CRC error sector track %d: %s",
-                   track,
-                   p_sector->sector_spec);
-      }
       p_sector->is_crc_error = 1;
       p_sector->is_deleted = 1;
     } else if ((sector_error >= 0xE0) && (sector_error <= 0xE2)) {
-      if (log_protection) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "FSD: multiple sector read sizes $%.2x track %d: %s",
-                   sector_error,
-                   track,
-                   p_sector->sector_spec);
-      }
       p_sector->is_crc_error = 1;
       if (sector_error == 0xE0) {
         p_sector->truncated_size_bytes = 128;
@@ -348,8 +280,7 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
                                    uint32_t track_data_bytes,
                                    uint32_t track_truncatable_bytes,
                                    uint32_t track_truncatable_sectors,
-                                   uint32_t track,
-                                   int log_protection) {
+                                   uint32_t track) {
   uint32_t track_total_bytes;
   uint32_t num_bytes_over;
   uint32_t overread_bytes_per_sector;
@@ -365,15 +296,13 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
     return;
   }
 
-  if (log_protection) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "FSD: excessive length track %d: %d (%d sectors %d data)",
-               track,
-               track_total_bytes,
-               fsd_sectors,
-               track_data_bytes);
-  }
+  log_do_log(k_log_disc,
+             k_log_unusual,
+             "FSD: excessive length track %d: %d (%d sectors %d data)",
+             track,
+             track_total_bytes,
+             fsd_sectors,
+             track_data_bytes);
 
   /* This is ugly because the FSD format is ambiguous.
    * Where a sector's "real" size push us over the limit of 3125 bytes per
@@ -409,12 +338,10 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
     return;
   }
 
-  if (log_protection) {
-    log_do_log(k_log_disc,
-               k_log_info,
-               "FSD: small gaps, still excessive length: %d, truncating",
-               track_total_bytes);
-  }
+  log_do_log(k_log_disc,
+             k_log_warning,
+             "FSD: small gaps, still excessive length: %d, truncating",
+             track_total_bytes);
 
   num_bytes_over = (track_total_bytes - k_ibm_disc_bytes_per_track);
   if (num_bytes_over >= track_truncatable_bytes) {
@@ -447,9 +374,7 @@ disc_fsd_perform_track_adjustments(struct disc_fsd_sector* p_sectors,
 }
 
 void
-disc_fsd_load(struct disc_struct* p_disc,
-              int has_file_name,
-              int log_protection) {
+disc_fsd_load(struct disc_struct* p_disc, int has_file_name) {
   /* The most authoritative "documentation" for the FSD format appears to be:
    * https://stardot.org.uk/forums/viewtopic.php?f=4&t=4353&start=60#p195518
    */
@@ -545,12 +470,6 @@ disc_fsd_load(struct disc_struct* p_disc,
     p_buf += 2;
     file_remaining -= 2;
     if (fsd_sectors == 0) {
-      if (log_protection) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "FSD: unformatted track %d",
-                   i_track);
-      }
       /* NOTE: "unformatted" track could mean a few different possibilities.
        * What it definitely means is that there are no detectable sector ID
        * markers. But it doesn't say why.
@@ -573,9 +492,7 @@ disc_fsd_load(struct disc_struct* p_disc,
                            &track_truncatable_sectors,
                            &p_buf,
                            &file_remaining,
-                           fsd_sectors,
-                           i_track,
-                           log_protection);
+                           fsd_sectors);
 
     if (fsd_sectors > 18) {
       /* 256 VECTOR 2 V140 ACORN 1770.FSD uses 19 sectors; make it fit. */
@@ -596,8 +513,7 @@ disc_fsd_load(struct disc_struct* p_disc,
                                        track_data_bytes,
                                        track_truncatable_bytes,
                                        track_truncatable_sectors,
-                                       i_track,
-                                       log_protection);
+                                       i_track);
 
     /* Sync pattern at start of track, as the index pulse starts, aka GAP 1.
      * Note that GAP 5 (with index address mark) is typically not used in BBC
@@ -676,13 +592,11 @@ disc_fsd_load(struct disc_struct* p_disc,
       track_remaining -= (write_size_bytes + 3);
 
       if ((fsd_sectors == 1) && (track_data_bytes == 256)) {
-        if (log_protection) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "FSD: workaround: zero padding short track %d: %s",
-                     i_track,
-                     p_sector->sector_spec);
-        }
+        log_do_log(k_log_disc,
+                   k_log_warning,
+                   "FSD: workaround: zero padding short track %d: %s",
+                   i_track,
+                   p_sector->sector_spec);
         /* This is essentially a workaround for buggy FSD files, such as:
          * 297 DISC DUPLICATOR 3.FSD
          * The copy protection relies on zeros being returned from a sector
