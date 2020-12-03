@@ -5,9 +5,8 @@
 #include "log.h"
 #include "util.h"
 
-#include <stdio.h>
-
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 enum {
@@ -395,16 +394,97 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_protection) {
   uint32_t i_tracks;
   struct disc_tool_struct* p_tool = disc_tool_create();
+  uint32_t max_track = disc_get_num_tracks_used(p_disc);
+
+  if (max_track < 40) {
+    max_track = 40;
+  } else if ((max_track > 41) && (max_track < 80)) {
+    max_track = 80;
+  }
 
   disc_tool_set_disc(p_tool, p_disc);
-  for (i_tracks = 0; i_tracks < k_ibm_disc_tracks_per_disc; ++i_tracks) {
+  for (i_tracks = 0; i_tracks < max_track; ++i_tracks) {
     uint32_t i_sectors;
     struct disc_tool_sector* p_sectors;
     uint32_t num_sectors;
+    uint8_t seen_sectors[256];
+
     disc_tool_set_track(p_tool, i_tracks);
     disc_tool_find_sectors(p_tool, 0);
     p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+
+    if (log_protection) {
+      if (p_tool->track_length >= (k_ibm_disc_bytes_per_track * 1.015)) {
+        log_do_log(k_log_disc,
+                   k_log_unusual,
+                   "long track %d, %d bytes",
+                   i_tracks,
+                   p_tool->track_length);
+      } else if (p_tool->track_length < (k_ibm_disc_bytes_per_track * 0.985)) {
+        log_do_log(k_log_disc,
+                   k_log_unusual,
+                   "short track %d, %d bytes",
+                   i_tracks,
+                   p_tool->track_length);
+      }
+      if (num_sectors == 0) {
+        log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
+      } else if (num_sectors != 10) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "non-standard sector count track %d count %d",
+                   i_tracks,
+                   num_sectors);
+      }
+    }
+
+    (void) memset(seen_sectors, '\0', sizeof(seen_sectors));
     for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
+      char sector_spec[14];
+      uint8_t sector_track = p_sectors->header_bytes[0];
+      uint8_t sector_head = p_sectors->header_bytes[1];
+      uint8_t sector_sector = p_sectors->header_bytes[2];
+      uint8_t sector_size = p_sectors->header_bytes[3];
+      (void) snprintf(sector_spec,
+                      sizeof(sector_spec),
+                      "[%.2X %.2X %.2X %.2X]",
+                      sector_track,
+                      sector_head,
+                      sector_sector,
+                      sector_size);
+      if (log_protection) {
+        if (sector_track != i_tracks) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "track mismatch, track %d %s",
+                     i_tracks,
+                     sector_spec);
+        }
+        if ((sector_size > 0x07) ||
+            ((128u << sector_size) != p_sectors->byte_length)) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "sector size mismatch, track %d %s (physical size %d)",
+                     i_tracks,
+                     sector_spec,
+                     p_sectors->byte_length);
+        }
+        if (seen_sectors[sector_sector]) {
+          log_do_log(k_log_disc,
+                     k_log_unusual,
+                     "duplicate logical sector, track %d logical sector %d",
+                     i_tracks,
+                     sector_sector);
+        }
+        if (p_sectors->is_deleted) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "deleted sector, track %d %s",
+                     i_tracks,
+                     sector_spec);
+        }
+      }
+      seen_sectors[sector_sector] = 1;
       if (log_crc_errors || log_protection) {
         if (p_sectors->has_header_crc_error) {
           log_do_log(k_log_disc,
