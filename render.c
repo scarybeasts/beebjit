@@ -50,7 +50,7 @@ struct render_struct {
   uint32_t* p_render_pos;
   uint32_t* p_render_pos_row;
   uint32_t* p_render_pos_row_max;
-  int do_interlace_wobble;
+  int do_deinterlace;
   int do_show_frame_boundaries;
   int32_t cursor_segment_index;
   int cursor_segments[4];
@@ -101,8 +101,10 @@ render_create(struct teletext_struct* p_teletext,
     util_bail("border-chars must be 16 or less");
   }
 
-  p_render->do_interlace_wobble = util_has_option(p_opt_flags,
-                                                  "video:interlace-wobble");
+  p_render->do_deinterlace = 1;
+  if (util_has_option(p_opt_flags, "video:no-deinterlace")) {
+    p_render->do_deinterlace = 0;
+  }
 
   p_render->do_show_frame_boundaries = util_has_option(
       p_opt_flags, "video:frame-boundaries");
@@ -289,7 +291,9 @@ render_check_cursor(struct render_struct* p_render,
    */
   if (p_render->render_mode == k_render_mode7) {
     p_render_pos -= 16;
-    p_next_render_pos -= 16;
+    if (p_next_render_pos != NULL) {
+      p_next_render_pos -= 16;
+    }
   }
 
   if (p_render->cursor_segments[p_render->cursor_segment_index] &&
@@ -297,7 +301,9 @@ render_check_cursor(struct render_struct* p_render,
     uint32_t i;
     for (i = 0; i < num_pixels; ++i) {
       p_render_pos[i] ^= 0x00ffffff;
-      p_next_render_pos[i] ^= 0x00ffffff;
+      if (p_next_render_pos != NULL) {
+        p_next_render_pos[i] ^= 0x00ffffff;
+      }
     }
   }
   p_render->cursor_segment_index++;
@@ -313,13 +319,27 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
-
-    teletext_render_data(p_render->p_teletext,
-                         (struct render_character_1MHz*) p_render_pos,
-                         (struct render_character_1MHz*) p_next_render_pos,
-                         data);
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    if (p_render->do_deinterlace) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      teletext_render_data(p_render->p_teletext,
+                           (struct render_character_1MHz*) p_render_pos,
+                           (struct render_character_1MHz*) p_next_render_pos,
+                           data);
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    } else {
+      if (p_render->vert_beam_pos & 1) {
+        teletext_render_data(p_render->p_teletext,
+                             NULL,
+                             (struct render_character_1MHz*) p_render_pos,
+                             data);
+      } else {
+        teletext_render_data(p_render->p_teletext,
+                             (struct render_character_1MHz*) p_render_pos,
+                             NULL,
+                             data);
+      }
+      render_check_cursor(p_render, p_render_pos, NULL, 16);
+    }
     p_render->p_render_pos += 16;
   } else {
     /* In teletext mode, we still need to tell the SAA5050 chip about data
@@ -340,12 +360,16 @@ render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
     struct render_character_1MHz* p_value =
         &p_render->p_render_table_1MHz->values[data];
     *(struct render_character_1MHz*) p_render_pos = *p_value;
-    *(struct render_character_1MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    if (p_render->do_deinterlace) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    } else {
+      render_check_cursor(p_render, p_render_pos, NULL, 16);
+    }
     p_render->p_render_pos += 16;
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
@@ -364,12 +388,16 @@ render_function_1MHz_blank(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 16;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
     struct render_character_1MHz* p_value =
         &p_render->render_character_1MHz_black;
     *(struct render_character_1MHz*) p_render_pos = *p_value;
-    *(struct render_character_1MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    if (p_render->do_deinterlace) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    } else {
+      render_check_cursor(p_render, p_render_pos, NULL, 16);
+    }
     p_render->p_render_pos += 16;
   } else if ((p_render->horiz_beam_pos & ~15) ==
              p_render->horiz_beam_window_start_pos) {
@@ -384,12 +412,16 @@ render_function_2MHz_data(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 8;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
     struct render_character_2MHz* p_value =
         &p_render->p_render_table_2MHz->values[data];
     *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
+    if (p_render->do_deinterlace) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
+    } else {
+      render_check_cursor(p_render, p_render_pos, NULL, 8);
+    }
     p_render->p_render_pos += 8;
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
@@ -406,12 +438,16 @@ render_function_2MHz_blank(struct render_struct* p_render, uint8_t data) {
   p_render->horiz_beam_pos += 8;
 
   if (p_render_pos <= p_render->p_render_pos_row_max) {
-    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
     struct render_character_2MHz* p_value =
         &p_render->render_character_2MHz_black;
     *(struct render_character_2MHz*) p_render_pos = *p_value;
-    *(struct render_character_2MHz*) p_next_render_pos = *p_value;
-    render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
+    if (p_render->do_deinterlace) {
+      uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+      *(struct render_character_2MHz*) p_next_render_pos = *p_value;
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 8);
+    } else {
+      render_check_cursor(p_render, p_render_pos, NULL, 8);
+    }
     p_render->p_render_pos += 8;
   } else if ((p_render->horiz_beam_pos & ~7) ==
              p_render->horiz_beam_window_start_pos) {
@@ -797,8 +833,7 @@ render_vsync(struct render_struct* p_render) {
 
   if (p_render->horiz_beam_pos >= 512) {
     /* We're transitioning from the even to the odd interlace frame. */
-    if (p_render->do_interlace_wobble) {
-      /* TODO: we also need to only render single scanlines. */
+    if (!p_render->do_deinterlace) {
       p_render->vert_beam_pos = -1;
     } else {
       p_render->vert_beam_pos = -2;

@@ -453,7 +453,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     }
   }
 
-  if (p_out == NULL) {
+  if ((p_out == NULL) && (p_next_out == NULL)) {
     return;
   }
 
@@ -476,26 +476,31 @@ teletext_render_data(struct teletext_struct* p_teletext,
 
   bg_color = p_teletext->bg_color;
 
-  for (i = 0; i < 16; ++i) {
-    uint32_t color;
-    uint8_t val = p_src_data[i];
+  if (p_out != NULL) {
+    for (i = 0; i < 16; ++i) {
+      uint32_t color;
+      uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
-    color += ((255 - val) * bg_color);
+      color = (val * fg_color);
+      color += ((255 - val) * bg_color);
 
-    p_out->host_pixels[i] = (color | 0xff000000);
+      p_out->host_pixels[i] = (color | 0xff000000);
+    }
   }
 
   p_src_data += (16 * !p_teletext->double_active);
   p_out = p_next_out;
-  for (i = 0; i < 16; ++i) {
-    uint32_t color;
-    uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
-    color += ((255 - val) * bg_color);
+  if (p_out != NULL) {
+    for (i = 0; i < 16; ++i) {
+      uint32_t color;
+      uint8_t val = p_src_data[i];
 
-    p_out->host_pixels[i] = (color | 0xff000000);
+      color = (val * fg_color);
+      color += ((255 - val) * bg_color);
+
+      p_out->host_pixels[i] = (color | 0xff000000);
+    }
   }
 }
 
