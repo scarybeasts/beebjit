@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+enum {
+  k_disc_tool_max_sector_length = 2048,
+};
+
 struct disc_tool_sector {
   uint32_t bit_pos_header;
   uint32_t bit_pos_data;
@@ -26,6 +30,7 @@ void disc_tool_log_summary(struct disc_struct* p_disc,
 struct disc_tool_struct* disc_tool_create();
 void disc_tool_destroy(struct disc_tool_struct* p_tool);
 
+uint32_t disc_tool_get_track(struct disc_tool_struct* p_tool);
 uint32_t disc_tool_get_byte_pos(struct disc_tool_struct* p_tool);
 
 void disc_tool_set_disc(struct disc_tool_struct* p_tool,
@@ -48,6 +53,9 @@ void disc_tool_fill_fm_data(struct disc_tool_struct* p_tool, uint8_t data);
 void disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm);
 struct disc_tool_sector* disc_tool_get_sectors(struct disc_tool_struct* p_tool,
                                                uint32_t* p_num_sectors);
-
+void disc_tool_read_sector(struct disc_tool_struct* p_tool,
+                           uint32_t* p_byte_length,
+                           uint8_t* p_data,
+                           uint32_t sector);
 
 #endif /* BEEBJIT_DISC_TOOL_H */

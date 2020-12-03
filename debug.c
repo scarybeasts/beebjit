@@ -1622,6 +1622,34 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
+    } else if (!strcmp(input_buf, "dsecfm")) {
+      uint32_t i_sectors;
+      uint32_t num_sectors;
+      struct disc_tool_sector* p_sectors;
+      disc_tool_find_sectors(p_tool, 0);
+      p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+      (void) printf("track %d sectors %d",
+                    disc_tool_get_track(p_tool),
+                    num_sectors);
+      for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
+        (void) printf(" [%.2X %.2X %.2X %.2X]",
+                      p_sectors->header_bytes[0],
+                      p_sectors->header_bytes[1],
+                      p_sectors->header_bytes[2],
+                      p_sectors->header_bytes[3]);
+        p_sectors++;
+      }
+      (void) printf("\n");
+    } else if ((sscanf(input_buf, "drsec %"PRId32, &parse_int) == 1) &&
+               (parse_int >= 0)) {
+      uint32_t byte_length;
+      uint32_t data_chunks;
+      uint8_t sector_data[k_disc_tool_max_sector_length];
+      disc_tool_read_sector(p_tool, &byte_length, &sector_data[0], parse_int);
+      data_chunks = (byte_length / 16);
+      for (i = 0; i < data_chunks; ++i) {
+        debug_print_hex_line(&sector_data[0], (i * 16), 0);
+      }
     } else if (sscanf(input_buf, "dset %"PRIx8, &parse_int) == 1) {
       disc_tool_fill_fm_data(p_tool, parse_int);
     } else if (!strcmp(input_buf, "dpos") ||
@@ -1722,6 +1750,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "dwfm <...>         : write FM encoded data, up to 8 bytes\n"
   "dwfmc <d> <c>      : write one byte of FM encoded data, with given clocks\n"
   "dset <d>           : fill the track with FM encoded data <d>\n"
+  "dsecfm             : list sector headers of current track\n"
+  "drsec <n>          : dump sector in physical order <n> (do dsecfm first)\n"
   );
     } else if (!strcmp(input_buf, "more")) {
       (void) printf(

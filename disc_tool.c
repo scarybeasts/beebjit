@@ -37,6 +37,11 @@ disc_tool_destroy(struct disc_tool_struct* p_tool) {
 }
 
 uint32_t
+disc_tool_get_track(struct disc_tool_struct* p_tool) {
+  return p_tool->track;
+}
+
+uint32_t
 disc_tool_get_byte_pos(struct disc_tool_struct* p_tool) {
   return (p_tool->pos / 32);
 }
@@ -308,7 +313,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
     uint16_t crc;
     uint16_t disc_crc;
     struct disc_tool_sector* p_sector = &p_tool->sectors[i_sectors];
-    uint8_t sector_data[2048 + 2];
+    uint8_t sector_data[k_disc_tool_max_sector_length + 2];
     uint32_t sector_start_byte;
     uint32_t sector_end_byte;
     uint32_t sector_size;
@@ -356,7 +361,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
     } else if (sector_size < 2048) {
       sector_size = 1024;
     } else {
-      sector_size = 2048;
+      sector_size = k_disc_tool_max_sector_length;
     }
 
     p_sector->has_data_crc_error = 1;
@@ -386,6 +391,26 @@ disc_tool_get_sectors(struct disc_tool_struct* p_tool,
                       uint32_t* p_num_sectors) {
   *p_num_sectors = p_tool->num_sectors;
   return &p_tool->sectors[0];
+}
+
+void
+disc_tool_read_sector(struct disc_tool_struct* p_tool,
+                      uint32_t* p_byte_length,
+                      uint8_t* p_data,
+                      uint32_t sector) {
+  struct disc_tool_sector* p_sector;
+  uint32_t byte_length;
+
+  if (sector >= p_tool->num_sectors) {
+    *p_byte_length = 0;
+     return;
+  }
+
+  p_sector = &p_tool->sectors[sector];
+  byte_length = p_sector->byte_length;
+  p_tool->pos = p_sector->bit_pos_data;
+  disc_tool_read_fm_data(p_tool, NULL, p_data, byte_length);
+  *p_byte_length = byte_length;
 }
 
 void
