@@ -1622,17 +1622,19 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
-    } else if (!strcmp(input_buf, "dsecfm")) {
+    } else if (!strcmp(input_buf, "dsec")) {
       uint32_t i_sectors;
       uint32_t num_sectors;
       struct disc_tool_sector* p_sectors;
-      disc_tool_find_sectors(p_tool, 0);
+      disc_tool_find_sectors(p_tool);
       p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
       (void) printf("track %d sectors %d",
                     disc_tool_get_track(p_tool),
                     num_sectors);
       for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
-        (void) printf(" [%.2X %.2X %.2X %.2X]",
+        (void) printf(" %s%d[%.2X %.2X %.2X %.2X]",
+                      (p_sectors->is_mfm ? "MFM" : "FM"),
+                      p_sectors->byte_length,
                       p_sectors->header_bytes[0],
                       p_sectors->header_bytes[1],
                       p_sectors->header_bytes[2],

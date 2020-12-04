@@ -144,6 +144,25 @@ disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
   }
 }
 
+void
+disc_tool_read_mfm_data(struct disc_tool_struct* p_tool,
+                       uint8_t* p_data,
+                       uint32_t len) {
+  uint32_t i;
+  uint32_t pulses = 0;
+
+  for (i = 0; i < len; ++i) {
+    uint8_t data;
+    if ((i & 1) == 0) {
+      pulses = disc_tool_read_pulses(p_tool);
+    } else {
+      pulses <<= 16;
+    }
+    data = ibm_disc_format_2us_pulses_to_mfm(pulses >> 16);
+    p_data[i] = data;
+  }
+}
+
 static void
 disc_tool_commit_write(struct disc_tool_struct* p_tool) {
   struct disc_struct* p_disc = p_tool->p_disc;
@@ -162,11 +181,10 @@ disc_tool_write_fm_data(struct disc_tool_struct* p_tool,
   uint32_t i;
   uint32_t pos = p_tool->pos;
   uint32_t pulses_pos = (pos / 32);
-  uint32_t bit_pos = (pos % 32);
   uint32_t* p_pulses = disc_tool_get_pulses(p_tool);
   uint32_t track_length = p_tool->track_length;
 
-  assert(bit_pos == 0);
+  assert((pos % 32) == 0);
 
   if (p_pulses == NULL) {
     return;
@@ -225,21 +243,21 @@ disc_tool_crc_add_run(uint16_t crc, uint8_t* p_data, uint32_t length) {
 }
 
 void
-disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
+disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
   uint32_t i_pulses;
   uint32_t i_sectors;
   uint32_t bit_length;
   uint32_t shift_register;
   uint32_t num_shifts;
-  uint32_t pulses;
+  int do_mfm_marker_byte;
+  uint32_t pulses = 0;
+  int is_mfm = 0;
   uint32_t num_sectors = 0;
   uint64_t mark_detector = 0;
   uint32_t* p_pulses = disc_tool_get_pulses(p_tool);
   struct disc_struct* p_disc = p_tool->p_disc;
   struct disc_tool_sector* p_sector = NULL;
   uint32_t track_length = p_tool->track_length;
-
-  assert(!is_mfm);
 
   p_tool->num_sectors = 0;
 
@@ -251,6 +269,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
   bit_length = (track_length * 32);
   shift_register = 0;
   num_shifts = 0;
+  do_mfm_marker_byte = 0;
   for (i_pulses = 0; i_pulses < bit_length; ++i_pulses) {
     uint8_t clocks;
     uint8_t data;
@@ -267,12 +286,25 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
     }
     pulses <<= 1;
 
-    if ((mark_detector & 0xFFFFFFFF00000000) != 0x8888888800000000) {
+    if ((mark_detector & 0xFFFFFFFF00000000) == 0x8888888800000000) {
+      /* Check byte for FM marker. */
+      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
+      if (clocks != k_ibm_disc_mark_clock_pattern) {
+        continue;
+      }
+      is_mfm = 0;
+      do_mfm_marker_byte = 0;
+    } else if (mark_detector == 0xAAAA448944894489) {
+      /* Next byte is MFM marker. */
+      is_mfm = 1;
+      do_mfm_marker_byte = 1;
+      shift_register = 0;
+      num_shifts = 0;
       continue;
-    }
-
-    ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
-    if (clocks != k_ibm_disc_mark_clock_pattern) {
+    } else if (do_mfm_marker_byte && (num_shifts == 16)) {
+      data = ibm_disc_format_2us_pulses_to_mfm(shift_register);
+      do_mfm_marker_byte = 0;
+    } else {
       continue;
     }
 
@@ -283,7 +315,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
       p_sector = &p_tool->sectors[num_sectors];
       (void) memset(p_sector, '\0', sizeof(struct disc_tool_sector));
       num_sectors++;
-      p_sector->bit_pos_header = i_pulses;
+      p_sector->is_mfm = is_mfm;
+      p_sector->bit_pos_header = (i_pulses + 1);
       shift_register = 0;
       num_shifts = 0;
     } else if ((data == k_ibm_disc_data_mark_data_pattern) ||
@@ -295,13 +328,19 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
                    p_tool->track);
       } else {
         assert(p_sector->bit_pos_header != 0);
-        p_sector->bit_pos_data = i_pulses;
+        p_sector->bit_pos_data = (i_pulses + 1);
         if (data == k_ibm_disc_deleted_data_mark_data_pattern) {
           p_sector->is_deleted = 1;
         }
         shift_register = 0;
         num_shifts = 0;
       }
+    } else {
+      log_do_log(k_log_disc,
+                 k_log_unusual,
+                 "encountered marker byte %.2X on track %d",
+                 data,
+                 p_tool->track);
     }
   }
 
@@ -317,11 +356,24 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
     uint32_t sector_start_byte;
     uint32_t sector_end_byte;
     uint32_t sector_size;
+    uint32_t pulses_per_byte;
 
     assert(p_sector->bit_pos_header != 0);
+
     p_tool->pos = p_sector->bit_pos_header;
-    disc_tool_read_fm_data(p_tool, NULL, &p_sector->header_bytes[0], 6);
+    if (p_sector->is_mfm) {
+      pulses_per_byte = 16;
+      disc_tool_read_mfm_data(p_tool, &p_sector->header_bytes[0], 6);
+    } else {
+      pulses_per_byte = 32;
+      disc_tool_read_fm_data(p_tool, NULL, &p_sector->header_bytes[0], 6);
+    }
     crc = ibm_disc_format_crc_init(0);
+    if (p_sector->is_mfm) {
+      crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+      crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+      crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+    }
     crc = ibm_disc_format_crc_add_byte(crc, k_ibm_disc_id_mark_data_pattern);
     crc = disc_tool_crc_add_run(crc, &p_sector->header_bytes[0], 4);
     disc_crc = (p_sector->header_bytes[4] << 8);
@@ -344,10 +396,11 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
       data = k_ibm_disc_data_mark_data_pattern;
     }
 
-    sector_start_byte = (p_sector->bit_pos_data / 32);
+    sector_start_byte = (p_sector->bit_pos_data / pulses_per_byte);
     sector_end_byte = track_length;
     if (i_sectors != (num_sectors - 1)) {
-      sector_end_byte = (p_tool->sectors[i_sectors + 1].bit_pos_header / 32);
+      sector_end_byte = (p_tool->sectors[i_sectors + 1].bit_pos_header /
+                         pulses_per_byte);
     }
     sector_size = (sector_end_byte - sector_start_byte);
     /* Account for CRC and sync bytes. */
@@ -370,8 +423,20 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm) {
 
       p_tool->pos = p_sector->bit_pos_data;
       crc = ibm_disc_format_crc_init(0);
+      if (p_sector->is_mfm) {
+        crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+        crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+        crc = ibm_disc_format_crc_add_byte(crc, 0xA1);
+      }
       crc = ibm_disc_format_crc_add_byte(crc, data);
-      disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], (sector_size + 2));
+      if (p_sector->is_mfm) {
+        disc_tool_read_mfm_data(p_tool, &sector_data[0], (sector_size + 2));
+      } else {
+        disc_tool_read_fm_data(p_tool,
+                               NULL,
+                               &sector_data[0],
+                               (sector_size + 2));
+      }
       crc = disc_tool_crc_add_run(crc, &sector_data[0], sector_size);
       disc_crc = (sector_data[sector_size] << 8);
       disc_crc |= sector_data[sector_size + 1];
@@ -409,7 +474,11 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
   p_sector = &p_tool->sectors[sector];
   byte_length = p_sector->byte_length;
   p_tool->pos = p_sector->bit_pos_data;
-  disc_tool_read_fm_data(p_tool, NULL, p_data, byte_length);
+  if (p_sector->is_mfm) {
+    disc_tool_read_mfm_data(p_tool, p_data, byte_length);
+  } else {
+    disc_tool_read_fm_data(p_tool, NULL, p_data, byte_length);
+  }
   *p_byte_length = byte_length;
 }
 
@@ -419,7 +488,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_protection,
                       int log_fingerprint) {
   uint32_t i_tracks;
-  uint32_t disc_crc;
+  uint32_t disc_crc = 0;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
 
@@ -446,7 +515,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     }
 
     disc_tool_set_track(p_tool, i_tracks);
-    disc_tool_find_sectors(p_tool, 0);
+    disc_tool_find_sectors(p_tool);
     p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
 
     if (log_protection) {
@@ -467,12 +536,22 @@ disc_tool_log_summary(struct disc_struct* p_disc,
         if (i_tracks != (max_track - 1)) {
           log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
         }
-      } else if (num_sectors != 10) {
-        log_do_log(k_log_disc,
-                   k_log_info,
-                   "non-standard sector count track %d count %d",
-                   i_tracks,
-                   num_sectors);
+      } else if (p_sectors->is_mfm) {
+        if (num_sectors != 16) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "non-standard MFM sector count track %d count %d",
+                     i_tracks,
+                     num_sectors);
+        }
+      } else {
+        if (num_sectors != 10) {
+          log_do_log(k_log_disc,
+                     k_log_info,
+                     "non-standard FM sector count track %d count %d",
+                     i_tracks,
+                     num_sectors);
+        }
       }
     }
 
@@ -542,11 +621,19 @@ disc_tool_log_summary(struct disc_struct* p_disc,
       }
       if (log_fingerprint) {
         if (!p_sectors->has_header_crc_error &&
+            (p_sectors->byte_length > 0) &&
             !p_sectors->has_data_crc_error) {
           uint32_t crc_length = (p_sectors->byte_length + 1);
-          /* -32 to include the marker byte. */
-          p_tool->pos = (p_sectors->bit_pos_data - 32);
-          disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], crc_length);
+          /* -32 or -16 to include the marker byte. */
+          p_tool->pos = p_sectors->bit_pos_data;
+          assert(p_tool->pos >= 32);
+          if (p_sectors->is_mfm) {
+            p_tool->pos -= 16;
+            disc_tool_read_mfm_data(p_tool, &sector_data[0], crc_length);
+          } else {
+            p_tool->pos -= 32;
+            disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], crc_length);
+          }
           track_crc = util_crc32_add(track_crc, &sector_data[0], crc_length);
         }
       }

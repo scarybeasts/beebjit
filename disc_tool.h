@@ -8,6 +8,7 @@ enum {
 };
 
 struct disc_tool_sector {
+  int is_mfm;
   uint32_t bit_pos_header;
   uint32_t bit_pos_data;
   uint8_t header_bytes[6];
@@ -50,8 +51,11 @@ void disc_tool_write_fm_data(struct disc_tool_struct* p_tool,
                              uint8_t* p_data,
                              uint32_t len);
 void disc_tool_fill_fm_data(struct disc_tool_struct* p_tool, uint8_t data);
+void disc_tool_read_mfm_data(struct disc_tool_struct* p_tool,
+                             uint8_t* p_data,
+                             uint32_t len);
 
-void disc_tool_find_sectors(struct disc_tool_struct* p_tool, int is_mfm);
+void disc_tool_find_sectors(struct disc_tool_struct* p_tool);
 struct disc_tool_sector* disc_tool_get_sectors(struct disc_tool_struct* p_tool,
                                                uint32_t* p_num_sectors);
 void disc_tool_read_sector(struct disc_tool_struct* p_tool,
