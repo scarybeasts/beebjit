@@ -18,4 +18,4 @@ gcc -Wall -W -Werror \
     disc_rfi.c disc_kryo.c disc_scp.c \
     debug.c jit.c util.c \
     os.c \
-    -lm -lX11 -lXext -lpthread -lasound
+    -lm -lX11 -lXext -lpthread -lasound -lpulse -lpulse-simple

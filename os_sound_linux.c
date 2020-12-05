@@ -4,10 +4,18 @@
 #include "util.h"
 
 #include <alsa/asoundlib.h>
+#include <pulse/error.h>
+#include <pulse/simple.h>
+
+#include <assert.h>
+#include <string.h>
 
 static const char* k_os_sound_default_device = "default";
-/* NOTE: a bit aggressive but it seems to work on my old laptop. */
-static uint32_t k_os_sound_default_buffer_size = 512;
+/* NOTE: used to be 512, a bit aggressive but it seemed to work on my old
+ * laptop mostly. 2048 is still much better than e.g. jsbeeb, b-em, but has
+ * some headroom for even slower devices.
+ */
+static uint32_t k_os_sound_default_buffer_size = 2048;
 
 struct os_sound_struct {
   char* p_device_name;
@@ -16,6 +24,7 @@ struct os_sound_struct {
   uint32_t num_periods;
   uint32_t period_size;
   snd_pcm_t* playback_handle;
+  pa_simple* p_pa;
 };
 
 uint32_t
@@ -52,14 +61,72 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
       util_bail("snd_pcm_close failed");
     }
   }
+  if (p_driver->p_pa != NULL) {
+    int error = 0;
+    int ret = pa_simple_flush(p_driver->p_pa, &error);
+    if (ret != 0) {
+      util_bail("pa_simple_flush failed: %d", error);
+    }
+    pa_simple_free(p_driver->p_pa);
+  }
 
   free(p_driver->p_device_name);
 
   util_free(p_driver);
 }
 
-int
-os_sound_init(struct os_sound_struct* p_driver) {
+static int
+os_sound_init_pulse(struct os_sound_struct* p_driver) {
+  pa_sample_spec sample_spec;
+  pa_buffer_attr buffer_attrs;
+  pa_usec_t latency;
+  int error = 0;
+
+  assert(p_driver->p_pa == NULL);
+
+  (void) memset(&sample_spec, '\0', sizeof(sample_spec));
+  sample_spec.format = PA_SAMPLE_S16LE;
+  sample_spec.rate = p_driver->sample_rate;
+  sample_spec.channels = 1;
+
+  p_driver->period_size = (p_driver->buffer_size / p_driver->num_periods);
+
+  (void) memset(&buffer_attrs, '\0', sizeof(buffer_attrs));
+  /* All these * 2 are because buffer_size, etc. is stored in samples, but the
+   * pulse audio APIs take bytes. We have 2 bytes (16-bits) per sample.
+   */
+  buffer_attrs.maxlength = (p_driver->buffer_size * 2);
+  buffer_attrs.tlength = -1;
+  buffer_attrs.prebuf = buffer_attrs.maxlength;
+  buffer_attrs.minreq = -1;
+  buffer_attrs.fragsize = -1;
+
+  p_driver->p_pa = pa_simple_new(NULL,
+                                 "beebjit",
+                                 PA_STREAM_PLAYBACK,
+                                 NULL,
+                                 "playback",
+                                 &sample_spec,
+                                 NULL,
+                                 &buffer_attrs,
+                                 &error);
+  if (p_driver->p_pa == NULL) {
+    log_do_log(k_log_audio, k_log_warning, "can't open pulseaudio: %d", error);
+    return -1;
+  }
+
+  error = 0;
+  latency = pa_simple_get_latency(p_driver->p_pa, &error);
+  log_do_log(k_log_audio,
+             k_log_info,
+             "pulseaudio latency is %d",
+             (int) latency);
+
+  return 0;
+}
+
+static int
+os_sound_init_alsa(struct os_sound_struct* p_driver) {
   int ret;
   snd_pcm_t* playback_handle;
   snd_pcm_hw_params_t* hw_params;
@@ -196,6 +263,15 @@ os_sound_init(struct os_sound_struct* p_driver) {
   return 0;
 }
 
+int
+os_sound_init(struct os_sound_struct* p_driver) {
+  if (strcmp(p_driver->p_device_name, "@pulse") == 0) {
+    return os_sound_init_pulse(p_driver);
+  } else {
+    return os_sound_init_alsa(p_driver);
+  }
+}
+
 uint32_t
 os_sound_get_sample_rate(struct os_sound_struct* p_driver) {
   return p_driver->sample_rate;
@@ -221,12 +297,34 @@ os_sound_handle_xrun(struct os_sound_struct* p_driver) {
   }
 }
 
-void
-os_sound_write(struct os_sound_struct* p_driver,
-               int16_t* p_frames,
-               uint32_t num_frames) {
-  snd_pcm_sframes_t ret;
+static void
+os_sound_write_pulse(struct os_sound_struct* p_driver,
+                     int16_t* p_frames,
+                     uint32_t num_frames) {
+  int error;
+  int ret;
 
+  if (num_frames == 0) {
+    /* Pulse gives invalid argument if you ask it to write 0 bytes. */
+    return;
+  }
+
+  error = 0;
+  ret = pa_simple_write(p_driver->p_pa, p_frames, (num_frames * 2), &error);
+  if (ret != 0) {
+    log_do_log(k_log_audio,
+               k_log_warning,
+               "can't write pulseaudio: %d (%s)",
+               error,
+               pa_strerror(error));
+  }
+}
+
+static void
+os_sound_write_alsa(struct os_sound_struct* p_driver,
+                    int16_t* p_frames,
+                    uint32_t num_frames) {
+  snd_pcm_sframes_t ret;
   snd_pcm_t* playback_handle = p_driver->playback_handle;
 
   while (1) {
@@ -242,5 +340,18 @@ os_sound_write(struct os_sound_struct* p_driver,
     } else {
       num_frames -= ret;
     }
+  }
+}
+
+void
+os_sound_write(struct os_sound_struct* p_driver,
+               int16_t* p_frames,
+               uint32_t num_frames) {
+  assert((p_driver->playback_handle != NULL) || (p_driver->p_pa != NULL));
+
+  if (p_driver->p_pa != NULL) {
+    os_sound_write_pulse(p_driver, p_frames, num_frames);
+  } else {
+    os_sound_write_alsa(p_driver, p_frames, num_frames);
   }
 }

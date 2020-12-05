@@ -6,7 +6,6 @@ IMPORTANT
 Known bugs and deficiencies that are sufficiently egregious that they'll
 get addressed before the next release.
 
-- Driving the audio subsystem too hard on Linux?
 - Poor granularity of system wakeup with audio subsystem as timer?
 - Finally tackle video read vs. RAM write sync.
 
