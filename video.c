@@ -9,6 +9,7 @@
 #include "via.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
@@ -79,6 +80,7 @@ struct video_struct {
   void* p_framebuffer_ready_object;
   int* p_fast_flag;
 
+  int log_timer;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -781,6 +783,15 @@ video_update_timer(struct video_struct* p_video) {
   clock_speed = video_get_clock_speed(p_video);
 
   timer_value = video_calculate_timer(p_video, clock_speed);
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "timer update, now %"PRId64" hc %d sc %d vc %d",
+               timer_value,
+               p_video->horiz_counter,
+               p_video->scanline_counter,
+               p_video->vert_counter);
+  }
   assert(timer_value < (4 * 1024 * 1024));
 
   /* beebjit does not synchronize the video RAM read with the CPU RAM writes.
@@ -873,6 +884,13 @@ video_timer_fired(void* p) {
 
   assert(!p_video->externally_clocked);
 
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "timer fired #1, ticks %"PRId64,
+               timing_get_total_timer_ticks(p_video->p_timing));
+  }
+
   /* Performance shortcut. If rendering is inactive and we're using
    * frame-to-frame timers, we can set the state directly instead of manually
    * running the CRTC tick by tick.
@@ -886,6 +904,15 @@ video_timer_fired(void* p) {
   } else {
     video_advance_crtc_timing(p_video);
     video_update_timer(p_video);
+  }
+
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "timer fired #2, hc %d sc %d vc %d",
+               p_video->horiz_counter,
+               p_video->scanline_counter,
+               p_video->vert_counter);
   }
 
   /* If rendering is inactive, make it active again if we've hit a wall time
@@ -1082,6 +1109,13 @@ video_paint_timer_fired(void* p) {
    */
   struct video_struct* p_video = (struct video_struct*) p;
 
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "paint timer fired, ticks %"PRId64,
+               timing_get_total_timer_ticks(p_video->p_timing));
+  }
+
   video_do_custom_paint_event(p_video);
 }
 
@@ -1127,6 +1161,8 @@ video_create(uint8_t* p_bbc_mem,
                                             p_video);
 
   p_video->crtc_address_register = 0;
+
+  p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
@@ -1528,6 +1564,13 @@ video_framing_changed(struct video_struct* p_video) {
   p_video->is_framing_changed_for_render = 1;
   if (p_video->externally_clocked) {
     return;
+  }
+
+  if (p_video->log_timer) {
+    log_do_log(k_log_video,
+               k_log_info,
+               "framing changed, ticks %"PRId64,
+               timing_get_total_timer_ticks(p_video->p_timing));
   }
 
   video_update_timer(p_video);
