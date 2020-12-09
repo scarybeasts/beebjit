@@ -664,7 +664,8 @@ video_test_inactive_rendering() {
   test_expect_u32(0, (g_p_video->num_crtc_advances - num_crtc_advances));
   test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 40),
                   video_test_get_timer());
-  test_expect_u32(1, g_p_video->timer_fire_force_vsync_end);
+  test_expect_u32(k_video_timer_jump_to_vsync_lower,
+                  g_p_video->timer_fire_mode);
 
   /* Make a change that messes with framing and timing. */
   countdown = timing_advance_time(g_p_timing, (countdown - 10));
@@ -673,7 +674,7 @@ video_test_inactive_rendering() {
   video_crtc_write(g_p_video, 1, 0x0B);
   countdown = timing_get_countdown(g_p_timing);
   test_expect_u32(1, (g_p_video->num_crtc_advances - num_crtc_advances));
-  test_expect_u32(0, g_p_video->timer_fire_force_vsync_end);
+  test_expect_u32(k_video_timer_null, g_p_video->timer_fire_mode);
   test_expect_u32(30, g_p_video->horiz_counter);
 
   countdown = timing_advance_time(
@@ -871,6 +872,29 @@ video_test_vsync_change_interlace_2() {
   test_expect_u32(0, g_p_video->vsync_scanline_counter);
 }
 
+static void
+video_test_vsync_end_timer() {
+  /* A separate test for a longstanding incorrect timer value calculation! */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(1, g_p_video->in_vsync);
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(0, g_p_video->in_vsync);
+  /* Force recalculation of timer after vsync end but within the R7 row. */
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_per_scanline));
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 3);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_frame + (k_ticks_mode7_per_scanline * 2)));
+  test_expect_u32(1, g_p_video->in_vsync);
+}
+
 void
 video_test() {
   video_test_init();
@@ -923,5 +947,9 @@ video_test() {
 
   video_test_init();
   video_test_vsync_change_interlace_2();
+  video_test_end();
+
+  video_test_init();
+  video_test_vsync_end_timer();
   video_test_end();
 }

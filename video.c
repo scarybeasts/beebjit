@@ -68,6 +68,14 @@ enum {
   k_crtc_reg_light_pen_low = 17,
 };
 
+enum {
+  k_video_timer_null = 0,
+  k_video_timer_jump_to_vsync_raise = 1,
+  k_video_timer_jump_to_vsync_lower = 2,
+  k_video_timer_expect_vsync_raise = 3,
+  k_video_timer_expect_vsync_lower = 4,
+};
+
 struct video_struct {
   uint8_t* p_bbc_mem;
   uint8_t* p_shadow_mem;
@@ -101,8 +109,7 @@ struct video_struct {
   uint64_t wall_time;
   uint64_t vsync_next_time;
   uint64_t prev_system_ticks;
-  int timer_fire_force_vsync_start;
-  int timer_fire_force_vsync_end;
+  int timer_fire_mode;
   uint64_t num_vsyncs;
   uint64_t num_crtc_advances;
   uint64_t paint_start_cycles;
@@ -161,6 +168,8 @@ struct video_struct {
   int is_end_of_frame_latched;
   uint32_t start_of_line_state_checks;
   int is_first_frame_scanline;
+  int64_t last_vsync_raise_ticks;
+  int64_t last_vsync_lower_ticks;
 };
 
 static inline uint8_t
@@ -311,6 +320,9 @@ video_set_vsync_raise_state(struct video_struct* p_video) {
      */
     render_vsync(p_video->p_render);
   }
+
+  p_video->last_vsync_raise_ticks =
+      timing_get_total_timer_ticks(p_video->p_timing);
 }
 
 static void
@@ -326,6 +338,9 @@ video_set_vsync_lower_state(struct video_struct* p_video) {
   }
 
   teletext_VSYNC_changed(p_video->p_teletext, 0);
+
+  p_video->last_vsync_lower_ticks =
+      timing_get_total_timer_ticks(p_video->p_timing);
 }
 
 static inline int
@@ -396,9 +411,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   if (p_video->externally_clocked) {
     return;
   }
-
-  p_video->timer_fire_force_vsync_start = 0;
-  p_video->timer_fire_force_vsync_end = 0;
 
   p_video->num_crtc_advances++;
 
@@ -637,68 +649,24 @@ video_get_flash(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_flash);
 }
 
-static int
+static inline int
 video_is_at_vsync_start(struct video_struct* p_video) {
-  if (p_video->vert_counter !=
-      p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
-    return 0;
+  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+      (uint64_t) p_video->last_vsync_raise_ticks) {
+    assert(p_video->in_vsync);
+    return 1;
   }
-  if (p_video->scanline_counter != 0) {
-    return 0;
-  }
-  if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
-    if (p_video->horiz_counter != 0) {
-      return 0;
-    }
-  } else {
-    if (p_video->horiz_counter != p_video->half_r0) {
-      return 0;
-    }
-  }
-  if (p_video->had_vsync_this_row && !p_video->in_vsync) {
-    return 0;
-  }
-  /* TODO: not 100% correct? Probably want to maintain the system time at the
-   * last vsync raise and just compare to that?
-   */
-  /* This can occur when to interlace sync and video, while on scanline 1,
-   * which masks the scanline back to 0, causing another match on vsync
-   * position.
-   */
-  if (p_video->vsync_scanline_counter != p_video->vsync_pulse_width) {
-    return 0;
-  }
-
-  assert(p_video->in_vsync);
-
-  return 1;
+  return 0;
 }
 
 static int
 video_is_at_vsync_end(struct video_struct* p_video) {
-  if (p_video->vert_counter !=
-      p_video->crtc_registers[k_crtc_reg_vert_sync_position]) {
-    return 0;
+  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+      (uint64_t) p_video->last_vsync_lower_ticks) {
+    assert(!p_video->in_vsync);
+    return 1;
   }
-  if (p_video->scanline_counter == 0) {
-    return 0;
-  }
-  if (p_video->vsync_scanline_counter != 0) {
-    assert(p_video->in_vsync);
-    return 0;
-  }
-  if (!p_video->is_interlace || p_video->is_even_interlace_frame) {
-    if (p_video->horiz_counter != 0) {
-      return 0;
-    }
-  } else {
-    if (p_video->horiz_counter != p_video->half_r0) {
-      return 0;
-    }
-  }
-
-  assert(!p_video->in_vsync);
-  return 1;
+  return 0;
 }
 
 static uint64_t
@@ -707,6 +675,8 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   uint32_t horiz_counter;
 
   uint32_t tick_multiplier = p_video->clock_tick_multiplier;
+
+  p_video->timer_fire_mode = k_video_timer_null;
 
   /* If we switched to 1MHz on an odd cycle, the first CRTC tick will only take    * half the time, to re-catch the 1MHz train.
    */
@@ -724,18 +694,23 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
       video_is_at_vsync_start(p_video)) {
     /* Enter fast render skipping mode if appropriate. */
     if (!p_video->is_rendering_active) {
-      assert(!p_video->timer_fire_force_vsync_start);
-      assert(!p_video->timer_fire_force_vsync_end);
-      p_video->timer_fire_force_vsync_end = 1;
+      p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
+    } else {
+      p_video->timer_fire_mode = k_video_timer_expect_vsync_lower;
     }
     return (p_video->vsync_pulse_width * (r0 + 1) * tick_multiplier);
   }
   if (p_video->has_sane_framing_parameters && video_is_at_vsync_end(p_video)) {
     uint32_t ret;
-
     ret = p_video->frame_crtc_ticks;
     ret -= (p_video->vsync_pulse_width * (r0 + 1));
     ret *= tick_multiplier;
+    /* Enter fast render skipping mode if appropriate. */
+    if (!p_video->is_rendering_active) {
+      p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
+    } else {
+      p_video->timer_fire_mode = k_video_timer_expect_vsync_raise;
+    }
     return ret;
   }
 
@@ -776,9 +751,6 @@ video_update_timer(struct video_struct* p_video) {
   if (p_video->externally_clocked) {
     return;
   }
-
-  assert(!p_video->timer_fire_force_vsync_start);
-  assert(!p_video->timer_fire_force_vsync_end);
 
   clock_speed = video_get_clock_speed(p_video);
 
@@ -836,8 +808,7 @@ video_jump_to_vsync_start(struct video_struct* p_video) {
   p_video->had_vsync_this_row = 0;
   video_set_vsync_raise_state(p_video);
 
-  p_video->timer_fire_force_vsync_start = 0;
-  p_video->timer_fire_force_vsync_end = 1;
+  p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   timer_value = (p_video->vsync_pulse_width * (r0 + 1));
@@ -866,8 +837,7 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
       timing_get_scaled_total_timer_ticks(p_video->p_timing);
   video_set_vsync_lower_state(p_video);
 
-  p_video->timer_fire_force_vsync_start = 1;
-  p_video->timer_fire_force_vsync_end = 0;
+  p_video->timer_fire_mode = k_video_timer_jump_to_vsync_raise;
 
   r0 = p_video->crtc_registers[k_crtc_reg_horiz_total];
   timer_value = p_video->frame_crtc_ticks;
@@ -895,14 +865,19 @@ video_timer_fired(void* p) {
    * frame-to-frame timers, we can set the state directly instead of manually
    * running the CRTC tick by tick.
    */
-  if (p_video->timer_fire_force_vsync_start) {
+  if (p_video->timer_fire_mode == k_video_timer_jump_to_vsync_raise) {
     assert(!p_video->is_rendering_active);
     video_jump_to_vsync_start(p_video);
-  } else if (p_video->timer_fire_force_vsync_end) {
+  } else if (p_video->timer_fire_mode == k_video_timer_jump_to_vsync_lower) {
     assert(!p_video->is_rendering_active);
     video_jump_to_vsync_end(p_video);
   } else {
     video_advance_crtc_timing(p_video);
+    if (p_video->timer_fire_mode == k_video_timer_expect_vsync_raise) {
+      assert(video_is_at_vsync_start(p_video));
+    } else if (p_video->timer_fire_mode == k_video_timer_expect_vsync_lower) {
+      assert(video_is_at_vsync_end(p_video));
+    }
     video_update_timer(p_video);
   }
 
@@ -940,8 +915,7 @@ video_timer_fired(void* p) {
 
     p_video->is_rendering_active = 1;
     p_video->is_wall_time_vsync_hit = 0;
-    p_video->timer_fire_force_vsync_start = 0;
-    p_video->timer_fire_force_vsync_end = 0;
+    p_video->timer_fire_mode = k_video_timer_null;
   }
 }
 
@@ -1364,6 +1338,8 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->is_end_of_frame_latched = 0;
   p_video->start_of_line_state_checks = 1;
   p_video->is_first_frame_scanline = 1;
+  p_video->last_vsync_raise_ticks = -1;
+  p_video->last_vsync_lower_ticks = -1;
 }
 
 void
@@ -1380,14 +1356,13 @@ video_power_on_reset(struct video_struct* p_video) {
     p_video->is_wall_time_vsync_hit = 1;
     p_video->is_rendering_active = 1;
   }
-  p_video->timer_fire_force_vsync_start = 0;
-  p_video->timer_fire_force_vsync_end = 0;
   p_video->frame_skip_counter = 0;
   p_video->prev_system_ticks = 0;
 
   /* Deliberately don't reset the counters. */
 
   video_mode_updated(p_video);
+  /* This takes care of timer_fire_mode. */
   video_update_timer(p_video);
 }
 
