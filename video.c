@@ -1270,8 +1270,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->crtc_registers[k_crtc_reg_horiz_displayed] = 40;
   p_video->crtc_registers[k_crtc_reg_horiz_position] = 51;
   /* Horiz sync pulse width 4, vertical sync pulse width 2. */
-  p_video->crtc_registers[k_crtc_reg_sync_width] =
-      (p_video->hsync_pulse_width | (p_video->vsync_pulse_width << 4));
+  p_video->crtc_registers[k_crtc_reg_sync_width] = 0x24;
   p_video->crtc_registers[k_crtc_reg_vert_total] = 30;
   p_video->crtc_registers[k_crtc_reg_vert_adjust] = 2;
   p_video->crtc_registers[k_crtc_reg_vert_displayed] = 25;
