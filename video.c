@@ -98,7 +98,7 @@ struct video_struct {
   int is_framing_changed_for_render;
   int is_wall_time_vsync_hit;
   int is_rendering_active;
-  int is_rendering_every_vsync;
+  int has_paint_timer_triggered;
 
   /* Options. */
   uint32_t frames_skip;
@@ -267,7 +267,7 @@ video_do_paint(struct video_struct* p_video) {
    */
   if (!p_video->externally_clocked &&
       *p_video->p_fast_flag &&
-      !p_video->is_rendering_every_vsync) {
+      !p_video->has_paint_timer_triggered) {
     p_video->is_rendering_active = 0;
   }
 
@@ -908,7 +908,7 @@ video_timer_fired(void* p) {
    */
   if (!p_video->is_rendering_active &&
       ((p_video->paint_start_cycles == 0) ||
-           p_video->is_rendering_every_vsync) &&
+           p_video->has_paint_timer_triggered) &&
       p_video->is_wall_time_vsync_hit &&
       video_is_at_vsync_start(p_video)) {
     struct render_struct* p_render = p_video->p_render;
@@ -1074,7 +1074,7 @@ video_do_custom_paint_event(struct video_struct* p_video) {
      */
     if (timing_timer_is_running(p_timing, timer_id)) {
       p_video->is_wall_time_vsync_hit = 1;
-      p_video->is_rendering_every_vsync = 1;
+      p_video->has_paint_timer_triggered = 1;
       (void) timing_stop_timer(p_timing, timer_id);
     }
   } else {
@@ -1140,7 +1140,7 @@ video_create(uint8_t* p_bbc_mem,
   p_video->vsync_next_time = 0;
   p_video->num_vsyncs = 0;
   p_video->num_crtc_advances = 0;
-  p_video->is_rendering_every_vsync = 0;
+  p_video->has_paint_timer_triggered = 0;
 
   p_video->timer_id = timing_register_timer(p_timing,
                                             video_timer_fired,
