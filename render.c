@@ -369,6 +369,38 @@ render_function_teletext(struct render_struct* p_render, uint8_t data) {
 }
 
 static void
+render_function_teletext_blank(struct render_struct* p_render, uint8_t data) {
+  uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) data;
+
+  p_render->horiz_beam_pos += 16;
+
+  if (p_render_pos <= p_render->p_render_pos_row_max) {
+    struct render_character_1MHz* p_value =
+        &p_render->render_character_1MHz_black;
+    uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
+    if (p_render->do_deinterlace_teletext) {
+      *(struct render_character_1MHz*) p_render_pos = *p_value;
+      *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+      render_check_cursor(p_render, p_render_pos, p_next_render_pos, 16);
+    } else {
+      if (p_render->vert_beam_pos & 1) {
+        *(struct render_character_1MHz*) p_next_render_pos = *p_value;
+        render_check_cursor(p_render, p_next_render_pos, NULL, 16);
+      } else {
+        *(struct render_character_1MHz*) p_render_pos = *p_value;
+        render_check_cursor(p_render, p_render_pos, NULL, 16);
+      }
+    }
+    p_render->p_render_pos += 16;
+  } else if ((p_render->horiz_beam_pos & ~15) ==
+             p_render->horiz_beam_window_start_pos) {
+    render_reset_render_pos(p_render);
+  }
+}
+
+static void
 render_function_1MHz_data(struct render_struct* p_render, uint8_t data) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
@@ -748,7 +780,9 @@ void (*render_get_render_data_function(struct render_struct* p_render))
 
 void (*render_get_render_blank_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t) {
-  if (p_render->is_clock_2MHz) {
+  if (p_render->render_mode == k_render_mode7) {
+    return render_function_teletext_blank;
+  } else if (p_render->is_clock_2MHz) {
     return render_function_2MHz_blank;
   } else {
     return render_function_1MHz_blank;
