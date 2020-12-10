@@ -604,6 +604,7 @@ video_test_inactive_rendering() {
   test_expect_u32(32, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->is_even_interlace_frame);
   test_expect_u32(1, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(1, g_p_video->do_dummy_raster);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
@@ -617,6 +618,7 @@ video_test_inactive_rendering() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(1, g_p_video->is_even_interlace_frame);
   test_expect_u32(0, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(0, g_p_video->do_dummy_raster);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(0, g_p_video->is_rendering_active);
   test_expect_u32(0, g_p_video->is_wall_time_vsync_hit);
@@ -632,6 +634,7 @@ video_test_inactive_rendering() {
   test_expect_u32(32, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->is_even_interlace_frame);
   test_expect_u32(1, g_p_video->is_odd_interlace_frame);
+  test_expect_u32(1, g_p_video->do_dummy_raster);
   test_expect_u32(1, g_p_video->in_vsync);
   test_expect_u32(3, g_p_video->num_vsyncs);
   test_expect_u32(3, g_p_video->crtc_frames);
