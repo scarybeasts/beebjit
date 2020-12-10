@@ -15,6 +15,7 @@
 #include "util.h"
 #include "video.h"
 
+#include <assert.h>
 #include <string.h>
 
 /* Used for stretching 12 pixels wide into 16. */
@@ -62,6 +63,7 @@ struct teletext_struct {
   uint32_t bg_color;
   int is_hold_graphics;
   uint8_t* p_held_character;
+  int do_character_rounding;
 };
 
 static void
@@ -404,11 +406,13 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
 
 void
 teletext_render_data(struct teletext_struct* p_teletext,
+                     int do_deinterlace,
                      struct render_character_1MHz* p_out,
                      struct render_character_1MHz* p_next_out,
                      uint8_t data) {
   uint32_t i;
   uint32_t bg_color;
+  uint32_t src_data_scanline;
 
   /* Foreground color and active characters are set-after so load them before
    * potentially processing a control code.
@@ -417,7 +421,6 @@ teletext_render_data(struct teletext_struct* p_teletext,
   int is_hold_graphics = p_teletext->is_hold_graphics;
   /* Selects space, 0x20. */
   uint8_t* p_src_data = p_teletext->p_active_characters;
-  uint32_t src_data_scanline = p_teletext->scanline;
 
   data &= 0x7F;
 
@@ -453,7 +456,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     }
   }
 
-  if ((p_out == NULL) && (p_next_out == NULL)) {
+  if (p_out == NULL) {
     return;
   }
 
@@ -464,44 +467,60 @@ teletext_render_data(struct teletext_struct* p_teletext,
     p_src_data = &s_teletext_generated_glyphs[0];
   }
 
-  src_data_scanline *= 2;
-  if (p_teletext->double_active) {
-    src_data_scanline /= 2;
+  src_data_scanline = p_teletext->scanline;
+  if (!p_teletext->double_active) {
+    src_data_scanline *= 2;
+  } else {
     if (p_teletext->second_character_row_of_double) {
       src_data_scanline += 10;
     }
   }
 
+  if (!do_deinterlace &&
+      p_teletext->do_character_rounding &&
+      !p_teletext->double_active) {
+    src_data_scanline++;
+  }
+
+  assert(src_data_scanline < 20);
   p_src_data += (src_data_scanline * 16);
 
   bg_color = p_teletext->bg_color;
 
-  if (p_out != NULL) {
-    for (i = 0; i < 16; ++i) {
-      uint32_t color;
-      uint8_t val = p_src_data[i];
+  for (i = 0; i < 16; ++i) {
+    uint32_t color;
+    uint8_t val = p_src_data[i];
 
-      color = (val * fg_color);
-      color += ((255 - val) * bg_color);
+    color = (val * fg_color);
+    color += ((255 - val) * bg_color);
 
-      p_out->host_pixels[i] = (color | 0xff000000);
-    }
+    p_out->host_pixels[i] = (color | 0xff000000);
   }
 
-  p_src_data += (16 * !p_teletext->double_active);
   p_out = p_next_out;
-
-  if (p_out != NULL) {
-    for (i = 0; i < 16; ++i) {
-      uint32_t color;
-      uint8_t val = p_src_data[i];
-
-      color = (val * fg_color);
-      color += ((255 - val) * bg_color);
-
-      p_out->host_pixels[i] = (color | 0xff000000);
-    }
+  if (p_out == NULL) {
+    return;
   }
+  assert(do_deinterlace);
+
+  if (!p_teletext->double_active) {
+    p_src_data += 16;
+  }
+
+  for (i = 0; i < 16; ++i) {
+    uint32_t color;
+    uint8_t val = p_src_data[i];
+
+    color = (val * fg_color);
+    color += ((255 - val) * bg_color);
+
+    p_out->host_pixels[i] = (color | 0xff000000);
+  }
+}
+
+void
+teletext_RA_changed(struct teletext_struct* p_teletext, uint8_t ra) {
+  p_teletext->do_character_rounding = (ra & 1);
 }
 
 void

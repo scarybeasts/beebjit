@@ -624,6 +624,18 @@ check_r7:
     if (p_video->scanline_counter == p_video->cursor_start_line) {
       p_video->has_hit_cursor_line_start = 1;
     }
+
+    if (p_video->is_interlace_sync_and_video) {
+      /* NOTE: it's not clear if the 6845 internally counts interlace odd frame
+       * row addresses as 1..3..5..7.. or not. For now, we still count
+       * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
+       * for interlace odd frames.
+       */
+      teletext_RA_changed(p_video->p_teletext, p_video->is_odd_interlace_frame);
+    } else {
+      teletext_RA_changed(p_video->p_teletext, p_video->scanline_counter);
+    }
+
     render_set_RA(p_render, p_video->scanline_counter);
     func_render = video_is_display_enabled(p_video) ?
         func_render_data : func_render_blank;
