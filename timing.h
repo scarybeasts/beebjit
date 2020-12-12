@@ -13,6 +13,9 @@ void timing_reset_total_timer_ticks(struct timing_struct* p_timing);
 
 uint64_t timing_get_total_timer_ticks(struct timing_struct* p_timing);
 uint64_t timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing);
+int timing_has_scaled_ticks_passed(struct timing_struct* p_timing,
+                                   uint64_t baseline,
+                                   uint64_t scaled_ticks);
 
 uint32_t timing_register_timer(struct timing_struct* p_timing,
                                void* p_callback,

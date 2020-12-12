@@ -101,6 +101,14 @@ timing_get_scaled_total_timer_ticks(struct timing_struct* p_timing) {
   return (p_timing->total_timer_ticks / p_timing->scale_factor);
 }
 
+int
+timing_has_scaled_ticks_passed(struct timing_struct* p_timing,
+                               uint64_t baseline,
+                               uint64_t scaled_ticks) {
+  uint64_t target = baseline + (scaled_ticks * p_timing->scale_factor);
+  return (p_timing->total_timer_ticks >= target);
+}
+
 uint32_t
 timing_register_timer(struct timing_struct* p_timing,
                       void* p_callback,

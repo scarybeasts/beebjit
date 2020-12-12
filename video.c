@@ -97,6 +97,7 @@ struct video_struct {
   struct render_struct* p_render;
   int is_framing_changed_for_render;
   int is_wall_time_vsync_hit;
+  uint64_t last_wall_time_vsync_hit_cycles;
   int is_rendering_active;
   int has_paint_timer_triggered;
 
@@ -318,13 +319,34 @@ video_check_go_inactive(struct video_struct* p_video) {
 
 static void
 video_check_go_active(struct video_struct* p_video) {
+  struct render_struct* p_render;
+
   assert(!p_video->externally_clocked);
 
   if (p_video->is_rendering_active) {
     return;
   }
 
-  if (!video_is_at_vsync_start(p_video)) {
+  if (!p_video->is_wall_time_vsync_hit) {
+    return;
+  }
+
+  if ((p_video->paint_start_cycles > 0) &&
+      !p_video->has_paint_timer_triggered) {
+    return;
+  }
+
+  if (video_is_at_vsync_start(p_video)) {
+    /* Proceed. */
+  } else if (timing_has_scaled_ticks_passed(
+                 p_video->p_timing,
+                 p_video->last_wall_time_vsync_hit_cycles,
+                 100000)) {
+    /* This is possible if the CRTC configuration isn't generating vsyncs. In
+     * this case, we still want to make rendering active to capture output.
+     */
+    /* Proceed. */
+  } else {
     return;
   }
 
@@ -332,27 +354,23 @@ video_check_go_active(struct video_struct* p_video) {
    * vsync. If fast mode persists, it'll go inactive immediately after the
    * next paint at the next vsync raise.
    */
-  if (((p_video->paint_start_cycles == 0) ||
-          p_video->has_paint_timer_triggered) &&
-      p_video->is_wall_time_vsync_hit) {
-    struct render_struct* p_render = p_video->p_render;
-    /* Wrestle the renderer to match the current odd or even interlace frame
-     * state.
-     */
-    if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
-      render_set_horiz_beam_pos(p_render, 512);
-    } else {
-      render_set_horiz_beam_pos(p_render, 0);
-    }
-    /* NOTE: need to call render_vsync() prior to marking rendering active
-     * again, otherwise the flyback callback would attempt to paint.
-     */
-    render_vsync(p_render);
-
-    p_video->is_rendering_active = 1;
-    p_video->is_wall_time_vsync_hit = 0;
-    p_video->timer_fire_mode = k_video_timer_null;
+  p_render = p_video->p_render;
+  /* Wrestle the renderer to match the current odd or even interlace frame
+   * state.
+   */
+  if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
+    render_set_horiz_beam_pos(p_render, 512);
+  } else {
+    render_set_horiz_beam_pos(p_render, 0);
   }
+  /* NOTE: need to call render_vsync() prior to marking rendering active
+   * again, otherwise the flyback callback would attempt to paint.
+   */
+  render_vsync(p_render);
+
+  p_video->is_rendering_active = 1;
+  p_video->is_wall_time_vsync_hit = 0;
+  p_video->timer_fire_mode = k_video_timer_null;
 }
 
 static void
@@ -1428,12 +1446,16 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
     return;
   }
 
-  p_video->is_wall_time_vsync_hit = 1;
   while (p_video->vsync_next_time <= wall_time) {
     p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
   if (!p_video->externally_clocked) {
+    if (!p_video->is_wall_time_vsync_hit) {
+      p_video->is_wall_time_vsync_hit = 1;
+      p_video->last_wall_time_vsync_hit_cycles =
+          timing_get_total_timer_ticks(p_video->p_timing);
+    }
     return;
   }
 
