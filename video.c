@@ -1412,11 +1412,13 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   wall_time = (p_video->wall_time + delta);
   p_video->wall_time = wall_time;
 
-  if (wall_time >= p_video->vsync_next_time) {
-    p_video->is_wall_time_vsync_hit = 1;
-    while (p_video->vsync_next_time <= wall_time) {
-      p_video->vsync_next_time += k_video_us_per_vsync;
-    }
+  if (wall_time < p_video->vsync_next_time) {
+    return;
+  }
+
+  p_video->is_wall_time_vsync_hit = 1;
+  while (p_video->vsync_next_time <= wall_time) {
+    p_video->vsync_next_time += k_video_us_per_vsync;
   }
 
   if (!p_video->externally_clocked) {
@@ -1424,9 +1426,6 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
   }
 
   if (p_video->paint_start_cycles > 0) {
-    return;
-  }
-  if (!p_video->is_wall_time_vsync_hit) {
     return;
   }
 
