@@ -273,6 +273,88 @@ video_do_paint(struct video_struct* p_video) {
   p_video->is_framing_changed_for_render = 0;
 }
 
+static inline int
+video_is_at_vsync_start(struct video_struct* p_video) {
+  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+      (uint64_t) p_video->last_vsync_raise_ticks) {
+    assert(p_video->in_vsync);
+    return 1;
+  }
+  return 0;
+}
+
+static int
+video_is_at_vsync_end(struct video_struct* p_video) {
+  if (timing_get_total_timer_ticks(p_video->p_timing) ==
+      (uint64_t) p_video->last_vsync_lower_ticks) {
+    assert(!p_video->in_vsync);
+    return 1;
+  }
+  return 0;
+}
+
+static void
+video_check_go_inactive(struct video_struct* p_video) {
+  assert(!p_video->externally_clocked);
+
+  assert(p_video->is_rendering_active);
+
+  /* If we're in fast mode, give rendering and painting a rest after each
+   * paint.
+   * We'll get prodded to start again by the 50Hz real time tick, which will
+   * get noticed in video_timer_fired().
+   */
+  if (!*p_video->p_fast_flag || p_video->has_paint_timer_triggered) {
+    return;
+  }
+
+  p_video->is_rendering_active = 0;
+  /* Also need to clear is_wall_time_vsync_hit, otherwise when this function
+   * returns back into video_timer_fired, rendering could go immediately
+   * active again!
+   */
+  p_video->is_wall_time_vsync_hit = 0;
+}
+
+static void
+video_check_go_active(struct video_struct* p_video) {
+  assert(!p_video->externally_clocked);
+
+  if (p_video->is_rendering_active) {
+    return;
+  }
+
+  if (!video_is_at_vsync_start(p_video)) {
+    return;
+  }
+
+  /* If rendering is inactive, make it active again if we've hit a wall time
+   * vsync. If fast mode persists, it'll go inactive immediately after the
+   * next paint at the next vsync raise.
+   */
+  if (((p_video->paint_start_cycles == 0) ||
+          p_video->has_paint_timer_triggered) &&
+      p_video->is_wall_time_vsync_hit) {
+    struct render_struct* p_render = p_video->p_render;
+    /* Wrestle the renderer to match the current odd or even interlace frame
+     * state.
+     */
+    if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
+      render_set_horiz_beam_pos(p_render, 512);
+    } else {
+      render_set_horiz_beam_pos(p_render, 0);
+    }
+    /* NOTE: need to call render_vsync() prior to marking rendering active
+     * again, otherwise the flyback callback would attempt to paint.
+     */
+    render_vsync(p_render);
+
+    p_video->is_rendering_active = 1;
+    p_video->is_wall_time_vsync_hit = 0;
+    p_video->timer_fire_mode = k_video_timer_null;
+  }
+}
+
 static void
 video_flyback_callback(void* p) {
   struct video_struct* p_video = (struct video_struct*) p;
@@ -281,6 +363,7 @@ video_flyback_callback(void* p) {
 
   if (p_video->is_rendering_active) {
     video_do_paint(p_video);
+    video_check_go_inactive(p_video);
   }
 }
 
@@ -648,26 +731,6 @@ video_get_flash(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_flash);
 }
 
-static inline int
-video_is_at_vsync_start(struct video_struct* p_video) {
-  if (timing_get_total_timer_ticks(p_video->p_timing) ==
-      (uint64_t) p_video->last_vsync_raise_ticks) {
-    assert(p_video->in_vsync);
-    return 1;
-  }
-  return 0;
-}
-
-static int
-video_is_at_vsync_end(struct video_struct* p_video) {
-  if (timing_get_total_timer_ticks(p_video->p_timing) ==
-      (uint64_t) p_video->last_vsync_lower_ticks) {
-    assert(!p_video->in_vsync);
-    return 1;
-  }
-  return 0;
-}
-
 static uint64_t
 video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   uint32_t r0;
@@ -848,57 +911,6 @@ video_jump_to_vsync_end(struct video_struct* p_video) {
 }
 
 static void
-video_check_go_active_or_inactive(struct video_struct* p_video) {
-  assert(!p_video->externally_clocked);
-
-  if (!video_is_at_vsync_start(p_video)) {
-    return;
-  }
-
-  if (p_video->is_rendering_active) {
-    /* If we're in fast mode, give rendering and painting a rest after each
-     * paint.
-     * We'll get prodded to start again by the 50Hz real time tick, which will
-     * get noticed in video_timer_fired().
-     */
-    if (*p_video->p_fast_flag && !p_video->has_paint_timer_triggered) {
-      p_video->is_rendering_active = 0;
-      p_video->is_wall_time_vsync_hit = 0;
-      if (p_video->has_sane_framing_parameters) {
-        assert(p_video->timer_fire_mode == k_video_timer_expect_vsync_lower);
-        p_video->timer_fire_mode = k_video_timer_jump_to_vsync_lower;
-      }
-    }
-  } else {
-    /* If rendering is inactive, make it active again if we've hit a wall time
-     * vsync. If fast mode persists, it'll go inactive immediately after the
-     * next paint at the next vsync raise.
-     */
-    if (((p_video->paint_start_cycles == 0) ||
-            p_video->has_paint_timer_triggered) &&
-        p_video->is_wall_time_vsync_hit) {
-      struct render_struct* p_render = p_video->p_render;
-      /* Wrestle the renderer to match the current odd or even interlace frame
-       * state.
-       */
-      if (p_video->is_interlace && p_video->is_odd_interlace_frame) {
-        render_set_horiz_beam_pos(p_render, 512);
-      } else {
-        render_set_horiz_beam_pos(p_render, 0);
-      }
-      /* NOTE: need to call render_vsync() prior to marking rendering active
-       * again, otherwise the flyback callback would attempt to paint.
-       */
-      render_vsync(p_render);
-
-      p_video->is_rendering_active = 1;
-      p_video->is_wall_time_vsync_hit = 0;
-      p_video->timer_fire_mode = k_video_timer_null;
-    }
-  }
-}
-
-static void
 video_timer_fired(void* p) {
   struct video_struct* p_video = (struct video_struct*) p;
 
@@ -940,7 +952,7 @@ video_timer_fired(void* p) {
                p_video->vert_counter);
   }
 
-  video_check_go_active_or_inactive(p_video);
+  video_check_go_active(p_video);
 }
 
 static void
