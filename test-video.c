@@ -489,6 +489,8 @@ video_test_6845_corner_cases() {
   test_expect_u32(1, g_p_video->display_enable_vert);
   countdown = timing_advance_time(g_p_timing, (countdown - 64));
   video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->display_enable_vert);
   test_expect_u32(5, g_p_video->crtc_frames);
 
@@ -516,15 +518,23 @@ video_test_6845_corner_cases() {
   test_expect_u32(1, g_p_video->vert_counter);
   test_expect_u32(1, g_p_video->display_enable_vert);
   test_expect_u32(0, g_p_video->in_vsync);
+
   video_crtc_write(g_p_video, 0, 6);
-  video_crtc_write(g_p_video, 1, 1);
-  video_crtc_write(g_p_video, 0, 7);
   video_crtc_write(g_p_video, 1, 1);
   countdown = timing_get_countdown(g_p_timing);
   countdown = timing_advance_time(g_p_timing, (countdown - 2));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(51, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->display_enable_vert);
+
+  countdown = timing_advance_time(g_p_timing, (countdown - (10 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(51, g_p_video->horiz_counter);
+  test_expect_u32(5, g_p_video->scanline_counter);
+  test_expect_u32(2, g_p_video->vert_counter);
+
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 2);
   test_expect_u32(1, g_p_video->in_vsync);
 }
 
@@ -898,6 +908,23 @@ video_test_vsync_end_timer() {
   test_expect_u32(1, g_p_video->in_vsync);
 }
 
+static void
+video_test_timer_corner_cases() {
+  /* A separate test for additional tricky timer calculation corner cases. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  /* Turn off interlace at the vsync point. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0);
+  /* vsync should now lower in 1.5 scanlines. */
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing, (countdown - (k_ticks_mode7_per_scanline * 1.5)));
+  /* Timer should hit here. */
+  test_expect_u32(0, g_p_video->in_vsync);
+}
+
 void
 video_test() {
   video_test_init();
@@ -954,5 +981,9 @@ video_test() {
 
   video_test_init();
   video_test_vsync_end_timer();
+  video_test_end();
+
+  video_test_init();
+  video_test_timer_corner_cases();
   video_test_end();
 }
