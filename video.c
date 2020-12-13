@@ -1153,6 +1153,11 @@ video_do_custom_paint_event(struct video_struct* p_video) {
     if (timing_timer_is_running(p_timing, timer_id)) {
       p_video->is_wall_time_vsync_hit = 1;
       p_video->has_paint_timer_triggered = 1;
+      /* A bunch of unconsumed framing changes will have built up. Clear the
+       * the flag so the screen isn't immediately cleared after the first paint.
+       * This avoids the second frame being bad with interlaced rendering.
+       */
+      p_video->is_framing_changed_for_render = 0;
       (void) timing_stop_timer(p_timing, timer_id);
     }
   } else {
