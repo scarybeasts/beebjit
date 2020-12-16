@@ -6,3 +6,7 @@ From https://stardot.org.uk/forums/viewtopic.php?f=2&t=14919&p=217893#p217915
 - pi.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/115
 Aside from being a good performance test, seems to use a page-crossing JMP ind.
+
+- rockets.ssd
+A selection of "rocket mode" tweets sent to the BBC Micro Basic bot,
+https://twitter.com/bbcmicrobot
