@@ -324,14 +324,18 @@ video_test_out_of_frame() {
   countdown = timing_advance_time(g_p_timing, 0);
   video_advance_crtc_timing(g_p_video);
 
-  /* Check R7 never hitting. The timer should be long because nothing will be
-   * happening, absent another register write.
-   */
   test_expect_u32(0, g_p_video->horiz_counter);
-  test_expect_u32(0, g_p_video->in_vsync);
+  test_expect_u32(0, g_p_video->scanline_counter);
+  test_expect_u32(0, g_p_video->vert_counter);
+  /* Timer should now be all the way to C4=R7. */
+  test_expect_u32(((8 * 2 * 10) * 28), video_test_get_timer());
+
+  /* Set up for R7 never hitting. Timer should be large -- this is a useful
+   * optimization in some vertical rupture setups.
+   */
   video_crtc_write(g_p_video, 0, 7);
   video_crtc_write(g_p_video, 1, 50);
-  test_expect_u32(1, (video_test_get_timer() > (128 * 8)));
+  test_expect_u32(40000, video_test_get_timer());
 }
 
 static void
@@ -477,6 +481,7 @@ video_test_6845_corner_cases() {
   /* R6 to 0 and interlace off. */
   video_crtc_write(g_p_video, 0, 6);
   video_crtc_write(g_p_video, 1, 0);
+  countdown = timing_get_countdown(g_p_timing);
   countdown = timing_advance_time(g_p_timing, (countdown - (278 * 128)));
   video_advance_crtc_timing(g_p_video);
   test_expect_u32(0, g_p_video->horiz_counter);
@@ -909,8 +914,10 @@ video_test_vsync_end_timer() {
 }
 
 static void
-video_test_timer_corner_cases() {
-  /* A separate test for additional tricky timer calculation corner cases. */
+video_test_timer_corner_case_1() {
+  /* A separate test for tricky case where interlace is turned off at the
+   * vsync point.
+   */
   int64_t countdown = timing_get_countdown(g_p_timing);
   countdown = timing_advance_time(g_p_timing,
                                   (countdown - k_ticks_mode7_to_vsync_even));
@@ -923,6 +930,52 @@ video_test_timer_corner_cases() {
       g_p_timing, (countdown - (k_ticks_mode7_per_scanline * 1.5)));
   /* Timer should hit here. */
   test_expect_u32(0, g_p_video->in_vsync);
+}
+
+static void
+video_test_timer_corner_case_2() {
+  /* A separate test for tricky case where R7 > R4 but C4 > R4. */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing, (countdown - (k_ticks_mode7_per_scanline * 10 * 5)));
+
+  /* Now at C4=5, and set R4=4, R7=6. */
+  video_crtc_write(g_p_video, 0, 4);
+  video_crtc_write(g_p_video, 1, 4);
+  video_crtc_write(g_p_video, 0, 7);
+  video_crtc_write(g_p_video, 1, 6);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(
+      g_p_timing, (countdown - (k_ticks_mode7_per_scanline * 10)));
+  /* Timer should hit here, C4=6, for vsync. */
+  test_expect_u32(1, g_p_video->in_vsync);
+}
+
+static void
+video_test_timer_corner_case_3() {
+  /* A separate test for tricky case where mode is interlace sync + video, and
+   * R9 is odd.
+   */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+
+  /* Set R9=7. */
+  video_crtc_write(g_p_video, 0, 9);
+  video_crtc_write(g_p_video, 1, 7);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - video_test_get_timer()));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(0, g_p_video->in_vsync);
+  countdown = timing_advance_time(g_p_timing, (countdown - 64));
+  test_expect_u32(32, g_p_video->horiz_counter);
+  test_expect_u32(1, g_p_video->in_vsync);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - video_test_get_timer()));
+  test_expect_u32(0, g_p_video->in_vsync);
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - video_test_get_timer()));
+  test_expect_u32(1, g_p_video->in_vsync);
 }
 
 void
@@ -984,6 +1037,14 @@ video_test() {
   video_test_end();
 
   video_test_init();
-  video_test_timer_corner_cases();
+  video_test_timer_corner_case_1();
+  video_test_end();
+
+  video_test_init();
+  video_test_timer_corner_case_2();
+  video_test_end();
+
+  video_test_init();
+  video_test_timer_corner_case_3();
   video_test_end();
 }

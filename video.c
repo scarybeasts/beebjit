@@ -486,7 +486,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   uint32_t r5 = p_video->crtc_registers[k_crtc_reg_vert_adjust];
   uint32_t r6 = p_video->crtc_registers[k_crtc_reg_vert_displayed];
   uint32_t r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
-  uint32_t r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
+  uint32_t effective_r9 =
+      (p_video->crtc_registers[k_crtc_reg_lines_per_character] &
+       p_video->scanline_mask);
   uint32_t cursor_addr =
       ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
        p_video->crtc_registers[k_crtc_reg_cursor_low]);
@@ -664,7 +666,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Start the new line state check chain. */
     p_video->start_of_line_state_checks |= 1;
 
-    r9_hit = (p_video->scanline_counter == (r9 & p_video->scanline_mask));
+    r9_hit = (p_video->scanline_counter == effective_r9);
     p_video->scanline_counter += p_video->scanline_stride;
     p_video->scanline_counter &= p_video->scanline_mask;
     p_video->address_counter = p_video->address_counter_this_row;
@@ -730,7 +732,7 @@ check_r7:
 
     r4_hit = (p_video->vert_counter == r4);
     r5_hit = (p_video->vert_adjust_counter == r5);
-    r9_hit = (p_video->scanline_counter == r9);
+    r9_hit = (p_video->scanline_counter == effective_r9);
   }
 
   p_video->prev_system_ticks = curr_system_ticks;
@@ -781,10 +783,25 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
   return 1;
 }
 
+static inline uint32_t
+video_get_scanlines_per_row(struct video_struct* p_video) {
+  uint32_t r9 = p_video->crtc_registers[k_crtc_reg_lines_per_character];
+  uint32_t scanlines_per_row = r9;
+  scanlines_per_row &= p_video->scanline_mask;
+  scanlines_per_row /= p_video->scanline_stride;
+  scanlines_per_row++;
+  return scanlines_per_row;
+}
+
 static uint64_t
 video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   uint32_t r0;
   uint32_t horiz_counter;
+  uint32_t scanline_ticks;
+  uint32_t scanlines_per_row;
+  uint32_t row_ticks;
+  uint32_t r7;
+  uint32_t r4;
 
   uint32_t tick_multiplier = p_video->clock_tick_multiplier;
 
@@ -816,7 +833,6 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   if (p_video->has_sane_framing_parameters &&
       video_is_at_vsync_lower(p_video) &&
       video_is_full_vsync_state_match(p_video, 0)) {
-    /* Enter fast render skipping mode if appropriate. */
     uint32_t ret;
     ret = p_video->frame_crtc_ticks;
     ret -= (p_video->vsync_pulse_width * (r0 + 1));
@@ -837,25 +853,57 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
     return ((256 - horiz_counter) * tick_multiplier);
   }
 
-  /* If R7 > R4 then no point stopping much as vsync is not happening. This
-   * situation does occur a lot in games using vertical rupture, e.g.
-   * Uridium, Tricky's Frogger.
-   * R4 + 1 is used because sync can occur at R4 + 1 with vertical adjust or
-   * interlace.
-   */
-  if ((p_video->crtc_registers[k_crtc_reg_vert_sync_position] >
-          (p_video->crtc_registers[k_crtc_reg_vert_total] + 1)) &&
-      !p_video->in_vsync) {
-    return k_video_us_per_vsync;
+  /* Tread carefully around vsync so as not to miss it. */
+  r7 = p_video->crtc_registers[k_crtc_reg_vert_sync_position];
+  if (p_video->in_vsync ||
+          (p_video->is_interlace &&
+           (r7 == p_video->vert_counter) &&
+           (p_video->scanline_counter == 0))) {
+    /* In interlace mode, stop at half R0. */
+    if (p_video->is_interlace && (horiz_counter < p_video->half_r0)) {
+      return ((p_video->half_r0 - horiz_counter) * tick_multiplier);
+    }
+    /* Stop at C0=0. */
+    return (((r0 + 1) - horiz_counter) * tick_multiplier);
   }
 
-  /* In interlace mode, stop at half R0. */
-  if (p_video->is_interlace && (horiz_counter < p_video->half_r0)) {
-    return ((p_video->half_r0 - horiz_counter) * tick_multiplier);
+  /* Get to C0=0. */
+  if (horiz_counter != 0) {
+    return (((r0 + 1) - horiz_counter) * tick_multiplier);
   }
 
-  /* Stop at C0=0. */
-  return (((r0 + 1) - horiz_counter) * tick_multiplier);
+  /* Get to a normal C9=0. */
+  scanline_ticks = ((r0 + 1) * tick_multiplier);
+  if (p_video->in_vert_adjust ||
+      p_video->in_dummy_raster ||
+      p_video->is_end_of_main_latched ||
+      p_video->is_end_of_frame_latched ||
+      (p_video->scanline_counter != 0)) {
+    return scanline_ticks;
+  }
+
+  /* Time a full row. */
+  scanlines_per_row = video_get_scanlines_per_row(p_video);
+  row_ticks = (scanlines_per_row * scanline_ticks);
+
+  /* Time rows to R7 if we're due to hit it. */
+  r4 = p_video->crtc_registers[k_crtc_reg_vert_total];
+  if ((p_video->vert_counter < r7) && (r7 <= r4)) {
+    return ((r7 - p_video->vert_counter) * row_ticks);
+  }
+
+  /* Some arbitrarily larger timer value if we're never due to hit R7. */
+  if (r7 > (r4 + 1)) {
+    if ((p_video->vert_counter < r4) ||
+        ((p_video->vert_counter == r4) &&
+             (p_video->scanline_counter <
+                  p_video->crtc_registers[k_crtc_reg_lines_per_character]))) {
+      return 40000;
+    }
+  }
+
+  /* Advance one full row. */
+  return row_ticks;
 }
 
 static void
@@ -1121,11 +1169,8 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
   }
 
   if (sane) {
-    uint32_t scanlines = (r9 + 1);
+    uint32_t scanlines = video_get_scanlines_per_row(p_video);
 
-    if (p_video->is_interlace_sync_and_video) {
-      scanlines = ((scanlines + 1) / 2);
-    }
     frame_crtc_ticks = (r0 + 1);
     frame_crtc_ticks *= scanlines;
     frame_crtc_ticks *= (r4 + 1);
