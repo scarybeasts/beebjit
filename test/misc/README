@@ -1,5 +1,8 @@
 These discs are interesting in some way for emulator behavior testing.
 
+- glitch.ssd
+Test cases that hammer CRTC / ULA registers and may even look pretty.
+
 - mode7-75.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/126
 By Kieran Connell.
