@@ -1884,6 +1884,15 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
   case k_crtc_reg_vert_sync_position:
     mask = 0x7F;
     break;
+  case k_crtc_reg_interlace:
+    if ((p_video->crtc_registers[k_crtc_reg_interlace] & 0x03) ==
+        (val & 0x03)) {
+      /* If only the cursor / display skew and enable changed, it does not
+       * affect the framing.
+       */
+      does_not_change_framing = 1;
+    }
+    break;
   /* R9 */
   case k_crtc_reg_lines_per_character:
     mask = 0x1F;

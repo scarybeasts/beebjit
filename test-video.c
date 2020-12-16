@@ -300,6 +300,11 @@ video_test_full_frame_timers() {
   video_crtc_write(g_p_video, 1, 0xAA);
   test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
                   video_test_get_timer());
+  /* Interlace register, but only change display enable. */
+  video_crtc_write(g_p_video, 0, 8);
+  video_crtc_write(g_p_video, 1, 0x33);
+  test_expect_u32(((k_ticks_mode7_per_scanline * 2) - 10),
+                  video_test_get_timer());
 
   /* Change the framing and check the timer changed. */
   /* Vertical total. */
