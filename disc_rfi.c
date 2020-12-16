@@ -106,12 +106,12 @@ disc_rfi_load(struct disc_struct* p_disc,
     for (i_sides = 0; i_sides < sides; ++i_sides) {
       uint32_t j;
       int level;
-      float rpm;
       uint32_t ticks_pos;
       uint32_t last_ticks_pulse_pos;
       uint32_t ticks_rev;
       uint32_t ticks_start;
       uint32_t ticks_end;
+      float rpm = 0.0;
       uint32_t track = 0;
       uint32_t side = 0;
       uint32_t data_len = 0;
