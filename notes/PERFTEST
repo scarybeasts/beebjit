@@ -1,4 +1,0 @@
-- CLOCKSP testing:
-1) Compile optimized build (see test.sh).
-2) ./6502jit -mode jit -disc ~/progs/beebjit/test/clocksp.ssd -opt sound:off,video:no-vsync-wait-for-render,bbc:cycles-per-run=5000000
-
