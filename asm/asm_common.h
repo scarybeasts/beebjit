@@ -1,5 +1,5 @@
-#ifndef BEEBJIT_ASM_X64_COMMON_H
-#define BEEBJIT_ASM_X64_COMMON_H
+#ifndef BEEBJIT_ASM_COMMON_H
+#define BEEBJIT_ASM_COMMON_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -154,4 +154,4 @@ void asm_x64_pull_to_scratch_END();
 void asm_x64_pull_word_to_scratch();
 void asm_x64_pull_word_to_scratch_END();
 
-#endif /* BEEBJIT_ASM_X64_COMMON_H */
+#endif /* BEEBJIT_ASM_COMMON_H */

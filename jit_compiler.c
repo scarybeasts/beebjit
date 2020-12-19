@@ -1,8 +1,5 @@
 #include "jit_compiler.h"
 
-#include "asm_x64_common.h"
-#include "asm_x64_jit.h"
-#include "asm_x64_jit_defs.h"
 #include "bbc_options.h"
 #include "defs_6502.h"
 #include "jit_opcode.h"
@@ -11,6 +8,10 @@
 #include "memory_access.h"
 #include "state_6502.h"
 #include "util.h"
+
+#include "asm/asm_common.h"
+#include "asm/asm_jit.h"
+#include "asm/asm_jit_defs.h"
 
 #include <assert.h>
 #include <string.h>

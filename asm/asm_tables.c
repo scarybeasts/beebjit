@@ -1,6 +1,6 @@
 #include "asm_tables.h"
 
-#include "../asm_x64_defs.h"
+#include "asm_defs.h"
 #include "../os_alloc.h"
 
 static const size_t k_asm_tables_size = 4096;

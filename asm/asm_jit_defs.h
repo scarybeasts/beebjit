@@ -1,7 +1,7 @@
-#ifndef BEEBJIT_ASM_X64_JIT_DEFS_H
-#define BEEBJIT_ASM_X64_JIT_DEFS_H
+#ifndef BEEBJIT_ASM_JIT_DEFS_H
+#define BEEBJIT_ASM_JIT_DEFS_H
 
-#include "asm_x64_defs.h"
+#include "asm_defs.h"
 
 /* NOTE: this affects performance significantly.
  * 9 == -8% and 10 == -23%.
@@ -15,5 +15,5 @@
 #define K_JIT_CONTEXT_OFFSET_JIT_CALLBACK  (K_CONTEXT_OFFSET_DRIVER_END + 0)
 #define K_JIT_CONTEXT_OFFSET_JIT_PTRS      (K_CONTEXT_OFFSET_DRIVER_END + 8)
 
-#endif /* BEEBJIT_ASM_X64_JIT_DEFS_H */
+#endif /* BEEBJIT_ASM_JIT_DEFS_H */
 

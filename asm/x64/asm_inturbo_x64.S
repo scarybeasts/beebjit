@@ -1,6 +1,6 @@
-#include "asm_x64_inturbo_defs.h"
+#include "../asm_inturbo_defs.h"
 
-.file "asm_x64_inturbo.S"
+.file "asm_inturbo_x64.S"
 .intel_syntax noprefix
 .section rodata
 .text

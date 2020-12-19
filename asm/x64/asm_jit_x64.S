@@ -1,7 +1,7 @@
-#include "asm_x64_defs.h"
-#include "asm_x64_jit_defs.h"
+#include "../asm_defs.h"
+#include "../asm_jit_defs.h"
 
-.file "asm_x64_jit.S"
+.file "asm_jit_x64.S"
 .intel_syntax noprefix
 .section rodata
 .text

@@ -1,7 +1,6 @@
 #include "bbc.h"
 
 #include "adc.h"
-#include "asm_x64_defs.h"
 #include "bbc_options.h"
 #include "cmos.h"
 #include "cpu_driver.h"
@@ -28,6 +27,9 @@
 #include "via.h"
 #include "video.h"
 #include "wd_fdc.h"
+
+/* TODO: seems like an unwanted dependency? */
+#include "asm/asm_defs.h"
 
 #include <assert.h>
 #include <string.h>

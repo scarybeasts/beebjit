@@ -1,8 +1,8 @@
-#include "asm_x64_inturbo.h"
+#include "../asm_inturbo.h"
 
-#include "asm_x64_common.h"
-#include "defs_6502.h"
-#include "util.h"
+#include "../asm_common.h"
+#include "../../defs_6502.h"
+#include "../../util.h"
 
 static void
 asm_x64_emit_instruction_Bxx_interp_accurate(

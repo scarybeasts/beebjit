@@ -1,6 +1,6 @@
-#include "asm_x64_common.h"
+#include "../asm_common.h"
 
-#include "util.h"
+#include "../../util.h"
 
 #include <assert.h>
 #include <limits.h>

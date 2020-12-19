@@ -7,8 +7,6 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
     jit_compiler.c cpu_driver.c \
-    asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
-    asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c \
     teletext.c render.c serial.c log.c test.c tape.c adc.c cmos.c \
     intel_fdc.c wd_fdc.c \
@@ -18,4 +16,7 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     debug.c jit.c util.c \
     os.c \
     asm/asm_abi.c asm/asm_tables.c \
+    asm/asm_common.c asm/asm_common.S \
+    asm/asm_inturbo.c asm/asm_inturbo.S \
+    asm/asm_jit.c asm/asm_jit.S \
     -lgdi32 -lwinmm

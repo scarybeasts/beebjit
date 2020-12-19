@@ -1,10 +1,10 @@
-#include "asm_x64_jit.h"
+#include "../asm_jit.h"
 
-#include "asm_x64_common.h"
-#include "asm_x64_defs.h"
-#include "asm_x64_jit_defs.h"
-#include "defs_6502.h"
-#include "util.h"
+#include "../asm_common.h"
+#include "../asm_defs.h"
+#include "../asm_jit_defs.h"
+#include "../../defs_6502.h"
+#include "../../util.h"
 
 #include <assert.h>
 

@@ -1,8 +1,5 @@
 #include "inturbo.h"
 
-#include "asm_x64_common.h"
-#include "asm_x64_inturbo.h"
-#include "asm_x64_inturbo_defs.h"
 #include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
@@ -12,6 +9,10 @@
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
+
+#include "asm/asm_common.h"
+#include "asm/asm_inturbo.h"
+#include "asm/asm_inturbo_defs.h"
 
 #include <assert.h>
 #include <stddef.h>
