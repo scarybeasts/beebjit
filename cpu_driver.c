@@ -133,10 +133,7 @@ cpu_driver_alloc(int mode,
     break;
   }
 
-  asm_x64_abi_init(&p_cpu_driver->abi,
-                   p_memory_access,
-                   p_options,
-                   p_state_6502);
+  asm_abi_init(&p_cpu_driver->abi, p_memory_access, p_options, p_state_6502);
   defs_6502_init();
 
   p_cpu_driver->p_memory_access = p_memory_access;

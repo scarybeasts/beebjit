@@ -7,7 +7,7 @@ gcc -Wall -W -Werror \
     -g -o beebjit \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
-    jit_compiler.c cpu_driver.c asm_x64_abi.c asm_tables.c \
+    jit_compiler.c cpu_driver.c \
     asm_x64_common.c asm_x64_inturbo.c asm_x64_jit.c \
     asm_x64_common.S asm_x64_inturbo.S asm_x64_jit.S \
     jit_optimizer.c jit_opcode.c keyboard.c \
@@ -18,4 +18,5 @@ gcc -Wall -W -Werror \
     disc_rfi.c disc_kryo.c disc_scp.c \
     debug.c jit.c util.c \
     os.c \
+    asm/asm_abi.c asm/asm_tables.c \
     -lm -lX11 -lXext -lpthread -lasound -lpulse -lpulse-simple

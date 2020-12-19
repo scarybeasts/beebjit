@@ -1,7 +1,7 @@
 #ifndef BEEBJIT_CPU_DRIVER_H
 #define BEEBJIT_CPU_DRIVER_H
 
-#include "asm_x64_abi.h"
+#include "asm/asm_abi.h"
 
 #include <stdint.h>
 
@@ -52,7 +52,7 @@ struct cpu_driver_funcs {
 };
 
 struct cpu_driver {
-  struct asm_x64_abi abi;
+  struct asm_abi abi;
 
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
