@@ -290,7 +290,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
                          K_BBC_MEM_READ_IND_ADDR);
 
-  exited = asm_x64_asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
+  exited = asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
   assert(exited == 1);
 
   return exited;
@@ -812,7 +812,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_address_info = jit_get_address_info;
   p_funcs->get_custom_counters = jit_get_custom_counters;
 
-  p_cpu_driver->abi.p_util_private = asm_x64_jit_compile_trampoline;
+  p_cpu_driver->abi.p_util_private = asm_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;
 
   /* The JIT mode uses an interpreter to handle complicated situations,
@@ -877,7 +877,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
           p_jit, (k_6502_addr_space_size - 2));
 
   util_buffer_setup(p_temp_buf, &p_jit->jit_invalidation_sequence[0], 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_temp_buf);
+  asm_emit_jit_call_compile_trampoline(p_temp_buf);
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     /* Initialize JIT trampoline. */
@@ -885,7 +885,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
         p_temp_buf,
         (p_jit_trampolines + (i * k_jit_trampoline_bytes_per_byte)),
         k_jit_trampoline_bytes_per_byte);
-    asm_x64_emit_jit_jump_interp_trampoline(p_temp_buf, i);
+    asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
 
   /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
@@ -905,7 +905,7 @@ jit_create(struct cpu_driver_funcs* p_funcs) {
   struct cpu_driver* p_cpu_driver;
 
   /* Check some preconditions. */
-  if ((asm_x64_jit_BEQ_8bit_END - asm_x64_jit_BEQ_8bit) != 2) {
+  if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
     util_bail("JIT assembly miscompiled -- clang issue? try opt build.");
   }
 

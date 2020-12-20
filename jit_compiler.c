@@ -81,7 +81,7 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr);
   util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
-  asm_x64_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
+  asm_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
 }
 
 static int
@@ -190,27 +190,27 @@ jit_compiler_create(struct memory_access* p_memory_access,
   }
 
   /* Calculate lengths of sequences we need to know. */
-  p_compiler->len_x64_jmp = (asm_x64_jit_JMP_END - asm_x64_jit_JMP);
-  p_compiler->len_x64_countdown = (asm_x64_jit_check_countdown_END -
-                                   asm_x64_jit_check_countdown);
-  p_compiler->len_x64_FLAGA = (asm_x64_jit_FLAGA_END - asm_x64_jit_FLAGA);
-  p_compiler->len_x64_FLAGX = (asm_x64_jit_FLAGX_END - asm_x64_jit_FLAGX);
-  p_compiler->len_x64_FLAGY = (asm_x64_jit_FLAGY_END - asm_x64_jit_FLAGY);
-  p_compiler->len_x64_FLAG_MEM = (asm_x64_jit_FLAG_MEM_END -
-                                  asm_x64_jit_FLAG_MEM);
-  p_compiler->len_x64_0xA9 = (asm_x64_jit_LDA_IMM_END - asm_x64_jit_LDA_IMM);
-  p_compiler->len_x64_0xA2 = (asm_x64_jit_LDX_IMM_END - asm_x64_jit_LDX_IMM);
-  p_compiler->len_x64_0xA0 = (asm_x64_jit_LDY_IMM_END - asm_x64_jit_LDY_IMM);
-  p_compiler->len_x64_SAVE_OVERFLOW = (asm_x64_jit_SAVE_OVERFLOW_END -
-                                       asm_x64_jit_SAVE_OVERFLOW);
-  p_compiler->len_x64_SAVE_CARRY = (asm_x64_jit_SAVE_CARRY_END -
-                                    asm_x64_jit_SAVE_CARRY);
-  p_compiler->len_x64_SAVE_CARRY_INV = (asm_x64_jit_SAVE_CARRY_INV_END -
-                                        asm_x64_jit_SAVE_CARRY_INV);
-  p_compiler->len_x64_CLC = (asm_x64_instruction_CLC_END -
-                             asm_x64_instruction_CLC);
-  p_compiler->len_x64_SEC = (asm_x64_instruction_SEC_END -
-                             asm_x64_instruction_SEC);
+  p_compiler->len_x64_jmp = (asm_jit_JMP_END - asm_jit_JMP);
+  p_compiler->len_x64_countdown = (asm_jit_check_countdown_END -
+                                   asm_jit_check_countdown);
+  p_compiler->len_x64_FLAGA = (asm_jit_FLAGA_END - asm_jit_FLAGA);
+  p_compiler->len_x64_FLAGX = (asm_jit_FLAGX_END - asm_jit_FLAGX);
+  p_compiler->len_x64_FLAGY = (asm_jit_FLAGY_END - asm_jit_FLAGY);
+  p_compiler->len_x64_FLAG_MEM = (asm_jit_FLAG_MEM_END -
+                                  asm_jit_FLAG_MEM);
+  p_compiler->len_x64_0xA9 = (asm_jit_LDA_IMM_END - asm_jit_LDA_IMM);
+  p_compiler->len_x64_0xA2 = (asm_jit_LDX_IMM_END - asm_jit_LDX_IMM);
+  p_compiler->len_x64_0xA0 = (asm_jit_LDY_IMM_END - asm_jit_LDY_IMM);
+  p_compiler->len_x64_SAVE_OVERFLOW = (asm_jit_SAVE_OVERFLOW_END -
+                                       asm_jit_SAVE_OVERFLOW);
+  p_compiler->len_x64_SAVE_CARRY = (asm_jit_SAVE_CARRY_END -
+                                    asm_jit_SAVE_CARRY);
+  p_compiler->len_x64_SAVE_CARRY_INV = (asm_jit_SAVE_CARRY_INV_END -
+                                        asm_jit_SAVE_CARRY_INV);
+  p_compiler->len_x64_CLC = (asm_instruction_CLC_END -
+                             asm_instruction_CLC);
+  p_compiler->len_x64_SEC = (asm_instruction_SEC_END -
+                             asm_instruction_SEC);
 
   return p_compiler;
 }
@@ -745,203 +745,202 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   /* Emit the opcode. */
   switch (uopcode) {
   case k_opcode_countdown:
-    asm_x64_emit_jit_check_countdown(p_dest_buf,
-                                     (uint32_t) value2,
-                                     (void*) (size_t) value1);
+    asm_emit_jit_check_countdown(p_dest_buf,
+                                 (uint32_t) value2,
+                                 (void*) (size_t) value1);
     break;
   case k_opcode_debug:
-    asm_x64_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_interp:
-    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_for_testing:
-    asm_x64_emit_jit_for_testing(p_dest_buf);
+    asm_emit_jit_for_testing(p_dest_buf);
     break;
   case k_opcode_ADD_CYCLES:
-    asm_x64_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ADD_ABS:
-    asm_x64_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_ABX:
-    asm_x64_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_ABY:
-    asm_x64_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ADD_IMM:
-    asm_x64_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ADD_SCRATCH:
-    asm_x64_emit_jit_ADD_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_ADD_SCRATCH(p_dest_buf, 0);
     break;
   case k_opcode_ADD_SCRATCH_Y:
-    asm_x64_emit_jit_ADD_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_ADD_SCRATCH_Y(p_dest_buf);
     break;
   case k_opcode_ASL_ACC_n:
-    asm_x64_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_CHECK_BCD:
-    asm_x64_emit_jit_CHECK_BCD(p_dest_buf);
+    asm_emit_jit_CHECK_BCD(p_dest_buf);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf,
-                                                   (uint8_t) value1);
+    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(p_dest_buf);
+    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(p_dest_buf);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    asm_x64_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(p_dest_buf);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    asm_x64_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    asm_x64_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PENDING_IRQ:
-    asm_x64_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
     break;
   case k_opcode_CLEAR_CARRY:
-    asm_x64_emit_jit_CLEAR_CARRY(p_dest_buf);
+    asm_emit_jit_CLEAR_CARRY(p_dest_buf);
     break;
   case k_opcode_EOR_SCRATCH_n:
-    asm_x64_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_FLAGA:
-    asm_x64_emit_jit_FLAGA(p_dest_buf);
+    asm_emit_jit_FLAGA(p_dest_buf);
     break;
   case k_opcode_FLAGX:
-    asm_x64_emit_jit_FLAGX(p_dest_buf);
+    asm_emit_jit_FLAGX(p_dest_buf);
     break;
   case k_opcode_FLAGY:
-    asm_x64_emit_jit_FLAGY(p_dest_buf);
+    asm_emit_jit_FLAGY(p_dest_buf);
     break;
   case k_opcode_FLAG_MEM:
-    asm_x64_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_INC_SCRATCH:
-    asm_x64_emit_jit_INC_SCRATCH(p_dest_buf);
+    asm_emit_jit_INC_SCRATCH(p_dest_buf);
     break;
   case k_opcode_INVERT_CARRY:
-    asm_x64_emit_jit_INVERT_CARRY(p_dest_buf);
+    asm_emit_jit_INVERT_CARRY(p_dest_buf);
     break;
   case k_opcode_JMP_SCRATCH:
-    asm_x64_emit_jit_JMP_SCRATCH(p_dest_buf);
+    asm_emit_jit_JMP_SCRATCH(p_dest_buf);
     break;
   case k_opcode_LDA_SCRATCH_n:
-    asm_x64_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_LDA_SCRATCH_X:
-    asm_x64_emit_jit_LDA_SCRATCH_X(p_dest_buf);
+    asm_emit_jit_LDA_SCRATCH_X(p_dest_buf);
     break;
   case k_opcode_LDA_Z:
-    asm_x64_emit_jit_LDA_Z(p_dest_buf);
+    asm_emit_jit_LDA_Z(p_dest_buf);
     break;
   case k_opcode_LDX_Z:
-    asm_x64_emit_jit_LDX_Z(p_dest_buf);
+    asm_emit_jit_LDX_Z(p_dest_buf);
     break;
   case k_opcode_LDY_Z:
-    asm_x64_emit_jit_LDY_Z(p_dest_buf);
+    asm_emit_jit_LDY_Z(p_dest_buf);
     break;
   case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    asm_x64_emit_jit_LOAD_CARRY_FOR_BRANCH(p_dest_buf);
+    asm_emit_jit_LOAD_CARRY_FOR_BRANCH(p_dest_buf);
     break;
   case k_opcode_LOAD_CARRY_FOR_CALC:
-    asm_x64_emit_jit_LOAD_CARRY_FOR_CALC(p_dest_buf);
+    asm_emit_jit_LOAD_CARRY_FOR_CALC(p_dest_buf);
     break;
   case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    asm_x64_emit_jit_LOAD_CARRY_INV_FOR_CALC(p_dest_buf);
+    asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(p_dest_buf);
     break;
   case k_opcode_LOAD_OVERFLOW:
-    asm_x64_emit_jit_LOAD_OVERFLOW(p_dest_buf);
+    asm_emit_jit_LOAD_OVERFLOW(p_dest_buf);
     break;
   case k_opcode_LOAD_SCRATCH_8:
-    asm_x64_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_LOAD_SCRATCH_16:
-    asm_x64_emit_jit_LOAD_SCRATCH_16(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LOAD_SCRATCH_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_LSR_ACC_n:
-    asm_x64_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_MODE_ABX:
-    asm_x64_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_MODE_ABY:
-    asm_x64_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_MODE_IND_8:
-    asm_x64_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_MODE_IND_16:
-    asm_x64_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
+    asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
     break;
   case k_opcode_MODE_IND_SCRATCH_8:
-    asm_x64_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
+    asm_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
     break;
   case k_opcode_MODE_IND_SCRATCH_16:
-    asm_x64_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
+    asm_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
     break;
   case k_opcode_MODE_ZPX:
-    asm_x64_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_MODE_ZPY:
-    asm_x64_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_PULL_16:
-    asm_x64_emit_jit_PULL_16(p_dest_buf);
+    asm_emit_jit_PULL_16(p_dest_buf);
     break;
   case k_opcode_PUSH_16:
-    asm_x64_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_ROL_ACC_n:
-    asm_x64_emit_jit_ROL_ACC_n(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ROL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ROR_ACC_n:
-    asm_x64_emit_jit_ROR_ACC_n(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ROR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_SAVE_CARRY:
-    asm_x64_emit_jit_SAVE_CARRY(p_dest_buf);
+    asm_emit_jit_SAVE_CARRY(p_dest_buf);
     break;
   case k_opcode_SAVE_CARRY_INV:
-    asm_x64_emit_jit_SAVE_CARRY_INV(p_dest_buf);
+    asm_emit_jit_SAVE_CARRY_INV(p_dest_buf);
     break;
   case k_opcode_SAVE_OVERFLOW:
-    asm_x64_emit_jit_SAVE_OVERFLOW(p_dest_buf);
+    asm_emit_jit_SAVE_OVERFLOW(p_dest_buf);
     break;
   case k_opcode_SET_CARRY:
-    asm_x64_emit_jit_SET_CARRY(p_dest_buf);
+    asm_emit_jit_SET_CARRY(p_dest_buf);
     break;
   case k_opcode_STA_SCRATCH_n:
-    asm_x64_emit_jit_STA_SCRATCH(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_STA_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_STOA_IMM:
-    asm_x64_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
+    asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
   case k_opcode_SUB_ABS:
-    asm_x64_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_SUB_IMM:
-    asm_x64_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_WRITE_INV_ABS:
-    asm_x64_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
+    asm_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
     break;
   case k_opcode_WRITE_INV_SCRATCH:
-    asm_x64_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
+    asm_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
     break;
   case k_opcode_WRITE_INV_SCRATCH_n:
-    asm_x64_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_WRITE_INV_SCRATCH_Y:
-    asm_x64_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);
     break;
   case 0x01: /* ORA idx */
   case 0x15: /* ORA zpx */
-    asm_x64_emit_jit_ORA_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_ORA_SCRATCH(p_dest_buf, 0);
     break;
   case 0x04: /* NOP zpg */ /* Undocumented. */
   case 0xDC: /* NOP abx */ /* Undocumented. */
@@ -954,458 +953,458 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
      * We have a minimum of 2 bytes of x64 code per uop because that's the size
      * of the self-modified marker, so we'll need 2 1-byte x64 nops.
      */
-    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
-    asm_x64_emit_instruction_REAL_NOP(p_dest_buf);
+    asm_emit_instruction_REAL_NOP(p_dest_buf);
+    asm_emit_instruction_REAL_NOP(p_dest_buf);
     break;
   case 0x05: /* ORA zpg */
   case 0x0D: /* ORA abs */
-    asm_x64_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x06: /* ASL zpg */
-    asm_x64_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x07: /* SLO zpg */ /* Undocumented. */
-    asm_x64_emit_jit_SLO_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SLO_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x08:
-    asm_x64_emit_instruction_PHP(p_dest_buf);
+    asm_emit_instruction_PHP(p_dest_buf);
     break;
   case 0x09:
-    asm_x64_emit_jit_ORA_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ORA_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x0A:
-    asm_x64_emit_jit_ASL_ACC(p_dest_buf);
+    asm_emit_jit_ASL_ACC(p_dest_buf);
     break;
   case 0x0E: /* ASL abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x10:
-    asm_x64_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x11: /* ORA idy */
-    asm_x64_emit_jit_ORA_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_ORA_SCRATCH_Y(p_dest_buf);
     break;
   case 0x16: /* ASL zpx */
-    asm_x64_emit_jit_ASL_scratch(p_dest_buf);
+    asm_emit_jit_ASL_scratch(p_dest_buf);
     break;
   case 0x18:
-    asm_x64_emit_instruction_CLC(p_dest_buf);
+    asm_emit_instruction_CLC(p_dest_buf);
     break;
   case 0x19:
-    asm_x64_emit_jit_ORA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x1D:
-    asm_x64_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x1E: /* ASL abx */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
         p_memory_access->memory_is_always_ram(p_memory_object,
                                               (value1 + 0xFF))) {
-      asm_x64_emit_jit_ASL_ABX(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ASL_ABX(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x21: /* AND idx */
   case 0x35: /* AND zpx */
-    asm_x64_emit_jit_AND_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_AND_SCRATCH(p_dest_buf, 0);
     break;
   case 0x24: /* BIT zpg */
   case 0x2C: /* BIT abs */
-    asm_x64_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
     break;
   case 0x25: /* AND zpg */
   case 0x2D: /* AND abs */
-    asm_x64_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x26: /* ROL zpg */
   case 0x2E: /* ROL abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_ROL_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ROL_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x28:
-    asm_x64_emit_instruction_PLP(p_dest_buf);
+    asm_emit_instruction_PLP(p_dest_buf);
     break;
   case 0x29:
-    asm_x64_emit_jit_AND_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_AND_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x2A:
-    asm_x64_emit_jit_ROL_ACC(p_dest_buf);
+    asm_emit_jit_ROL_ACC(p_dest_buf);
     break;
   case 0x30:
-    asm_x64_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x31: /* AND idy */
-    asm_x64_emit_jit_AND_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_AND_SCRATCH_Y(p_dest_buf);
     break;
   case 0x36: /* ROL zpx */
-    asm_x64_emit_jit_ROL_scratch(p_dest_buf);
+    asm_emit_jit_ROL_scratch(p_dest_buf);
     break;
   case 0x38:
-    asm_x64_emit_instruction_SEC(p_dest_buf);
+    asm_emit_instruction_SEC(p_dest_buf);
     break;
   case 0x39:
-    asm_x64_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x3D:
-    asm_x64_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x3E:
-    asm_x64_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x41: /* EOR idx */
   case 0x55: /* EOR zpx */
-    asm_x64_emit_jit_EOR_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_EOR_SCRATCH(p_dest_buf, 0);
     break;
   case 0x45: /* EOR zpg */
   case 0x4D: /* EOR abs */
-    asm_x64_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x46: /* LSR zpg */
-    asm_x64_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x48:
-    asm_x64_emit_instruction_PHA(p_dest_buf);
+    asm_emit_instruction_PHA(p_dest_buf);
     break;
   case 0x49:
-    asm_x64_emit_jit_EOR_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_EOR_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x4A:
-    asm_x64_emit_jit_LSR_ACC(p_dest_buf);
+    asm_emit_jit_LSR_ACC(p_dest_buf);
     break;
   case 0x4B: /* ALR imm */ /* Undocumented. */
-    asm_x64_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x4C:
-    asm_x64_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x4E: /* LSR abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x50:
-    asm_x64_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x51: /* EOR idy */
-    asm_x64_emit_jit_EOR_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_EOR_SCRATCH_Y(p_dest_buf);
     break;
   case 0x56: /* LSR zpx */
-    asm_x64_emit_jit_LSR_scratch(p_dest_buf);
+    asm_emit_jit_LSR_scratch(p_dest_buf);
     break;
   case 0x58:
-    asm_x64_emit_instruction_CLI(p_dest_buf);
+    asm_emit_instruction_CLI(p_dest_buf);
     break;
   case 0x59:
-    asm_x64_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x5D:
-    asm_x64_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x5E: /* LSR abx */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
         p_memory_access->memory_is_always_ram(p_memory_object,
                                               (value1 + 0xFF))) {
-      asm_x64_emit_jit_LSR_ABX(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_LSR_ABX(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x61: /* ADC idx */
   case 0x75: /* ADC zpx */
-    asm_x64_emit_jit_ADC_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_ADC_SCRATCH(p_dest_buf, 0);
     break;
   case 0x65: /* ADC zpg */
   case 0x6D: /* ADC abs */
-    asm_x64_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x66: /* ROR zpg */
   case 0x6E: /* ROR abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0x68:
-    asm_x64_emit_instruction_PLA(p_dest_buf);
+    asm_emit_instruction_PLA(p_dest_buf);
     break;
   case 0x69:
-    asm_x64_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x6A:
-    asm_x64_emit_jit_ROR_ACC(p_dest_buf);
+    asm_emit_jit_ROR_ACC(p_dest_buf);
     break;
   case 0x70:
-    asm_x64_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x71: /* ADC idy */
-    asm_x64_emit_jit_ADC_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_ADC_SCRATCH_Y(p_dest_buf);
     break;
   case 0x76: /* ROR zpx */
-    asm_x64_emit_jit_ROR_scratch(p_dest_buf);
+    asm_emit_jit_ROR_scratch(p_dest_buf);
     break;
   case 0x78:
-    asm_x64_emit_instruction_SEI(p_dest_buf);
+    asm_emit_instruction_SEI(p_dest_buf);
     break;
   case 0x79:
-    asm_x64_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x7D:
-    asm_x64_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x7E:
-    asm_x64_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
     break;
   case 0x81: /* STA idx */
   case 0x95: /* STA zpx */
-    asm_x64_emit_jit_STA_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_STA_SCRATCH(p_dest_buf, 0);
     break;
   case 0x98:
-    asm_x64_emit_instruction_TYA(p_dest_buf);
+    asm_emit_instruction_TYA(p_dest_buf);
     break;
   case 0x84: /* STY zpg */
   case 0x8C: /* STY abs */
-    asm_x64_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x85: /* STA zpg */
   case 0x8D: /* STA abs */
-    asm_x64_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x86: /* STX zpg */
   case 0x8E: /* STX abs */
-    asm_x64_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x87: /* SAX zpg */ /* Undocumented. */
-    asm_x64_emit_jit_SAX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SAX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0x88:
-    asm_x64_emit_instruction_DEY(p_dest_buf);
+    asm_emit_instruction_DEY(p_dest_buf);
     break;
   case 0x8A:
-    asm_x64_emit_instruction_TXA(p_dest_buf);
+    asm_emit_instruction_TXA(p_dest_buf);
     break;
   case 0x90:
-    asm_x64_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x91: /* STA idy */
-    asm_x64_emit_jit_STA_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_STA_SCRATCH_Y(p_dest_buf);
     break;
   case 0x94: /* STY zpx */
-    asm_x64_emit_jit_STY_scratch(p_dest_buf);
+    asm_emit_jit_STY_scratch(p_dest_buf);
     break;
   case 0x96: /* STX zpy */
-    asm_x64_emit_jit_STX_scratch(p_dest_buf);
+    asm_emit_jit_STX_scratch(p_dest_buf);
     break;
   case 0x99:
-    asm_x64_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0x9A:
-    asm_x64_emit_instruction_TXS(p_dest_buf);
+    asm_emit_instruction_TXS(p_dest_buf);
     break;
   case 0x9C:
-    asm_x64_emit_jit_SHY_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SHY_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x9D:
-    asm_x64_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xA0:
-    asm_x64_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xA1: /* LDA idx */
   case 0xB5: /* LDA zpx */
-    asm_x64_emit_jit_LDA_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_LDA_SCRATCH(p_dest_buf, 0);
     break;
   case 0xA2:
-    asm_x64_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xA4: /* LDY zpg */
   case 0xAC: /* LDY abs */
-    asm_x64_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xA5: /* LDA zpg */
   case 0xAD: /* LDA abs */
-    asm_x64_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xA6: /* LDX zpg */
   case 0xAE: /* LDX abs */
-    asm_x64_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xA8:
-    asm_x64_emit_instruction_TAY(p_dest_buf);
+    asm_emit_instruction_TAY(p_dest_buf);
     break;
   case 0xA9:
-    asm_x64_emit_jit_LDA_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_LDA_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xAA:
-    asm_x64_emit_instruction_TAX(p_dest_buf);
+    asm_emit_instruction_TAX(p_dest_buf);
     break;
   case 0xB0:
-    asm_x64_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xB1: /* LDA idy */
-    asm_x64_emit_jit_LDA_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_LDA_SCRATCH_Y(p_dest_buf);
     break;
   case 0xB4: /* LDY zpx */
-    asm_x64_emit_jit_LDY_scratch(p_dest_buf);
+    asm_emit_jit_LDY_scratch(p_dest_buf);
     break;
   case 0xB6: /* LDX zpy */
-    asm_x64_emit_jit_LDX_scratch(p_dest_buf);
+    asm_emit_jit_LDX_scratch(p_dest_buf);
     break;
   case 0xB8:
-    asm_x64_emit_instruction_CLV(p_dest_buf);
+    asm_emit_instruction_CLV(p_dest_buf);
     break;
   case 0xB9:
-    asm_x64_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0xBA:
-    asm_x64_emit_instruction_TSX(p_dest_buf);
+    asm_emit_instruction_TSX(p_dest_buf);
     break;
   case 0xBC:
-    asm_x64_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xBD:
-    asm_x64_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xBE:
-    asm_x64_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0xC0:
-    asm_x64_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xC1: /* CMP idx */
   case 0xD5: /* CMP zpx */
-    asm_x64_emit_jit_CMP_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_CMP_SCRATCH(p_dest_buf, 0);
     break;
   case 0xC4: /* CPY zpg */
   case 0xCC: /* CPY abs */
-    asm_x64_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xC5: /* CMP zpg */
   case 0xCD: /* CMP abs */
-    asm_x64_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xC6: /* DEC zpg */
-    asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xC8:
-    asm_x64_emit_instruction_INY(p_dest_buf);
+    asm_emit_instruction_INY(p_dest_buf);
     break;
   case 0xC9:
-    asm_x64_emit_jit_CMP_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_CMP_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xCA:
-    asm_x64_emit_instruction_DEX(p_dest_buf);
+    asm_emit_instruction_DEX(p_dest_buf);
     break;
   case 0xCE: /* DEC abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0xD0:
-    asm_x64_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xD1: /* CMP idy */
-    asm_x64_emit_jit_CMP_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_CMP_SCRATCH_Y(p_dest_buf);
     break;
   case 0xD6: /* DEC zpx */
-    asm_x64_emit_jit_DEC_scratch(p_dest_buf);
+    asm_emit_jit_DEC_scratch(p_dest_buf);
     break;
   case 0xD8:
-    asm_x64_emit_instruction_CLD(p_dest_buf);
+    asm_emit_instruction_CLD(p_dest_buf);
     break;
   case 0xD9:
-    asm_x64_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0xDD:
-    asm_x64_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xDE: /* DEC abx */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
         p_memory_access->memory_is_always_ram(p_memory_object,
                                               (value1 + 0xFF))) {
-      asm_x64_emit_jit_DEC_ABX(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_DEC_ABX(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0xE0:
-    asm_x64_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xE1: /* SBC idx */
   case 0xF5: /* SBC zpx */
-    asm_x64_emit_jit_SBC_SCRATCH(p_dest_buf, 0);
+    asm_emit_jit_SBC_SCRATCH(p_dest_buf, 0);
     break;
   case 0xE4: /* CPX zpg */
   case 0xEC: /* CPX abs */
-    asm_x64_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xE5: /* SBC zpg */
   case 0xED: /* SBC abs */
-    asm_x64_emit_jit_SBC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xE6: /* INC zpg */
-    asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
     break;
   case 0xE8:
-    asm_x64_emit_instruction_INX(p_dest_buf);
+    asm_emit_instruction_INX(p_dest_buf);
     break;
   case 0xE9:
-    asm_x64_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
+    asm_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xEE: /* INC abs */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
-      asm_x64_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   case 0xF0:
-    asm_x64_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0xF1: /* SBC idy */
-    asm_x64_emit_jit_SBC_SCRATCH_Y(p_dest_buf);
+    asm_emit_jit_SBC_SCRATCH_Y(p_dest_buf);
     break;
   case 0xF2:
-    asm_x64_emit_instruction_CRASH(p_dest_buf);
+    asm_emit_instruction_CRASH(p_dest_buf);
     break;
   case 0xF6: /* INC zpx */
-    asm_x64_emit_jit_INC_scratch(p_dest_buf);
+    asm_emit_jit_INC_scratch(p_dest_buf);
     break;
   case 0xF8:
-    asm_x64_emit_instruction_SED(p_dest_buf);
+    asm_emit_instruction_SED(p_dest_buf);
     break;
   case 0xF9:
-    asm_x64_emit_jit_SBC_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABY(p_dest_buf, (uint16_t) value1);
     break;
   case 0xFD:
-    asm_x64_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0xFE: /* INC abx */
     if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
         p_memory_access->memory_is_always_ram(p_memory_object,
                                               (value1 + 0xFF))) {
-      asm_x64_emit_jit_INC_ABX(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_INC_ABX(p_dest_buf, (uint16_t) value1);
     } else {
-      asm_x64_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
+      asm_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
     }
     break;
   default:
     /* Use the interpreter for unknown opcodes. These could be either the
      * special re-purposed opcodes (e.g. CYCLES) or genuinely unused opcodes.
      */
-    asm_x64_emit_jit_jump_interp(p_dest_buf, (uint16_t) value2);
+    asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value2);
     break;
   }
 }

@@ -75,7 +75,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
 
     if (debug) {
-      asm_x64_emit_inturbo_enter_debug(p_buf);
+      asm_emit_inturbo_enter_debug(p_buf);
     }
 
     /* Preflight checks. Some opcodes or situations are tricky enough we want
@@ -83,18 +83,18 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
      */
     switch (optype) {
     case k_kil:
-      asm_x64_emit_inturbo_call_interp(p_buf);
+      asm_emit_inturbo_call_interp(p_buf);
       break;
     case k_adc:
     case k_sbc:
       /* TODO: very lazy / slow to bounce to interpreter for BCD. */
-      asm_x64_emit_inturbo_check_decimal(p_buf);
+      asm_emit_inturbo_check_decimal(p_buf);
       break;
     case k_cli:
     case k_plp:
     case k_rti:
       /* If the opcode could unmask an interrupt, bounce to interpreter. */
-      asm_x64_emit_inturbo_check_interrupt(p_buf);
+      asm_emit_inturbo_check_interrupt(p_buf);
       break;
     default:
       break;
@@ -112,55 +112,55 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case 0:
       break;
     case k_zpg:
-      asm_x64_emit_inturbo_mode_zpg(p_buf);
+      asm_emit_inturbo_mode_zpg(p_buf);
       break;
     case k_abs:
       /* JSR is handled differently. */
       if (optype == k_jsr) {
         break;
       }
-      asm_x64_emit_inturbo_mode_abs(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
+      asm_emit_inturbo_mode_abs(p_buf);
+      asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_abx:
-      asm_x64_emit_inturbo_mode_abx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
+      asm_emit_inturbo_mode_abx(p_buf);
+      asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_abx_check_page_crossing(p_buf);
+        asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
       }
       break;
     case k_aby:
-      asm_x64_emit_inturbo_mode_aby(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
+      asm_emit_inturbo_mode_aby(p_buf);
+      asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_aby_check_page_crossing(p_buf);
+        asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
       }
       break;
     case k_zpx:
-      asm_x64_emit_inturbo_mode_zpx(p_buf);
+      asm_emit_inturbo_mode_zpx(p_buf);
       break;
     case k_zpy:
-      asm_x64_emit_inturbo_mode_zpy(p_buf);
+      asm_emit_inturbo_mode_zpy(p_buf);
       break;
     case k_idx:
-      asm_x64_emit_inturbo_mode_idx(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
+      asm_emit_inturbo_mode_idx(p_buf);
+      asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       break;
     case k_idy:
-      asm_x64_emit_inturbo_mode_idy(p_buf);
-      asm_x64_emit_inturbo_check_special_address(p_buf, this_callback_from);
+      asm_emit_inturbo_mode_idy(p_buf);
+      asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
         check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-        asm_x64_emit_inturbo_mode_idy_check_page_crossing(p_buf);
+        asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
       }
       break;
     case k_ind:
-      asm_x64_emit_inturbo_mode_ind(p_buf);
+      asm_emit_inturbo_mode_ind(p_buf);
       break;
     default:
       assert(0);
@@ -169,330 +169,330 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     /* Check for countdown expiry. */
     if (check_page_crossing_read) {
-      asm_x64_emit_inturbo_check_countdown_with_page_crossing(p_buf, opcycles);
+      asm_emit_inturbo_check_countdown_with_page_crossing(p_buf, opcycles);
     } else {
-      asm_x64_emit_inturbo_check_countdown(p_buf, opcycles);
+      asm_emit_inturbo_check_countdown(p_buf, opcycles);
     }
 
     switch (optype) {
     case k_adc:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_ADC_imm_interp(p_buf);
+        asm_emit_instruction_ADC_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_ADC_scratch_interp_based(p_buf);
+        asm_emit_instruction_ADC_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_ADC_scratch_interp(p_buf);
+        asm_emit_instruction_ADC_scratch_interp(p_buf);
       }
       break;
     case k_alr:
-      asm_x64_emit_instruction_ALR_imm_interp(p_buf);
+      asm_emit_instruction_ALR_imm_interp(p_buf);
       break;
     case k_and:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_AND_imm_interp(p_buf);
+        asm_emit_instruction_AND_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_AND_scratch_interp_based(p_buf);
+        asm_emit_instruction_AND_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_AND_scratch_interp(p_buf);
+        asm_emit_instruction_AND_scratch_interp(p_buf);
       }
       break;
     case k_asl:
       if (opmode == k_acc) {
-        asm_x64_emit_instruction_ASL_acc_interp(p_buf);
+        asm_emit_instruction_ASL_acc_interp(p_buf);
       } else if (opmode == k_abx) {
-        asm_x64_emit_instruction_ASL_scratch_interp_based(p_buf);
+        asm_emit_instruction_ASL_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_ASL_scratch_interp(p_buf);
+        asm_emit_instruction_ASL_scratch_interp(p_buf);
       }
       break;
     case k_bcc:
       if (accurate) {
-        asm_x64_emit_instruction_BCC_interp_accurate(p_buf);
+        asm_emit_instruction_BCC_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BCC_interp(p_buf);
+        asm_emit_instruction_BCC_interp(p_buf);
       }
       break;
     case k_bcs:
       if (accurate) {
-        asm_x64_emit_instruction_BCS_interp_accurate(p_buf);
+        asm_emit_instruction_BCS_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BCS_interp(p_buf);
+        asm_emit_instruction_BCS_interp(p_buf);
       }
       break;
     case k_beq:
       if (accurate) {
-        asm_x64_emit_instruction_BEQ_interp_accurate(p_buf);
+        asm_emit_instruction_BEQ_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BEQ_interp(p_buf);
+        asm_emit_instruction_BEQ_interp(p_buf);
       }
       break;
     case k_bit:
-      asm_x64_emit_instruction_BIT_interp(p_buf);
+      asm_emit_instruction_BIT_interp(p_buf);
       break;
     case k_bmi:
       if (accurate) {
-        asm_x64_emit_instruction_BMI_interp_accurate(p_buf);
+        asm_emit_instruction_BMI_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BMI_interp(p_buf);
+        asm_emit_instruction_BMI_interp(p_buf);
       }
       break;
     case k_bne:
       if (accurate) {
-        asm_x64_emit_instruction_BNE_interp_accurate(p_buf);
+        asm_emit_instruction_BNE_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BNE_interp(p_buf);
+        asm_emit_instruction_BNE_interp(p_buf);
       }
       break;
     case k_bpl:
       if (accurate) {
-        asm_x64_emit_instruction_BPL_interp_accurate(p_buf);
+        asm_emit_instruction_BPL_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BPL_interp(p_buf);
+        asm_emit_instruction_BPL_interp(p_buf);
       }
       break;
     case k_brk:
-      asm_x64_emit_instruction_BRK_interp(p_buf);
+      asm_emit_instruction_BRK_interp(p_buf);
       opmode = 0;
       break;
     case k_bvc:
       if (accurate) {
-        asm_x64_emit_instruction_BVC_interp_accurate(p_buf);
+        asm_emit_instruction_BVC_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BVC_interp(p_buf);
+        asm_emit_instruction_BVC_interp(p_buf);
       }
       break;
     case k_bvs:
       if (accurate) {
-        asm_x64_emit_instruction_BVS_interp_accurate(p_buf);
+        asm_emit_instruction_BVS_interp_accurate(p_buf);
       } else {
-        asm_x64_emit_instruction_BVS_interp(p_buf);
+        asm_emit_instruction_BVS_interp(p_buf);
       }
       break;
     case k_clc:
-      asm_x64_emit_instruction_CLC(p_buf);
+      asm_emit_instruction_CLC(p_buf);
       break;
     case k_cld:
-      asm_x64_emit_instruction_CLD(p_buf);
+      asm_emit_instruction_CLD(p_buf);
       break;
     case k_cli:
-      asm_x64_emit_instruction_CLI(p_buf);
+      asm_emit_instruction_CLI(p_buf);
       break;
     case k_clv:
-      asm_x64_emit_instruction_CLV(p_buf);
+      asm_emit_instruction_CLV(p_buf);
       break;
     case k_cmp:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_CMP_imm_interp(p_buf);
+        asm_emit_instruction_CMP_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_CMP_scratch_interp_based(p_buf);
+        asm_emit_instruction_CMP_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_CMP_scratch_interp(p_buf);
+        asm_emit_instruction_CMP_scratch_interp(p_buf);
       }
       break;
     case k_cpx:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_CPX_imm_interp(p_buf);
+        asm_emit_instruction_CPX_imm_interp(p_buf);
       } else {
-        asm_x64_emit_instruction_CPX_scratch_interp(p_buf);
+        asm_emit_instruction_CPX_scratch_interp(p_buf);
       }
       break;
     case k_cpy:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_CPY_imm_interp(p_buf);
+        asm_emit_instruction_CPY_imm_interp(p_buf);
       } else {
-        asm_x64_emit_instruction_CPY_scratch_interp(p_buf);
+        asm_emit_instruction_CPY_scratch_interp(p_buf);
       }
       break;
     case k_dec:
       if (opmode == k_abx) {
-        asm_x64_emit_instruction_DEC_scratch_interp_based(p_buf);
+        asm_emit_instruction_DEC_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_DEC_scratch_interp(p_buf);
+        asm_emit_instruction_DEC_scratch_interp(p_buf);
       }
       break;
     case k_dex:
-      asm_x64_emit_instruction_DEX(p_buf);
+      asm_emit_instruction_DEX(p_buf);
       break;
     case k_dey:
-      asm_x64_emit_instruction_DEY(p_buf);
+      asm_emit_instruction_DEY(p_buf);
       break;
     case k_eor:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_EOR_imm_interp(p_buf);
+        asm_emit_instruction_EOR_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_EOR_scratch_interp_based(p_buf);
+        asm_emit_instruction_EOR_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_EOR_scratch_interp(p_buf);
+        asm_emit_instruction_EOR_scratch_interp(p_buf);
       }
       break;
     case k_inc:
       if (opmode == k_abx) {
-        asm_x64_emit_instruction_INC_scratch_interp_based(p_buf);
+        asm_emit_instruction_INC_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_INC_scratch_interp(p_buf);
+        asm_emit_instruction_INC_scratch_interp(p_buf);
       }
       break;
     case k_inx:
-      asm_x64_emit_instruction_INX(p_buf);
+      asm_emit_instruction_INX(p_buf);
       break;
     case k_iny:
-      asm_x64_emit_instruction_INY(p_buf);
+      asm_emit_instruction_INY(p_buf);
       break;
     case k_jmp:
-      asm_x64_emit_instruction_JMP_scratch_interp(p_buf);
+      asm_emit_instruction_JMP_scratch_interp(p_buf);
       opmode = 0;
       break;
     case k_jsr:
-      asm_x64_emit_instruction_JSR_scratch_interp(p_buf);
+      asm_emit_instruction_JSR_scratch_interp(p_buf);
       opmode = 0;
       break;
     case k_lda:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_LDA_imm_interp(p_buf);
+        asm_emit_instruction_LDA_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_LDA_scratch_interp_based(p_buf);
+        asm_emit_instruction_LDA_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_LDA_scratch_interp(p_buf);
+        asm_emit_instruction_LDA_scratch_interp(p_buf);
       }
       opreg = k_a;
       break;
     case k_ldx:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_LDX_imm_interp(p_buf);
+        asm_emit_instruction_LDX_imm_interp(p_buf);
       } else if (opmode == k_aby) {
-        asm_x64_emit_instruction_LDX_scratch_interp_based(p_buf);
+        asm_emit_instruction_LDX_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_LDX_scratch_interp(p_buf);
+        asm_emit_instruction_LDX_scratch_interp(p_buf);
       }
       opreg = k_x;
       break;
     case k_ldy:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_LDY_imm_interp(p_buf);
+        asm_emit_instruction_LDY_imm_interp(p_buf);
       } else if (opmode == k_abx) {
-        asm_x64_emit_instruction_LDY_scratch_interp_based(p_buf);
+        asm_emit_instruction_LDY_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_LDY_scratch_interp(p_buf);
+        asm_emit_instruction_LDY_scratch_interp(p_buf);
       }
       opreg = k_y;
       break;
     case k_lsr:
       if (opmode == k_acc) {
-        asm_x64_emit_instruction_LSR_acc_interp(p_buf);
+        asm_emit_instruction_LSR_acc_interp(p_buf);
       } else if (opmode == k_abx) {
-        asm_x64_emit_instruction_LSR_scratch_interp_based(p_buf);
+        asm_emit_instruction_LSR_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_LSR_scratch_interp(p_buf);
+        asm_emit_instruction_LSR_scratch_interp(p_buf);
       }
       break;
     case k_nop:
       break;
     case k_ora:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_ORA_imm_interp(p_buf);
+        asm_emit_instruction_ORA_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_ORA_scratch_interp_based(p_buf);
+        asm_emit_instruction_ORA_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_ORA_scratch_interp(p_buf);
+        asm_emit_instruction_ORA_scratch_interp(p_buf);
       }
       break;
     case k_pha:
-      asm_x64_emit_instruction_PHA(p_buf);
+      asm_emit_instruction_PHA(p_buf);
       break;
     case k_php:
-      asm_x64_emit_instruction_PHP(p_buf);
+      asm_emit_instruction_PHP(p_buf);
       break;
     case k_pla:
-      asm_x64_emit_instruction_PLA(p_buf);
+      asm_emit_instruction_PLA(p_buf);
       opreg = k_a;
       break;
     case k_plp:
-      asm_x64_emit_instruction_PLP(p_buf);
+      asm_emit_instruction_PLP(p_buf);
       break;
     case k_rol:
       if (opmode == k_acc) {
-        asm_x64_emit_instruction_ROL_acc_interp(p_buf);
+        asm_emit_instruction_ROL_acc_interp(p_buf);
       } else if (opmode == k_abx) {
-        asm_x64_emit_instruction_ROL_scratch_interp_based(p_buf);
+        asm_emit_instruction_ROL_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_ROL_scratch_interp(p_buf);
+        asm_emit_instruction_ROL_scratch_interp(p_buf);
       }
       break;
     case k_ror:
       if (opmode == k_acc) {
-        asm_x64_emit_instruction_ROR_acc_interp(p_buf);
+        asm_emit_instruction_ROR_acc_interp(p_buf);
       } else if (opmode == k_abx) {
-        asm_x64_emit_instruction_ROR_scratch_interp_based(p_buf);
+        asm_emit_instruction_ROR_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_ROR_scratch_interp(p_buf);
+        asm_emit_instruction_ROR_scratch_interp(p_buf);
       }
       break;
     case k_rti:
-      asm_x64_emit_instruction_RTI_interp(p_buf);
+      asm_emit_instruction_RTI_interp(p_buf);
       opmode = 0;
       break;
     case k_rts:
-      asm_x64_emit_instruction_RTS_interp(p_buf);
+      asm_emit_instruction_RTS_interp(p_buf);
       opmode = 0;
       break;
     case k_sax:
-      asm_x64_emit_instruction_SAX_scratch_interp(p_buf);
+      asm_emit_instruction_SAX_scratch_interp(p_buf);
       break;
     case k_sbc:
       if (opmode == k_imm) {
-        asm_x64_emit_instruction_SBC_imm_interp(p_buf);
+        asm_emit_instruction_SBC_imm_interp(p_buf);
       } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_SBC_scratch_interp_based(p_buf);
+        asm_emit_instruction_SBC_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_SBC_scratch_interp(p_buf);
+        asm_emit_instruction_SBC_scratch_interp(p_buf);
       }
       break;
     case k_sec:
-      asm_x64_emit_instruction_SEC(p_buf);
+      asm_emit_instruction_SEC(p_buf);
       break;
     case k_sed:
-      asm_x64_emit_instruction_SED(p_buf);
+      asm_emit_instruction_SED(p_buf);
       break;
     case k_sei:
-      asm_x64_emit_instruction_SEI(p_buf);
+      asm_emit_instruction_SEI(p_buf);
       break;
     case k_slo:
-      asm_x64_emit_instruction_SLO_scratch_interp(p_buf);
+      asm_emit_instruction_SLO_scratch_interp(p_buf);
       break;
     case k_sta:
       if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_x64_emit_instruction_STA_scratch_interp_based(p_buf);
+        asm_emit_instruction_STA_scratch_interp_based(p_buf);
       } else {
-        asm_x64_emit_instruction_STA_scratch_interp(p_buf);
+        asm_emit_instruction_STA_scratch_interp(p_buf);
       }
       break;
     case k_stx:
-      asm_x64_emit_instruction_STX_scratch_interp(p_buf);
+      asm_emit_instruction_STX_scratch_interp(p_buf);
       break;
     case k_sty:
-      asm_x64_emit_instruction_STY_scratch_interp(p_buf);
+      asm_emit_instruction_STY_scratch_interp(p_buf);
       break;
     case k_tax:
-      asm_x64_emit_instruction_TAX(p_buf);
+      asm_emit_instruction_TAX(p_buf);
       opreg = k_x;
       break;
     case k_tay:
-      asm_x64_emit_instruction_TAY(p_buf);
+      asm_emit_instruction_TAY(p_buf);
       opreg = k_y;
       break;
     case k_tsx:
-      asm_x64_emit_instruction_TSX(p_buf);
+      asm_emit_instruction_TSX(p_buf);
       opreg = k_x;
       break;
     case k_txa:
-      asm_x64_emit_instruction_TXA(p_buf);
+      asm_emit_instruction_TXA(p_buf);
       opreg = k_a;
       break;
     case k_txs:
-      asm_x64_emit_instruction_TXS(p_buf);
+      asm_emit_instruction_TXS(p_buf);
       break;
     case k_tya:
-      asm_x64_emit_instruction_TYA(p_buf);
+      asm_emit_instruction_TYA(p_buf);
       opreg = k_a;
       break;
     default:
@@ -500,19 +500,19 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
        * of handling the really weird opcodes by letting the interpreter deal
        * with them.
        */
-      asm_x64_emit_inturbo_call_interp(p_buf);
+      asm_emit_inturbo_call_interp(p_buf);
       break;
     }
 
     switch (opreg) {
     case k_a:
-      asm_x64_emit_instruction_A_NZ_flags(p_buf);
+      asm_emit_instruction_A_NZ_flags(p_buf);
       break;
     case k_x:
-      asm_x64_emit_instruction_X_NZ_flags(p_buf);
+      asm_emit_instruction_X_NZ_flags(p_buf);
       break;
     case k_y:
-      asm_x64_emit_instruction_Y_NZ_flags(p_buf);
+      asm_emit_instruction_Y_NZ_flags(p_buf);
       break;
     default:
       break;
@@ -548,7 +548,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     /* Advance PC, load next opcode, jump to correct opcode handler. */
-    asm_x64_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
+    asm_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
   }
 
   util_buffer_destroy(p_buf);
@@ -640,10 +640,10 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
                          K_BBC_MEM_READ_FULL_ADDR);
 
-  exited = asm_x64_asm_enter(p_cpu_driver,
-                             p_start_address,
-                             countdown,
-                             (p_mem_read + REG_MEM_OFFSET));
+  exited = asm_enter(p_cpu_driver,
+                     p_start_address,
+                     countdown,
+                     (p_mem_read + REG_MEM_OFFSET));
   assert(exited == 1);
 
   return exited;
