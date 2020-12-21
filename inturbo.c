@@ -763,8 +763,13 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
 
 struct cpu_driver*
 inturbo_create(struct cpu_driver_funcs* p_funcs) {
-  struct inturbo_struct* p_inturbo =
-      util_mallocz(sizeof(struct inturbo_struct));
+  struct inturbo_struct* p_inturbo;
+
+  if (!asm_inturbo_is_enabled()) {
+    return NULL;
+  }
+
+  p_inturbo = util_mallocz(sizeof(struct inturbo_struct));
 
   p_funcs->init = inturbo_init;
 

@@ -903,6 +903,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 struct cpu_driver*
 jit_create(struct cpu_driver_funcs* p_funcs) {
   struct cpu_driver* p_cpu_driver;
+  size_t alignment;
+
+  if (!asm_jit_is_enabled()) {
+    return NULL;
+  }
 
   asm_jit_test_preconditions();
 
@@ -910,7 +915,7 @@ jit_create(struct cpu_driver_funcs* p_funcs) {
    * because the structure contains pointers read by JIT code and we want
    * deterministic performance.
    */
-  size_t alignment = (4096 * (64 / 4));
+  alignment = (4096 * (64 / 4));
 
   p_cpu_driver =
       (struct cpu_driver*) os_alloc_get_aligned(alignment,

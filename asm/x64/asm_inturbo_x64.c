@@ -40,6 +40,11 @@ asm_emit_instruction_Bxx_interp_accurate(
                  asm_inturbo_call_interp_countdown);
 }
 
+int
+asm_inturbo_is_enabled(void) {
+  return 1;
+}
+
 void
 asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                        uint16_t special_addr_above) {

@@ -369,15 +369,6 @@ main(int argc, const char* argv[]) {
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-  if (is_master_flag) {
-    if (mode != k_cpu_mode_interp) {
-      log_do_log(k_log_misc,
-                 k_log_info,
-                 "master mode requires interp mode CPU; switching");
-      mode = k_cpu_mode_interp;
-    }
-  }
-
   read_ret = util_file_read_fully(os_rom_name, os_rom, k_bbc_rom_size);
   if (read_ret != k_bbc_rom_size) {
     util_bail("can't load OS rom");

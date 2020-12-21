@@ -1,5 +1,10 @@
 #include "../asm_jit.h"
 
+int
+asm_jit_is_enabled(void) {
+  return 0;
+}
+
 void
 asm_jit_test_preconditions(void) {
 }

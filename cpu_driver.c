@@ -4,6 +4,7 @@
 #include "interp.h"
 #include "inturbo.h"
 #include "jit.h"
+#include "log.h"
 #include "util.h"
 
 #include <assert.h>
@@ -105,10 +106,6 @@ cpu_driver_alloc(int mode,
   struct cpu_driver_funcs* p_funcs =
       util_mallocz(sizeof(struct cpu_driver_funcs));
 
-  if (is_65c12) {
-    assert(mode == k_cpu_mode_interp);
-  }
-
   switch (mode) {
   case k_cpu_mode_interp:
     p_cpu_driver = interp_create(p_funcs, is_65c12);
@@ -117,20 +114,28 @@ cpu_driver_alloc(int mode,
     }
     break;
   case k_cpu_mode_inturbo:
-    p_cpu_driver = inturbo_create(p_funcs);
-    if (p_cpu_driver == NULL) {
-      util_bail("inturbo_create() failed");
+    if (!is_65c12) {
+      p_cpu_driver = inturbo_create(p_funcs);
     }
     break;
   case k_cpu_mode_jit:
-    p_cpu_driver = jit_create(p_funcs);
-    if (p_cpu_driver == NULL) {
-      util_bail("jit_create() failed");
+    if (!is_65c12) {
+      p_cpu_driver = jit_create(p_funcs);
     }
     break;
   default:
     assert(0);
     break;
+  }
+
+  if (p_cpu_driver == NULL) {
+    log_do_log(k_log_misc,
+               k_log_info,
+               "cannot allocate 6502 driver type; falling back to interp");
+    p_cpu_driver = interp_create(p_funcs, is_65c12);
+    if (p_cpu_driver == NULL) {
+      util_bail("interp_create() failed");
+    }
   }
 
   asm_abi_init(&p_cpu_driver->abi, p_memory_access, p_options, p_state_6502);

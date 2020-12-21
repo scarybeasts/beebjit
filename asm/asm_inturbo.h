@@ -5,6 +5,7 @@
 
 struct util_buffer;
 
+int asm_inturbo_is_enabled(void);
 void asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                             uint16_t special_mode_above);
 void asm_emit_inturbo_check_countdown(struct util_buffer* p_buf,

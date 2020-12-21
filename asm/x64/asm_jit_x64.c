@@ -36,6 +36,11 @@ asm_emit_jit_jump(struct util_buffer* p_buf,
   }
 }
 
+int
+asm_jit_is_enabled(void) {
+  return 1;
+}
+
 void
 asm_jit_test_preconditions(void) {
   if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
