@@ -1,5 +1,6 @@
 #include "os_fault.h"
 
+#include "os_fault_platform.h"
 #include "util.h"
 
 #include <signal.h>
@@ -11,9 +12,9 @@ static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);
 
 static void
 linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
-  ucontext_t* p_context;
   uintptr_t host_fault_addr;
   uintptr_t host_exception_flags;
+  uintptr_t host_rip;
   uintptr_t host_rdi;
 
   /* Crash unless it's fault type we expected. */
@@ -22,15 +23,17 @@ linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   }
 
   host_fault_addr = (uintptr_t) p_siginfo->si_addr;
-  p_context = (ucontext_t*) p_void;
-  host_exception_flags = p_context->uc_mcontext.gregs[REG_ERR];
-  host_rdi = p_context->uc_mcontext.gregs[REG_RDI];
+  host_exception_flags = os_fault_get_eflags(p_void);
+  host_rip = os_fault_get_pc(p_void);
+  host_rdi = os_fault_get_jit_context(p_void);
 
-  s_p_fault_callback((uintptr_t*) &p_context->uc_mcontext.gregs[REG_RIP],
+  s_p_fault_callback(&host_rip,
                      host_fault_addr,
                      !!(host_exception_flags & 16),
                      !!(host_exception_flags & 2),
                      host_rdi);
+
+  os_fault_set_pc(p_void, host_rip);
 }
 
 void

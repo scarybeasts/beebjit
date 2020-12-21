@@ -2,7 +2,7 @@
 #define BEEBJIT_ASM_DEFS_H
 
 /* For REG_PARAM1 etc. */
-#include "../os_asm_abi.h"
+#include "asm_register_convention.h"
 
 #define K_BBC_MEM_RAW_ADDR                      0x0f008000
 #define K_BBC_MEM_READ_IND_ADDR                 0x10008000

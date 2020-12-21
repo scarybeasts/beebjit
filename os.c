@@ -18,6 +18,11 @@
 #include "os_window_x11.c"
 #include "os_x11_keys_linux.c"
 #endif
+#if defined(__x86_64__)
+#include "os_fault_platform_x64.c"
+#else
+#include "os_fault_platform_null.c"
+#endif
 
 #elif defined(WIN32)
 

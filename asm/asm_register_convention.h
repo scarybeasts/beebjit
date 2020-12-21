@@ -1,5 +1,5 @@
-#ifndef BEEBJIT_OS_ASM_ABI_H
-#define BEEBJIT_OS_ASM_ABI_H
+#ifndef BEEBJIT_ASM_REGISTER_CONVENTION_H
+#define BEEBJIT_ASM_REGISTER_CONVENTION_H
 
 #if defined(WIN32)
 
@@ -26,6 +26,4 @@
 
 #endif
 
-
-
-#endif /* BEEBJIT_OS_ASM_ABI_H */
+#endif /* BEEBJIT_ASM_REGISTER_CONVENTION_H */
