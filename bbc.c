@@ -28,8 +28,7 @@
 #include "video.h"
 #include "wd_fdc.h"
 
-/* TODO: seems like an unwanted dependency? */
-#include "asm/asm_defs.h"
+#include "asm/asm_defs_host.h"
 
 #include <assert.h>
 #include <string.h>

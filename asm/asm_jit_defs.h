@@ -1,8 +1,6 @@
 #ifndef BEEBJIT_ASM_JIT_DEFS_H
 #define BEEBJIT_ASM_JIT_DEFS_H
 
-#include "asm_defs.h"
-
 /* NOTE: this affects performance significantly.
  * 9 == -8% and 10 == -23%.
  * 7 may be a tiny shade faster (<1%), needs more tests. <= 6 is not viable.

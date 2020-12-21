@@ -11,6 +11,7 @@
 #include "util.h"
 
 #include "asm/asm_common.h"
+#include "asm/asm_defs_host.h"
 #include "asm/asm_inturbo.h"
 #include "asm/asm_inturbo_defs.h"
 

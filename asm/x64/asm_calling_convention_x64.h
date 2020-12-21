@@ -1,5 +1,5 @@
-#ifndef BEEBJIT_ASM_REGISTER_CONVENTION_H
-#define BEEBJIT_ASM_REGISTER_CONVENTION_H
+#ifndef BEEBJIT_ASM_CALLING_CONVENTION_X64_H
+#define BEEBJIT_ASM_CALLING_CONVENTION_X64_H
 
 #if defined(WIN32)
 
@@ -11,6 +11,7 @@
 #define REG_PARAM3_32      r8d
 #define REG_PARAM4         r9
 #define REG_PARAM4_32      r9d
+#define REG_RETURN         rax
 
 #else
 
@@ -23,7 +24,8 @@
 #define REG_PARAM3_32      edx
 #define REG_PARAM4         rcx
 #define REG_PARAM4_32      ecx
+#define REG_RETURN         rax
 
 #endif
 
-#endif /* BEEBJIT_ASM_REGISTER_CONVENTION_H */
+#endif /* BEEBJIT_ASM_CALLING_CONVENTION_X64_H */
