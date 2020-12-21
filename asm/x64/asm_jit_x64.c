@@ -37,6 +37,13 @@ asm_emit_jit_jump(struct util_buffer* p_buf,
 }
 
 void
+asm_jit_test_preconditions(void) {
+  if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
+    util_bail("JIT assembly miscompiled -- clang issue? try opt build.");
+  }
+}
+
+void
 asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   /* To work correctly this sequence needs to be no more than 2 bytes. */
   assert((asm_jit_call_compile_trampoline_END -

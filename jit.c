@@ -904,10 +904,7 @@ struct cpu_driver*
 jit_create(struct cpu_driver_funcs* p_funcs) {
   struct cpu_driver* p_cpu_driver;
 
-  /* Check some preconditions. */
-  if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
-    util_bail("JIT assembly miscompiled -- clang issue? try opt build.");
-  }
+  asm_jit_test_preconditions();
 
   /* Align the structure to a multiple of the L1 DTLB bucket stride. This is
    * because the structure contains pointers read by JIT code and we want

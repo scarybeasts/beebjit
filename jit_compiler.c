@@ -40,7 +40,6 @@ struct jit_compiler {
   uint32_t jit_ptr_dynamic_operand;
 
   uint32_t len_x64_jmp;
-  uint32_t len_x64_countdown;
   uint32_t len_x64_FLAGA;
   uint32_t len_x64_FLAGX;
   uint32_t len_x64_FLAGY;
@@ -127,6 +126,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     uint8_t* p_opcode_cycles) {
   uint32_t i;
   struct util_buffer* p_tmp_buf;
+  uint8_t buf[256];
 
   uint32_t max_6502_opcodes_per_block = 65536;
   uint32_t max_revalidate_count = 4;
@@ -190,27 +190,52 @@ jit_compiler_create(struct memory_access* p_memory_access,
   }
 
   /* Calculate lengths of sequences we need to know. */
-  p_compiler->len_x64_jmp = (asm_jit_JMP_END - asm_jit_JMP);
-  p_compiler->len_x64_countdown = (asm_jit_check_countdown_END -
-                                   asm_jit_check_countdown);
-  p_compiler->len_x64_FLAGA = (asm_jit_FLAGA_END - asm_jit_FLAGA);
-  p_compiler->len_x64_FLAGX = (asm_jit_FLAGX_END - asm_jit_FLAGX);
-  p_compiler->len_x64_FLAGY = (asm_jit_FLAGY_END - asm_jit_FLAGY);
-  p_compiler->len_x64_FLAG_MEM = (asm_jit_FLAG_MEM_END -
-                                  asm_jit_FLAG_MEM);
-  p_compiler->len_x64_0xA9 = (asm_jit_LDA_IMM_END - asm_jit_LDA_IMM);
-  p_compiler->len_x64_0xA2 = (asm_jit_LDX_IMM_END - asm_jit_LDX_IMM);
-  p_compiler->len_x64_0xA0 = (asm_jit_LDY_IMM_END - asm_jit_LDY_IMM);
-  p_compiler->len_x64_SAVE_OVERFLOW = (asm_jit_SAVE_OVERFLOW_END -
-                                       asm_jit_SAVE_OVERFLOW);
-  p_compiler->len_x64_SAVE_CARRY = (asm_jit_SAVE_CARRY_END -
-                                    asm_jit_SAVE_CARRY);
-  p_compiler->len_x64_SAVE_CARRY_INV = (asm_jit_SAVE_CARRY_INV_END -
-                                        asm_jit_SAVE_CARRY_INV);
-  p_compiler->len_x64_CLC = (asm_instruction_CLC_END -
-                             asm_instruction_CLC);
-  p_compiler->len_x64_SEC = (asm_instruction_SEC_END -
-                             asm_instruction_SEC);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  /* Note: target pointer must be greater than an 8-bit jump range, otherwise
+   * a short jump will get emitted, which is not desired. Hence the 255.
+   */
+  asm_emit_jit_JMP(p_tmp_buf, &buf[255]);
+  p_compiler->len_x64_jmp = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_FLAGA(p_tmp_buf);
+  p_compiler->len_x64_FLAGA = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_FLAGX(p_tmp_buf);
+  p_compiler->len_x64_FLAGX = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_FLAGY(p_tmp_buf);
+  p_compiler->len_x64_FLAGY = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_FLAG_MEM(p_tmp_buf, 0xFFFF);
+  p_compiler->len_x64_FLAG_MEM = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_LDA_IMM(p_tmp_buf, 0x00);
+  p_compiler->len_x64_0xA9 = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_LDX_IMM(p_tmp_buf, 0x00);
+  p_compiler->len_x64_0xA2 = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_LDY_IMM(p_tmp_buf, 0x00);
+  p_compiler->len_x64_0xA0 = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_SAVE_OVERFLOW(p_tmp_buf);
+  p_compiler->len_x64_SAVE_OVERFLOW = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_SAVE_CARRY(p_tmp_buf);
+  p_compiler->len_x64_SAVE_CARRY = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_SAVE_CARRY_INV(p_tmp_buf);
+  p_compiler->len_x64_SAVE_CARRY_INV = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_instruction_CLC(p_tmp_buf);
+  p_compiler->len_x64_CLC = util_buffer_get_pos(p_tmp_buf);
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_instruction_SEC(p_tmp_buf);
+  p_compiler->len_x64_SEC = util_buffer_get_pos(p_tmp_buf);
 
   return p_compiler;
 }
