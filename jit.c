@@ -273,7 +273,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   uint8_t* p_start_addr = jit_get_jit_block_host_address(p_jit, addr_6502);
-  void* p_mem_base = ((void*) K_BBC_MEM_READ_IND_ADDR + REG_MEM_OFFSET);
+  void* p_mem_base = (void*) K_BBC_MEM_READ_IND_ADDR;
 
   uint_start_addr = (uint32_t) (size_t) p_start_addr;
 

@@ -21,8 +21,6 @@
 #define K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV     0x50000300
 #define K_ASM_TABLE_OF_TO_6502                  0x50000500
 
-#define REG_MEM_OFFSET                          0x80
-
 #define K_CONTEXT_OFFSET_STATE_6502             8
 #define K_CONTEXT_OFFSET_DEBUG_CALLBACK         16
 #define K_CONTEXT_OFFSET_DEBUG_OBJECT           24

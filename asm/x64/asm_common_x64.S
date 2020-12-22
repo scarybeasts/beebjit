@@ -456,6 +456,7 @@ asm_enter:
   # This register points to an offset (0x80) in the zero page. This enables us
   # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
   mov REG_MEM, REG_PARAM4
+  lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
 
   # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
   # as it will be overwritten.

@@ -27,6 +27,7 @@
 
 #define REG_CONTEXT        rdi
 #define REG_MEM            rbp
+#define REG_MEM_OFFSET     0x80
 
 #define REG_SCRATCH1       rdx
 #define REG_SCRATCH1_8     dl

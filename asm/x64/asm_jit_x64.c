@@ -1,10 +1,12 @@
 #include "../asm_jit.h"
 
+#include "../../defs_6502.h"
+#include "../../util.h"
 #include "../asm_common.h"
 #include "../asm_defs_host.h"
 #include "../asm_jit_defs.h"
-#include "../../defs_6502.h"
-#include "../../util.h"
+/* For REG_MEM_OFFSET. */
+#include "asm_defs_registers_x64.h"
 
 #include <assert.h>
 
