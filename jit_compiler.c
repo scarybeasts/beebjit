@@ -199,13 +199,13 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->len_x64_jmp = util_buffer_get_pos(p_tmp_buf);
 
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_FLAGA(p_tmp_buf);
+  asm_emit_instruction_A_NZ_flags(p_tmp_buf);
   p_compiler->len_x64_FLAGA = util_buffer_get_pos(p_tmp_buf);
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_FLAGX(p_tmp_buf);
+  asm_emit_instruction_X_NZ_flags(p_tmp_buf);
   p_compiler->len_x64_FLAGX = util_buffer_get_pos(p_tmp_buf);
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_FLAGY(p_tmp_buf);
+  asm_emit_instruction_Y_NZ_flags(p_tmp_buf);
   p_compiler->len_x64_FLAGY = util_buffer_get_pos(p_tmp_buf);
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
   asm_emit_jit_FLAG_MEM(p_tmp_buf, 0xFFFF);
@@ -836,13 +836,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_FLAGA:
-    asm_emit_jit_FLAGA(p_dest_buf);
+    asm_emit_instruction_A_NZ_flags(p_dest_buf);
     break;
   case k_opcode_FLAGX:
-    asm_emit_jit_FLAGX(p_dest_buf);
+    asm_emit_instruction_X_NZ_flags(p_dest_buf);
     break;
   case k_opcode_FLAGY:
-    asm_emit_jit_FLAGY(p_dest_buf);
+    asm_emit_instruction_Y_NZ_flags(p_dest_buf);
     break;
   case k_opcode_FLAG_MEM:
     asm_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);

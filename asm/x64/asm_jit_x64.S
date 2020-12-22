@@ -408,33 +408,6 @@ asm_jit_INVERT_CARRY_END:
   ret
 
 
-.globl asm_jit_FLAGA
-.globl asm_jit_FLAGA_END
-asm_jit_FLAGA:
-  test REG_6502_A, REG_6502_A
-
-asm_jit_FLAGA_END:
-  ret
-
-
-.globl asm_jit_FLAGX
-.globl asm_jit_FLAGX_END
-asm_jit_FLAGX:
-  test REG_6502_X, REG_6502_X
-
-asm_jit_FLAGX_END:
-  ret
-
-
-.globl asm_jit_FLAGY
-.globl asm_jit_FLAGY_END
-asm_jit_FLAGY:
-  test REG_6502_Y, REG_6502_Y
-
-asm_jit_FLAGY_END:
-  ret
-
-
 .globl asm_jit_FLAG_MEM
 .globl asm_jit_FLAG_MEM_END
 asm_jit_FLAG_MEM:

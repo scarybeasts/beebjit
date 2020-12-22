@@ -36,9 +36,6 @@ void asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf,
 void asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                                     void* p_trampoline);
 void asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf);
-void asm_emit_jit_FLAGA(struct util_buffer* p_buf);
-void asm_emit_jit_FLAGX(struct util_buffer* p_buf);
-void asm_emit_jit_FLAGY(struct util_buffer* p_buf);
 void asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr);
 void asm_emit_jit_INC_SCRATCH(struct util_buffer* p_buf);
 void asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf);

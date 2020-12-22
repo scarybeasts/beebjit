@@ -299,21 +299,6 @@ asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_FLAGA(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_jit_FLAGA, asm_jit_FLAGA_END);
-}
-
-void
-asm_emit_jit_FLAGX(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_jit_FLAGX, asm_jit_FLAGX_END);
-}
-
-void
-asm_emit_jit_FLAGY(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_jit_FLAGY, asm_jit_FLAGY_END);
-}
-
-void
 asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 
