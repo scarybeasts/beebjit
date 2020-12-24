@@ -270,7 +270,7 @@ debug_print_opcode(struct debug_struct* p_debug,
     (void) snprintf(buf, buf_len, "%s ($%.4"PRIX16")", opname, addr);
     break;
   case k_rel:
-    addr = (reg_pc + 2 + (char) operand1);
+    addr = (reg_pc + 2 + (int8_t) operand1);
     (void) snprintf(buf, buf_len, "%s $%.4"PRIX16, opname, addr);
     break;
   case k_iax:
@@ -384,7 +384,7 @@ debug_get_details(int* p_addr_6502,
     break;
   case k_rel:
     addr_addr = (reg_pc + 2);
-    addr = (uint16_t) (addr_addr + (char) operand1);
+    addr = (uint16_t) (addr_addr + (int8_t) operand1);
 
     switch (optype) {
     case k_bpl:
