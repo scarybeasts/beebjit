@@ -282,14 +282,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   /* The memory must be aligned to at least 0x100 so that our register access
    * tricks work.
    */
-  assert((K_BBC_MEM_READ_IND_ADDR & 0xff) == 0);
-
-  p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
-                         K_BBC_MEM_READ_IND_ADDR);
-  p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
-                         K_BBC_MEM_READ_IND_ADDR);
-  p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
-                         K_BBC_MEM_READ_IND_ADDR);
+  assert(((uintptr_t) p_mem_base & 0xff) == 0);
 
   exited = asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
   assert(exited == 1);

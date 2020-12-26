@@ -453,10 +453,7 @@ asm_enter:
   push rdi
   push rsi
 
-  # This register points to an offset (0x80) in the zero page. This enables us
-  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
   mov REG_MEM, REG_PARAM4
-  lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
 
   # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
   # as it will be overwritten.
@@ -479,7 +476,16 @@ asm_enter:
   mov REG_6502_ID_F_64, 0
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  # In the x64 JIT model, the 6502 X, Y and S registers are stored as register
+  # values that can also be used as x64 pointers to where they index.
+  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_MEM_32
+  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_MEM_32
+  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
   call asm_restore_AXYS_PC_flags
+
+  # This register points to an offset (0x80) in the zero page. This enables us
+  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
+  lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
 
   pop REG_SCRATCH1
   # At this point: stack aligned to 8 bytes, not 16.
