@@ -79,13 +79,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_inturbo_enter_debug(p_buf);
     }
 
+    asm_emit_inturbo_prolog(p_buf);
+
     /* Preflight checks. Some opcodes or situations are tricky enough we want
      * to go straight to the interpreter.
      */
     switch (optype) {
-    case k_kil:
-      asm_emit_inturbo_call_interp(p_buf);
-      break;
     case k_adc:
     case k_sbc:
       /* TODO: very lazy / slow to bounce to interpreter for BCD. */
@@ -550,6 +549,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     /* Advance PC, load next opcode, jump to correct opcode handler. */
     asm_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
+
+    asm_emit_inturbo_epilog(p_buf);
   }
 
   util_buffer_destroy(p_buf);
@@ -633,13 +634,6 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
    * tricks work.
    */
   assert((K_BBC_MEM_READ_FULL_ADDR & 0xff) == 0);
-
-  p_state_6502->reg_x = ((p_state_6502->reg_x & 0xFF) |
-                         K_BBC_MEM_READ_FULL_ADDR);
-  p_state_6502->reg_y = ((p_state_6502->reg_y & 0xFF) |
-                         K_BBC_MEM_READ_FULL_ADDR);
-  p_state_6502->reg_s = ((p_state_6502->reg_s & 0x1FF) |
-                         K_BBC_MEM_READ_FULL_ADDR);
 
   exited = asm_enter(p_cpu_driver, p_start_address, countdown, p_mem_read);
   assert(exited == 1);

@@ -2,7 +2,7 @@
 #include "asm_calling_convention_x64.h"
 #include "asm_defs_registers_x64.h"
 
-.file "asm_common_x64.S"
+.file "asm/x64/asm_common_x64.S"
 .intel_syntax noprefix
 .section rodata
 .text

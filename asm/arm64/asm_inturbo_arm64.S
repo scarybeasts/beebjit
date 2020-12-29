@@ -1,30 +1,104 @@
 #include "asm_defs_registers_arm64.h"
 
-.file "asm_inturbo_arm64.S"
+#include "../asm_defs_host.h"
+#include "asm_calling_convention_arm64.h"
+
+.file "asm/arm64/asm_inturbo_arm64.S"
 .section rodata
 .text
 
 
-.globl asm_inturbo_advance_pc_and_next
-.globl asm_inturbo_advance_pc_and_next_END
-.globl asm_inturbo_advance_pc_and_next_ldr_patch
-asm_inturbo_advance_pc_and_next:
-  ldrb REG_SCRATCH1_32, [REG_6502_PC, #-0x100]!
-asm_inturbo_advance_pc_and_next_ldr_patch:
+.globl asm_inturbo_save_countdown
+.globl asm_inturbo_save_countdown_END
+asm_inturbo_save_countdown:
+  mov REG_COUNTDOWN_OLD, REG_COUNTDOWN
 
+asm_inturbo_save_countdown_END:
+  ret
+
+
+.globl asm_inturbo_check_countdown_sub
+.globl asm_inturbo_check_countdown_sub_END
+asm_inturbo_check_countdown_sub:
+  sub REG_COUNTDOWN, REG_COUNTDOWN, #4095
+
+asm_inturbo_check_countdown_sub_END:
+  ret
+
+
+.globl asm_inturbo_check_countdown_tbnz
+.globl asm_inturbo_check_countdown_tbnz_END
+asm_inturbo_check_countdown_tbnz:
+  tbnz REG_COUNTDOWN, #63, asm_inturbo_check_countdown_tbnz
+
+asm_inturbo_check_countdown_tbnz_END:
+  ret
+
+
+.globl asm_inturbo_load_and_advance_pc
+.globl asm_inturbo_load_and_advance_pc_END
+asm_inturbo_load_and_advance_pc:
+  ldrb REG_SCRATCH1_32, [REG_6502_PC, #-0x100]!
+
+asm_inturbo_load_and_advance_pc_END:
+  ret
+
+.globl asm_inturbo_jump_next_opcode
+.globl asm_inturbo_jump_next_opcode_END
+asm_inturbo_jump_next_opcode:
   add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #8
   br REG_SCRATCH1
 
-asm_inturbo_advance_pc_and_next_END:
+asm_inturbo_jump_next_opcode_END:
   ret
 
 
 .globl asm_inturbo_enter_debug
 .globl asm_inturbo_enter_debug_END
 asm_inturbo_enter_debug:
-
   blr REG_DEBUG_FUNC
+
 asm_inturbo_enter_debug_END:
+  ret
+
+
+.globl asm_inturbo_jump_call_interp
+.globl asm_inturbo_jump_call_interp_END
+asm_inturbo_jump_call_interp:
+  br REG_INTERP_FUNC
+
+asm_inturbo_jump_call_interp_END:
+  ret
+
+
+.globl asm_inturbo_call_interp
+.globl asm_inturbo_call_interp_END
+asm_inturbo_call_interp:
+  bl asm_save_AXYS_PC_flags
+
+  sub sp, sp, #16
+  ldr REG_PARAM1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_OBJECT]
+  mov REG_PARAM2, sp
+  mov REG_PARAM3, REG_COUNTDOWN_OLD
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  blr REG_SCRATCH1
+  ldr REG_COUNTDOWN, [sp, #0]
+  ldr REG_SCRATCH1, [sp, #8]
+  add sp, sp, #16
+
+  tst REG_SCRATCH1, REG_SCRATCH1
+  b.eq not_exiting
+  b asm_exit
+
+asm_inturbo_call_interp_END:
+  ret
+
+not_exiting:
+  bl asm_restore_AXYS_PC_flags
+  ldrb REG_SCRATCH1_32, [REG_6502_PC]
+  b asm_inturbo_jump_next_opcode
+
+not_exiting_END:
   ret
 
 
@@ -64,6 +138,7 @@ asm_inturbo_mode_abx_END:
 asm_inturbo_mode_abx_check_page_crossing:
   eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
   ubfx REG_SCRATCH2, REG_SCRATCH2, 8, 1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
 
 asm_inturbo_mode_abx_check_page_crossing_END:
   ret

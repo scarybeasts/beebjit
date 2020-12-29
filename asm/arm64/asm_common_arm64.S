@@ -4,7 +4,7 @@
 #include "../asm_inturbo_defs.h"
 #include "asm_calling_convention_arm64.h"
 
-.file "asm_common_arm64.S"
+.file "asm/arm64/asm_common_arm64.S"
 .section rodata
 .text
 
@@ -13,10 +13,8 @@
 .globl asm_instruction_DEX_END
 asm_instruction_DEX:
 
-  # TODO: what a mess.
   sub REG_6502_X, REG_6502_X, #1
-  movn REG_SCRATCH1, #0
-  tst REG_SCRATCH1, REG_6502_X, lsl #56
+  adds xzr, xzr, REG_6502_X, lsl #56
   and REG_6502_X, REG_6502_X, #0xFF
 
 asm_instruction_DEX_END:
@@ -27,10 +25,8 @@ asm_instruction_DEX_END:
 .globl asm_instruction_INX_END
 asm_instruction_INX:
 
-  # TODO: what a mess.
   add REG_6502_X, REG_6502_X, #1
-  movn REG_SCRATCH1, #0
-  tst REG_SCRATCH1, REG_6502_X, lsl #56
+  adds xzr, xzr, REG_6502_X, lsl #56
   and REG_6502_X, REG_6502_X, #0xFF
 
 asm_instruction_INX_END:
@@ -41,10 +37,8 @@ asm_instruction_INX_END:
 .globl asm_instruction_INY_END
 asm_instruction_INY:
 
-  # TODO: what a mess.
   add REG_6502_Y, REG_6502_Y, #1
-  movn REG_SCRATCH1, #0
-  tst REG_SCRATCH1, REG_6502_Y, lsl #56
+  adds xzr, xzr, REG_6502_Y, lsl #56
   and REG_6502_Y, REG_6502_Y, #0xFF
 
 asm_instruction_INY_END:
@@ -75,8 +69,7 @@ asm_instruction_TAY_END:
 .globl asm_instruction_X_NZ_flags_END
 asm_instruction_X_NZ_flags:
 
-  movn REG_SCRATCH1, #0
-  tst REG_SCRATCH1, REG_6502_X, lsl #56
+  adds xzr, xzr, REG_6502_X, lsl #56
 
 asm_instruction_X_NZ_flags_END:
   ret
@@ -159,9 +152,10 @@ asm_enter:
   # param4, x3 == mem base
 
   # Save callee save registers.
-  stp x19, x20, [sp, #-16]!
-  stp x21, x22, [sp, #-16]!
+  stp x27, x28, [sp, #-16]!
+  stp x25, x26, [sp, #-16]!
   stp x23, x24, [sp, #-16]!
+  stp x21, x22, [sp, #-16]!
 
   mov REG_CONTEXT, REG_PARAM1
   mov REG_SCRATCH3, REG_PARAM2
@@ -174,20 +168,28 @@ asm_enter:
   movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
   movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
   adr REG_DEBUG_FUNC, asm_debug
+  adr REG_INTERP_FUNC, asm_inturbo_call_interp
 
   bl asm_restore_AXYS_PC_flags
 
-  blr REG_SCRATCH3
+  br REG_SCRATCH3
 
+.asm_enter_END:
+  ret
+
+
+.globl asm_exit
+asm_exit:
   # Restore callee save registers.
-  ldp x23, x24, [sp], #16
   ldp x21, x22, [sp], #16
-  ldp x19, x20, [sp], #16
+  ldp x23, x24, [sp], #16
+  ldp x25, x26, [sp], #16
+  ldp x27, x28, [sp], #16
   # Restore stack frame.
   ldp x29, x30, [sp], #16
   ret
 
-.asm_enter_END:
+.asm_exit_END:
   ret
 
 

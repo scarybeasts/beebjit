@@ -46,6 +46,16 @@ asm_inturbo_is_enabled(void) {
 }
 
 void
+asm_emit_inturbo_prolog(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
+asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                        uint16_t special_addr_above) {
   int lea_patch = (k_6502_addr_space_size - special_addr_above);

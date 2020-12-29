@@ -93,6 +93,11 @@ util_buffer_setup(struct util_buffer* p_buf, uint8_t* p_mem, size_t len) {
   p_buf->p_base = p_mem;
 }
 
+size_t
+util_buffer_get_length(struct util_buffer* p_buf) {
+  return p_buf->length;
+}
+
 uint8_t*
 util_buffer_get_ptr(struct util_buffer* p_buf) {
   return p_buf->p_mem;
