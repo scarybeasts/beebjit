@@ -620,9 +620,21 @@ disc_tool_log_summary(struct disc_struct* p_disc,
         }
       }
       if (log_fingerprint) {
-        if (!p_sectors->has_header_crc_error &&
-            (p_sectors->byte_length > 0) &&
-            !p_sectors->has_data_crc_error) {
+        int do_include_sector = 1;
+        if (p_sectors->byte_length == 0) {
+          do_include_sector = 0;
+        }
+        if (p_sectors->has_header_crc_error || p_sectors->has_data_crc_error) {
+          do_include_sector = 0;
+        }
+        /* 8271 has trouble reading certain logical tracks. */
+        if (sector_track == 0xFF) {
+          do_include_sector = 0;
+        }
+        if ((i_tracks != 0) && (sector_track == 0)) {
+          do_include_sector = 0;
+        }
+        if (do_include_sector) {
           uint32_t crc_length = (p_sectors->byte_length + 1);
           /* -32 or -16 to include the marker byte. */
           p_tool->pos = p_sectors->bit_pos_data;
