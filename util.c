@@ -307,6 +307,15 @@ util_file_name_join(const char* p_file_name_base, const char* p_file_name) {
 
 struct util_file*
 util_file_open(const char* p_file_name, int writeable, int create) {
+  struct util_file* p_file = util_file_try_open(p_file_name, writeable, create);
+  if (p_file == NULL) {
+    util_bail("couldn't open %s", p_file_name);
+  }
+  return p_file;
+}
+
+struct util_file*
+util_file_try_open(const char* p_file_name, int writeable, int create) {
   FILE* p_file;
 
   /* Need the "b" aka. "binary" for Windows. */
@@ -321,9 +330,6 @@ util_file_open(const char* p_file_name, int writeable, int create) {
   }
 
   p_file = fopen(p_file_name, p_flags);
-  if (p_file == NULL) {
-    util_bail("couldn't open %s", p_file_name);
-  }
 
   return (struct util_file*) p_file;
 }

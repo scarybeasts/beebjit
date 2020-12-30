@@ -128,7 +128,17 @@ disc_create(const char* p_file_name,
   if (is_mutable) {
     is_file_writeable = 1;
   }
-  p_disc->p_file = util_file_open(p_file_name, is_file_writeable, 0);
+  p_disc->p_file = util_file_try_open(p_file_name, is_file_writeable, 0);
+  if ((p_disc->p_file == NULL) && is_file_writeable) {
+    p_disc->p_file = util_file_open(p_file_name, 0, 0);
+    log_do_log(k_log_disc,
+               k_log_warning,
+               "file %s is not writable, making disc read only",
+               p_file_name);
+    is_file_writeable = 0;
+    is_mutable = 0;
+    is_writeable = 0;
+  }
 
   if (util_is_extension(p_file_name, "ssd")) {
     disc_ssd_load(p_disc, 0);

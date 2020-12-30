@@ -62,6 +62,9 @@ char* util_file_name_join(const char* p_file_name_base,
 struct util_file* util_file_open(const char* p_file_name,
                                  int writeable,
                                  int create);
+struct util_file* util_file_try_open(const char* p_file_name,
+                                     int writeable,
+                                     int create);
 struct util_file* util_file_try_read_open(const char* p_file_name);
 void util_file_close(struct util_file* p_file);
 uint64_t util_file_get_pos(struct util_file* p_file);
