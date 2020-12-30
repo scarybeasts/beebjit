@@ -9,6 +9,26 @@
 .text
 
 
+.globl asm_instruction_CLD
+.globl asm_instruction_CLD_END
+asm_instruction_CLD:
+
+  bic REG_6502_ID_F, REG_6502_ID_F, #0x08
+
+asm_instruction_CLD_END:
+  ret
+
+
+.globl asm_instruction_CLI
+.globl asm_instruction_CLI_END
+asm_instruction_CLI:
+
+  bic REG_6502_ID_F, REG_6502_ID_F, #0x04
+
+asm_instruction_CLI_END:
+  ret
+
+
 .globl asm_instruction_DEX
 .globl asm_instruction_DEX_END
 asm_instruction_DEX:
@@ -45,6 +65,38 @@ asm_instruction_INY_END:
   ret
 
 
+.globl asm_instruction_PHA
+.globl asm_instruction_PHA_END
+asm_instruction_PHA:
+
+  strb REG_6502_A_32, [REG_6502_S]
+  sub REG_6502_S, REG_6502_S, #1
+  bic REG_6502_S, REG_6502_S, #0x100
+
+asm_instruction_PHA_END:
+  ret
+
+
+.globl asm_instruction_SED
+.globl asm_instruction_SED_END
+asm_instruction_SED:
+
+  orr REG_6502_ID_F, REG_6502_ID_F, #0x08
+
+asm_instruction_SED_END:
+  ret
+
+
+.globl asm_instruction_SEI
+.globl asm_instruction_SEI_END
+asm_instruction_SEI:
+
+  orr REG_6502_ID_F, REG_6502_ID_F, #0x04
+
+asm_instruction_SEI_END:
+  ret
+
+
 .globl asm_instruction_TAX
 .globl asm_instruction_TAX_END
 asm_instruction_TAX:
@@ -65,6 +117,28 @@ asm_instruction_TAY_END:
   ret
 
 
+.globl asm_instruction_TXS
+.globl asm_instruction_TXS_END
+asm_instruction_TXS:
+
+  mov REG_6502_S, REG_6502_X
+  orr REG_6502_S, REG_6502_S, REG_MEM_READ
+  add REG_6502_S, REG_6502_S, 0x100
+
+asm_instruction_TXS_END:
+  ret
+
+
+.globl asm_instruction_A_NZ_flags
+.globl asm_instruction_A_NZ_flags_END
+asm_instruction_A_NZ_flags:
+
+  adds xzr, xzr, REG_6502_A, lsl #56
+
+asm_instruction_A_NZ_flags_END:
+  ret
+
+
 .globl asm_instruction_X_NZ_flags
 .globl asm_instruction_X_NZ_flags_END
 asm_instruction_X_NZ_flags:
@@ -72,6 +146,16 @@ asm_instruction_X_NZ_flags:
   adds xzr, xzr, REG_6502_X, lsl #56
 
 asm_instruction_X_NZ_flags_END:
+  ret
+
+
+.globl asm_instruction_Y_NZ_flags
+.globl asm_instruction_Y_NZ_flags_END
+asm_instruction_Y_NZ_flags:
+
+  adds xzr, xzr, REG_6502_Y, lsl #56
+
+asm_instruction_Y_NZ_flags_END:
   ret
 
 
@@ -122,8 +206,10 @@ asm_restore_AXYS_PC_flags_END:
 .globl asm_emit_arm64_flags_to_scratch
 .globl asm_emit_arm64_flags_to_scratch_END
 asm_emit_arm64_flags_to_scratch:
-  movz REG_SCRATCH1, #2
-  csel REG_SCRATCH1, REG_SCRATCH1, xzr, eq
+  mov REG_SCRATCH1, REG_6502_ID_F
+  movz REG_SCRATCH3, #2
+  csel REG_SCRATCH3, REG_SCRATCH3, xzr, eq
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH3
   ret
 
 asm_emit_arm64_flags_to_scratch_END:
@@ -133,6 +219,7 @@ asm_emit_arm64_flags_to_scratch_END:
 .globl asm_set_arm64_flags_from_scratch
 .globl asm_set_arm64_flags_from_scratch_END
 asm_set_arm64_flags_from_scratch:
+  and REG_6502_ID_F, REG_SCRATCH1, 0x3C
   and REG_SCRATCH1, REG_SCRATCH1, #2
   cmp REG_SCRATCH1, #2
   ret

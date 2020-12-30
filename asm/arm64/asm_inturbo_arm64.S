@@ -17,6 +17,25 @@ asm_inturbo_save_countdown_END:
   ret
 
 
+.globl asm_inturbo_check_special_address_movz
+.globl asm_inturbo_check_special_address_movz_END
+asm_inturbo_check_special_address_movz:
+  movz REG_SCRATCH3, #0xFFFF
+
+asm_inturbo_check_special_address_movz_END:
+  ret
+
+
+.globl asm_inturbo_check_special_address_sub_and_tbz
+.globl asm_inturbo_check_special_address_sub_and_tbz_END
+asm_inturbo_check_special_address_sub_and_tbz:
+  sub REG_SCRATCH3, REG_SCRATCH1, REG_SCRATCH3
+  tbz REG_SCRATCH3, #16, asm_inturbo_check_special_address_sub_and_tbz
+
+asm_inturbo_check_special_address_sub_and_tbz_END:
+  ret
+
+
 .globl asm_inturbo_check_countdown_sub
 .globl asm_inturbo_check_countdown_sub_END
 asm_inturbo_check_countdown_sub:
@@ -102,6 +121,17 @@ not_exiting_END:
   ret
 
 
+.globl asm_inturbo_check_page_crossing
+.globl asm_inturbo_check_page_crossing_END
+asm_inturbo_check_page_crossing:
+  eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
+  ubfx REG_SCRATCH2, REG_SCRATCH2, 8, 1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+
+asm_inturbo_check_page_crossing_END:
+  ret
+
+
 .globl asm_inturbo_mode_zpg
 .globl asm_inturbo_mode_zpg_END
 asm_inturbo_mode_zpg:
@@ -133,14 +163,31 @@ asm_inturbo_mode_abx_END:
   ret
 
 
-.globl asm_inturbo_mode_abx_check_page_crossing
-.globl asm_inturbo_mode_abx_check_page_crossing_END
-asm_inturbo_mode_abx_check_page_crossing:
-  eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
-  ubfx REG_SCRATCH2, REG_SCRATCH2, 8, 1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+.globl asm_inturbo_mode_idy
+.globl asm_inturbo_mode_idy_END
+asm_inturbo_mode_idy:
 
-asm_inturbo_mode_abx_check_page_crossing_END:
+  ldrb REG_SCRATCH3_32, [REG_6502_PC, #1]
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH3]
+  add REG_SCRATCH3_32, REG_SCRATCH3_32, #1
+  and REG_SCRATCH3_32, REG_SCRATCH3_32, #0xFF
+  ldrb REG_SCRATCH3_32, [REG_MEM_READ, REG_SCRATCH3]
+  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3, lsl #8
+  add REG_SCRATCH1, REG_SCRATCH2, REG_6502_Y
+
+asm_inturbo_mode_idy_END:
+  ret
+
+
+.globl asm_instruction_BEQ_interp
+.globl asm_instruction_BEQ_interp_END
+asm_instruction_BEQ_interp:
+  ldrsb REG_SCRATCH1, [REG_6502_PC, #1]
+  add REG_6502_PC, REG_6502_PC, #2
+  add REG_SCRATCH1, REG_6502_PC, REG_SCRATCH1
+  csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, eq
+
+asm_instruction_BEQ_interp_END:
   ret
 
 
@@ -153,6 +200,18 @@ asm_instruction_BNE_interp:
   csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, ne
 
 asm_instruction_BNE_interp_END:
+  ret
+
+
+.globl asm_instruction_CMP_scratch_interp
+.globl asm_instruction_CMP_scratch_interp_END
+asm_instruction_CMP_scratch_interp:
+
+  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
+  cmp REG_6502_A, REG_SCRATCH1
+  cset REG_6502_CF, cs
+
+asm_instruction_CMP_scratch_interp_END:
   ret
 
 
@@ -188,13 +247,13 @@ asm_instruction_LDA_imm_interp_END:
   ret
 
 
-.globl asm_instruction_LDA_scratch_interp_based
-.globl asm_instruction_LDA_scratch_interp_based_END
-asm_instruction_LDA_scratch_interp_based:
+.globl asm_instruction_LDA_scratch_interp
+.globl asm_instruction_LDA_scratch_interp_END
+asm_instruction_LDA_scratch_interp:
 
   ldrb REG_6502_A_32, [REG_MEM_READ, REG_SCRATCH1]
 
-asm_instruction_LDA_scratch_interp_based_END:
+asm_instruction_LDA_scratch_interp_END:
   ret
 
 
@@ -225,4 +284,14 @@ asm_instruction_STA_scratch_interp_based:
   strb REG_6502_A_32, [REG_MEM_WRITE, REG_SCRATCH1]
 
 asm_instruction_STA_scratch_interp_based_END:
+  ret
+
+
+.globl asm_instruction_STX_scratch_interp
+.globl asm_instruction_STX_scratch_interp_END
+asm_instruction_STX_scratch_interp:
+
+  strb REG_6502_X_32, [REG_MEM_WRITE, REG_SCRATCH1]
+
+asm_instruction_STX_scratch_interp_END:
   ret

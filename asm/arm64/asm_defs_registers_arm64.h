@@ -12,6 +12,9 @@
 #define REG_6502_S_32      w3
 #define REG_6502_PC        x4
 #define REG_6502_PC_32     w4
+#define REG_6502_ID_F      x5
+#define REG_6502_CF        x6
+#define REG_6502_OF        x7
 #define REG_COUNTDOWN_OLD  x12
 #define REG_SCRATCH1       x13
 #define REG_SCRATCH1_32    w13

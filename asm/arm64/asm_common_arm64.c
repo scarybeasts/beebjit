@@ -40,12 +40,16 @@ asm_emit_instruction_CLC(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_CLD(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_CLD(void);
+  void asm_instruction_CLD_END(void);
+  asm_copy(p_buf, asm_instruction_CLD, asm_instruction_CLD_END);
 }
 
 void
 asm_emit_instruction_CLI(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_CLI(void);
+  void asm_instruction_CLI_END(void);
+  asm_copy(p_buf, asm_instruction_CLI, asm_instruction_CLI_END);
 }
 
 void
@@ -81,7 +85,9 @@ asm_emit_instruction_INY(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_PHA(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_PHA(void);
+  void asm_instruction_PHA_END(void);
+  asm_copy(p_buf, asm_instruction_PHA, asm_instruction_PHA_END);
 }
 
 void
@@ -106,12 +112,16 @@ asm_emit_instruction_SEC(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_SED(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_SED(void);
+  void asm_instruction_SED_END(void);
+  asm_copy(p_buf, asm_instruction_SED, asm_instruction_SED_END);
 }
 
 void
 asm_emit_instruction_SEI(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_SEI(void);
+  void asm_instruction_SEI_END(void);
+  asm_copy(p_buf, asm_instruction_SEI, asm_instruction_SEI_END);
 }
 
 void
@@ -140,7 +150,9 @@ asm_emit_instruction_TXA(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_TXS(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_TXS(void);
+  void asm_instruction_TXS_END(void);
+  asm_copy(p_buf, asm_instruction_TXS, asm_instruction_TXS_END);
 }
 
 void
@@ -150,7 +162,9 @@ asm_emit_instruction_TYA(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_A_NZ_flags(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_A_NZ_flags(void);
+  void asm_instruction_A_NZ_flags_END(void);
+  asm_copy(p_buf, asm_instruction_A_NZ_flags, asm_instruction_A_NZ_flags_END);
 }
 
 void
@@ -162,7 +176,9 @@ asm_emit_instruction_X_NZ_flags(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_Y_NZ_flags(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_Y_NZ_flags(void);
+  void asm_instruction_Y_NZ_flags_END(void);
+  asm_copy(p_buf, asm_instruction_Y_NZ_flags, asm_instruction_Y_NZ_flags_END);
 }
 
 void
