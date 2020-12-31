@@ -177,7 +177,9 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_mode_rel(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_mode_rel(void);
+  void asm_inturbo_mode_rel_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_rel, asm_inturbo_mode_rel_END);
 }
 
 void
