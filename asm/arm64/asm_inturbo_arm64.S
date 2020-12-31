@@ -125,10 +125,21 @@ not_exiting_END:
 .globl asm_inturbo_check_page_crossing_END
 asm_inturbo_check_page_crossing:
   eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
-  ubfx REG_SCRATCH2, REG_SCRATCH2, 8, 1
+  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
   sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
 
 asm_inturbo_check_page_crossing_END:
+  ret
+
+
+.globl asm_inturbo_mode_rel
+.globl asm_inturbo_mode_rel_END
+asm_inturbo_mode_rel:
+  ldrsb REG_SCRATCH1, [REG_6502_PC, #1]
+  add REG_6502_PC, REG_6502_PC, #2
+  add REG_SCRATCH1, REG_6502_PC, REG_SCRATCH1
+
+asm_inturbo_mode_rel_END:
   ret
 
 
@@ -182,24 +193,46 @@ asm_inturbo_mode_idy_END:
 .globl asm_instruction_BEQ_interp
 .globl asm_instruction_BEQ_interp_END
 asm_instruction_BEQ_interp:
-  ldrsb REG_SCRATCH1, [REG_6502_PC, #1]
-  add REG_6502_PC, REG_6502_PC, #2
-  add REG_SCRATCH1, REG_6502_PC, REG_SCRATCH1
   csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, eq
 
 asm_instruction_BEQ_interp_END:
   ret
 
 
+.globl asm_instruction_BEQ_interp_accurate
+.globl asm_instruction_BEQ_interp_accurate_END
+asm_instruction_BEQ_interp_accurate:
+  b.ne asm_instruction_BEQ_interp_accurate_END
+  eor REG_SCRATCH2, REG_6502_PC, REG_SCRATCH1
+  mov REG_6502_PC, REG_SCRATCH1
+  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
+  add REG_SCRATCH2, REG_SCRATCH2, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+
+asm_instruction_BEQ_interp_accurate_END:
+  ret
+
+
 .globl asm_instruction_BNE_interp
 .globl asm_instruction_BNE_interp_END
 asm_instruction_BNE_interp:
-  ldrsb REG_SCRATCH1, [REG_6502_PC, #1]
-  add REG_6502_PC, REG_6502_PC, #2
-  add REG_SCRATCH1, REG_6502_PC, REG_SCRATCH1
   csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, ne
 
 asm_instruction_BNE_interp_END:
+  ret
+
+
+.globl asm_instruction_BNE_interp_accurate
+.globl asm_instruction_BNE_interp_accurate_END
+asm_instruction_BNE_interp_accurate:
+  b.eq asm_instruction_BNE_interp_accurate_END
+  eor REG_SCRATCH2, REG_6502_PC, REG_SCRATCH1
+  mov REG_6502_PC, REG_SCRATCH1
+  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
+  add REG_SCRATCH2, REG_SCRATCH2, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+
+asm_instruction_BNE_interp_accurate_END:
   ret
 
 

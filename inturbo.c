@@ -108,8 +108,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_nil:
     case k_acc:
     case k_imm:
-    case k_rel:
     case 0:
+      break;
+    case k_rel:
+      asm_emit_inturbo_mode_rel(p_buf);
       break;
     case k_zpg:
       asm_emit_inturbo_mode_zpg(p_buf);

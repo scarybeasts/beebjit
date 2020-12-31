@@ -194,6 +194,11 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_mode_rel(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_inturbo_mode_zpg(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_inturbo_mode_zpg, asm_inturbo_mode_zpg_END);
 }

@@ -21,6 +21,7 @@ void asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 void asm_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_emit_inturbo_call_interp(struct util_buffer* p_buf);
 
+void asm_emit_inturbo_mode_rel(struct util_buffer* p_buf);
 void asm_emit_inturbo_mode_zpg(struct util_buffer* p_buf);
 void asm_emit_inturbo_mode_abs(struct util_buffer* p_buf);
 void asm_emit_inturbo_mode_abx(struct util_buffer* p_buf);

@@ -213,6 +213,13 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_mode_rel(struct util_buffer* p_buf) {
+  void asm_inturbo_mode_rel(void);
+  void asm_inturbo_mode_rel_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_rel, asm_inturbo_mode_rel_END);
+}
+
+void
 asm_emit_inturbo_mode_zpg(struct util_buffer* p_buf) {
   void asm_inturbo_mode_zpg(void);
   void asm_inturbo_mode_zpg_END(void);
@@ -306,14 +313,18 @@ asm_emit_instruction_BCS_interp_accurate(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_BEQ_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BEQ_interp(void);
+  void asm_instruction_BEQ_interp_END(void);
+  asm_copy(p_buf, asm_instruction_BEQ_interp, asm_instruction_BEQ_interp_END);
 }
 
 void
 asm_emit_instruction_BEQ_interp_accurate(struct util_buffer* p_buf) {
-  void asm_instruction_BEQ_interp(void);
-  void asm_instruction_BEQ_interp_END(void);
-  asm_copy(p_buf, asm_instruction_BEQ_interp, asm_instruction_BEQ_interp_END);
+  void asm_instruction_BEQ_interp_accurate(void);
+  void asm_instruction_BEQ_interp_accurate_END(void);
+  asm_copy(p_buf,
+           asm_instruction_BEQ_interp_accurate,
+           asm_instruction_BEQ_interp_accurate_END);
 }
 
 void
@@ -333,14 +344,18 @@ asm_emit_instruction_BMI_interp_accurate(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_BNE_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BNE_interp(void);
+  void asm_instruction_BNE_interp_END(void);
+  asm_copy(p_buf, asm_instruction_BNE_interp, asm_instruction_BNE_interp_END);
 }
 
 void
 asm_emit_instruction_BNE_interp_accurate(struct util_buffer* p_buf) {
-  void asm_instruction_BNE_interp(void);
-  void asm_instruction_BNE_interp_END(void);
-  asm_copy(p_buf, asm_instruction_BNE_interp, asm_instruction_BNE_interp_END);
+  void asm_instruction_BNE_interp_accurate(void);
+  void asm_instruction_BNE_interp_accurate_END(void);
+  asm_copy(p_buf,
+           asm_instruction_BNE_interp_accurate,
+           asm_instruction_BNE_interp_accurate_END);
 }
 
 void
