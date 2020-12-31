@@ -413,15 +413,12 @@ asm_inturbo_mode_ind_END:
 .globl asm_instruction_Bxx_interp_accurate_not_taken_target
 asm_instruction_Bxx_interp_accurate:
 
-  mov REG_SCRATCH3, REG_SCRATCH2
-
-  mov REG_SCRATCH1_8, 0
-  mov REG_SCRATCH3_8, 0
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_SCRATCH3]
+  lahf
+  xor REG_SCRATCH1_32, REG_SCRATCH2_32
+  sahf
   bt REG_SCRATCH1_32, 8
-  mov REG_SCRATCH1_32, 1
-  mov REG_SCRATCH3_32, 0
-  cmovnc REG_SCRATCH1_32, REG_SCRATCH3_32
+  mov REG_SCRATCH1_32, 0
+  setnc REG_SCRATCH1_8
 
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH1]
