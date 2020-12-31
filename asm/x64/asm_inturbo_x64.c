@@ -99,26 +99,6 @@ asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
 }
 
 void
-asm_emit_inturbo_check_countdown_with_page_crossing(struct util_buffer* p_buf,
-                                                    uint8_t opcycles) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf,
-           asm_inturbo_check_countdown_with_page_crossing,
-           asm_inturbo_check_countdown_with_page_crossing_END);
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_inturbo_check_countdown_with_page_crossing,
-                 asm_inturbo_check_countdown_with_page_crossing_lea_patch,
-                 (0x100 - (opcycles + 1)));
-  asm_patch_jump(p_buf,
-                 offset,
-                 asm_inturbo_check_countdown_with_page_crossing,
-                 asm_inturbo_check_countdown_with_page_crossing_jb_patch,
-                 asm_inturbo_call_interp);
-}
-
-void
 asm_emit_inturbo_check_decimal(struct util_buffer* p_buf) {
   size_t offset = util_buffer_get_pos(p_buf);
 

@@ -12,6 +12,7 @@
 .globl asm_inturbo_save_countdown
 .globl asm_inturbo_save_countdown_END
 asm_inturbo_save_countdown:
+
   mov REG_SCRATCH4, REG_COUNTDOWN
 
 asm_inturbo_save_countdown_END:
@@ -60,6 +61,7 @@ asm_inturbo_check_special_address_END:
 .globl asm_inturbo_check_countdown_lea_patch
 .globl asm_inturbo_check_countdown_jb_patch
 asm_inturbo_check_countdown:
+
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_inturbo_check_countdown_lea_patch:
   bt REG_COUNTDOWN, 63
@@ -67,22 +69,6 @@ asm_inturbo_check_countdown_lea_patch:
 asm_inturbo_check_countdown_jb_patch:
 
 asm_inturbo_check_countdown_END:
-  ret
-
-
-.globl asm_inturbo_check_countdown_with_page_crossing
-.globl asm_inturbo_check_countdown_with_page_crossing_END
-.globl asm_inturbo_check_countdown_with_page_crossing_lea_patch
-.globl asm_inturbo_check_countdown_with_page_crossing_jb_patch
-asm_inturbo_check_countdown_with_page_crossing:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
-asm_inturbo_check_countdown_with_page_crossing_lea_patch:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
-  bt REG_COUNTDOWN, 63
-  jb asm_unpatched_branch_target
-asm_inturbo_check_countdown_with_page_crossing_jb_patch:
-
-asm_inturbo_check_countdown_with_page_crossing_END:
   ret
 
 
@@ -198,6 +184,7 @@ asm_inturbo_interrupt_vector_END:
 
 .globl asm_inturbo_call_interp
 asm_inturbo_call_interp:
+
   mov REG_COUNTDOWN, REG_SCRATCH4
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_save_AXYS_PC_flags
@@ -265,8 +252,8 @@ asm_inturbo_mode_abs_END:
 .globl asm_inturbo_mode_abx_END
 asm_inturbo_mode_abx:
 
-  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64]
+  movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_X_64]
 
 asm_inturbo_mode_abx_END:
   ret
@@ -276,13 +263,11 @@ asm_inturbo_mode_abx_END:
 .globl asm_inturbo_mode_abx_check_page_crossing_END
 asm_inturbo_mode_abx_check_page_crossing:
 
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
-
-  mov REG_SCRATCH3_32, 0
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_X_64]
-  bt REG_SCRATCH2_32, 8
-  # NOTE: tried cmov here, it's slower.
-  setae REG_SCRATCH3_8
+  movzx REG_SCRATCH3, REG_SCRATCH3_8
+  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_X_64]
+  bt REG_SCRATCH3_32, 8
+  jnc asm_inturbo_mode_abx_check_page_crossing_END
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
 asm_inturbo_mode_abx_check_page_crossing_END:
   ret
@@ -292,8 +277,8 @@ asm_inturbo_mode_abx_check_page_crossing_END:
 .globl asm_inturbo_mode_aby_END
 asm_inturbo_mode_aby:
 
-  movzx REG_SCRATCH1_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+  movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
 
 asm_inturbo_mode_aby_END:
   ret
@@ -303,13 +288,11 @@ asm_inturbo_mode_aby_END:
 .globl asm_inturbo_mode_aby_check_page_crossing_END
 asm_inturbo_mode_aby_check_page_crossing:
 
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
-
-  mov REG_SCRATCH3_32, 0
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
-  bt REG_SCRATCH2_32, 8
-  # NOTE: tried cmov here, it's slower.
-  setae REG_SCRATCH3_8
+  movzx REG_SCRATCH3, REG_SCRATCH3_8
+  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_Y_64]
+  bt REG_SCRATCH3_32, 8
+  jnc asm_inturbo_mode_aby_check_page_crossing_END
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
 asm_inturbo_mode_aby_check_page_crossing_END:
   ret
@@ -369,12 +352,12 @@ asm_inturbo_mode_idy:
 
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
 
-  movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+  movzx REG_SCRATCH3_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
 
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb asm_unpatched_branch_target
+  jc asm_unpatched_branch_target
 asm_inturbo_mode_idy_jump_patch:
 
 asm_inturbo_mode_idy_END:
@@ -385,14 +368,11 @@ asm_inturbo_mode_idy_END:
 .globl asm_inturbo_mode_idy_check_page_crossing_END
 asm_inturbo_mode_idy_check_page_crossing:
 
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_PC + 1]
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + K_BBC_MEM_READ_FULL_ADDR]
-
-  mov REG_SCRATCH3_32, 0
-  lea REG_SCRATCH2_32, [REG_SCRATCH2 + REG_6502_Y_64]
-  bt REG_SCRATCH2_32, 8
-  # NOTE: tried cmov here, it's slower.
-  setae REG_SCRATCH3_8
+  movzx REG_SCRATCH3, REG_SCRATCH3_8
+  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_Y_64]
+  bt REG_SCRATCH3_32, 8
+  jnc asm_inturbo_mode_idy_check_page_crossing_END
+  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
 asm_inturbo_mode_idy_check_page_crossing_END:
   ret

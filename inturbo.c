@@ -70,7 +70,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     uint8_t opmem = g_opmem[optype];
     uint8_t opreg = 0;
     uint8_t opcycles = p_opcode_cycles[i];
-    int check_page_crossing_read = 0;
     uint16_t this_callback_from = read_callback_from;
 
     util_buffer_setup(p_buf, p_inturbo_opcodes_ptr, k_inturbo_bytes_per_opcode);
@@ -128,7 +127,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_inturbo_mode_abx(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
-        check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
       }
@@ -137,7 +135,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_inturbo_mode_aby(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
-        check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
       }
@@ -156,7 +153,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_inturbo_mode_idy(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
       if ((opmem == k_read) && accurate) {
-        check_page_crossing_read = 1;
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
       }
@@ -170,11 +166,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     /* Check for countdown expiry. */
-    if (check_page_crossing_read) {
-      asm_emit_inturbo_check_countdown_with_page_crossing(p_buf, opcycles);
-    } else {
-      asm_emit_inturbo_check_countdown(p_buf, opcycles);
-    }
+    asm_emit_inturbo_check_countdown(p_buf, opcycles);
 
     switch (optype) {
     case k_adc:

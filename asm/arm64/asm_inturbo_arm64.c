@@ -165,12 +165,6 @@ asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
 }
 
 void
-asm_emit_inturbo_check_countdown_with_page_crossing(struct util_buffer* p_buf,
-                                                    uint8_t opcycles) {
-  asm_emit_inturbo_check_countdown(p_buf, opcycles);
-}
-
-void
 asm_emit_inturbo_check_decimal(struct util_buffer* p_buf) {
   (void) p_buf;
 }
