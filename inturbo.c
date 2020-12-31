@@ -79,7 +79,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_inturbo_enter_debug(p_buf);
     }
 
-    asm_emit_inturbo_prolog(p_buf);
+    asm_emit_inturbo_save_countdown(p_buf);
 
     /* Preflight checks. Some opcodes or situations are tricky enough we want
      * to go straight to the interpreter.

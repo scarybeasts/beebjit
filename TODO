@@ -8,6 +8,7 @@ get addressed before the next release.
 
 - Poor granularity of system wakeup with audio subsystem as timer?
 - Finally tackle video read vs. RAM write sync.
+- inturbo mode seems to linger an extra instruction in interp?
 
 
 Fix later

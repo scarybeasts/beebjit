@@ -746,8 +746,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xCA80);
 
-  /* Exit sequence. */
   set_new_index(p_buf, 0x0A80);
+  emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  /* XAA #imm, 2 cycles. */
+  util_buffer_add_2b(p_buf, 0x8B, 0x00);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 8);
+  emit_JMP(p_buf, k_abs, 0xCAC0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0AC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

@@ -9,6 +9,15 @@
 .text
 
 
+.globl asm_inturbo_save_countdown
+.globl asm_inturbo_save_countdown_END
+asm_inturbo_save_countdown:
+  mov REG_SCRATCH4, REG_COUNTDOWN
+
+asm_inturbo_save_countdown_END:
+  ret
+
+
 .globl asm_inturbo_JMP_scratch_plus_1_interp
 .globl asm_inturbo_JMP_scratch_plus_1_interp_END
 asm_inturbo_JMP_scratch_plus_1_interp:
@@ -51,7 +60,6 @@ asm_inturbo_check_special_address_END:
 .globl asm_inturbo_check_countdown_lea_patch
 .globl asm_inturbo_check_countdown_jb_patch
 asm_inturbo_check_countdown:
-  mov REG_SCRATCH4, REG_COUNTDOWN
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_inturbo_check_countdown_lea_patch:
   bt REG_COUNTDOWN, 63
@@ -67,7 +75,6 @@ asm_inturbo_check_countdown_END:
 .globl asm_inturbo_check_countdown_with_page_crossing_lea_patch
 .globl asm_inturbo_check_countdown_with_page_crossing_jb_patch
 asm_inturbo_check_countdown_with_page_crossing:
-  mov REG_SCRATCH4, REG_COUNTDOWN
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 asm_inturbo_check_countdown_with_page_crossing_lea_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH3]
@@ -189,15 +196,9 @@ asm_inturbo_interrupt_vector_END:
   ret
 
 
-.globl asm_inturbo_call_interp_countdown
-asm_inturbo_call_interp_countdown:
-
-  mov REG_COUNTDOWN, REG_SCRATCH4
-  # NOTE: fall through.
-
-
 .globl asm_inturbo_call_interp
 asm_inturbo_call_interp:
+  mov REG_COUNTDOWN, REG_SCRATCH4
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_save_AXYS_PC_flags
 
