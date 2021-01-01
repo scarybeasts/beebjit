@@ -102,7 +102,14 @@ asm_emit_instruction_PLA(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_PLP(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_pull_to_scratch(void);
+  void asm_pull_to_scratch_END(void);
+  void asm_set_arm64_flags_from_scratch(void);
+  void asm_set_arm64_flags_from_scratch_END(void);
+  asm_copy(p_buf, asm_pull_to_scratch, asm_pull_to_scratch_END);
+  asm_copy(p_buf,
+           asm_set_arm64_flags_from_scratch,
+           asm_set_arm64_flags_from_scratch_END);
 }
 
 void
@@ -140,7 +147,9 @@ asm_emit_instruction_TAY(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_TSX(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_TSX(void);
+  void asm_instruction_TSX_END(void);
+  asm_copy(p_buf, asm_instruction_TSX, asm_instruction_TSX_END);
 }
 
 void

@@ -69,9 +69,9 @@ asm_instruction_INY_END:
 .globl asm_instruction_PHA_END
 asm_instruction_PHA:
 
-  strb REG_6502_A_32, [REG_6502_S]
+  strb REG_6502_A_32, [REG_MEM_STACK, REG_6502_S]
   sub REG_6502_S, REG_6502_S, #1
-  bic REG_6502_S, REG_6502_S, #0x100
+  and REG_6502_S, REG_6502_S, #0xFF
 
 asm_instruction_PHA_END:
   ret
@@ -117,13 +117,21 @@ asm_instruction_TAY_END:
   ret
 
 
+.globl asm_instruction_TSX
+.globl asm_instruction_TSX_END
+asm_instruction_TSX:
+
+  mov REG_6502_X, REG_6502_S
+
+asm_instruction_TSX_END:
+  ret
+
+
 .globl asm_instruction_TXS
 .globl asm_instruction_TXS_END
 asm_instruction_TXS:
 
   mov REG_6502_S, REG_6502_X
-  orr REG_6502_S, REG_6502_S, REG_MEM_READ
-  add REG_6502_S, REG_6502_S, 0x100
 
 asm_instruction_TXS_END:
   ret
@@ -163,16 +171,16 @@ asm_instruction_Y_NZ_flags_END:
 .globl asm_save_AXYS_PC_flags_END
 asm_save_AXYS_PC_flags:
   stp x29, x30, [sp, #-16]!
-  ldr REG_SCRATCH2, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
-  str REG_6502_A_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_A]
-  str REG_6502_X_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_X]
-  str REG_6502_Y_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_Y]
-  str REG_6502_S_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_S]
+  ldr REG_SCRATCH3, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
+  str REG_6502_A_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_A]
+  str REG_6502_X_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_X]
+  str REG_6502_Y_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_Y]
+  str REG_6502_S_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_S]
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
-  str REG_6502_PC_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_PC]
+  str REG_6502_PC_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_PC]
 
   bl asm_emit_arm64_flags_to_scratch
-  str REG_SCRATCH1_32, [REG_SCRATCH2, #K_STATE_6502_OFFSET_REG_FLAGS]
+  str REG_SCRATCH1_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_FLAGS]
 
   ldp x29, x30, [sp], #16
   ret
@@ -206,11 +214,18 @@ asm_restore_AXYS_PC_flags_END:
 .globl asm_emit_arm64_flags_to_scratch
 .globl asm_emit_arm64_flags_to_scratch_END
 asm_emit_arm64_flags_to_scratch:
-  mov REG_SCRATCH1, REG_6502_ID_F
-  movz REG_SCRATCH3, #2
-  csel REG_SCRATCH3, REG_SCRATCH3, xzr, eq
-  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH3
-  ret
+  orr REG_SCRATCH1, REG_6502_ID_F, #0x20
+
+  cset REG_SCRATCH2, eq
+  lsl REG_SCRATCH2, REG_SCRATCH2, #1
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  cset REG_SCRATCH2, mi
+  lsl REG_SCRATCH2, REG_SCRATCH2, #7
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+
+  lsl REG_SCRATCH2, REG_6502_OF, #6
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_6502_CF
 
 asm_emit_arm64_flags_to_scratch_END:
   ret
@@ -219,12 +234,31 @@ asm_emit_arm64_flags_to_scratch_END:
 .globl asm_set_arm64_flags_from_scratch
 .globl asm_set_arm64_flags_from_scratch_END
 asm_set_arm64_flags_from_scratch:
-  and REG_6502_ID_F, REG_SCRATCH1, 0x3C
-  and REG_SCRATCH1, REG_SCRATCH1, #2
-  cmp REG_SCRATCH1, #2
-  ret
+  and REG_6502_ID_F, REG_SCRATCH1, 0x0C
+
+  ubfx REG_SCRATCH2, REG_SCRATCH1, #7, #1
+  lsl REG_SCRATCH2, REG_SCRATCH2, #31
+  ubfx REG_SCRATCH3, REG_SCRATCH1, #1, #1
+  lsl REG_SCRATCH3, REG_SCRATCH3, #30
+  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
+  msr nzcv, REG_SCRATCH2
+
+  ubfx REG_6502_CF, REG_SCRATCH1, #0, #1
+  ubfx REG_6502_OF, REG_SCRATCH1, #6, #1
 
 asm_set_arm64_flags_from_scratch_END:
+  ret
+
+
+.globl asm_pull_to_scratch
+.globl asm_pull_to_scratch_END
+asm_pull_to_scratch:
+
+  add REG_6502_S, REG_6502_S, #1
+  and REG_6502_S, REG_6502_S, #0xFF
+  ldrb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
+
+asm_pull_to_scratch_END:
   ret
 
 
@@ -245,21 +279,25 @@ asm_enter:
   stp x21, x22, [sp, #-16]!
 
   mov REG_CONTEXT, REG_PARAM1
-  mov REG_SCRATCH3, REG_PARAM2
+  # Temporary store for the final jump location.
+  mov REG_INTURBO_CODE, REG_PARAM2
   mov REG_COUNTDOWN, REG_PARAM3
   mov REG_MEM_READ, REG_PARAM4
 
   movz REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE >> 16), lsl #16
   movk REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE & 0xFFFF)
   add REG_MEM_WRITE, REG_MEM_READ, REG_SCRATCH1
-  movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
-  movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
+  add REG_MEM_STACK, REG_MEM_READ, #0x100
   adr REG_DEBUG_FUNC, asm_debug
   adr REG_INTERP_FUNC, asm_inturbo_call_interp
 
   bl asm_restore_AXYS_PC_flags
 
-  br REG_SCRATCH3
+  mov REG_SCRATCH1, REG_INTURBO_CODE
+  movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
+  movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
+
+  br REG_SCRATCH1
 
 .asm_enter_END:
   ret

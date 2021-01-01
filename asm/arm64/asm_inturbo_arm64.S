@@ -131,13 +131,13 @@ asm_inturbo_check_page_crossing:
 asm_inturbo_check_page_crossing_END:
   ret
 
-
+# TODO: want to revisit this; not always needed to do the fetch.
 .globl asm_inturbo_mode_rel
 .globl asm_inturbo_mode_rel_END
 asm_inturbo_mode_rel:
-  ldrsb REG_SCRATCH1, [REG_6502_PC, #1]
-  add REG_6502_PC, REG_6502_PC, #2
-  add REG_SCRATCH1, REG_6502_PC, REG_SCRATCH1
+  ldrsb REG_SCRATCH2, [REG_6502_PC, #1]
+  add REG_SCRATCH1, REG_6502_PC, #2
+  add REG_SCRATCH2, REG_SCRATCH1, REG_SCRATCH2
 
 asm_inturbo_mode_rel_END:
   ret
@@ -190,10 +190,37 @@ asm_inturbo_mode_idy_END:
   ret
 
 
+.globl asm_instruction_BCS_interp
+.globl asm_instruction_BCS_interp_END
+asm_instruction_BCS_interp:
+  mov REG_6502_PC, REG_SCRATCH1
+  tbz REG_6502_CF, #0, asm_instruction_BCS_interp_END
+  mov REG_6502_PC, REG_SCRATCH2
+
+asm_instruction_BCS_interp_END:
+  ret
+
+
+# TODO: this is broken! Doesn't re-check countdown.
+.globl asm_instruction_BCS_interp_accurate
+.globl asm_instruction_BCS_interp_accurate_END
+asm_instruction_BCS_interp_accurate:
+  mov REG_6502_PC, REG_SCRATCH1
+  tbz REG_6502_CF, #0, asm_instruction_BCS_interp_accurate_END
+  mov REG_6502_PC, REG_SCRATCH2
+  eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
+  add REG_SCRATCH1, REG_SCRATCH1, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+
+asm_instruction_BCS_interp_accurate_END:
+  ret
+
+
 .globl asm_instruction_BEQ_interp
 .globl asm_instruction_BEQ_interp_END
 asm_instruction_BEQ_interp:
-  csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, eq
+  csel REG_6502_PC, REG_SCRATCH2, REG_SCRATCH1, eq
 
 asm_instruction_BEQ_interp_END:
   ret
@@ -202,21 +229,46 @@ asm_instruction_BEQ_interp_END:
 .globl asm_instruction_BEQ_interp_accurate
 .globl asm_instruction_BEQ_interp_accurate_END
 asm_instruction_BEQ_interp_accurate:
-  b.ne asm_instruction_BEQ_interp_accurate_END
-  eor REG_SCRATCH2, REG_6502_PC, REG_SCRATCH1
   mov REG_6502_PC, REG_SCRATCH1
-  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
-  add REG_SCRATCH2, REG_SCRATCH2, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+  b.ne asm_instruction_BEQ_interp_accurate_END
+  mov REG_6502_PC, REG_SCRATCH2
+  eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
+  add REG_SCRATCH1, REG_SCRATCH1, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
 
 asm_instruction_BEQ_interp_accurate_END:
+  ret
+
+
+.globl asm_instruction_BMI_interp
+.globl asm_instruction_BMI_interp_END
+asm_instruction_BMI_interp:
+  csel REG_6502_PC, REG_SCRATCH2, REG_SCRATCH1, mi
+
+asm_instruction_BMI_interp_END:
+  ret
+
+
+.globl asm_instruction_BMI_interp_accurate
+.globl asm_instruction_BMI_interp_accurate_END
+asm_instruction_BMI_interp_accurate:
+  mov REG_6502_PC, REG_SCRATCH1
+  b.pl asm_instruction_BMI_interp_accurate_END
+  mov REG_6502_PC, REG_SCRATCH2
+  eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
+  add REG_SCRATCH1, REG_SCRATCH1, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+
+asm_instruction_BMI_interp_accurate_END:
   ret
 
 
 .globl asm_instruction_BNE_interp
 .globl asm_instruction_BNE_interp_END
 asm_instruction_BNE_interp:
-  csel REG_6502_PC, REG_SCRATCH1, REG_6502_PC, ne
+  csel REG_6502_PC, REG_SCRATCH2, REG_SCRATCH1, ne
 
 asm_instruction_BNE_interp_END:
   ret
@@ -225,14 +277,51 @@ asm_instruction_BNE_interp_END:
 .globl asm_instruction_BNE_interp_accurate
 .globl asm_instruction_BNE_interp_accurate_END
 asm_instruction_BNE_interp_accurate:
-  b.eq asm_instruction_BNE_interp_accurate_END
-  eor REG_SCRATCH2, REG_6502_PC, REG_SCRATCH1
   mov REG_6502_PC, REG_SCRATCH1
-  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
-  add REG_SCRATCH2, REG_SCRATCH2, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+  b.eq asm_instruction_BNE_interp_accurate_END
+  mov REG_6502_PC, REG_SCRATCH2
+  eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
+  add REG_SCRATCH1, REG_SCRATCH1, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
 
 asm_instruction_BNE_interp_accurate_END:
+  ret
+
+
+.globl asm_instruction_BPL_interp
+.globl asm_instruction_BPL_interp_END
+asm_instruction_BPL_interp:
+  csel REG_6502_PC, REG_SCRATCH2, REG_SCRATCH1, pl
+
+asm_instruction_BPL_interp_END:
+  ret
+
+
+.globl asm_instruction_BPL_interp_accurate
+.globl asm_instruction_BPL_interp_accurate_END
+asm_instruction_BPL_interp_accurate:
+  mov REG_6502_PC, REG_SCRATCH1
+  b.mi asm_instruction_BPL_interp_accurate_END
+  mov REG_6502_PC, REG_SCRATCH2
+  eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
+  add REG_SCRATCH1, REG_SCRATCH1, #1
+  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+
+asm_instruction_BPL_interp_accurate_END:
+  ret
+
+
+.globl asm_instruction_CMP_imm_interp
+.globl asm_instruction_CMP_imm_interp_END
+asm_instruction_CMP_imm_interp:
+
+  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
+  cmp REG_6502_A, REG_SCRATCH1
+  cset REG_6502_CF, cs
+
+asm_instruction_CMP_imm_interp_END:
   ret
 
 
@@ -245,6 +334,18 @@ asm_instruction_CMP_scratch_interp:
   cset REG_6502_CF, cs
 
 asm_instruction_CMP_scratch_interp_END:
+  ret
+
+
+.globl asm_instruction_CPX_imm_interp
+.globl asm_instruction_CPX_imm_interp_END
+asm_instruction_CPX_imm_interp:
+
+  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
+  cmp REG_6502_X, REG_SCRATCH1
+  cset REG_6502_CF, cs
+
+asm_instruction_CPX_imm_interp_END:
   ret
 
 

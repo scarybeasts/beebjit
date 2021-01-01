@@ -23,6 +23,7 @@
 #define REG_SCRATCH3       x15
 #define REG_SCRATCH3_32    w15
 /* Callee save. */
+#define REG_MEM_STACK      x21
 #define REG_COUNTDOWN      x22
 #define REG_CONTEXT        x23
 #define REG_INTURBO_CODE   x24
