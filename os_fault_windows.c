@@ -52,3 +52,8 @@ os_fault_bail(void) {
     (void) TerminateProcess(process, 1);
   }
 }
+
+void
+os_debug_trap(void) {
+  DebugBreak();
+}

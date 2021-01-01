@@ -13,6 +13,8 @@
 #include "via.h"
 #include "video.h"
 
+#include "os_fault.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <ctype.h>
@@ -1777,7 +1779,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     }
   }
   if (do_trap) {
-    __builtin_trap();
+    os_debug_trap();
   }
   return ret_intel_pc;
 }

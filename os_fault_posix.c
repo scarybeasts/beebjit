@@ -75,3 +75,11 @@ os_fault_bail(void) {
   (void) raise(SIGSEGV);
   _exit(1);
 }
+
+void
+os_debug_trap(void) {
+  int ret = raise(SIGTRAP);
+  if (ret != 0) {
+    util_bail("raise failed");
+  }
+}
