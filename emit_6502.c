@@ -245,6 +245,11 @@ emit_JSR(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+emit_KIL(struct util_buffer* p_buf) {
+  util_buffer_add_1b(p_buf, 0x02);
+}
+
+void
 emit_LDA(struct util_buffer* p_buf, int mode, uint16_t addr) {
   static unsigned char s_bytes[k_6502_op_num_modes] =
   { 0x00,

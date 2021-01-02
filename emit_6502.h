@@ -38,6 +38,7 @@ void emit_INX(struct util_buffer* p_buf);
 void emit_INY(struct util_buffer* p_buf);
 void emit_JMP(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_JSR(struct util_buffer* p_buf, uint16_t addr);
+void emit_KIL(struct util_buffer* p_buf);
 void emit_LDA(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LDX(struct util_buffer* p_buf, int mode, uint16_t addr);
 void emit_LDY(struct util_buffer* p_buf, int mode, uint16_t addr);

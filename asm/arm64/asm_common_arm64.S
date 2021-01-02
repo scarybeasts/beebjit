@@ -9,6 +9,16 @@
 .text
 
 
+.globl asm_instruction_CLC
+.globl asm_instruction_CLC_END
+asm_instruction_CLC:
+
+  movz REG_6502_CF, #0
+
+asm_instruction_CLC_END:
+  ret
+
+
 .globl asm_instruction_CLD
 .globl asm_instruction_CLD_END
 asm_instruction_CLD:
@@ -74,6 +84,28 @@ asm_instruction_PHA:
   and REG_6502_S, REG_6502_S, #0xFF
 
 asm_instruction_PHA_END:
+  ret
+
+
+.globl asm_instruction_PLA
+.globl asm_instruction_PLA_END
+asm_instruction_PLA:
+
+  add REG_6502_S, REG_6502_S, #1
+  and REG_6502_S, REG_6502_S, #0xFF
+  ldrb REG_6502_A_32, [REG_MEM_STACK, REG_6502_S]
+
+asm_instruction_PLA_END:
+  ret
+
+
+.globl asm_instruction_SEC
+.globl asm_instruction_SEC_END
+asm_instruction_SEC:
+
+  movz REG_6502_CF, #1
+
+asm_instruction_SEC_END:
   ret
 
 
@@ -250,6 +282,28 @@ asm_set_arm64_flags_from_scratch_END:
   ret
 
 
+.globl asm_set_brk_flag_in_scratch
+.globl asm_set_brk_flag_in_scratch_END
+asm_set_brk_flag_in_scratch:
+
+  orr REG_SCRATCH1, REG_SCRATCH1, #0x10
+
+asm_set_brk_flag_in_scratch_END:
+  ret
+
+
+.globl asm_push_from_scratch
+.globl asm_push_from_scratch_END
+asm_push_from_scratch:
+
+  strb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
+  sub REG_6502_S, REG_6502_S, #1
+  and REG_6502_S, REG_6502_S, #0xFF
+
+asm_push_from_scratch_END:
+  ret
+
+
 .globl asm_pull_to_scratch
 .globl asm_pull_to_scratch_END
 asm_pull_to_scratch:
@@ -259,6 +313,23 @@ asm_pull_to_scratch:
   ldrb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
 
 asm_pull_to_scratch_END:
+  ret
+
+
+.globl asm_pull_word_to_scratch
+.globl asm_pull_word_to_scratch_END
+asm_pull_word_to_scratch:
+
+  add REG_6502_S, REG_6502_S, #1
+  and REG_6502_S, REG_6502_S, #0xFF
+  ldrb REG_SCRATCH2_32, [REG_MEM_STACK, REG_6502_S]
+  add REG_6502_S, REG_6502_S, #1
+  and REG_6502_S, REG_6502_S, #0xFF
+  ldrb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
+  lsl REG_SCRATCH1, REG_SCRATCH1, #8
+  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+
+asm_pull_word_to_scratch_END:
   ret
 
 

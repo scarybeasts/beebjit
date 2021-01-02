@@ -255,17 +255,23 @@ asm_emit_inturbo_mode_aby_check_page_crossing(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_mode_zpx(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_mode_zpx(void);
+  void asm_inturbo_mode_zpx_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_zpx, asm_inturbo_mode_zpx_END);
 }
 
 void
 asm_emit_inturbo_mode_zpy(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_mode_zpy(void);
+  void asm_inturbo_mode_zpy_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_zpy, asm_inturbo_mode_zpy_END);
 }
 
 void
 asm_emit_inturbo_mode_idx(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_mode_idx(void);
+  void asm_inturbo_mode_idx_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_idx, asm_inturbo_mode_idx_END);
 }
 
 void
@@ -287,12 +293,18 @@ asm_emit_inturbo_mode_ind(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_BCC_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BCC_interp(void);
+  void asm_instruction_BCC_interp_END(void);
+  asm_copy(p_buf, asm_instruction_BCC_interp, asm_instruction_BCC_interp_END);
 }
 
 void
 asm_emit_instruction_BCC_interp_accurate(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BCC_interp_accurate(void);
+  void asm_instruction_BCC_interp_accurate_END(void);
+  asm_copy(p_buf,
+           asm_instruction_BCC_interp_accurate,
+           asm_instruction_BCC_interp_accurate_END);
 }
 
 void
@@ -382,32 +394,57 @@ asm_emit_instruction_BPL_interp_accurate(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_BRK_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_push_pc(void);
+  void asm_inturbo_push_pc_END(void);
+  void asm_inturbo_interrupt_vector(void);
+  void asm_inturbo_interrupt_vector_END(void);
+  asm_copy(p_buf, asm_inturbo_push_pc, asm_inturbo_push_pc_END);
+  asm_emit_instruction_PHP(p_buf);
+  asm_emit_instruction_SEI(p_buf);
+  asm_copy(p_buf,
+           asm_inturbo_interrupt_vector,
+           asm_inturbo_interrupt_vector_END);
 }
 
 void
 asm_emit_instruction_BVC_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BVC_interp(void);
+  void asm_instruction_BVC_interp_END(void);
+  asm_copy(p_buf, asm_instruction_BVC_interp, asm_instruction_BVC_interp_END);
 }
 
 void
 asm_emit_instruction_BVC_interp_accurate(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BVC_interp_accurate(void);
+  void asm_instruction_BVC_interp_accurate_END(void);
+  asm_copy(p_buf,
+           asm_instruction_BVC_interp_accurate,
+           asm_instruction_BVC_interp_accurate_END);
 }
 
 void
 asm_emit_instruction_BVS_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BVS_interp(void);
+  void asm_instruction_BVS_interp_END(void);
+  asm_copy(p_buf, asm_instruction_BVS_interp, asm_instruction_BVS_interp_END);
 }
 
 void
 asm_emit_instruction_BVS_interp_accurate(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BVS_interp_accurate(void);
+  void asm_instruction_BVS_interp_accurate_END(void);
+  asm_copy(p_buf,
+           asm_instruction_BVS_interp_accurate,
+           asm_instruction_BVS_interp_accurate_END);
 }
 
 void
 asm_emit_instruction_ADC_imm_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_ADC_imm_interp(void);
+  void asm_instruction_ADC_imm_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_ADC_imm_interp,
+           asm_instruction_ADC_imm_interp_END);
 }
 
 void
@@ -427,12 +464,20 @@ asm_emit_instruction_ALR_imm_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_AND_imm_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_mode_imm(void);
+  void asm_inturbo_mode_imm_END(void);
+  asm_copy(p_buf, asm_inturbo_mode_imm, asm_inturbo_mode_imm_END);
+  asm_emit_instruction_AND_scratch_interp(p_buf);
 }
 
 void
 asm_emit_instruction_AND_scratch_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_AND_scratch_interp(void);
+  void asm_instruction_AND_scratch_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_AND_scratch_interp,
+           asm_instruction_AND_scratch_interp_END);
+  asm_emit_instruction_A_NZ_flags(p_buf);
 }
 
 void
@@ -442,7 +487,12 @@ asm_emit_instruction_AND_scratch_interp_based(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_ASL_acc_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_ASL_acc_interp(void);
+  void asm_instruction_ASL_acc_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_ASL_acc_interp,
+           asm_instruction_ASL_acc_interp_END);
+  asm_emit_instruction_A_NZ_flags(p_buf);
 }
 
 void
@@ -552,7 +602,11 @@ asm_emit_instruction_JMP_scratch_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_JSR_scratch_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_push_pc(void);
+  void asm_inturbo_push_pc_END(void);
+  asm_copy(p_buf, asm_inturbo_push_pc, asm_inturbo_push_pc_END);
+  asm_emit_inturbo_mode_abs(p_buf);
+  asm_emit_instruction_JMP_scratch_interp(p_buf);
 }
 
 void
@@ -599,7 +653,11 @@ asm_emit_instruction_LDX_scratch_interp_based(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_LDY_imm_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_LDY_imm_interp(void);
+  void asm_instruction_LDY_imm_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_LDY_imm_interp,
+           asm_instruction_LDY_imm_interp_END);
 }
 
 void
@@ -644,7 +702,12 @@ asm_emit_instruction_ORA_scratch_interp_based(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_ROL_acc_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_ROL_acc_interp(void);
+  void asm_instruction_ROL_acc_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_ROL_acc_interp,
+           asm_instruction_ROL_acc_interp_END);
+  asm_emit_instruction_A_NZ_flags(p_buf);
 }
 
 void
@@ -659,7 +722,12 @@ asm_emit_instruction_ROL_scratch_interp_based(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_ROR_acc_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_ROR_acc_interp(void);
+  void asm_instruction_ROR_acc_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_ROR_acc_interp,
+           asm_instruction_ROR_acc_interp_END);
+  asm_emit_instruction_A_NZ_flags(p_buf);
 }
 
 void
@@ -674,12 +742,20 @@ asm_emit_instruction_ROR_scratch_interp_based(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_RTI_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  asm_emit_instruction_PLP(p_buf);
+  asm_emit_pull_word_to_scratch(p_buf);
+  asm_emit_instruction_JMP_scratch_interp(p_buf);
 }
 
 void
 asm_emit_instruction_RTS_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_inturbo_add_1_to_scratch(void);
+  void asm_inturbo_add_1_to_scratch_END(void);
+  asm_emit_pull_word_to_scratch(p_buf);
+  asm_copy(p_buf,
+           asm_inturbo_add_1_to_scratch,
+           asm_inturbo_add_1_to_scratch_END);
+  asm_emit_instruction_JMP_scratch_interp(p_buf);
 }
 
 void
@@ -689,7 +765,11 @@ asm_emit_instruction_SAX_scratch_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_SBC_imm_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_SBC_imm_interp(void);
+  void asm_instruction_SBC_imm_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_SBC_imm_interp,
+           asm_instruction_SBC_imm_interp_END);
 }
 
 void
@@ -732,5 +812,9 @@ asm_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_STY_scratch_interp(void);
+  void asm_instruction_STY_scratch_interp_END(void);
+  asm_copy(p_buf,
+           asm_instruction_STY_scratch_interp,
+           asm_instruction_STY_scratch_interp_END);
 }

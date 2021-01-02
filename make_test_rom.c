@@ -160,7 +160,7 @@ main(int argc, const char* argv[]) {
   emit_TXS(p_buf);
   emit_CLI(p_buf);
   emit_BRK(p_buf);                /* Calls vector $FFFE -> $FF00 (RTI) */
-  emit_CRASH(p_buf);              /* Jumped over by RTI. */
+  emit_KIL(p_buf);                /* Jumped over by RTI. */
   emit_LDX(p_buf, k_zpg, 0x00);
   emit_REQUIRE_ZF(p_buf, 0);
   emit_PHP(p_buf);                /* Check I flag state was preserved. */

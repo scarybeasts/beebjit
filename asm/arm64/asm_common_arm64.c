@@ -35,7 +35,9 @@ asm_emit_instruction_BIT_common(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_CLC(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_CLC(void);
+  void asm_instruction_CLC_END(void);
+  asm_copy(p_buf, asm_instruction_CLC, asm_instruction_CLC_END);
 }
 
 void
@@ -92,12 +94,26 @@ asm_emit_instruction_PHA(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_PHP(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_emit_arm64_flags_to_scratch(void);
+  void asm_emit_arm64_flags_to_scratch_END(void);
+  void asm_set_brk_flag_in_scratch(void);
+  void asm_set_brk_flag_in_scratch_END(void);
+  void asm_push_from_scratch(void);
+  void asm_push_from_scratch_END(void);
+  asm_copy(p_buf,
+           asm_emit_arm64_flags_to_scratch,
+           asm_emit_arm64_flags_to_scratch_END);
+  asm_copy(p_buf,
+           asm_set_brk_flag_in_scratch,
+           asm_set_brk_flag_in_scratch_END);
+  asm_copy(p_buf, asm_push_from_scratch, asm_push_from_scratch_END);
 }
 
 void
 asm_emit_instruction_PLA(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_PLA(void);
+  void asm_instruction_PLA_END(void);
+  asm_copy(p_buf, asm_instruction_PLA, asm_instruction_PLA_END);
 }
 
 void
@@ -114,7 +130,9 @@ asm_emit_instruction_PLP(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_SEC(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_SEC(void);
+  void asm_instruction_SEC_END(void);
+  asm_copy(p_buf, asm_instruction_SEC, asm_instruction_SEC_END);
 }
 
 void
@@ -197,5 +215,5 @@ asm_emit_push_word_from_scratch(struct util_buffer* p_buf) {
 
 void
 asm_emit_pull_word_to_scratch(struct util_buffer* p_buf) {
-  (void) p_buf;
+  asm_copy(p_buf, asm_pull_word_to_scratch, asm_pull_word_to_scratch_END);
 }
