@@ -11,4 +11,6 @@ void os_fault_register_handler(
                              uintptr_t host_rdi));
 void os_fault_bail(void);
 
+void os_debug_trap(void);
+
 #endif /* BEEBJIT_OS_FAULT_H */
