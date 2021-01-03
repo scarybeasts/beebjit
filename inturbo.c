@@ -165,8 +165,77 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     }
 
+    /* For branches, calculate taken vs. not taken early. This is so that any
+     * taken branch can effect the countdown check. But we don't commit the PC
+     * change until after the check passes.
+     */
+    switch (optype) {
+    case k_bcc:
+      if (accurate) {
+        asm_emit_instruction_BCC_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BCC_interp(p_buf);
+      }
+      break;
+    case k_bcs:
+      if (accurate) {
+        asm_emit_instruction_BCS_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BCS_interp(p_buf);
+      }
+      break;
+    case k_beq:
+      if (accurate) {
+        asm_emit_instruction_BEQ_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BEQ_interp(p_buf);
+      }
+      break;
+    case k_bmi:
+      if (accurate) {
+        asm_emit_instruction_BMI_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BMI_interp(p_buf);
+      }
+      break;
+    case k_bne:
+      if (accurate) {
+        asm_emit_instruction_BNE_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BNE_interp(p_buf);
+      }
+      break;
+    case k_bpl:
+      if (accurate) {
+        asm_emit_instruction_BPL_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BPL_interp(p_buf);
+      }
+      break;
+    case k_bvc:
+      if (accurate) {
+        asm_emit_instruction_BVC_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BVC_interp(p_buf);
+      }
+      break;
+    case k_bvs:
+      if (accurate) {
+        asm_emit_instruction_BVS_interp_accurate(p_buf);
+      } else {
+        asm_emit_instruction_BVS_interp(p_buf);
+      }
+      break;
+    default:
+      break;
+    }
+
     /* Check for countdown expiry. */
     asm_emit_inturbo_check_countdown(p_buf, opcycles);
+
+    if (opmode == k_rel) {
+      asm_emit_inturbo_commit_branch(p_buf);
+    }
 
     switch (optype) {
     case k_adc:
@@ -199,68 +268,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
         asm_emit_instruction_ASL_scratch_interp(p_buf);
       }
       break;
-    case k_bcc:
-      if (accurate) {
-        asm_emit_instruction_BCC_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BCC_interp(p_buf);
-      }
-      break;
-    case k_bcs:
-      if (accurate) {
-        asm_emit_instruction_BCS_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BCS_interp(p_buf);
-      }
-      break;
-    case k_beq:
-      if (accurate) {
-        asm_emit_instruction_BEQ_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BEQ_interp(p_buf);
-      }
-      break;
     case k_bit:
       asm_emit_instruction_BIT_interp(p_buf);
-      break;
-    case k_bmi:
-      if (accurate) {
-        asm_emit_instruction_BMI_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BMI_interp(p_buf);
-      }
-      break;
-    case k_bne:
-      if (accurate) {
-        asm_emit_instruction_BNE_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BNE_interp(p_buf);
-      }
-      break;
-    case k_bpl:
-      if (accurate) {
-        asm_emit_instruction_BPL_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BPL_interp(p_buf);
-      }
       break;
     case k_brk:
       asm_emit_instruction_BRK_interp(p_buf);
       opmode = 0;
-      break;
-    case k_bvc:
-      if (accurate) {
-        asm_emit_instruction_BVC_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BVC_interp(p_buf);
-      }
-      break;
-    case k_bvs:
-      if (accurate) {
-        asm_emit_instruction_BVS_interp_accurate(p_buf);
-      } else {
-        asm_emit_instruction_BVS_interp(p_buf);
-      }
       break;
     case k_clc:
       asm_emit_instruction_CLC(p_buf);

@@ -72,6 +72,16 @@ asm_inturbo_check_countdown_END:
   ret
 
 
+.globl asm_inturbo_commit_branch
+.globl asm_inturbo_commit_branch_END
+asm_inturbo_commit_branch:
+
+  mov REG_6502_PC, REG_SCRATCH1
+
+asm_inturbo_commit_branch_END:
+  ret
+
+
 .globl asm_inturbo_check_decimal
 .globl asm_inturbo_check_decimal_END
 .globl asm_inturbo_check_decimal_jb_patch
@@ -422,19 +432,8 @@ asm_instruction_Bxx_interp_accurate:
 
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH1]
-  bt REG_COUNTDOWN, 63
-  jb asm_unpatched_branch_target
-asm_instruction_Bxx_interp_accurate_jb_patch:
   mov REG_SCRATCH1, REG_SCRATCH2
 asm_instruction_Bxx_interp_accurate_not_taken_target:
-
-  mov REG_6502_PC, REG_SCRATCH1
-  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
-  lahf
-  shl REG_SCRATCH1_32, K_INTURBO_OPCODES_SHIFT
-  sahf
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_OPCODES]
-  jmp REG_SCRATCH1
 
 asm_instruction_Bxx_interp_accurate_END:
   ret
@@ -564,7 +563,6 @@ asm_instruction_BCC_interp:
 
   bt REG_6502_CF_64, 0
   cmovnc REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BCC_interp_END:
   ret
@@ -589,7 +587,6 @@ asm_instruction_BCS_interp:
 
   bt REG_6502_CF_64, 0
   cmovc REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BCS_interp_END:
   ret
@@ -613,7 +610,6 @@ asm_instruction_BCS_interp_accurate_END:
 asm_instruction_BEQ_interp:
 
   cmove REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BEQ_interp_END:
   ret
@@ -646,7 +642,6 @@ asm_instruction_BIT_interp_END:
 asm_instruction_BMI_interp:
 
   cmovs REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BMI_interp_END:
   ret
@@ -669,7 +664,6 @@ asm_instruction_BMI_interp_accurate_END:
 asm_instruction_BNE_interp:
 
   cmovne REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BNE_interp_END:
   ret
@@ -692,7 +686,6 @@ asm_instruction_BNE_interp_accurate_END:
 asm_instruction_BPL_interp:
 
   cmovns REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BPL_interp_END:
   ret
@@ -716,7 +709,6 @@ asm_instruction_BVC_interp:
 
   bt REG_6502_OF_64, 0
   cmovnc REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
 
 asm_instruction_BVC_interp_END:
   ret
@@ -741,7 +733,7 @@ asm_instruction_BVS_interp:
 
   bt REG_6502_OF_64, 0
   cmovc REG_SCRATCH1, REG_SCRATCH2
-  mov REG_6502_PC, REG_SCRATCH1
+
 
 asm_instruction_BVS_interp_END:
   ret

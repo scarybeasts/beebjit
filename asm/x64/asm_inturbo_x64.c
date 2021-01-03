@@ -27,17 +27,9 @@ asm_emit_instruction_Bxx_interp_accurate(
                  p_Bxx_interp_accurate_jump_patch,
                  p_jump_target);
 
-  offset = util_buffer_get_pos(p_buf);
-
   asm_copy(p_buf,
            asm_instruction_Bxx_interp_accurate,
            asm_instruction_Bxx_interp_accurate_END);
-
-  asm_patch_jump(p_buf,
-                 offset,
-                 asm_instruction_Bxx_interp_accurate,
-                 asm_instruction_Bxx_interp_accurate_jb_patch,
-                 asm_inturbo_call_interp);
 }
 
 int
@@ -96,6 +88,13 @@ asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
                  asm_inturbo_check_countdown,
                  asm_inturbo_check_countdown_jb_patch,
                  asm_inturbo_call_interp);
+}
+
+void
+asm_emit_inturbo_commit_branch(struct util_buffer* p_buf) {
+  void asm_inturbo_commit_branch(void);
+  void asm_inturbo_commit_branch_END(void);
+  asm_copy(p_buf, asm_inturbo_commit_branch, asm_inturbo_commit_branch_END);
 }
 
 void

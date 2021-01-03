@@ -12,6 +12,7 @@ void asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                             uint16_t special_mode_above);
 void asm_emit_inturbo_check_countdown(struct util_buffer* p_buf,
                                       uint8_t opcycles);
+void asm_emit_inturbo_commit_branch(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_decimal(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_interrupt(struct util_buffer* p_buf);
 void asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
