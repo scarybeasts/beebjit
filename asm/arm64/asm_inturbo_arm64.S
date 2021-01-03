@@ -195,6 +195,17 @@ asm_inturbo_mode_abx_END:
   ret
 
 
+.globl asm_inturbo_mode_aby
+.globl asm_inturbo_mode_aby_END
+asm_inturbo_mode_aby:
+
+  ldrh REG_SCRATCH2_32, [REG_6502_PC, #1]
+  add REG_SCRATCH1, REG_SCRATCH2, REG_6502_Y
+
+asm_inturbo_mode_aby_END:
+  ret
+
+
 .globl asm_inturbo_mode_zpx
 .globl asm_inturbo_mode_zpx_END
 asm_inturbo_mode_zpx:
@@ -286,7 +297,6 @@ asm_inturbo_interrupt_vector_END:
 .globl asm_instruction_ADC_imm_interp_END
 asm_instruction_ADC_imm_interp:
 
-  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
   add REG_SCRATCH1, REG_6502_CF, REG_SCRATCH1, lsl #56
   lsl REG_6502_A, REG_6502_A, #56
   orr REG_6502_A, REG_6502_A, #0x00FFFFFFFFFFFFFF
@@ -396,6 +406,16 @@ asm_instruction_BEQ_interp_accurate:
   sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
 
 asm_instruction_BEQ_interp_accurate_END:
+  ret
+
+
+.globl asm_instruction_BIT_interp
+.globl asm_instruction_BIT_interp_END
+asm_instruction_BIT_interp:
+
+  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
+
+asm_instruction_BIT_interp_END:
   ret
 
 
@@ -527,7 +547,6 @@ asm_instruction_BVS_interp_accurate_END:
 .globl asm_instruction_CMP_imm_interp_END
 asm_instruction_CMP_imm_interp:
 
-  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
   cmp REG_6502_A, REG_SCRATCH1
   cset REG_6502_CF, cs
 
@@ -551,7 +570,6 @@ asm_instruction_CMP_scratch_interp_END:
 .globl asm_instruction_CPX_imm_interp_END
 asm_instruction_CPX_imm_interp:
 
-  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
   lsl REG_SCRATCH2, REG_6502_X, #56
   cmp REG_SCRATCH2, REG_SCRATCH1, lsl #56
   cset REG_6502_CF, cs
@@ -560,12 +578,24 @@ asm_instruction_CPX_imm_interp_END:
   ret
 
 
+.globl asm_instruction_CPY_imm_interp
+.globl asm_instruction_CPY_imm_interp_END
+asm_instruction_CPY_imm_interp:
+
+  lsl REG_SCRATCH2, REG_6502_Y, #56
+  cmp REG_SCRATCH2, REG_SCRATCH1, lsl #56
+  cset REG_6502_CF, cs
+
+asm_instruction_CPY_imm_interp_END:
+  ret
+
+
 .globl asm_instruction_INC_scratch_interp
 .globl asm_instruction_INC_scratch_interp_END
 asm_instruction_INC_scratch_interp:
   ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH1]
   add REG_SCRATCH2, REG_SCRATCH2, #1
-  strb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH1]
+  strb REG_SCRATCH2_32, [REG_MEM_WRITE, REG_SCRATCH1]
   movn REG_SCRATCH1, #0
   tst REG_SCRATCH1, REG_6502_X, lsl #56
 
@@ -612,6 +642,16 @@ asm_instruction_LDX_imm_interp_END:
   ret
 
 
+.globl asm_instruction_LDX_scratch_interp
+.globl asm_instruction_LDX_scratch_interp_END
+asm_instruction_LDX_scratch_interp:
+
+  ldrb REG_6502_X_32, [REG_MEM_READ, REG_SCRATCH1]
+
+asm_instruction_LDX_scratch_interp_END:
+  ret
+
+
 .globl asm_instruction_LDY_imm_interp
 .globl asm_instruction_LDY_imm_interp_END
 asm_instruction_LDY_imm_interp:
@@ -650,7 +690,6 @@ asm_instruction_ROR_acc_interp_END:
 .globl asm_instruction_SBC_imm_interp_END
 asm_instruction_SBC_imm_interp:
 
-  ldrb REG_SCRATCH1_32, [REG_6502_PC, #1]
   eor REG_SCRATCH2, REG_6502_CF, #1
   add REG_SCRATCH1, REG_SCRATCH2, REG_SCRATCH1, lsl #56
   lsl REG_6502_A, REG_6502_A, #56

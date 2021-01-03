@@ -9,6 +9,26 @@
 .text
 
 
+.globl asm_instruction_BIT_common
+.globl asm_instruction_BIT_common_END
+asm_instruction_BIT_common:
+
+  tst REG_6502_A, REG_SCRATCH1
+  # Z flag
+  cset REG_SCRATCH2, eq
+  lsl REG_SCRATCH2, REG_SCRATCH2, #30
+  # N flag
+  ubfx REG_SCRATCH3, REG_SCRATCH1, #7, #1
+  lsl REG_SCRATCH3, REG_SCRATCH3, #31
+  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
+  msr nzcv, REG_SCRATCH2
+  # O flag
+  ubfx REG_6502_OF, REG_SCRATCH1, #6, #1
+
+asm_instruction_BIT_common_END:
+  ret
+
+
 .globl asm_instruction_CLC
 .globl asm_instruction_CLC_END
 asm_instruction_CLC:
@@ -48,6 +68,18 @@ asm_instruction_DEX:
   and REG_6502_X, REG_6502_X, #0xFF
 
 asm_instruction_DEX_END:
+  ret
+
+
+.globl asm_instruction_DEY
+.globl asm_instruction_DEY_END
+asm_instruction_DEY:
+
+  sub REG_6502_Y, REG_6502_Y, #1
+  adds xzr, xzr, REG_6502_Y, lsl #56
+  and REG_6502_Y, REG_6502_Y, #0xFF
+
+asm_instruction_DEY_END:
   ret
 
 
@@ -268,8 +300,10 @@ asm_emit_arm64_flags_to_scratch_END:
 asm_set_arm64_flags_from_scratch:
   and REG_6502_ID_F, REG_SCRATCH1, 0x0C
 
+  # N flag.
   ubfx REG_SCRATCH2, REG_SCRATCH1, #7, #1
   lsl REG_SCRATCH2, REG_SCRATCH2, #31
+  # Z flag.
   ubfx REG_SCRATCH3, REG_SCRATCH1, #1, #1
   lsl REG_SCRATCH3, REG_SCRATCH3, #30
   add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3

@@ -30,7 +30,9 @@ asm_emit_instruction_ILLEGAL(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_BIT_common(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_BIT_common(void);
+  void asm_instruction_BIT_common_END(void);
+  asm_copy(p_buf, asm_instruction_BIT_common, asm_instruction_BIT_common_END);
 }
 
 void
@@ -68,7 +70,9 @@ asm_emit_instruction_DEX(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_DEY(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_DEY(void);
+  void asm_instruction_DEY_END(void);
+  asm_copy(p_buf, asm_instruction_DEY, asm_instruction_DEY_END);
 }
 
 void
