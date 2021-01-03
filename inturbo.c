@@ -233,10 +233,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     /* Check for countdown expiry. */
     asm_emit_inturbo_check_countdown(p_buf, opcycles);
 
-    if (opmode == k_rel) {
-      asm_emit_inturbo_commit_branch(p_buf);
-    }
-
     switch (optype) {
     case k_adc:
       if (opmode == k_imm) {
@@ -267,6 +263,16 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       } else {
         asm_emit_instruction_ASL_scratch_interp(p_buf);
       }
+      break;
+    case k_bcc:
+    case k_bcs:
+    case k_beq:
+    case k_bmi:
+    case k_bne:
+    case k_bpl:
+    case k_bvc:
+    case k_bvs:
+      asm_emit_inturbo_commit_branch(p_buf);
       break;
     case k_bit:
       asm_emit_instruction_BIT_interp(p_buf);

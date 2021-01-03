@@ -59,6 +59,16 @@ asm_instruction_CLI_END:
   ret
 
 
+.globl asm_instruction_CLV
+.globl asm_instruction_CLV_END
+asm_instruction_CLV:
+
+  movz REG_6502_OF, #0
+
+asm_instruction_CLV_END:
+  ret
+
+
 .globl asm_instruction_DEX
 .globl asm_instruction_DEX_END
 asm_instruction_DEX:
@@ -191,6 +201,16 @@ asm_instruction_TSX_END:
   ret
 
 
+.globl asm_instruction_TXA
+.globl asm_instruction_TXA_END
+asm_instruction_TXA:
+
+  mov REG_6502_A, REG_6502_X
+
+asm_instruction_TXA_END:
+  ret
+
+
 .globl asm_instruction_TXS
 .globl asm_instruction_TXS_END
 asm_instruction_TXS:
@@ -198,6 +218,16 @@ asm_instruction_TXS:
   mov REG_6502_S, REG_6502_X
 
 asm_instruction_TXS_END:
+  ret
+
+
+.globl asm_instruction_TYA
+.globl asm_instruction_TYA_END
+asm_instruction_TYA:
+
+  mov REG_6502_A, REG_6502_Y
+
+asm_instruction_TYA_END:
   ret
 
 

@@ -58,7 +58,9 @@ asm_emit_instruction_CLI(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_CLV(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_CLV(void);
+  void asm_instruction_CLV_END(void);
+  asm_copy(p_buf, asm_instruction_CLV, asm_instruction_CLV_END);
 }
 
 void
@@ -176,7 +178,9 @@ asm_emit_instruction_TSX(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_TXA(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_TXA(void);
+  void asm_instruction_TXA_END(void);
+  asm_copy(p_buf, asm_instruction_TXA, asm_instruction_TXA_END);
 }
 
 void
@@ -188,7 +192,9 @@ asm_emit_instruction_TXS(struct util_buffer* p_buf) {
 
 void
 asm_emit_instruction_TYA(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_TYA(void);
+  void asm_instruction_TYA_END(void);
+  asm_copy(p_buf, asm_instruction_TYA, asm_instruction_TYA_END);
 }
 
 void
