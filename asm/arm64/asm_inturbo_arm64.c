@@ -172,6 +172,13 @@ asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
 }
 
 void
+asm_emit_inturbo_commit_branch(struct util_buffer* p_buf) {
+  void asm_inturbo_commit_branch(void);
+  void asm_inturbo_commit_branch_END(void);
+  asm_copy(p_buf, asm_inturbo_commit_branch, asm_inturbo_commit_branch_END);
+}
+
+void
 asm_emit_inturbo_check_decimal(struct util_buffer* p_buf) {
   (void) p_buf;
 }
