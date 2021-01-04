@@ -421,9 +421,6 @@ main(int argc, const char* argv[]) {
     return 0;
   }
 
-  if (pc >= 0) {
-    bbc_set_pc(p_bbc, pc);
-  }
   if (cycles != 0) {
     bbc_set_stop_cycles(p_bbc, cycles);
   }
@@ -597,6 +594,13 @@ main(int argc, const char* argv[]) {
                           handle_channel_write_ui);
 
   bbc_power_on_reset(p_bbc);
+
+  /* Can only set the PC after the bbc_power_on_reset reset call, otherwise the
+   * 6502 reset will clobber it.
+   */
+  if (pc >= 0) {
+    bbc_set_pc(p_bbc, pc);
+  }
 
   bbc_run_async(p_bbc);
 
