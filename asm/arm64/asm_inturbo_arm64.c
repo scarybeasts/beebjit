@@ -181,6 +181,7 @@ asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
   size_t pos = util_buffer_get_pos(p_buf);
   size_t asm_len = (asm_inturbo_jump_call_interp_END -
                     asm_inturbo_jump_call_interp);
+  (void) pos;
   assert(pos <= (len - asm_len));
   util_buffer_set_pos(p_buf, (len - asm_len));
   asm_copy(p_buf,
