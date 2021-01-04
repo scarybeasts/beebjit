@@ -74,6 +74,18 @@ asm_inturbo_check_decimal_tbnz_END:
   ret
 
 
+.globl asm_inturbo_check_interrupt_cbnz
+.globl asm_inturbo_check_interrupt_cbnz_END
+asm_inturbo_check_interrupt_cbnz:
+
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
+  ldr REG_SCRATCH1_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+  cbnz REG_SCRATCH1, asm_inturbo_check_interrupt_cbnz
+
+asm_inturbo_check_interrupt_cbnz_END:
+  ret
+
+
 .globl asm_inturbo_load_and_advance_pc
 .globl asm_inturbo_load_and_advance_pc_END
 asm_inturbo_load_and_advance_pc:

@@ -76,6 +76,35 @@ asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, uint8_t* p_target) {
 }
 
 static void
+asm_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf, uint8_t* p_target) {
+  uint8_t* p_raw;
+  uint8_t* p_src;
+  ssize_t pos;
+  uint32_t insn;
+  uint32_t* p_insn;
+  intptr_t delta;
+
+  p_raw = util_buffer_get_ptr(p_buf);
+  pos = util_buffer_get_pos(p_buf);
+  assert(pos >= 4);
+  pos -= 4;
+  p_raw += pos;
+
+  p_src = util_buffer_get_base_address(p_buf);
+  p_src += pos;
+  delta = (p_target - p_src);
+  delta /= 4;
+  /* Not the correct range for imm19 but too lazy to fix it for now. */
+  assert((delta <= 16383) && (delta >= -16384));
+
+  p_insn = (uint32_t*) p_raw;
+  insn = *p_insn;
+  insn &= ~(0x7FFFF << 5);
+  insn |= ((delta & 0x7FFFF) << 5);
+  *p_insn = insn;
+}
+
+static void
 asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val) {
   uint8_t* p_raw;
   ssize_t pos;
@@ -224,7 +253,16 @@ asm_emit_inturbo_check_decimal(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_check_interrupt(struct util_buffer* p_buf) {
-  (void) p_buf;
+  uint8_t* p_dest;
+  void asm_inturbo_check_interrupt_cbnz(void);
+  void asm_inturbo_check_interrupt_cbnz_END(void);
+  asm_copy(p_buf,
+           asm_inturbo_check_interrupt_cbnz,
+           asm_inturbo_check_interrupt_cbnz_END);
+  p_dest = util_buffer_get_base_address(p_buf);
+  p_dest += util_buffer_get_length(p_buf);
+  p_dest -= 4;
+  asm_patch_arm64_imm19_pc_rel(p_buf, p_dest);
 }
 
 void
