@@ -25,7 +25,7 @@ void asm_abi_init(struct asm_abi* p_abi,
   p_state_6502->reg_a = 0;
   p_state_6502->reg_x = 0;
   p_state_6502->reg_y = 0;
-  p_state_6502->reg_s = k_6502_stack_addr;
+  p_state_6502->reg_s = 0;
   p_state_6502->reg_pc = 0;
 
   asm_tables_init();

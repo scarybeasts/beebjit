@@ -481,6 +481,7 @@ asm_enter:
   or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_MEM_32
   or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_MEM_32
   or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
+  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], 0x100
   call asm_restore_AXYS_PC_flags
 
   # This register points to an offset (0x80) in the zero page. This enables us
