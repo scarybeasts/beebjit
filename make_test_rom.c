@@ -1597,8 +1597,68 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xD7);
   emit_JMP(p_buf, k_abs, 0xD740);
 
-  /* End of test. */
+  /* Test yet more opcode variants not yet tested. */
   set_new_index(p_buf, 0x1740);
+  emit_CLC(p_buf);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0x31);
+  emit_STA(p_buf, k_abs, 0x7000);
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_ADC(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x37);
+  emit_AND(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x31);
+  emit_ASL(p_buf, k_abx, 0x7000);
+  emit_LDA(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x62);
+  emit_CLC(p_buf);
+  emit_LDX(p_buf, k_imm, 0x62);
+  emit_CPX(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_CLC(p_buf);
+  emit_LDY(p_buf, k_imm, 0x62);
+  emit_CPY(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_DEC(p_buf, k_abx, 0x7000);
+  emit_LDA(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x61);
+  emit_EOR(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x00);
+  emit_INC(p_buf, k_abx, 0x7000);
+  emit_LDA(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x62);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDY(p_buf, k_abx, 0x7000);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x62);
+  emit_LDA(p_buf, k_imm, 0x22);
+  emit_STA(p_buf, k_zpg, 0x50);
+  emit_LSR(p_buf, k_zpg, 0x50);
+  emit_LDA(p_buf, k_zpg, 0x50);
+  emit_REQUIRE_EQ(p_buf, 0x11);
+  emit_LSR(p_buf, k_abx, 0x7000);
+  emit_LDA(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x31);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_ORA(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x31);
+  emit_SEC(p_buf);
+  emit_ROL(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_CF(p_buf, 0);
+  emit_LDA(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_EQ(p_buf, 0x63);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_SBC(p_buf, k_abx, 0x7000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xD840);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1840);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
