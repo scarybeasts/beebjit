@@ -139,6 +139,9 @@ disc_create(const char* p_file_name,
     is_mutable = 0;
     is_writeable = 0;
   }
+  if (p_disc->p_file == NULL) {
+    util_bail("couldn't open %s", p_file_name);
+  }
 
   if (util_is_extension(p_file_name, "ssd")) {
     disc_ssd_load(p_disc, 0);
