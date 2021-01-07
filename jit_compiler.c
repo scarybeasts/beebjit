@@ -24,6 +24,7 @@ struct jit_compiler {
   void* (*get_trampoline_host_address)(void* p, uint16_t addr);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
+  int32_t* p_code_blocks;
   int debug;
   int log_revalidate;
   uint8_t* p_opcode_types;
@@ -35,24 +36,12 @@ struct jit_compiler {
   uint32_t max_6502_opcodes_per_block;
   uint32_t max_revalidate_count;
 
-  struct util_buffer* p_single_opcode_buf;
   struct util_buffer* p_tmp_buf;
+  struct util_buffer* p_single_uopcode_buf;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
 
-  uint32_t len_x64_jmp;
-  uint32_t len_x64_FLAGA;
-  uint32_t len_x64_FLAGX;
-  uint32_t len_x64_FLAGY;
-  uint32_t len_x64_FLAG_MEM;
-  uint32_t len_x64_0xA9;
-  uint32_t len_x64_0xA2;
-  uint32_t len_x64_0xA0;
-  uint32_t len_x64_SAVE_OVERFLOW;
-  uint32_t len_x64_SAVE_CARRY;
-  uint32_t len_x64_SAVE_CARRY_INV;
-  uint32_t len_x64_CLC;
-  uint32_t len_x64_SEC;
+  uint32_t len_asm_jmp;
 
   int compile_for_code_in_zero_page;
 
@@ -106,7 +95,9 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
     return 0;
   }
 
-  p_raw_ptr = (uint8_t*) (size_t) jit_ptr;
+  assert(p_compiler->p_code_blocks[addr_6502] != -1);
+
+  p_raw_ptr = (uint8_t*) (uintptr_t) jit_ptr;
   /* TODO: don't hard code this? */
   if ((p_raw_ptr[0] == 0xff) && (p_raw_ptr[1] == 0x17)) {
     return 1;
@@ -120,6 +111,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
                     void* (*get_trampoline_host_address)(void*, uint16_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
+                    int32_t* p_code_blocks,
                     struct bbc_options* p_options,
                     int debug,
                     uint8_t* p_opcode_types,
@@ -143,6 +135,7 @@ jit_compiler_create(struct memory_access* p_memory_access,
   p_compiler->get_trampoline_host_address = get_trampoline_host_address;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
+  p_compiler->p_code_blocks = p_code_blocks;
   p_compiler->debug = debug;
   p_compiler->p_opcode_types = p_opcode_types;
   p_compiler->p_opcode_modes = p_opcode_modes;
@@ -175,9 +168,9 @@ jit_compiler_create(struct memory_access* p_memory_access,
 
   p_compiler->compile_for_code_in_zero_page = 0;
 
-  p_compiler->p_single_opcode_buf = util_buffer_create();
   p_tmp_buf = util_buffer_create();
   p_compiler->p_tmp_buf = p_tmp_buf;
+  p_compiler->p_single_uopcode_buf = util_buffer_create();
 
   p_compiler->jit_ptr_no_code =
       (uint32_t) (size_t) get_block_host_address(p_host_address_object,
@@ -188,63 +181,22 @@ jit_compiler_create(struct memory_access* p_memory_access,
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;
+    p_compiler->p_code_blocks[i] = -1;
   }
 
   /* Calculate lengths of sequences we need to know. */
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  /* Note: target pointer must be greater than an 8-bit jump range, otherwise
-   * a short jump will get emitted, which is not desired. Hence the 255.
-   */
-  asm_emit_jit_JMP(p_tmp_buf, &buf[255]);
-  p_compiler->len_x64_jmp = util_buffer_get_pos(p_tmp_buf);
-
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_instruction_A_NZ_flags(p_tmp_buf);
-  p_compiler->len_x64_FLAGA = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_instruction_X_NZ_flags(p_tmp_buf);
-  p_compiler->len_x64_FLAGX = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_instruction_Y_NZ_flags(p_tmp_buf);
-  p_compiler->len_x64_FLAGY = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_FLAG_MEM(p_tmp_buf, 0xFFFF);
-  p_compiler->len_x64_FLAG_MEM = util_buffer_get_pos(p_tmp_buf);
-
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_LDA_IMM(p_tmp_buf, 0x00);
-  p_compiler->len_x64_0xA9 = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_LDX_IMM(p_tmp_buf, 0x00);
-  p_compiler->len_x64_0xA2 = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_LDY_IMM(p_tmp_buf, 0x00);
-  p_compiler->len_x64_0xA0 = util_buffer_get_pos(p_tmp_buf);
-
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_SAVE_OVERFLOW(p_tmp_buf);
-  p_compiler->len_x64_SAVE_OVERFLOW = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_SAVE_CARRY(p_tmp_buf);
-  p_compiler->len_x64_SAVE_CARRY = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_jit_SAVE_CARRY_INV(p_tmp_buf);
-  p_compiler->len_x64_SAVE_CARRY_INV = util_buffer_get_pos(p_tmp_buf);
-
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_instruction_CLC(p_tmp_buf);
-  p_compiler->len_x64_CLC = util_buffer_get_pos(p_tmp_buf);
-  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  asm_emit_instruction_SEC(p_tmp_buf);
-  p_compiler->len_x64_SEC = util_buffer_get_pos(p_tmp_buf);
+  /* Note: target pointer is a short jump range. */
+  asm_emit_jit_JMP(p_tmp_buf, &buf[0]);
+  p_compiler->len_asm_jmp = util_buffer_get_pos(p_tmp_buf);
 
   return p_compiler;
 }
 
 void
 jit_compiler_destroy(struct jit_compiler* p_compiler) {
-  util_buffer_destroy(p_compiler->p_single_opcode_buf);
   util_buffer_destroy(p_compiler->p_tmp_buf);
+  util_buffer_destroy(p_compiler->p_single_uopcode_buf);
   util_free(p_compiler);
 }
 
@@ -1109,6 +1061,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0x4C:
+  case k_opcode_jump_raw:
     asm_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x4E: /* LSR abs */
@@ -1437,11 +1390,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
 
 uint32_t
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                           struct util_buffer* p_buf,
                            int is_invalidation,
                            uint16_t start_addr_6502) {
   struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
   uint8_t single_opcode_buffer[128];
+  struct jit_uop tmp_uop;
 
   uint32_t i_opcodes;
   uint32_t i_uops;
@@ -1451,8 +1404,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   struct jit_opcode_details* p_details;
   struct jit_opcode_details* p_details_fixup;
   struct jit_uop* p_uop;
+  void* p_host_address_base;
+  struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
+  struct util_buffer* p_single_uopcode_buf = p_compiler->p_single_uopcode_buf;
 
-  struct util_buffer* p_single_opcode_buf = p_compiler->p_single_opcode_buf;
   /* total_num_opcodes includes internally generated opcodes such as jumping
    * from the end of a block to the start of the next. total_num_6502_opcodes
    * is a count of real 6502 opcodes consumed only.
@@ -1462,8 +1417,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   int block_ended = 0;
   int is_block_start = 0;
   int is_next_block_continuation = 0;
-
-  assert(!util_buffer_get_pos(p_buf));
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
@@ -1570,6 +1523,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   assert(addr_6502 > start_addr_6502);
+  p_compiler->addr_is_block_continuation[addr_6502] =
+      is_next_block_continuation;
 
   if (!block_ended) {
     p_details = &opcode_details[total_num_opcodes];
@@ -1615,16 +1570,21 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                                total_num_opcodes);
   }
 
-  /* Fourth, emit the uop stream to the output buffer. This finalizes the number
-   * of opcodes compiled, which may get smaller if we run out of space in the
-   * binary output buffer.
-   */
+  /* Fourth, emit the uop stream to the output buffer. */
+  addr_6502 = start_addr_6502;
+  p_host_address_base =
+      p_compiler->get_block_host_address(p_compiler->p_host_address_object,
+                                         addr_6502);
+  util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
+  util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
+  util_buffer_setup(p_single_uopcode_buf,
+                    &single_opcode_buffer[0],
+                    sizeof(single_opcode_buffer));
+
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    uint8_t num_uops;
-    size_t buf_needed;
-    void* p_host_address;
-    struct jit_opcode_details* p_fixup_opcode;
-    uint32_t num_fixup_uops;
+    uint32_t num_uops;
+    int ends_block;
+    size_t opcode_len_asm = 0;
 
     p_details = &opcode_details[i_opcodes];
     if (p_details->eliminated) {
@@ -1636,162 +1596,103 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       assert(!p_details->ends_block);
     }
 
-    addr_6502 = p_details->addr_6502;
-
-    util_buffer_setup(p_single_opcode_buf,
-                      &single_opcode_buffer[0],
-                      sizeof(single_opcode_buffer));
-
-    p_host_address = (util_buffer_get_base_address(p_buf) +
-                      util_buffer_get_pos(p_buf));
-    util_buffer_set_base_address(p_single_opcode_buf, p_host_address);
-
     num_uops = p_details->num_uops;
+    ends_block = p_details->ends_block;
+
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-      size_t len_x64 = util_buffer_get_pos(p_single_opcode_buf);
+      size_t buf_needed;
+      size_t out_buf_pos;
       p_uop = &p_details->uops[i_uops];
       if (p_uop->eliminated) {
         continue;
       }
-      jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
-      len_x64 = (util_buffer_get_pos(p_single_opcode_buf) - len_x64);
-      p_uop->len_x64 = len_x64;
-    }
 
-    /* If there's any output, need at least 2 bytes because that the length of
-     * the self-modification overwrite.
-     */
-    assert((util_buffer_get_pos(p_single_opcode_buf) == 0) ||
-           (util_buffer_get_pos(p_single_opcode_buf) >= 2));
+      out_buf_pos = util_buffer_get_pos(p_tmp_buf);
+      util_buffer_set_base_address(p_single_uopcode_buf,
+                                   (p_host_address_base + out_buf_pos));
+      util_buffer_set_pos(p_single_uopcode_buf, 0);
+      jit_compiler_emit_uop(p_compiler, p_single_uopcode_buf, p_uop);
 
-    /* Calculate if this opcode fits. In order to fit, not only must the opcode
-     * itself fit, but there must be space to commit any fixups plus
-     * space for a possible final jump to the block continuation.
-     */
-    buf_needed = util_buffer_get_pos(p_single_opcode_buf);
-    if (!p_details->ends_block) {
-      buf_needed += p_compiler->len_x64_jmp;
-    }
-    p_fixup_opcode = NULL;
-    num_fixup_uops = 0;
-    if (i_opcodes < (total_num_opcodes - 1)) {
-      p_fixup_opcode = &opcode_details[(i_opcodes + 1)];
-      num_fixup_uops = p_fixup_opcode->num_fixup_uops;
-    }
-    for (i_uops = 0; i_uops < num_fixup_uops; ++i_uops) {
-      p_uop = p_fixup_opcode->fixup_uops[i_uops];
-      assert(p_uop->eliminated);
-      switch (p_uop->uopcode) {
-      case k_opcode_FLAGA:
-        buf_needed += p_compiler->len_x64_FLAGA;
-        break;
-      case k_opcode_FLAGX:
-        buf_needed += p_compiler->len_x64_FLAGX;
-        break;
-      case k_opcode_FLAGY:
-        buf_needed += p_compiler->len_x64_FLAGY;
-        break;
-      case k_opcode_FLAG_MEM:
-        buf_needed += p_compiler->len_x64_FLAG_MEM;
-        break;
-      case 0xA9: /* LDA imm */
-        buf_needed += p_compiler->len_x64_0xA9;
-        break;
-      case 0xA2: /* LDX imm */
-        buf_needed += p_compiler->len_x64_0xA2;
-        break;
-      case 0xA0: /* LDY imm */
-        buf_needed += p_compiler->len_x64_0xA0;
-        break;
-      case k_opcode_SAVE_OVERFLOW:
-        buf_needed += p_compiler->len_x64_SAVE_OVERFLOW;
-        break;
-      case k_opcode_SAVE_CARRY:
-        buf_needed += p_compiler->len_x64_SAVE_CARRY;
-        break;
-      case k_opcode_SAVE_CARRY_INV:
-        buf_needed += p_compiler->len_x64_SAVE_CARRY_INV;
-        break;
-      case 0x18:
-        buf_needed += p_compiler->len_x64_CLC;
-        break;
-      case 0x38:
-        buf_needed += p_compiler->len_x64_SEC;
-        break;
-      default:
-        assert(0);
-        break;
-      }
-    }
-
-    /* If the opcode doesn't fit, execute any uops that are fixups for the
-     * current position, and execute a jump to the block continuation.
-     */
-    if (util_buffer_remaining(p_buf) < buf_needed) {
-      is_next_block_continuation = 1;
-      util_buffer_set_pos(p_single_opcode_buf, 0);
-      for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
-        p_uop = p_details->fixup_uops[i_uops];
-        jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
-      }
-      /* JMP abs */
-      jit_opcode_make_internal_opcode1(p_details, addr_6502, 0x4C, addr_6502);
-      p_details->ends_block = 1;
-      jit_compiler_emit_uop(p_compiler,
-                            p_single_opcode_buf,
-                            &p_details->uops[0]);
-      p_host_address = NULL;
-      /* This ends the loop immediately. */
-      total_num_opcodes = i_opcodes;
-    }
-
-    util_buffer_append(p_buf, p_single_opcode_buf);
-
-    p_details->p_host_address = p_host_address;
-  }
-
-  p_compiler->addr_is_block_continuation[addr_6502] =
-      is_next_block_continuation;
-
-  /* Fifth, update any values (metadata and/or binary) that may have changed
-   * now we know the full extent of the emitted binary.
-   */
-  p_uop = NULL;
-  p_details_fixup = NULL;
-  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    p_details = &opcode_details[i_opcodes];
-    if (p_details->eliminated) {
-      continue;
-    }
-    if (p_details->cycles_run_start != -1) {
-      p_details_fixup = p_details;
-      assert(p_details_fixup->num_uops == 1);
-      p_uop = &p_details_fixup->uops[0];
-      assert(p_uop->uopcode == k_opcode_countdown);
-      p_details_fixup->cycles_run_start = 0;
-      p_uop->value2 = 0;
-
-      util_buffer_setup(p_single_opcode_buf,
-                        p_details_fixup->p_host_address,
-                        p_uop->len_x64);
-      /* The replacement uop could be shorter (e.g. 4-byte length -> 1-byte) but
-       * never longer so fill with nop.
+      /* Calculate if this uopcode fits. In order to fit, not only must the
+       * uopcode itself fit, but there must be space for a possible jump to the
+       * block continuation.
        */
-      util_buffer_fill_to_end(p_single_opcode_buf, '\x90');
+      buf_needed = util_buffer_get_pos(p_single_uopcode_buf);
+      if (!ends_block || (i_uops != (num_uops - 1))) {
+        buf_needed += p_compiler->len_asm_jmp;
+      }
+
+      if (util_buffer_remaining(p_tmp_buf) < buf_needed) {
+        /* Emit jump to the next adjacent code block. We'll need to jump over
+         * the compile trampoline at the beginning of the block.
+         */
+        void* p_resume =
+            (p_host_address_base + util_buffer_get_length(p_tmp_buf));
+        /* TODO: use the asm layer to decide how big the marker is. */
+        p_resume += 2;
+        jit_opcode_make_uop1(&tmp_uop,
+                             k_opcode_jump_raw,
+                             (int32_t) (uintptr_t) p_resume);
+        jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
+        util_buffer_fill_to_end(p_tmp_buf, '\xcc');
+
+        /* Continue compiling the code block in the next host block, after the
+         * compile trampoline.
+         */
+        addr_6502++;
+        p_host_address_base =
+            p_compiler->get_block_host_address(
+                p_compiler->p_host_address_object, addr_6502);
+        util_buffer_setup(p_tmp_buf,
+                          p_host_address_base,
+                          K_BBC_JIT_BYTES_PER_BYTE);
+        util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
+        /* Start writing after the invalidation marker. */
+        util_buffer_set_pos(p_tmp_buf, 2);
+
+        /* Re-emit the current uopcode because it is now at a different host
+         * address. Jump target calculations will have changed.
+         */
+        util_buffer_set_pos(p_single_uopcode_buf, 0);
+        util_buffer_set_base_address(p_single_uopcode_buf,
+                                     (p_host_address_base + 2));
+        jit_compiler_emit_uop(p_compiler, p_single_uopcode_buf, p_uop);
+      }
+
+      if (p_details->p_host_address == NULL) {
+        p_details->p_host_address =
+            (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+      }
+
+      util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
+      opcode_len_asm += util_buffer_get_pos(p_single_uopcode_buf);
     }
 
-    p_details_fixup->cycles_run_start += p_details->max_cycles_merged;
-    p_uop->value2 = p_details_fixup->cycles_run_start;
-    util_buffer_set_pos(p_single_opcode_buf, 0);
-    jit_compiler_emit_uop(p_compiler, p_single_opcode_buf, p_uop);
+    if (opcode_len_asm > 0) {
+      /* If there's any output, need at least 2 bytes because that the length of
+       * the self-modification overwrite.
+       */
+      assert(opcode_len_asm >= 2);
+    }
   }
 
-  /* Sixth, update compiler metadata. */
+  /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
+   * There are a few good reasons for this:
+   * 1) Clarity: see where a code block ends, especially if there was
+   * previously a larger code block at this address.
+   * 2) Bug detection: better chance of a clean crash if something does a bad
+   * jump.
+   * 3) Performance. int3 will stop the Intel instruction decoder.
+   */
+  util_buffer_fill_to_end(p_tmp_buf, '\xcc');
+
+  /* Fifth, update compiler metadata. */
   cycles = 0;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
     uint8_t num_bytes_6502;
     uint8_t i;
     uint32_t jit_ptr;
+    uint32_t i_opcodes_lookahead;
 
     p_details = &opcode_details[i_opcodes];
     if (p_details->eliminated) {
@@ -1803,9 +1704,19 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
 
     num_bytes_6502 = p_details->len_bytes_6502_merged;
-    jit_ptr = (uint32_t) (size_t) p_details->p_host_address;
+    jit_ptr = 0;
+    i_opcodes_lookahead = i_opcodes;
+    while (jit_ptr == 0) {
+      void* p_host_address = opcode_details[i_opcodes_lookahead].p_host_address;
+      jit_ptr = (uint32_t) (uintptr_t) p_host_address;
+      i_opcodes_lookahead++;
+      if (jit_ptr == 0) {
+        assert(i_opcodes_lookahead < total_num_opcodes);
+      }
+    }
     for (i = 0; i < num_bytes_6502; ++i) {
       p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
+      p_compiler->p_code_blocks[addr_6502] = start_addr_6502;
 
       if (addr_6502 != start_addr_6502) {
         jit_invalidate_jump_target(p_compiler, addr_6502);
@@ -1901,16 +1812,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
     cycles -= p_details->max_cycles_merged;
   }
-
-  /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
-   * There are a few good reasons for this:
-   * 1) Clarity: see where a code block ends, especially if there was
-   * previously a larger code block at this address.
-   * 2) Bug detection: better chance of a clean crash if something does a bad
-   * jump.
-   * 3) Performance. int3 will stop the Intel instruction decoder.
-   */
-  util_buffer_fill_to_end(p_buf, '\xcc');
 
   return (addr_6502 - start_addr_6502);
 }

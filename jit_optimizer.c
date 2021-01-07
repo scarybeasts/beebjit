@@ -672,7 +672,6 @@ jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
   p_uop->value1 = 0;
   p_uop->value2 = 0;
 
-  p_uop->len_x64 = 0;
   p_uop->eliminated = 0;
 }
 

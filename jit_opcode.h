@@ -12,7 +12,6 @@ struct jit_uop {
   int32_t value2;
 
   /* Dynamic details that are calculated as compilation proceeds. */
-  uint32_t len_x64;
   int eliminated;
 };
 
@@ -57,6 +56,7 @@ enum {
   k_opcode_countdown = 0x100,
   k_opcode_debug,
   k_opcode_interp,
+  k_opcode_jump_raw,
   k_opcode_for_testing,
   k_opcode_ADD_CYCLES,
   k_opcode_ADD_ABS,

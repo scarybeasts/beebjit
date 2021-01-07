@@ -15,6 +15,7 @@ struct jit_compiler* jit_compiler_create(
     void* (*get_trampoline_host_address)(void* p, uint16_t addr),
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
+    int32_t* p_code_blocks,
     struct bbc_options* p_options,
     int debug,
     uint8_t* p_opcode_types,
@@ -23,7 +24,6 @@ struct jit_compiler* jit_compiler_create(
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
 uint32_t jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                                    struct util_buffer* p_buf,
                                     int is_invalidation,
                                     uint16_t addr_6502);
 
