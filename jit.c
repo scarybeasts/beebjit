@@ -858,6 +858,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->p_jit_base = p_jit_base;
   p_jit->p_jit_trampolines = p_jit_trampolines;
   p_jit->p_compiler = jit_compiler_create(
+      p_timing,
       p_memory_access,
       jit_get_block_host_address_callback,
       jit_get_trampoline_host_address_callback,

@@ -28,6 +28,20 @@ jit_is_host_address_invalidated(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
 }
 
 static void
+jit_test_expect_block_invalidated(int expect, uint16_t block_addr) {
+  void* p_host_address = jit_get_jit_block_host_address(s_p_jit, block_addr);
+  test_expect_u32(expect,
+                  jit_is_host_address_invalidated(s_p_jit, p_host_address));
+}
+
+static void
+jit_test_expect_code_invalidated(int expect, uint16_t code_addr) {
+  void* p_host_address = jit_get_jit_code_host_address(s_p_jit, code_addr);
+  test_expect_u32(expect,
+                  jit_is_host_address_invalidated(s_p_jit, p_host_address));
+}
+
+static void
 jit_test_init(struct bbc_struct* p_bbc) {
   struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
   struct timing_struct* p_timing = bbc_get_timing(p_bbc);
@@ -51,7 +65,7 @@ jit_test_init(struct bbc_struct* p_bbc) {
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
-  jit_compiler_testing_set_max_revalidate_count(s_p_compiler, 1);
+  jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
 }
 
 static void
@@ -140,14 +154,10 @@ jit_test_details_from_host_ip(void) {
 
 static void
 jit_test_block_split() {
-  uint8_t* p_host_address;
-
   struct util_buffer* p_buf = util_buffer_create();
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(1, 0xB00);
+  jit_test_expect_block_invalidated(1, 0xB01);
 
   util_buffer_setup(p_buf, (s_p_mem + 0xB00), 0x100);
   emit_NOP(p_buf);
@@ -157,36 +167,28 @@ jit_test_block_split() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xB00);
+  jit_test_expect_block_invalidated(1, 0xB01);
 
   state_6502_set_pc(s_p_state_6502, 0xB01);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(1, 0xB00);
+  jit_test_expect_block_invalidated(0, 0xB01);
 
   state_6502_set_pc(s_p_state_6502, 0xB00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xB01);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xB00);
+  jit_test_expect_block_invalidated(0, 0xB01);
 
   util_buffer_destroy(p_buf);
 }
 
 static void
 jit_test_block_continuation() {
-  uint8_t* p_host_address;
-
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xC00), 0x100);
@@ -203,31 +205,23 @@ jit_test_block_continuation() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC04);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xC00);
+  jit_test_expect_block_invalidated(1, 0xC01);
+  jit_test_expect_block_invalidated(0, 0xC04);
 
   state_6502_set_pc(s_p_state_6502, 0xC01);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC01);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC04);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xC05);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xC01);
+  jit_test_expect_block_invalidated(1, 0xC04);
+  jit_test_expect_block_invalidated(0, 0xC05);
 
   util_buffer_destroy(p_buf);
 }
 
 static void
 jit_test_invalidation() {
-  uint8_t* p_host_address;
-
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xD00), 0x100);
@@ -253,24 +247,19 @@ jit_test_invalidation() {
   /* The block split compiling the invalidation at $0D01 invalidates the block
    * at $0D00.
    */
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD01);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(1, 0xD00);
+  jit_test_expect_block_invalidated(0, 0xD01);
 
   state_6502_set_pc(s_p_state_6502, 0xD00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+  jit_test_expect_block_invalidated(0, 0xD00);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
   /* This checks that the invalidation in the middle of a block didn't create
    * a new block boundary.
    */
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(1, 0xD01);
+  jit_test_expect_block_invalidated(0, 0xD04);
 
   jit_invalidate_code_at_address(s_p_jit, 0xD05);
 
@@ -289,35 +278,26 @@ jit_test_invalidation() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD05);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xD00);
+  jit_test_expect_block_invalidated(0, 0xD04);
+  jit_test_expect_block_invalidated(1, 0xD05);
 
   /* Check that no block boundaries appeared in incorrect places. */
   state_6502_set_pc(s_p_state_6502, 0xD03);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD03);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD04);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xD05);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xD03);
+  jit_test_expect_block_invalidated(1, 0xD04);
+  jit_test_expect_block_invalidated(1, 0xD05);
 
   util_buffer_destroy(p_buf);
 }
 
 static void
 jit_test_dynamic_operand() {
-  uint8_t* p_host_address;
-
   struct util_buffer* p_buf = util_buffer_create();
 
-  jit_compiler_testing_set_optimizing(s_p_compiler, 1);
   state_6502_set_x(s_p_state_6502, 0);
 
   util_buffer_setup(p_buf, (s_p_mem + 0xE00), 0x80);
@@ -334,12 +314,10 @@ jit_test_dynamic_operand() {
   /* After the first run through, the LDA $0E01 will have been self-modified
    * to LDA $0E02 and currently status will be awaiting compilation.
    */
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE00);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xE00);
+  jit_test_expect_code_invalidated(1, 0xE00);
+  jit_test_expect_code_invalidated(0, 0xE03);
+  jit_test_expect_block_invalidated(1, 0xE01);
 
   /* This run should trigger a compilation where the optimizer flips the
    * LDA abx operand to a dynamic one.
@@ -349,17 +327,26 @@ jit_test_dynamic_operand() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE01);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xE00);
+  jit_test_expect_code_invalidated(0, 0xE00);
+  jit_test_expect_code_invalidated(0, 0xE03);
+  jit_test_expect_block_invalidated(1, 0xE01);
 
   jit_invalidate_code_at_address(s_p_jit, 0xE01);
   jit_invalidate_code_at_address(s_p_jit, 0xE02);
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE00);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+
+  jit_test_expect_block_invalidated(0, 0xE00);
+
+  /* Put a different opcode, LDA aby, at 0xE00, and recompile. The resulting
+   * opcode should not have a dynamic operand right away.
+   */
+  s_p_mem[0xE00] = 0xB9;
+  jit_invalidate_code_at_address(s_p_jit, 0xE00);
+  state_6502_set_pc(s_p_state_6502, 0xE00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_test_expect_code_invalidated(1, 0xE00);
 
   /* Try again but with the dynamic operand opcode not at the block start. */
   util_buffer_setup(p_buf, (s_p_mem + 0xE80), 0x10);
@@ -371,21 +358,32 @@ jit_test_dynamic_operand() {
   state_6502_set_pc(s_p_state_6502, 0xE80);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  state_6502_set_pc(s_p_state_6502, 0xE80);
-  jit_enter(s_p_cpu_driver);
-  interp_testing_unexit(s_p_interp);
-
-  jit_invalidate_code_at_address(s_p_jit, 0xE84);
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE82);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xE80);
+  jit_test_expect_block_invalidated(1, 0xE82);
+  jit_test_expect_code_invalidated(1, 0xE82);
 
   state_6502_set_pc(s_p_state_6502, 0xE80);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
+  jit_test_expect_block_invalidated(1, 0xE80);
+  jit_test_expect_block_invalidated(0, 0xE82);
+  jit_test_expect_code_invalidated(0, 0xE82);
 
   jit_invalidate_code_at_address(s_p_jit, 0xE84);
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE82);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xE82);
+  jit_test_expect_code_invalidated(0, 0xE82);
+
+  state_6502_set_pc(s_p_state_6502, 0xE80);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  jit_test_expect_block_invalidated(0, 0xE80);
+  jit_test_expect_block_invalidated(1, 0xE82);
+  jit_test_expect_code_invalidated(0, 0xE82);
+
+  jit_invalidate_code_at_address(s_p_jit, 0xE84);
+  jit_test_expect_block_invalidated(1, 0xE82);
+  jit_test_expect_code_invalidated(0, 0xE82);
+
   /* When we do the recompile for the self-modified code, it splits the block
    * starting at 0xE80 and invalidates it.
    * When we recompile that block, make sure we didn't mistake the block split
@@ -393,8 +391,7 @@ jit_test_dynamic_operand() {
    * not have been compiled as dynamic operand.
    */
   jit_invalidate_code_at_address(s_p_jit, 0xE81);
-  p_host_address = jit_get_jit_code_host_address(s_p_jit, 0xE80);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_code_invalidated(1, 0xE80);
 
   /* Try again but with the two dynamic operands in a block. */
   util_buffer_setup(p_buf, (s_p_mem + 0xE90), 0x10);
@@ -425,12 +422,64 @@ jit_test_dynamic_operand() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE90);
-  test_expect_u32(0, jit_is_host_address_invalidated(s_p_jit, p_host_address));
-  p_host_address = jit_get_jit_block_host_address(s_p_jit, 0xE92);
-  test_expect_u32(1, jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  jit_test_expect_block_invalidated(0, 0xE90);
+  jit_test_expect_block_invalidated(1, 0xE92);
 
-  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+  util_buffer_destroy(p_buf);
+}
+
+static void
+jit_test_dynamic_operand_2() {
+  /* Test dynamic operand handling that needs history to work in order to create
+   * dynamic operands.
+   */
+  struct util_buffer* p_buf = util_buffer_create();
+
+  util_buffer_setup(p_buf, (s_p_mem + 0xF00), 0x100);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_EXIT(p_buf);
+
+  state_6502_set_pc(s_p_state_6502, 0xF00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  s_p_mem[0xF01] = 0x02;
+  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_expect_code_invalidated(1, 0xF00);
+
+  /* First compile-time encounter of the self-modified code. */
+  state_6502_set_pc(s_p_state_6502, 0xF00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* But it's not enough to create a dynamic operand. */
+  s_p_mem[0xF01] = 0x03;
+  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_expect_code_invalidated(1, 0xF00);
+
+  /* Second compile-time encounter of the self-modified code. */
+  state_6502_set_pc(s_p_state_6502, 0xF00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* It's enough to create a dynamic operand. */
+  s_p_mem[0xF01] = 0x03;
+  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_expect_code_invalidated(0, 0xF00);
+
+  /* Check dynamic operand persists if we compile a block that runs into the
+   * dynamic operand.
+   */
+  s_p_mem[0xEFF] = 0xEA;
+  state_6502_set_pc(s_p_state_6502, 0xEFF);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  s_p_mem[0xF01] = 0x04;
+  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_expect_code_invalidated(0, 0xF00);
+
+  util_buffer_destroy(p_buf);
 }
 
 void
@@ -444,5 +493,11 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_test_block_split();
   jit_test_block_continuation();
   jit_test_invalidation();
+
+  jit_compiler_testing_set_optimizing(s_p_compiler, 1);
   jit_test_dynamic_operand();
+  jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 2);
+  jit_test_dynamic_operand_2();
+  jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
 }

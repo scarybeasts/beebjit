@@ -5,11 +5,14 @@
 
 struct bbc_options;
 struct jit_compiler;
+struct jit_opcode_details;
 struct memory_access;
 struct state_6502;
+struct timing_struct;
 struct util_buffer;
 
 struct jit_compiler* jit_compiler_create(
+    struct timing_struct* p_timing,
     struct memory_access* p_memory_access,
     void* (*get_block_host_address)(void* p, uint16_t addr),
     void* (*get_trampoline_host_address)(void* p, uint16_t addr),
@@ -36,14 +39,10 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
                                           uint16_t addr,
                                           uint32_t len);
 
-uint32_t jit_compiler_get_max_revalidate_count(struct jit_compiler* p_compiler);
-
 int jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
                                        uint16_t addr_6502);
-void jit_compiler_get_revalidation_details(struct jit_compiler* p_compiler,
-                                           int32_t* p_opcode,
-                                           int32_t* p_revalidate_count,
-                                           uint16_t addr_6502);
+int jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
+                                     struct jit_opcode_details* p_opcode);
 
 int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);
@@ -54,7 +53,7 @@ void jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
                                          int optimizing);
 void jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
                                       uint32_t num_ops);
-void jit_compiler_testing_set_max_revalidate_count(
-    struct jit_compiler* p_compiler, uint32_t max_count);
+void jit_compiler_testing_set_dynamic_trigger(
+    struct jit_compiler* p_compiler, uint32_t count);
 
 #endif /* BEEJIT_JIT_COMPILER_H */

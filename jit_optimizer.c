@@ -705,8 +705,6 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
   struct jit_uop* p_carry_write_uop;
   int carry_flipped_for_branch;
 
-  uint32_t max_revalidate_count =
-      jit_compiler_get_max_revalidate_count(p_compiler);
   struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
 
   /* Use a compiler-provided scratch opcode to eliminate all BCD checks and do
@@ -730,29 +728,15 @@ jit_optimizer_optimize(struct jit_compiler* p_compiler,
     int32_t write_inv_replace_uopcode;
     int32_t write_inv_erase_uopcode;
     int32_t new_uopcode;
-    int32_t revalidate_count;
-    int32_t revalidate_opcode;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
+    int32_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t addr_6502 = p_opcode->addr_6502;
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
 
-    jit_compiler_get_revalidation_details(p_compiler,
-                                          &revalidate_opcode,
-                                          &revalidate_count,
-                                          addr_6502);
-
-    if (opcode_6502 != revalidate_opcode) {
+    if (!jit_compiler_emit_dynamic_opcode(p_compiler, p_opcode)) {
       continue;
     }
-
-    if (p_opcode->self_modify_invalidated) {
-      revalidate_count++;
-    }
-
-    if (revalidate_count < (int32_t) max_revalidate_count) {
-      continue;
-    }
+    assert(opcode_6502 == p_opcode->opcode_6502);
 
     opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
     page_crossing_search_uopcode = -1;
