@@ -1187,6 +1187,13 @@ video_recalculate_framing_sanity(struct video_struct* p_video) {
 }
 
 static void
+video_wall_time_vsync_hit(struct video_struct* p_video) {
+  p_video->is_wall_time_vsync_hit = 1;
+  p_video->last_wall_time_vsync_hit_cycles =
+      timing_get_total_timer_ticks(p_video->p_timing);
+}
+
+static void
 video_do_custom_paint_event(struct video_struct* p_video) {
   struct timing_struct* p_timing = p_video->p_timing;
   uint32_t timer_id = p_video->paint_timer_id;
@@ -1196,8 +1203,8 @@ video_do_custom_paint_event(struct video_struct* p_video) {
      * occur at the usual 50Hz virtual time.
      */
     if (timing_timer_is_running(p_timing, timer_id)) {
-      p_video->is_wall_time_vsync_hit = 1;
       p_video->has_paint_timer_triggered = 1;
+      video_wall_time_vsync_hit(p_video);
       /* A bunch of unconsumed framing changes will have built up. Clear the
        * the flag so the screen isn't immediately cleared after the first paint.
        * This avoids the second frame being bad with interlaced rendering.
@@ -1538,9 +1545,7 @@ video_apply_wall_time_delta(struct video_struct* p_video, uint64_t delta) {
 
   if (!p_video->externally_clocked) {
     if (!p_video->is_wall_time_vsync_hit) {
-      p_video->is_wall_time_vsync_hit = 1;
-      p_video->last_wall_time_vsync_hit_cycles =
-          timing_get_total_timer_ticks(p_video->p_timing);
+      video_wall_time_vsync_hit(p_video);
     }
     return;
   }
