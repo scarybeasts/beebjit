@@ -753,6 +753,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_interp:
     asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
     break;
+  case k_opcode_inturbo:
+    asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
+    break;
   case k_opcode_for_testing:
     asm_emit_jit_for_testing(p_dest_buf);
     break;

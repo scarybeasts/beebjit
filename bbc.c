@@ -1563,6 +1563,7 @@ bbc_create(int mode,
   if (p_bbc->p_cpu_driver == NULL) {
     util_bail("cpu_driver_alloc failed");
   }
+  cpu_driver_init(p_bbc->p_cpu_driver);
   p_bbc->p_cpu_driver->p_funcs->set_reset_callback(p_bbc->p_cpu_driver,
                                                    bbc_do_reset_callback,
                                                    p_bbc);

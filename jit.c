@@ -4,6 +4,7 @@
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "interp.h"
+#include "inturbo.h"
 #include "memory_access.h"
 #include "os_alloc.h"
 #include "os_fault.h"
@@ -44,6 +45,7 @@ struct jit_struct {
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct interp_struct* p_interp;
+  struct inturbo_struct* p_inturbo;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
   uint8_t jit_invalidation_sequence[2];
@@ -221,8 +223,11 @@ jit_enter_interp(struct jit_struct* p_jit,
 static void
 jit_destroy(struct cpu_driver* p_cpu_driver) {
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_inturbo_cpu_driver =
+      (struct cpu_driver*) p_jit->p_inturbo;
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
+  p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
   util_buffer_destroy(p_jit->p_temp_buf);
@@ -781,6 +786,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
+  struct inturbo_struct* p_inturbo;
   size_t i;
   size_t mapping_size;
   uint8_t* p_jit_base;
@@ -828,7 +834,28 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   if (p_interp == NULL) {
     util_bail("couldn't allocate interp_struct");
   }
+  cpu_driver_init((struct cpu_driver*) p_interp);
   p_jit->p_interp = p_interp;
+
+  /* The JIT mode uses an inturbo to handle opcodes that are self-modified
+   * continually.
+   */
+  p_inturbo = (struct inturbo_struct*) cpu_driver_alloc(k_cpu_mode_inturbo,
+                                                        0,
+                                                        p_state_6502,
+                                                        p_memory_access,
+                                                        p_timing,
+                                                        p_options);
+  if (p_inturbo == NULL) {
+    util_bail("couldn't allocate inturbo_struct");
+  }
+  inturbo_set_interp(p_inturbo, p_interp);
+  /* Enable inturbo ret mode, which means we can call it to interpret a single
+   * instruction and it will ret right back to us after every instruction.
+   */
+  inturbo_set_ret_mode(p_inturbo);
+  cpu_driver_init((struct cpu_driver*) p_inturbo);
+  p_jit->p_inturbo = p_inturbo;
 
   p_jit->driver.abi.p_interp_callback = jit_enter_interp;
   p_jit->driver.abi.p_interp_object = p_jit;

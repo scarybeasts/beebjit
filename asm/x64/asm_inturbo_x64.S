@@ -150,6 +150,16 @@ asm_inturbo_jump_opcode_END:
   ret
 
 
+.globl asm_inturbo_ret
+.globl asm_inturbo_ret_END
+asm_inturbo_ret:
+
+  ret
+
+asm_inturbo_ret_END:
+  ret
+
+
 .globl asm_inturbo_enter_debug
 .globl asm_inturbo_enter_debug_END
 asm_inturbo_enter_debug:

@@ -149,6 +149,25 @@ asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 }
 
 void
+asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
+                                    uint8_t advance) {
+  void asm_inturbo_ret(void);
+  void asm_inturbo_ret_END(void);
+
+  if (advance) {
+    size_t offset = util_buffer_get_pos(p_buf);
+    asm_copy(p_buf, asm_inturbo_advance_pc, asm_inturbo_advance_pc_END);
+    asm_patch_byte(p_buf,
+                   offset,
+                   asm_inturbo_advance_pc,
+                   asm_inturbo_advance_pc_lea_patch,
+                   advance);
+  }
+
+  asm_copy(p_buf, asm_inturbo_ret, asm_inturbo_ret_END);
+}
+
+void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
   size_t offset = util_buffer_get_pos(p_buf);
 

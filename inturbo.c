@@ -26,6 +26,8 @@ struct inturbo_struct {
   struct cpu_driver driver;
 
   struct interp_struct* p_interp;
+  int is_interp_owned;
+  int is_ret_mode;
   int debug_subsystem_active;
   struct os_alloc_mapping* p_mapping_base;
   uint8_t* p_inturbo_base;
@@ -561,7 +563,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     /* Advance PC, load next opcode, jump to correct opcode handler. */
-    asm_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
+    if (!p_inturbo->is_ret_mode) {
+      asm_emit_inturbo_advance_pc_and_next(p_buf, pc_advance);
+    } else {
+      asm_emit_inturbo_advance_pc_and_ret(p_buf, pc_advance);
+    }
 
     asm_emit_inturbo_epilog(p_buf);
   }
@@ -618,10 +624,12 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo,
 static void
 inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
-  struct cpu_driver* p_interp_cpu_driver =
-      (struct cpu_driver*) p_inturbo->p_interp;
 
-  p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
+  if (p_inturbo->is_interp_owned) {
+    struct cpu_driver* p_interp_cpu_driver =
+        (struct cpu_driver*) p_inturbo->p_interp;
+    p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
+  }
 
   os_alloc_free_mapping(p_inturbo->p_mapping_base);
   util_free(p_inturbo);
@@ -741,16 +749,20 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   /* The inturbo mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.
    */
-  p_interp = (struct interp_struct*) cpu_driver_alloc(k_cpu_mode_interp,
-                                                      0,
-                                                      p_state_6502,
-                                                      p_memory_access,
-                                                      p_timing,
-                                                      p_options);
-  if (p_interp == NULL) {
-    util_bail("couldn't allocate interp_struct");
+  if (p_inturbo->p_interp == NULL) {
+    p_interp = (struct interp_struct*) cpu_driver_alloc(k_cpu_mode_interp,
+                                                        0,
+                                                        p_state_6502,
+                                                        p_memory_access,
+                                                        p_timing,
+                                                        p_options);
+    if (p_interp == NULL) {
+      util_bail("couldn't allocate interp_struct");
+    }
+    p_inturbo->p_interp = p_interp;
+    p_inturbo->is_interp_owned = 1;
   }
-  p_inturbo->p_interp = p_interp;
+  cpu_driver_init((struct cpu_driver*) p_inturbo->p_interp);
 
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
@@ -779,4 +791,17 @@ inturbo_create(struct cpu_driver_funcs* p_funcs) {
   p_funcs->init = inturbo_init;
 
   return &p_inturbo->driver;
+}
+
+void
+inturbo_set_interp(struct inturbo_struct* p_inturbo,
+                   struct interp_struct* p_interp) {
+  assert(p_inturbo->p_interp == NULL);
+  assert(p_inturbo->is_interp_owned == 0);
+  p_inturbo->p_interp = p_interp;
+}
+
+void
+inturbo_set_ret_mode(struct inturbo_struct* p_inturbo) {
+  p_inturbo->is_ret_mode = 1;
 }

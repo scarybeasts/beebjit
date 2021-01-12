@@ -1,4 +1,5 @@
 #include "../asm_defs_host.h"
+#include "../asm_inturbo_defs.h"
 #include "../asm_jit_defs.h"
 #include "asm_calling_convention_x64.h"
 #include "asm_defs_registers_x64.h"
@@ -200,6 +201,33 @@ asm_jit_jump_interp_pc_patch:
 asm_jit_jump_interp_jump_patch:
 
 asm_jit_jump_interp_END:
+  ret
+
+
+.globl asm_jit_call_inturbo
+.globl asm_jit_call_inturbo_pc_patch
+.globl asm_jit_call_inturbo_END
+asm_jit_call_inturbo:
+  mov REG_6502_PC_32, 0x7fffffff
+asm_jit_call_inturbo_pc_patch:
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
+  lahf
+  shl REG_SCRATCH1_32, K_INTURBO_OPCODES_SHIFT
+  sahf
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_OPCODES]
+  # Keep stack alignment to 16 after the call.
+  push REG_CONTEXT
+  call REG_SCRATCH1
+  pop REG_CONTEXT
+  lahf
+  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  shl REG_6502_PC_32, K_BBC_JIT_BYTES_SHIFT
+  sahf
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_JIT_ADDR]
+
+  jmp REG_6502_PC
+
+asm_jit_call_inturbo_END:
   ret
 
 

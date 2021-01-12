@@ -160,7 +160,10 @@ cpu_driver_alloc(int mode,
     p_funcs->get_opcode_maps = cpu_driver_get_6502_opcode_maps;
   }
 
-  p_funcs->init(p_cpu_driver);
-
   return p_cpu_driver;
+}
+
+void
+cpu_driver_init(struct cpu_driver* p_driver) {
+  p_driver->p_funcs->init(p_driver);
 }

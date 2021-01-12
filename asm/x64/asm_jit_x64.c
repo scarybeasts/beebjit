@@ -135,6 +135,21 @@ asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_emit_jit_call_inturbo(struct util_buffer* p_buf, uint16_t addr) {
+  void asm_jit_call_inturbo(void);
+  void asm_jit_call_inturbo_pc_patch(void);
+  void asm_jit_call_inturbo_END(void);
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_copy(p_buf, asm_jit_call_inturbo, asm_jit_call_inturbo_END);
+  asm_patch_int(p_buf,
+                offset,
+                asm_jit_call_inturbo,
+                asm_jit_call_inturbo_pc_patch,
+                (addr + K_BBC_MEM_READ_FULL_ADDR));
+}
+
+void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 

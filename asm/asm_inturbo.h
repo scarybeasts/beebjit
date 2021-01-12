@@ -17,6 +17,8 @@ void asm_emit_inturbo_check_decimal(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_interrupt(struct util_buffer* p_buf);
 void asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
                                           uint8_t advance);
+void asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
+                                         uint8_t advance);
 void asm_emit_inturbo_enter_debug(struct util_buffer* p_buf);
 void asm_emit_inturbo_call_interp(struct util_buffer* p_buf);
 

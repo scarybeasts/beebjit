@@ -73,4 +73,6 @@ struct cpu_driver* cpu_driver_alloc(int mode,
                                     struct timing_struct* p_timing,
                                     struct bbc_options* p_options);
 
+void cpu_driver_init(struct cpu_driver* p_driver);
+
 #endif /* BEEBJIT_CPU_DRIVER_H */

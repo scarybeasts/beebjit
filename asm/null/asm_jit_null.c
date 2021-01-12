@@ -42,6 +42,11 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
+asm_emit_jit_call_inturbo(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_jit_for_testing(struct util_buffer* p_buf) {
   (void) p_buf;
 }

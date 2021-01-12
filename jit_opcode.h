@@ -54,6 +54,7 @@ enum {
   k_opcode_countdown = 0x100,
   k_opcode_debug,
   k_opcode_interp,
+  k_opcode_inturbo,
   k_opcode_jump_raw,
   k_opcode_for_testing,
   k_opcode_ADD_CYCLES,
