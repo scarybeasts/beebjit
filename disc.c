@@ -33,6 +33,7 @@ struct disc_struct {
   int log_iffy_pulses;
   int expand_to_80;
   int quantize_fm;
+  int is_skip_odd_tracks;
   uint32_t rev;
   char rev_spec[256];
 
@@ -106,6 +107,8 @@ disc_create(const char* p_file_name,
                                          "disc:expand-to-80");
   p_disc->quantize_fm = util_has_option(p_options->p_opt_flags,
                                         "disc:quantize-fm");
+  p_disc->is_skip_odd_tracks = util_has_option(p_options->p_opt_flags,
+                                               "disc:skip-odd-tracks");
   p_disc->rev = 0;
   (void) util_get_u32_option(&p_disc->rev, p_options->p_opt_flags, "disc:rev=");
   (void) util_get_str_option(&p_rev_spec,
@@ -174,7 +177,8 @@ disc_create(const char* p_file_name,
     disc_scp_load(p_disc,
                   p_disc->rev,
                   p_disc->quantize_fm,
-                  p_disc->log_iffy_pulses);
+                  p_disc->log_iffy_pulses,
+                  p_disc->is_skip_odd_tracks);
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);

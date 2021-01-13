@@ -12,7 +12,8 @@ void
 disc_scp_load(struct disc_struct* p_disc,
               uint32_t capture_rev,
               int quantize_fm,
-              int log_iffy_pulses) {
+              int log_iffy_pulses,
+              int is_skip_odd_tracks) {
   static const size_t k_max_scp_track_size = (1024 * 1024);
   uint32_t len;
   uint8_t header[16];
@@ -68,6 +69,15 @@ disc_scp_load(struct disc_struct* p_disc,
 
   num_tracks = (max_track + 1);
 
+  log_do_log(k_log_disc,
+             k_log_info,
+             "SCP: loading %d tracks, %d revs",
+             num_tracks,
+             num_revs);
+  if (is_skip_odd_tracks) {
+    log_do_log(k_log_disc, k_log_info, "SCP: skipping odd tracks");
+  }
+
   p_scp_track_data = util_malloc(k_max_scp_track_size);
 
   for (i_tracks = 0; i_tracks < num_tracks; ++i_tracks) {
@@ -86,6 +96,7 @@ disc_scp_load(struct disc_struct* p_disc,
     if (track_offset == 0) {
       continue;
     }
+    /* TODO: this looks wrong. */
     if ((i_tracks == 1) && (track_offset != 0)) {
       /* Well, this is awkward!
        * Normally, the track offsets are:
@@ -100,6 +111,12 @@ disc_scp_load(struct disc_struct* p_disc,
       actual_track = i_tracks;
     } else {
       actual_track = (i_tracks / 2);
+    }
+    if (is_skip_odd_tracks) {
+      if (actual_track & 1) {
+        continue;
+      }
+      actual_track = (actual_track / 2);
     }
     if (actual_track >= k_ibm_disc_tracks_per_disc) {
       util_bail("SCP excessive tracks");
