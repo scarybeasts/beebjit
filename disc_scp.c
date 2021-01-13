@@ -22,6 +22,8 @@ disc_scp_load(struct disc_struct* p_disc,
   uint32_t max_track;
   uint32_t num_tracks;
   uint32_t num_revs;
+  uint32_t heads_byte;
+  uint32_t num_sides;
   uint8_t scp_flags;
   uint8_t* p_scp_track_data;
   int is_one_side_only = 0;
@@ -56,8 +58,14 @@ disc_scp_load(struct disc_struct* p_disc,
   if (header[9] != 0) {
     util_bail("SCP bad bitcell width");
   }
-  if (header[10] != 1) {
-    util_bail("SCP upper side not supported");
+  heads_byte = header[10];
+  if (heads_byte > 1) {
+    util_bail("SCP heads byte %d not supported", heads_byte);
+  }
+  if (heads_byte == 0) {
+    num_sides = 2;
+  } else {
+    num_sides = 1;
   }
   if (header[11] != 0) {
     util_bail("SCP resolution not 25ns");
@@ -71,7 +79,8 @@ disc_scp_load(struct disc_struct* p_disc,
 
   log_do_log(k_log_disc,
              k_log_info,
-             "SCP: loading %d tracks, %d revs",
+             "SCP: loading %d sides, %d tracks, %d revs",
+             num_sides,
              num_tracks,
              num_revs);
   if (is_skip_odd_tracks) {
@@ -86,6 +95,7 @@ disc_scp_load(struct disc_struct* p_disc,
     uint32_t track_length;
     uint32_t i_data;
     uint32_t actual_track;
+    int side;
 
     util_file_seek(p_file, ((i_tracks * 4) + 16));
     len = util_file_read(p_file, &chunk[0], 4);
@@ -96,8 +106,7 @@ disc_scp_load(struct disc_struct* p_disc,
     if (track_offset == 0) {
       continue;
     }
-    /* TODO: this looks wrong. */
-    if ((i_tracks == 1) && (track_offset != 0)) {
+    if ((num_sides == 1) && (i_tracks == 1)) {
       /* Well, this is awkward!
        * Normally, the track offsets are:
        * track0 / side0, track0 / side1, track1 / side0, ... and if the disc is
@@ -106,11 +115,14 @@ disc_scp_load(struct disc_struct* p_disc,
        * which I think could be counter to the spec? This is handled here.
        */
       is_one_side_only = 1;
+      log_do_log(k_log_disc, k_log_info, "SCP: densely packed single side");
     }
     if (is_one_side_only) {
       actual_track = i_tracks;
+      side = 0;
     } else {
       actual_track = (i_tracks / 2);
+      side = (i_tracks & 1);
     }
     if (is_skip_odd_tracks) {
       if (actual_track & 1) {
@@ -150,7 +162,7 @@ disc_scp_load(struct disc_struct* p_disc,
       util_bail("SCP can't read track data");
     }
 
-    disc_build_track(p_disc, 0, actual_track);
+    disc_build_track(p_disc, side, actual_track);
 
     i_data = 0;
     while (i_data < track_length) {
