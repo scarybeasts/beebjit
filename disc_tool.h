@@ -27,7 +27,8 @@ struct disc_struct;
 void disc_tool_log_summary(struct disc_struct* p_disc,
                            int log_crc_errors,
                            int log_protection,
-                           int log_fingerprint);
+                           int log_fingerprint,
+                           int log_fingerprint_tracks);
 
 struct disc_tool_struct* disc_tool_create();
 void disc_tool_destroy(struct disc_tool_struct* p_tool);

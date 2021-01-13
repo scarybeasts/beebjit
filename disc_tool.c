@@ -486,11 +486,13 @@ void
 disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_crc_errors,
                       int log_protection,
-                      int log_fingerprint) {
+                      int log_fingerprint,
+                      int log_fingerprint_tracks) {
   uint32_t i_tracks;
   uint32_t disc_crc = 0;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
+  int is_fingerprinting = (log_fingerprint || log_fingerprint_tracks);
 
   if (max_track < 41) {
     max_track = 41;
@@ -498,7 +500,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     max_track = 81;
   }
 
-  if (log_fingerprint) {
+  if (is_fingerprinting) {
     disc_crc = util_crc32_init();
   }
 
@@ -510,7 +512,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     uint8_t seen_sectors[256];
     uint32_t track_crc;
 
-    if (log_fingerprint) {
+    if (is_fingerprinting) {
       track_crc = util_crc32_init();
     }
 
@@ -619,7 +621,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                      i_sectors);
         }
       }
-      if (log_fingerprint) {
+      if (is_fingerprinting) {
         int do_include_sector = 1;
         if (p_sectors->byte_length == 0) {
           do_include_sector = 0;
@@ -652,13 +654,15 @@ disc_tool_log_summary(struct disc_struct* p_disc,
       p_sectors++;
     }
 
-    if (log_fingerprint) {
+    if (is_fingerprinting) {
       track_crc = util_crc32_finish(track_crc);
-      log_do_log(k_log_disc,
-                 k_log_info,
-                 "track %d CRC32 fingerprint %.8X",
-                 i_tracks,
-                 track_crc);
+      if (log_fingerprint_tracks) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "track %d CRC32 fingerprint %.8X",
+                   i_tracks,
+                   track_crc);
+      }
       /* NOTE: not endian safe. */
       disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
     }
