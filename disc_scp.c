@@ -13,7 +13,8 @@ disc_scp_load(struct disc_struct* p_disc,
               uint32_t capture_rev,
               int quantize_fm,
               int log_iffy_pulses,
-              int is_skip_odd_tracks) {
+              int is_skip_odd_tracks,
+              int is_skip_upper_side) {
   static const size_t k_max_scp_track_size = (1024 * 1024);
   uint32_t len;
   uint8_t header[16];
@@ -130,6 +131,9 @@ disc_scp_load(struct disc_struct* p_disc,
       }
       actual_track = (actual_track / 2);
     }
+    if (is_skip_upper_side && (side == 1)) {
+      continue;
+    }
     if (actual_track >= k_ibm_disc_tracks_per_disc) {
       util_bail("SCP excessive tracks");
     }
@@ -172,7 +176,8 @@ disc_scp_load(struct disc_struct* p_disc,
         if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
           log_do_log(k_log_disc,
                      k_log_info,
-                     "track %d tpos %d filepos %d iffy pulse %f (%s)",
+                     "side %d track %d tpos %d filepos %d iffy pulse %f (%s)",
+                     side,
                      actual_track,
                      (i_data / 2),
                      (track_data_offset + i_data),
@@ -183,7 +188,8 @@ disc_scp_load(struct disc_struct* p_disc,
       if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
         log_do_log(k_log_disc,
                    k_log_warning,
-                   "SCP truncating track %d",
+                   "SCP truncating side %d track %d",
+                   side,
                    actual_track);
       }
 
