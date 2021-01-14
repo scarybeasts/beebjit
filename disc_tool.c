@@ -663,8 +663,11 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                    i_tracks,
                    track_crc);
       }
-      /* NOTE: not endian safe. */
-      disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
+      /* Full disc fingerprint only includes up to the 81st track. */
+      if (i_tracks <= 80) {
+        /* NOTE: not endian safe. */
+        disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
+      }
     }
   }
 
