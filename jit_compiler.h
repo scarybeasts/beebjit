@@ -41,8 +41,6 @@ void jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
 int jit_compiler_is_block_continuation(struct jit_compiler* p_compiler,
                                        uint16_t addr_6502);
-int jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
-                                     struct jit_opcode_details* p_opcode);
 
 int jit_compiler_is_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler);

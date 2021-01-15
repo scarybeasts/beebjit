@@ -46,6 +46,7 @@ struct jit_compiler {
 
   int option_accurate_timings;
   int option_no_optimize;
+  int option_no_dynamic_operand;
   uint32_t max_6502_opcodes_per_block;
   uint32_t dynamic_trigger;
 
@@ -168,6 +169,8 @@ jit_compiler_create(struct timing_struct* p_timing,
   }
   p_compiler->option_no_optimize = util_has_option(p_options->p_opt_flags,
                                                    "jit:no-optimize");
+  p_compiler->option_no_dynamic_operand =
+      util_has_option(p_options->p_opt_flags, "jit:no-dynamic-operand");
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -1441,7 +1444,7 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
   p_history->times[ring_buffer_index] = ticks;
 }
 
-int
+static int
 jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
                                  struct jit_opcode_details* p_opcode) {
   uint32_t i;
@@ -1493,6 +1496,186 @@ jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
   }
 
   return 1;
+}
+
+static void
+jit_compiler_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
+  uint8_t opmode;
+  int32_t page_crossing_search_uopcode;
+  int32_t page_crossing_replace_uopcode;
+  int32_t write_inv_search_uopcode;
+  int32_t write_inv_replace_uopcode;
+  int32_t write_inv_erase_uopcode;
+  int32_t new_uopcode;
+
+  int32_t opcode_6502 = p_opcode->opcode_6502;
+  uint16_t addr_6502 = p_opcode->addr_6502;
+  assert(opcode_6502 == p_opcode->opcode_6502);
+
+  opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
+  page_crossing_search_uopcode = -1;
+  page_crossing_replace_uopcode = -1;
+  write_inv_search_uopcode = -1;
+  write_inv_replace_uopcode = -1;
+  write_inv_erase_uopcode = -1;
+  new_uopcode = -1;
+
+  switch (opmode) {
+  case k_imm:
+    switch (opcode_6502) {
+    case 0x09: /* ORA */
+    case 0x29: /* AND */
+    case 0x49: /* EOR */
+    case 0x69: /* ADC */
+    case 0xA9: /* LDA */
+    case 0xC9: /* CMP */
+    case 0xE9: /* SBC */
+      /* Convert imm to abs. */
+      new_uopcode = (opcode_6502 + 4);
+      break;
+    case 0xA0: /* LDY */
+    case 0xA2: /* LDX */
+    case 0xC0: /* CPY */
+    case 0xE0: /* CPX */
+      /* Convert imm to abs. */
+      new_uopcode = (opcode_6502 + 0xC);
+      break;
+    default:
+      break;
+    }
+    if (new_uopcode != -1) {
+      jit_opcode_find_replace1(p_opcode,
+                               opcode_6502,
+                               new_uopcode,
+                               (uint16_t) (addr_6502 + 1));
+    }
+    break;
+  case k_zpg:
+    switch (opcode_6502) {
+    case 0xA5: /* LDA */
+      new_uopcode = 0xA1; /* LDA idx */
+      break;
+    default:
+      break;
+    }
+    if (new_uopcode != -1) {
+      jit_opcode_find_replace2(p_opcode,
+                               opcode_6502,
+                               k_opcode_LOAD_SCRATCH_8,
+                               (uint16_t) (addr_6502 + 1),
+                               new_uopcode,
+                               0);
+    }
+    break;
+  case k_abs:
+    switch (opcode_6502) {
+    case 0x4C: /* JMP abs */
+      new_uopcode = k_opcode_JMP_SCRATCH;
+      break;
+    case 0x8C: /* STY abs */
+      new_uopcode = 0x94; /* STY zpx -- which is STY_scratch. */
+      write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      break;
+    case 0x8D: /* STA abs */
+      new_uopcode = 0x95; /* STA zpx -- which is STA_SCRATCH. */
+      write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      break;
+    case 0xAE: /* LDX abs */
+      new_uopcode = 0xB6; /* LDX zpy -- which is LDX_scratch. */
+      break;
+    default:
+      break;
+    }
+    /* abs mode can hit hardware registers and compile to an interp call. */
+    if (jit_opcode_find_uop(p_opcode, opcode_6502) == NULL) {
+      new_uopcode = -1;
+    }
+    if (new_uopcode != -1) {
+      jit_opcode_find_replace2(p_opcode,
+                               opcode_6502,
+                               k_opcode_LOAD_SCRATCH_16,
+                               (uint16_t) (addr_6502 + 1),
+                               new_uopcode,
+                               0);
+    }
+    break;
+  case k_aby:
+    switch (opcode_6502) {
+    case 0x99: /* STA aby */
+      new_uopcode = 0x91; /* STA idy */
+      write_inv_search_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH_Y;
+      write_inv_erase_uopcode = k_opcode_MODE_ABY;
+      break;
+    case 0xB9: /* LDA aby */
+      new_uopcode = 0xB1; /* LDA idy */
+      page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_Y_n;
+      page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y;
+      break;
+    default:
+      break;
+    }
+    /* aby mode can hit hardware registers and compile to an interp call. */
+    if (jit_opcode_find_uop(p_opcode, opcode_6502) == NULL) {
+      new_uopcode = -1;
+    }
+    if (new_uopcode != -1) {
+      jit_opcode_find_replace2(p_opcode,
+                               opcode_6502,
+                               k_opcode_LOAD_SCRATCH_16,
+                               (uint16_t) (addr_6502 + 1),
+                               new_uopcode,
+                               0);
+    }
+    break;
+  default:
+    switch (opcode_6502) {
+    case 0x6C: /* JMP ind */
+      new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
+      jit_opcode_find_replace2(p_opcode,
+                               k_opcode_MODE_IND_16,
+                               k_opcode_LOAD_SCRATCH_16,
+                               (uint16_t) (addr_6502 + 1),
+                               k_opcode_MODE_IND_SCRATCH_16,
+                               0);
+      break;
+    case 0xBD: /* LDA abx */
+      new_uopcode = k_opcode_LDA_SCRATCH_X;
+      jit_opcode_find_replace2(p_opcode,
+                               0xBD,
+                               k_opcode_LOAD_SCRATCH_16,
+                               (uint16_t) (addr_6502 + 1),
+                               k_opcode_LDA_SCRATCH_X,
+                               0);
+      page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_X_n;
+      page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X;
+      break;
+    default:
+      break;
+    }
+    break;
+  }
+  if (new_uopcode != -1) {
+    p_opcode->dynamic_operand = 1;
+    if (page_crossing_search_uopcode != -1) {
+      struct jit_uop* p_uop =
+          jit_opcode_find_uop(p_opcode, page_crossing_search_uopcode);
+      if (p_uop != NULL) {
+        jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
+      }
+    }
+    if (write_inv_search_uopcode != -1) {
+      struct jit_uop* p_uop =
+          jit_opcode_find_uop(p_opcode, write_inv_search_uopcode);
+      assert(p_uop != NULL);
+      jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
+    }
+    if (write_inv_erase_uopcode != -1) {
+      jit_opcode_erase_uop(p_opcode, write_inv_erase_uopcode);
+    }
+  }
 }
 
 uint32_t
@@ -1642,7 +1825,31 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
-  /* Second, walk the opcode list and apply any fixups or adjustments. */
+  /* Second, work out if we'll be compiling any dynamic opcodes / operands. */
+  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
+    p_details = &opcode_details[i_opcodes];
+    addr_6502 = p_details->addr_6502;
+
+    /* Check self-modified status for each opcode. It's used in
+     * jit_compiler_emit_dynamic_opcode() just below.
+     */
+    if ((p_details->len_bytes_6502_orig != 0) &&
+        jit_has_invalidated_code(p_compiler, addr_6502)) {
+      p_details->self_modify_invalidated = 1;
+    }
+
+    if (!jit_compiler_emit_dynamic_opcode(p_compiler, p_details)) {
+      continue;
+    }
+
+    if (p_compiler->option_no_dynamic_operand) {
+      continue;
+    }
+
+    jit_compiler_make_dynamic_opcode(p_details);
+  }
+
+  /* Third, walk the opcode list and calculate cycle counts. */
   p_uop = NULL;
   p_details_fixup = NULL;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
@@ -1659,26 +1866,17 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       assert(p_uop->value2 == 0);
     }
 
-    /* Check self-modified status for each opcode. Need to do this before we
-     * start overwriting the existing host binary in the fourth step below.
-     */
-    if ((p_details->len_bytes_6502_orig != 0) &&
-        jit_has_invalidated_code(p_compiler, addr_6502)) {
-      p_details->self_modify_invalidated = 1;
-    }
-
     p_details_fixup->cycles_run_start += p_details->max_cycles_orig;
     p_uop->value2 = p_details_fixup->cycles_run_start;
   }
 
-  /* Third, run the optimizer across the list of opcodes. */
+  /* Fourth, run the optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
-    total_num_opcodes = jit_optimizer_optimize(p_compiler,
-                                               &opcode_details[0],
+    total_num_opcodes = jit_optimizer_optimize(&opcode_details[0],
                                                total_num_opcodes);
   }
 
-  /* Fourth, emit the uop stream to the output buffer. */
+  /* Fifth, emit the uop stream to the output buffer. */
   addr_6502 = start_addr_6502;
   p_host_address_base =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
@@ -1794,7 +1992,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    */
   util_buffer_fill_to_end(p_tmp_buf, '\xcc');
 
-  /* Fifth, update compiler metadata. */
+  /* Sixth, update compiler metadata. */
   ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
   cycles = 0;
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
