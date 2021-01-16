@@ -1,5 +1,6 @@
 #include "../asm_defs_host.h"
 #include "../asm_inturbo_defs.h"
+#include "../asm_jit_defs.h"
 #include "asm_calling_convention_x64.h"
 #include "asm_defs_registers_x64.h"
 
@@ -178,6 +179,19 @@ asm_inturbo_jump_call_interp:
 asm_inturbo_jump_call_interp_jmp_patch:
 
 asm_inturbo_jump_call_interp_END:
+  ret
+
+
+.globl asm_inturbo_do_write_invalidation
+.globl asm_inturbo_do_write_invalidation_END
+asm_inturbo_do_write_invalidation:
+
+  mov REG_SCRATCH1_32, [REG_CONTEXT + \
+                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
+                        REG_SCRATCH1 * 4]
+  mov WORD PTR [REG_SCRATCH1], 0x17ff
+
+asm_inturbo_do_write_invalidation_END:
   ret
 
 

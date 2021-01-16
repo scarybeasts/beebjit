@@ -47,7 +47,8 @@ struct jit_opcode_details {
   uint8_t max_cycles_merged;
   int eliminated;
   int self_modify_invalidated;
-  int dynamic_operand;
+  int is_dynamic_opcode;
+  int is_dynamic_operand;
 };
 
 enum {

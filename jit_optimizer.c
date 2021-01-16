@@ -766,14 +766,14 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
       reg_a = reg_y;
       break;
     case 0xA0: /* LDY imm */
-      if (!p_opcode->dynamic_operand) {
+      if (!p_opcode->is_dynamic_operand) {
         reg_y = operand_6502;
       } else {
         reg_y = k_value_unknown;
       }
       break;
     case 0xA2: /* LDX imm */
-      if (!p_opcode->dynamic_operand) {
+      if (!p_opcode->is_dynamic_operand) {
         reg_x = operand_6502;
       } else {
         reg_x = k_value_unknown;
@@ -783,7 +783,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
       reg_y = reg_a;
       break;
     case 0xA9: /* LDA imm */
-      if (!p_opcode->dynamic_operand) {
+      if (!p_opcode->is_dynamic_operand) {
         reg_a = operand_6502;
       } else {
         reg_a = k_value_unknown;

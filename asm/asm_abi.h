@@ -1,8 +1,6 @@
 #ifndef BEEBJIT_ASM_ABI_H
 #define BEEBJIT_ASM_ABI_H
 
-#include <stdint.h>
-
 struct bbc_options;
 struct debug_struct;
 struct memory_access;

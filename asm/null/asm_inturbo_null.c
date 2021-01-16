@@ -53,6 +53,11 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
+  (void) p_buf;
+}
+
+void
 asm_emit_inturbo_mode_zpg(struct util_buffer* p_buf) {
   (void) p_buf;
 }

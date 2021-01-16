@@ -48,7 +48,11 @@ void jit_compiler_set_compiling_for_code_in_zero_page(
     struct jit_compiler* p_compiler, int value);
 
 void jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
-                                         int optimizing);
+                                         int is_optimizing);
+void jit_compiler_testing_set_dynamic_operand(struct jit_compiler* p_compiler,
+                                              int is_dynamic_operand);
+void jit_compiler_testing_set_dynamic_opcode(struct jit_compiler* p_compiler,
+                                             int is_dynamic_opcode);
 void jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
                                       uint32_t num_ops);
 void jit_compiler_testing_set_dynamic_trigger(

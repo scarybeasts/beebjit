@@ -28,6 +28,7 @@ struct inturbo_struct {
   struct interp_struct* p_interp;
   int is_interp_owned;
   int is_ret_mode;
+  int do_write_invalidations;
   int debug_subsystem_active;
   struct os_alloc_mapping* p_mapping_base;
   uint8_t* p_inturbo_base;
@@ -533,6 +534,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     }
 
+    /* Invalidation of JIT code on writes, iff we're supporting the JIT. */
+    if (p_inturbo->do_write_invalidations &&
+        ((opmem == k_write) || (opmem == k_rw))) {
+      asm_emit_inturbo_do_write_invalidation(p_buf);
+    }
+
     switch (opmode) {
     case 0:
     case k_rel:
@@ -804,4 +811,9 @@ inturbo_set_interp(struct inturbo_struct* p_inturbo,
 void
 inturbo_set_ret_mode(struct inturbo_struct* p_inturbo) {
   p_inturbo->is_ret_mode = 1;
+}
+
+void
+inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo) {
+  p_inturbo->do_write_invalidations = 1;
 }

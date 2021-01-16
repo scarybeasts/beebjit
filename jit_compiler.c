@@ -47,6 +47,7 @@ struct jit_compiler {
   int option_accurate_timings;
   int option_no_optimize;
   int option_no_dynamic_operand;
+  int option_no_dynamic_opcode;
   uint32_t max_6502_opcodes_per_block;
   uint32_t dynamic_trigger;
 
@@ -171,6 +172,10 @@ jit_compiler_create(struct timing_struct* p_timing,
                                                    "jit:no-optimize");
   p_compiler->option_no_dynamic_operand =
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-operand");
+  /*p_compiler->option_no_dynamic_opcode =
+      util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");*/
+  /* Not stable yet. */
+  p_compiler->option_no_dynamic_opcode = 1;
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -1419,12 +1424,9 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
                          uint16_t addr_6502,
                          int32_t opcode_6502,
                          int is_self_modified,
-                         int is_dynamic,
                          uint64_t ticks) {
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
   uint32_t ring_buffer_index;
-
-  (void) is_dynamic;
 
   p_history->opcode = opcode_6502;
 
@@ -1446,24 +1448,26 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
 
 static int
 jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
-                                 struct jit_opcode_details* p_opcode) {
+                                 int32_t* p_opcode,
+                                 struct jit_opcode_details* p_details) {
   uint32_t i;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
-  uint16_t addr_6502 = p_opcode->addr_6502;
+  uint16_t addr_6502 = p_details->addr_6502;
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
   uint32_t index = p_history->ring_buffer_index;
-  int32_t opcode = p_opcode->opcode_6502;
+  int32_t opcode = p_details->opcode_6502;
   uint32_t count = 0;
   uint32_t count_needed = p_compiler->dynamic_trigger;
 
   if (count_needed > k_opcode_history_length) {
     count_needed = k_opcode_history_length;
   }
-  if (p_opcode->self_modify_invalidated && (opcode == p_history->opcode)) {
+  if (p_details->self_modify_invalidated && (opcode == p_history->opcode)) {
     count++;
   }
 
   for (i = 0; i < k_opcode_history_length; ++i) {
+    /* Stop counting if we run out of opcodes. */
     if (p_history->opcodes[index] == -1) {
       break;
     }
@@ -1471,9 +1475,10 @@ jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
     if ((ticks - p_history->times[index]) > 2000000) {
       break;
     }
+    /* Switch from dynamic operand to dynamic opcode if the opcode differs. */
     /* Stop counting if we run out of opcodes, or the opcode differs. */
     if (p_history->opcodes[index] != opcode) {
-      break;
+      opcode = -1;
     }
     if (index == 0) {
       index = (k_opcode_history_length - 1);
@@ -1487,19 +1492,12 @@ jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
     return 0;
   }
 
-  if (p_compiler->log_dynamic) {
-    log_do_log(k_log_jit,
-               k_log_info,
-               "compiling dynamic operand at $%.4X (opcode $%.2X)",
-               addr_6502,
-               opcode);
-  }
-
+  *p_opcode = opcode;
   return 1;
 }
 
 static void
-jit_compiler_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
+jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
   uint8_t opmode;
   int32_t page_crossing_search_uopcode;
   int32_t page_crossing_replace_uopcode;
@@ -1657,24 +1655,27 @@ jit_compiler_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     }
     break;
   }
-  if (new_uopcode != -1) {
-    p_opcode->dynamic_operand = 1;
-    if (page_crossing_search_uopcode != -1) {
-      struct jit_uop* p_uop =
-          jit_opcode_find_uop(p_opcode, page_crossing_search_uopcode);
-      if (p_uop != NULL) {
-        jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
-      }
+
+  if (new_uopcode == -1) {
+    return;
+  }
+
+  p_opcode->is_dynamic_operand = 1;
+  if (page_crossing_search_uopcode != -1) {
+    struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode,
+                                                page_crossing_search_uopcode);
+    if (p_uop != NULL) {
+      jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
     }
-    if (write_inv_search_uopcode != -1) {
-      struct jit_uop* p_uop =
-          jit_opcode_find_uop(p_opcode, write_inv_search_uopcode);
-      assert(p_uop != NULL);
-      jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
-    }
-    if (write_inv_erase_uopcode != -1) {
-      jit_opcode_erase_uop(p_opcode, write_inv_erase_uopcode);
-    }
+  }
+  if (write_inv_search_uopcode != -1) {
+    struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode,
+                                                write_inv_search_uopcode);
+    assert(p_uop != NULL);
+    jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
+  }
+  if (write_inv_erase_uopcode != -1) {
+    jit_opcode_erase_uop(p_opcode, write_inv_erase_uopcode);
   }
 }
 
@@ -1827,26 +1828,62 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* Second, work out if we'll be compiling any dynamic opcodes / operands. */
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
+    int32_t dynamic_opcode;
     p_details = &opcode_details[i_opcodes];
-    addr_6502 = p_details->addr_6502;
+
+    /* Skip internal opcodes. */
+    if (p_details->len_bytes_6502_orig == 0) {
+      continue;
+    }
 
     /* Check self-modified status for each opcode. It's used in
-     * jit_compiler_emit_dynamic_opcode() just below.
+     * jit_compiler_emit_dynamic_opcode() just below and when storing metadata
+     * later.
      */
-    if ((p_details->len_bytes_6502_orig != 0) &&
-        jit_has_invalidated_code(p_compiler, addr_6502)) {
+    addr_6502 = p_details->addr_6502;
+    if (jit_has_invalidated_code(p_compiler, addr_6502)) {
       p_details->self_modify_invalidated = 1;
     }
 
-    if (!jit_compiler_emit_dynamic_opcode(p_compiler, p_details)) {
+    if (!jit_compiler_emit_dynamic_opcode(p_compiler,
+                                          &dynamic_opcode,
+                                          p_details)) {
       continue;
     }
 
-    if (p_compiler->option_no_dynamic_operand) {
-      continue;
+    if (!p_compiler->option_no_dynamic_operand && (dynamic_opcode != -1)) {
+      jit_compiler_try_make_dynamic_opcode(p_details);
+      if (p_details->is_dynamic_operand) {
+        if (p_compiler->log_dynamic) {
+          log_do_log(k_log_jit,
+                     k_log_info,
+                     "compiling dynamic operand at $%.4X (opcode $%.2X)",
+                     addr_6502,
+                     dynamic_opcode);
+        }
+        continue;
+      }
     }
-
-    jit_compiler_make_dynamic_opcode(p_details);
+    if (!p_compiler->option_no_dynamic_opcode) {
+      if (p_compiler->log_dynamic) {
+        log_do_log(k_log_jit,
+                   k_log_info,
+                   "compiling dynamic opcode at $%.4X",
+                   addr_6502);
+      }
+      jit_opcode_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
+      p_details->num_uops = 1;
+      p_details->ends_block = 1;
+      p_details->is_dynamic_opcode = 1;
+      p_details->is_dynamic_operand = 1;
+      /* The dyanmic opcode doesn't directly consume 6502 cycles itself -- the
+       * mechanics of that are internal to the inturbo machine.
+       */
+      p_details->max_cycles_orig = 0;
+      p_details->max_cycles_merged = 0;
+      total_num_opcodes = (i_opcodes + 1);
+      break;
+    }
   }
 
   /* Third, walk the opcode list and calculate cycle counts. */
@@ -2000,7 +2037,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     uint8_t i;
     uint32_t jit_ptr;
     uint32_t i_opcodes_lookahead;
-    int dynamic;
 
     p_details = &opcode_details[i_opcodes];
     if (p_details->eliminated) {
@@ -2012,7 +2048,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     }
 
     num_bytes_6502 = p_details->len_bytes_6502_merged;
-    dynamic = p_details->dynamic_operand;
     jit_ptr = 0;
     i_opcodes_lookahead = i_opcodes;
     while (jit_ptr == 0) {
@@ -2043,11 +2078,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
       if (i == 0) {
         uint8_t opcode_6502 = p_details->opcode_6502;
+        if (p_details->is_dynamic_opcode) {
+          p_compiler->p_jit_ptrs[addr_6502] =
+              p_compiler->jit_ptr_dynamic_operand;
+        }
         jit_compiler_add_history(p_compiler,
                                  addr_6502,
                                  opcode_6502,
                                  p_details->self_modify_invalidated,
-                                 dynamic,
                                  ticks);
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
@@ -2096,13 +2134,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
           }
         }
       } else {
-        jit_compiler_add_history(p_compiler, addr_6502, -1, 0, 0, ticks);
-        p_compiler->addr_cycles_fixup[addr_6502] = -1;
-
-        if (dynamic) {
+        if (p_details->is_dynamic_operand) {
           p_compiler->p_jit_ptrs[addr_6502] =
               p_compiler->jit_ptr_dynamic_operand;
         }
+        jit_compiler_add_history(p_compiler, addr_6502, -1, 0, ticks);
+        p_compiler->addr_cycles_fixup[addr_6502] = -1;
       }
 
       addr_6502++;
@@ -2254,6 +2291,18 @@ void
 jit_compiler_testing_set_optimizing(struct jit_compiler* p_compiler,
                                     int optimizing) {
   p_compiler->option_no_optimize = !optimizing;
+}
+
+void
+jit_compiler_testing_set_dynamic_operand(struct jit_compiler* p_compiler,
+                                         int is_dynamic_operand) {
+  p_compiler->option_no_dynamic_operand = !is_dynamic_operand;
+}
+
+void
+jit_compiler_testing_set_dynamic_opcode(struct jit_compiler* p_compiler,
+                                        int is_dynamic_opcode) {
+  p_compiler->option_no_dynamic_opcode = !is_dynamic_opcode;
 }
 
 void

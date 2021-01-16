@@ -854,6 +854,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * instruction and it will ret right back to us after every instruction.
    */
   inturbo_set_ret_mode(p_inturbo);
+  inturbo_set_do_write_invalidation(p_inturbo);
   cpu_driver_init((struct cpu_driver*) p_inturbo);
   p_jit->p_inturbo = p_inturbo;
 

@@ -194,6 +194,15 @@ asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_inturbo_do_write_invalidation(struct util_buffer* p_buf) {
+  void asm_inturbo_do_write_invalidation(void);
+  void asm_inturbo_do_write_invalidation_END(void);
+  asm_copy(p_buf,
+           asm_inturbo_do_write_invalidation,
+           asm_inturbo_do_write_invalidation_END);
+}
+
+void
 asm_emit_inturbo_mode_rel(struct util_buffer* p_buf) {
   void asm_inturbo_mode_rel(void);
   void asm_inturbo_mode_rel_END(void);

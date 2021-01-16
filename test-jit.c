@@ -11,20 +11,26 @@ static struct state_6502* s_p_state_6502 = NULL;
 static uint8_t* s_p_mem = NULL;
 static struct interp_struct* s_p_interp = NULL;
 static struct jit_compiler* s_p_compiler = NULL;
+static struct timing_struct* s_p_timing = NULL;
 
-static inline uint8_t*
+static uint8_t*
 jit_get_jit_code_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
   return p_jit_ptr;
 }
 
-static inline int
+static int
 jit_is_host_address_invalidated(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
   if ((p_jit_ptr[0] == p_jit->jit_invalidation_sequence[0]) &&
       (p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1])) {
     return 1;
   }
   return 0;
+}
+
+static int
+jit_is_jit_ptr_dyanmic(struct jit_struct* p_jit, uint16_t addr_6502) {
+  return (p_jit->jit_ptrs[addr_6502] == p_jit->jit_ptr_dynamic_operand);
 }
 
 static void
@@ -46,8 +52,6 @@ jit_test_init(struct bbc_struct* p_bbc) {
   struct cpu_driver* p_cpu_driver = bbc_get_cpu_driver(p_bbc);
   struct timing_struct* p_timing = bbc_get_timing(p_bbc);
 
-  (void) p_timing;
-
   assert(p_cpu_driver->p_funcs->init == jit_init);
 
   /* Timers firing interfere with the tests.
@@ -58,12 +62,15 @@ jit_test_init(struct bbc_struct* p_bbc) {
 
   s_p_cpu_driver = p_cpu_driver;
   s_p_jit = (struct jit_struct*) p_cpu_driver;
+  s_p_timing = p_timing;
   s_p_state_6502 = p_cpu_driver->abi.p_state_6502;
   s_p_mem = p_cpu_driver->p_memory_access->p_mem_read;
   s_p_interp = s_p_jit->p_interp;
   s_p_compiler = s_p_jit->p_compiler;
 
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
+  jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
 }
@@ -482,6 +489,131 @@ jit_test_dynamic_operand_2() {
   util_buffer_destroy(p_buf);
 }
 
+static void
+jit_test_dynamic_opcode() {
+  uint64_t num_compiles;
+  uint64_t ticks;
+  struct util_buffer* p_buf = util_buffer_create();
+
+  util_buffer_setup(p_buf, (s_p_mem + 0x1900), 0x100);
+  emit_LDX(p_buf, k_imm, 0xAA);
+  emit_INX(p_buf);
+  emit_STX(p_buf, k_zpg, 0x50);
+  emit_EXIT(p_buf);
+
+  ticks = timing_get_total_timer_ticks(s_p_timing);
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
+
+  /* Invalidate INX once and recompile. */
+  s_p_mem[0x1902] = 0xEA;
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  ticks = timing_get_total_timer_ticks(s_p_timing);
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
+  test_expect_u32(0, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1902));
+
+  /* Replace INX with DEX, should compile as dynamic opcode. */
+  s_p_mem[0x1902] = 0xCA;
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+
+  ticks = timing_get_total_timer_ticks(s_p_timing);
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(0xA9, s_p_mem[0x50]);
+  test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1902));
+
+  /* Replace DEX with INX, should not invalidate the dynamic opcode. We check
+   * by making sure it doesn't incur a recompile.
+   */
+  s_p_mem[0x1902] = 0xE8;
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+
+  num_compiles = s_p_jit->counter_num_compiles;
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(0xAB, s_p_mem[0x50]);
+  test_expect_u32(num_compiles, s_p_jit->counter_num_compiles);
+
+  /* Replace INX with an opcode that needs to cause a self-modified
+   * invalidation: STX abs.
+   */
+  s_p_mem[0x1902] = 0x8E;
+  s_p_mem[0x1903] = 0x00;
+  s_p_mem[0x1904] = 0x19;
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_invalidate_code_at_address(s_p_jit, 0x1903);
+  jit_invalidate_code_at_address(s_p_jit, 0x1904);
+
+  jit_test_expect_code_invalidated(0, 0x1900);
+
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(0xAA, s_p_mem[0x1900]);
+  jit_test_expect_code_invalidated(1, 0x1900);
+
+  /* Compile a dynamic opcode as the first one in a block. */
+  util_buffer_setup(p_buf, (s_p_mem + 0x1A00), 0x100);
+  emit_STX(p_buf, k_zpg, 0x50);
+  emit_EXIT(p_buf);
+
+  /* First invalidation. */
+  s_p_mem[0x1A00] = 0x85;
+  jit_invalidate_code_at_address(s_p_jit, 0x1A00);
+  state_6502_set_pc(s_p_state_6502, 0x1A00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* Second invalidation, back to STX. */
+  s_p_mem[0x1A00] = 0x86;
+  jit_invalidate_code_at_address(s_p_jit, 0x1A00);
+  state_6502_set_pc(s_p_state_6502, 0x1A00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  util_buffer_destroy(p_buf);
+}
+
+static void
+jit_test_dynamic_opcode_2() {
+  struct util_buffer* p_buf = util_buffer_create();
+
+  /* Trigger what looks like a dynamic operand, but on an opcode for which
+   * we don't handle dyamic operands. It should use a dynamic opcode instead.
+   */
+  util_buffer_setup(p_buf, (s_p_mem + 0x1B00), 0x100);
+  emit_BEQ(p_buf, 0);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x1B00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* First invalidation. */
+  s_p_mem[0x1B01] = 0x00;
+  jit_invalidate_code_at_address(s_p_jit, 0x1B01);
+  state_6502_set_pc(s_p_state_6502, 0x1B00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1B00));
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1B01));
+
+  util_buffer_destroy(p_buf);
+}
+
 void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
@@ -494,10 +626,20 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_test_block_continuation();
   jit_test_invalidation();
 
-  jit_compiler_testing_set_optimizing(s_p_compiler, 1);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 1);
   jit_test_dynamic_operand();
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 2);
   jit_test_dynamic_operand_2();
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
-  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
+
+  jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 1);
+  jit_test_dynamic_opcode();
+  jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
+
+  jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 1);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 1);
+  jit_test_dynamic_opcode_2();
+  jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
 }
