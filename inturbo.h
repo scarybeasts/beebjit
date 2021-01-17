@@ -1,6 +1,8 @@
 #ifndef BEEBJIT_INTURBO_H
 #define BEEBJIT_INTURBO_H
 
+#include <stdint.h>
+
 struct cpu_driver;
 struct cpu_driver_funcs;
 struct interp_struct;
@@ -17,6 +19,7 @@ void inturbo_set_ret_mode(struct inturbo_struct* p_inturbo);
 /* If set, do JIT code write invalidation for memory writes.
  * Used when supporting JIT.
  */
-void inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo);
+void inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo,
+                                       uint32_t* p_code_ptrs);
 
 #endif /* BEEBJIT_INTURBO_H */

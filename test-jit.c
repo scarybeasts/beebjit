@@ -614,6 +614,56 @@ jit_test_dynamic_opcode_2() {
   util_buffer_destroy(p_buf);
 }
 
+static void
+jit_test_dynamic_opcode_3() {
+  uint64_t ticks;
+  struct util_buffer* p_buf = util_buffer_create();
+
+  /* Trigger a dynamic opcode that itself bounces inturbo -> interp. We'll use
+   * a hardware register read.
+   */
+  util_buffer_setup(p_buf, (s_p_mem + 0x1C00), 0x100);
+  emit_LDA(p_buf, k_abs, 0x1000);
+  emit_STA(p_buf, k_zpg, 0x50);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x1C00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* First invalidation. */
+  s_p_mem[0x1C00] = 0xAE;
+  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
+  state_6502_set_pc(s_p_state_6502, 0x1C00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  /* Second invalidation. */
+  s_p_mem[0x1C00] = 0xAC;
+  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
+  state_6502_set_pc(s_p_state_6502, 0x1C00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1C00));
+
+  /* Switch to LDA $FE20. */
+  s_p_mem[0x1C00] = 0xAD;
+  s_p_mem[0x1C01] = 0x20;
+  s_p_mem[0x1C02] = 0xFE;
+  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
+  jit_invalidate_code_at_address(s_p_jit, 0x1C01);
+  jit_invalidate_code_at_address(s_p_jit, 0x1C02);
+  ticks = timing_get_total_timer_ticks(s_p_timing);
+  state_6502_set_pc(s_p_state_6502, 0x1C00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(0xFE, s_p_mem[0x50]);
+  test_expect_u32(13, (timing_get_total_timer_ticks(s_p_timing) - ticks));
+
+  util_buffer_destroy(p_buf);
+}
+
 void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
@@ -640,6 +690,7 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 1);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 1);
   jit_test_dynamic_opcode_2();
+  jit_test_dynamic_opcode_3();
   jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
 }

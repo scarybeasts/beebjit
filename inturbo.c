@@ -814,6 +814,8 @@ inturbo_set_ret_mode(struct inturbo_struct* p_inturbo) {
 }
 
 void
-inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo) {
+inturbo_set_do_write_invalidation(struct inturbo_struct* p_inturbo,
+                                  uint32_t* p_code_ptrs) {
   p_inturbo->do_write_invalidations = 1;
+  p_inturbo->driver.abi.p_util_private = p_code_ptrs;
 }

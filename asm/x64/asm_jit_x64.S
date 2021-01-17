@@ -215,8 +215,11 @@ asm_jit_call_inturbo_pc_patch:
   shl REG_SCRATCH1_32, K_INTURBO_OPCODES_SHIFT
   sahf
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_OPCODES]
-  # Keep stack alignment to 16 after the call.
+  # Save JIT REG_CONTEXT.
+  # Keeps stack alignment to 16 after the call.
   push REG_CONTEXT
+  # Swith REG_CONTEXT to inturbo one.
+  mov REG_CONTEXT, [REG_CONTEXT + K_JIT_CONTEXT_OFFSET_INTURBO]
   call REG_SCRATCH1
   pop REG_CONTEXT
   lahf

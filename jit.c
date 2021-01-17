@@ -32,6 +32,9 @@ struct jit_struct {
   /* C callbacks called by JIT code. */
   void* p_compile_callback;
 
+  /* C pointers used by JIT code. */
+  struct inturbo_struct* p_inturbo;
+
   /* 6502 address -> JIT code pointers. */
   uint32_t jit_ptrs[k_6502_addr_space_size];
   /* 6502 address -> code block. */
@@ -45,7 +48,6 @@ struct jit_struct {
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct interp_struct* p_interp;
-  struct inturbo_struct* p_inturbo;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
   uint8_t jit_invalidation_sequence[2];
@@ -854,7 +856,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * instruction and it will ret right back to us after every instruction.
    */
   inturbo_set_ret_mode(p_inturbo);
-  inturbo_set_do_write_invalidation(p_inturbo);
+  inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
   cpu_driver_init((struct cpu_driver*) p_inturbo);
   p_jit->p_inturbo = p_inturbo;
 
