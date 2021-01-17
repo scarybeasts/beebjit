@@ -619,6 +619,8 @@ jit_test_dynamic_opcode() {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
+  jit_test_expect_block_invalidated(1, 0x1A00);
+
   util_buffer_destroy(p_buf);
 }
 
