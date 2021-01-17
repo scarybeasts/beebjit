@@ -409,14 +409,8 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
      * block.
      */
     if (code_block_6502 != -1) {
-      struct jit_host_ip_details details;
-      jit_ptr = p_jit->jit_ptrs[code_block_6502];
-      assert(jit_ptr != p_jit->jit_ptr_no_code);
-      assert(jit_ptr != p_jit->jit_ptr_dynamic_operand);
-      p_jit_ptr = (void*) (uintptr_t) jit_ptr;
-      jit_get_6502_details_from_host_ip(p_jit, &details, p_jit_ptr);
-      assert(details.p_invalidation_code_block != NULL);
-      p_details->p_invalidation_code_block = details.p_invalidation_code_block;
+      p_details->p_invalidation_code_block =
+          jit_get_jit_block_host_address(p_jit, code_block_6502);
     }
     return;
   }

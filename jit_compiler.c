@@ -172,10 +172,10 @@ jit_compiler_create(struct timing_struct* p_timing,
                                                    "jit:no-optimize");
   p_compiler->option_no_dynamic_operand =
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-operand");
-  /*p_compiler->option_no_dynamic_opcode =
-      util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");*/
-  /* Not stable yet. */
-  p_compiler->option_no_dynamic_opcode = 0;
+  p_compiler->option_no_dynamic_opcode =
+      util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
+  /* Not yet stable. */
+  p_compiler->option_no_dynamic_opcode = 1;
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -1868,8 +1868,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       if (p_compiler->log_dynamic) {
         log_do_log(k_log_jit,
                    k_log_info,
-                   "compiling dynamic opcode at $%.4X",
-                   addr_6502);
+                   "compiling dynamic opcode at $%.4X (current opcode $%.2X)",
+                   addr_6502,
+                   p_details->opcode_6502);
       }
       jit_opcode_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
       p_details->num_uops = 1;

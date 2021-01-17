@@ -592,6 +592,10 @@ jit_test_dynamic_opcode() {
   emit_STX(p_buf, k_zpg, 0x50);
   emit_EXIT(p_buf);
 
+  state_6502_set_pc(s_p_state_6502, 0x1A00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
   /* First invalidation. */
   s_p_mem[0x1A00] = 0x85;
   jit_invalidate_code_at_address(s_p_jit, 0x1A00);
@@ -603,6 +607,15 @@ jit_test_dynamic_opcode() {
   s_p_mem[0x1A00] = 0x86;
   jit_invalidate_code_at_address(s_p_jit, 0x1A00);
   state_6502_set_pc(s_p_state_6502, 0x1A00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(1, jit_is_jit_ptr_dyanmic(s_p_jit, 0x1A00));
+
+  /* Trigger a block split in the middle of the dynamic opcode! */
+  s_p_mem[0x1A01] = 0xEA;
+  jit_invalidate_code_at_address(s_p_jit, 0x1A01);
+  state_6502_set_pc(s_p_state_6502, 0x1A01);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
