@@ -498,6 +498,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     /* Invalidation of JIT code on writes, iff we're supporting the JIT. */
     if (p_inturbo->do_write_invalidations &&
+        (opmode != k_acc) &&
         ((opmem == k_write) || (opmem == k_rw))) {
       asm_emit_inturbo_do_write_invalidation(p_buf);
     }

@@ -587,6 +587,18 @@ jit_test_dynamic_opcode() {
 
   jit_test_expect_code_invalidated(1, 0x1900);
 
+  /* Flip the dynamic opcode to ROL A -- there was a nasty crash bug here due
+   * to confusion with ROL rmw vs. ROL A.
+   */
+  s_p_mem[0x1902] = 0x2A;
+  s_p_mem[0x1903] = 0xEA;
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_invalidate_code_at_address(s_p_jit, 0x1903);
+
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
   /* Compile a dynamic opcode as the first one in a block. */
   util_buffer_setup(p_buf, (s_p_mem + 0x1A00), 0x100);
   emit_STX(p_buf, k_zpg, 0x50);
