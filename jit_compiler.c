@@ -175,7 +175,7 @@ jit_compiler_create(struct timing_struct* p_timing,
   /*p_compiler->option_no_dynamic_opcode =
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");*/
   /* Not stable yet. */
-  p_compiler->option_no_dynamic_opcode = 1;
+  p_compiler->option_no_dynamic_opcode = 0;
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -1472,7 +1472,7 @@ jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
       break;
     }
     /* Stop counting if the events are over a second old. */
-    if ((ticks - p_history->times[index]) > 2000000) {
+    if ((ticks - p_history->times[index]) > 200000000) {
       break;
     }
     /* Switch from dynamic operand to dynamic opcode if the opcode differs. */

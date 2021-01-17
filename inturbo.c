@@ -240,8 +240,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_adc:
       if (opmode == k_imm) {
         asm_emit_instruction_ADC_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_ADC_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_ADC_scratch_interp(p_buf);
       }
@@ -252,8 +250,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_and:
       if (opmode == k_imm) {
         asm_emit_instruction_AND_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_AND_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_AND_scratch_interp(p_buf);
       }
@@ -261,8 +257,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_asl:
       if (opmode == k_acc) {
         asm_emit_instruction_ASL_acc_interp(p_buf);
-      } else if (opmode == k_abx) {
-        asm_emit_instruction_ASL_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_ASL_scratch_interp(p_buf);
       }
@@ -299,8 +293,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_cmp:
       if (opmode == k_imm) {
         asm_emit_instruction_CMP_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_CMP_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_CMP_scratch_interp(p_buf);
       }
@@ -320,11 +312,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       }
       break;
     case k_dec:
-      if (opmode == k_abx) {
-        asm_emit_instruction_DEC_scratch_interp_based(p_buf);
-      } else {
-        asm_emit_instruction_DEC_scratch_interp(p_buf);
-      }
+      asm_emit_instruction_DEC_scratch_interp(p_buf);
       break;
     case k_dex:
       asm_emit_instruction_DEX(p_buf);
@@ -335,18 +323,12 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_eor:
       if (opmode == k_imm) {
         asm_emit_instruction_EOR_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_EOR_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_EOR_scratch_interp(p_buf);
       }
       break;
     case k_inc:
-      if (opmode == k_abx) {
-        asm_emit_instruction_INC_scratch_interp_based(p_buf);
-      } else {
-        asm_emit_instruction_INC_scratch_interp(p_buf);
-      }
+      asm_emit_instruction_INC_scratch_interp(p_buf);
       break;
     case k_inx:
       asm_emit_instruction_INX(p_buf);
@@ -365,8 +347,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_lda:
       if (opmode == k_imm) {
         asm_emit_instruction_LDA_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_LDA_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_LDA_scratch_interp(p_buf);
       }
@@ -375,8 +355,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_ldx:
       if (opmode == k_imm) {
         asm_emit_instruction_LDX_imm_interp(p_buf);
-      } else if (opmode == k_aby) {
-        asm_emit_instruction_LDX_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_LDX_scratch_interp(p_buf);
       }
@@ -385,8 +363,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_ldy:
       if (opmode == k_imm) {
         asm_emit_instruction_LDY_imm_interp(p_buf);
-      } else if (opmode == k_abx) {
-        asm_emit_instruction_LDY_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_LDY_scratch_interp(p_buf);
       }
@@ -395,8 +371,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_lsr:
       if (opmode == k_acc) {
         asm_emit_instruction_LSR_acc_interp(p_buf);
-      } else if (opmode == k_abx) {
-        asm_emit_instruction_LSR_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_LSR_scratch_interp(p_buf);
       }
@@ -406,8 +380,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_ora:
       if (opmode == k_imm) {
         asm_emit_instruction_ORA_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_ORA_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_ORA_scratch_interp(p_buf);
       }
@@ -428,8 +400,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_rol:
       if (opmode == k_acc) {
         asm_emit_instruction_ROL_acc_interp(p_buf);
-      } else if (opmode == k_abx) {
-        asm_emit_instruction_ROL_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_ROL_scratch_interp(p_buf);
       }
@@ -437,8 +407,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_ror:
       if (opmode == k_acc) {
         asm_emit_instruction_ROR_acc_interp(p_buf);
-      } else if (opmode == k_abx) {
-        asm_emit_instruction_ROR_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_ROR_scratch_interp(p_buf);
       }
@@ -457,8 +425,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_sbc:
       if (opmode == k_imm) {
         asm_emit_instruction_SBC_imm_interp(p_buf);
-      } else if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_SBC_scratch_interp_based(p_buf);
       } else {
         asm_emit_instruction_SBC_scratch_interp(p_buf);
       }
@@ -476,11 +442,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       asm_emit_instruction_SLO_scratch_interp(p_buf);
       break;
     case k_sta:
-      if (opmode == k_abx || opmode == k_aby || opmode == k_idy) {
-        asm_emit_instruction_STA_scratch_interp_based(p_buf);
-      } else {
-        asm_emit_instruction_STA_scratch_interp(p_buf);
-      }
+      asm_emit_instruction_STA_scratch_interp(p_buf);
       break;
     case k_stx:
       asm_emit_instruction_STX_scratch_interp(p_buf);

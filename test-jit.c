@@ -565,6 +565,28 @@ jit_test_dynamic_opcode() {
   test_expect_u32(0xAA, s_p_mem[0x1900]);
   jit_test_expect_code_invalidated(1, 0x1900);
 
+  /* Check self-modified invalidation via STA idy. */
+  state_6502_set_x(s_p_state_6502, 0);
+  state_6502_set_y(s_p_state_6502, 0);
+  s_p_mem[0x00] = 0x00;
+  s_p_mem[0x01] = 0x19;
+  s_p_mem[0x1900] = 0xEA;
+  s_p_mem[0x1901] = 0xEA;
+  s_p_mem[0x1902] = 0x91;
+  s_p_mem[0x1903] = 0x00;
+  s_p_mem[0x1904] = 0xEA;
+  jit_invalidate_code_at_address(s_p_jit, 0x1900);
+  jit_invalidate_code_at_address(s_p_jit, 0x1901);
+  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_invalidate_code_at_address(s_p_jit, 0x1903);
+  jit_invalidate_code_at_address(s_p_jit, 0x1904);
+
+  state_6502_set_pc(s_p_state_6502, 0x1900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  jit_test_expect_code_invalidated(1, 0x1900);
+
   /* Compile a dynamic opcode as the first one in a block. */
   util_buffer_setup(p_buf, (s_p_mem + 0x1A00), 0x100);
   emit_STX(p_buf, k_zpg, 0x50);
