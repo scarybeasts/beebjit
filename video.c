@@ -1579,6 +1579,7 @@ video_render_full_frame(struct video_struct* p_video) {
    * BBC thread, so make sure to reload register values from memory.
    */
   volatile uint8_t* p_regs = (volatile uint8_t*) &p_video->crtc_registers;
+  volatile uint8_t* p_ula_control = &p_video->video_ula_control;
 
   uint32_t crtc_start_address = ((p_regs[k_crtc_reg_mem_addr_high] << 8) |
                                  p_regs[k_crtc_reg_mem_addr_low]);
@@ -1593,6 +1594,7 @@ video_render_full_frame(struct video_struct* p_video) {
   struct teletext_struct* p_teletext = p_video->p_teletext;
   uint32_t hsync_pulse_ticks = (p_video->hsync_pulse_width *
                                 p_video->clock_tick_multiplier);
+  int is_teletext = (*p_ula_control & k_ula_teletext);
 
   assert(p_video->externally_clocked);
 
@@ -1623,15 +1625,21 @@ video_render_full_frame(struct video_struct* p_video) {
       for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
         func_render_blank(p_render, 0x00);
       }
-      for (i_cols = 0; i_cols < num_cols; ++i_cols) {
-        uint8_t data;
-        crtc_line_address &= 0x3FFF;
-        data = video_read_data_byte(p_video,
-                                    crtc_line_address,
-                                    i_lines,
-                                    screen_wrap_add);
-        func_render_data(p_render, data);
-        crtc_line_address++;
+      if (!is_teletext && (i_lines & 0x08)) {
+        for (i_cols = 0; i_cols < num_cols; ++i_cols) {
+          func_render_blank(p_render, 0x00);
+        }
+      } else {
+        for (i_cols = 0; i_cols < num_cols; ++i_cols) {
+          uint8_t data;
+          crtc_line_address &= 0x3FFF;
+          data = video_read_data_byte(p_video,
+                                      crtc_line_address,
+                                      i_lines,
+                                      screen_wrap_add);
+          func_render_data(p_render, data);
+          crtc_line_address++;
+        }
       }
       (void) render_hsync(p_render, hsync_pulse_ticks);
       teletext_DISPMTG_changed(p_teletext, 0);
