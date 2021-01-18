@@ -467,15 +467,19 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
   struct disc_tool_sector* p_sector;
   uint32_t byte_length;
 
+  if (p_byte_length != NULL) {
+    *p_byte_length = 0;
+  }
+
   if (sector >= p_tool->num_sectors) {
-    if (p_byte_length != NULL) {
-      *p_byte_length = 0;
-    }
     return;
   }
 
   p_sector = &p_tool->sectors[sector];
   byte_length = p_sector->byte_length;
+  if (byte_length == 0) {
+    return;
+  }
   p_tool->pos = p_sector->bit_pos_data;
   if (do_include_marker) {
     byte_length++;
