@@ -28,7 +28,8 @@ void disc_tool_log_summary(struct disc_struct* p_disc,
                            int log_crc_errors,
                            int log_protection,
                            int log_fingerprint,
-                           int log_fingerprint_tracks);
+                           int log_fingerprint_tracks,
+                           int do_dump_sector_data);
 
 struct disc_tool_struct* disc_tool_create();
 void disc_tool_destroy(struct disc_tool_struct* p_tool);
@@ -62,6 +63,7 @@ struct disc_tool_sector* disc_tool_get_sectors(struct disc_tool_struct* p_tool,
 void disc_tool_read_sector(struct disc_tool_struct* p_tool,
                            uint32_t* p_byte_length,
                            uint8_t* p_data,
-                           uint32_t sector);
+                           uint32_t sector,
+                           int do_include_marker);
 
 #endif /* BEEBJIT_DISC_TOOL_H */

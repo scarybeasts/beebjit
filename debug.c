@@ -1649,7 +1649,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       uint32_t byte_length;
       uint32_t data_chunks;
       uint8_t sector_data[k_disc_tool_max_sector_length];
-      disc_tool_read_sector(p_tool, &byte_length, &sector_data[0], parse_int);
+      disc_tool_read_sector(p_tool,
+                            &byte_length,
+                            &sector_data[0],
+                            parse_int,
+                            0);
       data_chunks = (byte_length / 16);
       for (i = 0; i < data_chunks; ++i) {
         debug_print_hex_line(&sector_data[0], (i * 16), 0);

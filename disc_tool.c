@@ -462,24 +462,38 @@ void
 disc_tool_read_sector(struct disc_tool_struct* p_tool,
                       uint32_t* p_byte_length,
                       uint8_t* p_data,
-                      uint32_t sector) {
+                      uint32_t sector,
+                      int do_include_marker) {
   struct disc_tool_sector* p_sector;
   uint32_t byte_length;
 
   if (sector >= p_tool->num_sectors) {
-    *p_byte_length = 0;
-     return;
+    if (p_byte_length != NULL) {
+      *p_byte_length = 0;
+    }
+    return;
   }
 
   p_sector = &p_tool->sectors[sector];
   byte_length = p_sector->byte_length;
   p_tool->pos = p_sector->bit_pos_data;
+  if (do_include_marker) {
+    byte_length++;
+    assert(p_tool->pos >= 32);
+    if (p_sector->is_mfm) {
+       p_tool->pos -= 16;
+    } else {
+       p_tool->pos -= 32;
+    }
+  }
   if (p_sector->is_mfm) {
     disc_tool_read_mfm_data(p_tool, p_data, byte_length);
   } else {
     disc_tool_read_fm_data(p_tool, NULL, p_data, byte_length);
   }
-  *p_byte_length = byte_length;
+  if (p_byte_length != NULL) {
+    *p_byte_length = byte_length;
+  }
 }
 
 void
@@ -487,12 +501,24 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_crc_errors,
                       int log_protection,
                       int log_fingerprint,
-                      int log_fingerprint_tracks) {
+                      int log_fingerprint_tracks,
+                      int do_dump_sector_data) {
   uint32_t i_tracks;
   uint32_t disc_crc = 0;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
   int is_fingerprinting = (log_fingerprint || log_fingerprint_tracks);
+  struct util_file* p_raw_dump_file = NULL;
+
+  if (do_dump_sector_data) {
+    char new_file_name[4096];
+    (void) snprintf(new_file_name,
+                    sizeof(new_file_name),
+                    "%s.dump",
+                    disc_get_file_name(p_disc));
+    log_do_log(k_log_disc, k_log_info, "dumping sectors to: %s", new_file_name);
+    p_raw_dump_file = util_file_open(new_file_name, 1, 1);
+  }
 
   if (max_track < 41) {
     max_track = 41;
@@ -621,6 +647,9 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                      i_sectors);
         }
       }
+      if (is_fingerprinting || (p_raw_dump_file != NULL)) {
+        disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 1);
+      }
       if (is_fingerprinting) {
         int do_include_sector = 1;
         if (p_sectors->byte_length == 0) {
@@ -637,19 +666,15 @@ disc_tool_log_summary(struct disc_struct* p_disc,
           do_include_sector = 0;
         }
         if (do_include_sector) {
-          uint32_t crc_length = (p_sectors->byte_length + 1);
-          /* -32 or -16 to include the marker byte. */
-          p_tool->pos = p_sectors->bit_pos_data;
-          assert(p_tool->pos >= 32);
-          if (p_sectors->is_mfm) {
-            p_tool->pos -= 16;
-            disc_tool_read_mfm_data(p_tool, &sector_data[0], crc_length);
-          } else {
-            p_tool->pos -= 32;
-            disc_tool_read_fm_data(p_tool, NULL, &sector_data[0], crc_length);
-          }
-          track_crc = util_crc32_add(track_crc, &sector_data[0], crc_length);
+          track_crc = util_crc32_add(track_crc,
+                                     &sector_data[0],
+                                     (p_sectors->byte_length + 1));
         }
+      }
+      if (p_raw_dump_file != NULL) {
+        util_file_write(p_raw_dump_file,
+                        &sector_data[1],
+                        p_sectors->byte_length);
       }
       p_sectors++;
     }
@@ -674,6 +699,10 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   if (log_fingerprint) {
     disc_crc = util_crc32_finish(disc_crc);
     log_do_log(k_log_disc, k_log_info, "disc CRC32 fingerprint %.8X", disc_crc);
+  }
+
+  if (p_raw_dump_file != NULL) {
+    util_file_close(p_raw_dump_file);
   }
 
   disc_tool_destroy(p_tool);
