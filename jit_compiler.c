@@ -174,8 +174,6 @@ jit_compiler_create(struct timing_struct* p_timing,
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-operand");
   p_compiler->option_no_dynamic_opcode =
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
-  /* Not yet stable. */
-  p_compiler->option_no_dynamic_opcode = 1;
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
