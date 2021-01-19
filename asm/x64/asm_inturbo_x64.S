@@ -47,9 +47,9 @@ asm_inturbo_load_pc_from_pc_END:
 .globl asm_inturbo_check_special_address_jb_patch
 asm_inturbo_check_special_address:
 
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0xFFFF]
+  lea REG_SCRATCH3_32, [REG_SCRATCH1 + 0xFFFF]
 asm_inturbo_check_special_address_lea_patch:
-  bt REG_SCRATCH2_32, 16
+  bt REG_SCRATCH3_32, 16
   jb asm_unpatched_branch_target
 asm_inturbo_check_special_address_jb_patch:
 
@@ -118,7 +118,7 @@ asm_inturbo_check_interrupt_END:
 .globl asm_inturbo_load_opcode_mov_patch
 asm_inturbo_load_opcode:
 
-  movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC + 1]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
 asm_inturbo_load_opcode_mov_patch:
 
 asm_inturbo_load_opcode_END:
@@ -142,10 +142,10 @@ asm_inturbo_advance_pc_END:
 asm_inturbo_jump_opcode:
 
   lahf
-  shl REG_SCRATCH3_32, K_INTURBO_OPCODES_SHIFT
+  shl REG_SCRATCH1_32, K_INTURBO_OPCODES_SHIFT
   sahf
-  lea REG_SCRATCH3_32, [REG_SCRATCH3 + K_INTURBO_OPCODES]
-  jmp REG_SCRATCH3
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_OPCODES]
+  jmp REG_SCRATCH1
 
 asm_inturbo_jump_opcode_END:
   ret
@@ -299,8 +299,8 @@ asm_inturbo_mode_abs_END:
 .globl asm_inturbo_mode_abx_END
 asm_inturbo_mode_abx:
 
-  movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_X_64]
+  movzx REG_SCRATCH2_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH2 + REG_6502_X_64]
 
 asm_inturbo_mode_abx_END:
   ret
@@ -310,9 +310,9 @@ asm_inturbo_mode_abx_END:
 .globl asm_inturbo_mode_abx_check_page_crossing_END
 asm_inturbo_mode_abx_check_page_crossing:
 
-  movzx REG_SCRATCH3, REG_SCRATCH3_8
-  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_X_64]
-  bt REG_SCRATCH3_32, 8
+  movzx REG_SCRATCH2, REG_SCRATCH2_8
+  lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_X_64]
+  bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_abx_check_page_crossing_END
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
@@ -324,8 +324,8 @@ asm_inturbo_mode_abx_check_page_crossing_END:
 .globl asm_inturbo_mode_aby_END
 asm_inturbo_mode_aby:
 
-  movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
+  movzx REG_SCRATCH2_32, WORD PTR [REG_6502_PC + 1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH2 + REG_6502_Y_64]
 
 asm_inturbo_mode_aby_END:
   ret
@@ -335,9 +335,9 @@ asm_inturbo_mode_aby_END:
 .globl asm_inturbo_mode_aby_check_page_crossing_END
 asm_inturbo_mode_aby_check_page_crossing:
 
-  movzx REG_SCRATCH3, REG_SCRATCH3_8
-  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_Y_64]
-  bt REG_SCRATCH3_32, 8
+  movzx REG_SCRATCH2, REG_SCRATCH2_8
+  lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
+  bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_aby_check_page_crossing_END
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
@@ -397,13 +397,13 @@ asm_inturbo_mode_idy:
 
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC + 1]
 
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
+  lea REG_SCRATCH3_32, [REG_SCRATCH1 + 1]
 
-  movzx REG_SCRATCH3_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
+  movzx REG_SCRATCH2_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
+  lea REG_SCRATCH1_32, [REG_SCRATCH2 + REG_6502_Y_64]
 
   # Handle special case of 0xFF via the interpreter.
-  bt REG_SCRATCH2_32, 8
+  bt REG_SCRATCH3_32, 8
   jc asm_unpatched_branch_target
 asm_inturbo_mode_idy_jump_patch:
 
@@ -415,9 +415,9 @@ asm_inturbo_mode_idy_END:
 .globl asm_inturbo_mode_idy_check_page_crossing_END
 asm_inturbo_mode_idy_check_page_crossing:
 
-  movzx REG_SCRATCH3, REG_SCRATCH3_8
-  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_6502_Y_64]
-  bt REG_SCRATCH3_32, 8
+  movzx REG_SCRATCH2, REG_SCRATCH2_8
+  lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
+  bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_idy_check_page_crossing_END
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
 
