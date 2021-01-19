@@ -10,9 +10,9 @@
 #define REG_6502_Y         cl
 #define REG_6502_Y_32      ecx
 #define REG_6502_Y_64      rcx
-#define REG_6502_S         sil
-#define REG_6502_S_32      esi
-#define REG_6502_S_64      rsi
+#define REG_6502_S         r8b
+#define REG_6502_S_32      r8d
+#define REG_6502_S_64      r8
 #define REG_6502_PC        r10
 #define REG_6502_PC_16     r10w
 #define REG_6502_PC_32     r10d
@@ -35,10 +35,10 @@
 #define REG_SCRATCH1_8_HI  dh
 #define REG_SCRATCH1_16    dx
 #define REG_SCRATCH1_32    edx
-#define REG_SCRATCH2       r8
-#define REG_SCRATCH2_8     r8b
-#define REG_SCRATCH2_16    r8w
-#define REG_SCRATCH2_32    r8d
+#define REG_SCRATCH2       rsi
+#define REG_SCRATCH2_8     sil
+#define REG_SCRATCH2_16    si
+#define REG_SCRATCH2_32    esi
 #define REG_SCRATCH3       r9
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_16    r9w

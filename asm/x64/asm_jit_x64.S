@@ -345,9 +345,9 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X:
-  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + \
-                                   REG_SCRATCH3 + \
+                                   REG_SCRATCH2 + \
                                    K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
@@ -358,9 +358,9 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y:
-  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
-                                   REG_SCRATCH3 + \
+                                   REG_SCRATCH2 + \
                                    K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
@@ -586,7 +586,7 @@ asm_jit_MODE_IND_16_END:
 asm_jit_MODE_IND_SCRATCH_8:
   # This faults (with a fixup handler) if we're trying to load from $00FF,
   # which is highly unusual.
-  mov REG_SCRATCH3_8, \
+  mov REG_SCRATCH2_8, \
       [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
 
   mov REG_SCRATCH2, REG_SCRATCH1
@@ -602,9 +602,9 @@ asm_jit_MODE_IND_SCRATCH_8_END:
 asm_jit_MODE_IND_SCRATCH_16:
   # This faults (with a fixup handler) if we're trying to load from $xxFF,
   # which is highly unusual.
-  movzx REG_SCRATCH3_32, REG_SCRATCH1_8
-  mov REG_SCRATCH3_8, \
-      [REG_SCRATCH3 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
+  mov REG_SCRATCH2_8, \
+      [REG_SCRATCH2 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
 
   mov REG_SCRATCH2, REG_SCRATCH1
   mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]

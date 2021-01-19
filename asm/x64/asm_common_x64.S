@@ -392,7 +392,11 @@ asm_push_from_scratch_END:
 .globl asm_push_word_from_scratch_END
 asm_push_word_from_scratch:
 
-  mov [REG_6502_S_64], REG_SCRATCH1_8_HI
+  mov REG_SCRATCH2_32, REG_SCRATCH1_32
+  lahf
+  shr REG_SCRATCH2_32, 8
+  sahf
+  mov [REG_6502_S_64], REG_SCRATCH2_8
   lea REG_SCRATCH3, [REG_6502_S_64 - 1]
   mov REG_6502_S, REG_SCRATCH3_8
 
@@ -422,11 +426,15 @@ asm_pull_word_to_scratch:
 
   lea REG_SCRATCH3, [REG_6502_S_64 + 1]
   mov REG_6502_S, REG_SCRATCH3_8
-  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_S_64]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_S_64]
 
   lea REG_SCRATCH3, [REG_6502_S_64 + 1]
   mov REG_6502_S, REG_SCRATCH3_8
-  mov REG_SCRATCH1_8_HI, BYTE PTR [REG_6502_S_64]
+  movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_S_64]
+  lahf
+  shl REG_SCRATCH1_32, 8
+  or REG_SCRATCH1_32, REG_SCRATCH2_32
+  sahf
 
 asm_pull_word_to_scratch_END:
   ret
