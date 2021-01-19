@@ -299,9 +299,8 @@ asm_inturbo_mode_abs_END:
 .globl asm_inturbo_mode_abx_END
 asm_inturbo_mode_abx:
 
-  movzx REG_SCRATCH1_32, REG_6502_X
   movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_SCRATCH1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_X_64]
 
 asm_inturbo_mode_abx_END:
   ret
@@ -325,9 +324,8 @@ asm_inturbo_mode_abx_check_page_crossing_END:
 .globl asm_inturbo_mode_aby_END
 asm_inturbo_mode_aby:
 
-  movzx REG_SCRATCH1_32, REG_6502_Y
   movzx REG_SCRATCH3_32, WORD PTR [REG_6502_PC + 1]
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_SCRATCH1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
 
 asm_inturbo_mode_aby_END:
   ret
@@ -402,8 +400,7 @@ asm_inturbo_mode_idy:
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + 1]
 
   movzx REG_SCRATCH3_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
-  movzx REG_SCRATCH1_32, REG_6502_Y
-  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_SCRATCH1]
+  lea REG_SCRATCH1_32, [REG_SCRATCH3 + REG_6502_Y_64]
 
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8

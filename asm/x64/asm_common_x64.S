@@ -476,10 +476,8 @@ asm_enter:
   mov REG_6502_ID_F_64, 0
 
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  # In the x64 JIT model, the 6502 X, Y and S registers are stored as register
-  # values that can also be used as x64 pointers to where they index.
-  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_X], REG_MEM_32
-  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y], REG_MEM_32
+  # In the x64 JIT model, the 6502 S register is stored as a register
+  # value that can also be used as an x64 pointers to where it indexes.
   or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
   or DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], 0x100
   call asm_restore_AXYS_PC_flags

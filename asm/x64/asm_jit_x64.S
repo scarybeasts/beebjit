@@ -299,7 +299,7 @@ asm_jit_ADD_SCRATCH_END:
 .globl asm_jit_ADD_SCRATCH_Y
 .globl asm_jit_ADD_SCRATCH_Y_END
 asm_jit_ADD_SCRATCH_Y:
-  add REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  add REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_ADD_SCRATCH_Y_END:
   ret
@@ -345,9 +345,8 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X:
-  movzx REG_SCRATCH2_32, REG_6502_X
   movzx REG_SCRATCH3_32, REG_SCRATCH1_8
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + \
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + \
                                    REG_SCRATCH3 + \
                                    K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
@@ -359,9 +358,8 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y
 .globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y:
-  movzx REG_SCRATCH2_32, REG_6502_Y
   movzx REG_SCRATCH3_32, REG_SCRATCH1_8
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + \
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
                                    REG_SCRATCH3 + \
                                    K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
@@ -374,8 +372,7 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_X_n_mov_patch
 .globl asm_jit_CHECK_PAGE_CROSSING_X_n_END
 asm_jit_CHECK_PAGE_CROSSING_X_n:
-  movzx REG_SCRATCH2_32, REG_6502_X
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + 0x7fffffff]
 asm_jit_CHECK_PAGE_CROSSING_X_n_mov_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
@@ -387,8 +384,7 @@ asm_jit_CHECK_PAGE_CROSSING_X_n_END:
 .globl asm_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch
 .globl asm_jit_CHECK_PAGE_CROSSING_Y_n_END
 asm_jit_CHECK_PAGE_CROSSING_Y_n:
-  movzx REG_SCRATCH2_32, REG_6502_Y
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + 0x7fffffff]
 asm_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
@@ -818,7 +814,7 @@ asm_jit_WRITE_INV_SCRATCH_n_END:
 .globl asm_jit_WRITE_INV_SCRATCH_Y
 .globl asm_jit_WRITE_INV_SCRATCH_Y_END
 asm_jit_WRITE_INV_SCRATCH_Y:
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_Y_64 - K_BBC_MEM_READ_IND_ADDR]
+  lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_Y_64]
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
@@ -876,7 +872,7 @@ asm_jit_ADC_SCRATCH_END:
 .globl asm_jit_ADC_SCRATCH_Y
 .globl asm_jit_ADC_SCRATCH_Y_END
 asm_jit_ADC_SCRATCH_Y:
-  adc REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  adc REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_ADC_SCRATCH_Y_END:
   ret
@@ -951,7 +947,7 @@ asm_jit_AND_SCRATCH_END:
 .globl asm_jit_AND_SCRATCH_Y
 .globl asm_jit_AND_SCRATCH_Y_END
 asm_jit_AND_SCRATCH_Y:
-  and REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  and REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_AND_SCRATCH_Y_END:
   ret
@@ -1261,7 +1257,7 @@ asm_jit_CMP_SCRATCH_END:
 .globl asm_jit_CMP_SCRATCH_Y
 .globl asm_jit_CMP_SCRATCH_Y_END
 asm_jit_CMP_SCRATCH_Y:
-  cmp REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  cmp REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_CMP_SCRATCH_Y_END:
   ret
@@ -1445,7 +1441,7 @@ asm_jit_EOR_SCRATCH_END:
 .globl asm_jit_EOR_SCRATCH_Y
 .globl asm_jit_EOR_SCRATCH_Y_END
 asm_jit_EOR_SCRATCH_Y:
-  xor REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  xor REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_EOR_SCRATCH_Y_END:
   ret
@@ -1574,7 +1570,9 @@ asm_jit_LDA_SCRATCH_END:
 .globl asm_jit_LDA_SCRATCH_X
 .globl asm_jit_LDA_SCRATCH_X_END
 asm_jit_LDA_SCRATCH_X:
-  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + REG_6502_X_64]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + \
+                                 REG_6502_X_64 + \
+                                 K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_LDA_SCRATCH_X_END:
   ret
@@ -1583,7 +1581,9 @@ asm_jit_LDA_SCRATCH_X_END:
 .globl asm_jit_LDA_SCRATCH_Y
 .globl asm_jit_LDA_SCRATCH_Y_END
 asm_jit_LDA_SCRATCH_Y:
-  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + REG_6502_Y_64]
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + \
+                                 REG_6502_Y_64 + \
+                                 K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_LDA_SCRATCH_Y_END:
   ret
@@ -1839,7 +1839,7 @@ asm_jit_ORA_SCRATCH_END:
 .globl asm_jit_ORA_SCRATCH_Y
 .globl asm_jit_ORA_SCRATCH_Y_END
 asm_jit_ORA_SCRATCH_Y:
-  or REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  or REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_ORA_SCRATCH_Y_END:
   ret
@@ -2083,7 +2083,7 @@ asm_jit_SBC_SCRATCH_END:
 .globl asm_jit_SBC_SCRATCH_Y
 .globl asm_jit_SBC_SCRATCH_Y_END
 asm_jit_SBC_SCRATCH_Y:
-  sbb REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64]
+  sbb REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_SBC_SCRATCH_Y_END:
   ret
@@ -2172,7 +2172,7 @@ asm_jit_STA_SCRATCH_END:
 .globl asm_jit_STA_SCRATCH_Y
 .globl asm_jit_STA_SCRATCH_Y_END
 asm_jit_STA_SCRATCH_Y:
-  mov [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_OFFSET_TO_WRITE_IND], REG_6502_A
+  mov [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_WRITE_IND_ADDR], REG_6502_A
 
 asm_jit_STA_SCRATCH_Y_END:
   ret
