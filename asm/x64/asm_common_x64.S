@@ -240,7 +240,7 @@ asm_instruction_TSX_END:
 .globl asm_instruction_TXA_END
 asm_instruction_TXA:
 
-  mov REG_6502_A, REG_6502_X
+  movzx REG_6502_A_32, REG_6502_X
 
 asm_instruction_TXA_END:
   ret
@@ -260,7 +260,7 @@ asm_instruction_TXS_END:
 .globl asm_instruction_TYA_END
 asm_instruction_TYA:
 
-  mov REG_6502_A, REG_6502_Y
+  movzx REG_6502_A_32, REG_6502_Y
 
 asm_instruction_TYA_END:
   ret
