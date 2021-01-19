@@ -414,26 +414,12 @@ asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_MODE_ABX, asm_jit_MODE_ABX_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_ABX,
-                asm_jit_MODE_ABX_lea_patch,
-                addr);
+  asm_copy_patch_u32(p_buf, asm_jit_MODE_ABX, asm_jit_MODE_ABX_END, addr);
 }
 
 void
 asm_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t addr) {
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_MODE_ABY, asm_jit_MODE_ABY_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_ABY,
-                asm_jit_MODE_ABY_lea_patch,
-                addr);
+  asm_copy_patch_u32(p_buf, asm_jit_MODE_ABY, asm_jit_MODE_ABY_END, addr);
 }
 
 void

@@ -532,24 +532,18 @@ asm_jit_LOAD_SCRATCH_8_END:
 
 
 .globl asm_jit_MODE_ABX
-.globl asm_jit_MODE_ABX_lea_patch
 .globl asm_jit_MODE_ABX_END
 asm_jit_MODE_ABX:
   lea REG_SCRATCH1_32, [REG_6502_X_64 + 0x7fffffff]
-asm_jit_MODE_ABX_lea_patch:
-  movzx REG_SCRATCH1_32, REG_SCRATCH1_16
 
 asm_jit_MODE_ABX_END:
   ret
 
 
 .globl asm_jit_MODE_ABY
-.globl asm_jit_MODE_ABY_lea_patch
 .globl asm_jit_MODE_ABY_END
 asm_jit_MODE_ABY:
   lea REG_SCRATCH1_32, [REG_6502_Y_64 + 0x7fffffff]
-asm_jit_MODE_ABY_lea_patch:
-  movzx REG_SCRATCH1_32, REG_SCRATCH1_16
 
 asm_jit_MODE_ABY_END:
   ret
