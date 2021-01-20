@@ -235,8 +235,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t optype;
   uint8_t opmode;
   uint8_t opmem;
-  uint16_t addr_range_start;
-  uint16_t addr_range_end;
   int main_written;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
@@ -252,7 +250,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
-  p_details->num_uops = 0;
+  p_details->min_6502_addr = -1;
+  p_details->max_6502_addr = -1;
 
   opcode_6502 = p_mem_read[addr_6502];
   optype = p_compiler->p_opcode_types[opcode_6502];
@@ -287,16 +286,24 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = 0;
     break;
   case k_imm:
+    operand_6502 = p_mem_read[addr_plus_1];
+    break;
   case k_zpg:
     operand_6502 = p_mem_read[addr_plus_1];
+    p_details->min_6502_addr = operand_6502;
+    p_details->max_6502_addr = operand_6502;
     break;
   case k_zpx:
     operand_6502 = p_mem_read[addr_plus_1];
+    p_details->min_6502_addr = 0;
+    p_details->max_6502_addr = 0xFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
     p_uop++;
     break;
   case k_zpy:
     operand_6502 = p_mem_read[addr_plus_1];
+    p_details->min_6502_addr = 0;
+    p_details->max_6502_addr = 0xFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPY, operand_6502);
     p_uop++;
     break;
@@ -308,50 +315,55 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_abx:
   case k_aby:
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    p_details->min_6502_addr = operand_6502;
+    p_details->max_6502_addr = operand_6502;
     if ((operand_6502 & 0xFF) == 0x00) {
       could_page_cross = 0;
     }
-    addr_range_start = operand_6502;
-    addr_range_end = operand_6502;
     if (opmode == k_abx || opmode == k_aby) {
-      addr_range_end += 0xFF;
-    }
-
-    /* Use the interpreter for address space wraps. Otherwise the JIT code
-     * will do an out-of-bounds access. Longer term, this could be addressed,
-     * with performance maintained, by mapping a wrap-around page.
-     */
-    if (addr_range_start > addr_range_end) {
-      use_interp = 1;
-    }
-    if (opmem == k_read || opmem == k_rw) {
-      if (p_memory_access->memory_read_needs_callback(p_memory_callback,
-                                                      addr_range_start)) {
+      p_details->max_6502_addr += 0xFF;
+      if (p_details->max_6502_addr > 0xFFFF) {
+        p_details->min_6502_addr = (p_details->max_6502_addr & 0xFFFF);
+        p_details->max_6502_addr = operand_6502;
+        /* Use the interpreter for address space wraps. Otherwise the JIT code
+         * will do an out-of-bounds access.
+         */
         use_interp = 1;
       }
-      if (p_memory_access->memory_read_needs_callback(p_memory_callback,
-                                                      addr_range_end)) {
+    }
+
+    if (opmem == k_read || opmem == k_rw) {
+      if (p_memory_access->memory_read_needs_callback(
+              p_memory_callback, p_details->min_6502_addr)) {
+        use_interp = 1;
+      }
+      if (p_memory_access->memory_read_needs_callback(
+              p_memory_callback, p_details->max_6502_addr)) {
         use_interp = 1;
       }
     }
     if (opmem == k_write || opmem == k_rw) {
-      if (p_memory_access->memory_write_needs_callback(p_memory_callback,
-                                                       addr_range_start)) {
+      if (p_memory_access->memory_write_needs_callback(
+              p_memory_callback, p_details->min_6502_addr)) {
         use_interp = 1;
       }
-      if (p_memory_access->memory_write_needs_callback(p_memory_callback,
-                                                       addr_range_end)) {
+      if (p_memory_access->memory_write_needs_callback(
+              p_memory_callback, p_details->max_6502_addr)) {
         use_interp = 1;
       }
     }
     break;
   case k_ind:
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
+    p_details->min_6502_addr = 0;
+    p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, operand_6502);
     p_uop++;
     break;
   case k_idx:
     operand_6502 = p_mem_read[addr_plus_1];
+    p_details->min_6502_addr = 0;
+    p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH_8, addr_6502);
@@ -359,6 +371,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
+    p_details->min_6502_addr = 0;
+    p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_8, operand_6502);
     p_uop++;
     break;

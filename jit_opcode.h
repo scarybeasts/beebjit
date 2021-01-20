@@ -27,6 +27,8 @@ struct jit_opcode_details {
   uint8_t len_bytes_6502_orig;
   uint8_t max_cycles_orig;
   int branches;
+  int32_t min_6502_addr;
+  int32_t max_6502_addr;
 
   /* Partially dynamic details that may be changed by optimization. */
   uint8_t num_uops;
