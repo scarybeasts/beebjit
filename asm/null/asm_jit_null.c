@@ -58,21 +58,30 @@ asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ADD_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ADD_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -309,9 +318,12 @@ asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
 }
 
 void
-asm_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SUB_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -343,21 +355,30 @@ asm_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ADC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ADC_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -384,21 +405,30 @@ asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_AND_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_AND_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_AND_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -513,21 +543,30 @@ asm_emit_jit_BVS(struct util_buffer* p_buf, void* p_target) {
 }
 
 void
-asm_emit_jit_CMP_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_CMP_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_CMP_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -548,9 +587,12 @@ asm_emit_jit_CMP_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_CPX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CPX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -560,9 +602,12 @@ asm_emit_jit_CPX_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_CPY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CPY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -601,21 +646,30 @@ asm_emit_jit_DEC_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_EOR_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_EOR_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_EOR_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -671,21 +725,30 @@ asm_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
 }
 
 void
-asm_emit_jit_LDA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_LDA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_LDA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -711,15 +774,21 @@ asm_emit_jit_LDA_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_LDX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_LDX_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDX_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -734,15 +803,21 @@ asm_emit_jit_LDX_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_LDY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_LDY_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDY_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -797,21 +872,30 @@ asm_emit_jit_LSR_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_ORA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ORA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_ORA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -906,21 +990,30 @@ asm_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_SBC_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_SBC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_SBC_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -953,21 +1046,30 @@ asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_STA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_STA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
-asm_emit_jit_STA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -982,9 +1084,12 @@ asm_emit_jit_STA_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_STX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void
@@ -993,9 +1098,12 @@ asm_emit_jit_STX_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   (void) p_buf;
   (void) addr;
+  (void) segment;
 }
 
 void

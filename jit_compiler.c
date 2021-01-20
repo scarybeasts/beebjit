@@ -724,7 +724,47 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   void* p_memory_object = p_memory_access->p_callback_obj;
   void* p_host_address_object = p_compiler->p_host_address_object;
 
-  uint32_t segment;
+  /* The segment we need to hit for memory accesses.
+   * We have different segments:
+   * READ
+   * WRITE
+   * READ INDIRECT
+   * WRITE INDIRECT
+   * These segments are generally different virtual views on top of the same
+   * physical 6502 memory backing buffer. The differences are that writes to
+   * ROM area are silently / quickly ignored, and the indirect segments fault
+   * if hardware registers are hit.
+   * To minimize L1 DTLB issues, we'll generally map all accesses to READ
+   * INDIRECT when we know it doesn't make a difference.
+   */
+  uint32_t segment_abs;
+  uint32_t segment_abs_write;
+  uint32_t segment_abn;
+  uint32_t segment_abn_write;
+  int is_always_ram;
+  int is_always_ram_abn;
+
+  is_always_ram = p_memory_access->memory_is_always_ram(p_memory_object,
+                                                        (uint16_t) value1);
+  /* Assumes address space wrap and hardware register access taken care of
+   * elsewhere.
+   */
+  is_always_ram_abn = (is_always_ram &&
+                       p_memory_access->memory_is_always_ram(
+                           p_memory_object, (uint16_t) (value1 + 0xFF)));
+  /* Always calculate the segment even for irrelevant uopcodes; it's simpler. */
+  segment_abs = K_BBC_MEM_READ_IND_ADDR;
+  segment_abs_write = K_BBC_MEM_READ_IND_ADDR;
+  segment_abn = K_BBC_MEM_READ_IND_ADDR;
+  segment_abn_write = K_BBC_MEM_READ_IND_ADDR;
+  if (!is_always_ram) {
+    segment_abs = K_BBC_MEM_READ_FULL_ADDR;
+    segment_abs_write = K_BBC_MEM_WRITE_FULL_ADDR;
+  }
+  if (!is_always_ram_abn) {
+    segment_abn = K_BBC_MEM_READ_FULL_ADDR;
+    segment_abn_write = K_BBC_MEM_WRITE_FULL_ADDR;
+  }
 
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
@@ -744,17 +784,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xF0:
     value1 = (uint32_t) (size_t) p_compiler->get_block_host_address(
         p_host_address_object, (uint16_t) value1);
-    break;
-  default:
-    break;
-  }
-
-  /* Resolve which segment we need to hit for memory accesses. */
-  segment = K_BBC_MEM_READ_IND_ADDR;
-  switch (uopcode) {
-  case k_opcode_MODE_IND_16:
-    /* TODO: this is not correct for hardware register hits. */
-    segment = K_BBC_MEM_READ_FULL_ADDR;
     break;
   default:
     break;
@@ -783,13 +812,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ADD_ABS:
-    asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case k_opcode_ADD_ABX:
-    asm_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case k_opcode_ADD_ABY:
-    asm_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case k_opcode_ADD_IMM:
     asm_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
@@ -897,7 +926,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_MODE_IND_16:
-    asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment);
+    asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case k_opcode_MODE_IND_SCRATCH_8:
     asm_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
@@ -942,7 +971,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
   case k_opcode_SUB_ABS:
-    asm_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case k_opcode_SUB_IMM:
     asm_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
@@ -979,7 +1008,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x05: /* ORA zpg */
   case 0x0D: /* ORA abs */
-    asm_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0x06: /* ASL zpg */
     asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
@@ -997,7 +1026,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ASL_ACC(p_dest_buf);
     break;
   case 0x0E: /* ASL abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1016,15 +1045,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_CLC(p_dest_buf);
     break;
   case 0x19:
-    asm_emit_jit_ORA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x1D:
-    asm_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x1E: /* ASL abx */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
-        p_memory_access->memory_is_always_ram(p_memory_object,
-                                              (value1 + 0xFF))) {
+    if (is_always_ram_abn) {
       asm_emit_jit_ASL_ABX(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -1040,11 +1067,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x25: /* AND zpg */
   case 0x2D: /* AND abs */
-    asm_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0x26: /* ROL zpg */
   case 0x2E: /* ROL abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_ROL_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1072,10 +1099,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_SEC(p_dest_buf);
     break;
   case 0x39:
-    asm_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x3D:
-    asm_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x3E:
     asm_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -1086,7 +1113,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x45: /* EOR zpg */
   case 0x4D: /* EOR abs */
-    asm_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0x46: /* LSR zpg */
     asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
@@ -1108,7 +1135,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
     break;
   case 0x4E: /* LSR abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1127,15 +1154,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_CLI(p_dest_buf);
     break;
   case 0x59:
-    asm_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x5D:
-    asm_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x5E: /* LSR abx */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
-        p_memory_access->memory_is_always_ram(p_memory_object,
-                                              (value1 + 0xFF))) {
+    if (is_always_ram_abn) {
       asm_emit_jit_LSR_ABX(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -1147,11 +1172,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x65: /* ADC zpg */
   case 0x6D: /* ADC abs */
-    asm_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0x66: /* ROR zpg */
   case 0x6E: /* ROR abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1179,10 +1204,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_SEI(p_dest_buf);
     break;
   case 0x79:
-    asm_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x7D:
-    asm_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0x7E:
     asm_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -1196,15 +1221,15 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x84: /* STY zpg */
   case 0x8C: /* STY abs */
-    asm_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
     break;
   case 0x85: /* STA zpg */
   case 0x8D: /* STA abs */
-    asm_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
     break;
   case 0x86: /* STX zpg */
   case 0x8E: /* STX abs */
-    asm_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
     break;
   case 0x87: /* SAX zpg */ /* Undocumented. */
     asm_emit_jit_SAX_ABS(p_dest_buf, (uint16_t) value1);
@@ -1228,7 +1253,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_STX_scratch(p_dest_buf);
     break;
   case 0x99:
-    asm_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1, segment_abn_write);
     break;
   case 0x9A:
     asm_emit_instruction_TXS(p_dest_buf);
@@ -1237,7 +1262,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_SHY_ABX(p_dest_buf, (uint16_t) value1);
     break;
   case 0x9D:
-    asm_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1, segment_abn_write);
     break;
   case 0xA0:
     asm_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
@@ -1251,15 +1276,15 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0xA4: /* LDY zpg */
   case 0xAC: /* LDY abs */
-    asm_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xA5: /* LDA zpg */
   case 0xAD: /* LDA abs */
-    asm_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xA6: /* LDX zpg */
   case 0xAE: /* LDX abs */
-    asm_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xA8:
     asm_emit_instruction_TAY(p_dest_buf);
@@ -1286,19 +1311,19 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_CLV(p_dest_buf);
     break;
   case 0xB9:
-    asm_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xBA:
     asm_emit_instruction_TSX(p_dest_buf);
     break;
   case 0xBC:
-    asm_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xBD:
-    asm_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xBE:
-    asm_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xC0:
     asm_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
@@ -1309,11 +1334,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0xC4: /* CPY zpg */
   case 0xCC: /* CPY abs */
-    asm_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xC5: /* CMP zpg */
   case 0xCD: /* CMP abs */
-    asm_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xC6: /* DEC zpg */
     asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
@@ -1328,7 +1353,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_DEX(p_dest_buf);
     break;
   case 0xCE: /* DEC abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1347,15 +1372,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_CLD(p_dest_buf);
     break;
   case 0xD9:
-    asm_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xDD:
-    asm_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xDE: /* DEC abx */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
-        p_memory_access->memory_is_always_ram(p_memory_object,
-                                              (value1 + 0xFF))) {
+    if (is_always_ram_abn) {
       asm_emit_jit_DEC_ABX(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
@@ -1370,11 +1393,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0xE4: /* CPX zpg */
   case 0xEC: /* CPX abs */
-    asm_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xE5: /* SBC zpg */
   case 0xED: /* SBC abs */
-    asm_emit_jit_SBC_ABS(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
     break;
   case 0xE6: /* INC zpg */
     asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
@@ -1386,7 +1409,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case 0xEE: /* INC abs */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1)) {
+    if (is_always_ram) {
       asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
@@ -1408,15 +1431,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_SED(p_dest_buf);
     break;
   case 0xF9:
-    asm_emit_jit_SBC_ABY(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xFD:
-    asm_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1);
+    asm_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
     break;
   case 0xFE: /* INC abx */
-    if (p_memory_access->memory_is_always_ram(p_memory_object, value1) &&
-        p_memory_access->memory_is_always_ram(p_memory_object,
-                                              (value1 + 0xFF))) {
+    if (is_always_ram_abn) {
       asm_emit_jit_INC_ABX(p_dest_buf, (uint16_t) value1);
     } else {
       asm_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);

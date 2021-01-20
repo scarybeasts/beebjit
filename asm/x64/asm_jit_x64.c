@@ -183,34 +183,41 @@ asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_ADD_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_ADD_ZPG,
                         asm_jit_ADD_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_ADD_ABS,
                        asm_jit_ADD_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_ADD_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ADD_ABX,
                      asm_jit_ADD_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_ADD_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ADD_ABY,
                      asm_jit_ADD_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -583,17 +590,20 @@ asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
 }
 
 void
-asm_emit_jit_SUB_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SUB_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_SUB_ZPG,
                         asm_jit_SUB_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_SUB_ABS,
                        asm_jit_SUB_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
@@ -637,34 +647,41 @@ asm_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_ADC_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_ADC_ZPG,
                         asm_jit_ADC_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_ADC_ABS,
                        asm_jit_ADC_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_ADC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ADC_ABX,
                      asm_jit_ADC_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_ADC_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ADC_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ADC_ABY,
                      asm_jit_ADC_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -698,34 +715,41 @@ asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_AND_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_AND_ZPG,
                         asm_jit_AND_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_AND_ABS,
                        asm_jit_AND_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_AND_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_AND_ABX,
                      asm_jit_AND_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_AND_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_AND_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_AND_ABY,
                      asm_jit_AND_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -783,7 +807,7 @@ asm_emit_jit_ASL_ABX(struct util_buffer* p_buf, uint16_t addr) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ASL_ABX,
                      asm_jit_ASL_ABX_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + K_BBC_MEM_READ_IND_ADDR));
 }
 
 void
@@ -915,34 +939,41 @@ asm_emit_jit_BVS(struct util_buffer* p_buf, void* p_target) {
 }
 
 void
-asm_emit_jit_CMP_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_CMP_ZPG,
                         asm_jit_CMP_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_CMP_ABS,
                        asm_jit_CMP_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_CMP_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_CMP_ABX,
                      asm_jit_CMP_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_CMP_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CMP_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_CMP_ABY,
                      asm_jit_CMP_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -964,17 +995,20 @@ asm_emit_jit_CMP_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_CPX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CPX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_CPX_ZPG,
                         asm_jit_CPX_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_CPX_ABS,
                        asm_jit_CPX_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
@@ -984,17 +1018,20 @@ asm_emit_jit_CPX_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 void
-asm_emit_jit_CPY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_CPY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_CPY_ZPG,
                         asm_jit_CPY_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_CPY_ABS,
                        asm_jit_CPY_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
@@ -1040,7 +1077,7 @@ asm_emit_jit_DEC_ABX(struct util_buffer* p_buf, uint16_t addr) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_DEC_ABX,
                      asm_jit_DEC_ABX_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + K_BBC_MEM_READ_IND_ADDR));
 }
 
 void
@@ -1066,34 +1103,41 @@ asm_emit_jit_DEC_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_EOR_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_EOR_ZPG,
                         asm_jit_EOR_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_EOR_ABS,
                        asm_jit_EOR_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_EOR_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_EOR_ABX,
                      asm_jit_EOR_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_EOR_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_EOR_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_EOR_ABY,
                      asm_jit_EOR_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1151,7 +1195,7 @@ asm_emit_jit_INC_ABX(struct util_buffer* p_buf, uint16_t addr) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_INC_ABX,
                      asm_jit_INC_ABX_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + K_BBC_MEM_READ_IND_ADDR));
 }
 
 void
@@ -1187,34 +1231,41 @@ asm_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
 }
 
 void
-asm_emit_jit_LDA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_LDA_ZPG,
                         asm_jit_LDA_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_LDA_ABS,
                        asm_jit_LDA_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_LDA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_LDA_ABX,
                      asm_jit_LDA_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_LDA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_LDA_ABY,
                      asm_jit_LDA_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1241,26 +1292,31 @@ asm_emit_jit_LDA_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_LDX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_LDX_ZPG,
                         asm_jit_LDX_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_LDX_ABS,
                        asm_jit_LDX_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_LDX_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDX_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_LDX_ABY,
                      asm_jit_LDX_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1274,26 +1330,31 @@ asm_emit_jit_LDX_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_LDY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_LDY_ZPG,
                         asm_jit_LDY_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_LDY_ABS,
                        asm_jit_LDY_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_LDY_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_LDY_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_LDY_ABX,
                      asm_jit_LDY_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1343,7 +1404,7 @@ asm_emit_jit_LSR_ABX(struct util_buffer* p_buf, uint16_t addr) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_LSR_ABX,
                      asm_jit_LSR_ABX_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + K_BBC_MEM_READ_IND_ADDR));
 }
 
 void
@@ -1379,34 +1440,41 @@ asm_emit_jit_LSR_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_ORA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_ORA_ZPG,
                         asm_jit_ORA_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_ORA_ABS,
                        asm_jit_ORA_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_ORA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ORA_ABX,
                      asm_jit_ORA_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_ORA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_ORA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_ORA_ABY,
                      asm_jit_ORA_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1567,34 +1635,41 @@ asm_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_SBC_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_SBC_ZPG,
                         asm_jit_SBC_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(p_buf,
                        asm_jit_SBC_ABS,
                        asm_jit_SBC_ABS_END,
-                       (addr - REG_MEM_OFFSET));
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_SBC_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_SBC_ABX,
                      asm_jit_SBC_ABX_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_SBC_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_SBC_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_SBC_ABY,
                      asm_jit_SBC_ABY_END,
-                     (addr + K_BBC_MEM_READ_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1651,35 +1726,42 @@ asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_STA_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_STA_ZPG,
                         asm_jit_STA_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
     asm_copy_patch_u32(
         p_buf,
         asm_jit_STA_ABS,
         asm_jit_STA_ABS_END,
-        (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
+        (addr - REG_MEM_OFFSET + delta));
   }
 }
 
 void
-asm_emit_jit_STA_ABX(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABX(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_STA_ABX,
                      asm_jit_STA_ABX_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
-asm_emit_jit_STA_ABY(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STA_ABY(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
   asm_copy_patch_u32(p_buf,
                      asm_jit_STA_ABY,
                      asm_jit_STA_ABY_END,
-                     (addr + K_BBC_MEM_WRITE_FULL_ADDR));
+                     (addr + segment));
 }
 
 void
@@ -1696,18 +1778,20 @@ asm_emit_jit_STA_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_STX_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STX_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_STX_ZPG,
                         asm_jit_STX_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
-    asm_copy_patch_u32(
-        p_buf,
-        asm_jit_STX_ABS,
-        asm_jit_STX_ABS_END,
-        (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
+    asm_copy_patch_u32(p_buf,
+                       asm_jit_STX_ABS,
+                       asm_jit_STX_ABS_END,
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
@@ -1717,18 +1801,20 @@ asm_emit_jit_STX_scratch(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_STY_ABS(struct util_buffer* p_buf, uint16_t addr) {
+asm_emit_jit_STY_ABS(struct util_buffer* p_buf,
+                     uint16_t addr,
+                     uint32_t segment) {
+  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
   if (addr < 0x100) {
     asm_copy_patch_byte(p_buf,
                         asm_jit_STY_ZPG,
                         asm_jit_STY_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
+                        (addr - REG_MEM_OFFSET + delta));
   } else {
-    asm_copy_patch_u32(
-        p_buf,
-        asm_jit_STY_ABS,
-        asm_jit_STY_ABS_END,
-        (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
+    asm_copy_patch_u32(p_buf,
+                       asm_jit_STY_ABS,
+                       asm_jit_STY_ABS_END,
+                       (addr - REG_MEM_OFFSET + delta));
   }
 }
 
