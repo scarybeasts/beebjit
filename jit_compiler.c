@@ -1725,7 +1725,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t i_uops;
   uint16_t addr_6502;
   uint32_t cycles;
-  int needs_countdown;
   struct jit_opcode_details* p_details;
   struct jit_opcode_details* p_details_fixup;
   struct jit_uop* p_uop;
@@ -1780,20 +1779,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * This defines maximum possible bounds for the block and respects existing
    * known block boundaries.
    */
-  needs_countdown = 0;
   while (1) {
     p_details = &opcode_details[total_num_opcodes];
-
-    if (needs_countdown) {
-      jit_opcode_make_internal_opcode1(p_details,
-                                       addr_6502,
-                                       k_opcode_countdown,
-                                       addr_6502);
-      p_details->cycles_run_start = 0;
-      needs_countdown = 0;
-      total_num_opcodes++;
-      p_details = &opcode_details[total_num_opcodes];
-    }
 
     assert(total_num_opcodes < k_max_opcodes_per_compile);
 
@@ -1804,7 +1791,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     total_num_6502_opcodes++;
 
     if (p_details->branches == k_bra_m) {
-      needs_countdown = 1;
+      p_details = &opcode_details[total_num_opcodes];
+      jit_opcode_make_internal_opcode1(p_details,
+                                       addr_6502,
+                                       k_opcode_countdown,
+                                       addr_6502);
+      p_details->cycles_run_start = 0;
+      total_num_opcodes++;
     }
 
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
@@ -1833,17 +1826,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     if (total_num_opcodes == (k_max_opcodes_per_compile - 1)) {
       is_next_block_continuation = 1;
       break;
-    }
-
-    if (needs_countdown) {
-      /* Exit loop condition: only useful to emit a countdown opcode if there's
-       * also space for an opcode that does real work, and of course the
-       * possibly needed opcode to jump out of a block that doesn't fit.
-       */
-      if (total_num_opcodes >= (k_max_opcodes_per_compile - 2)) {
-        is_next_block_continuation = 1;
-        break;
-      }
     }
   }
 
