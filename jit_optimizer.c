@@ -4,7 +4,6 @@
 #include "jit_opcode.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 
 /* TODO: replace direct references to defs_6502_get_6502_optype_map(). */
@@ -1066,16 +1065,20 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
     }
   }
 
-  /* Pass 3: merge 6502 macro opcodes as we can. */
+  /* Pass 3: merge macro opcodes as we can. */
   p_prev_opcode = NULL;
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
 
     uint8_t opcode_6502 = p_opcode->opcode_6502;
 
-    /* Merge opcode into previous if supported. */
-    if ((p_prev_opcode != NULL) &&
-        (opcode_6502 == p_prev_opcode->opcode_6502)) {
+    if (p_prev_opcode == NULL) {
+      p_prev_opcode = p_opcode;
+      continue;
+    }
+
+    /* Merge runs of the same opcode into just one, if supported. */
+    if (opcode_6502 == p_prev_opcode->opcode_6502) {
       int32_t old_uopcode = -1;
       int32_t new_uopcode = -1;
       switch (opcode_6502) {
@@ -1115,6 +1118,16 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
         p_prev_opcode->max_cycles_merged += p_opcode->max_cycles_orig;
 
         continue;
+      }
+    }
+
+    /* Merge a "branch not taken" cycles fixup with a countdown check. */
+    if (p_opcode->uops[0].uopcode == k_opcode_countdown) {
+      struct jit_uop* p_prev_last_uop =
+          &p_prev_opcode->uops[p_prev_opcode->num_uops - 1];
+      if (p_prev_last_uop->uopcode == k_opcode_ADD_CYCLES) {
+        p_opcode->uops[0].value2 -= p_prev_last_uop->value1;
+        p_prev_last_uop->eliminated = 1;
       }
     }
 
