@@ -133,13 +133,6 @@ enum {
   k_iax = 14,
   k_id = 15,
   k_nil1 = 16,
-  /* Additional address modes supported for efficient self-modifying code. */
-  k_imm_dyn = 17,
-  k_zpg_dyn = 18,
-  k_abs_dyn = 19,
-  k_abx_dyn = 20,
-  k_aby_dyn = 21,
-  k_idy_dyn = 22,
 };
 
 enum {
