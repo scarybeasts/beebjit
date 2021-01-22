@@ -1060,15 +1060,27 @@ debug_parse_breakpoint(struct debug_breakpoint* p_breakpoint,
 }
 
 static void
-debug_print_hex_line(uint8_t* p_buf, uint32_t pos, uint32_t base) {
+debug_print_hex_line(uint8_t* p_buf,
+                     uint32_t pos,
+                     uint32_t max,
+                     uint32_t base) {
   uint32_t i;
+  uint32_t num = 16;
+
+  if ((pos + num) < pos) {
+    /* Integer overflow. */
+    num = 0;
+  }
+  if ((pos + num) > max) {
+    num = (max - pos);
+  }
 
   (void) printf("%.4"PRIX16":", (base + pos));
-  for (i = 0; i < 16; ++i) {
+  for (i = 0; i < num; ++i) {
     (void) printf(" %.2"PRIX8, p_buf[pos + i]);
   }
   (void) printf("  ");
-  for (i = 0; i < 16; ++i) {
+  for (i = 0; i < num; ++i) {
     char c = p_buf[pos + i];
     if (!isprint(c)) {
       c = '.';
@@ -1432,7 +1444,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       break;
     } else if (sscanf(input_buf, "m %"PRIx32, &parse_int) == 1) {
       for (j = 0; j < 4; ++j) {
-        debug_print_hex_line(p_mem_read, parse_int, 0);
+        debug_print_hex_line(p_mem_read, (uint16_t) parse_int, 0x10000, 0);
         parse_int += 16;
       }
       /* Continue where we left off if just enter is hit next. */
@@ -1656,7 +1668,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             0);
       data_chunks = (byte_length / 16);
       for (i = 0; i < data_chunks; ++i) {
-        debug_print_hex_line(&sector_data[0], (i * 16), 0);
+        debug_print_hex_line(&sector_data[0], (i * 16), byte_length, 0);
       }
     } else if (sscanf(input_buf, "dset %"PRIx8, &parse_int) == 1) {
       disc_tool_fill_fm_data(p_tool, parse_int);
@@ -1675,7 +1687,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       parse_int = disc_tool_get_byte_pos(p_tool);
       disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
-        debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
+        debug_print_hex_line(&disc_data[0], (j * 16), 64, parse_int);
       }
     } else if (!strcmp(input_buf, "drfmc") ||
                (sscanf(input_buf, "drfmc %"PRId32, &parse_int) == 1)) {
@@ -1685,8 +1697,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       parse_int = disc_tool_get_byte_pos(p_tool);
       disc_tool_read_fm_data(p_tool, &disc_clocks[0], &disc_data[0], 64);
       for (j = 0; j < 4; ++j) {
-        debug_print_hex_line(&disc_data[0], (j * 16), parse_int);
-        debug_print_hex_line(&disc_clocks[0], (j * 16), parse_int);
+        debug_print_hex_line(&disc_data[0], (j * 16), 64, parse_int);
+        debug_print_hex_line(&disc_clocks[0], (j * 16), 64, parse_int);
       }
     } else if ((strncmp(input_buf, "dwfmc", 5) == 0) &&
                (sscanf(input_buf,
