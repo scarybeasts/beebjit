@@ -102,6 +102,7 @@ struct bbc_struct {
   int is_64k_mappings;
   uint64_t rewind_to_cycles;
   uint32_t log_count_shadow_speed;
+  uint32_t log_count_misc_unimplemented;
 
   /* Machine configuration. */
   int is_master;
@@ -427,13 +428,19 @@ bbc_read_callback(void* p,
     } else {
       /* EMU: returns 0 on an issue 3. */
       ret = 0;
-      log_do_log(k_log_misc, k_log_unimplemented, "read of $FE18 region");
+      log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "read of $FE18 region");
     }
     break;
   case 0xFE1C:
     /* EMU: a hole here. Returns 0 on an issue 3. */
     ret = 0;
-    log_do_log(k_log_misc, k_log_unimplemented, "read of $FE1C region");
+    log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                         k_log_misc,
+                         k_log_unimplemented,
+                         "read of $FE1C region");
     break;
   case (k_addr_video_ula + 0):
     /* EMU NOTE: ULA is write-only, and reads don't seem to be wired up.
@@ -524,7 +531,10 @@ bbc_read_callback(void* p,
     if (!p_bbc->is_master) {
       ret = adc_read(addr & 3);
     } else {
-      log_do_log(k_log_misc, k_log_unimplemented, "read of $FEC0-$FEDF region");
+      log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "read of $FEC0-$FEDF region");
     }
     break;
   case (k_addr_tube + 0):
@@ -903,11 +913,17 @@ bbc_write_callback(void* p,
     if (p_bbc->is_master) {
       adc_write((addr & 3), val);
     } else {
-      log_do_log(k_log_misc, k_log_unimplemented, "write of $FE18 region");
+      log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "write of $FE18 region");
     }
     break;
   case (k_addr_master_adc + 4):
-    log_do_log(k_log_misc, k_log_unimplemented, "write of $FE1C region");
+    log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                         k_log_misc,
+                         k_log_unimplemented,
+                         "write of $FE1C region");
     break;
   case (k_addr_video_ula + 0):
     {
@@ -990,7 +1006,10 @@ bbc_write_callback(void* p,
   case (k_addr_econet + 20):
   case (k_addr_econet + 24):
   case (k_addr_econet + 28):
-    log_do_log(k_log_misc, k_log_unimplemented, "write of ECONET region");
+    log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                         k_log_misc,
+                         k_log_unimplemented,
+                         "write of ECONET region");
     break;
   case (k_addr_adc + 0):
   case (k_addr_adc + 4):
@@ -1003,9 +1022,10 @@ bbc_write_callback(void* p,
     if (!p_bbc->is_master) {
       adc_write((addr & 3), val);
     } else {
-      log_do_log(k_log_misc,
-                 k_log_unimplemented,
-                 "write of $FEC0-$FEDF region");
+      log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "write of $FEC0-$FEDF region");
     }
     break;
   case (k_addr_tube + 0):
@@ -1046,7 +1066,10 @@ bbc_write_callback(void* p,
         break;
       }
     } else {
-      log_do_log(k_log_misc, k_log_unimplemented, "write of TUBE region");
+      log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "write of TUBE region");
     }
     break;
   default:
@@ -1290,6 +1313,7 @@ bbc_create(int mode,
 
   p_bbc->is_64k_mappings = os_alloc_get_is_64k_mappings();
   p_bbc->log_count_shadow_speed = 16;
+  p_bbc->log_count_misc_unimplemented = 32;
 
   p_bbc->p_mapping_raw =
       os_alloc_get_mapping_from_handle(

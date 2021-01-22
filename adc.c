@@ -24,7 +24,13 @@ adc_read(uint8_t addr) {
     break;
   case 3:
     ret = 0;
-    log_do_log(k_log_misc, k_log_unimplemented, "ADC read of index 3");
+    {
+      static uint32_t s_max_log_count = 4;
+      log_do_log_max_count(&s_max_log_count,
+                           k_log_misc,
+                           k_log_unimplemented,
+                           "ADC read of index 3");
+    }
     break;
   default:
     assert(0);

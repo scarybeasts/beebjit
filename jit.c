@@ -201,7 +201,7 @@ jit_enter_interp(struct jit_struct* p_jit,
   /* Take care of any deferred fault logging. */
   if (p_jit->do_fault_log) {
     p_jit->do_fault_log = 0;
-    log_do_log(k_log_jit, k_log_info, "JIT handled fault (log every 1k)");
+    log_do_log(k_log_jit, k_log_info, "JIT handled fault (log every 10k)");
   }
 
   /* Bouncing out of the JIT is quite jarring. We need to fixup up any state
@@ -758,7 +758,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
     fault_reraise(p_fault_rip, p_fault_addr);
   }
 
-  if ((p_jit->counter_num_faults % 1000) == 0) {
+  if ((p_jit->counter_num_faults % 10000) == 0) {
     /* We shouldn't call logging in the fault context (re-entrancy etc.) so set
      * a flag to take care of it later.
      */
