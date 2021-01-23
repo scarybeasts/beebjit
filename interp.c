@@ -18,6 +18,7 @@ enum {
   k_interp_special_callback = 2,
   k_interp_special_countdown = 4,
   k_interp_special_poll_irq = 8,
+  k_interp_special_entry = 16,
 };
 
 struct interp_struct {
@@ -984,7 +985,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   volatile int* p_debug_interrupt = p_interp->p_debug_interrupt;
   int64_t cycles_this_instruction = 0;
   uint8_t opcode = 0;
-  int special_checks = 0;
+  int special_checks = k_interp_special_entry;
   uint16_t addr = 0;
   int do_irq = 0;
   int is_65c12 = p_interp->is_65c12;
@@ -2803,7 +2804,7 @@ check_irq:
     }
 
     /* The instruction callback fires after an instruction executes. */
-    if (instruction_callback && cycles_this_instruction) {
+    if (instruction_callback && (!(special_checks & k_interp_special_entry))) {
       int irq_pending = !!(special_checks & k_interp_special_poll_irq);
       /* This passes the just executed opcode and addr, but the next pc. */
       if (instruction_callback(p_callback_context,
@@ -2816,6 +2817,8 @@ check_irq:
         break;
       }
     }
+
+    special_checks &= ~k_interp_special_entry;
 
     if (do_irq) {
       opcode = 0x00;
