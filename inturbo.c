@@ -41,6 +41,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint16_t write_callback_from;
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
 
   struct util_buffer* p_buf = util_buffer_create();
@@ -61,6 +62,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   p_inturbo->driver.p_funcs->get_opcode_maps(&p_inturbo->driver,
                                              &p_opcode_types,
                                              &p_opcode_modes,
+                                             &p_opcode_mem,
                                              &p_opcode_cycles);
 
   for (i = 0;
@@ -70,7 +72,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     uint8_t optype = p_opcode_types[i];
     uint8_t opmode = p_opcode_modes[i];
-    uint8_t opmem = g_opmem[optype];
+    uint8_t opmem = p_opcode_mem[i];
     uint8_t opreg = 0;
     uint8_t opcycles = p_opcode_cycles[i];
     uint16_t this_callback_from = read_callback_from;
@@ -102,7 +104,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       break;
     }
 
-    if ((opmem == k_write) || (opmem == k_rw)) {
+    if (opmem & k_opmem_write_flag) {
       this_callback_from = write_callback_from;
     }
 
@@ -129,7 +131,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_abx:
       asm_emit_inturbo_mode_abx(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-      if ((opmem == k_read) && accurate) {
+      if ((opmem & k_opmem_read_flag) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
       }
@@ -137,7 +139,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_aby:
       asm_emit_inturbo_mode_aby(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-      if ((opmem == k_read) && accurate) {
+      if ((opmem & k_opmem_read_flag) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
       }
@@ -155,7 +157,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_idy:
       asm_emit_inturbo_mode_idy(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-      if ((opmem == k_read) && accurate) {
+      if ((opmem & k_opmem_read_flag) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
       }
@@ -497,9 +499,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     }
 
     /* Invalidation of JIT code on writes, iff we're supporting the JIT. */
-    if (p_inturbo->do_write_invalidations &&
-        (opmode != k_acc) &&
-        ((opmem == k_write) || (opmem == k_rw))) {
+    if (p_inturbo->do_write_invalidations && (opmem & k_opmem_write_flag)) {
       asm_emit_inturbo_do_write_invalidation(p_buf);
     }
 

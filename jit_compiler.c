@@ -42,6 +42,7 @@ struct jit_compiler {
   int log_dynamic;
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
 
   int option_accurate_timings;
@@ -137,6 +138,7 @@ jit_compiler_create(struct timing_struct* p_timing,
                     int debug,
                     uint8_t* p_opcode_types,
                     uint8_t* p_opcode_modes,
+                    uint8_t* p_opcode_mem,
                     uint8_t* p_opcode_cycles) {
   uint32_t i;
   struct util_buffer* p_tmp_buf;
@@ -161,6 +163,7 @@ jit_compiler_create(struct timing_struct* p_timing,
   p_compiler->debug = debug;
   p_compiler->p_opcode_types = p_opcode_types;
   p_compiler->p_opcode_modes = p_opcode_modes;
+  p_compiler->p_opcode_mem = p_opcode_mem;
   p_compiler->p_opcode_cycles = p_opcode_cycles;
 
   p_compiler->option_accurate_timings = util_has_option(p_options->p_opt_flags,
@@ -256,7 +259,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   opcode_6502 = p_mem_read[addr_6502];
   optype = p_compiler->p_opcode_types[opcode_6502];
   opmode = p_compiler->p_opcode_modes[opcode_6502];
-  opmem = g_opmem[optype];
+  opmem = p_compiler->p_opcode_mem[opcode_6502];
 
   p_details->opcode_6502 = opcode_6502;
   p_details->len_bytes_6502_orig = g_opmodelens[opmode];
@@ -332,7 +335,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       }
     }
 
-    if (opmem == k_read || opmem == k_rw) {
+    if (opmem & k_opmem_read_flag) {
       if (p_memory_access->memory_read_needs_callback(
               p_memory_callback, p_details->min_6502_addr)) {
         use_interp = 1;
@@ -342,7 +345,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         use_interp = 1;
       }
     }
-    if (opmem == k_write || opmem == k_rw) {
+    if (opmem & k_opmem_write_flag) {
       if (p_memory_access->memory_write_needs_callback(
               p_memory_callback, p_details->min_6502_addr)) {
         use_interp = 1;
@@ -386,7 +389,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->max_cycles_orig = p_compiler->p_opcode_cycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
-    if ((opmem == k_read) &&
+    if ((opmem & k_opmem_read_flag) &&
         (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
         could_page_cross) {
       p_details->max_cycles_orig++;
@@ -636,7 +639,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Post-main per-mode uops. */
   /* Code invalidation for writes, aka. self-modifying code. */
   /* TODO: stack page invalidations. */
-  if (opmem == k_write || opmem == k_rw) {
+  if (opmem & k_opmem_write_flag) {
     switch (opmode) {
     case k_abs:
       jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
@@ -681,7 +684,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
   /* Accurate timings for page crossing cycles. */
   if (p_compiler->option_accurate_timings &&
-      (opmem == k_read) &&
+      (opmem & k_opmem_read_flag) &&
       could_page_cross) {
     /* NOTE: must do page crossing cycles fixup after the main uop, because it
      * may fault (e.g. for hardware register access) and then fixup. We're

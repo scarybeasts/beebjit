@@ -48,6 +48,7 @@ struct cpu_driver_funcs {
   void (*get_opcode_maps)(struct cpu_driver* p_cpu_driver,
                           uint8_t** p_out_optypes,
                           uint8_t** p_out_opmodes,
+                          uint8_t** p_out_opmem,
                           uint8_t** p_out_opcycles);
 };
 

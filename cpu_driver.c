@@ -75,11 +75,13 @@ static void
 cpu_driver_get_6502_opcode_maps(struct cpu_driver* p_cpu_driver,
                                 uint8_t** p_out_optypes,
                                 uint8_t** p_out_opmodes,
+                                uint8_t** p_out_opmem,
                                 uint8_t** p_out_opcycles) {
   (void) p_cpu_driver;
 
   *p_out_optypes = defs_6502_get_6502_optype_map();
   *p_out_opmodes = defs_6502_get_6502_opmode_map();
+  *p_out_opmem = defs_6502_get_6502_opmem_map();
   *p_out_opcycles = defs_6502_get_6502_opcycles_map();
 }
 
@@ -87,11 +89,13 @@ static void
 cpu_driver_get_65c12_opcode_maps(struct cpu_driver* p_cpu_driver,
                                  uint8_t** p_out_optypes,
                                  uint8_t** p_out_opmodes,
+                                 uint8_t** p_out_opmem,
                                  uint8_t** p_out_opcycles) {
   (void) p_cpu_driver;
 
   *p_out_optypes = defs_6502_get_65c12_optype_map();
   *p_out_opmodes = defs_6502_get_65c12_opmode_map();
+  *p_out_opmem = defs_6502_get_65c12_opmem_map();
   *p_out_opcycles = defs_6502_get_65c12_opcycles_map();
 }
 

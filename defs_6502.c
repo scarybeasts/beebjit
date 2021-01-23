@@ -18,20 +18,6 @@ const char* g_p_opnames[k_6502_op_num_types] =
   "TSB", "TRB", "STZ", "BRA", "PHX", "PHY", "PLX", "PLY",
 };
 
-uint8_t g_opmem[k_6502_op_num_types] = {
-  k_nomem, k_nomem, k_nomem, k_read , k_rw   , k_nomem, k_nomem, k_nomem,
-  k_nomem, k_read , k_read , k_nomem, k_rw   , k_nomem, k_nomem, k_nomem,
-  k_read , k_rw   , k_nomem, k_nomem, k_nomem, k_nomem, k_nomem, k_read ,
-  k_nomem, k_rw   , k_nomem, k_nomem, k_write, k_write, k_write, k_nomem,
-  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_nomem,
-  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_read , k_read , k_rw   ,
-  k_nomem, k_nomem, k_nomem, k_nomem, k_read , k_nomem, k_read , k_rw   ,
-  k_nomem, k_nomem, k_write, k_nomem, k_rw   , k_write, k_nomem, k_read ,
-  k_rw   , k_rw   , k_rw   , k_write, k_nomem, k_rw   , k_nomem, k_rw   ,
-  k_nomem, k_write, k_read , k_write, 0      , 0      , 0      , 0      ,
-  k_rw   , k_rw   , k_write, k_nomem, k_nomem, k_nomem, k_nomem, k_nomem,
-};
-
 uint8_t g_opbranch[k_6502_op_num_types] = {
   k_bra_y, k_bra_y, k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n,
   k_bra_y, k_bra_n, k_bra_n, k_bra_n, k_bra_n, k_bra_m, k_bra_n, k_bra_y,
@@ -276,8 +262,11 @@ uint8_t s_opcycles_6502[k_6502_op_num_opcodes] =
   2, 4, 2, 7, 4, 4, 7, 7,
 };
 
+uint8_t s_opmem_6502[k_6502_op_num_opcodes];
+
 uint8_t s_optypes_65c12[k_6502_op_num_opcodes];
 uint8_t s_opmodes_65c12[k_6502_op_num_opcodes];
+uint8_t s_opmem_65c12[k_6502_op_num_opcodes];
 uint8_t s_opcycles_65c12[k_6502_op_num_opcodes];
 
 uint8_t g_opmodelens[k_6502_op_num_modes] =
@@ -314,6 +303,11 @@ defs_6502_get_6502_opmode_map() {
 }
 
 uint8_t*
+defs_6502_get_6502_opmem_map() {
+  return s_opmem_6502;
+}
+
+uint8_t*
 defs_6502_get_6502_opcycles_map() {
   return s_opcycles_6502;
 }
@@ -329,14 +323,87 @@ defs_6502_get_65c12_opmode_map() {
 }
 
 uint8_t*
+defs_6502_get_65c12_opmem_map() {
+  return s_opmem_65c12;
+}
+
+uint8_t*
 defs_6502_get_65c12_opcycles_map() {
   return s_opcycles_65c12;
+}
+
+static uint8_t
+defs_6502_calculate_opmem(uint8_t optype, uint8_t opmode) {
+  uint8_t opmem = 0;
+  switch (opmode) {
+  case k_zpg:
+  case k_abs:
+  case k_zpx:
+  case k_zpy:
+  case k_abx:
+  case k_aby:
+  case k_idx:
+  case k_idy:
+  case k_ind:
+  case k_iax:
+  case k_id:
+    switch (optype) {
+    case k_sta:
+    case k_stx:
+    case k_sty:
+    case k_sax:
+    case k_shy:
+    case k_ahx:
+    case k_tas:
+    case k_shx:
+    case k_stz:
+      opmem = k_opmem_write_flag;
+      break;
+    case k_asl:
+    case k_rol:
+    case k_lsr:
+    case k_ror:
+    case k_inc:
+    case k_dec:
+    case k_slo:
+    case k_dcp:
+    case k_sre:
+    case k_rla:
+    case k_rra:
+    case k_isc:
+    case k_tsb:
+    case k_trb:
+      opmem = (k_opmem_read_flag | k_opmem_write_flag);
+      break;
+    default:
+      opmem = k_opmem_read_flag;
+      break;
+    }
+    break;
+  default:
+    break;
+  }
+  return opmem;
+}
+
+static void
+defs_6502_poplate_opmem_table(uint8_t* p_opmem,
+                              uint8_t* p_optypes,
+                              uint8_t* p_opmodes) {
+  uint32_t i;
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    uint8_t optype = p_optypes[i];
+    uint8_t opmode = p_opmodes[i];
+    uint8_t opmem = defs_6502_calculate_opmem(optype, opmode);
+    p_opmem[i] = opmem;
+  }
 }
 
 static void
 defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
   uint8_t cycles = 0;
-  int is_rmw = (g_opmem[type] == k_rw);
+  uint8_t opmem = defs_6502_calculate_opmem(type, mode);
+  int is_rmw = (opmem == (k_opmem_read_flag | k_opmem_write_flag));
 
   switch (mode) {
   case k_nil:
@@ -363,7 +430,7 @@ defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
     break;
   case k_abx:
     cycles = 4;
-    if (g_opmem[type] == k_write) {
+    if (opmem & k_opmem_write_flag) {
       cycles++;
     }
     break;
@@ -390,17 +457,17 @@ defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
   s_opcycles_65c12[opcode] = cycles;
 }
 
-void
-defs_6502_init() {
+static void
+defs_6502_setup_6502(void) {
+  defs_6502_poplate_opmem_table(&s_opmem_6502[0],
+                                &s_optypes_6502[0],
+                                &s_opmodes_6502[0]);
+}
+
+static void
+defs_6502_setup_65c12(void) {
   uint32_t i;
-
-  if (s_inited) {
-    return;
-  }
-  s_inited = 1;
-
-  /* 65c12 setup. */
-  /* Copy across common opcodes. */
+  /* Copy across common opcodes from 6502. */
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     uint8_t optype = s_optypes_6502[i];
     s_optypes_65c12[i] = k_unk;
@@ -466,4 +533,19 @@ defs_6502_init() {
     defs_65c12_set_opcode(((i * 0x10) + 0x0B), k_nop, k_nil1);
     defs_65c12_set_opcode(((i * 0x10) + 0x0F), k_nop, k_nil1);
   }
+
+  defs_6502_poplate_opmem_table(&s_opmem_65c12[0],
+                                &s_optypes_65c12[0],
+                                &s_opmodes_65c12[0]);
+}
+
+void
+defs_6502_init() {
+  if (s_inited) {
+    return;
+  }
+  s_inited = 1;
+
+  defs_6502_setup_6502();
+  defs_6502_setup_65c12();
 }

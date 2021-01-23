@@ -53,6 +53,7 @@ struct jit_struct {
   uint8_t jit_invalidation_sequence[2];
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
   uint32_t counter_stay_in_interp;
 
@@ -142,8 +143,6 @@ jit_interp_instruction_callback(void* p,
                                 int hit_special) {
   int32_t next_block;
   int32_t next_block_prev;
-  uint8_t optype;
-  uint8_t opmode;
   uint8_t opmem;
 
   struct jit_struct* p_jit = (struct jit_struct*) p;
@@ -153,17 +152,13 @@ jit_interp_instruction_callback(void* p,
     return 0;
   }
 
-  optype = p_jit->p_opcode_types[done_opcode];
-  opmem = g_opmem[optype];
+  opmem = p_jit->p_opcode_mem[done_opcode];
 
-  if (opmem == k_write || opmem == k_rw) {
-    opmode = p_jit->p_opcode_modes[done_opcode];
-    if (opmode != k_acc) {
-      /* Any memory writes executed by the interpreter need to invalidate
-       * compiled JIT code if they're self-modifying writes.
-       */
-      jit_invalidate_code_at_address(p_jit, done_addr);
-    }
+  if (opmem & k_opmem_write_flag) {
+    /* Any memory writes executed by the interpreter need to invalidate
+     * compiled JIT code if they're self-modifying writes.
+     */
+    jit_invalidate_code_at_address(p_jit, done_addr);
   }
 
   if (p_jit->counter_stay_in_interp > 0) {
@@ -824,6 +819,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_opcode_maps(p_cpu_driver,
                            &p_jit->p_opcode_types,
                            &p_jit->p_opcode_modes,
+                           &p_jit->p_opcode_mem,
                            &p_jit->p_opcode_cycles);
 
   p_funcs->destroy = jit_destroy;
@@ -915,6 +911,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       debug,
       p_jit->p_opcode_types,
       p_jit->p_opcode_modes,
+      p_jit->p_opcode_mem,
       p_jit->p_opcode_cycles);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;

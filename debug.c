@@ -57,6 +57,7 @@ struct debug_struct {
   int debug_running_print;
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
+  uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
 
   /* Breakpointing. */
@@ -167,6 +168,7 @@ debug_init(struct debug_struct* p_debug) {
   p_cpu_driver->p_funcs->get_opcode_maps(p_cpu_driver,
                                          &p_debug->p_opcode_types,
                                          &p_debug->p_opcode_modes,
+                                         &p_debug->p_opcode_mem,
                                          &p_debug->p_opcode_cycles);
 }
 
@@ -302,6 +304,7 @@ debug_get_details(int* p_addr_6502,
                   uint16_t reg_pc,
                   uint8_t opmode,
                   uint8_t optype,
+                  uint8_t opmem,
                   uint8_t operand1,
                   uint8_t operand2,
                   uint8_t x_6502,
@@ -315,7 +318,6 @@ debug_get_details(int* p_addr_6502,
 
   int addr = -1;
   int check_wrap_8bit = 1;
-  uint8_t opmem = g_opmem[optype];
 
   *p_addr_6502 = -1;
   *p_branch_taken = -1;
@@ -438,9 +440,7 @@ debug_get_details(int* p_addr_6502,
     }
   }
 
-  *p_is_write = ((opmem == k_write || opmem == k_rw) &&
-                 opmode != k_nil &&
-                 opmode != k_acc);
+  *p_is_write = !!(opmem & k_opmem_write_flag);
   bbc_get_address_details(p_bbc, p_is_register, p_is_rom, *p_addr_6502);
 }
 
@@ -657,13 +657,13 @@ debug_hit_break(struct debug_struct* p_debug,
           (addr_6502 > p_breakpoint->end)) {
         break;
       }
-      if ((opmem == k_read) || (opmem == k_rw)) {
+      if (opmem & k_opmem_read_flag) {
         if ((type == k_debug_breakpoint_mem_read) ||
             (type == k_debug_breakpoint_mem_read_write)) {
           return 1;
         }
       }
-      if ((opmem == k_write) || (opmem == k_rw)) {
+      if (opmem & k_opmem_write_flag) {
         if ((type == k_debug_breakpoint_mem_write) ||
             (type == k_debug_breakpoint_mem_read_write)) {
           return 1;
@@ -1149,6 +1149,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   }
   optype = p_debug->p_opcode_types[opcode];
   opmode = p_debug->p_opcode_modes[opcode];
+  opmem = p_debug->p_opcode_mem[opcode];
 
   reg_pc_plus_1 = (reg_pc + 1);
   reg_pc_plus_2 = (reg_pc + 2);
@@ -1166,6 +1167,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     reg_pc,
                     opmode,
                     optype,
+                    opmem,
                     operand1,
                     operand2,
                     reg_x,
@@ -1247,7 +1249,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       wrapped_8bit,
                       wrapped_16bit);
 
-  opmem = g_opmem[optype];
   hit_break = debug_hit_break(p_debug,
                               reg_pc,
                               addr_6502,

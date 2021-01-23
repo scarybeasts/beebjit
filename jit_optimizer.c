@@ -67,10 +67,9 @@ jit_optimizer_uop_could_write(struct jit_uop* p_uop, uint16_t addr) {
   int32_t uopcode = p_uop->uopcode;
 
   if (uopcode <= 0xFF) {
-    uint8_t optype = defs_6502_get_6502_optype_map()[uopcode];
     uint8_t opmode = defs_6502_get_6502_opmode_map()[uopcode];
-    uint8_t opmem = g_opmem[optype];
-    if ((opmem == k_write) || (opmem == k_rw)) {
+    uint8_t opmem = defs_6502_get_6502_opmem_map()[uopcode];
+    if (opmem & k_opmem_write_flag) {
       switch (opmode) {
       case k_zpg:
       case k_abs:

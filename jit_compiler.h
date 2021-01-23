@@ -23,6 +23,7 @@ struct jit_compiler* jit_compiler_create(
     int debug,
     uint8_t* p_opcode_types,
     uint8_t* p_opcode_modes,
+    uint8_t* p_opcode_mem,
     uint8_t* p_opcode_cycles);
 void jit_compiler_destroy(struct jit_compiler* p_compiler);
 
