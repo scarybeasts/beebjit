@@ -261,6 +261,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INSTR;                                                                    \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(2);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -277,6 +278,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INSTR;                                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
     INSTR;                                                                    \
@@ -292,6 +294,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 4;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(2);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -309,6 +312,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     if (is_65c12) {                                                           \
@@ -332,6 +336,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction = 4;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (page_crossing) {                                                      \
       if (is_65c12) {                                                         \
         INTERP_TIMING_ADVANCE(3);                                             \
@@ -362,6 +367,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction = 5;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(4);                                               \
     } else {                                                                  \
@@ -382,6 +388,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (is_65c12) {                                                           \
       INTERP_TIMING_ADVANCE(3);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
@@ -406,6 +413,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 7;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (is_65c12) {                                                           \
       INTERP_TIMING_ADVANCE(4);                                               \
       INTERP_MEMORY_READ(addr);                                               \
@@ -435,6 +443,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction = 6;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3 + page_crossing);                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
@@ -454,6 +463,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INSTR;                                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(4);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -473,6 +483,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INSTR;                                                                    \
     cycles_this_instruction = 7;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(5);                                                 \
     INTERP_MEMORY_READ_POLL_IRQ(addr);                                        \
     INSTR;                                                                    \
@@ -491,6 +502,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(4);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -511,6 +523,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 8;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(5);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                       \
@@ -528,6 +541,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INSTR;                                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -545,6 +559,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 5;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     INTERP_TIMING_ADVANCE(3);                                                 \
     interp_poll_irq_now(&do_irq, p_state_6502, intf);                         \
     INTERP_TIMING_ADVANCE(1);                                                 \
@@ -566,6 +581,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction = 5;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (page_crossing) {                                                      \
       if (is_65c12) {                                                         \
         INTERP_TIMING_ADVANCE(4);                                             \
@@ -598,6 +614,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     cycles_this_instruction = 6;                                              \
     cycles_this_instruction += page_crossing;                                 \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (page_crossing) {                                                      \
       INTERP_TIMING_ADVANCE(5);                                               \
     } else {                                                                  \
@@ -619,6 +636,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 6;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     if (is_65c12) {                                                           \
       INTERP_TIMING_ADVANCE(4);                                               \
       interp_poll_irq_now(&do_irq, p_state_6502, intf);                       \
@@ -645,6 +663,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     p_mem_write[addr] = v;                                                    \
     cycles_this_instruction = 8;                                              \
   } else {                                                                    \
+    hit_special = 1;                                                          \
     addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                       \
     INTERP_TIMING_ADVANCE(4);                                                 \
     INTERP_MEMORY_READ(addr_temp);                                            \
@@ -945,7 +964,8 @@ interp_enter_with_details(struct interp_struct* p_interp,
                                                       uint8_t done_opcode,
                                                       uint16_t done_addr,
                                                       int next_is_irq,
-                                                      int irq_pending),
+                                                      int irq_pending,
+                                                      int hit_special),
                           void* p_callback_context) {
   uint16_t pc;
   uint8_t a;
@@ -989,6 +1009,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
   uint16_t addr = 0;
   int do_irq = 0;
   int is_65c12 = p_interp->is_65c12;
+  int hit_special = 0;
 
   assert(countdown >= 0);
 
@@ -2812,13 +2833,15 @@ check_irq:
                                opcode,
                                addr,
                                do_irq,
-                               irq_pending)) {
+                               irq_pending,
+                               hit_special)) {
         /* The instruction callback can elect to exit the interpreter. */
         break;
       }
     }
 
     special_checks &= ~k_interp_special_entry;
+    hit_special = 0;
 
     if (do_irq) {
       opcode = 0x00;

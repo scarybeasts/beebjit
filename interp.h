@@ -18,7 +18,8 @@ int64_t interp_enter_with_details(
                                 uint8_t done_opcode,
                                 uint16_t done_addr,
                                 int next_is_irq,
-                                int irq_pending),
+                                int irq_pending,
+                                int hit_special),
     void* p_callback_context);
 
 void interp_testing_unexit(struct interp_struct* p_interp);

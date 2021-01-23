@@ -551,11 +551,13 @@ inturbo_interp_instruction_callback(void* p,
                                     uint8_t done_opcode,
                                     uint16_t done_addr,
                                     int next_is_irq,
-                                    int irq_pending) {
+                                    int irq_pending,
+                                    int hit_special) {
   (void) p;
   (void) next_pc;
   (void) done_opcode;
   (void) done_addr;
+  (void) hit_special;
 
   if (next_is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */

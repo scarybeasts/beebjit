@@ -54,6 +54,7 @@ struct jit_struct {
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_cycles;
+  uint32_t counter_stay_in_interp;
 
   int log_compile;
 
@@ -137,20 +138,39 @@ jit_interp_instruction_callback(void* p,
                                 uint8_t done_opcode,
                                 uint16_t done_addr,
                                 int next_is_irq,
-                                int irq_pending) {
+                                int irq_pending,
+                                int hit_special) {
   int32_t next_block;
   int32_t next_block_prev;
+  uint8_t optype;
+  uint8_t opmode;
+  uint8_t opmem;
 
   struct jit_struct* p_jit = (struct jit_struct*) p;
-  uint8_t optype = p_jit->p_opcode_types[done_opcode];
-  uint8_t opmode = p_jit->p_opcode_modes[done_opcode];
-  uint8_t opmem = g_opmem[optype];
 
-  if ((opmem == k_write || opmem == k_rw) && (opmode != k_acc)) {
-    /* Any memory writes executed by the interpreter need to invalidate
-     * compiled JIT code if they're self-modifying writes.
-     */
-    jit_invalidate_code_at_address(p_jit, done_addr);
+  if (hit_special) {
+    p_jit->counter_stay_in_interp = 2;
+    return 0;
+  }
+
+  optype = p_jit->p_opcode_types[done_opcode];
+  opmem = g_opmem[optype];
+
+  if (opmem == k_write || opmem == k_rw) {
+    opmode = p_jit->p_opcode_modes[done_opcode];
+    if (opmode != k_acc) {
+      /* Any memory writes executed by the interpreter need to invalidate
+       * compiled JIT code if they're self-modifying writes.
+       */
+      jit_invalidate_code_at_address(p_jit, done_addr);
+    }
+  }
+
+  if (p_jit->counter_stay_in_interp > 0) {
+    p_jit->counter_stay_in_interp--;
+    if (p_jit->counter_stay_in_interp > 0) {
+      return 0;
+    }
   }
 
   if (next_is_irq || irq_pending) {
@@ -211,6 +231,8 @@ jit_enter_interp(struct jit_struct* p_jit,
                                        p_state_6502,
                                        countdown,
                                        intel_rflags);
+
+  p_jit->counter_stay_in_interp = 0;
 
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
