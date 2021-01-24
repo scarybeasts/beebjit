@@ -530,7 +530,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   }
   if (max_track < 41) {
     max_track = 41;
-  } else if (max_track > 41) {
+  } else if (max_track > 42) {
     is_80t = 1;
     if (max_track < 81) {
       max_track = 81;
@@ -581,12 +581,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                      p_tool->track_length);
         }
         if (num_sectors == 0) {
-          if (i_tracks != (max_track - 1)) {
-            log_do_log(k_log_disc,
-                       k_log_info,
-                       "unformattted track %d",
-                       i_tracks);
-          }
+          log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
         } else if (p_sectors->is_mfm) {
           if (num_sectors != 16) {
             log_do_log(k_log_disc,
@@ -712,8 +707,8 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                      i_tracks,
                      track_crc);
         }
-        /* Full disc fingerprint only includes up to the 81st track. */
-        if (i_tracks <= 80) {
+        /* Full disc fingerprint only includes up to the 41st or 81st track. */
+        if ((!is_80t && i_tracks <= 40) || (is_80t && i_tracks <= 80)) {
           /* NOTE: not endian safe. */
           disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
           if (!(i_tracks & 1)) {
