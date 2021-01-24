@@ -119,8 +119,6 @@ disc_adl_load(struct disc_struct* p_disc) {
 
   assert(p_file != NULL);
 
-  disc_set_is_double_sided(p_disc, 1);
-
   /* Must zero it out because it is all read even if the file is short. */
   p_file_buf = util_mallocz(k_max_adl_size);
   p_adl_data = p_file_buf;

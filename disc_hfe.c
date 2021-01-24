@@ -195,7 +195,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
   uint8_t* p_metadata;
 
   struct util_file* p_file = disc_get_file(p_disc);
-  int is_double_sided = 0;
+  uint32_t num_sides = 1;
   int is_v3 = 0;
   uint32_t expand_multiplier = 1;
 
@@ -237,13 +237,12 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
     }
   }
   if (p_file_buf[10] == 1) {
-    is_double_sided = 0;
+    /* Leave num_sides at 1. */
   } else if (p_file_buf[10] == 2) {
-    is_double_sided = 1;
+    num_sides = 2;
   } else {
     util_bail("hfe invalid number of sides: %d", (int) p_file_buf[10]);
   }
-  disc_set_is_double_sided(p_disc, is_double_sided);
 
   hfe_tracks = p_file_buf[9];
   if (hfe_tracks > k_ibm_disc_tracks_per_disc) {
@@ -285,7 +284,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
 
     p_track_data = (p_file_buf + hfe_track_offset);
 
-    for (i_side = 0; i_side < 2; ++i_side) {
+    for (i_side = 0; i_side < num_sides; ++i_side) {
       uint32_t* p_pulses;
 
       uint32_t bytes_written = 0;
@@ -381,12 +380,6 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
           shift_counter++;
           if (shift_counter != 32) {
             continue;
-          }
-          /* Single-sided HFEs seem to repeat side 0 data on side 1, so remove
-           * it.
-           */
-          if (!is_double_sided && (i_side == 1)) {
-            pulses = 0;
           }
           p_pulses[bytes_written] = pulses;
           bytes_written++;

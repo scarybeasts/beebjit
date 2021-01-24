@@ -97,8 +97,6 @@ disc_ssd_load(struct disc_struct* p_disc, int is_dsd) {
 
   assert(p_file != NULL);
 
-  disc_set_is_double_sided(p_disc, is_dsd);
-
   /* Must zero it out because it is all read even if the file is short. */
   p_file_buf = util_mallocz(k_max_ssd_size);
   p_ssd_data = p_file_buf;

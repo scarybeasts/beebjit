@@ -52,12 +52,12 @@ struct disc_struct {
   struct disc_side lower_side;
   struct disc_side upper_side;
   int is_double_sided;
+  uint32_t tracks_used;
   int is_writeable;
 
   int is_dirty;
   int32_t dirty_side;
   int32_t dirty_track;
-  uint32_t tracks_used;
 
   /* Track building. */
   struct disc_track* p_track;
@@ -82,6 +82,7 @@ disc_init_surface(struct disc_struct* p_disc, uint8_t byte) {
   }
 
   p_disc->tracks_used = 0;
+  p_disc->is_double_sided = 0;
 }
 
 struct disc_struct*
@@ -136,6 +137,7 @@ disc_create(const char* p_file_name,
   p_disc->dirty_side = -1;
   p_disc->dirty_track = -1;
   p_disc->tracks_used = 0;
+  p_disc->is_double_sided = 0;
 
   if (is_mutable) {
     is_file_writeable = 1;
@@ -254,7 +256,6 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
   p_disc->is_dirty = 0;
   p_disc->dirty_side = -1;
   p_disc->dirty_track = -1;
-  p_disc->tracks_used = 0;
 
   /* Fill disc bytes from the raw spec. */
   len = strlen(p_raw_spec);
@@ -308,10 +309,20 @@ disc_destroy(struct disc_struct* p_disc) {
 }
 
 static void
-disc_set_track_used(struct disc_struct* p_disc, uint32_t track) {
+disc_set_track_used(struct disc_struct* p_disc,
+                    int is_side_upper,
+                    uint32_t track) {
+  if (is_side_upper) {
+    p_disc->is_double_sided = 1;
+  }
   if ((track + 1) > p_disc->tracks_used) {
     p_disc->tracks_used = (track + 1);
   }
+}
+
+int
+disc_is_double_sided(struct disc_struct* p_disc) {
+  return p_disc->is_double_sided;
 }
 
 uint32_t
@@ -389,7 +400,7 @@ disc_flush_writes(struct disc_struct* p_disc) {
   /* Mark the track used after the write track callback, so that the file
    * handler can tell if this was a file extension or not.
    */
-  disc_set_track_used(p_disc, track);
+  disc_set_track_used(p_disc, is_side_upper, track);
 }
 
 static struct disc_track*
@@ -417,7 +428,7 @@ disc_build_track(struct disc_struct* p_disc,
   p_disc->build_pulses_index = 0;
   p_disc->build_last_mfm_bit = 0;
 
-  disc_set_track_used(p_disc, track);
+  disc_set_track_used(p_disc, is_side_upper, track);
 }
 
 static void
@@ -651,11 +662,6 @@ disc_allocate_format_metadata(struct disc_struct* p_disc, size_t num_bytes) {
 }
 
 void
-disc_set_is_double_sided(struct disc_struct* p_disc, int is_double_sided) {
-  p_disc->is_double_sided = is_double_sided;
-}
-
-void
 disc_set_track_length(struct disc_struct* p_disc,
                       int is_side_upper,
                       uint32_t track,
@@ -666,7 +672,7 @@ disc_set_track_length(struct disc_struct* p_disc,
   assert(length > 0);
   p_track->length = length;
 
-  disc_set_track_used(p_disc, track);
+  disc_set_track_used(p_disc, is_side_upper, track);
 }
 
 int
@@ -708,9 +714,4 @@ disc_get_raw_pulses_buffer(struct disc_struct* p_disc,
                            uint32_t track) {
   struct disc_track* p_track = disc_get_track(p_disc, is_side_upper, track);
   return &p_track->pulses2us[0];
-}
-
-int
-disc_is_double_sided(struct disc_struct* p_disc) {
-  return p_disc->is_double_sided;
 }

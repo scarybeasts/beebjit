@@ -507,12 +507,13 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_fingerprint,
                       int log_fingerprint_tracks,
                       int do_dump_sector_data) {
-  uint32_t i_tracks;
-  uint32_t disc_crc = 0;
+  uint32_t i_sides;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
   int is_fingerprinting = (log_fingerprint || log_fingerprint_tracks);
   struct util_file* p_raw_dump_file = NULL;
+  uint32_t num_sides = 1;
+  int is_80t = 0;
 
   if (do_dump_sector_data) {
     char new_file_name[4096];
@@ -524,186 +525,224 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     p_raw_dump_file = util_file_open(new_file_name, 1, 1);
   }
 
+  if (disc_is_double_sided(p_disc)) {
+    num_sides = 2;
+  }
   if (max_track < 41) {
     max_track = 41;
-  } else if ((max_track > 41) && (max_track < 81)) {
-    max_track = 81;
-  }
-
-  if (is_fingerprinting) {
-    disc_crc = util_crc32_init();
+  } else if (max_track > 41) {
+    is_80t = 1;
+    if (max_track < 81) {
+      max_track = 81;
+    }
   }
 
   disc_tool_set_disc(p_tool, p_disc);
-  for (i_tracks = 0; i_tracks < max_track; ++i_tracks) {
-    uint32_t i_sectors;
-    struct disc_tool_sector* p_sectors;
-    uint32_t num_sectors;
-    uint8_t seen_sectors[256];
-    uint32_t track_crc;
+  for (i_sides = 0; i_sides < num_sides; ++i_sides) {
+    uint32_t i_tracks;
+    uint32_t disc_crc;
+    uint32_t disc_crc_even;
 
     if (is_fingerprinting) {
-      track_crc = util_crc32_init();
+      disc_crc = util_crc32_init();
+      disc_crc_even = util_crc32_init();
     }
 
-    disc_tool_set_track(p_tool, i_tracks);
-    disc_tool_find_sectors(p_tool);
-    p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+    disc_tool_set_is_side_upper(p_tool, (i_sides == 1));
 
-    if (log_protection) {
-      if (p_tool->track_length >= (k_ibm_disc_bytes_per_track * 1.015)) {
-        log_do_log(k_log_disc,
-                   k_log_unusual,
-                   "long track %d, %d bytes",
-                   i_tracks,
-                   p_tool->track_length);
-      } else if (p_tool->track_length < (k_ibm_disc_bytes_per_track * 0.985)) {
-        log_do_log(k_log_disc,
-                   k_log_unusual,
-                   "short track %d, %d bytes",
-                   i_tracks,
-                   p_tool->track_length);
-      }
-      if (num_sectors == 0) {
-        if (i_tracks != (max_track - 1)) {
-          log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
-        }
-      } else if (p_sectors->is_mfm) {
-        if (num_sectors != 16) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "non-standard MFM sector count track %d count %d",
-                     i_tracks,
-                     num_sectors);
-        }
-      } else {
-        if (num_sectors != 10) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "non-standard FM sector count track %d count %d",
-                     i_tracks,
-                     num_sectors);
-        }
-      }
-    }
+    for (i_tracks = 0; i_tracks < max_track; ++i_tracks) {
+      uint32_t i_sectors;
+      struct disc_tool_sector* p_sectors;
+      uint32_t num_sectors;
+      uint8_t seen_sectors[256];
+      uint32_t track_crc;
 
-    (void) memset(seen_sectors, '\0', sizeof(seen_sectors));
-    for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
-      char sector_spec[14];
-      uint8_t sector_data[k_disc_tool_max_sector_length + 1];
-      uint8_t sector_track = p_sectors->header_bytes[0];
-      uint8_t sector_head = p_sectors->header_bytes[1];
-      uint8_t sector_sector = p_sectors->header_bytes[2];
-      uint8_t sector_size = p_sectors->header_bytes[3];
-      (void) snprintf(sector_spec,
-                      sizeof(sector_spec),
-                      "[%.2X %.2X %.2X %.2X]",
-                      sector_track,
-                      sector_head,
-                      sector_sector,
-                      sector_size);
+      if (is_fingerprinting) {
+        track_crc = util_crc32_init();
+      }
+
+      disc_tool_set_track(p_tool, i_tracks);
+      disc_tool_find_sectors(p_tool);
+      p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+
       if (log_protection) {
-        if (sector_track != i_tracks) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "track mismatch, track %d %s",
-                     i_tracks,
-                     sector_spec);
-        }
-        if ((sector_size > 0x07) ||
-            ((128u << sector_size) != p_sectors->byte_length)) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "sector size mismatch, track %d %s (physical size %d)",
-                     i_tracks,
-                     sector_spec,
-                     p_sectors->byte_length);
-        }
-        if (seen_sectors[sector_sector]) {
+        if (p_tool->track_length >= (k_ibm_disc_bytes_per_track * 1.015)) {
           log_do_log(k_log_disc,
                      k_log_unusual,
-                     "duplicate logical sector, track %d logical sector %d",
+                     "long track %d, %d bytes",
                      i_tracks,
-                     sector_sector);
+                     p_tool->track_length);
+        } else if (p_tool->track_length <
+                   (k_ibm_disc_bytes_per_track * 0.985)) {
+          log_do_log(k_log_disc,
+                     k_log_unusual,
+                     "short track %d, %d bytes",
+                     i_tracks,
+                     p_tool->track_length);
         }
-        if (p_sectors->is_deleted) {
+        if (num_sectors == 0) {
+          if (i_tracks != (max_track - 1)) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "unformattted track %d",
+                       i_tracks);
+          }
+        } else if (p_sectors->is_mfm) {
+          if (num_sectors != 16) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "non-standard MFM sector count track %d count %d",
+                       i_tracks,
+                       num_sectors);
+          }
+        } else {
+          if (num_sectors != 10) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "non-standard FM sector count track %d count %d",
+                       i_tracks,
+                       num_sectors);
+          }
+        }
+      }
+
+      (void) memset(seen_sectors, '\0', sizeof(seen_sectors));
+      for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
+        char sector_spec[14];
+        uint8_t sector_data[k_disc_tool_max_sector_length + 1];
+        uint8_t sector_track = p_sectors->header_bytes[0];
+        uint8_t sector_head = p_sectors->header_bytes[1];
+        uint8_t sector_sector = p_sectors->header_bytes[2];
+        uint8_t sector_size = p_sectors->header_bytes[3];
+        (void) snprintf(sector_spec,
+                        sizeof(sector_spec),
+                        "[%.2X %.2X %.2X %.2X]",
+                        sector_track,
+                        sector_head,
+                        sector_sector,
+                        sector_size);
+        if (log_protection) {
+          if (sector_track != i_tracks) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "track mismatch, track %d %s",
+                       i_tracks,
+                       sector_spec);
+          }
+          if ((sector_size > 0x07) ||
+              ((128u << sector_size) != p_sectors->byte_length)) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "sector size mismatch, track %d %s (physical size %d)",
+                       i_tracks,
+                       sector_spec,
+                       p_sectors->byte_length);
+          }
+          if (seen_sectors[sector_sector]) {
+            log_do_log(k_log_disc,
+                       k_log_unusual,
+                       "duplicate logical sector, track %d logical sector %d",
+                       i_tracks,
+                       sector_sector);
+          }
+          if (p_sectors->is_deleted) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "deleted sector, track %d %s",
+                       i_tracks,
+                       sector_spec);
+          }
+        }
+        seen_sectors[sector_sector] = 1;
+        if (log_crc_errors || log_protection) {
+          if (p_sectors->has_header_crc_error) {
+            log_do_log(k_log_disc,
+                       k_log_warning,
+                       "header CRC error track %d physical sector %d",
+                       i_tracks,
+                       i_sectors);
+          }
+          if (p_sectors->has_data_crc_error) {
+            log_do_log(k_log_disc,
+                       k_log_warning,
+                       "data CRC error track %d physical sector %d",
+                       i_tracks,
+                       i_sectors);
+          }
+        }
+        if (is_fingerprinting || (p_raw_dump_file != NULL)) {
+          disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 1);
+        }
+        if (is_fingerprinting) {
+          int do_include_sector = 1;
+          if (p_sectors->byte_length == 0) {
+            do_include_sector = 0;
+          }
+          if (p_sectors->has_header_crc_error ||
+              p_sectors->has_data_crc_error) {
+            do_include_sector = 0;
+          }
+          /* 8271 has trouble reading certain logical tracks. */
+          if (sector_track == 0xFF) {
+             do_include_sector = 0;
+          }
+          if ((i_tracks != 0) && (sector_track == 0)) {
+            do_include_sector = 0;
+          }
+          if (do_include_sector) {
+            track_crc = util_crc32_add(track_crc,
+                                       &sector_data[0],
+                                       (p_sectors->byte_length + 1));
+          }
+        }
+        if (p_raw_dump_file != NULL) {
+          util_file_write(p_raw_dump_file,
+                          &sector_data[1],
+                          p_sectors->byte_length);
+        }
+        p_sectors++;
+      }
+
+      if (is_fingerprinting) {
+        track_crc = util_crc32_finish(track_crc);
+        if (log_fingerprint_tracks) {
           log_do_log(k_log_disc,
                      k_log_info,
-                     "deleted sector, track %d %s",
+                     "track %d CRC32 fingerprint %.8X",
                      i_tracks,
-                     sector_spec);
+                     track_crc);
+        }
+        /* Full disc fingerprint only includes up to the 81st track. */
+        if (i_tracks <= 80) {
+          /* NOTE: not endian safe. */
+          disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
+          if (!(i_tracks & 1)) {
+            disc_crc_even = util_crc32_add(disc_crc_even,
+                                           (uint8_t*) &track_crc,
+                                           4);
+          }
         }
       }
-      seen_sectors[sector_sector] = 1;
-      if (log_crc_errors || log_protection) {
-        if (p_sectors->has_header_crc_error) {
-          log_do_log(k_log_disc,
-                     k_log_warning,
-                     "header CRC error track %d physical sector %d",
-                     i_tracks,
-                     i_sectors);
-        }
-        if (p_sectors->has_data_crc_error) {
-          log_do_log(k_log_disc,
-                     k_log_warning,
-                     "data CRC error track %d physical sector %d",
-                     i_tracks,
-                     i_sectors);
-        }
-      }
-      if (is_fingerprinting || (p_raw_dump_file != NULL)) {
-        disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 1);
-      }
-      if (is_fingerprinting) {
-        int do_include_sector = 1;
-        if (p_sectors->byte_length == 0) {
-          do_include_sector = 0;
-        }
-        if (p_sectors->has_header_crc_error || p_sectors->has_data_crc_error) {
-          do_include_sector = 0;
-        }
-        /* 8271 has trouble reading certain logical tracks. */
-        if (sector_track == 0xFF) {
-          do_include_sector = 0;
-        }
-        if ((i_tracks != 0) && (sector_track == 0)) {
-          do_include_sector = 0;
-        }
-        if (do_include_sector) {
-          track_crc = util_crc32_add(track_crc,
-                                     &sector_data[0],
-                                     (p_sectors->byte_length + 1));
-        }
-      }
-      if (p_raw_dump_file != NULL) {
-        util_file_write(p_raw_dump_file,
-                        &sector_data[1],
-                        p_sectors->byte_length);
-      }
-      p_sectors++;
-    }
+    } /* End of tracks loop. */
 
-    if (is_fingerprinting) {
-      track_crc = util_crc32_finish(track_crc);
-      if (log_fingerprint_tracks) {
+    if (log_fingerprint) {
+      disc_crc = util_crc32_finish(disc_crc);
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "disc side %d CRC32 fingerprint %.8X",
+                 i_sides,
+                 disc_crc);
+      if (is_80t) {
+        disc_crc_even = util_crc32_finish(disc_crc_even);
         log_do_log(k_log_disc,
                    k_log_info,
-                   "track %d CRC32 fingerprint %.8X",
-                   i_tracks,
-                   track_crc);
-      }
-      /* Full disc fingerprint only includes up to the 81st track. */
-      if (i_tracks <= 80) {
-        /* NOTE: not endian safe. */
-        disc_crc = util_crc32_add(disc_crc, (uint8_t*) &track_crc, 4);
+                   "disc side %d, as 40 track, CRC32 fingerprint %.8X",
+                   i_sides,
+                   disc_crc_even);
       }
     }
-  }
 
-  if (log_fingerprint) {
-    disc_crc = util_crc32_finish(disc_crc);
-    log_do_log(k_log_disc, k_log_info, "disc CRC32 fingerprint %.8X", disc_crc);
-  }
+  } /* End of sides loop. */
 
   if (p_raw_dump_file != NULL) {
     util_file_close(p_raw_dump_file);
