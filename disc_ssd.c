@@ -1,6 +1,7 @@
 #include "disc_ssd.h"
 
 #include "disc.h"
+#include "disc_tool.h"
 #include "ibm_disc_format.h"
 #include "util.h"
 
@@ -19,15 +20,18 @@ disc_ssd_write_track(struct disc_struct* p_disc,
                      uint32_t track,
                      uint32_t length,
                      uint32_t* p_pulses) {
-  uint32_t i;
   uint64_t seek_pos;
-  int32_t sector = -1;
+  uint32_t num_sectors;
+  uint32_t i_sector;
+  struct disc_tool_sector* p_sectors;
 
+  struct disc_tool_struct* p_tool = disc_tool_create();
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_ssd_sector_size * k_disc_ssd_sectors_per_track);
   int is_dsd = disc_is_double_sided(p_disc);
 
-  assert(length == k_ibm_disc_bytes_per_track);
+  (void) length;
+  (void) p_pulses;
 
   seek_pos = (track_size * track);
   if (is_dsd) {
@@ -38,43 +42,33 @@ disc_ssd_write_track(struct disc_struct* p_disc,
     seek_pos += track_size;
   }
 
-  for (i = 0; i < length; ++i) {
-    uint32_t j;
-    uint8_t clocks;
-    uint8_t data;
-    uint32_t pulses = p_pulses[i];
+  disc_tool_set_disc(p_tool, p_disc);
+  disc_tool_set_is_side_upper(p_tool, is_side_upper);
+  disc_tool_set_track(p_tool, track);
+  disc_tool_find_sectors(p_tool);
+  p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
 
-    if ((i + 1 + k_disc_ssd_sector_size) > length) {
-      break;
-    }
-
-    ibm_disc_format_2us_pulses_to_fm(&clocks, &data, pulses);
-
-    if (clocks != k_ibm_disc_mark_clock_pattern) {
+  for (i_sector = 0; i_sector < num_sectors; ++i_sector) {
+    uint8_t sector_id;
+    uint32_t sector_length;
+    uint8_t sector_data[k_disc_tool_max_sector_length];
+    struct disc_tool_sector* p_sector = &p_sectors[i_sector];
+    if (p_sector->header_bytes[0] != track) {
       continue;
     }
-    if (data == k_ibm_disc_id_mark_data_pattern) {
-      pulses = p_pulses[i + 3];
-      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, pulses);
-      sector = data;
+    sector_id = p_sector->header_bytes[2];
+    if (sector_id > 9) {
       continue;
     }
-    if (data != k_ibm_disc_data_mark_data_pattern) {
+    disc_tool_read_sector(p_tool, &sector_length, &sector_data[0], i_sector, 0);
+    if (sector_length != 256) {
       continue;
     }
-    if ((sector < 0) || (sector > 9)) {
-      continue;
-    }
-
-    util_file_seek(p_file, (seek_pos + (sector * k_disc_ssd_sector_size)));
-    i += 1;
-    for (j = 0; j < k_disc_ssd_sector_size; ++j) {
-      pulses = p_pulses[i];
-      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, pulses);
-      util_file_write(p_file, &data, 1);
-      ++i;
-    }
+    util_file_seek(p_file, (seek_pos + (sector_id * k_disc_ssd_sector_size)));
+    util_file_write(p_file, &sector_data[0], 256);
   }
+
+  disc_tool_destroy(p_tool);
 }
 
 void

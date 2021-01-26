@@ -107,6 +107,7 @@ main(int argc, const char* argv[]) {
   int headless_flag = 0;
   int fasttape_flag = 0;
   int convert_hfe_flag = 0;
+  int convert_ssd_flag = 0;
   int no_dfs_flag = 0;
   int wd_1770_type = 0;
   int watford_flag = 0;
@@ -286,6 +287,8 @@ main(int argc, const char* argv[]) {
       fasttape_flag = 1;
     } else if (!strcmp(arg, "-convert-hfe")) {
       convert_hfe_flag = 1;
+    } else if (!strcmp(arg, "-convert-ssd")) {
+      convert_ssd_flag = 1;
     } else if (!strcmp(arg, "-no-dfs")) {
       no_dfs_flag = 1;
     } else if (!strcmp(arg, "-1770")) {
@@ -487,7 +490,8 @@ main(int argc, const char* argv[]) {
                    i,
                    disc_writeable_flag,
                    disc_mutable_flag,
-                   convert_hfe_flag);
+                   convert_hfe_flag,
+                   convert_ssd_flag);
     }
   }
   if (p_create_hfe_file) {
@@ -497,7 +501,7 @@ main(int argc, const char* argv[]) {
     bbc_add_raw_disc(p_bbc, p_create_hfe_file, p_create_hfe_spec);
   }
 
-  if (convert_hfe_flag) {
+  if (convert_hfe_flag || convert_ssd_flag) {
     exit(0);
   }
 

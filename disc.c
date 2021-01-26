@@ -89,7 +89,8 @@ struct disc_struct*
 disc_create(const char* p_file_name,
             int is_writeable,
             int is_mutable,
-            int convert_to_hfe,
+            int do_convert_to_hfe,
+            int do_convert_to_ssd,
             struct bbc_options* p_options) {
   int do_fingerprint;
   int do_fingerprint_tracks;
@@ -97,6 +98,8 @@ disc_create(const char* p_file_name,
   int do_check_for_crc_errors = 0;
   int is_file_writeable = 0;
   int is_hfe = 0;
+  int is_ssd_or_dsd = 0;
+  int do_write_all_tracks = 0;
   char* p_rev_spec = NULL;
 
   struct disc_struct* p_disc = util_mallocz(sizeof(struct disc_struct));
@@ -158,9 +161,11 @@ disc_create(const char* p_file_name,
   }
 
   if (util_is_extension(p_file_name, "ssd")) {
+    is_ssd_or_dsd = 1;
     disc_ssd_load(p_disc, 0);
     p_disc->p_write_track_callback = disc_ssd_write_track;
   } else if (util_is_extension(p_file_name, "dsd")) {
+    is_ssd_or_dsd = 1;
     disc_ssd_load(p_disc, 1);
     p_disc->p_write_track_callback = disc_ssd_write_track;
   } else if (util_is_extension(p_file_name, "adl")) {
@@ -202,9 +207,9 @@ disc_create(const char* p_file_name,
 
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
     log_do_log(k_log_disc, k_log_info, "cannot writeback to file type");
-    convert_to_hfe = 1;
+    do_convert_to_hfe = 1;
   }
-  if (convert_to_hfe && !is_hfe) {
+  if (do_convert_to_hfe && !is_hfe) {
     char new_file_name[4096];
     (void) snprintf(new_file_name,
                     sizeof(new_file_name),
@@ -213,8 +218,35 @@ disc_create(const char* p_file_name,
     log_do_log(k_log_disc, k_log_info, "converting to HFE: %s", new_file_name);
     util_file_close(p_disc->p_file);
     p_disc->p_file = util_file_open(new_file_name, 1, 1);
-    disc_hfe_convert(p_disc);
+    disc_hfe_create_header(p_disc);
     p_disc->p_write_track_callback = disc_hfe_write_track;
+    do_write_all_tracks = 1;
+  } else if (do_convert_to_ssd && !is_ssd_or_dsd) {
+    char new_file_name[4096];
+    int is_double_sided = disc_is_double_sided(p_disc);
+    const char* p_suffix = (is_double_sided ? "dsd" : "ssd");
+    (void) snprintf(new_file_name,
+                    sizeof(new_file_name),
+                    "%s.%s",
+                    p_file_name,
+                    p_suffix);
+    log_do_log(k_log_disc, k_log_info, "converting to SSD: %s", new_file_name);
+    util_file_close(p_disc->p_file);
+    p_disc->p_file = util_file_open(new_file_name, 1, 1);
+    p_disc->p_write_track_callback = disc_ssd_write_track;
+    do_write_all_tracks = 1;
+  }
+  if (do_write_all_tracks) {
+    uint32_t i_track;
+    uint32_t num_tracks = disc_get_num_tracks_used(p_disc);
+    int is_double_sided = disc_is_double_sided(p_disc);
+    p_disc->is_mutable = 1;
+    for (i_track = 0; i_track < num_tracks; ++i_track) {
+      disc_dirty_and_flush(p_disc, 0, i_track);
+      if (is_double_sided) {
+        disc_dirty_and_flush(p_disc, 1, i_track);
+      }
+    }
   }
 
   p_disc->is_writeable = is_writeable;
@@ -289,8 +321,9 @@ disc_create_from_raw(const char* p_file_name, const char* p_raw_spec) {
     spec_pos += 4;
   }
 
-  disc_hfe_convert(p_disc);
   p_disc->p_write_track_callback = disc_hfe_write_track;
+  disc_hfe_create_header(p_disc);
+  disc_dirty_and_flush(p_disc, 0, 0);
 
   return p_disc;
 }

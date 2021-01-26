@@ -13,6 +13,7 @@ static const char* k_hfe_header_v3 = "HXCHFEV3";
 static uint32_t k_hfe_format_metadata_size = 513;
 static uint32_t k_hfe_format_metadata_offset_version = 512;
 static uint8_t k_hfe_v3_opcode_mask = 0xF0;
+static uint8_t k_hfe_v3_opcode_mask_flipped = 0x0F;
 enum {
   k_hfe_v3_opcode_nop = 0xF0,
   k_hfe_v3_opcode_setindex = 0xF1,
@@ -144,10 +145,30 @@ disc_hfe_write_track(struct disc_struct* p_disc,
   }
   for (i_byte = 0; i_byte < length; ++i_byte) {
     uint32_t pulses = p_pulses[i_byte];
-    if ((version == 3) && (pulses == 0)) {
-      /* Mark weak bits explicitly in HFEv3. */
-      uint8_t byte = disc_hfe_byte_flip(k_hfe_v3_opcode_rand);
-      (void) memset(&buffer[buffer_index], byte, 4);
+    if (version == 3) {
+      if (pulses == 0) {
+        /* Mark weak bits explicitly in HFEv3. */
+        uint8_t byte = disc_hfe_byte_flip(k_hfe_v3_opcode_rand);
+        (void) memset(&buffer[buffer_index], byte, 4);
+      } else {
+        uint32_t i_check_invalid;
+        disc_hfe_encode_data(&buffer[buffer_index], pulses);
+        /* This is ugly, but certain pulse stream values are invalid in HFEv3
+         * because they are used for stream opcodes.
+         * We might accidentally emit a stream opcode, if our internal pulse
+         * stream was built from a crazy stream of 2us pulses. This can happen
+         * in an SCP on an unformatted track.
+         * So detect any, and replace with the random opcode.
+         */
+        for (i_check_invalid = 0; i_check_invalid < 4; ++i_check_invalid) {
+          uint8_t byte = buffer[buffer_index + i_check_invalid];
+          if ((byte & k_hfe_v3_opcode_mask_flipped) ==
+              k_hfe_v3_opcode_mask_flipped) {
+            buffer[buffer_index + i_check_invalid] =
+                disc_hfe_byte_flip(k_hfe_v3_opcode_rand);
+          }
+        }
+      }
     } else {
       disc_hfe_encode_data(&buffer[buffer_index], pulses);
     }
@@ -329,7 +350,8 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
           if ((byte < 64) || (byte > 80)) {
             log_do_log(k_log_disc,
                        k_log_warning,
-                       "HFE v3 SETBITRATE wild (72==250kbit): %d",
+                       "HFE v3 SETBITRATE wild (72==250kbit) track %d: %d",
+                       i_track,
                        (int) byte);
           }
           continue;
@@ -353,7 +375,8 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
             if (bytes_written != 0) {
               log_do_log(k_log_disc,
                          k_log_warning,
-                         "HFE v3 SETINDEX not at byte 0: %d",
+                         "HFE v3 SETINDEX not at byte 0, track %d: %d",
+                         i_track,
                          (int) bytes_written);
             }
             continue;
@@ -398,7 +421,7 @@ disc_hfe_load(struct disc_struct* p_disc, int expand_to_80) {
 }
 
 void
-disc_hfe_convert(struct disc_struct* p_disc) {
+disc_hfe_create_header(struct disc_struct* p_disc) {
   uint32_t i_track;
   uint8_t header[512];
   uint8_t* p_metadata;
@@ -419,7 +442,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   /* Revision 0. */
   header[8] = 0;
   header[9] = num_tracks;
-  if (disc_is_double_sided(p_disc)) {
+  if (is_double_sided) {
     header[10] = 2;
   } else {
     header[10] = 1;
@@ -449,7 +472,6 @@ disc_hfe_convert(struct disc_struct* p_disc) {
   p_metadata[k_hfe_format_metadata_offset_version] = 3;
 
   for (i_track = 0; i_track < num_tracks; ++i_track) {
-    uint32_t* p_pulses;
     uint32_t index = (i_track * 4);
 
     p_metadata[index] = (hfe_offset & 0xFF);
@@ -457,26 +479,7 @@ disc_hfe_convert(struct disc_struct* p_disc) {
     p_metadata[index + 2] = (hfe_track_len & 0xFF);
     p_metadata[index + 3] = (hfe_track_len >> 8);
 
-    /* Write all zeros to the track's backing store. Without this, the file
-     * wasn't getting extended correctly for any unused upper side of the
-     * last track.
-     */
     disc_hfe_zero_track_in_file(p_disc, i_track);
-
-    p_pulses = disc_get_raw_pulses_buffer(p_disc, 0, i_track);
-    disc_hfe_write_track(p_disc,
-                         0,
-                         i_track,
-                         k_ibm_disc_bytes_per_track,
-                         p_pulses);
-    if (is_double_sided) {
-      p_pulses = disc_get_raw_pulses_buffer(p_disc, 1, i_track);
-      disc_hfe_write_track(p_disc,
-                           1,
-                           i_track,
-                           k_ibm_disc_bytes_per_track,
-                           p_pulses);
-    }
 
     hfe_offset += hfe_offset_delta;
   }
