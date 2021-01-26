@@ -97,6 +97,7 @@ disc_scp_load(struct disc_struct* p_disc,
     uint32_t i_data;
     uint32_t actual_track;
     int side;
+    int did_truncation_warning = 0;
 
     util_file_seek(p_file, ((i_tracks * 4) + 16));
     len = util_file_read(p_file, &chunk[0], 4);
@@ -185,7 +186,9 @@ disc_scp_load(struct disc_struct* p_disc,
                      (quantize_fm ? "fm" : "mfm"));
         }
       }
-      if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
+      if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm) &&
+          !did_truncation_warning) {
+        did_truncation_warning = 1;
         log_do_log(k_log_disc,
                    k_log_warning,
                    "SCP truncating side %d track %d",
