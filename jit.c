@@ -173,6 +173,13 @@ jit_interp_instruction_callback(void* p,
     return 0;
   }
 
+  /* We stay in interp indefinitely if we're syncing the 6502 writes to video
+   * 6845 reads. This is denoted by the presence of a memory written handler.
+   */
+  if (interp_has_memory_written_callback(p_jit->p_interp)) {
+    return 0;
+  }
+
   next_block = jit_6502_code_block_from_6502_pc(p_jit, next_pc);
   if (next_block == -1) {
     /* Always consider an address with no JIT code to be a new block
@@ -297,6 +304,18 @@ jit_set_reset_callback(struct cpu_driver* p_cpu_driver,
   p_interp_driver->p_funcs->set_reset_callback(p_interp_driver,
                                                do_reset_callback,
                                                p_do_reset_callback_object);
+}
+
+static void
+jit_set_memory_written_callback(struct cpu_driver* p_cpu_driver,
+                                void (*memory_written_callback)(void* p),
+                                void* p_memory_written_callback_object) {
+  struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_jit->p_interp;
+  p_interp_driver->p_funcs->set_memory_written_callback(
+      p_interp_driver,
+      memory_written_callback,
+      p_memory_written_callback_object);
 }
 
 static void
@@ -823,8 +842,9 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                            &p_jit->p_opcode_cycles);
 
   p_funcs->destroy = jit_destroy;
-  p_funcs->enter = jit_enter;
   p_funcs->set_reset_callback = jit_set_reset_callback;
+  p_funcs->set_memory_written_callback = jit_set_memory_written_callback;
+  p_funcs->enter = jit_enter;
   p_funcs->apply_flags = jit_apply_flags;
   p_funcs->get_flags = jit_get_flags;
   p_funcs->get_exit_value = jit_get_exit_value;

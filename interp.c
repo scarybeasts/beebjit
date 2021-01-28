@@ -2917,6 +2917,11 @@ check_irq:
   return countdown;
 }
 
+int
+interp_has_memory_written_callback(struct interp_struct* p_interp) {
+  return (p_interp->p_memory_written_callback != NULL);
+}
+
 void
 interp_testing_unexit(struct interp_struct* p_interp) {
   p_interp->driver.flags &= ~k_cpu_flag_exited;

@@ -21,6 +21,7 @@ int64_t interp_enter_with_details(
                                 int irq_pending,
                                 int hit_special),
     void* p_callback_context);
+int interp_has_memory_written_callback(struct interp_struct* p_interp);
 
 void interp_testing_unexit(struct interp_struct* p_interp);
 

@@ -553,6 +553,8 @@ inturbo_interp_instruction_callback(void* p,
                                     int next_is_irq,
                                     int irq_pending,
                                     int hit_special) {
+  struct inturbo_struct* p_inturbo;
+
   (void) p;
   (void) next_pc;
   (void) done_opcode;
@@ -561,6 +563,14 @@ inturbo_interp_instruction_callback(void* p,
 
   if (next_is_irq || irq_pending) {
     /* Keep interpreting to handle the IRQ. */
+    return 0;
+  }
+
+  /* We stay in interp indefinitely if we're syncing the 6502 writes to video
+   * 6845 reads. This is denoted by the presence of a memory written handler.
+   */
+  p_inturbo = (struct inturbo_struct*) p;
+  if (interp_has_memory_written_callback(p_inturbo->p_interp)) {
     return 0;
   }
 
@@ -585,7 +595,7 @@ inturbo_enter_interp(struct inturbo_struct* p_inturbo,
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
                                         inturbo_interp_instruction_callback,
-                                        NULL);
+                                        p_inturbo);
 
   cpu_driver_flags =
       p_inturbo_cpu_driver->p_funcs->get_flags(p_inturbo_cpu_driver);
@@ -644,6 +654,18 @@ inturbo_set_reset_callback(struct cpu_driver* p_cpu_driver,
   p_interp_driver->p_funcs->set_reset_callback(p_interp_driver,
                                                do_reset_callback,
                                                p_do_reset_callback_object);
+}
+
+static void
+inturbo_set_memory_written_callback(struct cpu_driver* p_cpu_driver,
+                                    void (*memory_written_callback)(void* p),
+                                    void* p_memory_written_callback_object) {
+  struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
+  struct cpu_driver* p_interp_driver = (struct cpu_driver*) p_inturbo->p_interp;
+  p_interp_driver->p_funcs->set_memory_written_callback(
+      p_interp_driver,
+      memory_written_callback,
+      p_memory_written_callback_object);
 }
 
 static void
@@ -706,8 +728,9 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_funcs->destroy = inturbo_destroy;
-  p_funcs->enter = inturbo_enter;
   p_funcs->set_reset_callback = inturbo_set_reset_callback;
+  p_funcs->set_memory_written_callback = inturbo_set_memory_written_callback;
+  p_funcs->enter = inturbo_enter;
   p_funcs->apply_flags = inturbo_apply_flags;
   p_funcs->get_flags = inturbo_get_flags;
   p_funcs->get_exit_value = inturbo_get_exit_value;
