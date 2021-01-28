@@ -540,13 +540,8 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   disc_tool_set_disc(p_tool, p_disc);
   for (i_sides = 0; i_sides < num_sides; ++i_sides) {
     uint32_t i_tracks;
-    uint32_t disc_crc;
-    uint32_t disc_crc_even;
-
-    if (is_fingerprinting) {
-      disc_crc = util_crc32_init();
-      disc_crc_even = util_crc32_init();
-    }
+    uint32_t disc_crc = util_crc32_init();
+    uint32_t disc_crc_even = util_crc32_init();
 
     disc_tool_set_is_side_upper(p_tool, (i_sides == 1));
 
