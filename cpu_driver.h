@@ -30,6 +30,9 @@ struct cpu_driver_funcs {
   void (*set_reset_callback)(struct cpu_driver* p_cpu_driver,
                              void (*do_reset_callback)(void* p, uint32_t flags),
                              void* p_do_reset_callback_object);
+  void (*set_memory_written_callback)(struct cpu_driver* p_cpu_driver,
+                                      void (*memory_written_callback)(void* p),
+                                      void* p_memory_written_callback_object);
   int (*enter)(struct cpu_driver* p_cpu_driver);
   void (*apply_flags)(struct cpu_driver* p_cpu_driver,
                       uint32_t flags_set,

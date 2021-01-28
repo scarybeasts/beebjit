@@ -120,6 +120,7 @@ struct bbc_struct {
   int test_map_flag;
   int autoboot_flag;
   int vsync_wait_for_render;
+  int do_video_memory_sync;
   struct bbc_options options;
 
   /* Machine state. */
@@ -1198,10 +1199,30 @@ bbc_do_reset_callback(void* p, uint32_t flags) {
 
 static void
 bbc_set_fast_mode(void* p, int is_fast) {
+  struct cpu_driver* p_cpu_driver;
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  void (*p_memory_written_callback)(void* p) = NULL;
 
   p_bbc->fast_flag = is_fast;
   sound_set_output_enabled(p_bbc->p_sound, !is_fast);
+
+  /* In accurate mode, and when not running super fast, we use the interpreter
+   * with a special callback to sync 6502 memory writes to the 6845 CRTC memory
+   * reads.
+   */
+  if (!p_bbc->options.accurate) {
+    return;
+  }
+  if (!p_bbc->do_video_memory_sync) {
+    return;
+  }
+  p_cpu_driver = p_bbc->p_cpu_driver;
+  if (!is_fast) {
+    p_memory_written_callback = video_advance_for_memory_sync;
+  }
+  p_cpu_driver->p_funcs->set_memory_written_callback(p_cpu_driver,
+                                                     p_memory_written_callback,
+                                                     p_bbc->p_video);
 }
 
 static void
@@ -1282,6 +1303,10 @@ bbc_create(int mode,
 
   if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
     p_bbc->vsync_wait_for_render = 0;
+  }
+  p_bbc->do_video_memory_sync = 1;
+  if (util_has_option(p_opt_flags, "video:no-memory-sync")) {
+    p_bbc->do_video_memory_sync = 0;
   }
 
   p_bbc->p_sleeper = os_time_create_sleeper();

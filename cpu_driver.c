@@ -48,6 +48,16 @@ cpu_driver_set_reset_callback_default(
 }
 
 static void
+cpu_driver_set_memory_written_callback_default(
+    struct cpu_driver* p_cpu_driver,
+    void (*memory_written_callback)(void* p),
+    void* p_memory_written_callback_object) {
+  (void) p_cpu_driver;
+  (void) memory_written_callback;
+  (void) p_memory_written_callback_object;
+}
+
+static void
 cpu_driver_apply_flags_default(struct cpu_driver* p_cpu_driver,
                                uint32_t flags_set,
                                uint32_t flags_clear) {
@@ -79,10 +89,18 @@ cpu_driver_get_6502_opcode_maps(struct cpu_driver* p_cpu_driver,
                                 uint8_t** p_out_opcycles) {
   (void) p_cpu_driver;
 
-  *p_out_optypes = defs_6502_get_6502_optype_map();
-  *p_out_opmodes = defs_6502_get_6502_opmode_map();
-  *p_out_opmem = defs_6502_get_6502_opmem_map();
-  *p_out_opcycles = defs_6502_get_6502_opcycles_map();
+  if (p_out_optypes != NULL) {
+    *p_out_optypes = defs_6502_get_6502_optype_map();
+  }
+  if (p_out_opmodes != NULL) {
+    *p_out_opmodes = defs_6502_get_6502_opmode_map();
+  }
+  if (p_out_opmem != NULL) {
+    *p_out_opmem = defs_6502_get_6502_opmem_map();
+  }
+  if (p_out_opcycles != NULL) {
+    *p_out_opcycles = defs_6502_get_6502_opcycles_map();
+  }
 }
 
 static void
@@ -93,10 +111,18 @@ cpu_driver_get_65c12_opcode_maps(struct cpu_driver* p_cpu_driver,
                                  uint8_t** p_out_opcycles) {
   (void) p_cpu_driver;
 
-  *p_out_optypes = defs_6502_get_65c12_optype_map();
-  *p_out_opmodes = defs_6502_get_65c12_opmode_map();
-  *p_out_opmem = defs_6502_get_65c12_opmem_map();
-  *p_out_opcycles = defs_6502_get_65c12_opcycles_map();
+  if (p_out_optypes != NULL) {
+    *p_out_optypes = defs_6502_get_65c12_optype_map();
+  }
+  if (p_out_opmodes != NULL) {
+    *p_out_opmodes = defs_6502_get_65c12_opmode_map();
+  }
+  if (p_out_opmem != NULL) {
+    *p_out_opmem = defs_6502_get_65c12_opmem_map();
+  }
+  if (p_out_opcycles != NULL) {
+    *p_out_opcycles = defs_6502_get_65c12_opcycles_map();
+  }
 }
 
 struct cpu_driver*
@@ -151,6 +177,8 @@ cpu_driver_alloc(int mode,
   p_cpu_driver->p_funcs = p_funcs;
 
   p_funcs->set_reset_callback = cpu_driver_set_reset_callback_default;
+  p_funcs->set_memory_written_callback =
+      cpu_driver_set_memory_written_callback_default;
   p_funcs->apply_flags = cpu_driver_apply_flags_default;
   p_funcs->get_flags = cpu_driver_get_flags_default;
   p_funcs->get_exit_value = cpu_driver_get_exit_value_default;

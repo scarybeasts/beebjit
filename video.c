@@ -738,6 +738,18 @@ check_r7:
   p_video->prev_system_ticks = curr_system_ticks;
 }
 
+void
+video_advance_for_memory_sync(void* p) {
+  struct video_struct* p_video = (struct video_struct*) p;
+  /* We could have had a fast -> slow transition but video rendering hasn't yet
+   * activated. We need to wait for it to activate.
+   */
+  if (!p_video->is_rendering_active) {
+    return;
+  }
+  video_advance_crtc_timing(p_video);
+}
+
 static void
 video_init_timer(struct video_struct* p_video) {
   if (p_video->externally_clocked) {

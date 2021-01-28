@@ -19,13 +19,17 @@ enum {
   k_interp_special_countdown = 4,
   k_interp_special_poll_irq = 8,
   k_interp_special_entry = 16,
+  k_interp_special_memory_written_callback = 32,
 };
 
 struct interp_struct {
   struct cpu_driver driver;
   int is_65c12;
-  uint64_t counter_bcd;
 
+  void (*p_memory_written_callback)(void* p);
+  void* p_memory_written_callback_object;
+
+  uint8_t* p_opcode_mem;
   uint8_t* p_mem_read;
   uint8_t* p_mem_write;
   int debug_subsystem_active;
@@ -33,6 +37,8 @@ struct interp_struct {
 
   uint8_t callback_intf;
   int callback_do_irq;
+
+  uint64_t counter_bcd;
 };
 
 static void
@@ -59,6 +65,15 @@ interp_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
   (void) addr;
 
   return "ITRP";
+}
+
+static void
+interp_set_memory_written_callback(struct cpu_driver* p_cpu_driver,
+                                   void (*memory_written_callback)(void* p),
+                                   void* p_memory_written_callback_object) {
+  struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
+  p_interp->p_memory_written_callback = memory_written_callback;
+  p_interp->p_memory_written_callback_object = p_memory_written_callback_object;
 }
 
 static inline void
@@ -96,6 +111,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->destroy = interp_destroy;
   p_funcs->enter = interp_enter;
   p_funcs->get_address_info = interp_get_address_info;
+  p_funcs->set_memory_written_callback = interp_set_memory_written_callback;
 
   p_interp->p_mem_read = p_memory_access->p_mem_read;
   p_interp->p_mem_write = p_memory_access->p_mem_write;
@@ -106,6 +122,12 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
       p_options->p_debug_object);
   p_interp->p_debug_interrupt = debug_get_interrupt(p_debug);
+
+  p_cpu_driver->p_funcs->get_opcode_maps(p_cpu_driver,
+                                         NULL,
+                                         NULL,
+                                         &p_interp->p_opcode_mem,
+                                         NULL);
 }
 
 struct cpu_driver*
@@ -1032,6 +1054,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
   }
   if (instruction_callback) {
     special_checks |= k_interp_special_callback;
+  }
+  if (p_interp->p_memory_written_callback) {
+    special_checks |= k_interp_special_memory_written_callback;
   }
 
   /* Jump in at the checks / fetch. Checking for countdown==0 on entry is
@@ -2822,6 +2847,21 @@ check_irq:
           countdown = timing_get_countdown(p_timing);
         }
       }
+    }
+
+    /* Fire the memory written callback if appropriate.
+     * Also update the special flag because timer callbacks may have fired and
+     * enabled or removed the memory written callback.
+     */
+    if (p_interp->p_memory_written_callback) {
+      special_checks |= k_interp_special_memory_written_callback;
+      if (p_interp->p_opcode_mem[opcode] & k_opmem_write_flag) {
+        INTERP_TIMING_ADVANCE(0);
+        p_interp->p_memory_written_callback(
+            p_interp->p_memory_written_callback_object);
+      }
+    } else {
+      special_checks &= ~k_interp_special_memory_written_callback;
     }
 
     /* The instruction callback fires after an instruction executes. */
