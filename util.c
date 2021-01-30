@@ -314,7 +314,7 @@ util_file_name_join(const char* p_file_name_base, const char* p_file_name) {
                   sizeof(file_name_buf),
                   "%s%c%s",
                   p_file_name_base,
-				  os_file_get_separator_char(),
+                  os_file_get_separator_char(),
                   p_file_name);
   return strdup(&file_name_buf[0]);
 }
