@@ -4,6 +4,7 @@
 #include "keyboard.h"
 #include "log.h"
 #include "os_channel.h"
+#include "os_file.h"
 #include "os_poller.h"
 #include "os_sound.h"
 #include "os_terminal.h"
@@ -24,10 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef WIN32
-#include <windows.h>
-#endif
 
 static const uint32_t k_sound_default_rate = 48000;
 static const uint32_t k_sound_default_num_periods = 4;
@@ -132,24 +129,13 @@ main(int argc, const char* argv[]) {
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
   int is_exit_on_max_frames_flag = 0;
-#ifdef WIN32
-  char executable_path[MAX_PATH];
-  char rom_full_name[MAX_PATH];
-#endif
+  char* executable_path = NULL;
+  char* rom_full_name = NULL;
 
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
 
-#ifdef WIN32
-  if (GetModuleFileNameA(NULL, executable_path, MAX_PATH) < MAX_PATH) {
-    char* path_leaf = strrchr(executable_path, '\\');
-    if (path_leaf) {
-      *(path_leaf + 1) = 0;
-    }
-  } else {
-    util_bail("Could not get Win32 executable path");
-  }
-#endif
+  executable_path = os_file_get_executable_path();
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -390,21 +376,12 @@ main(int argc, const char* argv[]) {
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-#ifdef WIN32
-  strcpy(rom_full_name, executable_path);
-  if (strlen(executable_path) + strlen(os_rom_name) < MAX_PATH) {
-    strcat(rom_full_name, os_rom_name);
-    if (util_file_read_fully(rom_full_name, os_rom, k_bbc_rom_size) != k_bbc_rom_size) {
-      util_bail("Can't load OS rom");
-	}
-  } else {
-    util_bail("OS rom path is too long");
-  }
-#else
-  if (util_file_read_fully(os_rom_name, os_rom, k_bbc_rom_size) != k_bbc_rom_size) {
+  rom_full_name = util_file_name_join(executable_path, os_rom_name);
+  if (util_file_read_fully(rom_full_name, os_rom, k_bbc_rom_size) != k_bbc_rom_size) {
     util_bail("can't load OS rom");
   }
-#endif
+  util_free(rom_full_name);
+  rom_full_name = NULL;
 
   if (terminal_flag) {
     /* If we're in terminal mode and it appears to be an OS v1.2 MOS ROM,
@@ -494,23 +471,19 @@ main(int argc, const char* argv[]) {
     const char* p_rom_name = rom_names[i];
     if (p_rom_name != NULL) {
       (void) memset(load_rom, '\0', k_bbc_rom_size);
-#ifdef WIN32
-      strcpy(rom_full_name, executable_path);
-      if (strlen(executable_path) + strlen(p_rom_name) < MAX_PATH) {
-        strcat(rom_full_name, p_rom_name);
-        (void) util_file_read_fully(rom_full_name, load_rom, k_bbc_rom_size);
-      } else {
-        util_bail("Rom path is too long");
-      }
-#else
-      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
-#endif
+	  rom_full_name = util_file_name_join(executable_path, p_rom_name);
+      (void) util_file_read_fully(rom_full_name, load_rom, k_bbc_rom_size);
+	  util_free(rom_full_name);
+	  rom_full_name = NULL;
       bbc_load_rom(p_bbc, i, load_rom);
     }
     if (sideways_ram[i]) {
       bbc_make_sideways_ram(p_bbc, i);
     }
   }
+
+  util_free(executable_path);
+  executable_path = NULL;
 
   if (load_name != NULL) {
     state_load(p_bbc, load_name);

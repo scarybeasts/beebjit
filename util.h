@@ -10,6 +10,7 @@ void* util_mallocz(size_t size);
 void util_free(void* p);
 char* util_strdup(const char* p_str);
 char* util_strdup2(const char* p_str1, const char* p_str2);
+char* util_strndup(const char *s, size_t n);
 
 /* Buffer. */
 struct util_buffer;
