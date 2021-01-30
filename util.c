@@ -262,6 +262,21 @@ util_is_extension(const char* p_file_name, const char* p_ext) {
   return 1;
 }
 
+static char *
+util_strndup(const char *s, size_t n) {
+    char *p;
+    size_t n1;
+
+    for (n1 = 0; n1 < n && s[n1] != '\0'; n1++)
+        continue;
+    p = malloc(n + 1);
+    if (p != NULL) {
+        memcpy(p, s, n1);
+        p[n1] = '\0';
+    }
+    return p;
+}
+
 void
 util_file_name_split(char** p_file_name_base,
                      char** p_file_name,
@@ -284,7 +299,7 @@ util_file_name_split(char** p_file_name_base,
   }
 
   len = (p_sep - p_full_file_name);
-  *p_file_name_base = strndup(p_full_file_name, len);
+  *p_file_name_base = util_strndup(p_full_file_name, len);
   *p_file_name = strdup(p_sep + 1);
 }
 
