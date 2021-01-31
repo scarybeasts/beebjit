@@ -643,6 +643,14 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                        i_tracks,
                        sector_spec);
           }
+          if ((p_sectors->is_mfm && (sector_sector > 15)) ||
+              (!p_sectors->is_mfm && (sector_sector > 9))) {
+            log_do_log(k_log_disc,
+                       k_log_info,
+                       "wild sector ID, track %d %s",
+                       i_tracks,
+                       sector_spec);
+          }
         }
         seen_sectors[sector_sector] = 1;
         if (log_crc_errors || log_protection) {
