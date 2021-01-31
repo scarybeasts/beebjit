@@ -338,8 +338,9 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     } else {
       log_do_log(k_log_disc,
                  k_log_unusual,
-                 "encountered marker byte %.2X on track %d",
+                 "encountered marker byte %.2X side %d track %d",
                  data,
+                 p_tool->is_side_upper,
                  p_tool->track);
     }
   }
@@ -648,14 +649,16 @@ disc_tool_log_summary(struct disc_struct* p_disc,
           if (p_sectors->has_header_crc_error) {
             log_do_log(k_log_disc,
                        k_log_warning,
-                       "header CRC error track %d physical sector %d",
+                       "header CRC error side %d track %d physical sector %d",
+                       i_sides,
                        i_tracks,
                        i_sectors);
           }
           if (p_sectors->has_data_crc_error) {
             log_do_log(k_log_disc,
                        k_log_warning,
-                       "data CRC error track %d physical sector %d",
+                       "data CRC error side %d track %d physical sector %d",
+                       i_sides,
                        i_tracks,
                        i_sectors);
           }
