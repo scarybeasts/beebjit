@@ -445,11 +445,14 @@ teletext_render_data(struct teletext_struct* p_teletext,
   } else {
     uint8_t* p_held_character = p_teletext->p_held_character;
     int is_graphics_active = p_teletext->is_graphics_active;
+    int is_double_active = p_teletext->double_active;
 
     teletext_handle_control_character(p_teletext, &fg_color, data);
     /* Hold on is set-at and hold off is set-after. */
     is_hold_graphics |= p_teletext->is_hold_graphics;
-    if (is_graphics_active && is_hold_graphics) {
+    if (is_graphics_active &&
+        is_hold_graphics &&
+        (p_teletext->double_active == is_double_active)) {
       p_src_data = p_held_character;
     } else {
       p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
