@@ -324,7 +324,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       if ((p_sector == NULL) || (p_sector->bit_pos_data != 0)) {
         log_do_log(k_log_disc,
                    k_log_unusual,
-                   "sector data without header on track %d",
+                   "sector data without header side %d track %d",
+                   p_tool->is_side_upper,
                    p_tool->track);
       } else {
         assert(p_sector->bit_pos_header != 0);
@@ -386,7 +387,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     if (p_sector->bit_pos_data == 0) {
       log_do_log(k_log_disc,
                  k_log_unusual,
-                 "sector header without data on track %d",
+                 "sector header without data side %d track %d",
+                 p_tool->is_side_upper,
                  p_tool->track);
       continue;
     }
