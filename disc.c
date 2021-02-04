@@ -92,6 +92,7 @@ disc_create(const char* p_file_name,
             int is_mutable,
             int do_convert_to_hfe,
             int do_convert_to_ssd,
+            int do_convert_to_adl,
             struct bbc_options* p_options) {
   int do_fingerprint;
   int do_fingerprint_tracks;
@@ -100,6 +101,7 @@ disc_create(const char* p_file_name,
   int is_file_writeable = 0;
   int is_hfe = 0;
   int is_ssd_or_dsd = 0;
+  int is_adl = 0;
   int do_write_all_tracks = 0;
   char* p_rev_spec = NULL;
 
@@ -170,6 +172,7 @@ disc_create(const char* p_file_name,
     disc_ssd_load(p_disc, 1);
     p_disc->p_write_track_callback = disc_ssd_write_track;
   } else if (util_is_extension(p_file_name, "adl")) {
+    is_adl = 1;
     disc_adl_load(p_disc);
     p_disc->p_write_track_callback = disc_adl_write_track;
   } else if (util_is_extension(p_file_name, "fsd")) {
@@ -243,6 +246,17 @@ disc_create(const char* p_file_name,
     util_file_close(p_disc->p_file);
     p_disc->p_file = util_file_open(new_file_name, 1, 1);
     p_disc->p_write_track_callback = disc_ssd_write_track;
+    do_write_all_tracks = 1;
+  } else if (do_convert_to_adl && !is_adl) {
+    char new_file_name[4096];
+    (void) snprintf(new_file_name,
+                    sizeof(new_file_name),
+                    "%s.adl",
+                    p_file_name);
+    log_do_log(k_log_disc, k_log_info, "converting to ADL: %s", new_file_name);
+    util_file_close(p_disc->p_file);
+    p_disc->p_file = util_file_open(new_file_name, 1, 1);
+    p_disc->p_write_track_callback = disc_adl_write_track;
     do_write_all_tracks = 1;
   }
   if (do_write_all_tracks) {

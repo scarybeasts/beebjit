@@ -19,6 +19,7 @@ struct disc_struct* disc_create(const char* p_filename,
                                 int is_mutable,
                                 int do_convert_to_hfe,
                                 int do_convert_to_ssd,
+                                int do_convert_to_adl,
                                 struct bbc_options* p_options);
 struct disc_struct* disc_create_from_raw(const char* p_file_name,
                                          const char* p_raw_spec);

@@ -74,7 +74,8 @@ void bbc_add_disc(struct bbc_struct* p_bbc,
                   int is_writeable,
                   int is_mutable,
                   int convert_to_hfe,
-                  int convert_to_ssd);
+                  int convert_to_ssd,
+                  int convert_to_adl);
 void bbc_add_raw_disc(struct bbc_struct* p_bbc,
                       const char* p_file_name,
                       const char* p_spec);

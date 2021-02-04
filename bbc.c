@@ -2422,7 +2422,8 @@ bbc_add_disc(struct bbc_struct* p_bbc,
              int is_writeable,
              int is_mutable,
              int convert_to_hfe,
-             int convert_to_ssd) {
+             int convert_to_ssd,
+             int convert_to_adl) {
   struct disc_drive_struct* p_drive;
   struct disc_struct* p_disc;
 
@@ -2439,6 +2440,7 @@ bbc_add_disc(struct bbc_struct* p_bbc,
                        is_mutable,
                        convert_to_hfe,
                        convert_to_ssd,
+                       convert_to_adl,
                        &p_bbc->options);
   if (p_disc == NULL) {
     util_bail("disc_create failed");
