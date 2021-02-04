@@ -1,6 +1,7 @@
 #include "disc_adl.h"
 
 #include "disc.h"
+#include "disc_tool.h"
 #include "ibm_disc_format.h"
 #include "util.h"
 
@@ -13,39 +14,23 @@ enum {
   k_disc_adl_tracks_per_disc = 80,
 };
 
-static uint16_t
-disc_adl_get_mfm_pulses(uint32_t* p_pulses, uint32_t index) {
-  uint32_t pulses;
-  uint16_t mfm_pulses;
-
-  assert(index < (k_ibm_disc_bytes_per_track * 2));
-
-  pulses = p_pulses[index / 2];
-  if (index & 1) {
-    mfm_pulses = (pulses & 0xFFFF);
-  } else {
-    mfm_pulses = (pulses >> 16);
-  }
-
-  return mfm_pulses;
-}
-
 void
 disc_adl_write_track(struct disc_struct* p_disc,
                      int is_side_upper,
                      uint32_t track,
                      uint32_t pulses_length,
                      uint32_t* p_pulses) {
-  uint32_t i;
   uint64_t seek_pos;
-  uint32_t a1_count = 0;
-  int32_t sector = -1;
+  uint32_t num_sectors;
+  uint32_t i_sectors;
+  struct disc_tool_sector* p_sectors;
 
+  struct disc_tool_struct* p_tool = disc_tool_create();
   struct util_file* p_file = disc_get_file(p_disc);
   uint32_t track_size = (k_disc_adl_sector_size * k_disc_adl_sectors_per_track);
-  uint32_t byte_length = (pulses_length * 2);
 
-  assert(pulses_length == k_ibm_disc_bytes_per_track);
+  (void) pulses_length;
+  (void) p_pulses;
 
   seek_pos = (track_size * track);
   seek_pos *= 2;
@@ -53,50 +38,40 @@ disc_adl_write_track(struct disc_struct* p_disc,
     seek_pos += track_size;
   }
 
-  a1_count = 0;
-  for (i = 0; i < byte_length; ++i) {
-    uint32_t j;
-    uint8_t data;
-    uint16_t mfm_pulses;
+  disc_tool_set_disc(p_tool, p_disc);
+  disc_tool_set_is_side_upper(p_tool, is_side_upper);
+  disc_tool_set_track(p_tool, track);
+  disc_tool_find_sectors(p_tool);
+  p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
 
-    if ((i + 1 + k_disc_adl_sector_size) > byte_length) {
-      break;
-    }
-
-    mfm_pulses = disc_adl_get_mfm_pulses(p_pulses, i);
-    data = ibm_disc_format_2us_pulses_to_mfm(mfm_pulses);
-
-    if (mfm_pulses == k_ibm_disc_mfm_a1_sync) {
-      a1_count++;
+  for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
+    uint8_t sector_id;
+    uint32_t sector_length;
+    uint8_t sector_data[k_disc_tool_max_sector_length];
+    struct disc_tool_sector* p_sector = &p_sectors[i_sectors];
+    if (!p_sector->is_mfm) {
       continue;
     }
-    if (a1_count != 3) {
-      a1_count = 0;
+    if (p_sector->header_bytes[0] != track) {
       continue;
     }
-    a1_count = 0;
-
-    if (data == k_ibm_disc_id_mark_data_pattern) {
-      mfm_pulses = disc_adl_get_mfm_pulses(p_pulses, (i + 3));
-      sector = ibm_disc_format_2us_pulses_to_mfm(mfm_pulses);
+    sector_id = p_sector->header_bytes[2];
+    if (sector_id > 15) {
       continue;
     }
-    if (data != k_ibm_disc_data_mark_data_pattern) {
+    disc_tool_read_sector(p_tool,
+                          &sector_length,
+                          &sector_data[0],
+                          i_sectors,
+                          0);
+    if (sector_length != 256) {
       continue;
     }
-    if ((sector < 0) || (sector > 15)) {
-      continue;
-    }
-
-    util_file_seek(p_file, (seek_pos + (sector * k_disc_adl_sector_size)));
-    i += 1;
-    for (j = 0; j < k_disc_adl_sector_size; ++j) {
-      mfm_pulses = disc_adl_get_mfm_pulses(p_pulses, i);
-      data = ibm_disc_format_2us_pulses_to_mfm(mfm_pulses);
-      util_file_write(p_file, &data, 1);
-      ++i;
-    }
+    util_file_seek(p_file, (seek_pos + (sector_id * k_disc_adl_sector_size)));
+    util_file_write(p_file, &sector_data[0], 256);
   }
+
+  disc_tool_destroy(p_tool);
 }
 
 void
