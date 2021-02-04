@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "disc_adl.h"
+#include "disc_dfi.h"
 #include "disc_fsd.h"
 #include "disc_hfe.h"
 #include "disc_kryo.h"
@@ -191,6 +192,14 @@ disc_create(const char* p_file_name,
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "scp")) {
     disc_scp_load(p_disc,
+                  p_disc->rev,
+                  p_disc->quantize_fm,
+                  p_disc->log_iffy_pulses,
+                  p_disc->is_skip_odd_tracks,
+                  p_disc->is_skip_upper_side);
+    do_check_for_crc_errors = 1;
+  } else if (util_is_extension(p_file_name, "dfi")) {
+    disc_dfi_load(p_disc,
                   p_disc->rev,
                   p_disc->quantize_fm,
                   p_disc->log_iffy_pulses,

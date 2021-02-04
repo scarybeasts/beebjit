@@ -110,6 +110,7 @@ void util_set_interrupt_callback(void (*p_interrupt_callback)(void));
 /* Bits and bytes. */
 uint8_t util_parse_hex2(const char* p_str);
 uint16_t util_read_be16(uint8_t* p_buf);
+uint32_t util_read_be32(uint8_t* p_buf);
 uint32_t util_read_le32(uint8_t* p_buf);
 uint32_t util_crc32_init();
 uint32_t util_crc32_add(uint32_t crc, uint8_t* p_buf, uint32_t len);

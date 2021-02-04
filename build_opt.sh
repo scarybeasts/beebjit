@@ -18,6 +18,6 @@ gcc -Wall -W -Werror \
     intel_fdc.c wd_fdc.c \
     disc_drive.c disc.c ibm_disc_format.c disc_tool.c \
     disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c \
-    disc_rfi.c disc_kryo.c disc_scp.c \
+    disc_rfi.c disc_kryo.c disc_scp.c disc_dfi.c \
     debug.c jit.c util.c \
     -lm -lX11 -lXext -lpthread -lasound -lpulse -lpulse-simple
