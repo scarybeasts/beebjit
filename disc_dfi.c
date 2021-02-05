@@ -149,6 +149,13 @@ disc_dfi_load(struct disc_struct* p_disc) {
       p_pulses[num_pulses] = delta_us;
       num_pulses++;
     }
+    /* May not necessarily be an index pulse at the end of the last rev. */
+    disc_build_track_from_pulses(p_disc,
+                                 current_rev,
+                                 current_head,
+                                 current_track,
+                                 p_pulses,
+                                 num_pulses);
   }
 
   log_do_log(k_log_disc,
