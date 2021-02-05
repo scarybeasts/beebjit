@@ -19,6 +19,7 @@ disc_dfi_load(struct disc_struct* p_disc) {
   uint8_t* p_dfi_track_data;
   float* p_pulses;
   uint32_t num_sides = 1;
+  float pulse_scale_factor = 0.0;
 
   struct util_file* p_file = disc_get_file(p_disc);
 
@@ -94,6 +95,30 @@ disc_dfi_load(struct disc_struct* p_disc) {
       util_bail("DFI can't read track data");
     }
 
+    if ((current_track == 0) && (current_head == 0)) {
+      uint32_t total_ticks = 0;
+      /* First chunk of data; run across it to find an index pulse to calculate
+       * how long each pulse base unit really is.
+       * There's variance in sample rate (100MHz vs. 25MHz) and drive RPM
+       * (300rpm vs. 360rpm).
+       */
+      for (i_data = 0; i_data < track_length; ++i_data) {
+        uint8_t byte = p_dfi_track_data[i_data];
+        if ((byte & 0x80) != 0) {
+          pulse_scale_factor = (200000.0 / total_ticks);
+          break;
+        }
+        total_ticks += byte;
+      }
+      if (pulse_scale_factor == 0.0) {
+        util_bail("DFI missing index pulse");
+      }
+      log_do_log(k_log_disc,
+                 k_log_info,
+                 "DFI: calculated pulse scale factor %f",
+                 pulse_scale_factor);
+    }
+
     sample = 0;
     current_rev = 0;
     num_pulses = 0;
@@ -118,11 +143,8 @@ disc_dfi_load(struct disc_struct* p_disc) {
         sample += 0x7f;
         continue;
       }
-      /* Emit sample. Counting units are 10 nanoseconds, but with a default
-       * capture RPM of 360, not 300.
-       */
       sample += byte;
-      delta_us = (sample * (360.0 / 300.0) / 100.0);
+      delta_us = (sample * pulse_scale_factor);
       sample = 0;
       p_pulses[num_pulses] = delta_us;
       num_pulses++;
