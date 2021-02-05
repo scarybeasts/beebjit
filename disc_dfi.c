@@ -9,12 +9,7 @@
 #include <string.h>
 
 void
-disc_dfi_load(struct disc_struct* p_disc,
-              uint32_t capture_rev,
-              int quantize_fm,
-              int log_iffy_pulses,
-              int is_skip_odd_tracks,
-              int is_skip_upper_side) {
+disc_dfi_load(struct disc_struct* p_disc) {
   static const size_t k_max_dfi_track_size = (1024 * 1024);
   uint32_t len;
   uint8_t header[4];
@@ -22,13 +17,10 @@ disc_dfi_load(struct disc_struct* p_disc,
   int32_t current_track;
   int32_t current_head;
   uint8_t* p_dfi_track_data;
+  float* p_pulses;
   uint32_t num_sides = 1;
 
   struct util_file* p_file = disc_get_file(p_disc);
-
-  /* TODO: honor these! */
-  (void) is_skip_odd_tracks;
-  (void) is_skip_upper_side;
 
   assert(p_file != NULL);
 
@@ -42,6 +34,7 @@ disc_dfi_load(struct disc_struct* p_disc,
   }
 
   p_dfi_track_data = util_malloc(k_max_dfi_track_size);
+  p_pulses = util_malloc(k_max_dfi_track_size * 4);
 
   current_track = -1;
   current_head = -1;
@@ -52,8 +45,8 @@ disc_dfi_load(struct disc_struct* p_disc,
     uint32_t track_length;
     uint32_t i_data;
     uint16_t sample;
-    int did_truncation_warning;
     uint32_t current_rev;
+    uint32_t num_pulses;
 
     len = util_file_read(p_file, &chunk[0], 10);
     if (len == 0) {
@@ -101,17 +94,22 @@ disc_dfi_load(struct disc_struct* p_disc,
       util_bail("DFI can't read track data");
     }
 
-    disc_build_track(p_disc, current_head, current_track);
-
-    did_truncation_warning = 0;
     sample = 0;
     current_rev = 0;
+    num_pulses = 0;
     for (i_data = 0; i_data < track_length; ++i_data) {
       float delta_us;
       uint8_t byte = p_dfi_track_data[i_data];
       if ((byte & 0x80) != 0) {
         /* Index pulse. */
+        disc_build_track_from_pulses(p_disc,
+                                     current_rev,
+                                     current_head,
+                                     current_track,
+                                     p_pulses,
+                                     num_pulses);
         current_rev++;
+        num_pulses = 0;
         sample += (byte & 0x7f);
         continue;
       }
@@ -126,33 +124,9 @@ disc_dfi_load(struct disc_struct* p_disc,
       sample += byte;
       delta_us = (sample * (360.0 / 300.0) / 100.0);
       sample = 0;
-      if (current_rev != capture_rev) {
-        continue;
-      }
-      if (log_iffy_pulses) {
-        if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "side %d track %d tpos %d iffy pulse %f (%s)",
-                     current_head,
-                     current_track,
-                     i_data,
-                     delta_us,
-                     (quantize_fm ? "fm" : "mfm"));
-        }
-      }
-      if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm) &&
-          !did_truncation_warning) {
-        did_truncation_warning = 1;
-        log_do_log(k_log_disc,
-                   k_log_warning,
-                   "DFI truncating side %d track %d",
-                   current_head,
-                   current_track);
-      }
+      p_pulses[num_pulses] = delta_us;
+      num_pulses++;
     }
-
-    disc_build_set_track_length(p_disc);
   }
 
   log_do_log(k_log_disc,
@@ -162,4 +136,5 @@ disc_dfi_load(struct disc_struct* p_disc,
              (current_track + 1));
 
   util_free(p_dfi_track_data);
+  util_free(p_pulses);
 }

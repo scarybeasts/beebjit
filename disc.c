@@ -33,7 +33,7 @@ struct disc_struct {
   int log_protection;
   int log_iffy_pulses;
   int expand_to_80;
-  int quantize_fm;
+  int is_quantize_fm;
   int is_skip_odd_tracks;
   int is_skip_upper_side;
   uint32_t rev;
@@ -119,8 +119,8 @@ disc_create(const char* p_file_name,
                                         "disc:dump-sector-data");
   p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
                                          "disc:expand-to-80");
-  p_disc->quantize_fm = util_has_option(p_options->p_opt_flags,
-                                        "disc:quantize-fm");
+  p_disc->is_quantize_fm = util_has_option(p_options->p_opt_flags,
+                                           "disc:quantize-fm");
   p_disc->is_skip_odd_tracks = util_has_option(p_options->p_opt_flags,
                                                "disc:skip-odd-tracks");
   p_disc->is_skip_upper_side = util_has_option(p_options->p_opt_flags,
@@ -180,34 +180,16 @@ disc_create(const char* p_file_name,
   } else if (util_is_extension(p_file_name, "log")) {
     disc_fsd_load(p_disc, 0);
   } else if (util_is_extension(p_file_name, "rfi")) {
-    disc_rfi_load(p_disc,
-                  p_disc->rev,
-                  &p_disc->rev_spec[0],
-                  p_disc->quantize_fm,
-                  p_disc->log_iffy_pulses);
+    disc_rfi_load(p_disc);
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "raw")) {
-    disc_kryo_load(p_disc,
-                   p_file_name,
-                   p_disc->rev,
-                   p_disc->quantize_fm,
-                   p_disc->log_iffy_pulses);
+    disc_kryo_load(p_disc, p_file_name);
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "scp")) {
-    disc_scp_load(p_disc,
-                  p_disc->rev,
-                  p_disc->quantize_fm,
-                  p_disc->log_iffy_pulses,
-                  p_disc->is_skip_odd_tracks,
-                  p_disc->is_skip_upper_side);
+    disc_scp_load(p_disc);
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "dfi")) {
-    disc_dfi_load(p_disc,
-                  p_disc->rev,
-                  p_disc->quantize_fm,
-                  p_disc->log_iffy_pulses,
-                  p_disc->is_skip_odd_tracks,
-                  p_disc->is_skip_upper_side);
+    disc_dfi_load(p_disc);
     do_check_for_crc_errors = 1;
   } else if (util_is_extension(p_file_name, "hfe")) {
     disc_hfe_load(p_disc, p_disc->expand_to_80);
@@ -657,12 +639,10 @@ disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data) {
                                    (k_ibm_disc_bytes_per_track - build_index));
 }
 
-int
-disc_build_append_pulse_delta(struct disc_struct* p_disc,
-                              float delta_us,
-                              int is_mfm) {
+static int
+disc_build_append_pulse_delta(struct disc_struct* p_disc, float delta_us) {
   uint32_t num_2us_units;
-  if (is_mfm) {
+  if (!p_disc->is_quantize_fm) {
     num_2us_units = roundf(delta_us / 2.0);
   } else {
     num_2us_units = roundf(delta_us / 4.0);
@@ -685,6 +665,60 @@ disc_build_append_pulse_delta(struct disc_struct* p_disc,
     }
   }
   return 1;
+}
+
+void
+disc_build_track_from_pulses(struct disc_struct* p_disc,
+                             uint32_t rev,
+                             int is_side_upper,
+                             uint32_t track,
+                             float* p_pulse_deltas,
+                             uint32_t num_pulses) {
+  uint32_t i_pulses;
+  int did_truncation_warning;
+
+  if (p_disc->rev != rev) {
+    return;
+  }
+  if (p_disc->is_skip_upper_side && is_side_upper) {
+    return;
+  }
+  if (p_disc->is_skip_odd_tracks) {
+    if (track & 1) {
+      return;
+    }
+    track /= 2;
+  }
+
+  disc_build_track(p_disc, is_side_upper, track);
+
+  did_truncation_warning = 0;
+  for (i_pulses = 0; i_pulses < num_pulses; ++i_pulses) {
+    float delta = p_pulse_deltas[i_pulses];
+    if (p_disc->log_iffy_pulses) {
+      if (!ibm_disc_format_check_pulse(delta, !p_disc->is_quantize_fm)) {
+        log_do_log(k_log_disc,
+                   k_log_info,
+                   "side %d track %d pulse %d iffy pulse %f (%s)",
+                   is_side_upper,
+                   track,
+                   i_pulses,
+                   delta,
+                   (p_disc->is_quantize_fm ? "fm" : "mfm"));
+      }
+    }
+    if (!disc_build_append_pulse_delta(p_disc, delta) &&
+        !did_truncation_warning) {
+      did_truncation_warning = 1;
+      log_do_log(k_log_disc,
+                 k_log_warning,
+                 "pulse loader truncating side %d track %d",
+                 is_side_upper,
+                 track);
+    }
+  }
+
+  disc_build_set_track_length(p_disc);
 }
 
 void

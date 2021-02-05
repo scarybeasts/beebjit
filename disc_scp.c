@@ -9,12 +9,7 @@
 #include <string.h>
 
 void
-disc_scp_load(struct disc_struct* p_disc,
-              uint32_t capture_rev,
-              int quantize_fm,
-              int log_iffy_pulses,
-              int is_skip_odd_tracks,
-              int is_skip_upper_side) {
+disc_scp_load(struct disc_struct* p_disc) {
   static const size_t k_max_scp_track_size = (1024 * 1024);
   uint32_t len;
   uint8_t header[16];
@@ -27,6 +22,7 @@ disc_scp_load(struct disc_struct* p_disc,
   uint32_t num_sides;
   uint8_t scp_flags;
   uint8_t* p_scp_track_data;
+  float* p_pulses;
   int is_one_side_only = 0;
 
   struct util_file* p_file = disc_get_file(p_disc);
@@ -72,10 +68,6 @@ disc_scp_load(struct disc_struct* p_disc,
     util_bail("SCP resolution not 25ns");
   }
 
-  if (capture_rev >= num_revs) {
-    util_bail("SCP not enough revs");
-  }
-
   num_tracks = (max_track + 1);
 
   log_do_log(k_log_disc,
@@ -84,20 +76,17 @@ disc_scp_load(struct disc_struct* p_disc,
              num_sides,
              num_tracks,
              num_revs);
-  if (is_skip_odd_tracks) {
-    log_do_log(k_log_disc, k_log_info, "SCP: skipping odd tracks");
-  }
 
   p_scp_track_data = util_malloc(k_max_scp_track_size);
+  p_pulses = util_malloc(k_max_scp_track_size / 2 * 4);
 
   for (i_tracks = 0; i_tracks < num_tracks; ++i_tracks) {
     uint32_t track_offset;
     uint32_t track_data_offset;
     uint32_t track_length;
-    uint32_t i_data;
     uint32_t actual_track;
     int side;
-    int did_truncation_warning = 0;
+    uint32_t i_revs;
 
     util_file_seek(p_file, ((i_tracks * 4) + 16));
     len = util_file_read(p_file, &chunk[0], 4);
@@ -126,15 +115,6 @@ disc_scp_load(struct disc_struct* p_disc,
       actual_track = (i_tracks / 2);
       side = (i_tracks & 1);
     }
-    if (is_skip_odd_tracks) {
-      if (actual_track & 1) {
-        continue;
-      }
-      actual_track = (actual_track / 2);
-    }
-    if (is_skip_upper_side && (side == 1)) {
-      continue;
-    }
     if (actual_track >= k_ibm_disc_tracks_per_disc) {
       util_bail("SCP excessive tracks");
     }
@@ -149,58 +129,47 @@ disc_scp_load(struct disc_struct* p_disc,
     if (chunk[3] != i_tracks) {
       util_bail("SCP track mismatch");
     }
-    util_file_seek(p_file, (track_offset + 4 + (capture_rev * 12)));
-    len = util_file_read(p_file, &chunk[0], 12);
-    if (len != 12) {
-      util_bail("SCP can't read rev meta");
-    }
-    track_data_offset = (track_offset + util_read_le32(&chunk[8]));
-    track_length = util_read_le32(&chunk[4]);
-    track_length *= 2;
-    if (track_length > k_max_scp_track_size) {
-      util_bail("SCP track too large");
-    }
 
-    util_file_seek(p_file, track_data_offset);
-    len = util_file_read(p_file, p_scp_track_data, track_length);
-    if (len != track_length) {
-      util_bail("SCP can't read track data");
-    }
+    for (i_revs = 0; i_revs < num_revs; ++i_revs) {
+      uint32_t i_data;
+      uint32_t num_pulses;
 
-    disc_build_track(p_disc, side, actual_track);
-
-    i_data = 0;
-    while (i_data < track_length) {
-      uint16_t sample = util_read_be16(&p_scp_track_data[i_data]);
-      float delta_us = (sample / 40.0);
-      if (log_iffy_pulses) {
-        if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
-          log_do_log(k_log_disc,
-                     k_log_info,
-                     "side %d track %d tpos %d filepos %d iffy pulse %f (%s)",
-                     side,
-                     actual_track,
-                     (i_data / 2),
-                     (track_data_offset + i_data),
-                     delta_us,
-                     (quantize_fm ? "fm" : "mfm"));
-        }
+      util_file_seek(p_file, (track_offset + 4 + (i_revs * 12)));
+      len = util_file_read(p_file, &chunk[0], 12);
+      if (len != 12) {
+        util_bail("SCP can't read rev meta");
       }
-      if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm) &&
-          !did_truncation_warning) {
-        did_truncation_warning = 1;
-        log_do_log(k_log_disc,
-                   k_log_warning,
-                   "SCP truncating side %d track %d",
-                   side,
-                   actual_track);
+      track_data_offset = (track_offset + util_read_le32(&chunk[8]));
+      track_length = util_read_le32(&chunk[4]);
+      track_length *= 2;
+      if (track_length > k_max_scp_track_size) {
+        util_bail("SCP track too large");
       }
 
-      i_data += 2;
-    }
+      util_file_seek(p_file, track_data_offset);
+      len = util_file_read(p_file, p_scp_track_data, track_length);
+      if (len != track_length) {
+        util_bail("SCP can't read track data");
+      }
 
-    disc_build_set_track_length(p_disc);
+      i_data = 0;
+      num_pulses = 0;
+      for (i_data = 0; i_data < track_length; i_data += 2) {
+        uint16_t sample = util_read_be16(&p_scp_track_data[i_data]);
+        float delta_us = (sample / 40.0);
+        p_pulses[num_pulses] = delta_us;
+        num_pulses++;
+      }
+
+      disc_build_track_from_pulses(p_disc,
+                                   i_revs,
+                                   side,
+                                   actual_track,
+                                   p_pulses,
+                                   num_pulses);
+    }
   }
 
   util_free(p_scp_track_data);
+  util_free(p_pulses);
 }

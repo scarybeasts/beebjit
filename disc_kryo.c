@@ -12,14 +12,11 @@
 static uint32_t k_kryo_max_index_pulses = 16;
 
 void
-disc_kryo_load(struct disc_struct* p_disc,
-               const char* p_full_file_name,
-               uint32_t capture_rev,
-               int quantize_fm,
-               int log_iffy_pulses) {
+disc_kryo_load(struct disc_struct* p_disc, const char* p_full_file_name) {
   static const size_t k_max_kryo_track_size = (1024 * 1024);
   uint32_t i_track;
   uint8_t* p_raw_buf;
+  float* p_pulses;
   char* p_file_name_base = NULL;
   char* p_file_name = NULL;
   struct util_file* p_extra_file = NULL;
@@ -35,6 +32,7 @@ disc_kryo_load(struct disc_struct* p_disc,
   util_free(p_file_name);
 
   p_raw_buf = util_malloc(k_max_kryo_track_size);
+  p_pulses = util_malloc(k_max_kryo_track_size * 4);
 
   i_track = 0;
   while (i_track < k_ibm_disc_tracks_per_disc) {
@@ -72,17 +70,14 @@ disc_kryo_load(struct disc_struct* p_disc,
       util_bail("Kryo track file too large");
     }
 
-    disc_build_track(p_disc, 0, i_track);
-
     /* Two passes because the index pulses are reported asynchronously in the
      * data stream.
      */
     for (i_pass = 0; i_pass < 2; ++i_pass) {
       int32_t sample_value = -1;
-      uint32_t ticks_pos = 0;
       uint32_t i_data = 0;
       uint32_t i_samples = 0;
-      int writing = 0;
+      uint32_t num_pulses = 0;
 
       while (i_data < data_len) {
         uint32_t chunk_len;
@@ -91,12 +86,16 @@ disc_kryo_load(struct disc_struct* p_disc,
         if ((i_pass == 1) &&
             (next_index_pulse < num_index_pulses) &&
             (i_samples >= index_pulse_indexes[next_index_pulse])) {
-          if (next_index_pulse == capture_rev) {
-            writing = 1;
-          } else {
-            writing = 0;
+          if (next_index_pulse > 0) {
+            disc_build_track_from_pulses(p_disc,
+                                         (next_index_pulse - 1),
+                                         0,
+                                         i_track,
+                                         p_pulses,
+                                         num_pulses);
           }
           next_index_pulse++;
+          num_pulses = 0;
         }
 
         switch (val) {
@@ -183,33 +182,14 @@ disc_kryo_load(struct disc_struct* p_disc,
           break;
         }
 
-        if (writing && (sample_value != -1)) {
+        if ((i_pass == 1) && (sample_value != -1)) {
           float delta_us = (sample_value / 24.027428);
-          ticks_pos += sample_value;
-          if (log_iffy_pulses) {
-            if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
-              log_do_log(k_log_disc,
-                         k_log_info,
-                         "track %d pos %d dpos %d iffy pulse %f (%s)",
-                         i_track,
-                         ticks_pos,
-                         i_data,
-                         delta_us,
-                         (quantize_fm ? "fm" : "mfm"));
-            }
-          }
-          if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
-            log_do_log(k_log_disc,
-                       k_log_warning,
-                       "Kryo truncating track %d",
-                       i_track);
-          }
           sample_value = -1;
+          p_pulses[num_pulses] = delta_us;
+          num_pulses++;
         }
       } /* end: data loop. */
     } /* end: passes loop. */
-
-    disc_build_set_track_length(p_disc);
 
     i_track++;
   }
@@ -217,6 +197,7 @@ disc_kryo_load(struct disc_struct* p_disc,
   log_do_log(k_log_disc, k_log_info, "KryoFlux raw, loaded %d tracks", i_track);
 
   util_free(p_raw_buf);
+  util_free(p_pulses);
   if (p_file_name_base != NULL) {
     util_free(p_file_name_base);
   }

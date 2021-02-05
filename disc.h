@@ -99,8 +99,11 @@ void disc_build_append_bad_crc(struct disc_struct* p_disc);
 void disc_build_fill_fm_byte(struct disc_struct* p_disc, uint8_t data);
 
 /* Raw pulses. */
-int disc_build_append_pulse_delta(struct disc_struct* p_disc,
-                                  float delta_us,
-                                  int is_mfm);
+void disc_build_track_from_pulses(struct disc_struct* p_disc,
+                                  uint32_t rev,
+                                  int is_side_upper,
+                                  uint32_t track,
+                                  float* p_pulse_deltas,
+                                  uint32_t num_pulses);
 
 #endif /* BEEBJIT_DISC_H */

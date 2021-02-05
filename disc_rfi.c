@@ -41,18 +41,14 @@ disc_rfi_get_stanza(char* p_buf,
 }
 
 void
-disc_rfi_load(struct disc_struct* p_disc,
-              uint32_t rev,
-              char* p_rev_spec,
-              int quantize_fm,
-              int log_iffy_pulses) {
+disc_rfi_load(struct disc_struct* p_disc) {
   static const size_t k_max_rfi_track_size = (1024 * 1024);
   uint32_t i;
   char meta_buf[256];
   uint32_t len;
   char* p_buf;
   uint8_t* p_rfi_data;
-  uint32_t num_rev_spec_tracks;
+  float* p_pulses;
   float rate_divider;
   uint32_t tracks = 0;
   uint32_t sides = 0;
@@ -60,12 +56,6 @@ disc_rfi_load(struct disc_struct* p_disc,
 
   struct util_file* p_file = disc_get_file(p_disc);
   assert(p_file != NULL);
-
-  if (rev > 2) {
-    util_bail("RFI bad rev parameter");
-  }
-
-  num_rev_spec_tracks = strlen(p_rev_spec);
 
   len = disc_rfi_get_stanza(&meta_buf[0], sizeof(meta_buf), p_file);
   if (len < 5) {
@@ -100,6 +90,7 @@ disc_rfi_load(struct disc_struct* p_disc,
   rate_divider = (rate / 1000000.0);
 
   p_rfi_data = util_malloc(k_max_rfi_track_size);
+  p_pulses = util_malloc(k_max_rfi_track_size * 4);
 
   for (i = 0; i < tracks; ++i) {
     uint32_t i_sides;
@@ -108,14 +99,13 @@ disc_rfi_load(struct disc_struct* p_disc,
       int level;
       uint32_t ticks_pos;
       uint32_t last_ticks_pulse_pos;
-      uint32_t ticks_rev;
-      uint32_t ticks_start;
-      uint32_t ticks_end;
+      uint32_t ticks_per_rev;
+      uint32_t num_pulses;
+      uint32_t curr_rev;
       float rpm = 0.0;
       uint32_t track = 0;
       uint32_t side = 0;
       uint32_t data_len = 0;
-      uint32_t track_rev = rev;
 
       len = disc_rfi_get_stanza(&meta_buf[0], sizeof(meta_buf), p_file);
       if (len == 0) {
@@ -158,24 +148,16 @@ disc_rfi_load(struct disc_struct* p_disc,
         util_bail("RFI track data EOF");
       }
 
-      if (i < num_rev_spec_tracks) {
-        char val = p_rev_spec[i];
-        if ((val >= '0') && (val <= '2')) {
-          track_rev = (val - '0');
-        }
-      }
-
-      disc_build_track(p_disc, i_sides, i);
-
-      ticks_rev = (rate * (1.0 / (rpm / 60.0)));
-      ticks_start = (ticks_rev * track_rev);
-      ticks_end = (ticks_start + ticks_rev);
+      ticks_per_rev = (rate * (1.0 / (rpm / 60.0)));
 
       ticks_pos = 0;
-      last_ticks_pulse_pos = ticks_start;
+      last_ticks_pulse_pos = 0;
       level = 0;
       j = 0;
+      num_pulses = 0;
+      curr_rev = 0;
       while (j < data_len) {
+        uint32_t ticks_rev;
         uint32_t data = p_rfi_data[j];
         j++;
         if (data == 0xFF) {
@@ -188,41 +170,33 @@ disc_rfi_load(struct disc_struct* p_disc,
           j += 2;
         }
         ticks_pos += data;
-        if (ticks_pos < ticks_start) {
-          continue;
+        ticks_rev = (ticks_pos / ticks_per_rev);
+        if (ticks_rev != curr_rev) {
+          disc_build_track_from_pulses(p_disc,
+                                       curr_rev,
+                                       i_sides,
+                                       i,
+                                       p_pulses,
+                                       num_pulses);
+          num_pulses = 0;
+          curr_rev = ticks_rev;
         }
-        if (ticks_pos >= ticks_end) {
-          break;
-        }
+
         level = !level;
         if (level) {
           float delta_us = (ticks_pos - last_ticks_pulse_pos);
           delta_us /= rate_divider;
-          if (log_iffy_pulses) {
-            if (!ibm_disc_format_check_pulse(delta_us, !quantize_fm)) {
-              log_do_log(k_log_disc,
-                         k_log_info,
-                         "side %d track %d pos %d dpos %d iffy pulse %f (%s)",
-                         i_sides,
-                         i,
-                         ticks_pos,
-                         j,
-                         delta_us,
-                         (quantize_fm ? "fm" : "mfm"));
-            }
-          }
-          if (!disc_build_append_pulse_delta(p_disc, delta_us, !quantize_fm)) {
-            log_do_log(k_log_disc, k_log_warning, "RFI truncating track %d", i);
-          }
+          p_pulses[num_pulses] = delta_us;
+          num_pulses++;
           last_ticks_pulse_pos = ticks_pos;
         }
       }
       if (j == data_len) {
         log_do_log(k_log_disc, k_log_warning, "RFI data ran out track %d", i);
       }
-      disc_build_set_track_length(p_disc);
     } /* End of sides loop. */
   } /* End of track loop. */
 
   util_free(p_rfi_data);
+  util_free(p_pulses);
 }
