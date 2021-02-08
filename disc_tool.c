@@ -64,6 +64,11 @@ void
 disc_tool_set_track(struct disc_tool_struct* p_tool, uint32_t track) {
   p_tool->track = track;
   p_tool->num_sectors = 0;
+  p_tool->track_length = 0;
+  if (p_tool->p_disc == NULL) {
+    return;
+  }
+
   p_tool->track_length = disc_get_track_length(p_tool->p_disc,
                                                p_tool->is_side_upper,
                                                p_tool->track);
@@ -101,12 +106,13 @@ disc_tool_read_pulses(struct disc_tool_struct* p_tool) {
   uint32_t pos = p_tool->pos;
   uint32_t pulses_pos = (pos / 32);
   uint32_t bit_pos = (pos % 32);
-  uint32_t source_pulses = p_pulses[pulses_pos];
+  uint32_t source_pulses;
 
   if (p_pulses == NULL) {
     return 0;
   }
 
+  source_pulses = p_pulses[pulses_pos];
   pulses = (source_pulses << bit_pos);
   if (pulses_pos == p_tool->track_length) {
     pulses_pos = 0;
