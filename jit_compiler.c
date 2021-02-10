@@ -19,14 +19,15 @@
 #include <string.h>
 
 enum {
-  k_opcode_history_length = 4,
+  k_opcode_history_length = 8,
 };
 
 struct jit_compile_history {
   uint64_t times[k_opcode_history_length];
   int32_t opcodes[k_opcode_history_length];
+  uint8_t was_self_modified[k_opcode_history_length];
   uint32_t ring_buffer_index;
-  uint16_t opcode;
+  int32_t opcode;
 };
 
 struct jit_compiler {
@@ -1461,14 +1462,10 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
                          int32_t opcode_6502,
                          int is_self_modified,
                          uint64_t ticks) {
-  struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
   uint32_t ring_buffer_index;
+  struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
 
   p_history->opcode = opcode_6502;
-
-  if (!is_self_modified) {
-    return;
-  }
 
   ring_buffer_index = p_history->ring_buffer_index;
 
@@ -1480,56 +1477,74 @@ jit_compiler_add_history(struct jit_compiler* p_compiler,
   p_history->ring_buffer_index = ring_buffer_index;
   p_history->opcodes[ring_buffer_index] = opcode_6502;
   p_history->times[ring_buffer_index] = ticks;
+  p_history->was_self_modified[ring_buffer_index] = is_self_modified;
 }
 
-static int
-jit_compiler_emit_dynamic_opcode(struct jit_compiler* p_compiler,
-                                 int32_t* p_opcode,
-                                 struct jit_opcode_details* p_details) {
+static inline void
+jit_compiler_get_dynamic_history(struct jit_compiler* p_compiler,
+                                 uint32_t* p_new_opcode_count,
+                                 uint32_t* p_new_opcode_invalidate_count,
+                                 uint32_t* p_any_opcode_count,
+                                 uint32_t* p_any_opcode_invalidate_count,
+                                 uint8_t new_opcode,
+                                 uint16_t addr_6502,
+                                 int is_self_modify_invalidated) {
   uint32_t i;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
-  uint16_t addr_6502 = p_details->addr_6502;
   struct jit_compile_history* p_history = &p_compiler->history[addr_6502];
   uint32_t index = p_history->ring_buffer_index;
-  int32_t opcode = p_details->opcode_6502;
-  uint32_t count = 0;
-  uint32_t count_needed = p_compiler->dynamic_trigger;
+  int had_opcode_mismatch = 0;
 
-  if (count_needed > k_opcode_history_length) {
-    count_needed = k_opcode_history_length;
-  }
-  if (p_details->self_modify_invalidated && (opcode == p_history->opcode)) {
-    count++;
-  }
+  uint32_t new_opcode_count = 0;
+  uint32_t new_opcode_invalidate_count = 0;
+  uint32_t any_opcode_count = 0;
+  uint32_t any_opcode_invalidate_count = 0;
 
   for (i = 0; i < k_opcode_history_length; ++i) {
+    int was_self_modified;
+    int32_t old_opcode = p_history->opcodes[index];
     /* Stop counting if we run out of opcodes. */
-    if (p_history->opcodes[index] == -1) {
+    if (old_opcode == -1) {
       break;
     }
     /* Stop counting if the events are over a second old. */
     if ((ticks - p_history->times[index]) > 200000000) {
       break;
     }
-    /* Switch from dynamic operand to dynamic opcode if the opcode differs. */
-    /* Stop counting if we run out of opcodes, or the opcode differs. */
-    if (p_history->opcodes[index] != opcode) {
-      opcode = -1;
+    /* Switch from dynamic operand to dynamic opcode counting if the opcode
+     * differs.
+     */
+    if (old_opcode != (int) new_opcode) {
+      had_opcode_mismatch = 1;
     }
+
+    was_self_modified = p_history->was_self_modified[index];
+    if ((i == 0) && is_self_modify_invalidated && !had_opcode_mismatch) {
+      new_opcode_invalidate_count++;
+    }
+
+    if (!had_opcode_mismatch) {
+      new_opcode_count++;
+      if (was_self_modified) {
+        new_opcode_invalidate_count++;
+      }
+    }
+    any_opcode_count++;
+    if (was_self_modified) {
+      any_opcode_invalidate_count++;
+    }
+
     if (index == 0) {
       index = (k_opcode_history_length - 1);
     } else {
       index--;
     }
-    count++;
   }
 
-  if (count < count_needed) {
-    return 0;
-  }
-
-  *p_opcode = opcode;
-  return 1;
+  *p_new_opcode_count = new_opcode_count;
+  *p_new_opcode_invalidate_count = new_opcode_invalidate_count;
+  *p_any_opcode_count = any_opcode_count;
+  *p_any_opcode_invalidate_count = any_opcode_invalidate_count;
 }
 
 static void
@@ -1846,7 +1861,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
   /* Second, work out if we'll be compiling any dynamic opcodes / operands. */
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    int32_t dynamic_opcode;
+    int is_self_modify_invalidated = 0;
+    int is_dynamic_operand_match = 0;
+    uint8_t opcode_6502;
+    uint32_t new_opcode_count;
+    uint32_t new_opcode_invalidate_count;
+    uint32_t any_opcode_count;
+    uint32_t any_opcode_invalidate_count;
+
     p_details = &opcode_details[i_opcodes];
 
     /* Skip internal opcodes. */
@@ -1859,17 +1881,28 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * later.
      */
     addr_6502 = p_details->addr_6502;
+    opcode_6502 = p_details->opcode_6502;
     if (jit_has_invalidated_code(p_compiler, addr_6502)) {
+      is_self_modify_invalidated = 1;
       p_details->self_modify_invalidated = 1;
     }
 
-    if (!jit_compiler_emit_dynamic_opcode(p_compiler,
-                                          &dynamic_opcode,
-                                          p_details)) {
-      continue;
-    }
+    jit_compiler_get_dynamic_history(p_compiler,
+                                     &new_opcode_count,
+                                     &new_opcode_invalidate_count,
+                                     &any_opcode_count,
+                                     &any_opcode_invalidate_count,
+                                     opcode_6502,
+                                     addr_6502,
+                                     is_self_modify_invalidated);
 
-    if (!p_compiler->option_no_dynamic_operand && (dynamic_opcode != -1)) {
+    if (!p_compiler->option_no_dynamic_operand &&
+        (new_opcode_invalidate_count >= p_compiler->dynamic_trigger)) {
+      is_dynamic_operand_match = 1;
+      /* This can be a no-op if we don't support dynamic operands with this
+       * particular opcode. In such a case, we'll fall through and potentially
+       * make the entire opcode dynamic.
+       */
       jit_compiler_try_make_dynamic_opcode(p_details);
       if (p_details->is_dynamic_operand) {
         if (p_compiler->log_dynamic) {
@@ -1877,32 +1910,37 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                      k_log_info,
                      "compiling dynamic operand at $%.4X (opcode $%.2X)",
                      addr_6502,
-                     dynamic_opcode);
+                     opcode_6502);
         }
         continue;
       }
     }
-    if (!p_compiler->option_no_dynamic_opcode) {
-      if (p_compiler->log_dynamic) {
-        log_do_log(k_log_jit,
-                   k_log_info,
-                   "compiling dynamic opcode at $%.4X (current opcode $%.2X)",
-                   addr_6502,
-                   p_details->opcode_6502);
-      }
-      jit_opcode_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
-      p_details->num_uops = 1;
-      p_details->ends_block = 1;
-      p_details->is_dynamic_opcode = 1;
-      p_details->is_dynamic_operand = 1;
-      /* The dyanmic opcode doesn't directly consume 6502 cycles itself -- the
-       * mechanics of that are internal to the inturbo machine.
-       */
-      p_details->max_cycles_orig = 0;
-      p_details->max_cycles_merged = 0;
-      total_num_opcodes = (i_opcodes + 1);
-      break;
+    if (p_compiler->option_no_dynamic_opcode) {
+      continue;
     }
+    if ((any_opcode_invalidate_count < p_compiler->dynamic_trigger) &&
+        !is_dynamic_operand_match) {
+      continue;
+    }
+    if (p_compiler->log_dynamic) {
+      log_do_log(k_log_jit,
+                 k_log_info,
+                 "compiling dynamic opcode at $%.4X (current opcode $%.2X)",
+                 addr_6502,
+                 opcode_6502);
+    }
+    jit_opcode_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
+    p_details->num_uops = 1;
+    p_details->ends_block = 1;
+    p_details->is_dynamic_opcode = 1;
+    p_details->is_dynamic_operand = 1;
+    /* The dyanmic opcode doesn't directly consume 6502 cycles itself -- the
+     * mechanics of that are internal to the inturbo machine.
+     */
+    p_details->max_cycles_orig = 0;
+    p_details->max_cycles_merged = 0;
+    total_num_opcodes = (i_opcodes + 1);
+    break;
   }
 
   /* Third, walk the opcode list and calculate cycle counts. */
@@ -2271,6 +2309,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     for (j = 0; j < k_opcode_history_length; ++j) {
       p_compiler->history[i].times[j] = 0;
       p_compiler->history[i].opcodes[j] = -1;
+      p_compiler->history[i].was_self_modified[j] = 0;
     }
     p_compiler->history[i].ring_buffer_index = 0;
     p_compiler->history[i].opcode = -1;
