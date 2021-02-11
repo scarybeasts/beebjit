@@ -601,6 +601,26 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
   (void) printf("\n");
 }
 
+static void
+debug_dump_bbc(struct bbc_struct* p_bbc) {
+  uint32_t i;
+  uint8_t ula_palette[16];
+  struct video_struct* p_video = bbc_get_video(p_bbc);
+  uint8_t ula_ctrl = video_get_ula_control(p_video);
+  video_get_ula_full_palette(p_video, &ula_palette[0]);
+  
+  (void) printf("ROMSEL $%.2X ACCCON $%.2X IC32 $%.2X\n",
+                bbc_get_romsel(p_bbc),
+                bbc_get_acccon(p_bbc),
+                bbc_get_IC32(p_bbc));
+  (void) printf("ULA control $%.2X\n", ula_ctrl);
+  (void) printf("ULA palette ");
+  for (i = 0; i < 16; ++i) {
+    (void) printf("$%.2X ", ula_palette[i]);
+  }
+  printf("\n");
+}
+
 static struct debug_breakpoint*
 debug_get_free_breakpoint(struct debug_struct* p_debug) {
   uint32_t i;
@@ -1601,10 +1621,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(input_buf, "crtc")) {
       debug_dump_crtc(p_bbc);
     } else if (!strcmp(input_buf, "bbc")) {
-      (void) printf("ROMSEL $%.2X ACCCON $%.2X IC32 $%.2X\n",
-                    bbc_get_romsel(p_bbc),
-                    bbc_get_acccon(p_bbc),
-                    bbc_get_IC32(p_bbc));
+      debug_dump_bbc(p_bbc);
     } else if (!strcmp(input_buf, "r")) {
       struct timing_struct* p_timing = bbc_get_timing(p_bbc);
       uint64_t countdown = timing_get_countdown(p_timing);
