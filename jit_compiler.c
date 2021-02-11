@@ -1851,7 +1851,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_compiler->addr_is_block_continuation[addr_6502] =
       is_next_block_continuation;
 
+  /* If the block didn't end with an explicit jump, put it in. */
   if (!block_ended) {
+    assert(total_num_opcodes < k_max_opcodes_per_compile);
     p_details = &opcode_details[total_num_opcodes];
     total_num_opcodes++;
     /* JMP abs */
@@ -1864,6 +1866,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     int is_self_modify_invalidated = 0;
     int is_dynamic_operand_match = 0;
     uint8_t opcode_6502;
+    uint32_t opcode_6502_len;
     uint32_t new_opcode_count;
     uint32_t new_opcode_invalidate_count;
     uint32_t any_opcode_count;
@@ -1872,7 +1875,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details = &opcode_details[i_opcodes];
 
     /* Skip internal opcodes. */
-    if (p_details->len_bytes_6502_orig == 0) {
+    opcode_6502_len = p_details->len_bytes_6502_orig;
+    if (opcode_6502_len == 0) {
       continue;
     }
 
@@ -1895,6 +1899,42 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                                      opcode_6502,
                                      addr_6502,
                                      is_self_modify_invalidated);
+
+    /* Check if this is a sub-instruction situation. This is where a clever
+     * 6502 programmer jumps in to the middle of an opcode as an optimization.
+     * Exile uses it a lot; you'll also find it in Thrust, Galaforce 2.
+     */
+    if ((new_opcode_invalidate_count == 0) &&
+        (new_opcode_count >= p_compiler->dynamic_trigger) &&
+        (opcode_6502_len > 1)) {
+      uint32_t next_new_opcode_count;
+      uint32_t next_new_opcode_invalidate_count;
+      uint32_t next_any_opcode_count;
+      uint32_t next_any_opcode_invalidate_count;
+      uint16_t next_addr_6502 = (addr_6502 + 1);
+      uint8_t next_opcode_6502 = p_compiler->p_mem_read[next_addr_6502];
+      uint8_t next_opmode = p_compiler->p_opcode_modes[next_opcode_6502];
+      uint32_t next_opcode_6502_len = g_opmodelens[next_opmode];
+
+      jit_compiler_get_dynamic_history(p_compiler,
+                                       &next_new_opcode_count,
+                                       &next_new_opcode_invalidate_count,
+                                       &next_any_opcode_count,
+                                       &next_any_opcode_invalidate_count,
+                                       next_opcode_6502,
+                                       next_addr_6502,
+                                       0);
+      if ((next_new_opcode_invalidate_count == 0) &&
+          (next_new_opcode_count >= p_compiler->dynamic_trigger) &&
+          (next_opcode_6502_len == (opcode_6502_len - 1))) {
+        if (p_compiler->log_dynamic) {
+          log_do_log(k_log_jit,
+                     k_log_info,
+                     "sub-instruction detected at $%.4X",
+                     addr_6502);
+        }
+      }
+    }
 
     if (!p_compiler->option_no_dynamic_operand &&
         (new_opcode_invalidate_count >= p_compiler->dynamic_trigger)) {
@@ -2195,7 +2235,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
           p_compiler->p_jit_ptrs[addr_6502] =
               p_compiler->jit_ptr_dynamic_operand;
         }
-        jit_compiler_add_history(p_compiler, addr_6502, -1, 0, ticks);
         p_compiler->addr_cycles_fixup[addr_6502] = -1;
       }
 
