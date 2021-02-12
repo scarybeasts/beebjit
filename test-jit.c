@@ -71,6 +71,7 @@ jit_test_init(struct bbc_struct* p_bbc) {
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
   jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
+  jit_compiler_testing_set_sub_instruction(s_p_compiler, 0);
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
 }
@@ -713,6 +714,41 @@ jit_test_dynamic_opcode_3() {
   util_buffer_destroy(p_buf);
 }
 
+static void
+jit_test_sub_instruction() {
+  uint64_t num_compiles;
+  struct util_buffer* p_buf = util_buffer_create();
+
+  /* Trigger a recompile situation with sub-instruction jumps. */
+  util_buffer_setup(p_buf, (s_p_mem + 0x1D00), 0x100);
+  emit_LDA(p_buf, k_imm, 0x04);
+  emit_BIT(p_buf, k_abs, 0x00A9);
+  emit_EXIT(p_buf);
+
+  state_6502_set_pc(s_p_state_6502, 0x1D00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0x1D03);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0x1D00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  num_compiles = s_p_jit->counter_num_compiles;
+
+  state_6502_set_pc(s_p_state_6502, 0x1D03);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  state_6502_set_pc(s_p_state_6502, 0x1D00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+
+  test_expect_u32(num_compiles, s_p_jit->counter_num_compiles);
+
+  util_buffer_destroy(p_buf);
+}
+
 void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
@@ -742,4 +778,8 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_test_dynamic_opcode_3();
   jit_compiler_testing_set_dynamic_opcode(s_p_compiler, 0);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
+
+  jit_compiler_testing_set_sub_instruction(s_p_compiler, 1);
+  jit_test_sub_instruction();
+  jit_compiler_testing_set_sub_instruction(s_p_compiler, 0);
 }

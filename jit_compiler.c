@@ -50,6 +50,7 @@ struct jit_compiler {
   int option_no_optimize;
   int option_no_dynamic_operand;
   int option_no_dynamic_opcode;
+  int option_no_sub_instruction;
   uint32_t max_6502_opcodes_per_block;
   uint32_t dynamic_trigger;
 
@@ -178,6 +179,8 @@ jit_compiler_create(struct timing_struct* p_timing,
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-operand");
   p_compiler->option_no_dynamic_opcode =
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
+  p_compiler->option_no_sub_instruction =
+      util_has_option(p_options->p_opt_flags, "jit:no-sub-instruction");
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -1742,6 +1745,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   uint32_t i_opcodes;
   uint32_t i_uops;
   uint16_t addr_6502;
+  uint16_t post_block_addr_6502;
   uint32_t cycles;
   struct jit_opcode_details* p_details;
   struct jit_opcode_details* p_details_fixup;
@@ -1759,6 +1763,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   int block_ended = 0;
   int is_block_start = 0;
   int is_next_block_continuation = 0;
+  int32_t sub_instruction_addr_6502 = -1;
 
   if (p_compiler->addr_is_block_start[start_addr_6502]) {
     /* Retain any existing block start determination. */
@@ -1778,18 +1783,17 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    */
 
   /* Prepend opcodes at the start of every block. */
-  addr_6502 = start_addr_6502;
   /* 1) Every block starts with a countdown check. */
   p_details = &opcode_details[total_num_opcodes];
   jit_opcode_make_internal_opcode1(p_details,
-                                   addr_6502,
+                                   start_addr_6502,
                                    k_opcode_countdown,
-                                   addr_6502);
+                                   start_addr_6502);
   p_details->cycles_run_start = 0;
   total_num_opcodes++;
   /* 2) An unused opcode for the optimizer to use if it wants. */
   p_details = &opcode_details[total_num_opcodes];
-  jit_opcode_make_internal_opcode1(p_details, addr_6502, 0xEA, 0);
+  jit_opcode_make_internal_opcode1(p_details, start_addr_6502, 0xEA, 0);
   p_details->eliminated = 1;
   total_num_opcodes++;
 
@@ -1797,6 +1801,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * This defines maximum possible bounds for the block and respects existing
    * known block boundaries.
    */
+  addr_6502 = start_addr_6502;
   while (1) {
     p_details = &opcode_details[total_num_opcodes];
 
@@ -1848,18 +1853,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   assert(addr_6502 > start_addr_6502);
+  post_block_addr_6502 = addr_6502;
   p_compiler->addr_is_block_continuation[addr_6502] =
       is_next_block_continuation;
-
-  /* If the block didn't end with an explicit jump, put it in. */
-  if (!block_ended) {
-    assert(total_num_opcodes < k_max_opcodes_per_compile);
-    p_details = &opcode_details[total_num_opcodes];
-    total_num_opcodes++;
-    /* JMP abs */
-    jit_opcode_make_internal_opcode1(p_details, addr_6502, 0x4C, addr_6502);
-    p_details->ends_block = 1;
-  }
 
   /* Second, work out if we'll be compiling any dynamic opcodes / operands. */
   for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
@@ -1904,7 +1900,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      * 6502 programmer jumps in to the middle of an opcode as an optimization.
      * Exile uses it a lot; you'll also find it in Thrust, Galaforce 2.
      */
-    if ((new_opcode_invalidate_count == 0) &&
+    if (!p_compiler->option_no_sub_instruction &&
+        (new_opcode_invalidate_count == 0) &&
         (new_opcode_count >= p_compiler->dynamic_trigger) &&
         (opcode_6502_len > 1)) {
       uint32_t next_new_opcode_count;
@@ -1930,9 +1927,14 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         if (p_compiler->log_dynamic) {
           log_do_log(k_log_jit,
                      k_log_info,
-                     "sub-instruction detected at $%.4X",
+                     "compiling sub-instruction at $%.4X",
                      addr_6502);
         }
+        sub_instruction_addr_6502 = next_addr_6502;
+        total_num_opcodes = (i_opcodes + 1);
+        block_ended = 0;
+        post_block_addr_6502 = (addr_6502 + opcode_6502_len);
+        break;
       }
     }
 
@@ -1980,7 +1982,21 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->max_cycles_orig = 0;
     p_details->max_cycles_merged = 0;
     total_num_opcodes = (i_opcodes + 1);
+    block_ended = 1;
     break;
+  }
+
+  /* If the block didn't end with an explicit jump, put it in. */
+  if (!block_ended) {
+    assert(total_num_opcodes < k_max_opcodes_per_compile);
+    p_details = &opcode_details[total_num_opcodes];
+    total_num_opcodes++;
+    /* JMP abs */
+    jit_opcode_make_internal_opcode1(p_details,
+                                     post_block_addr_6502,
+                                     0x4C,
+                                     post_block_addr_6502);
+    p_details->ends_block = 1;
   }
 
   /* Third, walk the opcode list and calculate cycle counts. */
@@ -2243,6 +2259,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     cycles -= p_details->max_cycles_merged;
   }
 
+  if (sub_instruction_addr_6502 != -1) {
+    p_host_address_base =
+        p_compiler->get_block_host_address(p_compiler->p_host_address_object,
+                                           sub_instruction_addr_6502);
+    util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
+    jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
+    jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
+  }
+
   return (addr_6502 - start_addr_6502);
 }
 
@@ -2400,6 +2425,12 @@ void
 jit_compiler_testing_set_dynamic_opcode(struct jit_compiler* p_compiler,
                                         int is_dynamic_opcode) {
   p_compiler->option_no_dynamic_opcode = !is_dynamic_opcode;
+}
+
+void
+jit_compiler_testing_set_sub_instruction(struct jit_compiler* p_compiler,
+                                         int is_sub_instruction) {
+  p_compiler->option_no_sub_instruction = !is_sub_instruction;
 }
 
 void

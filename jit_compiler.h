@@ -54,6 +54,8 @@ void jit_compiler_testing_set_dynamic_operand(struct jit_compiler* p_compiler,
                                               int is_dynamic_operand);
 void jit_compiler_testing_set_dynamic_opcode(struct jit_compiler* p_compiler,
                                              int is_dynamic_opcode);
+void jit_compiler_testing_set_sub_instruction(struct jit_compiler* p_compiler,
+                                              int is_sub_instruction);
 void jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
                                       uint32_t num_ops);
 void jit_compiler_testing_set_dynamic_trigger(
