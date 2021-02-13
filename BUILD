@@ -24,3 +24,5 @@ system headers (including X11 and ALSA) but nothing exotic.
 
 To get ALSA headers on Debian/Ubuntu: sudo apt install libasound2-dev
 To get ALSA headers on Fedora: sudo dnf install alsa-lib-devel
+
+To get Pulse on Debian/Ubuntu: sudo apt-get install libpulse-dev
