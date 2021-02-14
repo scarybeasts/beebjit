@@ -1,4 +1,5 @@
 #include "util.h"
+#include "os_file.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -58,12 +59,25 @@ util_strdup2(const char* p_str1, const char* p_str2) {
     util_bail("integer overflow");
   }
 
-  p_ret = malloc(len + 1);
+  p_ret = util_malloc(len + 1);
   (void) memcpy(p_ret, p_str1, len1);
   (void) memcpy((p_ret + len1), p_str2, len2);
   p_ret[len] = '\0';
 
   return p_ret;
+}
+
+char*
+util_strndup(const char *s, size_t n) {
+    char *p;
+    size_t n1;
+
+    for (n1 = 0; n1 < n && s[n1] != '\0'; n1++)
+        continue;
+    p = util_malloc(n1 + 1);
+    memcpy(p, s, n1);
+    p[n1] = '\0';
+    return p;
 }
 
 struct util_buffer {
@@ -269,10 +283,10 @@ util_file_name_split(char** p_file_name_base,
   size_t len;
   const char* p_sep = NULL;
   const char* p_str = p_full_file_name;
+  char separator_char = os_file_get_separator_char();
 
-  /* TODO: respect Windows separator? */
   while (*p_str != '\0') {
-    if (*p_str == '/') {
+    if (*p_str == separator_char) {
       p_sep = p_str;
     }
     p_str++;
@@ -284,7 +298,7 @@ util_file_name_split(char** p_file_name_base,
   }
 
   len = (p_sep - p_full_file_name);
-  *p_file_name_base = strndup(p_full_file_name, len);
+  *p_file_name_base = util_strndup(p_full_file_name, len);
   *p_file_name = strdup(p_sep + 1);
 }
 
@@ -296,11 +310,11 @@ util_file_name_join(const char* p_file_name_base, const char* p_file_name) {
     return strdup(p_file_name);
   }
 
-  /* TODO: respect Windows separator? */
   (void) snprintf(file_name_buf,
                   sizeof(file_name_buf),
-                  "%s/%s",
+                  "%s%c%s",
                   p_file_name_base,
+                  os_file_get_separator_char(),
                   p_file_name);
   return strdup(&file_name_buf[0]);
 }

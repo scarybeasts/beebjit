@@ -4,6 +4,7 @@
 #include "keyboard.h"
 #include "log.h"
 #include "os_channel.h"
+#include "os_file.h"
 #include "os_poller.h"
 #include "os_sound.h"
 #include "os_terminal.h"
@@ -59,7 +60,6 @@ main_save_frame(const char* p_frames_dir,
 int
 main(int argc, const char* argv[]) {
   int i_args;
-  size_t read_ret;
   uint8_t os_rom[k_bbc_rom_size];
   uint8_t load_rom[k_bbc_rom_size];
   uint32_t i;
@@ -130,9 +130,13 @@ main(int argc, const char* argv[]) {
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
   int is_exit_on_max_frames_flag = 0;
+  char* executable_path = NULL;
+  char* rom_full_name = NULL;
 
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
+
+  executable_path = os_file_get_executable_path();
 
   for (i_args = 1; i_args < argc; ++i_args) {
     const char* arg = argv[i_args];
@@ -375,10 +379,12 @@ main(int argc, const char* argv[]) {
   (void) memset(os_rom, '\0', k_bbc_rom_size);
   (void) memset(load_rom, '\0', k_bbc_rom_size);
 
-  read_ret = util_file_read_fully(os_rom_name, os_rom, k_bbc_rom_size);
-  if (read_ret != k_bbc_rom_size) {
+  rom_full_name = util_file_name_join(executable_path, os_rom_name);
+  if (util_file_read_fully(rom_full_name, os_rom, k_bbc_rom_size) != k_bbc_rom_size) {
     util_bail("can't load OS rom");
   }
+  util_free(rom_full_name);
+  rom_full_name = NULL;
 
   if (terminal_flag) {
     /* If we're in terminal mode and it appears to be an OS v1.2 MOS ROM,
@@ -468,13 +474,19 @@ main(int argc, const char* argv[]) {
     const char* p_rom_name = rom_names[i];
     if (p_rom_name != NULL) {
       (void) memset(load_rom, '\0', k_bbc_rom_size);
-      (void) util_file_read_fully(p_rom_name, load_rom, k_bbc_rom_size);
+	  rom_full_name = util_file_name_join(executable_path, p_rom_name);
+      (void) util_file_read_fully(rom_full_name, load_rom, k_bbc_rom_size);
+	  util_free(rom_full_name);
+	  rom_full_name = NULL;
       bbc_load_rom(p_bbc, i, load_rom);
     }
     if (sideways_ram[i]) {
       bbc_make_sideways_ram(p_bbc, i);
     }
   }
+
+  util_free(executable_path);
+  executable_path = NULL;
 
   if (load_name != NULL) {
     state_load(p_bbc, load_name);
