@@ -284,7 +284,8 @@ util_file_name_split(char** p_file_name_base,
   }
 
   len = (p_sep - p_full_file_name);
-  *p_file_name_base = strndup(p_full_file_name, len);
+  *p_file_name_base = util_malloc(len + 1);
+  (void) snprintf(*p_file_name_base, (len + 1), "%s", p_full_file_name);
   *p_file_name = strdup(p_sep + 1);
 }
 
