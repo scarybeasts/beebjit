@@ -3,6 +3,7 @@
 # NOTE: -gdwarf-2 needed for my version of wine to recognize the symbols.
 
 x86_64-w64-mingw32-gcc -Wall -W -Werror \
+    -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -O3 -DNDEBUG -o beebjit.exe \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
