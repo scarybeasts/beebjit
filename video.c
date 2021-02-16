@@ -228,7 +228,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->had_vsync_this_row = 0;
   p_video->in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
-  p_video->do_dummy_raster = 0;
+  p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
