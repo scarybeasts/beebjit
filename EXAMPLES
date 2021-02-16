@@ -95,12 +95,12 @@ a particularly accurate emulation but for highly compatible beeb code which
 makes few timing assumptions, it works fine. For example, BASIC might be running
 on a 2MHz 6502, a 2MHz 65c12, a 3MHz 6502 co-processor, etc., so it is not
 picky.
-./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/perf/clocksp.ssd
+./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 test/perf/clocksp.ssd
 And then in the emulator:
 CH."CLOCKSP"
 
 Or you can combine this with the headless mode above:
-echo 'CH."CLOCKSP"' | ./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 ~/beebjit/test/perf/clocksp.ssd -terminal -headless
+echo 'CH."CLOCKSP"' | ./beebjit -fast -opt sound:off,bbc:cycles-per-run=10000000,video:no-vsync-wait-for-render,video:frames-skip=5 -0 test/perf/clocksp.ssd -terminal -headless
 
 Overall CLOCKSP is about 7GHz on my old slow laptop. I've seen individual tests
 hit 10GHz but that was before the Intel meltdown / spectre fiasco and
@@ -168,7 +168,7 @@ To improve the synchronization:
 
 
 13) Loading a ROM, and running something requiring E00 DFS.
-./beebjit -swram d -rom d ~/beebjit/roms/E00DFS090 -fast -opt sound:off -0 ~/beebjit/test/perf/pi.ssd -log perf:speed
+./beebjit -swram d -rom d roms/E00DFS090 -fast -opt sound:off -0 test/perf/pi.ssd -log perf:speed
 
 In the above command, the E00DFS090 file is loaded in to ROM slot hex 0xd, which
 overrides the default DFS ROM in that same slot. Furthermore, this ROM actually
