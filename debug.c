@@ -1362,6 +1362,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   oplen = g_opmodelens[opmode];
 
   p_tool = p_debug->p_tool;
+  disc_tool_set_disc(p_tool, disc_drive_get_disc(bbc_get_drive_0(p_bbc)));
 
   while (1) {
     size_t i;
