@@ -150,21 +150,27 @@ too hard?
 Type ? then Enter at the prompt to see some of the more common commands.
 
 
-12) Fixing flickering.
-beebjit doesn't synchronize 6502 memory writes with the video chip memory reads.
-Normally this works out fine. When it doesn't, execution is still accurate but
-rendering (display) can look off.
-Some examples of affected games include:
-a) Fortress (bad juddering).
-b) Repton (main sprite flickers during movement)
-[NOTE: when fixing this with the option below, the scrolling will change and
-develop artifacts at the edges of the screen, particularly the top of screen.
-This is faithful to a real beeb.]
-c) Rocket Raid (status bar at top wobbles a bit)
-[NOTE: when fixing this with the option below, the main spaceship sprite will
-become flickery. Again, this is faithful to a real beeb.]
-To improve the synchronization:
-./beebjit -0 ~/Downloads/Pace/Fortress.ssd -opt video:render-every-ticks=64
+12) Loading raw flux streams.
+beebjit loads SCP, KryoFlux RAW and DFI flux files.
+It's common to capture a flux file as double sided and 80 track, even for a
+surface with less data such as a single sided 40 track surface. There are
+options to skip the upper side, and the interim odd tracks to help load such
+files easily:
+./beebjit -0 ~/Downloads/Indoor_Sports_FDD15E11.scp -opt disc:skip-upper-side,disc:skip-odd-tracks
+
+When loading a raw flux file, it's nice to get a quick summary of the discbeast
+fingerprint and any protection:
+./beebjit -0 ~/Downloads/Elite_B88911B2_BF6048A8.scp -log disc:fingerprint,disc:protection
+
+You might also be loading a slightly iffy disc where the pulses aren't as
+fresh as they once were! For such a disc, where you know it is a standard
+beeb single density encoded disc, a more brutal quantization of pulses might
+get it loaded:
+-opt disc:quantize-fm
+or, perhaps try loading a different revloution of the disc, since these flux
+file formats often capture multiple disc revolutions per track:
+-opt disc:rev=1
+(the number is zero-based)
 
 
 13) Loading a ROM, and running something requiring E00 DFS.
@@ -182,6 +188,12 @@ The pi.ssd test will calculate more digits if it detects $0E00 PAGE!
 If you have a high DPI display and the BBC window is too small,
 you can try doubling the pixels (at a very small speed cost),
 ./beebjit -opt video:double-size
+Still on the theme of display related options, you can turn on interlaced
+rendering. beebjit will avoid rendering in a way that wobbles.
+./beebjit -opt video:no-deinterlace-teletext -opt video:no-deinterlace-bitmap
+And perhaps you'd like a smaller beebjit window, framed to the exact bounds of
+the typical modes?
+./beebjit -opt video:border-chars=0
 
 
 15) Using double density (MFM) DFS's to format to an HFE.
