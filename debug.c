@@ -1788,8 +1788,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "dwfm <...>         : write FM encoded data, up to 8 bytes\n"
   "dwfmc <d> <c>      : write one byte of FM encoded data, with given clocks\n"
   "dset <d>           : fill the track with FM encoded data <d>\n"
-  "dsecfm             : list sector headers of current track\n"
-  "drsec <n>          : dump sector in physical order <n> (do dsecfm first)\n"
+  "dsec               : list sector headers of current track\n"
+  "drsec <n>          : dump sector in physical order <n> (do dsec first)\n"
   );
     } else if (!strcmp(input_buf, "more")) {
       (void) printf(
