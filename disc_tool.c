@@ -260,6 +260,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
   int is_mfm = 0;
   uint32_t num_sectors = 0;
   uint64_t mark_detector = 0;
+  uint64_t mark_detector_prev = 0;
   uint32_t* p_pulses = disc_tool_get_pulses(p_tool);
   struct disc_struct* p_disc = p_tool->p_disc;
   struct disc_tool_sector* p_sector = NULL;
@@ -283,6 +284,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     if ((i_pulses & 31) == 0) {
       pulses = p_pulses[i_pulses / 32];
     }
+    mark_detector_prev <<= 1;
+    mark_detector_prev |= (mark_detector >> 63);
     mark_detector <<= 1;
     shift_register <<= 1;
     num_shifts++;
@@ -293,6 +296,8 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     pulses <<= 1;
 
     if ((mark_detector & 0xFFFFFFFF00000000) == 0x8888888800000000) {
+      uint32_t num_0s;
+      uint64_t mark_detector_prev_copy;
       /* Check byte for FM marker. */
       ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
       if (clocks != k_ibm_disc_mark_clock_pattern) {
@@ -300,6 +305,20 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       }
       is_mfm = 0;
       do_mfm_marker_byte = 0;
+      num_0s = 8;
+      mark_detector_prev_copy = mark_detector_prev;
+      while ((mark_detector_prev_copy & 0xF) == 0x8) {
+        num_0s++;
+        mark_detector_prev_copy >>= 4;
+      }
+      if (num_0s <= 16) {
+        log_do_log(k_log_disc,
+                   k_log_unusual,
+                   "short zeros sync side %d track %d: %d",
+                   p_tool->is_side_upper,
+                   p_tool->track,
+                   num_0s);
+      }
     } else if (mark_detector == 0xAAAA448944894489) {
       /* Next byte is MFM marker. */
       is_mfm = 1;
