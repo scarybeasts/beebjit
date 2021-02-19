@@ -27,6 +27,7 @@ uint16_t ibm_disc_format_crc_add_byte(uint16_t crc, uint8_t byte);
 uint32_t ibm_disc_format_fm_to_2us_pulses(uint8_t clocks, uint8_t data);
 void ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
                                       uint8_t* p_data,
+                                      int* p_is_iffy_pulse,
                                       uint32_t pulses);
 
 uint16_t ibm_disc_format_mfm_to_2us_pulses(int* p_last_mfm_bit, uint8_t byte);

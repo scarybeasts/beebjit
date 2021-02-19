@@ -60,10 +60,12 @@ ibm_disc_format_fm_to_2us_pulses(uint8_t clocks, uint8_t data) {
 void
 ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
                                  uint8_t* p_data,
+                                 int* p_is_iffy_pulse,
                                  uint32_t pulses) {
   uint32_t i;
   uint8_t clocks = 0;
   uint8_t data = 0;
+  int is_iffy_pulse = 0;
 
   /* This downsamples 2us resolution pulses into 4us FM pulses, splitting clocks
    * from data.
@@ -71,17 +73,21 @@ ibm_disc_format_2us_pulses_to_fm(uint8_t* p_clocks,
   for (i = 0; i < 8; ++i) {
     clocks <<= 1;
     data <<= 1;
-    if (pulses & 0xC0000000) {
+    if (pulses & 0x80000000) {
       clocks |= 1;
     }
-    if (pulses & 0x30000000) {
+    if (pulses & 0x20000000) {
       data |= 1;
+    }
+    if (pulses & 0x50000000) {
+      is_iffy_pulse = 1;
     }
     pulses <<= 4;
   }
 
   *p_clocks = clocks;
   *p_data = data;
+  *p_is_iffy_pulse = is_iffy_pulse;
 }
 
 uint16_t

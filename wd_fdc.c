@@ -1094,8 +1094,12 @@ wd_fdc_mark_detector_triggered(struct wd_fdc_struct* p_fdc) {
     if ((mark_detector & 0x0000FFFF00000000ull) == 0x0000888800000000ull) {
       uint8_t clocks;
       uint8_t data;
-      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
-      if (clocks == 0xC7) {
+      int is_iffy_pulse;
+      ibm_disc_format_2us_pulses_to_fm(&clocks,
+                                       &data,
+                                       &is_iffy_pulse,
+                                       mark_detector);
+      if (!is_iffy_pulse && (clocks == 0xC7)) {
         /* TODO: see http://info-coach.fr/atari/documents/_mydoc/WD1772-JLG.pdf
          * This suggests that a wider ranges of byte values will function as
          * markers. It may also differ FM vs. MFM.
@@ -1144,16 +1148,22 @@ wd_fdc_bit_received(struct wd_fdc_struct* p_fdc, int bit) {
   } else {
     if (p_fdc->data_shift_count == 32) {
       uint8_t unused_clocks;
+      int is_iffy_pulse;
+      ibm_disc_format_2us_pulses_to_fm(&unused_clocks,
+                                       &p_fdc->deliver_data,
+                                       &is_iffy_pulse,
+                                       data_shifter);
       /* If we're reading MFM as FM, the pulses won't all fall on 4us
        * boundaries. This is fuzzy bits. We'll return a non-stable read.
        */
-      if ((data_shifter & 0x55555555) && (data_shifter & 0xAAAAAAAA)) {
+      if (is_iffy_pulse) {
         struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
         data_shifter = disc_drive_get_quasi_random_pulses(p_current_drive);
+        ibm_disc_format_2us_pulses_to_fm(&unused_clocks,
+                                         &p_fdc->deliver_data,
+                                         &is_iffy_pulse,
+                                         data_shifter);
       }
-      ibm_disc_format_2us_pulses_to_fm(&unused_clocks,
-                                       &p_fdc->deliver_data,
-                                       data_shifter);
       p_fdc->data_shifter = 0;
       p_fdc->data_shift_count = 0;
     }

@@ -133,21 +133,29 @@ void
 disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
                        uint8_t* p_clocks,
                        uint8_t* p_data,
+                       int* p_is_iffy_pulse,
                        uint32_t len) {
   uint32_t i;
+  int is_iffy_pulse = 0;
 
   for (i = 0; i < len; ++i) {
     uint8_t clocks;
     uint8_t data;
+    int is_this_iffy_pulse;
     uint32_t pulses = disc_tool_read_pulses(p_tool);
-    ibm_disc_format_2us_pulses_to_fm(&clocks, &data, pulses);
+    ibm_disc_format_2us_pulses_to_fm(&clocks,
+                                     &data,
+                                     &is_this_iffy_pulse,
+                                     pulses);
     if (p_clocks != NULL) {
       p_clocks[i] = clocks;
     }
     if (p_data != NULL) {
       p_data[i] = data;
     }
+    is_iffy_pulse |= is_this_iffy_pulse;
   }
+  *p_is_iffy_pulse = is_iffy_pulse;
 }
 
 void
@@ -298,9 +306,13 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     if ((mark_detector & 0xFFFFFFFF00000000) == 0x8888888800000000) {
       uint32_t num_0s;
       uint64_t mark_detector_prev_copy;
+      int is_iffy_pulse;
       /* Check byte for FM marker. */
-      ibm_disc_format_2us_pulses_to_fm(&clocks, &data, mark_detector);
-      if (clocks != k_ibm_disc_mark_clock_pattern) {
+      ibm_disc_format_2us_pulses_to_fm(&clocks,
+                                       &data,
+                                       &is_iffy_pulse,
+                                       mark_detector);
+      if (is_iffy_pulse || (clocks != k_ibm_disc_mark_clock_pattern)) {
         continue;
       }
       is_mfm = 0;
@@ -392,8 +404,20 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       pulses_per_byte = 16;
       disc_tool_read_mfm_data(p_tool, &p_sector->header_bytes[0], 6);
     } else {
+      int is_iffy_pulse;
       pulses_per_byte = 32;
-      disc_tool_read_fm_data(p_tool, NULL, &p_sector->header_bytes[0], 6);
+      disc_tool_read_fm_data(p_tool,
+                             NULL,
+                             &p_sector->header_bytes[0],
+                             &is_iffy_pulse,
+                             6);
+      if (is_iffy_pulse) {
+        log_do_log(k_log_disc,
+                   k_log_unusual,
+                   "iffy pulse in sector header side %d track %d",
+                   p_tool->is_side_upper,
+                   p_tool->track);
+      }
     }
     crc = ibm_disc_format_crc_init(0);
     if (p_sector->is_mfm) {
@@ -460,10 +484,19 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       if (p_sector->is_mfm) {
         disc_tool_read_mfm_data(p_tool, &sector_data[0], (sector_size + 2));
       } else {
+        int is_iffy_pulse;
         disc_tool_read_fm_data(p_tool,
                                NULL,
                                &sector_data[0],
+                               &is_iffy_pulse,
                                (sector_size + 2));
+        if (is_iffy_pulse) {
+          log_do_log(k_log_disc,
+                     k_log_unusual,
+                     "iffy pulse in sector data side %d track %d",
+                     p_tool->is_side_upper,
+                     p_tool->track);
+        }
       }
       crc = disc_tool_crc_add_run(crc, &sector_data[0], sector_size);
       disc_crc = (sector_data[sector_size] << 8);
@@ -521,7 +554,8 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
   if (p_sector->is_mfm) {
     disc_tool_read_mfm_data(p_tool, p_data, byte_length);
   } else {
-    disc_tool_read_fm_data(p_tool, NULL, p_data, byte_length);
+    int is_iffy_pulse;
+    disc_tool_read_fm_data(p_tool, NULL, p_data, &is_iffy_pulse, byte_length);
   }
   if (p_byte_length != NULL) {
     *p_byte_length = byte_length;

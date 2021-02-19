@@ -47,6 +47,7 @@ void disc_tool_set_byte_pos(struct disc_tool_struct* p_tool, uint32_t pos);
 void disc_tool_read_fm_data(struct disc_tool_struct* p_tool,
                             uint8_t* p_clocks,
                             uint8_t* p_data,
+                            int* p_is_iffy_pulse,
                             uint32_t len);
 void disc_tool_write_fm_data(struct disc_tool_struct* p_tool,
                              uint8_t* p_clocks,
