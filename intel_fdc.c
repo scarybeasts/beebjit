@@ -1889,7 +1889,7 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
       p_fdc->num_shifts = 2;
     } else {
       /* Restart sync. */
-      p_fdc->state_count = 0;
+      p_fdc->state_count = bit;
     }
     break;
   case k_intel_fdc_state_check_id_marker:
