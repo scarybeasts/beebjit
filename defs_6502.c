@@ -106,7 +106,7 @@ uint8_t g_optype_changes_nz_flags[k_6502_op_num_types] =
   1, 1, 0, 0, 0, 0, 1, 1, /* TSB, TRB, PLX, PLY */
 };
 
-uint8_t s_optypes_6502[k_6502_op_num_opcodes] =
+static uint8_t s_optypes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_brk, k_ora, k_kil, k_slo, k_nop, k_ora, k_asl, k_slo,
@@ -158,7 +158,7 @@ uint8_t s_optypes_6502[k_6502_op_num_opcodes] =
   k_sed, k_sbc, k_nop, k_isc, k_nop, k_sbc, k_inc, k_isc,
 };
 
-uint8_t s_opmodes_6502[k_6502_op_num_opcodes] =
+static uint8_t s_opmodes_6502[k_6502_op_num_opcodes] =
 {
   /* 0x00 */
   k_imm, k_idx, 0    , k_idx, k_zpg, k_zpg, k_zpg, k_zpg,
@@ -210,64 +210,13 @@ uint8_t s_opmodes_6502[k_6502_op_num_opcodes] =
   k_nil, k_aby, k_nil, k_aby, k_abx, k_abx, k_abx, k_abx,
 };
 
-uint8_t s_opcycles_6502[k_6502_op_num_opcodes] =
-{
-  /* 0x00 */
-  7, 6, 0, 8, 3, 3, 5, 5,
-  3, 2, 2, 2, 4, 4, 6, 6,
-  /* 0x10 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-  /* 0x20 */
-  6, 6, 0, 8, 3, 3, 5, 5,
-  4, 2, 2, 2, 4, 4, 6, 6,
-  /* 0x30 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-  /* 0x40 */
-  6, 6, 0, 8, 3, 3, 5, 5,
-  3, 2, 2, 2, 3, 4, 6, 6,
-  /* 0x50 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-  /* 0x60 */
-  6, 6, 0, 8, 3, 3, 5, 5,
-  4, 2, 2, 2, 5, 4, 6, 6,
-  /* 0x70 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-  /* 0x80 */
-  2, 6, 2, 6, 3, 3, 3, 3,
-  2, 2, 2, 2, 4, 4, 4, 4,
-  /* 0x90 */
-  2, 6, 0, 6, 4, 4, 4, 4,
-  2, 5, 2, 5, 5, 5, 5, 5,
-  /* 0xa0 */
-  2, 6, 2, 6, 3, 3, 3, 3,
-  2, 2, 2, 2, 4, 4, 4, 4,
-  /* 0xb0 */
-  2, 5, 0, 5, 4, 4, 4, 4,
-  2, 4, 2, 4, 4, 4, 4, 4,
-  /* 0xc0 */
-  2, 6, 2, 8, 3, 3, 5, 5,
-  2, 2, 2, 2, 4, 4, 6, 6,
-  /* 0xd0 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-  /* 0xe0 */
-  2, 6, 2, 8, 3, 3, 5, 5,
-  2, 2, 2, 2, 4, 4, 6, 6,
-  /* 0xf0 */
-  2, 5, 0, 8, 4, 4, 6, 6,
-  2, 4, 2, 7, 4, 4, 7, 7,
-};
+static uint8_t s_opmem_6502[k_6502_op_num_opcodes];
+static uint8_t s_opcycles_6502[k_6502_op_num_opcodes];
 
-uint8_t s_opmem_6502[k_6502_op_num_opcodes];
-
-uint8_t s_optypes_65c12[k_6502_op_num_opcodes];
-uint8_t s_opmodes_65c12[k_6502_op_num_opcodes];
-uint8_t s_opmem_65c12[k_6502_op_num_opcodes];
-uint8_t s_opcycles_65c12[k_6502_op_num_opcodes];
+static uint8_t s_optypes_65c12[k_6502_op_num_opcodes];
+static uint8_t s_opmodes_65c12[k_6502_op_num_opcodes];
+static uint8_t s_opmem_65c12[k_6502_op_num_opcodes];
+static uint8_t s_opcycles_65c12[k_6502_op_num_opcodes];
 
 uint8_t g_opmodelens[k_6502_op_num_modes] =
 {
@@ -399,62 +348,122 @@ defs_6502_poplate_opmem_table(uint8_t* p_opmem,
   }
 }
 
-static void
-defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
-  uint8_t cycles = 0;
-  uint8_t opmem = defs_6502_calculate_opmem(type, mode);
+static uint8_t
+defs_6502_calculate_opcycles(uint8_t optype, uint8_t opmode) {
+  /* These are minimum cycles counts. */
+  /* TODO: these aren't yet used for the 65c12 because the 65c12 doesn't have
+   * inturbo / JIT mode yet. Calculation below is incorrect for JMP ind,
+   * ROR abx, 8 cycle NOP, etc. on the 65c12.
+   */
+  int cycles = -1;
+  uint8_t opmem = defs_6502_calculate_opmem(optype, opmode);
   int is_rmw = (opmem == (k_opmem_read_flag | k_opmem_write_flag));
 
-  switch (mode) {
-  case k_nil:
-    switch (type) {
-    case k_phx:
-    case k_phy:
+  switch (optype) {
+  case k_brk:
+    cycles = 7;
+    break;
+  case k_pha:
+  case k_phx:
+  case k_phy:
+  case k_php:
+    cycles = 3;
+    break;
+  case k_pla:
+  case k_plx:
+  case k_ply:
+  case k_plp:
+    cycles = 4;
+    break;
+  case k_jsr:
+  case k_rts:
+  case k_rti:
+    cycles = 6;
+    break;
+  case k_jmp:
+    if (opmode == k_abs) {
       cycles = 3;
-      break;
-    case k_plx:
-    case k_ply:
-      cycles = 4;
-      break;
-    default:
-      assert(0);
-      break;
+    } else if (opmode == k_ind) {
+      cycles = 5;
+    } else {
+      assert(opmode == k_iax);
+      cycles = 6;
     }
+    break;
+  default:
+    break;
+  }
+
+  if (cycles >= 0) {
+    return cycles;
+  }
+
+  switch (opmode) {
+  case k_nil:
+  case k_acc:
+  case k_rel:
+  case k_imm:
+    cycles = 2;
     break;
   case k_zpg:
     cycles = (3 + (is_rmw * 2));
     break;
   case k_abs:
   case k_zpx:
+  case k_zpy:
     cycles = (4 + (is_rmw * 2));
     break;
   case k_abx:
+  case k_aby:
     cycles = 4;
-    if (opmem & k_opmem_write_flag) {
-      cycles++;
+    if (is_rmw) {
+      cycles = 7;
+    } else if (opmem & k_opmem_write_flag) {
+      cycles = 5;
     }
     break;
-  case k_acc:
-  case k_imm:
-  case k_rel:
-    cycles = 2;
+  case k_idy:
+    cycles = 5;
+    if (is_rmw) {
+      cycles = 8;
+    } else if (opmem & k_opmem_write_flag) {
+      cycles = 6;
+    }
     break;
-  case k_iax:
-    cycles = 6;
+  case k_idx:
+    cycles = (6 + (is_rmw * 2));
     break;
   case k_id:
+    assert(!is_rmw);
     cycles = 5;
     break;
   case k_nil1:
     cycles = 1;
     break;
   default:
-    assert(0);
+    assert(optype == k_kil);
+    cycles = 0;
   }
-  assert(s_opcycles_65c12[opcode] == 0);
+  return cycles;
+}
+
+static void
+defs_6502_poplate_opcycles_table(uint8_t* p_opcycles,
+                                 uint8_t* p_optypes,
+                                 uint8_t* p_opmodes) {
+  uint32_t i;
+  for (i = 0; i < k_6502_op_num_opcodes; ++i) {
+    uint8_t optype = p_optypes[i];
+    uint8_t opmode = p_opmodes[i];
+    uint8_t opcycles = defs_6502_calculate_opcycles(optype, opmode);
+    p_opcycles[i] = opcycles;
+  }
+}
+
+static void
+defs_65c12_set_opcode(uint8_t opcode, uint8_t type, uint8_t mode) {
   s_optypes_65c12[opcode] = type;
   s_opmodes_65c12[opcode] = mode;
-  s_opcycles_65c12[opcode] = cycles;
 }
 
 static void
@@ -462,6 +471,9 @@ defs_6502_setup_6502(void) {
   defs_6502_poplate_opmem_table(&s_opmem_6502[0],
                                 &s_optypes_6502[0],
                                 &s_opmodes_6502[0]);
+  defs_6502_poplate_opcycles_table(&s_opcycles_6502[0],
+                                   &s_optypes_6502[0],
+                                   &s_opmodes_6502[0]);
 }
 
 static void
@@ -470,17 +482,18 @@ defs_6502_setup_65c12(void) {
   /* Copy across common opcodes from 6502. */
   for (i = 0; i < k_6502_op_num_opcodes; ++i) {
     uint8_t optype = s_optypes_6502[i];
-    s_optypes_65c12[i] = k_unk;
-    if (optype == k_unk) {
-      continue;
-    }
     if (optype == k_kil) {
       continue;
     }
     if (optype > k_last_6502_documented) {
       continue;
     }
-    if ((optype == k_nop) && (i != 0xEA)) {
+    if ((optype == k_nop) &&
+        (i != 0xEA) &&
+        (i != 0x44) &&
+        (i != 0x54) &&
+        (i != 0xD4) &&
+        (i != 0xF4)) {
       continue;
     }
     /* SBC imm undocumented alias. */
@@ -507,6 +520,7 @@ defs_6502_setup_65c12(void) {
   defs_65c12_set_opcode(0x42, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x52, k_eor, k_id);
   defs_65c12_set_opcode(0x5A, k_phy, k_nil);
+  defs_65c12_set_opcode(0x5C, k_nop, k_abs); /* Undocumented. */ /* 8 cycles. */
   defs_65c12_set_opcode(0x62, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0x64, k_stz, k_zpg);
   defs_65c12_set_opcode(0x72, k_adc, k_id);
@@ -523,9 +537,11 @@ defs_6502_setup_65c12(void) {
   defs_65c12_set_opcode(0xC2, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0xD2, k_cmp, k_id);
   defs_65c12_set_opcode(0xDA, k_phx, k_nil);
+  defs_65c12_set_opcode(0xDC, k_nop, k_abs); /* Undocumented. */
   defs_65c12_set_opcode(0xE2, k_nop, k_imm); /* Undocumented. */
   defs_65c12_set_opcode(0xF2, k_sbc, k_id);
   defs_65c12_set_opcode(0xFA, k_plx, k_nil);
+  defs_65c12_set_opcode(0xFC, k_nop, k_abs); /* Undocumented. */
   /* 1-byte NOPs. */
   for (i = 0; i < 16; ++i) {
     defs_65c12_set_opcode(((i * 0x10) + 0x03), k_nop, k_nil1);
@@ -537,6 +553,9 @@ defs_6502_setup_65c12(void) {
   defs_6502_poplate_opmem_table(&s_opmem_65c12[0],
                                 &s_optypes_65c12[0],
                                 &s_opmodes_65c12[0]);
+  defs_6502_poplate_opcycles_table(&s_opcycles_65c12[0],
+                                   &s_optypes_65c12[0],
+                                   &s_opmodes_65c12[0]);
 }
 
 void

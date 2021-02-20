@@ -28,7 +28,7 @@ extern uint8_t g_optype_sets_register[k_6502_op_num_types];
 
 enum {
   k_kil = 0,
-  k_unk = 1,
+  /* Was k_unk, but all opcodes are now defined. */
   k_brk = 2,
   k_ora = 3,
   k_asl = 4,

@@ -1198,13 +1198,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     flag_z,
                     p_mem_read);
 
-  /* If we're about to crash out with an unknown opcode, trap into the
-   * debugger.
-   */
-  if (optype == k_unk) {
-    p_debug->debug_running = 0;
-  }
-
   if (p_debug->stats) {
     /* Don't log the address as hit if it was an IRQ. That led to double
      * counting of the address (the second time after RTI). Upon consideration,
