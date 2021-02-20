@@ -770,8 +770,9 @@ disc_tool_log_summary(struct disc_struct* p_disc,
         if (log_fingerprint_tracks) {
           log_do_log(k_log_disc,
                      k_log_info,
-                     "track %d CRC32 fingerprint %.8X",
+                     "track %d length %d CRC32 fingerprint %.8X",
                      i_tracks,
+                     p_tool->track_length,
                      track_crc);
         }
         /* Full disc fingerprint only includes up to the 41st or 81st track. */
