@@ -471,7 +471,7 @@ asm_jit_LDA_Z_END:
 .globl asm_jit_LDX_Z
 .globl asm_jit_LDX_Z_END
 asm_jit_LDX_Z:
-  xor REG_6502_X, REG_6502_X
+  xor REG_6502_X_32, REG_6502_X_32
 
 asm_jit_LDX_Z_END:
   ret
@@ -480,7 +480,7 @@ asm_jit_LDX_Z_END:
 .globl asm_jit_LDY_Z
 .globl asm_jit_LDY_Z_END
 asm_jit_LDY_Z:
-  xor REG_6502_Y, REG_6502_Y
+  xor REG_6502_Y_32, REG_6502_Y_32
 
 asm_jit_LDY_Z_END:
   ret
