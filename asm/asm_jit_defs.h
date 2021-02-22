@@ -2,10 +2,11 @@
 #define BEEBJIT_ASM_JIT_DEFS_H
 
 /* NOTE: this affects performance significantly.
- * 9 == -8% and 10 == -23%.
- * 7 may be a tiny shade faster (<1%), needs more tests. <= 6 is not viable.
+ * Smaller is generally faster, which I believe is an L1 icache effect.
+ * Going smaller than 7 is currently not feasible due to some opcodes not
+ * fitting in 64 bytes.
  */
-#define K_BBC_JIT_BYTES_SHIFT              8
+#define K_BBC_JIT_BYTES_SHIFT              7
 #define K_BBC_JIT_BYTES_PER_BYTE           (1 << K_BBC_JIT_BYTES_SHIFT)
 #define K_BBC_JIT_ADDR                     0x20000000
 #define K_BBC_JIT_TRAMPOLINE_BYTES         16
