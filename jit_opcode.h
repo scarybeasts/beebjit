@@ -55,6 +55,7 @@ struct jit_opcode_details {
 
 enum {
   k_opcode_countdown = 0x100,
+  k_opcode_countdown_no_save_nz_flags,
   k_opcode_debug,
   k_opcode_interp,
   k_opcode_inturbo,

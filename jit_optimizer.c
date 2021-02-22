@@ -1153,10 +1153,20 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
       int32_t uopcode = p_uop->uopcode;
 
       /* Finalize eliminations. */
-      /* NZ flag load. */
+      /* NZ flag save. */
       if ((p_nz_flags_opcode != NULL) &&
           jit_optimizer_uopcode_sets_nz_flags(uopcode)) {
-        jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
+        /* As well as eliminating explicit flag saves, this optimization also
+         * flips the countdown uopcode to a non-flag-preserving one when that
+         * can be safely done.
+         */
+        if (p_nz_flags_uop->uopcode == k_opcode_countdown) {
+          p_nz_flags_uop->uopcode = k_opcode_countdown_no_save_nz_flags;
+        } else {
+          jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
+        }
+        p_nz_flags_opcode = NULL;
+        p_nz_flags_uop = NULL;
       }
       /* idy indirect load. */
       if ((p_idy_opcode != NULL) &&
@@ -1193,6 +1203,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
             replace_uopcode = k_opcode_LDY_Z;
             break;
           case k_opcode_FLAG_MEM:
+          case k_opcode_countdown:
             break;
           default:
             assert(0);
@@ -1219,6 +1230,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
       case k_opcode_FLAGX:
       case k_opcode_FLAGY:
       case k_opcode_FLAG_MEM:
+      case k_opcode_countdown:
         p_nz_flags_opcode = p_opcode;
         p_nz_flags_uop = p_uop;
         break;

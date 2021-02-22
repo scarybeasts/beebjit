@@ -776,6 +776,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
   case k_opcode_countdown:
+  case k_opcode_countdown_no_save_nz_flags:
   case k_opcode_CHECK_PENDING_IRQ:
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
@@ -802,6 +803,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_check_countdown(p_dest_buf,
                                  (uint32_t) value2,
                                  (void*) (size_t) value1);
+    break;
+  case k_opcode_countdown_no_save_nz_flags:
+    asm_emit_jit_check_countdown_no_save_nz_flags(p_dest_buf,
+                                                  (uint32_t) value2,
+                                                  (void*) (size_t) value1);
     break;
   case k_opcode_debug:
     asm_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);

@@ -118,6 +118,52 @@ asm_emit_jit_check_countdown(struct util_buffer* p_buf,
 }
 
 void
+asm_emit_jit_check_countdown_no_save_nz_flags(struct util_buffer* p_buf,
+                                              uint32_t count,
+                                              void* p_trampoline) {
+  void asm_jit_check_countdown_no_save_nz_flags_8bit(void);
+  void asm_jit_check_countdown_no_save_nz_flags_8bit_count_patch(void);
+  void asm_jit_check_countdown_no_save_nz_flags_8bit_jump_patch(void);
+  void asm_jit_check_countdown_no_save_nz_flags_8bit_END(void);
+  void asm_jit_check_countdown_no_save_nz_flags(void);
+  void asm_jit_check_countdown_no_save_nz_flags_count_patch(void);
+  void asm_jit_check_countdown_no_save_nz_flags_jump_patch(void);
+  void asm_jit_check_countdown_no_save_nz_flags_END(void);
+
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  if (count <= 127) {
+    asm_copy(p_buf,
+             asm_jit_check_countdown_no_save_nz_flags_8bit,
+             asm_jit_check_countdown_no_save_nz_flags_8bit_END);
+    asm_patch_byte(p_buf,
+                   offset,
+                   asm_jit_check_countdown_no_save_nz_flags_8bit,
+                   asm_jit_check_countdown_no_save_nz_flags_8bit_count_patch,
+                   count);
+    asm_patch_jump(p_buf,
+                   offset,
+                   asm_jit_check_countdown_no_save_nz_flags_8bit,
+                   asm_jit_check_countdown_no_save_nz_flags_8bit_jump_patch,
+                   p_trampoline);
+  } else {
+    asm_copy(p_buf,
+             asm_jit_check_countdown_no_save_nz_flags,
+             asm_jit_check_countdown_no_save_nz_flags_END);
+    asm_patch_int(p_buf,
+                  offset,
+                  asm_jit_check_countdown_no_save_nz_flags,
+                  asm_jit_check_countdown_no_save_nz_flags_count_patch,
+                  count);
+    asm_patch_jump(p_buf,
+                   offset,
+                   asm_jit_check_countdown_no_save_nz_flags,
+                   asm_jit_check_countdown_no_save_nz_flags_jump_patch,
+                   p_trampoline);
+  }
+}
+
+void
 asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
   size_t offset = util_buffer_get_pos(p_buf);
 

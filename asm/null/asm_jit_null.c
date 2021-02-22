@@ -30,6 +30,15 @@ asm_emit_jit_check_countdown(struct util_buffer* p_buf,
 }
 
 void
+asm_emit_jit_check_countdown_no_save_nz_flags(struct util_buffer* p_buf,
+                                              uint32_t count,
+                                              void* p_trampoline) {
+  (void) p_buf;
+  (void) count;
+  (void) p_trampoline;
+}
+
+void
 asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;

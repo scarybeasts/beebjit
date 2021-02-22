@@ -169,6 +169,34 @@ asm_jit_check_countdown_8bit_END:
   ret
 
 
+.globl asm_jit_check_countdown_no_save_nz_flags
+.globl asm_jit_check_countdown_no_save_nz_flags_count_patch
+.globl asm_jit_check_countdown_no_save_nz_flags_jump_patch
+.globl asm_jit_check_countdown_no_save_nz_flags_END
+asm_jit_check_countdown_no_save_nz_flags:
+  sub REG_COUNTDOWN, 0x7fffffff
+asm_jit_check_countdown_no_save_nz_flags_count_patch:
+  jb asm_unpatched_branch_target
+asm_jit_check_countdown_no_save_nz_flags_jump_patch:
+
+asm_jit_check_countdown_no_save_nz_flags_END:
+  ret
+
+
+.globl asm_jit_check_countdown_no_save_nz_flags_8bit
+.globl asm_jit_check_countdown_no_save_nz_flags_8bit_count_patch
+.globl asm_jit_check_countdown_no_save_nz_flags_8bit_jump_patch
+.globl asm_jit_check_countdown_no_save_nz_flags_8bit_END
+asm_jit_check_countdown_no_save_nz_flags_8bit:
+  sub REG_COUNTDOWN, 0x7f
+asm_jit_check_countdown_no_save_nz_flags_8bit_count_patch:
+  jb asm_unpatched_branch_target
+asm_jit_check_countdown_no_save_nz_flags_8bit_jump_patch:
+
+asm_jit_check_countdown_no_save_nz_flags_8bit_END:
+  ret
+
+
 .globl asm_jit_call_debug
 .globl asm_jit_call_debug_pc_patch
 .globl asm_jit_call_debug_call_patch
