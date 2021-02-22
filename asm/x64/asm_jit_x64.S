@@ -445,15 +445,6 @@ asm_jit_CLEAR_CARRY_END:
   ret
 
 
-.globl asm_jit_INC_SCRATCH
-.globl asm_jit_INC_SCRATCH_END
-asm_jit_INC_SCRATCH:
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 1]
-
-asm_jit_INC_SCRATCH_END:
-  ret
-
-
 .globl asm_jit_INVERT_CARRY
 .globl asm_jit_INVERT_CARRY_END
 asm_jit_INVERT_CARRY:
@@ -472,18 +463,20 @@ asm_jit_FLAG_MEM_END:
   ret
 
 
-.globl asm_jit_JMP_SCRATCH
-.globl asm_jit_JMP_SCRATCH_END
-asm_jit_JMP_SCRATCH:
+.globl asm_jit_JMP_SCRATCH_n
+.globl asm_jit_JMP_SCRATCH_n_lea_patch
+.globl asm_jit_JMP_SCRATCH_n_END
+asm_jit_JMP_SCRATCH_n:
   # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
   #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x7fffffff]
+asm_jit_JMP_SCRATCH_n_lea_patch:
   lahf
   shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
   sahf
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
   jmp REG_SCRATCH1
 
-asm_jit_JMP_SCRATCH_END:
+asm_jit_JMP_SCRATCH_n_END:
   ret
 
 

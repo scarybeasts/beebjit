@@ -179,18 +179,14 @@ asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_INC_SCRATCH(struct util_buffer* p_buf) {
-  (void) p_buf;
-}
-
-void
 asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
   (void) p_buf;
 }
 
 void
-asm_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf) {
+asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
   (void) p_buf;
+  (void) n;
 }
 
 void

@@ -49,7 +49,7 @@ jit_optimizer_uopcode_can_jump(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_JMP_SCRATCH:
+    case k_opcode_JMP_SCRATCH_n:
       ret = 1;
       break;
     default:

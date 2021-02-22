@@ -477,9 +477,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_rts:
     jit_opcode_make_uop1(p_uop, k_opcode_PULL_16, 0);
     p_uop++;
-    /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
-    jit_opcode_make_uop1(p_uop, k_opcode_INC_SCRATCH, 0);
-    p_uop++;
     break;
   case k_sbc:
     jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, 0);
@@ -520,13 +517,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     /* MODE_IND */
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
     p_uop++;
-    /* JMP_SCRATCH */
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH, 0);
+    /* JMP_SCRATCH_n */
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
     p_uop++;
     break;
   case k_jmp:
     if (opmode == k_ind) {
-      jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH, 0);
+      jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
       p_uop++;
     } else {
       main_written = 0;
@@ -538,9 +535,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop->uoptype = k_jmp;
     p_uop++;
     break;
-  case k_rti:
   case k_rts:
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH, 0);
+    /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
+    p_uop++;
+    break;
+  case k_rti:
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
     p_uop++;
     break;
   default:
@@ -884,14 +885,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_FLAG_MEM:
     asm_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_INC_SCRATCH:
-    asm_emit_jit_INC_SCRATCH(p_dest_buf);
-    break;
   case k_opcode_INVERT_CARRY:
     asm_emit_jit_INVERT_CARRY(p_dest_buf);
     break;
-  case k_opcode_JMP_SCRATCH:
-    asm_emit_jit_JMP_SCRATCH(p_dest_buf);
+  case k_opcode_JMP_SCRATCH_n:
+    asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_LDA_SCRATCH_n:
     asm_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
@@ -1628,7 +1626,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
   case k_abs:
     switch (opcode_6502) {
     case 0x4C: /* JMP abs */
-      new_uopcode = k_opcode_JMP_SCRATCH;
+      new_uopcode = k_opcode_JMP_SCRATCH_n;
       break;
     case 0x8C: /* STY abs */
       new_uopcode = 0x94; /* STY zpx -- which is STY_scratch. */

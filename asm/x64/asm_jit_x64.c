@@ -385,18 +385,22 @@ asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_INC_SCRATCH(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_jit_INC_SCRATCH, asm_jit_INC_SCRATCH_END);
-}
-
-void
 asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_jit_INVERT_CARRY, asm_jit_INVERT_CARRY_END);
 }
 
 void
-asm_emit_jit_JMP_SCRATCH(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_jit_JMP_SCRATCH, asm_jit_JMP_SCRATCH_END);
+asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
+  void asm_jit_JMP_SCRATCH_n(void);
+  void asm_jit_JMP_SCRATCH_n_lea_patch(void);
+  void asm_jit_JMP_SCRATCH_n_END(void);
+  size_t offset = util_buffer_get_pos(p_buf);
+  asm_copy(p_buf, asm_jit_JMP_SCRATCH_n, asm_jit_JMP_SCRATCH_n_END);
+  asm_patch_int(p_buf,
+                offset,
+                asm_jit_JMP_SCRATCH_n,
+                asm_jit_JMP_SCRATCH_n_lea_patch,
+                ((K_BBC_JIT_ADDR >> K_BBC_JIT_BYTES_SHIFT) + n));
 }
 
 void
@@ -553,10 +557,10 @@ asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   } else {
     asm_copy(p_buf, asm_jit_MODE_ZPX, asm_jit_MODE_ZPX_END);
     asm_patch_int(p_buf,
-                      offset,
-                      asm_jit_MODE_ZPX,
-                      asm_jit_MODE_ZPX_lea_patch,
-                      value);
+                  offset,
+                  asm_jit_MODE_ZPX,
+                  asm_jit_MODE_ZPX_lea_patch,
+                  value);
   }
 }
 
