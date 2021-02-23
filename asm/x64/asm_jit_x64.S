@@ -758,6 +758,15 @@ asm_jit_STOA_IMM_END:
   ret
 
 
+.globl asm_jit_STOA_IMM_8bit
+.globl asm_jit_STOA_IMM_8bit_END
+asm_jit_STOA_IMM_8bit:
+  mov BYTE PTR [REG_MEM + 0x7f], 0
+
+asm_jit_STOA_IMM_8bit_END:
+  ret
+
+
 .globl asm_jit_SUB_ABS
 .globl asm_jit_SUB_ABS_END
 asm_jit_SUB_ABS:

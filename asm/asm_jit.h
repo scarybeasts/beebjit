@@ -398,8 +398,6 @@ void asm_jit_SAVE_OVERFLOW();
 void asm_jit_SAVE_OVERFLOW_END();
 void asm_jit_SET_CARRY();
 void asm_jit_SET_CARRY_END();
-void asm_jit_STOA_IMM();
-void asm_jit_STOA_IMM_END();
 void asm_jit_SUB_ABS();
 void asm_jit_SUB_ABS_END();
 void asm_jit_SUB_IMM();

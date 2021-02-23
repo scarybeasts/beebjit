@@ -624,19 +624,37 @@ asm_emit_jit_SET_CARRY(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
+  void asm_jit_STOA_IMM(void);
+  void asm_jit_STOA_IMM_END(void);
+  void asm_jit_STOA_IMM_8bit(void);
+  void asm_jit_STOA_IMM_8bit_END(void);
   size_t offset = util_buffer_get_pos(p_buf);
 
-  asm_copy(p_buf, asm_jit_STOA_IMM, asm_jit_STOA_IMM_END);
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_jit_STOA_IMM,
-                 asm_jit_STOA_IMM_END,
-                 value);
-  asm_patch_int(p_buf,
-                (offset - 1),
-                asm_jit_STOA_IMM,
-                asm_jit_STOA_IMM_END,
-                (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
+  if (addr < 0x100) {
+    asm_copy(p_buf, asm_jit_STOA_IMM_8bit, asm_jit_STOA_IMM_8bit_END);
+    asm_patch_byte(p_buf,
+                   offset,
+                   asm_jit_STOA_IMM_8bit,
+                   asm_jit_STOA_IMM_8bit_END,
+                   value);
+    asm_patch_byte(p_buf,
+                   (offset - 1),
+                   asm_jit_STOA_IMM_8bit,
+                   asm_jit_STOA_IMM_8bit_END,
+                   (addr - REG_MEM_OFFSET));
+  } else {
+    asm_copy(p_buf, asm_jit_STOA_IMM, asm_jit_STOA_IMM_END);
+    asm_patch_byte(p_buf,
+                   offset,
+                   asm_jit_STOA_IMM,
+                   asm_jit_STOA_IMM_END,
+                   value);
+    asm_patch_int(p_buf,
+                  (offset - 1),
+                  asm_jit_STOA_IMM,
+                  asm_jit_STOA_IMM_END,
+                  (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
+  }
 }
 
 void
