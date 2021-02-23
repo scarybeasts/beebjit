@@ -39,6 +39,8 @@ improvements out one by one on a rainy day.
 These speeds are for JIT mode. In some cases here, interp mode is faster
 because of some very severe JIT interaction.
 
+(all: -mode jit -opt sound:off,video:no-vsync-wait-for-render)
+(5th gen i5, v0.9.4 or so)
 - Elite.ssd. Slams hardware registers in a tight loop reading keyboard.
 - Tarzan.ssd. Very slow (120MHz). interp is faster!! Looks to be a tight
 wait-for-vsync loop at $24D9 causing a lot of thrash. Surely this is common.
@@ -46,6 +48,11 @@ wait-for-vsync loop at $24D9 causing a lot of thrash. Surely this is common.
 - Crazee Rider (swram version). 27MHz, terrible! Taking a lot of recompiles
 and faults.
 - Uridium. 200MHz. 1 million+ faults a second?
+(11th gen i7, v0.9.5+)
+- Elite.ssd. Slams hardware registers. 3.3GHz.
+- Tarzan.ssd. Tight vsync wait loop. 620MHz. 32.6M reg hits/s!
+- Uridium.ssd. 725MHz. 830k CRTC/s.
+- Firetrack.ssd. Recompiles(!), CRTC abuse. 500MHz. 400k CRTC/s.
 
 
 Ideas
