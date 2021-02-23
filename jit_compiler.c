@@ -689,7 +689,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
   /* Accurate timings for page crossing cycles. */
   if (p_compiler->option_accurate_timings &&
-      (opmem & k_opmem_read_flag) &&
+      (opmem == k_opmem_read_flag) &&
       could_page_cross) {
     /* NOTE: must do page crossing cycles fixup after the main uop, because it
      * may fault (e.g. for hardware register access) and then fixup. We're

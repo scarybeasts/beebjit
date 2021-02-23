@@ -157,7 +157,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     case k_idy:
       asm_emit_inturbo_mode_idy(p_buf);
       asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-      if ((opmem & k_opmem_read_flag) && accurate) {
+      if ((opmem == k_opmem_read_flag) && accurate) {
         /* Accurate checks for the +1 cycle if a page boundary is crossed. */
         asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
       }
