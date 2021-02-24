@@ -210,7 +210,7 @@ asm_instruction_SEI_END:
 .globl asm_instruction_TAX_END
 asm_instruction_TAX:
 
-  mov REG_6502_X, REG_6502_A
+  movzx REG_6502_X_32, REG_6502_A
 
 asm_instruction_TAX_END:
   ret
@@ -220,7 +220,7 @@ asm_instruction_TAX_END:
 .globl asm_instruction_TAY_END
 asm_instruction_TAY:
 
-  mov REG_6502_Y, REG_6502_A
+  movzx REG_6502_Y_32, REG_6502_A
 
 asm_instruction_TAY_END:
   ret
@@ -230,7 +230,7 @@ asm_instruction_TAY_END:
 .globl asm_instruction_TSX_END
 asm_instruction_TSX:
 
-  mov REG_6502_X, REG_6502_S
+  movzx REG_6502_X_32, REG_6502_S
 
 asm_instruction_TSX_END:
   ret

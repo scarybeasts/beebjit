@@ -885,7 +885,7 @@ asm_instruction_LDA_scratch_interp_END:
 .globl asm_instruction_LDX_imm_interp_END
 asm_instruction_LDX_imm_interp:
 
-  mov REG_6502_X, [REG_6502_PC + 1]
+  movzx REG_6502_X_32, BYTE PTR [REG_6502_PC + 1]
 
 asm_instruction_LDX_imm_interp_END:
   ret
@@ -895,7 +895,7 @@ asm_instruction_LDX_imm_interp_END:
 .globl asm_instruction_LDX_scratch_interp_END
 asm_instruction_LDX_scratch_interp:
 
-  mov REG_6502_X, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
+  movzx REG_6502_X_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_instruction_LDX_scratch_interp_END:
   ret
@@ -905,7 +905,7 @@ asm_instruction_LDX_scratch_interp_END:
 .globl asm_instruction_LDY_imm_interp_END
 asm_instruction_LDY_imm_interp:
 
-  mov REG_6502_Y, [REG_6502_PC + 1]
+  movzx REG_6502_Y_32, BYTE PTR [REG_6502_PC + 1]
 
 asm_instruction_LDY_imm_interp_END:
   ret
@@ -915,7 +915,7 @@ asm_instruction_LDY_imm_interp_END:
 .globl asm_instruction_LDY_scratch_interp_END
 asm_instruction_LDY_scratch_interp:
 
-  mov REG_6502_Y, [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
+  movzx REG_6502_Y_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
 
 asm_instruction_LDY_scratch_interp_END:
   ret
