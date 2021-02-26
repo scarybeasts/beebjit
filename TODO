@@ -3,10 +3,13 @@ Bugs and improvements
 
 IMPORTANT
 =========
-Known bugs and deficiencies that are sufficiently egregious that they'll
-get addressed before the next release.
+Ideally, important items get fixed before the next release.
+The includes: bugs and deficiencies that are egregious. Feature requests that
+are currently prioritized.
 
 - Poor granularity of system wakeup with audio subsystem as timer?
+- Make Alt-R hard reset reload disc images from host disc.
+- Execute certain debugger commands when a breakpoint hits.
 
 
 Fix later
