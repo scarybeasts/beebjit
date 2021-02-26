@@ -6,6 +6,7 @@
 #include "disc_drive.h"
 #include "disc_tool.h"
 #include "keyboard.h"
+#include "render.h"
 #include "state.h"
 #include "state_6502.h"
 #include "timing.h"
@@ -577,8 +578,15 @@ debug_dump_crtc(struct bbc_struct* p_bbc) {
   uint8_t vert_counter;
   uint16_t address_counter;
   uint8_t regs[k_video_crtc_num_registers];
-
+  uint32_t horiz_pos;
+  uint32_t vert_pos;
   struct video_struct* p_video = bbc_get_video(p_bbc);
+  struct render_struct* p_render = bbc_get_render(p_bbc);
+
+  horiz_pos = render_get_horiz_pos(p_render);
+  vert_pos = render_get_vert_pos(p_render);
+  (void) printf("beam pos: horiz %d vert %d\n", horiz_pos, vert_pos);
+
   video_get_crtc_state(p_video,
                        &horiz_counter,
                        &scanline_counter,

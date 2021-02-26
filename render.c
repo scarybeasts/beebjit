@@ -207,6 +207,16 @@ render_get_buffer_size(struct render_struct* p_render) {
   return (p_render->width * p_render->height * 4);
 }
 
+uint32_t
+render_get_horiz_pos(struct render_struct* p_render) {
+  return p_render->horiz_beam_pos;
+}
+
+uint32_t
+render_get_vert_pos(struct render_struct* p_render) {
+  return p_render->vert_beam_pos;
+}
+
 static inline void
 render_reset_render_pos(struct render_struct* p_render) {
   uint32_t window_horiz_pos;

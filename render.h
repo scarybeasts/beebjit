@@ -47,6 +47,9 @@ uint32_t render_get_width(struct render_struct* p_render);
 uint32_t render_get_height(struct render_struct* p_render);
 uint32_t render_get_buffer_size(struct render_struct* p_render);
 
+uint32_t render_get_horiz_pos(struct render_struct* p_render);
+uint32_t render_get_vert_pos(struct render_struct* p_render);
+
 uint32_t* render_get_buffer(struct render_struct* p_render);
 void render_set_buffer(struct render_struct* p_render, uint32_t* p_buffer);
 void render_create_internal_buffer(struct render_struct* p_render);
