@@ -47,27 +47,41 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 4);      /* Latency of reset + read is 4 cycles. */
   emit_LDX(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
+  /* JIT mode lingers in interp for a couple of instructions after a hardware
+   * register hit. These NOPs make sure we bounce back into JIT and are testing
+   * the timing of JIT, not interp (when in -mode jit)!
+   */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_LDA(p_buf, k_abx, 0x1000); /* LDA abx, no page crossing, 4 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 8);
+  emit_REQUIRE_EQ(p_buf, 12);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
+  emit_REQUIRE_EQ(p_buf, 13);
   emit_LDX(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_LDA(p_buf, k_abx, 0x10FF); /* LDA abx, no page crossing, 4 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 8);
+  emit_REQUIRE_EQ(p_buf, 12);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_STA(p_buf, k_abx, 0x1000); /* STA abx, no page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
+  emit_REQUIRE_EQ(p_buf, 13);
   emit_LDX(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_STA(p_buf, k_abx, 0x10FF); /* STA abx, page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
+  emit_REQUIRE_EQ(p_buf, 13);
   emit_JMP(p_buf, k_abs, 0xC070);
 
   /* Check instruction timings for page crossings in idy mode. */
@@ -78,42 +92,56 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x00B1);
   emit_LDY(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, no page crossing, 5 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 9);
+  emit_REQUIRE_EQ(p_buf, 13);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, no page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 10);
+  emit_REQUIRE_EQ(p_buf, 14);
   emit_LDY(p_buf, k_imm, 0x01);
   emit_CYCLES_RESET(p_buf);
-  emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, no page crossing, 6 cycles. */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_idy, 0xB0);   /* LDA idy, page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 10);
+  emit_REQUIRE_EQ(p_buf, 14);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_STA(p_buf, k_idy, 0xB0);   /* STA idy, page crossing, 6 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 10);
-  emit_JMP(p_buf, k_abs, 0xC0C0);
+  emit_REQUIRE_EQ(p_buf, 14);
+  emit_JMP(p_buf, k_abs, 0xC0D0);
 
   /* Check instruction timings for branching. */
-  set_new_index(p_buf, 0x00C0);
+  set_new_index(p_buf, 0x00D0);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_BNE(p_buf, -2);            /* Branch, not taken, 2 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 6);
+  emit_REQUIRE_EQ(p_buf, 10);
   emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
   emit_BEQ(p_buf, 0);             /* Branch, taken, 3 cycles. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 7);
+  emit_REQUIRE_EQ(p_buf, 11);
   emit_CYCLES_RESET(p_buf);
-  emit_BEQ(p_buf, 0x1B);          /* Branch, taken, page crossing, 4 cycles. */
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_BEQ(p_buf, 5);          /* Branch, taken, page crossing, 4 cycles. */
 
   set_new_index(p_buf, 0x0100);
   /* This is the landing point for the BEQ above. */
   emit_CYCLES(p_buf);
-  emit_REQUIRE_EQ(p_buf, 8);
+  emit_REQUIRE_EQ(p_buf, 12);
   emit_JMP(p_buf, k_abs, 0xC140);
 
   /* Check simple instruction timings that hit 1Mhz peripherals. */
