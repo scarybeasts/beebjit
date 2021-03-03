@@ -1161,7 +1161,9 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
          * can be safely done.
          */
         if (p_nz_flags_uop->uopcode == k_opcode_countdown) {
-          p_nz_flags_uop->uopcode = k_opcode_countdown_no_save_nz_flags;
+          /* TODO: optimization disabled as it is unsound.
+           * p_nz_flags_uop->uopcode = k_opcode_countdown_no_save_nz_flags;
+           */
         } else {
           jit_optimizer_eliminate(&p_nz_flags_opcode, p_nz_flags_uop, p_opcode);
         }

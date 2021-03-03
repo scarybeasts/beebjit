@@ -774,6 +774,7 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xCA80);
 
+  /* Test timing of an undocumented opcode that bounces into interp. */
   set_new_index(p_buf, 0x0A80);
   emit_CYCLES_RESET(p_buf);
   emit_NOP(p_buf);
@@ -783,8 +784,35 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xCAC0);
 
-  /* Exit sequence. */
+  /* Test that countdown expiry doesn't interfere with flags. */
   set_new_index(p_buf, 0x0AC0);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_STA(p_buf, k_zpg, 0x50);
+  emit_LDA(p_buf, k_imm, 0xCA);
+  emit_STA(p_buf, k_zpg, 0x51);
+  emit_LDA(p_buf, k_imm, 0x08);
+  emit_JSR(p_buf, 0xF000);
+  emit_NOP(p_buf);                /* T1: 8 */
+  emit_NOP(p_buf);                /* T1: 7 */
+  emit_LDA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  /* Use an indirect jump to ensure this jumps to a different JIT block. */
+  emit_JMP(p_buf, k_ind, 0x0050);
+  set_new_index(p_buf, 0x0AE0);
+  /* New JIT block. Countdown expiry will fire at the start of this block. */
+  emit_CLI(p_buf);                /* T1: 1 */
+  emit_NOP(p_buf);                /* T1: 0 */
+  emit_NOP(p_buf);                /* T1: -1 */
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_zpg, 0x14);
+  /* Require that the IRQ handler entered with ZF.
+   * The bug corrupted the NZ flags.
+   */
+  emit_REQUIRE_EQ(p_buf, 0x22);
+  emit_JMP(p_buf, k_abs, 0xCB00);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0B00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
@@ -825,6 +853,9 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0x11);
   emit_STX(p_buf, k_zpg, 0x12);
   emit_STY(p_buf, k_zpg, 0x13);
+  emit_PLA(p_buf);
+  emit_STA(p_buf, k_zpg, 0x14);
+  emit_PHA(p_buf);
   emit_LDA(p_buf, k_imm, 0x7F);
   emit_STA(p_buf, k_abs, 0xFE4E); /* Write IER, interrupts off. */
   emit_RTI(p_buf);
