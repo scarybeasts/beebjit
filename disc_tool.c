@@ -396,6 +396,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     uint32_t sector_end_byte;
     uint32_t sector_size;
     uint32_t pulses_per_byte;
+    int has_iffy_pulse;
 
     assert(p_sector->bit_pos_header != 0);
 
@@ -470,6 +471,7 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
     }
 
     p_sector->has_data_crc_error = 1;
+    has_iffy_pulse = 0;
     do {
       p_sector->byte_length = sector_size;
 
@@ -484,19 +486,11 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       if (p_sector->is_mfm) {
         disc_tool_read_mfm_data(p_tool, &sector_data[0], (sector_size + 2));
       } else {
-        int is_iffy_pulse;
         disc_tool_read_fm_data(p_tool,
                                NULL,
                                &sector_data[0],
-                               &is_iffy_pulse,
+                               &has_iffy_pulse,
                                (sector_size + 2));
-        if (is_iffy_pulse) {
-          log_do_log(k_log_disc,
-                     k_log_unusual,
-                     "iffy pulse in sector data side %d track %d",
-                     p_tool->is_side_upper,
-                     p_tool->track);
-        }
       }
       crc = disc_tool_crc_add_run(crc, &sector_data[0], sector_size);
       disc_crc = (sector_data[sector_size] << 8);
@@ -507,6 +501,14 @@ disc_tool_find_sectors(struct disc_tool_struct* p_tool) {
       }
       sector_size /= 2;
     } while (sector_size >= 128);
+
+    if (has_iffy_pulse) {
+      log_do_log(k_log_disc,
+                 k_log_unusual,
+                 "iffy pulse in sector data side %d track %d",
+                 p_tool->is_side_upper,
+                 p_tool->track);
+    }
   }
 
   p_tool->num_sectors = num_sectors;
