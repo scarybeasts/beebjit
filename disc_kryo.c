@@ -156,8 +156,14 @@ disc_kryo_load(struct disc_struct* p_disc, const char* p_full_file_name) {
           util_bail("Kryo +65536");
           break;
         case 0x0C:
-          util_bail("Kryo 16-bit");
-        break;
+          if ((i_data + 3) > data_len) {
+            util_bail("Kryo 16-bit sample doesn't fit");
+          }
+          sample_value = (p_raw_buf[i_data + 1] << 8);
+          sample_value += p_raw_buf[i_data + 2];
+          i_data += 3;
+          i_samples += 3;
+          break;
         case 0x00:
         case 0x01:
         case 0x02:
@@ -169,7 +175,7 @@ disc_kryo_load(struct disc_struct* p_disc, const char* p_full_file_name) {
           if ((i_data + 2) > data_len) {
             util_bail("Kryo 2 byte sample doesn't fit");
           }
-          sample_value = (val * 256);
+          sample_value = (val << 8);
           sample_value += p_raw_buf[i_data + 1];
           i_data += 2;
           i_samples += 2;
