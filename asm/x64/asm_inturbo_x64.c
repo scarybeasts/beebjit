@@ -16,7 +16,7 @@ asm_emit_instruction_Bxx_interp_accurate(
 
   asm_copy(p_buf, p_Bxx_interp_accurate, p_Bxx_interp_accurate_END);
 
-  p_jump_target = util_buffer_get_ptr(p_buf);
+  p_jump_target = util_buffer_get_base_address(p_buf);
   p_jump_target += util_buffer_get_pos(p_buf);
   p_jump_target += (asm_instruction_Bxx_interp_accurate_not_taken_target -
                     asm_instruction_Bxx_interp_accurate);
