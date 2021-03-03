@@ -1,6 +1,7 @@
 #include "asm_defs_registers_arm64.h"
 
 #include "../asm_defs_host.h"
+#include "../asm_inturbo_defs.h"
 #include "asm_calling_convention_arm64.h"
 
 .file "asm/arm64/asm_inturbo_arm64.S"
@@ -97,7 +98,7 @@ asm_inturbo_load_and_advance_pc_END:
 .globl asm_inturbo_jump_next_opcode
 .globl asm_inturbo_jump_next_opcode_END
 asm_inturbo_jump_next_opcode:
-  add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #8
+  add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #K_INTURBO_OPCODES_SHIFT
   br REG_SCRATCH1
 
 asm_inturbo_jump_next_opcode_END:
