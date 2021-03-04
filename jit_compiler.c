@@ -1807,6 +1807,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    */
   addr_6502 = start_addr_6502;
   while (1) {
+    int is_next_block_start;
     p_details = &opcode_details[total_num_opcodes];
 
     assert(total_num_opcodes < k_max_opcodes_per_compile);
@@ -1817,7 +1818,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     total_num_opcodes++;
     total_num_6502_opcodes++;
 
-    if (p_details->branches == k_bra_m) {
+    /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
+    if (p_details->ends_block) {
+      assert(p_details->branches != k_bra_m);
+      block_ended = 1;
+      break;
+    }
+
+    is_next_block_start = p_compiler->addr_is_block_start[addr_6502];
+
+    if ((p_details->branches == k_bra_m) && !is_next_block_start) {
       p_details = &opcode_details[total_num_opcodes];
       jit_opcode_make_internal_opcode1(p_details,
                                        addr_6502,
@@ -1827,14 +1837,8 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       total_num_opcodes++;
     }
 
-    /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
-    if (p_details->ends_block) {
-      block_ended = 1;
-      break;
-    }
-
     /* Exit loop condition: next opcode is the start of a block boundary. */
-    if (p_compiler->addr_is_block_start[addr_6502]) {
+    if (is_next_block_start) {
       break;
     }
 
