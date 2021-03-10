@@ -98,6 +98,8 @@ convert_windows_key_code(uint32_t vkey) {
     return k_keyboard_key_windows;
   case VK_DELETE:
     return k_keyboard_key_delete;
+  case VK_HOME:
+    return k_keyboard_key_home;
   default:
     break;
   }

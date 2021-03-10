@@ -2202,6 +2202,12 @@ bbc_check_alt_keys(struct bbc_struct* p_bbc) {
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
   struct cpu_driver* p_cpu_driver = p_bbc->p_cpu_driver;
 
+  if (keyboard_consume_key_press(p_keyboard, k_keyboard_key_home)) {
+    /* Trigger debugger. */
+    volatile int* p_debug_interrupt = debug_get_interrupt(p_bbc->p_debug);
+    *p_debug_interrupt = 1;
+  }
+
   if (keyboard_consume_alt_key_press(p_keyboard, 'F')) {
     /* Toggle fast mode. */
     bbc_set_fast_mode(p_bbc, !p_bbc->fast_flag);

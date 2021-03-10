@@ -203,6 +203,9 @@ os_x11_keys_build_mapping() {
     case 96:
       val = k_keyboard_key_f12;
       break;
+    case 110:
+      val = k_keyboard_key_home;
+      break;
     case 111:
       val = k_keyboard_key_arrow_up;
       break;

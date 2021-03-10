@@ -22,9 +22,10 @@ BBC keys
 beebjit special keys
 ====================
 
+- Home:  stop to the debugger in the command line window
 - Alt-F: toggle turbo mode on / off
 - Alt-0: cycle across disc list and an empty drive in drive 0
-- Alt-1: cycle across disc list and an empty drive in drive 0
+- Alt-1: cycle across disc list and an empty drive in drive 1
 - Alt-T: cycle across tape list and a blank tape in the tape player
 - Alt-R: power-on reset
 - Alt-E: exit any in-progress replay
