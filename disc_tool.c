@@ -625,24 +625,27 @@ disc_tool_log_summary(struct disc_struct* p_disc,
       p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
 
       if (log_protection) {
-        if (p_tool->track_length >= (k_ibm_disc_bytes_per_track * 1.015)) {
-          log_do_log(k_log_disc,
-                     k_log_unusual,
-                     "long track %d, %d bytes",
-                     i_tracks,
-                     p_tool->track_length);
-        } else if (p_tool->track_length <
-                   (k_ibm_disc_bytes_per_track * 0.985)) {
-          log_do_log(k_log_disc,
-                     k_log_unusual,
-                     "short track %d, %d bytes",
-                     i_tracks,
-                     p_tool->track_length);
+        int has_sectors = (num_sectors != 0);
+        if (has_sectors) {
+          if (p_tool->track_length >= (k_ibm_disc_bytes_per_track * 1.015)) {
+            log_do_log(k_log_disc,
+                       k_log_unusual,
+                       "long track %d, %d bytes",
+                       i_tracks,
+                       p_tool->track_length);
+          } else if (p_tool->track_length <
+                     (k_ibm_disc_bytes_per_track * 0.985)) {
+            log_do_log(k_log_disc,
+                       k_log_unusual,
+                       "short track %d, %d bytes",
+                       i_tracks,
+                       p_tool->track_length);
+          }
         }
-        if (num_sectors == 0) {
+        if (!has_sectors) {
           log_do_log(k_log_disc, k_log_info, "unformattted track %d", i_tracks);
         } else if (p_sectors->is_mfm) {
-          if (num_sectors != 16) {
+          if ((num_sectors != 16) && (num_sectors != 18)) {
             log_do_log(k_log_disc,
                        k_log_info,
                        "non-standard MFM sector count track %d count %d",
