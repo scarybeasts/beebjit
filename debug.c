@@ -1044,47 +1044,47 @@ debug_parse_number(const char* p_str, int is_hex) {
 }
 
 static void
-debug_parse_breakpoint(struct debug_breakpoint* p_breakpoint,
-                       const char* p_str) {
-  char buf[256];
-  char c;
+debug_setup_breakpoint(struct debug_struct* p_debug) {
+  uint32_t i_params;
+  uint32_t num_params;
   uint16_t value;
-  uint32_t len = 0;
+  struct util_string_list_struct* p_command_strings;
+
+  struct debug_breakpoint* p_breakpoint = debug_get_free_breakpoint(p_debug);
+
+  if (p_breakpoint == NULL) {
+    (void) printf("no free breakpoints\n");
+    return;
+  }
 
   p_breakpoint->is_in_use = 1;
   p_breakpoint->type = k_debug_breakpoint_exec;
 
-  do {
-    c = *p_str;
-    if ((c == '\0') || isspace(c)) {
-      buf[len] = '\0';
-      if (len == 0) {
-        /* Nothing. */
-      } else if (!strcmp(buf, "b") || !strcmp(buf, "break")) {
-        /* Nothing. */
-      } else if (!strncmp(buf, "a=", 2)) {
-        p_breakpoint->a_value = debug_parse_number((buf + 2), 0);
-      } else if (!strncmp(buf, "x=", 2)) {
-        p_breakpoint->x_value = debug_parse_number((buf + 2), 0);
-      } else if (!strncmp(buf, "y=", 2)) {
-        p_breakpoint->y_value = debug_parse_number((buf + 2), 0);
-      } else {
-        value = debug_parse_number(buf, 1);
-        if (p_breakpoint->start == -1) {
-          p_breakpoint->start = value;
-        } else if (p_breakpoint->end == -1) {
-          p_breakpoint->end = value;
-        }
-      }
-      len = 0;
+  p_command_strings = p_debug->p_command_strings;
+  num_params = util_string_list_get_count(p_command_strings);
+  for (i_params = 0; i_params < num_params; ++i_params) {
+    const char* p_param_str;
+    /* Skip the "b" or "break". */
+    if (i_params == 0) {
+      continue;
+    }
+
+    p_param_str = util_string_list_get_string(p_command_strings, i_params);
+    if (!strncmp(p_param_str, "a=", 2)) {
+      p_breakpoint->a_value = debug_parse_number((p_param_str + 2), 0);
+    } else if (!strncmp(p_param_str, "x=", 2)) {
+      p_breakpoint->x_value = debug_parse_number((p_param_str + 2), 0);
+    } else if (!strncmp(p_param_str, "y=", 2)) {
+      p_breakpoint->y_value = debug_parse_number((p_param_str + 2), 0);
     } else {
-      if (len < (sizeof(buf) - 1)) {
-        buf[len] = c;
-        len++;
+      value = debug_parse_number(p_param_str, 1);
+      if (p_breakpoint->start == -1) {
+        p_breakpoint->start = value;
+      } else if (p_breakpoint->end == -1) {
+        p_breakpoint->end = value;
       }
     }
-    p_str++;
-  } while (c != '\0');
+  }
 
   if (p_breakpoint->end == -1) {
     p_breakpoint->end = p_breakpoint->start;
@@ -1380,7 +1380,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     int ret;
     struct debug_breakpoint* p_breakpoint;
     char input_buf[k_max_input_len];
-    char* p_command;
+    const char* p_command;
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
@@ -1500,14 +1500,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         ticks_delta = (parse_u64 - curr_cycles);
         (void) timing_start_timer_with_value(p_timing, timer_id, ticks_delta);
       }
-    } else if (!strncmp(input_buf, "b ", 2) ||
-               !strncmp(input_buf, "break", 5)) {
-      p_breakpoint = debug_get_free_breakpoint(p_debug);
-      if (p_breakpoint == NULL) {
-        (void) printf("no free breakpoints\n");
-        continue;
-      }
-      debug_parse_breakpoint(p_breakpoint, input_buf);
+    } else if (!strcmp(p_command, "b") || !strcmp(p_command, "break")) {
+      debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bl") || !strcmp(p_command, "blist")) {
       debug_dump_breakpoints(p_debug);
     } else if (sscanf(input_buf,

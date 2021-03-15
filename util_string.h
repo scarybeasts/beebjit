@@ -9,8 +9,8 @@ struct util_string_list_struct* util_string_list_alloc(void);
 void util_string_list_free(struct util_string_list_struct* p_list);
 void util_string_list_clear(struct util_string_list_struct* p_list);
 uint32_t util_string_list_get_count(struct util_string_list_struct* p_list);
-char* util_string_list_get_string(struct util_string_list_struct* p_list,
-                                  uint32_t i);
+const char* util_string_list_get_string(struct util_string_list_struct* p_list,
+                                        uint32_t i);
 int util_string_list_get_int(struct util_string_list_struct* p_list,
                              int64_t p_out_val,
                              uint32_t i);

@@ -79,7 +79,7 @@ util_string_list_add_with_length(struct util_string_list_struct* p_list,
   p_list->num_strings++;
 }
 
-char*
+const char*
 util_string_list_get_string(struct util_string_list_struct* p_list,
                             uint32_t i) {
   if (i >= p_list->num_strings) {
@@ -126,5 +126,6 @@ util_string_split(struct util_string_list_struct* p_list,
       ++i;
       c = p_str[i];
     }
+    start = i;
   }
 }
