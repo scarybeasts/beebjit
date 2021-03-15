@@ -64,19 +64,66 @@ util_string_list_expand(struct util_string_list_struct* p_list) {
 }
 
 void
-util_string_list_add_with_length(struct util_string_list_struct* p_list,
-                                 const char* p_str,
-                                 uint32_t len) {
+util_string_list_set_at_with_length(struct util_string_list_struct* p_list,
+                                    uint32_t index,
+                                    const char* p_str,
+                                    uint32_t len) {
   char* p_new_str;
 
-  if (p_list->num_strings == p_list->alloc_count) {
-    util_string_list_expand(p_list);
+  if (index >= p_list->num_strings) {
+    util_bail("bad index");
+  }
+  if (len >= (INT_MAX - 1)) {
+    util_bail("!");
   }
   p_new_str = util_malloc(len + 1);
   (void) memcpy(p_new_str, p_str, len);
   p_new_str[len] = '\0';
-  p_list->p_string_list[p_list->num_strings] = p_new_str;
+  util_free(p_list->p_string_list[index]);
+  p_list->p_string_list[index] = p_new_str;
+}
+
+void
+util_string_list_set_at(struct util_string_list_struct* p_list,
+                        uint32_t index,
+                        const char* p_str) {
+  size_t len = strlen(p_str);
+  if (len >= (INT_MAX - 1)) {
+    util_bail("!");
+  }
+  util_string_list_set_at_with_length(p_list, index, p_str, len);
+}
+
+void
+util_string_list_add_with_length(struct util_string_list_struct* p_list,
+                                 const char* p_str,
+                                 uint32_t len) {
+  uint32_t index = p_list->num_strings;
+
+  if (p_list->num_strings == p_list->alloc_count) {
+    util_string_list_expand(p_list);
+  }
+  p_list->p_string_list[index] = NULL;
   p_list->num_strings++;
+  util_string_list_set_at_with_length(p_list, index, p_str, len);
+}
+
+void
+util_string_list_insert(struct util_string_list_struct* p_list,
+                        uint32_t index,
+                        const char* p_str) {
+  if (index > p_list->num_strings) {
+    util_bail("bad index");
+  }
+  if (p_list->num_strings == p_list->alloc_count) {
+    util_string_list_expand(p_list);
+  }
+  (void) memmove(&p_list->p_string_list[index + 1],
+                 &p_list->p_string_list[index],
+                 ((p_list->num_strings - index) * sizeof(char*)));
+  p_list->p_string_list[index] = NULL;
+  p_list->num_strings++;
+  util_string_list_set_at(p_list, index, p_str);
 }
 
 const char*

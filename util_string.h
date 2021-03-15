@@ -17,9 +17,20 @@ int util_string_list_get_int(struct util_string_list_struct* p_list,
 int util_string_list_get_hex_int(struct util_string_list_struct* p_list,
                                  int64_t p_out_val,
                                  uint32_t i);
+
+void util_string_list_set_at_with_length(struct util_string_list_struct* p_list,
+                                         uint32_t index,
+                                         const char* p_str,
+                                         uint32_t len);
+void util_string_list_set_at(struct util_string_list_struct* p_list,
+                             uint32_t index,
+                             const char* p_str);
 void util_string_list_add_with_length(struct util_string_list_struct* p_list,
                                       const char* p_str,
                                       uint32_t len);
+void util_string_list_insert(struct util_string_list_struct* p_list,
+                             uint32_t index,
+                             const char* p_str);
 
 void util_string_split(struct util_string_list_struct* p_list,
                        const char* p_str,

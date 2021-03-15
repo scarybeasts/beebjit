@@ -34,18 +34,16 @@ enum {
   k_max_input_len = 1024,
 };
 
-enum {
-  k_debug_breakpoint_exec = 1,
-  k_debug_breakpoint_mem_read = 2,
-  k_debug_breakpoint_mem_write = 3,
-  k_debug_breakpoint_mem_read_write = 4,
-};
-
 struct debug_breakpoint {
   int is_in_use;
-  int type;
-  int32_t start;
-  int32_t end;
+  int has_exec_range;
+  int has_memory_range;
+  int is_memory_read;
+  int is_memory_write;
+  int32_t exec_start;
+  int32_t exec_end;
+  int32_t memory_start;
+  int32_t memory_end;
   int32_t a_value;
   int32_t x_value;
   int32_t y_value;
@@ -107,15 +105,15 @@ debug_interrupt_callback(void) {
 
 static void
 debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
-  p_debug->breakpoints[i].is_in_use = 0;
-  p_debug->breakpoints[i].type = 0;
-  p_debug->breakpoints[i].start = -1;
-  p_debug->breakpoints[i].end = -1;
-  p_debug->breakpoints[i].a_value = -1;
-  p_debug->breakpoints[i].x_value = -1;
-  p_debug->breakpoints[i].y_value = -1;
-  p_debug->breakpoints[i].do_print = 0;
-  p_debug->breakpoints[i].do_stop = 0;
+  struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+  (void) memset(p_breakpoint, '\0', sizeof(struct debug_breakpoint));
+  p_breakpoint->a_value = -1;
+  p_breakpoint->x_value = -1;
+  p_breakpoint->y_value = -1;
+  p_breakpoint->exec_start = -1;
+  p_breakpoint->exec_end = -1;
+  p_breakpoint->memory_start = -1;
+  p_breakpoint->memory_end = -1;
 }
 
 static void
@@ -668,8 +666,6 @@ debug_check_breakpoints(struct debug_struct* p_debug,
 
   /* TODO: shouldn't iterate at all if there's no breakpoints. */
   for (i = 0; i < k_max_break; ++i) {
-    int type;
-    int is_hit;
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       continue;
@@ -685,42 +681,29 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       continue;
     }
 
-    is_hit = 0;
-    type = p_breakpoint->type;
-    switch (type) {
-    case k_debug_breakpoint_exec:
-      if ((reg_pc >= p_breakpoint->start) && (reg_pc <= p_breakpoint->end)) {
-        is_hit = 1;
+    if (p_breakpoint->has_exec_range) {
+      if ((reg_pc < p_breakpoint->exec_start) ||
+          (reg_pc > p_breakpoint->exec_end)) {
+        continue;
       }
-      break;
-    case k_debug_breakpoint_mem_read:
-    case k_debug_breakpoint_mem_write:
-    case k_debug_breakpoint_mem_read_write:
-      if ((addr_6502 < p_breakpoint->start) ||
-          (addr_6502 > p_breakpoint->end)) {
-        break;
-      }
-      if (opmem & k_opmem_read_flag) {
-        if ((type == k_debug_breakpoint_mem_read) ||
-            (type == k_debug_breakpoint_mem_read_write)) {
-          is_hit = 1;
-        }
-      }
-      if (opmem & k_opmem_write_flag) {
-        if ((type == k_debug_breakpoint_mem_write) ||
-            (type == k_debug_breakpoint_mem_read_write)) {
-          is_hit = 1;
-        }
-      }
-      break;
-    default:
-      assert(0);
-      break;
     }
-    if (is_hit) {
-      debug_print |= p_breakpoint->do_print;
-      debug_stop |= p_breakpoint->do_stop;
+    if (p_breakpoint->has_memory_range) {
+      if ((addr_6502 < p_breakpoint->memory_start) ||
+          (addr_6502 > p_breakpoint->memory_end)) {
+        continue;
+      }
+      if (p_breakpoint->is_memory_read && (opmem & k_opmem_read_flag)) {
+        /* Match. */
+      } else if (p_breakpoint->is_memory_write &&
+                 (opmem & k_opmem_write_flag)) {
+        /* Match. */
+      } else {
+        continue;
+      }
     }
+    /* If we arrive here, it's a hit. */
+    debug_print |= p_breakpoint->do_print;
+    debug_stop |= p_breakpoint->do_stop;
   }
   if (p_debug->debug_break_opcodes[opcode_6502]) {
     debug_print = 1;
@@ -855,32 +838,29 @@ static void
 debug_dump_breakpoints(struct debug_struct* p_debug) {
   uint32_t i;
   for (i = 0; i < k_max_break; ++i) {
-    const char* p_type_name = NULL;
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       continue;
     }
-    (void) printf("breakpoint %"PRIu32": ", i);
-    switch (p_breakpoint->type) {
-    case k_debug_breakpoint_exec:
-      p_type_name = "exec";
-      break;
-    case k_debug_breakpoint_mem_read:
-      p_type_name = "mem read";
-      break;
-    case k_debug_breakpoint_mem_write:
-      p_type_name = "mem write";
-      break;
-    case k_debug_breakpoint_mem_read_write:
-      p_type_name = "mem read/write";
-      break;
-    default:
-      assert(0);
-      break;
+    (void) printf("breakpoint %"PRIu32":", i);
+    if (p_breakpoint->has_exec_range) {
+      (void) printf(" exec @$%.4"PRIX16"-$%.4"PRIX16,
+                    p_breakpoint->exec_start,
+                    p_breakpoint->exec_end);
     }
-    (void) printf("%s @$%.4"PRIX16, p_type_name, p_breakpoint->start);
-    if (p_breakpoint->end != p_breakpoint->start) {
-      (void) printf("-$%.4"PRIX16, p_breakpoint->end);
+    if (p_breakpoint->has_memory_range) {
+      const char* p_name = "read";
+      if (p_breakpoint->is_memory_write) {
+        if (p_breakpoint->is_memory_read) {
+          p_name = "rw";
+        } else {
+          p_name = "write";
+        }
+      }
+      (void) printf(" %s @$%.4"PRIX16"-$%.4"PRIX16,
+                    p_name,
+                    p_breakpoint->memory_start,
+                    p_breakpoint->memory_end);
     }
     (void) printf("\n");
   }
@@ -1045,6 +1025,9 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
   struct util_string_list_struct* p_command_strings;
 
   struct debug_breakpoint* p_breakpoint = debug_get_free_breakpoint(p_debug);
+  int is_memory_range = 0;
+  int is_memory_read = 0;
+  int is_memory_write = 0;
 
   if (p_breakpoint == NULL) {
     (void) printf("no free breakpoints\n");
@@ -1054,13 +1037,12 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
   p_breakpoint->is_in_use = 1;
   p_breakpoint->do_print = 1;
   p_breakpoint->do_stop = 1;
-  p_breakpoint->type = k_debug_breakpoint_exec;
 
   p_command_strings = p_debug->p_command_strings;
   num_params = util_string_list_get_count(p_command_strings);
   for (i_params = 0; i_params < num_params; ++i_params) {
     const char* p_param_str;
-    /* Skip the "b" or "break". */
+    /* Skip the "b", "break", "bmw" etc. */
     if (i_params == 0) {
       continue;
     }
@@ -1070,6 +1052,16 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       p_breakpoint->do_print = 0;
     } else if (!strcmp(p_param_str, "nostop")) {
       p_breakpoint->do_stop = 0;
+    } else if (!strcmp(p_param_str, "read")) {
+      is_memory_range = 1;
+      is_memory_read = 1;
+    } else if (!strcmp(p_param_str, "write")) {
+      is_memory_range = 1;
+      is_memory_write = 1;
+    } else if (!strcmp(p_param_str, "rw")) {
+      is_memory_range = 1;
+      is_memory_read = 1;
+      is_memory_write = 1;
     } else if (!strncmp(p_param_str, "a=", 2)) {
       p_breakpoint->a_value = debug_parse_number((p_param_str + 2), 0);
     } else if (!strncmp(p_param_str, "x=", 2)) {
@@ -1078,16 +1070,31 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       p_breakpoint->y_value = debug_parse_number((p_param_str + 2), 0);
     } else {
       value = debug_parse_number(p_param_str, 1);
-      if (p_breakpoint->start == -1) {
-        p_breakpoint->start = value;
-      } else if (p_breakpoint->end == -1) {
-        p_breakpoint->end = value;
+      if (!is_memory_range) {
+        p_breakpoint->has_exec_range = 1;
+        if (p_breakpoint->exec_start == -1) {
+          p_breakpoint->exec_start = value;
+        } else if (p_breakpoint->exec_end == -1) {
+          p_breakpoint->exec_end = value;
+        }
+      } else {
+        p_breakpoint->has_memory_range = 1;
+        p_breakpoint->is_memory_read = is_memory_read;
+        p_breakpoint->is_memory_write = is_memory_write;
+        if (p_breakpoint->memory_start == -1) {
+          p_breakpoint->memory_start = value;
+        } else if (p_breakpoint->memory_end == -1) {
+          p_breakpoint->memory_end = value;
+        }
       }
     }
   }
 
-  if (p_breakpoint->end == -1) {
-    p_breakpoint->end = p_breakpoint->start;
+  if (p_breakpoint->exec_end == -1) {
+    p_breakpoint->exec_end = p_breakpoint->exec_start;
+  }
+  if (p_breakpoint->memory_end == -1) {
+    p_breakpoint->memory_end = p_breakpoint->memory_start;
   }
 }
 
@@ -1443,7 +1450,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     uint16_t parse_addr;
     uint64_t parse_u64;
     int ret;
-    struct debug_breakpoint* p_breakpoint;
     char input_buf[k_max_input_len];
     const char* p_command;
 
@@ -1568,65 +1574,17 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       }
     } else if (!strcmp(p_command, "b") || !strcmp(p_command, "break")) {
       debug_setup_breakpoint(p_debug);
+    } else if (!strcmp(p_command, "bm")) {
+      util_string_list_insert(p_command_strings, 1, "rw");
+      debug_setup_breakpoint(p_debug);
+    } else if (!strcmp(p_command, "bmr")) {
+      util_string_list_insert(p_command_strings, 1, "read");
+      debug_setup_breakpoint(p_debug);
+    } else if (!strcmp(p_command, "bmw")) {
+      util_string_list_insert(p_command_strings, 1, "write");
+      debug_setup_breakpoint(p_debug);
     } else if (!strcmp(p_command, "bl") || !strcmp(p_command, "blist")) {
       debug_dump_breakpoints(p_debug);
-    } else if (sscanf(input_buf,
-                      "bm %"PRIx32" %"PRIx32,
-                      &parse_int,
-                      &parse_int2) >= 1) {
-      parse_addr = parse_int;
-      p_breakpoint = debug_get_free_breakpoint(p_debug);
-      if (p_breakpoint == NULL) {
-        (void) printf("no free breakpoints\n");
-        continue;
-      }
-      p_breakpoint->is_in_use = 1;
-      p_breakpoint->do_print = 1;
-      p_breakpoint->do_stop = 1;
-      p_breakpoint->type = k_debug_breakpoint_mem_read_write;
-      p_breakpoint->start = parse_addr;
-      if (parse_int2 != -1) {
-        parse_addr = parse_int2;
-      }
-      p_breakpoint->end = parse_addr;
-    } else if (sscanf(input_buf,
-                      "bmr %"PRIx32" %"PRIx32,
-                      &parse_int,
-                      &parse_int2) >= 1) {
-      parse_addr = parse_int;
-      p_breakpoint = debug_get_free_breakpoint(p_debug);
-      if (p_breakpoint == NULL) {
-        (void) printf("no free breakpoints\n");
-        continue;
-      }
-      p_breakpoint->is_in_use = 1;
-      p_breakpoint->do_print = 1;
-      p_breakpoint->do_stop = 1;
-      p_breakpoint->type = k_debug_breakpoint_mem_read;
-      p_breakpoint->start = parse_addr;
-      if (parse_int2 != -1) {
-        parse_addr = parse_int2;
-      }
-      p_breakpoint->end = parse_addr;
-    } else if (sscanf(input_buf,
-                      "bmw %"PRIx32" %"PRIx32,
-                      &parse_int,
-                      &parse_int2) >= 1) {
-      parse_addr = parse_int;
-      p_breakpoint = debug_get_free_breakpoint(p_debug);
-      if (p_breakpoint == NULL) {
-        (void) printf("no free breakpoints\n");
-        continue;
-      }
-      p_breakpoint->is_in_use = 1;
-      p_breakpoint->do_print = 1;
-      p_breakpoint->do_stop = 1;
-      p_breakpoint->type = k_debug_breakpoint_mem_write;
-      p_breakpoint->start = parse_addr;
-      if (parse_int2 != -1) {
-        parse_addr = parse_int2;
-      }
-      p_breakpoint->end = parse_addr;
     } else if ((sscanf(input_buf, "db %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
