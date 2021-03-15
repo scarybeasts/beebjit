@@ -49,6 +49,8 @@ struct debug_breakpoint {
   int32_t a_value;
   int32_t x_value;
   int32_t y_value;
+  int do_print;
+  int do_stop;
 };
 
 struct debug_struct {
@@ -112,6 +114,8 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   p_debug->breakpoints[i].a_value = -1;
   p_debug->breakpoints[i].x_value = -1;
   p_debug->breakpoints[i].y_value = -1;
+  p_debug->breakpoints[i].do_print = 0;
+  p_debug->breakpoints[i].do_stop = 0;
 }
 
 static void
@@ -665,6 +669,7 @@ debug_check_breakpoints(struct debug_struct* p_debug,
   /* TODO: shouldn't iterate at all if there's no breakpoints. */
   for (i = 0; i < k_max_break; ++i) {
     int type;
+    int is_hit;
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       continue;
@@ -680,12 +685,12 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       continue;
     }
 
+    is_hit = 0;
     type = p_breakpoint->type;
     switch (type) {
     case k_debug_breakpoint_exec:
       if ((reg_pc >= p_breakpoint->start) && (reg_pc <= p_breakpoint->end)) {
-        debug_print = 1;
-        debug_stop = 1;
+        is_hit = 1;
       }
       break;
     case k_debug_breakpoint_mem_read:
@@ -693,27 +698,28 @@ debug_check_breakpoints(struct debug_struct* p_debug,
     case k_debug_breakpoint_mem_read_write:
       if ((addr_6502 < p_breakpoint->start) ||
           (addr_6502 > p_breakpoint->end)) {
-        debug_print = 1;
-        debug_stop = 1;
+        break;
       }
       if (opmem & k_opmem_read_flag) {
         if ((type == k_debug_breakpoint_mem_read) ||
             (type == k_debug_breakpoint_mem_read_write)) {
-          debug_print = 1;
-          debug_stop = 1;
+          is_hit = 1;
         }
       }
       if (opmem & k_opmem_write_flag) {
         if ((type == k_debug_breakpoint_mem_write) ||
             (type == k_debug_breakpoint_mem_read_write)) {
-          debug_print = 1;
-          debug_stop = 1;
+          is_hit = 1;
         }
       }
       break;
     default:
       assert(0);
       break;
+    }
+    if (is_hit) {
+      debug_print |= p_breakpoint->do_print;
+      debug_stop |= p_breakpoint->do_stop;
     }
   }
   if (p_debug->debug_break_opcodes[opcode_6502]) {
@@ -1046,6 +1052,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
   }
 
   p_breakpoint->is_in_use = 1;
+  p_breakpoint->do_print = 1;
+  p_breakpoint->do_stop = 1;
   p_breakpoint->type = k_debug_breakpoint_exec;
 
   p_command_strings = p_debug->p_command_strings;
@@ -1058,7 +1066,11 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
     }
 
     p_param_str = util_string_list_get_string(p_command_strings, i_params);
-    if (!strncmp(p_param_str, "a=", 2)) {
+    if (!strcmp(p_param_str, "noprint")) {
+      p_breakpoint->do_print = 0;
+    } else if (!strcmp(p_param_str, "nostop")) {
+      p_breakpoint->do_stop = 0;
+    } else if (!strncmp(p_param_str, "a=", 2)) {
       p_breakpoint->a_value = debug_parse_number((p_param_str + 2), 0);
     } else if (!strncmp(p_param_str, "x=", 2)) {
       p_breakpoint->x_value = debug_parse_number((p_param_str + 2), 0);
@@ -1569,6 +1581,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         continue;
       }
       p_breakpoint->is_in_use = 1;
+      p_breakpoint->do_print = 1;
+      p_breakpoint->do_stop = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_read_write;
       p_breakpoint->start = parse_addr;
       if (parse_int2 != -1) {
@@ -1586,6 +1600,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         continue;
       }
       p_breakpoint->is_in_use = 1;
+      p_breakpoint->do_print = 1;
+      p_breakpoint->do_stop = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_read;
       p_breakpoint->start = parse_addr;
       if (parse_int2 != -1) {
@@ -1603,6 +1619,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         continue;
       }
       p_breakpoint->is_in_use = 1;
+      p_breakpoint->do_print = 1;
+      p_breakpoint->do_stop = 1;
       p_breakpoint->type = k_debug_breakpoint_mem_write;
       p_breakpoint->start = parse_addr;
       if (parse_int2 != -1) {
