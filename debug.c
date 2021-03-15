@@ -11,6 +11,7 @@
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
+#include "util_string.h"
 #include "via.h"
 #include "video.h"
 
@@ -60,6 +61,7 @@ struct debug_struct {
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
+  struct util_string_list_struct* p_command_strings;
 
   /* Breakpointing. */
   int32_t debug_stop_addr;
@@ -146,6 +148,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
   p_debug->p_tool = disc_tool_create();
+  p_debug->p_command_strings = util_string_list_alloc();
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
@@ -176,6 +179,7 @@ debug_init(struct debug_struct* p_debug) {
 void
 debug_destroy(struct debug_struct* p_debug) {
   disc_tool_destroy(p_debug->p_tool);
+  util_string_list_free(p_debug->p_command_strings);
   free(p_debug);
 }
 
@@ -1376,6 +1380,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     int ret;
     struct debug_breakpoint* p_breakpoint;
     char input_buf[k_max_input_len];
+    char* p_command;
 
     int32_t parse_int = -1;
     int32_t parse_int2 = -1;
@@ -1385,6 +1390,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     int32_t parse_int6 = -1;
     int32_t parse_int7 = -1;
     int32_t parse_int8 = -1;
+    struct util_string_list_struct* p_command_strings =
+        p_debug->p_command_strings;
 
     (void) printf("(6502db) ");
     ret = fflush(stdout);
@@ -1430,31 +1437,37 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       }
     }
 
-    if (!strcmp(input_buf, "q")) {
+    util_string_split(p_command_strings, input_buf, 0);
+    p_command = "";
+    if (util_string_list_get_count(p_command_strings) > 0) {
+      p_command = util_string_list_get_string(p_command_strings, 0);
+    }
+
+    if (!strcmp(p_command, "q")) {
       exit(0);
-    } else if (!strcmp(input_buf, "p")) {
+    } else if (!strcmp(p_command, "p")) {
       p_debug->debug_running_print = !p_debug->debug_running_print;
       (void) printf("print now: %d\n", p_debug->debug_running_print);
-    } else if (!strcmp(input_buf, "stats")) {
+    } else if (!strcmp(p_command, "stats")) {
       p_debug->stats = !p_debug->stats;
       (void) printf("stats now: %d\n", p_debug->stats);
-    } else if (!strcmp(input_buf, "ds")) {
+    } else if (!strcmp(p_command, "ds")) {
       debug_dump_stats(p_debug);
-    } else if (!strcmp(input_buf, "cs")) {
+    } else if (!strcmp(p_command, "cs")) {
       debug_clear_stats(p_debug);
-    } else if (!strcmp(input_buf, "s")) {
+    } else if (!strcmp(p_command, "s")) {
       break;
-    } else if (!strcmp(input_buf, "t")) {
+    } else if (!strcmp(p_command, "t")) {
       do_trap = 1;
       break;
-    } else if (!strcmp(input_buf, "c")) {
+    } else if (!strcmp(p_command, "c")) {
       p_debug->debug_running = 1;
       break;
-    } else if (!strcmp(input_buf, "n")) {
+    } else if (!strcmp(p_command, "n")) {
       p_debug->next_or_finish_stop_addr = (reg_pc + oplen);
       p_debug->debug_running = 1;
       break;
-    } else if (!strcmp(input_buf, "f")) {
+    } else if (!strcmp(p_command, "f")) {
       uint16_t finish_addr;
       uint8_t stack = (reg_s + 1);
       finish_addr = p_mem_read[k_6502_stack_addr + stack];
@@ -1495,7 +1508,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         continue;
       }
       debug_parse_breakpoint(p_breakpoint, input_buf);
-    } else if (!strcmp(input_buf, "bl") || !strcmp(input_buf, "blist")) {
+    } else if (!strcmp(p_command, "bl") || !strcmp(p_command, "blist")) {
       debug_dump_breakpoints(p_debug);
     } else if (sscanf(input_buf,
                       "bm %"PRIx32" %"PRIx32,
@@ -1616,15 +1629,15 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       k_max_input_len,
                       "d %x",
                       parse_addr);
-    } else if (!strcmp(input_buf, "sys")) {
+    } else if (!strcmp(p_command, "sys")) {
       debug_dump_via(p_bbc, k_via_system);
-    } else if (!strcmp(input_buf, "user")) {
+    } else if (!strcmp(p_command, "user")) {
       debug_dump_via(p_bbc, k_via_user);
-    } else if (!strcmp(input_buf, "crtc")) {
+    } else if (!strcmp(p_command, "crtc")) {
       debug_dump_crtc(p_bbc);
-    } else if (!strcmp(input_buf, "bbc")) {
+    } else if (!strcmp(p_command, "bbc")) {
       debug_dump_bbc(p_bbc);
-    } else if (!strcmp(input_buf, "r")) {
+    } else if (!strcmp(p_command, "r")) {
       struct timing_struct* p_timing = bbc_get_timing(p_bbc);
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
@@ -1656,7 +1669,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if ((sscanf(input_buf, "dtrack %"PRId32, &parse_int) == 1) &&
                (parse_int >= 0)) {
       disc_tool_set_track(p_tool, parse_int);
-    } else if (!strcmp(input_buf, "dsec")) {
+    } else if (!strcmp(p_command, "dsec")) {
       uint32_t i_sectors;
       uint32_t num_sectors;
       struct disc_tool_sector* p_sectors;
@@ -1765,9 +1778,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (sscanf(input_buf, "keyup %"PRId32, &parse_int) == 1) {
       struct keyboard_struct* p_keyboard = bbc_get_keyboard(p_bbc);
       keyboard_system_key_released(p_keyboard, (uint8_t) parse_int);
-    } else if (!strcmp(input_buf, "?") ||
-               !strcmp(input_buf, "help") ||
-               !strcmp(input_buf, "h")) {
+    } else if (!strcmp(p_command, "?") ||
+               !strcmp(p_command, "help") ||
+               !strcmp(p_command, "h")) {
       (void) printf(
   "q                  : quit\n"
   "c, s, n, f         : continue, step (in), next (step over), finish (JSR)\n"
@@ -1790,7 +1803,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "disc               : show disc commands\n"
   "more               : show more commands\n"
   );
-    } else if (!strcmp(input_buf, "disc")) {
+    } else if (!strcmp(p_command, "disc")) {
       (void) printf(
   "ddrive <d>         : set debug disc drive to <d>\n"
   "dtrack <t>         : set debug disc track to <t>\n"
@@ -1803,7 +1816,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   "dsec               : list sector headers of current track\n"
   "drsec <n>          : dump sector in physical order <n> (do dsec first)\n"
   );
-    } else if (!strcmp(input_buf, "more")) {
+    } else if (!strcmp(p_command, "more")) {
       (void) printf(
   "bop <op>           : break on opcode <op>\n"
   "stats              : toggle stats collection (default: off)\n"

@@ -7,6 +7,7 @@
 /* Memory. */
 void* util_malloc(size_t size);
 void* util_mallocz(size_t size);
+void* util_realloc(void* p, size_t size);
 void util_free(void* p);
 char* util_strdup(const char* p_str);
 char* util_strdup2(const char* p_str1, const char* p_str2);

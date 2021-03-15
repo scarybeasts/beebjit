@@ -36,6 +36,16 @@ util_mallocz(size_t size) {
   return p_ret;
 }
 
+void*
+util_realloc(void* p, size_t size) {
+  void* p_ret = realloc(p, size);
+  if (p_ret == NULL) {
+    util_bail("realloc failed");
+  }
+
+  return p_ret;
+}
+
 void
 util_free(void* p) {
   free(p);
