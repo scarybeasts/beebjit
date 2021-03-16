@@ -9,7 +9,6 @@ are currently prioritized.
 
 - Poor granularity of system wakeup with audio subsystem as timer?
 - Make Alt-R hard reset reload disc images from host disc.
-- Execute certain debugger commands when a breakpoint hits.
 
 
 Fix later

@@ -41,6 +41,15 @@ util_string_list_get_count(struct util_string_list_struct* p_list) {
   return p_list->num_strings;
 }
 
+const char*
+util_string_list_get_string(struct util_string_list_struct* p_list,
+                            uint32_t i) {
+  if (i >= p_list->num_strings) {
+    util_bail("bad index");
+  }
+  return p_list->p_string_list[i];
+}
+
 static void
 util_string_list_expand(struct util_string_list_struct* p_list) {
   uint32_t new_count;
@@ -109,6 +118,16 @@ util_string_list_add_with_length(struct util_string_list_struct* p_list,
 }
 
 void
+util_string_list_add(struct util_string_list_struct* p_list,
+                     const char* p_str) {
+  size_t len = strlen(p_str);
+  if (len >= (INT_MAX - 1)) {
+    util_bail("!");
+  }
+  util_string_list_add_with_length(p_list, p_str, len);
+}
+
+void
 util_string_list_insert(struct util_string_list_struct* p_list,
                         uint32_t index,
                         const char* p_str) {
@@ -126,24 +145,37 @@ util_string_list_insert(struct util_string_list_struct* p_list,
   util_string_list_set_at(p_list, index, p_str);
 }
 
-const char*
-util_string_list_get_string(struct util_string_list_struct* p_list,
-                            uint32_t i) {
-  if (i >= p_list->num_strings) {
+void util_string_list_append_list(struct util_string_list_struct* p_list,
+                                  struct util_string_list_struct* p_src_list) {
+  uint32_t i;
+
+  for (i = 0; i < p_src_list->num_strings; ++i) {
+    util_string_list_add(p_list, p_src_list->p_string_list[i]);
+  }
+}
+
+void
+util_string_list_remove(struct util_string_list_struct* p_list,
+                        uint32_t index) {
+  if (index >= p_list->num_strings) {
     util_bail("bad index");
   }
-  return p_list->p_string_list[i];
+  util_free(p_list->p_string_list[index]);
+  (void) memmove(&p_list->p_string_list[index],
+                 &p_list->p_string_list[index + 1],
+                 ((p_list->num_strings - index - 1) * sizeof(char*)));
+  p_list->num_strings--;
 }
 
 void
 util_string_split(struct util_string_list_struct* p_list,
                   const char* p_str,
-                  char split_char) {
+                  char split_char,
+                  char quote_char) {
   uint32_t i;
   uint32_t start;
+  int is_in_quote;
   size_t len = strlen(p_str);
-
-  (void) split_char;
 
   if (len > INT_MAX) {
     util_bail("!");
@@ -153,26 +185,36 @@ util_string_split(struct util_string_list_struct* p_list,
 
   util_string_list_clear(p_list);
 
+  is_in_quote = 0;
   start = 0;
   for (i = 0; i < len; ++i) {
     uint32_t chunk_len;
     char c = p_str[i];
-    if (isspace(c) || (c == '\0')) {
-      /* Something to do. */
+    if (c == '\0') {
+      /* Fall through -- chunk and overall string ended. */
+    } else if (c == quote_char) {
+      is_in_quote = !is_in_quote;
+      continue;
+    } else if (c == split_char) {
+      if (is_in_quote) {
+        continue;
+      }
+      /* Fall through -- chunk ended. */
     } else {
       continue;
     }
-    chunk_len = (i - start);
-    if (chunk_len == 0) {
-      continue;
-    }
 
+    chunk_len = (i - start);
+    /* Strip surrounding quotes. */
+    if ((chunk_len >= 2) &&
+        (p_str[start] == quote_char) &&
+        (p_str[i - 1] == quote_char)) {
+      start++;
+      chunk_len -= 2;
+    }
     util_string_list_add_with_length(p_list, (p_str + start), chunk_len);
 
-    while (isspace(c)) {
-      ++i;
-      c = p_str[i];
-    }
-    start = i;
+    is_in_quote = 0;
+    start = (i + 1);
   }
 }

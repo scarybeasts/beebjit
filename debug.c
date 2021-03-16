@@ -49,6 +49,7 @@ struct debug_breakpoint {
   int32_t y_value;
   int do_print;
   int do_stop;
+  struct util_string_list_struct* p_command_list;
 };
 
 struct debug_struct {
@@ -62,6 +63,7 @@ struct debug_struct {
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
   struct util_string_list_struct* p_command_strings;
+  struct util_string_list_struct* p_pending_commands;
 
   /* Breakpointing. */
   int32_t debug_stop_addr;
@@ -92,7 +94,6 @@ struct debug_struct {
   uint8_t warn_at_addr_count[k_6502_addr_space_size];
   int32_t timer_id_debug;
   char previous_commands[k_max_input_len];
-  char current_commands[k_max_input_len];
 };
 
 static int s_interrupt_received;
@@ -106,6 +107,9 @@ debug_interrupt_callback(void) {
 static void
 debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+  if (p_breakpoint->p_command_list) {
+    util_string_list_free(p_breakpoint->p_command_list);
+  }
   (void) memset(p_breakpoint, '\0', sizeof(struct debug_breakpoint));
   p_breakpoint->a_value = -1;
   p_breakpoint->x_value = -1;
@@ -151,6 +155,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->next_or_finish_stop_addr = -1;
   p_debug->p_tool = disc_tool_create();
   p_debug->p_command_strings = util_string_list_alloc();
+  p_debug->p_pending_commands = util_string_list_alloc();
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
@@ -163,8 +168,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->timer_id_debug = timing_register_timer(p_timing,
                                                   debug_timer_callback,
                                                   p_debug);
-  p_debug->current_commands[0] = '\0';
-
   return p_debug;
 }
 
@@ -182,6 +185,7 @@ void
 debug_destroy(struct debug_struct* p_debug) {
   disc_tool_destroy(p_debug->p_tool);
   util_string_list_free(p_debug->p_command_strings);
+  util_string_list_free(p_debug->p_pending_commands);
   free(p_debug);
 }
 
@@ -704,6 +708,10 @@ debug_check_breakpoints(struct debug_struct* p_debug,
     /* If we arrive here, it's a hit. */
     debug_print |= p_breakpoint->do_print;
     debug_stop |= p_breakpoint->do_stop;
+    if (p_breakpoint->p_command_list) {
+      util_string_list_append_list(p_debug->p_pending_commands,
+                                   p_breakpoint->p_command_list);
+    }
   }
   if (p_debug->debug_break_opcodes[opcode_6502]) {
     debug_print = 1;
@@ -1062,6 +1070,16 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       is_memory_range = 1;
       is_memory_read = 1;
       is_memory_write = 1;
+    } else if (!strcmp(p_param_str, "commands")) {
+      if ((i_params + 1) < num_params) {
+        const char* p_commands = util_string_list_get_string(p_command_strings,
+                                                             (i_params + 1));
+        if (!p_breakpoint->p_command_list) {
+          p_breakpoint->p_command_list = util_string_list_alloc();
+        }
+        util_string_split(p_breakpoint->p_command_list, p_commands, ';', '\'');
+        i_params++;
+      }
     } else if (!strncmp(p_param_str, "a=", 2)) {
       p_breakpoint->a_value = debug_parse_number((p_param_str + 2), 0);
     } else if (!strncmp(p_param_str, "x=", 2)) {
@@ -1451,6 +1469,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     uint64_t parse_u64;
     int ret;
     char input_buf[k_max_input_len];
+    const char* p_command_and_params;
     const char* p_command;
 
     int32_t parse_int = -1;
@@ -1461,6 +1480,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     int32_t parse_int6 = -1;
     int32_t parse_int7 = -1;
     int32_t parse_int8 = -1;
+    struct util_string_list_struct* p_pending_commands =
+        p_debug->p_pending_commands;
     struct util_string_list_struct* p_command_strings =
         p_debug->p_command_strings;
 
@@ -1470,45 +1491,39 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       util_bail("fflush() failed");
     }
 
-    if (p_debug->current_commands[0] != '\0') {
-      (void) printf("%s\n", &p_debug->current_commands[0]);
-    } else {
-      char* p_input_ret = fgets(&p_debug->current_commands[0],
-                                sizeof(p_debug->current_commands),
-                                stdin);
+    /* Get more commands from stdin if the list is empty. */
+    if (util_string_list_get_count(p_pending_commands) == 0) {
+      uint32_t len;
+      char* p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {
         util_bail("fgets failed");
       }
-    }
-
-    if (p_debug->current_commands[0] == '\n') {
-      (void) strcpy(&p_debug->current_commands[0],
-                    &p_debug->previous_commands[0]);
-    } else {
-      (void) strcpy(&p_debug->previous_commands[0],
-                    &p_debug->current_commands[0]);
-    }
-
-    /* Split off ; separated command list. */
-    for (i = 0; i < k_max_input_len; ++i) {
-      char c = p_debug->current_commands[i];
-      if ((c == '\n') || (c == '\0')) {
-        input_buf[i] = '\0';
-        p_debug->current_commands[0] = '\0';
-        break;
-      } else if (c == ';') {
-        char* p_next_command = &p_debug->current_commands[i + 1];
-        input_buf[i] = '\0';
-        (void) memmove(&p_debug->current_commands[0],
-                       p_next_command,
-                       (strlen(p_next_command) + 1));
-        break;
-      } else {
-        input_buf[i] = c;
+      /* Trim trailing whitespace, most significantly the \n. */
+      len = strlen(input_buf);
+      while ((len > 0) && isspace(input_buf[len - 1])) {
+        input_buf[len - 1] = '\0';
+        len--;
       }
+      /* If the line is empty (i.e. user just hammers enter), repeat the most
+       * recently entered line.
+       */
+      if (input_buf[0] == '\0') {
+        (void) strcpy(&input_buf[0], &p_debug->previous_commands[0]);
+      } else {
+        (void) strcpy(&p_debug->previous_commands[0], &input_buf[0]);
+      }
+
+      util_string_split(p_pending_commands, &input_buf[0], ';', '\'');
+    } else {
+      (void) printf("%s\n", util_string_list_get_string(p_pending_commands, 0));
     }
 
-    util_string_split(p_command_strings, input_buf, 0);
+    /* Pop command from the front of the pending commands list. */
+    p_command_and_params = util_string_list_get_string(p_pending_commands, 0);
+    (void) strcpy(&input_buf[0], p_command_and_params);
+    util_string_split(p_command_strings, p_command_and_params, ' ', '\'');
+    util_string_list_remove(p_pending_commands, 0);
+
     p_command = "";
     if (util_string_list_get_count(p_command_strings) > 0) {
       p_command = util_string_list_get_string(p_command_strings, 0);
@@ -1881,9 +1896,6 @@ void
 debug_set_commands(struct debug_struct* p_debug, const char* p_commands) {
   struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
 
-  (void) snprintf(p_debug->current_commands,
-                  sizeof(p_debug->current_commands),
-                  "%s",
-                  p_commands);
+  util_string_split(p_debug->p_pending_commands, p_commands, ';', '\'');
   (void) timing_start_timer_with_value(p_timing, p_debug->timer_id_debug, 1);
 }
