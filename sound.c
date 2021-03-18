@@ -26,6 +26,7 @@ struct sound_struct {
   /* Configuration. */
   int synchronous;
   uint32_t driver_buffer_size;
+  uint32_t driver_period_size;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
@@ -38,6 +39,7 @@ struct sound_struct {
   int do_exit;
   struct os_thread_struct* p_thread_sound;
   int16_t* p_driver_frames;
+  uint32_t driver_buffer_index;
   int16_t* p_sn_frames;
 
   /* Resampling. */
@@ -149,7 +151,9 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   int16_t* p_sn_frames = p_sound->p_sn_frames;
   double resample_step = p_sound->sn_frames_per_driver_frame;
   uint32_t num_sn_frames = p_sound->sn_frames_filled;
-  uint32_t num_driver_frames = 0;
+  uint32_t driver_buffer_size = p_sound->driver_buffer_size;
+  uint32_t driver_buffer_index = p_sound->driver_buffer_index;
+  uint32_t num_driver_frames_written = 0;
 
   /* Carry-over from prevous resample chunk. */
   double average_sample_value = p_sound->average_sample_value;
@@ -177,8 +181,13 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
         average_sample_value += (fraction_this * this_sample_value);
         average_sample_count += fraction_this;
         average_sample_value /= average_sample_count;
-        p_driver_frames[num_driver_frames] = average_sample_value;
-        num_driver_frames++;
+
+        if (driver_buffer_index < driver_buffer_size) {
+          p_driver_frames[driver_buffer_index] = average_sample_value;
+          driver_buffer_index++;
+          num_driver_frames_written++;
+        }
+
         average_sample_value = (fraction_next * this_sample_value);
         average_sample_count = fraction_next;
       }
@@ -192,7 +201,8 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   }
 
   assert(p_sound->resample_index < resample_step);
-  assert(num_driver_frames <= p_sound->driver_buffer_size);
+  assert((p_sound->driver_buffer_index + num_driver_frames_written) <=
+         driver_buffer_size);
 
   /* Preserve resample state so we don't lose precision as we cross resample
    * chunks.
@@ -202,7 +212,8 @@ sound_resample_to_driver_buffer(struct sound_struct* p_sound) {
   p_sound->resample_index = (resample_index - num_sn_frames);
   p_sound->next_sample_start_index = (next_sample_start_index - num_sn_frames);
 
-  return num_driver_frames;
+  p_sound->driver_buffer_index = driver_buffer_index;
+  return num_driver_frames_written;
 }
 
 static void
@@ -226,6 +237,7 @@ sound_direct_write_driver_frames(struct sound_struct* p_sound,
                             noise_rng,
                             noise_type);
 
+  p_sound->driver_buffer_index = 0;
   num_driver_frames = sound_resample_to_driver_buffer(p_sound);
 
   /* TODO: the rounding errors causing this need looking into in more detail. */
@@ -248,8 +260,7 @@ sound_play_thread(void* p) {
   uint16_t period[4];
 
   struct sound_struct* p_sound = (struct sound_struct*) p;
-  struct os_sound_struct* p_sound_driver = p_sound->p_driver;
-  uint32_t period_frames = os_sound_get_period_size(p_sound_driver);
+  uint32_t period_frames = p_sound->driver_period_size;
 
   /* We read these but the main thread writes them. */
   volatile int* p_do_exit = &p_sound->do_exit;
@@ -299,6 +310,7 @@ sound_create(int synchronous,
 
   p_sound->prev_system_ticks = 0;
   p_sound->sn_frames_filled = 0;
+  p_sound->driver_buffer_index = 0;
 
   positive_silence = util_has_option(p_options->p_opt_flags,
                                      "sound:positive-silence");
@@ -363,8 +375,9 @@ sound_set_driver(struct sound_struct* p_sound,
 
   sample_rate = os_sound_get_sample_rate(p_driver);
   driver_buffer_size = os_sound_get_buffer_size(p_driver);
-
   p_sound->driver_buffer_size = driver_buffer_size;
+  p_sound->driver_period_size = os_sound_get_period_size(p_driver);
+
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
   p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
                                          (double) sample_rate);
@@ -500,9 +513,14 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
 
 void
 sound_tick(struct sound_struct* p_sound) {
-  uint32_t num_driver_frames;
+  uint32_t num_full_periods;
+  uint32_t num_write_frames;
+  uint32_t num_leftover_frames;
+  uint32_t driver_buffer_index;
+  int16_t* p_driver_frames;
 
   struct os_sound_struct* p_driver = p_sound->p_driver;
+  uint32_t driver_period_size = p_sound->driver_period_size;
 
   if (!sound_is_active(p_sound)) {
     return;
@@ -513,8 +531,22 @@ sound_tick(struct sound_struct* p_sound) {
 
   sound_advance_sn_timing(p_sound);
 
-  num_driver_frames = sound_resample_to_driver_buffer(p_sound);
-  os_sound_write(p_driver, p_sound->p_driver_frames, num_driver_frames);
+  (void) sound_resample_to_driver_buffer(p_sound);
+  driver_buffer_index = p_sound->driver_buffer_index;
+  num_full_periods = (driver_buffer_index / driver_period_size);
+  if (num_full_periods == 0) {
+    return;
+  }
+
+  p_driver_frames = p_sound->p_driver_frames;
+  num_write_frames = (num_full_periods * driver_period_size);
+  os_sound_write(p_driver, p_driver_frames, num_write_frames);
+
+  num_leftover_frames = (driver_buffer_index - num_write_frames);
+  (void) memmove(p_driver_frames,
+                 (p_driver_frames + num_write_frames),
+                 (num_leftover_frames * sizeof(int16_t)));
+  p_sound->driver_buffer_index = num_leftover_frames;
 }
 
 void
