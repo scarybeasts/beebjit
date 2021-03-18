@@ -26,7 +26,6 @@ struct sound_struct {
   /* Configuration. */
   int synchronous;
   uint32_t driver_buffer_size;
-  int is_output_enabled;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
@@ -292,7 +291,6 @@ sound_create(int synchronous,
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
-  p_sound->is_output_enabled = 1;
 
   p_sound->average_sample_value = 0.0;
   p_sound->average_sample_count = 0.0;
@@ -404,11 +402,6 @@ sound_start_playing(struct sound_struct* p_sound) {
 }
 
 void
-sound_set_output_enabled(struct sound_struct* p_sound, int is_enabled) {
-  p_sound->is_output_enabled = is_enabled;
-}
-
-void
 sound_power_on_reset(struct sound_struct* p_sound) {
   uint32_t i;
   int16_t volume_max = p_sound->volumes[0xf];
@@ -465,7 +458,7 @@ sound_is_active(struct sound_struct* p_sound) {
   if (p_sound->p_driver == NULL) {
     return 0;
   }
-  return p_sound->is_output_enabled;
+  return 1;
 }
 
 int

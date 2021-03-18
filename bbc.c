@@ -1204,7 +1204,6 @@ bbc_set_fast_mode(void* p, int is_fast) {
   void (*p_memory_written_callback)(void* p) = NULL;
 
   p_bbc->fast_flag = is_fast;
-  sound_set_output_enabled(p_bbc->p_sound, !is_fast);
 
   /* In accurate mode, and when not running super fast, we use the interpreter
    * with a special callback to sync 6502 memory writes to the 6845 CRTC memory
@@ -2273,6 +2272,13 @@ bbc_cycles_timer_callback(void* p) {
 
     /* This may adjust p_bbc->last_time_us to maintain smooth timing. */
     bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
+
+    /* Prod the sound module in case it's in synchronous mode.
+     * There's no sound output (which would block!) in fast mode, so we put it
+     * here in the slow path. All of the potentially blocking calls are
+     * localized to the slow path.
+     */
+    sound_tick(p_bbc->p_sound);
   } else {
     /* Fast mode.
      * Fast mode is where the system executes as fast as the host CPU can
@@ -2297,9 +2303,6 @@ bbc_cycles_timer_callback(void* p) {
   via_apply_wall_time_delta(p_bbc->p_system_via, delta_us);
   via_apply_wall_time_delta(p_bbc->p_user_via, delta_us);
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
-
-  /* Prod the sound module in case it's in synchronous mode. */
-  sound_tick(p_bbc->p_sound);
 
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.
