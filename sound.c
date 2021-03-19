@@ -3,6 +3,7 @@
 #include "bbc_options.h"
 #include "os_sound.h"
 #include "os_thread.h"
+#include "os_time.h"
 #include "timing.h"
 #include "util.h"
 
@@ -27,6 +28,7 @@ struct sound_struct {
   int synchronous;
   uint32_t driver_buffer_size;
   uint32_t driver_period_size;
+  uint32_t sample_rate;
 
   /* Calculated configuration. */
   double sn_frames_per_driver_frame;
@@ -62,8 +64,12 @@ struct sound_struct {
 
   /* Timing. */
   struct timing_struct* p_timing;
+  struct os_time_sleeper* p_sleeper;
   uint64_t prev_system_ticks;
   uint32_t sn_frames_filled;
+  uint64_t last_sound_driver_wakeup_time;
+  uint32_t current_sub_period;
+  uint32_t sub_period_size;
 };
 
 static void
@@ -299,6 +305,7 @@ sound_create(int synchronous,
   struct sound_struct* p_sound = util_mallocz(sizeof(struct sound_struct));
 
   p_sound->p_timing = p_timing;
+  p_sound->p_sleeper = os_time_create_sleeper();
   p_sound->synchronous = synchronous;
   p_sound->thread_running = 0;
   p_sound->do_exit = 0;
@@ -359,6 +366,7 @@ sound_destroy(struct sound_struct* p_sound) {
   if (p_sound->p_sn_frames) {
     util_free(p_sound->p_sn_frames);
   }
+  os_time_free_sleeper(p_sound->p_sleeper);
   util_free(p_sound);
 }
 
@@ -367,6 +375,8 @@ sound_set_driver(struct sound_struct* p_sound,
                  struct os_sound_struct* p_driver) {
   uint32_t driver_buffer_size;
   uint32_t sample_rate;
+  uint32_t sub_period_size;
+  double sub_period_time_us;
 
   assert(p_sound->p_driver == NULL);
   assert(!p_sound->thread_running);
@@ -375,8 +385,19 @@ sound_set_driver(struct sound_struct* p_sound,
 
   sample_rate = os_sound_get_sample_rate(p_driver);
   driver_buffer_size = os_sound_get_buffer_size(p_driver);
+  p_sound->sample_rate = sample_rate;
   p_sound->driver_buffer_size = driver_buffer_size;
   p_sound->driver_period_size = os_sound_get_period_size(p_driver);
+
+  /* Calculate the number of time slices to divide a period into, to get around
+   * 1.5ms wakeup latency for client timing.
+   */
+  sub_period_size = (p_sound->driver_period_size * 2);
+  do {
+    sub_period_size /= 2;
+    sub_period_time_us = (sub_period_size / (double) sample_rate * 1000000);
+  } while (sub_period_time_us >= 2500);
+  p_sound->sub_period_size = sub_period_size;
 
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
   p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
@@ -512,8 +533,9 @@ sound_advance_sn_timing(struct sound_struct* p_sound) {
 }
 
 void
-sound_tick(struct sound_struct* p_sound) {
+sound_tick(struct sound_struct* p_sound, uint64_t curr_time_us) {
   uint32_t num_full_periods;
+  uint32_t num_sub_periods;
   uint32_t num_write_frames;
   uint32_t num_leftover_frames;
   uint32_t driver_buffer_index;
@@ -521,27 +543,46 @@ sound_tick(struct sound_struct* p_sound) {
 
   struct os_sound_struct* p_driver = p_sound->p_driver;
   uint32_t driver_period_size = p_sound->driver_period_size;
+  uint32_t sub_period_size = p_sound->sub_period_size;
 
   assert(sound_is_synchronous(p_sound));
 
   sound_advance_sn_timing(p_sound);
-
   (void) sound_resample_to_driver_buffer(p_sound);
+
   driver_buffer_index = p_sound->driver_buffer_index;
   num_full_periods = (driver_buffer_index / driver_period_size);
-  if (num_full_periods == 0) {
-    return;
+  /* Full periods block at the sound driver write. */
+  if (num_full_periods > 0) {
+    p_driver_frames = p_sound->p_driver_frames;
+    num_write_frames = (num_full_periods * driver_period_size);
+    os_sound_write(p_driver, p_driver_frames, num_write_frames);
+
+    p_sound->last_sound_driver_wakeup_time = os_time_get_us();
+
+    num_leftover_frames = (driver_buffer_index - num_write_frames);
+    (void) memmove(p_driver_frames,
+                   (p_driver_frames + num_write_frames),
+                   (num_leftover_frames * sizeof(int16_t)));
+    p_sound->driver_buffer_index = num_leftover_frames;
+    p_sound->current_sub_period = 0;
   }
 
-  p_driver_frames = p_sound->p_driver_frames;
-  num_write_frames = (num_full_periods * driver_period_size);
-  os_sound_write(p_driver, p_driver_frames, num_write_frames);
-
-  num_leftover_frames = (driver_buffer_index - num_write_frames);
-  (void) memmove(p_driver_frames,
-                 (p_driver_frames + num_write_frames),
-                 (num_leftover_frames * sizeof(int16_t)));
-  p_sound->driver_buffer_index = num_leftover_frames;
+  /* Sub-periods cause us to sleep for sub-period amount of time. */
+  num_sub_periods = (p_sound->driver_buffer_index / sub_period_size);
+  if ((num_sub_periods > p_sound->current_sub_period) &&
+      (p_sound->last_sound_driver_wakeup_time != 0)) {
+    uint64_t sub_period_total_time_us = p_sound->last_sound_driver_wakeup_time;
+    double sub_period_time_us = ((double) sub_period_size /
+                                 p_sound->sample_rate *
+                                 1000000);
+    sub_period_total_time_us += (num_sub_periods * sub_period_time_us);
+    if (sub_period_total_time_us > curr_time_us) {
+      uint64_t delta_us = (sub_period_total_time_us - curr_time_us);
+      os_time_sleeper_sleep_us(p_sound->p_sleeper, delta_us);
+    }
+    p_sound->current_sub_period = num_sub_periods;
+  }
 }
 
 void

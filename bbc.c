@@ -2229,18 +2229,12 @@ bbc_cycles_timer_callback(void* p) {
   uint64_t delta_us;
   uint64_t cycles_next_run;
   int64_t refreshed_time;
+  uint64_t curr_time_us;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
   struct timing_struct* p_timing = p_bbc->p_timing;
   struct keyboard_struct* p_keyboard = p_bbc->p_keyboard;
-  uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
-
-  if (p_bbc->log_timestamp) {
-    log_do_log(k_log_perf,
-               k_log_info,
-               "time delta: %"PRIu64, (curr_time_us - last_time_us));
-  }
 
   /* Pull physical key events from system thread, always.
    * If this ends up updating the virtual keyboard, this call also syncs
@@ -2251,7 +2245,14 @@ bbc_cycles_timer_callback(void* p) {
   /* Check for special alt key combos to change emulator behavior. */
   bbc_check_alt_keys(p_bbc);
 
+  curr_time_us = os_time_get_us();
   p_bbc->last_time_us = curr_time_us;
+
+  if (p_bbc->log_timestamp) {
+    log_do_log(k_log_perf,
+               k_log_info,
+               "time delta: %"PRIu64, (curr_time_us - last_time_us));
+  }
 
   if (!p_bbc->fast_flag) {
     struct sound_struct* p_sound = p_bbc->p_sound;
@@ -2276,7 +2277,7 @@ bbc_cycles_timer_callback(void* p) {
        * here in the slow path. All of the potentially blocking calls are
        * localized to the slow path.
        */
-      sound_tick(p_bbc->p_sound);
+      sound_tick(p_sound, curr_time_us);
     } else {
       /* This may adjust p_bbc->last_time_us to maintain smooth timing. */
       bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
