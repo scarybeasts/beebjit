@@ -476,7 +476,7 @@ sound_is_active(struct sound_struct* p_sound) {
 
 int
 sound_is_synchronous(struct sound_struct* p_sound) {
-  return p_sound->synchronous;
+  return sound_is_active(p_sound) && p_sound->synchronous;
 }
 
 static void
@@ -522,12 +522,7 @@ sound_tick(struct sound_struct* p_sound) {
   struct os_sound_struct* p_driver = p_sound->p_driver;
   uint32_t driver_period_size = p_sound->driver_period_size;
 
-  if (!sound_is_active(p_sound)) {
-    return;
-  }
-  if (!p_sound->synchronous) {
-    return;
-  }
+  assert(sound_is_synchronous(p_sound));
 
   sound_advance_sn_timing(p_sound);
 

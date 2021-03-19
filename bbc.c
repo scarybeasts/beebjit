@@ -31,6 +31,7 @@
 #include "asm/asm_defs_host.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 
 static const size_t k_bbc_os_rom_offset = 0xC000;
@@ -188,6 +189,7 @@ struct bbc_struct {
 
   uint64_t num_hw_reg_hits;
   int log_speed;
+  int log_timestamp;
 };
 
 static int
@@ -1317,6 +1319,7 @@ bbc_create(int mode,
   p_bbc->last_hw_reg_hits = 0;
   p_bbc->num_hw_reg_hits = 0;
   p_bbc->log_speed = util_has_option(p_log_flags, "perf:speed");
+  p_bbc->log_timestamp = util_has_option(p_log_flags, "perf:timestamp");
 
   bbc_reset_callback_baselines(p_bbc);
 
@@ -2062,20 +2065,8 @@ bbc_do_sleep(struct bbc_struct* p_bbc,
              uint64_t last_time_us,
              uint64_t curr_time_us,
              uint64_t delta_us) {
-  uint64_t next_wakeup_time_us;
-  int64_t spare_time_us;
-
-  struct sound_struct* p_sound = p_bbc->p_sound;
-
-  /* If we're synchronously writing to the sound driver at the same time the
-   * CPU executes, the timing is locked to the blocking sound driver write.
-   */
-  if (sound_is_active(p_sound) && sound_is_synchronous(p_sound)) {
-    return;
-  }
-
-  next_wakeup_time_us = (last_time_us + delta_us);
-  spare_time_us = (next_wakeup_time_us - curr_time_us);
+  uint64_t next_wakeup_time_us = (last_time_us + delta_us);
+  int64_t spare_time_us = (next_wakeup_time_us - curr_time_us);
 
   p_bbc->last_time_us = next_wakeup_time_us;
 
@@ -2245,6 +2236,12 @@ bbc_cycles_timer_callback(void* p) {
   uint64_t curr_time_us = os_time_get_us();
   uint64_t last_time_us = p_bbc->last_time_us;
 
+  if (p_bbc->log_timestamp) {
+    log_do_log(k_log_perf,
+               k_log_info,
+               "time delta: %"PRIu64, (curr_time_us - last_time_us));
+  }
+
   /* Pull physical key events from system thread, always.
    * If this ends up updating the virtual keyboard, this call also syncs
    * interrupts and checks for BREAK.
@@ -2257,6 +2254,7 @@ bbc_cycles_timer_callback(void* p) {
   p_bbc->last_time_us = curr_time_us;
 
   if (!p_bbc->fast_flag) {
+    struct sound_struct* p_sound = p_bbc->p_sound;
     /* Slow mode.
      * Slow mode, or "real time" mode is where the system executes at normal
      * speed, i.e. a 2Mhz BBC executes at 2Mhz in real time. Host CPU usage
@@ -2270,15 +2268,19 @@ bbc_cycles_timer_callback(void* p) {
     cycles_next_run = p_bbc->cycles_per_run_normal;
     delta_us = (1000000 / p_bbc->wakeup_rate);
 
-    /* This may adjust p_bbc->last_time_us to maintain smooth timing. */
-    bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
-
-    /* Prod the sound module in case it's in synchronous mode.
-     * There's no sound output (which would block!) in fast mode, so we put it
-     * here in the slow path. All of the potentially blocking calls are
-     * localized to the slow path.
+    /* If sound is active, we use that as a source of timed wait, otherwise it's
+     * a dedicated sleep.
      */
-    sound_tick(p_bbc->p_sound);
+    if (sound_is_synchronous(p_sound)) {
+      /* There's no sound output (which would block!) in fast mode, so we put it
+       * here in the slow path. All of the potentially blocking calls are
+       * localized to the slow path.
+       */
+      sound_tick(p_bbc->p_sound);
+    } else {
+      /* This may adjust p_bbc->last_time_us to maintain smooth timing. */
+      bbc_do_sleep(p_bbc, last_time_us, curr_time_us, delta_us);
+    }
   } else {
     /* Fast mode.
      * Fast mode is where the system executes as fast as the host CPU can
