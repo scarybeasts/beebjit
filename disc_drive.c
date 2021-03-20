@@ -245,6 +245,8 @@ disc_drive_destroy(struct disc_drive_struct* p_drive) {
 
 void
 disc_drive_power_on_reset(struct disc_drive_struct* p_drive) {
+  uint32_t i_disc;
+
   assert(!disc_drive_is_spinning(p_drive));
 
   p_drive->is_side_upper = 0;
@@ -258,6 +260,10 @@ disc_drive_power_on_reset(struct disc_drive_struct* p_drive) {
    * replay state.
    */
   p_drive->disc_index = 0;
+
+  for (i_disc = 0; i_disc < p_drive->discs_added; ++i_disc) {
+    disc_load(p_drive->p_discs[i_disc]);
+  }
 }
 
 void
