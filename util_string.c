@@ -1,174 +1,135 @@
 #include "util_string.h"
 
 #include "util.h"
+#include "util_container.h"
 
 #include <ctype.h>
 #include <limits.h>
 #include <string.h>
 
-struct util_string_list_struct {
-  char** p_string_list;
-  uint32_t alloc_count;
-  uint32_t num_strings;
-};
-
 struct util_string_list_struct*
 util_string_list_alloc(void) {
-  struct util_string_list_struct* p_list =
-      util_mallocz(sizeof(struct util_string_list_struct));
-  return p_list;
+  return (struct util_string_list_struct*) util_list_alloc();
 }
 
 void
-util_string_list_free(struct util_string_list_struct* p_list) {
-  util_string_list_clear(p_list);
-  util_free(p_list->p_string_list);
-  util_free(p_list);
+util_string_list_free(struct util_string_list_struct* p_string_list) {
+  util_string_list_clear(p_string_list);
+  util_list_free((struct util_list_struct*) p_string_list);
 }
 
 void
-util_string_list_clear(struct util_string_list_struct* p_list) {
+util_string_list_clear(struct util_string_list_struct* p_string_list) {
   uint32_t i;
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
+  uint32_t num_strings = util_list_get_count(p_list);
 
-  for (i = 0; i < p_list->num_strings; ++i) {
-    util_free(p_list->p_string_list[i]);
+  for (i = 0; i < num_strings; ++i) {
+    char* p_str = (char*) util_list_get(p_list, i);
+    util_free(p_str);
   }
-  p_list->num_strings = 0;
+  util_list_clear(p_list);
 }
 
 uint32_t
-util_string_list_get_count(struct util_string_list_struct* p_list) {
-  return p_list->num_strings;
+util_string_list_get_count(struct util_string_list_struct* p_string_list) {
+  return util_list_get_count((struct util_list_struct*) p_string_list);
 }
 
 const char*
-util_string_list_get_string(struct util_string_list_struct* p_list,
-                            uint32_t i) {
-  if (i >= p_list->num_strings) {
-    util_bail("bad index");
-  }
-  return p_list->p_string_list[i];
-}
-
-static void
-util_string_list_expand(struct util_string_list_struct* p_list) {
-  uint32_t new_count;
-  uint32_t alloc_size;
-
-  if (p_list->alloc_count == 0) {
-    new_count = 4;
-  } else {
-    new_count = (p_list->alloc_count * 2);
-  }
-  if (new_count <= p_list->alloc_count) {
-    util_bail("!");
-  }
-
-  alloc_size = (new_count * sizeof(char*));
-  if (alloc_size <= new_count) {
-    util_bail("!");
-  }
-  p_list->p_string_list = util_realloc(p_list->p_string_list, alloc_size);
-  p_list->alloc_count = new_count;
+util_string_list_get_string(struct util_string_list_struct* p_string_list,
+                            uint32_t index) {
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
+  return (const char*) util_list_get(p_list, index);
 }
 
 void
-util_string_list_set_at_with_length(struct util_string_list_struct* p_list,
-                                    uint32_t index,
-                                    const char* p_str,
-                                    uint32_t len) {
+util_string_list_set_at_with_length(
+    struct util_string_list_struct* p_string_list,
+    uint32_t index,
+    const char* p_str,
+    uint32_t len) {
   char* p_new_str;
+  char* p_old_str;
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
 
-  if (index >= p_list->num_strings) {
-    util_bail("bad index");
-  }
   if (len >= (INT_MAX - 1)) {
     util_bail("!");
   }
   p_new_str = util_malloc(len + 1);
   (void) memcpy(p_new_str, p_str, len);
   p_new_str[len] = '\0';
-  util_free(p_list->p_string_list[index]);
-  p_list->p_string_list[index] = p_new_str;
+
+  p_old_str = (char*) util_list_set(p_list, index, (intptr_t) p_new_str);
+  util_free(p_old_str);
 }
 
 void
-util_string_list_set_at(struct util_string_list_struct* p_list,
+util_string_list_set_at(struct util_string_list_struct* p_string_list,
                         uint32_t index,
                         const char* p_str) {
   size_t len = strlen(p_str);
   if (len >= (INT_MAX - 1)) {
     util_bail("!");
   }
-  util_string_list_set_at_with_length(p_list, index, p_str, len);
+
+  util_string_list_set_at_with_length(p_string_list, index, p_str, len);
 }
 
 void
-util_string_list_add_with_length(struct util_string_list_struct* p_list,
+util_string_list_add_with_length(struct util_string_list_struct* p_string_list,
                                  const char* p_str,
                                  uint32_t len) {
-  uint32_t index = p_list->num_strings;
-
-  if (p_list->num_strings == p_list->alloc_count) {
-    util_string_list_expand(p_list);
-  }
-  p_list->p_string_list[index] = NULL;
-  p_list->num_strings++;
-  util_string_list_set_at_with_length(p_list, index, p_str, len);
+  uint32_t index;
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
+  index = util_list_get_count(p_list);
+  util_list_add(p_list, 0);
+  util_string_list_set_at_with_length(p_string_list, index, p_str, len);
 }
 
 void
-util_string_list_add(struct util_string_list_struct* p_list,
+util_string_list_add(struct util_string_list_struct* p_string_list,
                      const char* p_str) {
   size_t len = strlen(p_str);
   if (len >= (INT_MAX - 1)) {
     util_bail("!");
   }
-  util_string_list_add_with_length(p_list, p_str, len);
+  util_string_list_add_with_length(p_string_list, p_str, len);
 }
 
 void
-util_string_list_insert(struct util_string_list_struct* p_list,
+util_string_list_insert(struct util_string_list_struct* p_string_list,
                         uint32_t index,
                         const char* p_str) {
-  if (index > p_list->num_strings) {
-    util_bail("bad index");
-  }
-  if (p_list->num_strings == p_list->alloc_count) {
-    util_string_list_expand(p_list);
-  }
-  (void) memmove(&p_list->p_string_list[index + 1],
-                 &p_list->p_string_list[index],
-                 ((p_list->num_strings - index) * sizeof(char*)));
-  p_list->p_string_list[index] = NULL;
-  p_list->num_strings++;
-  util_string_list_set_at(p_list, index, p_str);
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
+  util_list_insert(p_list, index, 0);
+  util_string_list_set_at(p_string_list, index, p_str);
 }
 
-void util_string_list_append_list(struct util_string_list_struct* p_list,
-                                  struct util_string_list_struct* p_src_list) {
+void util_string_list_append_list(
+    struct util_string_list_struct* p_string_list,
+    struct util_string_list_struct* p_src_string_list) {
   uint32_t i;
+  struct util_list_struct* p_src_list =
+      (struct util_list_struct*) p_src_string_list;
+  uint32_t num_strings = util_list_get_count(p_src_list);
 
-  for (i = 0; i < p_src_list->num_strings; ++i) {
-    util_string_list_add(p_list, p_src_list->p_string_list[i]);
+  for (i = 0; i < num_strings; ++i) {
+    const char* p_str = (const char*) util_list_get(p_src_list, i);
+    util_string_list_add(p_string_list, p_str);
   }
 }
 
 void
-util_string_list_remove(struct util_string_list_struct* p_list,
+util_string_list_remove(struct util_string_list_struct* p_string_list,
                         uint32_t index) {
-  if (index >= p_list->num_strings) {
-    util_bail("bad index");
-  }
-  util_free(p_list->p_string_list[index]);
-  (void) memmove(&p_list->p_string_list[index],
-                 &p_list->p_string_list[index + 1],
-                 ((p_list->num_strings - index - 1) * sizeof(char*)));
-  p_list->num_strings--;
+  struct util_list_struct* p_list = (struct util_list_struct*) p_string_list;
+  char* p_old_str = (char*) util_list_remove(p_list, index);
+  util_free(p_old_str);
 }
 
 void
-util_string_split(struct util_string_list_struct* p_list,
+util_string_split(struct util_string_list_struct* p_string_list,
                   const char* p_str,
                   char split_char,
                   char quote_char) {
@@ -183,7 +144,7 @@ util_string_split(struct util_string_list_struct* p_list,
   /* Include the NULL terminator. */
   len++;
 
-  util_string_list_clear(p_list);
+  util_string_list_clear(p_string_list);
 
   is_in_quote = 0;
   start = 0;
@@ -212,7 +173,9 @@ util_string_split(struct util_string_list_struct* p_list,
       start++;
       chunk_len -= 2;
     }
-    util_string_list_add_with_length(p_list, (p_str + start), chunk_len);
+    util_string_list_add_with_length(p_string_list,
+                                     (p_str + start),
+                                     chunk_len);
 
     is_in_quote = 0;
     start = (i + 1);
