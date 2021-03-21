@@ -45,6 +45,8 @@ struct util_tree_node_struct* util_tree_node_get_child(
     uint32_t index);
 void util_tree_node_add_child(struct util_tree_node_struct* p_node,
                               struct util_tree_node_struct* p_child_node);
+struct util_tree_node_struct* util_tree_node_remove_child(
+    struct util_tree_node_struct* p_node, uint32_t index);
 int64_t util_tree_node_get_int_value(struct util_tree_node_struct* p_node);
 void util_tree_node_set_int_value(struct util_tree_node_struct* p_node,
                                   int64_t val);

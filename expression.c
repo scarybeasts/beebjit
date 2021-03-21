@@ -21,6 +21,7 @@ enum {
   k_expression_node_equal = 3,
   k_expression_node_plus = 4,
   k_expression_node_minus = 5,
+  k_expression_node_multiply = 6,
 };
 
 struct expression_struct*
@@ -50,6 +51,9 @@ expression_get_precedence(int32_t type) {
   switch (type) {
   case k_expression_node_integer:
   case k_expression_node_var:
+    ret = 4;
+    break;
+  case k_expression_node_multiply:
     ret = 3;
     break;
   case k_expression_node_plus:
@@ -90,6 +94,8 @@ expression_process_token(struct expression_struct* p_expression,
       type = k_expression_node_plus;
     } else if (!strcmp(p_token_str, "-")) {
       type = k_expression_node_minus;
+    } else if (!strcmp(p_token_str, "*")) {
+      type = k_expression_node_multiply;
     }
     if (type == 0) {
       log_do_log(k_log_misc, k_log_warning, "unknown operator %s", p_token_str);
@@ -118,7 +124,16 @@ expression_process_token(struct expression_struct* p_expression,
       util_tree_node_add_child(p_new_node, p_old_root);
     }
   } else {
+    struct util_tree_node_struct* p_reparent_node = NULL;
+    if (p_parent_node != p_expression->p_current_node) {
+      uint32_t index = util_tree_node_get_num_children(p_parent_node);
+      index--;
+      p_reparent_node = util_tree_node_remove_child(p_parent_node, index);
+    }
     util_tree_node_add_child(p_parent_node, p_new_node);
+    if (p_reparent_node != NULL) {
+      util_tree_node_add_child(p_new_node, p_reparent_node);
+    }
   }
 
   p_expression->p_current_node = p_new_node;
@@ -219,6 +234,12 @@ expression_execute_node(struct util_tree_node_struct* p_node) {
     if (num_children == 2) {
       ret = expression_execute_node(p_child_node_1);
       ret -= expression_execute_node(p_child_node_2);
+    }
+    break;
+  case k_expression_node_multiply:
+    if (num_children == 2) {
+      ret = expression_execute_node(p_child_node_1);
+      ret *= expression_execute_node(p_child_node_2);
     }
     break;
   default:

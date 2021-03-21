@@ -2,6 +2,7 @@
 
 #include "util.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <string.h>
 
@@ -146,6 +147,7 @@ util_tree_node_free(struct util_tree_node_struct* p_node) {
   for (i = 0; i < num_children; ++i) {
     struct util_tree_node_struct* p_child_node =
         (struct util_tree_node_struct*) util_list_get(&p_node->child_list, i);
+    assert(p_child_node->p_parent == p_node);
     util_tree_node_free(p_child_node);
   }
   util_free(p_node);
@@ -241,6 +243,20 @@ util_tree_node_add_child(struct util_tree_node_struct* p_node,
   }
   p_child_node->p_parent = p_node;
   util_list_add(&p_node->child_list, (intptr_t) p_child_node);
+}
+
+struct util_tree_node_struct*
+util_tree_node_remove_child(struct util_tree_node_struct* p_node,
+                            uint32_t index) {
+  struct util_tree_node_struct* p_removed_node;
+  if (index >= p_node->child_list.num_used) {
+    util_bail("bad index");
+  }
+  p_removed_node = (struct util_tree_node_struct*) util_list_remove(
+      &p_node->child_list, index);
+  p_removed_node->p_parent = NULL;
+
+  return p_removed_node;
 }
 
 int64_t

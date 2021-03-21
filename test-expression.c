@@ -36,8 +36,22 @@ expression_test_left_to_right(void) {
   expression_destroy(p_expression);
 }
 
+static void
+expression_test_precedence(void) {
+  struct expression_struct* p_expression = expression_create();
+
+  expression_parse(p_expression, "1 * 2 + 3");
+  test_expect_u32(5, expression_execute(p_expression));
+
+  expression_parse(p_expression, "1 + 2 * 3");
+  test_expect_u32(7, expression_execute(p_expression));
+
+  expression_destroy(p_expression);
+}
+
 void
 expression_test() {
   expression_test_basic();
   expression_test_left_to_right();
+  expression_test_precedence();
 }
