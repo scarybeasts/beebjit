@@ -84,6 +84,15 @@ expression_test_precedence(void) {
   expression_parse(p_expression, "1 + 2 * 3");
   test_expect_u32(7, expression_execute(p_expression));
 
+  expression_parse(p_expression, "(1 + 2) * 3");
+  test_expect_u32(9, expression_execute(p_expression));
+
+  expression_parse(p_expression, "1 + (2 * 3)");
+  test_expect_u32(7, expression_execute(p_expression));
+
+  expression_parse(p_expression, "1 + (2 * 3) + 1");
+  test_expect_u32(8, expression_execute(p_expression));
+
   expression_destroy(p_expression);
 }
 

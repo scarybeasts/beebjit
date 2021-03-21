@@ -35,6 +35,8 @@ enum {
   k_expression_node_logical_or = 14,
   k_expression_node_bitwise_and = 15,
   k_expression_node_bitwise_or = 16,
+  k_expression_node_paren_open = 17,
+  k_expression_node_paren_close = 18,
 };
 
 struct expression_struct*
@@ -107,6 +109,10 @@ expression_get_precedence(int32_t type) {
   case k_expression_node_logical_or:
     ret = 30;
     break;
+  case k_expression_node_paren_open:
+  case k_expression_node_paren_close:
+    ret = 0;
+    break;
   default:
     assert(0);
     break;
@@ -141,6 +147,7 @@ expression_process_token(struct expression_struct* p_expression,
     p_new_node = util_tree_node_alloc(k_expression_node_var);
     util_tree_node_set_object_value(p_new_node, util_strdup(p_token_str));
   } else {
+    int do_node_alloc = 1;
     if (!strcmp(p_token_str, "==")) {
       type = k_expression_node_equal;
     } else if (!strcmp(p_token_str, "!=")) {
@@ -169,14 +176,50 @@ expression_process_token(struct expression_struct* p_expression,
       type = k_expression_node_bitwise_and;
     } else if (!strcmp(p_token_str, "|")) {
       type = k_expression_node_bitwise_or;
+    } else if (!strcmp(p_token_str, "(")) {
+      type = k_expression_node_paren_open;
+    } else if (!strcmp(p_token_str, ")")) {
+      type = k_expression_node_paren_close;
+      do_node_alloc = 0;
     }
     if (type == 0) {
       log_do_log(k_log_misc, k_log_warning, "unknown operator %s", p_token_str);
     }
-    p_new_node = util_tree_node_alloc(type);
+    if (do_node_alloc) {
+      p_new_node = util_tree_node_alloc(type);
+    }
   }
 
-  new_precedence = expression_get_precedence(type);
+  /* Closure of matched nodes just walks back up the tree. */
+  if (type == k_expression_node_paren_close) {
+    while (1) {
+      int parent_type;
+      p_parent_node = util_tree_node_get_parent(p_parent_node);
+      if (p_parent_node == NULL) {
+        break;
+      }
+      parent_type = util_tree_node_get_type(p_parent_node);
+      if (parent_type == k_expression_node_paren_open) {
+        break;
+      }
+    }
+    if (p_parent_node == NULL) {
+      log_do_log(k_log_misc, k_log_warning, "mismatched )");
+    } else {
+      p_parent_node = util_tree_node_get_parent(p_parent_node);
+    }
+    p_expression->p_current_node = p_parent_node;
+    return;
+  }
+
+  if (type == k_expression_node_paren_open) {
+    /* ( is special. It stops tree walks (precedence 0 for treee walks) but it
+     * must also go exactly in our current position in the tree.
+     */
+    new_precedence = INT_MAX;
+  } else {
+    new_precedence = expression_get_precedence(type);
+  }
   while (1) {
     int32_t curr_type;
     int32_t curr_precedence;
@@ -295,8 +338,10 @@ expression_execute_node(struct expression_struct* p_expression,
   int64_t lhs;
   int64_t rhs;
 
-  if (num_children == 2) {
+  if (num_children > 0) {
     p_child_node_1 = util_tree_node_get_child(p_node, 0);
+  }
+  if (num_children > 1) {
     p_child_node_2 = util_tree_node_get_child(p_node, 1);
   }
 
@@ -406,6 +451,11 @@ expression_execute_node(struct expression_struct* p_expression,
     if (num_children == 2) {
       ret = expression_execute_node(p_expression, p_child_node_1);
       ret |= expression_execute_node(p_expression, p_child_node_2);
+    }
+    break;
+  case k_expression_node_paren_open:
+    if (num_children == 1) {
+      ret = expression_execute_node(p_expression, p_child_node_1);
     }
     break;
   default:
