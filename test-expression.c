@@ -55,6 +55,9 @@ expression_test_basic(void) {
   expression_parse(p_expression, "1+2");
   test_expect_u32(3, expression_execute(p_expression));
 
+  expression_parse(p_expression, "0x11");
+  test_expect_u32(17, expression_execute(p_expression));
+
   expression_destroy(p_expression);
 }
 

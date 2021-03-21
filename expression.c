@@ -125,7 +125,14 @@ expression_process_token(struct expression_struct* p_expression,
   int32_t type = 0;
   assert(!isspace(c));
   if (isdigit(c)) {
-    int64_t val = strtoll(p_token_str, NULL, 10);
+    int64_t val;
+    int base = 10;
+    const char* p_number_str = p_token_str;
+    if (!strncmp(p_number_str, "0x", 2)) {
+      p_number_str += 2;
+      base = 16;
+    }
+    val = strtoll(p_number_str, NULL, base);
     type = k_expression_node_integer;
     p_new_node = util_tree_node_alloc(k_expression_node_integer);
     util_tree_node_set_int_value(p_new_node, val);
@@ -241,9 +248,13 @@ expression_parse(struct expression_struct* p_expression,
       expression_process_token(p_expression, &token_buf[0]);
       token_len = 0;
     }
-    while (isdigit(c = p_expr_str[i]) && (token_len < max_token_len)) {
-      token_buf[token_len++] = c;
-      i++;
+    c = p_expr_str[i];
+    if (isdigit(c)) {
+      while ((isdigit(c = p_expr_str[i]) || isalpha(c)) &&
+             (token_len < max_token_len)) {
+        token_buf[token_len++] = c;
+        i++;
+      }
     }
     if (token_len > 0) {
       token_buf[token_len] = '\0';
