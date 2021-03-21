@@ -11,6 +11,18 @@ struct util_list_struct {
   uint32_t num_used;
 };
 
+struct util_tree_node_struct {
+  int32_t type;
+  int64_t value;
+  void* p_value;
+  struct util_tree_node_struct* p_parent;
+  struct util_list_struct child_list;
+};
+
+struct util_tree_struct {
+  struct util_tree_node_struct* p_root;
+};
+
 struct util_list_struct*
 util_list_alloc(void) {
   struct util_list_struct* p_list =
@@ -125,4 +137,119 @@ util_list_remove(struct util_list_struct* p_list, uint32_t index) {
   p_list->num_used--;
 
   return item;
+}
+
+static void
+util_tree_node_free(struct util_tree_node_struct* p_node) {
+  uint32_t i;
+  uint32_t num_children = p_node->child_list.num_used;
+  for (i = 0; i < num_children; ++i) {
+    struct util_tree_node_struct* p_child_node =
+        (struct util_tree_node_struct*) util_list_get(&p_node->child_list, i);
+    util_tree_node_free(p_child_node);
+  }
+  util_free(p_node);
+}
+
+static uint32_t
+util_tree_node_size(struct util_tree_node_struct* p_node, uint32_t size) {
+  uint32_t i;
+  uint32_t num_children = p_node->child_list.num_used;
+  for (i = 0; i < num_children; ++i) {
+    struct util_tree_node_struct* p_child_node =
+        (struct util_tree_node_struct*) util_list_get(&p_node->child_list, i);
+    size = util_tree_node_size(p_child_node, size);
+  }
+  return (size + 1);
+}
+
+struct util_tree_struct*
+util_tree_alloc(void) {
+  struct util_tree_struct* p_tree =
+      util_mallocz(sizeof(struct util_tree_struct));
+  p_tree->p_root = NULL;
+  return p_tree;
+}
+
+void util_tree_free(struct util_tree_struct* p_tree) {
+  if (p_tree->p_root != NULL) {
+    util_tree_node_free(p_tree->p_root);
+  }
+  util_free(p_tree);
+}
+
+uint32_t
+util_tree_get_tree_size(struct util_tree_struct* p_tree) {
+  uint32_t size = 0;
+  if (p_tree->p_root != NULL) {
+    size = util_tree_node_size(p_tree->p_root, size);
+  }
+  return size;
+}
+
+struct util_tree_node_struct*
+util_tree_get_root(struct util_tree_struct* p_tree) {
+  return p_tree->p_root;
+}
+
+void
+util_tree_set_root(struct util_tree_struct* p_tree,
+                   struct util_tree_node_struct* p_node) {
+  if (p_node->p_parent != NULL) {
+    util_bail("root node has parent");
+  }
+  p_tree->p_root = p_node;
+}
+
+struct util_tree_node_struct*
+util_tree_node_alloc(int32_t type) {
+  struct util_tree_node_struct* p_node =
+      util_mallocz(sizeof(struct util_tree_node_struct));
+  p_node->type = type;
+  p_node->p_parent = NULL;
+  return p_node;
+}
+
+int32_t
+util_tree_node_get_type(struct util_tree_node_struct* p_node) {
+  return p_node->type;
+}
+
+struct util_tree_node_struct*
+util_tree_node_get_parent(struct util_tree_node_struct* p_node) {
+  return p_node->p_parent;
+}
+
+uint32_t
+util_tree_node_get_num_children(struct util_tree_node_struct* p_node) {
+  return p_node->child_list.num_used;
+}
+
+struct util_tree_node_struct*
+util_tree_node_get_child(struct util_tree_node_struct* p_node, uint32_t index) {
+  if (index >= p_node->child_list.num_used) {
+    util_bail("bad index");
+  }
+  return (struct util_tree_node_struct*) p_node->child_list.p_list[index];
+}
+
+void
+util_tree_node_add_child(struct util_tree_node_struct* p_node,
+                         struct util_tree_node_struct* p_child_node) {
+  if (p_child_node->p_parent != NULL) {
+    util_bail("node has parent");
+  }
+  p_child_node->p_parent = p_node;
+  util_list_add(&p_node->child_list, (intptr_t) p_child_node);
+}
+
+int64_t
+util_tree_node_get_int_value(struct util_tree_node_struct* p_node) {
+  return p_node->value;
+}
+
+void
+util_tree_node_set_int_value(struct util_tree_node_struct* p_node,
+                             int64_t val) {
+  p_node->value = val;
 }

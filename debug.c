@@ -5,6 +5,7 @@
 #include "defs_6502.h"
 #include "disc_drive.h"
 #include "disc_tool.h"
+#include "expression.h"
 #include "keyboard.h"
 #include "render.h"
 #include "state.h"
@@ -50,6 +51,7 @@ struct debug_breakpoint {
   int do_print;
   int do_stop;
   struct util_string_list_struct* p_command_list;
+  struct expression_struct* p_expression;
 };
 
 struct debug_struct {
@@ -109,6 +111,9 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
   if (p_breakpoint->p_command_list) {
     util_string_list_free(p_breakpoint->p_command_list);
+  }
+  if (p_breakpoint->p_expression) {
+    expression_destroy(p_breakpoint->p_expression);
   }
   (void) memset(p_breakpoint, '\0', sizeof(struct debug_breakpoint));
   p_breakpoint->a_value = -1;
@@ -705,10 +710,16 @@ debug_check_breakpoints(struct debug_struct* p_debug,
         continue;
       }
     }
+    if (p_breakpoint->p_expression != NULL) {
+      int64_t expression_ret = expression_execute(p_breakpoint->p_expression);
+      if (expression_ret == 0) {
+        continue;
+      }
+    }
     /* If we arrive here, it's a hit. */
     debug_print |= p_breakpoint->do_print;
     debug_stop |= p_breakpoint->do_stop;
-    if (p_breakpoint->p_command_list) {
+    if (p_breakpoint->p_command_list != NULL) {
       util_string_list_append_list(p_debug->p_pending_commands,
                                    p_breakpoint->p_command_list);
     }
@@ -1078,6 +1089,16 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
           p_breakpoint->p_command_list = util_string_list_alloc();
         }
         util_string_split(p_breakpoint->p_command_list, p_commands, ';', '\'');
+        i_params++;
+      }
+    } else if (!strcmp(p_param_str, "expr")) {
+      if ((i_params + 1) < num_params) {
+        const char* p_expr_str = util_string_list_get_string(p_command_strings,
+                                                             (i_params + 1));
+        if (!p_breakpoint->p_expression) {
+          p_breakpoint->p_expression = expression_create();
+        }
+        (void) expression_parse(p_breakpoint->p_expression, p_expr_str);
         i_params++;
       }
     } else if (!strncmp(p_param_str, "a=", 2)) {

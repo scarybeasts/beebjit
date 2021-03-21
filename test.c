@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern void timing_test();
-extern void video_test();
+extern void timing_test(void);
+extern void video_test(void);
 extern void jit_test(struct bbc_struct* p_bbc);
+extern void expression_test(void);
 
 void
 test_do_tests(struct bbc_struct* p_bbc) {
@@ -18,6 +19,7 @@ test_do_tests(struct bbc_struct* p_bbc) {
   timing_test();
   video_test();
   jit_test(p_bbc);
+  expression_test();
 }
 
 void
