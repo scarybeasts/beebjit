@@ -7,6 +7,7 @@
 #include "disc_tool.h"
 #include "expression.h"
 #include "keyboard.h"
+#include "log.h"
 #include "render.h"
 #include "state.h"
 #include "state_6502.h"
@@ -66,6 +67,13 @@ struct debug_struct {
   uint8_t* p_opcode_cycles;
   struct util_string_list_struct* p_command_strings;
   struct util_string_list_struct* p_pending_commands;
+
+  /* Modifiable register / machine state. */
+  uint8_t reg_a;
+  uint8_t reg_x;
+  uint8_t reg_y;
+  uint8_t reg_s;
+  uint16_t reg_pc;
 
   /* Breakpointing. */
   int32_t debug_stop_addr;
@@ -661,13 +669,9 @@ static inline void
 debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
-                        uint16_t reg_pc,
                         int addr_6502,
                         uint8_t opcode_6502,
-                        uint8_t opmem,
-                        uint8_t reg_a,
-                        uint8_t reg_x,
-                        uint8_t reg_y) {
+                        uint8_t opmem) {
   uint32_t i;
 
   int debug_print = 0;
@@ -680,19 +684,22 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       continue;
     }
 
-    if ((p_breakpoint->a_value != -1) && (reg_a != p_breakpoint->a_value)) {
+    if ((p_breakpoint->a_value != -1) &&
+        (p_debug->reg_a != p_breakpoint->a_value)) {
       continue;
     }
-    if ((p_breakpoint->x_value != -1) && (reg_x != p_breakpoint->x_value)) {
+    if ((p_breakpoint->x_value != -1) &&
+        (p_debug->reg_x != p_breakpoint->x_value)) {
       continue;
     }
-    if ((p_breakpoint->y_value != -1) && (reg_y != p_breakpoint->y_value)) {
+    if ((p_breakpoint->y_value != -1) &&
+        (p_debug->reg_y != p_breakpoint->y_value)) {
       continue;
     }
 
     if (p_breakpoint->has_exec_range) {
-      if ((reg_pc < p_breakpoint->exec_start) ||
-          (reg_pc > p_breakpoint->exec_end)) {
+      if ((p_debug->reg_pc < p_breakpoint->exec_start) ||
+          (p_debug->reg_pc > p_breakpoint->exec_end)) {
         continue;
       }
     }
@@ -728,11 +735,11 @@ debug_check_breakpoints(struct debug_struct* p_debug,
     debug_print = 1;
     debug_stop = 1;
   }
-  if (reg_pc == p_debug->next_or_finish_stop_addr) {
+  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     debug_print = 1;
     debug_stop = 1;
   }
-  if (reg_pc == p_debug->debug_stop_addr) {
+  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
     debug_print = 1;
     debug_stop = 1;
   }
@@ -1038,10 +1045,26 @@ debug_parse_number(const char* p_str, int is_hex) {
 
 static int64_t
 debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
-  (void) p;
-  (void) p_name;
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  int64_t ret = 0;
+
   (void) index;
-  return 0;
+
+  if (!strcmp(p_name, "a")) {
+    ret = p_debug->reg_a;
+  } else if (!strcmp(p_name, "x")) {
+    ret = p_debug->reg_x;
+  } else if (!strcmp(p_name, "y")) {
+    ret = p_debug->reg_y;
+  } else if (!strcmp(p_name, "s")) {
+    ret = p_debug->reg_s;
+  } else if (!strcmp(p_name, "pc")) {
+    ret = p_debug->reg_pc;
+  } else {
+    log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
+  }
+
+  return ret;
 }
 
 static void
@@ -1224,16 +1247,11 @@ debug_print_flags_buf(char* p_flags_buf,
 static inline void
 debug_print_status_line(struct debug_struct* p_debug,
                         struct cpu_driver* p_cpu_driver,
-                        uint16_t reg_pc,
                         int32_t addr_6502,
                         uint8_t opcode,
                         uint8_t operand1,
                         uint8_t operand2,
                         int do_irq,
-                        uint8_t reg_a,
-                        uint8_t reg_x,
-                        uint8_t reg_y,
-                        uint8_t reg_s,
                         int flag_n,
                         int flag_o,
                         int flag_c,
@@ -1268,7 +1286,7 @@ debug_print_status_line(struct debug_struct* p_debug,
                      opcode,
                      operand1,
                      operand2,
-                     reg_pc,
+                     p_debug->reg_pc,
                      do_irq);
 
   debug_print_flags_buf(&flags_buf[0],
@@ -1280,18 +1298,18 @@ debug_print_status_line(struct debug_struct* p_debug,
                         flag_d);
 
   p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
-                                                           reg_pc);
+                                                           p_debug->reg_pc);
 
   (void) printf("[%s] %.4"PRIX16": %-14s "
                 "[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" F=%s] "
                 "%s\n",
                 p_address_info,
-                reg_pc,
+                p_debug->reg_pc,
                 opcode_buf,
-                reg_a,
-                reg_x,
-                reg_y,
-                reg_s,
+                p_debug->reg_a,
+                p_debug->reg_x,
+                p_debug->reg_y,
+                p_debug->reg_s,
                 flags_buf,
                 extra_buf);
   (void) fflush(stdout);
@@ -1306,12 +1324,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   uint8_t operand2;
   int addr_6502;
   int branch_taken;
-  uint8_t reg_a;
-  uint8_t reg_x;
-  uint8_t reg_y;
-  uint8_t reg_s;
   uint8_t reg_flags;
-  uint16_t reg_pc;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
   uint8_t flag_z;
@@ -1338,14 +1351,20 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   void* ret_intel_pc = 0;
   volatile int* p_interrupt_received = &s_interrupt_received;
 
-  bbc_get_registers(p_bbc, &reg_a, &reg_x, &reg_y, &reg_s, &reg_flags, &reg_pc);
+  bbc_get_registers(p_bbc,
+                    &p_debug->reg_a,
+                    &p_debug->reg_x,
+                    &p_debug->reg_y,
+                    &p_debug->reg_s,
+                    &reg_flags,
+                    &p_debug->reg_pc);
   flag_z = !!(reg_flags & 0x02);
   flag_n = !!(reg_flags & 0x80);
   flag_c = !!(reg_flags & 0x01);
   flag_o = !!(reg_flags & 0x40);
   flag_d = !!(reg_flags & 0x08);
 
-  opcode = p_mem_read[reg_pc];
+  opcode = p_mem_read[p_debug->reg_pc];
   if (do_irq) {
     opcode = 0;
   }
@@ -1353,8 +1372,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   opmode = p_debug->p_opcode_modes[opcode];
   opmem = p_debug->p_opcode_mem[opcode];
 
-  reg_pc_plus_1 = (reg_pc + 1);
-  reg_pc_plus_2 = (reg_pc + 2);
+  reg_pc_plus_1 = (p_debug->reg_pc + 1);
+  reg_pc_plus_2 = (p_debug->reg_pc + 2);
   operand1 = p_mem_read[reg_pc_plus_1];
   operand2 = p_mem_read[reg_pc_plus_2];
 
@@ -1366,14 +1385,14 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                     &wrapped_8bit,
                     &wrapped_16bit,
                     p_bbc,
-                    reg_pc,
+                    p_debug->reg_pc,
                     opmode,
                     optype,
                     opmem,
                     operand1,
                     operand2,
-                    reg_x,
-                    reg_y,
+                    p_debug->reg_x,
+                    p_debug->reg_y,
                     flag_n,
                     flag_o,
                     flag_c,
@@ -1388,7 +1407,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
      * middle.
      */
     if (!do_irq) {
-      p_debug->count_addr[reg_pc]++;
+      p_debug->count_addr[p_debug->reg_pc]++;
     }
     p_debug->count_opcode[opcode]++;
     p_debug->count_optype[optype]++;
@@ -1412,7 +1431,8 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
         }
       } else if (opmode == k_idy) {
         p_debug->idy_reads++;
-        if ((addr_6502 >> 8) != (((uint16_t) (addr_6502 - reg_y)) >> 8)) {
+        if ((addr_6502 >> 8) !=
+            (((uint16_t) (addr_6502 - p_debug->reg_y)) >> 8)) {
           p_debug->idy_reads_with_page_crossing++;
         }
       }
@@ -1434,9 +1454,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   debug_check_unusual(p_cpu_driver,
                       operand1,
-                      reg_x,
+                      p_debug->reg_x,
                       opmode,
-                      reg_pc,
+                      p_debug->reg_pc,
                       addr_6502,
                       is_write,
                       is_rom,
@@ -1447,13 +1467,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   debug_check_breakpoints(p_debug,
                           &break_print,
                           &break_stop,
-                          reg_pc,
                           addr_6502,
                           opcode,
-                          opmem,
-                          reg_a,
-                          reg_x,
-                          reg_y);
+                          opmem);
 
   if (*p_interrupt_received || !p_debug->debug_running) {
     *p_interrupt_received = 0;
@@ -1466,16 +1482,11 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     int flag_i = !!(reg_flags & 0x04);
     debug_print_status_line(p_debug,
                             p_cpu_driver,
-                            reg_pc,
                             addr_6502,
                             opcode,
                             operand1,
                             operand2,
                             do_irq,
-                            reg_a,
-                            reg_x,
-                            reg_y,
-                            reg_s,
                             flag_n,
                             flag_o,
                             flag_c,
@@ -1493,7 +1504,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     return 0;
   }
 
-  if (reg_pc == p_debug->next_or_finish_stop_addr) {
+  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     p_debug->next_or_finish_stop_addr = -1;
   }
 
@@ -1593,12 +1604,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       p_debug->debug_running = 1;
       break;
     } else if (!strcmp(p_command, "n")) {
-      p_debug->next_or_finish_stop_addr = (reg_pc + oplen);
+      p_debug->next_or_finish_stop_addr = (p_debug->reg_pc + oplen);
       p_debug->debug_running = 1;
       break;
     } else if (!strcmp(p_command, "f")) {
       uint16_t finish_addr;
-      uint8_t stack = (reg_s + 1);
+      uint8_t stack = (p_debug->reg_s + 1);
       finish_addr = p_mem_read[k_6502_stack_addr + stack];
       stack++;
       finish_addr |= (p_mem_read[k_6502_stack_addr + stack] << 8);
@@ -1689,21 +1700,21 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
     } else if (sscanf(input_buf, "a=%"PRIx32, &parse_int) == 1) {
-      reg_a = parse_int;
+      p_debug->reg_a = parse_int;
     } else if (sscanf(input_buf, "x=%"PRIx32, &parse_int) == 1) {
-      reg_x = parse_int;
+      p_debug->reg_x = parse_int;
     } else if (sscanf(input_buf, "y=%"PRIx32, &parse_int) == 1) {
-      reg_y = parse_int;
+      p_debug->reg_y = parse_int;
     } else if (sscanf(input_buf, "s=%"PRIx32, &parse_int) == 1) {
-      reg_s = parse_int;
+      p_debug->reg_s = parse_int;
     } else if (sscanf(input_buf, "pc=%"PRIx32, &parse_int) == 1) {
       /* TODO: setting PC broken in JIT mode? */
-      reg_pc = parse_int;
+      p_debug->reg_pc = parse_int;
     } else if (!strcmp(input_buf, "d") ||
                (!strncmp(input_buf, "d ", 2) &&
                     (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1))) {
       if (parse_int == -1) {
-        parse_int = reg_pc;
+        parse_int = p_debug->reg_pc;
       }
       parse_addr = debug_disass(p_debug, p_cpu_driver, p_bbc, parse_int);
       /* Continue where we left off if just enter is hit next. */
@@ -1733,12 +1744,12 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                             flag_z,
                             flag_i,
                             flag_d);
-      debug_print_registers(reg_a,
-                            reg_x,
-                            reg_y,
-                            reg_s,
+      debug_print_registers(p_debug->reg_a,
+                            p_debug->reg_x,
+                            p_debug->reg_y,
+                            p_debug->reg_s,
                             flags_buf,
-                            reg_pc,
+                            p_debug->reg_pc,
                             cycles,
                             countdown);
     } else if ((sscanf(input_buf, "ddrive %"PRId32, &parse_int) == 1) &&
@@ -1923,7 +1934,13 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else {
       (void) printf("???\n");
     }
-    bbc_set_registers(p_bbc, reg_a, reg_x, reg_y, reg_s, reg_flags, reg_pc);
+    bbc_set_registers(p_bbc,
+                      p_debug->reg_a,
+                      p_debug->reg_x,
+                      p_debug->reg_y,
+                      p_debug->reg_s,
+                      reg_flags,
+                      p_debug->reg_pc);
     ret = fflush(stdout);
     if (ret != 0) {
       util_bail("fflush() failed");

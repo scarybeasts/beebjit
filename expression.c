@@ -230,6 +230,8 @@ expression_execute_node(struct expression_struct* p_expression,
   uint32_t num_children = util_tree_node_get_num_children(p_node);
   struct util_tree_node_struct* p_child_node_1 = NULL;
   struct util_tree_node_struct* p_child_node_2 = NULL;
+  int64_t lhs;
+  int64_t rhs;
 
   if (num_children == 2) {
     p_child_node_1 = util_tree_node_get_child(p_node, 0);
@@ -262,6 +264,13 @@ expression_execute_node(struct expression_struct* p_expression,
     if (num_children == 2) {
       ret = expression_execute_node(p_expression, p_child_node_1);
       ret *= expression_execute_node(p_expression, p_child_node_2);
+    }
+    break;
+  case k_expression_node_equal:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs == rhs);
     }
     break;
   default:
