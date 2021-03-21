@@ -57,6 +57,7 @@ struct debug_breakpoint {
 
 struct debug_struct {
   struct bbc_struct* p_bbc;
+  uint8_t* p_mem_read;
   struct disc_tool_struct* p_tool;
   int debug_active;
   int debug_running;
@@ -161,6 +162,7 @@ debug_create(struct bbc_struct* p_bbc,
   util_set_interrupt_callback(debug_interrupt_callback);
 
   p_debug->p_bbc = p_bbc;
+  p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
   p_debug->debug_active = debug_active;
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
@@ -471,11 +473,10 @@ debug_get_details(int* p_addr_6502,
 static uint16_t
 debug_disass(struct debug_struct* p_debug,
              struct cpu_driver* p_cpu_driver,
-             struct bbc_struct* p_bbc,
              uint16_t addr_6502) {
   size_t i;
 
-  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+  uint8_t* p_mem_read = p_debug->p_mem_read;
 
   for (i = 0; i < 20; ++i) {
     char opcode_buf[k_max_opcode_len];
@@ -996,8 +997,7 @@ debug_save_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502,
                uint16_t length) {
-  struct bbc_struct* p_bbc = p_debug->p_bbc;
-  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+  uint8_t* p_mem_read = p_debug->p_mem_read;
 
   if ((addr_6502 + length) > k_6502_addr_space_size) {
     length = (k_6502_addr_space_size - addr_6502);
@@ -1060,6 +1060,11 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     ret = p_debug->reg_s;
   } else if (!strcmp(p_name, "pc")) {
     ret = p_debug->reg_pc;
+  } else if (!strcmp(p_name, "mem")) {
+    ret = -1;
+    if (index < k_6502_addr_space_size) {
+      ret = p_debug->p_mem_read[index];
+    }
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
@@ -1266,7 +1271,7 @@ debug_print_status_line(struct debug_struct* p_debug,
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
-    uint8_t* p_mem_read = bbc_get_mem_read(p_debug->p_bbc);
+    uint8_t* p_mem_read = p_debug->p_mem_read;
     (void) snprintf(extra_buf,
                     sizeof(extra_buf),
                     "[addr=%.4"PRIX16" val=%.2"PRIX8"]",
@@ -1346,7 +1351,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 
   struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
-  uint8_t* p_mem_read = bbc_get_mem_read(p_bbc);
+  uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_interrupt_received = &s_interrupt_received;
@@ -1716,7 +1721,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       if (parse_int == -1) {
         parse_int = p_debug->reg_pc;
       }
-      parse_addr = debug_disass(p_debug, p_cpu_driver, p_bbc, parse_int);
+      parse_addr = debug_disass(p_debug, p_cpu_driver, parse_int);
       /* Continue where we left off if just enter is hit next. */
       (void) snprintf(&p_debug->previous_commands[0],
                       k_max_input_len,
