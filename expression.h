@@ -5,7 +5,16 @@
 
 struct expression_struct;
 
-struct expression_struct* expression_create(void);
+struct expression_struct* expression_create(int64_t (*p_variable_read_callback)
+                                                (void* p,
+                                                 const char* p_name,
+                                                 uint32_t index),
+                                            void (*p_variable_write_callback)
+                                                (void* p,
+                                                 const char* p_name,
+                                                 uint32_t index,
+                                                 int64_t value),
+                                            void* p_variable_object);
 void expression_destroy(struct expression_struct* p_expression);
 
 int64_t expression_parse(struct expression_struct* p_expression,

@@ -1036,6 +1036,25 @@ debug_parse_number(const char* p_str, int is_hex) {
   return ret;
 }
 
+static int64_t
+debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
+  (void) p;
+  (void) p_name;
+  (void) index;
+  return 0;
+}
+
+static void
+debug_variable_write_callback(void* p,
+                              const char* p_name,
+                              uint32_t index,
+                              int64_t value) {
+  (void) p;
+  (void) p_name;
+  (void) index;
+  (void) value;
+}
+
 static void
 debug_setup_breakpoint(struct debug_struct* p_debug) {
   uint32_t i_params;
@@ -1096,7 +1115,10 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
         const char* p_expr_str = util_string_list_get_string(p_command_strings,
                                                              (i_params + 1));
         if (!p_breakpoint->p_expression) {
-          p_breakpoint->p_expression = expression_create();
+          p_breakpoint->p_expression = expression_create(
+              debug_variable_read_callback,
+              debug_variable_write_callback,
+              p_debug);
         }
         (void) expression_parse(p_breakpoint->p_expression, p_expr_str);
         i_params++;

@@ -50,5 +50,8 @@ struct util_tree_node_struct* util_tree_node_remove_child(
 int64_t util_tree_node_get_int_value(struct util_tree_node_struct* p_node);
 void util_tree_node_set_int_value(struct util_tree_node_struct* p_node,
                                   int64_t val);
+void* util_tree_node_get_object_value(struct util_tree_node_struct* p_node);
+void util_tree_node_set_object_value(struct util_tree_node_struct* p_node,
+                                     void* p_object);
 
 #endif /* BEEBJIT_UTIL_CONTAINER_H */

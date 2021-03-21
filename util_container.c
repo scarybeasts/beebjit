@@ -150,6 +150,7 @@ util_tree_node_free(struct util_tree_node_struct* p_node) {
     assert(p_child_node->p_parent == p_node);
     util_tree_node_free(p_child_node);
   }
+  util_free(p_node->p_value);
   util_free(p_node);
 }
 
@@ -209,6 +210,7 @@ util_tree_node_alloc(int32_t type) {
       util_mallocz(sizeof(struct util_tree_node_struct));
   p_node->type = type;
   p_node->p_parent = NULL;
+  p_node->p_value = NULL;
   return p_node;
 }
 
@@ -268,4 +270,16 @@ void
 util_tree_node_set_int_value(struct util_tree_node_struct* p_node,
                              int64_t val) {
   p_node->value = val;
+}
+
+void*
+util_tree_node_get_object_value(struct util_tree_node_struct* p_node) {
+  return p_node->p_value;
+}
+
+void
+util_tree_node_set_object_value(struct util_tree_node_struct* p_node,
+                                void* p_object) {
+  util_free(p_node->p_value);
+  p_node->p_value = p_object;
 }

@@ -11,6 +11,9 @@
 #include <string.h>
 
 struct expression_struct {
+  int64_t (*p_variable_read_callback)(void*, const char*, uint32_t);
+  void (*p_variable_write_callback)(void*, const char*, uint32_t, int64_t);
+  void* p_variable_object;
   struct util_tree_struct* p_tree;
   struct util_tree_node_struct* p_current_node;
 };
@@ -25,9 +28,19 @@ enum {
 };
 
 struct expression_struct*
-expression_create(void) {
+expression_create(int64_t (*p_variable_read_callback)(void* p,
+                                                      const char* p_name,
+                                                      uint32_t index),
+                  void (*p_variable_write_callback)(void* p,
+                                                    const char* p_name,
+                                                    uint32_t index,
+                                                    int64_t value),
+                  void* p_variable_object) {
   struct expression_struct* p_expression =
       util_mallocz(sizeof(struct expression_struct));
+  p_expression->p_variable_read_callback = p_variable_read_callback;
+  p_expression->p_variable_write_callback = p_variable_write_callback;
+  p_expression->p_variable_object = p_variable_object;
   p_expression->p_tree = util_tree_alloc();
   return p_expression;
 }
@@ -86,7 +99,9 @@ expression_process_token(struct expression_struct* p_expression,
     p_new_node = util_tree_node_alloc(k_expression_node_integer);
     util_tree_node_set_int_value(p_new_node, val);
   } else if (isalpha(c)) {
-    /* TODO. */
+    type = k_expression_node_var;
+    p_new_node = util_tree_node_alloc(k_expression_node_var);
+    util_tree_node_set_object_value(p_new_node, util_strdup(p_token_str));
   } else {
     if (!strcmp(p_token_str, "==")) {
       type = k_expression_node_equal;
@@ -208,7 +223,8 @@ expression_get_tree_size(struct expression_struct* p_expression) {
 }
 
 static int64_t
-expression_execute_node(struct util_tree_node_struct* p_node) {
+expression_execute_node(struct expression_struct* p_expression,
+                        struct util_tree_node_struct* p_node) {
   int64_t ret = 0;
   int32_t type = util_tree_node_get_type(p_node);
   uint32_t num_children = util_tree_node_get_num_children(p_node);
@@ -224,22 +240,28 @@ expression_execute_node(struct util_tree_node_struct* p_node) {
   case k_expression_node_integer:
     ret = util_tree_node_get_int_value(p_node);
     break;
+  case k_expression_node_var:
+    ret = p_expression->p_variable_read_callback(
+        p_expression->p_variable_object,
+        (const char*) util_tree_node_get_object_value(p_node),
+        0);
+    break;
   case k_expression_node_plus:
     if (num_children == 2) {
-      ret = expression_execute_node(p_child_node_1);
-      ret += expression_execute_node(p_child_node_2);
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret += expression_execute_node(p_expression, p_child_node_2);
     }
     break;
   case k_expression_node_minus:
     if (num_children == 2) {
-      ret = expression_execute_node(p_child_node_1);
-      ret -= expression_execute_node(p_child_node_2);
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret -= expression_execute_node(p_expression, p_child_node_2);
     }
     break;
   case k_expression_node_multiply:
     if (num_children == 2) {
-      ret = expression_execute_node(p_child_node_1);
-      ret *= expression_execute_node(p_child_node_2);
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret *= expression_execute_node(p_expression, p_child_node_2);
     }
     break;
   default:
@@ -259,7 +281,7 @@ expression_execute(struct expression_struct* p_expression) {
   if (p_node == NULL) {
     return 0;
   }
-  return expression_execute_node(p_node);
+  return expression_execute_node(p_expression, p_node);
 }
 
 #include "test-expression.c"

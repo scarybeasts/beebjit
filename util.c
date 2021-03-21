@@ -53,7 +53,12 @@ util_free(void* p) {
 
 char*
 util_strdup(const char* p_str) {
-  return strdup(p_str);
+  char* p_ret = strdup(p_str);
+  if (p_ret == NULL) {
+    util_bail("strdup failed");
+  }
+
+  return p_ret;
 }
 
 char*
