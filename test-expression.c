@@ -94,10 +94,59 @@ expression_test_variables(void) {
   expression_destroy(p_expression);
 }
 
+static void
+expression_test_operators(void) {
+  struct expression_struct* p_expression = expression_test_get_expression();
+
+  expression_parse(p_expression, "2 > 1");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 > 2");
+  test_expect_u32(0, expression_execute(p_expression));
+  expression_parse(p_expression, "2 >= 1");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 >= 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "1 < 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 < 2");
+  test_expect_u32(0, expression_execute(p_expression));
+  expression_parse(p_expression, "1 <= 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 <= 2");
+  test_expect_u32(1, expression_execute(p_expression));
+
+  expression_parse(p_expression, "10 / 2");
+  test_expect_u32(5, expression_execute(p_expression));
+
+  expression_parse(p_expression, "2 && 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 && 0");
+  test_expect_u32(0, expression_execute(p_expression));
+  expression_parse(p_expression, "0 && 2");
+  test_expect_u32(0, expression_execute(p_expression));
+
+  expression_parse(p_expression, "2 || 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "2 || 0");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "0 || 2");
+  test_expect_u32(1, expression_execute(p_expression));
+  expression_parse(p_expression, "0 || 0");
+  test_expect_u32(0, expression_execute(p_expression));
+
+  expression_parse(p_expression, "255 & 7");
+  test_expect_u32(7, expression_execute(p_expression));
+  expression_parse(p_expression, "1 | 7");
+  test_expect_u32(7, expression_execute(p_expression));
+
+  expression_destroy(p_expression);
+}
+
 void
 expression_test() {
   expression_test_basic();
   expression_test_left_to_right();
   expression_test_precedence();
   expression_test_variables();
+  expression_test_operators();
 }

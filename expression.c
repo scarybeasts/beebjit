@@ -22,9 +22,19 @@ enum {
   k_expression_node_integer = 1,
   k_expression_node_var = 2,
   k_expression_node_equal = 3,
-  k_expression_node_plus = 4,
-  k_expression_node_minus = 5,
-  k_expression_node_multiply = 6,
+  k_expression_node_not_equal = 4,
+  k_expression_node_greater_than = 5,
+  k_expression_node_greater_than_equal = 6,
+  k_expression_node_less_than = 7,
+  k_expression_node_less_than_equal = 8,
+  k_expression_node_plus = 9,
+  k_expression_node_minus = 10,
+  k_expression_node_multiply = 11,
+  k_expression_node_divide = 12,
+  k_expression_node_logical_and = 13,
+  k_expression_node_logical_or = 14,
+  k_expression_node_bitwise_and = 15,
+  k_expression_node_bitwise_or = 16,
 };
 
 struct expression_struct*
@@ -60,21 +70,42 @@ expression_clear(struct expression_struct* p_expression) {
 
 static int32_t
 expression_get_precedence(int32_t type) {
+  /* These precedences follow the C rules. */
   int32_t ret = 0;
   switch (type) {
   case k_expression_node_integer:
   case k_expression_node_var:
-    ret = 4;
+    ret = 100;
     break;
   case k_expression_node_multiply:
-    ret = 3;
+  case k_expression_node_divide:
+    ret = 75;
     break;
   case k_expression_node_plus:
   case k_expression_node_minus:
-    ret = 2;
+    ret = 70;
+    break;
+  case k_expression_node_greater_than:
+  case k_expression_node_greater_than_equal:
+  case k_expression_node_less_than:
+  case k_expression_node_less_than_equal:
+    ret = 55;
     break;
   case k_expression_node_equal:
-    ret = 1;
+  case k_expression_node_not_equal:
+    ret = 50;
+    break;
+  case k_expression_node_bitwise_and:
+    ret = 45;
+    break;
+  case k_expression_node_bitwise_or:
+    ret = 40;
+    break;
+  case k_expression_node_logical_and:
+    ret = 35;
+    break;
+  case k_expression_node_logical_or:
+    ret = 30;
     break;
   default:
     assert(0);
@@ -105,12 +136,32 @@ expression_process_token(struct expression_struct* p_expression,
   } else {
     if (!strcmp(p_token_str, "==")) {
       type = k_expression_node_equal;
+    } else if (!strcmp(p_token_str, "!=")) {
+      type = k_expression_node_not_equal;
+    } else if (!strcmp(p_token_str, ">")) {
+      type = k_expression_node_greater_than;
+    } else if (!strcmp(p_token_str, ">=")) {
+      type = k_expression_node_greater_than_equal;
+    } else if (!strcmp(p_token_str, "<")) {
+      type = k_expression_node_less_than;
+    } else if (!strcmp(p_token_str, "<=")) {
+      type = k_expression_node_less_than_equal;
     } else if (!strcmp(p_token_str, "+")) {
       type = k_expression_node_plus;
     } else if (!strcmp(p_token_str, "-")) {
       type = k_expression_node_minus;
     } else if (!strcmp(p_token_str, "*")) {
       type = k_expression_node_multiply;
+    } else if (!strcmp(p_token_str, "/")) {
+      type = k_expression_node_divide;
+    } else if (!strcmp(p_token_str, "&&")) {
+      type = k_expression_node_logical_and;
+    } else if (!strcmp(p_token_str, "||")) {
+      type = k_expression_node_logical_or;
+    } else if (!strcmp(p_token_str, "&")) {
+      type = k_expression_node_bitwise_and;
+    } else if (!strcmp(p_token_str, "|")) {
+      type = k_expression_node_bitwise_or;
     }
     if (type == 0) {
       log_do_log(k_log_misc, k_log_warning, "unknown operator %s", p_token_str);
@@ -266,11 +317,84 @@ expression_execute_node(struct expression_struct* p_expression,
       ret *= expression_execute_node(p_expression, p_child_node_2);
     }
     break;
+  case k_expression_node_divide:
+    if (num_children == 2) {
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret /= expression_execute_node(p_expression, p_child_node_2);
+    }
+    break;
   case k_expression_node_equal:
     if (num_children == 2) {
       lhs = expression_execute_node(p_expression, p_child_node_1);
       rhs = expression_execute_node(p_expression, p_child_node_2);
       ret = (lhs == rhs);
+    }
+    break;
+  case k_expression_node_not_equal:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs != rhs);
+    }
+    break;
+  case k_expression_node_less_than:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs < rhs);
+    }
+    break;
+  case k_expression_node_less_than_equal:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs <= rhs);
+    }
+    break;
+  case k_expression_node_greater_than:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs > rhs);
+    }
+    break;
+  case k_expression_node_greater_than_equal:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = (lhs >= rhs);
+    }
+    break;
+  case k_expression_node_logical_and:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = 0;
+      if (lhs) {
+        rhs = expression_execute_node(p_expression, p_child_node_2);
+      }
+      ret = (lhs && rhs);
+    }
+    break;
+  case k_expression_node_logical_or:
+    if (num_children == 2) {
+      lhs = expression_execute_node(p_expression, p_child_node_1);
+      rhs = 0;
+      if (!lhs) {
+        rhs = expression_execute_node(p_expression, p_child_node_2);
+      }
+      ret = (lhs || rhs);
+    }
+    break;
+  case k_expression_node_bitwise_and:
+    if (num_children == 2) {
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret &= expression_execute_node(p_expression, p_child_node_2);
+    }
+    break;
+  case k_expression_node_bitwise_or:
+    if (num_children == 2) {
+      ret = expression_execute_node(p_expression, p_child_node_1);
+      ret |= expression_execute_node(p_expression, p_child_node_2);
     }
     break;
   default:
