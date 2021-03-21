@@ -37,6 +37,8 @@ enum {
   k_expression_node_bitwise_or = 16,
   k_expression_node_paren_open = 17,
   k_expression_node_paren_close = 18,
+  k_expression_node_square_open = 19,
+  k_expression_node_square_close = 20,
 };
 
 struct expression_struct*
@@ -111,6 +113,8 @@ expression_get_precedence(int32_t type) {
     break;
   case k_expression_node_paren_open:
   case k_expression_node_paren_close:
+  case k_expression_node_square_open:
+  case k_expression_node_square_close:
     ret = 0;
     break;
   default:
@@ -118,6 +122,30 @@ expression_get_precedence(int32_t type) {
     break;
   }
   return ret;
+}
+
+static void
+expression_parent_walk_for_closure(struct expression_struct* p_expression,
+                                   int32_t search_type,
+                                   const char* p_closing_symbol) {
+  struct util_tree_node_struct* p_parent_node = p_expression->p_current_node;
+  while (1) {
+    int parent_type;
+    p_parent_node = util_tree_node_get_parent(p_parent_node);
+    if (p_parent_node == NULL) {
+      break;
+    }
+    parent_type = util_tree_node_get_type(p_parent_node);
+    if (parent_type == search_type) {
+      break;
+    }
+  }
+  if (p_parent_node == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "mismatched %s", p_closing_symbol);
+  } else {
+    p_parent_node = util_tree_node_get_parent(p_parent_node);
+  }
+  p_expression->p_current_node = p_parent_node;
 }
 
 static void
@@ -181,6 +209,11 @@ expression_process_token(struct expression_struct* p_expression,
     } else if (!strcmp(p_token_str, ")")) {
       type = k_expression_node_paren_close;
       do_node_alloc = 0;
+    } else if (!strcmp(p_token_str, "[")) {
+      type = k_expression_node_square_open;
+    } else if (!strcmp(p_token_str, "]")) {
+      type = k_expression_node_square_close;
+      do_node_alloc = 0;
     }
     if (type == 0) {
       log_do_log(k_log_misc, k_log_warning, "unknown operator %s", p_token_str);
@@ -192,29 +225,21 @@ expression_process_token(struct expression_struct* p_expression,
 
   /* Closure of matched nodes just walks back up the tree. */
   if (type == k_expression_node_paren_close) {
-    while (1) {
-      int parent_type;
-      p_parent_node = util_tree_node_get_parent(p_parent_node);
-      if (p_parent_node == NULL) {
-        break;
-      }
-      parent_type = util_tree_node_get_type(p_parent_node);
-      if (parent_type == k_expression_node_paren_open) {
-        break;
-      }
-    }
-    if (p_parent_node == NULL) {
-      log_do_log(k_log_misc, k_log_warning, "mismatched )");
-    } else {
-      p_parent_node = util_tree_node_get_parent(p_parent_node);
-    }
-    p_expression->p_current_node = p_parent_node;
+    expression_parent_walk_for_closure(p_expression,
+                                       k_expression_node_paren_open,
+                                       ")");
+    return;
+  } else if (type == k_expression_node_square_close) {
+    expression_parent_walk_for_closure(p_expression,
+                                       k_expression_node_square_open,
+                                       "]");
     return;
   }
 
-  if (type == k_expression_node_paren_open) {
-    /* ( is special. It stops tree walks (precedence 0 for treee walks) but it
-     * must also go exactly in our current position in the tree.
+  if ((type == k_expression_node_paren_open) ||
+      (type == k_expression_node_square_open)) {
+    /* ( and [ are special. They stop tree walks (precedence 0 for tree walks)
+     * but must also go exactly in our current position in the tree.
      */
     new_precedence = INT_MAX;
   } else {
@@ -337,6 +362,7 @@ expression_execute_node(struct expression_struct* p_expression,
   struct util_tree_node_struct* p_child_node_2 = NULL;
   int64_t lhs;
   int64_t rhs;
+  uint32_t index;
 
   if (num_children > 0) {
     p_child_node_1 = util_tree_node_get_child(p_node, 0);
@@ -350,10 +376,14 @@ expression_execute_node(struct expression_struct* p_expression,
     ret = util_tree_node_get_int_value(p_node);
     break;
   case k_expression_node_var:
+    index = 0;
+    if (num_children == 1) {
+      index = expression_execute_node(p_expression, p_child_node_1);
+    }
     ret = p_expression->p_variable_read_callback(
         p_expression->p_variable_object,
         (const char*) util_tree_node_get_object_value(p_node),
-        0);
+        index);
     break;
   case k_expression_node_plus:
     if (num_children == 2) {
@@ -454,6 +484,7 @@ expression_execute_node(struct expression_struct* p_expression,
     }
     break;
   case k_expression_node_paren_open:
+  case k_expression_node_square_open:
     if (num_children == 1) {
       ret = expression_execute_node(p_expression, p_child_node_1);
     }

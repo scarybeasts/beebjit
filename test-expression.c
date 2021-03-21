@@ -16,6 +16,10 @@ expression_test_variable_read_callback(void* p,
     return 2;
   }
 
+  if (!strcmp(p_name, "getindex")) {
+    return index;
+  }
+
   return 0;
 }
 
@@ -154,6 +158,16 @@ expression_test_operators(void) {
   expression_destroy(p_expression);
 }
 
+static void
+expression_test_array(void) {
+  struct expression_struct* p_expression = expression_test_get_expression();
+
+  expression_parse(p_expression, "getindex[1 + 2]");
+  test_expect_u32(3, expression_execute(p_expression));
+
+  expression_destroy(p_expression);
+}
+
 void
 expression_test() {
   expression_test_basic();
@@ -161,4 +175,5 @@ expression_test() {
   expression_test_precedence();
   expression_test_variables();
   expression_test_operators();
+  expression_test_array();
 }
