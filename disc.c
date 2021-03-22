@@ -305,6 +305,10 @@ disc_load(struct disc_struct* p_disc) {
   p_file_name = p_disc->p_file_name;
   is_file_writeable = 0;
 
+  if (p_disc->p_format_metadata != NULL) {
+    util_free(p_disc->p_format_metadata);
+    p_disc->p_format_metadata = NULL;
+  }
   if (p_disc->p_file != NULL) {
     util_file_close(p_disc->p_file);
     p_disc->p_file = NULL;
