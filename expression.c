@@ -39,6 +39,7 @@ enum {
   k_expression_node_paren_close = 18,
   k_expression_node_square_open = 19,
   k_expression_node_square_close = 20,
+  k_expression_node_assign = 21,
 };
 
 struct expression_struct*
@@ -110,6 +111,9 @@ expression_get_precedence(int32_t type) {
     break;
   case k_expression_node_logical_or:
     ret = 30;
+    break;
+  case k_expression_node_assign:
+    ret = 10;
     break;
   case k_expression_node_paren_open:
   case k_expression_node_paren_close:
@@ -214,6 +218,8 @@ expression_process_token(struct expression_struct* p_expression,
     } else if (!strcmp(p_token_str, "]")) {
       type = k_expression_node_square_close;
       do_node_alloc = 0;
+    } else if (!strcmp(p_token_str, "=")) {
+      type = k_expression_node_assign;
     }
     if (type == 0) {
       log_do_log(k_log_misc, k_log_warning, "unknown operator %s", p_token_str);
@@ -487,6 +493,25 @@ expression_execute_node(struct expression_struct* p_expression,
   case k_expression_node_square_open:
     if (num_children == 1) {
       ret = expression_execute_node(p_expression, p_child_node_1);
+    }
+    break;
+  case k_expression_node_assign:
+    if (num_children == 2) {
+      rhs = expression_execute_node(p_expression, p_child_node_2);
+      ret = rhs;
+      if (util_tree_node_get_type(p_child_node_1) == k_expression_node_var) {
+        index = 0;
+        if (util_tree_node_get_num_children(p_child_node_1) == 1) {
+          struct util_tree_node_struct* p_index_node =
+              util_tree_node_get_child(p_child_node_1, 0);
+          index = expression_execute_node(p_expression, p_index_node);
+        }
+        p_expression->p_variable_write_callback(
+            p_expression->p_variable_object,
+            (const char*) util_tree_node_get_object_value(p_child_node_1),
+            index,
+            rhs);
+      }
     }
     break;
   default:
