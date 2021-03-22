@@ -52,7 +52,6 @@ struct render_struct {
   uint32_t* p_render_pos_row_max;
   int do_deinterlace_teletext;
   int do_deinterlace_bitmap;
-  int do_show_frame_boundaries;
   int32_t cursor_segment_index;
   int cursor_segments[4];
   int is_double_size;
@@ -110,9 +109,6 @@ render_create(struct teletext_struct* p_teletext,
   if (util_has_option(p_opt_flags, "video:no-deinterlace-bitmap")) {
     p_render->do_deinterlace_bitmap = 0;
   }
-
-  p_render->do_show_frame_boundaries = util_has_option(
-      p_opt_flags, "video:frame-boundaries");
 
   width = (640 + (border_chars * 2 * 16));
   height = (512 + (border_chars * 2 * 16));
@@ -1000,19 +996,16 @@ render_vsync(struct render_struct* p_render) {
 }
 
 void
-render_frame_boundary(struct render_struct* p_render) {
+render_horiz_line(struct render_struct* p_render, uint32_t argb) {
   uint32_t i;
 
-  if (!p_render->do_show_frame_boundaries) {
-    return;
-  }
   if (p_render->p_render_pos_row == p_render->p_buffer_end) {
     return;
   }
 
   /* Paint a red line to edge of canvas denote CRTC frame boundary. */
   for (i = 0; i < p_render->width; ++i) {
-    p_render->p_render_pos_row[i] = 0xffff0000;
+    p_render->p_render_pos_row[i] = argb;
   }
 }
 

@@ -89,6 +89,7 @@ struct video_struct {
   int* p_fast_flag;
 
   int log_timer;
+  int opt_do_show_frame_boundaries;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -249,7 +250,9 @@ video_start_new_frame(struct video_struct* p_video) {
    */
   p_video->address_counter_next_row = address_counter;
 
-  render_frame_boundary(p_video->p_render);
+  if (p_video->opt_do_show_frame_boundaries) {
+    render_horiz_line(p_video->p_render, 0xffff0000);
+  }
 }
 
 static inline int
@@ -1307,6 +1310,8 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_address_register = 0;
 
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
+  p_video->opt_do_show_frame_boundaries = util_has_option(
+      p_options->p_opt_flags, "video:frame-boundaries");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;

@@ -75,7 +75,7 @@ void render_clear_buffer(struct render_struct* p_render);
 void render_process_full_buffer(struct render_struct* p_render);
 void render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks);
 void render_vsync(struct render_struct* p_render);
-void render_frame_boundary(struct render_struct* p_render);
+void render_horiz_line(struct render_struct* p_render, uint32_t argb);
 void render_cursor(struct render_struct* p_render);
 void render_set_horiz_beam_pos(struct render_struct* p_render, uint32_t pos);
 
