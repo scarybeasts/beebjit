@@ -1091,6 +1091,9 @@ debug_variable_write_callback(void* p,
     if (index < k_6502_addr_space_size) {
       bbc_memory_write(p_debug->p_bbc, index, value);
     }
+  } else if (!strcmp(p_name, "drawline")) {
+    struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
+    render_horiz_line(p_render, (uint32_t) value);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown write variable: %s", p_name);
   }

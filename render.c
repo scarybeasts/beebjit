@@ -999,7 +999,7 @@ void
 render_horiz_line(struct render_struct* p_render, uint32_t argb) {
   uint32_t i;
 
-  if (p_render->p_render_pos_row == p_render->p_buffer_end) {
+  if (p_render->p_render_pos_row >= p_render->p_buffer_end) {
     return;
   }
 
