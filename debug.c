@@ -1048,8 +1048,6 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   int64_t ret = 0;
 
-  (void) index;
-
   if (!strcmp(p_name, "a")) {
     ret = p_debug->reg_a;
   } else if (!strcmp(p_name, "x")) {
@@ -1077,10 +1075,25 @@ debug_variable_write_callback(void* p,
                               const char* p_name,
                               uint32_t index,
                               int64_t value) {
-  (void) p;
-  (void) p_name;
-  (void) index;
-  (void) value;
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+
+  if (!strcmp(p_name, "a")) {
+    p_debug->reg_a = value;
+  } else if (!strcmp(p_name, "x")) {
+    p_debug->reg_x = value;
+  } else if (!strcmp(p_name, "y")) {
+    p_debug->reg_y = value;
+  } else if (!strcmp(p_name, "s")) {
+    p_debug->reg_s = value;
+  } else if (!strcmp(p_name, "pc")) {
+    p_debug->reg_pc = value;
+  } else if (!strcmp(p_name, "mem")) {
+    if (index < k_6502_addr_space_size) {
+      bbc_memory_write(p_debug->p_bbc, index, value);
+    }
+  } else {
+    log_do_log(k_log_misc, k_log_warning, "unknown write variable: %s", p_name);
+  }
 }
 
 static void

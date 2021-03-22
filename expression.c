@@ -122,7 +122,7 @@ expression_get_precedence(int32_t type) {
     ret = 0;
     break;
   default:
-    assert(0);
+    ret = 0;
     break;
   }
   return ret;
