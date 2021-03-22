@@ -46,9 +46,6 @@ struct debug_breakpoint {
   int32_t exec_end;
   int32_t memory_start;
   int32_t memory_end;
-  int32_t a_value;
-  int32_t x_value;
-  int32_t y_value;
   int do_print;
   int do_stop;
   char* p_command_list_str;
@@ -127,9 +124,6 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
     expression_destroy(p_breakpoint->p_expression);
   }
   (void) memset(p_breakpoint, '\0', sizeof(struct debug_breakpoint));
-  p_breakpoint->a_value = -1;
-  p_breakpoint->x_value = -1;
-  p_breakpoint->y_value = -1;
   p_breakpoint->exec_start = -1;
   p_breakpoint->exec_end = -1;
   p_breakpoint->memory_start = -1;
@@ -687,19 +681,6 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       continue;
     }
 
-    if ((p_breakpoint->a_value != -1) &&
-        (p_debug->reg_a != p_breakpoint->a_value)) {
-      continue;
-    }
-    if ((p_breakpoint->x_value != -1) &&
-        (p_debug->reg_x != p_breakpoint->x_value)) {
-      continue;
-    }
-    if ((p_breakpoint->y_value != -1) &&
-        (p_debug->reg_y != p_breakpoint->y_value)) {
-      continue;
-    }
-
     if (p_breakpoint->has_exec_range) {
       if ((p_debug->reg_pc < p_breakpoint->exec_start) ||
           (p_debug->reg_pc > p_breakpoint->exec_end)) {
@@ -1180,12 +1161,6 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
         (void) expression_parse(p_breakpoint->p_expression, p_expr_str);
         i_params++;
       }
-    } else if (!strncmp(p_param_str, "a=", 2)) {
-      p_breakpoint->a_value = debug_parse_number((p_param_str + 2), 0);
-    } else if (!strncmp(p_param_str, "x=", 2)) {
-      p_breakpoint->x_value = debug_parse_number((p_param_str + 2), 0);
-    } else if (!strncmp(p_param_str, "y=", 2)) {
-      p_breakpoint->y_value = debug_parse_number((p_param_str + 2), 0);
     } else {
       value = debug_parse_number(p_param_str, 1);
       if (!is_memory_range) {
