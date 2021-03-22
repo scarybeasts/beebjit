@@ -14,6 +14,7 @@ struct expression_struct {
   int64_t (*p_variable_read_callback)(void*, const char*, uint32_t);
   void (*p_variable_write_callback)(void*, const char*, uint32_t, int64_t);
   void* p_variable_object;
+  char* p_expr_str;
   struct util_tree_struct* p_tree;
   struct util_tree_node_struct* p_current_node;
 };
@@ -56,18 +57,22 @@ expression_create(int64_t (*p_variable_read_callback)(void* p,
   p_expression->p_variable_read_callback = p_variable_read_callback;
   p_expression->p_variable_write_callback = p_variable_write_callback;
   p_expression->p_variable_object = p_variable_object;
+  p_expression->p_expr_str = NULL;
   p_expression->p_tree = util_tree_alloc();
   return p_expression;
 }
 
 void
 expression_destroy(struct expression_struct* p_expression) {
+  util_free(p_expression->p_expr_str);
   util_tree_free(p_expression->p_tree);
   util_free(p_expression);
 }
 
 static void
 expression_clear(struct expression_struct* p_expression) {
+  util_free(p_expression->p_expr_str);
+  p_expression->p_expr_str = NULL;
   util_tree_free(p_expression->p_tree);
   p_expression->p_tree = util_tree_alloc();
   p_expression->p_current_node = NULL;
@@ -303,6 +308,8 @@ expression_parse(struct expression_struct* p_expression,
 
   expression_clear(p_expression);
 
+  p_expression->p_expr_str = util_strdup(p_expr_str);
+
   i = 0;
   while (i < len) {
     char token_buf[256];
@@ -351,11 +358,6 @@ expression_parse(struct expression_struct* p_expression,
   }
 
   return 0;
-}
-
-uint32_t
-expression_get_tree_size(struct expression_struct* p_expression) {
-  return util_tree_get_tree_size(p_expression->p_tree);
 }
 
 static int64_t
@@ -519,6 +521,16 @@ expression_execute_node(struct expression_struct* p_expression,
   }
 
   return ret;
+}
+
+const char*
+expression_get_original_string(struct expression_struct* p_expression) {
+  return p_expression->p_expr_str;
+}
+
+uint32_t
+expression_get_tree_size(struct expression_struct* p_expression) {
+  return util_tree_get_tree_size(p_expression->p_tree);
 }
 
 int64_t

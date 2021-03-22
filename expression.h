@@ -20,6 +20,8 @@ void expression_destroy(struct expression_struct* p_expression);
 int64_t expression_parse(struct expression_struct* p_expression,
                          const char* p_expr_str);
 
+const char* expression_get_original_string(
+    struct expression_struct* p_expression);
 uint32_t expression_get_tree_size(struct expression_struct* p_expression);
 int64_t expression_execute(struct expression_struct* p_expression);
 

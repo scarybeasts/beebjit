@@ -51,6 +51,7 @@ struct debug_breakpoint {
   int32_t y_value;
   int do_print;
   int do_stop;
+  char* p_command_list_str;
   struct util_string_list_struct* p_command_list;
   struct expression_struct* p_expression;
 };
@@ -119,6 +120,7 @@ static void
 debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
   struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
   if (p_breakpoint->p_command_list) {
+    util_free(p_breakpoint->p_command_list_str);
     util_string_list_free(p_breakpoint->p_command_list);
   }
   if (p_breakpoint->p_expression) {
@@ -889,6 +891,14 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
                     p_breakpoint->memory_start,
                     p_breakpoint->memory_end);
     }
+    if (p_breakpoint->p_expression != NULL) {
+      const char* p_str = expression_get_original_string(
+          p_breakpoint->p_expression);
+      (void) printf(" expr '%s'", p_str);
+    }
+    if (p_breakpoint->p_command_list != NULL) {
+      (void) printf(" commands '%s'", p_breakpoint->p_command_list_str);
+    }
     (void) printf("\n");
   }
 }
@@ -1148,9 +1158,12 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       if ((i_params + 1) < num_params) {
         const char* p_commands = util_string_list_get_string(p_command_strings,
                                                              (i_params + 1));
-        if (!p_breakpoint->p_command_list) {
-          p_breakpoint->p_command_list = util_string_list_alloc();
+        if (p_breakpoint->p_command_list != NULL) {
+          util_free(p_breakpoint->p_command_list_str);
+          util_string_list_free(p_breakpoint->p_command_list);
         }
+        p_breakpoint->p_command_list_str = util_strdup(p_commands);
+        p_breakpoint->p_command_list = util_string_list_alloc();
         util_string_split(p_breakpoint->p_command_list, p_commands, ';', '\'');
         i_params++;
       }
