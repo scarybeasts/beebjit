@@ -58,3 +58,25 @@ os_terminal_handle_write_byte(intptr_t handle, uint8_t byte) {
   }
   return 1;
 }
+
+static void (*s_p_interrupt_callback)(void);
+
+static BOOL
+os_terminal_ctrl_handler(DWORD dwCtrlType) {
+  if (dwCtrlType != CTRL_C_EVENT) {
+    return FALSE;
+  }
+
+  s_p_interrupt_callback();
+  return TRUE;
+}
+
+void
+os_terminal_set_ctrl_c_callback(void (*p_interrupt_callback)(void)) {
+  s_p_interrupt_callback = p_interrupt_callback;
+
+  BOOL ret = SetConsoleCtrlHandler(os_terminal_ctrl_handler, TRUE);
+  if (ret == FALSE) {
+    util_bail("SetConsoleCtrlHandler failed");
+  }
+}

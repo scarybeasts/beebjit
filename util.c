@@ -6,16 +6,10 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-typedef void (*sighandler_t)(int);
-
-static void (*s_p_interrupt_callback)(void);
 
 void*
 util_malloc(size_t size) {
@@ -583,27 +577,6 @@ util_bail(const char* p_msg, ...) {
 
   exit(1);
   /* Not reached. */
-}
-
-static void
-sigint_handler(int signum) {
-  if (signum != SIGINT) {
-    _exit(1);
-  }
-
-  s_p_interrupt_callback();
-}
-
-void
-util_set_interrupt_callback(void (*p_interrupt_callback)(void)) {
-  sighandler_t ret;
-
-  s_p_interrupt_callback = p_interrupt_callback;
-
-  ret = signal(SIGINT, sigint_handler);
-  if (ret == SIG_ERR) {
-    util_bail("signal failed");
-  }
 }
 
 static uint8_t

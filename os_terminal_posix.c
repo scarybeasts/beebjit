@@ -1,9 +1,14 @@
 #include "os_terminal.h"
 
+#include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <termios.h>
+#include <unistd.h>
 
 #include <sys/ioctl.h>
+
+#include "util.h"
 
 intptr_t
 os_terminal_get_stdin_handle(void) {
@@ -69,4 +74,30 @@ os_terminal_handle_write_byte(intptr_t handle, uint8_t byte) {
   }
 
   return 1;
+}
+
+static void (*s_p_interrupt_callback)(void);
+
+static void
+sigint_handler(int signum) {
+  if (signum != SIGINT) {
+    _exit(1);
+  }
+
+  s_p_interrupt_callback();
+}
+
+void
+os_terminal_set_ctrl_c_callback(void (*p_interrupt_callback)(void)) {
+  struct sigaction sa;
+  int ret;
+
+  s_p_interrupt_callback = p_interrupt_callback;
+
+  (void) memset(&sa, '\0', sizeof(sa));
+  sa.sa_handler = sigint_handler;
+  ret = sigaction(SIGINT, &sa, NULL);
+  if (ret != 0) {
+    util_bail("sigaction failed");
+  }
 }

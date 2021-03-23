@@ -99,7 +99,6 @@ int util_has_option(const char* p_opt_str, const char* p_opt_name);
 
 /* Misc. */
 void util_bail(const char* p_msg, ...) __attribute__((format(printf, 1, 2)));
-void util_set_interrupt_callback(void (*p_interrupt_callback)(void));
 
 /* Bits and bytes. */
 uint8_t util_parse_hex2(const char* p_str);

@@ -18,6 +18,7 @@
 #include "video.h"
 
 #include "os_fault.h"
+#include "os_terminal.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -155,7 +156,7 @@ debug_create(struct bbc_struct* p_bbc,
    */
   s_p_debug = p_debug;
 
-  util_set_interrupt_callback(debug_interrupt_callback);
+  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
 
   p_debug->p_bbc = p_bbc;
   p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
