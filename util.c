@@ -480,45 +480,6 @@ util_file_copy(const char* p_src_file_name, const char* p_dst_file_name) {
   util_file_close(p_dst_file);
 }
 
-intptr_t
-util_get_stdin_handle() {
-  return fileno(stdin);
-}
-
-intptr_t
-util_get_stdout_handle() {
-  return fileno(stdout);
-}
-
-uint8_t
-util_handle_read_byte(intptr_t handle) {
-  uint8_t val;
-
-  ssize_t ret = read(handle, &val, 1);
-  if (ret != 1) {
-    util_bail("failed to read byte from handle");
-  }
-
-  return val;
-}
-
-void
-util_handle_write_byte(intptr_t handle, uint8_t val) {
-  ssize_t ret = write(handle, &val, 1);
-  if (ret != 1) {
-    util_bail("failed to write byte to handle");
-  }
-}
-
-void
-util_handle_close(intptr_t handle) {
-  int fd = (int) handle;
-  int ret = close(fd);
-  if (ret != 0) {
-    util_bail("close failed");
-  }
-}
-
 static const char*
 util_locate_option(const char* p_opt_str,
                    const char* p_opt_name) {

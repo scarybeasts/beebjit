@@ -85,13 +85,6 @@ void util_file_write_fully(const char* p_file_name,
                            uint64_t size);
 void util_file_copy(const char* p_src_file_name, const char* p_dst_file_name);
 
-/* Miscellaneous handle I/O. */
-intptr_t util_get_stdin_handle();
-intptr_t util_get_stdout_handle();
-uint8_t util_handle_read_byte(intptr_t handle);
-void util_handle_write_byte(intptr_t handle, uint8_t val);
-void util_handle_close(intptr_t handle);
-
 /* Options. */
 int util_get_u32_option(uint32_t* p_opt_out,
                         const char* p_opt_str,

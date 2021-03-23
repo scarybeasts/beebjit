@@ -583,8 +583,8 @@ main(int argc, const char* argv[]) {
 
   if (terminal_flag) {
     struct serial_struct* p_serial = bbc_get_serial(p_bbc);
-    intptr_t stdin_handle = util_get_stdin_handle();
-    intptr_t stdout_handle = util_get_stdout_handle();
+    intptr_t stdin_handle = os_terminal_get_stdin_handle();
+    intptr_t stdout_handle = os_terminal_get_stdout_handle();
 
     os_terminal_setup(stdin_handle);
 
