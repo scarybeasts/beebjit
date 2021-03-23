@@ -98,6 +98,9 @@ int util_get_u32_option(uint32_t* p_opt_out,
 int util_get_u64_option(uint64_t* p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);
+int util_get_x16_option(uint16_t* p_opt_out,
+                        const char* p_opt_str,
+                        const char* p_opt_name);
 int util_get_str_option(char** p_opt_out,
                         const char* p_opt_str,
                         const char* p_opt_name);

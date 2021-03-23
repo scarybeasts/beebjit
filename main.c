@@ -17,6 +17,7 @@
 #include "version.h"
 #include "video.h"
 #include "wd_fdc.h"
+#include "rocket/rocket.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -69,6 +70,7 @@ main(int argc, const char* argv[]) {
   struct keyboard_struct* p_keyboard;
   struct video_struct* p_video;
   struct render_struct* p_render;
+  struct rocket_struct* p_rocket = NULL;
   uint32_t run_result;
   uint32_t* p_render_buffer;
   intptr_t handle_channel_read_ui;
@@ -90,6 +92,8 @@ main(int argc, const char* argv[]) {
   const char* load_name = NULL;
   const char* capture_name = NULL;
   const char* replay_name = NULL;
+  const char* rocket_tracks_name = NULL;
+  const char* rocket_prefix = NULL;
   const char* p_create_hfe_file = NULL;
   const char* p_create_hfe_spec = NULL;
   const char* p_frames_dir = ".";
@@ -174,6 +178,10 @@ main(int argc, const char* argv[]) {
     } else if (has_1 && !strcmp(arg, "-replay")) {
       replay_name = val1;
       ++i_args;
+    } else if (has_2 && !strcmp(arg, "-rocket")) {
+      rocket_prefix = val1;
+      rocket_tracks_name = val2;
+      i_args += 2;
     } else if (has_1 && (!strcmp(arg, "-disc") ||
                          !strcmp(arg, "-disc0") ||
                          !strcmp(arg, "-0"))) {
@@ -362,6 +370,7 @@ main(int argc, const char* argv[]) {
 "-watford           : for a model B with a 1770, load Watford DDFS ROM.\n"
 "-opus              : for a model B with a 1770, load Opus DDOS ROM.\n"
 "-extended-roms     : disable ROM slot aliasing.\n"
+"-rocket     <p> <f>: connect to Rocket sync editor with prefix string <p> and track list file <f>.\n"
 "");
       exit(0);
     } else {
@@ -532,6 +541,11 @@ main(int argc, const char* argv[]) {
     bbc_set_autoboot(p_bbc, 1);
   }
 
+  /* Set up Rocket sync editor. */
+  if (rocket_tracks_name) {
+    p_rocket = rocket_create(p_bbc, rocket_tracks_name, rocket_prefix, p_opt_flags);
+  }
+
   p_render = bbc_get_render(p_bbc);
 
   p_poller = os_poller_create();
@@ -670,6 +684,9 @@ main(int argc, const char* argv[]) {
       if (bbc_get_vsync_wait_for_render(p_bbc)) {
         message.data[0] = k_message_render_done;
         bbc_client_send_message(p_bbc, &message);
+      }
+      if (p_rocket) {
+        rocket_run(p_rocket);
       }
     }
 

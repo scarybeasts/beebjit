@@ -4,7 +4,7 @@
 
 x86_64-w64-mingw32-gcc -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
-    -O3 -DNDEBUG -flto -o beebjit.exe \
+    -O3 -DNDEBUG -D__USE_MINGW_ANSI_STDIO=0 -flto -o beebjit.exe \
     main.c config.c bbc.c defs_6502.c state.c video.c via.c \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
     jit_compiler.c cpu_driver.c \
@@ -20,4 +20,5 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     asm/asm_common.c asm/asm_common.S \
     asm/asm_inturbo.c asm/asm_inturbo.S \
     asm/asm_jit.c asm/asm_jit.S \
-    -lgdi32 -lwinmm
+    rocket/device.c rocket/track.c rocket/rocket.c \
+    -lgdi32 -lwinmm -lwinmm -lws2_32 -Wl,--default-image-base-low
