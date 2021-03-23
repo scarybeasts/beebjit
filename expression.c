@@ -320,9 +320,12 @@ expression_parse(struct expression_struct* p_expression,
       i++;
     }
     token_len = 0;
-    while (isalpha(c = p_expr_str[i]) && (token_len < max_token_len)) {
-      token_buf[token_len++] = c;
-      i++;
+    if (isalpha(c)) {
+      while ((isalpha(c = p_expr_str[i]) || isdigit(c) || (c == '_')) &&
+             (token_len < max_token_len)) {
+        token_buf[token_len++] = c;
+        i++;
+      }
     }
     if (token_len > 0) {
       token_buf[token_len] = '\0';

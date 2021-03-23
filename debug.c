@@ -57,6 +57,8 @@ struct debug_breakpoint {
 struct debug_struct {
   struct bbc_struct* p_bbc;
   uint8_t* p_mem_read;
+  struct video_struct* p_video;
+  struct render_struct* p_render;
   struct disc_tool_struct* p_tool;
   int debug_active;
   int debug_running;
@@ -161,6 +163,8 @@ debug_create(struct bbc_struct* p_bbc,
 
   p_debug->p_bbc = p_bbc;
   p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
+  p_debug->p_video = bbc_get_video(p_bbc);
+  p_debug->p_render = bbc_get_render(p_bbc);
   p_debug->debug_active = debug_active;
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
@@ -1061,6 +1065,34 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
       ret = p_debug->temp_storage[index];
     }
+  } else if (!strncmp(p_name, "crtc_", 5)) {
+    uint8_t horiz_counter;
+    uint8_t scanline_counter;
+    uint8_t vert_counter;
+    uint16_t addr_counter;
+    video_get_crtc_state(p_debug->p_video,
+                         &horiz_counter,
+                         &scanline_counter,
+                         &vert_counter,
+                         &addr_counter);
+    if (!strcmp(p_name, "crtc_c0")) {
+      ret = horiz_counter;
+    } else if (!strcmp(p_name, "crtc_c4")) {
+      ret = vert_counter;
+    } else if (!strcmp(p_name, "crtc_c9")) {
+      ret = scanline_counter;
+    } else if (!strcmp(p_name, "crtc_ma")) {
+      ret = addr_counter;
+    } else {
+      log_do_log(k_log_misc,
+                 k_log_warning,
+                 "unknown crtc variable: %s",
+                 p_name);
+    }
+  } else if (!strcmp(p_name, "render_x")) {
+    ret = render_get_horiz_pos(p_debug->p_render);
+  } else if (!strcmp(p_name, "render_y")) {
+    ret = render_get_vert_pos(p_debug->p_render);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
