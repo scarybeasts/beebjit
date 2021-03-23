@@ -80,6 +80,7 @@ struct debug_struct {
   int32_t next_or_finish_stop_addr;
   int debug_break_opcodes[256];
   struct debug_breakpoint breakpoints[k_max_break];
+  int64_t temp_storage[16];
 
   /* Stats. */
   int stats;
@@ -1055,6 +1056,11 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     if (index < k_6502_addr_space_size) {
       ret = p_debug->p_mem_read[index];
     }
+  } else if (!strcmp(p_name, "temp")) {
+    ret = -1;
+    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+      ret = p_debug->temp_storage[index];
+    }
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
@@ -1082,6 +1088,10 @@ debug_variable_write_callback(void* p,
   } else if (!strcmp(p_name, "mem")) {
     if (index < k_6502_addr_space_size) {
       bbc_memory_write(p_debug->p_bbc, index, value);
+    }
+  } else if (!strcmp(p_name, "temp")) {
+    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+      p_debug->temp_storage[index] = value;
     }
   } else if (!strcmp(p_name, "drawline")) {
     struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
