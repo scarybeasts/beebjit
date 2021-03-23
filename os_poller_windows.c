@@ -32,8 +32,16 @@ os_poller_destroy(struct os_poller_struct* p_poller) {
 
 void
 os_poller_add_handle(struct os_poller_struct* p_poller, intptr_t handle) {
-  uint32_t num_used_handles = p_poller->num_used_handles;
+  uint32_t num_used_handles;
 
+  /* NULL is the window handle. It is automatically included in the Windows
+   * wait call, so we can ignore it.
+   */
+  if (handle == (intptr_t) NULL) {
+    return;
+  }
+
+  num_used_handles = p_poller->num_used_handles;
   if (num_used_handles == k_os_poller_max_handles) {
     util_bail("os_poller_add_handle out of handles");
   }
@@ -46,15 +54,10 @@ void
 os_poller_poll(struct os_poller_struct* p_poller) {
   uint32_t num_used_handles = p_poller->num_used_handles;
 
-  if ((num_used_handles == 0) ||
-      (p_poller->handles[num_used_handles - 1] != NULL)) {
-    util_bail("missing NULL (the window handle)");
-  }
-
   /* NOTE: needs to be QS_ALLINPUT and not QS_ALLEVENTS otherwise there's a
    * strange hang trying to restore the minimized window.
    */
-  DWORD ret = MsgWaitForMultipleObjects((num_used_handles - 1),
+  DWORD ret = MsgWaitForMultipleObjects(num_used_handles,
                                         p_poller->handles,
                                         FALSE,
                                         INFINITE,
