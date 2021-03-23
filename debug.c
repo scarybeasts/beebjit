@@ -1090,8 +1090,10 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
                  p_name);
     }
   } else if (!strcmp(p_name, "render_x")) {
+    video_advance_crtc_timing(p_debug->p_video);
     ret = render_get_horiz_pos(p_debug->p_render);
   } else if (!strcmp(p_name, "render_y")) {
+    video_advance_crtc_timing(p_debug->p_video);
     ret = render_get_vert_pos(p_debug->p_render);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);

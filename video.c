@@ -462,7 +462,7 @@ video_update_odd_even_frame(struct video_struct* p_video) {
                                      (p_video->crtc_frames & 1));
 }
 
-static void
+void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t data;
   uint64_t delta_crtc_ticks;
