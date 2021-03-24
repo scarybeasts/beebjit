@@ -40,6 +40,7 @@ enum {
 
 struct debug_breakpoint {
   int is_in_use;
+  int is_enabled;
   int has_exec_range;
   int has_memory_range;
   int is_memory_read;
@@ -84,6 +85,7 @@ struct debug_struct {
   int32_t next_or_finish_stop_addr;
   int debug_break_opcodes[256];
   struct debug_breakpoint breakpoints[k_max_break];
+  uint32_t num_breakpoints_used;
   int64_t temp_storage[16];
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
@@ -621,6 +623,9 @@ debug_get_free_breakpoint(struct debug_struct* p_debug) {
   for (i = 0; i < k_max_break; ++i) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
+      p_breakpoint->is_in_use = 1;
+      assert(p_debug->num_breakpoints_used < k_max_break);
+      p_debug->num_breakpoints_used++;
       return p_breakpoint;
     }
   }
@@ -637,13 +642,29 @@ debug_check_breakpoints(struct debug_struct* p_debug,
                         uint8_t opmem) {
   uint32_t i;
 
-  int debug_print = 0;
-  int debug_stop = 0;
+  if (p_debug->debug_break_opcodes[opcode_6502]) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
+  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
+  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
 
-  /* TODO: shouldn't iterate at all if there's no breakpoints. */
+  if (p_debug->num_breakpoints_used == 0) {
+    return;
+  }
+
   for (i = 0; i < k_max_break; ++i) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
+      continue;
+    }
+    if (!p_breakpoint->is_enabled) {
       continue;
     }
 
@@ -674,28 +695,13 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       }
     }
     /* If we arrive here, it's a hit. */
-    debug_print |= p_breakpoint->do_print;
-    debug_stop |= p_breakpoint->do_stop;
+    *p_out_print |= p_breakpoint->do_print;
+    *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
       util_string_list_append_list(p_debug->p_pending_commands,
                                    p_breakpoint->p_command_list);
     }
   }
-  if (p_debug->debug_break_opcodes[opcode_6502]) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-
-  *p_out_print = debug_print;
-  *p_out_stop = debug_stop;
 }
 
 static int
@@ -846,6 +852,9 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     if (p_breakpoint->p_command_list != NULL) {
       (void) printf(" commands '%s'", p_breakpoint->p_command_list_str);
     }
+    if (!p_breakpoint->is_enabled) {
+      (void) printf(" disabled");
+    }
     (void) printf("\n");
   }
 }
@@ -984,7 +993,7 @@ debug_print_registers(uint8_t reg_a,
                 countdown);
 }
 
-static uint16_t
+static int32_t
 debug_parse_number(const char* p_str, int is_hex) {
   int32_t ret = -1;
 
@@ -1098,7 +1107,7 @@ static void
 debug_setup_breakpoint(struct debug_struct* p_debug) {
   uint32_t i_params;
   uint32_t num_params;
-  uint16_t value;
+  int32_t value;
   struct util_string_list_struct* p_command_strings;
 
   struct debug_breakpoint* p_breakpoint = debug_get_free_breakpoint(p_debug);
@@ -1111,7 +1120,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
     return;
   }
 
-  p_breakpoint->is_in_use = 1;
+  assert(p_breakpoint->is_in_use);
+  p_breakpoint->is_enabled = 1;
   p_breakpoint->do_print = 1;
   p_breakpoint->do_stop = 1;
 
@@ -1139,6 +1149,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       is_memory_range = 1;
       is_memory_read = 1;
       is_memory_write = 1;
+    } else if (!strcmp(p_param_str, "disabled")) {
+      p_breakpoint->is_enabled = 0;
     } else if (!strcmp(p_param_str, "commands")) {
       if ((i_params + 1) < num_params) {
         const char* p_commands = util_string_list_get_string(p_command_strings,
@@ -1366,14 +1378,14 @@ debug_callback_common(struct debug_struct* p_debug,
   int is_write;
   int is_rom;
   int is_register;
-  int break_print;
-  int break_stop;
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_interrupt_received = &s_interrupt_received;
+  int break_print = 0;
+  int break_stop = 0;
 
   bbc_get_registers(p_bbc,
                     &p_debug->reg_a,
@@ -1549,8 +1561,8 @@ debug_callback_common(struct debug_struct* p_debug,
     char input_buf[k_max_input_len];
     const char* p_command_and_params;
     const char* p_command;
+    int32_t parse_int;
 
-    int32_t parse_int = -1;
     int32_t parse_int2 = -1;
     int32_t parse_int3 = -1;
     int32_t parse_int4 = -1;
@@ -1605,6 +1617,12 @@ debug_callback_common(struct debug_struct* p_debug,
     p_command = "";
     if (util_string_list_get_count(p_command_strings) > 0) {
       p_command = util_string_list_get_string(p_command_strings, 0);
+    }
+    parse_int = -1;
+    if (util_string_list_get_count(p_command_strings) > 1) {
+      const char* p_param_str = util_string_list_get_string(p_command_strings,
+                                                            1);
+      parse_int = debug_parse_number(p_param_str, 0);
     }
 
     if (!strcmp(p_command, "q")) {
@@ -1682,6 +1700,22 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, parse_int);
+      assert(p_debug->num_breakpoints_used > 0);
+      p_debug->num_breakpoints_used--;
+    } else if (!strcmp(p_command, "enable") &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
+      struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[parse_int];
+      if (p_breakpoint->is_in_use) {
+        p_breakpoint->is_enabled = 1;
+      }
+    } else if (!strcmp(p_command, "disable") &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
+      struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[parse_int];
+      if (p_breakpoint->is_in_use) {
+        p_breakpoint->is_enabled = 0;
+      }
     } else if ((sscanf(input_buf, "bop %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 256)) {

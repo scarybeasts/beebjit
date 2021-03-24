@@ -11,12 +11,6 @@ void util_string_list_clear(struct util_string_list_struct* p_list);
 uint32_t util_string_list_get_count(struct util_string_list_struct* p_list);
 const char* util_string_list_get_string(struct util_string_list_struct* p_list,
                                         uint32_t i);
-int util_string_list_get_int(struct util_string_list_struct* p_list,
-                             int64_t p_out_val,
-                             uint32_t i);
-int util_string_list_get_hex_int(struct util_string_list_struct* p_list,
-                                 int64_t p_out_val,
-                                 uint32_t i);
 
 void util_string_list_set_at_with_length(struct util_string_list_struct* p_list,
                                          uint32_t index,
