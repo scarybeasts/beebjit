@@ -1929,7 +1929,8 @@ intel_fdc_shift_data_bit(struct intel_fdc_struct* p_fdc, int bit) {
 
     if ((clocks_byte != 0xFF) &&
         (state != k_intel_fdc_state_check_id_marker) &&
-        (state != k_intel_fdc_state_check_data_marker)) {
+        (state != k_intel_fdc_state_check_data_marker) &&
+        (state != k_intel_fdc_state_skip_gap_2)) {
       /* Nothing. From testing, the 8271 doesn't deliver bytes with missing
        * clock bits in the middle of a synced byte stream.
        */

@@ -14,6 +14,9 @@ enum {
   k_disc_max_bytes_per_track = (256 * 13),
 };
 
+/* TODO: these do_convert_* options should be separate function calls, not
+ * flags to the constructor.
+ */
 struct disc_struct* disc_create(const char* p_filename,
                                 int is_writeable,
                                 int is_mutable,
@@ -23,6 +26,7 @@ struct disc_struct* disc_create(const char* p_filename,
                                 struct bbc_options* p_options);
 struct disc_struct* disc_create_from_raw(const char* p_file_name,
                                          const char* p_raw_spec);
+void disc_load(struct disc_struct* p_disc);
 void disc_destroy(struct disc_struct* p_disc);
 
 int disc_is_double_sided(struct disc_struct* p_disc);

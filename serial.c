@@ -302,14 +302,17 @@ serial_tick(struct serial_struct* p_serial) {
       /* TODO: this doesn't seem correct. The serial connection may not be via
        * a host terminal?
        */
-      size_t avail = os_terminal_readable_bytes(p_serial->handle_input);
-      if (avail > 0) {
-        uint8_t val = util_handle_read_byte(p_serial->handle_input);
-        /* Rewrite \n to \r for BBC style input. */
-        if (val == '\n') {
-          val = '\r';
+      int has_bytes = os_terminal_has_readable_bytes(p_serial->handle_input);
+      if (has_bytes) {
+        uint8_t val;
+        int ret = os_terminal_handle_read_byte(p_serial->handle_input, &val);
+        if (ret) {
+          /* Rewrite \n to \r for BBC style input. */
+          if (val == '\n') {
+            val = '\r';
+          }
+          serial_receive(p_serial, val);
         }
-        serial_receive(p_serial, val);
       }
     }
   }
@@ -321,11 +324,11 @@ serial_tick(struct serial_struct* p_serial) {
       uint8_t val = p_serial->acia_transmit;
       /* NOTE: no suppression of \r in the BBC stream's newlines. */
       /* This may block; we rely on the host end to be faster than our BBC! */
-      util_handle_write_byte(p_serial->handle_output, val);
-
-      p_serial->acia_status |= k_serial_acia_status_TDRE;
-
-      serial_acia_update_irq(p_serial);
+      int ret = os_terminal_handle_write_byte(p_serial->handle_output, val);
+      if (ret) {
+        p_serial->acia_status |= k_serial_acia_status_TDRE;
+        serial_acia_update_irq(p_serial);
+      }
     }
   }
 }

@@ -6,16 +6,10 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-typedef void (*sighandler_t)(int);
-
-static void (*s_p_interrupt_callback)(void);
 
 void*
 util_malloc(size_t size) {
@@ -36,6 +30,16 @@ util_mallocz(size_t size) {
   return p_ret;
 }
 
+void*
+util_realloc(void* p, size_t size) {
+  void* p_ret = realloc(p, size);
+  if (p_ret == NULL) {
+    util_bail("realloc failed");
+  }
+
+  return p_ret;
+}
+
 void
 util_free(void* p) {
   free(p);
@@ -43,7 +47,12 @@ util_free(void* p) {
 
 char*
 util_strdup(const char* p_str) {
-  return strdup(p_str);
+  char* p_ret = strdup(p_str);
+  if (p_ret == NULL) {
+    util_bail("strdup failed");
+  }
+
+  return p_ret;
 }
 
 char*
@@ -465,45 +474,6 @@ util_file_copy(const char* p_src_file_name, const char* p_dst_file_name) {
   util_file_close(p_dst_file);
 }
 
-intptr_t
-util_get_stdin_handle() {
-  return fileno(stdin);
-}
-
-intptr_t
-util_get_stdout_handle() {
-  return fileno(stdout);
-}
-
-uint8_t
-util_handle_read_byte(intptr_t handle) {
-  uint8_t val;
-
-  ssize_t ret = read(handle, &val, 1);
-  if (ret != 1) {
-    util_bail("failed to read byte from handle");
-  }
-
-  return val;
-}
-
-void
-util_handle_write_byte(intptr_t handle, uint8_t val) {
-  ssize_t ret = write(handle, &val, 1);
-  if (ret != 1) {
-    util_bail("failed to write byte to handle");
-  }
-}
-
-void
-util_handle_close(intptr_t handle) {
-  int fd = (int) handle;
-  int ret = close(fd);
-  if (ret != 0) {
-    util_bail("close failed");
-  }
-}
-
 static const char*
 util_locate_option(const char* p_opt_str,
                    const char* p_opt_name) {
@@ -625,27 +595,6 @@ util_bail(const char* p_msg, ...) {
 
   exit(1);
   /* Not reached. */
-}
-
-static void
-sigint_handler(int signum) {
-  if (signum != SIGINT) {
-    _exit(1);
-  }
-
-  s_p_interrupt_callback();
-}
-
-void
-util_set_interrupt_callback(void (*p_interrupt_callback)(void)) {
-  sighandler_t ret;
-
-  s_p_interrupt_callback = p_interrupt_callback;
-
-  ret = signal(SIGINT, sigint_handler);
-  if (ret == SIG_ERR) {
-    util_bail("signal failed");
-  }
 }
 
 static uint8_t

@@ -89,6 +89,7 @@ struct video_struct {
   int* p_fast_flag;
 
   int log_timer;
+  int opt_do_show_frame_boundaries;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -166,6 +167,7 @@ struct video_struct {
   int has_hit_cursor_line_start;
   int has_hit_cursor_line_end;
   int is_end_of_main_latched;
+  int is_end_of_vert_adjust_latched;
   int is_end_of_frame_latched;
   uint32_t start_of_line_state_checks;
   int is_first_frame_scanline;
@@ -232,6 +234,7 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
+  p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
   p_video->start_of_line_state_checks = 1;
   p_video->is_first_frame_scanline = 1;
@@ -247,7 +250,9 @@ video_start_new_frame(struct video_struct* p_video) {
    */
   p_video->address_counter_next_row = address_counter;
 
-  render_frame_boundary(p_video->p_render);
+  if (p_video->opt_do_show_frame_boundaries) {
+    render_horiz_line(p_video->p_render, 0xffff0000);
+  }
 }
 
 static inline int
@@ -528,18 +533,30 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     r1_hit = (p_video->horiz_counter == r1);
 
     if (p_video->start_of_line_state_checks) {
+      if (p_video->start_of_line_state_checks & 8) {
+        /* It's unclear what exactly goes on here. Currently it's just here to
+         * delay end of frame so that end of frame can only fire in a single
+         * scanline if R0>=3 (4 clocks). This matches testing against a real
+         * Hitachi 6845 in a beeb.
+         */
+        if (p_video->is_end_of_vert_adjust_latched) {
+          p_video->is_end_of_frame_latched = 1;
+        }
+        p_video->start_of_line_state_checks &= ~8;
+      }
       if (p_video->start_of_line_state_checks & 4) {
         /* One tick after the end-of-main check is the end-of-vert-adjust
          * check.
          */
         if (p_video->is_end_of_main_latched) {
           if (r5_hit) {
-            p_video->is_end_of_frame_latched = 1;
+            p_video->is_end_of_vert_adjust_latched = 1;
           } else {
             p_video->in_vert_adjust = 1;
           }
         }
         p_video->start_of_line_state_checks &= ~4;
+        p_video->start_of_line_state_checks |= 8;
       }
       if (p_video->start_of_line_state_checks & 2) {
         /* One tick after the new line (typically C0=1), end-of-main is checked
@@ -785,12 +802,11 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
   if (p_video->do_dummy_raster != p_video->is_odd_interlace_frame) {
     return 0;
   }
-  if (p_video->in_vert_adjust ||
-      p_video->in_dummy_raster ||
-      p_video->is_end_of_main_latched ||
-      p_video->is_end_of_frame_latched) {
+  if (p_video->is_end_of_main_latched) {
     return 0;
   }
+  assert(!p_video->in_vert_adjust);
+  assert(!p_video->in_dummy_raster);
 
   return 1;
 }
@@ -886,13 +902,11 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
 
   /* Get to a normal C9=0. */
   scanline_ticks = ((r0 + 1) * tick_multiplier);
-  if (p_video->in_vert_adjust ||
-      p_video->in_dummy_raster ||
-      p_video->is_end_of_main_latched ||
-      p_video->is_end_of_frame_latched ||
-      (p_video->scanline_counter != 0)) {
+  if (p_video->is_end_of_main_latched || (p_video->scanline_counter != 0)) {
     return scanline_ticks;
   }
+  assert(!p_video->in_vert_adjust);
+  assert(!p_video->in_dummy_raster);
 
   /* Time a full row. */
   scanlines_per_row = video_get_scanlines_per_row(p_video);
@@ -1296,6 +1310,8 @@ video_create(uint8_t* p_bbc_mem,
   p_video->crtc_address_register = 0;
 
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
+  p_video->opt_do_show_frame_boundaries = util_has_option(
+      p_options->p_opt_flags, "video:frame-boundaries");
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
@@ -1493,6 +1509,7 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->has_hit_cursor_line_start = 0;
   p_video->has_hit_cursor_line_end = 0;
   p_video->is_end_of_main_latched = 0;
+  p_video->is_end_of_vert_adjust_latched = 0;
   p_video->is_end_of_frame_latched = 0;
   p_video->start_of_line_state_checks = 1;
   p_video->is_first_frame_scanline = 1;

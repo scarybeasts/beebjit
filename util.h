@@ -7,6 +7,7 @@
 /* Memory. */
 void* util_malloc(size_t size);
 void* util_mallocz(size_t size);
+void* util_realloc(void* p, size_t size);
 void util_free(void* p);
 char* util_strdup(const char* p_str);
 char* util_strdup2(const char* p_str1, const char* p_str2);
@@ -84,13 +85,6 @@ void util_file_write_fully(const char* p_file_name,
                            uint64_t size);
 void util_file_copy(const char* p_src_file_name, const char* p_dst_file_name);
 
-/* Miscellaneous handle I/O. */
-intptr_t util_get_stdin_handle();
-intptr_t util_get_stdout_handle();
-uint8_t util_handle_read_byte(intptr_t handle);
-void util_handle_write_byte(intptr_t handle, uint8_t val);
-void util_handle_close(intptr_t handle);
-
 /* Options. */
 int util_get_u32_option(uint32_t* p_opt_out,
                         const char* p_opt_str,
@@ -108,7 +102,6 @@ int util_has_option(const char* p_opt_str, const char* p_opt_name);
 
 /* Misc. */
 void util_bail(const char* p_msg, ...) __attribute__((format(printf, 1, 2)));
-void util_set_interrupt_callback(void (*p_interrupt_callback)(void));
 
 /* Bits and bytes. */
 uint8_t util_parse_hex2(const char* p_str);

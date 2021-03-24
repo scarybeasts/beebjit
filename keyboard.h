@@ -39,6 +39,7 @@ enum {
   k_keyboard_key_page_down = 155,
   k_keyboard_key_windows = 155,
   k_keyboard_key_delete = 156,
+  k_keyboard_key_home = 157,
 };
 
 struct keyboard_struct* keyboard_create(struct timing_struct* p_timing,
