@@ -862,6 +862,7 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     if (!p_breakpoint->is_enabled) {
       (void) printf(" disabled");
     }
+    (void) printf(" hit %"PRIu64, p_breakpoint->num_hits);
     (void) printf("\n");
   }
 }
