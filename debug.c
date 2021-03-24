@@ -1,6 +1,7 @@
 #include "debug.h"
 
 #include "bbc.h"
+#include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "disc_drive.h"
@@ -57,6 +58,7 @@ struct debug_breakpoint {
 struct debug_struct {
   struct bbc_struct* p_bbc;
   uint8_t* p_mem_read;
+  struct timing_struct* p_timing;
   struct video_struct* p_video;
   struct render_struct* p_render;
   struct disc_tool_struct* p_tool;
@@ -83,6 +85,9 @@ struct debug_struct {
   int debug_break_opcodes[256];
   struct debug_breakpoint breakpoints[k_max_break];
   int64_t temp_storage[16];
+  int is_sub_instruction_active;
+  uint32_t timer_id_sub_instruction;
+  uint32_t sub_instruction_tick;
 
   /* Stats. */
   int stats;
@@ -137,55 +142,9 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
 static void
 debug_timer_callback(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
-  (void) timing_stop_timer(p_timing, p_debug->timer_id_debug);
+  (void) timing_stop_timer(p_debug->p_timing, p_debug->timer_id_debug);
 
   s_interrupt_received = 1;
-}
-
-struct debug_struct*
-debug_create(struct bbc_struct* p_bbc,
-             int debug_active,
-             int32_t debug_stop_addr) {
-  uint32_t i;
-  struct debug_struct* p_debug;
-  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
-
-  assert(s_p_debug == NULL);
-
-  p_debug = util_mallocz(sizeof(struct debug_struct));
-  /* NOTE: using this singleton pattern for now so we can use qsort().
-   * qsort_r() is a minor porting headache due to differing signatures.
-   */
-  s_p_debug = p_debug;
-
-  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
-
-  p_debug->p_bbc = p_bbc;
-  p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
-  p_debug->p_video = bbc_get_video(p_bbc);
-  p_debug->p_render = bbc_get_render(p_bbc);
-  p_debug->debug_active = debug_active;
-  p_debug->debug_running = bbc_get_run_flag(p_bbc);
-  p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
-  p_debug->debug_stop_addr = debug_stop_addr;
-  p_debug->next_or_finish_stop_addr = -1;
-  p_debug->p_tool = disc_tool_create();
-  p_debug->p_command_strings = util_string_list_alloc();
-  p_debug->p_pending_commands = util_string_list_alloc();
-
-  for (i = 0; i < k_max_break; ++i) {
-    debug_clear_breakpoint(p_debug, i);
-  }
-
-  for (i = 0; i < k_6502_addr_space_size; ++i) {
-    p_debug->warn_at_addr_count[i] = 10;
-  }
-
-  p_debug->timer_id_debug = timing_register_timer(p_timing,
-                                                  debug_timer_callback,
-                                                  p_debug);
-  return p_debug;
 }
 
 void
@@ -490,9 +449,10 @@ debug_disass(struct debug_struct* p_debug,
     uint8_t oplen = g_opmodelens[opmode];
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
-
-    char* p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
-                                                                   addr_6502);
+    const char* p_address_info = "";
+    if (p_cpu_driver != NULL) {
+      p_cpu_driver->p_funcs->get_address_info(p_cpu_driver, addr_6502);
+    }
 
     debug_print_opcode(p_debug,
                        opcode_buf,
@@ -891,7 +851,7 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
 }
 
 static inline void
-debug_check_unusual(struct cpu_driver* p_cpu_driver,
+debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t operand1,
                     uint8_t reg_x,
                     uint8_t opmode,
@@ -903,7 +863,6 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
                     int wrapped_8bit,
                     int wrapped_16bit) {
   int warned;
-  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
 
   if (!warn_count) {
@@ -1316,7 +1275,7 @@ debug_print_status_line(struct debug_struct* p_debug,
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
-  char* p_address_info;
+  const char* p_address_info;
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
@@ -1351,8 +1310,18 @@ debug_print_status_line(struct debug_struct* p_debug,
                         flag_i,
                         flag_d);
 
-  p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
-                                                           p_debug->reg_pc);
+  if (p_cpu_driver != NULL) {
+    p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
+                                                             p_debug->reg_pc);
+  } else {
+    char sub_tag[5];
+    assert(p_debug->is_sub_instruction_active);
+    (void) snprintf(sub_tag,
+                    sizeof(sub_tag),
+                    "SUB%d",
+                    p_debug->sub_instruction_tick);
+    p_address_info = &sub_tag[0];
+  }
 
   (void) printf("[%s] %.4"PRIX16": %-14s "
                 "[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" F=%s] "
@@ -1369,8 +1338,10 @@ debug_print_status_line(struct debug_struct* p_debug,
   (void) fflush(stdout);
 }
 
-void*
-debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
+static void*
+debug_callback_common(struct debug_struct* p_debug,
+                      struct cpu_driver* p_cpu_driver,
+                      int do_irq) {
   struct disc_tool_struct* p_tool;
   /* NOTE: not correct for execution in hardware registers. */
   uint8_t opcode;
@@ -1398,7 +1369,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   int break_print;
   int break_stop;
 
-  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
@@ -1506,7 +1476,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     }
   }
 
-  debug_check_unusual(p_cpu_driver,
+  debug_check_unusual(p_debug,
                       operand1,
                       p_debug->reg_x,
                       opmode,
@@ -1685,7 +1655,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (sscanf(input_buf, "breakat %"PRIu64, &parse_u64) == 1) {
       uint64_t ticks_delta;
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
       uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
       if (timing_timer_is_running(p_timing, timer_id)) {
@@ -1787,7 +1757,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(p_command, "r")) {
       char flags_buf[9];
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      struct timing_struct* p_timing = p_debug->p_timing;
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
       int flag_i = !!(reg_flags & 0x04);
@@ -2006,10 +1976,90 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   return ret_intel_pc;
 }
 
+static void
+debug_sub_instruction_callback(void* p) {
+  /* This is a timer callback. */
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  p_debug->sub_instruction_tick++;
+  (void) timing_set_timer_value(p_debug->p_timing,
+                                p_debug->timer_id_sub_instruction,
+                                1);
+  (void) debug_callback_common(p_debug, NULL, 0);
+}
+
+void*
+debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
+  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
+  p_debug->sub_instruction_tick = 0;
+  return debug_callback_common(p_debug, p_cpu_driver, do_irq);
+}
+
+struct debug_struct*
+debug_create(struct bbc_struct* p_bbc,
+             int debug_active,
+             int32_t debug_stop_addr,
+             struct bbc_options* p_options) {
+  uint32_t i;
+  struct debug_struct* p_debug;
+  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+
+  assert(s_p_debug == NULL);
+
+  p_debug = util_mallocz(sizeof(struct debug_struct));
+  /* NOTE: using this singleton pattern for now so we can use qsort().
+   * qsort_r() is a minor porting headache due to differing signatures.
+   */
+  s_p_debug = p_debug;
+
+  p_debug->p_bbc = p_bbc;
+  p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
+  p_debug->p_timing = p_timing;
+  p_debug->p_video = bbc_get_video(p_bbc);
+  p_debug->p_render = bbc_get_render(p_bbc);
+  p_debug->debug_active = debug_active;
+  p_debug->debug_running = bbc_get_run_flag(p_bbc);
+  p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
+  p_debug->debug_stop_addr = debug_stop_addr;
+  p_debug->next_or_finish_stop_addr = -1;
+  p_debug->p_tool = disc_tool_create();
+  p_debug->p_command_strings = util_string_list_alloc();
+  p_debug->p_pending_commands = util_string_list_alloc();
+
+  for (i = 0; i < k_max_break; ++i) {
+    debug_clear_breakpoint(p_debug, i);
+  }
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    p_debug->warn_at_addr_count[i] = 10;
+  }
+
+  p_debug->timer_id_debug = timing_register_timer(p_timing,
+                                                  debug_timer_callback,
+                                                  p_debug);
+  p_debug->timer_id_sub_instruction = timing_register_timer(
+      p_timing,
+      debug_sub_instruction_callback,
+      p_debug);
+
+  p_debug->is_sub_instruction_active = util_has_option(p_options->p_opt_flags,
+                                                       "debug:sub-instruction");
+
+  if (p_debug->is_sub_instruction_active) {
+    (void) timing_start_timer_with_value(p_timing,
+                                         p_debug->timer_id_sub_instruction,
+                                         1);
+  }
+
+
+  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
+
+  return p_debug;
+}
+
 void
 debug_set_commands(struct debug_struct* p_debug, const char* p_commands) {
-  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
-
   util_string_split(p_debug->p_pending_commands, p_commands, ';', '\'');
-  (void) timing_start_timer_with_value(p_timing, p_debug->timer_id_debug, 1);
+  (void) timing_start_timer_with_value(p_debug->p_timing,
+                                       p_debug->timer_id_debug,
+                                       1);
 }

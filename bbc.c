@@ -1597,7 +1597,7 @@ bbc_create(int mode,
   serial_set_fast_mode_callback(p_bbc->p_serial, bbc_set_fast_mode, p_bbc);
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
-  p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr);
+  p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr, &p_bbc->options);
   if (p_debug == NULL) {
     util_bail("debug_create failed");
   }
