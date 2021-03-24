@@ -41,6 +41,7 @@ enum {
 struct debug_breakpoint {
   int is_in_use;
   int is_enabled;
+  uint64_t num_hits;
   int has_exec_range;
   int has_memory_range;
   int is_memory_read;
@@ -695,6 +696,12 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       }
     }
     /* If we arrive here, it's a hit. */
+    p_breakpoint->num_hits++;
+    if (p_breakpoint->do_stop && p_breakpoint->do_print) {
+      (void) printf("breakpoint %"PRIu32" hit %"PRIu64" times\n",
+                    i,
+                    p_breakpoint->num_hits);
+    }
     *p_out_print |= p_breakpoint->do_print;
     *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
