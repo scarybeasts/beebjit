@@ -1586,6 +1586,8 @@ debug_callback_common(struct debug_struct* p_debug,
     char input_buf[k_max_input_len];
     const char* p_command_and_params;
     const char* p_command;
+    const char* p_param_1_str;
+    const char* p_param_2_str;
     int32_t parse_int;
     int32_t parse_int2;
 
@@ -1652,16 +1654,16 @@ debug_callback_common(struct debug_struct* p_debug,
       p_command = util_string_list_get_string(p_command_strings, 0);
     }
     parse_int = -1;
+    p_param_1_str = NULL;
     if (util_string_list_get_count(p_command_strings) > 1) {
-      const char* p_param_str = util_string_list_get_string(p_command_strings,
-                                                            1);
-      parse_int = debug_parse_number(p_param_str, 0);
+      p_param_1_str = util_string_list_get_string(p_command_strings, 1);
+      parse_int = debug_parse_number(p_param_1_str, 0);
     }
     parse_int2 = -1;
+    p_param_2_str = NULL;
     if (util_string_list_get_count(p_command_strings) > 2) {
-      const char* p_param_str = util_string_list_get_string(p_command_strings,
-                                                            2);
-      parse_int2 = debug_parse_number(p_param_str, 0);
+      p_param_2_str = util_string_list_get_string(p_command_strings, 2);
+      parse_int2 = debug_parse_number(p_param_2_str, 0);
     }
 
     if (!strcmp(p_command, "q")) {
@@ -1765,6 +1767,18 @@ debug_callback_common(struct debug_struct* p_debug,
       if (p_breakpoint->is_in_use) {
         p_breakpoint->is_enabled = 0;
       }
+    } else if (!strcmp(p_command, "eval") && (p_param_1_str != NULL)) {
+      int64_t expression_ret;
+      struct expression_struct* p_expression = expression_create(
+          debug_variable_read_callback,
+          debug_variable_write_callback,
+          p_debug);
+      (void) expression_parse(p_expression, p_param_1_str);
+      expression_ret = expression_execute(p_expression);
+      expression_destroy(p_expression);
+      (void) printf("result: %"PRId64" (0x%"PRIx64")\n",
+                    expression_ret,
+                    expression_ret);
     } else if ((sscanf(input_buf, "bop %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 256)) {
@@ -1806,17 +1820,6 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (sscanf(input_buf, "ss %255s", parse_string) == 1) {
       parse_string[255] = '\0';
       state_save(p_bbc, parse_string);
-    } else if (sscanf(input_buf, "a=%"PRIx32, &parse_int) == 1) {
-      p_debug->reg_a = parse_int;
-    } else if (sscanf(input_buf, "x=%"PRIx32, &parse_int) == 1) {
-      p_debug->reg_x = parse_int;
-    } else if (sscanf(input_buf, "y=%"PRIx32, &parse_int) == 1) {
-      p_debug->reg_y = parse_int;
-    } else if (sscanf(input_buf, "s=%"PRIx32, &parse_int) == 1) {
-      p_debug->reg_s = parse_int;
-    } else if (sscanf(input_buf, "pc=%"PRIx32, &parse_int) == 1) {
-      /* TODO: setting PC broken in JIT mode? */
-      p_debug->reg_pc = parse_int;
     } else if (!strcmp(input_buf, "d") ||
                (!strncmp(input_buf, "d ", 2) &&
                     (sscanf(input_buf, "d %"PRIx32, &parse_int) == 1))) {
@@ -2001,11 +2004,12 @@ debug_callback_common(struct debug_struct* p_debug,
   "bm <lo> (hi)       : set read/write memory breakpoint for 6502 range\n"
   "bmr <lo> (hi)      : set read memory breakpoint for 6502 range\n"
   "bmw <lo> (hi)      : set write memory breakpoint for 6502 range\n"
+  "enable <b>         : enable breakpoint <b>\n"
+  "disable <b>        : disable breakpoint <b>\n"
   "m <a>              : show memory at <a>\n"
   "writem <a> <v>     : write <v> to 6502 <a>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
-  "{a,x,y,pc}=<v>     : set register to <v>\n"
   "sys                : show system VIA registers\n"
   "user               : show user VIA registers\n"
   "r                  : show regular registers\n"
@@ -2028,6 +2032,8 @@ debug_callback_common(struct debug_struct* p_debug,
   );
     } else if (!strcmp(p_command, "more")) {
       (void) printf(
+  "eval <expr>        : evaluate expression, e.g. 'a=7' to set A\n"
+  "bc <b> <count>     : run until breakpoint <b> hits <count> times\n"
   "bop <op>           : break on opcode <op>\n"
   "stats              : toggle stats collection (default: off)\n"
   "ds                 : dump stats collected\n"
