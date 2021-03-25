@@ -353,6 +353,13 @@ expression_parse(struct expression_struct* p_expression,
            (token_len < max_token_len)) {
       token_buf[token_len++] = c;
       i++;
+      if ((c == '(') || (c == ')') || (c == '[') || (c == ']')) {
+        if (token_len > 1) {
+          token_len--;
+          i--;
+        }
+        break;
+      }
     }
     if (token_len > 0) {
       token_buf[token_len] = '\0';
