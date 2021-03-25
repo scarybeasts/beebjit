@@ -80,6 +80,11 @@ struct debug_struct {
   uint8_t reg_y;
   uint8_t reg_s;
   uint16_t reg_pc;
+  /* Other machine state, some calculated. */
+  uint8_t reg_flags;
+  int32_t addr_6502;
+  int is_read;
+  int is_write;
 
   /* Breakpointing. */
   int32_t debug_stop_addr;
@@ -283,31 +288,55 @@ debug_print_opcode(struct debug_struct* p_debug,
   }
 }
 
+static inline int
+debug_flag_z(uint8_t reg_flags) {
+  return !!(reg_flags & 0x02);
+}
+
+static inline int
+debug_flag_n(uint8_t reg_flags) {
+  return !!(reg_flags & 0x80);
+}
+
+static inline int
+debug_flag_c(uint8_t reg_flags) {
+  return !!(reg_flags & 0x01);
+}
+
+static inline int
+debug_flag_o(uint8_t reg_flags) {
+  return !!(reg_flags & 0x40);
+}
+
+static inline int
+debug_flag_d(uint8_t reg_flags) {
+  return !!(reg_flags & 0x08);
+}
+
+static inline int
+debug_flag_i(uint8_t reg_flags) {
+  return !!(reg_flags & 0x04);
+}
+
 static inline void
 debug_get_details(int* p_addr_6502,
                   int* p_branch_taken,
+                  int* p_is_read,
                   int* p_is_write,
                   int* p_is_rom,
                   int* p_is_register,
                   int* p_wrapped_8bit,
                   int* p_wrapped_16bit,
-                  struct bbc_struct* p_bbc,
-                  uint16_t reg_pc,
+                  struct debug_struct* p_debug,
                   uint8_t opmode,
                   uint8_t optype,
                   uint8_t opmem,
                   uint8_t operand1,
                   uint8_t operand2,
-                  uint8_t x_6502,
-                  uint8_t y_6502,
-                  uint8_t flag_n,
-                  uint8_t flag_o,
-                  uint8_t flag_c,
-                  uint8_t flag_z,
                   uint8_t* p_mem) {
   uint16_t addr_addr;
 
-  int addr = -1;
+  int32_t addr = -1;
   int check_wrap_8bit = 1;
 
   *p_addr_6502 = -1;
@@ -321,11 +350,11 @@ debug_get_details(int* p_addr_6502,
     *p_addr_6502 = addr;
     break;
   case k_zpx:
-    addr = (operand1 + x_6502);
+    addr = (operand1 + p_debug->reg_x);
     *p_addr_6502 = (uint8_t) addr;
     break;
   case k_zpy:
-    addr = (operand1 + y_6502);
+    addr = (operand1 + p_debug->reg_y);
     *p_addr_6502 = (uint8_t) addr;
     break;
   case k_abs:
@@ -336,17 +365,17 @@ debug_get_details(int* p_addr_6502,
     }
     break;
   case k_abx:
-    addr = (operand1 + (operand2 << 8) + x_6502);
+    addr = (operand1 + (operand2 << 8) + p_debug->reg_x);
     check_wrap_8bit = 0;
     *p_addr_6502 = (uint16_t) addr;
     break;
   case k_aby:
-    addr = (operand1 + (operand2 << 8) + y_6502);
+    addr = (operand1 + (operand2 << 8) + p_debug->reg_y);
     check_wrap_8bit = 0;
     *p_addr_6502 = (uint16_t) addr;
     break;
   case k_idx:
-    addr_addr = (operand1 + x_6502);
+    addr_addr = (operand1 + p_debug->reg_x);
     addr = (uint8_t) addr_addr;
     if ((addr != addr_addr) || (addr == 0xFF)) {
       *p_wrapped_8bit = 1;
@@ -364,7 +393,7 @@ debug_get_details(int* p_addr_6502,
     addr = p_mem[(uint8_t) (operand1 + 1)];
     addr <<= 8;
     addr |= p_mem[operand1];
-    addr = (addr + y_6502);
+    addr = (addr + p_debug->reg_y);
     check_wrap_8bit = 0;
     *p_addr_6502 = (uint16_t) addr;
     break;
@@ -378,33 +407,33 @@ debug_get_details(int* p_addr_6502,
     *p_addr_6502 = (uint16_t) addr;
     break;
   case k_rel:
-    addr_addr = (reg_pc + 2);
+    addr_addr = (p_debug->reg_pc + 2);
     addr = (uint16_t) (addr_addr + (int8_t) operand1);
 
     switch (optype) {
     case k_bpl:
-      *p_branch_taken = !flag_n;
+      *p_branch_taken = !debug_flag_n(p_debug->reg_flags);
       break;
     case k_bmi:
-      *p_branch_taken = flag_n;
+      *p_branch_taken = debug_flag_n(p_debug->reg_flags);
       break;
     case k_bvc:
-      *p_branch_taken = !flag_o;
+      *p_branch_taken = !debug_flag_o(p_debug->reg_flags);
       break;
     case k_bvs:
-      *p_branch_taken = flag_o;
+      *p_branch_taken = debug_flag_o(p_debug->reg_flags);
       break;
     case k_bcc:
-      *p_branch_taken = !flag_c;
+      *p_branch_taken = !debug_flag_c(p_debug->reg_flags);
       break;
     case k_bcs:
-      *p_branch_taken = flag_c;
+      *p_branch_taken = debug_flag_c(p_debug->reg_flags);
       break;
     case k_bne:
-      *p_branch_taken = !flag_z;
+      *p_branch_taken = !debug_flag_z(p_debug->reg_flags);
       break;
     case k_beq:
-      *p_branch_taken = flag_z;
+      *p_branch_taken = debug_flag_z(p_debug->reg_flags);
       break;
     case k_bra:
       *p_branch_taken = 1;
@@ -431,8 +460,12 @@ debug_get_details(int* p_addr_6502,
     }
   }
 
+  *p_is_read = !!(opmem & k_opmem_read_flag);
   *p_is_write = !!(opmem & k_opmem_write_flag);
-  bbc_get_address_details(p_bbc, p_is_register, p_is_rom, *p_addr_6502);
+  bbc_get_address_details(p_debug->p_bbc,
+                          p_is_register,
+                          p_is_rom,
+                          *p_addr_6502);
 }
 
 static uint16_t
@@ -640,7 +673,6 @@ debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
                         int32_t* p_out_last_hit,
-                        int32_t addr_6502,
                         uint8_t opmem) {
   uint32_t i;
 
@@ -673,8 +705,8 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       }
     }
     if (p_breakpoint->has_memory_range) {
-      if ((addr_6502 < p_breakpoint->memory_start) ||
-          (addr_6502 > p_breakpoint->memory_end)) {
+      if ((p_debug->addr_6502 < p_breakpoint->memory_start) ||
+          (p_debug->addr_6502 > p_breakpoint->memory_end)) {
         continue;
       }
       if (p_breakpoint->is_memory_read && (opmem & k_opmem_read_flag)) {
@@ -868,17 +900,13 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
 static inline void
 debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t operand1,
-                    uint8_t reg_x,
                     uint8_t opmode,
-                    uint16_t reg_pc,
-                    uint16_t addr_6502,
-                    int is_write,
                     int is_rom,
                     int is_register,
                     int wrapped_8bit,
                     int wrapped_16bit) {
   int warned;
-  uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
+  uint8_t warn_count = p_debug->warn_at_addr_count[p_debug->reg_pc];
 
   if (!warn_count) {
     return;
@@ -886,20 +914,20 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   warned = 0;
 
-  if (is_register && (opmode == k_idx || opmode == k_idy)) {
+  if (is_register && ((opmode == k_idx) || (opmode == k_idy))) {
     (void) printf("DEBUG (UNUSUAL): "
                   "Indirect access to register $%.4"PRIX16" at $%.4"PRIX16"\n",
-                  addr_6502,
-                  reg_pc);
+                  p_debug->addr_6502,
+                  p_debug->reg_pc);
     warned = 1;
   }
 
   /* Handled via various means but worth noting. */
-  if (is_write && is_rom) {
+  if (p_debug->is_write && is_rom) {
     (void) printf("DEBUG: Code at $%.4"PRIX16" is writing to ROM "
                   "at $%.4"PRIX16"\n",
-                  reg_pc,
-                  addr_6502);
+                  p_debug->reg_pc,
+                  p_debug->addr_6502);
     warned = 1;
   }
 
@@ -908,32 +936,33 @@ debug_check_unusual(struct debug_struct* p_debug,
     if (opmode == k_idx) {
       (void) printf("DEBUG (VERY UNUSUAL): "
                     "8-bit IDX ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
-                    reg_pc,
-                    (uint16_t) (uint8_t) (operand1 + reg_x));
+                    p_debug->reg_pc,
+                    (uint16_t) (uint8_t) (operand1 + p_debug->reg_x));
       warned = 1;
     } else {
       (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at "
                     "$%.4"PRIX16" to $%.4"PRIX16"\n",
-                    reg_pc,
-                    addr_6502);
+                    p_debug->reg_pc,
+                    p_debug->addr_6502);
       warned = 1;
     }
   }
   if (wrapped_16bit) {
     (void) printf("DEBUG (VERY UNUSUAL): "
                   "16-bit ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
-                  reg_pc,
-                  addr_6502);
+                  p_debug->reg_pc,
+                  p_debug->addr_6502);
     warned = 1;
   }
 
-  if ((opmode == k_idy || opmode == k_ind) && (operand1 == 0xFF)) {
+  if (((opmode == k_idy) || (opmode == k_ind)) && (operand1 == 0xFF)) {
     (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
-                  reg_pc);
+                  p_debug->reg_pc);
     warned = 1;
-  } else if (opmode == k_idx && (((uint8_t) (operand1 + reg_x)) == 0xFF)) {
+  } else if ((opmode == k_idx) &&
+             (((uint8_t) (operand1 + p_debug->reg_x)) == 0xFF)) {
     (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
-                  reg_pc);
+                  p_debug->reg_pc);
     warned = 1;
   }
 
@@ -946,7 +975,7 @@ debug_check_unusual(struct debug_struct* p_debug,
     (void) printf("DEBUG: log suppressed for this address\n");
   }
 
-  p_debug->warn_at_addr_count[reg_pc] = warn_count;
+  p_debug->warn_at_addr_count[p_debug->reg_pc] = warn_count;
 }
 
 static void
@@ -1029,6 +1058,14 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     ret = p_debug->reg_s;
   } else if (!strcmp(p_name, "pc")) {
     ret = p_debug->reg_pc;
+  } else if (!strcmp(p_name, "flags")) {
+    ret = p_debug->reg_flags;
+  } else if (!strcmp(p_name, "addr")) {
+    ret = p_debug->addr_6502;
+  } else if (!strcmp(p_name, "is_read")) {
+    ret = p_debug->is_read;
+  } else if (!strcmp(p_name, "is_write")) {
+    ret = p_debug->is_write;
   } else if (!strcmp(p_name, "mem")) {
     ret = -1;
     if (index < k_6502_addr_space_size) {
@@ -1038,6 +1075,13 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     ret = -1;
     if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
       ret = p_debug->temp_storage[index];
+    }
+  } else if (!strcmp(p_name, "crtc_r")) {
+    ret = -1;
+    if (index < k_video_crtc_num_registers) {
+      uint8_t crtc_regs[k_video_crtc_num_registers];
+      video_get_crtc_registers(p_debug->p_video, &crtc_regs[0]);
+      ret = crtc_regs[index];
     }
   } else if (!strncmp(p_name, "crtc_", 5)) {
     uint8_t horiz_counter;
@@ -1245,32 +1289,26 @@ debug_print_hex_line(uint8_t* p_buf,
 }
 
 static void
-debug_print_flags_buf(char* p_flags_buf,
-                      int flag_n,
-                      int flag_o,
-                      int flag_c,
-                      int flag_z,
-                      int flag_i,
-                      int flag_d) {
+debug_print_flags_buf(char* p_flags_buf, uint8_t reg_flags) {
   (void) memset(p_flags_buf, ' ', 8);
   p_flags_buf[8] = '\0';
-  if (flag_c) {
+  if (debug_flag_c(reg_flags)) {
     p_flags_buf[0] = 'C';
   }
-  if (flag_z) {
+  if (debug_flag_z(reg_flags)) {
     p_flags_buf[1] = 'Z';
   }
-  if (flag_i) {
+  if (debug_flag_i(reg_flags)) {
     p_flags_buf[2] = 'I';
   }
-  if (flag_d) {
+  if (debug_flag_d(reg_flags)) {
     p_flags_buf[3] = 'D';
   }
   p_flags_buf[5] = '1';
-  if (flag_o) {
+  if (debug_flag_o(reg_flags)) {
     p_flags_buf[6] = 'O';
   }
-  if (flag_n) {
+  if (debug_flag_n(reg_flags)) {
     p_flags_buf[7] = 'N';
   }
 }
@@ -1278,31 +1316,25 @@ debug_print_flags_buf(char* p_flags_buf,
 static inline void
 debug_print_status_line(struct debug_struct* p_debug,
                         struct cpu_driver* p_cpu_driver,
-                        int32_t addr_6502,
                         uint8_t opcode,
                         uint8_t operand1,
                         uint8_t operand2,
                         int do_irq,
-                        int flag_n,
-                        int flag_o,
-                        int flag_c,
-                        int flag_z,
-                        int flag_i,
-                        int flag_d,
                         int branch_taken) {
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
   const char* p_address_info;
+  uint8_t reg_flags = p_debug->reg_flags;
 
   extra_buf[0] = '\0';
-  if (addr_6502 != -1) {
+  if (p_debug->addr_6502 != -1) {
     uint8_t* p_mem_read = p_debug->p_mem_read;
     (void) snprintf(extra_buf,
                     sizeof(extra_buf),
                     "[addr=%.4"PRIX16" val=%.2"PRIX8"]",
-                    addr_6502,
-                    p_mem_read[addr_6502]);
+                    p_debug->addr_6502,
+                    p_mem_read[p_debug->addr_6502]);
   } else if (branch_taken != -1) {
     if (branch_taken == 0) {
       (void) snprintf(extra_buf, sizeof(extra_buf), "[not taken]");
@@ -1320,13 +1352,7 @@ debug_print_status_line(struct debug_struct* p_debug,
                      p_debug->reg_pc,
                      do_irq);
 
-  debug_print_flags_buf(&flags_buf[0],
-                        flag_n,
-                        flag_o,
-                        flag_c,
-                        flag_z,
-                        flag_i,
-                        flag_d);
+  debug_print_flags_buf(&flags_buf[0], reg_flags);
 
   if (p_cpu_driver != NULL) {
     p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
@@ -1365,23 +1391,15 @@ debug_callback_common(struct debug_struct* p_debug,
   uint8_t opcode;
   uint8_t operand1;
   uint8_t operand2;
-  int32_t addr_6502;
   int branch_taken;
-  uint8_t reg_flags;
   uint16_t reg_pc_plus_1;
   uint16_t reg_pc_plus_2;
-  uint8_t flag_z;
-  uint8_t flag_n;
-  uint8_t flag_c;
-  uint8_t flag_o;
-  uint8_t flag_d;
   int wrapped_8bit;
   int wrapped_16bit;
   uint8_t opmode;
   uint8_t optype;
   uint8_t opmem;
   uint8_t oplen;
-  int is_write;
   int is_rom;
   int is_register;
   int32_t last_breakpoint_hit;
@@ -1399,13 +1417,8 @@ debug_callback_common(struct debug_struct* p_debug,
                     &p_debug->reg_x,
                     &p_debug->reg_y,
                     &p_debug->reg_s,
-                    &reg_flags,
+                    &p_debug->reg_flags,
                     &p_debug->reg_pc);
-  flag_z = !!(reg_flags & 0x02);
-  flag_n = !!(reg_flags & 0x80);
-  flag_c = !!(reg_flags & 0x01);
-  flag_o = !!(reg_flags & 0x40);
-  flag_d = !!(reg_flags & 0x08);
 
   opcode = p_mem_read[p_debug->reg_pc];
   if (do_irq) {
@@ -1420,26 +1433,20 @@ debug_callback_common(struct debug_struct* p_debug,
   operand1 = p_mem_read[reg_pc_plus_1];
   operand2 = p_mem_read[reg_pc_plus_2];
 
-  debug_get_details(&addr_6502,
+  debug_get_details(&p_debug->addr_6502,
                     &branch_taken,
-                    &is_write,
+                    &p_debug->is_read,
+                    &p_debug->is_write,
                     &is_rom,
                     &is_register,
                     &wrapped_8bit,
                     &wrapped_16bit,
-                    p_bbc,
-                    p_debug->reg_pc,
+                    p_debug,
                     opmode,
                     optype,
                     opmem,
                     operand1,
                     operand2,
-                    p_debug->reg_x,
-                    p_debug->reg_y,
-                    flag_n,
-                    flag_o,
-                    flag_c,
-                    flag_z,
                     p_mem_read);
 
   if (p_debug->stats) {
@@ -1463,31 +1470,31 @@ debug_callback_common(struct debug_struct* p_debug,
         p_debug->branch_taken_page_crossing++;
       }
     }
-    if (is_write && is_rom) {
+    if (p_debug->is_write && is_rom) {
       p_debug->rom_write_faults++;
     }
-    if (!is_write) {
+    if (!p_debug->is_write) {
       if (opmode == k_abx || opmode == k_aby) {
         p_debug->abn_reads++;
-        if ((addr_6502 >> 8) != operand2) {
+        if ((p_debug->addr_6502 >> 8) != operand2) {
           p_debug->abn_reads_with_page_crossing++;
         }
       } else if (opmode == k_idy) {
         p_debug->idy_reads++;
-        if ((addr_6502 >> 8) !=
-            (((uint16_t) (addr_6502 - p_debug->reg_y)) >> 8)) {
+        if ((p_debug->addr_6502 >> 8) !=
+            (((uint16_t) (p_debug->addr_6502 - p_debug->reg_y)) >> 8)) {
           p_debug->idy_reads_with_page_crossing++;
         }
       }
     }
     if (optype == k_adc || optype == k_sbc) {
       p_debug->adc_sbc_count++;
-      if (flag_d) {
+      if (debug_flag_d(p_debug->reg_flags)) {
         p_debug->adc_sbc_with_decimal_count++;
       }
     }
     if (is_register) {
-      if (is_write) {
+      if (p_debug->is_write) {
         p_debug->register_writes++;
       } else {
         p_debug->register_reads++;
@@ -1497,11 +1504,7 @@ debug_callback_common(struct debug_struct* p_debug,
 
   debug_check_unusual(p_debug,
                       operand1,
-                      p_debug->reg_x,
                       opmode,
-                      p_debug->reg_pc,
-                      addr_6502,
-                      is_write,
                       is_rom,
                       is_register,
                       wrapped_8bit,
@@ -1512,7 +1515,6 @@ debug_callback_common(struct debug_struct* p_debug,
                           &break_print,
                           &break_stop,
                           &last_breakpoint_hit,
-                          addr_6502,
                           opmem);
   if ((p_debug->breakpoint_continue != -1) &&
       (p_debug->breakpoint_continue == last_breakpoint_hit)) {
@@ -1533,20 +1535,12 @@ debug_callback_common(struct debug_struct* p_debug,
 
   break_print |= p_debug->debug_running_print;
   if (break_print) {
-    int flag_i = !!(reg_flags & 0x04);
     debug_print_status_line(p_debug,
                             p_cpu_driver,
-                            addr_6502,
                             opcode,
                             operand1,
                             operand2,
                             do_irq,
-                            flag_n,
-                            flag_o,
-                            flag_c,
-                            flag_z,
-                            flag_i,
-                            flag_d,
                             branch_taken);
   }
 
@@ -1835,14 +1829,7 @@ debug_callback_common(struct debug_struct* p_debug,
       struct timing_struct* p_timing = p_debug->p_timing;
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
-      int flag_i = !!(reg_flags & 0x04);
-      debug_print_flags_buf(&flags_buf[0],
-                            flag_n,
-                            flag_o,
-                            flag_c,
-                            flag_z,
-                            flag_i,
-                            flag_d);
+      debug_print_flags_buf(&flags_buf[0], p_debug->reg_flags);
       debug_print_registers(p_debug->reg_a,
                             p_debug->reg_x,
                             p_debug->reg_y,
@@ -2040,7 +2027,7 @@ debug_callback_common(struct debug_struct* p_debug,
                       p_debug->reg_x,
                       p_debug->reg_y,
                       p_debug->reg_s,
-                      reg_flags,
+                      p_debug->reg_flags,
                       p_debug->reg_pc);
     ret = fflush(stdout);
     if (ret != 0) {
