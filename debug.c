@@ -1,6 +1,7 @@
 #include "debug.h"
 
 #include "bbc.h"
+#include "bbc_options.h"
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "disc_drive.h"
@@ -39,6 +40,8 @@ enum {
 
 struct debug_breakpoint {
   int is_in_use;
+  int is_enabled;
+  uint64_t num_hits;
   int has_exec_range;
   int has_memory_range;
   int is_memory_read;
@@ -57,6 +60,9 @@ struct debug_breakpoint {
 struct debug_struct {
   struct bbc_struct* p_bbc;
   uint8_t* p_mem_read;
+  struct timing_struct* p_timing;
+  struct video_struct* p_video;
+  struct render_struct* p_render;
   struct disc_tool_struct* p_tool;
   int debug_active;
   int debug_running;
@@ -80,6 +86,13 @@ struct debug_struct {
   int32_t next_or_finish_stop_addr;
   int debug_break_opcodes[256];
   struct debug_breakpoint breakpoints[k_max_break];
+  uint32_t num_breakpoints_used;
+  int64_t temp_storage[16];
+  int is_sub_instruction_active;
+  uint32_t timer_id_sub_instruction;
+  uint32_t sub_instruction_tick;
+  int32_t breakpoint_continue;
+  uint32_t breakpoint_continue_count;
 
   /* Stats. */
   int stats;
@@ -134,53 +147,9 @@ debug_clear_breakpoint(struct debug_struct* p_debug, uint32_t i) {
 static void
 debug_timer_callback(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
-  (void) timing_stop_timer(p_timing, p_debug->timer_id_debug);
+  (void) timing_stop_timer(p_debug->p_timing, p_debug->timer_id_debug);
 
   s_interrupt_received = 1;
-}
-
-struct debug_struct*
-debug_create(struct bbc_struct* p_bbc,
-             int debug_active,
-             int32_t debug_stop_addr) {
-  uint32_t i;
-  struct debug_struct* p_debug;
-  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
-
-  assert(s_p_debug == NULL);
-
-  p_debug = util_mallocz(sizeof(struct debug_struct));
-  /* NOTE: using this singleton pattern for now so we can use qsort().
-   * qsort_r() is a minor porting headache due to differing signatures.
-   */
-  s_p_debug = p_debug;
-
-  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
-
-  p_debug->p_bbc = p_bbc;
-  p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
-  p_debug->debug_active = debug_active;
-  p_debug->debug_running = bbc_get_run_flag(p_bbc);
-  p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
-  p_debug->debug_stop_addr = debug_stop_addr;
-  p_debug->next_or_finish_stop_addr = -1;
-  p_debug->p_tool = disc_tool_create();
-  p_debug->p_command_strings = util_string_list_alloc();
-  p_debug->p_pending_commands = util_string_list_alloc();
-
-  for (i = 0; i < k_max_break; ++i) {
-    debug_clear_breakpoint(p_debug, i);
-  }
-
-  for (i = 0; i < k_6502_addr_space_size; ++i) {
-    p_debug->warn_at_addr_count[i] = 10;
-  }
-
-  p_debug->timer_id_debug = timing_register_timer(p_timing,
-                                                  debug_timer_callback,
-                                                  p_debug);
-  return p_debug;
 }
 
 void
@@ -485,9 +454,10 @@ debug_disass(struct debug_struct* p_debug,
     uint8_t oplen = g_opmodelens[opmode];
     uint8_t operand1 = p_mem_read[addr_plus_1];
     uint8_t operand2 = p_mem_read[addr_plus_2];
-
-    char* p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
-                                                                   addr_6502);
+    const char* p_address_info = "";
+    if (p_cpu_driver != NULL) {
+      p_cpu_driver->p_funcs->get_address_info(p_cpu_driver, addr_6502);
+    }
 
     debug_print_opcode(p_debug,
                        opcode_buf,
@@ -656,6 +626,9 @@ debug_get_free_breakpoint(struct debug_struct* p_debug) {
   for (i = 0; i < k_max_break; ++i) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
+      p_breakpoint->is_in_use = 1;
+      assert(p_debug->num_breakpoints_used < k_max_break);
+      p_debug->num_breakpoints_used++;
       return p_breakpoint;
     }
   }
@@ -667,18 +640,35 @@ static inline void
 debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
-                        int addr_6502,
+                        int32_t* p_out_last_hit,
+                        int32_t addr_6502,
                         uint8_t opcode_6502,
                         uint8_t opmem) {
   uint32_t i;
 
-  int debug_print = 0;
-  int debug_stop = 0;
+  if (p_debug->debug_break_opcodes[opcode_6502]) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
+  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
+  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
+    *p_out_print = 1;
+    *p_out_stop = 1;
+  }
 
-  /* TODO: shouldn't iterate at all if there's no breakpoints. */
+  if (p_debug->num_breakpoints_used == 0) {
+    return;
+  }
+
   for (i = 0; i < k_max_break; ++i) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
+      continue;
+    }
+    if (!p_breakpoint->is_enabled) {
       continue;
     }
 
@@ -709,28 +699,20 @@ debug_check_breakpoints(struct debug_struct* p_debug,
       }
     }
     /* If we arrive here, it's a hit. */
-    debug_print |= p_breakpoint->do_print;
-    debug_stop |= p_breakpoint->do_stop;
+    p_breakpoint->num_hits++;
+    if (p_breakpoint->do_stop && p_breakpoint->do_print) {
+      (void) printf("breakpoint %"PRIu32" hit %"PRIu64" times\n",
+                    i,
+                    p_breakpoint->num_hits);
+    }
+    *p_out_last_hit = (int32_t) i;
+    *p_out_print |= p_breakpoint->do_print;
+    *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
       util_string_list_append_list(p_debug->p_pending_commands,
                                    p_breakpoint->p_command_list);
     }
   }
-  if (p_debug->debug_break_opcodes[opcode_6502]) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-  if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
-    debug_print = 1;
-    debug_stop = 1;
-  }
-
-  *p_out_print = debug_print;
-  *p_out_stop = debug_stop;
 }
 
 static int
@@ -881,12 +863,16 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     if (p_breakpoint->p_command_list != NULL) {
       (void) printf(" commands '%s'", p_breakpoint->p_command_list_str);
     }
+    if (!p_breakpoint->is_enabled) {
+      (void) printf(" disabled");
+    }
+    (void) printf(" hit %"PRIu64, p_breakpoint->num_hits);
     (void) printf("\n");
   }
 }
 
 static inline void
-debug_check_unusual(struct cpu_driver* p_cpu_driver,
+debug_check_unusual(struct debug_struct* p_debug,
                     uint8_t operand1,
                     uint8_t reg_x,
                     uint8_t opmode,
@@ -898,7 +884,6 @@ debug_check_unusual(struct cpu_driver* p_cpu_driver,
                     int wrapped_8bit,
                     int wrapped_16bit) {
   int warned;
-  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   uint8_t warn_count = p_debug->warn_at_addr_count[reg_pc];
 
   if (!warn_count) {
@@ -1020,7 +1005,7 @@ debug_print_registers(uint8_t reg_a,
                 countdown);
 }
 
-static uint16_t
+static int32_t
 debug_parse_number(const char* p_str, int is_hex) {
   int32_t ret = -1;
 
@@ -1055,6 +1040,41 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     if (index < k_6502_addr_space_size) {
       ret = p_debug->p_mem_read[index];
     }
+  } else if (!strcmp(p_name, "temp")) {
+    ret = -1;
+    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+      ret = p_debug->temp_storage[index];
+    }
+  } else if (!strncmp(p_name, "crtc_", 5)) {
+    uint8_t horiz_counter;
+    uint8_t scanline_counter;
+    uint8_t vert_counter;
+    uint16_t addr_counter;
+    video_get_crtc_state(p_debug->p_video,
+                         &horiz_counter,
+                         &scanline_counter,
+                         &vert_counter,
+                         &addr_counter);
+    if (!strcmp(p_name, "crtc_c0")) {
+      ret = horiz_counter;
+    } else if (!strcmp(p_name, "crtc_c4")) {
+      ret = vert_counter;
+    } else if (!strcmp(p_name, "crtc_c9")) {
+      ret = scanline_counter;
+    } else if (!strcmp(p_name, "crtc_ma")) {
+      ret = addr_counter;
+    } else {
+      log_do_log(k_log_misc,
+                 k_log_warning,
+                 "unknown crtc variable: %s",
+                 p_name);
+    }
+  } else if (!strcmp(p_name, "render_x")) {
+    video_advance_crtc_timing(p_debug->p_video);
+    ret = render_get_horiz_pos(p_debug->p_render);
+  } else if (!strcmp(p_name, "render_y")) {
+    video_advance_crtc_timing(p_debug->p_video);
+    ret = render_get_vert_pos(p_debug->p_render);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
@@ -1083,6 +1103,10 @@ debug_variable_write_callback(void* p,
     if (index < k_6502_addr_space_size) {
       bbc_memory_write(p_debug->p_bbc, index, value);
     }
+  } else if (!strcmp(p_name, "temp")) {
+    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+      p_debug->temp_storage[index] = value;
+    }
   } else if (!strcmp(p_name, "drawline")) {
     struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
     render_horiz_line(p_render, (uint32_t) value);
@@ -1095,7 +1119,7 @@ static void
 debug_setup_breakpoint(struct debug_struct* p_debug) {
   uint32_t i_params;
   uint32_t num_params;
-  uint16_t value;
+  int32_t value;
   struct util_string_list_struct* p_command_strings;
 
   struct debug_breakpoint* p_breakpoint = debug_get_free_breakpoint(p_debug);
@@ -1108,7 +1132,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
     return;
   }
 
-  p_breakpoint->is_in_use = 1;
+  assert(p_breakpoint->is_in_use);
+  p_breakpoint->is_enabled = 1;
   p_breakpoint->do_print = 1;
   p_breakpoint->do_stop = 1;
 
@@ -1136,6 +1161,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
       is_memory_range = 1;
       is_memory_read = 1;
       is_memory_write = 1;
+    } else if (!strcmp(p_param_str, "disabled")) {
+      p_breakpoint->is_enabled = 0;
     } else if (!strcmp(p_param_str, "commands")) {
       if ((i_params + 1) < num_params) {
         const char* p_commands = util_string_list_get_string(p_command_strings,
@@ -1272,7 +1299,7 @@ debug_print_status_line(struct debug_struct* p_debug,
   char flags_buf[9];
   char opcode_buf[k_max_opcode_len];
   char extra_buf[k_max_extra_len];
-  char* p_address_info;
+  const char* p_address_info;
 
   extra_buf[0] = '\0';
   if (addr_6502 != -1) {
@@ -1307,8 +1334,18 @@ debug_print_status_line(struct debug_struct* p_debug,
                         flag_i,
                         flag_d);
 
-  p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
-                                                           p_debug->reg_pc);
+  if (p_cpu_driver != NULL) {
+    p_address_info = p_cpu_driver->p_funcs->get_address_info(p_cpu_driver,
+                                                             p_debug->reg_pc);
+  } else {
+    char sub_tag[5];
+    assert(p_debug->is_sub_instruction_active);
+    (void) snprintf(sub_tag,
+                    sizeof(sub_tag),
+                    "SUB%d",
+                    p_debug->sub_instruction_tick);
+    p_address_info = &sub_tag[0];
+  }
 
   (void) printf("[%s] %.4"PRIX16": %-14s "
                 "[A=%.2"PRIX8" X=%.2"PRIX8" Y=%.2"PRIX8" S=%.2"PRIX8" F=%s] "
@@ -1325,14 +1362,16 @@ debug_print_status_line(struct debug_struct* p_debug,
   (void) fflush(stdout);
 }
 
-void*
-debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
+static void*
+debug_callback_common(struct debug_struct* p_debug,
+                      struct cpu_driver* p_cpu_driver,
+                      int do_irq) {
   struct disc_tool_struct* p_tool;
   /* NOTE: not correct for execution in hardware registers. */
   uint8_t opcode;
   uint8_t operand1;
   uint8_t operand2;
-  int addr_6502;
+  int32_t addr_6502;
   int branch_taken;
   uint8_t reg_flags;
   uint16_t reg_pc_plus_1;
@@ -1351,15 +1390,15 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   int is_write;
   int is_rom;
   int is_register;
-  int break_print;
-  int break_stop;
+  int32_t last_breakpoint_hit;
 
-  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
   void* ret_intel_pc = 0;
   volatile int* p_interrupt_received = &s_interrupt_received;
+  int break_print = 0;
+  int break_stop = 0;
 
   bbc_get_registers(p_bbc,
                     &p_debug->reg_a,
@@ -1462,7 +1501,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     }
   }
 
-  debug_check_unusual(p_cpu_driver,
+  debug_check_unusual(p_debug,
                       operand1,
                       p_debug->reg_x,
                       opmode,
@@ -1474,12 +1513,24 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                       wrapped_8bit,
                       wrapped_16bit);
 
+  last_breakpoint_hit = -1;
   debug_check_breakpoints(p_debug,
                           &break_print,
                           &break_stop,
+                          &last_breakpoint_hit,
                           addr_6502,
                           opcode,
                           opmem);
+  if ((p_debug->breakpoint_continue != -1) &&
+      (p_debug->breakpoint_continue == last_breakpoint_hit)) {
+    assert(p_debug->breakpoint_continue_count > 0);
+    p_debug->breakpoint_continue_count--;
+    if (p_debug->breakpoint_continue_count > 0) {
+      break_stop = 0;
+    } else {
+      p_debug->breakpoint_continue = -1;
+    }
+  }
 
   if (*p_interrupt_received || !p_debug->debug_running) {
     *p_interrupt_received = 0;
@@ -1535,9 +1586,9 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     char input_buf[k_max_input_len];
     const char* p_command_and_params;
     const char* p_command;
+    int32_t parse_int;
+    int32_t parse_int2;
 
-    int32_t parse_int = -1;
-    int32_t parse_int2 = -1;
     int32_t parse_int3 = -1;
     int32_t parse_int4 = -1;
     int32_t parse_int5 = -1;
@@ -1558,6 +1609,14 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     /* Get more commands from stdin if the list is empty. */
     if (util_string_list_get_count(p_pending_commands) == 0) {
       uint32_t len;
+
+      /* If we're blocking waiting on user input, re-paint the screen. This
+       * gives the expected result if the user is stepping, for example,
+       * scanline by scanline.
+       */
+      video_advance_crtc_timing(p_debug->p_video);
+      video_force_paint(p_debug->p_video, 0);
+
       char* p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {
         util_bail("fgets failed");
@@ -1592,6 +1651,18 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     if (util_string_list_get_count(p_command_strings) > 0) {
       p_command = util_string_list_get_string(p_command_strings, 0);
     }
+    parse_int = -1;
+    if (util_string_list_get_count(p_command_strings) > 1) {
+      const char* p_param_str = util_string_list_get_string(p_command_strings,
+                                                            1);
+      parse_int = debug_parse_number(p_param_str, 0);
+    }
+    parse_int2 = -1;
+    if (util_string_list_get_count(p_command_strings) > 2) {
+      const char* p_param_str = util_string_list_get_string(p_command_strings,
+                                                            2);
+      parse_int2 = debug_parse_number(p_param_str, 0);
+    }
 
     if (!strcmp(p_command, "q")) {
       exit(0);
@@ -1612,6 +1683,16 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
       break;
     } else if (!strcmp(p_command, "c")) {
       p_debug->debug_running = 1;
+      break;
+    } else if (!strcmp(p_command, "bc")) {
+      p_debug->debug_running = 1;
+      if ((parse_int >= 0) &&
+          (parse_int < k_max_break) &&
+          p_debug->breakpoints[parse_int].is_in_use &&
+          (parse_int2 > 0)) {
+        p_debug->breakpoint_continue = parse_int;
+        p_debug->breakpoint_continue_count = parse_int2;
+      }
       break;
     } else if (!strcmp(p_command, "n")) {
       p_debug->next_or_finish_stop_addr = (p_debug->reg_pc + oplen);
@@ -1641,7 +1722,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (sscanf(input_buf, "breakat %"PRIu64, &parse_u64) == 1) {
       uint64_t ticks_delta;
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
       uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
       if (timing_timer_is_running(p_timing, timer_id)) {
@@ -1668,6 +1749,22 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, parse_int);
+      assert(p_debug->num_breakpoints_used > 0);
+      p_debug->num_breakpoints_used--;
+    } else if (!strcmp(p_command, "enable") &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
+      struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[parse_int];
+      if (p_breakpoint->is_in_use) {
+        p_breakpoint->is_enabled = 1;
+      }
+    } else if (!strcmp(p_command, "disable") &&
+               (parse_int >= 0) &&
+               (parse_int < k_max_break)) {
+      struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[parse_int];
+      if (p_breakpoint->is_in_use) {
+        p_breakpoint->is_enabled = 0;
+      }
     } else if ((sscanf(input_buf, "bop %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 256)) {
@@ -1743,7 +1840,7 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
     } else if (!strcmp(p_command, "r")) {
       char flags_buf[9];
       struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-      struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+      struct timing_struct* p_timing = p_debug->p_timing;
       uint64_t countdown = timing_get_countdown(p_timing);
       uint64_t cycles = state_6502_get_cycles(p_state_6502);
       int flag_i = !!(reg_flags & 0x04);
@@ -1962,10 +2059,91 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
   return ret_intel_pc;
 }
 
+static void
+debug_sub_instruction_callback(void* p) {
+  /* This is a timer callback. */
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  p_debug->sub_instruction_tick++;
+  (void) timing_set_timer_value(p_debug->p_timing,
+                                p_debug->timer_id_sub_instruction,
+                                1);
+  (void) debug_callback_common(p_debug, NULL, 0);
+}
+
+void*
+debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
+  struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
+  p_debug->sub_instruction_tick = 0;
+  return debug_callback_common(p_debug, p_cpu_driver, do_irq);
+}
+
+struct debug_struct*
+debug_create(struct bbc_struct* p_bbc,
+             int debug_active,
+             int32_t debug_stop_addr,
+             struct bbc_options* p_options) {
+  uint32_t i;
+  struct debug_struct* p_debug;
+  struct timing_struct* p_timing = bbc_get_timing(p_bbc);
+
+  assert(s_p_debug == NULL);
+
+  p_debug = util_mallocz(sizeof(struct debug_struct));
+  /* NOTE: using this singleton pattern for now so we can use qsort().
+   * qsort_r() is a minor porting headache due to differing signatures.
+   */
+  s_p_debug = p_debug;
+
+  p_debug->p_bbc = p_bbc;
+  p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
+  p_debug->p_timing = p_timing;
+  p_debug->p_video = bbc_get_video(p_bbc);
+  p_debug->p_render = bbc_get_render(p_bbc);
+  p_debug->debug_active = debug_active;
+  p_debug->debug_running = bbc_get_run_flag(p_bbc);
+  p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
+  p_debug->debug_stop_addr = debug_stop_addr;
+  p_debug->next_or_finish_stop_addr = -1;
+  p_debug->p_tool = disc_tool_create();
+  p_debug->p_command_strings = util_string_list_alloc();
+  p_debug->p_pending_commands = util_string_list_alloc();
+  p_debug->breakpoint_continue = -1;
+
+  for (i = 0; i < k_max_break; ++i) {
+    debug_clear_breakpoint(p_debug, i);
+  }
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    p_debug->warn_at_addr_count[i] = 10;
+  }
+
+  p_debug->timer_id_debug = timing_register_timer(p_timing,
+                                                  debug_timer_callback,
+                                                  p_debug);
+  p_debug->timer_id_sub_instruction = timing_register_timer(
+      p_timing,
+      debug_sub_instruction_callback,
+      p_debug);
+
+  p_debug->is_sub_instruction_active = util_has_option(p_options->p_opt_flags,
+                                                       "debug:sub-instruction");
+
+  if (p_debug->is_sub_instruction_active) {
+    (void) timing_start_timer_with_value(p_timing,
+                                         p_debug->timer_id_sub_instruction,
+                                         1);
+  }
+
+
+  os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
+
+  return p_debug;
+}
+
 void
 debug_set_commands(struct debug_struct* p_debug, const char* p_commands) {
-  struct timing_struct* p_timing = bbc_get_timing(p_debug->p_bbc);
-
   util_string_split(p_debug->p_pending_commands, p_commands, ';', '\'');
-  (void) timing_start_timer_with_value(p_timing, p_debug->timer_id_debug, 1);
+  (void) timing_start_timer_with_value(p_debug->p_timing,
+                                       p_debug->timer_id_debug,
+                                       1);
 }

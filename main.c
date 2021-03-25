@@ -639,7 +639,7 @@ main(int argc, const char* argv[]) {
     if (os_poller_handle_triggered(p_poller, 0)) {
       struct bbc_message message;
       int do_full_render;
-      int framing_changed;
+      int do_clear_after_paint;
       int save_frame;
       uint64_t cycles;
 
@@ -650,7 +650,7 @@ main(int argc, const char* argv[]) {
 
       assert(message.data[0] == k_message_vsync);
       do_full_render = message.data[1];
-      framing_changed = message.data[2];
+      do_clear_after_paint = message.data[2];
       cycles = message.data[3];
       save_frame = 0;
       if ((frame_cycles > 0) &&
@@ -673,11 +673,7 @@ main(int argc, const char* argv[]) {
             exit(0);
           }
         }
-        if (framing_changed) {
-          /* NOTE: in accurate mode, it would be more correct to clear the
-           * buffer from the framing change to the end of that frame, as well
-           * as for the next frame.
-           */
+        if (do_clear_after_paint) {
           render_clear_buffer(p_render);
         }
       }

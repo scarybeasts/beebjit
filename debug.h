@@ -3,13 +3,16 @@
 
 #include <stdint.h>
 
+struct bbc_options;
 struct bbc_struct;
-
 struct cpu_driver;
+
+struct debug_struct;
 
 struct debug_struct* debug_create(struct bbc_struct* p_bbc,
                                   int debug_active,
-                                  int32_t debug_stop_addr);
+                                  int32_t debug_stop_addr,
+                                  struct bbc_options* p_options);
 /* debug_init() is called after the cpu_driver is set up. */
 void debug_init(struct debug_struct* p_debug);
 void debug_destroy(struct debug_struct* p_debug);

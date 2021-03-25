@@ -412,19 +412,11 @@ sound_set_driver(struct sound_struct* p_sound,
 
 void
 sound_start_playing(struct sound_struct* p_sound) {
-  int16_t* p_driver_frames;
-  uint32_t driver_buffer_size;
   struct os_sound_struct* p_driver = p_sound->p_driver;
 
   if (p_driver == NULL) {
     return;
   }
-
-  /* Fill the buffer with silence. */
-  p_driver_frames = p_sound->p_driver_frames;
-  driver_buffer_size = p_sound->driver_buffer_size;
-  (void) memset(p_driver_frames, '\0', (driver_buffer_size * sizeof(int16_t)));
-  os_sound_write(p_driver, p_driver_frames, driver_buffer_size);
 
   if (p_sound->synchronous) {
     return;
