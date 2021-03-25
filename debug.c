@@ -91,6 +91,8 @@ struct debug_struct {
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
   uint32_t sub_instruction_tick;
+  int32_t breakpoint_continue;
+  uint32_t breakpoint_continue_count;
 
   /* Stats. */
   int stats;
@@ -638,7 +640,8 @@ static inline void
 debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
-                        int addr_6502,
+                        int32_t* p_out_last_hit,
+                        int32_t addr_6502,
                         uint8_t opcode_6502,
                         uint8_t opmem) {
   uint32_t i;
@@ -702,6 +705,7 @@ debug_check_breakpoints(struct debug_struct* p_debug,
                     i,
                     p_breakpoint->num_hits);
     }
+    *p_out_last_hit = (int32_t) i;
     *p_out_print |= p_breakpoint->do_print;
     *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
@@ -1367,7 +1371,7 @@ debug_callback_common(struct debug_struct* p_debug,
   uint8_t opcode;
   uint8_t operand1;
   uint8_t operand2;
-  int addr_6502;
+  int32_t addr_6502;
   int branch_taken;
   uint8_t reg_flags;
   uint16_t reg_pc_plus_1;
@@ -1386,6 +1390,7 @@ debug_callback_common(struct debug_struct* p_debug,
   int is_write;
   int is_rom;
   int is_register;
+  int32_t last_breakpoint_hit;
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   uint8_t* p_mem_read = p_debug->p_mem_read;
@@ -1508,12 +1513,24 @@ debug_callback_common(struct debug_struct* p_debug,
                       wrapped_8bit,
                       wrapped_16bit);
 
+  last_breakpoint_hit = -1;
   debug_check_breakpoints(p_debug,
                           &break_print,
                           &break_stop,
+                          &last_breakpoint_hit,
                           addr_6502,
                           opcode,
                           opmem);
+  if ((p_debug->breakpoint_continue != -1) &&
+      (p_debug->breakpoint_continue == last_breakpoint_hit)) {
+    assert(p_debug->breakpoint_continue_count > 0);
+    p_debug->breakpoint_continue_count--;
+    if (p_debug->breakpoint_continue_count > 0) {
+      break_stop = 0;
+    } else {
+      p_debug->breakpoint_continue = -1;
+    }
+  }
 
   if (*p_interrupt_received || !p_debug->debug_running) {
     *p_interrupt_received = 0;
@@ -1570,8 +1587,8 @@ debug_callback_common(struct debug_struct* p_debug,
     const char* p_command_and_params;
     const char* p_command;
     int32_t parse_int;
+    int32_t parse_int2;
 
-    int32_t parse_int2 = -1;
     int32_t parse_int3 = -1;
     int32_t parse_int4 = -1;
     int32_t parse_int5 = -1;
@@ -1640,6 +1657,12 @@ debug_callback_common(struct debug_struct* p_debug,
                                                             1);
       parse_int = debug_parse_number(p_param_str, 0);
     }
+    parse_int2 = -1;
+    if (util_string_list_get_count(p_command_strings) > 2) {
+      const char* p_param_str = util_string_list_get_string(p_command_strings,
+                                                            2);
+      parse_int2 = debug_parse_number(p_param_str, 0);
+    }
 
     if (!strcmp(p_command, "q")) {
       exit(0);
@@ -1660,6 +1683,16 @@ debug_callback_common(struct debug_struct* p_debug,
       break;
     } else if (!strcmp(p_command, "c")) {
       p_debug->debug_running = 1;
+      break;
+    } else if (!strcmp(p_command, "bc")) {
+      p_debug->debug_running = 1;
+      if ((parse_int >= 0) &&
+          (parse_int < k_max_break) &&
+          p_debug->breakpoints[parse_int].is_in_use &&
+          (parse_int2 > 0)) {
+        p_debug->breakpoint_continue = parse_int;
+        p_debug->breakpoint_continue_count = parse_int2;
+      }
       break;
     } else if (!strcmp(p_command, "n")) {
       p_debug->next_or_finish_stop_addr = (p_debug->reg_pc + oplen);
@@ -2074,6 +2107,7 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->p_tool = disc_tool_create();
   p_debug->p_command_strings = util_string_list_alloc();
   p_debug->p_pending_commands = util_string_list_alloc();
+  p_debug->breakpoint_continue = -1;
 
   for (i = 0; i < k_max_break; ++i) {
     debug_clear_breakpoint(p_debug, i);
