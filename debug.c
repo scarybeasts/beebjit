@@ -1592,6 +1592,14 @@ debug_callback_common(struct debug_struct* p_debug,
     /* Get more commands from stdin if the list is empty. */
     if (util_string_list_get_count(p_pending_commands) == 0) {
       uint32_t len;
+
+      /* If we're blocking waiting on user input, re-paint the screen. This
+       * gives the expected result if the user is stepping, for example,
+       * scanline by scanline.
+       */
+      video_advance_crtc_timing(p_debug->p_video);
+      video_force_paint(p_debug->p_video, 0);
+
       char* p_input_ret = fgets(&input_buf[0], sizeof(input_buf), stdin);
       if (p_input_ret == NULL) {
         util_bail("fgets failed");

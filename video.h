@@ -29,6 +29,7 @@ struct video_struct* video_create(uint8_t* p_mem,
 void video_destroy(struct video_struct* p_video);
 void video_advance_for_memory_sync(void* p);
 void video_advance_crtc_timing(struct video_struct* p_video);
+void video_force_paint(struct video_struct* p_video, int do_clear_after_paint);
 
 void video_IC32_updated(struct video_struct* p_video, uint8_t IC32);
 void video_shadow_mode_updated(struct video_struct* p_video,

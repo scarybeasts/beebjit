@@ -106,6 +106,7 @@ struct video_struct {
   uint32_t frames_skip;
   uint32_t frame_skip_counter;
   uint32_t render_every_ticks;
+  int is_opt_always_clear_frame_buffer;
 
   /* Timing. */
   uint64_t wall_time;
@@ -260,9 +261,22 @@ video_get_clock_speed(struct video_struct* p_video) {
   return !!(p_video->video_ula_control & k_ula_clock_speed);
 }
 
+void
+video_force_paint(struct video_struct* p_video, int do_clear_after_paint) {
+  int do_full_render = p_video->externally_clocked;
+
+  /* NOTE: in accurate mode, it would be more correct to clear the
+   * buffer from the framing change to the end of that frame, as well
+   * as for the next frame.
+   */
+  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
+                                        do_full_render,
+                                        do_clear_after_paint);
+}
+
 static void
 video_do_paint(struct video_struct* p_video) {
-  int do_full_render;
+  int do_clear_after_paint;
 
   /* Skip the paint for the appropriate option. */
   if (p_video->frame_skip_counter > 0) {
@@ -272,10 +286,9 @@ video_do_paint(struct video_struct* p_video) {
 
   p_video->frame_skip_counter = p_video->frames_skip;
 
-  do_full_render = p_video->externally_clocked;
-  p_video->p_framebuffer_ready_callback(p_video->p_framebuffer_ready_object,
-                                        do_full_render,
-                                        p_video->is_framing_changed_for_render);
+  do_clear_after_paint = (p_video->is_framing_changed_for_render ||
+                          p_video->is_opt_always_clear_frame_buffer);
+  video_force_paint(p_video, do_clear_after_paint);
   p_video->is_framing_changed_for_render = 0;
 }
 
@@ -1341,6 +1354,8 @@ video_create(uint8_t* p_bbc_mem,
   (void) util_get_u64_option(&p_video->paint_cycles,
                              p_options->p_opt_flags,
                              "video:paint-cycles=");
+  p_video->is_opt_always_clear_frame_buffer = util_has_option(
+      p_options->p_opt_flags, "video:always-clear");
 
   if (p_system_via) {
     via_set_CB2_changed_callback(p_system_via,
