@@ -84,7 +84,6 @@ struct debug_struct {
   /* Breakpointing. */
   int32_t debug_stop_addr;
   int32_t next_or_finish_stop_addr;
-  int debug_break_opcodes[256];
   struct debug_breakpoint breakpoints[k_max_break];
   uint32_t num_breakpoints_used;
   int64_t temp_storage[16];
@@ -642,14 +641,9 @@ debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_stop,
                         int32_t* p_out_last_hit,
                         int32_t addr_6502,
-                        uint8_t opcode_6502,
                         uint8_t opmem) {
   uint32_t i;
 
-  if (p_debug->debug_break_opcodes[opcode_6502]) {
-    *p_out_print = 1;
-    *p_out_stop = 1;
-  }
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     *p_out_print = 1;
     *p_out_stop = 1;
@@ -1519,7 +1513,6 @@ debug_callback_common(struct debug_struct* p_debug,
                           &break_stop,
                           &last_breakpoint_hit,
                           addr_6502,
-                          opcode,
                           opmem);
   if ((p_debug->breakpoint_continue != -1) &&
       (p_debug->breakpoint_continue == last_breakpoint_hit)) {
@@ -1779,10 +1772,6 @@ debug_callback_common(struct debug_struct* p_debug,
       (void) printf("result: %"PRId64" (0x%"PRIx64")\n",
                     expression_ret,
                     expression_ret);
-    } else if ((sscanf(input_buf, "bop %"PRIx32, &parse_int) == 1) &&
-               (parse_int >= 0) &&
-               (parse_int < 256)) {
-      p_debug->debug_break_opcodes[parse_int] = 1;
     } else if ((sscanf(input_buf,
                        "writem %"PRIx32" %"PRIx32,
                        &parse_int,
@@ -2034,7 +2023,6 @@ debug_callback_common(struct debug_struct* p_debug,
       (void) printf(
   "eval <expr>        : evaluate expression, e.g. 'a=7' to set A\n"
   "bc <b> <count>     : run until breakpoint <b> hits <count> times\n"
-  "bop <op>           : break on opcode <op>\n"
   "stats              : toggle stats collection (default: off)\n"
   "ds                 : dump stats collected\n"
   "cs                 : clear stats collected\n"
