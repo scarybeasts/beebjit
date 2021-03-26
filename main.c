@@ -6,6 +6,7 @@
 #include "os_channel.h"
 #include "os_poller.h"
 #include "os_sound.h"
+#include "os_time.h"
 #include "os_terminal.h"
 #include "os_window.h"
 #include "render.h"
@@ -402,6 +403,13 @@ main(int argc, const char* argv[]) {
 
   if (test_flag) {
     mode = k_cpu_mode_jit;
+  }
+
+  if (!util_has_option(p_opt_flags, "os:no-hi-res")) {
+    /* This tries to coax better resolution out of the system wake ups. Gives a
+     * lot of benefit on Windows.
+     */
+    os_time_setup_hi_res();
   }
 
   p_bbc = bbc_create(mode,

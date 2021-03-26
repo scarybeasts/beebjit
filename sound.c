@@ -70,6 +70,7 @@ struct sound_struct {
   uint64_t last_sound_driver_wakeup_time;
   uint32_t current_sub_period;
   uint32_t sub_period_size;
+  uint32_t target_latency;
 };
 
 static void
@@ -319,6 +320,11 @@ sound_create(int synchronous,
   p_sound->sn_frames_filled = 0;
   p_sound->driver_buffer_index = 0;
 
+  p_sound->target_latency = 2500;
+  (void) util_get_u32_option(&p_sound->target_latency,
+                             p_options->p_opt_flags,
+                             "sound:latency=");
+
   positive_silence = util_has_option(p_options->p_opt_flags,
                                      "sound:positive-silence");
 
@@ -396,7 +402,7 @@ sound_set_driver(struct sound_struct* p_sound,
   do {
     sub_period_size /= 2;
     sub_period_time_us = (sub_period_size / (double) sample_rate * 1000000);
-  } while (sub_period_time_us >= 2500);
+  } while (sub_period_time_us >= p_sound->target_latency);
   p_sound->sub_period_size = sub_period_size;
 
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */

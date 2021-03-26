@@ -2,6 +2,7 @@
 
 #include "util.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <windows.h>
 
@@ -11,6 +12,26 @@ uint64_t s_frequency;
 struct os_time_sleeper {
   HANDLE handle;
 };
+
+void
+os_time_setup_hi_res(void) {
+  TIMECAPS time_caps;
+
+  MMRESULT ret = timeGetDevCaps(&time_caps, sizeof(time_caps));
+  if (ret != MMSYSERR_NOERROR) {
+    util_bail("timeGetDevCaps failed");
+  }
+  log_do_log(k_log_audio,
+             k_log_info,
+             "Windows timing capabilities min %"PRIu32" max %"PRIu32,
+             time_caps.wPeriodMin,
+             time_caps.wPeriodMax);
+
+  ret = timeBeginPeriod(time_caps.wPeriodMin);
+  if (ret != TIMERR_NOERROR) {
+    log_do_log(k_log_audio, k_log_warning, "timeBeginPeriod failed");
+  }
+}
 
 uint64_t
 os_time_get_us() {
