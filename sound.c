@@ -1,6 +1,7 @@
 #include "sound.h"
 
 #include "bbc_options.h"
+#include "log.h"
 #include "os_sound.h"
 #include "os_thread.h"
 #include "os_time.h"
@@ -8,6 +9,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <string.h>
 
@@ -320,7 +322,7 @@ sound_create(int synchronous,
   p_sound->sn_frames_filled = 0;
   p_sound->driver_buffer_index = 0;
 
-  p_sound->target_latency = 2500;
+  p_sound->target_latency = 2000;
   (void) util_get_u32_option(&p_sound->target_latency,
                              p_options->p_opt_flags,
                              "sound:latency=");
@@ -382,7 +384,8 @@ sound_set_driver(struct sound_struct* p_sound,
   uint32_t driver_buffer_size;
   uint32_t sample_rate;
   uint32_t sub_period_size;
-  double sub_period_time_us;
+  uint32_t sub_period_time_us;
+  uint32_t i;
 
   assert(p_sound->p_driver == NULL);
   assert(!p_sound->thread_running);
@@ -396,14 +399,23 @@ sound_set_driver(struct sound_struct* p_sound,
   p_sound->driver_period_size = os_sound_get_period_size(p_driver);
 
   /* Calculate the number of time slices to divide a period into, to get around
-   * 1.5ms wakeup latency for client timing.
+   * 2ms wakeup latency for client timing.
    */
-  sub_period_size = (p_sound->driver_period_size * 2);
-  do {
-    sub_period_size /= 2;
+  i = 1;
+  while (1) {
+    sub_period_size = ((p_sound->driver_period_size / i) + 1);
     sub_period_time_us = (sub_period_size / (double) sample_rate * 1000000);
-  } while (sub_period_time_us >= p_sound->target_latency);
+    if (sub_period_time_us <= p_sound->target_latency) {
+      break;
+    }
+    i++;
+  }
   p_sound->sub_period_size = sub_period_size;
+  log_do_log(k_log_audio,
+             k_log_info,
+             "sub-period size %"PRIu32" time %"PRIu32"us",
+             sub_period_size,
+             sub_period_time_us);
 
   /* sn76489 in the BBC ticks at 250kHz (8x divisor on main 2Mhz clock). */
   p_sound->sn_frames_per_driver_frame = ((double) k_sound_clock_rate /
