@@ -982,10 +982,18 @@ debug_load_raw(struct debug_struct* p_debug,
                uint16_t addr_6502) {
   uint64_t len;
   uint8_t buf[k_6502_addr_space_size];
+  struct util_file* p_file;
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
 
-  len = util_file_read_fully(p_file_name, buf, sizeof(buf));
+  p_file = util_file_try_open(p_file_name, 0, 0);
+  if (p_file == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "cannot open file %s", p_file_name);
+    return;
+  }
+
+  len = util_file_read(p_file, buf, sizeof(buf));
+  util_file_close(p_file);
 
   bbc_set_memory_block(p_bbc, addr_6502, len, buf);
 }
@@ -995,13 +1003,21 @@ debug_save_raw(struct debug_struct* p_debug,
                const char* p_file_name,
                uint16_t addr_6502,
                uint16_t length) {
+  struct util_file* p_file;
   uint8_t* p_mem_read = p_debug->p_mem_read;
 
   if ((addr_6502 + length) > k_6502_addr_space_size) {
     length = (k_6502_addr_space_size - addr_6502);
   }
 
-  util_file_write_fully(p_file_name, (p_mem_read + addr_6502), length);
+  p_file = util_file_try_open(p_file_name, 1, 1);
+  if (p_file == NULL) {
+    log_do_log(k_log_misc, k_log_warning, "cannot open file %s", p_file_name);
+    return;
+  }
+
+  util_file_write(p_file, (p_mem_read + addr_6502), length);
+  util_file_close(p_file);
 }
 
 static void
