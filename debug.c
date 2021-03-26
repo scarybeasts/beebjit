@@ -672,7 +672,6 @@ static inline void
 debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
-                        int32_t* p_out_last_hit,
                         uint8_t opmem) {
   uint32_t i;
 
@@ -731,7 +730,6 @@ debug_check_breakpoints(struct debug_struct* p_debug,
                     i,
                     p_breakpoint->num_hits);
     }
-    *p_out_last_hit = (int32_t) i;
     *p_out_print |= p_breakpoint->do_print;
     *p_out_stop |= p_breakpoint->do_stop;
     if (p_breakpoint->p_command_list != NULL) {
@@ -1402,7 +1400,8 @@ debug_callback_common(struct debug_struct* p_debug,
   uint8_t oplen;
   int is_rom;
   int is_register;
-  int32_t last_breakpoint_hit;
+  uint64_t breakpoint_continue_hit_count;
+  struct debug_breakpoint* p_breakpoint_continue;
 
   struct bbc_struct* p_bbc = p_debug->p_bbc;
   uint8_t* p_mem_read = p_debug->p_mem_read;
@@ -1510,14 +1509,18 @@ debug_callback_common(struct debug_struct* p_debug,
                       wrapped_8bit,
                       wrapped_16bit);
 
-  last_breakpoint_hit = -1;
+  breakpoint_continue_hit_count = 0;
+  p_breakpoint_continue = NULL;
+  if (p_debug->breakpoint_continue != -1) {
+    p_breakpoint_continue = &p_debug->breakpoints[p_debug->breakpoint_continue];
+    breakpoint_continue_hit_count = p_breakpoint_continue->num_hits;
+  }
   debug_check_breakpoints(p_debug,
                           &break_print,
                           &break_stop,
-                          &last_breakpoint_hit,
                           opmem);
-  if ((p_debug->breakpoint_continue != -1) &&
-      (p_debug->breakpoint_continue == last_breakpoint_hit)) {
+  if ((p_breakpoint_continue != NULL) &&
+      (p_breakpoint_continue->num_hits > breakpoint_continue_hit_count)) {
     assert(p_debug->breakpoint_continue_count > 0);
     p_debug->breakpoint_continue_count--;
     if (p_debug->breakpoint_continue_count > 0) {
