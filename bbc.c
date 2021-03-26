@@ -42,7 +42,7 @@ static const size_t k_bbc_hazel_size = 0x2000;
 static const size_t k_bbc_andy_size = 0x1000;
 
 static const size_t k_bbc_tick_rate = 2000000; /* 2Mhz. */
-static const size_t k_bbc_default_wakeup_rate = 1000; /* 1ms / 1kHz. */
+static const size_t k_bbc_default_wakeup_rate = 500; /* 2ms / 500Hz. */
 
 /* This data is from b-em, thanks b-em! */
 static const int k_FE_1mhz_array[8] = { 1, 0, 1, 1, 0, 0, 1, 0 };
