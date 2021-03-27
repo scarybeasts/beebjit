@@ -838,6 +838,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   v++;                                                                        \
   INTERP_LOAD_NZ_FLAGS(v);
 
+#define INTERP_INSTR_ISC()                                                    \
+  v++;                                                                        \
+  if (df) {                                                                   \
+    INTERP_INSTR_BCD_SBC();                                                   \
+  } else {                                                                    \
+    INTERP_INSTR_SBC();                                                       \
+  }
+
 #define INTERP_INSTR_KIL()                                                    \
   special_checks |= k_interp_special_KIL;                                     \
   cycles_this_instruction = 7;
@@ -897,7 +905,6 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cf = (v & 0x01);                                                            \
   v >>= 1;                                                                    \
   v |= (temp_int << 7);                                                       \
-  a &= v;                                                                     \
   if (df) {                                                                   \
     INTERP_INSTR_BCD_ADC();                                                   \
   } else {                                                                    \
@@ -2512,7 +2519,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC idx");
+        INTERP_MODE_IDX_READ_WRITE(INTERP_INSTR_ISC());
       }
       break;
     case 0xE4: /* CPX zpg */
@@ -2536,7 +2543,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC zpg");
+        INTERP_MODE_ZPG_READ_WRITE(INTERP_INSTR_ISC());
       }
       break;
     case 0xE8: /* INX */
@@ -2599,7 +2606,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC abs");
+        INTERP_MODE_ABS_READ_WRITE(INTERP_INSTR_ISC());
       }
       break;
     case 0xF0: /* BEQ */
@@ -2632,7 +2639,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC idy");
+        INTERP_MODE_IDY_READ_WRITE(INTERP_INSTR_ISC());
       }
       break;
     case 0xF5: /* SBC zpx */
@@ -2656,7 +2663,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC zpx");
+        INTERP_MODE_ZPX_READ_WRITE(INTERP_INSTR_ISC());
       }
       break;
     case 0xF8: /* SED */
@@ -2691,7 +2698,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC aby");
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ISC(), y);
       }
       break;
     case 0xFD: /* SBC abx */
@@ -2713,7 +2720,7 @@ interp_enter_with_details(struct interp_struct* p_interp,
         pc++;
         cycles_this_instruction = 1;
       } else {
-        util_bail("ISC abx");
+        INTERP_MODE_ABr_READ_WRITE(INTERP_INSTR_ISC(), x);
       }
       break;
     default:
