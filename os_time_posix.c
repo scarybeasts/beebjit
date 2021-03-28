@@ -5,6 +5,10 @@
 #include <errno.h>
 #include <time.h>
 
+void
+os_time_setup_hi_res(void) {
+}
+
 uint64_t
 os_time_get_us() {
   struct timespec ts;

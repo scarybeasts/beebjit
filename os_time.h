@@ -5,6 +5,8 @@
 
 struct os_time_sleeper;
 
+void os_time_setup_hi_res(void);
+
 uint64_t os_time_get_us(void);
 
 struct os_time_sleeper* os_time_create_sleeper(void);

@@ -20,6 +20,7 @@ enum {
   k_interp_special_poll_irq = 8,
   k_interp_special_entry = 16,
   k_interp_special_memory_written_callback = 32,
+  k_interp_special_KIL = 64,
 };
 
 struct interp_struct {
@@ -838,7 +839,8 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   INTERP_LOAD_NZ_FLAGS(v);
 
 #define INTERP_INSTR_KIL()                                                    \
-  util_bail("KIL");
+  special_checks |= k_interp_special_KIL;                                     \
+  cycles_this_instruction = 7;
 
 #define INTERP_INSTR_LAX()                                                    \
   a = v;                                                                      \
@@ -2750,6 +2752,15 @@ do_special_checks:
          */
         poll_irq = 1;
       }
+    }
+    if (special_checks & k_interp_special_KIL) {
+      /* IRQs / NMIs don't fire in the KIL state.
+       * This is enough to keep us in the KIL state, because we also didn't
+       * advance the PC, so the KIL instruction will be re-read. This isn't
+       * perfect but should suffice for now.
+       */
+      poll_irq = 0;
+      INTERP_TIMING_ADVANCE(0);
     }
 
     /* Instructions requiring full tick-by-tick execution -- notably,

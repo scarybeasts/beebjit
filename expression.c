@@ -298,9 +298,6 @@ expression_parse(struct expression_struct* p_expression,
   uint32_t len;
   size_t full_len = strlen(p_expr_str);
 
-  (void) p_expression;
-  (void) p_expr_str;
-
   if (full_len >= INT_MAX) {
     util_bail("!");
   }
