@@ -488,7 +488,8 @@ debug_disass(struct debug_struct* p_debug,
     uint8_t operand2 = p_mem_read[addr_plus_2];
     const char* p_address_info = "";
     if (p_cpu_driver != NULL) {
-      p_cpu_driver->p_funcs->get_address_info(p_cpu_driver, addr_6502);
+      p_address_info = p_cpu_driver->p_funcs->get_address_info(
+          p_cpu_driver, addr_6502);
     }
 
     debug_print_opcode(p_debug,
