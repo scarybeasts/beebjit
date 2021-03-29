@@ -251,7 +251,7 @@ disc_create(const char* p_file_name,
   if (is_mutable && (p_disc->p_write_track_callback == NULL)) {
     log_do_log(k_log_disc,
                k_log_warning,
-               "cannot writeback to file type, making read onlu");
+               "cannot writeback to file type, making read only");
     is_writeable = 0;
     is_mutable = 0;
   }
