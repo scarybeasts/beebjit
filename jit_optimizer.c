@@ -701,16 +701,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
   struct jit_uop* p_carry_write_uop;
   int carry_flipped_for_branch;
 
-  struct jit_opcode_details* p_bcd_opcode = &p_opcodes[1];
-
-  /* Use a compiler-provided scratch opcode to eliminate all BCD checks and do
-   * it just once at the start of the block, if any ADC / SBC are present.
-   */
-  assert(num_opcodes > 2);
-  assert(p_bcd_opcode->eliminated);
-  assert(p_bcd_opcode->num_uops == 1);
-  p_bcd_opcode->uops[0].uopcode = k_opcode_CHECK_BCD;
-
   /* Pass 1: tag opcodes with any known register and flag values. */
   /* TODO: this pass operates on 6502 opcodes but it should probably work on
    * uopcodes, because previous passes may change the characteristic of
@@ -851,10 +841,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
     flag_carry = p_opcode->flag_carry;
     flag_decimal = p_opcode->flag_decimal;
 
-    if (p_opcode == p_bcd_opcode) {
-      continue;
-    }
-
     num_uops = p_opcode->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
@@ -965,8 +951,17 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
         break;
       case k_opcode_CHECK_BCD:
         if (flag_decimal == k_value_unknown) {
+          struct jit_opcode_details* p_first_opcode;
+          /* Insert a BCD check to the first opcode of the block, after the
+           * countdown.
+           */
           p_uop->eliminated = 1;
-          p_bcd_opcode->eliminated = 0;
+          assert(num_opcodes > 0);
+          p_first_opcode = &p_opcodes[0];
+          assert(p_first_opcode->num_uops > 0);
+          assert(p_first_opcode->uops[0].is_prefix_or_postfix);
+          jit_opcode_insert_uop(p_first_opcode, 1, k_opcode_CHECK_BCD, -1);
+          p_first_opcode->uops[1].is_prefix_or_postfix = 1;
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
         } else {
@@ -1111,7 +1106,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
           p_modify_uop = jit_opcode_find_uop(p_prev_opcode, new_uopcode);
         }
         assert(p_modify_uop != NULL);
-        p_opcode->eliminated = 1;
+        jit_opcode_eliminate(p_opcode);
         p_modify_uop->value1++;
         p_prev_opcode->len_bytes_6502_merged += p_opcode->len_bytes_6502_orig;
         p_prev_opcode->max_cycles_merged += p_opcode->max_cycles_orig;
@@ -1141,16 +1136,16 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
   for (i_opcodes = 0; i_opcodes < num_opcodes; ++i_opcodes) {
     uint32_t i_uops;
     uint32_t num_uops;
-
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    if (p_opcode->eliminated) {
-      continue;
-    }
 
     num_uops = p_opcode->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      int32_t uopcode;
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
+      if (p_uop->eliminated) {
+        continue;
+      }
+      uopcode = p_uop->uopcode;
 
       /* Finalize eliminations. */
       /* NZ flag save. */
@@ -1265,17 +1260,15 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
     uint32_t num_uops;
 
     struct jit_opcode_details* p_opcode = &p_opcodes[i_opcodes];
-    if (p_opcode->eliminated) {
-      continue;
-    }
 
     num_uops = p_opcode->num_uops;
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      int32_t uopcode;
       struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-      int32_t uopcode = p_uop->uopcode;
       if (p_uop->eliminated) {
         continue;
       }
+      uopcode = p_uop->uopcode;
 
       /* Finalize eliminations. */
       /* LDA A load. */

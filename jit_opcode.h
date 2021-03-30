@@ -13,6 +13,7 @@ struct jit_uop {
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int eliminated;
+  int is_prefix_or_postfix;
 };
 
 enum {
@@ -47,10 +48,10 @@ struct jit_opcode_details {
   struct jit_uop* fixup_uops[k_max_uops_per_opcode];
   uint8_t len_bytes_6502_merged;
   uint8_t max_cycles_merged;
-  int eliminated;
   int self_modify_invalidated;
   int is_dynamic_opcode;
   int is_dynamic_operand;
+  int is_branch_landing_addr;
 };
 
 enum {
@@ -122,11 +123,6 @@ enum {
   k_opcode_WRITE_INV_SCRATCH_Y,
 };
 
-void jit_opcode_make_internal_opcode1(struct jit_opcode_details* p_opcode,
-                                      uint16_t addr_6502,
-                                      int32_t uopcode,
-                                      int32_t value1);
-
 void jit_opcode_find_replace1(struct jit_opcode_details* p_opcode,
                               int32_t find_uop,
                               int32_t uop1,
@@ -144,5 +140,12 @@ struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);
 
 void jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode);
+
+void jit_opcode_insert_uop(struct jit_opcode_details* p_opcode,
+                           uint32_t index,
+                           int32_t uopcode,
+                           int32_t value);
+
+void jit_opcode_eliminate(struct jit_opcode_details* p_opcode);
 
 #endif /* JIT_OPCODE_H */
