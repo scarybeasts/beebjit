@@ -30,6 +30,10 @@ struct jit_compile_history {
   int32_t opcode;
 };
 
+enum {
+  k_max_opcodes_per_compile = 256,
+};
+
 struct jit_compiler {
   struct timing_struct* p_timing;
   struct memory_access* p_memory_access;
@@ -75,10 +79,12 @@ struct jit_compiler {
   int32_t addr_a_fixup[k_6502_addr_space_size];
   int32_t addr_x_fixup[k_6502_addr_space_size];
   int32_t addr_y_fixup[k_6502_addr_space_size];
-};
 
-enum {
-  k_max_opcodes_per_compile = 256,
+  /* State used within jit_compiler_compile_block() and subroutines. */
+  struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
+  uint32_t total_num_opcodes;
+  uint16_t start_addr_6502;
+  uint16_t post_end_addr_6502;
 };
 
 static void
@@ -781,7 +787,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
         p_host_address_object, (uint16_t) value1);
     break;
-  case 0x4C: /* JMP abs */
+  case 0x4C: /* JMP abs; JSR also uses this. */
   case 0x10: /* All of the conditional branches. */
   case 0x30:
   case 0x50:
@@ -1736,61 +1742,18 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
   }
 }
 
-uint32_t
-jit_compiler_compile_block(struct jit_compiler* p_compiler,
-                           int is_invalidation,
-                           uint16_t start_addr_6502) {
-  struct jit_opcode_details opcode_details[k_max_opcodes_per_compile];
-  uint8_t single_opcode_buffer[128];
-  struct jit_uop tmp_uop;
-  uint64_t ticks;
-
-  uint32_t i_opcodes;
-  uint32_t i_uops;
-  uint16_t addr_6502;
-  uint16_t post_block_addr_6502;
-  uint32_t cycles;
-  struct jit_opcode_details* p_details;
-  struct jit_opcode_details* p_details_fixup;
-  struct jit_uop* p_uop;
-  void* p_host_address_base;
-  struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
-  struct util_buffer* p_single_uopcode_buf = p_compiler->p_single_uopcode_buf;
-  int is_next_branch_landing_addr;
-
+static void
+jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler,
+                                 int* p_out_block_needs_trailing_jump,
+                                 uint16_t* p_out_post_block_addr_6502) {
+  uint16_t addr_6502 = p_compiler->start_addr_6502;
+  int is_next_branch_landing_addr = 1;
   uint32_t total_num_opcodes = 0;
-  int block_ended = 0;
-  int is_block_start = 0;
   int is_next_block_continuation = 0;
-  int32_t sub_instruction_addr_6502 = -1;
 
-  if (p_compiler->addr_is_block_start[start_addr_6502]) {
-    /* Retain any existing block start determination. */
-    is_block_start = 1;
-  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
-             !is_invalidation) {
-    /* New block starts are only created if this isn't a compilation
-     * continuation, and this isn't an invalidation of existing code.
-     */
-    is_block_start = 1;
-  }
-
-  p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
-  /* NOTE: p_compiler->addr_is_block_continuation[start_addr_6502] is left as
-   * it currently is.
-   * The only way to clear it is compile across the continuation boundary.
-   */
-
-  /* First break all the opcodes for this run into uops.
-   * This defines maximum possible bounds for the block and respects existing
-   * known block boundaries.
-   */
-  addr_6502 = start_addr_6502;
-  is_next_branch_landing_addr = 1;
   while (1) {
-    p_details = &opcode_details[total_num_opcodes];
-
-    assert(total_num_opcodes < k_max_opcodes_per_compile);
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[total_num_opcodes];
 
     jit_compiler_get_opcode_details(p_compiler, p_details, addr_6502);
     p_details->is_branch_landing_addr = is_next_branch_landing_addr;
@@ -1801,7 +1764,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
     if (p_details->ends_block) {
       assert(p_details->branches != k_bra_m);
-      block_ended = 1;
+      *p_out_block_needs_trailing_jump = 0;
       break;
     }
 
@@ -1810,16 +1773,12 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       break;
     }
 
-    /* Exit loop condition: we've compiled the configurable max number of 6502
-     * opcodes.
+    /* Exit loop conditions:
+     * - We've compiled the configurable max number of 6502 opcodes.
+     * - We're out of space in our opcode buffer.
      */
-    if (total_num_opcodes == p_compiler->max_6502_opcodes_per_block) {
-      is_next_block_continuation = 1;
-      break;
-    }
-
-    /* Exit loop condition: we're out of space in our opcode buffer. */
-    if (total_num_opcodes == k_max_opcodes_per_compile) {
+    if ((total_num_opcodes == p_compiler->max_6502_opcodes_per_block) ||
+        (total_num_opcodes == k_max_opcodes_per_compile)) {
       is_next_block_continuation = 1;
       break;
     }
@@ -1827,23 +1786,33 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     is_next_branch_landing_addr = (p_details->branches == k_bra_m);
   }
 
-  assert(addr_6502 > start_addr_6502);
-  post_block_addr_6502 = addr_6502;
+  assert(addr_6502 > p_compiler->start_addr_6502);
   p_compiler->addr_is_block_continuation[addr_6502] =
       is_next_block_continuation;
 
-  /* Second, work out if we'll be compiling any dynamic opcodes / operands. */
-  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    int is_self_modify_invalidated = 0;
-    int is_dynamic_operand_match = 0;
+  p_compiler->total_num_opcodes = total_num_opcodes;
+  *p_out_post_block_addr_6502 = addr_6502;
+}
+
+static void
+jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
+                            int* p_out_block_needs_trailing_jump,
+                            int32_t* p_out_sub_instruction_addr_6502) {
+  uint32_t i_opcodes;
+
+  for (i_opcodes = 0; i_opcodes < p_compiler->total_num_opcodes; ++i_opcodes) {
+    uint16_t addr_6502;
     uint8_t opcode_6502;
     uint32_t opcode_6502_len;
     uint32_t new_opcode_count;
     uint32_t new_opcode_invalidate_count;
     uint32_t any_opcode_count;
     uint32_t any_opcode_invalidate_count;
+    int is_self_modify_invalidated = 0;
+    int is_dynamic_operand_match = 0;
 
-    p_details = &opcode_details[i_opcodes];
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[i_opcodes];
 
     opcode_6502_len = p_details->len_bytes_6502_orig;
     assert(opcode_6502_len > 0);
@@ -1902,10 +1871,10 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                      "compiling sub-instruction at $%.4X",
                      addr_6502);
         }
-        sub_instruction_addr_6502 = next_addr_6502;
-        total_num_opcodes = (i_opcodes + 1);
-        block_ended = 0;
-        post_block_addr_6502 = (addr_6502 + opcode_6502_len);
+        *p_out_sub_instruction_addr_6502 = next_addr_6502;
+        p_compiler->total_num_opcodes = (i_opcodes + 1);
+        *p_out_block_needs_trailing_jump = 1;
+        p_compiler->post_end_addr_6502 = (addr_6502 + opcode_6502_len);
         break;
       }
     }
@@ -1953,30 +1922,22 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
      */
     p_details->max_cycles_orig = 0;
     p_details->max_cycles_merged = 0;
-    total_num_opcodes = (i_opcodes + 1);
-    block_ended = 1;
+    p_compiler->total_num_opcodes = (i_opcodes + 1);
+    *p_out_block_needs_trailing_jump = 0;
+    p_compiler->post_end_addr_6502 = (addr_6502 + opcode_6502_len);
     break;
   }
+}
 
-  /* If the block didn't end with an explicit jump, put it in. */
-  if (!block_ended) {
-    p_details = &opcode_details[total_num_opcodes - 1];
-    /* JMP abs */
-    jit_opcode_insert_uop(p_details,
-                          p_details->num_uops,
-                          0x4C,
-                          post_block_addr_6502);
-    p_details->uops[p_details->num_uops - 1].is_prefix_or_postfix = 1;
-    p_details->ends_block = 1;
-  }
+static void
+jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
+  uint32_t i_opcodes;
+  struct jit_uop* p_uop = NULL;
+  struct jit_opcode_details* p_details_fixup = NULL;
 
-  /* Third, walk the opcode list; add countdown checks and calculate cycle
-   * counts.
-   */
-  p_uop = NULL;
-  p_details_fixup = NULL;
-  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    p_details = &opcode_details[i_opcodes];
+  for (i_opcodes = 0; i_opcodes < p_compiler->total_num_opcodes; ++i_opcodes) {
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[i_opcodes];
 
     /* Calculate total cycle count at each branch landing location. */
     assert(p_details->cycles_run_start == -1);
@@ -1994,16 +1955,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details_fixup->cycles_run_start += p_details->max_cycles_orig;
     p_uop->value2 = p_details_fixup->cycles_run_start;
   }
+}
 
-  /* Fourth, run the optimizer across the list of opcodes. */
-  if (!p_compiler->option_no_optimize) {
-    total_num_opcodes = jit_optimizer_optimize(&opcode_details[0],
-                                               total_num_opcodes);
-  }
-
-  /* Fifth, emit the uop stream to the output buffer. */
-  addr_6502 = start_addr_6502;
-  p_host_address_base =
+static void
+jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
+  uint8_t single_opcode_buffer[128];
+  uint32_t i_opcodes;
+  struct util_buffer* p_single_uopcode_buf = p_compiler->p_single_uopcode_buf;
+  struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
+  uint16_t addr_6502 = p_compiler->start_addr_6502;
+  void* p_host_address_base =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
   util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
@@ -2012,13 +1973,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
                     &single_opcode_buffer[0],
                     sizeof(single_opcode_buffer));
 
-  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
+  for (i_opcodes = 0; i_opcodes < p_compiler->total_num_opcodes; ++i_opcodes) {
+    uint32_t i_uops;
     uint32_t num_uops;
     int ends_block;
     size_t opcode_len_asm = 0;
 
-    p_details = &opcode_details[i_opcodes];
-    if (i_opcodes == (total_num_opcodes - 1)) {
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[i_opcodes];
+    if (i_opcodes == (p_compiler->total_num_opcodes - 1)) {
       assert(p_details->ends_block);
     } else {
       assert(!p_details->ends_block);
@@ -2030,7 +1993,9 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       size_t buf_needed;
       size_t out_buf_pos;
-      p_uop = &p_details->uops[i_uops];
+      struct jit_uop tmp_uop;
+      struct jit_uop* p_uop = &p_details->uops[i_uops];
+
       if (p_uop->eliminated) {
         continue;
       }
@@ -2119,19 +2084,23 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * 3) Performance. int3 will stop the Intel instruction decoder.
    */
   util_buffer_fill_to_end(p_tmp_buf, '\xcc');
+}
 
-  /* Sixth, update compiler metadata. */
-  ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
-  cycles = 0;
-  for (i_opcodes = 0; i_opcodes < total_num_opcodes; ++i_opcodes) {
-    uint8_t num_bytes_6502;
+static void
+jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
+  uint32_t i_opcodes;
+  uint16_t addr_6502;
+  uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
+  uint32_t cycles = 0;
+
+  for (i_opcodes = 0; i_opcodes < p_compiler->total_num_opcodes; ++i_opcodes) {
     uint8_t i;
     uint32_t jit_ptr;
     uint32_t i_opcodes_lookahead;
 
-    p_details = &opcode_details[i_opcodes];
-    addr_6502 = p_details->addr_6502;
-    num_bytes_6502 = p_details->len_bytes_6502_merged;
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[i_opcodes];
+    uint32_t num_bytes_6502 = p_details->len_bytes_6502_merged;
     if (num_bytes_6502 == 0) {
       /* Optimized into a previous opcode. */
       continue;
@@ -2144,19 +2113,21 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     jit_ptr = 0;
     i_opcodes_lookahead = i_opcodes;
     while (jit_ptr == 0) {
-      void* p_host_address = opcode_details[i_opcodes_lookahead].p_host_address;
+      void* p_host_address =
+          p_compiler->opcode_details[i_opcodes_lookahead].p_host_address;
       jit_ptr = (uint32_t) (uintptr_t) p_host_address;
       i_opcodes_lookahead++;
       if (jit_ptr == 0) {
-        assert(i_opcodes_lookahead < total_num_opcodes);
+        assert(i_opcodes_lookahead < p_compiler->total_num_opcodes);
       }
     }
 
+    addr_6502 = p_details->addr_6502;
     for (i = 0; i < num_bytes_6502; ++i) {
       p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
-      p_compiler->p_code_blocks[addr_6502] = start_addr_6502;
+      p_compiler->p_code_blocks[addr_6502] = p_compiler->start_addr_6502;
 
-      if (addr_6502 != start_addr_6502) {
+      if (addr_6502 != p_compiler->start_addr_6502) {
         jit_invalidate_jump_target(p_compiler, addr_6502);
         p_compiler->addr_is_block_start[addr_6502] = 0;
         p_compiler->addr_is_block_continuation[addr_6502] = 0;
@@ -2171,6 +2142,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
       p_compiler->addr_y_fixup[addr_6502] = -1;
 
       if (i == 0) {
+        uint32_t i_uops;
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
           p_compiler->p_jit_ptrs[addr_6502] =
@@ -2184,7 +2156,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
-          p_uop = p_details->fixup_uops[i_uops];
+          struct jit_uop* p_uop = p_details->fixup_uops[i_uops];
           switch (p_uop->uopcode) {
           case k_opcode_FLAGA:
             p_compiler->addr_nz_fixup[addr_6502] = k_a;
@@ -2240,16 +2212,98 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     cycles -= p_details->max_cycles_merged;
   }
 
+  assert(addr_6502 == p_compiler->post_end_addr_6502);
+}
+
+uint32_t
+jit_compiler_compile_block(struct jit_compiler* p_compiler,
+                           int is_invalidation,
+                           uint16_t start_addr_6502) {
+  int block_needs_trailing_jump = 1;
+  int is_block_start = 0;
+  int32_t sub_instruction_addr_6502 = -1;
+
+  p_compiler->start_addr_6502 = start_addr_6502;
+
+  if (p_compiler->addr_is_block_start[start_addr_6502]) {
+    /* Retain any existing block start determination. */
+    is_block_start = 1;
+  } else if (!p_compiler->addr_is_block_continuation[start_addr_6502] &&
+             !is_invalidation) {
+    /* New block starts are only created if this isn't a compilation
+     * continuation, and this isn't an invalidation of existing code.
+     */
+    is_block_start = 1;
+  }
+
+  p_compiler->addr_is_block_start[start_addr_6502] = is_block_start;
+  /* NOTE: p_compiler->addr_is_block_continuation[start_addr_6502] is left as
+   * it currently is.
+   * The only way to clear it is compile across the continuation boundary.
+   */
+
+  /* First break all the opcodes for this run into uops.
+   * This defines maximum possible bounds for the block and respects existing
+   * known block boundaries.
+   */
+  jit_compiler_find_compile_bounds(p_compiler,
+                                   &block_needs_trailing_jump,
+                                   &p_compiler->post_end_addr_6502);
+
+  /* Second, work out if we'll be compiling any dynamic opcodes / operands.
+   * NOTE: may truncate p_compiler->total_num_opcodes with a matching change to
+   * p_compiler->post_end_addr_6502.
+   */
+  jit_compiler_check_dynamics(p_compiler,
+                              &block_needs_trailing_jump,
+                              &sub_instruction_addr_6502);
+
+  /* If the block didn't end with an explicit jump, put it in. */
+  if (block_needs_trailing_jump) {
+    struct jit_opcode_details* p_details =
+        &p_compiler->opcode_details[p_compiler->total_num_opcodes - 1];
+    /* JMP abs */
+    jit_opcode_insert_uop(p_details,
+                          p_details->num_uops,
+                          0x4C,
+                          p_compiler->post_end_addr_6502);
+    p_details->uops[p_details->num_uops - 1].is_prefix_or_postfix = 1;
+    p_details->ends_block = 1;
+  }
+
+  /* Third, walk the opcode list; add countdown checks and calculate cycle
+   * counts.
+   */
+  jit_compiler_setup_cycle_counts(p_compiler);
+
+  /* Fourth, run the optimizer across the list of opcodes. */
+  if (!p_compiler->option_no_optimize) {
+    p_compiler->total_num_opcodes = jit_optimizer_optimize(
+        &p_compiler->opcode_details[0], p_compiler->total_num_opcodes);
+    p_compiler->post_end_addr_6502 =
+        p_compiler->opcode_details[p_compiler->total_num_opcodes - 1].addr_6502;
+    p_compiler->post_end_addr_6502 +=
+        p_compiler->opcode_details[p_compiler->total_num_opcodes - 1].
+            len_bytes_6502_orig;
+  }
+
+  /* Fifth, emit the uop stream to the output buffer. */
+  jit_compiler_emit_uops(p_compiler);
+
+  /* Sixth, update compiler metadata. */
+  jit_compiler_update_metadata(p_compiler);
+
   if (sub_instruction_addr_6502 != -1) {
-    p_host_address_base =
-        p_compiler->get_block_host_address(p_compiler->p_host_address_object,
-                                           sub_instruction_addr_6502);
+    struct jit_uop tmp_uop;
+    struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
+    void* p_host_address_base = p_compiler->get_block_host_address(
+        p_compiler->p_host_address_object, sub_instruction_addr_6502);
     util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
     jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
     jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
   }
 
-  return (addr_6502 - start_addr_6502);
+  return (p_compiler->post_end_addr_6502 - p_compiler->start_addr_6502);
 }
 
 int64_t
