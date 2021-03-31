@@ -1657,8 +1657,30 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xD840);
 
-  /* End of test. */
+  /* Test for a JIT optimizer bug, triggering on lots of ADCs. */
   set_new_index(p_buf, 0x1840);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_ADC(p_buf, k_zpg, 0xF0);
+  emit_ADC(p_buf, k_zpg, 0xF1);
+  emit_ADC(p_buf, k_zpg, 0xF2);
+  emit_ADC(p_buf, k_zpg, 0xF3);
+  emit_ADC(p_buf, k_zpg, 0xF4);
+  emit_ADC(p_buf, k_zpg, 0xF5);
+  emit_ADC(p_buf, k_zpg, 0xF6);
+  emit_ADC(p_buf, k_zpg, 0xF7);
+  emit_ADC(p_buf, k_zpg, 0xF8);
+  emit_ADC(p_buf, k_zpg, 0xF9);
+  emit_ADC(p_buf, k_zpg, 0xFA);
+  emit_ADC(p_buf, k_zpg, 0xFB);
+  emit_ADC(p_buf, k_zpg, 0xFC);
+  emit_ADC(p_buf, k_zpg, 0xFD);
+  emit_ADC(p_buf, k_zpg, 0xFE);
+  emit_ADC(p_buf, k_zpg, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_JMP(p_buf, k_abs, 0xD880);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1880);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

@@ -955,13 +955,16 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
           /* Insert a BCD check to the first opcode of the block, after the
            * countdown.
            */
-          p_uop->eliminated = 1;
           assert(num_opcodes > 0);
           p_first_opcode = &p_opcodes[0];
-          assert(p_first_opcode->num_uops > 0);
-          assert(p_first_opcode->uops[0].is_prefix_or_postfix);
-          jit_opcode_insert_uop(p_first_opcode, 1, k_opcode_CHECK_BCD, -1);
-          p_first_opcode->uops[1].is_prefix_or_postfix = 1;
+          assert(p_first_opcode->num_uops > 1);
+          if (p_first_opcode->uops[1].uopcode != k_opcode_CHECK_BCD) {
+            p_uop->eliminated = 1;
+            assert(p_first_opcode->num_uops > 0);
+            assert(p_first_opcode->uops[0].is_prefix_or_postfix);
+            jit_opcode_insert_uop(p_first_opcode, 1, k_opcode_CHECK_BCD, -1);
+            p_first_opcode->uops[1].is_prefix_or_postfix = 1;
+          }
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
         } else {
