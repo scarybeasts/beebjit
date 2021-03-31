@@ -1744,7 +1744,6 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
 
 static void
 jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler,
-                                 int* p_out_block_needs_trailing_jump,
                                  uint16_t* p_out_post_block_addr_6502) {
   uint16_t addr_6502 = p_compiler->start_addr_6502;
   int is_next_branch_landing_addr = 1;
@@ -1764,7 +1763,6 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler,
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
     if (p_details->ends_block) {
       assert(p_details->branches != k_bra_m);
-      *p_out_block_needs_trailing_jump = 0;
       break;
     }
 
@@ -1796,7 +1794,6 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler,
 
 static void
 jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
-                            int* p_out_block_needs_trailing_jump,
                             int32_t* p_out_sub_instruction_addr_6502) {
   uint32_t i_opcodes;
 
@@ -1873,7 +1870,6 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
         }
         *p_out_sub_instruction_addr_6502 = next_addr_6502;
         p_compiler->total_num_opcodes = (i_opcodes + 1);
-        *p_out_block_needs_trailing_jump = 1;
         p_compiler->post_end_addr_6502 = (addr_6502 + opcode_6502_len);
         break;
       }
@@ -1923,7 +1919,6 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
     p_details->max_cycles_orig = 0;
     p_details->max_cycles_merged = 0;
     p_compiler->total_num_opcodes = (i_opcodes + 1);
-    *p_out_block_needs_trailing_jump = 0;
     p_compiler->post_end_addr_6502 = (addr_6502 + opcode_6502_len);
     break;
   }
@@ -2219,7 +2214,7 @@ uint32_t
 jit_compiler_compile_block(struct jit_compiler* p_compiler,
                            int is_invalidation,
                            uint16_t start_addr_6502) {
-  int block_needs_trailing_jump = 1;
+  struct jit_opcode_details* p_details;
   int is_block_start = 0;
   int32_t sub_instruction_addr_6502 = -1;
 
@@ -2247,7 +2242,6 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * known block boundaries.
    */
   jit_compiler_find_compile_bounds(p_compiler,
-                                   &block_needs_trailing_jump,
                                    &p_compiler->post_end_addr_6502);
 
   /* Second, work out if we'll be compiling any dynamic opcodes / operands.
@@ -2255,13 +2249,11 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * p_compiler->post_end_addr_6502.
    */
   jit_compiler_check_dynamics(p_compiler,
-                              &block_needs_trailing_jump,
                               &sub_instruction_addr_6502);
 
   /* If the block didn't end with an explicit jump, put it in. */
-  if (block_needs_trailing_jump) {
-    struct jit_opcode_details* p_details =
-        &p_compiler->opcode_details[p_compiler->total_num_opcodes - 1];
+  p_details = &p_compiler->opcode_details[p_compiler->total_num_opcodes - 1];
+  if (!p_details->ends_block) {
     /* JMP abs */
     jit_opcode_insert_uop(p_details,
                           p_details->num_uops,
