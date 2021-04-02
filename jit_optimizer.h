@@ -5,8 +5,7 @@
 
 struct jit_opcode_details;
 
-uint32_t
-jit_optimizer_optimize(struct jit_opcode_details* p_opcodes,
-                       uint32_t num_opcodes);
+struct jit_opcode_details*
+jit_optimizer_optimize(struct jit_opcode_details* p_opcodes);
 
 #endif /* BEEJIT_JIT_OPTIMIZER_H */

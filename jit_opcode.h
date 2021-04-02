@@ -22,7 +22,7 @@ enum {
 
 struct jit_opcode_details {
   /* Static details. */
-  uint16_t addr_6502;
+  int32_t addr_6502;
   uint8_t opcode_6502;
   uint16_t operand_6502;
   uint8_t len_bytes_6502_orig;
