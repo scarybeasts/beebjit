@@ -25,7 +25,7 @@ struct jit_opcode_details {
   int32_t addr_6502;
   uint8_t opcode_6502;
   uint16_t operand_6502;
-  uint8_t len_bytes_6502_orig;
+  uint8_t num_bytes_6502;
   uint8_t max_cycles_orig;
   int branches;
   int32_t min_6502_addr;
@@ -37,7 +37,9 @@ struct jit_opcode_details {
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int ends_block;
-  void* p_host_address;
+  void* p_host_address_prefix;
+  void* p_host_address_start;
+  void* p_host_address_end;
   int32_t cycles_run_start;
   int32_t reg_a;
   int32_t reg_x;
@@ -46,7 +48,6 @@ struct jit_opcode_details {
   int32_t flag_decimal;
   uint8_t num_fixup_uops;
   struct jit_uop* fixup_uops[k_max_uops_per_opcode];
-  uint8_t len_bytes_6502_merged;
   uint8_t max_cycles_merged;
   int self_modify_invalidated;
   int is_dynamic_opcode;

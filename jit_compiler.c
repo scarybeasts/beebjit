@@ -271,7 +271,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   opmem = p_compiler->p_opcode_mem[opcode_6502];
 
   p_details->opcode_6502 = opcode_6502;
-  p_details->len_bytes_6502_orig = g_opmodelens[opmode];
+  p_details->num_bytes_6502 = g_opmodelens[opmode];
   p_details->branches = g_opbranch[optype];
   p_details->ends_block = 0;
   if (p_details->branches == k_bra_y) {
@@ -279,8 +279,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   p_details->num_fixup_uops = 0;
-  p_details->len_bytes_6502_merged = p_details->len_bytes_6502_orig;
-  p_details->p_host_address = NULL;
+  p_details->p_host_address_prefix = NULL;
+  p_details->p_host_address_start = NULL;
+  p_details->p_host_address_end = NULL;
   p_details->cycles_run_start = -1;
 
   if (p_compiler->debug) {
@@ -1758,7 +1759,7 @@ jit_compiler_get_end_addr_6502(struct jit_compiler* p_compiler) {
   addr_6502 = p_details->addr_6502;
   assert(addr_6502 != -1);
   end_addr_6502 = (uint16_t) addr_6502;
-  end_addr_6502 += p_details->len_bytes_6502_merged;
+  end_addr_6502 += p_details->num_bytes_6502;
 
   return end_addr_6502;
 }
@@ -1770,7 +1771,7 @@ jit_compiler_make_last_opcode(struct jit_compiler* p_compiler,
 
   assert(p_details->addr_6502 != -1);
 
-  p_terminating_details = (p_details + p_details->len_bytes_6502_merged);
+  p_terminating_details = (p_details + p_details->num_bytes_6502);
   assert((p_terminating_details - &p_compiler->opcode_details[0]) <
          k_max_addr_space_per_compile);
   p_terminating_details->addr_6502 = -1;
@@ -1793,7 +1794,7 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
     jit_compiler_get_opcode_details(p_compiler, p_next_details, addr_6502);
 
     /* Check it fits in the address space we've got left. */
-    if ((opcode_index + p_next_details->len_bytes_6502_orig) >=
+    if ((opcode_index + p_next_details->num_bytes_6502) >=
         k_max_addr_space_per_compile) {
       break;
     }
@@ -1801,8 +1802,8 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
     p_details = p_next_details;
     p_details->is_branch_landing_addr = is_next_branch_landing_addr;
 
-    opcode_index += p_details->len_bytes_6502_orig;
-    addr_6502 += p_details->len_bytes_6502_orig;
+    opcode_index += p_details->num_bytes_6502;
+    addr_6502 += p_details->num_bytes_6502;
     total_num_opcodes++;
 
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
@@ -1843,7 +1844,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
-       p_details += p_details->len_bytes_6502_orig) {
+       p_details += p_details->num_bytes_6502) {
     uint16_t addr_6502;
     uint8_t opcode_6502;
     uint32_t opcode_6502_len;
@@ -1854,7 +1855,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
     int is_self_modify_invalidated = 0;
     int is_dynamic_operand_match = 0;
 
-    opcode_6502_len = p_details->len_bytes_6502_orig;
+    opcode_6502_len = p_details->num_bytes_6502;
     assert(opcode_6502_len > 0);
 
     /* Check self-modified status for each opcode. It's used in
@@ -1973,7 +1974,7 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
-       p_details += p_details->len_bytes_6502_orig) {
+       p_details += p_details->num_bytes_6502) {
     /* Calculate total cycle count at each branch landing location. */
     assert(p_details->cycles_run_start == -1);
     if (p_details->is_branch_landing_addr) {
@@ -2010,7 +2011,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
-       p_details += p_details->len_bytes_6502_orig) {
+       p_details += p_details->num_bytes_6502) {
     uint32_t i_uops;
     uint32_t num_uops;
     int ends_block;
@@ -2023,6 +2024,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       size_t buf_needed;
       size_t out_buf_pos;
       struct jit_uop tmp_uop;
+      void* p_host_address;
       struct jit_uop* p_uop = &p_details->uops[i_uops];
 
       if (p_uop->eliminated) {
@@ -2081,18 +2083,29 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         jit_compiler_emit_uop(p_compiler, p_single_uopcode_buf, p_uop);
       }
 
-      /* Keep a note of the host address of where the JIT code starts for this
-       * opcode. This will be set in the jit_ptrs array later, and is where
-       * any self-modification invalidation will write to.
-       * This address comes after any "prefix" uops, such as the countdown
-       * check, which keeps other things simpler.
+      /* Keep a note of the host address of where the JIT code prefixes start,
+       * actual code starts, and all code ends.
+       * The actual code start will be set in the jit_ptrs array later,
+       * and is where any self-modification invalidation will write to. It is
+       * after any countdown opcodes.
+       * The prefix code start will be used as a branch target for branches
+       * within a block.
        */
-      if ((p_details->p_host_address == NULL) && !p_uop->is_prefix_or_postfix) {
-        p_details->p_host_address =
-            (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+      p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+      if (!p_uop->is_prefix_or_postfix) {
+        if (p_details->p_host_address_start == NULL) {
+          p_details->p_host_address_start = p_host_address;
+        }
+      } else {
+        if ((p_details->p_host_address_start == NULL) &&
+            (p_details->p_host_address_prefix == NULL)) {
+          p_details->p_host_address_prefix = p_host_address;
+        }
       }
 
       util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
+      p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+      p_details->p_host_address_end = p_host_address;
       opcode_len_asm += util_buffer_get_pos(p_single_uopcode_buf);
     }
 
@@ -2121,32 +2134,37 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
   uint16_t addr_6502;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
   uint32_t cycles = 0;
+  void* p_host_address_end = NULL;
+  uint32_t last_jit_ptr = 0;
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
-       p_details += p_details->len_bytes_6502_merged) {
+       p_details += p_details->num_bytes_6502) {
     uint8_t i;
     uint32_t jit_ptr;
-    struct jit_opcode_details* p_details_lookahead;
+    void* p_host_address_start;
 
-    uint32_t num_bytes_6502 = p_details->len_bytes_6502_merged;
-    if (num_bytes_6502 == 0) {
-      /* Optimized into a previous opcode. */
-      continue;
-    }
+    uint32_t num_bytes_6502 = p_details->num_bytes_6502;
+    assert(num_bytes_6502 > 0);
 
     if (p_details->cycles_run_start != -1) {
       cycles = p_details->cycles_run_start;
     }
 
-    jit_ptr = 0;
-    p_details_lookahead = p_details;
-    while (jit_ptr == 0) {
-      assert(p_details_lookahead->addr_6502 != -1);
-      void* p_host_address = p_details_lookahead->p_host_address;
-      jit_ptr = (uint32_t) (uintptr_t) p_host_address;
-      p_details_lookahead += p_details_lookahead->len_bytes_6502_merged;
+    p_host_address_start = p_details->p_host_address_start;
+    if (p_host_address_start == NULL) {
+      /* No code was emitted for this opcode, i.e. it was optimized out. */
+      if (p_details->p_host_address_end != NULL) {
+        assert(p_details->p_host_address_prefix != NULL);
+        p_host_address_end = p_details->p_host_address_end;
+      }
+      assert(p_host_address_end != NULL);
+      p_host_address_start = p_host_address_end;
+    } else {
+      p_host_address_end = p_details->p_host_address_end;
+      assert(p_host_address_end != NULL);
     }
+    jit_ptr = (uint32_t) (uintptr_t) p_host_address_start;
 
     addr_6502 = p_details->addr_6502;
     for (i = 0; i < num_bytes_6502; ++i) {
@@ -2167,7 +2185,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       p_compiler->addr_x_fixup[addr_6502] = -1;
       p_compiler->addr_y_fixup[addr_6502] = -1;
 
-      if (i == 0) {
+      if ((i == 0) && (jit_ptr != last_jit_ptr)) {
         uint32_t i_uops;
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
@@ -2236,6 +2254,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       addr_6502++;
     }
     cycles -= p_details->max_cycles_merged;
+    last_jit_ptr = jit_ptr;
   }
 }
 

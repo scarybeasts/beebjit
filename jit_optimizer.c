@@ -21,7 +21,7 @@ jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
   assert(!p_elim_uop->eliminated);
   p_elim_uop->eliminated = 1;
 
-  p_elim_opcode += p_elim_opcode->len_bytes_6502_merged;
+  p_elim_opcode += p_elim_opcode->num_bytes_6502;
   while (p_elim_opcode <= p_curr_opcode) {
     uint32_t num_fixup_uops = p_elim_opcode->num_fixup_uops;
     assert(p_elim_opcode->addr_6502 != -1);
@@ -35,7 +35,7 @@ jit_optimizer_eliminate(struct jit_opcode_details** pp_elim_opcode,
                    (sizeof(struct jit_uop*) * num_fixup_uops));
     p_elim_opcode->fixup_uops[0] = p_elim_uop;
     p_elim_opcode->num_fixup_uops++;
-    p_elim_opcode += p_elim_opcode->len_bytes_6502_merged;
+    p_elim_opcode += p_elim_opcode->num_bytes_6502;
   }
 }
 
@@ -715,7 +715,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
 
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
-       p_opcode += p_opcode->len_bytes_6502_merged) {
+       p_opcode += p_opcode->num_bytes_6502) {
     uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
     uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
@@ -830,7 +830,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
    */
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
-       p_opcode += p_opcode->len_bytes_6502_merged) {
+       p_opcode += p_opcode->num_bytes_6502) {
     uint32_t num_uops;
     uint32_t i_uops;
 
@@ -1056,7 +1056,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
                                k_opcode_interp,
                                addr_6502);
       p_opcode->ends_block = 1;
-      (p_opcode + p_opcode->len_bytes_6502_merged)->addr_6502 = -1;
+      (p_opcode + p_opcode->num_bytes_6502)->addr_6502 = -1;
       break;
     }
   }
@@ -1065,7 +1065,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   p_prev_opcode = NULL;
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
-       p_opcode += p_opcode->len_bytes_6502_orig) {
+       p_opcode += p_opcode->num_bytes_6502) {
     uint8_t opcode_6502 = p_opcode->opcode_6502;
 
     if (p_prev_opcode == NULL) {
@@ -1110,7 +1110,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         assert(p_modify_uop != NULL);
         jit_opcode_eliminate(p_opcode);
         p_modify_uop->value1++;
-        p_prev_opcode->len_bytes_6502_merged += p_opcode->len_bytes_6502_orig;
         p_prev_opcode->max_cycles_merged += p_opcode->max_cycles_orig;
 
         continue;
@@ -1137,7 +1136,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   p_idy_uop = NULL;
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
-       p_opcode += p_opcode->len_bytes_6502_merged) {
+       p_opcode += p_opcode->num_bytes_6502) {
     uint32_t i_uops;
     uint32_t num_uops;
 
@@ -1261,7 +1260,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   carry_flipped_for_branch = 0;
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
-       p_opcode += p_opcode->len_bytes_6502_merged) {
+       p_opcode += p_opcode->num_bytes_6502) {
     uint32_t i_uops;
     uint32_t num_uops;
 

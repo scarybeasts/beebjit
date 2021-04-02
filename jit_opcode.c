@@ -105,6 +105,5 @@ jit_opcode_eliminate(struct jit_opcode_details* p_opcode) {
     }
   }
 
-  p_opcode->len_bytes_6502_merged = 0;
   p_opcode->max_cycles_merged = 0;
 }
