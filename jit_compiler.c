@@ -396,24 +396,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->operand_6502 = operand_6502;
 
-  p_details->max_cycles_orig = p_compiler->p_opcode_cycles[opcode_6502];
+  p_details->max_cycles = p_compiler->p_opcode_cycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
     if ((opmem & k_opmem_read_flag) &&
         (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
         could_page_cross) {
-      p_details->max_cycles_orig++;
+      p_details->max_cycles++;
     } else if (opmode == k_rel) {
       /* Taken branches take 1 cycles longer, or 2 cycles longer if there's
        * also a page crossing.
        */
       if (((addr_6502 + 2) >> 8) ^ (rel_target_6502 >> 8)) {
-        p_details->max_cycles_orig += 2;
+        p_details->max_cycles += 2;
       } else {
-        p_details->max_cycles_orig++;
+        p_details->max_cycles++;
       }
     }
   }
-  p_details->max_cycles_merged = p_details->max_cycles_orig;
 
   if (optype == k_rti) {
     /* Bounce to the interpreter for RTI. The problem with RTI is that it
@@ -591,7 +590,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       /* Fixup countdown if a branch wasn't taken. */
       jit_opcode_make_uop1(p_uop,
                            k_opcode_ADD_CYCLES,
-                           (uint8_t) (p_details->max_cycles_orig - 2));
+                           (uint8_t) (p_details->max_cycles - 2));
       p_uop++;
     }
     break;
@@ -1960,8 +1959,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
     /* The dyanmic opcode doesn't directly consume 6502 cycles itself -- the
      * mechanics of that are internal to the inturbo machine.
      */
-    p_details->max_cycles_orig = 0;
-    p_details->max_cycles_merged = 0;
+    p_details->max_cycles = 0;
     break;
   }
 }
@@ -1988,7 +1986,7 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
       p_details_fixup = p_details;
     }
 
-    p_details_fixup->cycles_run_start += p_details->max_cycles_orig;
+    p_details_fixup->cycles_run_start += p_details->max_cycles;
     p_uop->value2 = p_details_fixup->cycles_run_start;
   }
 }
@@ -2253,7 +2251,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
       addr_6502++;
     }
-    cycles -= p_details->max_cycles_merged;
+    cycles -= p_details->max_cycles;
     last_jit_ptr = jit_ptr;
   }
 }

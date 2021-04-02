@@ -1110,7 +1110,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         assert(p_modify_uop != NULL);
         jit_opcode_eliminate(p_opcode);
         p_modify_uop->value1++;
-        p_prev_opcode->max_cycles_merged += p_opcode->max_cycles_orig;
 
         continue;
       }

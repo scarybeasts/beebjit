@@ -26,7 +26,7 @@ struct jit_opcode_details {
   uint8_t opcode_6502;
   uint16_t operand_6502;
   uint8_t num_bytes_6502;
-  uint8_t max_cycles_orig;
+  uint8_t max_cycles;
   int branches;
   int32_t min_6502_addr;
   int32_t max_6502_addr;
@@ -48,7 +48,6 @@ struct jit_opcode_details {
   int32_t flag_decimal;
   uint8_t num_fixup_uops;
   struct jit_uop* fixup_uops[k_max_uops_per_opcode];
-  uint8_t max_cycles_merged;
   int self_modify_invalidated;
   int is_dynamic_opcode;
   int is_dynamic_operand;
