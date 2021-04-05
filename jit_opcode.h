@@ -28,6 +28,7 @@ struct jit_opcode_details {
   uint8_t num_bytes_6502;
   uint8_t max_cycles;
   int branches;
+  uint16_t branch_addr_6502;
   int32_t min_6502_addr;
   int32_t max_6502_addr;
 
@@ -52,6 +53,7 @@ struct jit_opcode_details {
   int is_dynamic_opcode;
   int is_dynamic_operand;
   int is_branch_landing_addr;
+  int is_post_branch_addr;
 };
 
 enum {

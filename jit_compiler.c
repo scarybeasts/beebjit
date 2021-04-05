@@ -84,6 +84,7 @@ struct jit_compiler {
   struct jit_opcode_details opcode_details[k_max_addr_space_per_compile];
   struct jit_opcode_details* p_last_opcode;
   uint16_t start_addr_6502;
+  int has_unresolved_jumps;
 };
 
 static void
@@ -262,6 +263,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
+  p_details->branch_addr_6502 = -1;
   p_details->min_6502_addr = -1;
   p_details->max_6502_addr = -1;
 
@@ -322,6 +324,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_rel:
     operand_6502 = p_mem_read[addr_plus_1];
     rel_target_6502 = ((int) addr_6502 + 2 + (int8_t) operand_6502);
+    p_details->branch_addr_6502 = rel_target_6502;
     break;
   case k_abs:
   case k_abx:
@@ -530,6 +533,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
       p_uop++;
     } else {
+      p_details->branch_addr_6502 = operand_6502;
       main_written = 0;
     }
     break;
@@ -725,12 +729,45 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   assert(p_details->num_uops <= k_max_uops_per_opcode);
 }
 
+static struct jit_opcode_details*
+jit_compiler_get_opcode_for_6502_addr(struct jit_compiler* p_compiler,
+                                      uint16_t addr) {
+  uint16_t start_addr_6502 = p_compiler->start_addr_6502;
+  uint16_t end_addr_6502 = (start_addr_6502 + k_max_addr_space_per_compile);
+  if (addr < start_addr_6502) {
+    return NULL;
+  }
+  if (addr >= end_addr_6502) {
+    return NULL;
+  }
+
+  return &p_compiler->opcode_details[addr - start_addr_6502];
+}
+
 static uint32_t
 jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
                                    uint16_t addr_6502) {
-  void* p_host_address_object = p_compiler->p_host_address_object;
-  uint32_t ret = (uint32_t) (size_t) p_compiler->get_block_host_address(
-      p_host_address_object, addr_6502);
+  uint32_t ret = 0;
+  struct jit_opcode_details* p_target_details =
+      jit_compiler_get_opcode_for_6502_addr(p_compiler, addr_6502);
+
+  /* If the branch target address is in our currently compiling block, jump
+   * there.
+   * (Disabled as it's part of extended block support.)
+   */
+  if ((p_target_details != NULL) &&
+      (p_target_details->addr_6502 != -1) &&
+      p_target_details->is_branch_landing_addr) {
+    if (p_target_details->p_host_address_prefix != NULL) {
+      ret = (uint32_t) (uintptr_t) p_target_details->p_host_address_prefix;
+    } else {
+      p_compiler->has_unresolved_jumps = 1;
+    }
+  } else {
+    void* p_host_address_object = p_compiler->p_host_address_object;
+    ret = (uint32_t) (uintptr_t) p_compiler->get_block_host_address(
+        p_host_address_object, addr_6502);
+  }
   return ret;
 }
 
@@ -1781,14 +1818,16 @@ static void
 jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   uint16_t addr_6502 = p_compiler->start_addr_6502;
-  int is_next_branch_landing_addr = 1;
+  int is_next_post_branch_addr = 1;
   uint32_t opcode_index = 0;
   int is_next_block_continuation = 0;
   uint32_t total_num_opcodes = 0;
 
   while (1) {
+    uint8_t opcode_6502;
     struct jit_opcode_details* p_next_details =
         &p_compiler->opcode_details[opcode_index];
+    int is_branch_landing_addr_backup = p_next_details->is_branch_landing_addr;
 
     jit_compiler_get_opcode_details(p_compiler, p_next_details, addr_6502);
 
@@ -1799,16 +1838,55 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
     }
 
     p_details = p_next_details;
-    p_details->is_branch_landing_addr = is_next_branch_landing_addr;
+    p_details->is_branch_landing_addr = is_branch_landing_addr_backup;
+    p_details->is_post_branch_addr = is_next_post_branch_addr;
 
+    opcode_6502 = p_details->opcode_6502;
     opcode_index += p_details->num_bytes_6502;
     addr_6502 += p_details->num_bytes_6502;
     total_num_opcodes++;
 
+    is_next_post_branch_addr = 0;
+    /* Tag branch and jump targets. */
+    if ((p_details->branches == k_bra_m) || (opcode_6502 == 0x4C)) {
+      struct jit_opcode_details* p_target_details;
+      int32_t branch_addr_6502 = p_details->branch_addr_6502;
+      assert(branch_addr_6502 != -1);
+      p_target_details =
+          jit_compiler_get_opcode_for_6502_addr(p_compiler, branch_addr_6502);
+      if (p_target_details != NULL) {
+        /* NOTE: extended block support disabled as it needs more research.
+         * It can't be re-enabled without disabling the optimizer, and also
+         * forcing x64 branch opcodes to always emit 32-bit offsets.
+         */
+        if (0) {
+          p_target_details->is_branch_landing_addr = 1;
+        }
+      }
+    }
+    if (p_details->branches == k_bra_m) {
+      is_next_post_branch_addr = 1;
+    }
+
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
     if (p_details->ends_block) {
+      uint8_t opcode_6502 = p_details->opcode_6502;
       assert(p_details->branches != k_bra_m);
-      break;
+      /* Let compilation continue if this is a JMP or RTS and the next opcode
+       * is referenced previously in the block.
+       * (Disabled as it's part of extended block support.)
+       */
+      if ((opcode_6502 == 0x4C) || (opcode_6502 == 0x60)) {
+        struct jit_opcode_details* p_next_details =
+            jit_compiler_get_opcode_for_6502_addr(p_compiler, addr_6502);
+        if ((p_next_details != NULL) &&
+            (p_next_details->is_branch_landing_addr)) {
+          p_details->ends_block = 0;
+        }
+      }
+      if (p_details->ends_block) {
+        break;
+      }
     }
 
     /* Exit loop condition: next opcode is the start of a block boundary. */
@@ -1823,8 +1901,6 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
       is_next_block_continuation = 1;
       break;
     }
-
-    is_next_branch_landing_addr = (p_details->branches == k_bra_m);
   }
 
   assert(addr_6502 > p_compiler->start_addr_6502);
@@ -1974,8 +2050,15 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
        p_details->addr_6502 != -1;
        p_details += p_details->num_bytes_6502) {
     /* Calculate total cycle count at each branch landing location. */
+    int needs_countdown = 0;
     assert(p_details->cycles_run_start == -1);
+    if (p_details->is_post_branch_addr) {
+      needs_countdown = 1;
+    }
     if (p_details->is_branch_landing_addr) {
+      needs_countdown = 1;
+    }
+    if (needs_countdown) {
       jit_opcode_insert_uop(p_details,
                             0,
                             k_opcode_countdown,
@@ -2326,7 +2409,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   }
 
   /* Fifth, emit the uop stream to the output buffer. */
+  p_compiler->has_unresolved_jumps = 0;
   jit_compiler_emit_uops(p_compiler);
+  if (p_compiler->has_unresolved_jumps) {
+    /* Need to do it again if there were any unresolved forward jumps.
+     * (Disabled as it's part of extended block support.)
+     */
+    p_compiler->has_unresolved_jumps = 0;
+    jit_compiler_emit_uops(p_compiler);
+    assert(!p_compiler->has_unresolved_jumps);
+  }
 
   /* Sixth, update compiler metadata. */
   jit_compiler_update_metadata(p_compiler);
