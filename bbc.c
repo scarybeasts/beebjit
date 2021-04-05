@@ -1514,12 +1514,12 @@ bbc_create(int mode,
                                         p_bbc);
   keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
-  p_bbc->p_adc = adc_create();
+  p_bbc->p_adc = adc_create(p_bbc->p_system_via);
 
   p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
                                       p_bbc->p_adc,
                                       p_bbc->p_keyboard);
-  if (util_has_option(p_log_flags, "bbc:joystick-keyboard")) {
+  if (util_has_option(p_opt_flags, "bbc:joystick-keyboard")) {
     joystick_set_use_keyboard(p_bbc->p_joystick, 1);
   }
 

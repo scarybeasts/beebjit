@@ -949,7 +949,7 @@ via_set_CA1(struct via_struct* p_via, int level) {
     return;
   }
 
-  trigger_level = !!(p_via->PCR & 1);
+  trigger_level = !!(p_via->PCR & 0x01);
   if (level == trigger_level) {
     p_via->IRA = p_via->peripheral_a;
     via_raise_interrupt(p_via, k_int_CA1);
@@ -972,6 +972,23 @@ via_set_CA2(struct via_struct* p_via, int level) {
     via_raise_interrupt(p_via, k_int_CA2);
   }
   p_via->CA2 = level;
+}
+
+void
+via_set_CB1(struct via_struct* p_via, int level) {
+  int trigger_level;
+
+  if (level == p_via->CB1) {
+    return;
+  }
+
+  trigger_level = !!(p_via->PCR & 0x10);
+  if (level == trigger_level) {
+    p_via->IRB = p_via->peripheral_b;
+    via_raise_interrupt(p_via, k_int_CB1);
+    assert((p_via->PCR & 0xC0) != 0x80);
+  }
+  p_via->CB1 = level;
 }
 
 void

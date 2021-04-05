@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
+struct via_struct;
+
 struct adc_struct;
 
-struct adc_struct* adc_create(void);
+struct adc_struct* adc_create(struct via_struct* p_system_via);
 void adc_destroy(struct adc_struct* p_adc);
 
 uint8_t adc_read(struct adc_struct* p_adc, uint8_t addr);

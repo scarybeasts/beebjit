@@ -373,7 +373,7 @@ keyboard_bbc_key_to_rowcol(uint8_t key, int32_t* p_row, int32_t* p_col) {
 }
 
 static int
-keyboard_is_key_down(struct keyboard_state* p_state, uint8_t key) {
+keyboard_is_key_state_down(struct keyboard_state* p_state, uint8_t key) {
   return !!(p_state->key_state[key] & k_keyboard_state_flag_down);
 }
 
@@ -943,6 +943,11 @@ keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard) {
 }
 
 int
+keyboard_is_key_down(struct keyboard_struct* p_keyboard, uint8_t key) {
+  return keyboard_is_key_state_down(p_keyboard->p_active, key);
+}
+
+int
 keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key) {
   struct keyboard_state* p_state = p_keyboard->p_active;
   int ret = !!(p_state->key_state[key] &
@@ -1014,7 +1019,7 @@ keyboard_apply_physical_keys(struct keyboard_struct* p_keyboard,
   for (i = 0; i < num_keys; ++i) {
     uint8_t key = p_keys[i];
     uint8_t is_down = p_is_downs[i];
-    int curr_is_down = keyboard_is_key_down(p_state, key);
+    int curr_is_down = keyboard_is_key_state_down(p_state, key);
     int is_spurious = (is_down == curr_is_down);
 
     if (is_spurious) {

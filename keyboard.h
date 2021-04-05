@@ -77,6 +77,7 @@ int keyboard_bbc_is_key_column_pressed(struct keyboard_struct* p_keyboard,
                                        uint8_t col);
 int keyboard_bbc_is_any_key_pressed(struct keyboard_struct* p_keyboard);
 
+int keyboard_is_key_down(struct keyboard_struct* p_keyboard, uint8_t key);
 int keyboard_consume_key_press(struct keyboard_struct* p_keyboard, uint8_t key);
 int keyboard_consume_alt_key_press(struct keyboard_struct* p_keyboard,
                                    uint8_t key);
