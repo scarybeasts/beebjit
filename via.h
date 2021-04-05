@@ -48,6 +48,8 @@ void via_set_CA2(struct via_struct* p_via, int level);
 void via_set_CB1(struct via_struct* p_via, int level);
 void via_set_CB2(struct via_struct* p_via, int level);
 
+void via_set_peripheral_b(struct via_struct* p_via, uint8_t val);
+
 void via_get_registers(struct via_struct* p_via,
                        uint8_t* p_ORA,
                        uint8_t* p_ORB,

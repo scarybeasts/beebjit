@@ -9,7 +9,7 @@ x86_64-w64-mingw32-gcc -Wall -W -Werror \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
     jit_compiler.c cpu_driver.c \
     jit_optimizer.c jit_opcode.c keyboard.c \
-    teletext.c render.c serial.c log.c test.c tape.c adc.c cmos.c \
+    teletext.c render.c serial.c log.c test.c tape.c adc.c cmos.c joystick.c \
     intel_fdc.c wd_fdc.c \
     disc_drive.c disc.c ibm_disc_format.c disc_tool.c \
     disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c \

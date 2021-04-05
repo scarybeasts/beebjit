@@ -9,6 +9,7 @@
 #include "disc.h"
 #include "disc_drive.h"
 #include "intel_fdc.h"
+#include "joystick.h"
 #include "keyboard.h"
 #include "log.h"
 #include "memory_access.h"
@@ -155,6 +156,8 @@ struct bbc_struct {
   struct via_struct* p_user_via;
   uint32_t IC32;
   struct keyboard_struct* p_keyboard;
+  struct adc_struct* p_adc;
+  struct joystick_struct* p_joystick;
   struct sound_struct* p_sound;
   struct render_struct* p_render;
   struct teletext_struct* p_teletext;
@@ -427,7 +430,7 @@ bbc_read_callback(void* p,
   case (k_addr_master_adc + 0):
     /* Syncron reads this even on a model B. */
     if (p_bbc->is_master) {
-      ret = adc_read(addr & 3);
+      ret = adc_read(p_bbc->p_adc, (addr & 3));
     } else {
       /* EMU: returns 0 on an issue 3. */
       ret = 0;
@@ -532,7 +535,7 @@ bbc_read_callback(void* p,
   case (k_addr_adc + 24):
   case (k_addr_adc + 28):
     if (!p_bbc->is_master) {
-      ret = adc_read(addr & 3);
+      ret = adc_read(p_bbc->p_adc, (addr & 3));
     } else {
       log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
                            k_log_misc,
@@ -914,7 +917,7 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_master_adc + 0):
     if (p_bbc->is_master) {
-      adc_write((addr & 3), val);
+      adc_write(p_bbc->p_adc, (addr & 3), val);
     } else {
       log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
                            k_log_misc,
@@ -1023,7 +1026,7 @@ bbc_write_callback(void* p,
   case (k_addr_adc + 24):
   case (k_addr_adc + 28):
     if (!p_bbc->is_master) {
-      adc_write((addr & 3), val);
+      adc_write(p_bbc->p_adc, (addr & 3), val);
     } else {
       log_do_log_max_count(&p_bbc->log_count_misc_unimplemented,
                            k_log_misc,
@@ -1485,15 +1488,9 @@ bbc_create(int mode,
   }
 
   p_timing = timing_create(cpu_scale_factor);
-  if (p_timing == NULL) {
-    util_bail("timing_create failed");
-  }
   p_bbc->p_timing = p_timing;
 
   p_state_6502 = state_6502_create(p_timing, p_bbc->p_mem_read);
-  if (p_state_6502 == NULL) {
-    util_bail("state_6502_create failed");
-  }
   p_bbc->p_state_6502 = p_state_6502;
 
   if (is_master) {
@@ -1504,41 +1501,32 @@ bbc_create(int mode,
                                    externally_clocked_via,
                                    p_timing,
                                    p_bbc);
-  if (p_bbc->p_system_via == NULL) {
-    util_bail("via_create failed");
-  }
   via_set_timing_advancer(p_bbc->p_system_via, bbc_timing_advancer, p_bbc);
   p_bbc->p_user_via = via_create(k_via_user,
                                  externally_clocked_via,
                                  p_timing,
                                  p_bbc);
-  if (p_bbc->p_user_via == NULL) {
-    util_bail("via_create failed");
-  }
   via_set_timing_advancer(p_bbc->p_user_via, bbc_timing_advancer, p_bbc);
 
   p_bbc->p_keyboard = keyboard_create(p_timing, &p_bbc->options);
-  if (p_bbc->p_keyboard == NULL) {
-    util_bail("keyboard_create failed");
-  }
   keyboard_set_virtual_updated_callback(p_bbc->p_keyboard,
                                         bbc_virtual_keyboard_updated_callback,
                                         p_bbc);
   keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
-  p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
-  if (p_bbc->p_sound == NULL) {
-    util_bail("sound_create failed");
+  p_bbc->p_adc = adc_create();
+
+  p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
+                                      p_bbc->p_adc,
+                                      p_bbc->p_keyboard);
+  if (util_has_option(p_log_flags, "bbc:joystick-keyboard")) {
+    joystick_set_use_keyboard(p_bbc->p_joystick, 1);
   }
 
+  p_bbc->p_sound = sound_create(synchronous_sound, p_timing, &p_bbc->options);
+
   p_bbc->p_teletext = teletext_create();
-  if (p_bbc->p_teletext == NULL) {
-    util_bail("teletext_create failed");
-  }
   p_bbc->p_render = render_create(p_bbc->p_teletext, &p_bbc->options);
-  if (p_bbc->p_render == NULL) {
-    util_bail("render_create failed");
-  }
   p_bbc->p_video = video_create(p_bbc->p_mem_read,
                                 p_bbc->p_mem_master,
                                 externally_clocked_crtc,
@@ -1550,18 +1538,9 @@ bbc_create(int mode,
                                 p_bbc,
                                 &p_bbc->fast_flag,
                                 &p_bbc->options);
-  if (p_bbc->p_video == NULL) {
-    util_bail("video_create failed");
-  }
 
   p_bbc->p_drive_0 = disc_drive_create(0, p_timing, &p_bbc->options);
-  if (p_bbc->p_drive_0 == NULL) {
-    util_bail("disc_drive_create failed");
-  }
   p_bbc->p_drive_1 = disc_drive_create(1, p_timing, &p_bbc->options);
-  if (p_bbc->p_drive_1 == NULL) {
-    util_bail("disc_drive_create failed");
-  }
 
   if (p_bbc->is_wd_fdc) {
     p_bbc->p_wd_fdc = wd_fdc_create(p_state_6502,
@@ -1569,38 +1548,23 @@ bbc_create(int mode,
                                     p_bbc->is_wd_1772,
                                     p_timing,
                                     &p_bbc->options);
-    if (p_bbc->p_wd_fdc == NULL) {
-      util_bail("wd_fdc_create failed");
-    }
     wd_fdc_set_drives(p_bbc->p_wd_fdc, p_bbc->p_drive_0, p_bbc->p_drive_1);
   } else {
     p_bbc->p_intel_fdc = intel_fdc_create(p_state_6502,
                                           p_timing,
                                           &p_bbc->options);
-    if (p_bbc->p_intel_fdc == NULL) {
-      util_bail("intel_fdc_create failed");
-    }
     intel_fdc_set_drives(p_bbc->p_intel_fdc,
                          p_bbc->p_drive_0,
                          p_bbc->p_drive_1);
   }
 
   p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
-  if (p_bbc->p_tape == NULL) {
-    util_bail("tape_create failed");
-  }
 
   p_bbc->p_serial = serial_create(p_state_6502, fasttape_flag, &p_bbc->options);
-  if (p_bbc->p_serial == NULL) {
-    util_bail("serial_create failed");
-  }
   serial_set_fast_mode_callback(p_bbc->p_serial, bbc_set_fast_mode, p_bbc);
   serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr, &p_bbc->options);
-  if (p_debug == NULL) {
-    util_bail("debug_create failed");
-  }
 
   p_bbc->p_debug = p_debug;
   p_bbc->options.p_debug_object = p_debug;
@@ -1611,9 +1575,6 @@ bbc_create(int mode,
                                          &p_bbc->memory_access,
                                          p_timing,
                                          &p_bbc->options);
-  if (p_bbc->p_cpu_driver == NULL) {
-    util_bail("cpu_driver_alloc failed");
-  }
   cpu_driver_init(p_bbc->p_cpu_driver);
   p_bbc->p_cpu_driver->p_funcs->set_reset_callback(p_bbc->p_cpu_driver,
                                                    bbc_do_reset_callback,
@@ -1646,6 +1607,8 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   teletext_destroy(p_bbc->p_teletext);
   render_destroy(p_bbc->p_render);
   sound_destroy(p_bbc->p_sound);
+  joystick_destroy(p_bbc->p_joystick);
+  adc_destroy(p_bbc->p_adc);
   keyboard_destroy(p_bbc->p_keyboard);
   via_destroy(p_bbc->p_system_via);
   via_destroy(p_bbc->p_user_via);
@@ -2311,6 +2274,8 @@ bbc_cycles_timer_callback(void* p) {
    * timer at the correct baud rate for the externally attached device.
    */
   serial_tick(p_bbc->p_serial);
+
+  joystick_tick(p_bbc->p_joystick);
 
   if (p_bbc->log_speed) {
     bbc_do_log_speed(p_bbc, curr_time_us);
