@@ -1514,7 +1514,7 @@ bbc_create(int mode,
                                         p_bbc);
   keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
-  p_bbc->p_adc = adc_create(p_bbc->p_system_via);
+  p_bbc->p_adc = adc_create(p_timing, p_bbc->p_system_via);
 
   p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
                                       p_bbc->p_adc,

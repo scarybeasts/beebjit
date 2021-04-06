@@ -1,6 +1,7 @@
 #include "adc.h"
 
 #include "log.h"
+#include "timing.h"
 #include "util.h"
 #include "via.h"
 
@@ -11,17 +12,33 @@ enum {
 };
 
 struct adc_struct {
+  struct timing_struct* p_timing;
   struct via_struct* p_system_via;
   uint32_t current_channel;
   uint16_t channel_value[k_adc_num_channels];
+  uint32_t timer_id;
+  int is_12bit_mode;
+  int is_result_ready;
 };
 
+static void
+adc_timer_callback(void* p) {
+  struct adc_struct* p_adc = (struct adc_struct*) p;
+
+  (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
+  p_adc->is_result_ready = 1;
+  via_set_CB1(p_adc->p_system_via, 0);
+}
+
 struct adc_struct*
-adc_create(struct via_struct* p_system_via) {
+adc_create(struct timing_struct* p_timing, struct via_struct* p_system_via) {
   uint32_t i;
   struct adc_struct* p_adc = util_mallocz(sizeof(struct adc_struct));
 
+  p_adc->p_timing = p_timing;
   p_adc->p_system_via = p_system_via;
+
+  p_adc->timer_id = timing_register_timer(p_timing, adc_timer_callback, p_adc);
 
   for (i = 0; i < k_adc_num_channels; ++i) {
     /* Default to return of 0x8000 across high and low, which is "central
@@ -33,8 +50,21 @@ adc_create(struct via_struct* p_system_via) {
   return p_adc;
 }
 
+static int
+adc_is_busy(struct adc_struct* p_adc) {
+  return timing_timer_is_running(p_adc->p_timing, p_adc->timer_id);
+}
+
+static void
+adc_stop_if_busy(struct adc_struct* p_adc) {
+  if (adc_is_busy(p_adc)) {
+    (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
+  }
+}
+
 void
 adc_destroy(struct adc_struct* p_adc) {
+  adc_stop_if_busy(p_adc);
   util_free(p_adc);
 }
 
@@ -47,15 +77,19 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
 
   switch (addr) {
   case 0: /* Status. */
-    /* Return ADC not busy and conversion completed (bits 6 / 7).
-     * TODO: never returns busy. Conversions are instant, which is an
-     * inaccuracy of course.
-     */
-    ret = 0x40;
-    ret |= p_adc->current_channel;
+    ret = p_adc->current_channel;
+    if (p_adc->is_12bit_mode) {
+      ret |= 0x08;
+    }
     /* AUG states bit 4 is 2nd MSB and bit 5 MSB of conversion. */
     ret |= ((!!(adc_val & 0x8000)) * 0x20);
     ret |= ((!!(adc_val & 0x4000)) * 0x10);
+    if (!adc_is_busy(p_adc)) {
+      ret |= 0x40;
+    }
+    if (!p_adc->is_result_ready) {
+      ret |= 0x80;
+    }
     break;
   case 1: /* ADC high. */
     ret = (adc_val >> 8);
@@ -88,19 +122,26 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
 
 void
 adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
-  struct via_struct* p_system_via;
+  uint64_t ticks;
 
   assert(addr <= 3);
 
   switch (addr) {
   case 0:
+    adc_stop_if_busy(p_adc);
     p_adc->current_channel = (val & 3);
-    /* NOTE: our converstions are instant, which is inaccurate, so the interrupt
-     * line gets raised immediately.
-     */
-    p_system_via = p_adc->p_system_via;
-    via_set_CB1(p_system_via, 1);
-    via_set_CB1(p_system_via, 0);
+    p_adc->is_12bit_mode = !!(val & 0x08);
+    p_adc->is_result_ready = 0;
+    via_set_CB1(p_adc->p_system_via, 1);
+    /* 10ms or 4ms conversion time depending on resolution. */
+    if (p_adc->is_12bit_mode) {
+      ticks = (10 * 2000);
+    } else {
+      ticks = (4 * 2000);
+    }
+    (void) timing_start_timer_with_value(p_adc->p_timing,
+                                         p_adc->timer_id,
+                                         ticks);
     break;
   default:
     break;
