@@ -17,6 +17,7 @@ struct adc_struct {
   uint32_t current_channel;
   uint16_t channel_value[k_adc_num_channels];
   uint32_t timer_id;
+  int is_input_flag;
   int is_12bit_mode;
   int is_result_ready;
 };
@@ -78,6 +79,9 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
   switch (addr) {
   case 0: /* Status. */
     ret = p_adc->current_channel;
+    if (p_adc->is_input_flag) {
+      ret |= 0x04;
+    }
     if (p_adc->is_12bit_mode) {
       ret |= 0x08;
     }
@@ -130,6 +134,7 @@ adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
   case 0:
     adc_stop_if_busy(p_adc);
     p_adc->current_channel = (val & 3);
+    p_adc->is_input_flag = !!(val & 0x04);
     p_adc->is_12bit_mode = !!(val & 0x08);
     p_adc->is_result_ready = 0;
     via_set_CB1(p_adc->p_system_via, 1);
