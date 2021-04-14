@@ -1226,6 +1226,13 @@ bbc_set_fast_mode(void* p, int is_fast) {
                                                      p_bbc->p_video);
 }
 
+/* TODO: Might be better to implement Rocket as a pseudo device attached to
+   the BBC to avoid exposing more state poking BBC RAM from the outside. */
+void
+bbc_set_fast_flag(struct bbc_struct* p_bbc, int fast_flag ) {
+  bbc_set_fast_mode(p_bbc, fast_flag);
+}
+
 static void
 bbc_reset_callback_baselines(struct bbc_struct* p_bbc) {
   /* Selects 0xFC00 - 0xFFFF which is broader than the needed 0xFC00 - 0xFEFF
@@ -2043,6 +2050,11 @@ bbc_get_address_details(struct bbc_struct* p_bbc,
     return;
   }
   *p_out_is_rom = 1;
+}
+
+int
+bbc_get_fast_flag(struct bbc_struct* p_bbc) {
+  return p_bbc->fast_flag;
 }
 
 int

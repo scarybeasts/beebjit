@@ -11,9 +11,10 @@
 
 enum {
   k_rocket_default_vpr = 4,
-  k_rocket_default_addr_audio_flag = 0x9D,
-  k_rocket_default_addr_vsync_count = 0x9E,
-  k_rocket_default_addr_track_values = 0x70
+  k_rocket_default_addr_vsync_count = 0x9C,
+  k_rocket_default_addr_audio_flag = 0x9E,
+  k_rocket_default_addr_fast_mode = 0x9F,
+  k_rocket_default_addr_track_values = 0x90
 };
 
 struct rocket_struct {
@@ -22,6 +23,7 @@ struct rocket_struct {
 
   /* BBC addresses for transfering Rocket data. */
   uint16_t addr_audio_flag;
+  uint16_t addr_fast_mode;
   uint16_t addr_vsync_count;
   uint16_t addr_track_values;
 
@@ -31,6 +33,7 @@ struct rocket_struct {
 
   /* Internals */
   int audio_is_playing;
+  int fast_mode;
   uint32_t vsyncs;
   uint32_t vpr;        /* vsyncs per row */
 
@@ -114,11 +117,17 @@ rocket_create(struct bbc_struct* p_bbc,
   p_rocket->addr_audio_flag = k_rocket_default_addr_audio_flag;
   (void) util_get_x16_option(&p_rocket->addr_audio_flag, p_opt_flags, "rocket:addr_audio_flag=");
 
+  p_rocket->addr_fast_mode = k_rocket_default_addr_fast_mode;
+  (void) util_get_x16_option(&p_rocket->addr_fast_mode, p_opt_flags, "rocket:addr_fast_mode=");
+
   p_rocket->addr_vsync_count = k_rocket_default_addr_vsync_count;
   (void) util_get_x16_option(&p_rocket->addr_vsync_count, p_opt_flags, "rocket:addr_vsync_count=");
 
   p_rocket->addr_track_values = k_rocket_default_addr_track_values;
   (void) util_get_x16_option(&p_rocket->addr_track_values, p_opt_flags, "rocket:addr_track_values=");
+
+  /* Set initial state. */
+  p_rocket->fast_mode = bbc_get_fast_flag(p_bbc);
 
   /* Create Rocket device. */
   p_rocket->device = sync_create_device(p_prefix);
@@ -181,4 +190,18 @@ rocket_run(struct rocket_struct* p_rocket) {
     uint8_t val_bbc = val_f_as_bbc(sync_get_val(p_rocket->s_tracks[i], row));
     bbc_memory_write(p_rocket->p_bbc, p_rocket->addr_track_values+i, val_bbc);
   }
+
+  /* Allow BBC toggle fast mode. */
+  uint8_t bbc_fast_flag = p_mem_read[p_rocket->addr_fast_mode];
+  int beebjit_fast_flag = bbc_get_fast_flag(p_rocket->p_bbc);
+
+  if (p_rocket->fast_mode != beebjit_fast_flag) {
+    /* User toggled fast mode so respect this first. */
+    bbc_memory_write(p_rocket->p_bbc, p_rocket->addr_fast_mode, beebjit_fast_flag);
+  } else if (bbc_fast_flag != beebjit_fast_flag) {
+    /* BBC requested emulator toggle. */
+    bbc_set_fast_flag(p_rocket->p_bbc, bbc_fast_flag);
+  }
+
+  p_rocket->fast_mode = bbc_get_fast_flag(p_rocket->p_bbc); 
 }

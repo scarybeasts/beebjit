@@ -136,6 +136,9 @@ void bbc_get_address_details(struct bbc_struct* p_bbc,
                              int* p_out_is_rom,
                              uint16_t addr_6502);
 
+int bbc_get_fast_flag(struct bbc_struct* p_bbc);
+void bbc_set_fast_flag(struct bbc_struct* p_bbc, int fast_flag );
+
 int bbc_get_run_flag(struct bbc_struct* p_bbc);
 int bbc_get_print_flag(struct bbc_struct* p_bbc);
 int bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc);
