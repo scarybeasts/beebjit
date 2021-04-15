@@ -185,11 +185,34 @@ wd_fdc_set_intrq(struct wd_fdc_struct* p_fdc, int level) {
 }
 
 static void
+wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
+  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
+  if (p_fdc->command_type != 1) {
+    return;
+  }
+
+  p_fdc->status_register &=
+      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
+  if (disc_drive_get_track(p_current_drive) == 0) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
+  }
+  if (disc_drive_is_index_pulse(p_current_drive)) {
+    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
+  }
+}
+
+static void
 wd_fdc_command_done(struct wd_fdc_struct* p_fdc, int do_raise_intrq) {
   assert(p_fdc->status_register & k_wd_fdc_status_busy);
 
   p_fdc->status_register &= ~k_wd_fdc_status_busy;
   wd_fdc_clear_state(p_fdc);
+
+  /* If a type I command ends immediately (for example, a restore to track 0
+   * where we're already at track 0), we might not yet have updated the status
+   * bits at all, so make sure they're up to date here.
+   */
+  wd_fdc_update_type_I_status_bits(p_fdc);
 
   /* EMU NOTE: leave DRQ alone, if it is raised leave it raised. */
   if (do_raise_intrq) {
@@ -211,23 +234,6 @@ wd_fdc_check_verify(struct wd_fdc_struct* p_fdc) {
     wd_fdc_set_state(p_fdc, k_wd_fdc_state_search_id);
   } else {
     wd_fdc_command_done(p_fdc, 1);
-  }
-}
-
-static void
-wd_fdc_update_type_I_status_bits(struct wd_fdc_struct* p_fdc) {
-  struct disc_drive_struct* p_current_drive = p_fdc->p_current_drive;
-  if (p_fdc->command_type != 1) {
-    return;
-  }
-
-  p_fdc->status_register &=
-      ~(k_wd_fdc_status_type_I_track_0 | k_wd_fdc_status_type_I_index);
-  if (disc_drive_get_track(p_current_drive) == 0) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_track_0;
-  }
-  if (disc_drive_is_index_pulse(p_current_drive)) {
-    p_fdc->status_register |= k_wd_fdc_status_type_I_index;
   }
 }
 
