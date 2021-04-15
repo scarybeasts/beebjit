@@ -847,6 +847,13 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_INSTR_KIL()                                                    \
+  if (!(special_checks & k_interp_special_KIL)) {                             \
+    log_do_log(k_log_instruction,                                             \
+               k_log_info,                                                    \
+               "entering KIL state, pc $%.4x opcode $%.2x",                   \
+               pc,                                                            \
+               opcode);                                                       \
+  }                                                                           \
   special_checks |= k_interp_special_KIL;                                     \
   cycles_this_instruction = 7;
 
