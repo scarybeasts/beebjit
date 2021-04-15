@@ -898,7 +898,9 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
 
 static inline void
 debug_check_unusual(struct debug_struct* p_debug,
+                    uint8_t opcode,
                     uint8_t operand1,
+                    uint8_t optype,
                     uint8_t opmode,
                     int is_rom,
                     int is_register,
@@ -961,6 +963,14 @@ debug_check_unusual(struct debug_struct* p_debug,
   } else if ((opmode == k_idx) &&
              (((uint8_t) (operand1 + p_debug->reg_x)) == 0xFF)) {
     (void) printf("DEBUG (PSYCHOTIC): $FF ADDRESS FETCH at $%.4"PRIX16"\n",
+                  p_debug->reg_pc);
+    warned = 1;
+  }
+
+  if ((optype >= k_first_6502_undocumented) &&
+      (optype <= k_last_6502_undocumented)) {
+    (void) printf("DEBUG: undocumented opcode %.2X at $%.4"PRIX16"\n",
+                  opcode,
                   p_debug->reg_pc);
     warned = 1;
   }
@@ -1519,7 +1529,9 @@ debug_callback_common(struct debug_struct* p_debug,
   }
 
   debug_check_unusual(p_debug,
+                      opcode,
                       operand1,
+                      optype,
                       opmode,
                       is_rom,
                       is_register,

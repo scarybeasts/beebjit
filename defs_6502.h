@@ -85,7 +85,7 @@ enum {
   k_inc = 55,
   k_beq = 56,
   k_sed = 57,
-  k_last_6502_documented = 57,
+  k_first_6502_undocumented = 58,
   k_sax = 58, /* Undocumented. */
   k_alr = 59, /* Undocumented. */
   k_slo = 60, /* Undocumented. */
@@ -104,6 +104,7 @@ enum {
   k_tas = 73, /* Undocumented. */
   k_las = 74, /* Undocumented. */
   k_shx = 75, /* Undocumented. */
+  k_last_6502_undocumented = 75,
   k_tsb = 80, /* 65c12. */
   k_trb = 81, /* 65c12. */
   k_stz = 82, /* 65c12. */

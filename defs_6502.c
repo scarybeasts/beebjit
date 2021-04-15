@@ -485,7 +485,7 @@ defs_6502_setup_65c12(void) {
     if (optype == k_kil) {
       continue;
     }
-    if (optype > k_last_6502_documented) {
+    if (optype >= k_first_6502_undocumented) {
       continue;
     }
     if ((optype == k_nop) &&
