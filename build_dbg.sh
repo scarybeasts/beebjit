@@ -20,5 +20,5 @@ gcc -Wall -W -Werror \
     disc_fsd.c disc_hfe.c disc_ssd.c disc_adl.c \
     disc_rfi.c disc_kryo.c disc_scp.c disc_dfi.c \
     debug.c expression.c jit.c \
-    util.c util_string.c util_container.c \
+    util.c util_string.c util_container.c util_compress.c \
     -lm -lX11 -lXext -lpthread -lasound -lpulse -lpulse-simple

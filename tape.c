@@ -5,6 +5,7 @@
 #include "serial.h"
 #include "timing.h"
 #include "util.h"
+#include "util_compress.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -169,6 +170,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   int32_t* p_tape_buffer;
 
   uint32_t tapes_added = p_tape->tapes_added;
+  uint8_t* p_deflate_buf = NULL;
 
   if (tapes_added == k_tape_max_tapes) {
     util_bail("too many tapes added");
@@ -183,11 +185,28 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
 
   util_file_close(p_file);
 
+  if (len < 2) {
+    util_bail("uef file too small");
+  }
+
+  p_in_buf = p_in_file_buf;
+  if ((p_in_buf[0] == 0x1F) && (p_in_buf[1] == 0x8B)) {
+    int deflate_ret;
+    size_t deflate_len = k_max_uef_size;
+    p_deflate_buf = util_malloc(k_max_uef_size);
+
+    deflate_ret = util_gunzip(&deflate_len, p_in_buf, len, p_deflate_buf);
+    if (deflate_ret != 0) {
+      util_bail("uef gunzip failed");
+    }
+    len = deflate_len;
+    p_in_buf = p_deflate_buf;
+  }
+
   if (len == k_max_uef_size) {
     util_bail("uef file too large");
   }
 
-  p_in_buf = p_in_file_buf;
   p_out_buf = p_out_file_buf;
   file_remaining = len;
   buffer_remaining = k_max_uef_size;
@@ -195,9 +214,6 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
     util_bail("uef file missing header");
   }
 
-  if ((p_in_buf[0] == 0x1F) && (p_in_buf[1] == 0x8B)) {
-    util_bail("uef file needs unzipping first");
-  }
   if (memcmp(p_in_buf, "UEF File!", 10) != 0) {
     util_bail("uef file incorrect header");
   }
@@ -391,6 +407,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
 
   util_free(p_in_file_buf);
   util_free(p_out_file_buf);
+  util_free(p_deflate_buf);
 }
 
 int
