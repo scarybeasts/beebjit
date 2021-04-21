@@ -11,6 +11,7 @@ int
 util_gunzip(size_t* p_dst_len, uint8_t* p_src, size_t src_len, uint8_t* p_dst) {
   z_stream stream;
   int status;
+  uint8_t flags;
   size_t dst_len = *p_dst_len;
 
   if (src_len < 10) {
@@ -23,13 +24,27 @@ util_gunzip(size_t* p_dst_len, uint8_t* p_src, size_t src_len, uint8_t* p_dst) {
   if (p_src[2] != 0x08) {
     return -102;
   }
-  /* No support for extra flags etc. */
-  if (p_src[3] != 0x00) {
+  /* No support for most extra flags etc. */
+  flags = p_src[3];
+  if ((flags & ~0x08) != 0x00) {
     return -103;
   }
 
+  /* Skip header. */
   p_src += 10;
   src_len -= 10;
+
+  /* Skip filename if any. */
+  if (flags & 0x08) {
+    while ((src_len > 0) && (*p_src != '\0')) {
+      p_src++;
+      src_len--;
+    }
+    if (src_len > 0) {
+      p_src++;
+      src_len--;
+    }
+  }
 
   (void) memset(&stream, '\0', sizeof(stream));
   stream.next_in = p_src;
