@@ -18,6 +18,7 @@ enum {
   k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
   /* Includes a start and stop bit. */
   k_tape_ticks_per_byte = (k_tape_ticks_per_bit * 10),
+  k_tape_max_file_size = (1024 * 1024),
 };
 
 enum {
@@ -153,64 +154,49 @@ tape_read_float(uint8_t* p_in_buf) {
   return *(float*) p_in_buf;
 }
 
-void
-tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
-  static const size_t k_max_uef_size = (1024 * 1024);
-  uint8_t* p_in_file_buf;
-  int32_t* p_out_file_buf;
-  size_t len;
-  size_t file_remaining;
-  size_t buffer_remaining;
+static uint32_t
+tape_load_csw() {
+  util_bail("csw not implemented");
+  return 0;
+}
+
+static uint32_t
+tape_load_uef(int32_t* p_dst,
+              uint32_t dst_len,
+              uint8_t* p_src,
+              uint32_t src_len) {
   uint8_t* p_in_buf;
   int32_t* p_out_buf;
-  struct util_file* p_file;
-  uint32_t num_tape_values;
-  size_t tape_buffer_size;
-  float temp_float;
-  int32_t* p_tape_buffer;
-
-  uint32_t tapes_added = p_tape->tapes_added;
+  uint32_t src_remaining;
+  uint32_t dst_remaining;
   uint8_t* p_deflate_buf = NULL;
 
-  if (tapes_added == k_tape_max_tapes) {
-    util_bail("too many tapes added");
-  }
-
-  p_in_file_buf = util_malloc(k_max_uef_size);
-  p_out_file_buf = util_malloc(k_max_uef_size * 4);
-
-  p_file = util_file_open(p_file_name, 0, 0);
-
-  len = util_file_read(p_file, p_in_file_buf, k_max_uef_size);
-
-  util_file_close(p_file);
-
-  if (len < 2) {
+  if (src_len < 2) {
     util_bail("uef file too small");
   }
 
-  p_in_buf = p_in_file_buf;
+  p_in_buf = p_src;
   if ((p_in_buf[0] == 0x1F) && (p_in_buf[1] == 0x8B)) {
     int deflate_ret;
-    size_t deflate_len = k_max_uef_size;
-    p_deflate_buf = util_malloc(k_max_uef_size);
+    size_t deflate_len = k_tape_max_file_size;
+    p_deflate_buf = util_malloc(deflate_len);
 
-    deflate_ret = util_gunzip(&deflate_len, p_in_buf, len, p_deflate_buf);
+    deflate_ret = util_gunzip(&deflate_len, p_in_buf, src_len, p_deflate_buf);
     if (deflate_ret != 0) {
       util_bail("uef gunzip failed");
     }
-    len = deflate_len;
+    src_len = deflate_len;
     p_in_buf = p_deflate_buf;
   }
 
-  if (len == k_max_uef_size) {
+  if (src_len == k_tape_max_file_size) {
     util_bail("uef file too large");
   }
 
-  p_out_buf = p_out_file_buf;
-  file_remaining = len;
-  buffer_remaining = k_max_uef_size;
-  if (file_remaining < 12) {
+  p_out_buf = p_dst;
+  src_remaining = src_len;
+  dst_remaining = dst_len;
+  if (src_remaining < 12) {
     util_bail("uef file missing header");
   }
 
@@ -221,24 +207,25 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
     util_bail("uef file not supported, need major version 0");
   }
   p_in_buf += 12;
-  file_remaining -= 12;
+  src_remaining -= 12;
 
-  while (file_remaining != 0) {
+  while (src_remaining != 0) {
     uint16_t chunk_type;
     uint32_t chunk_len;
     uint16_t len_u16_1;
     uint16_t len_u16_2;
     uint32_t i;
+    float temp_float;
 
-    if (file_remaining < 6) {
+    if (src_remaining < 6) {
       util_bail("uef file missing chunk");
     }
     chunk_type = (p_in_buf[1] << 8);
     chunk_type |= p_in_buf[0];
     chunk_len = util_read_le32(&p_in_buf[2]);
     p_in_buf += 6;
-    file_remaining -= 6;
-    if (chunk_len > file_remaining) {
+    src_remaining -= 6;
+    if (chunk_len > src_remaining) {
       util_bail("uef file chunk too big");
     }
 
@@ -247,13 +234,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
       /* A text comment, typically of which software made this UEF. */
       break;
     case k_tape_uef_chunk_data:
-      if (chunk_len > buffer_remaining) {
+      if (chunk_len > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < chunk_len; ++i) {
         *p_out_buf++ = p_in_buf[i];
       }
-      buffer_remaining -= chunk_len;
+      dst_remaining -= chunk_len;
       break;
     case k_tape_uef_chunk_defined_format_data:
       if (chunk_len < 3) {
@@ -271,13 +258,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
        * rely on getting a framing error.
        */
 
-      if ((chunk_len - 3) > buffer_remaining) {
+      if ((chunk_len - 3) > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < (chunk_len - 3); ++i) {
         *p_out_buf++ = (p_in_buf[i + 3] & len_u16_1);
       }
-      buffer_remaining -= (chunk_len - 3);
+      dst_remaining -= (chunk_len - 3);
       break;
     case k_tape_uef_chunk_carrier_tone:
       if (chunk_len != 2) {
@@ -289,13 +276,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
       /* From bits to 10-bit byte time units. */
       len_u16_1 /= 10;
 
-      if (len_u16_1 > buffer_remaining) {
+      if (len_u16_1 > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_carrier;
       }
-      buffer_remaining -= len_u16_1;
+      dst_remaining -= len_u16_1;
       break;
     case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
       if (chunk_len != 4) {
@@ -310,7 +297,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
       len_u16_1 /= 10;
       len_u16_2 /= 10;
 
-      if ((uint32_t) (len_u16_1 + 1 + len_u16_2) > buffer_remaining) {
+      if ((uint32_t) (len_u16_1 + 1 + len_u16_2) > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
@@ -320,7 +307,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
       for (i = 0; i < len_u16_2; ++i) {
         *p_out_buf++ = k_tape_uef_value_carrier;
       }
-      buffer_remaining -= (len_u16_1 + 1 + len_u16_2);
+      dst_remaining -= (len_u16_1 + 1 + len_u16_2);
       break;
     case k_tape_uef_chunk_gap_int:
       if (chunk_len != 2) {
@@ -332,13 +319,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
       /* From bits to 10-bit byte time units. */
       len_u16_1 /= 10;
 
-      if (len_u16_1 > buffer_remaining) {
+      if (len_u16_1 > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_silence;
       }
-      buffer_remaining -= len_u16_1;
+      dst_remaining -= len_u16_1;
       break;
     case k_tape_uef_chunk_set_baud_rate:
       /* Example file is STH 3DGrandPrix_B.hq.zip. */
@@ -364,13 +351,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
                        k_tape_system_tick_rate /
                        k_tape_ticks_per_byte);
 
-      if (len_u16_1 > buffer_remaining) {
+      if (len_u16_1 > dst_remaining) {
         util_bail("uef file out of buffer");
       }
       for (i = 0; i < len_u16_1; ++i) {
         *p_out_buf++ = k_tape_uef_value_silence;
       }
-      buffer_remaining -= len_u16_1;
+      dst_remaining -= len_u16_1;
       break;
     case k_tape_uef_chunk_data_encoding_format_change:
       /* Example file is Swarm(ComputerConcepts).uef. */
@@ -388,10 +375,48 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
     }
 
     p_in_buf += chunk_len;
-    file_remaining -= chunk_len;
+    src_remaining -= chunk_len;
   }
 
-  num_tape_values = (k_max_uef_size - buffer_remaining);
+  util_free(p_deflate_buf);
+
+  return (dst_len - dst_remaining);
+}
+
+void
+tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
+  uint8_t* p_in_file_buf;
+  int32_t* p_out_file_buf;
+  size_t len;
+  struct util_file* p_file;
+  uint32_t num_tape_values;
+  size_t tape_buffer_size;
+  int32_t* p_tape_buffer;
+
+  uint32_t tapes_added = p_tape->tapes_added;
+
+  if (tapes_added == k_tape_max_tapes) {
+    util_bail("too many tapes added");
+  }
+
+  p_in_file_buf = util_malloc(k_tape_max_file_size);
+  p_out_file_buf = util_malloc(k_tape_max_file_size * sizeof(int32_t));
+
+  p_file = util_file_open(p_file_name, 0, 0);
+
+  len = util_file_read(p_file, p_in_file_buf, k_tape_max_file_size);
+
+  util_file_close(p_file);
+
+  if (util_is_extension(p_file_name, "csw")) {
+    num_tape_values = tape_load_csw();
+  } else {
+    num_tape_values = tape_load_uef(p_out_file_buf,
+                                    k_tape_max_file_size,
+                                    p_in_file_buf,
+                                    len);
+  }
+
   tape_buffer_size = (num_tape_values * sizeof(int32_t));
   p_tape_buffer = util_malloc(tape_buffer_size);
 
@@ -407,7 +432,6 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
 
   util_free(p_in_file_buf);
   util_free(p_out_file_buf);
-  util_free(p_deflate_buf);
 }
 
 int
