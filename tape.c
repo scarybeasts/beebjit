@@ -188,7 +188,7 @@ tape_load_csw(int32_t* p_dst,
   uint32_t ticks;
   int is_silence;
   int is_carrier;
-  uint32_t dst_index;
+  uint32_t dst_index = 0;
   uint32_t sample_rate = 44100;
 
   if (src_len < 0x34) {
