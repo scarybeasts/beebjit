@@ -70,3 +70,21 @@ util_gunzip(size_t* p_dst_len, uint8_t* p_src, size_t src_len, uint8_t* p_dst) {
 
   return 0;
 }
+
+int
+util_uncompress(size_t* p_dst_len,
+                uint8_t* p_src,
+                size_t src_len,
+                uint8_t* p_dst) {
+  mz_ulong dst_len = *p_dst_len;
+  int ret = uncompress(p_dst, &dst_len, p_src, src_len);
+
+  if (ret != Z_OK) {
+    return -1;
+  }
+
+  *p_dst_len = dst_len;
+
+
+  return 0;
+}
