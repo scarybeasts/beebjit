@@ -401,10 +401,21 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
       p_serial->acia_control = val;
     }
     if (p_serial->log_state) {
+      static const char* p_bitmode_strs[] = {
+        "7E2", "7O2", "7E1", "7O1", "8N2", "8N1", "8E1", "8N1",
+      };
+      static const char* p_divider_strs[] = {
+        "/1", "/16", "/64", "RESET",
+      };
+      const char* p_bitmode_str =
+          p_bitmode_strs[(p_serial->acia_control >> 2) & 0x07];
+      const char* p_divider_str = p_divider_strs[p_serial->acia_control & 0x03];
       log_do_log(k_log_serial,
                  k_log_info,
-                 "control register now: $%.2X",
-                 p_serial->acia_control);
+                 "control register now: $%.2X [%s] [%s]",
+                 p_serial->acia_control,
+                 p_bitmode_str,
+                 p_divider_str);
     }
   } else {
     /* Data register, transmit byte. */
