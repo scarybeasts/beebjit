@@ -873,6 +873,29 @@ void (*render_get_render_blank_function(struct render_struct* p_render))
   }
 }
 
+void (*render_get_render_border_function(struct render_struct* p_render))
+    (struct render_struct*, uint8_t) {
+  if (p_render->render_mode == k_render_mode7) {
+    if (p_render->do_deinterlace_teletext) {
+      return render_function_1MHz_blank_deinterlaced;
+    } else {
+      return render_function_1MHz_blank_interlaced;
+    }
+  } else if (p_render->is_clock_2MHz) {
+    if (p_render->do_deinterlace_bitmap) {
+      return render_function_2MHz_data_deinterlaced;
+    } else {
+      return render_function_2MHz_data_interlaced;
+    }
+  } else {
+    if (p_render->do_deinterlace_bitmap) {
+      return render_function_1MHz_data_deinterlaced;
+    } else {
+      return render_function_1MHz_data_interlaced;
+    }
+  }
+}
+
 void
 render_set_RA(struct render_struct* p_render, uint32_t row_address) {
   int is_rendering_black = 0;

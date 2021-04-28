@@ -70,6 +70,8 @@ void (*render_get_render_data_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t);
 void (*render_get_render_blank_function(struct render_struct* p_render))
     (struct render_struct*, uint8_t);
+void (*render_get_render_border_function(struct render_struct* p_render))
+    (struct render_struct*, uint8_t);
 
 void render_clear_buffer(struct render_struct* p_render);
 void render_process_full_buffer(struct render_struct* p_render);

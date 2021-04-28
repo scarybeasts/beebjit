@@ -90,6 +90,7 @@ struct video_struct {
 
   int log_timer;
   int opt_do_show_frame_boundaries;
+  int opt_debug_border_colour;
   uint32_t log_count_horiz_total;
   uint32_t log_count_hsync_width;
   uint32_t log_count_vsync_width;
@@ -107,6 +108,7 @@ struct video_struct {
   uint32_t frame_skip_counter;
   uint32_t render_every_ticks;
   int is_opt_always_clear_frame_buffer;
+  uint16_t debug_border_addr;
 
   /* Timing. */
   uint64_t wall_time;
@@ -515,6 +517,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       render_get_render_data_function(p_render);
   void (*func_render_blank)(struct render_struct*, uint8_t) =
       render_get_render_blank_function(p_render);
+  void (*func_render_border)(struct render_struct*, uint8_t) =
+      render_get_render_border_function(p_render);
 
   if (p_video->externally_clocked) {
     return;
@@ -592,7 +596,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (r1_hit) {
       p_video->display_enable_horiz = 0;
-      func_render = func_render_blank;
+      func_render = func_render_border;
       p_video->address_counter_next_row = p_video->address_counter;
       if (p_video->display_enable_vert) {
         teletext_DISPMTG_changed(p_video->p_teletext, 0);
@@ -645,6 +649,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                     p_video->address_counter,
                                     p_video->scanline_counter,
                                     p_video->screen_wrap_add);
+        if (p_video->opt_debug_border_colour && !video_is_display_enabled(p_video)) {
+          data = p_video->p_bbc_mem[p_video->debug_border_addr];
+        }
         func_render(p_render, data);
       }
     }
@@ -758,7 +765,7 @@ check_r7:
 
     render_set_RA(p_render, p_video->scanline_counter);
     func_render = video_is_display_enabled(p_video) ?
-        func_render_data : func_render_blank;
+        func_render_data : func_render_border;
 
     r4_hit = (p_video->vert_counter == r4);
     r5_hit = (p_video->vert_adjust_counter == r5);
@@ -1325,6 +1332,11 @@ video_create(uint8_t* p_bbc_mem,
   p_video->log_timer = util_has_option(p_options->p_log_flags, "video:timer");
   p_video->opt_do_show_frame_boundaries = util_has_option(
       p_options->p_opt_flags, "video:frame-boundaries");
+
+  p_video->opt_debug_border_colour = 0;
+  if (util_get_x16_option(&p_video->debug_border_addr, p_options->p_opt_flags, "video:debug_border_addr=")) {
+    p_video->opt_debug_border_colour = 1;
+  }
 
   p_video->frames_skip = 0;
   p_video->frame_skip_counter = 0;
