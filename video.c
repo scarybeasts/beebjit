@@ -596,7 +596,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
     if (r1_hit) {
       p_video->display_enable_horiz = 0;
-      func_render = func_render_border;
+      func_render = p_video->opt_debug_border_colour ? func_render_border : func_render_blank;
       p_video->address_counter_next_row = p_video->address_counter;
       if (p_video->display_enable_vert) {
         teletext_DISPMTG_changed(p_video->p_teletext, 0);
@@ -765,7 +765,8 @@ check_r7:
 
     render_set_RA(p_render, p_video->scanline_counter);
     func_render = video_is_display_enabled(p_video) ?
-        func_render_data : func_render_border;
+        func_render_data :
+        (p_video->opt_debug_border_colour ? func_render_border : func_render_blank);
 
     r4_hit = (p_video->vert_counter == r4);
     r5_hit = (p_video->vert_adjust_counter == r5);
