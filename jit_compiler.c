@@ -1816,12 +1816,12 @@ jit_compiler_make_last_opcode(struct jit_compiler* p_compiler,
 
 static void
 jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
-  struct jit_opcode_details* p_details;
   uint16_t addr_6502 = p_compiler->start_addr_6502;
   int is_next_post_branch_addr = 1;
   uint32_t opcode_index = 0;
   int is_next_block_continuation = 0;
   uint32_t total_num_opcodes = 0;
+  struct jit_opcode_details* p_details = NULL;
 
   while (1) {
     uint8_t opcode_6502;
