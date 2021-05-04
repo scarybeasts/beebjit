@@ -7,6 +7,7 @@
 #include "../util.h"
 
 #include <assert.h>
+#include <math.h>
 #include <string.h>
 
 enum {
@@ -14,7 +15,7 @@ enum {
   k_rocket_default_addr_vsync_count = 0x9C,
   k_rocket_default_addr_audio_flag = 0x9E,
   k_rocket_default_addr_fast_mode = 0x9F,
-  k_rocket_default_addr_track_values = 0x90
+  k_rocket_default_addr_track_values = 0x80   /* 2 bytes for each track value. */
 };
 
 struct rocket_struct {
@@ -41,15 +42,16 @@ struct rocket_struct {
   const struct sync_track* s_tracks[];
 };
 
-static int8_t val_f_as_bbc(float val_f)
+static int16_t val_f_as_bbc(float val_f)
 {
     /* Archie returns fixed point s15:16 format.
     int val_sign = val_f < 0.0f ? -1 : 1;
     int val_fp = fabs(val_f) * (1 << 16);
     return val_fp * val_sign; */
-    /* BBC returns int8. */
-    int v = (int)val_f;
-    return v % 256;
+    /* BBC returns fp s7.8 format. */
+    int val_sign = val_f < 0.0f ? -1 : 1;
+    int val_fp = fabs(val_f) * (1 << 8);
+    return val_fp * val_sign; 
 }
 
 static void rocket_sync_pause(void* data, int flag)
@@ -75,12 +77,17 @@ static int rocket_sync_is_playing(void* data)
 static void rocket_sync_write_key(void *data, FILE *fp, char type, int row, float value)
 {
   struct rocket_struct* p_rocket = (struct rocket_struct*)data;
-  /* TODO: Write binary data in BBC format. */
+  /* Output in full fat format and encode via separate script.
   uint16_t time = (row * p_rocket->vpr) & 0xffff;
   int8_t val_bbc = val_f_as_bbc(value);
   fwrite(&type, sizeof(char), 1, fp);
   fwrite(&time, sizeof(uint16_t), 1, fp);
   fwrite(&val_bbc, sizeof(int8_t), 1, fp);
+  */
+  uint32_t vsync = row * p_rocket->vpr;
+  fwrite(&vsync, sizeof(uint32_t), 1, fp);  /* row */
+  fwrite(&value, sizeof(float), 1, fp);     /* value */
+  fwrite(&type, sizeof(char), 1, fp);       /* type */
 }
 
 static float row_from_vsyncs(int vsyncs, int vpr)
@@ -187,8 +194,9 @@ rocket_run(struct rocket_struct* p_rocket) {
   /* Populate BBC RAM from track data. */
   for(int i = 0; i < p_rocket->num_tracks; ++i) {
     float row = row_from_vsyncs(p_rocket->vsyncs, p_rocket->vpr);
-    uint8_t val_bbc = val_f_as_bbc(sync_get_val(p_rocket->s_tracks[i], row));
-    bbc_memory_write(p_rocket->p_bbc, p_rocket->addr_track_values+i, val_bbc);
+    uint16_t val_bbc = val_f_as_bbc(sync_get_val(p_rocket->s_tracks[i], row));
+    bbc_memory_write(p_rocket->p_bbc, p_rocket->addr_track_values+0+i*2, val_bbc & 0xff);
+    bbc_memory_write(p_rocket->p_bbc, p_rocket->addr_track_values+1+i*2, val_bbc >> 8);
   }
 
   /* Allow BBC toggle fast mode. */
