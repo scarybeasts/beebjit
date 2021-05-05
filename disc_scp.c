@@ -38,7 +38,7 @@ disc_scp_load(struct disc_struct* p_disc) {
     util_bail("SCP bad header");
   }
   num_revs = header[5];
-  if ((num_revs == 0) || (num_revs > 16)) {
+  if (num_revs == 0) {
     util_bail("SCP bad num revs");
   }
   if (header[6] != 0) {
