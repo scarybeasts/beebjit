@@ -7,6 +7,8 @@ Ideally, important items get fixed before the next release.
 The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
+- 300 baud support in CSW files, i.e. Apple Pie.
+
 
 Fix later
 =========
