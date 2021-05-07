@@ -520,6 +520,15 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     return;
   }
 
+  /* Bounce out of state jumping mode if appropriate. */
+  if (p_video->timer_fire_mode == k_video_timer_jump_to_vsync_raise) {
+    assert(!p_video->is_rendering_active);
+    p_video->timer_fire_mode = k_video_timer_expect_vsync_raise;
+  } else if (p_video->timer_fire_mode == k_video_timer_jump_to_vsync_lower) {
+    assert(!p_video->is_rendering_active);
+    p_video->timer_fire_mode = k_video_timer_expect_vsync_lower;
+  }
+
   p_video->num_crtc_advances++;
 
   delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);

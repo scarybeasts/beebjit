@@ -983,6 +983,33 @@ video_test_timer_corner_case_3() {
   test_expect_u32(1, g_p_video->in_vsync);
 }
 
+static void
+video_test_inactive_advance() {
+  /* Tests for an assert hit in inactive rendering when an advance is performed
+   * without a timer recalculate.
+   */
+  int64_t countdown = timing_get_countdown(g_p_timing);
+
+  g_test_fast_flag = 1;
+
+  test_expect_u32(1, g_p_video->is_rendering_active);
+
+  countdown = timing_advance_time(g_p_timing,
+                                  (countdown - k_ticks_mode7_to_vsync_even));
+  test_expect_u32(0, g_p_video->is_rendering_active);
+  test_expect_u32(1, g_p_video->in_vsync);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_scanline));
+  video_advance_crtc_timing(g_p_video);
+
+  countdown = timing_advance_time(
+      g_p_timing,
+      (countdown - k_ticks_mode7_per_scanline));
+  test_expect_u32(0, g_p_video->in_vsync);
+}
+
 void
 video_test() {
   video_test_init();
@@ -1051,5 +1078,9 @@ video_test() {
 
   video_test_init();
   video_test_timer_corner_case_3();
+  video_test_end();
+
+  video_test_init();
+  video_test_inactive_advance();
   video_test_end();
 }
