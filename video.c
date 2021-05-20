@@ -697,8 +697,13 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->start_of_line_state_checks |= 1;
 
     r9_hit = (p_video->scanline_counter == effective_r9);
-    p_video->scanline_counter += p_video->scanline_stride;
-    p_video->scanline_counter &= p_video->scanline_mask;
+    /* Empirical testing suggests the scanline counter is not incremented in
+     * the extreme case of R0=0, although not yet clear exactly why this is.
+     */
+    if (r0 != 0) {
+      p_video->scanline_counter += p_video->scanline_stride;
+      p_video->scanline_counter &= p_video->scanline_mask;
+    }
     p_video->address_counter = p_video->address_counter_this_row;
 
     if (p_video->in_vert_adjust) {
