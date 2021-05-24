@@ -6,6 +6,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -578,6 +579,10 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   struct util_file* p_raw_dump_file = NULL;
   uint32_t num_sides = 1;
   int is_80t = 0;
+  int32_t dfs_catalog_count = -1;
+  char dfs_title[13];
+
+  (void) memset(dfs_title, '\0', sizeof(dfs_title));
 
   if (do_dump_sector_data) {
     char new_file_name[4096];
@@ -761,6 +766,15 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                                        &sector_data[0],
                                        (p_sectors->byte_length + 1));
           }
+          /* Keep track of DFS metadata for logging. */
+          if ((i_tracks == 0) && (sector_track == 0) && (num_sectors == 10)) {
+            if (sector_sector == 0) {
+              (void) memcpy(&dfs_title[0], &sector_data[1], 8);
+            } else if (sector_sector == 1) {
+              dfs_catalog_count = sector_data[5];
+              (void) memcpy(&dfs_title[8], &sector_data[1], 4);
+            }
+          }
         }
         if (p_raw_dump_file != NULL) {
           util_file_write(p_raw_dump_file,
@@ -794,12 +808,24 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     } /* End of tracks loop. */
 
     if (log_fingerprint) {
+      uint32_t i;
       disc_crc = util_crc32_finish(disc_crc);
+      for (i = 0; i < 12; ++i) {
+        char c = dfs_title[i];
+        if (c == '\0') {
+          break;
+        }
+        if (!isprint(c)) {
+          dfs_title[i] = '?';
+        }
+      }
       log_do_log(k_log_disc,
                  k_log_info,
-                 "disc side %d CRC32 fingerprint %.8X",
+                 "disc side %d CRC32 fingerprint %.8X title %s count %.2X",
                  i_sides,
-                 disc_crc);
+                 disc_crc,
+                 &dfs_title[0],
+                 dfs_catalog_count);
       if (is_80t) {
         disc_crc_even = util_crc32_finish(disc_crc_even);
         log_do_log(k_log_disc,
