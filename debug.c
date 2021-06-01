@@ -63,6 +63,8 @@ struct debug_struct {
   struct timing_struct* p_timing;
   struct video_struct* p_video;
   struct render_struct* p_render;
+  struct via_struct* p_system_via;
+  struct via_struct* p_user_via;
   struct disc_tool_struct* p_tool;
   int debug_active;
   int debug_running;
@@ -1138,6 +1140,18 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
   } else if (!strcmp(p_name, "render_y")) {
     video_advance_crtc_timing(p_debug->p_video);
     ret = render_get_vert_pos(p_debug->p_render);
+  } else if (!strcmp(p_name, "sysvia_r")) {
+    /* This hits the normal VIA read path, with side effects possible. */
+    ret = -1;
+    if (index < k_via_num_mapped_registers) {
+      ret = via_read_raw(p_debug->p_system_via, index);
+    }
+  } else if (!strcmp(p_name, "uservia_r")) {
+    /* This hits the normal VIA read path, with side effects possible. */
+    ret = -1;
+    if (index < k_via_num_mapped_registers) {
+      ret = via_read_raw(p_debug->p_user_via, index);
+    }
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
@@ -1173,6 +1187,14 @@ debug_variable_write_callback(void* p,
   } else if (!strcmp(p_name, "drawline")) {
     struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
     render_horiz_line(p_render, (uint32_t) value);
+  } else if (!strcmp(p_name, "sysvia_r")) {
+    if (index < k_via_num_mapped_registers) {
+      via_write_raw(p_debug->p_system_via, index, (uint8_t) value);
+    }
+  } else if (!strcmp(p_name, "uservia_r")) {
+    if (index < k_via_num_mapped_registers) {
+      via_write_raw(p_debug->p_user_via, index, (uint8_t) value);
+    }
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown write variable: %s", p_name);
   }
@@ -2112,6 +2134,8 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->p_timing = p_timing;
   p_debug->p_video = bbc_get_video(p_bbc);
   p_debug->p_render = bbc_get_render(p_bbc);
+  p_debug->p_system_via = bbc_get_sysvia(p_bbc);
+  p_debug->p_user_via = bbc_get_uservia(p_bbc);
   p_debug->debug_active = debug_active;
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);

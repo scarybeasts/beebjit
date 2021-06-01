@@ -580,8 +580,16 @@ via_advance_ticks(struct via_struct* p_via, uint64_t ticks) {
   p_via->p_timing_advancer(p_via->p_timing_advancer_object, ticks);
 }
 
-uint8_t
-via_read(struct via_struct* p_via, uint8_t reg) {
+static void
+via_load_T1(struct via_struct* p_via) {
+  int32_t timer_val = p_via->T1L;
+  /* Increment the value because it must take effect in 1 tick. */
+  timer_val++;
+  via_set_t1c(p_via, timer_val);
+}
+
+static uint8_t
+via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   uint8_t orb;
   uint8_t ddrb;
   uint8_t port_val;
@@ -602,7 +610,9 @@ via_read(struct via_struct* p_via, uint8_t reg) {
    * Of note, if an interrupt fires the same VIA cycle as an IFR read, IFR
    * reflects the just-hit interrupt on a real BBC.
    */
-  via_advance_ticks(p_via, (ticks + 1));
+  if (!is_raw) {
+    via_advance_ticks(p_via, (ticks + 1));
+  }
 
   t1_val = via_get_t1c(p_via);
   if (t1_firing) {
@@ -619,8 +629,10 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0xA0) != 0x20);
 
-    via_clear_interrupt(p_via, k_int_CB1);
-    via_clear_interrupt(p_via, k_int_CB2);
+    if (!is_raw) {
+      via_clear_interrupt(p_via, k_int_CB1);
+      via_clear_interrupt(p_via, k_int_CB2);
+    }
 
     /* A read of VIA port B mixes input and output as indicated by DDRB. */
     orb = p_via->ORB;
@@ -645,8 +657,10 @@ via_read(struct via_struct* p_via, uint8_t reg) {
   case k_via_ORA:
     /* Independent interrupt not supported yet. */
     assert((p_via->PCR & 0x0A) != 0x02);
-    via_clear_interrupt(p_via, k_int_CA1);
-    via_clear_interrupt(p_via, k_int_CA2);
+    if (!is_raw) {
+      via_clear_interrupt(p_via, k_int_CA1);
+      via_clear_interrupt(p_via, k_int_CA2);
+    }
   /* Fall through. */
   case k_via_ORAnh:
     /* A read of VIA port A reads the current pins levels, or uses the pin
@@ -665,7 +679,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     ret = p_via->DDRA;
     break;
   case k_via_T1CL:
-    if (!t1_firing) {
+    if (!t1_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
     ret = (((uint16_t) t1_val) & 0xFF);
@@ -680,7 +694,7 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     ret = (p_via->T1L >> 8);
     break;
   case k_via_T2CL:
-    if (!t2_firing) {
+    if (!t2_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
     ret = (((uint16_t) t2_val) & 0xFF);
@@ -709,21 +723,28 @@ via_read(struct via_struct* p_via, uint8_t reg) {
     break;
   }
 
-  via_advance_ticks(p_via, 1);
+  if (!is_raw) {
+    via_advance_ticks(p_via, 1);
+  }
 
   return ret;
 }
 
-static void
-via_load_T1(struct via_struct* p_via) {
-  int32_t timer_val = p_via->T1L;
-  /* Increment the value because it must take effect in 1 tick. */
-  timer_val++;
-  via_set_t1c(p_via, timer_val);
+uint8_t
+via_read(struct via_struct* p_via, uint8_t reg) {
+  return via_read_internal(p_via, reg, 0);
+}
+
+uint8_t
+via_read_raw(struct via_struct* p_via, uint8_t reg) {
+  return via_read_internal(p_via, reg, 1);
 }
 
 void
-via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+via_write_internal(struct via_struct* p_via,
+                   uint8_t reg,
+                   uint8_t val,
+                   int is_raw) {
   uint32_t t2_timer_id;
   int32_t timer_val;
   int32_t t1_val;
@@ -743,7 +764,9 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
    * likely be less fixing up that way around.
    */
   /* Advance to the VIA mid-cycle. */
-  via_advance_ticks(p_via, (ticks + 1));
+  if (!is_raw) {
+    via_advance_ticks(p_via, (ticks + 1));
+  }
 
   /* This is a bit subtle but we need to read the T1C value in order to force
    * the deferred calculation of timer value for one shot timers that have shot.
@@ -926,7 +949,19 @@ via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
     break;
   }
 
-  via_advance_ticks(p_via, 1);
+  if (!is_raw) {
+    via_advance_ticks(p_via, 1);
+  }
+}
+
+void
+via_write(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  return via_write_internal(p_via, reg, val, 0);
+}
+
+void
+via_write_raw(struct via_struct* p_via, uint8_t reg, uint8_t val) {
+  return via_write_internal(p_via, reg, val, 1);
 }
 
 void
