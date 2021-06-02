@@ -4,10 +4,10 @@
 #include <stdint.h>
 
 enum {
-  k_state_6502_irq_via_1 = 0,
-  k_state_6502_irq_via_2 = 1,
-  k_state_6502_irq_serial_acia = 2,
-  k_state_6502_irq_nmi = 3,
+  k_state_6502_irq_via_1 = 1,
+  k_state_6502_irq_via_2 = 2,
+  k_state_6502_irq_serial_acia = 4,
+  k_state_6502_irq_nmi = 8,
 };
 
 enum {
@@ -77,5 +77,8 @@ void state_6502_set_irq_level(struct state_6502* p_state_6502,
 int state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq);
 void state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502,
                                          int irq);
+
+int state_6502_has_irq_high(struct state_6502* p_state_6502);
+int state_6502_has_nmi_high(struct state_6502* p_state_6502);
 
 #endif /* BEEBJIT_STATE_6502_H */

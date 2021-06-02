@@ -85,20 +85,6 @@ void bbc_set_autoboot(struct bbc_struct* p_bbc, int autoboot_flag);
 void bbc_set_commands(struct bbc_struct* p_bbc, const char* p_commands);
 
 struct cpu_driver* bbc_get_cpu_driver(struct bbc_struct* p_bbc);
-void bbc_get_registers(struct bbc_struct* p_bbc,
-                       uint8_t* a,
-                       uint8_t* x,
-                       uint8_t* y,
-                       uint8_t* s,
-                       uint8_t* flags,
-                       uint16_t* pc);
-void bbc_set_registers(struct bbc_struct* p_bbc,
-                       uint8_t a,
-                       uint8_t x,
-                       uint8_t y,
-                       uint8_t s,
-                       uint8_t flags,
-                       uint16_t pc);
 void bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc);
 
 void bbc_run_async(struct bbc_struct* p_bbc);

@@ -59,6 +59,7 @@ struct debug_breakpoint {
 
 struct debug_struct {
   struct bbc_struct* p_bbc;
+  struct state_6502* p_state_6502;
   uint8_t* p_mem_read;
   struct timing_struct* p_timing;
   struct video_struct* p_video;
@@ -1075,6 +1076,9 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   int64_t ret = 0;
 
+  /* NOTE: this isn't efficient. A proper design would be to call this once
+   * at parse time, and it returns a function that satisfies the read.
+   */
   if (!strcmp(p_name, "a")) {
     ret = p_debug->reg_a;
   } else if (!strcmp(p_name, "x")) {
@@ -1152,6 +1156,10 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     if (index < k_via_num_mapped_registers) {
       ret = via_read_raw(p_debug->p_user_via, index);
     }
+  } else if (!strcmp(p_name, "irq")) {
+    ret = state_6502_has_irq_high(p_debug->p_state_6502);
+  } else if (!strcmp(p_name, "nmi")) {
+    ret = state_6502_has_nmi_high(p_debug->p_state_6502);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
   }
@@ -1451,8 +1459,9 @@ debug_callback_common(struct debug_struct* p_debug,
   int is_register;
   uint64_t breakpoint_continue_hit_count;
   struct debug_breakpoint* p_breakpoint_continue;
+  struct bbc_struct* p_bbc;
 
-  struct bbc_struct* p_bbc = p_debug->p_bbc;
+  struct state_6502* p_state_6502 = p_debug->p_state_6502;
   uint8_t* p_mem_read = p_debug->p_mem_read;
   int do_trap = 0;
   void* ret_intel_pc = 0;
@@ -1460,13 +1469,13 @@ debug_callback_common(struct debug_struct* p_debug,
   int break_print = 0;
   int break_stop = 0;
 
-  bbc_get_registers(p_bbc,
-                    &p_debug->reg_a,
-                    &p_debug->reg_x,
-                    &p_debug->reg_y,
-                    &p_debug->reg_s,
-                    &p_debug->reg_flags,
-                    &p_debug->reg_pc);
+  state_6502_get_registers(p_state_6502,
+                           &p_debug->reg_a,
+                           &p_debug->reg_x,
+                           &p_debug->reg_y,
+                           &p_debug->reg_s,
+                           &p_debug->reg_flags,
+                           &p_debug->reg_pc);
 
   opcode = p_mem_read[p_debug->reg_pc];
   if (do_irq) {
@@ -1612,6 +1621,7 @@ debug_callback_common(struct debug_struct* p_debug,
 
   oplen = g_opmodelens[opmode];
 
+  p_bbc = p_debug->p_bbc;
   p_tool = p_debug->p_tool;
   disc_tool_set_disc(p_tool, disc_drive_get_disc(bbc_get_drive_0(p_bbc)));
 
@@ -1764,7 +1774,6 @@ debug_callback_common(struct debug_struct* p_debug,
                       (uint16_t) parse_int);
     } else if (sscanf(input_buf, "breakat %"PRIu64, &parse_u64) == 1) {
       uint64_t ticks_delta;
-      struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
       struct timing_struct* p_timing = p_debug->p_timing;
       uint32_t timer_id = p_debug->timer_id_debug;
       uint64_t curr_cycles = state_6502_get_cycles(p_state_6502);
@@ -2076,13 +2085,13 @@ debug_callback_common(struct debug_struct* p_debug,
     } else {
       (void) printf("???\n");
     }
-    bbc_set_registers(p_bbc,
-                      p_debug->reg_a,
-                      p_debug->reg_x,
-                      p_debug->reg_y,
-                      p_debug->reg_s,
-                      p_debug->reg_flags,
-                      p_debug->reg_pc);
+    state_6502_set_registers(p_state_6502,
+                             p_debug->reg_a,
+                             p_debug->reg_x,
+                             p_debug->reg_y,
+                             p_debug->reg_s,
+                             p_debug->reg_flags,
+                             p_debug->reg_pc);
     ret = fflush(stdout);
     if (ret != 0) {
       util_bail("fflush() failed");
@@ -2130,6 +2139,7 @@ debug_create(struct bbc_struct* p_bbc,
   s_p_debug = p_debug;
 
   p_debug->p_bbc = p_bbc;
+  p_debug->p_state_6502 = bbc_get_6502(p_bbc);
   p_debug->p_mem_read = bbc_get_mem_read(p_bbc);
   p_debug->p_timing = p_timing;
   p_debug->p_video = bbc_get_video(p_bbc);

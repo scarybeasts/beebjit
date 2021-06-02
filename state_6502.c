@@ -134,51 +134,55 @@ state_6502_irq_is_edge_triggered(int irq) {
 
 int
 state_6502_get_irq_level(struct state_6502* p_state_6502, int irq) {
-  int irq_value = (1 << irq);
-  return !!(p_state_6502->irq_high & irq_value);
+  return !!(p_state_6502->irq_high & irq);
 }
 
 void
 state_6502_set_irq_level(struct state_6502* p_state_6502, int irq, int level) {
-  int irq_value = (1 << irq);
-  int old_level = !!(p_state_6502->irq_high & irq_value);
+  int old_level = !!(p_state_6502->irq_high & irq);
 
   if (level) {
-    p_state_6502->irq_high |= irq_value;
+    p_state_6502->irq_high |= irq;
   } else {
-    p_state_6502->irq_high &= ~irq_value;
+    p_state_6502->irq_high &= ~irq;
   }
 
   if (state_6502_irq_is_edge_triggered(irq)) {
     if (level && !old_level) {
-      p_state_6502->irq_fire |= irq_value;
+      p_state_6502->irq_fire |= irq;
     }
   } else {
     if (level) {
-      p_state_6502->irq_fire |= irq_value;
+      p_state_6502->irq_fire |= irq;
     } else {
-      p_state_6502->irq_fire &= ~irq_value;
+      p_state_6502->irq_fire &= ~irq;
     }
   }
 }
 
 int
 state_6502_check_irq_firing(struct state_6502* p_state_6502, int irq) {
-  int irq_value = (1 << irq);
-  int fire = !!(p_state_6502->irq_fire & irq_value);
-
-  return fire;
+  return !!(p_state_6502->irq_fire & irq);
 }
 
 void
 state_6502_clear_edge_triggered_irq(struct state_6502* p_state_6502, int irq) {
-  int irq_value = (1 << irq);
-  int fire = !!(p_state_6502->irq_fire & irq_value);
+  int fire = !!(p_state_6502->irq_fire & irq);
 
   (void) fire;
 
   assert(state_6502_irq_is_edge_triggered(irq));
   assert(fire);
 
-  p_state_6502->irq_fire &= ~irq_value;
+  p_state_6502->irq_fire &= ~irq;
+}
+
+int
+state_6502_has_irq_high(struct state_6502* p_state_6502) {
+  return !!(p_state_6502->irq_high & ~k_state_6502_irq_nmi);
+}
+
+int
+state_6502_has_nmi_high(struct state_6502* p_state_6502) {
+  return !!(p_state_6502->irq_high & k_state_6502_irq_nmi);
 }

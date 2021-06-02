@@ -1806,30 +1806,6 @@ bbc_get_cpu_driver(struct bbc_struct* p_bbc) {
 }
 
 void
-bbc_get_registers(struct bbc_struct* p_bbc,
-                  uint8_t* a,
-                  uint8_t* x,
-                  uint8_t* y,
-                  uint8_t* s,
-                  uint8_t* flags,
-                  uint16_t* pc) {
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-  state_6502_get_registers(p_state_6502, a, x, y, s, flags, pc);
-}
-
-void
-bbc_set_registers(struct bbc_struct* p_bbc,
-                  uint8_t a,
-                  uint8_t x,
-                  uint8_t y,
-                  uint8_t s,
-                  uint8_t flags,
-                  uint16_t pc) {
-  struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
-  state_6502_set_registers(p_state_6502, a, x, y, s, flags, pc);
-}
-
-void
 bbc_set_pc(struct bbc_struct* p_bbc, uint16_t pc) {
   struct state_6502* p_state_6502 = bbc_get_6502(p_bbc);
   state_6502_set_pc(p_state_6502, pc);
