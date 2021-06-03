@@ -2933,6 +2933,8 @@ check_irq:
                            &df,
                            &intf,
                            do_irq);
+      /* A debug command might have changed state that affected countdown. */
+      countdown = timing_get_countdown(p_timing);
     }
   }
 

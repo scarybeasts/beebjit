@@ -1071,10 +1071,26 @@ debug_parse_number(const char* p_str, int is_hex) {
   return ret;
 }
 
+static void
+debug_make_sub_instruction_active(struct debug_struct* p_debug) {
+  if (p_debug->is_sub_instruction_active) {
+    return;
+  }
+
+  p_debug->is_sub_instruction_active = 1;
+
+  log_do_log(k_log_misc, k_log_info, "sub-instruction ticking activated");
+
+  (void) timing_start_timer_with_value(p_debug->p_timing,
+                                       p_debug->timer_id_sub_instruction,
+                                       1);
+}
+
 static int64_t
 debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
   int64_t ret = 0;
+  int needs_sub_instruction = 0;
 
   /* NOTE: this isn't efficient. A proper design would be to call this once
    * at parse time, and it returns a function that satisfies the read.
@@ -1119,6 +1135,7 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
     uint8_t scanline_counter;
     uint8_t vert_counter;
     uint16_t addr_counter;
+    needs_sub_instruction = 1;
     video_get_crtc_state(p_debug->p_video,
                          &horiz_counter,
                          &scanline_counter,
@@ -1139,29 +1156,39 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
                  p_name);
     }
   } else if (!strcmp(p_name, "render_x")) {
+    needs_sub_instruction = 1;
     video_advance_crtc_timing(p_debug->p_video);
     ret = render_get_horiz_pos(p_debug->p_render);
   } else if (!strcmp(p_name, "render_y")) {
+    needs_sub_instruction = 1;
     video_advance_crtc_timing(p_debug->p_video);
     ret = render_get_vert_pos(p_debug->p_render);
   } else if (!strcmp(p_name, "sysvia_r")) {
+    needs_sub_instruction = 1;
     /* This hits the normal VIA read path, with side effects possible. */
     ret = -1;
     if (index < k_via_num_mapped_registers) {
       ret = via_read_raw(p_debug->p_system_via, index);
     }
   } else if (!strcmp(p_name, "uservia_r")) {
+    needs_sub_instruction = 1;
     /* This hits the normal VIA read path, with side effects possible. */
     ret = -1;
     if (index < k_via_num_mapped_registers) {
       ret = via_read_raw(p_debug->p_user_via, index);
     }
   } else if (!strcmp(p_name, "irq")) {
+    needs_sub_instruction = 1;
     ret = state_6502_has_irq_high(p_debug->p_state_6502);
   } else if (!strcmp(p_name, "nmi")) {
+    needs_sub_instruction = 1;
     ret = state_6502_has_nmi_high(p_debug->p_state_6502);
   } else {
     log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
+  }
+
+  if (needs_sub_instruction) {
+    debug_make_sub_instruction_active(p_debug);
   }
 
   return ret;
@@ -2172,15 +2199,9 @@ debug_create(struct bbc_struct* p_bbc,
       debug_sub_instruction_callback,
       p_debug);
 
-  p_debug->is_sub_instruction_active = util_has_option(p_options->p_opt_flags,
-                                                       "debug:sub-instruction");
-
-  if (p_debug->is_sub_instruction_active) {
-    (void) timing_start_timer_with_value(p_timing,
-                                         p_debug->timer_id_sub_instruction,
-                                         1);
+  if (util_has_option(p_options->p_opt_flags, "debug:sub-instruction")) {
+    debug_make_sub_instruction_active(p_debug);
   }
-
 
   os_terminal_set_ctrl_c_callback(debug_interrupt_callback);
 
