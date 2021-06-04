@@ -58,6 +58,7 @@ struct serial_struct {
 
   int fasttape_flag;
   int log_state;
+  int log_bytes;
 };
 
 static void
@@ -161,6 +162,7 @@ serial_create(struct state_6502* p_state_6502,
   p_serial->handle_output = -1;
 
   p_serial->log_state = util_has_option(p_options->p_log_flags, "serial:state");
+  p_serial->log_bytes = util_has_option(p_options->p_log_flags, "serial:bytes");
 
   return p_serial;
 }
@@ -196,6 +198,13 @@ serial_set_io_handles(struct serial_struct* p_serial,
 
 static void
 serial_receive(struct serial_struct* p_serial, uint8_t byte) {
+  if (p_serial->log_bytes) {
+    log_do_log(k_log_serial,
+               k_log_info,
+               "byte received: %d (0x%.2X)",
+               byte,
+               byte);
+  }
   if (p_serial->acia_status & k_serial_acia_status_RDRF) {
     log_do_log(k_log_serial, k_log_unimplemented, "receive buffer full");
   }
