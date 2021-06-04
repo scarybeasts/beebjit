@@ -175,9 +175,6 @@ tape_load_csw(int32_t* p_dst,
               uint32_t src_len) {
   /* The CSW file format: http://ramsoft.bbk.org.omegahg.com/csw.html */
   uint8_t* p_in_buf;
-  uint8_t* p_uncompress_buf;
-  size_t uncompress_len;
-  int uncompress_ret;
   uint8_t extension_len;
   uint32_t requested_sample_rate;
   uint32_t i_waves;
@@ -188,8 +185,10 @@ tape_load_csw(int32_t* p_dst,
   uint32_t ticks;
   int is_silence;
   int is_carrier;
+  uint32_t data_len;
   uint32_t dst_index = 0;
   uint32_t sample_rate = 44100;
+  uint8_t* p_uncompress_buf = NULL;
 
   if (src_len < 0x34) {
     util_bail("CSW file too small");
@@ -208,8 +207,8 @@ tape_load_csw(int32_t* p_dst,
     util_bail("CSW file sample rate not supported: %"PRIu32,
               requested_sample_rate);
   }
-  if (p_src[0x21] != 0x02) {
-    util_bail("CSW file compression not Z-RLE");
+  if ((p_src[0x21] != 0x01) && (p_src[0x21] != 0x02)) {
+    util_bail("CSW file compression not RLE or Z-RLE");
   }
   extension_len = p_src[0x23];
 
@@ -223,28 +222,35 @@ tape_load_csw(int32_t* p_dst,
   p_in_buf += extension_len;
   src_len -= extension_len;
 
-  uncompress_len = (k_tape_max_file_size * 16);
-  p_uncompress_buf = util_malloc(uncompress_len);
+  if (p_src[0x21] == 0x01) {
+    data_len = src_len;
+  } else {
+    int uncompress_ret;
+    size_t uncompress_len = (k_tape_max_file_size * 16);
+    p_uncompress_buf = util_malloc(uncompress_len);
 
-  uncompress_ret = util_uncompress(&uncompress_len,
-                                   p_in_buf,
-                                   src_len,
-                                   p_uncompress_buf);
-  if (uncompress_ret != 0) {
-    util_bail("CSW uncompress failed");
-  }
-  if (uncompress_len == (k_tape_max_file_size * 16)) {
-    util_bail("CSW uncompress too large");
+    uncompress_ret = util_uncompress(&uncompress_len,
+                                     p_in_buf,
+                                     src_len,
+                                     p_uncompress_buf);
+    if (uncompress_ret != 0) {
+      util_bail("CSW uncompress failed");
+    }
+    if (uncompress_len == (k_tape_max_file_size * 16)) {
+      util_bail("CSW uncompress too large");
+    }
+
+    p_in_buf = p_uncompress_buf;
+    data_len = uncompress_len;
   }
 
-  p_in_buf = p_uncompress_buf;
   is_silence = 1;
   is_carrier = 0;
   ticks = 0;
   carrier_count = 0;
   data_byte = 0;
   data_bit_pos = 0;
-  for (i_waves = 0; i_waves < (uncompress_len - 3); i_waves += wave_bytes) {
+  for (i_waves = 0; i_waves < (data_len - 3); i_waves += wave_bytes) {
     uint8_t half_wave = p_in_buf[i_waves];
     uint8_t next_half_wave = p_in_buf[i_waves + 1];
     int wave_is_1200 = 0;
