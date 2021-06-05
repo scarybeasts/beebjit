@@ -465,14 +465,22 @@ serial_ula_read(struct serial_struct* p_serial) {
 
 void
 serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
+  static const char* p_rate_strs[] = {
+    "1228.8k", "76.8k", "307.2k", "9.6k", "614.4k", "19.2k", "153.6k", "4.8k"
+  };
   int rs423_or_tape = !!(val & k_serial_ula_rs423);
   int motor_on = !!(val & k_serial_ula_motor);
 
-  if (motor_on != p_serial->serial_ula_motor_on) {
-    if (p_serial->log_state) {
-      log_do_log(k_log_serial, k_log_info, "new motor state: %d", motor_on);
-    }
+  if (p_serial->log_state) {
+    log_do_log(k_log_serial,
+               k_log_info,
+               "serial ULA control: [R %s] [T %s] [%s] [%s]",
+               p_rate_strs[(val >> 3) & 7],
+               p_rate_strs[val & 7],
+               (rs423_or_tape ? "RS423" : "TAPE"),
+               (motor_on ? "MOTOR" : ""));
   }
+
   if (motor_on && !p_serial->serial_ula_motor_on) {
     tape_play(p_serial->p_tape);
     if (p_serial->fasttape_flag) {
@@ -488,16 +496,8 @@ serial_ula_write(struct serial_struct* p_serial, uint8_t val) {
       }
     }
   }
-  p_serial->serial_ula_motor_on = motor_on;
 
-  if (rs423_or_tape != p_serial->serial_ula_rs423_selected) {
-    if (p_serial->log_state) {
-      log_do_log(k_log_serial,
-                 k_log_info,
-                 "new rs423 selected state: %d",
-                 rs423_or_tape);
-    }
-  }
+  p_serial->serial_ula_motor_on = motor_on;
   p_serial->serial_ula_rs423_selected = rs423_or_tape;
 
   /* Selecting the ACIA's connection between RS423 vs. tape will update the
