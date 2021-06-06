@@ -25,7 +25,7 @@ enum {
   k_serial_acia_TCB_no_RTS_no_TIE = 0x40,
 };
 
-struct serial_struct {
+struct mc6850_struct {
   struct state_6502* p_state_6502;
   void (*p_transmit_ready_callback)(void* p);
   void* p_transmit_ready_object;
@@ -41,7 +41,7 @@ struct serial_struct {
 };
 
 static void
-serial_acia_update_irq(struct serial_struct* p_serial) {
+mc6850_update_irq(struct mc6850_struct* p_serial) {
   int do_check_send_int;
   int do_check_receive_int;
   int do_fire_int;
@@ -76,10 +76,10 @@ serial_acia_update_irq(struct serial_struct* p_serial) {
                            do_fire_int);
 }
 
-struct serial_struct*
-serial_create(struct state_6502* p_state_6502,
+struct mc6850_struct*
+mc6850_create(struct state_6502* p_state_6502,
               struct bbc_options* p_options) {
-  struct serial_struct* p_serial = util_mallocz(sizeof(struct serial_struct));
+  struct mc6850_struct* p_serial = util_mallocz(sizeof(struct mc6850_struct));
 
   p_serial->p_state_6502 = p_state_6502;
 
@@ -90,13 +90,13 @@ serial_create(struct state_6502* p_state_6502,
 }
 
 void
-serial_destroy(struct serial_struct* p_serial) {
+mc6850_destroy(struct mc6850_struct* p_serial) {
   util_free(p_serial);
 }
 
 void
-serial_set_transmit_ready_callback(
-    struct serial_struct* p_serial,
+mc6850_set_transmit_ready_callback(
+    struct mc6850_struct* p_serial,
     void (*p_transmit_ready_callback)(void* p),
     void* p_transmit_ready_object) {
   p_serial->p_transmit_ready_callback = p_transmit_ready_callback;
@@ -104,7 +104,7 @@ serial_set_transmit_ready_callback(
 }
 
 void
-serial_set_DCD(struct serial_struct* p_serial, int is_DCD) {
+mc6850_set_DCD(struct mc6850_struct* p_serial, int is_DCD) {
   /* The DCD low to high edge causes a bit latch, and potentially an IRQ.
    * DCD going from high to low doesn't affect the status register until the
    * bit latch is cleared by reading the data register.
@@ -116,21 +116,21 @@ serial_set_DCD(struct serial_struct* p_serial, int is_DCD) {
     p_serial->acia_status |= k_serial_acia_status_DCD;
   }
 
-  serial_acia_update_irq(p_serial);
+  mc6850_update_irq(p_serial);
 }
 
 void
-serial_set_CTS(struct serial_struct* p_serial, int is_CTS) {
+mc6850_set_CTS(struct mc6850_struct* p_serial, int is_CTS) {
   p_serial->acia_status &= ~k_serial_acia_status_CTS;
   if (is_CTS) {
     p_serial->acia_status |= k_serial_acia_status_CTS;
   }
 
-  serial_acia_update_irq(p_serial);
+  mc6850_update_irq(p_serial);
 }
 
 int
-serial_get_RTS(struct serial_struct* p_serial) {
+mc6850_get_RTS(struct mc6850_struct* p_serial) {
   if ((p_serial->acia_control & k_serial_acia_control_TCB_mask) ==
           k_serial_acia_TCB_no_RTS_no_TIE) {
     return 0;
@@ -146,12 +146,12 @@ serial_get_RTS(struct serial_struct* p_serial) {
 }
 
 int
-serial_is_transmit_ready(struct serial_struct* p_serial) {
+mc6850_is_transmit_ready(struct mc6850_struct* p_serial) {
   return !(p_serial->acia_status & k_serial_acia_status_TDRE);
 }
 
 void
-serial_receive(struct serial_struct* p_serial, uint8_t byte) {
+mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
   if (p_serial->log_bytes) {
     log_do_log(k_log_serial,
                k_log_info,
@@ -165,21 +165,21 @@ serial_receive(struct serial_struct* p_serial, uint8_t byte) {
   p_serial->acia_status |= k_serial_acia_status_RDRF;
   p_serial->acia_receive = byte;
 
-  serial_acia_update_irq(p_serial);
+  mc6850_update_irq(p_serial);
 }
 
 uint8_t
-serial_transmit(struct serial_struct* p_serial) {
-  assert(serial_is_transmit_ready(p_serial));
+mc6850_transmit(struct mc6850_struct* p_serial) {
+  assert(mc6850_is_transmit_ready(p_serial));
 
   p_serial->acia_status |= k_serial_acia_status_TDRE;
-  serial_acia_update_irq(p_serial);
+  mc6850_update_irq(p_serial);
 
   return p_serial->acia_transmit;
 }
 
 void
-serial_power_on_reset(struct serial_struct* p_serial) {
+mc6850_power_on_reset(struct mc6850_struct* p_serial) {
   p_serial->acia_receive = 0;
   p_serial->acia_transmit = 0;
 
@@ -191,12 +191,12 @@ serial_power_on_reset(struct serial_struct* p_serial) {
   /* Reset of the ACIA cannot change external line levels. Make sure any status
    * bits they affect are kept.
    */
-  serial_set_DCD(p_serial, p_serial->is_DCD);
-  serial_set_CTS(p_serial, p_serial->is_CTS);
+  mc6850_set_DCD(p_serial, p_serial->is_DCD);
+  mc6850_set_CTS(p_serial, p_serial->is_CTS);
 }
 
 uint8_t
-serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
+mc6850_read(struct mc6850_struct* p_serial, uint8_t reg) {
   if (reg == 0) {
     /* Status register. */
     uint8_t ret = p_serial->acia_status;
@@ -236,14 +236,14 @@ serial_acia_read(struct serial_struct* p_serial, uint8_t reg) {
     p_serial->acia_status &= ~k_serial_acia_status_RDRF;
     p_serial->acia_status &= ~k_serial_acia_status_DCD;
 
-    serial_acia_update_irq(p_serial);
+    mc6850_update_irq(p_serial);
 
     return p_serial->acia_receive;
   }
 }
 
 void
-serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
+mc6850_write(struct mc6850_struct* p_serial, uint8_t reg, uint8_t val) {
   if (reg == 0) {
     /* Control register. */
     if ((val & 0x03) == 0x03) {
@@ -262,7 +262,7 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
         log_do_log(k_log_serial, k_log_info, "reset");
       }
 
-      serial_power_on_reset(p_serial);
+      mc6850_power_on_reset(p_serial);
     } else {
       p_serial->acia_control = val;
     }
@@ -298,5 +298,5 @@ serial_acia_write(struct serial_struct* p_serial, uint8_t reg, uint8_t val) {
     }
   }
 
-  serial_acia_update_irq(p_serial);
+  mc6850_update_irq(p_serial);
 }

@@ -167,7 +167,7 @@ struct bbc_struct {
   struct disc_drive_struct* p_drive_1;
   struct intel_fdc_struct* p_intel_fdc;
   struct wd_fdc_struct* p_wd_fdc;
-  struct serial_struct* p_serial;
+  struct mc6850_struct* p_serial;
   struct serial_ula_struct* p_serial_ula;
   struct tape_struct* p_tape;
   struct cmos_struct* p_cmos;
@@ -423,7 +423,7 @@ bbc_read_callback(void* p,
     break;
   case (k_addr_acia + 0):
   case (k_addr_acia + 4):
-    ret = serial_acia_read(p_bbc->p_serial, (addr & 1));
+    ret = mc6850_read(p_bbc->p_serial, (addr & 1));
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
@@ -906,7 +906,7 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_acia + 0):
   case (k_addr_acia + 4):
-    serial_acia_write(p_bbc->p_serial, (addr & 0x1), val);
+    mc6850_write(p_bbc->p_serial, (addr & 0x1), val);
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
@@ -1560,7 +1560,7 @@ bbc_create(int mode,
                          p_bbc->p_drive_1);
   }
 
-  p_bbc->p_serial = serial_create(p_state_6502, &p_bbc->options);
+  p_bbc->p_serial = mc6850_create(p_state_6502, &p_bbc->options);
 
   p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
 
@@ -1610,7 +1610,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
 
   debug_destroy(p_bbc->p_debug);
   serial_ula_destroy(p_bbc->p_serial_ula);
-  serial_destroy(p_bbc->p_serial);
+  mc6850_destroy(p_bbc->p_serial);
   tape_destroy(p_bbc->p_tape);
   video_destroy(p_bbc->p_video);
   teletext_destroy(p_bbc->p_teletext);
@@ -1781,7 +1781,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   via_power_on_reset(p_bbc->p_user_via);
   sound_power_on_reset(p_bbc->p_sound);
   /* Reset serial before the tape so that playing has been stopped. */
-  serial_power_on_reset(p_bbc->p_serial);
+  mc6850_power_on_reset(p_bbc->p_serial);
   serial_ula_power_on_reset(p_bbc->p_serial_ula);
   tape_power_on_reset(p_bbc->p_tape);
   /* Reset the controller before the drives so that spindown has been done. */
@@ -1856,7 +1856,7 @@ bbc_get_render(struct bbc_struct* p_bbc) {
   return p_bbc->p_render;
 }
 
-struct serial_struct*
+struct mc6850_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
 }

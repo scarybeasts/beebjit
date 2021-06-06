@@ -3,12 +3,13 @@
 
 #include <stdint.h>
 
-struct bbc_options;
-struct serial_struct;
 struct serial_ula_struct;
+
+struct bbc_options;
+struct mc6850_struct;
 struct tape_struct;
 
-struct serial_ula_struct* serial_ula_create(struct serial_struct* p_serial,
+struct serial_ula_struct* serial_ula_create(struct mc6850_struct* p_serial,
                                             struct tape_struct* p_tape,
                                             int is_fasttape,
                                             struct bbc_options* p_options);

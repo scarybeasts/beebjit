@@ -99,7 +99,7 @@ struct keyboard_struct* bbc_get_keyboard(struct bbc_struct* p_bbc);
 struct sound_struct* bbc_get_sound(struct bbc_struct* p_bbc);
 struct video_struct* bbc_get_video(struct bbc_struct* p_bbc);
 struct render_struct* bbc_get_render(struct bbc_struct* p_bbc);
-struct serial_struct* bbc_get_serial(struct bbc_struct* p_bbc);
+struct mc6850_struct* bbc_get_serial(struct bbc_struct* p_bbc);
 struct serial_ula_struct* bbc_get_serial_ula(struct bbc_struct* p_bbc);
 struct cmos_struct* bbc_get_cmos(struct bbc_struct* p_bbc);
 struct timing_struct* bbc_get_timing(struct bbc_struct* p_bbc);

@@ -13,7 +13,7 @@ enum {
 };
 
 struct serial_ula_struct {
-  struct serial_struct* p_serial;
+  struct mc6850_struct* p_serial;
   struct tape_struct* p_tape;
   void (*set_fast_mode_callback)(void* p, int fast);
   void* p_set_fast_mode_object;
@@ -41,11 +41,11 @@ serial_ula_transmit_ready_callback(void* p) {
   /* If the tape is selected, just consume the byte immediately. It's needed
    * to get Pro Boxing Simulator loading.
    */
-  (void) serial_transmit(p_serial_ula->p_serial);
+  (void) mc6850_transmit(p_serial_ula->p_serial);
 }
 
 struct serial_ula_struct*
-serial_ula_create(struct serial_struct* p_serial,
+serial_ula_create(struct mc6850_struct* p_serial,
                   struct tape_struct* p_tape,
                   int is_fasttape,
                   struct bbc_options* p_options) {
@@ -63,7 +63,7 @@ serial_ula_create(struct serial_struct* p_serial,
                                             "serial:state");
 
   tape_set_serial_ula(p_tape, p_serial_ula);
-  serial_set_transmit_ready_callback(p_serial,
+  mc6850_set_transmit_ready_callback(p_serial,
                                      serial_ula_transmit_ready_callback,
                                      p_serial_ula);
 
@@ -104,7 +104,7 @@ static void
 serial_ula_update_mc6850_logic_lines(struct serial_ula_struct* p_serial_ula) {
   int is_CTS;
   int is_DCD;
-  struct serial_struct* p_serial = p_serial_ula->p_serial;
+  struct mc6850_struct* p_serial = p_serial_ula->p_serial;
 
   /* CTS. When tape is selected, CTS is always low (meaning active). For RS423,
    * it is high (meaning inactive) unless we've connected a virtual device on
@@ -130,8 +130,8 @@ serial_ula_update_mc6850_logic_lines(struct serial_ula_struct* p_serial_ula) {
     is_DCD = p_serial_ula->is_tape_DCD;
   }
 
-  serial_set_DCD(p_serial, is_DCD);
-  serial_set_CTS(p_serial, is_CTS);
+  mc6850_set_DCD(p_serial, is_DCD);
+  mc6850_set_CTS(p_serial, is_CTS);
 }
 
 void
@@ -235,13 +235,13 @@ serial_ula_receive_tape_status(struct serial_ula_struct* p_serial_ula,
   serial_ula_update_mc6850_logic_lines(p_serial_ula);
 
   if ((byte >= 0) && !p_serial_ula->is_rs423_selected) {
-    serial_receive(p_serial_ula->p_serial, byte);
+    mc6850_receive(p_serial_ula->p_serial, byte);
   }
 }
 
 void
 serial_ula_tick(struct serial_ula_struct* p_serial_ula) {
-  struct serial_struct* p_serial;
+  struct mc6850_struct* p_serial;
   intptr_t handle_input;
   intptr_t handle_output;
 
@@ -254,7 +254,7 @@ serial_ula_tick(struct serial_ula_struct* p_serial_ula) {
   handle_output = p_serial_ula->handle_output;
 
   /* Check for external serial input. */
-  if ((handle_input != -1) && serial_get_RTS(p_serial)) {
+  if ((handle_input != -1) && mc6850_get_RTS(p_serial)) {
     /* TODO: this doesn't seem correct. The serial connection may not be via
      * a host terminal?
      */
@@ -267,14 +267,14 @@ serial_ula_tick(struct serial_ula_struct* p_serial_ula) {
         if (val == '\n') {
           val = '\r';
         }
-        serial_receive(p_serial, val);
+        mc6850_receive(p_serial, val);
       }
     }
   }
 
   /* Check for external serial output. */
-  if ((handle_output != -1) && serial_is_transmit_ready(p_serial)) {
-    uint8_t val = serial_transmit(p_serial);
+  if ((handle_output != -1) && mc6850_is_transmit_ready(p_serial)) {
+    uint8_t val = mc6850_transmit(p_serial);
     /* NOTE: no suppression of \r in the BBC stream's newlines. */
     /* This may block; we rely on the host end to be faster than our BBC! */
     (void) os_terminal_handle_write_byte(handle_output, val);
