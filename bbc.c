@@ -12,13 +12,14 @@
 #include "joystick.h"
 #include "keyboard.h"
 #include "log.h"
+#include "mc6850.h"
 #include "memory_access.h"
 #include "os_alloc.h"
 #include "os_channel.h"
 #include "os_thread.h"
 #include "os_time.h"
 #include "render.h"
-#include "serial.h"
+#include "serial_ula.h"
 #include "sound.h"
 #include "state_6502.h"
 #include "tape.h"
@@ -167,6 +168,7 @@ struct bbc_struct {
   struct intel_fdc_struct* p_intel_fdc;
   struct wd_fdc_struct* p_wd_fdc;
   struct serial_struct* p_serial;
+  struct serial_ula_struct* p_serial_ula;
   struct tape_struct* p_tape;
   struct cmos_struct* p_cmos;
   struct cpu_driver* p_cpu_driver;
@@ -425,7 +427,7 @@ bbc_read_callback(void* p,
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-    ret = serial_ula_read(p_bbc->p_serial);
+    ret = serial_ula_read(p_bbc->p_serial_ula);
     break;
   case (k_addr_master_adc + 0):
     /* Syncron reads this even on a model B. */
@@ -908,7 +910,7 @@ bbc_write_callback(void* p,
     break;
   case (k_addr_serial_ula + 0):
   case (k_addr_serial_ula + 4):
-    serial_ula_write(p_bbc->p_serial, val);
+    serial_ula_write(p_bbc->p_serial_ula, val);
     /* A special hack for custom frame rendering for the BBC Micro bot.
      * Only does anything if custom paint handling is active
      * (-opt video:paint-start-cycles).
@@ -1558,11 +1560,17 @@ bbc_create(int mode,
                          p_bbc->p_drive_1);
   }
 
+  p_bbc->p_serial = serial_create(p_state_6502, &p_bbc->options);
+
   p_bbc->p_tape = tape_create(p_timing, &p_bbc->options);
 
-  p_bbc->p_serial = serial_create(p_state_6502, fasttape_flag, &p_bbc->options);
-  serial_set_fast_mode_callback(p_bbc->p_serial, bbc_set_fast_mode, p_bbc);
-  serial_set_tape(p_bbc->p_serial, p_bbc->p_tape);
+  p_bbc->p_serial_ula = serial_ula_create(p_bbc->p_serial,
+                                          p_bbc->p_tape,
+                                          fasttape_flag,
+                                          &p_bbc->options);
+  serial_ula_set_fast_mode_callback(p_bbc->p_serial_ula,
+                                    bbc_set_fast_mode,
+                                    p_bbc);
 
   p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr, &p_bbc->options);
 
@@ -1601,6 +1609,7 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   p_cpu_driver->p_funcs->destroy(p_cpu_driver);
 
   debug_destroy(p_bbc->p_debug);
+  serial_ula_destroy(p_bbc->p_serial_ula);
   serial_destroy(p_bbc->p_serial);
   tape_destroy(p_bbc->p_tape);
   video_destroy(p_bbc->p_video);
@@ -1773,6 +1782,7 @@ bbc_power_on_reset(struct bbc_struct* p_bbc) {
   sound_power_on_reset(p_bbc->p_sound);
   /* Reset serial before the tape so that playing has been stopped. */
   serial_power_on_reset(p_bbc->p_serial);
+  serial_ula_power_on_reset(p_bbc->p_serial_ula);
   tape_power_on_reset(p_bbc->p_tape);
   /* Reset the controller before the drives so that spindown has been done. */
   if (p_bbc->p_intel_fdc != NULL) {
@@ -1849,6 +1859,11 @@ bbc_get_render(struct bbc_struct* p_bbc) {
 struct serial_struct*
 bbc_get_serial(struct bbc_struct* p_bbc) {
   return p_bbc->p_serial;
+}
+
+struct serial_ula_struct*
+bbc_get_serial_ula(struct bbc_struct* p_bbc) {
+  return p_bbc->p_serial_ula;
 }
 
 struct cmos_struct*
@@ -2249,7 +2264,7 @@ bbc_cycles_timer_callback(void* p) {
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.
    */
-  serial_tick(p_bbc->p_serial);
+  serial_ula_tick(p_bbc->p_serial_ula);
 
   joystick_tick(p_bbc->p_joystick);
 

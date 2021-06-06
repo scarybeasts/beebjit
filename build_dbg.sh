@@ -14,7 +14,8 @@ gcc -Wall -W -Werror \
     emit_6502.c interp.c inturbo.c state_6502.c sound.c timing.c \
     jit_compiler.c cpu_driver.c \
     jit_optimizer.c jit_opcode.c keyboard.c \
-    teletext.c render.c serial.c log.c test.c adc.c cmos.c joystick.c \
+    teletext.c render.c mc6850.c serial_ula.c \
+    log.c test.c adc.c cmos.c joystick.c \
     tape.c tape_csw.c tape_uef.c \
     intel_fdc.c wd_fdc.c \
     disc_drive.c disc.c ibm_disc_format.c disc_tool.c \

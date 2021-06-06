@@ -10,7 +10,7 @@
 #include "os_terminal.h"
 #include "os_window.h"
 #include "render.h"
-#include "serial.h"
+#include "serial_ula.h"
 #include "sound.h"
 #include "state.h"
 #include "test.h"
@@ -590,13 +590,13 @@ main(int argc, const char* argv[]) {
   }
 
   if (terminal_flag) {
-    struct serial_struct* p_serial = bbc_get_serial(p_bbc);
+    struct serial_ula_struct* p_serial_ula = bbc_get_serial_ula(p_bbc);
     intptr_t stdin_handle = os_terminal_get_stdin_handle();
     intptr_t stdout_handle = os_terminal_get_stdout_handle();
 
     os_terminal_setup(stdin_handle);
 
-    serial_set_io_handles(p_serial, stdin_handle, stdout_handle);
+    serial_ula_set_io_handles(p_serial_ula, stdin_handle, stdout_handle);
   }
 
   os_channel_get_handles(&handle_channel_read_ui,

@@ -2,7 +2,7 @@
 
 #include "bbc_options.h"
 #include "log.h"
-#include "serial.h"
+#include "serial_ula.h"
 #include "tape_csw.h"
 #include "tape_uef.h"
 #include "timing.h"
@@ -29,9 +29,7 @@ enum {
 struct tape_struct {
   struct timing_struct* p_timing;
   uint32_t timer_id;
-  struct serial_struct* p_serial;
-  void (*p_status_callback)(void* p, int carrier, int32_t value);
-  void* p_status_callback_object;
+  struct serial_ula_struct* p_serial_ula;
 
   uint32_t tick_rate;
 
@@ -71,10 +69,8 @@ tape_timer_callback(struct tape_struct* p_tape) {
     carrier = 1;
   }
 
-  if (p_tape->p_status_callback) {
-    p_tape->p_status_callback(p_tape->p_status_callback_object,
-                              carrier,
-                              tape_value);
+  if (p_tape->p_serial_ula) {
+    serial_ula_receive_tape_status(p_tape->p_serial_ula, carrier, tape_value);
   }
 
   p_tape->tape_buffer_pos++;
@@ -116,13 +112,9 @@ tape_destroy(struct tape_struct* p_tape) {
 }
 
 void
-tape_set_status_callback(struct tape_struct* p_tape,
-                         void (*p_status_callback)(void* p,
-                                                   int carrier,
-                                                   int32_t value),
-                         void* p_status_callback_object) {
-  p_tape->p_status_callback = p_status_callback;
-  p_tape->p_status_callback_object = p_status_callback_object;
+tape_set_serial_ula(struct tape_struct* p_tape,
+                    struct serial_ula_struct* p_serial_ula) {
+  p_tape->p_serial_ula = p_serial_ula;
 }
 
 void
@@ -194,8 +186,8 @@ tape_play(struct tape_struct* p_tape) {
 void
 tape_stop(struct tape_struct* p_tape) {
   (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
-  if (p_tape->p_status_callback) {
-    p_tape->p_status_callback(p_tape->p_status_callback_object, 0, -1);
+  if (p_tape->p_serial_ula) {
+    serial_ula_receive_tape_status(p_tape->p_serial_ula, 0, -1);
   }
 }
 
