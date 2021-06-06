@@ -3,9 +3,10 @@
 #include "bbc_options.h"
 #include "log.h"
 #include "serial.h"
+#include "tape_csw.h"
+#include "tape_uef.h"
 #include "timing.h"
 #include "util.h"
-#include "util_compress.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -18,21 +19,6 @@ enum {
   k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
   /* Includes a start and stop bit. */
   k_tape_ticks_per_byte = (k_tape_ticks_per_bit * 10),
-  k_tape_max_file_size = (1024 * 1024),
-};
-
-enum {
-  k_tape_uef_chunk_origin = 0x0000,
-  k_tape_uef_chunk_data = 0x0100,
-  k_tape_uef_chunk_defined_format_data = 0x0104,
-  k_tape_uef_chunk_carrier_tone = 0x0110,
-  k_tape_uef_chunk_carrier_tone_with_dummy_byte = 0x0111,
-  k_tape_uef_chunk_gap_int = 0x0112,
-  k_tape_uef_chunk_set_baud_rate = 0x0113,
-  k_tape_uef_chunk_security_cycles = 0x0114,
-  k_tape_uef_chunk_phase_change = 0x0115,
-  k_tape_uef_chunk_gap_float = 0x0116,
-  k_tape_uef_chunk_data_encoding_format_change = 0x0117,
 };
 
 enum {
@@ -56,6 +42,8 @@ struct tape_struct {
   uint32_t tapes_added;
   uint32_t tape_index;
   uint64_t tape_buffer_pos;
+
+  int32_t* p_build_buf;
 };
 
 static void
@@ -143,467 +131,11 @@ tape_power_on_reset(struct tape_struct* p_tape) {
   tape_rewind(p_tape);
 }
 
-static uint16_t
-tape_read_u16(uint8_t* p_in_buf) {
-  /* NOTE: not respecting endianness of host in these helpers. */
-  return *(uint16_t*) p_in_buf;
-}
-
-static float
-tape_read_float(uint8_t* p_in_buf) {
-  return *(float*) p_in_buf;
-}
-
-static int
-tape_csw_is_half_1200(uint8_t half_wave) {
-  /* 1200Hz +- 30% */
-  /* Castle Quest-Micro Power.csw needs 14 to be included to load. */
-  return ((half_wave >= 14) && (half_wave <= 26));
-}
-
-static int
-tape_csw_is_half_2400(uint8_t half_wave) {
-  /* 2400Hz +- 25% */
-  /* Joust-Aardvark.csw needs 12 to be included to load. */
-  return ((half_wave >= 7) && (half_wave <= 12));
-}
-
-static uint32_t
-tape_load_csw(int32_t* p_dst,
-              uint32_t dst_len,
-              uint8_t* p_src,
-              uint32_t src_len) {
-  /* The CSW file format: http://ramsoft.bbk.org.omegahg.com/csw.html */
-  uint8_t* p_in_buf;
-  uint8_t extension_len;
-  uint32_t requested_sample_rate;
-  uint32_t i_waves;
-  uint8_t data_byte;
-  uint32_t data_bit_pos;
-  uint32_t carrier_count;
-  uint32_t wave_bytes;
-  uint32_t ticks;
-  int is_silence;
-  int is_carrier;
-  uint32_t data_len;
-  uint32_t dst_index = 0;
-  uint32_t sample_rate = 44100;
-  uint8_t* p_uncompress_buf = NULL;
-
-  if (src_len < 0x34) {
-    util_bail("CSW file too small");
-  }
-  if (memcmp(p_src, "Compressed Square Wave", 22) != 0) {
-    util_bail("CSW file incorrect header");
-  }
-  if (p_src[0x16] != 0x1A) {
-    util_bail("CSW file incorrect terminator code");
-  }
-  if (p_src[0x17] != 0x02) {
-    util_bail("CSW file not version 2");
-  }
-  requested_sample_rate = util_read_le32(&p_src[0x19]);
-  if (requested_sample_rate != sample_rate) {
-    util_bail("CSW file sample rate not supported: %"PRIu32,
-              requested_sample_rate);
-  }
-  if ((p_src[0x21] != 0x01) && (p_src[0x21] != 0x02)) {
-    util_bail("CSW file compression not RLE or Z-RLE");
-  }
-  extension_len = p_src[0x23];
-
-  p_in_buf = p_src;
-  p_in_buf += 0x34;
-  src_len -= 0x34;
-
-  if (extension_len > src_len) {
-    util_bail("CSW file extension doesn't fit");
-  }
-  p_in_buf += extension_len;
-  src_len -= extension_len;
-
-  if (p_src[0x21] == 0x01) {
-    data_len = src_len;
-  } else {
-    int uncompress_ret;
-    size_t uncompress_len = (k_tape_max_file_size * 16);
-    p_uncompress_buf = util_malloc(uncompress_len);
-
-    uncompress_ret = util_uncompress(&uncompress_len,
-                                     p_in_buf,
-                                     src_len,
-                                     p_uncompress_buf);
-    if (uncompress_ret != 0) {
-      util_bail("CSW uncompress failed");
-    }
-    if (uncompress_len == (k_tape_max_file_size * 16)) {
-      util_bail("CSW uncompress too large");
-    }
-
-    p_in_buf = p_uncompress_buf;
-    data_len = uncompress_len;
-  }
-
-  is_silence = 1;
-  is_carrier = 0;
-  ticks = 0;
-  carrier_count = 0;
-  data_byte = 0;
-  data_bit_pos = 0;
-  for (i_waves = 0; i_waves < (data_len - 3); i_waves += wave_bytes) {
-    uint8_t half_wave = p_in_buf[i_waves];
-    uint8_t next_half_wave = p_in_buf[i_waves + 1];
-    int wave_is_1200 = 0;
-    int wave_is_2400 = 0;
-    wave_bytes = 1;
-    /* Look ahead to see if we have noise, or 1 1200Hz cycle, or 2 2400Hz
-     * cycles.
-     */
-    if (tape_csw_is_half_1200(half_wave) &&
-        tape_csw_is_half_1200(next_half_wave)) {
-      wave_is_1200 = 1;
-      wave_bytes = 2;
-    } else if (tape_csw_is_half_2400(half_wave) &&
-               tape_csw_is_half_2400(next_half_wave) &&
-               tape_csw_is_half_2400(p_in_buf[i_waves + 2]) &&
-               tape_csw_is_half_2400(p_in_buf[i_waves + 3])) {
-      wave_is_2400 = 1;
-      wave_bytes = 4;
-    }
-
-    /* Run a little state machine that bounces between silence, carrier and
-     * data.
-     */
-    if (is_silence) {
-      if (wave_is_2400) {
-        /* Transition, silence to carrier. */
-        uint32_t i_chunks;
-        uint32_t num_10bit_chunks = (ticks / (10 * 44100 / 1200));
-        /* Make sure silence is always seen even if we rounded down. */
-        num_10bit_chunks++;
-        for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
-          if (dst_index < dst_len) {
-            p_dst[dst_index++] = k_tape_uef_value_silence;
-          }
-        }
-        is_silence = 0;
-        is_carrier = 1;
-        carrier_count = 1;
-      } else {
-        /* Still silence. */
-        ticks += half_wave;
-        wave_bytes = 1;
-      }
-    } else if (is_carrier) {
-      if (wave_is_2400 || tape_csw_is_half_2400(half_wave)) {
-        /* Still carrier. */
-        if (wave_is_2400) {
-          carrier_count++;
-        }
-      } else {
-        uint32_t i_chunks;
-        uint32_t num_10bit_chunks = (carrier_count / 10);
-        for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
-          if (dst_index < dst_len) {
-            p_dst[dst_index++] = k_tape_uef_value_carrier;
-          }
-        }
-        is_carrier = 0;
-        if (wave_is_1200) {
-          /* Transition, carrier to data. We've found the start bit. */
-          data_byte = 0;
-          data_bit_pos = 0;
-        } else {
-          /* Transition, carrier to silence. */
-          is_silence = 1;
-          ticks = half_wave;
-        }
-      }
-    } else {
-      /* In data. */
-      if (!wave_is_1200 && !wave_is_2400) {
-        /* Transition, data to silence. */
-        is_silence = 1;
-        ticks = half_wave;
-      } else {
-        if (data_bit_pos < 8) {
-          /* We always look to gather 8-bit data chunks.
-           * A more accurate emulation would just provide a bit stream and
-           * let the 6850 sort it out (including framing and parity errors)
-           * based on the mode it's in.
-           * Gathering 8-bit data chunks seems to work even though parity /
-           * stop bits etc. can vary. We can use heuristics to work out which
-           * it must be by looking for stop vs. start bits.
-           */
-          if (wave_is_2400) {
-            data_byte |= (1 << data_bit_pos);
-          }
-          data_bit_pos++;
-          if (data_bit_pos == 8) {
-            if (dst_index < dst_len) {
-              p_dst[dst_index++] = data_byte;
-            }
-          }
-        } else if (data_bit_pos == 8) {
-          /* Could be a parity bit or a stop bit. Skip. */
-          data_bit_pos++;
-        } else {
-          /* Could be a start bit, a stop bit or return to carrier. */
-          if (wave_is_1200) {
-            /* It's a start bit. */
-            data_byte = 0;
-            data_bit_pos = 0;
-          } else {
-            if (data_bit_pos == 10) {
-              /* Transition, data to carrier.
-               * Has to be return to carrier; max stop bits is 2.
-               */
-              is_carrier = 1;
-              carrier_count = 1;
-            } else {
-              data_bit_pos++;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  util_free(p_uncompress_buf);
-
-  return dst_index;
-}
-
-static uint32_t
-tape_load_uef(int32_t* p_dst,
-              uint32_t dst_len,
-              uint8_t* p_src,
-              uint32_t src_len) {
-  uint8_t* p_in_buf;
-  int32_t* p_out_buf;
-  uint32_t src_remaining;
-  uint32_t dst_remaining;
-  uint8_t* p_deflate_buf = NULL;
-
-  if (src_len < 2) {
-    util_bail("UEF file too small");
-  }
-
-  p_in_buf = p_src;
-  if ((p_in_buf[0] == 0x1F) && (p_in_buf[1] == 0x8B)) {
-    int deflate_ret;
-    size_t deflate_len = k_tape_max_file_size;
-    p_deflate_buf = util_malloc(deflate_len);
-
-    deflate_ret = util_gunzip(&deflate_len, p_in_buf, src_len, p_deflate_buf);
-    if (deflate_ret != 0) {
-      util_bail("UEF gunzip failed");
-    }
-    src_len = deflate_len;
-    p_in_buf = p_deflate_buf;
-  }
-
-  if (src_len == k_tape_max_file_size) {
-    util_bail("UEF file too large");
-  }
-
-  p_out_buf = p_dst;
-  src_remaining = src_len;
-  dst_remaining = dst_len;
-  if (src_remaining < 12) {
-    util_bail("UEF file missing header");
-  }
-
-  if (memcmp(p_in_buf, "UEF File!", 10) != 0) {
-    util_bail("UEF file incorrect header");
-  }
-  if (p_in_buf[11] != 0x00) {
-    util_bail("UEF file not supported, need major version 0");
-  }
-  p_in_buf += 12;
-  src_remaining -= 12;
-
-  while (src_remaining != 0) {
-    uint16_t chunk_type;
-    uint32_t chunk_len;
-    uint16_t len_u16_1;
-    uint16_t len_u16_2;
-    uint32_t i;
-    float temp_float;
-
-    if (src_remaining < 6) {
-      util_bail("UEF file missing chunk");
-    }
-    chunk_type = (p_in_buf[1] << 8);
-    chunk_type |= p_in_buf[0];
-    chunk_len = util_read_le32(&p_in_buf[2]);
-    p_in_buf += 6;
-    src_remaining -= 6;
-    if (chunk_len > src_remaining) {
-      util_bail("UEF file chunk too big");
-    }
-
-    switch (chunk_type) {
-    case k_tape_uef_chunk_origin:
-      /* A text comment, typically of which software made this UEF. */
-      break;
-    case k_tape_uef_chunk_data:
-      if (chunk_len > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < chunk_len; ++i) {
-        *p_out_buf++ = p_in_buf[i];
-      }
-      dst_remaining -= chunk_len;
-      break;
-    case k_tape_uef_chunk_defined_format_data:
-      if (chunk_len < 3) {
-        util_bail("UEF file short defined format chunk");
-      }
-      /* Read num data bits, then convert it to a mask. */
-      len_u16_1 = p_in_buf[0];
-      if ((len_u16_1 > 8) || (len_u16_1 < 1)) {
-        util_bail("UEF file bad number data bits");
-      }
-      len_u16_1 = ((1 << len_u16_1) - 1);
-      /* NOTE: we ignore parity and stop bits. This is poor emulation, likely
-       * giving incorrect timing. Also, I've yet to find it, but a nasty
-       * protection could set up a tape vs. ACIA serial format mismatch and
-       * rely on getting a framing error.
-       */
-
-      if ((chunk_len - 3) > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < (chunk_len - 3); ++i) {
-        *p_out_buf++ = (p_in_buf[i + 3] & len_u16_1);
-      }
-      dst_remaining -= (chunk_len - 3);
-      break;
-    case k_tape_uef_chunk_carrier_tone:
-      if (chunk_len != 2) {
-        util_bail("UEF file incorrect carrier tone chunk size");
-      }
-      len_u16_1 = tape_read_u16(p_in_buf);
-      /* Length is specified in terms of 2x time units per baud. */
-      len_u16_1 >>= 1;
-      /* From bits to 10-bit byte time units. */
-      len_u16_1 /= 10;
-
-      if (len_u16_1 > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < len_u16_1; ++i) {
-        *p_out_buf++ = k_tape_uef_value_carrier;
-      }
-      dst_remaining -= len_u16_1;
-      break;
-    case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
-      if (chunk_len != 4) {
-        util_bail("UEF file incorrect carrier tone with dummy byte chunk size");
-      }
-      len_u16_1 = tape_read_u16(p_in_buf);
-      len_u16_2 = tape_read_u16(p_in_buf + 2);
-      /* Length is specified in terms of 2x time units per baud. */
-      len_u16_1 >>= 1;
-      len_u16_2 >>= 1;
-      /* From bits to 10-bit byte time units. */
-      len_u16_1 /= 10;
-      len_u16_2 /= 10;
-
-      if ((uint32_t) (len_u16_1 + 1 + len_u16_2) > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < len_u16_1; ++i) {
-        *p_out_buf++ = k_tape_uef_value_carrier;
-      }
-      *p_out_buf++ = 0xAA;
-      for (i = 0; i < len_u16_2; ++i) {
-        *p_out_buf++ = k_tape_uef_value_carrier;
-      }
-      dst_remaining -= (len_u16_1 + 1 + len_u16_2);
-      break;
-    case k_tape_uef_chunk_gap_int:
-      if (chunk_len != 2) {
-        util_bail("UEF file incorrect integer gap chunk size");
-      }
-      len_u16_1 = tape_read_u16(p_in_buf);
-      /* Length is specified in terms of 2x time units per baud. */
-      len_u16_1 >>= 1;
-      /* From bits to 10-bit byte time units. */
-      len_u16_1 /= 10;
-
-      if (len_u16_1 > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < len_u16_1; ++i) {
-        *p_out_buf++ = k_tape_uef_value_silence;
-      }
-      dst_remaining -= len_u16_1;
-      break;
-    case k_tape_uef_chunk_set_baud_rate:
-      /* Example file is STH 3DGrandPrix_B.hq.zip. */
-      break;
-    case k_tape_uef_chunk_security_cycles:
-      /* Example file is STH 3DGrandPrix_B.hq.zip. */
-      break;
-    case k_tape_uef_chunk_phase_change:
-      /* Example file is STH 3DGrandPrix_B.hq.zip. */
-      break;
-    case k_tape_uef_chunk_gap_float:
-      if (chunk_len != 4) {
-        util_bail("UEF file incorrect float gap chunk size");
-      }
-      temp_float = tape_read_float(p_in_buf);
-      /* Current record: 907.9s:
-       * CompleteBBC,The(Audiogenic)[tape-2][side-1]_hq.uef.
-       */
-      if ((temp_float > 1200) || (temp_float < 0)) {
-        util_bail("UEF file strange float gap %f", temp_float);
-      }
-      len_u16_1 = (temp_float *
-                       k_tape_system_tick_rate /
-                       k_tape_ticks_per_byte);
-
-      if (len_u16_1 > dst_remaining) {
-        util_bail("UEF file out of buffer");
-      }
-      for (i = 0; i < len_u16_1; ++i) {
-        *p_out_buf++ = k_tape_uef_value_silence;
-      }
-      dst_remaining -= len_u16_1;
-      break;
-    case k_tape_uef_chunk_data_encoding_format_change:
-      /* Example file is Swarm(ComputerConcepts).uef. */
-      /* Some protected tape streams flip between 300 baud and 1200 baud.
-       * Ignore it for now because we don't support different tape speeds. It
-       * seems to work, but isn't a good emulation. It would be possible for a
-       * tape loader to detect our subterfuge via either timing of tape bytes,
-       * or by mismatching on-tape baud vs. serial baud and checking for
-       * failure (we would succeed in passing the bytes along).
-       */
-      break;
-    default:
-      util_bail("UEF unknown chunk type 0x%.4"PRIx16, chunk_type);
-      break;
-    }
-
-    p_in_buf += chunk_len;
-    src_remaining -= chunk_len;
-  }
-
-  util_free(p_deflate_buf);
-
-  return (dst_len - dst_remaining);
-}
-
 void
 tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   uint8_t* p_in_file_buf;
-  int32_t* p_out_file_buf;
   size_t len;
   struct util_file* p_file;
-  uint32_t num_tape_values;
   size_t tape_buffer_size;
   int32_t* p_tape_buffer;
 
@@ -614,7 +146,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   }
 
   p_in_file_buf = util_malloc(k_tape_max_file_size);
-  p_out_file_buf = util_malloc(k_tape_max_file_size * sizeof(int32_t));
+  p_tape->p_build_buf = util_malloc(k_tape_max_file_size * sizeof(int32_t));
 
   p_file = util_file_open(p_file_name, 0, 0);
 
@@ -622,33 +154,29 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
 
   util_file_close(p_file);
 
+  p_tape->tape_buffer_pos = 0;
   if (util_is_extension(p_file_name, "csw")) {
-    num_tape_values = tape_load_csw(p_out_file_buf,
-                                    k_tape_max_file_size,
-                                    p_in_file_buf,
-                                    len);
+    tape_csw_load(p_tape, p_in_file_buf, len);
   } else {
-    num_tape_values = tape_load_uef(p_out_file_buf,
-                                    k_tape_max_file_size,
-                                    p_in_file_buf,
-                                    len);
+    tape_uef_load(p_tape, p_in_file_buf, len);
   }
 
-  tape_buffer_size = (num_tape_values * sizeof(int32_t));
+  tape_buffer_size = (p_tape->tape_buffer_pos * sizeof(int32_t));
   p_tape_buffer = util_malloc(tape_buffer_size);
 
   p_tape->p_tape_file_names[tapes_added] = util_strdup(p_file_name);
   p_tape->p_tape_buffers[tapes_added] = p_tape_buffer;
-  p_tape->num_tape_values[tapes_added] = num_tape_values;
+  p_tape->num_tape_values[tapes_added] = p_tape->tape_buffer_pos;
 
-  (void) memcpy(p_tape_buffer, p_out_file_buf, tape_buffer_size);
+  (void) memcpy(p_tape_buffer, p_tape->p_build_buf, tape_buffer_size);
 
   /* Always end with an empty slot. */
   p_tape->p_tape_buffers[tapes_added + 1] = NULL;
   p_tape->tapes_added++;
 
   util_free(p_in_file_buf);
-  util_free(p_out_file_buf);
+  util_free(p_tape->p_build_buf);
+  p_tape->p_build_buf = NULL;
 }
 
 int
@@ -700,4 +228,53 @@ tape_cycle_tape(struct tape_struct* p_tape) {
 void
 tape_rewind(struct tape_struct* p_tape) {
   p_tape->tape_buffer_pos = 0;
+}
+
+static int
+tape_check_build_space(struct tape_struct* p_tape) {
+  if (p_tape->tape_buffer_pos < k_tape_max_file_size) {
+    return 1;
+  }
+
+  log_do_log(k_log_tape, k_log_warning, "tape file too large");
+
+  return 0;
+}
+
+void
+tape_add_silence_bits(struct tape_struct* p_tape, uint32_t num_bits) {
+  uint32_t i_chunks;
+  uint32_t num_10bit_chunks = (num_bits / 10);
+  if (num_10bit_chunks == 0) {
+    num_10bit_chunks = 1;
+  }
+  for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
+    if (!tape_check_build_space(p_tape)) {
+      return;
+    }
+    p_tape->p_build_buf[p_tape->tape_buffer_pos++] = k_tape_uef_value_silence;
+  }
+}
+
+void
+tape_add_carrier_bits(struct tape_struct* p_tape, uint32_t num_bits) {
+  uint32_t i_chunks;
+  uint32_t num_10bit_chunks = (num_bits / 10);
+  if (num_10bit_chunks == 0) {
+    num_10bit_chunks = 1;
+  }
+  for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
+    if (!tape_check_build_space(p_tape)) {
+      return;
+    }
+    p_tape->p_build_buf[p_tape->tape_buffer_pos++] = k_tape_uef_value_carrier;
+  }
+}
+
+void
+tape_add_byte(struct tape_struct* p_tape, uint8_t byte) {
+  if (!tape_check_build_space(p_tape)) {
+    return;
+  }
+  p_tape->p_build_buf[p_tape->tape_buffer_pos++] = byte;
 }
