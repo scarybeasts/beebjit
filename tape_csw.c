@@ -31,9 +31,8 @@ tape_csw_load(struct tape_struct* p_tape,
   uint8_t extension_len;
   uint32_t requested_sample_rate;
   uint32_t i_waves;
-  uint8_t data_byte;
-  uint32_t data_bit_pos;
   uint32_t carrier_count;
+  uint32_t data_one_bits_count;
   uint32_t wave_bytes;
   uint32_t ticks;
   int is_silence;
@@ -100,8 +99,7 @@ tape_csw_load(struct tape_struct* p_tape,
   is_carrier = 0;
   ticks = 0;
   carrier_count = 0;
-  data_byte = 0;
-  data_bit_pos = 0;
+  data_one_bits_count = 0;
   for (i_waves = 0; i_waves < (data_len - 3); i_waves += wave_bytes) {
     uint8_t half_wave = p_in_buf[i_waves];
     uint8_t next_half_wave = p_in_buf[i_waves + 1];
@@ -124,7 +122,8 @@ tape_csw_load(struct tape_struct* p_tape,
     }
 
     /* Run a little state machine that bounces between silence, carrier and
-     * data.
+     * data. It's important to track when we're in carrier because the carrier
+     * signal often doesn't last for an exact number of bits widths.
      */
     if (is_silence) {
       if (wave_is_2400) {
@@ -132,7 +131,7 @@ tape_csw_load(struct tape_struct* p_tape,
         uint32_t num_bits = (ticks / (44100 / 1200));
         /* Make sure silence is always seen even if we rounded down. */
         num_bits++;
-        tape_add_silence_bits(p_tape, num_bits);
+        tape_add_bits(p_tape, k_tape_bit_silence, num_bits);
         is_silence = 0;
         is_carrier = 1;
         carrier_count = 1;
@@ -148,12 +147,12 @@ tape_csw_load(struct tape_struct* p_tape,
           carrier_count++;
         }
       } else {
-        tape_add_carrier_bits(p_tape, carrier_count);
+        tape_add_bits(p_tape, k_tape_bit_1, carrier_count);
         is_carrier = 0;
         if (wave_is_1200) {
           /* Transition, carrier to data. We've found the start bit. */
-          data_byte = 0;
-          data_bit_pos = 0;
+          tape_add_bit(p_tape, k_tape_bit_0);
+          data_one_bits_count = 0;
         } else {
           /* Transition, carrier to silence. */
           is_silence = 1;
@@ -162,48 +161,27 @@ tape_csw_load(struct tape_struct* p_tape,
       }
     } else {
       /* In data. */
-      if (!wave_is_1200 && !wave_is_2400) {
-        /* Transition, data to silence. */
+      if (wave_is_1200) {
+        tape_add_bit(p_tape, k_tape_bit_0);
+        data_one_bits_count = 0;
+      } else if (wave_is_2400) {
+        tape_add_bit(p_tape, k_tape_bit_1);
+        data_one_bits_count++;
+        if (data_one_bits_count == 10) {
+          /* Transition, data to carrier. */
+          is_carrier = 1;
+          carrier_count = 0;
+        }
+      } else {
+        /* Transition, data to silence. This sometimes indicates a wobble in
+         * the CSW that would lead to a load failure.
+         */
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "transition from data to silence at %"PRIu32,
+                   i_waves);
         is_silence = 1;
         ticks = half_wave;
-      } else {
-        if (data_bit_pos < 8) {
-          /* We always look to gather 8-bit data chunks.
-           * A more accurate emulation would just provide a bit stream and
-           * let the 6850 sort it out (including framing and parity errors)
-           * based on the mode it's in.
-           * Gathering 8-bit data chunks seems to work even though parity /
-           * stop bits etc. can vary. We can use heuristics to work out which
-           * it must be by looking for stop vs. start bits.
-           */
-          if (wave_is_2400) {
-            data_byte |= (1 << data_bit_pos);
-          }
-          data_bit_pos++;
-          if (data_bit_pos == 8) {
-            tape_add_byte(p_tape, data_byte);
-          }
-        } else if (data_bit_pos == 8) {
-          /* Could be a parity bit or a stop bit. Skip. */
-          data_bit_pos++;
-        } else {
-          /* Could be a start bit, a stop bit or return to carrier. */
-          if (wave_is_1200) {
-            /* It's a start bit. */
-            data_byte = 0;
-            data_bit_pos = 0;
-          } else {
-            if (data_bit_pos == 10) {
-              /* Transition, data to carrier.
-               * Has to be return to carrier; max stop bits is 2.
-               */
-              is_carrier = 1;
-              carrier_count = 1;
-            } else {
-              data_bit_pos++;
-            }
-          }
-        }
       }
     }
   }

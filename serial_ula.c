@@ -23,7 +23,7 @@ struct serial_ula_struct {
 
   int is_rs423_selected;
   int is_motor_on;
-  uint32_t tape_carrier_count;
+  uint64_t tape_carrier_count;
   int is_tape_DCD;
 
   int is_fasttape;
@@ -210,12 +210,12 @@ serial_ula_write(struct serial_ula_struct* p_serial_ula, uint8_t val) {
 }
 
 void
-serial_ula_receive_tape_status(struct serial_ula_struct* p_serial_ula,
-                               int is_carrier,
-                               int32_t byte) {
-  if (!is_carrier) {
+serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
+                            int8_t bit) {
+  p_serial_ula->is_tape_DCD = 0;
+
+  if (bit != k_tape_bit_1) {
     p_serial_ula->tape_carrier_count = 0;
-    p_serial_ula->is_tape_DCD = 0;
   } else {
     p_serial_ula->tape_carrier_count++;
     /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
@@ -227,15 +227,18 @@ serial_ula_receive_tape_status(struct serial_ula_struct* p_serial_ula,
      */
     if (p_serial_ula->tape_carrier_count == 20) {
       p_serial_ula->is_tape_DCD = 1;
-    } else {
-      p_serial_ula->is_tape_DCD = 0;
     }
   }
 
   serial_ula_update_mc6850_logic_lines(p_serial_ula);
 
-  if ((byte >= 0) && !p_serial_ula->is_rs423_selected) {
-    mc6850_receive(p_serial_ula->p_serial, byte);
+  if (!p_serial_ula->is_rs423_selected) {
+    /* Silence will send a 0 bit. */
+    int serial_bit = 0;
+    if (bit == k_tape_bit_1) {
+      serial_bit = 1;
+    }
+    mc6850_receive_bit(p_serial_ula->p_serial, serial_bit);
   }
 }
 

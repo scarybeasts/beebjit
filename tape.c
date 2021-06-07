@@ -17,13 +17,7 @@ enum {
   k_tape_system_tick_rate = 2000000,
   k_tape_bit_rate = 1200,
   k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
-  /* Includes a start and stop bit. */
-  k_tape_ticks_per_byte = (k_tape_ticks_per_bit * 10),
-};
-
-enum {
-  k_tape_uef_value_carrier = -1,
-  k_tape_uef_value_silence = -2,
+  k_tape_max_internal_buffer = (k_tape_max_file_size * 16),
 };
 
 struct tape_struct {
@@ -34,14 +28,14 @@ struct tape_struct {
   uint32_t tick_rate;
 
   char* p_tape_file_names[k_tape_max_tapes + 1];
-  int32_t* p_tape_buffers[k_tape_max_tapes + 1];
+  int8_t* p_tape_buffers[k_tape_max_tapes + 1];
   uint32_t num_tape_values[k_tape_max_tapes + 1];
 
   uint32_t tapes_added;
   uint32_t tape_index;
   uint64_t tape_buffer_pos;
 
-  int32_t* p_build_buf;
+  int8_t* p_build_buf;
 };
 
 static void
@@ -51,10 +45,8 @@ tape_timer_callback(struct tape_struct* p_tape) {
   uint32_t tape_index = p_tape->tape_index;
   uint64_t tape_buffer_pos = p_tape->tape_buffer_pos;
   uint32_t num_tape_values = p_tape->num_tape_values[tape_index];
-  int32_t* p_tape_buffer = p_tape->p_tape_buffers[tape_index];
+  int8_t* p_tape_buffer = p_tape->p_tape_buffers[tape_index];
  
-  int carrier = 0;
-
   (void) timing_set_timer_value(p_tape->p_timing,
                                 p_tape->timer_id,
                                 p_tape->tick_rate);
@@ -62,15 +54,11 @@ tape_timer_callback(struct tape_struct* p_tape) {
   if (p_tape->tape_buffer_pos < num_tape_values) {
     tape_value = p_tape_buffer[tape_buffer_pos];
   } else {
-    tape_value = k_tape_uef_value_silence;
-  }
-
-  if (tape_value == k_tape_uef_value_carrier) {
-    carrier = 1;
+    tape_value = k_tape_bit_silence;
   }
 
   if (p_tape->p_serial_ula) {
-    serial_ula_receive_tape_status(p_tape->p_serial_ula, carrier, tape_value);
+    serial_ula_receive_tape_bit(p_tape->p_serial_ula, tape_value);
   }
 
   p_tape->tape_buffer_pos++;
@@ -86,7 +74,7 @@ tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
                                            tape_timer_callback,
                                            p_tape);
 
-  p_tape->tick_rate = k_tape_ticks_per_byte;
+  p_tape->tick_rate = k_tape_ticks_per_bit;
   (void) util_get_u32_option(&p_tape->tick_rate,
                              p_options->p_opt_flags,
                              "tape:tick-rate=");
@@ -128,8 +116,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   uint8_t* p_in_file_buf;
   size_t len;
   struct util_file* p_file;
-  size_t tape_buffer_size;
-  int32_t* p_tape_buffer;
+  int8_t* p_tape_buffer;
 
   uint32_t tapes_added = p_tape->tapes_added;
 
@@ -138,7 +125,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   }
 
   p_in_file_buf = util_malloc(k_tape_max_file_size);
-  p_tape->p_build_buf = util_malloc(k_tape_max_file_size * sizeof(int32_t));
+  p_tape->p_build_buf = util_malloc(k_tape_max_internal_buffer);
 
   p_file = util_file_open(p_file_name, 0, 0);
 
@@ -153,14 +140,13 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
     tape_uef_load(p_tape, p_in_file_buf, len);
   }
 
-  tape_buffer_size = (p_tape->tape_buffer_pos * sizeof(int32_t));
-  p_tape_buffer = util_malloc(tape_buffer_size);
+  p_tape_buffer = util_malloc(p_tape->tape_buffer_pos);
 
   p_tape->p_tape_file_names[tapes_added] = util_strdup(p_file_name);
   p_tape->p_tape_buffers[tapes_added] = p_tape_buffer;
   p_tape->num_tape_values[tapes_added] = p_tape->tape_buffer_pos;
 
-  (void) memcpy(p_tape_buffer, p_tape->p_build_buf, tape_buffer_size);
+  (void) memcpy(p_tape_buffer, p_tape->p_build_buf, p_tape->tape_buffer_pos);
 
   /* Always end with an empty slot. */
   p_tape->p_tape_buffers[tapes_added + 1] = NULL;
@@ -187,13 +173,13 @@ void
 tape_stop(struct tape_struct* p_tape) {
   (void) timing_stop_timer(p_tape->p_timing, p_tape->timer_id);
   if (p_tape->p_serial_ula) {
-    serial_ula_receive_tape_status(p_tape->p_serial_ula, 0, -1);
+    serial_ula_receive_tape_bit(p_tape->p_serial_ula, k_tape_bit_silence);
   }
 }
 
 void
 tape_cycle_tape(struct tape_struct* p_tape) {
-  int32_t* p_tape_buffer;
+  int8_t* p_tape_buffer;
   char* p_file_name;
 
   uint32_t tape_index = p_tape->tape_index;
@@ -222,51 +208,36 @@ tape_rewind(struct tape_struct* p_tape) {
   p_tape->tape_buffer_pos = 0;
 }
 
-static int
-tape_check_build_space(struct tape_struct* p_tape) {
-  if (p_tape->tape_buffer_pos < k_tape_max_file_size) {
-    return 1;
+void
+tape_add_bit(struct tape_struct* p_tape, int8_t bit) {
+  if (p_tape->tape_buffer_pos == k_tape_max_internal_buffer) {
+    return;
   }
-
-  log_do_log(k_log_tape, k_log_warning, "tape file too large");
-
-  return 0;
+  p_tape->p_build_buf[p_tape->tape_buffer_pos++] = bit;
 }
 
 void
-tape_add_silence_bits(struct tape_struct* p_tape, uint32_t num_bits) {
-  uint32_t i_chunks;
-  uint32_t num_10bit_chunks = (num_bits / 10);
-  if (num_10bit_chunks == 0) {
-    num_10bit_chunks = 1;
-  }
-  for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
-    if (!tape_check_build_space(p_tape)) {
-      return;
-    }
-    p_tape->p_build_buf[p_tape->tape_buffer_pos++] = k_tape_uef_value_silence;
-  }
-}
-
-void
-tape_add_carrier_bits(struct tape_struct* p_tape, uint32_t num_bits) {
-  uint32_t i_chunks;
-  uint32_t num_10bit_chunks = (num_bits / 10);
-  if (num_10bit_chunks == 0) {
-    num_10bit_chunks = 1;
-  }
-  for (i_chunks = 0; i_chunks < num_10bit_chunks; ++i_chunks) {
-    if (!tape_check_build_space(p_tape)) {
-      return;
-    }
-    p_tape->p_build_buf[p_tape->tape_buffer_pos++] = k_tape_uef_value_carrier;
+tape_add_bits(struct tape_struct* p_tape, int8_t bit, uint32_t num_bits) {
+  uint32_t i_bits;
+  for (i_bits = 0; i_bits < num_bits; ++i_bits) {
+    tape_add_bit(p_tape, bit);
   }
 }
 
 void
 tape_add_byte(struct tape_struct* p_tape, uint8_t byte) {
-  if (!tape_check_build_space(p_tape)) {
-    return;
+  uint32_t i_bits;
+  /* Start bit. */
+  tape_add_bit(p_tape, k_tape_bit_0);
+  /* Data bits. */
+  for (i_bits = 0; i_bits < 8; ++i_bits) {
+    int bit = !!(byte & (1 << i_bits));
+    if (bit) {
+      tape_add_bit(p_tape, k_tape_bit_1);
+    } else {
+      tape_add_bit(p_tape, k_tape_bit_0);
+    }
   }
-  p_tape->p_build_buf[p_tape->tape_buffer_pos++] = byte;
+  /* Stop bit. */
+  tape_add_bit(p_tape, k_tape_bit_1);
 }

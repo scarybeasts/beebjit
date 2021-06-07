@@ -110,18 +110,56 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       }
       /* Read num data bits, then convert it to a mask. */
       len_u16_1 = p_in_buf[0];
-      if ((len_u16_1 > 8) || (len_u16_1 < 1)) {
-        util_bail("UEF file bad number data bits");
+      if ((len_u16_1 != 8) && (len_u16_1 != 7)) {
+        util_bail("UEF file bad number of data bits");
       }
-      len_u16_1 = ((1 << len_u16_1) - 1);
-      /* NOTE: we ignore parity and stop bits. This is poor emulation, likely
-       * giving incorrect timing. Also, I've yet to find it, but a nasty
-       * protection could set up a tape vs. ACIA serial format mismatch and
-       * rely on getting a framing error.
-       */
+      len_u16_2 = p_in_buf[2];
+      if ((len_u16_2 != 1) && (len_u16_2 != 2)) {
+        util_bail("UEF file bad number of stop bits");
+      }
+      if ((p_in_buf[1] != 'N') &&
+          (p_in_buf[1] != 'O') &&
+          (p_in_buf[1] != 'E')) {
+        util_bail("UEF file bad parity");
+      }
       for (i = 0; i < (chunk_len - 3); ++i) {
-        uint8_t byte = (p_in_buf[i + 3] & len_u16_1);
-        tape_add_byte(p_tape, byte);
+        uint32_t i_bits;
+        int parity = 0;
+        uint8_t byte = p_in_buf[i + 3];
+        /* Start bit. */
+        tape_add_bit(p_tape, k_tape_bit_0);
+        /* Data bits. */
+        for (i_bits = 0; i_bits < len_u16_1; ++i_bits) {
+          int bit = !!(byte & (1 << i_bits));
+          if (bit) {
+            tape_add_bit(p_tape, k_tape_bit_1);
+            parity = !parity;
+          } else {
+            tape_add_bit(p_tape, k_tape_bit_0);
+          }
+        }
+        /* Parity bit. */
+        /* NOTE: the UEFs I've tested with appear to have odd / even exactly
+         * the wrong way around. For example, an 8O1 block is read with the
+         * 6850 in 8E1 mode on the host. So we invert.
+         */
+        if (p_in_buf[1] == 'E') {
+          if (!parity) {
+            tape_add_bit(p_tape, k_tape_bit_1);
+          } else {
+            tape_add_bit(p_tape, k_tape_bit_0);
+          }
+        } else if (p_in_buf[1] == 'O') {
+          if (!parity) {
+            tape_add_bit(p_tape, k_tape_bit_0);
+          } else {
+            tape_add_bit(p_tape, k_tape_bit_1);
+          }
+        }
+        /* Stop bits. */
+        for (i_bits = 0; i_bits < len_u16_2; ++i_bits) {
+          tape_add_bit(p_tape, k_tape_bit_1);
+        }
       }
       break;
     case k_tape_uef_chunk_carrier_tone:
@@ -132,7 +170,7 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       /* Length is specified in terms of 2x time units per baud. */
       len_u16_1 >>= 1;
 
-      tape_add_carrier_bits(p_tape, len_u16_1);
+      tape_add_bits(p_tape, k_tape_bit_1, len_u16_1);
       break;
     case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
       if (chunk_len != 4) {
@@ -144,9 +182,9 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       len_u16_1 >>= 1;
       len_u16_2 >>= 1;
 
-      tape_add_carrier_bits(p_tape, len_u16_1);
+      tape_add_bits(p_tape, k_tape_bit_1, len_u16_1);
       tape_add_byte(p_tape, 0xAA);
-      tape_add_carrier_bits(p_tape, len_u16_2);
+      tape_add_bits(p_tape, k_tape_bit_1, len_u16_2);
       break;
     case k_tape_uef_chunk_gap_int:
       if (chunk_len != 2) {
@@ -156,7 +194,7 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       /* Length is specified in terms of 2x time units per baud. */
       len_u16_1 >>= 1;
 
-      tape_add_silence_bits(p_tape, len_u16_1);
+      tape_add_bits(p_tape, k_tape_bit_silence, len_u16_1);
       break;
     case k_tape_uef_chunk_set_baud_rate:
       /* Example file is STH 3DGrandPrix_B.hq.zip. */
@@ -180,7 +218,7 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       }
       len_u16_1 = (temp_float * 1200);
 
-      tape_add_silence_bits(p_tape, len_u16_1);
+      tape_add_bits(p_tape, k_tape_bit_silence, len_u16_1);
       break;
     case k_tape_uef_chunk_data_encoding_format_change:
       /* Example file is Swarm(ComputerConcepts).uef. */

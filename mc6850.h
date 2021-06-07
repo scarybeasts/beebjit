@@ -27,6 +27,9 @@ void mc6850_set_DCD(struct mc6850_struct* p_serial, int is_DCD);
 void mc6850_set_CTS(struct mc6850_struct* p_serial, int is_CTS);
 int mc6850_get_RTS(struct mc6850_struct* p_serial);
 int mc6850_is_transmit_ready(struct mc6850_struct* p_serial);
+
+void mc6850_receive_bit(struct mc6850_struct* p_serial, int bit);
+
 void mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte);
 uint8_t mc6850_transmit(struct mc6850_struct* p_serial);
 

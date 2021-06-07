@@ -16,6 +16,7 @@ enum {
 };
 
 enum {
+  k_serial_acia_control_8_bits = 0x10,
   k_serial_acia_control_TCB_mask = 0x60,
   k_serial_acia_control_RIE = 0x80,
 };
@@ -23,6 +24,15 @@ enum {
 enum {
   k_serial_acia_TCB_RTS_and_TIE =   0x20,
   k_serial_acia_TCB_no_RTS_no_TIE = 0x40,
+};
+
+enum {
+  k_mc6850_state_null = 0,
+  k_mc6850_state_need_start = 1,
+  k_mc6850_state_need_data = 2,
+  k_mc6850_state_need_parity = 3,
+  k_mc6850_state_need_stop_1 = 4,
+  k_mc6850_state_need_stop_2 = 5,
 };
 
 struct mc6850_struct {
@@ -33,6 +43,10 @@ struct mc6850_struct {
   uint8_t acia_status;
   uint8_t acia_receive;
   uint8_t acia_transmit;
+  int state;
+  uint8_t acia_receive_sr;
+  uint32_t acia_receive_sr_count;
+  int parity_accumulator;
   int is_DCD;
   int is_CTS;
 
@@ -168,6 +182,85 @@ mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
   mc6850_update_irq(p_serial);
 }
 
+static void
+mc6850_transfer_sr_to_receive(struct mc6850_struct* p_serial) {
+  mc6850_receive(p_serial, p_serial->acia_receive_sr);
+  p_serial->acia_receive_sr = 0;
+  p_serial->acia_receive_sr_count = 0;
+  p_serial->parity_accumulator = 0;
+}
+
+void
+mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
+  uint8_t data_mode;
+
+  switch (p_serial->state) {
+  case k_mc6850_state_need_start:
+    if (bit == 0) {
+      assert(p_serial->acia_receive_sr == 0);
+      assert(p_serial->acia_receive_sr_count == 0);
+      assert(p_serial->parity_accumulator == 0);
+      p_serial->state = k_mc6850_state_need_data;
+    }
+    break;
+  case k_mc6850_state_need_data:
+    if (bit) {
+      p_serial->acia_receive_sr |= (1 << p_serial->acia_receive_sr_count);
+      p_serial->parity_accumulator = !p_serial->parity_accumulator;
+    }
+    p_serial->acia_receive_sr_count++;
+    if (p_serial->acia_control & k_serial_acia_control_8_bits) {
+      if (p_serial->acia_receive_sr_count == 8) {
+        if (p_serial->acia_control & 0x08) {
+          p_serial->state = k_mc6850_state_need_parity;
+        } else {
+          p_serial->state = k_mc6850_state_need_stop_1;
+        }
+      }
+    } else {
+      if (p_serial->acia_receive_sr_count == 7) {
+        p_serial->state = k_mc6850_state_need_parity;
+      }
+    }
+    break;
+  case k_mc6850_state_need_parity:
+    if (bit) {
+      p_serial->parity_accumulator = !p_serial->parity_accumulator;
+    }
+    if (p_serial->parity_accumulator !=
+            ((p_serial->acia_control & 0x04) >> 2)) {
+      /* TODO: report this error in the status register. */
+      log_do_log(k_log_serial, k_log_warning, "incorrect parity bit");
+    }
+    p_serial->state = k_mc6850_state_need_stop_1;
+    break;
+  case k_mc6850_state_need_stop_1:
+    if (bit != 1) {
+      /* TODO: report this error in the status register. */
+      log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 1");
+    }
+    data_mode = (p_serial->acia_control & 0x1C);
+    if ((data_mode == 0x00) || (data_mode == 0x04) || (data_mode == 0x10)) {
+      p_serial->state = k_mc6850_state_need_stop_2;
+    } else {
+      mc6850_transfer_sr_to_receive(p_serial);
+      p_serial->state = k_mc6850_state_need_start;
+    }
+    break;
+  case k_mc6850_state_need_stop_2:
+    if (bit != 1) {
+      /* TODO: report this error in the status register. */
+      log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 2");
+    }
+    mc6850_transfer_sr_to_receive(p_serial);
+    p_serial->state = k_mc6850_state_need_start;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 uint8_t
 mc6850_transmit(struct mc6850_struct* p_serial) {
   assert(mc6850_is_transmit_ready(p_serial));
@@ -182,6 +275,11 @@ void
 mc6850_power_on_reset(struct mc6850_struct* p_serial) {
   p_serial->acia_receive = 0;
   p_serial->acia_transmit = 0;
+
+  p_serial->state = k_mc6850_state_need_start;
+  p_serial->acia_receive_sr = 0;
+  p_serial->acia_receive_sr_count = 0;
+  p_serial->parity_accumulator = 0;
 
   /* Set TDRE (transmit data register empty). Clear everything else. */
   p_serial->acia_status = k_serial_acia_status_TDRE;
@@ -268,7 +366,7 @@ mc6850_write(struct mc6850_struct* p_serial, uint8_t reg, uint8_t val) {
     }
     if (p_serial->log_state) {
       static const char* p_bitmode_strs[] = {
-        "7E2", "7O2", "7E1", "7O1", "8N2", "8N1", "8E1", "8N1",
+        "7E2", "7O2", "7E1", "7O1", "8N2", "8N1", "8E1", "8O1",
       };
       static const char* p_divider_strs[] = {
         "/1", "/16", "/64", "RESET",

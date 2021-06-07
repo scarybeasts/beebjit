@@ -29,9 +29,8 @@ void serial_ula_power_on_reset(struct serial_ula_struct* p_serial_ula);
 uint8_t serial_ula_read(struct serial_ula_struct* p_serial_ula);
 void serial_ula_write(struct serial_ula_struct* p_serial_ula, uint8_t val);
 
-void serial_ula_receive_tape_status(struct serial_ula_struct* p_serial_ula,
-                                    int is_carrier,
-                                    int32_t byte);
+void serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
+                                 int8_t value);
 
 void serial_ula_tick(struct serial_ula_struct* p_serial_ula);
 
