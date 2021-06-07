@@ -214,7 +214,7 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
                             int8_t bit) {
   p_serial_ula->is_tape_DCD = 0;
 
-  if (bit != k_tape_bit_1) {
+  if (bit == k_tape_bit_silence) {
     p_serial_ula->tape_carrier_count = 0;
   } else {
     p_serial_ula->tape_carrier_count++;

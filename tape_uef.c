@@ -43,6 +43,7 @@ tape_uef_load(struct tape_struct* p_tape,
               int log_uef) {
   uint8_t* p_in_buf;
   uint32_t src_remaining;
+  uint32_t baud_scale_for_300;
   uint8_t* p_deflate_buf = NULL;
 
   if (src_len < 2) {
@@ -81,6 +82,7 @@ tape_uef_load(struct tape_struct* p_tape,
   p_in_buf += 12;
   src_remaining -= 12;
 
+  baud_scale_for_300 = 1;
   while (src_remaining != 0) {
     uint16_t chunk_type;
     uint32_t chunk_len;
@@ -125,7 +127,21 @@ tape_uef_load(struct tape_struct* p_tape,
                    chunk_len);
       }
       for (i = 0; i < chunk_len; ++i) {
-        tape_add_byte(p_tape, p_in_buf[i]);
+        uint32_t i_bits;
+        uint8_t byte = p_in_buf[i];
+        /* Start bit. */
+        tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
+        /* Data bits. */
+        for (i_bits = 0; i_bits < 8; ++i_bits) {
+          int bit = !!(byte & (1 << i_bits));
+          if (bit) {
+            tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
+          } else {
+            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
+          }
+        }
+        /* Stop bit. */
+        tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
       }
       break;
     case k_tape_uef_chunk_defined_format_data:
@@ -166,15 +182,15 @@ tape_uef_load(struct tape_struct* p_tape,
         int parity = 0;
         uint8_t byte = p_in_buf[i + 3];
         /* Start bit. */
-        tape_add_bit(p_tape, k_tape_bit_0);
+        tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
         /* Data bits. */
         for (i_bits = 0; i_bits < len_u16_1; ++i_bits) {
           int bit = !!(byte & (1 << i_bits));
           if (bit) {
-            tape_add_bit(p_tape, k_tape_bit_1);
+            tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
             parity = !parity;
           } else {
-            tape_add_bit(p_tape, k_tape_bit_0);
+            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
           }
         }
         /* Parity bit. */
@@ -184,20 +200,20 @@ tape_uef_load(struct tape_struct* p_tape,
          */
         if (p_in_buf[1] == 'E') {
           if (!parity) {
-            tape_add_bit(p_tape, k_tape_bit_1);
+            tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
           } else {
-            tape_add_bit(p_tape, k_tape_bit_0);
+            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
           }
         } else if (p_in_buf[1] == 'O') {
           if (!parity) {
-            tape_add_bit(p_tape, k_tape_bit_0);
+            tape_add_bits(p_tape, k_tape_bit_0, baud_scale_for_300);
           } else {
-            tape_add_bit(p_tape, k_tape_bit_1);
+            tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
           }
         }
         /* Stop bits. */
         for (i_bits = 0; i_bits < len_u16_2; ++i_bits) {
-          tape_add_bit(p_tape, k_tape_bit_1);
+          tape_add_bits(p_tape, k_tape_bit_1, baud_scale_for_300);
         }
       }
       break;
@@ -306,12 +322,21 @@ tape_uef_load(struct tape_struct* p_tape,
         util_bail("UEF file incorrect data encoding format chunk size");
       }
       len_u16_1 = tape_read_u16(p_in_buf);
+      if (len_u16_1 == 1200) {
+        baud_scale_for_300 = 1;
+      } else if (len_u16_1 == 300) {
+        baud_scale_for_300 = 4;
+      } else {
+        util_bail("UEF file unknown data encoding format");
+      }
+
       if (log_uef) {
         log_do_log(k_log_tape,
                    k_log_info,
                    "data encoding format now %"PRIu32,
                    len_u16_1);
       }
+
       /* Example file is Swarm(ComputerConcepts).uef. */
       /* Some protected tape streams flip between 300 baud and 1200 baud.
        * Ignore it for now because we don't support different tape speeds. It

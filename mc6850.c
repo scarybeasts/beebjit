@@ -16,6 +16,8 @@ enum {
 };
 
 enum {
+  k_serial_acia_control_clock_divider_mask = 0x03,
+  k_serial_acia_control_clock_divider_64 = 0x02,
   k_serial_acia_control_8_bits = 0x10,
   k_serial_acia_control_TCB_mask = 0x60,
   k_serial_acia_control_RIE = 0x80,
@@ -47,6 +49,7 @@ struct mc6850_struct {
   uint8_t acia_receive_sr;
   uint32_t acia_receive_sr_count;
   int parity_accumulator;
+  uint32_t clock_divide_counter;
   int is_DCD;
   int is_CTS;
 
@@ -194,6 +197,18 @@ void
 mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
   uint8_t data_mode;
 
+  /* Implement 300 baud tapes here by skipping bits if our clock divider is 64
+   * instead of the usual 16.
+   */
+  p_serial->clock_divide_counter++;
+  p_serial->clock_divide_counter &= 3;
+  if ((p_serial->acia_control & k_serial_acia_control_clock_divider_mask) ==
+          k_serial_acia_control_clock_divider_64) {
+    if (p_serial->clock_divide_counter != 0) {
+      return;
+    }
+  }
+
   switch (p_serial->state) {
   case k_mc6850_state_need_start:
     if (bit == 0) {
@@ -280,6 +295,7 @@ mc6850_power_on_reset(struct mc6850_struct* p_serial) {
   p_serial->acia_receive_sr = 0;
   p_serial->acia_receive_sr_count = 0;
   p_serial->parity_accumulator = 0;
+  p_serial->clock_divide_counter = 0;
 
   /* Set TDRE (transmit data register empty). Clear everything else. */
   p_serial->acia_status = k_serial_acia_status_TDRE;

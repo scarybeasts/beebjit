@@ -18,6 +18,11 @@ Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/241
 Needs correct DCD flag management.
 Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/262
 
+- DoctorWhoAndTheMinesOfTerror300BaudProt.uef
+48446220dc0802db1b29220008bf30e902a6bc4eea21e7ed01c9a27d55cd0348  DoctorWhoAndTheMinesOfTerror300BaudProt.uef
+Gives 300 baud a test.
+By @pvanek on StarDot, https://stardot.org.uk/forums/viewtopic.php?f=1&t=19220
+
 - DuneRider(MicroPower).uef
 06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331  DuneRider(MicroPower).uef
 Custom loader with scrolling text.
@@ -51,6 +56,10 @@ Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/104
 bffa104c57584c73f36e5dcb1f841f40bc521b824dd2b0a54faee2732bd1fdae  StarDrifter_B.hq.zip
 Needs correct serial ULA DCD behavior for very short carrier tones.
 Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/257
+
+- Swarm-Computer Concepts.csw
+b295090f1ad548ecdb652e46bb972026f181810e79d4cc403cd7473b76729278  Swarm-Computer Concepts.csw
+Uses a 300 baud file.
 
 - TheMusicSystem(IslandLogic)[Tape1Side1].uef
 From a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicSystem(IslandLogic)[Tape1Side1].rar
