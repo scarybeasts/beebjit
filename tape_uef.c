@@ -1,5 +1,6 @@
 #include "tape_uef.h"
 
+#include "log.h"
 #include "tape.h"
 #include "util.h"
 #include "util_compress.h"
@@ -24,8 +25,10 @@ enum {
 
 static uint16_t
 tape_read_u16(uint8_t* p_in_buf) {
-  /* NOTE: not respecting endianness of host in these helpers. */
-  return *(uint16_t*) p_in_buf;
+  uint16_t ret = p_in_buf[1];
+  ret <<= 8;
+  ret |= p_in_buf[0];
+  return ret;
 }
 
 static float
@@ -34,7 +37,10 @@ tape_read_float(uint8_t* p_in_buf) {
 }
 
 void
-tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
+tape_uef_load(struct tape_struct* p_tape,
+              uint8_t* p_src,
+              uint32_t src_len,
+              int log_uef) {
   uint8_t* p_in_buf;
   uint32_t src_remaining;
   uint8_t* p_deflate_buf = NULL;
@@ -95,11 +101,29 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       util_bail("UEF file chunk too big");
     }
 
+    if (log_uef) {
+      log_do_log(k_log_tape,
+                 k_log_info,
+                 "UEF chunk $%.4X size %"PRIu32,
+                 chunk_type,
+                 chunk_len);
+    }
+
     switch (chunk_type) {
     case k_tape_uef_chunk_origin:
       /* A text comment, typically of which software made this UEF. */
+      if (log_uef) {
+        p_in_buf[chunk_len - 1] = '\0';
+        log_do_log(k_log_tape, k_log_info, "comment: %s", p_in_buf);
+      }
       break;
     case k_tape_uef_chunk_data:
+      if (log_uef) {
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "standard data, length %"PRIu32,
+                   chunk_len);
+      }
       for (i = 0; i < chunk_len; ++i) {
         tape_add_byte(p_tape, p_in_buf[i]);
       }
@@ -108,6 +132,7 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       if (chunk_len < 3) {
         util_bail("UEF file short defined format chunk");
       }
+
       /* Read num data bits, then convert it to a mask. */
       len_u16_1 = p_in_buf[0];
       if ((len_u16_1 != 8) && (len_u16_1 != 7)) {
@@ -122,6 +147,20 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
           (p_in_buf[1] != 'E')) {
         util_bail("UEF file bad parity");
       }
+
+      if (log_uef) {
+        char format[4];
+        format[0] = ('0' + p_in_buf[0]);
+        format[1] = p_in_buf[1];
+        format[2] = ('0' + p_in_buf[2]);
+        format[3] = '\0';
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "defined data, format %s length %"PRIu32,
+                   &format[0],
+                   chunk_len);
+      }
+
       for (i = 0; i < (chunk_len - 3); ++i) {
         uint32_t i_bits;
         int parity = 0;
@@ -170,6 +209,13 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       /* Length is specified in terms of 2x time units per baud. */
       len_u16_1 >>= 1;
 
+      if (log_uef) {
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "carrier tone, bits %"PRIu32,
+                   len_u16_1);
+      }
+
       tape_add_bits(p_tape, k_tape_bit_1, len_u16_1);
       break;
     case k_tape_uef_chunk_carrier_tone_with_dummy_byte:
@@ -181,6 +227,14 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       /* Length is specified in terms of 2x time units per baud. */
       len_u16_1 >>= 1;
       len_u16_2 >>= 1;
+
+      if (log_uef) {
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "carrier tone with dummy byte, bits %"PRIu32", %"PRIu32,
+                   len_u16_1,
+                   len_u16_2);
+      }
 
       tape_add_bits(p_tape, k_tape_bit_1, len_u16_1);
       tape_add_byte(p_tape, 0xAA);
@@ -194,15 +248,39 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       /* Length is specified in terms of 2x time units per baud. */
       len_u16_1 >>= 1;
 
+      if (log_uef) {
+        log_do_log(k_log_tape, k_log_info, "gap, int value %"PRIu32, len_u16_1);
+      }
+
       tape_add_bits(p_tape, k_tape_bit_silence, len_u16_1);
       break;
     case k_tape_uef_chunk_set_baud_rate:
+      if (chunk_len != 4) {
+        util_bail("UEF file incorrect baud rate chunk size");
+      }
+      temp_float = tape_read_float(p_in_buf);
+      if (log_uef) {
+        log_do_log(k_log_tape, k_log_info, "baud rate now %f", temp_float);
+      }
       /* Example file is STH 3DGrandPrix_B.hq.zip. */
       break;
     case k_tape_uef_chunk_security_cycles:
+      if (log_uef) {
+        log_do_log(k_log_tape, k_log_info, "security cycles");
+      }
       /* Example file is STH 3DGrandPrix_B.hq.zip. */
       break;
     case k_tape_uef_chunk_phase_change:
+      if (chunk_len != 2) {
+        util_bail("UEF file incorrect phase change chunk size");
+      }
+      len_u16_1 = tape_read_u16(p_in_buf);
+      if (log_uef) {
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "phase now %"PRIu32,
+                   len_u16_1);
+      }
       /* Example file is STH 3DGrandPrix_B.hq.zip. */
       break;
     case k_tape_uef_chunk_gap_float:
@@ -210,6 +288,9 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
         util_bail("UEF file incorrect float gap chunk size");
       }
       temp_float = tape_read_float(p_in_buf);
+      if (log_uef) {
+        log_do_log(k_log_tape, k_log_info, "gap, float value %f", temp_float);
+      }
       /* Current record: 907.9s:
        * CompleteBBC,The(Audiogenic)[tape-2][side-1]_hq.uef.
        */
@@ -221,6 +302,16 @@ tape_uef_load(struct tape_struct* p_tape, uint8_t* p_src, uint32_t src_len) {
       tape_add_bits(p_tape, k_tape_bit_silence, len_u16_1);
       break;
     case k_tape_uef_chunk_data_encoding_format_change:
+      if (chunk_len != 2) {
+        util_bail("UEF file incorrect data encoding format chunk size");
+      }
+      len_u16_1 = tape_read_u16(p_in_buf);
+      if (log_uef) {
+        log_do_log(k_log_tape,
+                   k_log_info,
+                   "data encoding format now %"PRIu32,
+                   len_u16_1);
+      }
       /* Example file is Swarm(ComputerConcepts).uef. */
       /* Some protected tape streams flip between 300 baud and 1200 baud.
        * Ignore it for now because we don't support different tape speeds. It

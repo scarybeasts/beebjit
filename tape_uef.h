@@ -7,6 +7,7 @@ struct tape_struct;
 
 void tape_uef_load(struct tape_struct* p_tape,
                    uint8_t* p_src,
-                   uint32_t src_len);
+                   uint32_t src_len,
+                   int log_uef);
 
 #endif /* BEEBJIT_TAPE_UEF_H */

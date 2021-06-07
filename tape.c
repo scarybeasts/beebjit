@@ -36,6 +36,8 @@ struct tape_struct {
   uint64_t tape_buffer_pos;
 
   int8_t* p_build_buf;
+
+  int log_uef;
 };
 
 static void
@@ -74,15 +76,17 @@ tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
                                            tape_timer_callback,
                                            p_tape);
 
+  p_tape->tapes_added = 0;
+  p_tape->tape_index = 0;
+  p_tape->tape_buffer_pos = 0;
+  p_tape->p_tape_buffers[0] = NULL;
+
   p_tape->tick_rate = k_tape_ticks_per_bit;
   (void) util_get_u32_option(&p_tape->tick_rate,
                              p_options->p_opt_flags,
                              "tape:tick-rate=");
 
-  p_tape->tapes_added = 0;
-  p_tape->tape_index = 0;
-  p_tape->tape_buffer_pos = 0;
-  p_tape->p_tape_buffers[0] = NULL;
+  p_tape->log_uef = util_has_option(p_options->p_log_flags, "tape:uef");
 
   return p_tape;
 }
@@ -137,7 +141,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   if (util_is_extension(p_file_name, "csw")) {
     tape_csw_load(p_tape, p_in_file_buf, len);
   } else {
-    tape_uef_load(p_tape, p_in_file_buf, len);
+    tape_uef_load(p_tape, p_in_file_buf, len, p_tape->log_uef);
   }
 
   p_tape_buffer = util_malloc(p_tape->tape_buffer_pos);
