@@ -38,6 +38,7 @@ tape_csw_load(struct tape_struct* p_tape,
   int is_silence;
   int is_carrier;
   uint32_t data_len;
+  uint32_t samples;
   uint32_t sample_rate = 44100;
   uint8_t* p_uncompress_buf = NULL;
 
@@ -95,6 +96,7 @@ tape_csw_load(struct tape_struct* p_tape,
     data_len = uncompress_len;
   }
 
+  samples = 0;
   is_silence = 1;
   is_carrier = 0;
   ticks = 0;
@@ -102,23 +104,28 @@ tape_csw_load(struct tape_struct* p_tape,
   data_one_bits_count = 0;
   for (i_waves = 0; i_waves < (data_len - 3); i_waves += wave_bytes) {
     uint8_t half_wave = p_in_buf[i_waves];
-    uint8_t next_half_wave = p_in_buf[i_waves + 1];
+    uint8_t half_wave_2 = p_in_buf[i_waves + 1];
+    uint8_t half_wave_3 = p_in_buf[i_waves + 2];
+    uint8_t half_wave_4 = p_in_buf[i_waves + 3];
     int wave_is_1200 = 0;
     int wave_is_2400 = 0;
+    uint32_t wave_samples = half_wave;
     wave_bytes = 1;
     /* Look ahead to see if we have noise, or 1 1200Hz cycle, or 2 2400Hz
      * cycles.
      */
     if (tape_csw_is_half_1200(half_wave) &&
-        tape_csw_is_half_1200(next_half_wave)) {
+        tape_csw_is_half_1200(half_wave_2)) {
       wave_is_1200 = 1;
       wave_bytes = 2;
+      wave_samples = (half_wave + half_wave_2);
     } else if (tape_csw_is_half_2400(half_wave) &&
-               tape_csw_is_half_2400(next_half_wave) &&
-               tape_csw_is_half_2400(p_in_buf[i_waves + 2]) &&
-               tape_csw_is_half_2400(p_in_buf[i_waves + 3])) {
+               tape_csw_is_half_2400(half_wave_2) &&
+               tape_csw_is_half_2400(half_wave_3) &&
+               tape_csw_is_half_2400(half_wave_4)) {
       wave_is_2400 = 1;
       wave_bytes = 4;
+      wave_samples = (half_wave + half_wave_2 + half_wave_3 + half_wave_4);
     }
 
     /* Run a little state machine that bounces between silence, carrier and
@@ -138,6 +145,7 @@ tape_csw_load(struct tape_struct* p_tape,
       } else {
         /* Still silence. */
         ticks += half_wave;
+        wave_samples = half_wave;
         wave_bytes = 1;
       }
     } else if (is_carrier) {
@@ -157,6 +165,7 @@ tape_csw_load(struct tape_struct* p_tape,
           /* Transition, carrier to silence. */
           is_silence = 1;
           ticks = half_wave;
+          wave_samples = half_wave;
         }
       }
     } else {
@@ -178,12 +187,22 @@ tape_csw_load(struct tape_struct* p_tape,
          */
         log_do_log(k_log_tape,
                    k_log_info,
-                   "transition from data to silence at %"PRIu32,
-                   i_waves);
+                   "CSW data to silence"
+                   ", byte %"PRIu32
+                   ", sample %"PRIu32
+                   " (%d %d %d %d)",
+                   i_waves,
+                   samples,
+                   half_wave,
+                   half_wave_2,
+                   half_wave_3,
+                   half_wave_4);
         is_silence = 1;
         ticks = half_wave;
       }
     }
+
+    samples += wave_samples;
   }
 
   util_free(p_uncompress_buf);
