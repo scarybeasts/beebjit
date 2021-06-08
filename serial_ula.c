@@ -7,6 +7,8 @@
 #include "tape.h"
 #include "util.h"
 
+#include <assert.h>
+
 enum {
   k_serial_ula_rs423 = 0x40,
   k_serial_ula_motor = 0x80,
@@ -214,10 +216,12 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
                             int8_t bit) {
   p_serial_ula->is_tape_DCD = 0;
 
+  p_serial_ula->tape_carrier_count++;
   if (bit == k_tape_bit_silence) {
     p_serial_ula->tape_carrier_count = 0;
-  } else {
-    p_serial_ula->tape_carrier_count++;
+  }
+
+  if (p_serial_ula->tape_carrier_count == 20) {
     /* The tape hardware doesn't raise DCD until the carrier tone has persisted      * for a while. The BBC service manual opines,
      * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
      * continuous tone appears".
@@ -225,17 +229,18 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
      * Star Drifter doesn't load without this.
      * Testing on real hardware, DCD is blipped, it lowers about 210us after it      * raises, even though the carrier tone may be continuing.
      */
-    if (p_serial_ula->tape_carrier_count == 20) {
-      p_serial_ula->is_tape_DCD = 1;
-    }
+    p_serial_ula->is_tape_DCD = 1;
   }
 
   serial_ula_update_mc6850_logic_lines(p_serial_ula);
 
-  if (!p_serial_ula->is_rs423_selected) {
-    /* Silence will send a 0 bit. */
-    int serial_bit = 0;
-    if (bit == k_tape_bit_1) {
+  if (!p_serial_ula->is_rs423_selected &&
+      (p_serial_ula->tape_carrier_count >= 20)) {
+    int serial_bit;
+    assert(bit != k_tape_bit_silence);
+    if (bit == k_tape_bit_0) {
+      serial_bit = 0;
+    } else {
       serial_bit = 1;
     }
     mc6850_receive_bit(p_serial_ula->p_serial, serial_bit);
