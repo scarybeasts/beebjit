@@ -66,3 +66,9 @@ From a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicS
 a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicSystem(IslandLogic)[Tape1Side1].rar
 There's something interesting about this tape because it loads ok in beebjit
 but not in jsbeeb (which has reasonable tape / serial handling).
+
+- Uridium.csw
+6db5af3d6cdd4fd154c90cbdb2b53e103eb765e171aa83df8889cf026d10969f  Uridium.csw
+Last special block goes from tone to data to tone to data without a break and
+needs the second tone to re-raise DCD.
+
