@@ -288,7 +288,7 @@ mc6850_transmit(struct mc6850_struct* p_serial) {
 
 void
 mc6850_power_on_reset(struct mc6850_struct* p_serial) {
-  int is_CTS = !!(p_serial->acia_control & k_serial_acia_status_CTS);
+  int is_CTS = !!(p_serial->acia_status & k_serial_acia_status_CTS);
 
   p_serial->acia_receive = 0;
   p_serial->acia_transmit = 0;
@@ -321,7 +321,7 @@ mc6850_read(struct mc6850_struct* p_serial, uint8_t reg) {
      * modem. In the high state, the Transmit Data Register Empty bit is
      * inhibited".
      */
-    if (p_serial->acia_control & k_serial_acia_status_CTS) {
+    if (p_serial->acia_status & k_serial_acia_status_CTS) {
       ret &= ~k_serial_acia_status_TDRE;
     }
 
