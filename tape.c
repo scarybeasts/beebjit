@@ -38,6 +38,7 @@ struct tape_struct {
   int8_t* p_build_buf;
 
   int log_uef;
+  int opt_do_check_csw_bits;
 };
 
 static void
@@ -87,6 +88,8 @@ tape_create(struct timing_struct* p_timing, struct bbc_options* p_options) {
                              "tape:tick-rate=");
 
   p_tape->log_uef = util_has_option(p_options->p_log_flags, "tape:uef");
+  p_tape->opt_do_check_csw_bits = util_has_option(p_options->p_opt_flags,
+                                                  "tape:csw-check-bits");
 
   return p_tape;
 }
@@ -139,7 +142,7 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
 
   p_tape->tape_buffer_pos = 0;
   if (util_is_extension(p_file_name, "csw")) {
-    tape_csw_load(p_tape, p_in_file_buf, len);
+    tape_csw_load(p_tape, p_in_file_buf, len, p_tape->opt_do_check_csw_bits);
   } else {
     tape_uef_load(p_tape, p_in_file_buf, len, p_tape->log_uef);
   }
