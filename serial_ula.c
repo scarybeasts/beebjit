@@ -280,7 +280,7 @@ serial_ula_tick(struct serial_ula_struct* p_serial_ula) {
         if (val == '\n') {
           val = '\r';
         }
-        mc6850_receive(p_serial, val);
+        (void) mc6850_receive(p_serial, val);
       }
     }
   }

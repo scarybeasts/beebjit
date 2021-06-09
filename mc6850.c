@@ -83,6 +83,8 @@ mc6850_update_irq(struct mc6850_struct* p_serial) {
   if (do_check_receive_int) {
     do_fire_receive_int = !!(p_serial->acia_status & k_serial_acia_status_RDRF);
     do_fire_receive_int |= !!(p_serial->acia_status & k_serial_acia_status_DCD);
+    do_fire_receive_int |=
+        !!(p_serial->acia_status & k_serial_acia_status_OVRN);
   }
 
   do_fire_int = (do_fire_send_int | do_fire_receive_int);
@@ -173,7 +175,7 @@ mc6850_is_transmit_ready(struct mc6850_struct* p_serial) {
   return !(p_serial->acia_status & k_serial_acia_status_TDRE);
 }
 
-void
+int
 mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
   if (p_serial->log_bytes) {
     log_do_log(k_log_serial,
@@ -183,7 +185,8 @@ mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
                byte);
   }
   if (p_serial->acia_status & k_serial_acia_status_RDRF) {
-    log_do_log(k_log_serial, k_log_unimplemented, "receive buffer full");
+    log_do_log(k_log_serial, k_log_info, "receive buffer full");
+    return 0;
   }
   p_serial->acia_status |= k_serial_acia_status_RDRF;
   p_serial->acia_status &= ~k_serial_acia_status_FE;
@@ -191,6 +194,8 @@ mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
   p_serial->acia_receive = byte;
 
   mc6850_update_irq(p_serial);
+
+  return 1;
 }
 
 static void
@@ -201,17 +206,23 @@ mc6850_clear_receive_state(struct mc6850_struct* p_serial) {
   p_serial->clock_divide_counter = 0;
   p_serial->is_sr_parity_error = 0;
   p_serial->is_sr_framing_error = 0;
-  p_serial->is_sr_overflow = 0;
 }
 
 static void
 mc6850_transfer_sr_to_receive(struct mc6850_struct* p_serial) {
-  mc6850_receive(p_serial, p_serial->acia_receive_sr);
-  if (p_serial->is_sr_parity_error) {
-    p_serial->acia_status |= k_serial_acia_status_PE;
-  }
-  if (p_serial->is_sr_framing_error) {
-    p_serial->acia_status |= k_serial_acia_status_FE;
+  int ok = mc6850_receive(p_serial, p_serial->acia_receive_sr);
+  if (!ok) {
+    /* Overflow condition. Data wasn't read in time. Overflow condition will be
+     * raised once the existing data is read.
+     */
+    p_serial->is_sr_overflow = 1;
+  } else {
+    if (p_serial->is_sr_parity_error) {
+      p_serial->acia_status |= k_serial_acia_status_PE;
+    }
+    if (p_serial->is_sr_framing_error) {
+      p_serial->acia_status |= k_serial_acia_status_FE;
+    }
   }
   mc6850_clear_receive_state(p_serial);
 }
@@ -240,7 +251,6 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
       assert(p_serial->parity_accumulator == 0);
       assert(p_serial->is_sr_parity_error == 0);
       assert(p_serial->is_sr_framing_error == 0);
-      assert(p_serial->is_sr_overflow == 0);
       p_serial->state = k_mc6850_state_need_data;
     }
     break;
@@ -323,6 +333,7 @@ mc6850_power_on_reset(struct mc6850_struct* p_serial) {
 
   p_serial->state = k_mc6850_state_need_start;
   mc6850_clear_receive_state(p_serial);
+  p_serial->is_sr_overflow = 0;
 
   /* Set TDRE (transmit data register empty). Clear everything else. */
   p_serial->acia_status = k_serial_acia_status_TDRE;
@@ -374,8 +385,19 @@ mc6850_read(struct mc6850_struct* p_serial, uint8_t reg) {
     return ret;
   } else {
     /* Data register. */
-    p_serial->acia_status &= ~k_serial_acia_status_RDRF;
     p_serial->acia_status &= ~k_serial_acia_status_DCD;
+    p_serial->acia_status &= ~k_serial_acia_status_OVRN;
+    if (p_serial->is_sr_overflow) {
+      assert(p_serial->acia_status & k_serial_acia_status_RDRF);
+      /* MC6850: "The Overrun does not occur in the Status Register until the
+       * valid character prior to Overrun has been read.
+       */
+      p_serial->is_sr_overflow = 0;
+      p_serial->acia_status |= k_serial_acia_status_OVRN;
+      /* RDRF remains asserted. */
+    } else {
+      p_serial->acia_status &= ~k_serial_acia_status_RDRF;
+    }
 
     mc6850_update_irq(p_serial);
 
