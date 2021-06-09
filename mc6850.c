@@ -12,6 +12,9 @@ enum {
   k_serial_acia_status_TDRE = 0x02,
   k_serial_acia_status_DCD =  0x04,
   k_serial_acia_status_CTS =  0x08,
+  k_serial_acia_status_FE =   0x10,
+  k_serial_acia_status_OVRN = 0x20,
+  k_serial_acia_status_PE =   0x40,
   k_serial_acia_status_IRQ =  0x80,
 };
 
@@ -50,6 +53,9 @@ struct mc6850_struct {
   uint32_t acia_receive_sr_count;
   int parity_accumulator;
   uint32_t clock_divide_counter;
+  int is_sr_parity_error;
+  int is_sr_framing_error;
+  int is_sr_overflow;
   int is_DCD;
 
   int log_state;
@@ -180,17 +186,34 @@ mc6850_receive(struct mc6850_struct* p_serial, uint8_t byte) {
     log_do_log(k_log_serial, k_log_unimplemented, "receive buffer full");
   }
   p_serial->acia_status |= k_serial_acia_status_RDRF;
+  p_serial->acia_status &= ~k_serial_acia_status_FE;
+  p_serial->acia_status &= ~k_serial_acia_status_PE;
   p_serial->acia_receive = byte;
 
   mc6850_update_irq(p_serial);
 }
 
 static void
-mc6850_transfer_sr_to_receive(struct mc6850_struct* p_serial) {
-  mc6850_receive(p_serial, p_serial->acia_receive_sr);
+mc6850_clear_receive_state(struct mc6850_struct* p_serial) {
   p_serial->acia_receive_sr = 0;
   p_serial->acia_receive_sr_count = 0;
   p_serial->parity_accumulator = 0;
+  p_serial->clock_divide_counter = 0;
+  p_serial->is_sr_parity_error = 0;
+  p_serial->is_sr_framing_error = 0;
+  p_serial->is_sr_overflow = 0;
+}
+
+static void
+mc6850_transfer_sr_to_receive(struct mc6850_struct* p_serial) {
+  mc6850_receive(p_serial, p_serial->acia_receive_sr);
+  if (p_serial->is_sr_parity_error) {
+    p_serial->acia_status |= k_serial_acia_status_PE;
+  }
+  if (p_serial->is_sr_framing_error) {
+    p_serial->acia_status |= k_serial_acia_status_FE;
+  }
+  mc6850_clear_receive_state(p_serial);
 }
 
 void
@@ -215,6 +238,9 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
       assert(p_serial->acia_receive_sr == 0);
       assert(p_serial->acia_receive_sr_count == 0);
       assert(p_serial->parity_accumulator == 0);
+      assert(p_serial->is_sr_parity_error == 0);
+      assert(p_serial->is_sr_framing_error == 0);
+      assert(p_serial->is_sr_overflow == 0);
       p_serial->state = k_mc6850_state_need_data;
     }
     break;
@@ -244,15 +270,15 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
     }
     if (p_serial->parity_accumulator !=
             ((p_serial->acia_control & 0x04) >> 2)) {
-      /* TODO: report this error in the status register. */
       log_do_log(k_log_serial, k_log_warning, "incorrect parity bit");
+      p_serial->is_sr_parity_error = 1;
     }
     p_serial->state = k_mc6850_state_need_stop_1;
     break;
   case k_mc6850_state_need_stop_1:
     if (bit != 1) {
-      /* TODO: report this error in the status register. */
       log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 1");
+      p_serial->is_sr_framing_error = 1;
     }
     data_mode = (p_serial->acia_control & 0x1C);
     if ((data_mode == 0x00) || (data_mode == 0x04) || (data_mode == 0x10)) {
@@ -264,8 +290,10 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
     break;
   case k_mc6850_state_need_stop_2:
     if (bit != 1) {
-      /* TODO: report this error in the status register. */
       log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 2");
+      /* NOTE: not raising Framing Error here. The datasheet opines,
+       * "Framing Error [...] is detected by the absence of the first stop bit"
+       */
     }
     mc6850_transfer_sr_to_receive(p_serial);
     p_serial->state = k_mc6850_state_need_start;
@@ -294,10 +322,7 @@ mc6850_power_on_reset(struct mc6850_struct* p_serial) {
   p_serial->acia_transmit = 0;
 
   p_serial->state = k_mc6850_state_need_start;
-  p_serial->acia_receive_sr = 0;
-  p_serial->acia_receive_sr_count = 0;
-  p_serial->parity_accumulator = 0;
-  p_serial->clock_divide_counter = 0;
+  mc6850_clear_receive_state(p_serial);
 
   /* Set TDRE (transmit data register empty). Clear everything else. */
   p_serial->acia_status = k_serial_acia_status_TDRE;
