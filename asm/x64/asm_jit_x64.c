@@ -301,7 +301,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
                 offset,
                 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
                 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch,
-                (K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV + n));
+                (K_ASM_TABLE_PAGE_WRAP_CYCLE_INV + n));
 }
 
 void
@@ -328,7 +328,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
   asm_copy(p_buf,
            asm_jit_CHECK_PAGE_CROSSING_X_n,
            asm_jit_CHECK_PAGE_CROSSING_X_n_END);
-  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value = K_ASM_TABLE_PAGE_WRAP_CYCLE_INV;
   value += (addr & 0xFF);
   asm_patch_int(p_buf,
                 offset,
@@ -346,7 +346,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
   asm_copy(p_buf,
            asm_jit_CHECK_PAGE_CROSSING_Y_n,
            asm_jit_CHECK_PAGE_CROSSING_Y_n_END);
-  value = K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV;
+  value = K_ASM_TABLE_PAGE_WRAP_CYCLE_INV;
   value += (addr & 0xFF);
   asm_patch_int(p_buf,
                 offset,

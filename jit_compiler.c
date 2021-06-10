@@ -1779,7 +1779,10 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode,
                                                 write_inv_search_uopcode);
     assert(p_uop != NULL);
-    jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
+    /* This if keeps gcc 11.1 -Werror=stringop-overflow happy. */
+    if (p_uop != NULL) {
+      jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
+    }
   }
   if (write_inv_erase_uopcode != -1) {
     jit_opcode_erase_uop(p_opcode, write_inv_erase_uopcode);

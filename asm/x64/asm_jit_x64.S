@@ -376,7 +376,7 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X:
   movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + \
                                    REG_SCRATCH2 + \
-                                   K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
+                                   K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END:
@@ -389,7 +389,7 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y:
   movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
                                    REG_SCRATCH2 + \
-                                   K_ASM_TABLE_PAGE_CROSSING_CYCLE_INV]
+                                   K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END:
