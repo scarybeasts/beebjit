@@ -13,10 +13,7 @@ jit_opcode_find_replace1(struct jit_opcode_details* p_opcode,
                          int32_t value1) {
   struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode, find_uop);
   assert(p_uop != NULL);
-  /* This if keeps gcc 11.1 -Werror=stringop-overflow happy. */
-  if (p_uop != NULL) {
-    jit_opcode_make_uop1(p_uop, uop1, value1);
-  }
+  jit_opcode_make_uop1(p_uop, uop1, value1);
 }
 
 void
@@ -34,22 +31,21 @@ jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
     util_bail("uops full");
   }
 
-  /* This if keeps gcc 11.1 -Werror=stringop-overflow happy. */
-  if (p_uop != NULL) {
-    jit_opcode_make_uop1(p_uop, uop1, value1);
-  }
+  jit_opcode_make_uop1(p_uop, uop1, value1);
   index = (p_uop - &p_opcode->uops[0]);
   jit_opcode_insert_uop(p_opcode, (index + 1), uop2, value2);
 }
 
 void
 jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1) {
-  (void) memset(p_uop, '\0', sizeof(struct jit_uop));
   p_uop->uopcode = uopcode;
   /* TODO: get rid of? */
   p_uop->uoptype = -1;
   p_uop->uopmode = -1;
   p_uop->value1 = value1;
+  p_uop->value2 = 0;
+  p_uop->eliminated = 0;
+  p_uop->is_prefix_or_postfix = 0;
 }
 
 struct jit_uop*
