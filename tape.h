@@ -10,7 +10,7 @@ struct serial_ula_struct;
 struct timing_struct;
 
 enum {
-  k_tape_max_file_size = (1024 * 1024),
+  k_tape_max_file_size = (1024 * 1024 * 8),
 };
 
 enum {
