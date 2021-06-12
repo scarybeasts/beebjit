@@ -11,6 +11,7 @@
 
 enum {
   k_tape_uef_chunk_origin = 0x0000,
+  k_tape_uef_chunk_target_machine = 0x0005,
   k_tape_uef_chunk_data = 0x0100,
   k_tape_uef_chunk_defined_format_data = 0x0104,
   k_tape_uef_chunk_carrier_tone = 0x0110,
@@ -117,6 +118,15 @@ tape_uef_load(struct tape_struct* p_tape,
       if (log_uef) {
         p_in_buf[chunk_len - 1] = '\0';
         log_do_log(k_log_tape, k_log_info, "comment: %s", p_in_buf);
+      }
+      break;
+    case k_tape_uef_chunk_target_machine:
+      /* Uncommon. Found in Fortress-PIASRR_B.zip from the STH archive. */
+      if (chunk_len != 1) {
+        util_bail("UEF file bad target machine chunk");
+      }
+      if (log_uef) {
+        log_do_log(k_log_tape, k_log_info, "target machine: %d", p_in_buf[0]);
       }
       break;
     case k_tape_uef_chunk_data:
