@@ -29,6 +29,10 @@ Custom loader with scrolling text.
 Tons of very esoteric undocumented opcodes.
 Seems to trigger a teletext double height bug in some emulators.
 
+- Fortress-Pace.csw
+a8cd2fa5b438eef6c56e14ea9bd9cde0d52146f811a778d81ad3477da58bbe14  Fortress-Pace.csw
+Uses 8N2 mode, and hits an incorrect 2nd stop bit while in this mode.
+
 - Frak_B.uef
 b7ae768e9ffceeaf370bc0b31ea966072946e038c3d89cd79ce1ffe86f1fe113  Frak_B.zip
 Didn't load in beebjit. In the presence of an accurate serial ULA / MC6850

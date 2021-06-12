@@ -289,6 +289,10 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
     if (bit != 1) {
       log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 1");
       p_serial->is_sr_framing_error = 1;
+      /* TODO: resolve whether this condition starts assembing a new data
+       * byte immediately, as seems to happen when "incorrect stop bit 2" is
+       * hit.
+       */
     }
     data_mode = (p_serial->acia_control & 0x1C);
     if ((data_mode == 0x00) || (data_mode == 0x04) || (data_mode == 0x10)) {
@@ -303,10 +307,21 @@ mc6850_receive_bit(struct mc6850_struct* p_serial, int bit) {
       log_do_log(k_log_serial, k_log_warning, "incorrect stop bit 2");
       /* NOTE: not raising Framing Error here. The datasheet opines,
        * "Framing Error [...] is detected by the absence of the first stop bit"
+       * Also, the Fortress tape appears to trigger this condition(!) and won't
+       * load if an error is raised here.
        */
     }
     mc6850_transfer_sr_to_receive(p_serial);
-    p_serial->state = k_mc6850_state_need_start;
+    if (bit == 1) {
+      p_serial->state = k_mc6850_state_need_start;
+    } else {
+      /* This is slightly surprising, but I believe the MC6850 takes this
+       * incorrect stop bit as the start bit of the next byte.
+       * The Fortress protected loader hits this condition and won't load
+       * unless we change state in this way.
+       */
+      p_serial->state = k_mc6850_state_need_data;
+    }
     break;
   default:
     assert(0);
