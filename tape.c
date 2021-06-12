@@ -17,7 +17,6 @@ enum {
   k_tape_system_tick_rate = 2000000,
   k_tape_bit_rate = 1200,
   k_tape_ticks_per_bit = (k_tape_system_tick_rate / k_tape_bit_rate),
-  k_tape_max_internal_buffer = (k_tape_max_file_size * 16),
 };
 
 struct tape_struct {
@@ -132,11 +131,14 @@ tape_add_tape(struct tape_struct* p_tape, const char* p_file_name) {
   }
 
   p_in_file_buf = util_malloc(k_tape_max_file_size);
-  p_tape->p_build_buf = util_malloc(k_tape_max_internal_buffer);
+  p_tape->p_build_buf = util_malloc(k_tape_max_file_size);
 
   p_file = util_file_open(p_file_name, 0, 0);
 
   len = util_file_read(p_file, p_in_file_buf, k_tape_max_file_size);
+  if (len == k_tape_max_file_size) {
+    util_bail("tape file max size is %d", k_tape_max_file_size);
+  }
 
   util_file_close(p_file);
 
@@ -217,8 +219,8 @@ tape_rewind(struct tape_struct* p_tape) {
 
 void
 tape_add_bit(struct tape_struct* p_tape, int8_t bit) {
-  if (p_tape->tape_buffer_pos == k_tape_max_internal_buffer) {
-    return;
+  if (p_tape->tape_buffer_pos == k_tape_max_file_size) {
+    util_bail("tape build buffer full");
   }
   p_tape->p_build_buf[p_tape->tape_buffer_pos++] = bit;
 }
