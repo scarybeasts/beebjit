@@ -565,12 +565,90 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
   }
 }
 
+static void
+disc_tool_log_dfs_catalog(uint8_t* p_sector_t0s0, uint8_t* p_sector_t0s1) {
+  uint32_t i_files;
+  uint16_t num_sectors;
+  uint8_t num_files = p_sector_t0s1[5];
+
+  num_sectors = p_sector_t0s1[7];
+  num_sectors |= ((p_sector_t0s1[6] & 0x03) << 8);
+
+  if ((num_files % 8) != 0) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "DFS catalog bad number files %d",
+               num_files);
+    return;
+  }
+  num_files /= 8;
+
+  if ((num_sectors != 400) && (num_sectors != 800)) {
+    log_do_log(k_log_disc,
+               k_log_info,
+               "DFS catalog bad number sectors %d",
+               num_sectors);
+    return;
+  }
+
+  log_do_log(k_log_disc,
+             k_log_info,
+             "DFS catalog, %d files %d sectors",
+             num_files,
+             num_sectors);
+
+  for (i_files = 0; i_files < num_files; ++i_files) {
+    char filename[8];
+    uint32_t load_addr;
+    uint32_t exec_addr;
+    uint32_t file_len;
+    uint16_t file_sector;
+    uint8_t top_bits;
+    uint8_t* p_file_0_base = &p_sector_t0s0[(i_files + 1) * 8];
+    uint8_t* p_file_1_base = &p_sector_t0s1[(i_files + 1) * 8];
+    char dirname = (p_file_0_base[7] & 0x7F);
+    int is_locked = !!(p_file_0_base[7] & 0x80);
+    filename[7] = '\0';
+    (void) memcpy(&filename[0], p_file_0_base, 7);
+    load_addr = util_read_le16(p_file_1_base);
+    top_bits = ((p_file_1_base[6] & 0x0C) >> 2);
+    if (top_bits & 0x03) {
+      top_bits |= 0xFC;
+    }
+    load_addr |= (top_bits << 16);
+    exec_addr = util_read_le16(p_file_1_base + 2);
+    top_bits = ((p_file_1_base[6] & 0xC0) >> 6);
+    if (top_bits & 0x03) {
+      top_bits |= 0xFC;
+    }
+    exec_addr |= (top_bits << 16);
+    file_len = util_read_le16(p_file_1_base + 4);
+    top_bits = ((p_file_1_base[6] & 0x30) >> 4);
+    file_len |= (top_bits << 16);
+    file_sector = p_file_1_base[7];
+    top_bits = (p_file_1_base[6] & 0x03);
+    file_sector |= (top_bits << 16);
+
+    log_do_log(k_log_disc,
+               k_log_info,
+               "file: %c.%s  %c  %.6X %.6X %.6X %.3X",
+               dirname,
+               filename,
+               (is_locked ? 'L' : ' '),
+               load_addr,
+               exec_addr,
+               file_len,
+               file_sector);
+  }
+}
+
 void
 disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_crc_errors,
                       int log_protection,
                       int log_fingerprint,
                       int log_fingerprint_tracks,
+                      int log_catalog,
                       int do_dump_sector_data) {
   uint32_t i_sides;
   struct disc_tool_struct* p_tool = disc_tool_create();
@@ -579,10 +657,6 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   struct util_file* p_raw_dump_file = NULL;
   uint32_t num_sides = 1;
   int is_80t = 0;
-  int32_t dfs_catalog_count = -1;
-  char dfs_title[13];
-
-  (void) memset(dfs_title, '\0', sizeof(dfs_title));
 
   if (do_dump_sector_data) {
     char new_file_name[4096];
@@ -608,9 +682,13 @@ disc_tool_log_summary(struct disc_struct* p_disc,
 
   disc_tool_set_disc(p_tool, p_disc);
   for (i_sides = 0; i_sides < num_sides; ++i_sides) {
+    uint8_t sector_t0s0[256];
+    uint8_t sector_t0s1[256];
     uint32_t i_tracks;
     uint32_t disc_crc = util_crc32_init();
     uint32_t disc_crc_even = util_crc32_init();
+    int have_t0s0 = 0;
+    int have_t0s1 = 0;
 
     disc_tool_set_is_side_upper(p_tool, (i_sides == 1));
 
@@ -742,7 +820,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                        i_sectors);
           }
         }
-        if (is_fingerprinting || (p_raw_dump_file != NULL)) {
+        if (is_fingerprinting || log_catalog || (p_raw_dump_file != NULL)) {
           disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 1);
         }
         if (is_fingerprinting) {
@@ -766,13 +844,19 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                                        &sector_data[0],
                                        (p_sectors->byte_length + 1));
           }
+        }
+        if (is_fingerprinting || log_catalog) {
           /* Keep track of DFS metadata for logging. */
-          if ((i_tracks == 0) && (sector_track == 0) && (num_sectors == 10)) {
+          if ((i_tracks == 0) &&
+              (sector_track == 0) &&
+              (num_sectors == 10) &&
+              (p_sectors->byte_length == 256)) {
             if (sector_sector == 0) {
-              (void) memcpy(&dfs_title[0], &sector_data[1], 8);
+              (void) memcpy(&sector_t0s0[0], &sector_data[1], 256);
+              have_t0s0 = 1;
             } else if (sector_sector == 1) {
-              dfs_catalog_count = sector_data[5];
-              (void) memcpy(&dfs_title[8], &sector_data[1], 4);
+              (void) memcpy(&sector_t0s1[0], &sector_data[1], 256);
+              have_t0s1 = 1;
             }
           }
         }
@@ -808,17 +892,30 @@ disc_tool_log_summary(struct disc_struct* p_disc,
     } /* End of tracks loop. */
 
     if (log_fingerprint) {
-      uint32_t i;
-      disc_crc = util_crc32_finish(disc_crc);
-      for (i = 0; i < 12; ++i) {
-        char c = dfs_title[i];
-        if (c == '\0') {
-          break;
-        }
-        if (!isprint(c)) {
-          dfs_title[i] = '?';
+      char dfs_title[13];
+      int32_t dfs_catalog_count = -1;
+
+      (void) memset(dfs_title, '\0', sizeof(dfs_title));
+
+      if (have_t0s0 && have_t0s1) {
+        uint32_t i;
+        (void) memcpy(&dfs_title[0], &sector_t0s0[0], 8);
+        (void) memcpy(&dfs_title[8], &sector_t0s1[0], 4);
+        dfs_catalog_count = sector_t0s1[4];
+
+        for (i = 0; i < 12; ++i) {
+          char c = dfs_title[i];
+          if (c == '\0') {
+            break;
+          }
+          if (!isprint(c)) {
+            dfs_title[i] = '?';
+          }
         }
       }
+
+      disc_crc = util_crc32_finish(disc_crc);
+
       log_do_log(k_log_disc,
                  k_log_info,
                  "disc side %d CRC32 fingerprint %.8X title %s count %.2X",
@@ -833,6 +930,12 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                    "disc side %d, as 40 track, CRC32 fingerprint %.8X",
                    i_sides,
                    disc_crc_even);
+      }
+    }
+
+    if (log_catalog) {
+      if (have_t0s0 && have_t0s1) {
+        disc_tool_log_dfs_catalog(&sector_t0s0[0], &sector_t0s1[0]);
       }
     }
 

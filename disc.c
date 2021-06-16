@@ -177,6 +177,7 @@ disc_create(const char* p_file_name,
             struct bbc_options* p_options) {
   int do_fingerprint;
   int do_fingerprint_tracks;
+  int do_log_catalog;
   int do_dump_sector_data;
   int do_check_for_crc_errors = 0;
   char* p_rev_spec = NULL;
@@ -190,6 +191,7 @@ disc_create(const char* p_file_name,
   do_fingerprint = util_has_option(p_options->p_log_flags, "disc:fingerprint");
   do_fingerprint_tracks = util_has_option(p_options->p_log_flags,
                                           "disc:track-fingerprint");
+  do_log_catalog = util_has_option(p_options->p_log_flags, "disc:catalog");
   do_dump_sector_data = util_has_option(p_options->p_opt_flags,
                                         "disc:dump-sector-data");
   p_disc->expand_to_80 = util_has_option(p_options->p_opt_flags,
@@ -272,6 +274,7 @@ disc_create(const char* p_file_name,
       p_disc->log_protection ||
       do_fingerprint ||
       do_fingerprint_tracks ||
+      do_log_catalog ||
       do_dump_sector_data) {
     disc_load(p_disc);
     disc_tool_log_summary(p_disc,
@@ -279,6 +282,7 @@ disc_create(const char* p_file_name,
                           p_disc->log_protection,
                           do_fingerprint,
                           do_fingerprint_tracks,
+                          do_log_catalog,
                           do_dump_sector_data);
   }
 

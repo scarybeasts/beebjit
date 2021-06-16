@@ -104,6 +104,7 @@ void util_bail(const char* p_msg, ...) __attribute__((format(printf, 1, 2)));
 uint8_t util_parse_hex2(const char* p_str);
 uint16_t util_read_be16(uint8_t* p_buf);
 uint32_t util_read_be32(uint8_t* p_buf);
+uint16_t util_read_le16(uint8_t* p_buf);
 uint32_t util_read_le32(uint8_t* p_buf);
 uint32_t util_crc32_init();
 uint32_t util_crc32_add(uint32_t crc, uint8_t* p_buf, uint32_t len);

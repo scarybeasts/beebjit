@@ -622,6 +622,13 @@ util_read_be32(uint8_t* p_buf) {
   return ret;
 }
 
+uint16_t
+util_read_le16(uint8_t* p_buf) {
+  uint32_t ret = p_buf[0];
+  ret += (p_buf[1] << 8);
+  return ret;
+}
+
 uint32_t
 util_read_le32(uint8_t* p_buf) {
   uint32_t ret = p_buf[0];
