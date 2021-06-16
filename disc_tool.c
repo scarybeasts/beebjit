@@ -645,9 +645,10 @@ disc_tool_read_dfs_file(struct disc_tool_struct* p_tool,
 }
 
 static void
-disc_tool_log_dfs_catalog(struct disc_tool_struct* p_tool,
-                          uint8_t* p_sector_t0s0,
-                          uint8_t* p_sector_t0s1) {
+disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
+                             uint8_t* p_sector_t0s0,
+                             uint8_t* p_sector_t0s1,
+                             int do_extract_files) {
   uint32_t i_files;
   uint16_t num_sectors;
   uint8_t num_files = p_sector_t0s1[5];
@@ -718,6 +719,26 @@ disc_tool_log_dfs_catalog(struct disc_tool_struct* p_tool,
       crc32 = util_crc32_init();
       crc32 = util_crc32_add(crc32, p_file_buf, file_len);
       crc32 = util_crc32_finish(crc32);
+      if (do_extract_files) {
+        uint32_t i_filename;
+        char new_filename[10];
+        struct util_file* p_file;
+
+        (void) snprintf(&new_filename[0],
+                        sizeof(new_filename),
+                        "%c.%s",
+                        dirname,
+                        &filename[0]);
+        for (i_filename = 0; i_filename < sizeof(new_filename); ++i_filename) {
+          if (new_filename[i_filename] == ' ') {
+            new_filename[i_filename] = '\0';
+          }
+        }
+
+        p_file = util_file_open(&new_filename[0], 1, 1);
+        util_file_write(p_file, p_file_buf, file_len);
+        util_file_close(p_file);
+      }
       util_free(p_file_buf);
     } else {
       log_do_log(k_log_disc,
@@ -748,7 +769,8 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                       int log_fingerprint,
                       int log_fingerprint_tracks,
                       int log_catalog,
-                      int do_dump_sector_data) {
+                      int do_dump_sector_data,
+                      int do_extract_files) {
   uint32_t i_sides;
   struct disc_tool_struct* p_tool = disc_tool_create();
   uint32_t max_track = disc_get_num_tracks_used(p_disc);
@@ -919,7 +941,10 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                        i_sectors);
           }
         }
-        if (is_fingerprinting || log_catalog || (p_raw_dump_file != NULL)) {
+        if (is_fingerprinting ||
+            log_catalog ||
+            do_extract_files ||
+            (p_raw_dump_file != NULL)) {
           disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 1);
         }
         if (is_fingerprinting) {
@@ -944,7 +969,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
                                        (p_sectors->byte_length + 1));
           }
         }
-        if (is_fingerprinting || log_catalog) {
+        if (is_fingerprinting || log_catalog || do_extract_files) {
           /* Keep track of DFS metadata for logging. */
           if ((i_tracks == 0) &&
               (sector_track == 0) &&
@@ -1032,9 +1057,12 @@ disc_tool_log_summary(struct disc_struct* p_disc,
       }
     }
 
-    if (log_catalog) {
+    if (log_catalog || do_extract_files) {
       if (have_t0s0 && have_t0s1) {
-        disc_tool_log_dfs_catalog(p_tool, &sector_t0s0[0], &sector_t0s1[0]);
+        disc_tool_handle_dfs_catalog(p_tool,
+                                     &sector_t0s0[0],
+                                     &sector_t0s1[0],
+                                     do_extract_files);
       }
     }
 

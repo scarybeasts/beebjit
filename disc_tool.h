@@ -30,7 +30,8 @@ void disc_tool_log_summary(struct disc_struct* p_disc,
                            int log_fingerprint,
                            int log_fingerprint_tracks,
                            int log_catalog,
-                           int do_dump_sector_data);
+                           int do_dump_sector_data,
+                           int do_extract_files);
 
 struct disc_tool_struct* disc_tool_create();
 void disc_tool_destroy(struct disc_tool_struct* p_tool);
