@@ -565,8 +565,89 @@ disc_tool_read_sector(struct disc_tool_struct* p_tool,
   }
 }
 
+static uint8_t*
+disc_tool_read_dfs_file(struct disc_tool_struct* p_tool,
+                        uint16_t start_sector,
+                        uint32_t length) {
+  uint32_t i_file_sectors;
+  uint32_t num_sectors;
+  struct disc_tool_sector* p_sectors;
+  uint32_t file_num_sectors;
+  uint32_t length_left = length;
+  uint32_t length_written = 0;
+  uint32_t curr_sector = start_sector;
+  int ok = 1;
+  uint8_t* p_buf = util_malloc(length);
+
+  file_num_sectors = (length / 256);
+  if ((length  % 256) != 0) {
+    file_num_sectors++;
+  }
+
+  disc_tool_set_track(p_tool, 0);
+  disc_tool_find_sectors(p_tool);
+  p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+  (void) num_sectors;
+
+  for (i_file_sectors = 0;
+       i_file_sectors < file_num_sectors;
+       ++i_file_sectors) {
+    uint32_t i_sectors;
+    uint32_t sector_track = (curr_sector / 10);
+    uint32_t sector_sector = (curr_sector % 10);
+    int have_sector = 0;
+
+    assert(length_left > 0);
+
+    if (disc_tool_get_track(p_tool) != sector_track) {
+      disc_tool_set_track(p_tool, sector_track);
+      disc_tool_find_sectors(p_tool);
+      p_sectors = disc_tool_get_sectors(p_tool, &num_sectors);
+      (void) num_sectors;
+    }
+    for (i_sectors = 0; i_sectors < num_sectors; ++i_sectors) {
+      uint8_t sector_data[256];
+      uint32_t copy_length = 256;
+      struct disc_tool_sector* p_sector = &p_sectors[i_sectors];
+      uint8_t sector_header_track = p_sector->header_bytes[0];
+      uint8_t sector_header_sector = p_sector->header_bytes[2];
+      if ((sector_header_track != sector_track) ||
+          (sector_header_sector != sector_sector) ||
+          (p_sector->byte_length != 256)) {
+        continue;
+      }
+      disc_tool_read_sector(p_tool, NULL, &sector_data[0], i_sectors, 0);
+      if (length_left < 256) {
+        copy_length = length_left;
+      }
+      (void) memcpy(&p_buf[length_written], &sector_data[0], copy_length);
+      length_written += copy_length;
+      length_left -= copy_length;
+      curr_sector++;
+      have_sector = 1;
+      break;
+    }
+    if (!have_sector) {
+      ok = 0;
+      break;
+    }
+  }
+
+  if (!ok) {
+    util_free(p_buf);
+    return NULL;
+  }
+
+  assert(length_written == length);
+  assert(length_left == 0);
+
+  return p_buf;
+}
+
 static void
-disc_tool_log_dfs_catalog(uint8_t* p_sector_t0s0, uint8_t* p_sector_t0s1) {
+disc_tool_log_dfs_catalog(struct disc_tool_struct* p_tool,
+                          uint8_t* p_sector_t0s0,
+                          uint8_t* p_sector_t0s1) {
   uint32_t i_files;
   uint16_t num_sectors;
   uint8_t num_files = p_sector_t0s1[5];
@@ -598,12 +679,14 @@ disc_tool_log_dfs_catalog(uint8_t* p_sector_t0s0, uint8_t* p_sector_t0s1) {
              num_sectors);
 
   for (i_files = 0; i_files < num_files; ++i_files) {
+    uint8_t* p_file_buf;
     char filename[8];
     uint32_t load_addr;
     uint32_t exec_addr;
     uint32_t file_len;
     uint16_t file_sector;
     uint8_t top_bits;
+    uint32_t crc32;
     uint8_t* p_file_0_base = &p_sector_t0s0[(i_files + 1) * 8];
     uint8_t* p_file_1_base = &p_sector_t0s1[(i_files + 1) * 8];
     char dirname = (p_file_0_base[7] & 0x7F);
@@ -629,16 +712,32 @@ disc_tool_log_dfs_catalog(uint8_t* p_sector_t0s0, uint8_t* p_sector_t0s1) {
     top_bits = (p_file_1_base[6] & 0x03);
     file_sector |= (top_bits << 16);
 
+    p_file_buf = disc_tool_read_dfs_file(p_tool, file_sector, file_len);
+    crc32 = 0;
+    if (p_file_buf != NULL) {
+      crc32 = util_crc32_init();
+      crc32 = util_crc32_add(crc32, p_file_buf, file_len);
+      crc32 = util_crc32_finish(crc32);
+      util_free(p_file_buf);
+    } else {
+      log_do_log(k_log_disc,
+                 k_log_warning,
+                 "can't read file %c.%s",
+                 dirname,
+                 filename);
+    }
+
     log_do_log(k_log_disc,
                k_log_info,
-               "file: %c.%s  %c  %.6X %.6X %.6X %.3X",
+               "file: %c.%s  %c  %.6X %.6X %.6X %.3X  (CRC32 %.8X)",
                dirname,
                filename,
                (is_locked ? 'L' : ' '),
                load_addr,
                exec_addr,
                file_len,
-               file_sector);
+               file_sector,
+               crc32);
   }
 }
 
@@ -935,7 +1034,7 @@ disc_tool_log_summary(struct disc_struct* p_disc,
 
     if (log_catalog) {
       if (have_t0s0 && have_t0s1) {
-        disc_tool_log_dfs_catalog(&sector_t0s0[0], &sector_t0s1[0]);
+        disc_tool_log_dfs_catalog(p_tool, &sector_t0s0[0], &sector_t0s1[0]);
       }
     }
 
