@@ -281,9 +281,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   p_details->num_fixup_uops = 0;
-  p_details->p_host_address_prefix = NULL;
+  p_details->p_host_address_prefix_end = NULL;
   p_details->p_host_address_start = NULL;
-  p_details->p_host_address_end = NULL;
   p_details->cycles_run_start = -1;
 
   if (p_compiler->debug) {
@@ -758,8 +757,8 @@ jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
   if ((p_target_details != NULL) &&
       (p_target_details->addr_6502 != -1) &&
       p_target_details->is_branch_landing_addr) {
-    if (p_target_details->p_host_address_prefix != NULL) {
-      ret = (uint32_t) (uintptr_t) p_target_details->p_host_address_prefix;
+    if (p_target_details->p_host_address_prefix_end != NULL) {
+      ret = (uint32_t) (uintptr_t) p_target_details->p_host_address_prefix_end;
     } else {
       p_compiler->has_unresolved_jumps = 1;
     }
@@ -2177,16 +2176,14 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         if (p_details->p_host_address_start == NULL) {
           p_details->p_host_address_start = p_host_address;
         }
-      } else {
-        if ((p_details->p_host_address_start == NULL) &&
-            (p_details->p_host_address_prefix == NULL)) {
-          p_details->p_host_address_prefix = p_host_address;
-        }
       }
 
       util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
-      p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
-      p_details->p_host_address_end = p_host_address;
+      if (p_uop->is_prefix_or_postfix) {
+        p_details->p_host_address_prefix_end =
+            (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+      }
+
       opcode_len_asm += util_buffer_get_pos(p_single_uopcode_buf);
     }
 
@@ -2213,39 +2210,37 @@ static void
 jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   uint16_t addr_6502;
+  int is_new_jit_ptr;
   uint64_t ticks = timing_get_total_timer_ticks(p_compiler->p_timing);
   uint32_t cycles = 0;
-  void* p_host_address_end = NULL;
-  uint32_t last_jit_ptr = 0;
+  uint32_t prev_jit_ptr = 0;
+  uint32_t jit_ptr = 0;
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
        p_details += p_details->num_bytes_6502) {
     uint8_t i;
-    uint32_t jit_ptr;
-    void* p_host_address_start;
-
+    void* p_host_address_prefix_end = p_details->p_host_address_prefix_end;
+    void* p_host_address_start = p_details->p_host_address_start;
     uint32_t num_bytes_6502 = p_details->num_bytes_6502;
+
     assert(num_bytes_6502 > 0);
 
     if (p_details->cycles_run_start != -1) {
       cycles = p_details->cycles_run_start;
     }
 
-    p_host_address_start = p_details->p_host_address_start;
-    if (p_host_address_start == NULL) {
-      /* No code was emitted for this opcode, i.e. it was optimized out. */
-      if (p_details->p_host_address_end != NULL) {
-        assert(p_details->p_host_address_prefix != NULL);
-        p_host_address_end = p_details->p_host_address_end;
-      }
-      assert(p_host_address_end != NULL);
-      p_host_address_start = p_host_address_end;
-    } else {
-      p_host_address_end = p_details->p_host_address_end;
-      assert(p_host_address_end != NULL);
+    /* Advance current jit pointer to the greater of end of any block prefix,
+     * or start of block body.
+     */
+    if (p_host_address_prefix_end != NULL) {
+      jit_ptr = (uint32_t) (uintptr_t) p_host_address_prefix_end;
     }
-    jit_ptr = (uint32_t) (uintptr_t) p_host_address_start;
+    if (p_host_address_start != NULL) {
+      jit_ptr = (uint32_t) (uintptr_t) p_host_address_start;
+    }
+    is_new_jit_ptr = (jit_ptr != prev_jit_ptr);
+    prev_jit_ptr = jit_ptr;
 
     addr_6502 = p_details->addr_6502;
     for (i = 0; i < num_bytes_6502; ++i) {
@@ -2265,8 +2260,16 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       p_compiler->addr_a_fixup[addr_6502] = -1;
       p_compiler->addr_x_fixup[addr_6502] = -1;
       p_compiler->addr_y_fixup[addr_6502] = -1;
+      p_compiler->addr_cycles_fixup[addr_6502] = -1;
 
-      if ((i == 0) && (jit_ptr != last_jit_ptr)) {
+      if (i != 0) {
+        if (p_details->is_dynamic_operand) {
+          p_compiler->p_jit_ptrs[addr_6502] =
+              p_compiler->jit_ptr_dynamic_operand;
+        }
+      } else if (!is_new_jit_ptr) {
+        /* No metadata here. */
+      } else {
         uint32_t i_uops;
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
@@ -2324,18 +2327,11 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
             break;
           }
         }
-      } else {
-        if (p_details->is_dynamic_operand) {
-          p_compiler->p_jit_ptrs[addr_6502] =
-              p_compiler->jit_ptr_dynamic_operand;
-        }
-        p_compiler->addr_cycles_fixup[addr_6502] = -1;
       }
 
       addr_6502++;
     }
     cycles -= p_details->max_cycles;
-    last_jit_ptr = jit_ptr;
   }
 }
 
@@ -2609,4 +2605,16 @@ void
 jit_compiler_testing_set_dynamic_trigger(struct jit_compiler* p_compiler,
                                          uint32_t count) {
   p_compiler->dynamic_trigger = count;
+}
+
+int32_t
+jit_compiler_testing_get_cycles_fixup(struct jit_compiler* p_compiler,
+                                      uint16_t addr) {
+  return p_compiler->addr_cycles_fixup[addr];
+}
+
+int32_t
+jit_compiler_testing_get_a_fixup(struct jit_compiler* p_compiler,
+                                 uint16_t addr) {
+  return p_compiler->addr_a_fixup[addr];
 }

@@ -749,6 +749,104 @@ jit_test_sub_instruction() {
   util_buffer_destroy(p_buf);
 }
 
+static void
+jit_test_compile_metadata() {
+  /* Test metadata correctness, especially in the presence of optimizations. */
+  struct util_buffer* p_buf;
+  int32_t cycles;
+  int32_t a;
+
+  /* Test a trivial case. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x1E00), 0x100);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x1E00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E00);
+  test_expect_u32(6, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E01);
+  test_expect_u32(-1, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1E02);
+  test_expect_u32(4, cycles);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x1E00);
+  test_expect_u32(-1, a);
+  util_buffer_destroy(p_buf);
+
+  /* Test a back-merger of a couple of instructions into one. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x1F00), 0x100);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_LSR(p_buf, k_acc, 0);
+  emit_NOP(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x1F00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  test_expect_eq(s_p_jit->jit_ptrs[0x1F00], s_p_jit->jit_ptrs[0x1F01]);
+  test_expect_neq(s_p_jit->jit_ptrs[0x1F00], s_p_jit->jit_ptrs[0x1F02]);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F00);
+  test_expect_u32(12, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F01);
+  test_expect_u32(-1, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x1F02);
+  test_expect_u32(8, cycles);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x1F00);
+  test_expect_u32(-1, a);
+  util_buffer_destroy(p_buf);
+
+  /* Test a forward elimination, one instruction after the block start. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x2000), 0x100);
+  emit_CLD(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x80);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x2000);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2001]);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2002]);
+  test_expect_neq(s_p_jit->jit_ptrs[0x2000], s_p_jit->jit_ptrs[0x2003]);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2000);
+  test_expect_u32(15, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2003);
+  test_expect_u32(11, cycles);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x2000);
+  test_expect_u32(-1, a);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x2003);
+  test_expect_u32(0, a);
+  util_buffer_destroy(p_buf);
+
+  /* Test a forward elimination, at the block start. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x2100), 0x100);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x80);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x2100);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2100], s_p_jit->jit_ptrs[0x2101]);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2100], s_p_jit->jit_ptrs[0x2102]);
+  test_expect_eq(s_p_jit->jit_ptrs[0x2100], s_p_jit->jit_ptrs[0x2103]);
+  test_expect_neq(s_p_jit->jit_ptrs[0x2100], s_p_jit->jit_ptrs[0x2104]);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2100);
+  test_expect_u32(15, cycles);
+  cycles = jit_compiler_testing_get_cycles_fixup(s_p_compiler, 0x2104);
+  test_expect_u32(10, cycles);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x2100);
+  test_expect_u32(-1, a);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x2102);
+  test_expect_u32(-1, a);
+  a = jit_compiler_testing_get_a_fixup(s_p_compiler, 0x2104);
+  test_expect_u32(0, a);
+  util_buffer_destroy(p_buf);
+}
+
 void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
@@ -782,4 +880,10 @@ jit_test(struct bbc_struct* p_bbc) {
   jit_compiler_testing_set_sub_instruction(s_p_compiler, 1);
   jit_test_sub_instruction();
   jit_compiler_testing_set_sub_instruction(s_p_compiler, 0);
+
+  jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 1);
+  jit_test_compile_metadata();
+  jit_compiler_testing_set_max_ops(s_p_compiler, 4);
+  jit_compiler_testing_set_optimizing(s_p_compiler, 0);
 }
