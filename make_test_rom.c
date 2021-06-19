@@ -1426,6 +1426,9 @@ main(int argc, const char* argv[]) {
   emit_TSX(p_buf);
   emit_TXA(p_buf);
   emit_REQUIRE_EQ(p_buf, 0x01);
+  /* Put stack back to something sane, so stack wraps don't keep firing. */
+  emit_LDX(p_buf, k_imm, 0xFF);
+  emit_TXS(p_buf);
   emit_JMP(p_buf, k_abs, 0xD540);
 
   /* Test a few more undocumented opcodes uncovered by protected loaders. */
@@ -1679,8 +1682,40 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0xF0);
   emit_JMP(p_buf, k_abs, 0xD880);
 
-  /* End of test. */
+  /* Test self-modification on a multi-byte coalesced instruction. */
   set_new_index(p_buf, 0x1880);
+  emit_LDA(p_buf, k_imm, 0x4A);   /* LSR */
+  emit_STA(p_buf, k_abs, 0x4000);
+  emit_STA(p_buf, k_abs, 0x4001);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4002);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_JSR(p_buf, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x03);
+  emit_LDA(p_buf, k_imm, 0x0A);   /* ASL */
+  emit_STA(p_buf, k_abs, 0x4001);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_JSR(p_buf, 0x4000);
+  emit_REQUIRE_EQ(p_buf, 0x0E);
+  emit_JMP(p_buf, k_abs, 0xD8C0);
+
+  /* Test potential JIT bail-out situation in the middle of an optimzation. */
+  set_new_index(p_buf, 0x18C0);
+  emit_SEC(p_buf);
+  emit_JMP(p_buf, k_abs, 0xD8C4);
+  emit_LDA(p_buf, k_imm, 0xFD);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_CLC(p_buf);                /* Potentially elimated (folded into ADC). */
+  emit_LDA(p_buf, k_idy, 0xF0);   /* Bail-out due to refercing top page. */
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_REQUIRE_EQ(p_buf, 0xC1);
+  emit_JMP(p_buf, k_abs, 0xD900);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1900);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
