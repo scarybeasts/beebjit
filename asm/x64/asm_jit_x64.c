@@ -699,14 +699,34 @@ asm_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
+  void asm_jit_WRITE_INV_SCRATCH_n_8bit(void);
+  void asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch(void);
+  void asm_jit_WRITE_INV_SCRATCH_n_8bit_END(void);
+  void asm_jit_WRITE_INV_SCRATCH_n_32bit(void);
+  void asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch(void);
+  void asm_jit_WRITE_INV_SCRATCH_n_32bit_END(void);
+
   size_t offset = util_buffer_get_pos(p_buf);
 
-  asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH_n, asm_jit_WRITE_INV_SCRATCH_n_END);
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_jit_WRITE_INV_SCRATCH_n,
-                 asm_jit_WRITE_INV_SCRATCH_n_lea_patch,
-                 value);
+  if (value < 0x80) {
+    asm_copy(p_buf,
+             asm_jit_WRITE_INV_SCRATCH_n_8bit,
+             asm_jit_WRITE_INV_SCRATCH_n_8bit_END);
+    asm_patch_byte(p_buf,
+                   offset,
+                   asm_jit_WRITE_INV_SCRATCH_n_8bit,
+                   asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch,
+                   value);
+  } else {
+    asm_copy(p_buf,
+             asm_jit_WRITE_INV_SCRATCH_n_32bit,
+             asm_jit_WRITE_INV_SCRATCH_n_32bit_END);
+    asm_patch_int(p_buf,
+                  offset,
+                  asm_jit_WRITE_INV_SCRATCH_n_32bit,
+                  asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch,
+                  value);
+  }
 }
 
 void

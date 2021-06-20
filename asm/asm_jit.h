@@ -409,9 +409,6 @@ void asm_jit_WRITE_INV_ABS_offset_patch();
 void asm_jit_WRITE_INV_ABS_END();
 void asm_jit_WRITE_INV_SCRATCH();
 void asm_jit_WRITE_INV_SCRATCH_END();
-void asm_jit_WRITE_INV_SCRATCH_n();
-void asm_jit_WRITE_INV_SCRATCH_n_lea_patch();
-void asm_jit_WRITE_INV_SCRATCH_n_END();
 void asm_jit_WRITE_INV_SCRATCH_Y();
 void asm_jit_WRITE_INV_SCRATCH_Y_END();
 

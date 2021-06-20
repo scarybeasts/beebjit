@@ -1714,8 +1714,29 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xC1);
   emit_JMP(p_buf, k_abs, 0xD900);
 
-  /* End of test. */
+  /* Test for a JIT bug with incorrect invalidation with a specific
+   * optimization.
+   */
   set_new_index(p_buf, 0x1900);
+  emit_LDA(p_buf, k_imm, 0x4A);   /* LSR */
+  emit_STA(p_buf, k_abs, 0x4080);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4081);
+  emit_JSR(p_buf, 0x4080);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x0A);   /* ASL */
+  emit_LDY(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_idy, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x4080);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xD940);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1940);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
