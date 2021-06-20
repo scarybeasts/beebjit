@@ -646,6 +646,7 @@ disc_tool_read_dfs_file(struct disc_tool_struct* p_tool,
 
 static void
 disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
+                             int is_upper_side,
                              uint8_t* p_sector_t0s0,
                              uint8_t* p_sector_t0s1,
                              int do_extract_files) {
@@ -721,12 +722,13 @@ disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
       crc32 = util_crc32_finish(crc32);
       if (do_extract_files) {
         uint32_t i_filename;
-        char new_filename[10];
+        char new_filename[12];
         struct util_file* p_file;
 
         (void) snprintf(&new_filename[0],
                         sizeof(new_filename),
-                        "%c.%s",
+                        "%c.%c.%s",
+                        (is_upper_side ? '2' : '0'),
                         dirname,
                         &filename[0]);
         for (i_filename = 0; i_filename < sizeof(new_filename); ++i_filename) {
@@ -1059,7 +1061,9 @@ disc_tool_log_summary(struct disc_struct* p_disc,
 
     if (log_catalog || do_extract_files) {
       if (have_t0s0 && have_t0s1) {
+        int is_upper_side = (i_sides == 1);
         disc_tool_handle_dfs_catalog(p_tool,
+                                     is_upper_side,
                                      &sector_t0s0[0],
                                      &sector_t0s1[0],
                                      do_extract_files);
