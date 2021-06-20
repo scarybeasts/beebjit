@@ -647,6 +647,8 @@ disc_tool_read_dfs_file(struct disc_tool_struct* p_tool,
 static void
 disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
                              int is_upper_side,
+                             char* p_dfs_title,
+                             int32_t dfs_catalog_count,
                              uint8_t* p_sector_t0s0,
                              uint8_t* p_sector_t0s1,
                              int do_extract_files) {
@@ -676,9 +678,11 @@ disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
 
   log_do_log(k_log_disc,
              k_log_info,
-             "DFS catalog, %d files %d sectors",
+             "DFS catalog, %d files %d sectors cycle count %.2X title '%s'",
              num_files,
-             num_sectors);
+             num_sectors,
+             dfs_catalog_count,
+             p_dfs_title);
 
   for (i_files = 0; i_files < num_files; ++i_files) {
     uint8_t* p_file_buf;
@@ -807,11 +811,15 @@ disc_tool_log_summary(struct disc_struct* p_disc,
   for (i_sides = 0; i_sides < num_sides; ++i_sides) {
     uint8_t sector_t0s0[256];
     uint8_t sector_t0s1[256];
+    char dfs_title[13];
+    int32_t dfs_catalog_count = -1;
     uint32_t i_tracks;
     uint32_t disc_crc = util_crc32_init();
     uint32_t disc_crc_even = util_crc32_init();
     int have_t0s0 = 0;
     int have_t0s1 = 0;
+
+    (void) memset(&dfs_title[0], '\0', sizeof(dfs_title));
 
     disc_tool_set_is_side_upper(p_tool, (i_sides == 1));
 
@@ -1017,29 +1025,24 @@ disc_tool_log_summary(struct disc_struct* p_disc,
       }
     } /* End of tracks loop. */
 
-    if (log_fingerprint) {
-      char dfs_title[13];
-      int32_t dfs_catalog_count = -1;
+    if (have_t0s0 && have_t0s1) {
+      uint32_t i;
+      (void) memcpy(&dfs_title[0], &sector_t0s0[0], 8);
+      (void) memcpy(&dfs_title[8], &sector_t0s1[0], 4);
+      dfs_catalog_count = sector_t0s1[4];
 
-      (void) memset(dfs_title, '\0', sizeof(dfs_title));
-
-      if (have_t0s0 && have_t0s1) {
-        uint32_t i;
-        (void) memcpy(&dfs_title[0], &sector_t0s0[0], 8);
-        (void) memcpy(&dfs_title[8], &sector_t0s1[0], 4);
-        dfs_catalog_count = sector_t0s1[4];
-
-        for (i = 0; i < 12; ++i) {
-          char c = dfs_title[i];
-          if (c == '\0') {
-            break;
-          }
-          if (!isprint(c)) {
-            dfs_title[i] = '?';
-          }
+      for (i = 0; i < 12; ++i) {
+        char c = dfs_title[i];
+        if (c == '\0') {
+          break;
+        }
+        if (!isprint(c)) {
+          dfs_title[i] = '?';
         }
       }
+    }
 
+    if (log_fingerprint) {
       disc_crc = util_crc32_finish(disc_crc);
 
       log_do_log(k_log_disc,
@@ -1064,6 +1067,8 @@ disc_tool_log_summary(struct disc_struct* p_disc,
         int is_upper_side = (i_sides == 1);
         disc_tool_handle_dfs_catalog(p_tool,
                                      is_upper_side,
+                                     &dfs_title[0],
+                                     dfs_catalog_count,
                                      &sector_t0s0[0],
                                      &sector_t0s1[0],
                                      do_extract_files);
