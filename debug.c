@@ -2211,7 +2211,5 @@ debug_create(struct bbc_struct* p_bbc,
 void
 debug_set_commands(struct debug_struct* p_debug, const char* p_commands) {
   util_string_split(p_debug->p_pending_commands, p_commands, ';', '\'');
-  (void) timing_start_timer_with_value(p_debug->p_timing,
-                                       p_debug->timer_id_debug,
-                                       1);
+  debug_interrupt_callback();
 }
