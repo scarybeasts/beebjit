@@ -1662,8 +1662,10 @@ debug_callback_common(struct debug_struct* p_debug,
     uint64_t parse_u64;
     int ret;
     char input_buf[k_max_input_len];
+    uint32_t num_strings;
     const char* p_command_and_params;
     const char* p_command;
+    const char* p_param_str;
     const char* p_param_1_str;
     const char* p_param_2_str;
     int32_t parse_int;
@@ -1728,18 +1730,19 @@ debug_callback_common(struct debug_struct* p_debug,
     util_string_list_remove(p_pending_commands, 0);
 
     p_command = "";
-    if (util_string_list_get_count(p_command_strings) > 0) {
+    num_strings = util_string_list_get_count(p_command_strings);
+    if (num_strings > 0) {
       p_command = util_string_list_get_string(p_command_strings, 0);
     }
     parse_int = -1;
     p_param_1_str = NULL;
-    if (util_string_list_get_count(p_command_strings) > 1) {
+    if (num_strings > 1) {
       p_param_1_str = util_string_list_get_string(p_command_strings, 1);
       parse_int = debug_parse_number(p_param_1_str, 0);
     }
     parse_int2 = -1;
     p_param_2_str = NULL;
-    if (util_string_list_get_count(p_command_strings) > 2) {
+    if (num_strings > 2) {
       p_param_2_str = util_string_list_get_string(p_command_strings, 2);
       parse_int2 = debug_parse_number(p_param_2_str, 0);
     }
@@ -1863,6 +1866,47 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, parse_int2);
+    } else if (!strcmp(p_command, "find")) {
+      uint32_t sequence_len;
+      uint32_t addr_start;
+      uint32_t addr_len;
+      uint32_t i_addr;
+      uint32_t i_seq;
+      if (num_strings < 4) {
+        break;
+      }
+      sequence_len = (num_strings - 3);
+      p_param_str = util_string_list_get_string(p_command_strings, 1);
+      parse_int = debug_parse_number(p_param_str, 1);
+      if ((parse_int < 0) || (parse_int > 0xFFFF)) {
+        break;
+      }
+      addr_start = (uint32_t) parse_int;
+      p_param_str = util_string_list_get_string(p_command_strings, 2);
+      parse_int = debug_parse_number(p_param_str, 1);
+      if ((parse_int < 0) || (parse_int > 0xFFFF)) {
+        break;
+      }
+      addr_len = (uint32_t) parse_int;
+      /* Not efficiently coded. Terrible in fact. */
+      for (i_addr = 0; i_addr < addr_len; ++i_addr) {
+        uint16_t addr = (uint16_t) (addr_start + i_addr);
+        for (i_seq = 0; i_seq < sequence_len; ++i_seq) {
+          uint8_t expect;
+          uint8_t actual;
+          uint16_t seq_addr = (uint16_t) (addr + i_seq);
+          p_param_str = util_string_list_get_string(p_command_strings,
+                                                    (i_seq + 3));
+          expect = (uint8_t) debug_parse_number(p_param_str, 1);
+          actual = p_mem_read[seq_addr];
+          if (actual != expect) {
+            break;
+          }
+        }
+        if (i_seq == sequence_len) {
+          (void) printf("sequence found at %.4X\n", addr);
+        }
+      }
     } else if ((sscanf(input_buf, "inv %"PRIx32, &parse_int) == 1) &&
                (parse_int >= 0) &&
                (parse_int < 65536)) {
@@ -2074,6 +2118,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "disable <b>        : disable breakpoint <b>\n"
   "m <a>              : show memory at <a>\n"
   "writem <a> <v>     : write <v> to 6502 <a>\n"
+  "find <a> <l> ...   : find a byte sequence, starting at <a>, length <l>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
   "sys                : show system VIA registers\n"
