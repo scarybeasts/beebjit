@@ -331,8 +331,14 @@ render_check_cursor(struct render_struct* p_render,
 
 static void
 render_function_teletext_deinterlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
+  if (!(address & 0x2000)) {
+    data = 0;
+  }
 
   p_render->horiz_beam_pos += 16;
 
@@ -359,8 +365,14 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_teletext_interlaced(struct render_struct* p_render,
-                                    uint8_t data) {
+                                    uint8_t data,
+                                    uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  /* The teletext chip is delivered data bytes of 0 with chunky addressing. */
+  if (!(address & 0x2000)) {
+    data = 0;
+  }
 
   p_render->horiz_beam_pos += 16;
 
@@ -396,8 +408,11 @@ render_function_teletext_interlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
-                                       uint8_t data) {
+                                       uint8_t data,
+                                       uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
 
   p_render->horiz_beam_pos += 16;
 
@@ -417,8 +432,11 @@ render_function_1MHz_data_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_data_interlaced(struct render_struct* p_render,
-                                     uint8_t data) {
+                                     uint8_t data,
+                                     uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
 
   p_render->horiz_beam_pos += 16;
 
@@ -442,10 +460,12 @@ render_function_1MHz_data_interlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
-                                        uint8_t data) {
+                                        uint8_t data,
+                                        uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
 
   p_render->horiz_beam_pos += 16;
 
@@ -465,10 +485,12 @@ render_function_1MHz_blank_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_1MHz_blank_interlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
 
   p_render->horiz_beam_pos += 16;
 
@@ -492,8 +514,11 @@ render_function_1MHz_blank_interlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
-                                       uint8_t data) {
+                                       uint8_t data,
+                                       uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
 
   p_render->horiz_beam_pos += 8;
 
@@ -513,8 +538,11 @@ render_function_2MHz_data_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_data_interlaced(struct render_struct* p_render,
-                                     uint8_t data) {
+                                     uint8_t data,
+                                     uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
+
+  (void) address;
 
   p_render->horiz_beam_pos += 8;
 
@@ -538,10 +566,12 @@ render_function_2MHz_data_interlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
-                                        uint8_t data) {
+                                        uint8_t data,
+                                        uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
 
   p_render->horiz_beam_pos += 8;
 
@@ -561,10 +591,12 @@ render_function_2MHz_blank_deinterlaced(struct render_struct* p_render,
 
 static void
 render_function_2MHz_blank_interlaced(struct render_struct* p_render,
-                                      uint8_t data) {
+                                      uint8_t data,
+                                      uint16_t address) {
   uint32_t* p_render_pos = p_render->p_render_pos;
 
   (void) data;
+  (void) address;
 
   p_render->horiz_beam_pos += 8;
 
@@ -826,7 +858,7 @@ render_check_1MHz_render_table(struct render_struct* p_render) {
 }
 
 void (*render_get_render_data_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t) {
+    (struct render_struct*, uint8_t, uint16_t) {
   if (p_render->render_mode == k_render_mode7) {
     if (p_render->do_deinterlace_teletext) {
       return render_function_teletext_deinterlaced;
@@ -851,7 +883,7 @@ void (*render_get_render_data_function(struct render_struct* p_render))
 }
 
 void (*render_get_render_blank_function(struct render_struct* p_render))
-    (struct render_struct*, uint8_t) {
+    (struct render_struct*, uint8_t, uint16_t) {
   if (p_render->render_mode == k_render_mode7) {
     if (p_render->do_deinterlace_teletext) {
       return render_function_1MHz_blank_deinterlaced;
@@ -975,8 +1007,8 @@ render_hsync(struct render_struct* p_render, uint32_t hsync_pulse_ticks) {
    * because we do not yet support 6845 skew.
    */
   if (p_render->render_mode == k_render_mode7) {
-    render_function_1MHz_blank_deinterlaced(p_render, 0);
-    render_function_1MHz_blank_deinterlaced(p_render, 0);
+    render_function_1MHz_blank_deinterlaced(p_render, 0, 0);
+    render_function_1MHz_blank_deinterlaced(p_render, 0, 0);
   }
 }
 

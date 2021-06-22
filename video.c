@@ -490,7 +490,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int r7_hit;
   int r9_hit;
 
-  void (*func_render)(struct render_struct*, uint8_t);
+  void (*func_render)(struct render_struct*, uint8_t, uint16_t);
 
   struct render_struct* p_render = p_video->p_render;
   uint64_t curr_system_ticks =
@@ -511,9 +511,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
        p_video->crtc_registers[k_crtc_reg_cursor_low]);
 
-  void (*func_render_data)(struct render_struct*, uint8_t) =
+  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t) =
       render_get_render_data_function(p_render);
-  void (*func_render_blank)(struct render_struct*, uint8_t) =
+  void (*func_render_blank)(struct render_struct*, uint8_t, uint16_t) =
       render_get_render_blank_function(p_render);
 
   if (p_video->externally_clocked) {
@@ -618,6 +618,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     }
 
     if (p_video->is_rendering_active) {
+      uint16_t address_counter = p_video->address_counter;
       /* This ugly -1 here is just a code ordering issue related to an
        * optimization; we already incremented horiz_counter above.
        */
@@ -636,7 +637,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         }
       }
       if (!p_video->cursor_disabled &&
-          (p_video->address_counter == cursor_addr) &&
+          (address_counter == cursor_addr) &&
           p_video->has_hit_cursor_line_start &&
           !p_video->has_hit_cursor_line_end &&
           (!p_video->cursor_flashing || (p_video->crtc_frames &
@@ -651,10 +652,10 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
       if (!r0_hit) {
         data = video_read_data_byte(p_video,
-                                    p_video->address_counter,
+                                    address_counter,
                                     p_video->scanline_counter,
                                     p_video->screen_wrap_add);
-        func_render(p_render, data);
+        func_render(p_render, data, address_counter);
       }
     }
 
@@ -668,7 +669,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
      * There's no display output for this last character.
      */
     if (p_video->is_rendering_active) {
-      func_render_blank(p_render, 0);
+      func_render_blank(p_render, 0, 0);
     }
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
@@ -1623,9 +1624,9 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t crtc_line_address;
 
   struct render_struct* p_render = p_video->p_render;
-  void (*func_render_data)(struct render_struct*, uint8_t) =
+  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t) =
       render_get_render_data_function(p_render);
-  void (*func_render_blank)(struct render_struct*, uint8_t) =
+  void (*func_render_blank)(struct render_struct*, uint8_t, uint16_t) =
       render_get_render_blank_function(p_render);
 
   /* This render function is typically called on a different thread to the
@@ -1676,11 +1677,11 @@ video_render_full_frame(struct video_struct* p_video) {
     for (i_lines = 0; i_lines < num_lines; ++i_lines) {
       crtc_line_address = (crtc_start_address + (i_rows * num_cols));
       for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
-        func_render_blank(p_render, 0x00);
+        func_render_blank(p_render, 0x00, 0);
       }
       if (!is_teletext && (i_lines & 0x08)) {
         for (i_cols = 0; i_cols < num_cols; ++i_cols) {
-          func_render_blank(p_render, 0x00);
+          func_render_blank(p_render, 0x00, 0);
         }
       } else {
         for (i_cols = 0; i_cols < num_cols; ++i_cols) {
@@ -1690,7 +1691,7 @@ video_render_full_frame(struct video_struct* p_video) {
                                       crtc_line_address,
                                       i_lines,
                                       screen_wrap_add);
-          func_render_data(p_render, data);
+          func_render_data(p_render, data, crtc_line_address);
           crtc_line_address++;
         }
       }
