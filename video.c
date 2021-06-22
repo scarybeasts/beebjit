@@ -478,7 +478,9 @@ video_update_odd_even_frame(struct video_struct* p_video) {
 void
 video_advance_crtc_timing(struct video_struct* p_video) {
   uint8_t data;
-  uint64_t delta_crtc_ticks;
+  uint64_t ticks;
+  uint64_t ticks_target;
+  uint64_t ticks_inc;
   int check_vsync_at_half_r0;
 
   int r0_hit;
@@ -490,7 +492,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   int r7_hit;
   int r9_hit;
 
-  void (*func_render)(struct render_struct*, uint8_t, uint16_t);
+  void (*func_render)(struct render_struct*, uint8_t, uint16_t, uint64_t);
 
   struct render_struct* p_render = p_video->p_render;
   uint64_t curr_system_ticks =
@@ -511,9 +513,12 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       ((p_video->crtc_registers[k_crtc_reg_cursor_high] << 8) |
        p_video->crtc_registers[k_crtc_reg_cursor_low]);
 
-  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t) =
+  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t, uint64_t) =
       render_get_render_data_function(p_render);
-  void (*func_render_blank)(struct render_struct*, uint8_t, uint16_t) =
+  void (*func_render_blank)(struct render_struct*,
+                            uint8_t,
+                            uint16_t,
+                            uint64_t) =
       render_get_render_blank_function(p_render);
 
   if (p_video->externally_clocked) {
@@ -530,27 +535,34 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   }
 
   p_video->num_crtc_advances++;
+  ticks = p_video->prev_system_ticks;
+  ticks_target = curr_system_ticks;
 
-  delta_crtc_ticks = (curr_system_ticks - p_video->prev_system_ticks);
-  assert(delta_crtc_ticks < INT_MAX);
+  assert((ticks_target - ticks) < INT_MAX);
 
   if (clock_speed == 0) {
-    /* Round down if we're advancing to an odd clock. */
-    if (curr_system_ticks & 1) {
-      delta_crtc_ticks--;
+    /* If we're advancing from an odd clock, pretend to start 1 cycle sooner in
+     * order to get aligned to 1MHz.
+     */
+    if (ticks & 1) {
+      ticks--;
     }
-    /* Round up if we're advancing from an odd clock. */
-    if (p_video->prev_system_ticks & 1) {
-      delta_crtc_ticks++;
+    /* If we're advancing to an odd clock, stop on the 1MHz boundary before. */
+    if (ticks_target & 1) {
+      ticks_target--;
     }
-    assert(!(delta_crtc_ticks & 1));
-    /* 1MHz mode => CRTC ticks pass at half rate. */
-    delta_crtc_ticks /= 2;
+    /* 1MHz mode => CRTC ticks pass at half rate. This double increment also
+     * makes sure we're only advance to an even clock.
+     */
+    ticks_inc = 2;
+  } else {
+    ticks_inc = 1;
   }
 
   goto check_r6;
 
-  while (delta_crtc_ticks--) {
+  while (ticks < ticks_target) {
+    ticks += ticks_inc;
     r0_hit = (p_video->horiz_counter == r0);
     r1_hit = (p_video->horiz_counter == r1);
 
@@ -655,7 +667,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
                                     address_counter,
                                     p_video->scanline_counter,
                                     p_video->screen_wrap_add);
-        func_render(p_render, data, address_counter);
+        func_render(p_render, data, address_counter, ticks);
       }
     }
 
@@ -669,7 +681,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
      * There's no display output for this last character.
      */
     if (p_video->is_rendering_active) {
-      func_render_blank(p_render, 0, 0);
+      func_render_blank(p_render, 0, 0, ticks);
     }
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
@@ -1624,9 +1636,12 @@ video_render_full_frame(struct video_struct* p_video) {
   uint32_t crtc_line_address;
 
   struct render_struct* p_render = p_video->p_render;
-  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t) =
+  void (*func_render_data)(struct render_struct*, uint8_t, uint16_t, uint64_t) =
       render_get_render_data_function(p_render);
-  void (*func_render_blank)(struct render_struct*, uint8_t, uint16_t) =
+  void (*func_render_blank)(struct render_struct*,
+                            uint8_t,
+                            uint16_t,
+                            uint64_t) =
       render_get_render_blank_function(p_render);
 
   /* This render function is typically called on a different thread to the
@@ -1677,11 +1692,11 @@ video_render_full_frame(struct video_struct* p_video) {
     for (i_lines = 0; i_lines < num_lines; ++i_lines) {
       crtc_line_address = (crtc_start_address + (i_rows * num_cols));
       for (i_cols = 0; i_cols < num_pre_cols; ++i_cols) {
-        func_render_blank(p_render, 0x00, 0);
+        func_render_blank(p_render, 0x00, 0, 0);
       }
       if (!is_teletext && (i_lines & 0x08)) {
         for (i_cols = 0; i_cols < num_cols; ++i_cols) {
-          func_render_blank(p_render, 0x00, 0);
+          func_render_blank(p_render, 0x00, 0, 0);
         }
       } else {
         for (i_cols = 0; i_cols < num_cols; ++i_cols) {
@@ -1691,7 +1706,7 @@ video_render_full_frame(struct video_struct* p_video) {
                                       crtc_line_address,
                                       i_lines,
                                       screen_wrap_add);
-          func_render_data(p_render, data, crtc_line_address);
+          func_render_data(p_render, data, crtc_line_address, 0);
           crtc_line_address++;
         }
       }
