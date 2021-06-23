@@ -131,10 +131,26 @@ tape_uef_load(struct tape_struct* p_tape,
       break;
     case k_tape_uef_chunk_data:
       if (log_uef) {
+        char first_bytes[32];
+        size_t filename_len;
+        uint16_t block = 0;
+        uint32_t copy_len = sizeof(first_bytes);
+        (void) memset(&first_bytes[0], '\0', sizeof(first_bytes));
+        if (copy_len > chunk_len) {
+          copy_len = chunk_len;
+        }
+        (void) memcpy(&first_bytes[0], p_in_buf, copy_len);
+        first_bytes[sizeof(first_bytes) - 1] = '\0';
+        filename_len = strlen(&first_bytes[0]);
+        if (filename_len < 12) {
+          block = (first_bytes[filename_len + 10] << 8);
+          block |= (first_bytes[filename_len + 9]);
+        }
         log_do_log(k_log_tape,
                    k_log_info,
-                   "standard data, length %"PRIu32,
-                   chunk_len);
+                   "standard data, file (maybe with sync byte) '%s' block %d",
+                   &first_bytes[0],
+                   block);
       }
       for (i = 0; i < chunk_len; ++i) {
         uint32_t i_bits;
