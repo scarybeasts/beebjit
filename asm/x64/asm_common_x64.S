@@ -210,6 +210,7 @@ asm_instruction_SEI_END:
 .globl asm_instruction_TAX_END
 asm_instruction_TAX:
 
+  # Must use movzx / al because ah gets used / corrupted in various places.
   movzx REG_6502_X_32, REG_6502_A
 
 asm_instruction_TAX_END:
@@ -220,6 +221,7 @@ asm_instruction_TAX_END:
 .globl asm_instruction_TAY_END
 asm_instruction_TAY:
 
+  # Must use movzx / al because ah gets used / corrupted in various places.
   movzx REG_6502_Y_32, REG_6502_A
 
 asm_instruction_TAY_END:
@@ -240,7 +242,7 @@ asm_instruction_TSX_END:
 .globl asm_instruction_TXA_END
 asm_instruction_TXA:
 
-  movzx REG_6502_A_32, REG_6502_X
+  mov REG_6502_A_32, REG_6502_X_32
 
 asm_instruction_TXA_END:
   ret
@@ -260,7 +262,7 @@ asm_instruction_TXS_END:
 .globl asm_instruction_TYA_END
 asm_instruction_TYA:
 
-  movzx REG_6502_A_32, REG_6502_Y
+  mov REG_6502_A_32, REG_6502_Y_32
 
 asm_instruction_TYA_END:
   ret
