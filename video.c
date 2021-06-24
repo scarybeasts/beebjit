@@ -157,7 +157,8 @@ struct video_struct {
   uint32_t address_counter;
   uint32_t address_counter_this_row;
   uint32_t address_counter_next_row;
-  int in_vert_adjust;
+  int is_vert_adjust_pending;
+  int is_in_vert_adjust;
   int in_vsync;
   int in_hsync;
   int in_dummy_raster;
@@ -229,7 +230,8 @@ video_start_new_frame(struct video_struct* p_video) {
   p_video->vert_adjust_counter = 0;
 
   p_video->had_vsync_this_row = 0;
-  p_video->in_vert_adjust = 0;
+  assert(!p_video->is_vert_adjust_pending);
+  p_video->is_in_vert_adjust = 0;
   p_video->in_dummy_raster = 0;
   p_video->do_dummy_raster = p_video->is_odd_interlace_frame;
   p_video->has_hit_cursor_line_start = 0;
@@ -585,8 +587,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
         if (p_video->is_end_of_main_latched) {
           if (r5_hit) {
             p_video->is_end_of_vert_adjust_latched = 1;
-          } else {
-            p_video->in_vert_adjust = 1;
+          } else if (!p_video->is_in_vert_adjust) {
+            p_video->is_vert_adjust_pending = 1;
           }
         }
         p_video->start_of_line_state_checks &= ~4;
@@ -702,10 +704,33 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       }
     }
 
+    r9_hit = (p_video->scanline_counter == effective_r9);
+    if (r9_hit) {
+      /* End of character row. */
+      p_video->address_counter = p_video->address_counter_next_row;
+      p_video->address_counter_this_row = p_video->address_counter_next_row;
+    }
+
+    p_video->scanline_counter += p_video->scanline_stride;
+    p_video->scanline_counter &= p_video->scanline_mask;
+    p_video->address_counter = p_video->address_counter_this_row;
+
+    if (r9_hit && !p_video->is_in_vert_adjust) {
+      p_video->has_hit_cursor_line_start = 0;
+      p_video->has_hit_cursor_line_end = 0;
+      p_video->had_vsync_this_row = 0;
+
+      p_video->scanline_counter = 0;
+      p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
+    }
+
     /* End-of-line state transitions. */
     if (p_video->in_dummy_raster) {
       video_start_new_frame(p_video);
       goto check_r7;
+    } else if (p_video->is_vert_adjust_pending) {
+      p_video->is_vert_adjust_pending = 0;
+      p_video->is_in_vert_adjust = 1;
     } else if (p_video->is_end_of_frame_latched) {
       if (p_video->do_dummy_raster) {
         p_video->in_dummy_raster = 1;
@@ -718,26 +743,9 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     /* Start the new line state check chain. */
     p_video->start_of_line_state_checks |= 1;
 
-    r9_hit = (p_video->scanline_counter == effective_r9);
-    p_video->scanline_counter += p_video->scanline_stride;
-    p_video->scanline_counter &= p_video->scanline_mask;
-    p_video->address_counter = p_video->address_counter_this_row;
-
-    if (p_video->in_vert_adjust) {
+    if (p_video->is_in_vert_adjust) {
       p_video->vert_adjust_counter++;
       p_video->vert_adjust_counter &= 0x1F;
-    }
-
-    if (r9_hit) {
-      /* End of character row. */
-      p_video->scanline_counter = 0;
-      p_video->address_counter = p_video->address_counter_next_row;
-      p_video->address_counter_this_row = p_video->address_counter_next_row;
-      p_video->has_hit_cursor_line_start = 0;
-      p_video->has_hit_cursor_line_end = 0;
-      p_video->had_vsync_this_row = 0;
-
-      p_video->vert_counter = ((p_video->vert_counter + 1) & 0x7F);
     }
 
 check_r6:
@@ -840,7 +848,8 @@ video_is_full_vsync_state_match(struct video_struct* p_video, int is_raise) {
   if (p_video->is_end_of_main_latched) {
     return 0;
   }
-  assert(!p_video->in_vert_adjust);
+  assert(!p_video->is_vert_adjust_pending);
+  assert(!p_video->is_in_vert_adjust);
   assert(!p_video->in_dummy_raster);
 
   return 1;
@@ -940,7 +949,8 @@ video_calculate_timer(struct video_struct* p_video, int clock_speed) {
   if (p_video->is_end_of_main_latched || (p_video->scanline_counter != 0)) {
     return scanline_ticks;
   }
-  assert(!p_video->in_vert_adjust);
+  assert(!p_video->is_vert_adjust_pending);
+  assert(!p_video->is_in_vert_adjust);
   assert(!p_video->in_dummy_raster);
 
   /* Time a full row. */
@@ -1535,7 +1545,8 @@ video_crtc_power_on_reset(struct video_struct* p_video) {
   p_video->address_counter = 0;
   p_video->address_counter_this_row = 0;
   p_video->address_counter_next_row = 0;
-  p_video->in_vert_adjust = 0;
+  p_video->is_vert_adjust_pending = 0;
+  p_video->is_in_vert_adjust = 0;
   p_video->in_vsync = 0;
   p_video->in_hsync = 0;
   p_video->in_dummy_raster = 0;

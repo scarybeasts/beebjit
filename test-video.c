@@ -381,6 +381,7 @@ video_test_6845_corner_cases() {
   /* R7=R4+1 should vsync ok if there is vert adjust. */
   video_crtc_write(g_p_video, 0, 7);
   video_crtc_write(g_p_video, 1, 31);
+  countdown = timing_get_countdown(g_p_timing);
 
   /* This advances to vert adjust in the same frame. We already took a vsync in
    * this frame at C4=0. This tests that we can take multiple vsyncs per frame.
@@ -391,12 +392,28 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(31, g_p_video->vert_counter);
   test_expect_u32(2, g_p_video->crtc_frames);
-  test_expect_u32(1, g_p_video->in_vert_adjust);
+  test_expect_u32(1, g_p_video->is_in_vert_adjust);
   test_expect_u32(1, g_p_video->in_vsync);
 
-  /* MA should increment outside the display area. */
+  /* Bump up vert adjust a bit so that it is > C9 and we can see what happens
+   * when C9 hits inside vert adjust.
+   */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 10);
+  countdown = timing_get_countdown(g_p_timing);
+  countdown = timing_advance_time(g_p_timing, (countdown - (8 * 128)));
+  video_advance_crtc_timing(g_p_video);
+  test_expect_u32(0, g_p_video->horiz_counter);
+  test_expect_u32(8, g_p_video->scanline_counter);
+  test_expect_u32(31, g_p_video->vert_counter);
   countdown = timing_advance_time(g_p_timing, (countdown - (2 * 128)));
   video_advance_crtc_timing(g_p_video);
+  /* Put R5 back. */
+  video_crtc_write(g_p_video, 0, 5);
+  video_crtc_write(g_p_video, 1, 2);
+  countdown = timing_get_countdown(g_p_timing);
+
+  /* MA should increment outside the display area. */
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(0, g_p_video->vert_counter);
@@ -417,7 +434,7 @@ video_test_6845_corner_cases() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(31, g_p_video->vert_counter);
   test_expect_u32(3, g_p_video->crtc_frames);
-  test_expect_u32(1, g_p_video->in_vert_adjust);
+  test_expect_u32(1, g_p_video->is_in_vert_adjust);
   test_expect_u32(2, g_p_video->vert_adjust_counter);
   test_expect_u32(0, g_p_video->is_end_of_frame_latched);
   /* Advance to mid-line because latch occurs at C0=2. */
@@ -595,7 +612,7 @@ video_test_R01_corner_case() {
   test_expect_u32(0, g_p_video->horiz_counter);
   test_expect_u32(0, g_p_video->scanline_counter);
   test_expect_u32(1, g_p_video->vert_counter);
-  test_expect_u32(0, g_p_video->in_vert_adjust);
+  test_expect_u32(0, g_p_video->is_in_vert_adjust);
   test_expect_u32(0, g_p_video->in_dummy_raster);
   countdown = timing_advance_time(g_p_timing, (countdown - 4));
   video_advance_crtc_timing(g_p_video);
