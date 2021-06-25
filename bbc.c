@@ -1273,6 +1273,7 @@ bbc_create(int mode,
 
   int externally_clocked_via = 1;
   int externally_clocked_crtc = 1;
+  int externally_clocked_adc = 1;
   int synchronous_sound = 0;
   int is_65c12 = is_master;
 
@@ -1486,6 +1487,7 @@ bbc_create(int mode,
   if (accurate_flag) {
     externally_clocked_via = 0;
     externally_clocked_crtc = 0;
+    externally_clocked_adc = 0;
     synchronous_sound = 1;
   }
 
@@ -1516,7 +1518,9 @@ bbc_create(int mode,
                                         p_bbc);
   keyboard_set_fast_mode_callback(p_bbc->p_keyboard, bbc_set_fast_mode, p_bbc);
 
-  p_bbc->p_adc = adc_create(p_timing, p_bbc->p_system_via);
+  p_bbc->p_adc = adc_create(externally_clocked_adc,
+                            p_timing,
+                            p_bbc->p_system_via);
 
   p_bbc->p_joystick = joystick_create(p_bbc->p_system_via,
                                       p_bbc->p_adc,
@@ -2260,6 +2264,7 @@ bbc_cycles_timer_callback(void* p) {
   via_apply_wall_time_delta(p_bbc->p_system_via, delta_us);
   via_apply_wall_time_delta(p_bbc->p_user_via, delta_us);
   video_apply_wall_time_delta(p_bbc->p_video, delta_us);
+  adc_apply_wall_time_delta(p_bbc->p_adc, delta_us);
 
   /* TODO: this is pretty poor. The serial device should maintain its own
    * timer at the correct baud rate for the externally attached device.

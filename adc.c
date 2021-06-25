@@ -12,30 +12,62 @@ enum {
 };
 
 struct adc_struct {
+  int is_externally_clocked;
   struct timing_struct* p_timing;
   struct via_struct* p_system_via;
   uint32_t current_channel;
   uint16_t channel_value[k_adc_num_channels];
   uint32_t timer_id;
+  uint64_t wall_time;
+  uint64_t wall_time_wakeup;
   int is_input_flag;
   int is_12bit_mode;
+  int is_busy;
   int is_result_ready;
 };
+
+static void
+adc_stop_if_busy(struct adc_struct* p_adc) {
+  if (!p_adc->is_busy) {
+    return;
+  }
+  if (!p_adc->is_externally_clocked) {
+    (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
+  } else {
+    p_adc->wall_time_wakeup = 0;
+  }
+  p_adc->is_busy = 0;
+}
+
+static void
+adc_indicate_result_ready(struct adc_struct* p_adc) {
+  assert(p_adc->is_busy);
+  assert(!p_adc->is_result_ready);
+
+  adc_stop_if_busy(p_adc);
+
+  p_adc->is_result_ready = 1;
+  via_set_CB1(p_adc->p_system_via, 0);
+}
 
 static void
 adc_timer_callback(void* p) {
   struct adc_struct* p_adc = (struct adc_struct*) p;
 
-  (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
-  p_adc->is_result_ready = 1;
-  via_set_CB1(p_adc->p_system_via, 0);
+  assert(!p_adc->is_externally_clocked);
+  assert(p_adc->is_busy);
+
+  adc_indicate_result_ready(p_adc);
 }
 
 struct adc_struct*
-adc_create(struct timing_struct* p_timing, struct via_struct* p_system_via) {
+adc_create(int is_externally_clocked,
+           struct timing_struct* p_timing,
+           struct via_struct* p_system_via) {
   uint32_t i;
   struct adc_struct* p_adc = util_mallocz(sizeof(struct adc_struct));
 
+  p_adc->is_externally_clocked = is_externally_clocked;
   p_adc->p_timing = p_timing;
   p_adc->p_system_via = p_system_via;
 
@@ -51,22 +83,45 @@ adc_create(struct timing_struct* p_timing, struct via_struct* p_system_via) {
   return p_adc;
 }
 
-static int
-adc_is_busy(struct adc_struct* p_adc) {
-  return timing_timer_is_running(p_adc->p_timing, p_adc->timer_id);
-}
-
 static void
-adc_stop_if_busy(struct adc_struct* p_adc) {
-  if (adc_is_busy(p_adc)) {
-    (void) timing_stop_timer(p_adc->p_timing, p_adc->timer_id);
+adc_start(struct adc_struct* p_adc, uint32_t ms) {
+  assert(!p_adc->is_busy);
+  if (!p_adc->is_externally_clocked) {
+    (void) timing_start_timer_with_value(p_adc->p_timing,
+                                         p_adc->timer_id,
+                                         (ms * 2000));
+  } else {
+    p_adc->wall_time_wakeup = p_adc->wall_time;
+    p_adc->wall_time_wakeup += (ms * 1000);
   }
+  p_adc->is_busy = 1;
+  p_adc->is_result_ready = 0;
+  via_set_CB1(p_adc->p_system_via, 1);
 }
 
 void
 adc_destroy(struct adc_struct* p_adc) {
   adc_stop_if_busy(p_adc);
   util_free(p_adc);
+}
+
+void
+adc_apply_wall_time_delta(struct adc_struct* p_adc, uint64_t delta) {
+  if (!p_adc->is_externally_clocked) {
+    return;
+  }
+
+  p_adc->wall_time += delta;
+
+  if (!p_adc->is_busy) {
+    return;
+  }
+
+  assert(p_adc->wall_time_wakeup > 0);
+
+  if (p_adc->wall_time >= p_adc->wall_time_wakeup) {
+    adc_indicate_result_ready(p_adc);
+  }
 }
 
 uint8_t
@@ -88,7 +143,7 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
     /* AUG states bit 4 is 2nd MSB and bit 5 MSB of conversion. */
     ret |= ((!!(adc_val & 0x8000)) * 0x20);
     ret |= ((!!(adc_val & 0x4000)) * 0x10);
-    if (!adc_is_busy(p_adc)) {
+    if (!p_adc->is_busy) {
       ret |= 0x40;
     }
     if (!p_adc->is_result_ready) {
@@ -126,7 +181,7 @@ adc_read(struct adc_struct* p_adc, uint8_t addr) {
 
 void
 adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
-  uint64_t ticks;
+  uint32_t ms;
 
   assert(addr <= 3);
 
@@ -136,17 +191,14 @@ adc_write(struct adc_struct* p_adc, uint8_t addr, uint8_t val) {
     p_adc->current_channel = (val & 3);
     p_adc->is_input_flag = !!(val & 0x04);
     p_adc->is_12bit_mode = !!(val & 0x08);
-    p_adc->is_result_ready = 0;
-    via_set_CB1(p_adc->p_system_via, 1);
     /* 10ms or 4ms conversion time depending on resolution. */
     if (p_adc->is_12bit_mode) {
-      ticks = (10 * 2000);
+      ms = 10;
     } else {
-      ticks = (4 * 2000);
+      ms = 4;
     }
-    (void) timing_start_timer_with_value(p_adc->p_timing,
-                                         p_adc->timer_id,
-                                         ticks);
+
+    adc_start(p_adc, ms);
     break;
   default:
     break;
