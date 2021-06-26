@@ -716,7 +716,7 @@ disc_tool_handle_dfs_catalog(struct disc_tool_struct* p_tool,
     file_len |= (top_bits << 16);
     file_sector = p_file_1_base[7];
     top_bits = (p_file_1_base[6] & 0x03);
-    file_sector |= (top_bits << 16);
+    file_sector |= (top_bits << 8);
 
     p_file_buf = disc_tool_read_dfs_file(p_tool, file_sector, file_len);
     crc32 = 0;
