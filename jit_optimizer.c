@@ -680,6 +680,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   int32_t reg_y;
   int32_t flag_carry;
   int32_t flag_decimal;
+  int had_bcd_check;
 
   struct jit_opcode_details* p_opcode;
   struct jit_opcode_details* p_prev_opcode;
@@ -828,6 +829,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
    * Classic example is CLC; ADC. At the ADC instruction, it is known that
    * CF==0 so the ADC can become just an ADD.
    */
+  had_bcd_check = 0;
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
@@ -953,16 +955,11 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         break;
       case k_opcode_CHECK_BCD:
         if (flag_decimal == k_value_unknown) {
-          /* Insert a BCD check to the first opcode of the block, after the
-           * countdown.
-           */
-          assert(p_opcodes->num_uops > 1);
-          if (p_opcodes->uops[1].uopcode != k_opcode_CHECK_BCD) {
+          if (!had_bcd_check) {
+            /* Leave the first one intact and then elimanate any others. */
+            had_bcd_check = 1;
+          } else {
             p_uop->eliminated = 1;
-            assert(p_opcodes->num_uops > 0);
-            assert(p_opcodes->uops[0].is_prefix_or_postfix);
-            jit_opcode_insert_uop(p_opcodes, 1, k_opcode_CHECK_BCD, -1);
-            p_opcodes->uops[1].is_prefix_or_postfix = 1;
           }
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
