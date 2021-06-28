@@ -50,7 +50,6 @@ struct jit_struct {
   struct interp_struct* p_interp;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
-  uint8_t jit_invalidation_sequence[2];
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_mem;
@@ -70,12 +69,6 @@ jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (p_jit->p_jit_base +
                         (addr_6502 * K_BBC_JIT_BYTES_PER_BYTE));
   return p_jit_ptr;
-}
-
-static inline void
-jit_invalidate_host_address(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
-  p_jit_ptr[0] = p_jit->jit_invalidation_sequence[0];
-  p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1];
 }
 
 static inline int
@@ -123,14 +116,14 @@ jit_invalidate_host_block_address(struct jit_struct* p_jit,
                                   uint16_t addr_6502) {
   uint8_t* p_jit_ptr = jit_get_jit_block_host_address(p_jit, addr_6502);
 
-  jit_invalidate_host_address(p_jit, p_jit_ptr);
+  asm_jit_invalidate_code_at(p_jit_ptr);
 }
 
 static inline void
 jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_host_cpu_ip = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
 
-  jit_invalidate_host_address(p_jit, p_host_cpu_ip);
+  asm_jit_invalidate_code_at(p_host_cpu_ip);
 }
 
 static int
@@ -510,7 +503,7 @@ jit_compile(struct jit_struct* p_jit,
   jit_get_6502_details_from_host_ip(p_jit, &details, p_host_cpu_ip);
 
   if (details.p_invalidation_code_block) {
-    jit_invalidate_host_address(p_jit, details.p_invalidation_code_block);
+    asm_jit_invalidate_code_at(details.p_invalidation_code_block);
   }
 
   if (details.pc_6502 != -1) {
@@ -941,9 +934,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->jit_ptr_dynamic_operand =
       (uint32_t) (size_t) jit_get_jit_block_host_address(
           p_jit, (k_6502_addr_space_size - 2));
-
-  util_buffer_setup(p_temp_buf, &p_jit->jit_invalidation_sequence[0], 2);
-  asm_emit_jit_call_compile_trampoline(p_temp_buf);
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     /* Initialize JIT trampoline. */

@@ -7,6 +7,8 @@ struct util_buffer;
 
 int asm_jit_is_enabled(void);
 void asm_jit_test_preconditions(void);
+void asm_jit_invalidate_code_at(void* p);
+
 void asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf);
 void asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
                                          uint16_t addr);

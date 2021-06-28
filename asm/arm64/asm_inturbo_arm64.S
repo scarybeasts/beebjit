@@ -1,8 +1,7 @@
-#include "asm_defs_registers_arm64.h"
-
 #include "../asm_defs_host.h"
 #include "../asm_inturbo_defs.h"
 #include "asm_calling_convention_arm64.h"
+#include "asm_defs_registers_arm64.h"
 
 .file "asm/arm64/asm_inturbo_arm64.S"
 .section rodata

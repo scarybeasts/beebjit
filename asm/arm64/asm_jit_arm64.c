@@ -11,7 +11,9 @@ asm_jit_test_preconditions(void) {
 
 void
 asm_jit_invalidate_code_at(void* p) {
-  (void) p;
+  uint32_t* p_dst = (uint32_t*) p;
+  /* blr x29 */
+  *p_dst = 0xd63f03a0;
 }
 
 void
@@ -1120,9 +1122,4 @@ asm_emit_jit_STY_ABS(struct util_buffer* p_buf,
 void
 asm_emit_jit_STY_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
-}
-
-/* A couple of stubs needed from the .S file. */
-void
-asm_jit_compile_trampoline() {
 }

@@ -22,7 +22,7 @@
 #define REG_SCRATCH2_32    w14
 #define REG_SCRATCH3       x15
 #define REG_SCRATCH3_32    w15
-/* Callee save. */
+/* Callee save (x19 - x29 inclusive). */
 #define REG_MEM_STACK      x21
 #define REG_COUNTDOWN      x22
 #define REG_CONTEXT        x23
@@ -31,5 +31,6 @@
 #define REG_DEBUG_FUNC     x26
 #define REG_MEM_READ       x27
 #define REG_MEM_WRITE      x28
+#define REG_JIT_COMPILE    x29
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_ARM64_H */

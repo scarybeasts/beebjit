@@ -20,9 +20,9 @@ jit_get_jit_code_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static int
-jit_is_host_address_invalidated(struct jit_struct* p_jit, uint8_t* p_jit_ptr) {
-  if ((p_jit_ptr[0] == p_jit->jit_invalidation_sequence[0]) &&
-      (p_jit_ptr[1] = p_jit->jit_invalidation_sequence[1])) {
+jit_is_host_address_invalidated(uint8_t* p_jit_ptr) {
+  /* TODO: this is Intel specific! */
+  if ((p_jit_ptr[0] == 0xff) && (p_jit_ptr[1] == 0x17)) {
     return 1;
   }
   return 0;
@@ -36,15 +36,13 @@ jit_is_jit_ptr_dyanmic(struct jit_struct* p_jit, uint16_t addr_6502) {
 static void
 jit_test_expect_block_invalidated(int expect, uint16_t block_addr) {
   void* p_host_address = jit_get_jit_block_host_address(s_p_jit, block_addr);
-  test_expect_u32(expect,
-                  jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  test_expect_u32(expect, jit_is_host_address_invalidated(p_host_address));
 }
 
 static void
 jit_test_expect_code_invalidated(int expect, uint16_t code_addr) {
   void* p_host_address = jit_get_jit_code_host_address(s_p_jit, code_addr);
-  test_expect_u32(expect,
-                  jit_is_host_address_invalidated(s_p_jit, p_host_address));
+  test_expect_u32(expect, jit_is_host_address_invalidated(p_host_address));
 }
 
 static void
