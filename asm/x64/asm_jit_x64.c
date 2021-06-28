@@ -51,6 +51,13 @@ asm_jit_test_preconditions(void) {
 }
 
 void
+asm_jit_invalidate_code_at(void* p) {
+  uint16_t* p_dst = (uint16_t*) p;
+  /* call [rdi] */
+  *p_dst = 0x17ff;
+}
+
+void
 asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   /* To work correctly this sequence needs to be no more than 2 bytes. */
   assert((asm_jit_call_compile_trampoline_END -

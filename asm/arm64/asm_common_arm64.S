@@ -425,6 +425,7 @@ asm_enter:
   add REG_MEM_STACK, REG_MEM_READ, #0x100
   adr REG_DEBUG_FUNC, asm_debug
   adr REG_INTERP_FUNC, asm_inturbo_call_interp
+  adr REG_JIT_COMPILE, asm_jit_compile_trampoline
 
   bl asm_restore_AXYS_PC_flags
 
