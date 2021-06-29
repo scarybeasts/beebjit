@@ -1,5 +1,10 @@
 #include "../asm_jit.h"
 
+#include "../asm_common.h"
+#include "asm_helper_arm64.h"
+
+#include <assert.h>
+
 int
 asm_jit_is_enabled(void) {
   return 0;
@@ -47,14 +52,30 @@ asm_emit_jit_check_countdown_no_save_nz_flags(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_call_debug_load_PC(void);
+  void asm_jit_call_debug_load_PC_END(void);
+  void asm_jit_call_debug_do_call(void);
+  void asm_jit_call_debug_do_call_END(void);
+  asm_copy_patch_arm64_imm16(p_buf,
+                             asm_jit_call_debug_load_PC,
+                             asm_jit_call_debug_load_PC_END,
+                             addr);
+  asm_copy(p_buf, asm_jit_call_debug_do_call, asm_jit_call_debug_do_call_END);
 }
 
 void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_jump_interp_load_PC(void);
+  void asm_jit_jump_interp_load_PC_END(void);
+  void asm_jit_jump_interp_do_jump(void);
+  void asm_jit_jump_interp_do_jump_END(void);
+  asm_copy_patch_arm64_imm16(p_buf,
+                             asm_jit_jump_interp_load_PC,
+                             asm_jit_jump_interp_load_PC_END,
+                             addr);
+  asm_copy(p_buf,
+           asm_jit_jump_interp_do_jump,
+           asm_jit_jump_interp_do_jump_END);
 }
 
 void
@@ -766,8 +787,12 @@ asm_emit_jit_LDA_ABY(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_LDA_IMM(struct util_buffer* p_buf, uint8_t value) {
-  (void) p_buf;
-  (void) value;
+  void asm_jit_LDA_IMM(void);
+  void asm_jit_LDA_IMM_END(void);
+  asm_copy_patch_arm64_imm16(p_buf,
+                             asm_jit_LDA_IMM,
+                             asm_jit_LDA_IMM_END,
+                             value);
 }
 
 void
@@ -806,8 +831,12 @@ asm_emit_jit_LDX_ABY(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_LDX_IMM(struct util_buffer* p_buf, uint8_t value) {
-  (void) p_buf;
-  (void) value;
+  void asm_jit_LDX_IMM(void);
+  void asm_jit_LDX_IMM_END(void);
+  asm_copy_patch_arm64_imm16(p_buf,
+                             asm_jit_LDX_IMM,
+                             asm_jit_LDX_IMM_END,
+                             value);
 }
 
 void
@@ -1062,9 +1091,17 @@ void
 asm_emit_jit_STA_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_STA_ABS_12bit(void);
+  void asm_jit_STA_ABS_12bit_END(void);
   (void) segment;
+  if (addr < 0x1000) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_STA_ABS_12bit,
+                               asm_jit_STA_ABS_12bit_END,
+                               addr);
+  } else {
+    assert(0);
+  }
 }
 
 void

@@ -1,6 +1,9 @@
 #include "../asm_common.h"
 
 #include "../../util.h"
+#include "asm_helper_arm64.h"
+
+#include <assert.h>
 
 void
 asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
@@ -8,6 +11,66 @@ asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   util_buffer_add_chunk(p_buf, p_start, size);
 }
 
+/* ARM64 helpers. */
+void
+asm_patch_arm64_imm12(struct util_buffer* p_buf, uint32_t val) {
+  uint8_t* p_raw;
+  size_t pos;
+  uint32_t insn;
+  uint32_t* p_insn;
+  assert(val <= 4095);
+
+  p_raw = util_buffer_get_ptr(p_buf);
+  pos = util_buffer_get_pos(p_buf);
+  assert(pos >= 4);
+  pos -= 4;
+  p_raw += pos;
+  p_insn = (uint32_t*) p_raw;
+  insn = *p_insn;
+  insn &= ~(0xFFF << 10);
+  insn |= ((val & 0xFFF) << 10);
+  *p_insn = insn;
+}
+
+void
+asm_copy_patch_arm64_imm12(struct util_buffer* p_buf,
+		           void* p_start,
+			   void* p_end,
+			   uint32_t val) {
+  asm_copy(p_buf, p_start, p_end);
+  asm_patch_arm64_imm12(p_buf, val);
+}
+
+void
+asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val) {
+  uint8_t* p_raw;
+  size_t pos;
+  uint32_t insn;
+  uint32_t* p_insn;
+  assert(val <= 0xFFFF);
+
+  p_raw = util_buffer_get_ptr(p_buf);
+  pos = util_buffer_get_pos(p_buf);
+  assert(pos >= 4);
+  pos -= 4;
+  p_raw += pos;
+  p_insn = (uint32_t*) p_raw;
+  insn = *p_insn;
+  insn &= ~(0xFFFF << 5);
+  insn |= ((val & 0xFFFF) << 5);
+  *p_insn = insn;
+}
+
+void
+asm_copy_patch_arm64_imm16(struct util_buffer* p_buf,
+		           void* p_start,
+			   void* p_end,
+			   uint32_t val) {
+  asm_copy(p_buf, p_start, p_end);
+  asm_patch_arm64_imm16(p_buf, val);
+}
+
+/* Instructions. */
 void
 asm_emit_instruction_CRASH(struct util_buffer* p_buf) {
   (void) p_buf;

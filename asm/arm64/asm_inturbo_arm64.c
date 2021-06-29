@@ -2,6 +2,7 @@
 
 #include "../../util.h"
 #include "../asm_common.h"
+#include "asm_helper_arm64.h"
 
 #include <assert.h>
 /* For ssize_t. */
@@ -24,26 +25,6 @@ asm_patch_arm64_imm9(struct util_buffer* p_buf, int32_t val) {
   insn = *p_insn;
   insn &= ~(0x1FF << 12);
   insn |= ((val & 0x1FF) << 12);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm12(struct util_buffer* p_buf, uint32_t val) {
-  uint8_t* p_raw;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  assert(val <= 4095);
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0xFFF << 10);
-  insn |= ((val & 0xFFF) << 10);
   *p_insn = insn;
 }
 
@@ -101,26 +82,6 @@ asm_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf, uint8_t* p_target) {
   insn = *p_insn;
   insn &= ~(0x7FFFF << 5);
   insn |= ((delta & 0x7FFFF) << 5);
-  *p_insn = insn;
-}
-
-static void
-asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val) {
-  uint8_t* p_raw;
-  ssize_t pos;
-  uint32_t insn;
-  uint32_t* p_insn;
-  assert(val <= 0xFFFF);
-
-  p_raw = util_buffer_get_ptr(p_buf);
-  pos = util_buffer_get_pos(p_buf);
-  assert(pos >= 4);
-  pos -= 4;
-  p_raw += pos;
-  p_insn = (uint32_t*) p_raw;
-  insn = *p_insn;
-  insn &= ~(0xFFFF << 5);
-  insn |= ((val & 0xFFFF) << 5);
   *p_insn = insn;
 }
 

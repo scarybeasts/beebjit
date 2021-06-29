@@ -7,6 +7,9 @@
 struct util_buffer;
 
 void asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
+/* TODO: these copy / patch routines shouldn't be here as they are Intel
+ * specific.
+ */
 void asm_patch_byte(struct util_buffer* p_buf,
                     size_t offset,
                     void* p_start,
