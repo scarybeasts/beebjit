@@ -50,6 +50,12 @@ asm_jit_test_preconditions(void) {
   }
 }
 
+int
+asm_jit_supports_uopcode(int32_t uopcode) {
+  (void) uopcode;
+  return 1;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   uint16_t* p_dst = (uint16_t*) p;

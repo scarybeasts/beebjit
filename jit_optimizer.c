@@ -2,6 +2,8 @@
 
 #include "defs_6502.h"
 #include "jit_opcode.h"
+#include "asm/asm_jit.h"
+#include "asm/asm_opcodes.h"
 
 #include <assert.h>
 #include <string.h>
@@ -701,6 +703,8 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   struct jit_uop* p_carry_write_uop;
   int carry_flipped_for_branch;
 
+  int has_STOA = asm_jit_supports_uopcode(k_opcode_STOA_IMM);
+
   /* Pass 1: tag opcodes with any known register and flag values. */
   /* TODO: this pass operates on 6502 opcodes but it should probably work on
    * uopcodes, because previous passes may change the characteristic of
@@ -875,21 +879,21 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         break;
       case 0x84: /* STY zpg */
       case 0x8C: /* STY abs */
-        if (reg_y != k_value_unknown) {
+        if (has_STOA && (reg_y != k_value_unknown)) {
           uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_y;
         }
         break;
       case 0x85: /* STA zpg */
       case 0x8D: /* STA abs */
-        if (reg_a != k_value_unknown) {
+        if (has_STOA && (reg_a != k_value_unknown)) {
           uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_a;
         }
         break;
       case 0x86: /* STX zpg */
       case 0x8E: /* STX abs */
-        if (reg_x != k_value_unknown) {
+        if (has_STOA && (reg_x != k_value_unknown)) {
           uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_x;
         }

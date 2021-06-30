@@ -9,6 +9,12 @@ void
 asm_jit_test_preconditions(void) {
 }
 
+int
+asm_jit_supports_uopcode(int32_t uopcode) {
+  (void) uopcode;
+  return 0;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   (void) p;

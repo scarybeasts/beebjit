@@ -2,6 +2,7 @@
 
 #include "../asm_common.h"
 #include "asm_helper_arm64.h"
+#include "asm_opcodes.h"
 
 #include <assert.h>
 
@@ -12,6 +13,26 @@ asm_jit_is_enabled(void) {
 
 void
 asm_jit_test_preconditions(void) {
+}
+
+int
+asm_jit_supports_uopcode(int32_t uopcode) {
+  int ret = 1;
+
+  /* Some uopcodes don't make sense on ARM64 because they would be more likely
+   * a pessimization than an optimization.
+   * One example is STOA, which writes a constant to a memory location. ARM64
+   * does not have a single instruction to do this, unlike x64. In the case of
+   * STOA, keeping with the original load / store sequence avoids potentially
+   * adding an extra constant load.
+   */
+  switch (uopcode) {
+  case k_opcode_STOA_IMM:
+  default:
+    break;
+  }
+
+  return ret;
 }
 
 void

@@ -14,6 +14,7 @@
 #include "asm/asm_defs_host.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
+#include "asm/asm_opcodes.h"
 
 #include <assert.h>
 #include <string.h>
