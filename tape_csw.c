@@ -181,7 +181,7 @@ tape_csw_load(struct tape_struct* p_tape,
   thres.lo_bit = round(sample_rate / 1200.0 * 0.75);
   thres.hi_bit = round(sample_rate / 1200.0 * 1.25);
   thres.lo_half_2400 = round(sample_rate / (2400.0 * 2) * 0.7);
-  thres.hi_half_2400 = round(sample_rate / (2400.0 * 2) * 1.3);
+  thres.hi_half_2400 = round(sample_rate / (2400.0 * 2) * 1.4);
   if ((p_src[0x21] != 0x01) && (p_src[0x21] != 0x02)) {
     util_bail("CSW file compression not RLE or Z-RLE");
   }
@@ -265,7 +265,7 @@ tape_csw_load(struct tape_struct* p_tape,
         tape_add_bits(p_tape, k_tape_bit_silence, num_bits);
         is_silence = 0;
         is_carrier = 1;
-        carrier_count = 1;
+        carrier_count = 4;
       } else {
         /* Still silence. */
         ticks += consumed_samples;

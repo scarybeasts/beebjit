@@ -8,6 +8,11 @@ http://beebwiki.mdfs.net/List_of_copy_protected_software_titles_on_cassette
 for more ideas!
 
 
+- Arcadians-Acornsoft.csw
+e443a70b7520698d7db5b634f2bd1fb88f4cb5930b966d0cadee3dad56bc77b1  Arcadians-Acornsoft.csw
+Tricky to load because b-em can't load it (takes an error later in the load).
+Lineage unclear.
+
 - AticAtac_RUN_B.hq.uef
 879bdacf132fe1cc6d257f113b2dd45d0ac9535c75c800f87f43e32a478d6a44  AticAtac_RUN_B.hq.zip
 Needs correct carrier tone handling if the motor is toggled in the tone.
@@ -21,7 +26,7 @@ Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/262
 - DoctorWhoAndTheMinesOfTerror300BaudProt.uef
 48446220dc0802db1b29220008bf30e902a6bc4eea21e7ed01c9a27d55cd0348  DoctorWhoAndTheMinesOfTerror300BaudProt.uef
 Gives 300 baud a test.
-By @pvanek on StarDot, https://stardot.org.uk/forums/viewtopic.php?f=1&t=19220
+By @vanekp on StarDot, https://stardot.org.uk/forums/viewtopic.php?f=1&t=19220
 
 - DuneRider(MicroPower).uef
 06787d129b0c630cd7c4472abbcd3524758401cb0c8209f30cf3bbf10a3fa331  DuneRider(MicroPower).uef
@@ -38,6 +43,12 @@ b7ae768e9ffceeaf370bc0b31ea966072946e038c3d89cd79ce1ffe86f1fe113  Frak_B.zip
 Didn't load in beebjit. In the presence of an accurate serial ULA / MC6850
 implementation, also appears to need MC6850 reset handling to clear the control
 register.
+
+- JetSetWilly(Tynesoft).csw
+0b478cca41373f165c070e1e35f4740268052156a9da638ac6492877833684ba JetSetWilly(Tynesoft).csw
+Hard to load because of phase issues when choosing when to transition from
+carrier to data.
+By @vanekp on StarDot, https://stardot.org.uk/forums/viewtopic.php?p=326616#p326616
 
 - Joust_RUN_B.hq.uef
 1b721ecb77bab0ede88e2937998c277b2ddcab42cb92440cfcab88f7b0d531df  Joust.zip
@@ -70,6 +81,11 @@ From a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicS
 a46798ca2901f91bc009b6d9e49af29d042370a798f398ff17b912536b474e9e  TheMusicSystem(IslandLogic)[Tape1Side1].rar
 There's something interesting about this tape because it loads ok in beebjit
 but not in jsbeeb (which has reasonable tape / serial handling).
+
+- TheWayOfTheExplodingFist(MelbourneHouse)(B)[Side1].csw
+06a60a0d357a894394387f5f8a80fc554a165b0f2fcfaa7a883dcc729eb13a58  TheWayOfTheExplodingFist(MelbourneHouse)(B)[Side1].csw
+Has borderline pulses.
+By @vanekp on StarDot, https://stardot.org.uk/forums/viewtopic.php?p=326616#p326616
 
 - Uridium.csw
 6db5af3d6cdd4fd154c90cbdb2b53e103eb765e171aa83df8889cf026d10969f  Uridium.csw
