@@ -7,20 +7,39 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <string.h>
 
+struct tape_csw_thresholds {
+  uint32_t lo_bit;
+  uint32_t hi_bit;
+  uint32_t lo_half_2400;
+  uint32_t hi_half_2400;
+};
+
 static int
-tape_csw_is_half_1200(uint32_t half_wave) {
-  /* 1200Hz +- 30% */
-  /* Castle Quest-Micro Power.csw needs 14 to be included to load. */
-  return ((half_wave >= 14) && (half_wave <= 26));
+tape_csw_is_1200(struct tape_csw_thresholds* p_thres,
+                 uint32_t half_wave,
+                 uint32_t half_wave2) {
+  uint32_t total = (half_wave + half_wave2);
+  return ((total >= p_thres->lo_bit) && (total <= p_thres->hi_bit));
 }
 
 static int
-tape_csw_is_half_2400(uint32_t half_wave) {
-  /* 2400Hz +- 25% */
-  /* Joust-Aardvark.csw needs 12 to be included to load. */
-  return ((half_wave >= 7) && (half_wave <= 12));
+tape_csw_is_2400(struct tape_csw_thresholds* p_thres,
+                 uint32_t half_wave,
+                 uint32_t half_wave2,
+                 uint32_t half_wave3,
+                 uint32_t half_wave4) {
+  uint32_t total = (half_wave + half_wave2 + half_wave3 + half_wave4);
+  return ((total >= p_thres->lo_bit) && (total <= p_thres->hi_bit));
+}
+
+static int
+tape_csw_is_half_2400(struct tape_csw_thresholds* p_thres,
+                      uint32_t half_wave) {
+  return ((half_wave >= p_thres->lo_half_2400) &&
+          (half_wave <= p_thres->hi_half_2400));
 }
 
 static uint32_t
@@ -50,10 +69,12 @@ static void
 tape_csw_get_next_bit(int* p_bit,
                       uint32_t* p_bit_bytes,
                       uint32_t* p_bit_samples,
+                      uint32_t* p_half_wave_bytes,
                       uint32_t* p_half_wave,
                       uint32_t* p_half_wave2,
                       uint32_t* p_half_wave3,
                       uint32_t* p_half_wave4,
+                      struct tape_csw_thresholds* p_thres,
                       uint8_t* p_buf,
                       uint32_t len) {
   uint32_t len_consumed;
@@ -68,6 +89,7 @@ tape_csw_get_next_bit(int* p_bit,
   *p_half_wave4 = 0;
   *p_bit_bytes = len_consumed;
   *p_bit_samples = *p_half_wave;
+  *p_half_wave_bytes = len_consumed;
   len -= len_consumed;
   p_buf += len_consumed;
   len_consumed_total += len_consumed;
@@ -80,8 +102,7 @@ tape_csw_get_next_bit(int* p_bit,
   p_buf += len_consumed;
   len_consumed_total += len_consumed;
 
-  if (tape_csw_is_half_1200(*p_half_wave) &&
-      tape_csw_is_half_1200(*p_half_wave2)) {
+  if (tape_csw_is_1200(p_thres, *p_half_wave, *p_half_wave2)) {
     *p_bit = k_tape_bit_0;
     *p_bit_bytes = len_consumed_total;
     *p_bit_samples = (*p_half_wave + *p_half_wave2);
@@ -103,10 +124,11 @@ tape_csw_get_next_bit(int* p_bit,
   p_buf += len_consumed;
   len_consumed_total += len_consumed;
 
-  if (tape_csw_is_half_2400(*p_half_wave) &&
-      tape_csw_is_half_2400(*p_half_wave2) &&
-      tape_csw_is_half_2400(*p_half_wave3) &&
-      tape_csw_is_half_2400(*p_half_wave4)) {
+  if (tape_csw_is_2400(p_thres,
+                       *p_half_wave,
+                       *p_half_wave2,
+                       *p_half_wave3,
+                       *p_half_wave4)) {
     *p_bit = k_tape_bit_1;
     *p_bit_bytes = len_consumed_total;
     *p_bit_samples =
@@ -120,9 +142,9 @@ tape_csw_load(struct tape_struct* p_tape,
               uint32_t src_len,
               int do_check_bits) {
   /* The CSW file format: http://ramsoft.bbk.org.omegahg.com/csw.html */
+  struct tape_csw_thresholds thres;
   uint8_t* p_in_buf;
   uint8_t extension_len;
-  uint32_t requested_sample_rate;
   uint32_t i_waves;
   uint32_t carrier_count;
   uint32_t data_one_bits_count;
@@ -134,7 +156,7 @@ tape_csw_load(struct tape_struct* p_tape,
   uint32_t bit_index;
   uint32_t byte_wave_start;
   uint32_t byte_sample_start;
-  uint32_t sample_rate = 44100;
+  uint32_t sample_rate;
   uint8_t* p_uncompress_buf = NULL;
 
   if (src_len < 0x34) {
@@ -149,11 +171,17 @@ tape_csw_load(struct tape_struct* p_tape,
   if (p_src[0x17] != 0x02) {
     util_bail("CSW file not version 2");
   }
-  requested_sample_rate = util_read_le32(&p_src[0x19]);
-  if (requested_sample_rate != sample_rate) {
-    util_bail("CSW file sample rate not supported: %d"PRIu32,
-              requested_sample_rate);
+  sample_rate = util_read_le32(&p_src[0x19]);
+  if (sample_rate != 44100) {
+    log_do_log(k_log_tape,
+               k_log_info,
+               "unusual sample rate: %"PRIu32,
+               sample_rate);
   }
+  thres.lo_bit = round(sample_rate / 1200.0 * 0.75);
+  thres.hi_bit = round(sample_rate / 1200.0 * 1.25);
+  thres.lo_half_2400 = round(sample_rate / (2400.0 * 2) * 0.7);
+  thres.hi_half_2400 = round(sample_rate / (2400.0 * 2) * 1.3);
   if ((p_src[0x21] != 0x01) && (p_src[0x21] != 0x02)) {
     util_bail("CSW file compression not RLE or Z-RLE");
   }
@@ -204,20 +232,23 @@ tape_csw_load(struct tape_struct* p_tape,
   i_waves = 0;
   while (i_waves < data_len) {
     int bit;
-    uint32_t bit_bytes;
-    uint32_t bit_samples;
+    uint32_t consumed_bytes;
+    uint32_t consumed_samples;
+    uint32_t half_wave_bytes;
     uint32_t half_wave;
     uint32_t half_wave2;
     uint32_t half_wave3;
     uint32_t half_wave4;
 
     tape_csw_get_next_bit(&bit,
-                          &bit_bytes,
-                          &bit_samples,
+                          &consumed_bytes,
+                          &consumed_samples,
+                          &half_wave_bytes,
                           &half_wave,
                           &half_wave2,
                           &half_wave3,
                           &half_wave4,
+                          &thres,
                           (p_in_buf + i_waves),
                           (data_len - i_waves));
 
@@ -228,7 +259,7 @@ tape_csw_load(struct tape_struct* p_tape,
     if (is_silence) {
       if (bit == k_tape_bit_1) {
         /* Transition, silence to carrier. */
-        uint32_t num_bits = (ticks / (44100 / 1200));
+        uint32_t num_bits = (ticks / (sample_rate / 1200.0));
         /* Make sure silence is always seen even if we rounded down. */
         num_bits++;
         tape_add_bits(p_tape, k_tape_bit_silence, num_bits);
@@ -237,17 +268,16 @@ tape_csw_load(struct tape_struct* p_tape,
         carrier_count = 1;
       } else {
         /* Still silence. */
-        ticks += bit_samples;
+        ticks += consumed_samples;
       }
     } else if (is_carrier) {
-      if ((bit == k_tape_bit_1) || tape_csw_is_half_2400(half_wave)) {
-        assert(bit != k_tape_bit_0);
+      if (tape_csw_is_half_2400(&thres, half_wave)) {
         /* Still carrier. */
-        if (bit == k_tape_bit_1) {
-          carrier_count++;
-        }
+        carrier_count++;
+        consumed_bytes = half_wave_bytes;
+        consumed_samples = half_wave;
       } else {
-        tape_add_bits(p_tape, k_tape_bit_1, carrier_count);
+        tape_add_bits(p_tape, k_tape_bit_1, ((carrier_count + 3) / 4));
         is_carrier = 0;
         if (bit == k_tape_bit_0) {
           /* Transition, carrier to data. We've found the start bit. */
@@ -258,9 +288,8 @@ tape_csw_load(struct tape_struct* p_tape,
           data_one_bits_count = 0;
         } else {
           /* Transition, carrier to silence. */
-          assert(bit == k_tape_bit_silence);
           is_silence = 1;
-          ticks = bit_samples;
+          ticks = consumed_samples;
         }
       }
     } else {
@@ -312,12 +341,12 @@ tape_csw_load(struct tape_struct* p_tape,
                    half_wave3,
                    half_wave4);
         is_silence = 1;
-        ticks = bit_samples;
+        ticks = consumed_samples;
       }
     }
 
-    samples += bit_samples;
-    i_waves += bit_bytes;
+    samples += consumed_samples;
+    i_waves += consumed_bytes;
   }
 
   util_free(p_uncompress_buf);
