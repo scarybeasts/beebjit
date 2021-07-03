@@ -178,7 +178,8 @@ serial_ula_write(struct serial_ula_struct* p_serial_ula, uint8_t val) {
   if (p_serial_ula->log_state) {
     log_do_log(k_log_serial,
                k_log_info,
-               "serial ULA control: [R %s] [T %s] [%s] [%s]",
+               "serial ULA control: $%.2X [R %s] [T %s] [%s] [%s]",
+               val,
                p_rate_strs[(val >> 3) & 7],
                p_rate_strs[val & 7],
                (is_rs423_selected ? "RS423" : "TAPE"),
