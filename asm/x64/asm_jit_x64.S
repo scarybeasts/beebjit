@@ -48,16 +48,15 @@ asm_jit_compile_trampoline:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_restore_AXYS_PC_flags
 
-  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   lahf
-  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  shl REG_6502_PC, K_BBC_JIT_BYTES_SHIFT
   sahf
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
+  lea REG_6502_PC, [REG_6502_PC + K_BBC_JIT_ADDR]
 
   # We're jumping out of a call so pop the return address.
   pop REG_SCRATCH2
 
-  jmp REG_SCRATCH1
+  jmp REG_6502_PC
 
 
 .globl asm_jit_interp
@@ -107,13 +106,12 @@ not_exiting:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_restore_AXYS_PC_flags
 
-  lea REG_SCRATCH1_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   lahf
-  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  shl REG_6502_PC, K_BBC_JIT_BYTES_SHIFT
   sahf
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_BBC_JIT_ADDR]
+  lea REG_6502_PC, [REG_6502_PC + K_BBC_JIT_ADDR]
 
-  jmp REG_SCRATCH1
+  jmp REG_6502_PC
 
 
 .globl asm_jit_call_compile_trampoline

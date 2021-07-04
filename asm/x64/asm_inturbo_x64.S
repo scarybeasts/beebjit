@@ -163,9 +163,14 @@ asm_inturbo_ret_END:
 
 .globl asm_inturbo_enter_debug
 .globl asm_inturbo_enter_debug_END
+.globl asm_inturbo_enter_debug_call_patch
 asm_inturbo_enter_debug:
 
+  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   call asm_unpatched_branch_target
+asm_inturbo_enter_debug_call_patch:
+  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
+
 asm_inturbo_enter_debug_END:
   ret
 
@@ -222,6 +227,7 @@ asm_inturbo_call_interp:
 
   mov REG_COUNTDOWN, REG_SCRATCH4
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  lea REG_6502_PC, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   call asm_save_AXYS_PC_flags
 
   # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
@@ -254,6 +260,7 @@ asm_inturbo_call_interp:
 not_exiting:
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   call asm_restore_AXYS_PC_flags
+  lea REG_6502_PC, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
 
   movzx REG_SCRATCH3_32, BYTE PTR [REG_6502_PC]
   lahf

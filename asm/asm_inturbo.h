@@ -129,8 +129,6 @@ void asm_inturbo_load_pc_from_pc();
 void asm_inturbo_load_pc_from_pc_END();
 void asm_inturbo_call_interp();
 void asm_inturbo_call_interp_countdown();
-void asm_inturbo_enter_debug();
-void asm_inturbo_enter_debug_END();
 void asm_inturbo_check_interrupt();
 void asm_inturbo_check_interrupt_END();
 void asm_inturbo_check_interrupt_jae_patch();

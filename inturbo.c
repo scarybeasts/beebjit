@@ -4,6 +4,7 @@
 #include "cpu_driver.h"
 #include "defs_6502.h"
 #include "interp.h"
+#include "log.h"
 #include "memory_access.h"
 #include "os_alloc.h"
 #include "state_6502.h"
@@ -16,11 +17,10 @@
 #include "asm/asm_inturbo_defs.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
-#include <stdio.h>
 
 static const size_t k_inturbo_bytes_per_opcode = (1 << K_INTURBO_OPCODES_SHIFT);
 static void* k_inturbo_opcodes_addr = (void*) K_INTURBO_OPCODES;
@@ -553,6 +553,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
   for (i = 0; i < 256; ++i) {
     uint8_t buf[256];
+    uint32_t opcode_len;
     int use_interp;
 
     uint8_t* p_inturbo_opcodes_ptr =
@@ -579,9 +580,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                             read_callback_from,
                             write_callback_from);
 
-
-    if ((util_buffer_get_pos(p_buf) + epilog_len) >
-        k_inturbo_bytes_per_opcode) {
+    opcode_len = (util_buffer_get_pos(p_buf) + epilog_len);
+    if (opcode_len > k_inturbo_bytes_per_opcode) {
+      log_do_log(k_log_perf,
+                 k_log_info,
+                 "inturbo opcode $%.02X excessive len %"PRIu32,
+                 i,
+                 opcode_len);
       use_interp = 1;
     }
 
@@ -719,6 +724,10 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
    * tricks work.
    */
   assert((K_BBC_MEM_READ_FULL_ADDR & 0xff) == 0);
+  /* The inturbo uses the 6502 PC host register as a direct pointer, so mix
+   * in the memory base address.
+   */
+  p_state_6502->reg_pc += K_BBC_MEM_READ_FULL_ADDR;
 
   exited = asm_enter(p_cpu_driver, p_start_address, countdown, p_mem_read);
   assert(exited == 1);

@@ -85,7 +85,7 @@ asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
                 offset,
                 asm_jit_jump_interp_trampoline,
                 asm_jit_jump_interp_trampoline_pc_patch,
-                (addr + K_BBC_MEM_READ_FULL_ADDR));
+                addr);
   asm_patch_jump(p_buf,
                  offset,
                  asm_jit_jump_interp_trampoline,
@@ -185,7 +185,7 @@ asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
                 offset,
                 asm_jit_call_debug,
                 asm_jit_call_debug_pc_patch,
-                (addr + K_BBC_MEM_READ_FULL_ADDR));
+                addr);
   asm_patch_jump(p_buf,
                  offset,
                  asm_jit_call_debug,
@@ -223,7 +223,7 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
                 offset,
                 asm_jit_jump_interp,
                 asm_jit_jump_interp_pc_patch,
-                (addr + K_BBC_MEM_READ_FULL_ADDR));
+                addr);
   asm_patch_jump(p_buf,
                  offset,
                  asm_jit_jump_interp,

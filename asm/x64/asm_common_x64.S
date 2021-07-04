@@ -300,7 +300,7 @@ asm_instruction_Y_NZ_flags_END:
 .globl asm_save_AXYS_PC_flags
 asm_save_AXYS_PC_flags:
   # Save 6502 IP.
-  lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
+  # May not be used / set by every asm backend.
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC], REG_6502_PC_32
   # Save A, X, Y, S.
   mov [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_A], REG_6502_A_32
@@ -324,8 +324,8 @@ asm_restore_AXYS_PC_flags:
   mov REG_6502_Y_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_Y]
   mov REG_6502_S_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S]
   # Restore 6502 IP.
+  # May not be used / set by every asm backend.
   mov REG_6502_PC_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_PC]
-  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_MEM_READ_FULL_ADDR]
   # Restore 6502 flags.
   movzx REG_SCRATCH1, BYTE PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_FLAGS]
 
@@ -475,11 +475,12 @@ asm_enter:
   mov REG_SCRATCH2, 0
   mov REG_SCRATCH3, 0
 
-  # 6502 A, X, Y, S.
+  # 6502 A, X, Y, S, PC.
   mov REG_6502_A_64, 0
   mov REG_6502_X_64, 0
   mov REG_6502_Y_64, 0
   mov REG_6502_S_64, 0
+  mov REG_6502_PC, 0
   # 6502 flags.
   mov REG_6502_OF_64, 0
   mov REG_6502_CF_64, 0

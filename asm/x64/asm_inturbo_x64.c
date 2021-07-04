@@ -171,11 +171,15 @@ void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
   size_t offset = util_buffer_get_pos(p_buf);
 
+  void asm_inturbo_enter_debug(void);
+  void asm_inturbo_enter_debug_END(void);
+  void asm_inturbo_enter_debug_call_patch(void);
+
   asm_copy(p_buf, asm_inturbo_enter_debug, asm_inturbo_enter_debug_END);
   asm_patch_jump(p_buf,
                  offset,
                  asm_inturbo_enter_debug,
-                 asm_inturbo_enter_debug_END,
+                 asm_inturbo_enter_debug_call_patch,
                  asm_debug);
 }
 
