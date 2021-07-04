@@ -1,8 +1,8 @@
 #include "../asm_jit.h"
 
 #include "../asm_common.h"
+#include "../asm_opcodes.h"
 #include "asm_helper_arm64.h"
-#include "asm_opcodes.h"
 
 #include <assert.h>
 

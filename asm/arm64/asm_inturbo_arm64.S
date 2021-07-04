@@ -107,7 +107,9 @@ asm_inturbo_jump_next_opcode_END:
 .globl asm_inturbo_enter_debug
 .globl asm_inturbo_enter_debug_END
 asm_inturbo_enter_debug:
+  sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   blr REG_DEBUG_FUNC
+  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
 
 asm_inturbo_enter_debug_END:
   ret
@@ -125,6 +127,7 @@ asm_inturbo_jump_call_interp_END:
 .globl asm_inturbo_call_interp
 .globl asm_inturbo_call_interp_END
 asm_inturbo_call_interp:
+  sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   bl asm_save_AXYS_PC_flags
 
   sub sp, sp, #16
@@ -147,6 +150,7 @@ asm_inturbo_call_interp_END:
 
 not_exiting:
   bl asm_restore_AXYS_PC_flags
+  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
   ldrb REG_SCRATCH1_32, [REG_6502_PC]
   b asm_inturbo_jump_next_opcode
 
