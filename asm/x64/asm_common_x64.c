@@ -17,6 +17,11 @@ asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
 }
 
 void
+asm_fill_with_trap(struct util_buffer* p_buf) {
+  util_buffer_fill_to_end(p_buf, '\xcc');
+}
+
+void
 asm_patch_byte(struct util_buffer* p_buf,
                size_t offset,
                void* p_start,

@@ -2139,7 +2139,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                              k_opcode_jump_raw,
                              (int32_t) (uintptr_t) p_resume);
         jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
-        util_buffer_fill_to_end(p_tmp_buf, '\xcc');
+        asm_fill_with_trap(p_tmp_buf);
 
         /* Continue compiling the code block in the next host block, after the
          * compile trampoline.
@@ -2196,15 +2196,15 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
     }
   }
 
-  /* Fill the unused portion of the buffer with 0xcc, i.e. int3.
+  /* Fill the unused portion of the buffer with traps, i.e. int3 on Intel.
    * There are a few good reasons for this:
    * 1) Clarity: see where a code block ends, especially if there was
    * previously a larger code block at this address.
    * 2) Bug detection: better chance of a clean crash if something does a bad
    * jump.
-   * 3) Performance. int3 will stop the Intel instruction decoder.
+   * 3) Performance. Traps may stop the instruction decoder.
    */
-  util_buffer_fill_to_end(p_tmp_buf, '\xcc');
+  asm_fill_with_trap(p_tmp_buf);
 }
 
 static void

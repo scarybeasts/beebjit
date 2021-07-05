@@ -617,8 +617,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                               write_callback_from);
     }
 
-    /* int3 on Intel; currently undefined on ARM64? */
-    util_buffer_fill_to_end(p_buf, '\xcc');
+    asm_fill_with_trap(p_buf);
 
     (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], k_inturbo_bytes_per_opcode);
     if (!use_interp) {

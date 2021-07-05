@@ -6,46 +6,13 @@
 
 struct util_buffer;
 
-void asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
-/* TODO: these copy / patch routines shouldn't be here as they are Intel
- * specific.
- */
-void asm_patch_byte(struct util_buffer* p_buf,
-                    size_t offset,
-                    void* p_start,
-                    void* p_patch,
-                    uint8_t value);
-void asm_patch_u16(struct util_buffer* p_buf,
-                   size_t offset,
-                   void* p_start,
-                   void* p_patch,
-                   uint16_t value);
-void asm_patch_int(struct util_buffer* p_buf,
-                   size_t offset,
-                   void* p_start,
-                   void* p_patch,
-                   int value);
-void asm_patch_jump(struct util_buffer* p_buf,
-                    size_t offset,
-                    void* p_start,
-                    void* p_patch,
-                    void* p_jump_target);
-void asm_copy_patch_byte(struct util_buffer* p_buf,
-                         void* p_start,
-                         void* p_end,
-                         uint8_t value);
-void asm_copy_patch_u32(struct util_buffer* p_buf,
-                        void* p_start,
-                        void* p_end,
-                        uint32_t value);
-
 uint32_t asm_enter(void* p_context,
                    uint32_t jump_addr_x64,
                    int64_t countdown,
                    void* p_mem_base);
-void asm_debug();
-void asm_save_AXYS_PC_flags();
-void asm_restore_AXYS_PC_flags();
+
+void asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
+void asm_fill_with_trap(struct util_buffer* p_buf);
 
 void asm_emit_instruction_CRASH(struct util_buffer* p_buf);
 void asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
@@ -83,6 +50,10 @@ void asm_emit_push_word_from_scratch(struct util_buffer* p_buf);
 void asm_emit_pull_word_to_scratch(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
+void asm_debug();
+void asm_save_AXYS_PC_flags();
+void asm_restore_AXYS_PC_flags();
+
 void asm_instruction_CRASH();
 void asm_instruction_CRASH_END();
 void asm_instruction_EXIT();
@@ -156,5 +127,37 @@ void asm_pull_to_scratch();
 void asm_pull_to_scratch_END();
 void asm_pull_word_to_scratch();
 void asm_pull_word_to_scratch_END();
+
+/* TODO: these copy / patch routines shouldn't be here as they are Intel
+ * specific.
+ */
+void asm_patch_byte(struct util_buffer* p_buf,
+                    size_t offset,
+                    void* p_start,
+                    void* p_patch,
+                    uint8_t value);
+void asm_patch_u16(struct util_buffer* p_buf,
+                   size_t offset,
+                   void* p_start,
+                   void* p_patch,
+                   uint16_t value);
+void asm_patch_int(struct util_buffer* p_buf,
+                   size_t offset,
+                   void* p_start,
+                   void* p_patch,
+                   int value);
+void asm_patch_jump(struct util_buffer* p_buf,
+                    size_t offset,
+                    void* p_start,
+                    void* p_patch,
+                    void* p_jump_target);
+void asm_copy_patch_byte(struct util_buffer* p_buf,
+                         void* p_start,
+                         void* p_end,
+                         uint8_t value);
+void asm_copy_patch_u32(struct util_buffer* p_buf,
+                        void* p_start,
+                        void* p_end,
+                        uint32_t value);
 
 #endif /* BEEBJIT_ASM_COMMON_H */

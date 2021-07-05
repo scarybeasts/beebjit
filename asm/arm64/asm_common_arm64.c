@@ -11,6 +11,18 @@ asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
   util_buffer_add_chunk(p_buf, p_start, size);
 }
 
+void
+asm_fill_with_trap(struct util_buffer* p_buf) {
+  static uint8_t s_brk0[4] = { 0x00, 0x00, 0x20, 0xd4 };
+  size_t pos = util_buffer_get_pos(p_buf);
+  size_t length = (util_buffer_get_length(p_buf) - pos);
+  assert((pos % 4) == 0);
+  while (length) {
+    util_buffer_add_chunk(p_buf, &s_brk0[0], 4);
+    length -= 4;
+  }
+}
+
 /* ARM64 helpers. */
 void
 asm_patch_arm64_imm12(struct util_buffer* p_buf, uint32_t val) {
