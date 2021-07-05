@@ -64,6 +64,12 @@ asm_jit_invalidate_code_at(void* p) {
 }
 
 void
+asm_emit_jit_invalidated(struct util_buffer* p_buf) {
+  /* call [rdi] */
+  util_buffer_add_2b(p_buf, 0xff, 0x17);
+}
+
+void
 asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   /* To work correctly this sequence needs to be no more than 2 bytes. */
   assert((asm_jit_call_compile_trampoline_END -

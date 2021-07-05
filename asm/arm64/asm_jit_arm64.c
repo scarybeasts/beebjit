@@ -43,6 +43,12 @@ asm_jit_invalidate_code_at(void* p) {
 }
 
 void
+asm_emit_jit_invalidated(struct util_buffer* p_buf) {
+  /* blr x29 */
+  util_buffer_add_4b(p_buf, 0xa0, 0x03, 0x3f, 0xd6);
+}
+
+void
 asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
   (void) p_buf;
 }

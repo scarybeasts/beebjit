@@ -10,6 +10,7 @@ void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
 void asm_jit_invalidate_code_at(void* p);
 
+void asm_emit_jit_invalidated(struct util_buffer* p_buf);
 void asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf);
 void asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf,
                                          uint16_t addr);

@@ -65,6 +65,7 @@ struct jit_compiler {
   uint32_t jit_ptr_dynamic_operand;
 
   uint32_t len_asm_jmp;
+  uint32_t len_asm_invalidated;
 
   int compile_for_code_in_zero_page;
 
@@ -229,6 +230,10 @@ jit_compiler_create(struct timing_struct* p_timing,
   /* Note: target pointer is a short jump range. */
   asm_emit_jit_JMP(p_tmp_buf, &buf[0]);
   p_compiler->len_asm_jmp = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_jit_invalidated(p_tmp_buf);
+  p_compiler->len_asm_invalidated = util_buffer_get_pos(p_tmp_buf);
 
   return p_compiler;
 }
@@ -2104,7 +2109,6 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       size_t buf_needed;
       size_t out_buf_pos;
-      struct jit_uop tmp_uop;
       void* p_host_address;
       struct jit_uop* p_uop = &p_details->uops[i_uops];
 
@@ -2128,13 +2132,13 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       }
 
       if (util_buffer_remaining(p_tmp_buf) < buf_needed) {
+        struct jit_uop tmp_uop;
         /* Emit jump to the next adjacent code block. We'll need to jump over
          * the compile trampoline at the beginning of the block.
          */
         void* p_resume =
             (p_host_address_base + util_buffer_get_length(p_tmp_buf));
-        /* TODO: use the asm layer to decide how big the marker is. */
-        p_resume += 2;
+        p_resume += p_compiler->len_asm_invalidated;
         jit_opcode_make_uop1(&tmp_uop,
                              k_opcode_jump_raw,
                              (int32_t) (uintptr_t) p_resume);
@@ -2189,10 +2193,10 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
     }
 
     if (opcode_len_asm > 0) {
-      /* If there's any output, need at least 2 bytes because that the length of
-       * the self-modification overwrite.
+      /* If there's any output, need at least the length of the
+       * self-modified invalidation sequence.
        */
-      assert(opcode_len_asm >= 2);
+      assert(opcode_len_asm >= p_compiler->len_asm_invalidated);
     }
   }
 
