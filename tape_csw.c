@@ -13,8 +13,6 @@
 struct tape_csw_thresholds {
   uint32_t lo_bit;
   uint32_t hi_bit;
-  uint32_t lo_half_2400;
-  uint32_t hi_half_2400;
 };
 
 static int
@@ -36,10 +34,10 @@ tape_csw_is_2400(struct tape_csw_thresholds* p_thres,
 }
 
 static int
-tape_csw_is_half_2400(struct tape_csw_thresholds* p_thres,
-                      uint32_t half_wave) {
-  return ((half_wave >= p_thres->lo_half_2400) &&
-          (half_wave <= p_thres->hi_half_2400));
+tape_csw_is_half_2400(uint32_t half_wave,
+                      uint32_t lo_half_2400,
+                      uint32_t hi_half_2400) {
+  return ((half_wave >= lo_half_2400) && (half_wave <= hi_half_2400));
 }
 
 static uint32_t
@@ -142,7 +140,10 @@ tape_csw_load(struct tape_struct* p_tape,
               uint32_t src_len,
               int do_check_bits) {
   /* The CSW file format: http://ramsoft.bbk.org.omegahg.com/csw.html */
-  struct tape_csw_thresholds thres;
+  struct tape_csw_thresholds thres_normal;
+  struct tape_csw_thresholds thres_carrier;
+  uint32_t thres_lo_half_2400;
+  uint32_t thres_hi_half_2400;
   uint8_t* p_in_buf;
   uint8_t extension_len;
   uint32_t i_waves;
@@ -178,10 +179,12 @@ tape_csw_load(struct tape_struct* p_tape,
                "unusual sample rate: %"PRIu32,
                sample_rate);
   }
-  thres.lo_bit = round(sample_rate / 1200.0 * 0.75);
-  thres.hi_bit = round(sample_rate / 1200.0 * 1.25);
-  thres.lo_half_2400 = round(sample_rate / (2400.0 * 2) * 0.7);
-  thres.hi_half_2400 = round(sample_rate / (2400.0 * 2) * 1.4);
+  thres_normal.lo_bit = round(sample_rate / 1200.0 * 0.75);
+  thres_normal.hi_bit = round(sample_rate / 1200.0 * 1.25);
+  thres_carrier.lo_bit = round(sample_rate / 1200.0 * 0.82);
+  thres_carrier.hi_bit = round(sample_rate / 1200.0 * 1.18);
+  thres_lo_half_2400 = round(sample_rate / (2400.0 * 2) * 0.7);
+  thres_hi_half_2400 = round(sample_rate / (2400.0 * 2) * 1.4);
   if ((p_src[0x21] != 0x01) && (p_src[0x21] != 0x02)) {
     util_bail("CSW file compression not RLE or Z-RLE");
   }
@@ -239,6 +242,11 @@ tape_csw_load(struct tape_struct* p_tape,
     uint32_t half_wave2;
     uint32_t half_wave3;
     uint32_t half_wave4;
+    struct tape_csw_thresholds* p_thres = &thres_normal;
+
+    if (is_carrier) {
+      p_thres = &thres_carrier;
+    }
 
     tape_csw_get_next_bit(&bit,
                           &consumed_bytes,
@@ -248,7 +256,7 @@ tape_csw_load(struct tape_struct* p_tape,
                           &half_wave2,
                           &half_wave3,
                           &half_wave4,
-                          &thres,
+                          p_thres,
                           (p_in_buf + i_waves),
                           (data_len - i_waves));
 
@@ -271,26 +279,29 @@ tape_csw_load(struct tape_struct* p_tape,
         ticks += consumed_samples;
       }
     } else if (is_carrier) {
-      if (tape_csw_is_half_2400(&thres, half_wave)) {
+      if (bit == k_tape_bit_0) {
+        /* Transition, carrier to data. We've found the start bit. */
+        tape_add_bits(p_tape, k_tape_bit_1, ((carrier_count + 3) / 4));
+        is_carrier = 0;
+
+        tape_add_bit(p_tape, k_tape_bit_0);
+        bit_index = 1;
+        byte_wave_start = i_waves;
+        byte_sample_start = samples;
+        data_one_bits_count = 0;
+      } else if (tape_csw_is_half_2400(half_wave,
+                                       thres_lo_half_2400,
+                                       thres_hi_half_2400)) {
         /* Still carrier. */
         carrier_count++;
         consumed_bytes = half_wave_bytes;
         consumed_samples = half_wave;
       } else {
+        /* Transition, carrier to silence. */
         tape_add_bits(p_tape, k_tape_bit_1, ((carrier_count + 3) / 4));
         is_carrier = 0;
-        if (bit == k_tape_bit_0) {
-          /* Transition, carrier to data. We've found the start bit. */
-          tape_add_bit(p_tape, k_tape_bit_0);
-          bit_index = 1;
-          byte_wave_start = i_waves;
-          byte_sample_start = samples;
-          data_one_bits_count = 0;
-        } else {
-          /* Transition, carrier to silence. */
-          is_silence = 1;
-          ticks = consumed_samples;
-        }
+        is_silence = 1;
+        ticks = consumed_samples;
       }
     } else {
       /* In data. */

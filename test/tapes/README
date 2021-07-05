@@ -72,6 +72,12 @@ bffa104c57584c73f36e5dcb1f841f40bc521b824dd2b0a54faee2732bd1fdae  StarDrifter_B.
 Needs correct serial ULA DCD behavior for very short carrier tones.
 Historic jsbeeb bug: https://github.com/mattgodbolt/jsbeeb/issues/257
 
+- Starquake(BubbleBusSoftware)(B)[TapeSideLabel].csw
+f46395bd26f613a78ca49bafdb18fa4299f72c031a3a7a855523288fcddfb13c  Starquake(BubbleBusSoftware)(B)[TapeSideLabel].csw
+Has slightly dodgy waveform shapes and needs very carefully balanced thresholds
+for carrier-to-data vs. inside data.
+By @vanekp on StarDot, f46395bd26f613a78ca49bafdb18fa4299f72c031a3a7a855523288fcddfb13c  Starquake(BubbleBusSoftware)(B)[TapeSideLabel].csw
+
 - Swarm-Computer Concepts.csw
 b295090f1ad548ecdb652e46bb972026f181810e79d4cc403cd7473b76729278  Swarm-Computer Concepts.csw
 Uses a 300 baud file.
