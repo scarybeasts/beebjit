@@ -61,6 +61,7 @@ struct jit_compiler {
 
   struct util_buffer* p_tmp_buf;
   struct util_buffer* p_single_uopcode_buf;
+  struct util_buffer* p_single_uopcode_epilog_buf;
   uint32_t jit_ptr_no_code;
   uint32_t jit_ptr_dynamic_operand;
 
@@ -212,6 +213,7 @@ jit_compiler_create(struct timing_struct* p_timing,
   p_tmp_buf = util_buffer_create();
   p_compiler->p_tmp_buf = p_tmp_buf;
   p_compiler->p_single_uopcode_buf = util_buffer_create();
+  p_compiler->p_single_uopcode_epilog_buf = util_buffer_create();
 
   p_compiler->jit_ptr_no_code =
       (uint32_t) (size_t) get_block_host_address(p_host_address_object,
@@ -242,6 +244,7 @@ void
 jit_compiler_destroy(struct jit_compiler* p_compiler) {
   util_buffer_destroy(p_compiler->p_tmp_buf);
   util_buffer_destroy(p_compiler->p_single_uopcode_buf);
+  util_buffer_destroy(p_compiler->p_single_uopcode_epilog_buf);
   util_free(p_compiler);
 }
 
@@ -779,6 +782,7 @@ jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
 static void
 jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
+                      struct util_buffer* p_dest_buf_epilog,
                       struct jit_uop* p_uop) {
   int uopcode = p_uop->uopcode;
   int32_t value1 = p_uop->value1;
@@ -786,6 +790,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
   void* p_host_address_object = p_compiler->p_host_address_object;
+
+  if (p_dest_buf_epilog != NULL) {
+    util_buffer_set_pos(p_dest_buf_epilog, 0);
+  }
 
   /* The segment we need to hit for memory accesses.
    * We have different segments:
@@ -856,6 +864,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   switch (uopcode) {
   case k_opcode_countdown:
     asm_emit_jit_check_countdown(p_dest_buf,
+                                 p_dest_buf_epilog,
                                  (uint32_t) value2,
                                  (void*) (size_t) value1);
     break;
@@ -2083,7 +2092,10 @@ static void
 jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   uint8_t single_opcode_buffer[128];
+  uint8_t single_opcode_epilog_buffer[128];
   struct util_buffer* p_single_uopcode_buf = p_compiler->p_single_uopcode_buf;
+  struct util_buffer* p_single_uopcode_epilog_buf =
+      p_compiler->p_single_uopcode_epilog_buf;
   struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
   uint16_t addr_6502 = p_compiler->start_addr_6502;
   void* p_host_address_base =
@@ -2094,6 +2106,9 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
   util_buffer_setup(p_single_uopcode_buf,
                     &single_opcode_buffer[0],
                     sizeof(single_opcode_buffer));
+  util_buffer_setup(p_single_uopcode_epilog_buf,
+                    &single_opcode_epilog_buffer[0],
+                    sizeof(single_opcode_epilog_buffer));
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
@@ -2120,13 +2135,18 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       util_buffer_set_base_address(p_single_uopcode_buf,
                                    (p_host_address_base + out_buf_pos));
       util_buffer_set_pos(p_single_uopcode_buf, 0);
-      jit_compiler_emit_uop(p_compiler, p_single_uopcode_buf, p_uop);
+      util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
+      jit_compiler_emit_uop(p_compiler,
+                            p_single_uopcode_buf,
+                            p_single_uopcode_epilog_buf,
+                            p_uop);
 
       /* Calculate if this uopcode fits. In order to fit, not only must the
        * uopcode itself fit, but there must be space for a possible jump to the
        * block continuation.
        */
-      buf_needed = util_buffer_get_pos(p_single_uopcode_buf);
+      buf_needed = (util_buffer_get_pos(p_single_uopcode_buf) +
+                    util_buffer_get_pos(p_single_uopcode_epilog_buf));
       if (!ends_block || (i_uops != (num_uops - 1))) {
         buf_needed += p_compiler->len_asm_jmp;
       }
@@ -2142,7 +2162,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         jit_opcode_make_uop1(&tmp_uop,
                              k_opcode_jump_raw,
                              (int32_t) (uintptr_t) p_resume);
-        jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
+        jit_compiler_emit_uop(p_compiler, p_tmp_buf, NULL, &tmp_uop);
         asm_fill_with_trap(p_tmp_buf);
 
         /* Continue compiling the code block in the next host block, after the
@@ -2157,15 +2177,21 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                           K_BBC_JIT_BYTES_PER_BYTE);
         util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
         /* Start writing after the invalidation marker. */
-        util_buffer_set_pos(p_tmp_buf, 2);
+        util_buffer_set_pos(p_tmp_buf, p_compiler->len_asm_invalidated);
 
         /* Re-emit the current uopcode because it is now at a different host
-         * address. Jump target calculations will have changed.
+         * address. Also, the host address of any epilog is now known whereas
+         * it was not before. Jump target calculations will have changed.
          */
         util_buffer_set_pos(p_single_uopcode_buf, 0);
-        util_buffer_set_base_address(p_single_uopcode_buf,
-                                     (p_host_address_base + 2));
-        jit_compiler_emit_uop(p_compiler, p_single_uopcode_buf, p_uop);
+        util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
+        util_buffer_set_base_address(
+            p_single_uopcode_buf,
+            (p_host_address_base + p_compiler->len_asm_invalidated));
+        jit_compiler_emit_uop(p_compiler,
+                              p_single_uopcode_buf,
+                              p_single_uopcode_epilog_buf,
+                              p_uop);
       }
 
       /* Keep a note of the host address of where the JIT code prefixes start,
@@ -2431,7 +2457,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         p_compiler->p_host_address_object, sub_instruction_addr_6502);
     util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
     jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
-    jit_compiler_emit_uop(p_compiler, p_tmp_buf, &tmp_uop);
+    jit_compiler_emit_uop(p_compiler, p_tmp_buf, NULL, &tmp_uop);
   }
 
   end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
