@@ -33,54 +33,42 @@ asm_jit_compile_trampoline:
 
   add sp, sp, 16
 
-  sub REG_SCRATCH1, REG_6502_PC, REG_MEM_READ
-  lsl REG_SCRATCH1, REG_SCRATCH1, #K_BBC_JIT_BYTES_SHIFT
-  orr REG_SCRATCH1, REG_SCRATCH1, #K_BBC_JIT_ADDR
-  br REG_SCRATCH1
+  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  br REG_6502_PC
 
 
-.globl asm_jit_call_debug_load_PC
-.globl asm_jit_call_debug_load_PC_END
-.globl asm_jit_call_debug_do_call
-.globl asm_jit_call_debug_do_call_END
-asm_jit_call_debug_load_PC:
-  mov REG_6502_PC, #0xFFFF
+.globl asm_jit_load_PC
+.globl asm_jit_load_PC_END
+asm_jit_load_PC:
+  movz REG_6502_PC, #0xFFFF
 
-asm_jit_call_debug_load_PC_END:
+asm_jit_load_PC_END:
   ret
 
-asm_jit_call_debug_do_call:
-  # TODO: seems backwards; should inturbo subtract it rather than JIT add it?
-  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
+
+.globl asm_jit_call_debug
+.globl asm_jit_call_debug_END
+asm_jit_call_debug:
   blr REG_DEBUG_FUNC
 
-asm_jit_call_debug_do_call_END:
+asm_jit_call_debug_END:
   ret
 
 
-.globl asm_jit_jump_interp_load_PC
-.globl asm_jit_jump_interp_load_PC_END
-.globl asm_jit_jump_interp_do_jump
-.globl asm_jit_jump_interp_do_jump_END
-asm_jit_jump_interp_load_PC:
-  mov REG_6502_PC, #0xFFFF
-
-asm_jit_jump_interp_load_PC_END:
-  ret
-
-asm_jit_jump_interp_do_jump:
-  # TODO: seems backwards; should inturbo subtract it rather than JIT add it?
-  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
+.globl asm_jit_jump_interp
+.globl asm_jit_jump_interp_END
+asm_jit_jump_interp:
   br REG_INTERP_FUNC
 
-asm_jit_jump_interp_do_jump_END:
+asm_jit_jump_interp_END:
   ret
 
 
 .globl asm_jit_LDA_IMM
 .globl asm_jit_LDA_IMM_END
 asm_jit_LDA_IMM:
-  mov REG_6502_A, #0xFFFF
+  movz REG_6502_A, #0xFFFF
 
 asm_jit_LDA_IMM_END:
   ret
@@ -89,7 +77,7 @@ asm_jit_LDA_IMM_END:
 .globl asm_jit_LDX_IMM
 .globl asm_jit_LDX_IMM_END
 asm_jit_LDX_IMM:
-  mov REG_6502_X, #0xFFFF
+  movz REG_6502_X, #0xFFFF
 
 asm_jit_LDX_IMM_END:
   ret
@@ -107,7 +95,7 @@ asm_jit_STA_ABS_12bit_END:
 .globl asm_jit_STA_ABS_16bit
 .globl asm_jit_STA_ABS_16bit_END
 asm_jit_STA_ABS_16bit:
-  mov REG_SCRATCH1, #0xFFFF
+  movz REG_SCRATCH1, #0xFFFF
   strb REG_6502_A_32, [REG_MEM_WRITE, REG_SCRATCH1]
 
 asm_jit_STA_ABS_16bit_END:

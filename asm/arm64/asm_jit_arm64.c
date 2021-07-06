@@ -1,5 +1,6 @@
 #include "../asm_jit.h"
 
+#include "../../util.h"
 #include "../asm_common.h"
 #include "../asm_opcodes.h"
 #include "asm_helper_arm64.h"
@@ -8,7 +9,7 @@
 
 int
 asm_jit_is_enabled(void) {
-  return 0;
+  return 1;
 }
 
 void
@@ -81,30 +82,22 @@ asm_emit_jit_check_countdown_no_save_nz_flags(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_call_debug_load_PC(void);
-  void asm_jit_call_debug_load_PC_END(void);
-  void asm_jit_call_debug_do_call(void);
-  void asm_jit_call_debug_do_call_END(void);
-  asm_copy_patch_arm64_imm16(p_buf,
-                             asm_jit_call_debug_load_PC,
-                             asm_jit_call_debug_load_PC_END,
-                             addr);
-  asm_copy(p_buf, asm_jit_call_debug_do_call, asm_jit_call_debug_do_call_END);
+  void asm_jit_load_PC(void);
+  void asm_jit_load_PC_END(void);
+  void asm_jit_call_debug(void);
+  void asm_jit_call_debug_END(void);
+  asm_copy_patch_arm64_imm16(p_buf, asm_jit_load_PC, asm_jit_load_PC_END, addr);
+  asm_copy(p_buf, asm_jit_call_debug, asm_jit_call_debug_END);
 }
 
 void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_jump_interp_load_PC(void);
-  void asm_jit_jump_interp_load_PC_END(void);
-  void asm_jit_jump_interp_do_jump(void);
-  void asm_jit_jump_interp_do_jump_END(void);
-  asm_copy_patch_arm64_imm16(p_buf,
-                             asm_jit_jump_interp_load_PC,
-                             asm_jit_jump_interp_load_PC_END,
-                             addr);
-  asm_copy(p_buf,
-           asm_jit_jump_interp_do_jump,
-           asm_jit_jump_interp_do_jump_END);
+  void asm_jit_load_PC(void);
+  void asm_jit_load_PC_END(void);
+  void asm_jit_jump_interp(void);
+  void asm_jit_jump_interp_END(void);
+  asm_copy_patch_arm64_imm16(p_buf, asm_jit_load_PC, asm_jit_load_PC_END, addr);
+  asm_copy(p_buf, asm_jit_jump_interp, asm_jit_jump_interp_END);
 }
 
 void
