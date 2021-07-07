@@ -103,10 +103,12 @@ void
 asm_emit_jit_check_countdown(struct util_buffer* p_buf,
                              struct util_buffer* p_buf_epilog,
                              uint32_t count,
+                             uint16_t addr,
                              void* p_trampoline) {
   size_t offset = util_buffer_get_pos(p_buf);
 
   (void) p_buf_epilog;
+  (void) addr;
 
   if (count <= 128) {
     asm_copy(p_buf,

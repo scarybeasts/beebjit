@@ -752,10 +752,10 @@ jit_compiler_get_opcode_for_6502_addr(struct jit_compiler* p_compiler,
   return &p_compiler->opcode_details[addr - start_addr_6502];
 }
 
-static uint32_t
+static void*
 jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
                                    uint16_t addr_6502) {
-  uint32_t ret = 0;
+  void* p_ret = NULL;
   struct jit_opcode_details* p_target_details =
       jit_compiler_get_opcode_for_6502_addr(p_compiler, addr_6502);
 
@@ -767,16 +767,16 @@ jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
       (p_target_details->addr_6502 != -1) &&
       p_target_details->is_branch_landing_addr) {
     if (p_target_details->p_host_address_prefix_end != NULL) {
-      ret = (uint32_t) (uintptr_t) p_target_details->p_host_address_prefix_end;
+      p_ret = p_target_details->p_host_address_prefix_end;
     } else {
       p_compiler->has_unresolved_jumps = 1;
     }
   } else {
     void* p_host_address_object = p_compiler->p_host_address_object;
-    ret = (uint32_t) (uintptr_t) p_compiler->get_block_host_address(
-        p_host_address_object, addr_6502);
+    p_ret = p_compiler->get_block_host_address(p_host_address_object,
+                                               addr_6502);
   }
-  return ret;
+  return p_ret;
 }
 
 static void
@@ -790,6 +790,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
   void* p_host_address_object = p_compiler->p_host_address_object;
+  void* p_jit_addr = NULL;
 
   if (p_dest_buf_epilog != NULL) {
     util_buffer_set_pos(p_dest_buf_epilog, 0);
@@ -842,8 +843,8 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case k_opcode_countdown:
   case k_opcode_countdown_no_save_nz_flags:
   case k_opcode_CHECK_PENDING_IRQ:
-    value1 = (uint32_t) (size_t) p_compiler->get_trampoline_host_address(
-        p_host_address_object, (uint16_t) value1);
+    p_jit_addr = p_compiler->get_trampoline_host_address(p_host_address_object,
+                                                         (uint16_t) value1);
     break;
   case 0x4C: /* JMP abs; JSR also uses this. */
   case 0x10: /* All of the conditional branches. */
@@ -854,7 +855,8 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xB0:
   case 0xD0:
   case 0xF0:
-    value1 = jit_compiler_resolve_branch_target(p_compiler, (uint16_t) value1);
+    p_jit_addr = jit_compiler_resolve_branch_target(p_compiler,
+                                                    (uint16_t) value1);
     break;
   default:
     break;
@@ -866,12 +868,13 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_check_countdown(p_dest_buf,
                                  p_dest_buf_epilog,
                                  (uint32_t) value2,
-                                 (void*) (size_t) value1);
+                                 (uint16_t) value1,
+                                 p_jit_addr);
     break;
   case k_opcode_countdown_no_save_nz_flags:
     asm_emit_jit_check_countdown_no_save_nz_flags(p_dest_buf,
                                                   (uint32_t) value2,
-                                                  (void*) (size_t) value1);
+                                                  p_jit_addr);
     break;
   case k_opcode_debug:
     asm_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
@@ -928,7 +931,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PENDING_IRQ:
-    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, p_jit_addr);
     break;
   case k_opcode_CLEAR_CARRY:
     asm_emit_jit_CLEAR_CARRY(p_dest_buf);
@@ -1107,7 +1110,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0x10:
-    asm_emit_jit_BPL(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BPL(p_dest_buf, p_jit_addr);
     break;
   case 0x11: /* ORA idy */
     asm_emit_jit_ORA_SCRATCH_Y(p_dest_buf);
@@ -1161,7 +1164,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ROL_ACC(p_dest_buf);
     break;
   case 0x30:
-    asm_emit_jit_BMI(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BMI(p_dest_buf, p_jit_addr);
     break;
   case 0x31: /* AND idy */
     asm_emit_jit_AND_SCRATCH_Y(p_dest_buf);
@@ -1206,7 +1209,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case 0x4C:
   case k_opcode_jump_raw:
-    asm_emit_jit_JMP(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_JMP(p_dest_buf, p_jit_addr);
     break;
   case 0x4E: /* LSR abs */
     if (is_always_ram) {
@@ -1216,7 +1219,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0x50:
-    asm_emit_jit_BVC(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BVC(p_dest_buf, p_jit_addr);
     break;
   case 0x51: /* EOR idy */
     asm_emit_jit_EOR_SCRATCH_Y(p_dest_buf);
@@ -1266,7 +1269,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ROR_ACC(p_dest_buf);
     break;
   case 0x70:
-    asm_emit_jit_BVS(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BVS(p_dest_buf, p_jit_addr);
     break;
   case 0x71: /* ADC idy */
     asm_emit_jit_ADC_SCRATCH_Y(p_dest_buf);
@@ -1315,7 +1318,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_TXA(p_dest_buf);
     break;
   case 0x90:
-    asm_emit_jit_BCC(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BCC(p_dest_buf, p_jit_addr);
     break;
   case 0x91: /* STA idy */
     asm_emit_jit_STA_SCRATCH_Y(p_dest_buf);
@@ -1370,7 +1373,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_instruction_TAX(p_dest_buf);
     break;
   case 0xB0:
-    asm_emit_jit_BCS(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BCS(p_dest_buf, p_jit_addr);
     break;
   case 0xB1: /* LDA idy */
     asm_emit_jit_LDA_SCRATCH_Y(p_dest_buf);
@@ -1434,7 +1437,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0xD0:
-    asm_emit_jit_BNE(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BNE(p_dest_buf, p_jit_addr);
     break;
   case 0xD1: /* CMP idy */
     asm_emit_jit_CMP_SCRATCH_Y(p_dest_buf);
@@ -1490,7 +1493,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     }
     break;
   case 0xF0:
-    asm_emit_jit_BEQ(p_dest_buf, (void*) (size_t) value1);
+    asm_emit_jit_BEQ(p_dest_buf, p_jit_addr);
     break;
   case 0xF1: /* SBC idy */
     asm_emit_jit_SBC_SCRATCH_Y(p_dest_buf);
@@ -2098,9 +2101,11 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       p_compiler->p_single_uopcode_epilog_buf;
   struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
   uint16_t addr_6502 = p_compiler->start_addr_6502;
+  uint32_t block_epilog_len = 0;
   void* p_host_address_base =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
+
   util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
   util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
   util_buffer_setup(p_single_uopcode_buf,
@@ -2109,6 +2114,17 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
   util_buffer_setup(p_single_uopcode_epilog_buf,
                     &single_opcode_epilog_buffer[0],
                     sizeof(single_opcode_epilog_buffer));
+
+  /* Pad the buffers with traps, i.e. int3 on Intel.
+   * There are a few good reasons for this:
+   * 1) Clarity: see where a code block ends, especially if there was
+   * previously a larger code block at this address.
+   * 2) Bug detection: better chance of a clean crash if something does a bad
+   * jump.
+   * 3) Performance. Traps may stop the instruction decoder.
+   */
+  asm_fill_with_trap(p_tmp_buf);
+  util_buffer_set_pos(p_tmp_buf, 0);
 
   for (p_details = &p_compiler->opcode_details[0];
        p_details->addr_6502 != -1;
@@ -2125,21 +2141,33 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       size_t buf_needed;
       size_t out_buf_pos;
       void* p_host_address;
+      uint32_t epilog_len;
+      int needs_reemit;
+      uint32_t epilog_pos;
       struct jit_uop* p_uop = &p_details->uops[i_uops];
 
       if (p_uop->eliminated) {
         continue;
       }
 
+      epilog_pos = 0;
+      needs_reemit = 0;
+
       out_buf_pos = util_buffer_get_pos(p_tmp_buf);
-      util_buffer_set_base_address(p_single_uopcode_buf,
-                                   (p_host_address_base + out_buf_pos));
+      p_host_address = (p_host_address_base + out_buf_pos);
+      util_buffer_set_base_address(p_single_uopcode_buf, p_host_address);
+      util_buffer_set_base_address(p_single_uopcode_epilog_buf, p_host_address);
       util_buffer_set_pos(p_single_uopcode_buf, 0);
       util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
       jit_compiler_emit_uop(p_compiler,
                             p_single_uopcode_buf,
                             p_single_uopcode_epilog_buf,
                             p_uop);
+
+      epilog_len = util_buffer_get_pos(p_single_uopcode_epilog_buf);
+      if (epilog_len > 0) {
+        needs_reemit = 1;
+      }
 
       /* Calculate if this uopcode fits. In order to fit, not only must the
        * uopcode itself fit, but there must be space for a possible jump to the
@@ -2151,7 +2179,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         buf_needed += p_compiler->len_asm_jmp;
       }
 
-      if (util_buffer_remaining(p_tmp_buf) < buf_needed) {
+      if ((util_buffer_remaining(p_tmp_buf) - block_epilog_len) < buf_needed) {
         struct jit_uop tmp_uop;
         /* Emit jump to the next adjacent code block. We'll need to jump over
          * the compile trampoline at the beginning of the block.
@@ -2176,23 +2204,36 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                           p_host_address_base,
                           K_BBC_JIT_BYTES_PER_BYTE);
         util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
-        /* Start writing after the invalidation marker. */
-        util_buffer_set_pos(p_tmp_buf, p_compiler->len_asm_invalidated);
 
+        asm_fill_with_trap(p_tmp_buf);
+        util_buffer_set_pos(p_tmp_buf, 0);
+        asm_emit_jit_invalidated(p_tmp_buf);
+
+        block_epilog_len = 0;
+        needs_reemit = 1;
+      }
+
+      if (needs_reemit) {
         /* Re-emit the current uopcode because it is now at a different host
          * address. Also, the host address of any epilog is now known whereas
          * it was not before. Jump target calculations will have changed.
          */
         util_buffer_set_pos(p_single_uopcode_buf, 0);
         util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
-        util_buffer_set_base_address(
-            p_single_uopcode_buf,
-            (p_host_address_base + p_compiler->len_asm_invalidated));
+        p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
+        util_buffer_set_base_address(p_single_uopcode_buf, p_host_address);
+        epilog_pos = util_buffer_get_length(p_tmp_buf);
+        epilog_pos -= block_epilog_len;
+        epilog_pos -= epilog_len;
+        util_buffer_set_base_address(p_single_uopcode_epilog_buf,
+                                     (p_host_address_base + epilog_pos));
         jit_compiler_emit_uop(p_compiler,
                               p_single_uopcode_buf,
                               p_single_uopcode_epilog_buf,
                               p_uop);
       }
+
+      block_epilog_len += epilog_len;
 
       /* Keep a note of the host address of where the JIT code prefixes start,
        * actual code starts, and all code ends.
@@ -2202,7 +2243,6 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
        * The prefix code start will be used as a branch target for branches
        * within a block.
        */
-      p_host_address = (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
       if (!p_uop->is_prefix_or_postfix) {
         if (p_details->p_host_address_start == NULL) {
           p_details->p_host_address_start = p_host_address;
@@ -2216,6 +2256,14 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       }
 
       opcode_len_asm += util_buffer_get_pos(p_single_uopcode_buf);
+
+      /* Plop in any epilog. */
+      if (epilog_pos > 0) {
+        size_t curr_pos = util_buffer_get_pos(p_tmp_buf);
+        util_buffer_set_pos(p_tmp_buf, epilog_pos);
+        util_buffer_append(p_tmp_buf, p_single_uopcode_epilog_buf);
+        util_buffer_set_pos(p_tmp_buf, curr_pos);
+      }
     }
 
     if (opcode_len_asm > 0) {
@@ -2225,16 +2273,6 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       assert(opcode_len_asm >= p_compiler->len_asm_invalidated);
     }
   }
-
-  /* Fill the unused portion of the buffer with traps, i.e. int3 on Intel.
-   * There are a few good reasons for this:
-   * 1) Clarity: see where a code block ends, especially if there was
-   * previously a larger code block at this address.
-   * 2) Bug detection: better chance of a clean crash if something does a bad
-   * jump.
-   * 3) Performance. Traps may stop the instruction decoder.
-   */
-  asm_fill_with_trap(p_tmp_buf);
 }
 
 static void

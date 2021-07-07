@@ -4,6 +4,8 @@
 #include "asm_helper_arm64.h"
 
 #include <assert.h>
+/* For ssize_t. */
+#include <sys/types.h>
 
 void
 asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end) {
@@ -46,9 +48,9 @@ asm_patch_arm64_imm12(struct util_buffer* p_buf, uint32_t val) {
 
 void
 asm_copy_patch_arm64_imm12(struct util_buffer* p_buf,
-		           void* p_start,
-			   void* p_end,
-			   uint32_t val) {
+                           void* p_start,
+                           void* p_end,
+                           uint32_t val) {
   asm_copy(p_buf, p_start, p_end);
   asm_patch_arm64_imm12(p_buf, val);
 }
@@ -75,11 +77,48 @@ asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val) {
 
 void
 asm_copy_patch_arm64_imm16(struct util_buffer* p_buf,
-		           void* p_start,
-			   void* p_end,
-			   uint32_t val) {
+                           void* p_start,
+                           void* p_end,
+                           uint32_t val) {
   asm_copy(p_buf, p_start, p_end);
   asm_patch_arm64_imm16(p_buf, val);
+}
+
+void
+asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, void* p_target) {
+  uint8_t* p_raw;
+  uint8_t* p_src;
+  ssize_t pos;
+  uint32_t insn;
+  uint32_t* p_insn;
+  intptr_t delta;
+
+  p_raw = util_buffer_get_ptr(p_buf);
+  pos = util_buffer_get_pos(p_buf);
+  assert(pos >= 4);
+  pos -= 4;
+  p_raw += pos;
+
+  p_src = util_buffer_get_base_address(p_buf);
+  p_src += pos;
+  delta = ((uint8_t*) p_target - p_src);
+  delta /= 4;
+  assert((delta <= 16383) && (delta >= -16384));
+
+  p_insn = (uint32_t*) p_raw;
+  insn = *p_insn;
+  insn &= ~(0x3FFF<< 5);
+  insn |= ((delta & 0x3FFF) << 5);
+  *p_insn = insn;
+}
+
+void
+asm_copy_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf,
+                                  void* p_start,
+                                  void* p_end,
+                                  void* p_target) {
+  asm_copy(p_buf, p_start, p_end);
+  asm_patch_arm64_imm14_pc_rel(p_buf, p_target);
 }
 
 /* Instructions. */

@@ -64,11 +64,23 @@ void
 asm_emit_jit_check_countdown(struct util_buffer* p_buf,
                              struct util_buffer* p_buf_epilog,
                              uint32_t count,
+                             uint16_t addr,
                              void* p_trampoline) {
-  (void) p_buf;
-  (void) p_buf_epilog;
-  (void) count;
+  void asm_jit_countdown_sub(void);
+  void asm_jit_countdown_sub_END(void);
+  void asm_jit_countdown_tbnz(void);
+  void asm_jit_countdown_tbnz_END(void);
+  void* p_target = util_buffer_get_base_address(p_buf_epilog);
   (void) p_trampoline;
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_jit_countdown_sub,
+                             asm_jit_countdown_sub_END,
+                             count);
+  asm_copy_patch_arm64_imm14_pc_rel(p_buf,
+                                    asm_jit_countdown_tbnz,
+                                    asm_jit_countdown_tbnz_END,
+                                    p_target);
+  asm_emit_jit_jump_interp(p_buf_epilog, addr);
 }
 
 void

@@ -38,6 +38,23 @@ asm_jit_compile_trampoline:
   br REG_6502_PC
 
 
+.globl asm_jit_countdown_sub
+.globl asm_jit_countdown_sub_END
+.globl asm_jit_countdown_tbnz
+.globl asm_jit_countdown_tbnz_END
+asm_jit_countdown_sub:
+  sub REG_COUNTDOWN, REG_COUNTDOWN, #4095
+
+asm_jit_countdown_sub_END:
+  ret
+
+asm_jit_countdown_tbnz:
+  tbnz REG_COUNTDOWN, #63, asm_jit_countdown_tbnz
+
+asm_jit_countdown_tbnz_END:
+  ret
+
+
 .globl asm_jit_load_PC
 .globl asm_jit_load_PC_END
 asm_jit_load_PC:
