@@ -858,6 +858,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     p_jit_addr = jit_compiler_resolve_branch_target(p_compiler,
                                                     (uint16_t) value1);
     break;
+  case k_opcode_jump_raw:
+    p_jit_addr = (void*) (intptr_t) value1;
+    break;
   default:
     break;
   }
