@@ -8,6 +8,18 @@
 .text
 
 
+.globl asm_jit_enter
+.globl asm_jit_enter_END
+asm_jit_enter:
+  adr REG_JIT_COMPILE, asm_jit_compile_trampoline
+  adr REG_INTERP_FUNC, asm_jit_call_interp
+
+  br asm_enter_common
+
+asm_inturbo_enter_END:
+  ret
+
+
 .globl asm_jit_compile_trampoline
 asm_jit_compile_trampoline:
   stp x29, x30, [sp, #-16]!
@@ -36,6 +48,15 @@ asm_jit_compile_trampoline:
   lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
   orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
   br REG_6502_PC
+
+
+.globl asm_jit_call_interp
+.globl asm_jit_call_interp_END
+asm_jit_call_interp:
+  brk #0
+
+asm_jit_call_interp_END:
+  ret
 
 
 .globl asm_jit_countdown_sub

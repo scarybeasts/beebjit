@@ -10,6 +10,15 @@
 .text
 
 
+.globl asm_jit_enter
+.globl asm_jit_enter_END
+asm_jit_enter:
+  jmp asm_enter_common
+
+asm_jit_enter_END:
+  ret
+
+
 .globl asm_jit_compile_trampoline
 asm_jit_compile_trampoline:
   # At this point: stack is aligned to 8 bytes.

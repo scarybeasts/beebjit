@@ -10,6 +10,15 @@
 .text
 
 
+.globl asm_inturbo_enter
+.globl asm_inturbo_enter_END
+asm_inturbo_enter:
+  jmp asm_enter_common
+
+asm_inturbo_enter_END:
+  ret
+
+
 .globl asm_inturbo_save_countdown
 .globl asm_inturbo_save_countdown_END
 asm_inturbo_save_countdown:

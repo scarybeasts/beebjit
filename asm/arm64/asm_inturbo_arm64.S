@@ -8,6 +8,21 @@
 .text
 
 
+.globl asm_inturbo_enter
+.globl asm_inturbo_enter_END
+asm_inturbo_enter:
+  movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
+  movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
+
+  adr REG_INTERP_FUNC, asm_inturbo_call_interp
+
+  br asm_enter_common
+
+asm_inturbo_enter_END:
+  ret
+
+
+
 .globl asm_inturbo_save_countdown
 .globl asm_inturbo_save_countdown_END
 asm_inturbo_save_countdown:

@@ -6,6 +6,11 @@
 struct util_buffer;
 
 int asm_inturbo_is_enabled(void);
+uint32_t asm_inturbo_enter(void* p_context,
+                           uint32_t jump_addr_x64,
+                           int64_t countdown,
+                           void* p_mem_base);
+
 void asm_emit_inturbo_save_countdown(struct util_buffer* p_buf);
 void asm_emit_inturbo_epilog(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,

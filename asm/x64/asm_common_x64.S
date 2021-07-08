@@ -8,6 +8,81 @@
 .text
 
 
+.globl asm_enter_common
+.globl asm_enter_common_END
+asm_enter_common:
+
+  # param1, rdi/rcx == context
+  # param2, rsi/rdx == x64 start address
+  # param3, rdx/r8  == countdown
+  # param4, rcx/r9  == mem base
+
+  push rbp
+  # At this point: stack aligned to 16 bytes.
+  mov rbp, rsp
+  push rbx
+  push r12
+  push r13
+  push r14
+  push r15
+  # Extra callee save registers in the Windows x64 calling convention.
+  push rdi
+  push rsi
+
+  mov REG_MEM, REG_PARAM4
+
+  # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
+  # as it will be overwritten.
+  push REG_PARAM2
+  mov REG_CONTEXT, REG_PARAM1
+  mov REG_COUNTDOWN, REG_PARAM3
+
+  mov REG_SCRATCH1, 0
+  mov REG_SCRATCH2, 0
+  mov REG_SCRATCH3, 0
+
+  # 6502 A, X, Y, S, PC.
+  mov REG_6502_A_64, 0
+  mov REG_6502_X_64, 0
+  mov REG_6502_Y_64, 0
+  mov REG_6502_S_64, 0
+  mov REG_6502_PC, 0
+  # 6502 flags.
+  mov REG_6502_OF_64, 0
+  mov REG_6502_CF_64, 0
+  mov REG_6502_ID_F_64, 0
+
+  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
+  # In the x64 JIT model, the 6502 S register is stored as a register
+  # value that can also be used as an x64 pointers to where it indexes.
+  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
+  or DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], 0x100
+  call asm_restore_AXYS_PC_flags
+
+  # This register points to an offset (0x80) in the zero page. This enables us
+  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
+  lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
+
+  pop REG_SCRATCH1
+  # At this point: stack aligned to 8 bytes, not 16.
+  # The target is raw JIT code so we let the call's push re-align to a 16-byte
+  # stack alignment.
+  call REG_SCRATCH1
+
+  pop rsi
+  pop rdi
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rbx
+  pop rbp
+  ret
+
+asm_enter_common_END:
+  ret
+
+
 .globl asm_instruction_CRASH
 .globl asm_instruction_CRASH_END
 asm_instruction_CRASH:
@@ -439,81 +514,6 @@ asm_pull_word_to_scratch:
   sahf
 
 asm_pull_word_to_scratch_END:
-  ret
-
-
-.globl asm_enter
-.globl asm_enter_END
-asm_enter:
-
-  # param1, rdi/rcx == context
-  # param2, rsi/rdx == x64 start address
-  # param3, rdx/r8  == countdown
-  # param4, rcx/r9  == mem base
-
-  push rbp
-  # At this point: stack aligned to 16 bytes.
-  mov rbp, rsp
-  push rbx
-  push r12
-  push r13
-  push r14
-  push r15
-  # Extra callee save registers in the Windows x64 calling convention.
-  push rdi
-  push rsi
-
-  mov REG_MEM, REG_PARAM4
-
-  # PARAM2 is start address, in either rsi or rdx. Either way it needs saving
-  # as it will be overwritten.
-  push REG_PARAM2
-  mov REG_CONTEXT, REG_PARAM1
-  mov REG_COUNTDOWN, REG_PARAM3
-
-  mov REG_SCRATCH1, 0
-  mov REG_SCRATCH2, 0
-  mov REG_SCRATCH3, 0
-
-  # 6502 A, X, Y, S, PC.
-  mov REG_6502_A_64, 0
-  mov REG_6502_X_64, 0
-  mov REG_6502_Y_64, 0
-  mov REG_6502_S_64, 0
-  mov REG_6502_PC, 0
-  # 6502 flags.
-  mov REG_6502_OF_64, 0
-  mov REG_6502_CF_64, 0
-  mov REG_6502_ID_F_64, 0
-
-  mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
-  # In the x64 JIT model, the 6502 S register is stored as a register
-  # value that can also be used as an x64 pointers to where it indexes.
-  or [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], REG_MEM_32
-  or DWORD PTR [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_S], 0x100
-  call asm_restore_AXYS_PC_flags
-
-  # This register points to an offset (0x80) in the zero page. This enables us
-  # to use a signed 8-bit addressing mode to hit all of 0x00 - 0xFF.
-  lea REG_MEM, [REG_MEM + REG_MEM_OFFSET]
-
-  pop REG_SCRATCH1
-  # At this point: stack aligned to 8 bytes, not 16.
-  # The target is raw JIT code so we let the call's push re-align to a 16-byte
-  # stack alignment.
-  call REG_SCRATCH1
-
-  pop rsi
-  pop rdi
-  pop r15
-  pop r14
-  pop r13
-  pop r12
-  pop rbx
-  pop rbp
-  ret
-
-asm_enter_END:
   ret
 
 

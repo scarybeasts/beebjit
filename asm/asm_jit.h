@@ -8,6 +8,10 @@ struct util_buffer;
 int asm_jit_is_enabled(void);
 void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
+uint32_t asm_jit_enter(void* p_context,
+                       uint32_t jump_addr_x64,
+                       int64_t countdown,
+                       void* p_mem_base);
 void asm_jit_invalidate_code_at(void* p);
 
 void asm_emit_jit_invalidated(struct util_buffer* p_buf);

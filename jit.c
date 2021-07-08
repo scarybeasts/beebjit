@@ -281,7 +281,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
    */
   assert(((uintptr_t) p_mem_base & 0xff) == 0);
 
-  exited = asm_enter(p_jit, uint_start_addr, countdown, p_mem_base);
+  exited = asm_jit_enter(p_jit, uint_start_addr, countdown, p_mem_base);
   assert(exited == 1);
 
   return exited;

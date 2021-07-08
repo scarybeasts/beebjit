@@ -9,6 +9,46 @@
 .text
 
 
+.globl asm_enter_common
+.globl asm_enter_common_END
+asm_enter_common:
+  stp x29, x30, [sp, #-16]!
+
+  # param1, x0 == context
+  # param2, x1 == x64 start address
+  # param3, x2 == countdown
+  # param4, x3 == mem base
+
+  # Save callee save registers.
+  stp x27, x28, [sp, #-16]!
+  stp x25, x26, [sp, #-16]!
+  stp x23, x24, [sp, #-16]!
+  stp x21, x22, [sp, #-16]!
+
+  mov REG_CONTEXT, REG_PARAM1
+  # Temporary storage for the final jump location.
+  mov REG_MEM_WRITE, REG_PARAM2
+  mov REG_COUNTDOWN, REG_PARAM3
+  mov REG_MEM_READ, REG_PARAM4
+
+  bl asm_restore_AXYS_PC_flags
+
+  # More juggling of final jump location.
+  mov REG_SCRATCH2, REG_MEM_WRITE
+
+  movz REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE >> 16), lsl #16
+  movk REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE & 0xFFFF)
+  add REG_MEM_WRITE, REG_MEM_READ, REG_SCRATCH1
+  add REG_MEM_STACK, REG_MEM_READ, #0x100
+
+  adr REG_DEBUG_FUNC, asm_debug
+
+  br REG_SCRATCH2
+
+asm_enter_common_END:
+  ret
+
+
 .globl asm_instruction_BIT_common
 .globl asm_instruction_BIT_common_END
 asm_instruction_BIT_common:
@@ -395,48 +435,6 @@ asm_pull_word_to_scratch_END:
   ret
 
 
-.globl asm_enter
-.globl asm_enter_END
-asm_enter:
-  stp x29, x30, [sp, #-16]!
-
-  # param1, x0 == context
-  # param2, x1 == x64 start address
-  # param3, x2 == countdown
-  # param4, x3 == mem base
-
-  # Save callee save registers.
-  stp x27, x28, [sp, #-16]!
-  stp x25, x26, [sp, #-16]!
-  stp x23, x24, [sp, #-16]!
-  stp x21, x22, [sp, #-16]!
-
-  mov REG_CONTEXT, REG_PARAM1
-  # Temporary store for the final jump location.
-  mov REG_INTURBO_CODE, REG_PARAM2
-  mov REG_COUNTDOWN, REG_PARAM3
-  mov REG_MEM_READ, REG_PARAM4
-
-  movz REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE >> 16), lsl #16
-  movk REG_SCRATCH1, #(K_BBC_MEM_OFFSET_READ_TO_WRITE & 0xFFFF)
-  add REG_MEM_WRITE, REG_MEM_READ, REG_SCRATCH1
-  add REG_MEM_STACK, REG_MEM_READ, #0x100
-  adr REG_DEBUG_FUNC, asm_debug
-  adr REG_INTERP_FUNC, asm_inturbo_call_interp
-  adr REG_JIT_COMPILE, asm_jit_compile_trampoline
-
-  bl asm_restore_AXYS_PC_flags
-
-  mov REG_SCRATCH1, REG_INTURBO_CODE
-  movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
-  movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
-
-  br REG_SCRATCH1
-
-.asm_enter_END:
-  ret
-
-
 .globl asm_exit
 asm_exit:
   # Restore callee save registers.
@@ -448,7 +446,7 @@ asm_exit:
   ldp x29, x30, [sp], #16
   ret
 
-.asm_exit_END:
+asm_exit_END:
   ret
 
 

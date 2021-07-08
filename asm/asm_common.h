@@ -6,10 +6,10 @@
 
 struct util_buffer;
 
-uint32_t asm_enter(void* p_context,
-                   uint32_t jump_addr_x64,
-                   int64_t countdown,
-                   void* p_mem_base);
+uint32_t asm_enter_common(void* p_context,
+                          uint32_t jump_addr_x64,
+                          int64_t countdown,
+                          void* p_mem_base);
 
 void asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
 void asm_fill_with_trap(struct util_buffer* p_buf);

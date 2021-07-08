@@ -728,7 +728,10 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
    */
   p_state_6502->reg_pc += K_BBC_MEM_READ_FULL_ADDR;
 
-  exited = asm_enter(p_cpu_driver, p_start_address, countdown, p_mem_read);
+  exited = asm_inturbo_enter(p_cpu_driver,
+                             p_start_address,
+                             countdown,
+                             p_mem_read);
   assert(exited == 1);
 
   return exited;
