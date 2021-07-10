@@ -14,7 +14,7 @@ asm_jit_enter:
   adr REG_JIT_COMPILE, asm_jit_compile_trampoline
   adr REG_INTERP_FUNC, asm_jit_call_interp
 
-  br asm_enter_common
+  b asm_enter_common
 
 asm_inturbo_enter_END:
   ret
@@ -53,9 +53,44 @@ asm_jit_compile_trampoline:
 .globl asm_jit_call_interp
 .globl asm_jit_call_interp_END
 asm_jit_call_interp:
-  brk #0
+  stp x29, x30, [sp, #-32]!
+
+  bl asm_save_AXYS_PC_flags
+
+  # param1: interp object, fetched from context
+  ldr REG_PARAM1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_OBJECT]
+  # param2: storage for 2x int64 return values
+  add REG_PARAM2, sp, #16
+  # param3: countdown
+  mov REG_PARAM3, REG_COUNTDOWN
+  # param4: flags
+  # TODO
+  movz REG_PARAM4, #0
+
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  blr REG_SCRATCH1
+
+  ldr REG_COUNTDOWN, [sp, #16]
+  ldr REG_SCRATCH1, [sp, #24]
+
+  ldp x29, x30, [sp], #32
+
+  tst REG_SCRATCH1, REG_SCRATCH1
+  b.eq not_exiting
+  mov REG_RETURN, REG_SCRATCH1
+  b asm_exit
 
 asm_jit_call_interp_END:
+  ret
+
+not_exiting:
+  bl asm_restore_AXYS_PC_flags
+
+  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  br REG_6502_PC
+
+not_exiting_END:
   ret
 
 
@@ -73,6 +108,15 @@ asm_jit_countdown_tbnz:
   tbnz REG_COUNTDOWN, #63, asm_jit_countdown_tbnz
 
 asm_jit_countdown_tbnz_END:
+  ret
+
+
+.globl asm_jit_load_12bit
+.globl asm_jit_load_12bit_END
+asm_jit_load_12bit:
+  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #0xFFF]
+
+asm_jit_load_12bit_END:
   ret
 
 
@@ -100,6 +144,41 @@ asm_jit_jump_interp:
   br REG_INTERP_FUNC
 
 asm_jit_jump_interp_END:
+  ret
+
+
+.globl asm_jit_BEQ
+.globl asm_jit_BEQ_END
+asm_jit_BEQ:
+  b.eq asm_jit_BEQ
+
+asm_jit_BEQ_END:
+  ret
+
+
+.globl asm_jit_BNE
+.globl asm_jit_BNE_END
+asm_jit_BNE:
+  b.ne asm_jit_BNE
+
+asm_jit_BNE_END:
+  ret
+
+.globl asm_jit_CMP_SCRATCH
+.globl asm_jit_CMP_SCRATCH_END
+asm_jit_CMP_SCRATCH:
+  cmp REG_6502_A, REG_SCRATCH1
+
+asm_jit_CMP_SCRATCH_END:
+  ret
+
+
+.globl asm_jit_JMP
+.globl asm_jit_JMP_END
+asm_jit_JMP:
+  b asm_jit_JMP
+
+asm_jit_JMP_END:
   ret
 
 
@@ -137,4 +216,13 @@ asm_jit_STA_ABS_16bit:
   strb REG_6502_A_32, [REG_MEM_WRITE, REG_SCRATCH1]
 
 asm_jit_STA_ABS_16bit_END:
+  ret
+
+
+.globl asm_jit_STX_ABS_12bit
+.globl asm_jit_STX_ABS_12bit_END
+asm_jit_STX_ABS_12bit:
+  strb REG_6502_X_32, [REG_MEM_WRITE, #0xFFF]
+
+asm_jit_STX_ABS_12bit_END:
   ret

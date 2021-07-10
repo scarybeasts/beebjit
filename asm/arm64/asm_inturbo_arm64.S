@@ -16,7 +16,7 @@ asm_inturbo_enter:
 
   adr REG_INTERP_FUNC, asm_inturbo_call_interp
 
-  br asm_enter_common
+  b asm_enter_common
 
 asm_inturbo_enter_END:
   ret

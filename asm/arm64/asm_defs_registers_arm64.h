@@ -1,7 +1,7 @@
 #ifndef BEEBJIT_ASM_DEFS_REGISTERS_ARM64_H
 #define BEEBJIT_ASM_DEFS_REGISTERS_ARM64_H
 
-/* Caller save. */
+/* Caller save (x0 - x15 inclusive).. */
 #define REG_6502_A         x0
 #define REG_6502_A_32      w0
 #define REG_6502_X         x1

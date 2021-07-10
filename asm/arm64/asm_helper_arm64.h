@@ -15,10 +15,21 @@ void asm_copy_patch_arm64_imm16(struct util_buffer* p_buf,
                                 void* p_end,
                                 uint32_t val);
 void asm_patch_arm64_imm16(struct util_buffer* p_buf, uint32_t val);
+
 void asm_copy_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf,
                                        void* p_start,
                                        void* p_end,
                                        void* p_target);
 void asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, void* p_target);
+void asm_copy_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf,
+                                       void* p_start,
+                                       void* p_end,
+                                       void* p_target);
+void asm_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf, void* p_target);
+void asm_copy_patch_arm64_imm26_pc_rel(struct util_buffer* p_buf,
+                                       void* p_start,
+                                       void* p_end,
+                                       void* p_target);
+void asm_patch_arm64_imm26_pc_rel(struct util_buffer* p_buf, void* p_target);
 
 #endif /* BEEBJIT_ASM_HELPER_ARM64_H */

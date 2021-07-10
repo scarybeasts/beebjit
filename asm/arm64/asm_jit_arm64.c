@@ -29,6 +29,8 @@ asm_jit_supports_uopcode(int32_t uopcode) {
    */
   switch (uopcode) {
   case k_opcode_STOA_IMM:
+    ret = 0;
+    break;
   default:
     break;
   }
@@ -570,8 +572,10 @@ asm_emit_jit_BCS(struct util_buffer* p_buf, void* p_target) {
 
 void
 asm_emit_jit_BEQ(struct util_buffer* p_buf, void* p_target) {
-  (void) p_buf;
-  (void) p_target;
+  asm_copy_patch_arm64_imm19_pc_rel(p_buf,
+                                    asm_jit_BEQ,
+                                    asm_jit_BEQ_END,
+                                    p_target);
 }
 
 void
@@ -588,8 +592,10 @@ asm_emit_jit_BMI(struct util_buffer* p_buf, void* p_target) {
 
 void
 asm_emit_jit_BNE(struct util_buffer* p_buf, void* p_target) {
-  (void) p_buf;
-  (void) p_target;
+  asm_copy_patch_arm64_imm19_pc_rel(p_buf,
+                                    asm_jit_BNE,
+                                    asm_jit_BNE_END,
+                                    p_target);
 }
 
 void
@@ -614,9 +620,20 @@ void
 asm_emit_jit_CMP_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_load_12bit(void);
+  void asm_jit_load_12bit_END(void);
+  void asm_jit_CMP_SCRATCH(void);
+  void asm_jit_CMP_SCRATCH_END(void);
   (void) segment;
+  if (addr < 0x1000) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_load_12bit,
+                               asm_jit_load_12bit_END,
+                               addr);
+  } else {
+    assert(0);
+  }
+  asm_copy(p_buf, asm_jit_CMP_SCRATCH, asm_jit_CMP_SCRATCH_END);
 }
 
 void
@@ -788,8 +805,10 @@ asm_emit_jit_INC_scratch(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
-  (void) p_buf;
-  (void) p_target;
+  asm_copy_patch_arm64_imm26_pc_rel(p_buf,
+                                    asm_jit_JMP,
+                                    asm_jit_JMP_END,
+                                    p_target);
 }
 
 void
@@ -1171,9 +1190,17 @@ void
 asm_emit_jit_STX_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_STX_ABS_12bit(void);
+  void asm_jit_STX_ABS_12bit_END(void);
   (void) segment;
+  if (addr < 0x1000) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_STX_ABS_12bit,
+                               asm_jit_STX_ABS_12bit_END,
+                               addr);
+  } else {
+    assert(0);
+  }
 }
 
 void

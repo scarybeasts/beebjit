@@ -84,14 +84,24 @@ asm_copy_patch_arm64_imm16(struct util_buffer* p_buf,
   asm_patch_arm64_imm16(p_buf, val);
 }
 
-void
-asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, void* p_target) {
+static void
+asm_patch_arm64_immN_pc_rel(struct util_buffer* p_buf,
+                            void* p_target,
+                            uint32_t bit_count,
+                            uint32_t shift) {
   uint8_t* p_raw;
   uint8_t* p_src;
   ssize_t pos;
   uint32_t insn;
   uint32_t* p_insn;
   intptr_t delta;
+  uint32_t mask;
+  int32_t range;
+
+  mask = ((1 << bit_count) - 1);
+  range = (1 << (bit_count - 1));
+
+  (void) range;
 
   p_raw = util_buffer_get_ptr(p_buf);
   pos = util_buffer_get_pos(p_buf);
@@ -103,13 +113,18 @@ asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, void* p_target) {
   p_src += pos;
   delta = ((uint8_t*) p_target - p_src);
   delta /= 4;
-  assert((delta <= 16383) && (delta >= -16384));
+  assert((delta <= (range - 1)) && (delta >= -range));
 
   p_insn = (uint32_t*) p_raw;
   insn = *p_insn;
-  insn &= ~(0x3FFF<< 5);
-  insn |= ((delta & 0x3FFF) << 5);
+  insn &= ~(mask << shift);
+  insn |= ((delta & mask) << shift);
   *p_insn = insn;
+}
+
+void
+asm_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf, void* p_target) {
+  asm_patch_arm64_immN_pc_rel(p_buf, p_target, 14, 5);
 }
 
 void
@@ -119,6 +134,34 @@ asm_copy_patch_arm64_imm14_pc_rel(struct util_buffer* p_buf,
                                   void* p_target) {
   asm_copy(p_buf, p_start, p_end);
   asm_patch_arm64_imm14_pc_rel(p_buf, p_target);
+}
+
+void
+asm_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf, void* p_target) {
+  asm_patch_arm64_immN_pc_rel(p_buf, p_target, 19, 5);
+}
+
+void
+asm_copy_patch_arm64_imm19_pc_rel(struct util_buffer* p_buf,
+                                  void* p_start,
+                                  void* p_end,
+                                  void* p_target) {
+  asm_copy(p_buf, p_start, p_end);
+  asm_patch_arm64_imm19_pc_rel(p_buf, p_target);
+}
+
+void
+asm_patch_arm64_imm26_pc_rel(struct util_buffer* p_buf, void* p_target) {
+  asm_patch_arm64_immN_pc_rel(p_buf, p_target, 26, 0);
+}
+
+void
+asm_copy_patch_arm64_imm26_pc_rel(struct util_buffer* p_buf,
+                                  void* p_start,
+                                  void* p_end,
+                                  void* p_target) {
+  asm_copy(p_buf, p_start, p_end);
+  asm_patch_arm64_imm26_pc_rel(p_buf, p_target);
 }
 
 /* Instructions. */
