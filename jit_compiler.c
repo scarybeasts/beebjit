@@ -2194,7 +2194,6 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                              k_opcode_jump_raw,
                              (int32_t) (uintptr_t) p_resume);
         jit_compiler_emit_uop(p_compiler, p_tmp_buf, NULL, &tmp_uop);
-        asm_fill_with_trap(p_tmp_buf);
 
         /* Continue compiling the code block in the next host block, after the
          * compile trampoline.

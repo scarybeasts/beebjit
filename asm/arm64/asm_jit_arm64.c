@@ -314,8 +314,23 @@ asm_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t value) {
 
 void
 asm_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_MODE_IND_8_load_lo(void);
+  void asm_jit_MODE_IND_8_load_lo_END(void);
+  void asm_jit_MODE_IND_8_load_hi(void);
+  void asm_jit_MODE_IND_8_load_hi_END(void);
+  void asm_jit_MODE_IND_8_or(void);
+  void asm_jit_MODE_IND_8_or_END(void);
+
+  uint8_t next_addr = (addr + 1);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_jit_MODE_IND_8_load_lo,
+                             asm_jit_MODE_IND_8_load_lo_END,
+                             addr);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_jit_MODE_IND_8_load_hi,
+                             asm_jit_MODE_IND_8_load_hi_END,
+                             next_addr);
+  asm_copy(p_buf, asm_jit_MODE_IND_8_or, asm_jit_MODE_IND_8_or_END);
 }
 
 void
@@ -600,8 +615,10 @@ asm_emit_jit_BNE(struct util_buffer* p_buf, void* p_target) {
 
 void
 asm_emit_jit_BPL(struct util_buffer* p_buf, void* p_target) {
-  (void) p_buf;
-  (void) p_target;
+  asm_copy_patch_arm64_imm19_pc_rel(p_buf,
+                                    asm_jit_BPL,
+                                    asm_jit_BPL_END,
+                                    p_target);
 }
 
 void
@@ -776,14 +793,30 @@ asm_emit_jit_EOR_SCRATCH_Y(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_INC_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
+  asm_emit_jit_INC_ABS_RMW(p_buf, addr);
 }
 
 void
 asm_emit_jit_INC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_INC_ABS_12bit_load(void);
+  void asm_jit_INC_ABS_12bit_load_END(void);
+  void asm_jit_INC_ABS_12bit_inc(void);
+  void asm_jit_INC_ABS_12bit_inc_END(void);
+  void asm_jit_INC_ABS_12bit_store(void);
+  void asm_jit_INC_ABS_12bit_store_END(void);
+  if (addr < 0x1000) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_INC_ABS_12bit_load,
+                               asm_jit_INC_ABS_12bit_load_END,
+                               addr);
+    asm_copy(p_buf, asm_jit_INC_ABS_12bit_inc, asm_jit_INC_ABS_12bit_inc_END);
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_INC_ABS_12bit_store,
+                               asm_jit_INC_ABS_12bit_store_END,
+                               addr);
+  } else {
+    assert(0);
+  }
 }
 
 void
@@ -1183,7 +1216,9 @@ asm_emit_jit_STA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_STA_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_jit_STA_SCRATCH_Y(void);
+  void asm_jit_STA_SCRATCH_Y_END(void);
+  asm_copy(p_buf, asm_jit_STA_SCRATCH_Y, asm_jit_STA_SCRATCH_Y_END);
 }
 
 void
