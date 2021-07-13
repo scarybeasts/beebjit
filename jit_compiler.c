@@ -2470,7 +2470,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   jit_compiler_setup_cycle_counts(p_compiler);
 
   /* Fourth, run the optimizer across the list of opcodes. */
-  if (!p_compiler->option_no_optimize) {
+  if (!p_compiler->option_no_optimize && asm_jit_supports_optimizer()) {
     p_details = jit_optimizer_optimize(&p_compiler->opcode_details[0]);
     jit_compiler_make_last_opcode(p_compiler, p_details);
   }
