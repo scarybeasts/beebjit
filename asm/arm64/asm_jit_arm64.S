@@ -147,6 +147,22 @@ asm_jit_jump_interp_END:
   ret
 
 
+.globl asm_jit_ADC_IMM
+.globl asm_jit_ADC_IMM_END
+asm_jit_ADC_IMM:
+  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_CF
+  lsl REG_6502_A, REG_6502_A, #24
+  orr REG_6502_A, REG_6502_A, #0x00FFFFFF
+  adds REG_6502_A_32, REG_6502_A_32, REG_SCRATCH1_32
+  cset REG_6502_CF, cs
+  cset REG_6502_OF, vs
+  tst REG_6502_A_32, #0xFF000000
+  lsr REG_6502_A, REG_6502_A, #24
+
+asm_jit_ADC_IMM_END:
+  ret
+
+
 .globl asm_jit_AND_SCRATCH
 .globl asm_jit_AND_SCRATCH_END
 asm_jit_AND_SCRATCH:
@@ -166,12 +182,30 @@ asm_jit_BCC_END:
   ret
 
 
+.globl asm_jit_BCS
+.globl asm_jit_BCS_END
+asm_jit_BCS:
+  cbnz REG_6502_CF, asm_jit_BCS
+
+asm_jit_BCS_END:
+  ret
+
+
 .globl asm_jit_BEQ
 .globl asm_jit_BEQ_END
 asm_jit_BEQ:
   b.eq asm_jit_BEQ
 
 asm_jit_BEQ_END:
+  ret
+
+
+.globl asm_jit_BMI
+.globl asm_jit_BMI_END
+asm_jit_BMI:
+  b.mi asm_jit_BMI
+
+asm_jit_BMI_END:
   ret
 
 
@@ -193,10 +227,39 @@ asm_jit_BPL_END:
   ret
 
 
+.globl asm_jit_BVC
+.globl asm_jit_BVC_END
+asm_jit_BVC:
+  cbz REG_6502_OF, asm_jit_BVC
+
+asm_jit_BVC_END:
+  ret
+
+
+.globl asm_jit_BVS
+.globl asm_jit_BVS_END
+asm_jit_BVS:
+  cbnz REG_6502_OF, asm_jit_BVS
+
+asm_jit_BVS_END:
+  ret
+
+
+.globl asm_jit_CMP_IMM
+.globl asm_jit_CMP_IMM_END
+asm_jit_CMP_IMM:
+  mov REG_SCRATCH2, REG_6502_A, lsl #24
+  cmp REG_SCRATCH2_32, REG_SCRATCH1_32
+
+asm_jit_CMP_IMM_END:
+  ret
+
+
 .globl asm_jit_CMP_SCRATCH
 .globl asm_jit_CMP_SCRATCH_END
 asm_jit_CMP_SCRATCH:
-  cmp REG_6502_A, REG_SCRATCH1
+  mov REG_SCRATCH2, REG_6502_A, lsl #24
+  cmp REG_SCRATCH2_32, REG_SCRATCH1_32, lsl #24
 
 asm_jit_CMP_SCRATCH_END:
   ret
@@ -205,7 +268,8 @@ asm_jit_CMP_SCRATCH_END:
 .globl asm_jit_CPX_IMM
 .globl asm_jit_CPX_IMM_END
 asm_jit_CPX_IMM:
-  cmp REG_6502_X, #4095
+  mov REG_SCRATCH2, REG_6502_X, lsl #24
+  cmp REG_SCRATCH2_32, REG_SCRATCH1_32
 
 asm_jit_CPX_IMM_END:
   ret
@@ -316,22 +380,12 @@ asm_jit_MODE_ABY_12bit_END:
   ret
 
 
-.globl asm_jit_MODE_IND_8_load_lo
-.globl asm_jit_MODE_IND_8_load_lo_END
-.globl asm_jit_MODE_IND_8_load_hi
-.globl asm_jit_MODE_IND_8_load_hi_END
-.globl asm_jit_MODE_IND_8_or
-.globl asm_jit_MODE_IND_8_or_END
-asm_jit_MODE_IND_8_load_lo:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #4095]
-asm_jit_MODE_IND_8_load_lo_END:
-asm_jit_MODE_IND_8_load_hi:
-  ldrb REG_SCRATCH2_32, [REG_MEM_READ, #4095]
-asm_jit_MODE_IND_8_load_hi_END:
-asm_jit_MODE_IND_8_or:
+.globl asm_jit_LOAD_BYTE_PAIR_or
+.globl asm_jit_LOAD_BYTE_PAIR_or_END
+asm_jit_LOAD_BYTE_PAIR_or:
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
 
-asm_jit_MODE_IND_8_or_END:
+asm_jit_LOAD_BYTE_PAIR_or_END:
   ret
 
 
@@ -384,6 +438,18 @@ asm_jit_PUSH_16_store_dec_END:
   ret
 
 
+.globl asm_jit_ROL_ACC
+.globl asm_jit_ROL_ACC_END
+asm_jit_ROL_ACC:
+  add REG_6502_A, REG_6502_CF, REG_6502_A, lsl #1
+  ubfx REG_6502_CF, REG_6502_A, #8, #1
+  adds xzr, xzr, REG_6502_A, lsl #56
+  and REG_6502_A, REG_6502_A, #0xFF
+
+asm_jit_ROL_ACC_END:
+  ret
+
+
 .globl asm_jit_ROL_SCRATCH
 .globl asm_jit_ROL_SCRATCH_END
 asm_jit_ROL_SCRATCH:
@@ -428,12 +494,19 @@ asm_jit_SAVE_CARRY_END:
   ret
 
 
-.globl asm_jit_SCRATCH_12bit_load
-.globl asm_jit_SCRATCH_12bit_load_END
-asm_jit_SCRATCH_12bit_load:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #0xFFF]
+.globl asm_jit_SBC_IMM
+.globl asm_jit_SBC_IMM_END
+asm_jit_SBC_IMM:
+  eor REG_SCRATCH2, REG_6502_CF, #1
+  add REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
+  lsl REG_6502_A, REG_6502_A, #24
+  subs REG_6502_A_32, REG_6502_A_32, REG_SCRATCH1_32
+  cset REG_6502_CF, cs
+  cset REG_6502_OF, vs
+  tst REG_6502_A_32, #0xFF000000
+  lsr REG_6502_A, REG_6502_A, #24
 
-asm_jit_SCRATCH_12bit_load_END:
+asm_jit_SBC_IMM_END:
   ret
 
 
@@ -464,6 +537,24 @@ asm_jit_SCRATCH_ADD_Y_END:
   ret
 
 
+.globl asm_jit_SCRATCH_LOAD_12bit
+.globl asm_jit_SCRATCH_LOAD_12bit_END
+asm_jit_SCRATCH_LOAD_12bit:
+  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #0xFFF]
+
+asm_jit_SCRATCH_LOAD_12bit_END:
+  ret
+
+
+.globl asm_jit_SCRATCH_LOAD_SCRATCH
+.globl asm_jit_SCRATCH_LOAD_SCRATCH_END
+asm_jit_SCRATCH_LOAD_SCRATCH:
+  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
+
+asm_jit_SCRATCH_LOAD_SCRATCH_END:
+  ret
+
+
 .globl asm_jit_SCRATCH_JMP
 .globl asm_jit_SCRATCH_JMP_END
 asm_jit_SCRATCH_JMP:
@@ -483,12 +574,49 @@ asm_jit_SCRATCH_SET:
 asm_jit_SCRATCH_SET_END:
   ret
 
+
+.globl asm_jit_SCRATCH_SET_HI
+.globl asm_jit_SCRATCH_SET_HI_END
+asm_jit_SCRATCH_SET_HI:
+  movz REG_SCRATCH1, #0xFFFF, lsl #16
+
+asm_jit_SCRATCH_SET_HI_END:
+  ret
+
+
 .globl asm_jit_SCRATCH_TRUNC_8
 .globl asm_jit_SCRATCH_TRUNC_8_END
 asm_jit_SCRATCH_TRUNC_8:
   and REG_SCRATCH1, REG_SCRATCH1, #0xFF
 
 asm_jit_SCRATCH_TRUNC_8_END:
+  ret
+
+
+.globl asm_jit_SCRATCH2_LOAD_12bit
+.globl asm_jit_SCRATCH2_LOAD_12bit_END
+asm_jit_SCRATCH2_LOAD_12bit:
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, #0xFFF]
+
+asm_jit_SCRATCH2_LOAD_12bit_END:
+  ret
+
+
+.globl asm_jit_SCRATCH2_LOAD_SCRATCH2
+.globl asm_jit_SCRATCH2_LOAD_SCRATCH2_END
+asm_jit_SCRATCH2_LOAD_SCRATCH2:
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH2]
+
+asm_jit_SCRATCH2_LOAD_SCRATCH2_END:
+  ret
+
+
+.globl asm_jit_SCRATCH2_SET
+.globl asm_jit_SCRATCH2_SET_END
+asm_jit_SCRATCH2_SET:
+  movz REG_SCRATCH2, #0xFFFF
+
+asm_jit_SCRATCH2_SET_END:
   ret
 
 
