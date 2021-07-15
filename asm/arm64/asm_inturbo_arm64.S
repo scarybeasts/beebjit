@@ -11,6 +11,8 @@
 .globl asm_inturbo_enter
 .globl asm_inturbo_enter_END
 asm_inturbo_enter:
+  mov REG_MEM_READ, REG_PARAM4
+
   movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
   movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
 

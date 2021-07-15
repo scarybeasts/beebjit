@@ -29,7 +29,7 @@ asm_enter_common:
   # Temporary storage for the final jump location.
   mov REG_MEM_WRITE, REG_PARAM2
   mov REG_COUNTDOWN, REG_PARAM3
-  mov REG_MEM_READ, REG_PARAM4
+  # REG_MEM_READ, from REG_PARAM4, is set up by JIT or inturbo entry.
 
   bl asm_restore_AXYS_PC_flags
 
