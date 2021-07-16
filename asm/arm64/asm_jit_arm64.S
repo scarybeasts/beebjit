@@ -291,6 +291,16 @@ asm_jit_CPX_IMM_END:
   ret
 
 
+.globl asm_jit_CPY_IMM
+.globl asm_jit_CPY_IMM_END
+asm_jit_CPY_IMM:
+  mov REG_SCRATCH2, REG_6502_Y, lsl #24
+  cmp REG_SCRATCH2_32, REG_SCRATCH1_32
+
+asm_jit_CPY_IMM_END:
+  ret
+
+
 .globl asm_jit_EOR_SCRATCH
 .globl asm_jit_EOR_SCRATCH_END
 asm_jit_EOR_SCRATCH:
@@ -382,6 +392,15 @@ asm_jit_LDY_IMM:
   movz REG_6502_Y, #0xFFFF
 
 asm_jit_LDY_IMM_END:
+  ret
+
+
+.globl asm_jit_LDY_SCRATCH
+.globl asm_jit_LDY_SCRATCH_END
+asm_jit_LDY_SCRATCH:
+  ldrb REG_6502_Y_32, [REG_MEM_READ, REG_SCRATCH1]
+
+asm_jit_LDY_SCRATCH_END:
   ret
 
 

@@ -8,13 +8,6 @@
 #include <assert.h>
 
 static void
-asm_emit_jit_LDX_SCRATCH(struct util_buffer* p_buf) {
-  void asm_jit_LDX_SCRATCH(void);
-  void asm_jit_LDX_SCRATCH_END(void);
-  asm_copy(p_buf, asm_jit_LDX_SCRATCH, asm_jit_LDX_SCRATCH_END);
-}
-
-static void
 asm_emit_jit_SCRATCH_ADD_Y(struct util_buffer* p_buf) {
   void asm_jit_SCRATCH_ADD_Y(void);
   void asm_jit_SCRATCH_ADD_Y_END(void);
@@ -174,11 +167,13 @@ asm_emit_jit_invalidated(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
+  /* TODO: get rid of this function. */
   (void) p_buf;
 }
 
 void
 asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
+  /* TODO: get rid of this function. */
   (void) p_buf;
   (void) addr;
 }
@@ -213,6 +208,7 @@ asm_emit_jit_check_countdown_no_save_nz_flags(struct util_buffer* p_buf,
   (void) p_buf;
   (void) count;
   (void) p_trampoline;
+  assert(0);
 }
 
 void
@@ -239,17 +235,20 @@ void
 asm_emit_jit_call_inturbo(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_for_testing(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
   (void) p_buf;
   (void) value;
+  assert(0);
 }
 
 void
@@ -259,6 +258,7 @@ asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -268,6 +268,7 @@ asm_emit_jit_ADD_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -277,23 +278,27 @@ asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
 asm_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
   (void) p_buf;
   (void) value;
+  assert(0);
 }
 
 void
 asm_emit_jit_ADD_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -306,16 +311,19 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
                                            uint8_t n) {
   (void) p_buf;
   (void) n;
+  assert(0);
 }
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -323,12 +331,14 @@ asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
                                      uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -340,21 +350,25 @@ asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, void* p_trampoline) {
 void
 asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_FLAGA(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_FLAGX(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_FLAGY(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -366,6 +380,7 @@ asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
 void
 asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -387,16 +402,19 @@ asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
 void
 asm_emit_jit_LDA_Z(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_LDX_Z(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_LDY_Z(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -423,12 +441,14 @@ void
 asm_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -493,6 +513,7 @@ asm_emit_jit_MODE_IND_SCRATCH_8(struct util_buffer* p_buf) {
 void
 asm_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -544,6 +565,7 @@ asm_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf) {
 void
 asm_emit_jit_SET_CARRY(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -551,6 +573,7 @@ asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
   (void) p_buf;
   (void) addr;
   (void) value;
+  assert(0);
 }
 
 void
@@ -560,12 +583,14 @@ asm_emit_jit_SUB_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
 asm_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
   (void) p_buf;
   (void) value;
+  assert(0);
 }
 
 void
@@ -583,6 +608,7 @@ void
 asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
   (void) p_buf;
   (void) value;
+  assert(0);
 }
 
 void
@@ -597,6 +623,7 @@ asm_emit_jit_ADC_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -606,6 +633,7 @@ asm_emit_jit_ADC_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -615,6 +643,7 @@ asm_emit_jit_ADC_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -629,17 +658,20 @@ void
 asm_emit_jit_ADC_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_ADC_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
   (void) p_buf;
   (void) value;
+  assert(0);
 }
 
 void
@@ -649,6 +681,7 @@ asm_emit_jit_AND_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -658,6 +691,7 @@ asm_emit_jit_AND_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -667,6 +701,7 @@ asm_emit_jit_AND_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -682,35 +717,41 @@ void
 asm_emit_jit_AND_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_AND_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_ASL_ABS(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_ASL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_ASL_ABX(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_ASL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -724,11 +765,13 @@ void
 asm_emit_jit_ASL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   (void) p_buf;
   (void) n;
+  assert(0);
 }
 
 void
 asm_emit_jit_ASL_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -847,6 +890,7 @@ asm_emit_jit_CMP_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -856,6 +900,7 @@ asm_emit_jit_CMP_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -873,11 +918,13 @@ void
 asm_emit_jit_CMP_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_CMP_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -887,6 +934,7 @@ asm_emit_jit_CPX_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -907,41 +955,52 @@ asm_emit_jit_CPY_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
 asm_emit_jit_CPY_IMM(struct util_buffer* p_buf, uint8_t value) {
-  (void) p_buf;
-  (void) value;
+  void asm_jit_CPY_IMM(void);
+  void asm_jit_CPY_IMM_END(void);
+  void asm_jit_SAVE_CARRY(void);
+  void asm_jit_SAVE_CARRY_END(void);
+  asm_emit_jit_SCRATCH_SET(p_buf, (value << 24));
+  asm_copy(p_buf, asm_jit_CPY_IMM, asm_jit_CPY_IMM_END);
+  asm_copy(p_buf, asm_jit_SAVE_CARRY, asm_jit_SAVE_CARRY_END);
 }
 
 void
 asm_emit_jit_DEC_ABS(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_DEC_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_DEC_ABX(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_DEC_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_DEC_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -951,6 +1010,7 @@ asm_emit_jit_EOR_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -960,6 +1020,7 @@ asm_emit_jit_EOR_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -969,6 +1030,7 @@ asm_emit_jit_EOR_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -983,11 +1045,13 @@ void
 asm_emit_jit_EOR_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_EOR_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1009,17 +1073,20 @@ void
 asm_emit_jit_INC_ABX(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_INC_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_INC_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1087,6 +1154,7 @@ asm_emit_jit_LDA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 void
 asm_emit_jit_LDA_SCRATCH_X(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1109,7 +1177,7 @@ asm_emit_jit_LDX_ABS(struct util_buffer* p_buf,
                                addr);
   } else {
     asm_emit_jit_SCRATCH_SET(p_buf, addr);
-    asm_emit_jit_LDX_SCRATCH(p_buf);
+    asm_emit_jit_LDX_scratch(p_buf);
   }
 }
 
@@ -1119,7 +1187,7 @@ asm_emit_jit_LDX_ABY(struct util_buffer* p_buf,
                      uint32_t segment) {
   (void) segment;
   asm_emit_jit_MODE_ABY(p_buf, addr);
-  asm_emit_jit_LDX_SCRATCH(p_buf);
+  asm_emit_jit_LDX_scratch(p_buf);
 }
 
 void
@@ -1134,7 +1202,9 @@ asm_emit_jit_LDX_IMM(struct util_buffer* p_buf, uint8_t value) {
 
 void
 asm_emit_jit_LDX_scratch(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_jit_LDX_SCRATCH(void);
+  void asm_jit_LDX_SCRATCH_END(void);
+  asm_copy(p_buf, asm_jit_LDX_SCRATCH, asm_jit_LDX_SCRATCH_END);
 }
 
 void
@@ -1144,6 +1214,7 @@ asm_emit_jit_LDY_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1153,6 +1224,7 @@ asm_emit_jit_LDY_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1167,31 +1239,37 @@ asm_emit_jit_LDY_IMM(struct util_buffer* p_buf, uint8_t value) {
 
 void
 asm_emit_jit_LDY_scratch(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_jit_LDY_SCRATCH(void);
+  void asm_jit_LDY_SCRATCH_END(void);
+  asm_copy(p_buf, asm_jit_LDY_SCRATCH, asm_jit_LDY_SCRATCH_END);
 }
 
 void
 asm_emit_jit_LSR_ABS(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_LSR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_LSR_ABX(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_LSR_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -1203,11 +1281,13 @@ void
 asm_emit_jit_LSR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   (void) p_buf;
   (void) n;
+  assert(0);
 }
 
 void
 asm_emit_jit_LSR_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1217,6 +1297,7 @@ asm_emit_jit_ORA_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1226,6 +1307,7 @@ asm_emit_jit_ORA_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1235,6 +1317,7 @@ asm_emit_jit_ORA_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1249,11 +1332,13 @@ void
 asm_emit_jit_ORA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_ORA_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1275,6 +1360,7 @@ void
 asm_emit_jit_ROL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -1288,11 +1374,13 @@ void
 asm_emit_jit_ROL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   (void) p_buf;
   (void) n;
+  assert(0);
 }
 
 void
 asm_emit_jit_ROL_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
@@ -1314,6 +1402,7 @@ void
 asm_emit_jit_ROR_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -1327,17 +1416,20 @@ void
 asm_emit_jit_ROR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   (void) p_buf;
   (void) n;
+  assert(0);
 }
 
 void
 asm_emit_jit_ROR_scratch(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
@@ -1347,6 +1439,7 @@ asm_emit_jit_SBC_ABS(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1356,6 +1449,7 @@ asm_emit_jit_SBC_ABX(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1365,6 +1459,7 @@ asm_emit_jit_SBC_ABY(struct util_buffer* p_buf,
   (void) p_buf;
   (void) addr;
   (void) segment;
+  assert(0);
 }
 
 void
@@ -1379,23 +1474,27 @@ void
 asm_emit_jit_SBC_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   (void) p_buf;
   (void) offset;
+  assert(0);
 }
 
 void
 asm_emit_jit_SBC_SCRATCH_Y(struct util_buffer* p_buf) {
   (void) p_buf;
+  assert(0);
 }
 
 void
 asm_emit_jit_SHY_ABX(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
 asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
+  assert(0);
 }
 
 void
