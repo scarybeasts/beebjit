@@ -726,8 +726,9 @@ asm_emit_jit_ADC_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_ADC_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_ADC_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1552,8 +1553,9 @@ asm_emit_jit_SBC_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_SBC_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_SBC_SCRATCH(p_buf, 0);
 }
 
 void
