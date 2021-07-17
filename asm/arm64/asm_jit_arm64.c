@@ -157,8 +157,7 @@ asm_emit_jit_ABX_RMW(struct util_buffer* p_buf,
   asm_emit_jit_MODE_ABX(p_buf, addr);
   asm_emit_jit_SCRATCH2_LOAD_SCRATCH(p_buf);
   asm_copy(p_buf, p_start, p_end);
-  /* TODO: re-calculating the address is not efficient. */
-  asm_emit_jit_MODE_ABX(p_buf, addr);
+  /* Re-uses the address in SCRACTH1 calculated by MODE_ABX above. */
   asm_emit_jit_SCRATCH2_STORE_SCRATCH(p_buf);
 }
 
