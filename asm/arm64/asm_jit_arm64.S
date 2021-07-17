@@ -339,6 +339,16 @@ asm_jit_CPY_IMM_END:
   ret
 
 
+.globl asm_jit_CPY_SCRATCH
+.globl asm_jit_CPY_SCRATCH_END
+asm_jit_CPY_SCRATCH:
+  mov REG_SCRATCH2, REG_6502_Y, lsl #24
+  cmp REG_SCRATCH2_32, REG_SCRATCH1_32, lsl #24
+
+asm_jit_CPY_SCRATCH_END:
+  ret
+
+
 .globl asm_jit_DEC_SCRATCH2
 .globl asm_jit_DEC_SCRATCH2_END
 asm_jit_DEC_SCRATCH2:

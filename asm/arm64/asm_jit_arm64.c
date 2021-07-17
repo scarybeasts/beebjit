@@ -145,6 +145,7 @@ asm_emit_jit_ABS_RMW(struct util_buffer* p_buf,
                      void* p_end) {
   asm_emit_jit_SCRATCH2_LOAD(p_buf, addr);
   asm_copy(p_buf, p_start, p_end);
+  /* TODO: this re-loads address into SCRATCH1, wasteful! */
   asm_emit_jit_SCRATCH2_STORE(p_buf, addr);
 }
 
@@ -170,6 +171,13 @@ asm_emit_jit_LOAD_BYTE_PAIR(struct util_buffer* p_buf,
   asm_emit_jit_SCRATCH_LOAD(p_buf, addr1);
   asm_emit_jit_SCRATCH2_LOAD(p_buf, addr2);
   asm_copy(p_buf, asm_jit_LOAD_BYTE_PAIR_or, asm_jit_LOAD_BYTE_PAIR_or_END);
+}
+
+static void
+asm_emit_jit_RMW(struct util_buffer* p_buf, void* p_start, void* p_end) {
+  asm_emit_jit_SCRATCH2_LOAD_SCRATCH(p_buf);
+  asm_copy(p_buf, p_start, p_end);
+  asm_emit_jit_SCRATCH2_STORE_SCRATCH(p_buf);
 }
 
 int
@@ -968,8 +976,9 @@ asm_emit_jit_CMP_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_CMP_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_CMP_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1001,10 +1010,14 @@ void
 asm_emit_jit_CPY_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
+  void asm_jit_CPY_SCRATCH(void);
+  void asm_jit_CPY_SCRATCH_END(void);
+  void asm_jit_SAVE_CARRY(void);
+  void asm_jit_SAVE_CARRY_END(void);
   (void) segment;
-  assert(0);
+  asm_emit_jit_SCRATCH_LOAD(p_buf, addr);
+  asm_copy(p_buf, asm_jit_CPY_SCRATCH, asm_jit_CPY_SCRATCH_END);
+  asm_copy(p_buf, asm_jit_SAVE_CARRY, asm_jit_SAVE_CARRY_END);
 }
 
 void
@@ -1077,10 +1090,10 @@ void
 asm_emit_jit_EOR_ABY(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
   (void) segment;
-  assert(0);
+  asm_emit_jit_MODE_ABY(p_buf, addr);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_EOR_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1099,8 +1112,9 @@ asm_emit_jit_EOR_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_EOR_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_EOR_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1135,8 +1149,9 @@ asm_emit_jit_INC_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_INC_scratch(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  void asm_jit_INC_SCRATCH2(void);
+  void asm_jit_INC_SCRATCH2_END(void);
+  asm_emit_jit_RMW(p_buf, asm_jit_INC_SCRATCH2, asm_jit_INC_SCRATCH2_END);
 }
 
 void
