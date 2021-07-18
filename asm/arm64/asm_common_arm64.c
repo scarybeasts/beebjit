@@ -164,6 +164,50 @@ asm_copy_patch_arm64_imm26_pc_rel(struct util_buffer* p_buf,
   asm_patch_arm64_imm26_pc_rel(p_buf, p_target);
 }
 
+int
+asm_calculate_immr_imms(uint8_t* p_immr, uint8_t* p_imms, uint8_t val) {
+  uint32_t i;
+  int32_t first_one = -1;
+  int32_t last_one = -1;
+  uint32_t ones_count = 0;
+  uint32_t zeros_count = 0;
+  for (i = 0; i < 8; ++i) {
+    int bit = !!(val & 0x80);
+    val <<= 1;
+    if (first_one == -1) {
+      if (bit == 1) {
+        first_one = i;
+        ones_count++;
+      }
+    } else if (last_one == -1) {
+      if (bit == 1) {
+        ones_count++;
+      } else {
+        zeros_count++;
+        last_one = i;
+      }
+    } else {
+      if (bit == 1) {
+        /* Oh dear -- saw a second batch of 1's. */
+        return 0;
+      } else {
+        zeros_count++;
+      }
+    }
+  }
+  if (ones_count == 0) {
+    return 0;
+  }
+
+  *p_imms = (ones_count - 1);
+  *p_immr = 0;
+  if (zeros_count > 0) {
+    *p_immr = (64 - zeros_count);
+  }
+
+  return 1;
+}
+
 /* Instructions. */
 void
 asm_emit_instruction_CRASH(struct util_buffer* p_buf) {

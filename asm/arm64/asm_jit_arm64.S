@@ -183,6 +183,15 @@ asm_jit_ADC_SCRATCH_END:
   ret
 
 
+.globl asm_jit_AND_IMM
+.globl asm_jit_AND_IMM_END
+asm_jit_AND_IMM:
+  and REG_6502_A, REG_6502_A, #1
+
+asm_jit_AND_IMM_END:
+  ret
+
+
 .globl asm_jit_AND_SCRATCH
 .globl asm_jit_AND_SCRATCH_END
 asm_jit_AND_SCRATCH:
@@ -361,6 +370,15 @@ asm_jit_DEC_SCRATCH2_END:
   ret
 
 
+.globl asm_jit_EOR_IMM
+.globl asm_jit_EOR_IMM_END
+asm_jit_EOR_IMM:
+  eor REG_6502_A, REG_6502_A, #1
+
+asm_jit_EOR_IMM_END:
+  ret
+
+
 .globl asm_jit_EOR_SCRATCH
 .globl asm_jit_EOR_SCRATCH_END
 asm_jit_EOR_SCRATCH:
@@ -532,6 +550,15 @@ asm_jit_MODE_IND_SCRATCH_8:
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
 
 asm_jit_MODE_IND_SCRATCH_8_END:
+  ret
+
+
+.globl asm_jit_ORA_IMM
+.globl asm_jit_ORA_IMM_END
+asm_jit_ORA_IMM:
+  orr REG_6502_A, REG_6502_A, #1
+
+asm_jit_ORA_IMM_END:
   ret
 
 

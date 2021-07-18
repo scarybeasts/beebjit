@@ -417,24 +417,6 @@ asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_FLAGA(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
-}
-
-void
-asm_emit_jit_FLAGX(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
-}
-
-void
-asm_emit_jit_FLAGY(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
-}
-
-void
 asm_emit_jit_FLAG_MEM(struct util_buffer* p_buf, uint16_t addr) {
   (void) p_buf;
   (void) addr;
@@ -769,9 +751,20 @@ asm_emit_jit_AND_ABY(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_AND_IMM(struct util_buffer* p_buf, uint8_t value) {
-  /* TODO: use bitmask constant encoding where possible. */
-  asm_emit_jit_SCRATCH_SET(p_buf, value);
-  asm_emit_jit_AND_SCRATCH(p_buf, 0);
+  void asm_jit_AND_IMM(void);
+  void asm_jit_AND_IMM_END(void);
+  uint8_t immr;
+  uint8_t imms;
+  if (asm_calculate_immr_imms(&immr, &imms, value)) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_AND_IMM,
+                               asm_jit_AND_IMM_END,
+                               ((immr << 6) | imms));
+    asm_emit_instruction_A_NZ_flags(p_buf);
+  } else {
+    asm_emit_jit_SCRATCH_SET(p_buf, value);
+    asm_emit_jit_AND_SCRATCH(p_buf, 0);
+  }
 }
 
 void
@@ -1098,8 +1091,20 @@ asm_emit_jit_EOR_ABY(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_EOR_IMM(struct util_buffer* p_buf, uint8_t value) {
-  asm_emit_jit_SCRATCH_SET(p_buf, value);
-  asm_emit_jit_EOR_SCRATCH(p_buf, 0);
+  void asm_jit_EOR_IMM(void);
+  void asm_jit_EOR_IMM_END(void);
+  uint8_t immr;
+  uint8_t imms;
+  if (asm_calculate_immr_imms(&immr, &imms, value)) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_EOR_IMM,
+                               asm_jit_EOR_IMM_END,
+                               ((immr << 6) | imms));
+    asm_emit_instruction_A_NZ_flags(p_buf);
+  } else {
+    asm_emit_jit_SCRATCH_SET(p_buf, value);
+    asm_emit_jit_EOR_SCRATCH(p_buf, 0);
+  }
 }
 
 void
@@ -1394,8 +1399,20 @@ asm_emit_jit_ORA_ABY(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_ORA_IMM(struct util_buffer* p_buf, uint8_t value) {
-  asm_emit_jit_SCRATCH_SET(p_buf, value);
-  asm_emit_jit_ORA_SCRATCH(p_buf, 0);
+  void asm_jit_ORA_IMM(void);
+  void asm_jit_ORA_IMM_END(void);
+  uint8_t immr;
+  uint8_t imms;
+  if (asm_calculate_immr_imms(&immr, &imms, value)) {
+    asm_copy_patch_arm64_imm12(p_buf,
+                               asm_jit_ORA_IMM,
+                               asm_jit_ORA_IMM_END,
+                               ((immr << 6) | imms));
+    asm_emit_instruction_A_NZ_flags(p_buf);
+  } else {
+    asm_emit_jit_SCRATCH_SET(p_buf, value);
+    asm_emit_jit_ORA_SCRATCH(p_buf, 0);
+  }
 }
 
 void
