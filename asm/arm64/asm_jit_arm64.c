@@ -1161,6 +1161,8 @@ asm_emit_jit_INC_scratch(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_JMP(struct util_buffer* p_buf, void* p_target) {
+  void asm_jit_JMP(void);
+  void asm_jit_JMP_END(void);
   asm_copy_patch_arm64_imm26_pc_rel(p_buf,
                                     asm_jit_JMP,
                                     asm_jit_JMP_END,
@@ -1352,6 +1354,8 @@ asm_emit_jit_LSR_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_LSR_ACC(struct util_buffer* p_buf) {
+  void asm_jit_LSR_ACC(void);
+  void asm_jit_LSR_ACC_END(void);
   asm_copy(p_buf, asm_jit_LSR_ACC, asm_jit_LSR_ACC_END);
 }
 
