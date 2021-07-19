@@ -14,7 +14,6 @@ uint32_t asm_enter_common(void* p_context,
 void asm_copy(struct util_buffer* p_buf, void* p_start, void* p_end);
 void asm_fill_with_trap(struct util_buffer* p_buf);
 
-void asm_emit_instruction_CRASH(struct util_buffer* p_buf);
 void asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf);
 void asm_emit_instruction_TRAP(struct util_buffer* p_buf);
 void asm_emit_instruction_ILLEGAL(struct util_buffer* p_buf);
@@ -54,8 +53,6 @@ void asm_debug();
 void asm_save_AXYS_PC_flags();
 void asm_restore_AXYS_PC_flags();
 
-void asm_instruction_CRASH();
-void asm_instruction_CRASH_END();
 void asm_instruction_EXIT();
 void asm_instruction_EXIT_END();
 void asm_instruction_REAL_NOP();

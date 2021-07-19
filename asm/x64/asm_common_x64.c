@@ -110,11 +110,6 @@ asm_copy_patch_u32(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_instruction_CRASH(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_instruction_CRASH, asm_instruction_CRASH_END);
-}
-
-void
 asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_instruction_REAL_NOP, asm_instruction_REAL_NOP_END);
 }

@@ -83,16 +83,6 @@ asm_enter_common_END:
   ret
 
 
-.globl asm_instruction_CRASH
-.globl asm_instruction_CRASH_END
-asm_instruction_CRASH:
-
-  mov al, [0x0000dead]
-
-asm_instruction_CRASH_END:
-  ret
-
-
 .globl asm_instruction_REAL_NOP
 .globl asm_instruction_REAL_NOP_END
 asm_instruction_REAL_NOP:

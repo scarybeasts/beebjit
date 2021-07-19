@@ -13,11 +13,6 @@ asm_enter(void* p_context,
 }
 
 void
-asm_emit_instruction_CRASH(struct util_buffer* p_buf) {
-  (void) p_buf;
-}
-
-void
 asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf) {
   (void) p_buf;
 }

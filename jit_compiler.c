@@ -1501,9 +1501,6 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xF1: /* SBC idy */
     asm_emit_jit_SBC_SCRATCH_Y(p_dest_buf);
     break;
-  case 0xF2:
-    asm_emit_instruction_CRASH(p_dest_buf);
-    break;
   case 0xF6: /* INC zpx */
     asm_emit_jit_INC_scratch(p_dest_buf);
     break;
