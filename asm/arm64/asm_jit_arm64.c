@@ -640,13 +640,15 @@ asm_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
 
 void
 asm_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
+  asm_emit_jit_SCRATCH_SET(p_buf, addr);
+  asm_emit_jit_WRITE_INV_SCRATCH(p_buf);
 }
 
 void
 asm_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_jit_WRITE_INV_SCRATCH(void);
+  void asm_jit_WRITE_INV_SCRATCH_END(void);
+  asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH, asm_jit_WRITE_INV_SCRATCH_END);
 }
 
 void

@@ -17,6 +17,10 @@ asm_jit_enter:
 
   adr REG_JIT_COMPILE, asm_jit_compile_trampoline
   adr REG_INTERP_FUNC, asm_jit_call_interp
+  # NOTE: can save a register by adjusting REG_CONTEXT as we bounce in and out
+  # of JIT.
+  # REG_PARAM1 is REG_CONTEXT.
+  add REG_JIT_PTRS, REG_PARAM1, #K_JIT_CONTEXT_OFFSET_JIT_PTRS
 
   b asm_enter_common
 
@@ -148,6 +152,17 @@ asm_jit_jump_interp:
   br REG_INTERP_FUNC
 
 asm_jit_jump_interp_END:
+  ret
+
+
+.globl asm_jit_WRITE_INV_SCRATCH
+.globl asm_jit_WRITE_INV_SCRATCH_END
+asm_jit_WRITE_INV_SCRATCH:
+  ldr REG_SCRATCH1_32, [REG_JIT_PTRS, REG_SCRATCH1, lsl #2]
+  movz REG_SCRATCH2, #0
+  str REG_SCRATCH2_32, [REG_SCRATCH1]
+
+asm_jit_WRITE_INV_SCRATCH_END:
   ret
 
 
