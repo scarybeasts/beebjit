@@ -215,6 +215,27 @@ asm_jit_supports_uopcode(int32_t uopcode) {
   return ret;
 }
 
+struct asm_jit_struct*
+asm_jit_init(void* p_jit_base) {
+  (void) p_jit_base;
+  return NULL;
+}
+
+void
+asm_jit_destroy(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+}
+
+void
+asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+}
+
+void
+asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   uint32_t* p_dst = (uint32_t*) p;
@@ -226,19 +247,6 @@ void
 asm_emit_jit_invalidated(struct util_buffer* p_buf) {
   /* blr x29 */
   util_buffer_add_4b(p_buf, 0xa0, 0x03, 0x3f, 0xd6);
-}
-
-void
-asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
-  /* TODO: get rid of this function. */
-  (void) p_buf;
-}
-
-void
-asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
-  /* TODO: get rid of this function. */
-  (void) p_buf;
-  (void) addr;
 }
 
 void

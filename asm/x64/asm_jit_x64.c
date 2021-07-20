@@ -1,6 +1,7 @@
 #include "../asm_jit.h"
 
 #include "../../defs_6502.h"
+#include "../../os_alloc.h"
 #include "../../util.h"
 #include "../asm_common.h"
 #include "../asm_defs_host.h"
@@ -9,6 +10,8 @@
 #include "asm_defs_registers_x64.h"
 
 #include <assert.h>
+
+static struct os_alloc_mapping* s_p_mapping_trampolines;
 
 static void
 asm_emit_jit_jump(struct util_buffer* p_buf,
@@ -38,6 +41,30 @@ asm_emit_jit_jump(struct util_buffer* p_buf,
   }
 }
 
+void
+asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
+  void asm_jit_jump_interp_trampoline(void);
+  void asm_jit_jump_interp_trampoline_pc_patch(void);
+  void asm_jit_jump_interp_trampoline_jump_patch(void);
+  void asm_jit_jump_interp_trampoline_END(void);
+  void asm_jit_interp(void);
+  size_t offset = util_buffer_get_pos(p_buf);
+
+  asm_copy(p_buf,
+           asm_jit_jump_interp_trampoline,
+           asm_jit_jump_interp_trampoline_END);
+  asm_patch_int(p_buf,
+                offset,
+                asm_jit_jump_interp_trampoline,
+                asm_jit_jump_interp_trampoline_pc_patch,
+                addr);
+  asm_patch_jump(p_buf,
+                 offset,
+                 asm_jit_jump_interp_trampoline,
+                 asm_jit_jump_interp_trampoline_jump_patch,
+                 asm_jit_interp);
+}
+
 int
 asm_jit_is_enabled(void) {
   return 1;
@@ -63,6 +90,63 @@ asm_jit_supports_uopcode(int32_t uopcode) {
   return 1;
 }
 
+struct asm_jit_struct*
+asm_jit_init(void* p_jit_base) {
+  size_t mapping_size;
+  uint32_t i;
+  void* p_trampolines;
+  struct util_buffer* p_temp_buf = util_buffer_create();
+
+  (void) p_jit_base;
+
+  assert(s_p_mapping_trampolines == NULL);
+
+  /* This is the mapping that holds trampolines to jump out of JIT. These
+   * one-per-6502-address trampolines enable the core JIT code to be simpler
+   * and smaller, at the expense of more complicated bridging between JIT and
+   * interp.
+   */
+  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_TRAMPOLINE_BYTES);
+  s_p_mapping_trampolines =
+      os_alloc_get_mapping((void*) K_BBC_JIT_TRAMPOLINES_ADDR, mapping_size);
+  p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
+  os_alloc_make_mapping_read_write_exec(p_trampolines, mapping_size);
+  util_buffer_setup(p_temp_buf, p_trampolines, mapping_size);
+  asm_fill_with_trap(p_temp_buf);
+
+  for (i = 0; i < k_6502_addr_space_size; ++i) {
+    /* Initialize JIT trampoline. */
+    util_buffer_setup(
+        p_temp_buf,
+        (p_trampolines + (i * K_BBC_JIT_TRAMPOLINE_BYTES)),
+        K_BBC_JIT_TRAMPOLINE_BYTES);
+    asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
+  }
+
+  util_buffer_destroy(p_temp_buf);
+
+  return NULL;
+}
+
+void
+asm_jit_destroy(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+
+  assert(s_p_mapping_trampolines != NULL);
+
+  os_alloc_free_mapping(s_p_mapping_trampolines);
+}
+
+void
+asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+}
+
+void
+asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   uint16_t* p_dst = (uint16_t*) p;
@@ -74,43 +158,6 @@ void
 asm_emit_jit_invalidated(struct util_buffer* p_buf) {
   /* call [rdi] */
   util_buffer_add_2b(p_buf, 0xff, 0x17);
-}
-
-void
-asm_emit_jit_call_compile_trampoline(struct util_buffer* p_buf) {
-  void asm_jit_call_compile_trampoline(void);
-  void asm_jit_call_compile_trampoline_END(void);
-  /* To work correctly this sequence needs to be no more than 2 bytes. */
-  assert((asm_jit_call_compile_trampoline_END -
-          asm_jit_call_compile_trampoline) <= 2);
-
-  asm_copy(p_buf,
-           asm_jit_call_compile_trampoline,
-           asm_jit_call_compile_trampoline_END);
-}
-
-void
-asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_jump_interp_trampoline(void);
-  void asm_jit_jump_interp_trampoline_pc_patch(void);
-  void asm_jit_jump_interp_trampoline_jump_patch(void);
-  void asm_jit_jump_interp_trampoline_END(void);
-  void asm_jit_interp(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf,
-           asm_jit_jump_interp_trampoline,
-           asm_jit_jump_interp_trampoline_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_jump_interp_trampoline,
-                asm_jit_jump_interp_trampoline_pc_patch,
-                addr);
-  asm_patch_jump(p_buf,
-                 offset,
-                 asm_jit_jump_interp_trampoline,
-                 asm_jit_jump_interp_trampoline_jump_patch,
-                 asm_jit_interp);
 }
 
 void

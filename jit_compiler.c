@@ -95,8 +95,7 @@ jit_invalidate_jump_target(struct jit_compiler* p_compiler, uint16_t addr) {
   void* p_host_ptr =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr);
-  util_buffer_setup(p_compiler->p_tmp_buf, p_host_ptr, 2);
-  asm_emit_jit_call_compile_trampoline(p_compiler->p_tmp_buf);
+  asm_jit_invalidate_code_at(p_host_ptr);
 }
 
 static int32_t

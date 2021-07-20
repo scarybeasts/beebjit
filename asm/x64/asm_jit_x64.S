@@ -123,15 +123,6 @@ not_exiting:
   jmp REG_6502_PC
 
 
-.globl asm_jit_call_compile_trampoline
-.globl asm_jit_call_compile_trampoline_END
-asm_jit_call_compile_trampoline:
-  call [REG_CONTEXT]
-
-asm_jit_call_compile_trampoline_END:
-  ret
-
-
 .globl asm_jit_jump_interp_trampoline
 .globl asm_jit_jump_interp_trampoline_pc_patch
 .globl asm_jit_jump_interp_trampoline_jump_patch

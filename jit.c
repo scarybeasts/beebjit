@@ -41,6 +41,7 @@ struct jit_struct {
   int32_t code_blocks[k_6502_addr_space_size];
 
   /* Fields not referenced by JIT'ed code. */
+  struct asm_jit_struct* p_asm;
   struct os_alloc_mapping* p_mapping_jit;
   struct os_alloc_mapping* p_mapping_trampolines;
   uint8_t* p_jit_base;
@@ -246,6 +247,8 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
       (struct cpu_driver*) p_jit->p_inturbo;
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
+  asm_jit_destroy(p_jit->p_asm);
+
   p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
@@ -254,7 +257,6 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   jit_compiler_destroy(p_jit->p_compiler);
 
   os_alloc_free_mapping(p_jit->p_mapping_jit);
-  os_alloc_free_mapping(p_jit->p_mapping_trampolines);
 
   os_alloc_free_aligned(p_cpu_driver);
 }
@@ -812,10 +814,8 @@ static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   struct inturbo_struct* p_inturbo;
-  size_t i;
   size_t mapping_size;
   uint8_t* p_jit_base;
-  uint8_t* p_jit_trampolines;
   struct util_buffer* p_temp_buf;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -858,9 +858,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                                       p_memory_access,
                                                       p_timing,
                                                       p_options);
-  if (p_interp == NULL) {
-    util_bail("couldn't allocate interp_struct");
-  }
   cpu_driver_init((struct cpu_driver*) p_interp);
   p_jit->p_interp = p_interp;
 
@@ -873,9 +870,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                                         p_memory_access,
                                                         p_timing,
                                                         p_options);
-  if (p_inturbo == NULL) {
-    util_bail("couldn't allocate inturbo_struct");
-  }
   inturbo_set_interp(p_inturbo, p_interp);
   /* Enable inturbo ret mode, which means we can call it to interpret a single
    * instruction and it will ret right back to us after every instruction.
@@ -894,24 +888,14 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                               mapping_size);
   p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
   os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
-  /* Fill with int3. */
-  (void) memset(p_jit_base, '\xcc', mapping_size);
-
-  /* This is the mapping that holds trampolines to jump out of JIT. These
-   * one-per-6502-address trampolines enable the core JIT code to be simpler
-   * and smaller, at the expense of more complicated bridging between JIT and
-   * interp.
-   */
-  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_TRAMPOLINE_BYTES);
-  p_jit->p_mapping_trampolines =
-      os_alloc_get_mapping((void*) K_BBC_JIT_TRAMPOLINES_ADDR, mapping_size);
-  p_jit_trampolines = os_alloc_get_mapping_addr(p_jit->p_mapping_trampolines);
-  os_alloc_make_mapping_read_write_exec(p_jit_trampolines, mapping_size);
-  /* Fill with int3. */
-  (void) memset(p_jit_trampolines, '\xcc', mapping_size);
+  p_temp_buf = util_buffer_create();
+  p_jit->p_temp_buf = p_temp_buf;
+  util_buffer_setup(p_temp_buf, p_jit_base, mapping_size);
+  asm_fill_with_trap(p_temp_buf);
 
   p_jit->p_jit_base = p_jit_base;
-  p_jit->p_jit_trampolines = p_jit_trampolines;
+  /* TODO: having trampolines here is still a layering violation. */
+  p_jit->p_jit_trampolines = (void*) (uintptr_t) K_BBC_JIT_TRAMPOLINES_ADDR;
   p_jit->p_compiler = jit_compiler_create(
       p_timing,
       p_memory_access,
@@ -926,8 +910,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit->p_opcode_modes,
       p_jit->p_opcode_mem,
       p_jit->p_opcode_cycles);
-  p_temp_buf = util_buffer_create();
-  p_jit->p_temp_buf = p_temp_buf;
   p_jit->jit_ptr_no_code =
       (uint32_t) (size_t) jit_get_jit_block_host_address(
           p_jit, (k_6502_addr_space_size - 1));
@@ -935,20 +917,16 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       (uint32_t) (size_t) jit_get_jit_block_host_address(
           p_jit, (k_6502_addr_space_size - 2));
 
-  for (i = 0; i < k_6502_addr_space_size; ++i) {
-    /* Initialize JIT trampoline. */
-    util_buffer_setup(
-        p_temp_buf,
-        (p_jit_trampolines + (i * K_BBC_JIT_TRAMPOLINE_BYTES)),
-        K_BBC_JIT_TRAMPOLINE_BYTES);
-    asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
-  }
-
   /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the
    * fast path doesn't need certain checks.
    */
   os_fault_register_handler(jit_handle_fault);
+
+  /* Anything the specific asm driver (x64 or ARM64) needs to get its job
+   * done.
+   */
+  p_jit->p_asm = asm_jit_init(p_jit_base);
 
   /* NOTE: the JIT code space hasn't been set up with the invalidation markers.
    * Power-on reset has the responsibility of marking the entire address space
