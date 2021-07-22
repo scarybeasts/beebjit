@@ -149,7 +149,7 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
 
 int
 asm_jit_handle_fault(struct asm_jit_struct* p_asm,
-                     void** p_pc,
+                     uintptr_t* p_pc,
                      uint16_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
@@ -264,8 +264,8 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   /* Fault is recognized.
    * Bounce into the interpreter via the trampolines.
    */
-  *p_pc = (void*) (uintptr_t) (K_BBC_JIT_TRAMPOLINES_ADDR +
-                               (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
+  *p_pc =
+      (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
   return 1;
 }
 

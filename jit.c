@@ -690,9 +690,9 @@ jit_handle_fault(uintptr_t* p_host_pc,
                  int is_write,
                  uintptr_t host_context) {
   struct jit_struct* p_jit;
-  void* p_new_pc;
   struct jit_host_ip_details details;
   uint16_t addr_6502;
+  uintptr_t new_pc = *p_host_pc;
 
   void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
                      (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
@@ -729,7 +729,7 @@ jit_handle_fault(uintptr_t* p_host_pc,
 
   /* Bail unless it's a clearly recognized fault. */
   if (!asm_jit_handle_fault(p_jit->p_asm,
-                            &p_new_pc,
+                            &new_pc,
                             addr_6502,
                             p_fault_addr,
                             is_write)) {
@@ -744,7 +744,7 @@ jit_handle_fault(uintptr_t* p_host_pc,
   }
   p_jit->counter_num_faults++;
 
-  *p_host_pc = (uintptr_t) p_new_pc;
+  *p_host_pc = new_pc;
 }
 
 static void

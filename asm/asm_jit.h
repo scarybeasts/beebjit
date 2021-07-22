@@ -21,7 +21,7 @@ void asm_jit_destroy(struct asm_jit_struct* p_asm);
 void asm_jit_start_code_updates(struct asm_jit_struct* p_asm);
 void asm_jit_finish_code_updates(struct asm_jit_struct* p_asm);
 int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
-                         void** p_pc,
+                         uintptr_t* p_pc,
                          uint16_t addr_6502,
                          void* p_fault_addr,
                          int is_write);

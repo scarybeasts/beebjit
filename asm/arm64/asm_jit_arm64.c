@@ -244,26 +244,50 @@ asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
 
 void
 asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
+  void* p_start = (void*) (uintptr_t) K_BBC_JIT_ADDR;
   size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
+  void* p_end = (p_start + mapping_size);
 
   (void) p_asm;
 
   os_alloc_make_mapping_read_exec((void*) (uintptr_t) K_BBC_JIT_ADDR,
                                   mapping_size);
+  /* mprotect(), as far as I can discern, does not guarantee to clear icache
+   * for PROT_EXEC mappings.
+   */
+  __builtin___clear_cache(p_start, p_end);
 }
 
 int
 asm_jit_handle_fault(struct asm_jit_struct* p_asm,
-                     void** p_pc,
+                     uintptr_t* p_pc,
                      uint16_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
-  (void) p_asm;
-  (void) p_pc;
+  /* NOTE: is_write will come in as unknown due to platform chalenges
+   * reporting this flag.
+   * The way to work around this, if necessary, is to read the faulting
+   * instruction to see what it is doing.
+   */
   (void) addr_6502;
-  (void) p_fault_addr;
   (void) is_write;
-  return 0;
+
+  /* Currently, the only fault we expect to see is for attempts to invalidate
+   * JIT code. The JIT code mapping is kept read-only.
+   */
+
+  /* TODO: if we keep this model of faulting for self-modification, we'll
+   * likely want to twiddle just the affected page. Currently, we twiddle the
+   * whole mapping.
+   */
+  asm_jit_start_code_updates(p_asm);
+  asm_jit_invalidate_code_at(p_fault_addr);
+  asm_jit_finish_code_updates(p_asm);
+
+  /* Skip over the write invalidation instruction. */
+  *p_pc += 4;
+
+  return 1;
 }
 
 void
