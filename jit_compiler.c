@@ -143,6 +143,8 @@ jit_compiler_create(struct timing_struct* p_timing,
                     void* (*get_trampoline_host_address)(void*, uint16_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
+                    uint32_t jit_ptr_no_code,
+                    uint32_t jit_ptr_dynamic_operand,
                     int32_t* p_code_blocks,
                     struct bbc_options* p_options,
                     int debug,
@@ -214,12 +216,8 @@ jit_compiler_create(struct timing_struct* p_timing,
   p_compiler->p_single_uopcode_buf = util_buffer_create();
   p_compiler->p_single_uopcode_epilog_buf = util_buffer_create();
 
-  p_compiler->jit_ptr_no_code =
-      (uint32_t) (size_t) get_block_host_address(p_host_address_object,
-                                                 (k_6502_addr_space_size - 1));
-  p_compiler->jit_ptr_dynamic_operand =
-      (uint32_t) (size_t) get_block_host_address(p_host_address_object,
-                                                 (k_6502_addr_space_size - 2));
+  p_compiler->jit_ptr_no_code = jit_ptr_no_code;
+  p_compiler->jit_ptr_dynamic_operand = jit_ptr_dynamic_operand;
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
     p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;

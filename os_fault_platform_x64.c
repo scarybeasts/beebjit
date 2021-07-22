@@ -6,14 +6,14 @@ int
 os_fault_is_write_fault(void* p) {
   ucontext_t* p_context = (ucontext_t*) p;
   uintptr_t reg_err = p_context->uc_mcontext.gregs[REG_ERR];
-  return !!(reg_err & 16);
+  return !!(reg_err & 2);
 }
 
 int
 os_fault_is_exec_fault(void* p) {
   ucontext_t* p_context = (ucontext_t*) p;
   uintptr_t reg_err = p_context->uc_mcontext.gregs[REG_ERR];
-  return !!(reg_err & 2);
+  return !!(reg_err & 16);
 }
 
 uintptr_t

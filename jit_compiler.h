@@ -18,6 +18,8 @@ struct jit_compiler* jit_compiler_create(
     void* (*get_trampoline_host_address)(void* p, uint16_t addr),
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
+    uint32_t jit_ptr_no_code,
+    uint32_t jit_ptr_dynamic_operand,
     int32_t* p_code_blocks,
     struct bbc_options* p_options,
     int debug,

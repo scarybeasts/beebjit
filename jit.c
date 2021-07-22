@@ -931,20 +931,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->p_jit_base = p_jit_base;
   /* TODO: having trampolines here is still a layering violation. */
   p_jit->p_jit_trampolines = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
-  p_jit->p_compiler = jit_compiler_create(
-      p_timing,
-      p_memory_access,
-      jit_get_block_host_address_callback,
-      jit_get_trampoline_host_address_callback,
-      p_jit,
-      &p_jit->jit_ptrs[0],
-      &p_jit->code_blocks[0],
-      p_options,
-      debug,
-      p_jit->p_opcode_types,
-      p_jit->p_opcode_modes,
-      p_jit->p_opcode_mem,
-      p_jit->p_opcode_cycles);
 
   p_jit->p_mapping_no_code_ptr =
       os_alloc_get_mapping((void*) K_BBC_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
@@ -953,6 +939,23 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->jit_ptr_no_code = (uint32_t) (uintptr_t) p_no_code_mapping_addr;
   p_jit->jit_ptr_dynamic_operand =
       (uint32_t) (uintptr_t) (p_no_code_mapping_addr + 4);
+
+  p_jit->p_compiler = jit_compiler_create(
+      p_timing,
+      p_memory_access,
+      jit_get_block_host_address_callback,
+      jit_get_trampoline_host_address_callback,
+      p_jit,
+      &p_jit->jit_ptrs[0],
+      p_jit->jit_ptr_no_code,
+      p_jit->jit_ptr_dynamic_operand,
+      &p_jit->code_blocks[0],
+      p_options,
+      debug,
+      p_jit->p_opcode_types,
+      p_jit->p_opcode_modes,
+      p_jit->p_opcode_mem,
+      p_jit->p_opcode_cycles);
 
   /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the
