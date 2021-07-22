@@ -2,10 +2,18 @@
 
 #include <ucontext.h>
 
-uintptr_t
-os_fault_get_eflags(void* p) {
+int
+os_fault_is_write_fault(void* p) {
   ucontext_t* p_context = (ucontext_t*) p;
-  return p_context->uc_mcontext.gregs[REG_ERR];
+  uintptr_t reg_err = p_context->uc_mcontext.gregs[REG_ERR];
+  return !!(reg_err & 16);
+}
+
+int
+os_fault_is_exec_fault(void* p) {
+  ucontext_t* p_context = (ucontext_t*) p;
+  uintptr_t reg_err = p_context->uc_mcontext.gregs[REG_ERR];
+  return !!(reg_err & 2);
 }
 
 uintptr_t

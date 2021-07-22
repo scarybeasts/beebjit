@@ -20,6 +20,8 @@
 #endif
 #if defined(__x86_64__)
 #include "os_fault_platform_x64.c"
+#elif defined(__aarch64__)
+#include "os_fault_platform_arm64.c"
 #else
 #include "os_fault_platform_null.c"
 #endif

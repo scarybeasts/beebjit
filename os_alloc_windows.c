@@ -153,6 +153,13 @@ os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
 }
 
 void
+os_alloc_make_mapping_read_exec(void* p_addr, size_t size) {
+  (void) p_addr;
+  (void) size;
+  assert(0);
+}
+
+void
 os_alloc_make_mapping_none(void* p_addr, size_t size) {
   DWORD old_protection;
   BOOL ret = VirtualProtect(p_addr, size, PAGE_NOACCESS, &old_protection);

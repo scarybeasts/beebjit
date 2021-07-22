@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-uintptr_t os_fault_get_eflags(void* p_context);
+int os_fault_is_write_fault(void* p_context);
+int os_fault_is_exec_fault(void* p_context);
 uintptr_t os_fault_get_jit_context(void* p_context);
 
 uintptr_t os_fault_get_pc(void* p_context);

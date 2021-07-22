@@ -1,7 +1,10 @@
 #include "../asm_jit.h"
 
+#include "../../defs_6502.h"
+#include "../../os_alloc.h"
 #include "../../util.h"
 #include "../asm_common.h"
+#include "../asm_jit_defs.h"
 #include "../asm_opcodes.h"
 #include "asm_helper_arm64.h"
 
@@ -218,6 +221,9 @@ asm_jit_supports_uopcode(int32_t uopcode) {
 struct asm_jit_struct*
 asm_jit_init(void* p_jit_base) {
   (void) p_jit_base;
+
+  asm_jit_finish_code_updates(NULL);
+
   return NULL;
 }
 
@@ -228,12 +234,22 @@ asm_jit_destroy(struct asm_jit_struct* p_asm) {
 
 void
 asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
+  size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
+
   (void) p_asm;
+
+  os_alloc_make_mapping_read_write_exec((void*) (uintptr_t) K_BBC_JIT_ADDR,
+                                        mapping_size);
 }
 
 void
 asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
+  size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
+
   (void) p_asm;
+
+  os_alloc_make_mapping_read_exec((void*) (uintptr_t) K_BBC_JIT_ADDR,
+                                  mapping_size);
 }
 
 void

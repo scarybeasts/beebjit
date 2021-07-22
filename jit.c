@@ -43,6 +43,7 @@ struct jit_struct {
   /* Fields not referenced by JIT'ed code. */
   struct asm_jit_struct* p_asm;
   struct os_alloc_mapping* p_mapping_jit;
+  struct os_alloc_mapping* p_mapping_no_code_ptr;
   struct os_alloc_mapping* p_mapping_trampolines;
   uint8_t* p_jit_base;
   uint8_t* p_jit_trampolines;
@@ -230,10 +231,15 @@ jit_enter_interp(struct jit_struct* p_jit,
 
   p_jit->counter_stay_in_interp = 0;
 
+  /* TODO: this is heavy? Only do if we actually invalidate something. */
+  asm_jit_start_code_updates(p_jit->p_asm);
+
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
                                         jit_interp_instruction_callback,
                                         p_jit);
+
+  asm_jit_finish_code_updates(p_jit->p_asm);
 
   cpu_driver_flags = p_jit_cpu_driver->p_funcs->get_flags(p_jit_cpu_driver);
   p_ret->countdown = countdown;
@@ -248,6 +254,8 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   struct cpu_driver* p_interp_cpu_driver = (struct cpu_driver*) p_jit->p_interp;
 
   asm_jit_destroy(p_jit->p_asm);
+
+  os_alloc_free_mapping(p_jit->p_mapping_no_code_ptr);
 
   p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
@@ -372,12 +380,16 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
 
   assert(addr_end >= addr);
 
+  asm_jit_start_code_updates(p_jit->p_asm);
+
   for (i = addr; i < addr_end; ++i) {
     jit_invalidate_code_at_address(p_jit, i);
     jit_invalidate_host_block_address(p_jit, i);
     p_jit->jit_ptrs[i] = p_jit->jit_ptr_no_code;
     p_jit->code_blocks[i] = -1;
   }
+
+  asm_jit_finish_code_updates(p_jit->p_asm);
 
   jit_compiler_memory_range_invalidate(p_jit->p_compiler, addr, len);
 }
@@ -504,6 +516,8 @@ jit_compile(struct jit_struct* p_jit,
 
   jit_get_6502_details_from_host_ip(p_jit, &details, p_host_cpu_ip);
 
+  asm_jit_start_code_updates(p_jit->p_asm);
+
   if (details.p_invalidation_code_block) {
     asm_jit_invalidate_code_at(details.p_invalidation_code_block);
   }
@@ -562,6 +576,8 @@ jit_compile(struct jit_struct* p_jit,
                                                    is_invalidation,
                                                    addr_6502);
 
+  asm_jit_finish_code_updates(p_jit->p_asm);
+
   /* Clear any leftover JIT pointers from a previous block at the same
    * location. Also clean out subsequent block metadata if that block was
    * trampled on.
@@ -592,7 +608,7 @@ jit_compile(struct jit_struct* p_jit,
     }
     log_do_log(k_log_jit,
                k_log_info,
-               "compile @$%.4X-$%.4X [rip @%p], %s",
+               "compile @$%.4X-$%.4X [pc @%p], %s",
                addr_6502,
                addr_6502_end,
                p_host_cpu_ip,
@@ -629,32 +645,50 @@ jit_safe_hex_convert(char* p_buf, void* p_ptr) {
 }
 
 static void
-fault_reraise(void* p_rip, void* p_addr) {
+fault_reraise(void* p_pc, void* p_addr, int is_write, int is_exec) {
   int ret;
   char hex_buf[16];
+  char digit;
 
-  static const char* p_msg = "FAULT: rip ";
+  static const char* p_msg = "FAULT: pc ";
   static const char* p_msg2 = ", addr ";
-  static const char* p_msg3 = "\n";
+  static const char* p_msg3 = ", write ";
+  static const char* p_msg4 = ", exec ";
+  static const char* p_msg5 = "\n";
 
   ret = write(2, p_msg, strlen(p_msg));
-  jit_safe_hex_convert(&hex_buf[0], p_rip);
+  jit_safe_hex_convert(&hex_buf[0], p_pc);
   ret = write(2, hex_buf, sizeof(hex_buf));
   ret = write(2, p_msg2, strlen(p_msg2));
   jit_safe_hex_convert(&hex_buf[0], p_addr);
   ret = write(2, hex_buf, sizeof(hex_buf));
   ret = write(2, p_msg3, strlen(p_msg3));
+  if (is_write == -1) {
+    digit = '?';
+  } else {
+    digit = ('0' + is_write);
+  }
+  ret = write(2, &digit, 1);
+  ret = write(2, p_msg4, strlen(p_msg4));
+  if (is_exec == -1) {
+    digit = '?';
+  } else {
+    digit = ('0' + is_exec);
+  }
+  ret = write(2, &digit, 1);
+  ret = write(2, p_msg5, strlen(p_msg5));
+
   (void) ret;
 
   os_fault_bail();
 }
 
 static void
-jit_handle_fault(uintptr_t* p_host_rip,
+jit_handle_fault(uintptr_t* p_host_pc,
                  uintptr_t host_fault_addr,
                  int is_exec,
                  int is_write,
-                 uintptr_t host_rdi) {
+                 uintptr_t host_context) {
   int inaccessible_indirect_page;
   int ff_fault_fixup;
   int bcd_fault_fixup;
@@ -667,17 +701,17 @@ jit_handle_fault(uintptr_t* p_host_rip,
 
   void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
                      (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
-  void* p_fault_rip = (void*) *p_host_rip;
+  void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
   /* Crash unless the faulting instruction is in the JIT region. */
-  if ((p_fault_rip < (void*) K_BBC_JIT_ADDR) || (p_fault_rip >= p_jit_end)) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+  if ((p_fault_pc < (void*) K_BBC_JIT_ADDR) || (p_fault_pc >= p_jit_end)) {
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
   /* Fault in instruction fetch would be bad! */
   if (is_exec) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
   /* Bail unless it's a clearly recognized fault. */
@@ -729,7 +763,7 @@ jit_handle_fault(uintptr_t* p_host_rip,
 
   /* From this point on, nothing else is a write fault. */
   if (!inaccessible_indirect_page && !wrap_indirect_write && is_write) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
   if ((p_fault_addr >=
@@ -777,16 +811,16 @@ jit_handle_fault(uintptr_t* p_host_rip,
       !stack_wrap_fault_fixup &&
       !wrap_indirect_read &&
       !wrap_indirect_write) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
-  p_jit = (struct jit_struct*) host_rdi;
+  p_jit = (struct jit_struct*) host_context;
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
   if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
-    fault_reraise(p_fault_rip, p_fault_addr);
+    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
   if ((p_jit->counter_num_faults % 10000) == 0) {
@@ -800,13 +834,13 @@ jit_handle_fault(uintptr_t* p_host_rip,
   /* NOTE -- may call assert() which isn't async safe but faulting context is
    * raw asm, shouldn't be a disaster.
    */
-  jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_rip);
+  jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_pc);
   assert(details.block_6502 != -1);
   assert(details.pc_6502 != -1);
 
   /* Bounce into the interpreter via the trampolines. */
   addr_6502 = details.pc_6502;
-  *p_host_rip =
+  *p_host_pc =
       (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
 }
 
@@ -817,6 +851,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   size_t mapping_size;
   uint8_t* p_jit_base;
   struct util_buffer* p_temp_buf;
+  void* p_no_code_mapping_addr;
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
@@ -895,7 +930,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   p_jit->p_jit_base = p_jit_base;
   /* TODO: having trampolines here is still a layering violation. */
-  p_jit->p_jit_trampolines = (void*) (uintptr_t) K_BBC_JIT_TRAMPOLINES_ADDR;
+  p_jit->p_jit_trampolines = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
   p_jit->p_compiler = jit_compiler_create(
       p_timing,
       p_memory_access,
@@ -910,12 +945,14 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit->p_opcode_modes,
       p_jit->p_opcode_mem,
       p_jit->p_opcode_cycles);
-  p_jit->jit_ptr_no_code =
-      (uint32_t) (size_t) jit_get_jit_block_host_address(
-          p_jit, (k_6502_addr_space_size - 1));
+
+  p_jit->p_mapping_no_code_ptr =
+      os_alloc_get_mapping((void*) K_BBC_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
+  p_no_code_mapping_addr =
+      os_alloc_get_mapping_addr(p_jit->p_mapping_no_code_ptr);
+  p_jit->jit_ptr_no_code = (uint32_t) (uintptr_t) p_no_code_mapping_addr;
   p_jit->jit_ptr_dynamic_operand =
-      (uint32_t) (size_t) jit_get_jit_block_host_address(
-          p_jit, (k_6502_addr_space_size - 2));
+      (uint32_t) (uintptr_t) (p_no_code_mapping_addr + 4);
 
   /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the

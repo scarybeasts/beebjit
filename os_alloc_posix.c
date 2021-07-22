@@ -169,6 +169,14 @@ os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
 }
 
 void
+os_alloc_make_mapping_read_exec(void* p_addr, size_t size) {
+  int ret = mprotect(p_addr, size, (PROT_READ | PROT_EXEC));
+  if (ret != 0) {
+    util_bail("mprotect failed");
+  }
+}
+
+void
 os_alloc_make_mapping_none(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {

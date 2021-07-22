@@ -1,9 +1,15 @@
 #include "os_fault_platform.h"
 
-uintptr_t
-os_fault_get_eflags(void* p) {
+int
+os_fault_is_write_fault(void* p) {
   (void) p;
-  return 0;
+  return -1;
+}
+
+int
+os_fault_is_exec_fault(void* p) {
+  (void) p;
+  return -1;
 }
 
 uintptr_t

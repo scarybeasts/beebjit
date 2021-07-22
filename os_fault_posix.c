@@ -13,9 +13,10 @@ static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);
 static void
 linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   uintptr_t host_fault_addr;
-  uintptr_t host_exception_flags;
-  uintptr_t host_rip;
-  uintptr_t host_rdi;
+  uintptr_t host_pc;
+  uintptr_t host_context;
+  int is_exec_fault;
+  int is_write_fault;
 
   /* Crash unless it's fault type we expected. */
   if (signum != SIGSEGV || p_siginfo->si_code != SEGV_ACCERR) {
@@ -23,17 +24,18 @@ linux_sigsegv_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   }
 
   host_fault_addr = (uintptr_t) p_siginfo->si_addr;
-  host_exception_flags = os_fault_get_eflags(p_void);
-  host_rip = os_fault_get_pc(p_void);
-  host_rdi = os_fault_get_jit_context(p_void);
+  host_pc = os_fault_get_pc(p_void);
+  host_context = os_fault_get_jit_context(p_void);
+  is_exec_fault = os_fault_is_exec_fault(p_void);
+  is_write_fault = os_fault_is_write_fault(p_void);
 
-  s_p_fault_callback(&host_rip,
+  s_p_fault_callback(&host_pc,
                      host_fault_addr,
-                     !!(host_exception_flags & 16),
-                     !!(host_exception_flags & 2),
-                     host_rdi);
+                     is_exec_fault,
+                     is_write_fault,
+                     host_context);
 
-  os_fault_set_pc(p_void, host_rip);
+  os_fault_set_pc(p_void, host_pc);
 }
 
 void
