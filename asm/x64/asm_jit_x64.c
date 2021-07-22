@@ -147,6 +147,128 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
   (void) p_asm;
 }
 
+int
+asm_jit_handle_fault(struct asm_jit_struct* p_asm,
+                     void** p_pc,
+                     uint16_t addr_6502,
+                     void* p_fault_addr,
+                     int is_write) {
+  int inaccessible_indirect_page;
+  int ff_fault_fixup;
+  int bcd_fault_fixup;
+  int stack_wrap_fault_fixup;
+  int wrap_indirect_read;
+  int wrap_indirect_write;
+
+  (void) p_asm;
+
+  /* The indirect page fault occurs when an indirect addressing mode is used
+   * to access 0xF000 - 0xFFFF, primarily of interest due to the hardware
+   * registers. Using a fault + fixup here is a good performance boost for the
+   * common case.
+   * This fault is also encountered in the Windows port, which needs to use it
+   * for ROM writes.
+   */
+  inaccessible_indirect_page = 0;
+  /* The 0xFF page wrap fault occurs when a word fetch is performed at the end
+   * of a page, where that page wraps. e.g. idx mode fetching the address from
+   * 0xFF. Using a fault + fixup here makes the code footprint for idx mode
+   * addressing smaller.
+   */
+  ff_fault_fixup = 0;
+  /* The BCD fault occurs when the BCD flag is unknown and set at the start of
+   * a block with ADC / SBC instructions.
+   */
+  bcd_fault_fixup = 0;
+  /* The stack wrap fault occurs if a 16-bit stack access wraps the S
+   * register.
+   */
+  stack_wrap_fault_fixup = 0;
+  /* The address space indirect wrap faults occurs if an indirect 16-bit access
+   * crosses the 0xFFFF address space boundary.
+   */
+  wrap_indirect_read = 0;
+  wrap_indirect_write = 0;
+
+  /* TODO: more checks, etc. */
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_BBC_MEM_OS_ROM_OFFSET)) &&
+      (p_fault_addr <
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+    if (is_write) {
+      inaccessible_indirect_page = 1;
+    }
+  }
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      (p_fault_addr <=
+          ((void*) K_BBC_MEM_WRITE_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+    if (is_write) {
+      wrap_indirect_write = 1;
+    }
+  }
+
+  /* From this point on, nothing else is a write fault. */
+  if (!inaccessible_indirect_page && !wrap_indirect_write && is_write) {
+    return 0;
+  }
+
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_BBC_MEM_INACCESSIBLE_OFFSET)) &&
+      (p_fault_addr <
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE))) {
+    inaccessible_indirect_page = 1;
+  }
+  if ((p_fault_addr >=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE)) &&
+      (p_fault_addr <=
+          ((void*) K_BBC_MEM_READ_IND_ADDR + K_6502_ADDR_SPACE_SIZE + 0xFE))) {
+    wrap_indirect_read = 1;
+  }
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
+    ff_fault_fixup = 1;
+  }
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
+    /* D flag alone. */
+    bcd_fault_fixup = 1;
+  }
+  if (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 6)) {
+    /* D flag and I flag. */
+    bcd_fault_fixup = 1;
+  }
+  if ((p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 1)) ||
+      (p_fault_addr == ((void*) K_BBC_MEM_READ_FULL_ADDR - 2))) {
+    /* Wrap via pushing (decrementing). */
+    stack_wrap_fault_fixup = 1;
+  }
+  if ((p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) ||
+      (p_fault_addr ==
+          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 1))) {
+    /* Wrap via pulling (incrementing). */
+    stack_wrap_fault_fixup = 1;
+  }
+
+  if (!inaccessible_indirect_page &&
+      !ff_fault_fixup &&
+      !bcd_fault_fixup &&
+      !stack_wrap_fault_fixup &&
+      !wrap_indirect_read &&
+      !wrap_indirect_write) {
+    return 0;
+  }
+
+  /* Fault is recognized.
+   * Bounce into the interpreter via the trampolines.
+   */
+  *p_pc = (void*) (uintptr_t) (K_BBC_JIT_TRAMPOLINES_ADDR +
+                               (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
+  return 1;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   uint16_t* p_dst = (uint16_t*) p;

@@ -41,6 +41,20 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
   (void) p_asm;
 }
 
+int
+asm_jit_handle_fault(struct asm_jit_struct* p_asm,
+                     void** p_pc,
+                     uint16_t addr_6502,
+                     void* p_fault_addr,
+                     int is_write) {
+  (void) p_asm;
+  (void) p_pc;
+  (void) addr_6502;
+  (void) p_fault_addr;
+  (void) is_write;
+  return 0;
+}
+
 void
 asm_jit_invalidate_code_at(void* p) {
   (void) p;
