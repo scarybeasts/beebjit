@@ -179,6 +179,7 @@ struct video_struct {
 
 static inline uint8_t
 video_read_data_byte(struct video_struct* p_video,
+                     uint64_t ticks,
                      uint32_t address_counter,
                      uint8_t scanline_counter,
                      uint32_t screen_wrap_add) {
@@ -191,6 +192,13 @@ video_read_data_byte(struct video_struct* p_video,
     /* Model B machines have this quirky extension to address 0x3C00. */
     if (!(address_counter & 0x800) && (p_video->p_shadow_mem == NULL)) {
       address = (0x3C00 | (address_counter & 0x3FF));
+    }
+    /* In the corner-case combination of MODE7 style addressing, plus a 2MHz
+     * CRTC clock, a quirk of the memory refresh system is revealed. The
+     * memory fetch address bit MA6 is xor'ed with the 1MHz clock.
+     */
+    if (ticks & 1) {
+      address ^= 64;
     }
   } else {
     /* Normal bitmapped mode. */
@@ -666,6 +674,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
 
       if (!r0_hit) {
         data = video_read_data_byte(p_video,
+                                    ticks,
                                     address_counter,
                                     p_video->scanline_counter,
                                     p_video->screen_wrap_add);
@@ -1714,6 +1723,7 @@ video_render_full_frame(struct video_struct* p_video) {
           uint8_t data;
           crtc_line_address &= 0x3FFF;
           data = video_read_data_byte(p_video,
+                                      0,
                                       crtc_line_address,
                                       i_lines,
                                       screen_wrap_add);
