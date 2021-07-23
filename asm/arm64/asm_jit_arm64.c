@@ -264,7 +264,9 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                      uint16_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
-  /* NOTE: is_write will come in as unknown due to platform chalenges
+  void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
+                     (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
+  /* NOTE: is_write will come in as unknown due to ARM64 kernel challenges
    * reporting this flag.
    * The way to work around this, if necessary, is to read the faulting
    * instruction to see what it is doing.
@@ -275,6 +277,9 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   /* Currently, the only fault we expect to see is for attempts to invalidate
    * JIT code. The JIT code mapping is kept read-only.
    */
+  if ((p_fault_addr < (void*) K_BBC_JIT_ADDR) || (p_fault_addr >= p_jit_end)) {
+    return 0;
+  }
 
   /* TODO: if we keep this model of faulting for self-modification, we'll
    * likely want to twiddle just the affected page. Currently, we twiddle the
@@ -722,7 +727,7 @@ asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
 
 void
 asm_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
+  asm_emit_jit_WRITE_INV_SCRATCH(p_buf);
 }
 
 void

@@ -159,8 +159,8 @@ asm_jit_jump_interp_END:
 .globl asm_jit_WRITE_INV_SCRATCH_END
 asm_jit_WRITE_INV_SCRATCH:
   ldr REG_SCRATCH1_32, [REG_JIT_PTRS, REG_SCRATCH1, lsl #2]
-  movz REG_SCRATCH2, #0
-  str REG_SCRATCH2_32, [REG_SCRATCH1]
+  # Store anything convenient since it'll write fault.
+  str REG_SCRATCH1_32, [REG_SCRATCH1]
 
 asm_jit_WRITE_INV_SCRATCH_END:
   ret
