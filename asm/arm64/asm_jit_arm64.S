@@ -198,6 +198,18 @@ asm_jit_ADC_SCRATCH_END:
   ret
 
 
+.globl asm_jit_ALR
+.globl asm_jit_ALR_END
+asm_jit_ALR:
+  and REG_6502_A, REG_6502_A, REG_SCRATCH1
+  ubfx REG_6502_CF, REG_6502_A, #0, #1
+  lsr REG_6502_A, REG_6502_A, #1
+  adds xzr, xzr, REG_6502_A, lsl #56
+
+asm_jit_ALR_END:
+  ret
+
+
 .globl asm_jit_AND_IMM
 .globl asm_jit_AND_IMM_END
 asm_jit_AND_IMM:
@@ -682,6 +694,15 @@ asm_jit_SAVE_CARRY_END:
   ret
 
 
+.globl asm_jit_SAX_SCRATCH2
+.globl asm_jit_SAX_SCRATCH2_END
+asm_jit_SAX_SCRATCH2:
+  and REG_SCRATCH2, REG_6502_A, REG_6502_X
+
+asm_jit_SAX_SCRATCH2_END:
+  ret
+
+
 .globl asm_jit_SBC_IMM
 .globl asm_jit_SBC_IMM_END
 asm_jit_SBC_IMM:
@@ -866,6 +887,31 @@ asm_jit_SCRATCH3_SET:
   movz REG_SCRATCH3, #0xFFFF
 
 asm_jit_SCRATCH3_SET_END:
+  ret
+
+
+.globl asm_jit_SHY_SCRATCH2
+.globl asm_jit_SHY_SCRATCH2_END
+asm_jit_SHY_SCRATCH2:
+  lsr REG_SCRATCH2, REG_SCRATCH1, #8
+  # NOTE: overflows 8-bit.
+  add REG_SCRATCH2, REG_SCRATCH2, #1
+  and REG_SCRATCH2, REG_SCRATCH2, REG_6502_Y
+
+asm_jit_SHY_SCRATCH2_END:
+  ret
+
+
+.globl asm_jit_SLO_SCRATCH2
+.globl asm_jit_SLO_SCRATCH2_END
+asm_jit_SLO_SCRATCH2:
+  ubfx REG_6502_CF, REG_SCRATCH2, #7, #1
+  lsl REG_SCRATCH2, REG_SCRATCH2, #1
+  orr REG_6502_A, REG_6502_A, REG_SCRATCH2
+  adds xzr, xzr, REG_6502_A, lsl #56
+  and REG_6502_A, REG_6502_A, #0xFF
+
+asm_jit_SLO_SCRATCH2_END:
   ret
 
 

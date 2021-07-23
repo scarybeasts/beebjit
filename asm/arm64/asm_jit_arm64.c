@@ -784,9 +784,10 @@ asm_emit_jit_ADC_SCRATCH_Y(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
-  (void) p_buf;
-  (void) value;
-  assert(0);
+  void asm_jit_ALR(void);
+  void asm_jit_ALR_END(void);
+  asm_emit_jit_SCRATCH_SET(p_buf, value);
+  asm_copy(p_buf, asm_jit_ALR, asm_jit_ALR_END);
 }
 
 void
@@ -1591,9 +1592,10 @@ asm_emit_jit_ROR_scratch(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_SAX_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_SAX_SCRATCH2(void);
+  void asm_jit_SAX_SCRATCH2_END(void);
+  asm_copy(p_buf, asm_jit_SAX_SCRATCH2, asm_jit_SAX_SCRATCH2_END);
+  asm_emit_jit_SCRATCH2_STORE(p_buf, addr);
 }
 
 void
@@ -1650,16 +1652,21 @@ asm_emit_jit_SBC_SCRATCH_Y(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_SHY_ABX(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_SHY_SCRATCH2(void);
+  void asm_jit_SHY_SCRATCH2_END(void);
+  asm_emit_jit_MODE_ABX(p_buf, addr);
+  asm_copy(p_buf, asm_jit_SHY_SCRATCH2, asm_jit_SHY_SCRATCH2_END);
+  asm_emit_jit_SCRATCH2_STORE_SCRATCH(p_buf);
 }
 
 void
 asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_SLO_SCRATCH2(void);
+  void asm_jit_SLO_SCRATCH2_END(void);
+  asm_emit_jit_ABS_RMW(p_buf,
+                       addr,
+                       asm_jit_SLO_SCRATCH2,
+                       asm_jit_SLO_SCRATCH2_END);
 }
 
 void
