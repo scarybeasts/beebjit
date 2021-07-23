@@ -57,6 +57,7 @@ struct jit_struct {
   uint8_t* p_opcode_mem;
   uint8_t* p_opcode_cycles;
   uint32_t counter_stay_in_interp;
+  int did_interp_invalidate_memory;
 
   int log_compile;
 
@@ -153,6 +154,10 @@ jit_interp_instruction_callback(void* p,
     /* Any memory writes executed by the interpreter need to invalidate
      * compiled JIT code if they're self-modifying writes.
      */
+    if (!p_jit->did_interp_invalidate_memory) {
+      asm_jit_start_code_updates(p_jit->p_asm);
+      p_jit->did_interp_invalidate_memory = 1;
+    }
     jit_invalidate_code_at_address(p_jit, done_addr);
   }
 
@@ -230,16 +235,16 @@ jit_enter_interp(struct jit_struct* p_jit,
                                        intel_rflags);
 
   p_jit->counter_stay_in_interp = 0;
-
-  /* TODO: this is heavy? Only do if we actually invalidate something. */
-  asm_jit_start_code_updates(p_jit->p_asm);
+  p_jit->did_interp_invalidate_memory = 0;
 
   countdown = interp_enter_with_details(p_interp,
                                         countdown,
                                         jit_interp_instruction_callback,
                                         p_jit);
 
-  asm_jit_finish_code_updates(p_jit->p_asm);
+  if (p_jit->did_interp_invalidate_memory) {
+    asm_jit_finish_code_updates(p_jit->p_asm);
+  }
 
   cpu_driver_flags = p_jit_cpu_driver->p_funcs->get_flags(p_jit_cpu_driver);
   p_ret->countdown = countdown;
