@@ -447,7 +447,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Pre-main uops. */
   switch (optype) {
   case k_adc:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, 0);
+    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, addr_6502);
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_FOR_CALC, 0);
     p_uop++;
@@ -491,7 +491,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_sbc:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, 0);
+    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, addr_6502);
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC, 0);
     p_uop++;
@@ -913,7 +913,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_CHECK_BCD:
-    asm_emit_jit_CHECK_BCD(p_dest_buf);
+    asm_emit_jit_CHECK_BCD(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
     asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf, (uint8_t) value1);

@@ -527,9 +527,13 @@ asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf) {
+asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
+                       struct util_buffer* p_epilog_buf,
+                       uint16_t addr) {
   void asm_jit_CHECK_BCD(void);
   void asm_jit_CHECK_BCD_END(void);
+  (void) p_epilog_buf;
+  (void) addr;
   asm_copy(p_buf, asm_jit_CHECK_BCD, asm_jit_CHECK_BCD_END);
 }
 

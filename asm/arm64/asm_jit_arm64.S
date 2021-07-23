@@ -325,6 +325,15 @@ asm_jit_BVS_END:
   ret
 
 
+.globl asm_jit_CHECK_BCD
+.globl asm_jit_CHECK_BCD_END
+asm_jit_CHECK_BCD:
+  tbnz REG_6502_ID_F, #3, asm_jit_CHECK_BCD
+
+asm_jit_CHECK_BCD_END:
+  ret
+
+
 .globl asm_jit_CMP_IMM
 .globl asm_jit_CMP_IMM_END
 asm_jit_CMP_IMM:
