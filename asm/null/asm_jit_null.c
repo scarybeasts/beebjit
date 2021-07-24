@@ -200,8 +200,13 @@ asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, void* p_trampoline) {
+asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
+                               struct util_buffer* p_buf_epilog,
+                               uint16_t addr,
+                               void* p_trampoline) {
   (void) p_buf;
+  (void) p_buf_epilog;
+  (void) addr;
   (void) p_trampoline;
 }
 

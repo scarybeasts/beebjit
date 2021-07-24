@@ -938,7 +938,10 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PENDING_IRQ:
-    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf, p_jit_addr);
+    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf,
+                                   p_dest_buf_epilog,
+                                   (uint16_t) value1,
+                                   p_jit_addr);
     break;
   case k_opcode_CLEAR_CARRY:
     asm_emit_jit_CLEAR_CARRY(p_dest_buf);

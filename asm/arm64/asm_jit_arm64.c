@@ -524,9 +524,26 @@ asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, void* p_trampoline) {
-  (void) p_buf;
+asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
+                               struct util_buffer* p_buf_epilog,
+                               uint16_t addr,
+                               void* p_trampoline) {
+  void asm_jit_PENDING_IRQ_CHECK_load(void);
+  void asm_jit_PENDING_IRQ_CHECK_load_END(void);
+  void asm_jit_PENDING_IRQ_CHECK_cbnz(void);
+  void asm_jit_PENDING_IRQ_CHECK_cbnz_END(void);
+  void* p_target = util_buffer_get_base_address(p_buf_epilog);
+
   (void) p_trampoline;
+
+  asm_copy(p_buf,
+           asm_jit_PENDING_IRQ_CHECK_load,
+           asm_jit_PENDING_IRQ_CHECK_load_END);
+  asm_copy_patch_arm64_imm19_pc_rel(p_buf,
+                                    asm_jit_PENDING_IRQ_CHECK_cbnz,
+                                    asm_jit_PENDING_IRQ_CHECK_cbnz_END,
+                                    p_target);
+  asm_emit_jit_jump_interp(p_buf_epilog, addr);
 }
 
 void

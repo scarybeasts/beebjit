@@ -667,6 +667,24 @@ asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y_END:
   ret
 
 
+.globl asm_jit_PENDING_IRQ_CHECK_load
+.globl asm_jit_PENDING_IRQ_CHECK_load_END
+.globl asm_jit_PENDING_IRQ_CHECK_cbnz
+.globl asm_jit_PENDING_IRQ_CHECK_cbnz_END
+asm_jit_PENDING_IRQ_CHECK_load:
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
+  ldr REG_SCRATCH1_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_IRQ_FIRE]
+
+asm_jit_PENDING_IRQ_CHECK_load_END:
+  ret
+
+asm_jit_PENDING_IRQ_CHECK_cbnz:
+  cbnz REG_SCRATCH1, asm_jit_PENDING_IRQ_CHECK_cbnz
+
+asm_jit_PENDING_IRQ_CHECK_cbnz_END:
+  ret
+
+
 .globl asm_jit_PULL_16
 .globl asm_jit_PULL_16_END
 asm_jit_PULL_16:

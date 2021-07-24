@@ -629,11 +629,17 @@ asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 void
-asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf, void* p_trampoline) {
+asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
+                               struct util_buffer* p_buf_epilog,
+                               uint16_t addr,
+                               void* p_trampoline) {
   void asm_jit_CHECK_PENDING_IRQ(void);
   void asm_jit_CHECK_PENDING_IRQ_jump_patch(void);
   void asm_jit_CHECK_PENDING_IRQ_END(void);
   size_t offset = util_buffer_get_pos(p_buf);
+
+  (void) p_buf_epilog;
+  (void) addr;
 
   asm_copy(p_buf, asm_jit_CHECK_PENDING_IRQ, asm_jit_CHECK_PENDING_IRQ_END);
   asm_patch_jump(p_buf,

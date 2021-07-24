@@ -275,8 +275,15 @@ main(int argc, const char* argv[]) {
   emit_LDX(p_buf, k_imm, 0x42);
   emit_LDA(p_buf, k_imm, 0x00);
   emit_JSR(p_buf, 0xF000);
-  emit_NOP(p_buf);                /* Timer value: 0. */
-  emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
+  /* Make sure we're out of interp.
+   * Specifically, for testing, we need to be in the state where an IRQ is
+   * pending, but we're executing in JIT with interrupts disabled at the time
+   * the CLI is executed.
+   */
+  emit_LDY(p_buf, k_zpg, 0x00);
+  emit_JMP(p_buf, k_abs, 0xC2DC);
+  emit_NOP(p_buf);                /* In JIT; timer expired, IRQ pending. */
+  emit_NOP(p_buf);
   emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
   emit_DEX(p_buf);                /* IRQ should be raised after this DEX. */
   emit_DEX(p_buf);
@@ -289,8 +296,11 @@ main(int argc, const char* argv[]) {
 
   /* Test that a pending interrupt fires between CLI / SEI. */
   set_new_index(p_buf, 0x0300);
-  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0x03);
   emit_JSR(p_buf, 0xF000);
+  /* Make sure we're out of interp. */
+  emit_LDY(p_buf, k_zpg, 0x00);
+  emit_JMP(p_buf, k_abs, 0xC30A);
   emit_NOP(p_buf);                /* Timer value: 0. */
   emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
   emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
