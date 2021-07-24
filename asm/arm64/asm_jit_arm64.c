@@ -829,10 +829,10 @@ void
 asm_emit_jit_AND_ABX(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
   (void) segment;
-  assert(0);
+  asm_emit_jit_MODE_ABX(p_buf, addr);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_AND_SCRATCH(p_buf, 0);
 }
 
 void
@@ -894,16 +894,17 @@ asm_emit_jit_ASL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_ASL_ABX(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  asm_emit_jit_ASL_ABX_RMW(p_buf, addr);
 }
 
 void
 asm_emit_jit_ASL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_ASL_SCRATCH2(void);
+  void asm_jit_ASL_SCRATCH2_END(void);
+  asm_emit_jit_ABX_RMW(p_buf,
+                       addr,
+                       asm_jit_ASL_SCRATCH2,
+                       asm_jit_ASL_SCRATCH2_END);
 }
 
 void
@@ -1436,16 +1437,17 @@ asm_emit_jit_LSR_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_LSR_ABX(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  asm_emit_jit_LSR_ABX_RMW(p_buf, addr);
 }
 
 void
 asm_emit_jit_LSR_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_LSR_SCRATCH2(void);
+  void asm_jit_LSR_SCRATCH2_END(void);
+  asm_emit_jit_ABX_RMW(p_buf,
+                       addr,
+                       asm_jit_LSR_SCRATCH2,
+                       asm_jit_LSR_SCRATCH2_END);
 }
 
 void
@@ -1546,9 +1548,12 @@ asm_emit_jit_ROL_ABS_RMW(struct util_buffer* p_buf, uint16_t addr) {
 
 void
 asm_emit_jit_ROL_ABX_RMW(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_ROL_SCRATCH2(void);
+  void asm_jit_ROL_SCRATCH2_END(void);
+  asm_emit_jit_ABX_RMW(p_buf,
+                       addr,
+                       asm_jit_ROL_SCRATCH2,
+                       asm_jit_ROL_SCRATCH2_END);
 }
 
 void
