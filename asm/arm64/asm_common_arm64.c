@@ -211,7 +211,9 @@ asm_calculate_immr_imms(uint8_t* p_immr, uint8_t* p_imms, uint8_t val) {
 /* Instructions. */
 void
 asm_emit_instruction_REAL_NOP(struct util_buffer* p_buf) {
-  (void) p_buf;
+  void asm_instruction_NOP(void);
+  void asm_instruction_NOP_END(void);
+  asm_copy(p_buf, asm_instruction_NOP, asm_instruction_NOP_END);
 }
 
 void

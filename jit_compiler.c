@@ -67,6 +67,7 @@ struct jit_compiler {
 
   uint32_t len_asm_jmp;
   uint32_t len_asm_invalidated;
+  uint32_t len_asm_nop;
 
   int compile_for_code_in_zero_page;
 
@@ -233,6 +234,11 @@ jit_compiler_create(struct timing_struct* p_timing,
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
   asm_emit_jit_invalidated(p_tmp_buf);
   p_compiler->len_asm_invalidated = util_buffer_get_pos(p_tmp_buf);
+
+  util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
+  asm_emit_instruction_REAL_NOP(p_tmp_buf);
+  p_compiler->len_asm_nop = util_buffer_get_pos(p_tmp_buf);
+  assert(p_compiler->len_asm_nop > 0);
 
   return p_compiler;
 }
@@ -785,6 +791,7 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct util_buffer* p_dest_buf_epilog,
                       struct jit_uop* p_uop) {
+  uint32_t i;
   int uopcode = p_uop->uopcode;
   int32_t value1 = p_uop->value1;
   int32_t value2 = p_uop->value2;
@@ -1087,11 +1094,11 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
      * good readability, we'll emit a host NOP.
      * (The correct place to change if we wanted to not emit anything would be
      * to eliminate the 6502 opcode in the optimizer.)
-     * We have a minimum of 2 bytes of x64 code per uop because that's the size
-     * of the self-modified marker, so we'll need 2 1-byte x64 nops.
      */
-    asm_emit_instruction_REAL_NOP(p_dest_buf);
-    asm_emit_instruction_REAL_NOP(p_dest_buf);
+    i = (p_compiler->len_asm_invalidated / p_compiler->len_asm_nop);
+    while (i--) {
+      asm_emit_instruction_REAL_NOP(p_dest_buf);
+    }
     break;
   case 0x05: /* ORA zpg */
   case 0x0D: /* ORA abs */

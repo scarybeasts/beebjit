@@ -157,6 +157,16 @@ asm_instruction_INY_END:
   ret
 
 
+.globl asm_instruction_NOP
+.globl asm_instruction_NOP_END
+asm_instruction_NOP:
+
+  nop
+
+asm_instruction_NOP_END:
+  ret
+
+
 .globl asm_instruction_PHA
 .globl asm_instruction_PHA_END
 asm_instruction_PHA:
