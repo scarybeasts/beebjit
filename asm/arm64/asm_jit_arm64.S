@@ -198,6 +198,24 @@ asm_jit_ADC_SCRATCH_END:
   ret
 
 
+.globl asm_jit_ADDR_CHECK_add
+.globl asm_jit_ADDR_CHECK_add_END
+.globl asm_jit_ADDR_CHECK_tbnz
+.globl asm_jit_ADDR_CHECK_tbnz_END
+asm_jit_ADDR_CHECK_add:
+  # Trigger on >= 0xFC00.
+  add REG_SCRATCH2, REG_SCRATCH1, #0x400
+
+asm_jit_ADDR_CHECK_add_END:
+  ret
+
+asm_jit_ADDR_CHECK_tbnz:
+  tbnz REG_SCRATCH2, #16, asm_jit_ADDR_CHECK_tbnz
+
+asm_jit_ADDR_CHECK_tbnz_END:
+  ret
+
+
 .globl asm_jit_ALR
 .globl asm_jit_ALR_END
 asm_jit_ALR:

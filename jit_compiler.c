@@ -388,12 +388,16 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH_8, addr_6502);
     p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_ADDR_CHECK, addr_6502);
+    p_uop++;
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_8, operand_6502);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_ADDR_CHECK, addr_6502);
     p_uop++;
     break;
   default:
@@ -902,6 +906,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
     break;
   case k_opcode_ADD_IMM:
     asm_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
+    break;
+  case k_opcode_ADDR_CHECK:
+    asm_emit_jit_ADDR_CHECK(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
     break;
   case k_opcode_ADD_SCRATCH:
     asm_emit_jit_ADD_SCRATCH(p_dest_buf, 0);

@@ -55,6 +55,9 @@ void asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
 void asm_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value);
 void asm_emit_jit_ADD_SCRATCH(struct util_buffer* p_buf, uint8_t offset);
 void asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf);
+void asm_emit_jit_ADDR_CHECK(struct util_buffer* p_buf,
+                             struct util_buffer* p_buf_epilog,
+                             uint16_t addr);
 void asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
                             struct util_buffer* p_epilog_buf,
                             uint16_t addr);

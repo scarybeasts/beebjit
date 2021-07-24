@@ -527,6 +527,18 @@ asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_jit_ADDR_CHECK(struct util_buffer* p_buf,
+                        struct util_buffer* p_buf_epilog,
+                        uint16_t addr) {
+  /* In the x64 model, indirect address checking is done by faulting and
+   * fixup.
+   */
+  (void) p_buf;
+  (void) p_buf_epilog;
+  (void) addr;
+}
+
+void
 asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
                        struct util_buffer* p_epilog_buf,
                        uint16_t addr) {

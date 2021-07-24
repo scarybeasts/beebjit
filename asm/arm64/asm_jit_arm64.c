@@ -432,6 +432,23 @@ asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 void
+asm_emit_jit_ADDR_CHECK(struct util_buffer* p_buf,
+                        struct util_buffer* p_buf_epilog,
+                        uint16_t addr) {
+  void asm_jit_ADDR_CHECK_add(void);
+  void asm_jit_ADDR_CHECK_add_END(void);
+  void asm_jit_ADDR_CHECK_tbnz(void);
+  void asm_jit_ADDR_CHECK_tbnz_END(void);
+  void* p_target = util_buffer_get_base_address(p_buf_epilog);
+  asm_copy(p_buf, asm_jit_ADDR_CHECK_add, asm_jit_ADDR_CHECK_add_END);
+  asm_copy_patch_arm64_imm14_pc_rel(p_buf,
+                                    asm_jit_ADDR_CHECK_tbnz,
+                                    asm_jit_ADDR_CHECK_tbnz_END,
+                                    p_target);
+  asm_emit_jit_jump_interp(p_buf_epilog, addr);
+}
+
+void
 asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
                        struct util_buffer* p_buf_epilog,
                        uint16_t addr) {

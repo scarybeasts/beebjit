@@ -20,6 +20,7 @@ enum {
   k_opcode_ADD_IMM,
   k_opcode_ADD_SCRATCH,
   k_opcode_ADD_SCRATCH_Y,
+  k_opcode_ADDR_CHECK,
   k_opcode_ASL_ACC_n,
   k_opcode_CHECK_BCD,
   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n,
