@@ -45,6 +45,20 @@ asm_emit_jit_SCRATCH_SET(struct util_buffer* p_buf, uint32_t value) {
 }
 
 static void
+asm_emit_jit_SCRATCH2_SET(struct util_buffer* p_buf, uint32_t value) {
+  void asm_jit_SCRATCH2_SET(void);
+  void asm_jit_SCRATCH2_SET_END(void);
+  if (value <= 0xFFFF) {
+    asm_copy_patch_arm64_imm16(p_buf,
+                               asm_jit_SCRATCH2_SET,
+                               asm_jit_SCRATCH2_SET_END,
+                               value);
+  } else {
+    assert(0);
+  }
+}
+
+static void
 asm_emit_jit_SCRATCH3_SET(struct util_buffer* p_buf, uint32_t value) {
   void asm_jit_SCRATCH3_SET(void);
   void asm_jit_SCRATCH3_SET_END(void);
@@ -376,9 +390,12 @@ asm_emit_jit_for_testing(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
-  (void) p_buf;
-  (void) value;
-  assert(0);
+  void asm_jit_COUNTDOWN_ADD(void);
+  void asm_jit_COUNTDOWN_ADD_END(void);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_jit_COUNTDOWN_ADD,
+                             asm_jit_COUNTDOWN_ADD_END,
+                             value);
 }
 
 void
@@ -478,16 +495,22 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  void asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y(void);
+  void asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y_END(void);
+  asm_copy(p_buf,
+           asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y,
+           asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y_END);
 }
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
                                      uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_PAGE_CROSSING_CHECK_X_N(void);
+  void asm_jit_PAGE_CROSSING_CHECK_X_N_END(void);
+  asm_emit_jit_SCRATCH2_SET(p_buf, (0x100 - (addr & 0xFF)));
+  asm_copy(p_buf,
+           asm_jit_PAGE_CROSSING_CHECK_X_N,
+           asm_jit_PAGE_CROSSING_CHECK_X_N_END);
 }
 
 void
