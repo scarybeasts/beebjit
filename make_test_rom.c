@@ -1743,8 +1743,31 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x02);
   emit_JMP(p_buf, k_abs, 0xD940);
 
-  /* End of test. */
+  /* Yet more opcodes not hit anywhere else, found in the ARM64 JIT port. */
   set_new_index(p_buf, 0x1940);
+  emit_LDA(p_buf, k_imm, 0x55);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_AND(p_buf, k_aby, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x05);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_AND(p_buf, k_idy, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x05);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_ORA(p_buf, k_aby, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x5F);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_ORA(p_buf, k_idy, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x5F);
+  emit_JMP(p_buf, k_abs, 0xD980);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1980);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

@@ -839,10 +839,10 @@ void
 asm_emit_jit_AND_ABY(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
   (void) segment;
-  assert(0);
+  asm_emit_jit_MODE_ABY(p_buf, addr);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_AND_SCRATCH(p_buf, 0);
 }
 
 void
@@ -873,8 +873,9 @@ asm_emit_jit_AND_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_AND_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_AND_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1493,10 +1494,10 @@ void
 asm_emit_jit_ORA_ABY(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
-  (void) p_buf;
-  (void) addr;
   (void) segment;
-  assert(0);
+  asm_emit_jit_MODE_ABY(p_buf, addr);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_ORA_SCRATCH(p_buf, 0);
 }
 
 void
@@ -1527,8 +1528,9 @@ asm_emit_jit_ORA_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
 
 void
 asm_emit_jit_ORA_SCRATCH_Y(struct util_buffer* p_buf) {
-  (void) p_buf;
-  assert(0);
+  asm_emit_jit_SCRATCH_ADD_Y(p_buf);
+  asm_emit_jit_SCRATCH_LOAD_SCRATCH(p_buf);
+  asm_emit_jit_ORA_SCRATCH(p_buf, 0);
 }
 
 void
