@@ -811,8 +811,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x22);
   emit_JMP(p_buf, k_abs, 0xCB00);
 
-  /* Exit sequence. */
+  /* Test page crossing timings with the aby mode. */
   set_new_index(p_buf, 0x0B00);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_CYCLES_RESET(p_buf);
+  emit_NOP(p_buf);
+  emit_NOP(p_buf);
+  emit_LDA(p_buf, k_aby, 0x10FF); /* LDA abx, no page crossing, 4 cycles. */
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 12);
+  emit_JMP(p_buf, k_abs, 0xCB40);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0B40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

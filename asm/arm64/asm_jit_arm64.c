@@ -515,9 +515,12 @@ asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
 
 void
 asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
-  (void) p_buf;
-  (void) addr;
-  assert(0);
+  void asm_jit_PAGE_CROSSING_CHECK_Y_N(void);
+  void asm_jit_PAGE_CROSSING_CHECK_Y_N_END(void);
+  asm_emit_jit_SCRATCH2_SET(p_buf, (0x100 - (addr & 0xFF)));
+  asm_copy(p_buf,
+           asm_jit_PAGE_CROSSING_CHECK_Y_N,
+           asm_jit_PAGE_CROSSING_CHECK_Y_N_END);
 }
 
 void
