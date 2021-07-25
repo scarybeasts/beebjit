@@ -26,7 +26,6 @@ struct serial_ula_struct {
   int is_rs423_selected;
   int is_motor_on;
   uint64_t tape_carrier_count;
-  int is_in_tape_data;
   int is_tape_DCD;
 
   int is_fasttape;
@@ -144,7 +143,6 @@ serial_ula_power_on_reset(struct serial_ula_struct* p_serial_ula) {
   }
 
   p_serial_ula->tape_carrier_count = 0;
-  p_serial_ula->is_in_tape_data = 0;
   p_serial_ula->is_tape_DCD = 0;
 
   p_serial_ula->is_motor_on = 0;
@@ -223,9 +221,6 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
   if (bit != k_tape_bit_1) {
     p_serial_ula->tape_carrier_count = 0;
   }
-  if (bit == k_tape_bit_silence) {
-    p_serial_ula->is_in_tape_data = 0;
-  }
 
   if (p_serial_ula->tape_carrier_count == 240) {
     /* The tape hardware doesn't raise DCD until the carrier tone has persisted
@@ -245,14 +240,12 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
      * raises, even though the carrier tone may be continuing.
      */
     p_serial_ula->is_tape_DCD = 1;
-    p_serial_ula->is_in_tape_data = 1;
   }
 
   serial_ula_update_mc6850_logic_lines(p_serial_ula);
 
-  if (!p_serial_ula->is_rs423_selected && p_serial_ula->is_in_tape_data) {
+  if (!p_serial_ula->is_rs423_selected && (bit != k_tape_bit_silence)) {
     int serial_bit;
-    assert(bit != k_tape_bit_silence);
     if (bit == k_tape_bit_0) {
       serial_bit = 0;
     } else {

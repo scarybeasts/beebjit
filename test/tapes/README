@@ -55,6 +55,13 @@ By @vanekp on StarDot, https://stardot.org.uk/forums/viewtopic.php?p=326616#p326
 Interesting custom loader that displays scrolling instructions as the tape
 loads.
 
+- MissileControl(Gemini).hq.uef
+ac125c26ec1d5a7f7ef6ca51ece177e0bd23a50b344209e44c5bbee650fbab77  MissileControl(Gemini).hq.uef
+Has a few custom protection bytes directly after a block, with a tiny bit of
+carrier tone. The motor is blipped so this relies on sending bytes along to
+the ACIA outside of a carrier tone sync.
+From @vanekp: https://stardot.org.uk/forums/viewtopic.php?p=328648#p328648
+
 - Nightshade.uef
 Lineage unclear.
 An emulator rite of passage, although mainly for VIA and 6502 emulation
