@@ -296,13 +296,13 @@ main(int argc, const char* argv[]) {
 
   /* Test that a pending interrupt fires between CLI / SEI. */
   set_new_index(p_buf, 0x0300);
-  emit_LDA(p_buf, k_imm, 0x03);
+  emit_LDA(p_buf, k_imm, 0x00);
   emit_JSR(p_buf, 0xF000);
   /* Make sure we're out of interp. */
   emit_LDY(p_buf, k_zpg, 0x00);
   emit_JMP(p_buf, k_abs, 0xC30A);
-  emit_NOP(p_buf);                /* Timer value: 0. */
-  emit_NOP(p_buf);                /* Timer value: -1. IFR raised. */
+  emit_NOP(p_buf);                /* IRQ pending, interrupts disabled. */
+  emit_NOP(p_buf);
   emit_CLI(p_buf);                /* Clear I flag, but after IRQ check. */
   emit_SEI(p_buf);                /* IRQ should be raised after this SEI. */
   emit_LDA(p_buf, k_zpg, 0x10);
