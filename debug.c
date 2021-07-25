@@ -2117,7 +2117,7 @@ debug_callback_common(struct debug_struct* p_debug,
   "enable <b>         : enable breakpoint <b>\n"
   "disable <b>        : disable breakpoint <b>\n"
   "m <a>              : show memory at <a>\n"
-  "writem <a> <v>     : write <v> to 6502 <a>\n"
+  "writem <a> <v>     : write <v> to memory address <a>\n"
   "find <a> <l> ...   : find a byte sequence, starting at <a>, length <l>\n"
   "loadmem <f> <a>    : load memory to <a> from raw file <f>\n"
   "savemem <f> <a> <l>: save memory from <a>, length <l> to raw file <f>\n"
