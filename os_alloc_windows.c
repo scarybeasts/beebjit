@@ -2,6 +2,7 @@
 
 #include "util.h"
 
+#include <assert.h>
 #include <windows.h>
 
 struct os_alloc_mapping {
