@@ -227,13 +227,20 @@ serial_ula_receive_tape_bit(struct serial_ula_struct* p_serial_ula,
     p_serial_ula->is_in_tape_data = 0;
   }
 
-  if (p_serial_ula->tape_carrier_count == 200) {
+  if (p_serial_ula->tape_carrier_count == 240) {
     /* The tape hardware doesn't raise DCD until the carrier tone has persisted
      * for a while. The BBC service manual opines,
      * "The DCD flag in the 6850 should change 0.1 to 0.4 seconds after a
      * continuous tone appears".
-     * We use ~0.17s, measured on an issue 3 model B.
-     * Star Drifter doesn't load without this.
+     * We use ~0.2s, measured on a few beebs with Ferranti serial ULAs. Note
+     * that there's variance from machine-to-machine because at least on the
+     * older Ferranti chip, the timing appears to be derived from a capacitor
+     * charging.
+     * For timing measurements, see:
+     * https://stardot.org.uk/forums/viewtopic.php?p=326998#p326998
+     * For an amazing investigation into serial ULA / SERPROC workings, see:
+     * https://stardot.org.uk/forums/viewtopic.php?f=3&t=22935
+     * Star Drifter doesn't load without accurate DCD raise timing.
      * Testing on real hardware, DCD is blipped, it lowers about 210us after it
      * raises, even though the carrier tone may be continuing.
      */
