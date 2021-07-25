@@ -187,6 +187,13 @@ jit_compiler_create(struct timing_struct* p_timing,
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
   p_compiler->option_no_sub_instruction =
       util_has_option(p_options->p_opt_flags, "jit:no-sub-instruction");
+  if (!asm_jit_supports_optimizer()) {
+    p_compiler->option_no_optimize = 1;
+    p_compiler->option_no_dynamic_operand = 1;
+    p_compiler->option_no_dynamic_opcode = 1;
+    p_compiler->option_no_sub_instruction = 1;
+  }
+
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");
 
@@ -2476,7 +2483,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   jit_compiler_setup_cycle_counts(p_compiler);
 
   /* Fourth, run the optimizer across the list of opcodes. */
-  if (!p_compiler->option_no_optimize && asm_jit_supports_optimizer()) {
+  if (!p_compiler->option_no_optimize) {
     p_details = jit_optimizer_optimize(&p_compiler->opcode_details[0]);
     jit_compiler_make_last_opcode(p_compiler, p_details);
   }

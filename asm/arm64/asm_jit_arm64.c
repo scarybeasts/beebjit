@@ -318,8 +318,8 @@ asm_jit_invalidate_code_at(void* p) {
 
 int
 asm_jit_is_invalidated_code_at(void* p) {
-  (void) p;
-  return 0;
+  uint32_t code = *(uint32_t*) p;
+  return (code == 0xd63f03a0);
 }
 
 void
