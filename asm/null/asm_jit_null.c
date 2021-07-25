@@ -60,6 +60,12 @@ asm_jit_invalidate_code_at(void* p) {
   (void) p;
 }
 
+int
+asm_jit_is_invalidated_code_at(void* p) {
+  (void) p;
+  return 0;
+}
+
 void
 asm_emit_jit_check_countdown(struct util_buffer* p_buf,
                              uint32_t count,

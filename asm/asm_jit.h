@@ -27,6 +27,7 @@ int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                          int is_write);
 
 void asm_jit_invalidate_code_at(void* p);
+int asm_jit_is_invalidated_code_at(void* p);
 
 void asm_emit_jit_invalidated(struct util_buffer* p_buf);
 void asm_emit_jit_check_countdown(struct util_buffer* p_buf,

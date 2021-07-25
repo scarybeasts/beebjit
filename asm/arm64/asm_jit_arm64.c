@@ -316,6 +316,12 @@ asm_jit_invalidate_code_at(void* p) {
   *p_dst = 0xd63f03a0;
 }
 
+int
+asm_jit_is_invalidated_code_at(void* p) {
+  (void) p;
+  return 0;
+}
+
 void
 asm_emit_jit_invalidated(struct util_buffer* p_buf) {
   /* blr x29 */

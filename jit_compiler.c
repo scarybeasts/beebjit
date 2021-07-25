@@ -107,7 +107,6 @@ jit_compiler_get_current_opcode(struct jit_compiler* p_compiler,
 
 static int
 jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
-  uint8_t* p_raw_ptr;
   void* p_host_ptr =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
@@ -129,12 +128,8 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
 
   assert(p_compiler->p_code_blocks[addr_6502] != -1);
 
-  p_raw_ptr = (uint8_t*) (uintptr_t) jit_ptr;
-  /* TODO: don't hard code this? */
-  if ((p_raw_ptr[0] == 0xff) && (p_raw_ptr[1] == 0x17)) {
-    return 1;
-  }
-  return 0;
+
+  return asm_jit_is_invalidated_code_at((void*) (uintptr_t) jit_ptr);
 }
 
 struct jit_compiler*
