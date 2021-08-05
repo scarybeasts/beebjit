@@ -312,8 +312,51 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 8);
   emit_JMP(p_buf, k_abs, 0xC480);
 
-  /* Exit sequence. */
+  /* Test that abs RMW instructions do read-read-write. */
   set_new_index(p_buf, 0x0480);
+  emit_SEI(p_buf);
+  emit_STZ(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE6D);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  emit_DEC(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_abs, 0xFE6D);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_REQUIRE_EQ(p_buf, 0xFC);
+  emit_CLI(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC4C0);
+
+  /* Test that abx RMW instructions do read-read-write. */
+  set_new_index(p_buf, 0x04C0);
+  emit_SEI(p_buf);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_STZ(p_buf, k_abs, 0xFE68);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_imm, 0x7F);
+  emit_STA(p_buf, k_abs, 0xFE6D);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0xFE68);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  emit_DEC(p_buf, k_abx, 0xFE68);
+  emit_LDA(p_buf, k_abs, 0xFE6D);
+  emit_AND(p_buf, k_imm, 0x20);
+  emit_REQUIRE_EQ(p_buf, 0);
+  emit_STZ(p_buf, k_abs, 0xFE69);
+  emit_LDA(p_buf, k_abs, 0xFE68);
+  emit_REQUIRE_EQ(p_buf, 0xFC);
+  emit_CLI(p_buf);
+  emit_JMP(p_buf, k_abs, 0xC500);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0500);
   emit_EXIT(p_buf);
 
   /* Host this at $E000 so we can page HAZEL without corrupting our own code. */

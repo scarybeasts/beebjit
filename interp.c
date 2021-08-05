@@ -339,7 +339,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     INTERP_TIMING_ADVANCE(3);                                                 \
     INTERP_MEMORY_READ(addr);                                                 \
     if (is_65c12) {                                                           \
+      uint8_t v2 = v;                                                         \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
+      v = v2;                                                                 \
     } else {                                                                  \
       INTERP_MEMORY_WRITE_POLL_IRQ(addr);                                     \
     }                                                                         \
@@ -440,7 +442,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
     if (is_65c12) {                                                           \
       INTERP_TIMING_ADVANCE(4);                                               \
       INTERP_MEMORY_READ(addr);                                               \
+      uint8_t v2 = v;                                                         \
       INTERP_MEMORY_READ_POLL_IRQ(addr);                                      \
+      v = v2;                                                                 \
     } else {                                                                  \
       INTERP_TIMING_ADVANCE(3);                                               \
       addr_temp = ((addr & 0xFF) | (addr_temp & 0xFF00));                     \
