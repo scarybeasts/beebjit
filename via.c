@@ -600,9 +600,14 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   /* Will T1/T2 interrupt fire at the mid cycle?
    * Work it out now because we can't tell after advancing the timing.
    */
+  int t1_firing = 0;
+  int t2_firing = 0;
   uint32_t ticks = (state_6502_get_cycles(bbc_get_6502(p_via->p_bbc)) & 1);
-  int t1_firing = via_is_t1_firing(p_via, ticks);
-  int t2_firing = via_is_t2_firing(p_via, ticks);
+  if ((reg == k_via_T1CL) || (reg == k_via_T1CH)) {
+    t1_firing = via_is_t1_firing(p_via, ticks);
+  } else if (reg == k_via_T2CL) {
+    t2_firing = via_is_t2_firing(p_via, ticks);
+  }
 
   /* Advance to the VIA mid-cycle.
    * EMU NOTE: do this first before processing the read. Interrupts fire at
@@ -613,16 +618,6 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
   if (!is_raw) {
     via_advance_ticks(p_via, (ticks + 1));
   }
-
-  t1_val = via_get_t1c(p_via);
-  if (t1_firing) {
-    /* If the timer is firing, return -1. Need to force this because the raw
-     * timer value is set to the relatch value plus one which must not be
-     * exposed.
-     */
-    t1_val = -1;
-  }
-  t2_val = via_get_t2c(p_via);
 
   switch (reg) {
   case k_via_ORB:
@@ -682,9 +677,25 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     if (!t1_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER1);
     }
+    t1_val = via_get_t1c(p_via);
+    if (t1_firing) {
+      /* If the timer is firing, return -1. Need to force this because the raw
+       * timer value is set to the relatch value plus one which must not be
+       * exposed.
+       */
+      t1_val = -1;
+    }
     ret = (((uint16_t) t1_val) & 0xFF);
     break;
   case k_via_T1CH:
+    t1_val = via_get_t1c(p_via);
+    if (t1_firing) {
+      /* If the timer is firing, return -1. Need to force this because the raw
+       * timer value is set to the relatch value plus one which must not be
+       * exposed.
+       */
+      t1_val = -1;
+    }
     ret = (((uint16_t) t1_val) >> 8);
     break;
   case k_via_T1LL:
@@ -697,10 +708,12 @@ via_read_internal(struct via_struct* p_via, uint8_t reg, int is_raw) {
     if (!t2_firing && !is_raw) {
       via_clear_interrupt(p_via, k_int_TIMER2);
     }
-    ret = (((uint16_t) t2_val) & 0xFF);
+    t2_val = via_get_t2c(p_via);
+    ret = ((uint16_t) t2_val & 0xFF);
     break;
   case k_via_T2CH:
-    ret = (((uint16_t) t2_val) >> 8);
+    t2_val = via_get_t2c(p_via);
+    ret = ((uint16_t) t2_val >> 8);
     break;
   case k_via_SR:
     ret = p_via->SR;
