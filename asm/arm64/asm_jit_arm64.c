@@ -246,6 +246,12 @@ asm_jit_destroy(struct asm_jit_struct* p_asm) {
   (void) p_asm;
 }
 
+void*
+asm_jit_get_private(struct asm_jit_struct* p_asm) {
+  (void) p_asm;
+  return NULL;
+}
+
 void
 asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
   size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);

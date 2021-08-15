@@ -789,7 +789,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_address_info = jit_get_address_info;
   p_funcs->get_custom_counters = jit_get_custom_counters;
 
-  p_cpu_driver->abi.p_util_private = asm_jit_compile_trampoline;
   p_jit->p_compile_callback = jit_compile;
 
   /* The JIT mode uses an interpreter to handle complicated situations,
@@ -875,6 +874,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
    * done.
    */
   p_jit->p_asm = asm_jit_init(p_jit_base);
+  p_cpu_driver->abi.p_util_private = asm_jit_get_private(p_jit->p_asm);
 
   /* NOTE: the JIT code space hasn't been set up with the invalidation markers.
    * Power-on reset has the responsibility of marking the entire address space

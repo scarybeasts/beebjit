@@ -18,6 +18,9 @@ uint32_t asm_jit_enter(void* p_context,
 
 struct asm_jit_struct* asm_jit_init(void* p_jit_base);
 void asm_jit_destroy(struct asm_jit_struct* p_asm);
+/* This is stored as the first structure member of the runtime context. */
+void* asm_jit_get_private(struct asm_jit_struct* p_asm);
+
 void asm_jit_start_code_updates(struct asm_jit_struct* p_asm);
 void asm_jit_finish_code_updates(struct asm_jit_struct* p_asm);
 int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
@@ -293,8 +296,5 @@ void asm_emit_jit_STY_ABS(struct util_buffer* p_buf,
                           uint16_t addr,
                           uint32_t segment);
 void asm_emit_jit_STY_scratch(struct util_buffer* p_buf);
-
-/* Symbols pointing directly to ASM bytes. */
-void asm_jit_compile_trampoline();
 
 #endif /* BEEBJIT_ASM_JIT_H */

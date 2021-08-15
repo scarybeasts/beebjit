@@ -137,6 +137,13 @@ asm_jit_destroy(struct asm_jit_struct* p_asm) {
   os_alloc_free_mapping(s_p_mapping_trampolines);
 }
 
+void*
+asm_jit_get_private(struct asm_jit_struct* p_asm) {
+  void asm_jit_compile_trampoline(void);
+  (void) p_asm;
+  return asm_jit_compile_trampoline;
+}
+
 void
 asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
   (void) p_asm;
