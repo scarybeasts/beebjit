@@ -44,9 +44,7 @@ struct jit_struct {
   struct asm_jit_struct* p_asm;
   struct os_alloc_mapping* p_mapping_jit;
   struct os_alloc_mapping* p_mapping_no_code_ptr;
-  struct os_alloc_mapping* p_mapping_trampolines;
   uint8_t* p_jit_base;
-  uint8_t* p_jit_trampolines;
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct interp_struct* p_interp;
@@ -86,12 +84,6 @@ static void*
 jit_get_block_host_address_callback(void* p, uint16_t addr_6502) {
   struct jit_struct* p_jit = (struct jit_struct*) p;
   return jit_get_jit_block_host_address(p_jit, addr_6502);
-}
-
-static void*
-jit_get_trampoline_host_address_callback(void* p, uint16_t addr_6502) {
-  struct jit_struct* p_jit = (struct jit_struct*) p;
-  return (p_jit->p_jit_trampolines + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
 }
 
 static uint16_t
@@ -719,9 +711,6 @@ jit_handle_fault(uintptr_t* p_host_pc,
   if (p_jit->p_compile_callback != jit_compile) {
     fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
-  if (p_jit->p_jit_trampolines != (void*) K_BBC_JIT_TRAMPOLINES_ADDR) {
-    fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
-  }
 
   /* NOTE -- may call assert() which isn't async safe but faulting context is
    * raw asm, shouldn't be a disaster.
@@ -836,8 +825,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   asm_fill_with_trap(p_temp_buf);
 
   p_jit->p_jit_base = p_jit_base;
-  /* TODO: having trampolines here is still a layering violation. */
-  p_jit->p_jit_trampolines = (void*) K_BBC_JIT_TRAMPOLINES_ADDR;
 
   p_jit->p_mapping_no_code_ptr =
       os_alloc_get_mapping((void*) K_BBC_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
@@ -847,11 +834,25 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->jit_ptr_dynamic_operand =
       (uint32_t) (uintptr_t) (p_no_code_mapping_addr + 4);
 
+  /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
+   * optimizations by using faults for very uncommon conditions, such that the
+   * fast path doesn't need certain checks.
+   */
+  os_fault_register_handler(jit_handle_fault);
+
+  /* Anything the specific asm driver (x64 or ARM64) needs to get its job
+   * done.
+   */
+  p_jit->p_asm = asm_jit_create(p_jit_base,
+                                p_memory_access->memory_is_always_ram,
+                                p_memory_access->p_callback_obj);
+  p_cpu_driver->abi.p_util_private = asm_jit_get_private(p_jit->p_asm);
+
   p_jit->p_compiler = jit_compiler_create(
+      p_jit->p_asm,
       p_timing,
       p_memory_access,
       jit_get_block_host_address_callback,
-      jit_get_trampoline_host_address_callback,
       p_jit,
       &p_jit->jit_ptrs[0],
       p_jit->jit_ptr_no_code,
@@ -863,18 +864,6 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_jit->p_opcode_modes,
       p_jit->p_opcode_mem,
       p_jit->p_opcode_cycles);
-
-  /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
-   * optimizations by using faults for very uncommon conditions, such that the
-   * fast path doesn't need certain checks.
-   */
-  os_fault_register_handler(jit_handle_fault);
-
-  /* Anything the specific asm driver (x64 or ARM64) needs to get its job
-   * done.
-   */
-  p_jit->p_asm = asm_jit_init(p_jit_base);
-  p_cpu_driver->abi.p_util_private = asm_jit_get_private(p_jit->p_asm);
 
   /* NOTE: the JIT code space hasn't been set up with the invalidation markers.
    * Power-on reset has the responsibility of marking the entire address space

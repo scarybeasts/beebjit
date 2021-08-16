@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+struct asm_jit_struct;
 struct bbc_options;
 struct jit_compiler;
 struct jit_opcode_details;
@@ -12,10 +13,10 @@ struct timing_struct;
 struct util_buffer;
 
 struct jit_compiler* jit_compiler_create(
+    struct asm_jit_struct* p_asm,
     struct timing_struct* p_timing,
     struct memory_access* p_memory_access,
     void* (*get_block_host_address)(void* p, uint16_t addr),
-    void* (*get_trampoline_host_address)(void* p, uint16_t addr),
     void* p_host_address_object,
     uint32_t* p_jit_ptrs,
     uint32_t jit_ptr_no_code,

@@ -36,11 +36,11 @@ enum {
 };
 
 struct jit_compiler {
+  struct asm_jit_struct* p_asm;
   struct timing_struct* p_timing;
   struct memory_access* p_memory_access;
   uint8_t* p_mem_read;
   void* (*get_block_host_address)(void* p, uint16_t addr);
-  void* (*get_trampoline_host_address)(void* p, uint16_t addr);
   void* p_host_address_object;
   uint32_t* p_jit_ptrs;
   int32_t* p_code_blocks;
@@ -133,10 +133,10 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
 }
 
 struct jit_compiler*
-jit_compiler_create(struct timing_struct* p_timing,
+jit_compiler_create(struct asm_jit_struct* p_asm,
+                    struct timing_struct* p_timing,
                     struct memory_access* p_memory_access,
                     void* (*get_block_host_address)(void*, uint16_t),
-                    void* (*get_trampoline_host_address)(void*, uint16_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
                     uint32_t jit_ptr_no_code,
@@ -160,11 +160,11 @@ jit_compiler_create(struct timing_struct* p_timing,
   /* Check invariants required for compact code generation. */
   assert(K_JIT_CONTEXT_OFFSET_JIT_PTRS < 0x80);
 
+  p_compiler->p_asm = p_asm;
   p_compiler->p_timing = p_timing;
   p_compiler->p_memory_access = p_memory_access;
   p_compiler->p_mem_read = p_memory_access->p_mem_read;
   p_compiler->get_block_host_address = get_block_host_address;
-  p_compiler->get_trampoline_host_address = get_trampoline_host_address;
   p_compiler->p_host_address_object = p_host_address_object;
   p_compiler->p_jit_ptrs = p_jit_ptrs;
   p_compiler->p_code_blocks = p_code_blocks;
@@ -229,8 +229,16 @@ jit_compiler_create(struct timing_struct* p_timing,
 
   /* Calculate lengths of sequences we need to know. */
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
-  /* Note: target pointer is a short jump range. */
-  asm_emit_jit_JMP(p_tmp_buf, &buf[0]);
+  util_buffer_set_base_address(p_tmp_buf, NULL);
+  /* Note: target pointer is a short jump range, in case the asm backend emits
+   * a shorter sequence for that.
+  */
+  asm_emit_jit(p_compiler->p_asm,
+               p_tmp_buf,
+               NULL,
+               k_opcode_jump_raw,
+               (intptr_t) NULL,
+               0);
   p_compiler->len_asm_jmp = util_buffer_get_pos(p_tmp_buf);
 
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
@@ -793,69 +801,16 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct util_buffer* p_dest_buf_epilog,
                       struct jit_uop* p_uop) {
-  uint32_t i;
   int uopcode = p_uop->uopcode;
   int32_t value1 = p_uop->value1;
   int32_t value2 = p_uop->value2;
-  struct memory_access* p_memory_access = p_compiler->p_memory_access;
-  void* p_memory_object = p_memory_access->p_callback_obj;
-  void* p_host_address_object = p_compiler->p_host_address_object;
-  void* p_jit_addr = NULL;
 
   if (p_dest_buf_epilog != NULL) {
     util_buffer_set_pos(p_dest_buf_epilog, 0);
   }
 
-  /* The segment we need to hit for memory accesses.
-   * We have different segments:
-   * READ
-   * WRITE
-   * READ INDIRECT
-   * WRITE INDIRECT
-   * These segments are generally different virtual views on top of the same
-   * physical 6502 memory backing buffer. The differences are that writes to
-   * ROM area are silently / quickly ignored, and the indirect segments fault
-   * if hardware registers are hit.
-   * To minimize L1 DTLB issues, we'll generally map all accesses to READ
-   * INDIRECT when we know it doesn't make a difference.
-   */
-  uint32_t segment_abs;
-  uint32_t segment_abs_write;
-  uint32_t segment_abn;
-  uint32_t segment_abn_write;
-  int is_always_ram;
-  int is_always_ram_abn;
-
-  is_always_ram = p_memory_access->memory_is_always_ram(p_memory_object,
-                                                        (uint16_t) value1);
-  /* Assumes address space wrap and hardware register access taken care of
-   * elsewhere.
-   */
-  is_always_ram_abn = (is_always_ram &&
-                       p_memory_access->memory_is_always_ram(
-                           p_memory_object, (uint16_t) (value1 + 0xFF)));
-  /* Always calculate the segment even for irrelevant uopcodes; it's simpler. */
-  segment_abs = K_BBC_MEM_READ_IND_ADDR;
-  segment_abs_write = K_BBC_MEM_READ_IND_ADDR;
-  segment_abn = K_BBC_MEM_READ_IND_ADDR;
-  segment_abn_write = K_BBC_MEM_READ_IND_ADDR;
-  if (!is_always_ram) {
-    segment_abs = K_BBC_MEM_READ_FULL_ADDR;
-    segment_abs_write = K_BBC_MEM_WRITE_FULL_ADDR;
-  }
-  if (!is_always_ram_abn) {
-    segment_abn = K_BBC_MEM_READ_FULL_ADDR;
-    segment_abn_write = K_BBC_MEM_WRITE_FULL_ADDR;
-  }
-
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
-  case k_opcode_countdown:
-  case k_opcode_countdown_no_save_nz_flags:
-  case k_opcode_CHECK_PENDING_IRQ:
-    p_jit_addr = p_compiler->get_trampoline_host_address(p_host_address_object,
-                                                         (uint16_t) value1);
-    break;
   case 0x4C: /* JMP abs; JSR also uses this. */
   case 0x10: /* All of the conditional branches. */
   case 0x30:
@@ -865,684 +820,18 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
   case 0xB0:
   case 0xD0:
   case 0xF0:
-    p_jit_addr = jit_compiler_resolve_branch_target(p_compiler,
-                                                    (uint16_t) value1);
-    break;
-  case k_opcode_jump_raw:
-    p_jit_addr = (void*) (intptr_t) value1;
+    value1 = (intptr_t) jit_compiler_resolve_branch_target(p_compiler, value1);
     break;
   default:
     break;
   }
 
-  /* Emit the opcode. */
-  switch (uopcode) {
-  case k_opcode_countdown:
-    asm_emit_jit_check_countdown(p_dest_buf,
-                                 p_dest_buf_epilog,
-                                 (uint32_t) value2,
-                                 (uint16_t) value1,
-                                 p_jit_addr);
-    break;
-  case k_opcode_countdown_no_save_nz_flags:
-    asm_emit_jit_check_countdown_no_save_nz_flags(p_dest_buf,
-                                                  (uint32_t) value2,
-                                                  p_jit_addr);
-    break;
-  case k_opcode_debug:
-    asm_emit_jit_call_debug(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_interp:
-    asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_inturbo:
-    asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_for_testing:
-    asm_emit_jit_for_testing(p_dest_buf);
-    break;
-  case k_opcode_ADD_CYCLES:
-    asm_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_ADD_ABS:
-    asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case k_opcode_ADD_ABX:
-    asm_emit_jit_ADD_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case k_opcode_ADD_ABY:
-    asm_emit_jit_ADD_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case k_opcode_ADD_IMM:
-    asm_emit_jit_ADD_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_ADDR_CHECK:
-    asm_emit_jit_ADDR_CHECK(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
-    break;
-  case k_opcode_ADD_SCRATCH:
-    asm_emit_jit_ADD_SCRATCH(p_dest_buf, 0);
-    break;
-  case k_opcode_ADD_SCRATCH_Y:
-    asm_emit_jit_ADD_SCRATCH_Y(p_dest_buf);
-    break;
-  case k_opcode_ASL_ACC_n:
-    asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_CHECK_BCD:
-    asm_emit_jit_CHECK_BCD(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(p_dest_buf);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(p_dest_buf);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_CHECK_PENDING_IRQ:
-    asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf,
-                                   p_dest_buf_epilog,
-                                   (uint16_t) value1,
-                                   p_jit_addr);
-    break;
-  case k_opcode_CLEAR_CARRY:
-    asm_emit_jit_CLEAR_CARRY(p_dest_buf);
-    break;
-  case k_opcode_EOR_SCRATCH_n:
-    asm_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_FLAGA:
-    asm_emit_instruction_A_NZ_flags(p_dest_buf);
-    break;
-  case k_opcode_FLAGX:
-    asm_emit_instruction_X_NZ_flags(p_dest_buf);
-    break;
-  case k_opcode_FLAGY:
-    asm_emit_instruction_Y_NZ_flags(p_dest_buf);
-    break;
-  case k_opcode_FLAG_MEM:
-    asm_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_INVERT_CARRY:
-    asm_emit_jit_INVERT_CARRY(p_dest_buf);
-    break;
-  case k_opcode_JMP_SCRATCH_n:
-    asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_LDA_SCRATCH_n:
-    asm_emit_jit_LDA_SCRATCH(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_LDA_SCRATCH_X:
-    asm_emit_jit_LDA_SCRATCH_X(p_dest_buf);
-    break;
-  case k_opcode_LDA_Z:
-    asm_emit_jit_LDA_Z(p_dest_buf);
-    break;
-  case k_opcode_LDX_Z:
-    asm_emit_jit_LDX_Z(p_dest_buf);
-    break;
-  case k_opcode_LDY_Z:
-    asm_emit_jit_LDY_Z(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    asm_emit_jit_LOAD_CARRY_FOR_BRANCH(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_FOR_CALC:
-    asm_emit_jit_LOAD_CARRY_FOR_CALC(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(p_dest_buf);
-    break;
-  case k_opcode_LOAD_OVERFLOW:
-    asm_emit_jit_LOAD_OVERFLOW(p_dest_buf);
-    break;
-  case k_opcode_LOAD_SCRATCH_8:
-    asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_LOAD_SCRATCH_16:
-    asm_emit_jit_LOAD_SCRATCH_16(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_LSR_ACC_n:
-    asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_MODE_ABX:
-    asm_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_MODE_ABY:
-    asm_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_MODE_IND_8:
-    asm_emit_jit_MODE_IND_8(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_MODE_IND_16:
-    asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case k_opcode_MODE_IND_SCRATCH_8:
-    asm_emit_jit_MODE_IND_SCRATCH_8(p_dest_buf);
-    break;
-  case k_opcode_MODE_IND_SCRATCH_16:
-    asm_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
-    break;
-  case k_opcode_MODE_ZPX:
-    asm_emit_jit_MODE_ZPX(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_MODE_ZPY:
-    asm_emit_jit_MODE_ZPY(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_PULL_16:
-    asm_emit_jit_PULL_16(p_dest_buf);
-    break;
-  case k_opcode_PUSH_16:
-    asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_ROL_ACC_n:
-    asm_emit_jit_ROL_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_ROR_ACC_n:
-    asm_emit_jit_ROR_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_SAVE_CARRY:
-    asm_emit_jit_SAVE_CARRY(p_dest_buf);
-    break;
-  case k_opcode_SAVE_CARRY_INV:
-    asm_emit_jit_SAVE_CARRY_INV(p_dest_buf);
-    break;
-  case k_opcode_SAVE_OVERFLOW:
-    asm_emit_jit_SAVE_OVERFLOW(p_dest_buf);
-    break;
-  case k_opcode_SET_CARRY:
-    asm_emit_jit_SET_CARRY(p_dest_buf);
-    break;
-  case k_opcode_STA_SCRATCH_n:
-    asm_emit_jit_STA_SCRATCH(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_STOA_IMM:
-    asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
-    break;
-  case k_opcode_SUB_ABS:
-    asm_emit_jit_SUB_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case k_opcode_SUB_IMM:
-    asm_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_WRITE_INV_ABS:
-    asm_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH:
-    asm_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH_n:
-    asm_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH_Y:
-    asm_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x01: /* ORA idx */
-  case 0x15: /* ORA zpx */
-    asm_emit_jit_ORA_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0x04: /* NOP zpg */ /* Undocumented. */
-  case 0xDC: /* NOP abx */ /* Undocumented. */
-  case 0xEA: /* NOP */
-  case 0xF4: /* NOP zpx */ /* Undocumented. */
-    /* We don't really have to emit anything for a NOP, but for now and for
-     * good readability, we'll emit a host NOP.
-     * (The correct place to change if we wanted to not emit anything would be
-     * to eliminate the 6502 opcode in the optimizer.)
-     */
-    i = (p_compiler->len_asm_invalidated / p_compiler->len_asm_nop);
-    while (i--) {
-      asm_emit_instruction_REAL_NOP(p_dest_buf);
-    }
-    break;
-  case 0x05: /* ORA zpg */
-  case 0x0D: /* ORA abs */
-    asm_emit_jit_ORA_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0x06: /* ASL zpg */
-    asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x07: /* SLO zpg */ /* Undocumented. */
-    asm_emit_jit_SLO_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x08:
-    asm_emit_instruction_PHP(p_dest_buf);
-    break;
-  case 0x09:
-    asm_emit_jit_ORA_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0x0A:
-    asm_emit_jit_ASL_ACC(p_dest_buf);
-    break;
-  case 0x0E: /* ASL abs */
-    if (is_always_ram) {
-      asm_emit_jit_ASL_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_ASL_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x10:
-    asm_emit_jit_BPL(p_dest_buf, p_jit_addr);
-    break;
-  case 0x11: /* ORA idy */
-    asm_emit_jit_ORA_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x16: /* ASL zpx */
-    asm_emit_jit_ASL_scratch(p_dest_buf);
-    break;
-  case 0x18:
-    asm_emit_instruction_CLC(p_dest_buf);
-    break;
-  case 0x19:
-    asm_emit_jit_ORA_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x1D:
-    asm_emit_jit_ORA_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x1E: /* ASL abx */
-    if (is_always_ram_abn) {
-      asm_emit_jit_ASL_ABX(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_ASL_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x21: /* AND idx */
-  case 0x35: /* AND zpx */
-    asm_emit_jit_AND_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0x24: /* BIT zpg */
-  case 0x2C: /* BIT abs */
-    asm_emit_jit_BIT(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x25: /* AND zpg */
-  case 0x2D: /* AND abs */
-    asm_emit_jit_AND_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0x26: /* ROL zpg */
-  case 0x2E: /* ROL abs */
-    if (is_always_ram) {
-      asm_emit_jit_ROL_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_ROL_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x28:
-    asm_emit_instruction_PLP(p_dest_buf);
-    break;
-  case 0x29:
-    asm_emit_jit_AND_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0x2A:
-    asm_emit_jit_ROL_ACC(p_dest_buf);
-    break;
-  case 0x30:
-    asm_emit_jit_BMI(p_dest_buf, p_jit_addr);
-    break;
-  case 0x31: /* AND idy */
-    asm_emit_jit_AND_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x36: /* ROL zpx */
-    asm_emit_jit_ROL_scratch(p_dest_buf);
-    break;
-  case 0x38:
-    asm_emit_instruction_SEC(p_dest_buf);
-    break;
-  case 0x39:
-    asm_emit_jit_AND_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x3D:
-    asm_emit_jit_AND_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x3E:
-    asm_emit_jit_ROL_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x41: /* EOR idx */
-  case 0x55: /* EOR zpx */
-    asm_emit_jit_EOR_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0x45: /* EOR zpg */
-  case 0x4D: /* EOR abs */
-    asm_emit_jit_EOR_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0x46: /* LSR zpg */
-    asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x48:
-    asm_emit_instruction_PHA(p_dest_buf);
-    break;
-  case 0x49:
-    asm_emit_jit_EOR_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0x4A:
-    asm_emit_jit_LSR_ACC(p_dest_buf);
-    break;
-  case 0x4B: /* ALR imm */ /* Undocumented. */
-    asm_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0x4C:
-  case k_opcode_jump_raw:
-    asm_emit_jit_JMP(p_dest_buf, p_jit_addr);
-    break;
-  case 0x4E: /* LSR abs */
-    if (is_always_ram) {
-      asm_emit_jit_LSR_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_LSR_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x50:
-    asm_emit_jit_BVC(p_dest_buf, p_jit_addr);
-    break;
-  case 0x51: /* EOR idy */
-    asm_emit_jit_EOR_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x56: /* LSR zpx */
-    asm_emit_jit_LSR_scratch(p_dest_buf);
-    break;
-  case 0x58:
-    asm_emit_instruction_CLI(p_dest_buf);
-    break;
-  case 0x59:
-    asm_emit_jit_EOR_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x5D:
-    asm_emit_jit_EOR_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x5E: /* LSR abx */
-    if (is_always_ram_abn) {
-      asm_emit_jit_LSR_ABX(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_LSR_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x61: /* ADC idx */
-  case 0x75: /* ADC zpx */
-    asm_emit_jit_ADC_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0x65: /* ADC zpg */
-  case 0x6D: /* ADC abs */
-    asm_emit_jit_ADC_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0x66: /* ROR zpg */
-  case 0x6E: /* ROR abs */
-    if (is_always_ram) {
-      asm_emit_jit_ROR_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_ROR_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0x68:
-    asm_emit_instruction_PLA(p_dest_buf);
-    break;
-  case 0x69:
-    asm_emit_jit_ADC_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0x6A:
-    asm_emit_jit_ROR_ACC(p_dest_buf);
-    break;
-  case 0x70:
-    asm_emit_jit_BVS(p_dest_buf, p_jit_addr);
-    break;
-  case 0x71: /* ADC idy */
-    asm_emit_jit_ADC_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x76: /* ROR zpx */
-    asm_emit_jit_ROR_scratch(p_dest_buf);
-    break;
-  case 0x78:
-    asm_emit_instruction_SEI(p_dest_buf);
-    break;
-  case 0x79:
-    asm_emit_jit_ADC_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x7D:
-    asm_emit_jit_ADC_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0x7E:
-    asm_emit_jit_ROR_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x81: /* STA idx */
-  case 0x95: /* STA zpx */
-    asm_emit_jit_STA_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0x98:
-    asm_emit_instruction_TYA(p_dest_buf);
-    break;
-  case 0x84: /* STY zpg */
-  case 0x8C: /* STY abs */
-    asm_emit_jit_STY_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
-    break;
-  case 0x85: /* STA zpg */
-  case 0x8D: /* STA abs */
-    asm_emit_jit_STA_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
-    break;
-  case 0x86: /* STX zpg */
-  case 0x8E: /* STX abs */
-    asm_emit_jit_STX_ABS(p_dest_buf, (uint16_t) value1, segment_abs_write);
-    break;
-  case 0x87: /* SAX zpg */ /* Undocumented. */
-    asm_emit_jit_SAX_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x88:
-    asm_emit_instruction_DEY(p_dest_buf);
-    break;
-  case 0x8A:
-    asm_emit_instruction_TXA(p_dest_buf);
-    break;
-  case 0x90:
-    asm_emit_jit_BCC(p_dest_buf, p_jit_addr);
-    break;
-  case 0x91: /* STA idy */
-    asm_emit_jit_STA_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0x94: /* STY zpx */
-    asm_emit_jit_STY_scratch(p_dest_buf);
-    break;
-  case 0x96: /* STX zpy */
-    asm_emit_jit_STX_scratch(p_dest_buf);
-    break;
-  case 0x99:
-    asm_emit_jit_STA_ABY(p_dest_buf, (uint16_t) value1, segment_abn_write);
-    break;
-  case 0x9A:
-    asm_emit_instruction_TXS(p_dest_buf);
-    break;
-  case 0x9C:
-    asm_emit_jit_SHY_ABX(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0x9D:
-    asm_emit_jit_STA_ABX(p_dest_buf, (uint16_t) value1, segment_abn_write);
-    break;
-  case 0xA0:
-    asm_emit_jit_LDY_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xA1: /* LDA idx */
-  case 0xB5: /* LDA zpx */
-    asm_emit_jit_LDA_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0xA2:
-    asm_emit_jit_LDX_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xA4: /* LDY zpg */
-  case 0xAC: /* LDY abs */
-    asm_emit_jit_LDY_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xA5: /* LDA zpg */
-  case 0xAD: /* LDA abs */
-    asm_emit_jit_LDA_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xA6: /* LDX zpg */
-  case 0xAE: /* LDX abs */
-    asm_emit_jit_LDX_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xA8:
-    asm_emit_instruction_TAY(p_dest_buf);
-    break;
-  case 0xA9:
-    asm_emit_jit_LDA_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xAA:
-    asm_emit_instruction_TAX(p_dest_buf);
-    break;
-  case 0xB0:
-    asm_emit_jit_BCS(p_dest_buf, p_jit_addr);
-    break;
-  case 0xB1: /* LDA idy */
-    asm_emit_jit_LDA_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0xB4: /* LDY zpx */
-    asm_emit_jit_LDY_scratch(p_dest_buf);
-    break;
-  case 0xB6: /* LDX zpy */
-    asm_emit_jit_LDX_scratch(p_dest_buf);
-    break;
-  case 0xB8:
-    asm_emit_instruction_CLV(p_dest_buf);
-    break;
-  case 0xB9:
-    asm_emit_jit_LDA_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xBA:
-    asm_emit_instruction_TSX(p_dest_buf);
-    break;
-  case 0xBC:
-    asm_emit_jit_LDY_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xBD:
-    asm_emit_jit_LDA_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xBE:
-    asm_emit_jit_LDX_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xC0:
-    asm_emit_jit_CPY_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xC1: /* CMP idx */
-  case 0xD5: /* CMP zpx */
-    asm_emit_jit_CMP_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0xC4: /* CPY zpg */
-  case 0xCC: /* CPY abs */
-    asm_emit_jit_CPY_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xC5: /* CMP zpg */
-  case 0xCD: /* CMP abs */
-    asm_emit_jit_CMP_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xC6: /* DEC zpg */
-    asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0xC8:
-    asm_emit_instruction_INY(p_dest_buf);
-    break;
-  case 0xC9:
-    asm_emit_jit_CMP_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xCA:
-    asm_emit_instruction_DEX(p_dest_buf);
-    break;
-  case 0xCE: /* DEC abs */
-    if (is_always_ram) {
-      asm_emit_jit_DEC_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_DEC_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0xD0:
-    asm_emit_jit_BNE(p_dest_buf, p_jit_addr);
-    break;
-  case 0xD1: /* CMP idy */
-    asm_emit_jit_CMP_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0xD6: /* DEC zpx */
-    asm_emit_jit_DEC_scratch(p_dest_buf);
-    break;
-  case 0xD8:
-    asm_emit_instruction_CLD(p_dest_buf);
-    break;
-  case 0xD9:
-    asm_emit_jit_CMP_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xDD:
-    asm_emit_jit_CMP_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xDE: /* DEC abx */
-    if (is_always_ram_abn) {
-      asm_emit_jit_DEC_ABX(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_DEC_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0xE0:
-    asm_emit_jit_CPX_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xE1: /* SBC idx */
-  case 0xF5: /* SBC zpx */
-    asm_emit_jit_SBC_SCRATCH(p_dest_buf, 0);
-    break;
-  case 0xE4: /* CPX zpg */
-  case 0xEC: /* CPX abs */
-    asm_emit_jit_CPX_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xE5: /* SBC zpg */
-  case 0xED: /* SBC abs */
-    asm_emit_jit_SBC_ABS(p_dest_buf, (uint16_t) value1, segment_abs);
-    break;
-  case 0xE6: /* INC zpg */
-    asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
-    break;
-  case 0xE8:
-    asm_emit_instruction_INX(p_dest_buf);
-    break;
-  case 0xE9:
-    asm_emit_jit_SBC_IMM(p_dest_buf, (uint8_t) value1);
-    break;
-  case 0xEE: /* INC abs */
-    if (is_always_ram) {
-      asm_emit_jit_INC_ABS(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_INC_ABS_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  case 0xF0:
-    asm_emit_jit_BEQ(p_dest_buf, p_jit_addr);
-    break;
-  case 0xF1: /* SBC idy */
-    asm_emit_jit_SBC_SCRATCH_Y(p_dest_buf);
-    break;
-  case 0xF6: /* INC zpx */
-    asm_emit_jit_INC_scratch(p_dest_buf);
-    break;
-  case 0xF8:
-    asm_emit_instruction_SED(p_dest_buf);
-    break;
-  case 0xF9:
-    asm_emit_jit_SBC_ABY(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xFD:
-    asm_emit_jit_SBC_ABX(p_dest_buf, (uint16_t) value1, segment_abn);
-    break;
-  case 0xFE: /* INC abx */
-    if (is_always_ram_abn) {
-      asm_emit_jit_INC_ABX(p_dest_buf, (uint16_t) value1);
-    } else {
-      asm_emit_jit_INC_ABX_RMW(p_dest_buf, (uint16_t) value1);
-    }
-    break;
-  default:
-    /* Use the interpreter for unknown opcodes. These could be either the
-     * special re-purposed opcodes (e.g. CYCLES) or genuinely unused opcodes.
-     */
-    asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value2);
-    break;
-  }
+  asm_emit_jit(p_compiler->p_asm,
+               p_dest_buf,
+               p_dest_buf_epilog,
+               uopcode,
+               value1,
+               value2);
 }
 
 static void

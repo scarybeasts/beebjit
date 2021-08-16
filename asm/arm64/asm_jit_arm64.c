@@ -198,7 +198,7 @@ asm_emit_jit_RMW(struct util_buffer* p_buf, void* p_start, void* p_end) {
 
 int
 asm_jit_is_enabled(void) {
-  return 1;
+  return 0;
 }
 
 void
@@ -233,8 +233,12 @@ asm_jit_supports_uopcode(int32_t uopcode) {
 }
 
 struct asm_jit_struct*
-asm_jit_init(void* p_jit_base) {
+asm_jit_create(void* p_jit_base,
+               int (*is_memory_always_ram)(void* p, uint16_t addr),
+               void* p_memory_object) {
   (void) p_jit_base;
+  (void) is_memory_always_ram;
+  (void) p_memory_object;
 
   asm_jit_finish_code_updates(NULL);
 
@@ -1855,4 +1859,19 @@ asm_emit_jit_STY_scratch(struct util_buffer* p_buf) {
   void asm_jit_STY_SCRATCH(void);
   void asm_jit_STY_SCRATCH_END(void);
   asm_copy(p_buf, asm_jit_STY_SCRATCH, asm_jit_STY_SCRATCH_END);
+}
+
+void
+asm_emit_jit(struct asm_jit_struct* p_asm,
+             struct util_buffer* p_buf,
+             struct util_buffer* p_buf_epilog,
+             int32_t uopcode,
+             uint32_t arg1,
+             uint32_t arg2) {
+  (void) p_asm;
+  (void) p_buf;
+  (void) p_buf_epilog;
+  (void) uopcode;
+  (void) arg1;
+  (void) arg2;
 }
