@@ -1,15 +1,12 @@
 #ifndef JIT_OPCODE_H
 #define JIT_OPCODE_H
 
+#include "asm/asm_opcodes.h"
+
 #include <stdint.h>
 
 struct jit_uop {
-  /* Static details. */
-  int32_t uopcode;
-  int32_t uoptype;
-  int32_t uopmode;
-  int32_t value1;
-  int32_t value2;
+  struct asm_uop uop;
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int eliminated;
@@ -66,7 +63,9 @@ void jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
                               int32_t uop2,
                               int32_t value2);
 
-void jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1);
+void jit_opcode_make_uop1(struct jit_uop* p_uop,
+                          int32_t uopcode,
+                          int32_t value1);
 
 struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);

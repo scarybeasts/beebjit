@@ -37,13 +37,10 @@ jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
 }
 
 void
-jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int value1) {
-  p_uop->uopcode = uopcode;
-  /* TODO: get rid of? */
-  p_uop->uoptype = -1;
-  p_uop->uopmode = -1;
-  p_uop->value1 = value1;
-  p_uop->value2 = 0;
+jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int32_t value1) {
+  p_uop->uop.uopcode = uopcode;
+  p_uop->uop.value1 = value1;
+  p_uop->uop.value2 = 0;
   p_uop->eliminated = 0;
   p_uop->is_prefix_or_postfix = 0;
 }
@@ -55,7 +52,7 @@ jit_opcode_find_uop(struct jit_opcode_details* p_opcode, int32_t uopcode) {
 
   for (i_uops = 0; i_uops < p_opcode->num_uops; ++i_uops) {
     struct jit_uop* p_uop = &p_opcode->uops[i_uops];
-    if (p_uop->uopcode == uopcode) {
+    if (p_uop->uop.uopcode == uopcode) {
       assert(p_ret == NULL);
       p_ret = p_uop;
     }

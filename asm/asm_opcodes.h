@@ -1,6 +1,14 @@
 #ifndef ASM_OPCODES_H
 #define ASM_OPCODES_H
 
+#include <stdint.h>
+
+struct asm_uop {
+  int32_t uopcode;
+  int32_t value1;
+  int32_t value2;
+};
+
 /* NOTE: many of the opcodes < 0x100 are implied to be opcodes that are similar
  * to the behavior of the equivalent 6502 opcode.
  * This is neither particularly explicit, nor clean, and may be changed.

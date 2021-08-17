@@ -501,7 +501,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     /* PLP */
     jit_opcode_make_uop1(p_uop, 0x28, 0);
-    p_uop->uoptype = k_plp;
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_PULL_16, 0);
     p_uop++;
@@ -532,7 +531,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bvc:
   case k_bvs:
     jit_opcode_make_uop1(p_uop, opcode_6502, rel_target_6502);
-    p_uop->uoptype = optype;
     p_uop++;
     break;
   case k_brk:
@@ -540,11 +538,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     /* PHP */
     jit_opcode_make_uop1(p_uop, 0x08, 0);
-    p_uop->uoptype = k_php;
     p_uop++;
     /* SEI */
     jit_opcode_make_uop1(p_uop, 0x78, 0);
-    p_uop->uoptype = k_sei;
     p_uop++;
     /* MODE_IND */
     jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
@@ -565,7 +561,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_jsr:
     /* JMP abs */
     jit_opcode_make_uop1(p_uop, 0x4C, operand_6502);
-    p_uop->uoptype = k_jmp;
     p_uop++;
     break;
   case k_rts:
@@ -583,12 +578,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
   if (!main_written) {
     jit_opcode_make_uop1(p_uop, opcode_6502, operand_6502);
-    p_uop->uoptype = optype;
-    p_uop->uopmode = opmode;
     /* Set value2 to the address, which will be used to bounce unhandled
      * opcodes into the interpreter.
      */
-    p_uop->value2 = addr_6502;
+    p_uop->uop.value2 = addr_6502;
     p_uop++;
   }
 
@@ -801,13 +794,9 @@ jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct util_buffer* p_dest_buf_epilog,
                       struct jit_uop* p_uop) {
-  int uopcode = p_uop->uopcode;
-  int32_t value1 = p_uop->value1;
-  int32_t value2 = p_uop->value2;
-
-  if (p_dest_buf_epilog != NULL) {
-    util_buffer_set_pos(p_dest_buf_epilog, 0);
-  }
+  int32_t uopcode = p_uop->uop.uopcode;
+  int32_t value1 = p_uop->uop.value1;
+  int32_t value2 = p_uop->uop.value2;
 
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
@@ -1392,7 +1381,7 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
     }
 
     p_details_fixup->cycles_run_start += p_details->max_cycles;
-    p_uop->value2 = p_details_fixup->cycles_run_start;
+    p_uop->uop.value2 = p_details_fixup->cycles_run_start;
   }
 }
 
@@ -1658,7 +1647,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
           struct jit_uop* p_uop = p_details->fixup_uops[i_uops];
-          switch (p_uop->uopcode) {
+          switch (p_uop->uop.uopcode) {
           case k_opcode_FLAGA:
             p_compiler->addr_nz_fixup[addr_6502] = k_a;
             break;
@@ -1669,16 +1658,17 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
             p_compiler->addr_nz_fixup[addr_6502] = k_y;
             break;
           case k_opcode_FLAG_MEM:
-            p_compiler->addr_nz_mem_fixup[addr_6502] = (uint16_t) p_uop->value1;
+            p_compiler->addr_nz_mem_fixup[addr_6502] =
+                (uint16_t) p_uop->uop.value1;
             break;
           case 0xA9: /* LDA imm */
-            p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->value1;
+            p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
             break;
           case 0xA2: /* LDX imm */
-            p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->value1;
+            p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
             break;
           case 0xA0: /* LDY imm */
-            p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
+            p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
             break;
           case k_opcode_SAVE_OVERFLOW:
             p_compiler->addr_o_fixup[addr_6502] = 1;
