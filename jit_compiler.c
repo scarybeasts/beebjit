@@ -270,7 +270,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t optype;
   uint8_t opmode;
   uint8_t opmem;
-  int main_written;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -322,24 +321,38 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_imm:
     operand_6502 = p_mem_read[addr_plus_1];
+    jit_opcode_make_uop1(p_uop, k_opcode_value_set, operand_6502);
+    p_uop++;
     break;
   case k_zpg:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = operand_6502;
     p_details->max_6502_addr = operand_6502;
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
+    p_uop++;
     break;
   case k_zpx:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
     break;
   case k_zpy:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPY, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y_8bit);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
     break;
   case k_rel:
@@ -353,8 +366,18 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
     p_details->min_6502_addr = operand_6502;
     p_details->max_6502_addr = operand_6502;
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    p_uop++;
     if ((operand_6502 & 0xFF) == 0x00) {
       could_page_cross = 0;
+    }
+    if (opmode == k_abx) {
+      jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x);
+      p_uop++;
+    }
+    if (opmode == k_aby) {
+      jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
+      p_uop++;
     }
     if (opmode == k_abx || opmode == k_aby) {
       p_details->max_6502_addr += 0xFF;
@@ -367,6 +390,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         use_interp = 1;
       }
     }
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
+    p_uop++;
 
     if (opmem & k_opmem_read_flag) {
       if (p_memory_access->memory_read_needs_callback(
@@ -393,27 +418,39 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit);
     p_uop++;
     break;
   case k_idx:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_ZPX, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_SCRATCH_8, addr_6502);
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_ADDR_CHECK, addr_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_load_16bit, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_8, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_ADDR_CHECK, addr_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_load_16bit, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
     break;
   default:
@@ -442,7 +479,235 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
   }
 
-  if (optype == k_rti) {
+  /* Per-type uops. */
+  switch (optype) {
+  case k_adc:
+    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_ADC);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
+    p_uop++;
+    break;
+  case k_alr:
+    jit_opcode_make_uop0(p_uop, k_opcode_ALR);
+    p_uop++;
+    break;
+  case k_and:
+    jit_opcode_make_uop0(p_uop, k_opcode_AND);
+    p_uop++;
+    break;
+  case k_asl:
+    if (opmode == k_acc) {
+      jit_opcode_make_uop0(p_uop, k_opcode_ASL_acc);
+      p_uop++;
+    } else {
+      jit_opcode_make_uop0(p_uop, k_opcode_ASL_value);
+      p_uop++;
+    }
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    break;
+  case k_bcc:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_BCC, rel_target_6502);
+    p_uop++;
+    break;
+  case k_bcs:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_BCS, rel_target_6502);
+    p_uop++;
+    break;
+  case k_beq:
+    jit_opcode_make_uop1(p_uop, k_opcode_BEQ, rel_target_6502);
+    p_uop++;
+    break;
+  case k_bit:
+    jit_opcode_make_uop0(p_uop, k_opcode_BIT);
+    p_uop++;
+    break;
+  case k_bmi:
+    jit_opcode_make_uop1(p_uop, k_opcode_BMI, rel_target_6502);
+    p_uop++;
+    break;
+  case k_bne:
+    jit_opcode_make_uop1(p_uop, k_opcode_BNE, rel_target_6502);
+    p_uop++;
+    break;
+  case k_bpl:
+    jit_opcode_make_uop1(p_uop, k_opcode_BPL, rel_target_6502);
+    p_uop++;
+    break;
+  case k_brk:
+    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
+    p_uop++;
+    /* PHP */
+    jit_opcode_make_uop0(p_uop, k_opcode_PHP);
+    p_uop++;
+    /* SEI */
+    jit_opcode_make_uop0(p_uop, k_opcode_SEI);
+    p_uop++;
+    /* MODE_IND */
+    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
+    p_uop++;
+    /* JMP_SCRATCH_n */
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
+    p_uop++;
+    break;
+  case k_bvc:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_BVC, rel_target_6502);
+    p_uop++;
+    break;
+  case k_bvs:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_BVS, rel_target_6502);
+    p_uop++;
+    break;
+  case k_clc:
+    jit_opcode_make_uop0(p_uop, k_opcode_CLC);
+    p_uop++;
+    break;
+  case k_cld:
+    jit_opcode_make_uop0(p_uop, k_opcode_CLD);
+    p_uop++;
+    break;
+  case k_cli:
+    jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_CLI);
+    p_uop++;
+    break;
+  case k_cmp:
+    jit_opcode_make_uop0(p_uop, k_opcode_CMP);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    p_uop++;
+    break;
+  case k_cpx:
+    jit_opcode_make_uop0(p_uop, k_opcode_CPX);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    p_uop++;
+    break;
+  case k_cpy:
+    jit_opcode_make_uop0(p_uop, k_opcode_CPY);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    p_uop++;
+    break;
+  case k_dec:
+    jit_opcode_make_uop0(p_uop, k_opcode_DEC_value);
+    p_uop++;
+    break;
+  case k_eor:
+    jit_opcode_make_uop0(p_uop, k_opcode_EOR);
+    p_uop++;
+    break;
+  case k_inc:
+    jit_opcode_make_uop0(p_uop, k_opcode_INC_value);
+    p_uop++;
+    break;
+  case k_jmp:
+    if (opmode == k_ind) {
+      jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
+      p_uop++;
+    } else {
+      p_details->branch_addr_6502 = operand_6502;
+      jit_opcode_make_uop1(p_uop, k_opcode_JMP, operand_6502);
+      p_uop++;
+    }
+    break;
+  case k_jsr:
+    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
+    p_uop++;
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP, operand_6502);
+    p_uop++;
+    break;
+  case k_lda:
+    jit_opcode_make_uop0(p_uop, k_opcode_LDA);
+    p_uop++;
+    break;
+  case k_ldx:
+    jit_opcode_make_uop0(p_uop, k_opcode_LDX);
+    p_uop++;
+    break;
+  case k_ldy:
+    jit_opcode_make_uop0(p_uop, k_opcode_LDY);
+    p_uop++;
+    break;
+  case k_lsr:
+    if (opmode == k_acc) {
+      jit_opcode_make_uop0(p_uop, k_opcode_LSR_acc);
+      p_uop++;
+    } else {
+      jit_opcode_make_uop0(p_uop, k_opcode_LSR_value);
+      p_uop++;
+    }
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    break;
+  case k_nop:
+    jit_opcode_make_uop0(p_uop, k_opcode_NOP);
+    p_uop++;
+    break;
+  case k_ora:
+    jit_opcode_make_uop0(p_uop, k_opcode_ORA);
+    p_uop++;
+    break;
+  case k_pha:
+    jit_opcode_make_uop0(p_uop, k_opcode_PHA);
+    p_uop++;
+    break;
+  case k_pla:
+    jit_opcode_make_uop0(p_uop, k_opcode_PLA);
+    p_uop++;
+    break;
+  case k_php:
+    jit_opcode_make_uop0(p_uop, k_opcode_PHP);
+    p_uop++;
+    break;
+  case k_plp:
+    jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_PLP);
+    p_uop++;
+    break;
+  case k_rol:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
+    p_uop++;
+    if (opmode == k_acc) {
+      jit_opcode_make_uop0(p_uop, k_opcode_ROL_acc);
+      p_uop++;
+    } else {
+      jit_opcode_make_uop0(p_uop, k_opcode_ROL_value);
+      p_uop++;
+    }
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    break;
+  case k_ror:
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
+    p_uop++;
+    if (opmode == k_acc) {
+      jit_opcode_make_uop0(p_uop, k_opcode_ROR_acc);
+      p_uop++;
+    } else {
+      jit_opcode_make_uop0(p_uop, k_opcode_ROR_value);
+      p_uop++;
+    }
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    break;
+  case k_rti:
     /* Bounce to the interpreter for RTI. The problem with RTI is that it
      * might jump all over the place without any particular pattern, because
      * interrupts will happen all over the place. If we are not careful, over
@@ -450,6 +715,100 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      * which will be super slow.
      */
     use_interp = 1;
+    break;
+  case k_rts:
+    jit_opcode_make_uop0(p_uop, k_opcode_PULL_16);
+    p_uop++;
+    /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
+    p_uop++;
+    break;
+  case k_sbc:
+    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
+    p_uop++;
+    break;
+  case k_sei:
+    jit_opcode_make_uop0(p_uop, k_opcode_SEI);
+    p_uop++;
+    break;
+  case k_slo:
+    jit_opcode_make_uop0(p_uop, k_opcode_SLO);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    p_uop++;
+    break;
+  case k_sta:
+    jit_opcode_make_uop0(p_uop, k_opcode_STA);
+    p_uop++;
+    break;
+  case k_stx:
+    jit_opcode_make_uop0(p_uop, k_opcode_STX);
+    p_uop++;
+    break;
+  case k_sty:
+    jit_opcode_make_uop0(p_uop, k_opcode_STX);
+    p_uop++;
+    break;
+  case k_tax:
+    jit_opcode_make_uop0(p_uop, k_opcode_TAX);
+    p_uop++;
+    break;
+  case k_tay:
+    jit_opcode_make_uop0(p_uop, k_opcode_TAY);
+    p_uop++;
+    break;
+  case k_tsx:
+    jit_opcode_make_uop0(p_uop, k_opcode_TSX);
+    p_uop++;
+    break;
+  case k_txs:
+    jit_opcode_make_uop0(p_uop, k_opcode_TXS);
+    p_uop++;
+    break;
+  case k_txa:
+    jit_opcode_make_uop0(p_uop, k_opcode_TXA);
+    p_uop++;
+    break;
+  case k_tya:
+    jit_opcode_make_uop0(p_uop, k_opcode_TYA);
+    p_uop++;
+    break;
+  default:
+    assert(0);
+    use_interp = 1;
+    break;
+  }
+
+  if (g_optype_changes_nz_flags[optype]) {
+    switch (g_optype_sets_register[optype]) {
+    case k_a:
+      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
+      p_uop++;
+      break;
+    case k_x:
+      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_x);
+      p_uop++;
+      break;
+    case k_y:
+      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_y);
+      p_uop++;
+      break;
+    default:
+      if (opmode == k_acc) {
+        jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
+        p_uop++;
+      } else if (opmem == (k_opmem_read_flag | k_opmem_write_flag)) {
+        jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_value);
+        p_uop++;
+      }
+      break;
+    }
   }
 
   if (use_interp) {
@@ -462,209 +821,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->num_uops = (p_uop - &p_details->uops[0]);
     assert(p_details->num_uops <= k_max_uops_per_opcode);
     return;
-  }
-
-  /* Pre-main uops. */
-  switch (optype) {
-  case k_adc:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, addr_6502);
-    p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_FOR_CALC, 0);
-    p_uop++;
-    break;
-  case k_bcc:
-  case k_bcs:
-    jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH, 0);
-    p_uop++;
-    break;
-  case k_bvc:
-  case k_bvs:
-    jit_opcode_make_uop1(p_uop, k_opcode_LOAD_OVERFLOW, 0);
-    p_uop++;
-    break;
-  case k_cli:
-  case k_plp:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PENDING_IRQ, addr_6502);
-    p_uop++;
-    break;
-  case k_jsr:
-    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
-    p_uop++;
-    break;
-  case k_rol:
-  case k_ror:
-    jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_FOR_CALC, 0);
-    p_uop++;
-    break;
-  case k_rti:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PENDING_IRQ, addr_6502);
-    p_uop++;
-    /* PLP */
-    jit_opcode_make_uop1(p_uop, 0x28, 0);
-    p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_PULL_16, 0);
-    p_uop++;
-    break;
-  case k_rts:
-    jit_opcode_make_uop1(p_uop, k_opcode_PULL_16, 0);
-    p_uop++;
-    break;
-  case k_sbc:
-    jit_opcode_make_uop1(p_uop, k_opcode_CHECK_BCD, addr_6502);
-    p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC, 0);
-    p_uop++;
-    break;
-  default:
-    break;
-  }
-
-  /* Main uop, or a replacement thereof. */
-  main_written = 1;
-  switch (optype) {
-  case k_bcc:
-  case k_bcs:
-  case k_beq:
-  case k_bne:
-  case k_bmi:
-  case k_bpl:
-  case k_bvc:
-  case k_bvs:
-    jit_opcode_make_uop1(p_uop, opcode_6502, rel_target_6502);
-    p_uop++;
-    break;
-  case k_brk:
-    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
-    p_uop++;
-    /* PHP */
-    jit_opcode_make_uop1(p_uop, 0x08, 0);
-    p_uop++;
-    /* SEI */
-    jit_opcode_make_uop1(p_uop, 0x78, 0);
-    p_uop++;
-    /* MODE_IND */
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
-    p_uop++;
-    /* JMP_SCRATCH_n */
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
-    p_uop++;
-    break;
-  case k_jmp:
-    if (opmode == k_ind) {
-      jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
-      p_uop++;
-    } else {
-      p_details->branch_addr_6502 = operand_6502;
-      main_written = 0;
-    }
-    break;
-  case k_jsr:
-    /* JMP abs */
-    jit_opcode_make_uop1(p_uop, 0x4C, operand_6502);
-    p_uop++;
-    break;
-  case k_rts:
-    /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
-    p_uop++;
-    break;
-  case k_rti:
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
-    p_uop++;
-    break;
-  default:
-    main_written = 0;
-    break;
-  }
-  if (!main_written) {
-    jit_opcode_make_uop1(p_uop, opcode_6502, operand_6502);
-    /* Set value2 to the address, which will be used to bounce unhandled
-     * opcodes into the interpreter.
-     */
-    p_uop->uop.value2 = addr_6502;
-    p_uop++;
-  }
-
-  /* Post-main uops. */
-  switch (optype) {
-  case k_adc:
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_CARRY, 0);
-    p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_OVERFLOW, 0);
-    p_uop++;
-    break;
-  case k_alr:
-  case k_asl:
-  case k_lsr:
-  case k_slo:
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_CARRY, 0);
-    p_uop++;
-    break;
-  case k_bcc:
-  case k_bcs:
-  case k_beq:
-  case k_bmi:
-  case k_bne:
-  case k_bpl:
-  case k_bvc:
-  case k_bvs:
-    if (p_compiler->option_accurate_timings) {
-      /* Fixup countdown if a branch wasn't taken. */
-      jit_opcode_make_uop1(p_uop,
-                           k_opcode_ADD_CYCLES,
-                           (uint8_t) (p_details->max_cycles - 2));
-      p_uop++;
-    }
-    break;
-  case k_cmp:
-  case k_cpx:
-  case k_cpy:
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_CARRY_INV, 0);
-    p_uop++;
-    break;
-  case k_lda:
-  case k_txa:
-  case k_tya:
-  case k_pla:
-    jit_opcode_make_uop1(p_uop, k_opcode_FLAGA, 0);
-    p_uop++;
-    break;
-  case k_ldx:
-  case k_tax:
-  case k_tsx:
-    jit_opcode_make_uop1(p_uop, k_opcode_FLAGX, 0);
-    p_uop++;
-    break;
-  case k_ldy:
-  case k_tay:
-    jit_opcode_make_uop1(p_uop, k_opcode_FLAGY, 0);
-    p_uop++;
-    break;
-  case k_rol:
-  case k_ror:
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_CARRY, 0);
-    p_uop++;
-    switch (opmode) {
-    case k_acc:
-      jit_opcode_make_uop1(p_uop, k_opcode_FLAGA, 0);
-      p_uop++;
-      break;
-    case k_zpg:
-    case k_abs:
-      jit_opcode_make_uop1(p_uop, k_opcode_FLAG_MEM, operand_6502);
-      p_uop++;
-    default:
-      break;
-    }
-    break;
-  case k_sbc:
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_CARRY_INV, 0);
-    p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_SAVE_OVERFLOW, 0);
-    p_uop++;
-    break;
-  default:
-    break;
   }
 
   /* Post-main per-mode uops. */
@@ -713,6 +869,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       break;
     }
   }
+
   /* Accurate timings for page crossing cycles. */
   if (p_compiler->option_accurate_timings &&
       (opmem == k_opmem_read_flag) &&
@@ -741,6 +898,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     default:
       break;
     }
+  }
+
+  /* Accurate timings for branches. */
+  if ((opmode == k_rel) && p_compiler->option_accurate_timings) {
+    /* Fixup countdown if a branch wasn't taken. */
+    jit_opcode_make_uop1(p_uop,
+                         k_opcode_add_cycles,
+                         (uint8_t) (p_details->max_cycles - 2));
+    p_uop++;
   }
 
   p_details->num_uops = (p_uop - &p_details->uops[0]);
@@ -1648,16 +1814,16 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
           struct jit_uop* p_uop = p_details->fixup_uops[i_uops];
           switch (p_uop->uop.uopcode) {
-          case k_opcode_FLAGA:
+          case k_opcode_flags_nz_a:
             p_compiler->addr_nz_fixup[addr_6502] = k_a;
             break;
-          case k_opcode_FLAGX:
+          case k_opcode_flags_nz_x:
             p_compiler->addr_nz_fixup[addr_6502] = k_x;
             break;
-          case k_opcode_FLAGY:
+          case k_opcode_flags_nz_y:
             p_compiler->addr_nz_fixup[addr_6502] = k_y;
             break;
-          case k_opcode_FLAG_MEM:
+          case k_opcode_flags_nz_value:
             p_compiler->addr_nz_mem_fixup[addr_6502] =
                 (uint16_t) p_uop->uop.value1;
             break;
@@ -1742,8 +1908,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   /* Second, work out if we'll be compiling any dynamic opcodes / operands.
    * NOTE: may truncate p_compiler->total_num_opcodes.
    */
-  jit_compiler_check_dynamics(p_compiler,
-                              &sub_instruction_addr_6502);
+  /*jit_compiler_check_dynamics(p_compiler,
+                              &sub_instruction_addr_6502);*/
+  (void) jit_compiler_check_dynamics;
+
+  /* Third, offer the asm backend the chance to rewrite. Most significantly,
+   * this is used as a coalesce pass. For example, the CISC-y x64 can take our
+   * RISC-y uops and combine many of them. e.g. EOR abx can be done in one
+   * x64 instruction.
+   */
+  /*jit_compiler_asm_rewrite(p_compiler);*/
 
   /* If the block didn't end with an explicit jump, put it in. */
   p_details = p_compiler->p_last_opcode;
@@ -1756,18 +1930,18 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
-  /* Third, walk the opcode list; add countdown checks and calculate cycle
+  /* Fourth, walk the opcode list; add countdown checks and calculate cycle
    * counts.
    */
   jit_compiler_setup_cycle_counts(p_compiler);
 
-  /* Fourth, run the optimizer across the list of opcodes. */
+  /* Fifth, run the optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
     p_details = jit_optimizer_optimize(&p_compiler->opcode_details[0]);
     jit_compiler_make_last_opcode(p_compiler, p_details);
   }
 
-  /* Fifth, emit the uop stream to the output buffer. */
+  /* Sixth, emit the uop stream to the output buffer. */
   p_compiler->has_unresolved_jumps = 0;
   jit_compiler_emit_uops(p_compiler);
   if (p_compiler->has_unresolved_jumps) {
@@ -1779,7 +1953,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     assert(!p_compiler->has_unresolved_jumps);
   }
 
-  /* Sixth, update compiler metadata. */
+  /* Seventh, update compiler metadata. */
   jit_compiler_update_metadata(p_compiler);
 
   if (sub_instruction_addr_6502 != -1) {

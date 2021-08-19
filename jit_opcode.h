@@ -63,6 +63,7 @@ void jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
                               int32_t uop2,
                               int32_t value2);
 
+void jit_opcode_make_uop0(struct jit_uop* p_uop, int32_t uopcode);
 void jit_opcode_make_uop1(struct jit_uop* p_uop,
                           int32_t uopcode,
                           int32_t value1);

@@ -132,10 +132,10 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_ASL_ACC_n:
     case k_opcode_EOR_SCRATCH_n:
-    case k_opcode_FLAGA:
-    case k_opcode_FLAGX:
-    case k_opcode_FLAGY:
-    case k_opcode_FLAG_MEM:
+    case k_opcode_flags_nz_a:
+    case k_opcode_flags_nz_x:
+    case k_opcode_flags_nz_y:
+    case k_opcode_flags_nz_value:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LDA_Z:
     case k_opcode_LDX_Z:
@@ -237,7 +237,7 @@ jit_optimizer_uopcode_needs_a(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_ASL_ACC_n:
-    case k_opcode_FLAGA:
+    case k_opcode_flags_nz_a:
     case k_opcode_LSR_ACC_n:
     case k_opcode_ROL_ACC_n:
     case k_opcode_ROR_ACC_n:
@@ -312,7 +312,7 @@ jit_optimizer_uopcode_needs_x(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_ADD_ABX:
-    case k_opcode_FLAGX:
+    case k_opcode_flags_nz_x:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ZPX:
       ret = 1;
@@ -382,7 +382,7 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_FLAGY:
+    case k_opcode_flags_nz_y:
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_ZPY:
     case k_opcode_WRITE_INV_SCRATCH_Y:
@@ -457,17 +457,17 @@ jit_optimizer_uop_invalidates_idy(struct jit_uop* p_uop,
     case k_opcode_ADD_IMM:
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_CHECK_BCD:
+    case k_opcode_check_bcd:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_EOR_SCRATCH_n:
-    case k_opcode_FLAGA:
-    case k_opcode_FLAGX:
-    case k_opcode_FLAGY:
-    case k_opcode_FLAG_MEM:
+    case k_opcode_flags_nz_a:
+    case k_opcode_flags_nz_x:
+    case k_opcode_flags_nz_y:
+    case k_opcode_flags_nz_value:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LDA_Z:
     case k_opcode_LDX_Z:
@@ -532,13 +532,13 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_ADD_IMM:
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_CHECK_BCD:
+    case k_opcode_check_bcd:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_CHECK_PENDING_IRQ:
+    case k_opcode_check_pending_irq:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
@@ -619,13 +619,13 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_ADD_SCRATCH:
     case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_ASL_ACC_n:
-    case k_opcode_CHECK_BCD:
+    case k_opcode_check_bcd:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_CHECK_PENDING_IRQ:
+    case k_opcode_check_pending_irq:
     case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
@@ -902,7 +902,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         if (reg_y != k_value_unknown) {
           uopcode = 0xA0; /* LDY imm */
           p_uop->uop.value1 = (uint8_t) (reg_y - 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
+          jit_optimizer_append_uop(p_opcode, k_opcode_flags_nz_y);
         }
         break;
       case 0x8A: /* TXA */
@@ -933,14 +933,14 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         if (reg_y != k_value_unknown) {
           uopcode = 0xA0; /* LDY imm */
           p_uop->uop.value1 = (uint8_t) (reg_y + 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGY);
+          jit_optimizer_append_uop(p_opcode, k_opcode_flags_nz_y);
         }
         break;
       case 0xCA: /* DEX */
         if (reg_x != k_value_unknown) {
           uopcode = 0xA2; /* LDX imm */
           p_uop->uop.value1 = (uint8_t) (reg_x - 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
+          jit_optimizer_append_uop(p_opcode, k_opcode_flags_nz_x);
         }
         break;
       case 0xE5: /* SBC zpg */
@@ -951,13 +951,13 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         if (reg_x != k_value_unknown) {
           uopcode = 0xA2; /* LDX imm */
           p_uop->uop.value1 = (uint8_t) (reg_x + 1);
-          jit_optimizer_append_uop(p_opcode, k_opcode_FLAGX);
+          jit_optimizer_append_uop(p_opcode, k_opcode_flags_nz_x);
         }
         break;
       case 0xE9: /* SBC imm */
         new_sub_uopcode = k_opcode_SUB_IMM;
         break;
-      case k_opcode_CHECK_BCD:
+      case k_opcode_check_bcd:
         if (flag_decimal == k_value_unknown) {
           if (!had_bcd_check) {
             /* Leave the first one intact and then elimanate any others. */
@@ -968,7 +968,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         } else if (flag_decimal == 0) {
           p_uop->eliminated = 1;
         } else {
-          interp_replace = k_opcode_CHECK_BCD;
+          interp_replace = k_opcode_check_bcd;
         }
         break;
       default:
@@ -1121,7 +1121,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
     if (p_opcode->uops[0].uop.uopcode == k_opcode_countdown) {
       struct jit_uop* p_prev_last_uop =
           &p_prev_opcode->uops[p_prev_opcode->num_uops - 1];
-      if (p_prev_last_uop->uop.uopcode == k_opcode_ADD_CYCLES) {
+      if (p_prev_last_uop->uop.uopcode == k_opcode_add_cycles) {
         p_opcode->uops[0].uop.value2 -= p_prev_last_uop->uop.value1;
         p_prev_last_uop->eliminated = 1;
       }
@@ -1181,19 +1181,19 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           int32_t replace_uopcode = -1;
           struct jit_uop* p_find_uop;
           switch (nz_flags_uopcode) {
-          case k_opcode_FLAGA:
+          case k_opcode_flags_nz_a:
             find_uopcode = 0xA9; /* LDA imm */
             replace_uopcode = k_opcode_LDA_Z;
             break;
-          case k_opcode_FLAGX:
+          case k_opcode_flags_nz_x:
             find_uopcode = 0xA2; /* LDX imm */
             replace_uopcode = k_opcode_LDX_Z;
             break;
-          case k_opcode_FLAGY:
+          case k_opcode_flags_nz_y:
             find_uopcode = 0xA0; /* LDY imm */
             replace_uopcode = k_opcode_LDY_Z;
             break;
-          case k_opcode_FLAG_MEM:
+          case k_opcode_flags_nz_value:
             break;
           default:
             assert(0);
@@ -1215,10 +1215,10 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
 
       /* Keep track of uops we may be able to eliminate. */
       switch (uopcode) {
-      case k_opcode_FLAGA:
-      case k_opcode_FLAGX:
-      case k_opcode_FLAGY:
-      case k_opcode_FLAG_MEM:
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+      case k_opcode_flags_nz_y:
+      case k_opcode_flags_nz_value:
         p_nz_flags_opcode = p_opcode;
         p_nz_flags_uop = p_uop;
         break;

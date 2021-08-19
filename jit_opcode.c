@@ -37,6 +37,11 @@ jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
 }
 
 void
+jit_opcode_make_uop0(struct jit_uop* p_uop, int32_t uopcode) {
+  jit_opcode_make_uop1(p_uop, uopcode, 0);
+}
+
+void
 jit_opcode_make_uop1(struct jit_uop* p_uop, int32_t uopcode, int32_t value1) {
   p_uop->uop.uopcode = uopcode;
   p_uop->uop.value1 = value1;

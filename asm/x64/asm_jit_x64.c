@@ -87,7 +87,7 @@ asm_jit_test_preconditions(void) {
 
 int
 asm_jit_supports_optimizer(void) {
-  return 1;
+  return 0;
 }
 
 int
@@ -2598,6 +2598,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   void* p_trampolines;
   void* p_trampoline_addr = NULL;
 
+  assert(uopcode >= 0x100);
+
   is_always_ram = p_asm->is_memory_always_ram(p_asm->p_memory_object,
                                               (uint16_t) value1);
   /* Assumes address space wrap and hardware register access taken care of
@@ -2624,7 +2626,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
   case k_opcode_countdown:
-  case k_opcode_CHECK_PENDING_IRQ:
+  case k_opcode_check_pending_irq:
     p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
     p_trampoline_addr = (p_trampolines + (value1 * K_BBC_JIT_TRAMPOLINE_BYTES));
     break;
@@ -2653,7 +2655,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_for_testing:
     asm_emit_jit_for_testing(p_dest_buf);
     break;
-  case k_opcode_ADD_CYCLES:
+  case k_opcode_add_cycles:
     asm_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_ADD_ABS:
@@ -2680,7 +2682,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_ASL_ACC_n:
     asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_CHECK_BCD:
+  case k_opcode_check_bcd:
     asm_emit_jit_CHECK_BCD(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
     break;
   case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
@@ -2698,7 +2700,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_CHECK_PENDING_IRQ:
+  case k_opcode_check_pending_irq:
     asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf,
                                    p_dest_buf_epilog,
                                    (uint16_t) value1,
@@ -2710,16 +2712,16 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_EOR_SCRATCH_n:
     asm_emit_jit_EOR_SCRATCH(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_FLAGA:
+  case k_opcode_flags_nz_a:
     asm_emit_instruction_A_NZ_flags(p_dest_buf);
     break;
-  case k_opcode_FLAGX:
+  case k_opcode_flags_nz_x:
     asm_emit_instruction_X_NZ_flags(p_dest_buf);
     break;
-  case k_opcode_FLAGY:
+  case k_opcode_flags_nz_y:
     asm_emit_instruction_Y_NZ_flags(p_dest_buf);
     break;
-  case k_opcode_FLAG_MEM:
+  case k_opcode_flags_nz_value:
     asm_emit_jit_FLAG_MEM(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_INVERT_CARRY:
@@ -3289,10 +3291,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     }
     break;
   default:
-    /* Use the interpreter for unknown opcodes. These could be either the
-     * special re-purposed opcodes (e.g. CYCLES) or genuinely unused opcodes.
-     */
-    asm_emit_jit_jump_interp(p_dest_buf, (uint16_t) value2);
+    assert(0);
     break;
   }
 }
