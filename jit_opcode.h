@@ -5,14 +5,6 @@
 
 #include <stdint.h>
 
-struct jit_uop {
-  struct asm_uop uop;
-
-  /* Dynamic details that are calculated as compilation proceeds. */
-  int eliminated;
-  int is_prefix_or_postfix;
-};
-
 enum {
   k_max_uops_per_opcode = 16,
 };
@@ -31,7 +23,9 @@ struct jit_opcode_details {
 
   /* Partially dynamic details that may be changed by optimization. */
   uint8_t num_uops;
-  struct jit_uop uops[k_max_uops_per_opcode];
+  struct asm_uop uops[k_max_uops_per_opcode];
+  struct asm_uop* p_prefix_uop;
+  struct asm_uop* p_postfix_uop;
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int ends_block;
@@ -44,7 +38,7 @@ struct jit_opcode_details {
   int32_t flag_carry;
   int32_t flag_decimal;
   uint8_t num_fixup_uops;
-  struct jit_uop* fixup_uops[k_max_uops_per_opcode];
+  struct asm_uop* fixup_uops[k_max_uops_per_opcode];
   int self_modify_invalidated;
   int is_dynamic_opcode;
   int is_dynamic_operand;
@@ -63,19 +57,19 @@ void jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
                               int32_t uop2,
                               int32_t value2);
 
-void jit_opcode_make_uop1(struct jit_uop* p_uop,
+void jit_opcode_make_uop1(struct asm_uop* p_uop,
                           int32_t uopcode,
                           int32_t value1);
 
-struct jit_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
+struct asm_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
                                     int32_t uopcode);
 
 void jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode);
 
-void jit_opcode_insert_uop(struct jit_opcode_details* p_opcode,
-                           uint32_t index,
-                           int32_t uopcode,
-                           int32_t value);
+struct asm_uop* jit_opcode_insert_uop(struct jit_opcode_details* p_opcode,
+                                      uint32_t index,
+                                      int32_t uopcode,
+                                      int32_t value);
 
 void jit_opcode_eliminate(struct jit_opcode_details* p_opcode);
 
