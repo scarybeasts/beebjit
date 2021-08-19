@@ -7,6 +7,7 @@ struct asm_uop {
   int32_t uopcode;
   int32_t value1;
   int32_t value2;
+  int is_eliminated;
 };
 
 enum {

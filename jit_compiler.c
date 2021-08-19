@@ -276,8 +276,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   void* p_memory_callback = p_memory_access->p_callback_obj;
   uint16_t addr_plus_1 = (addr_6502 + 1);
   uint16_t addr_plus_2 = (addr_6502 + 2);
-  struct jit_uop* p_uop = &p_details->uops[0];
-  struct jit_uop* p_first_post_debug_uop = p_uop;
+  struct asm_uop* p_uop = &p_details->uops[0];
+  struct asm_uop* p_first_post_debug_uop = p_uop;
   int use_interp = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
@@ -959,10 +959,10 @@ static void
 jit_compiler_emit_uop(struct jit_compiler* p_compiler,
                       struct util_buffer* p_dest_buf,
                       struct util_buffer* p_dest_buf_epilog,
-                      struct jit_uop* p_uop) {
-  int32_t uopcode = p_uop->uop.uopcode;
-  int32_t value1 = p_uop->uop.value1;
-  int32_t value2 = p_uop->uop.value2;
+                      struct asm_uop* p_uop) {
+  int32_t uopcode = p_uop->uopcode;
+  int32_t value1 = p_uop->value1;
+  int32_t value2 = p_uop->value2;
 
   /* Resolve any addresses to real pointers. */
   switch (uopcode) {
@@ -1246,14 +1246,14 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
 
   p_opcode->is_dynamic_operand = 1;
   if (page_crossing_search_uopcode != -1) {
-    struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode,
+    struct asm_uop* p_uop = jit_opcode_find_uop(p_opcode,
                                                 page_crossing_search_uopcode);
     if (p_uop != NULL) {
       jit_opcode_make_uop1(p_uop, page_crossing_replace_uopcode, 0);
     }
   }
   if (write_inv_search_uopcode != -1) {
-    struct jit_uop* p_uop = jit_opcode_find_uop(p_opcode,
+    struct asm_uop* p_uop = jit_opcode_find_uop(p_opcode,
                                                 write_inv_search_uopcode);
     assert(p_uop != NULL);
     jit_opcode_make_uop1(p_uop, write_inv_replace_uopcode, 0);
@@ -1520,7 +1520,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
 static void
 jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
-  struct jit_uop* p_uop = NULL;
+  struct asm_uop* p_uop = NULL;
   struct jit_opcode_details* p_details_fixup = NULL;
 
   for (p_details = &p_compiler->opcode_details[0];
@@ -1536,18 +1536,18 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
       needs_countdown = 1;
     }
     if (needs_countdown) {
-      jit_opcode_insert_uop(p_details,
-                            0,
-                            k_opcode_countdown,
-                            p_details->addr_6502);
+      p_uop = jit_opcode_insert_uop(p_details,
+                                    0,
+                                    k_opcode_countdown,
+                                    p_details->addr_6502);
       p_details->cycles_run_start = 0;
-      p_uop = &p_details->uops[0];
-      p_uop->is_prefix_or_postfix = 1;
+      assert(p_details->p_prefix_uop == NULL);
+      p_details->p_prefix_uop = p_uop;
       p_details_fixup = p_details;
     }
 
     p_details_fixup->cycles_run_start += p_details->max_cycles;
-    p_uop->uop.value2 = p_details_fixup->cycles_run_start;
+    p_uop->value2 = p_details_fixup->cycles_run_start;
   }
 }
 
@@ -1603,10 +1603,11 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       void* p_host_address;
       uint32_t epilog_len;
       int needs_reemit;
+      int is_prefix_or_postfix;
       uint32_t epilog_pos;
-      struct jit_uop* p_uop = &p_details->uops[i_uops];
+      struct asm_uop* p_uop = &p_details->uops[i_uops];
 
-      if (p_uop->eliminated) {
+      if (p_uop->is_eliminated) {
         continue;
       }
 
@@ -1640,7 +1641,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       }
 
       if ((util_buffer_remaining(p_tmp_buf) - block_epilog_len) < buf_needed) {
-        struct jit_uop tmp_uop;
+        struct asm_uop tmp_uop;
         /* Emit jump to the next adjacent code block. We'll need to jump over
          * the compile trampoline at the beginning of the block.
          */
@@ -1702,14 +1703,16 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
        * The prefix code start will be used as a branch target for branches
        * within a block.
        */
-      if (!p_uop->is_prefix_or_postfix) {
+      is_prefix_or_postfix = (p_uop == p_details->p_prefix_uop);
+      is_prefix_or_postfix |= (p_uop == p_details->p_postfix_uop);
+      if (!is_prefix_or_postfix) {
         if (p_details->p_host_address_start == NULL) {
           p_details->p_host_address_start = p_host_address;
         }
       }
 
       util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
-      if (p_uop->is_prefix_or_postfix) {
+      if (is_prefix_or_postfix) {
         p_details->p_host_address_prefix_end =
             (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
       }
@@ -1812,8 +1815,8 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
-          struct jit_uop* p_uop = p_details->fixup_uops[i_uops];
-          switch (p_uop->uop.uopcode) {
+          struct asm_uop* p_uop = p_details->fixup_uops[i_uops];
+          switch (p_uop->uopcode) {
           case k_opcode_flags_nz_a:
             p_compiler->addr_nz_fixup[addr_6502] = k_a;
             break;
@@ -1824,17 +1827,16 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
             p_compiler->addr_nz_fixup[addr_6502] = k_y;
             break;
           case k_opcode_flags_nz_value:
-            p_compiler->addr_nz_mem_fixup[addr_6502] =
-                (uint16_t) p_uop->uop.value1;
+            p_compiler->addr_nz_mem_fixup[addr_6502] = (uint16_t) p_uop->value1;
             break;
           case 0xA9: /* LDA imm */
-            p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
+            p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->value1;
             break;
           case 0xA2: /* LDX imm */
-            p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
+            p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->value1;
             break;
           case 0xA0: /* LDY imm */
-            p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->uop.value1;
+            p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
             break;
           case k_opcode_SAVE_OVERFLOW:
             p_compiler->addr_o_fixup[addr_6502] = 1;
@@ -1923,10 +1925,15 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   p_details = p_compiler->p_last_opcode;
   assert(p_details->addr_6502 != -1);
   if (!p_details->ends_block) {
+    struct asm_uop* p_uop;
     end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
     /* JMP abs */
-    jit_opcode_insert_uop(p_details, p_details->num_uops, 0x4C, end_addr_6502);
-    p_details->uops[p_details->num_uops - 1].is_prefix_or_postfix = 1;
+    p_uop = jit_opcode_insert_uop(p_details,
+                                  p_details->num_uops,
+                                  0x4C,
+                                  end_addr_6502);
+    assert(p_details->p_postfix_uop == NULL);
+    p_details->p_postfix_uop = p_uop;
     p_details->ends_block = 1;
   }
 
@@ -1957,7 +1964,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   jit_compiler_update_metadata(p_compiler);
 
   if (sub_instruction_addr_6502 != -1) {
-    struct jit_uop tmp_uop;
+    struct asm_uop tmp_uop;
     struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
     void* p_host_address_base = p_compiler->get_block_host_address(
         p_compiler->p_host_address_object, sub_instruction_addr_6502);
