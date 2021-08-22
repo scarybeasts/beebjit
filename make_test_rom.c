@@ -618,7 +618,7 @@ main(int argc, const char* argv[]) {
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_zpg, 0x00);
   emit_CMP(p_buf, k_imm, 0x02);
-  emit_BNE(p_buf, -11);
+  emit_BNE(p_buf, -13);
   emit_LDA(p_buf, k_abs, 0xFE44); /* sysvia T1CL */ /* Clears TIMER1. */
   emit_LDA(p_buf, k_abs, 0xFE4D); /* sysvia IFR */
   emit_AND(p_buf, k_imm, 0x40);   /* TIMER1 */
