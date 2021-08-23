@@ -1822,8 +1822,17 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x77);
   emit_JMP(p_buf, k_abs, 0xDA80);
 
-  /* End of test. */
+  /* x64 rewriter was asserting if it saw SLO as non-abs/zpg mode. */
   set_new_index(p_buf, 0x1A80);
+  emit_LDX(p_buf, k_imm, 0x00);
+  /* SLO zpx.
+   * The compiler sees this when loading Thrust but execution never hits.
+   */
+  util_buffer_add_2b(p_buf, 0x17, 0xF0);
+  emit_JMP(p_buf, k_abs, 0xDAC0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1AC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

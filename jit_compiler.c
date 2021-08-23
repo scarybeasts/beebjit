@@ -760,10 +760,18 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_sed: jit_opcode_make_uop0(p_uop, k_opcode_SED); p_uop++; break;
   case k_sei: jit_opcode_make_uop0(p_uop, k_opcode_SEI); p_uop++; break;
   case k_slo:
-    jit_opcode_make_uop0(p_uop, k_opcode_SLO);
-    p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
-    p_uop++;
+    /* Only send SLO along to the asm backend for the simple mode used by
+     * Zalaga. This avoids the backend having to implement too much for a
+     * non-critical opcode.
+     */
+    if ((opmode == k_abs) || (opmode == k_zpg)) {
+      jit_opcode_make_uop0(p_uop, k_opcode_SLO);
+      p_uop++;
+      jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+      p_uop++;
+    } else {
+      use_interp = 1;
+    }
     break;
   case k_sta: jit_opcode_make_uop0(p_uop, k_opcode_STA); p_uop++; break;
   case k_stx: jit_opcode_make_uop0(p_uop, k_opcode_STX); p_uop++; break;
