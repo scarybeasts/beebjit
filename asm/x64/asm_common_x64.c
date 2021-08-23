@@ -125,8 +125,8 @@ asm_emit_instruction_ILLEGAL(struct util_buffer* p_buf) {
 }
 
 void
-asm_emit_instruction_BIT_common(struct util_buffer* p_buf) {
-  asm_copy(p_buf, asm_instruction_BIT_common, asm_instruction_BIT_common_END);
+asm_emit_instruction_BIT_value(struct util_buffer* p_buf) {
+  asm_copy(p_buf, asm_instruction_BIT_value, asm_instruction_BIT_value_END);
 }
 
 void

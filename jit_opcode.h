@@ -22,7 +22,7 @@ struct jit_opcode_details {
   int32_t max_6502_addr;
 
   /* Partially dynamic details that may be changed by optimization. */
-  uint8_t num_uops;
+  uint32_t num_uops;
   struct asm_uop uops[k_max_uops_per_opcode];
   struct asm_uop* p_prefix_uop;
   struct asm_uop* p_postfix_uop;

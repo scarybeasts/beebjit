@@ -338,7 +338,7 @@ asm_emit_instruction_BEQ_interp_accurate(struct util_buffer* p_buf) {
 void
 asm_emit_instruction_BIT_interp(struct util_buffer* p_buf) {
   asm_copy(p_buf, asm_instruction_BIT_interp, asm_instruction_BIT_interp_END);
-  asm_copy(p_buf, asm_instruction_BIT_common, asm_instruction_BIT_common_END);
+  asm_copy(p_buf, asm_instruction_BIT_value, asm_instruction_BIT_value_END);
 }
 
 void

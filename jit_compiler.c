@@ -151,6 +151,7 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   uint32_t i;
   struct util_buffer* p_tmp_buf;
   uint8_t buf[256];
+  struct asm_uop tmp_uop;
 
   uint32_t max_6502_opcodes_per_block = 65536;
   uint32_t dynamic_trigger = 4;
@@ -233,12 +234,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   /* Note: target pointer is a short jump range, in case the asm backend emits
    * a shorter sequence for that.
   */
-  asm_emit_jit(p_compiler->p_asm,
-               p_tmp_buf,
-               NULL,
-               k_opcode_jump_raw,
-               (intptr_t) NULL,
-               0);
+  jit_opcode_make_uop1(&tmp_uop, k_opcode_JMP, 0);
+  asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   p_compiler->len_asm_jmp = util_buffer_get_pos(p_tmp_buf);
 
   util_buffer_setup(p_tmp_buf, &buf[0], sizeof(buf));
@@ -261,6 +258,48 @@ jit_compiler_destroy(struct jit_compiler* p_compiler) {
   util_free(p_compiler);
 }
 
+static struct jit_opcode_details*
+jit_compiler_get_opcode_for_6502_addr(struct jit_compiler* p_compiler,
+                                      uint16_t addr) {
+  uint16_t start_addr_6502 = p_compiler->start_addr_6502;
+  uint16_t end_addr_6502 = (start_addr_6502 + k_max_addr_space_per_compile);
+  if (addr < start_addr_6502) {
+    return NULL;
+  }
+  if (addr >= end_addr_6502) {
+    return NULL;
+  }
+
+  return &p_compiler->opcode_details[addr - start_addr_6502];
+}
+
+static void*
+jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
+                                   uint16_t addr_6502) {
+  void* p_ret = NULL;
+  struct jit_opcode_details* p_target_details =
+      jit_compiler_get_opcode_for_6502_addr(p_compiler, addr_6502);
+
+  /* If the branch target address is in our currently compiling block, jump
+   * there.
+   * (Disabled as it's part of extended block support.)
+   */
+  if ((p_target_details != NULL) &&
+      (p_target_details->addr_6502 != -1) &&
+      p_target_details->is_branch_landing_addr) {
+    if (p_target_details->p_host_address_prefix_end != NULL) {
+      p_ret = p_target_details->p_host_address_prefix_end;
+    } else {
+      p_compiler->has_unresolved_jumps = 1;
+    }
+  } else {
+    void* p_host_address_object = p_compiler->p_host_address_object;
+    p_ret = p_compiler->get_block_host_address(p_host_address_object,
+                                               addr_6502);
+  }
+  return p_ret;
+}
+
 static void
 jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
                                 struct jit_opcode_details* p_details,
@@ -281,6 +320,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int use_interp = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
+  uint32_t jit_addr = 0;
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
@@ -312,6 +352,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_first_post_debug_uop = p_uop;
   }
 
+  if ((optype == k_adc) || (optype == k_sbc)) {
+    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
+    p_uop++;
+  }
+  if ((optype == k_adc) ||
+      (optype == k_rol) ||
+      (optype == k_ror)) {
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
+    p_uop++;
+  } else if (optype == k_sbc) {
+    /* TODO: get rid of inversion special case and require "carry", not "borrow"
+     * semantics by default from the asm backend?
+     */
+    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC);
+    p_uop++;
+  }
+
   /* Mode resolution and possibly per-mode uops. */
   switch (opmode) {
   case 0:
@@ -320,6 +377,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = 0;
     break;
   case k_imm:
+    if (optype == k_brk) {
+      break;
+    }
     operand_6502 = p_mem_read[addr_plus_1];
     jit_opcode_make_uop1(p_uop, k_opcode_value_set, operand_6502);
     p_uop++;
@@ -359,6 +419,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = p_mem_read[addr_plus_1];
     rel_target_6502 = ((int) addr_6502 + 2 + (int8_t) operand_6502);
     p_details->branch_addr_6502 = rel_target_6502;
+    jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                             rel_target_6502);
     break;
   case k_abs:
   case k_abx:
@@ -366,6 +428,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
     p_details->min_6502_addr = operand_6502;
     p_details->max_6502_addr = operand_6502;
+    if ((optype == k_jmp) || (optype == k_jsr)) {
+      /* JMP / JSR abs isn't really "abs" as it's not fetching data from the
+       * memory address.
+       */
+      break;
+    }
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
     if ((operand_6502 & 0xFF) == 0x00) {
@@ -431,7 +499,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_load_16bit, addr_6502);
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_zpg);
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
@@ -444,7 +512,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_load_16bit, addr_6502);
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_zpg);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
     p_uop++;
@@ -482,10 +550,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Per-type uops. */
   switch (optype) {
   case k_adc:
-    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
-    p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
-    p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_ADC);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
@@ -493,14 +557,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
     p_uop++;
     break;
-  case k_alr:
-    jit_opcode_make_uop0(p_uop, k_opcode_ALR);
-    p_uop++;
-    break;
-  case k_and:
-    jit_opcode_make_uop0(p_uop, k_opcode_AND);
-    p_uop++;
-    break;
+  case k_alr: jit_opcode_make_uop0(p_uop, k_opcode_ALR); p_uop++; break;
+  case k_and: jit_opcode_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
   case k_asl:
     if (opmode == k_acc) {
       jit_opcode_make_uop0(p_uop, k_opcode_ASL_acc);
@@ -515,33 +573,31 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bcc:
     jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_BCC, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BCC, jit_addr);
     p_uop++;
     break;
   case k_bcs:
     jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_BCS, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BCS, jit_addr);
     p_uop++;
     break;
   case k_beq:
-    jit_opcode_make_uop1(p_uop, k_opcode_BEQ, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BEQ, jit_addr);
     p_uop++;
     break;
   case k_bit:
-    jit_opcode_make_uop0(p_uop, k_opcode_BIT);
-    p_uop++;
-    break;
+    jit_opcode_make_uop0(p_uop, k_opcode_BIT); p_uop++; break;
   case k_bmi:
-    jit_opcode_make_uop1(p_uop, k_opcode_BMI, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BMI, jit_addr);
     p_uop++;
     break;
   case k_bne:
-    jit_opcode_make_uop1(p_uop, k_opcode_BNE, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BNE, jit_addr);
     p_uop++;
     break;
   case k_bpl:
-    jit_opcode_make_uop1(p_uop, k_opcode_BPL, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BPL, jit_addr);
     p_uop++;
     break;
   case k_brk:
@@ -563,29 +619,24 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_bvc:
     jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_BVC, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BVC, jit_addr);
     p_uop++;
     break;
   case k_bvs:
     jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_BVS, rel_target_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_BVS, jit_addr);
     p_uop++;
     break;
-  case k_clc:
-    jit_opcode_make_uop0(p_uop, k_opcode_CLC);
-    p_uop++;
-    break;
-  case k_cld:
-    jit_opcode_make_uop0(p_uop, k_opcode_CLD);
-    p_uop++;
-    break;
+  case k_clc: jit_opcode_make_uop0(p_uop, k_opcode_CLC); p_uop++; break;
+  case k_cld: jit_opcode_make_uop0(p_uop, k_opcode_CLD); p_uop++; break;
   case k_cli:
     jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_CLI);
     p_uop++;
     break;
+  case k_clv: jit_opcode_make_uop0(p_uop, k_opcode_CLV); p_uop++; break;
   case k_cmp:
     jit_opcode_make_uop0(p_uop, k_opcode_CMP);
     p_uop++;
@@ -604,46 +655,38 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
     p_uop++;
     break;
-  case k_dec:
-    jit_opcode_make_uop0(p_uop, k_opcode_DEC_value);
-    p_uop++;
-    break;
-  case k_eor:
-    jit_opcode_make_uop0(p_uop, k_opcode_EOR);
-    p_uop++;
-    break;
-  case k_inc:
-    jit_opcode_make_uop0(p_uop, k_opcode_INC_value);
-    p_uop++;
-    break;
+  case k_dec: jit_opcode_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
+  case k_dex: jit_opcode_make_uop0(p_uop, k_opcode_DEX); p_uop++; break;
+  case k_dey: jit_opcode_make_uop0(p_uop, k_opcode_DEY); p_uop++; break;
+  case k_eor: jit_opcode_make_uop0(p_uop, k_opcode_EOR); p_uop++; break;
+  case k_inc: jit_opcode_make_uop0(p_uop, k_opcode_INC_value); p_uop++; break;
+  case k_inx: jit_opcode_make_uop0(p_uop, k_opcode_INX); p_uop++; break;
+  case k_iny: jit_opcode_make_uop0(p_uop, k_opcode_INY); p_uop++; break;
   case k_jmp:
     if (opmode == k_ind) {
       jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
       p_uop++;
     } else {
+      assert(opmode == k_abs);
       p_details->branch_addr_6502 = operand_6502;
-      jit_opcode_make_uop1(p_uop, k_opcode_JMP, operand_6502);
+      jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                               operand_6502);
+      jit_opcode_make_uop1(p_uop, k_opcode_JMP, jit_addr);
       p_uop++;
     }
     break;
   case k_jsr:
+    p_details->branch_addr_6502 = operand_6502;
+    jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                             operand_6502);
     jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP, operand_6502);
+    jit_opcode_make_uop1(p_uop, k_opcode_JMP, jit_addr);
     p_uop++;
     break;
-  case k_lda:
-    jit_opcode_make_uop0(p_uop, k_opcode_LDA);
-    p_uop++;
-    break;
-  case k_ldx:
-    jit_opcode_make_uop0(p_uop, k_opcode_LDX);
-    p_uop++;
-    break;
-  case k_ldy:
-    jit_opcode_make_uop0(p_uop, k_opcode_LDY);
-    p_uop++;
-    break;
+  case k_lda: jit_opcode_make_uop0(p_uop, k_opcode_LDA); p_uop++; break;
+  case k_ldx: jit_opcode_make_uop0(p_uop, k_opcode_LDX); p_uop++; break;
+  case k_ldy: jit_opcode_make_uop0(p_uop, k_opcode_LDY); p_uop++; break;
   case k_lsr:
     if (opmode == k_acc) {
       jit_opcode_make_uop0(p_uop, k_opcode_LSR_acc);
@@ -655,26 +698,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
     p_uop++;
     break;
-  case k_nop:
-    jit_opcode_make_uop0(p_uop, k_opcode_NOP);
-    p_uop++;
-    break;
-  case k_ora:
-    jit_opcode_make_uop0(p_uop, k_opcode_ORA);
-    p_uop++;
-    break;
-  case k_pha:
-    jit_opcode_make_uop0(p_uop, k_opcode_PHA);
-    p_uop++;
-    break;
-  case k_pla:
-    jit_opcode_make_uop0(p_uop, k_opcode_PLA);
-    p_uop++;
-    break;
-  case k_php:
-    jit_opcode_make_uop0(p_uop, k_opcode_PHP);
-    p_uop++;
-    break;
+  case k_nop: jit_opcode_make_uop0(p_uop, k_opcode_NOP); p_uop++; break;
+  case k_ora: jit_opcode_make_uop0(p_uop, k_opcode_ORA); p_uop++; break;
+  case k_pha: jit_opcode_make_uop0(p_uop, k_opcode_PHA); p_uop++; break;
+  case k_pla: jit_opcode_make_uop0(p_uop, k_opcode_PLA); p_uop++; break;
+  case k_php: jit_opcode_make_uop0(p_uop, k_opcode_PHP); p_uop++; break;
   case k_plp:
     jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
     p_uop++;
@@ -682,8 +710,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_rol:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
-    p_uop++;
     if (opmode == k_acc) {
       jit_opcode_make_uop0(p_uop, k_opcode_ROL_acc);
       p_uop++;
@@ -695,8 +721,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_ror:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
-    p_uop++;
     if (opmode == k_acc) {
       jit_opcode_make_uop0(p_uop, k_opcode_ROR_acc);
       p_uop++;
@@ -723,69 +747,43 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
     p_uop++;
     break;
+  case k_sax: jit_opcode_make_uop0(p_uop, k_opcode_SAX); p_uop++; break;
   case k_sbc:
-    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
-    p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC);
+    jit_opcode_make_uop0(p_uop, k_opcode_SBC);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
     p_uop++;
     break;
-  case k_sei:
-    jit_opcode_make_uop0(p_uop, k_opcode_SEI);
-    p_uop++;
-    break;
+  case k_sec: jit_opcode_make_uop0(p_uop, k_opcode_SEC); p_uop++; break;
+  case k_sed: jit_opcode_make_uop0(p_uop, k_opcode_SED); p_uop++; break;
+  case k_sei: jit_opcode_make_uop0(p_uop, k_opcode_SEI); p_uop++; break;
   case k_slo:
     jit_opcode_make_uop0(p_uop, k_opcode_SLO);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
     p_uop++;
     break;
-  case k_sta:
-    jit_opcode_make_uop0(p_uop, k_opcode_STA);
-    p_uop++;
-    break;
-  case k_stx:
-    jit_opcode_make_uop0(p_uop, k_opcode_STX);
-    p_uop++;
-    break;
-  case k_sty:
-    jit_opcode_make_uop0(p_uop, k_opcode_STX);
-    p_uop++;
-    break;
-  case k_tax:
-    jit_opcode_make_uop0(p_uop, k_opcode_TAX);
-    p_uop++;
-    break;
-  case k_tay:
-    jit_opcode_make_uop0(p_uop, k_opcode_TAY);
-    p_uop++;
-    break;
-  case k_tsx:
-    jit_opcode_make_uop0(p_uop, k_opcode_TSX);
-    p_uop++;
-    break;
-  case k_txs:
-    jit_opcode_make_uop0(p_uop, k_opcode_TXS);
-    p_uop++;
-    break;
-  case k_txa:
-    jit_opcode_make_uop0(p_uop, k_opcode_TXA);
-    p_uop++;
-    break;
-  case k_tya:
-    jit_opcode_make_uop0(p_uop, k_opcode_TYA);
-    p_uop++;
-    break;
+  case k_sta: jit_opcode_make_uop0(p_uop, k_opcode_STA); p_uop++; break;
+  case k_stx: jit_opcode_make_uop0(p_uop, k_opcode_STX); p_uop++; break;
+  case k_sty: jit_opcode_make_uop0(p_uop, k_opcode_STY); p_uop++; break;
+  case k_tax: jit_opcode_make_uop0(p_uop, k_opcode_TAX); p_uop++; break;
+  case k_tay: jit_opcode_make_uop0(p_uop, k_opcode_TAY); p_uop++; break;
+  case k_tsx: jit_opcode_make_uop0(p_uop, k_opcode_TSX); p_uop++; break;
+  case k_txs: jit_opcode_make_uop0(p_uop, k_opcode_TXS); p_uop++; break;
+  case k_txa: jit_opcode_make_uop0(p_uop, k_opcode_TXA); p_uop++; break;
+  case k_tya: jit_opcode_make_uop0(p_uop, k_opcode_TYA); p_uop++; break;
   default:
-    assert(0);
+    /* Various undocumented opcodes. */
     use_interp = 1;
     break;
   }
 
-  if (g_optype_changes_nz_flags[optype]) {
+  if (optype == k_slo) {
+    jit_opcode_make_uop0(p_uop, k_opcode_value_store);
+    p_uop++;
+  } else if (g_optype_changes_nz_flags[optype]) {
     switch (g_optype_sets_register[optype]) {
     case k_a:
       jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
@@ -804,6 +802,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
         p_uop++;
       } else if (opmem == (k_opmem_read_flag | k_opmem_write_flag)) {
+        jit_opcode_make_uop0(p_uop, k_opcode_value_store);
+        p_uop++;
         jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_value);
         p_uop++;
       }
@@ -911,82 +911,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->num_uops = (p_uop - &p_details->uops[0]);
   assert(p_details->num_uops <= k_max_uops_per_opcode);
-}
-
-static struct jit_opcode_details*
-jit_compiler_get_opcode_for_6502_addr(struct jit_compiler* p_compiler,
-                                      uint16_t addr) {
-  uint16_t start_addr_6502 = p_compiler->start_addr_6502;
-  uint16_t end_addr_6502 = (start_addr_6502 + k_max_addr_space_per_compile);
-  if (addr < start_addr_6502) {
-    return NULL;
-  }
-  if (addr >= end_addr_6502) {
-    return NULL;
-  }
-
-  return &p_compiler->opcode_details[addr - start_addr_6502];
-}
-
-static void*
-jit_compiler_resolve_branch_target(struct jit_compiler* p_compiler,
-                                   uint16_t addr_6502) {
-  void* p_ret = NULL;
-  struct jit_opcode_details* p_target_details =
-      jit_compiler_get_opcode_for_6502_addr(p_compiler, addr_6502);
-
-  /* If the branch target address is in our currently compiling block, jump
-   * there.
-   * (Disabled as it's part of extended block support.)
-   */
-  if ((p_target_details != NULL) &&
-      (p_target_details->addr_6502 != -1) &&
-      p_target_details->is_branch_landing_addr) {
-    if (p_target_details->p_host_address_prefix_end != NULL) {
-      p_ret = p_target_details->p_host_address_prefix_end;
-    } else {
-      p_compiler->has_unresolved_jumps = 1;
-    }
-  } else {
-    void* p_host_address_object = p_compiler->p_host_address_object;
-    p_ret = p_compiler->get_block_host_address(p_host_address_object,
-                                               addr_6502);
-  }
-  return p_ret;
-}
-
-static void
-jit_compiler_emit_uop(struct jit_compiler* p_compiler,
-                      struct util_buffer* p_dest_buf,
-                      struct util_buffer* p_dest_buf_epilog,
-                      struct asm_uop* p_uop) {
-  int32_t uopcode = p_uop->uopcode;
-  int32_t value1 = p_uop->value1;
-  int32_t value2 = p_uop->value2;
-
-  /* Resolve any addresses to real pointers. */
-  switch (uopcode) {
-  case 0x4C: /* JMP abs; JSR also uses this. */
-  case 0x10: /* All of the conditional branches. */
-  case 0x30:
-  case 0x50:
-  case 0x70:
-  case 0x90:
-  case 0xB0:
-  case 0xD0:
-  case 0xF0:
-    value1 = (intptr_t) jit_compiler_resolve_branch_target(p_compiler, value1);
-    break;
-  default:
-    break;
-  }
-
-  asm_emit_jit(p_compiler->p_asm,
-               p_dest_buf,
-               p_dest_buf_epilog,
-               uopcode,
-               value1,
-               value2);
 }
 
 static void
@@ -1518,6 +1442,19 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
 }
 
 static void
+jit_compiler_asm_rewrite(struct jit_compiler* p_compiler) {
+  struct jit_opcode_details* p_details;
+
+  for (p_details = &p_compiler->opcode_details[0];
+       p_details->addr_6502 != -1;
+       p_details += p_details->num_bytes_6502) {
+    asm_jit_rewrite(p_compiler->p_asm,
+                    &p_details->uops[0],
+                    p_details->num_uops);
+  }
+}
+
+static void
 jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
   struct jit_opcode_details* p_details;
   struct asm_uop* p_uop = NULL;
@@ -1620,10 +1557,10 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       util_buffer_set_base_address(p_single_uopcode_epilog_buf, p_host_address);
       util_buffer_set_pos(p_single_uopcode_buf, 0);
       util_buffer_set_pos(p_single_uopcode_epilog_buf, 0);
-      jit_compiler_emit_uop(p_compiler,
-                            p_single_uopcode_buf,
-                            p_single_uopcode_epilog_buf,
-                            p_uop);
+      asm_emit_jit(p_compiler->p_asm,
+                   p_single_uopcode_buf,
+                   p_single_uopcode_epilog_buf,
+                   p_uop);
 
       epilog_len = util_buffer_get_pos(p_single_uopcode_epilog_buf);
       if (epilog_len > 0) {
@@ -1649,9 +1586,9 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
             (p_host_address_base + util_buffer_get_length(p_tmp_buf));
         p_resume += p_compiler->len_asm_invalidated;
         jit_opcode_make_uop1(&tmp_uop,
-                             k_opcode_jump_raw,
+                             k_opcode_JMP,
                              (int32_t) (uintptr_t) p_resume);
-        jit_compiler_emit_uop(p_compiler, p_tmp_buf, NULL, &tmp_uop);
+        asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
 
         /* Continue compiling the code block in the next host block, after the
          * compile trampoline.
@@ -1687,10 +1624,10 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         epilog_pos -= epilog_len;
         util_buffer_set_base_address(p_single_uopcode_epilog_buf,
                                      (p_host_address_base + epilog_pos));
-        jit_compiler_emit_uop(p_compiler,
-                              p_single_uopcode_buf,
-                              p_single_uopcode_epilog_buf,
-                              p_uop);
+        asm_emit_jit(p_compiler->p_asm,
+                     p_single_uopcode_buf,
+                     p_single_uopcode_epilog_buf,
+                     p_uop);
       }
 
       block_epilog_len += epilog_len;
@@ -1919,19 +1856,22 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * RISC-y uops and combine many of them. e.g. EOR abx can be done in one
    * x64 instruction.
    */
-  /*jit_compiler_asm_rewrite(p_compiler);*/
+  jit_compiler_asm_rewrite(p_compiler);
 
   /* If the block didn't end with an explicit jump, put it in. */
   p_details = p_compiler->p_last_opcode;
   assert(p_details->addr_6502 != -1);
   if (!p_details->ends_block) {
+    uint32_t jit_addr;
     struct asm_uop* p_uop;
     end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
     /* JMP abs */
+    jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                              end_addr_6502);
     p_uop = jit_opcode_insert_uop(p_details,
                                   p_details->num_uops,
-                                  0x4C,
-                                  end_addr_6502);
+                                  k_opcode_JMP,
+                                  jit_addr);
     assert(p_details->p_postfix_uop == NULL);
     p_details->p_postfix_uop = p_uop;
     p_details->ends_block = 1;
@@ -1970,7 +1910,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
         p_compiler->p_host_address_object, sub_instruction_addr_6502);
     util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
     jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
-    jit_compiler_emit_uop(p_compiler, p_tmp_buf, NULL, &tmp_uop);
+    asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   }
 
   end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);

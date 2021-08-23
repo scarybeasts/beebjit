@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+struct asm_uop;
 struct util_buffer;
 
 struct asm_jit_struct;
@@ -35,12 +36,13 @@ int asm_jit_handle_fault(struct asm_jit_struct* p_asm,
 void asm_jit_invalidate_code_at(void* p);
 int asm_jit_is_invalidated_code_at(void* p);
 
+void asm_jit_rewrite(struct asm_jit_struct* p_asm,
+                     struct asm_uop* p_uops,
+                     uint32_t num_uops);
 void asm_emit_jit_invalidated(struct util_buffer* p_buf);
 void asm_emit_jit(struct asm_jit_struct* p_asm,
                   struct util_buffer* p_buf,
                   struct util_buffer* p_buf_epilog,
-                  int32_t uopcode,
-                  uint32_t arg1,
-                  uint32_t arg2);
+                  struct asm_uop* p_uop);
 
 #endif /* BEEBJIT_ASM_JIT_H */

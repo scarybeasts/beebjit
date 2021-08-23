@@ -113,27 +113,27 @@ asm_instruction_ILLEGAL_END:
   ret
 
 
-.globl asm_instruction_BIT_common
-.globl asm_instruction_BIT_common_END
-asm_instruction_BIT_common:
+.globl asm_instruction_BIT_value
+.globl asm_instruction_BIT_value_END
+asm_instruction_BIT_value:
 
   # NOTE: tried alternatives here with pdep, bextr, cmov, but this turned out
   # to be fastest.
   # Load OF.
-  bt REG_SCRATCH1_32, 6
+  bt REG_SCRATCH2_32, 6
   setb REG_6502_OF
   # Load ZF.
-  test REG_SCRATCH1_8, REG_6502_A
-  sete REG_SCRATCH2_8
-  shl REG_SCRATCH2_8, 6
+  test REG_SCRATCH2_8, REG_6502_A
+  sete REG_SCRATCH1_8
+  shl REG_SCRATCH1_8, 6
   # Load NF.
-  and REG_SCRATCH1_8, 0x80
+  and REG_SCRATCH2_8, 0x80
   # Put ZF / NF together.
   or REG_SCRATCH1_8, REG_SCRATCH2_8
   mov ah, REG_SCRATCH1_8
   sahf
 
-asm_instruction_BIT_common_END:
+asm_instruction_BIT_value_END:
   ret
 
 

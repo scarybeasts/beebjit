@@ -20,7 +20,6 @@ enum {
   k_opcode_debug,
   k_opcode_interp,
   k_opcode_inturbo,
-  k_opcode_jump_raw,
   k_opcode_for_testing,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
@@ -29,13 +28,13 @@ enum {
   k_opcode_addr_add_y,
   k_opcode_addr_add_x_8bit,
   k_opcode_addr_add_y_8bit,
-  k_opcode_addr_load,
-  k_opcode_addr_load_16bit,
+  k_opcode_addr_load_16bit_zpg,
 
   /* ALU opcodes, 0x300 - 0x3FF. */
   k_opcode_value_set = 0x300,
   k_opcode_value_load,
   k_opcode_value_load_16bit,
+  k_opcode_value_store,
   k_opcode_ADC,
   k_opcode_ALR,
   k_opcode_AND,
@@ -46,8 +45,12 @@ enum {
   k_opcode_CPX,
   k_opcode_CPY,
   k_opcode_DEC_value,
+  k_opcode_DEX,
+  k_opcode_DEY,
   k_opcode_EOR,
   k_opcode_INC_value,
+  k_opcode_INX,
+  k_opcode_INY,
   k_opcode_LSR_acc,
   k_opcode_LSR_value,
   k_opcode_ORA,
@@ -55,6 +58,7 @@ enum {
   k_opcode_ROL_value,
   k_opcode_ROR_acc,
   k_opcode_ROR_value,
+  k_opcode_SAX,
   k_opcode_SBC,
   k_opcode_SLO,
   k_opcode_flags_nz_a,
@@ -63,7 +67,7 @@ enum {
   k_opcode_flags_nz_value,
 
   /* Non-ALU opcodes, 0x400 - 0x4FF. */
-  k_opcode_BCC,
+  k_opcode_BCC = 0x400,
   k_opcode_BCS,
   k_opcode_BEQ,
   k_opcode_BNE,
@@ -74,6 +78,7 @@ enum {
   k_opcode_CLC,
   k_opcode_CLD,
   k_opcode_CLI,
+  k_opcode_CLV,
   k_opcode_LDA,
   k_opcode_LDX,
   k_opcode_LDY,
@@ -84,6 +89,7 @@ enum {
   k_opcode_PLA,
   k_opcode_PLP,
   k_opcode_SEC,
+  k_opcode_SED,
   k_opcode_SEI,
   k_opcode_STA,
   k_opcode_STX,
@@ -102,7 +108,6 @@ enum {
   k_opcode_ADD_IMM,
   k_opcode_ADD_SCRATCH,
   k_opcode_ADD_SCRATCH_Y,
-  k_opcode_ADDR_CHECK,
   k_opcode_ASL_ACC_n,
   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n,
   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X,
@@ -128,12 +133,8 @@ enum {
   k_opcode_LSR_ACC_n,
   k_opcode_MODE_ABX,
   k_opcode_MODE_ABY,
-  k_opcode_MODE_IND_8,
   k_opcode_MODE_IND_16,
-  k_opcode_MODE_IND_SCRATCH_8,
   k_opcode_MODE_IND_SCRATCH_16,
-  k_opcode_MODE_ZPX,
-  k_opcode_MODE_ZPY,
   k_opcode_PULL_16,
   k_opcode_PUSH_16,
   k_opcode_ROL_ACC_n,
@@ -150,6 +151,10 @@ enum {
   k_opcode_WRITE_INV_SCRATCH,
   k_opcode_WRITE_INV_SCRATCH_n,
   k_opcode_WRITE_INV_SCRATCH_Y,
+
+  /* The asm backends can make their own opcodes from 0x1000, but these are
+   * private and not exposed.
+   */
 };
 
 #endif /* ASM_OPCODES_H */

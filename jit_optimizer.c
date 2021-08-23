@@ -313,8 +313,6 @@ jit_optimizer_uopcode_needs_x(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_ADD_ABX:
     case k_opcode_flags_nz_x:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ZPX:
       ret = 1;
       break;
     default:
@@ -384,7 +382,6 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_flags_nz_y:
     case k_opcode_MODE_ABY:
-    case k_opcode_MODE_ZPY:
     case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 1;
       break;
@@ -397,10 +394,12 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
 
 static int
 jit_optimizer_uop_idy_match(struct asm_uop* p_uop, struct asm_uop* p_idy_uop) {
-  if ((p_uop->uopcode == k_opcode_MODE_IND_8) &&
+/*  if ((p_uop->uopcode == k_opcode_MODE_IND_8) &&
       (p_uop->value1 == p_idy_uop->value1)) {
     return 1;
-  }
+  }*/
+  (void) p_uop;
+  (void) p_idy_uop;
   return 0;
 }
 
@@ -546,12 +545,8 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_LOAD_SCRATCH_16:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND_8:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_8:
     case k_opcode_MODE_IND_SCRATCH_16:
-    case k_opcode_MODE_ZPX:
-    case k_opcode_MODE_ZPY:
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
@@ -634,12 +629,8 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_LSR_ACC_n:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
-    case k_opcode_MODE_IND_8:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_8:
     case k_opcode_MODE_IND_SCRATCH_16:
-    case k_opcode_MODE_ZPX:
-    case k_opcode_MODE_ZPY:
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
@@ -1218,10 +1209,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
       case k_opcode_flags_nz_value:
         p_nz_flags_opcode = p_opcode;
         p_nz_flags_uop = p_uop;
-        break;
-      case k_opcode_MODE_IND_8:
-        p_idy_opcode = p_opcode;
-        p_idy_uop = p_uop;
         break;
       default:
         break;

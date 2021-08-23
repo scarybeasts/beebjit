@@ -1766,8 +1766,59 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x5F);
   emit_JMP(p_buf, k_abs, 0xD980);
 
-  /* End of test. */
+  /* Yet more opcodes, found in x64 asm redo. */
   set_new_index(p_buf, 0x1980);
+  emit_LDA(p_buf, k_imm, 0x77);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_aby, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x77);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_CMP(p_buf, k_abx, 0x1000);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDA(p_buf, k_imm, 0xAA);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_AND(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x0A);
+  emit_LDA(p_buf, k_imm, 0x11);
+  emit_ORA(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0xBB);
+  emit_JMP(p_buf, k_abs, 0xD9C0);
+
+  /* Test failure to manage RMW NZ flags correctly. */
+  set_new_index(p_buf, 0x19C0);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_INC(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_INC(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_INC(p_buf, k_abx, 0x00F0);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_INC(p_buf, k_abx, 0x00F0);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xDA00);
+
+  /* Nothing was testing mode zpx RMW instructions?? */
+  set_new_index(p_buf, 0x1A00);
+  emit_LDA(p_buf, k_imm, 0x76);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_INC(p_buf, k_zpx, 0xEF);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x77);
+  emit_JMP(p_buf, k_abs, 0xDA40);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1A40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
