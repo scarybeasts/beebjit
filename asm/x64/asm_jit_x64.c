@@ -1992,6 +1992,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_ADC_ABS: ASM_ADDR_U32(ADC_ABS); break;
   case k_opcode_x64_ADC_ABX: ASM_ADDR_U32_RAW(ADC_ABX); break;
   case k_opcode_x64_ADC_ABY: ASM_ADDR_U32_RAW(ADC_ABY); break;
+  case k_opcode_x64_ADC_addr: ASM(ADC_addr); break;
   case k_opcode_x64_ADC_addr_Y: ASM(ADC_addr_Y); break;
   case k_opcode_x64_ADC_IMM: ASM_U8(ADC_IMM); break;
   case k_opcode_x64_ADC_ZPG: ASM_ADDR_U8(ADC_ZPG); break;
