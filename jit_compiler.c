@@ -1486,8 +1486,8 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
                                     k_opcode_countdown,
                                     p_details->addr_6502);
       p_details->cycles_run_start = 0;
-      assert(p_details->p_prefix_uop == NULL);
-      p_details->p_prefix_uop = p_uop;
+      assert(!p_details->has_prefix_uop);
+      p_details->has_prefix_uop = 1;
       p_details_fixup = p_details;
     }
 
@@ -1548,7 +1548,8 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       void* p_host_address;
       uint32_t epilog_len;
       int needs_reemit;
-      int is_prefix_or_postfix;
+      int is_prefix_uop;
+      int is_postfix_uop;
       uint32_t epilog_pos;
       struct asm_uop* p_uop = &p_details->uops[i_uops];
 
@@ -1648,16 +1649,17 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
        * The prefix code start will be used as a branch target for branches
        * within a block.
        */
-      is_prefix_or_postfix = (p_uop == p_details->p_prefix_uop);
-      is_prefix_or_postfix |= (p_uop == p_details->p_postfix_uop);
-      if (!is_prefix_or_postfix) {
+      is_prefix_uop = ((i_uops == 0) && p_details->has_prefix_uop);
+      is_postfix_uop = ((i_uops == (num_uops - 1)) &&
+                        p_details->has_postfix_uop);
+      if (!is_prefix_uop && !is_postfix_uop) {
         if (p_details->p_host_address_start == NULL) {
           p_details->p_host_address_start = p_host_address;
         }
       }
 
       util_buffer_append(p_tmp_buf, p_single_uopcode_buf);
-      if (is_prefix_or_postfix) {
+      if (is_prefix_uop) {
         p_details->p_host_address_prefix_end =
             (p_host_address_base + util_buffer_get_pos(p_tmp_buf));
       }
@@ -1871,17 +1873,16 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   assert(p_details->addr_6502 != -1);
   if (!p_details->ends_block) {
     uint32_t jit_addr;
-    struct asm_uop* p_uop;
     end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
     /* JMP abs */
     jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
                                                               end_addr_6502);
-    p_uop = jit_opcode_insert_uop(p_details,
-                                  p_details->num_uops,
-                                  k_opcode_JMP,
-                                  jit_addr);
-    assert(p_details->p_postfix_uop == NULL);
-    p_details->p_postfix_uop = p_uop;
+    (void) jit_opcode_insert_uop(p_details,
+                                 p_details->num_uops,
+                                 k_opcode_JMP,
+                                 jit_addr);
+    assert(!p_details->has_postfix_uop);
+    p_details->has_postfix_uop = 1;
     p_details->ends_block = 1;
   }
 

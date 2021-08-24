@@ -24,8 +24,8 @@ struct jit_opcode_details {
   /* Partially dynamic details that may be changed by optimization. */
   uint32_t num_uops;
   struct asm_uop uops[k_max_uops_per_opcode];
-  struct asm_uop* p_prefix_uop;
-  struct asm_uop* p_postfix_uop;
+  int has_prefix_uop;
+  int has_postfix_uop;
 
   /* Dynamic details that are calculated as compilation proceeds. */
   int ends_block;

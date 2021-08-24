@@ -1831,8 +1831,25 @@ main(int argc, const char* argv[]) {
   util_buffer_add_2b(p_buf, 0x17, 0xF0);
   emit_JMP(p_buf, k_abs, 0xDAC0);
 
-  /* End of test. */
+  /* Test a nasty regression with prefix / postfix tracking that was not caught
+   * by the test.
+   */
   set_new_index(p_buf, 0x1AC0);
+  /* Create block with just RTS at $31C1. */
+  emit_JSR(p_buf, 0x31C1);
+  /* Create block with just CLC at $31C0. It falls through to the RTS. */
+  emit_JSR(p_buf, 0x31C0);
+  /* Modify the CLC to NOP. */
+  emit_LDA(p_buf, k_imm, 0xEA);
+  emit_STA(p_buf, k_abs, 0x31C0);
+  /* It should no longer have a CLC side effect! */
+  emit_SEC(p_buf);
+  emit_JSR(p_buf, 0x31C0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xDB00);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1B00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -2010,6 +2027,11 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_zpg, 0xA0);
   emit_ROR(p_buf, k_zpg, 0xA0);
   emit_REQUIRE_NF(p_buf, 1);
+  emit_RTS(p_buf);
+
+  /* For testing a regression with JIT prefix / postfix. */
+  set_new_index(p_buf, 0x31C0);
+  emit_CLC(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

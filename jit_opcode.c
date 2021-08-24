@@ -106,13 +106,17 @@ jit_opcode_eliminate(struct jit_opcode_details* p_opcode) {
   uint32_t num_uops = p_opcode->num_uops;
 
   for (i = 0; i < num_uops; ++i) {
-    struct asm_uop* p_uop = &p_opcode->uops[i];
-    if (p_uop == p_opcode->p_prefix_uop) {
-      continue;
+    struct asm_uop* p_uop;
+    if (i == 0) {
+      if (p_opcode->has_prefix_uop) {
+        continue;
+      }
+    } else if (i == (num_uops - 1)) {
+      if (p_opcode->has_postfix_uop) {
+        continue;
+      }
     }
-    if (p_uop == p_opcode->p_postfix_uop) {
-      continue;
-    }
+    p_uop = &p_opcode->uops[i];
     p_uop->is_eliminated = 1;
   }
 }
