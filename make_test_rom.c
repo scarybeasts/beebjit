@@ -246,10 +246,16 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_REQUIRE_OF(p_buf, 1);
   emit_REQUIRE_NF(p_buf, 1);
-  emit_JMP(p_buf, k_abs, 0xC300);
+  emit_LDA(p_buf, k_imm, 0x0F);
+  emit_STA(p_buf, k_abs, 0x7000);
+  emit_BIT(p_buf, k_abs, 0x7000);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_OF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_JMP(p_buf, k_abs, 0xC320);
 
   /* Test RTI. */
-  set_new_index(p_buf, 0x0300);
+  set_new_index(p_buf, 0x0320);
   emit_LDA(p_buf, k_imm, 0xC3);
   emit_PHA(p_buf);
   emit_LDA(p_buf, k_imm, 0x40);
@@ -1848,8 +1854,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xDB00);
 
-  /* End of test. */
+  /* A few odds and ends noticed as untested in the ARM64 asm redo. */
   set_new_index(p_buf, 0x1B00);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_AND(p_buf, k_imm, 0x41);
+  emit_REQUIRE_EQ(p_buf, 0x41);
+  emit_LDA(p_buf, k_imm, 0xAA);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xA0);
+  emit_EOR(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x0A);
+  emit_LDA(p_buf, k_imm, 0x85);
+  emit_STA(p_buf, k_abs, 0x7000);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_CMP(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_LSR(p_buf, k_abx, 0x6FFF);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xDB40);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1B40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
