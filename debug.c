@@ -972,7 +972,7 @@ debug_check_unusual(struct debug_struct* p_debug,
 
   if ((optype >= k_first_6502_undocumented) &&
       (optype <= k_last_6502_undocumented)) {
-    (void) printf("DEBUG: undocumented opcode %.2X at $%.4"PRIX16"\n",
+    (void) printf("DEBUG: undocumented opcode $%.2X at $%.4"PRIX16"\n",
                   opcode,
                   p_debug->reg_pc);
     warned = 1;
