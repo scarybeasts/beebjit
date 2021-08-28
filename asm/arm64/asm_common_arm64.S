@@ -49,23 +49,23 @@ asm_enter_common_END:
   ret
 
 
-.globl asm_instruction_BIT_common
-.globl asm_instruction_BIT_common_END
-asm_instruction_BIT_common:
+.globl asm_instruction_BIT_value
+.globl asm_instruction_BIT_value_END
+asm_instruction_BIT_value:
 
-  tst REG_6502_A, REG_SCRATCH1
+  tst REG_6502_A, REG_SCRATCH2
+  # O flag
+  ubfx REG_6502_OF, REG_SCRATCH2, #6, #1
+  # N flag
+  ubfx REG_SCRATCH3, REG_SCRATCH2, #7, #1
   # Z flag
   cset REG_SCRATCH2, eq
   lsl REG_SCRATCH2, REG_SCRATCH2, #30
-  # N flag
-  ubfx REG_SCRATCH3, REG_SCRATCH1, #7, #1
   lsl REG_SCRATCH3, REG_SCRATCH3, #31
   add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
   msr nzcv, REG_SCRATCH2
-  # O flag
-  ubfx REG_6502_OF, REG_SCRATCH1, #6, #1
 
-asm_instruction_BIT_common_END:
+asm_instruction_BIT_value_END:
   ret
 
 

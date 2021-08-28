@@ -419,7 +419,7 @@ asm_emit_instruction_BIT_interp(struct util_buffer* p_buf) {
   void asm_instruction_BIT_interp(void);
   void asm_instruction_BIT_interp_END(void);
   asm_copy(p_buf, asm_instruction_BIT_interp, asm_instruction_BIT_interp_END);
-  asm_emit_instruction_BIT_common(p_buf);
+  asm_emit_instruction_BIT_value(p_buf);
 }
 
 void
