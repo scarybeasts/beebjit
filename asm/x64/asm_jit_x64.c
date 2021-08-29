@@ -199,7 +199,7 @@ asm_emit_jit_jump(struct util_buffer* p_buf,
   }
 }
 
-void
+static void
 asm_emit_jit_jump_interp_trampoline(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_jump_interp_trampoline(void);
   void asm_jit_jump_interp_trampoline_pc_patch(void);
@@ -459,7 +459,7 @@ asm_emit_jit_invalidated(struct util_buffer* p_buf) {
   util_buffer_add_2b(p_buf, 0xff, 0x17);
 }
 
-void
+static void
 asm_emit_jit_check_countdown(struct util_buffer* p_buf,
                              struct util_buffer* p_buf_epilog,
                              uint32_t count,
@@ -509,7 +509,7 @@ asm_emit_jit_check_countdown(struct util_buffer* p_buf,
   }
 }
 
-void
+static void
 asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_call_debug(void);
   void asm_jit_call_debug_pc_patch(void);
@@ -530,7 +530,7 @@ asm_emit_jit_call_debug(struct util_buffer* p_buf, uint16_t addr) {
                  asm_debug);
 }
 
-void
+static void
 asm_emit_jit_call_inturbo(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_call_inturbo(void);
   void asm_jit_call_inturbo_pc_patch(void);
@@ -545,7 +545,7 @@ asm_emit_jit_call_inturbo(struct util_buffer* p_buf, uint16_t addr) {
                 (addr + K_BBC_MEM_READ_FULL_ADDR));
 }
 
-void
+static void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_jump_interp(void);
   void asm_jit_jump_interp_pc_patch(void);
@@ -573,21 +573,21 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
                  asm_jit_interp);
 }
 
-void
+static void
 asm_emit_jit_for_testing(struct util_buffer* p_buf) {
   void asm_jit_for_testing(void);
   void asm_jit_for_testing_END(void);
   asm_copy(p_buf, asm_jit_for_testing, asm_jit_for_testing_END);
 }
 
-void
+static void
 asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_ADD_CYCLES(void);
   void asm_jit_ADD_CYCLES_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_ADD_CYCLES, asm_jit_ADD_CYCLES_END, value);
 }
 
-void
+static void
 asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
@@ -609,7 +609,7 @@ asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
   }
 }
 
-void
+static void
 asm_emit_jit_ADD_ABX(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
@@ -621,7 +621,7 @@ asm_emit_jit_ADD_ABX(struct util_buffer* p_buf,
                      (addr + segment));
 }
 
-void
+static void
 asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
@@ -633,14 +633,14 @@ asm_emit_jit_ADD_ABY(struct util_buffer* p_buf,
                      (addr + segment));
 }
 
-void
+static void
 asm_emit_jit_ADD_IMM(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_ADD_IMM(void);
   void asm_jit_ADD_IMM_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_ADD_IMM, asm_jit_ADD_IMM_END, value);
 }
 
-void
+static void
 asm_emit_jit_ADD_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
   void asm_jit_ADD_SCRATCH(void);
   void asm_jit_ADD_SCRATCH_END(void);
@@ -650,14 +650,14 @@ asm_emit_jit_ADD_SCRATCH(struct util_buffer* p_buf, uint8_t offset) {
                      (K_BBC_MEM_READ_IND_ADDR + offset));
 }
 
-void
+static void
 asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
   void asm_jit_ADD_SCRATCH_Y(void);
   void asm_jit_ADD_SCRATCH_Y_END(void);
   asm_copy(p_buf, asm_jit_ADD_SCRATCH_Y, asm_jit_ADD_SCRATCH_Y_END);
 }
 
-void
+static void
 asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
                        struct util_buffer* p_epilog_buf,
                        uint16_t addr) {
@@ -668,7 +668,7 @@ asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
   asm_copy(p_buf, asm_jit_CHECK_BCD, asm_jit_CHECK_BCD_END);
 }
 
-void
+static void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
                                            uint8_t n) {
   void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n(void);
@@ -686,7 +686,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
                 (K_ASM_TABLE_PAGE_WRAP_CYCLE_INV + n));
 }
 
-void
+static void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
   void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X(void);
   void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END(void);
@@ -695,7 +695,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
            asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END);
 }
 
-void
+static void
 asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
   void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(void);
   void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END(void);
@@ -704,7 +704,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
            asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END);
 }
 
-void
+static void
 asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
                                      uint16_t addr) {
   void asm_jit_CHECK_PAGE_CROSSING_X_n(void);
@@ -726,7 +726,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
                 value);
 }
 
-void
+static void
 asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_CHECK_PAGE_CROSSING_Y_n(void);
   void asm_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch(void);
@@ -747,7 +747,7 @@ asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(struct util_buffer* p_buf, uint16_t addr) {
                 value);
 }
 
-void
+static void
 asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                                struct util_buffer* p_buf_epilog,
                                uint16_t addr,
@@ -768,21 +768,21 @@ asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
                  p_trampoline);
 }
 
-void
+static void
 asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
   void asm_jit_CLEAR_CARRY(void);
   void asm_jit_CLEAR_CARRY_END(void);
   asm_copy(p_buf, asm_jit_CLEAR_CARRY, asm_jit_CLEAR_CARRY_END);
 }
 
-void
+static void
 asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
   void asm_jit_INVERT_CARRY(void);
   void asm_jit_INVERT_CARRY_END(void);
   asm_copy(p_buf, asm_jit_INVERT_CARRY, asm_jit_INVERT_CARRY_END);
 }
 
-void
+static void
 asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
   void asm_jit_JMP_SCRATCH_n(void);
   void asm_jit_JMP_SCRATCH_n_lea_patch(void);
@@ -796,28 +796,28 @@ asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
                 ((K_BBC_JIT_ADDR >> K_BBC_JIT_BYTES_SHIFT) + n));
 }
 
-void
+static void
 asm_emit_jit_LDA_Z(struct util_buffer* p_buf) {
   void asm_jit_LDA_Z(void);
   void asm_jit_LDA_Z_END(void);
   asm_copy(p_buf, asm_jit_LDA_Z, asm_jit_LDA_Z_END);
 }
 
-void
+static void
 asm_emit_jit_LDX_Z(struct util_buffer* p_buf) {
   void asm_jit_LDX_Z(void);
   void asm_jit_LDX_Z_END(void);
   asm_copy(p_buf, asm_jit_LDX_Z, asm_jit_LDX_Z_END);
 }
 
-void
+static void
 asm_emit_jit_LDY_Z(struct util_buffer* p_buf) {
   void asm_jit_LDY_Z(void);
   void asm_jit_LDY_Z_END(void);
   asm_copy(p_buf, asm_jit_LDY_Z, asm_jit_LDY_Z_END);
 }
 
-void
+static void
 asm_emit_jit_LOAD_CARRY_FOR_BRANCH(struct util_buffer* p_buf) {
   void asm_jit_LOAD_CARRY_FOR_BRANCH(void);
   void asm_jit_LOAD_CARRY_FOR_BRANCH_END(void);
@@ -826,7 +826,7 @@ asm_emit_jit_LOAD_CARRY_FOR_BRANCH(struct util_buffer* p_buf) {
            asm_jit_LOAD_CARRY_FOR_BRANCH_END);
 }
 
-void
+static void
 asm_emit_jit_LOAD_CARRY_FOR_CALC(struct util_buffer* p_buf) {
   void asm_jit_LOAD_CARRY_FOR_CALC(void);
   void asm_jit_LOAD_CARRY_FOR_CALC_END(void);
@@ -835,7 +835,7 @@ asm_emit_jit_LOAD_CARRY_FOR_CALC(struct util_buffer* p_buf) {
            asm_jit_LOAD_CARRY_FOR_CALC_END);
 }
 
-void
+static void
 asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(struct util_buffer* p_buf) {
   void asm_jit_LOAD_CARRY_INV_FOR_CALC(void);
   void asm_jit_LOAD_CARRY_INV_FOR_CALC_END(void);
@@ -844,14 +844,14 @@ asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(struct util_buffer* p_buf) {
            asm_jit_LOAD_CARRY_INV_FOR_CALC_END);
 }
 
-void
+static void
 asm_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf) {
   void asm_jit_LOAD_OVERFLOW(void);
   void asm_jit_LOAD_OVERFLOW_END(void);
   asm_copy(p_buf, asm_jit_LOAD_OVERFLOW, asm_jit_LOAD_OVERFLOW_END);
 }
 
-void
+static void
 asm_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_LOAD_SCRATCH_8(void);
   void asm_jit_LOAD_SCRATCH_8_END(void);
@@ -861,7 +861,7 @@ asm_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
                      (addr - REG_MEM_OFFSET));
 }
 
-void
+static void
 asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_MODE_IND_16(void);
   void asm_jit_MODE_IND_16_mov1_patch(void);
@@ -882,21 +882,21 @@ asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
                 ((addr + 1) - REG_MEM_OFFSET));
 }
 
-void
+static void
 asm_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_MODE_ABX(void);
   void asm_jit_MODE_ABX_END(void);
   asm_copy_patch_u32(p_buf, asm_jit_MODE_ABX, asm_jit_MODE_ABX_END, addr);
 }
 
-void
+static void
 asm_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_MODE_ABY(void);
   void asm_jit_MODE_ABY_END(void);
   asm_copy_patch_u32(p_buf, asm_jit_MODE_ABY, asm_jit_MODE_ABY_END, addr);
 }
 
-void
+static void
 asm_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
   void asm_jit_MODE_IND_8(void);
   void asm_jit_MODE_IND_8_mov1_patch(void);
@@ -925,7 +925,7 @@ asm_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
                  (next_addr - REG_MEM_OFFSET));
 }
 
-void
+static void
 asm_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_MODE_IND_16(void);
   void asm_jit_MODE_IND_16_mov1_patch(void);
@@ -957,14 +957,14 @@ asm_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
                 (next_addr - REG_MEM_OFFSET + delta));
 }
 
-void
+static void
 asm_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf) {
   void asm_jit_MODE_IND_SCRATCH_16(void);
   void asm_jit_MODE_IND_SCRATCH_16_END(void);
   asm_copy(p_buf, asm_jit_MODE_IND_SCRATCH_16, asm_jit_MODE_IND_SCRATCH_16_END);
 }
 
-void
+static void
 asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_MODE_ZPX_8bit(void);
   void asm_jit_MODE_ZPX_8bit_lea_patch(void);
@@ -991,7 +991,7 @@ asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   }
 }
 
-void
+static void
 asm_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_MODE_ZPY_8bit(void);
   void asm_jit_MODE_ZPY_8bit_lea_patch(void);
@@ -1018,14 +1018,14 @@ asm_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
   }
 }
 
-void
+static void
 asm_emit_jit_PULL_16(struct util_buffer* p_buf) {
   void asm_jit_PULL_16(void);
   void asm_jit_PULL_16_END(void);
   asm_copy(p_buf, asm_jit_PULL_16, asm_jit_PULL_16_END);
 }
 
-void
+static void
 asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
   void asm_jit_PUSH_16(void);
   void asm_jit_PUSH_16_word_patch(void);
@@ -1040,35 +1040,35 @@ asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
                 value);
 }
 
-void
+static void
 asm_emit_jit_SAVE_CARRY(struct util_buffer* p_buf) {
   void asm_jit_SAVE_CARRY(void);
   void asm_jit_SAVE_CARRY_END(void);
   asm_copy(p_buf, asm_jit_SAVE_CARRY, asm_jit_SAVE_CARRY_END);
 }
 
-void
+static void
 asm_emit_jit_SAVE_CARRY_INV(struct util_buffer* p_buf) {
   void asm_jit_SAVE_CARRY_INV(void);
   void asm_jit_SAVE_CARRY_INV_END(void);
   asm_copy(p_buf, asm_jit_SAVE_CARRY_INV, asm_jit_SAVE_CARRY_INV_END);
 }
 
-void
+static void
 asm_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf) {
   void asm_jit_SAVE_OVERFLOW(void);
   void asm_jit_SAVE_OVERFLOW_END(void);
   asm_copy(p_buf, asm_jit_SAVE_OVERFLOW, asm_jit_SAVE_OVERFLOW_END);
 }
 
-void
+static void
 asm_emit_jit_SET_CARRY(struct util_buffer* p_buf) {
   void asm_jit_SET_CARRY(void);
   void asm_jit_SET_CARRY_END(void);
   asm_copy(p_buf, asm_jit_SET_CARRY, asm_jit_SET_CARRY_END);
 }
 
-void
+static void
 asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
   void asm_jit_STOA_IMM(void);
   void asm_jit_STOA_IMM_END(void);
@@ -1103,7 +1103,7 @@ asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
   }
 }
 
-void
+static void
 asm_emit_jit_SUB_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
@@ -1125,14 +1125,14 @@ asm_emit_jit_SUB_ABS(struct util_buffer* p_buf,
   }
 }
 
-void
+static void
 asm_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_SUB_IMM(void);
   void asm_jit_SUB_IMM_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_SUB_IMM, asm_jit_SUB_IMM_END, value);
 }
 
-void
+static void
 asm_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_WRITE_INV_ABS(void);
   void asm_jit_WRITE_INV_ABS_offset_patch(void);
@@ -1147,14 +1147,14 @@ asm_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr) {
                 (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (addr * sizeof(uint32_t))));
 }
 
-void
+static void
 asm_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
   void asm_jit_WRITE_INV_SCRATCH(void);
   void asm_jit_WRITE_INV_SCRATCH_END(void);
   asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH, asm_jit_WRITE_INV_SCRATCH_END);
 }
 
-void
+static void
 asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_WRITE_INV_SCRATCH_n_8bit(void);
   void asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch(void);
@@ -1186,14 +1186,14 @@ asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
   }
 }
 
-void
+static void
 asm_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
   void asm_jit_WRITE_INV_SCRATCH_Y(void);
   void asm_jit_WRITE_INV_SCRATCH_Y_END(void);
   asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH_Y, asm_jit_WRITE_INV_SCRATCH_Y_END);
 }
 
-void
+static void
 asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_ALR_IMM(void);
   void asm_jit_ALR_IMM_patch_byte(void);
@@ -1208,47 +1208,28 @@ asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
                  value);
 }
 
-void
+static void
 asm_emit_jit_ASL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   void asm_jit_ASL_ACC_n(void);
   void asm_jit_ASL_ACC_n_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_ASL_ACC_n, asm_jit_ASL_ACC_n_END, n);
 }
 
-void
+static void
 asm_emit_jit_LDA_SCRATCH_X(struct util_buffer* p_buf) {
   void asm_jit_LDA_SCRATCH_X(void);
   void asm_jit_LDA_SCRATCH_X_END(void);
   asm_copy(p_buf, asm_jit_LDA_SCRATCH_X, asm_jit_LDA_SCRATCH_X_END);
 }
 
-void
+static void
 asm_emit_jit_LSR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   void asm_jit_LSR_ACC_n(void);
   void asm_jit_LSR_ACC_n_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_LSR_ACC_n, asm_jit_LSR_ACC_n_END, n);
 }
 
-void
-asm_emit_jit_ROL_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_ROL_ZPG(void);
-  void asm_jit_ROL_ZPG_END(void);
-  void asm_jit_ROL_ABS(void);
-  void asm_jit_ROL_ABS_END(void);
-  if (addr < 0x100) {
-    asm_copy_patch_byte(p_buf,
-                        asm_jit_ROL_ZPG,
-                        asm_jit_ROL_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
-  } else {
-    asm_copy_patch_u32(p_buf,
-                       asm_jit_ROL_ABS,
-                       asm_jit_ROL_ABS_END,
-                       (addr - REG_MEM_OFFSET));
-  }
-}
-
-void
+static void
 asm_emit_jit_ROL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   void asm_jit_ROL_ACC_n(void);
   void asm_jit_ROL_ACC_n_END(void);
@@ -1258,33 +1239,14 @@ asm_emit_jit_ROL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
                           n);
 }
 
-void
-asm_emit_jit_ROR_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_ROR_ZPG(void);
-  void asm_jit_ROR_ZPG_END(void);
-  void asm_jit_ROR_ABS(void);
-  void asm_jit_ROR_ABS_END(void);
-  if (addr < 0x100) {
-    asm_copy_patch_byte(p_buf,
-                        asm_jit_ROR_ZPG,
-                        asm_jit_ROR_ZPG_END,
-                        (addr - REG_MEM_OFFSET));
-  } else {
-    asm_copy_patch_u32(p_buf,
-                       asm_jit_ROR_ABS,
-                       asm_jit_ROR_ABS_END,
-                       (addr - REG_MEM_OFFSET));
-  }
-}
-
-void
+static void
 asm_emit_jit_ROR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   void asm_jit_ROR_ACC_n(void);
   void asm_jit_ROR_ACC_n_END(void);
   asm_copy_patch_byte(p_buf, asm_jit_ROR_ACC_n, asm_jit_ROR_ACC_n_END, n);
 }
 
-void
+static void
 asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_SLO_ABS(void);
   void asm_jit_SLO_ABS_mov1_patch(void);

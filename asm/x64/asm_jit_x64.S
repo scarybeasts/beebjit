@@ -1802,7 +1802,7 @@ asm_jit_ROL_ZPG:
 asm_jit_ROL_ZPG_END:
   ret
 
-
+# TODO: restore single RMW instruction where possible.
 .globl asm_jit_ROR_ABS
 .globl asm_jit_ROR_ABS_END
 asm_jit_ROR_ABS:
