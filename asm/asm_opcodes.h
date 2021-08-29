@@ -20,7 +20,6 @@ enum {
   k_opcode_debug,
   k_opcode_interp,
   k_opcode_inturbo,
-  k_opcode_for_testing,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_set = 0x200,

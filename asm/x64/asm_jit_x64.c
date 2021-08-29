@@ -574,20 +574,6 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 static void
-asm_emit_jit_for_testing(struct util_buffer* p_buf) {
-  void asm_jit_for_testing(void);
-  void asm_jit_for_testing_END(void);
-  asm_copy(p_buf, asm_jit_for_testing, asm_jit_for_testing_END);
-}
-
-static void
-asm_emit_jit_ADD_CYCLES(struct util_buffer* p_buf, uint8_t value) {
-  void asm_jit_ADD_CYCLES(void);
-  void asm_jit_ADD_CYCLES_END(void);
-  asm_copy_patch_byte(p_buf, asm_jit_ADD_CYCLES, asm_jit_ADD_CYCLES_END, value);
-}
-
-static void
 asm_emit_jit_ADD_ABS(struct util_buffer* p_buf,
                      uint16_t addr,
                      uint32_t segment) {
@@ -655,17 +641,6 @@ asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
   void asm_jit_ADD_SCRATCH_Y(void);
   void asm_jit_ADD_SCRATCH_Y_END(void);
   asm_copy(p_buf, asm_jit_ADD_SCRATCH_Y, asm_jit_ADD_SCRATCH_Y_END);
-}
-
-static void
-asm_emit_jit_CHECK_BCD(struct util_buffer* p_buf,
-                       struct util_buffer* p_epilog_buf,
-                       uint16_t addr) {
-  void asm_jit_CHECK_BCD(void);
-  void asm_jit_CHECK_BCD_END(void);
-  (void) p_epilog_buf;
-  (void) addr;
-  asm_copy(p_buf, asm_jit_CHECK_BCD, asm_jit_CHECK_BCD_END);
 }
 
 static void
@@ -769,20 +744,6 @@ asm_emit_jit_CHECK_PENDING_IRQ(struct util_buffer* p_buf,
 }
 
 static void
-asm_emit_jit_CLEAR_CARRY(struct util_buffer* p_buf) {
-  void asm_jit_CLEAR_CARRY(void);
-  void asm_jit_CLEAR_CARRY_END(void);
-  asm_copy(p_buf, asm_jit_CLEAR_CARRY, asm_jit_CLEAR_CARRY_END);
-}
-
-static void
-asm_emit_jit_INVERT_CARRY(struct util_buffer* p_buf) {
-  void asm_jit_INVERT_CARRY(void);
-  void asm_jit_INVERT_CARRY_END(void);
-  asm_copy(p_buf, asm_jit_INVERT_CARRY, asm_jit_INVERT_CARRY_END);
-}
-
-static void
 asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
   void asm_jit_JMP_SCRATCH_n(void);
   void asm_jit_JMP_SCRATCH_n_lea_patch(void);
@@ -818,40 +779,6 @@ asm_emit_jit_LDY_Z(struct util_buffer* p_buf) {
 }
 
 static void
-asm_emit_jit_LOAD_CARRY_FOR_BRANCH(struct util_buffer* p_buf) {
-  void asm_jit_LOAD_CARRY_FOR_BRANCH(void);
-  void asm_jit_LOAD_CARRY_FOR_BRANCH_END(void);
-  asm_copy(p_buf,
-           asm_jit_LOAD_CARRY_FOR_BRANCH,
-           asm_jit_LOAD_CARRY_FOR_BRANCH_END);
-}
-
-static void
-asm_emit_jit_LOAD_CARRY_FOR_CALC(struct util_buffer* p_buf) {
-  void asm_jit_LOAD_CARRY_FOR_CALC(void);
-  void asm_jit_LOAD_CARRY_FOR_CALC_END(void);
-  asm_copy(p_buf,
-           asm_jit_LOAD_CARRY_FOR_CALC,
-           asm_jit_LOAD_CARRY_FOR_CALC_END);
-}
-
-static void
-asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(struct util_buffer* p_buf) {
-  void asm_jit_LOAD_CARRY_INV_FOR_CALC(void);
-  void asm_jit_LOAD_CARRY_INV_FOR_CALC_END(void);
-  asm_copy(p_buf,
-           asm_jit_LOAD_CARRY_INV_FOR_CALC,
-           asm_jit_LOAD_CARRY_INV_FOR_CALC_END);
-}
-
-static void
-asm_emit_jit_LOAD_OVERFLOW(struct util_buffer* p_buf) {
-  void asm_jit_LOAD_OVERFLOW(void);
-  void asm_jit_LOAD_OVERFLOW_END(void);
-  asm_copy(p_buf, asm_jit_LOAD_OVERFLOW, asm_jit_LOAD_OVERFLOW_END);
-}
-
-static void
 asm_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_LOAD_SCRATCH_8(void);
   void asm_jit_LOAD_SCRATCH_8_END(void);
@@ -880,20 +807,6 @@ asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
                 asm_jit_MODE_IND_16,
                 asm_jit_MODE_IND_16_mov2_patch,
                 ((addr + 1) - REG_MEM_OFFSET));
-}
-
-static void
-asm_emit_jit_MODE_ABX(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_MODE_ABX(void);
-  void asm_jit_MODE_ABX_END(void);
-  asm_copy_patch_u32(p_buf, asm_jit_MODE_ABX, asm_jit_MODE_ABX_END, addr);
-}
-
-static void
-asm_emit_jit_MODE_ABY(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_MODE_ABY(void);
-  void asm_jit_MODE_ABY_END(void);
-  asm_copy_patch_u32(p_buf, asm_jit_MODE_ABY, asm_jit_MODE_ABY_END, addr);
 }
 
 static void
@@ -958,13 +871,6 @@ asm_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 static void
-asm_emit_jit_MODE_IND_SCRATCH_16(struct util_buffer* p_buf) {
-  void asm_jit_MODE_IND_SCRATCH_16(void);
-  void asm_jit_MODE_IND_SCRATCH_16_END(void);
-  asm_copy(p_buf, asm_jit_MODE_IND_SCRATCH_16, asm_jit_MODE_IND_SCRATCH_16_END);
-}
-
-static void
 asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_MODE_ZPX_8bit(void);
   void asm_jit_MODE_ZPX_8bit_lea_patch(void);
@@ -1019,13 +925,6 @@ asm_emit_jit_MODE_ZPY(struct util_buffer* p_buf, uint8_t value) {
 }
 
 static void
-asm_emit_jit_PULL_16(struct util_buffer* p_buf) {
-  void asm_jit_PULL_16(void);
-  void asm_jit_PULL_16_END(void);
-  asm_copy(p_buf, asm_jit_PULL_16, asm_jit_PULL_16_END);
-}
-
-static void
 asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
   void asm_jit_PUSH_16(void);
   void asm_jit_PUSH_16_word_patch(void);
@@ -1038,34 +937,6 @@ asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
                 asm_jit_PUSH_16,
                 asm_jit_PUSH_16_word_patch,
                 value);
-}
-
-static void
-asm_emit_jit_SAVE_CARRY(struct util_buffer* p_buf) {
-  void asm_jit_SAVE_CARRY(void);
-  void asm_jit_SAVE_CARRY_END(void);
-  asm_copy(p_buf, asm_jit_SAVE_CARRY, asm_jit_SAVE_CARRY_END);
-}
-
-static void
-asm_emit_jit_SAVE_CARRY_INV(struct util_buffer* p_buf) {
-  void asm_jit_SAVE_CARRY_INV(void);
-  void asm_jit_SAVE_CARRY_INV_END(void);
-  asm_copy(p_buf, asm_jit_SAVE_CARRY_INV, asm_jit_SAVE_CARRY_INV_END);
-}
-
-static void
-asm_emit_jit_SAVE_OVERFLOW(struct util_buffer* p_buf) {
-  void asm_jit_SAVE_OVERFLOW(void);
-  void asm_jit_SAVE_OVERFLOW_END(void);
-  asm_copy(p_buf, asm_jit_SAVE_OVERFLOW, asm_jit_SAVE_OVERFLOW_END);
-}
-
-static void
-asm_emit_jit_SET_CARRY(struct util_buffer* p_buf) {
-  void asm_jit_SET_CARRY(void);
-  void asm_jit_SET_CARRY_END(void);
-  asm_copy(p_buf, asm_jit_SET_CARRY, asm_jit_SET_CARRY_END);
 }
 
 static void
@@ -1133,28 +1004,6 @@ asm_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 static void
-asm_emit_jit_WRITE_INV_ABS(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_WRITE_INV_ABS(void);
-  void asm_jit_WRITE_INV_ABS_offset_patch(void);
-  void asm_jit_WRITE_INV_ABS_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_WRITE_INV_ABS, asm_jit_WRITE_INV_ABS_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_WRITE_INV_ABS,
-                asm_jit_WRITE_INV_ABS_offset_patch,
-                (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (addr * sizeof(uint32_t))));
-}
-
-static void
-asm_emit_jit_WRITE_INV_SCRATCH(struct util_buffer* p_buf) {
-  void asm_jit_WRITE_INV_SCRATCH(void);
-  void asm_jit_WRITE_INV_SCRATCH_END(void);
-  asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH, asm_jit_WRITE_INV_SCRATCH_END);
-}
-
-static void
 asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_WRITE_INV_SCRATCH_n_8bit(void);
   void asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch(void);
@@ -1184,28 +1033,6 @@ asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
                   asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch,
                   value);
   }
-}
-
-static void
-asm_emit_jit_WRITE_INV_SCRATCH_Y(struct util_buffer* p_buf) {
-  void asm_jit_WRITE_INV_SCRATCH_Y(void);
-  void asm_jit_WRITE_INV_SCRATCH_Y_END(void);
-  asm_copy(p_buf, asm_jit_WRITE_INV_SCRATCH_Y, asm_jit_WRITE_INV_SCRATCH_Y_END);
-}
-
-static void
-asm_emit_jit_ALR_IMM(struct util_buffer* p_buf, uint8_t value) {
-  void asm_jit_ALR_IMM(void);
-  void asm_jit_ALR_IMM_patch_byte(void);
-  void asm_jit_ALR_IMM_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_ALR_IMM, asm_jit_ALR_IMM_END);
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_jit_ALR_IMM,
-                 asm_jit_ALR_IMM_patch_byte,
-                 value);
 }
 
 static void
@@ -1716,12 +1543,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
 
   /* Emit the opcode. */
   switch (uopcode) {
-  case k_opcode_add_cycles:
-    asm_emit_jit_ADD_CYCLES(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_check_bcd:
-    asm_emit_jit_CHECK_BCD(p_dest_buf, p_dest_buf_epilog, (uint16_t) value1);
-    break;
+  case k_opcode_add_cycles: ASM_U8(countdown_add); break;
+  case k_opcode_check_bcd: ASM(check_bcd); break;
   case k_opcode_check_pending_irq:
     asm_emit_jit_CHECK_PENDING_IRQ(p_dest_buf,
                                    p_dest_buf_epilog,
@@ -1743,9 +1566,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_inturbo:
     asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_for_testing:
-    asm_emit_jit_for_testing(p_dest_buf);
     break;
   case k_opcode_addr_load_16bit_zpg: ASM(addr_load_16bit_zpg); break;
   case k_opcode_ADD_ABS:
@@ -1784,16 +1604,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_CLEAR_CARRY:
-    asm_emit_jit_CLEAR_CARRY(p_dest_buf);
-    break;
+  case k_opcode_CLEAR_CARRY: ASM(CLEAR_CARRY); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_value: ASM(flags_nz_value); break;
-  case k_opcode_INVERT_CARRY:
-    asm_emit_jit_INVERT_CARRY(p_dest_buf);
-    break;
+  case k_opcode_INVERT_CARRY: ASM(INVERT_CARRY); break;
   case k_opcode_JMP_SCRATCH_n:
     asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
     break;
@@ -1809,18 +1625,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LDY_Z:
     asm_emit_jit_LDY_Z(p_dest_buf);
     break;
-  case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    asm_emit_jit_LOAD_CARRY_FOR_BRANCH(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_FOR_CALC:
-    asm_emit_jit_LOAD_CARRY_FOR_CALC(p_dest_buf);
-    break;
-  case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    asm_emit_jit_LOAD_CARRY_INV_FOR_CALC(p_dest_buf);
-    break;
-  case k_opcode_LOAD_OVERFLOW:
-    asm_emit_jit_LOAD_OVERFLOW(p_dest_buf);
-    break;
+  case k_opcode_LOAD_CARRY_FOR_BRANCH: ASM(LOAD_CARRY_FOR_BRANCH); break;
+  case k_opcode_LOAD_CARRY_FOR_CALC: ASM(LOAD_CARRY_FOR_CALC); break;
+  case k_opcode_LOAD_CARRY_INV_FOR_CALC: ASM(LOAD_CARRY_INV_FOR_CALC); break;
+  case k_opcode_LOAD_OVERFLOW: ASM(LOAD_OVERFLOW); break;
   case k_opcode_LOAD_SCRATCH_8:
     asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
     break;
@@ -1830,21 +1638,13 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LSR_ACC_n:
     asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_MODE_ABX:
-    asm_emit_jit_MODE_ABX(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_MODE_ABY:
-    asm_emit_jit_MODE_ABY(p_dest_buf, (uint16_t) value1);
-    break;
+  case k_opcode_MODE_ABX: ASM_U32(MODE_ABX); break;
+  case k_opcode_MODE_ABY: ASM_U32(MODE_ABY); break;
   case k_opcode_MODE_IND_16:
     asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_MODE_IND_SCRATCH_16:
-    asm_emit_jit_MODE_IND_SCRATCH_16(p_dest_buf);
-    break;
-  case k_opcode_PULL_16:
-    asm_emit_jit_PULL_16(p_dest_buf);
-    break;
+  case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
+  case k_opcode_PULL_16: ASM(PULL_16); break;
   case k_opcode_PUSH_16:
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
     break;
@@ -1854,18 +1654,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_ROR_ACC_n:
     asm_emit_jit_ROR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_SAVE_CARRY:
-    asm_emit_jit_SAVE_CARRY(p_dest_buf);
-    break;
-  case k_opcode_SAVE_CARRY_INV:
-    asm_emit_jit_SAVE_CARRY_INV(p_dest_buf);
-    break;
-  case k_opcode_SAVE_OVERFLOW:
-    asm_emit_jit_SAVE_OVERFLOW(p_dest_buf);
-    break;
-  case k_opcode_SET_CARRY:
-    asm_emit_jit_SET_CARRY(p_dest_buf);
-    break;
+  case k_opcode_SAVE_CARRY: ASM(SAVE_CARRY); break;
+  case k_opcode_SAVE_CARRY_INV: ASM(SAVE_CARRY_INV); break;
+  case k_opcode_SAVE_OVERFLOW: ASM(SAVE_OVERFLOW); break;
+  case k_opcode_SET_CARRY: ASM(SET_CARRY); break;
   case k_opcode_STOA_IMM:
     asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;
@@ -1876,17 +1668,15 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_WRITE_INV_ABS:
-    asm_emit_jit_WRITE_INV_ABS(p_dest_buf, (uint32_t) value1);
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    ASM_U32(WRITE_INV_ABS_load);
+    ASM(WRITE_INV_ABS_store);
     break;
-  case k_opcode_WRITE_INV_SCRATCH:
-    asm_emit_jit_WRITE_INV_SCRATCH(p_dest_buf);
-    break;
+  case k_opcode_WRITE_INV_SCRATCH: ASM(WRITE_INV_SCRATCH); break;
   case k_opcode_WRITE_INV_SCRATCH_n:
     asm_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_WRITE_INV_SCRATCH_Y:
-    asm_emit_jit_WRITE_INV_SCRATCH_Y(p_dest_buf);
-    break;
+  case k_opcode_WRITE_INV_SCRATCH_Y: ASM(WRITE_INV_SCRATCH_Y); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_ASL_acc: ASM(ASL_acc); break;
@@ -1958,9 +1748,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_ADC_addr_Y: ASM(ADC_addr_Y); break;
   case k_opcode_x64_ADC_IMM: ASM_U8(ADC_IMM); break;
   case k_opcode_x64_ADC_ZPG: ASM_ADDR_U8(ADC_ZPG); break;
-  case k_opcode_x64_ALR_IMM:
-    asm_emit_jit_ALR_IMM(p_dest_buf, (uint8_t) value1);
-    break;
+  case k_opcode_x64_ALR_IMM: ASM_U8(ALR_IMM_and); ASM(ALR_IMM_shr); break;
   case k_opcode_x64_AND_ABS: ASM_ADDR_U32(AND_ABS); break;
   case k_opcode_x64_AND_ABX: ASM_ADDR_U32_RAW(AND_ABX); break;
   case k_opcode_x64_AND_ABY: ASM_ADDR_U32_RAW(AND_ABY); break;

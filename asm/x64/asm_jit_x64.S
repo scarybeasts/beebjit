@@ -167,6 +167,15 @@ asm_jit_check_countdown_8bit_END:
   ret
 
 
+.globl asm_jit_countdown_add
+.globl asm_jit_countdown_add_END
+asm_jit_countdown_add:
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + 0x7f]
+
+asm_jit_countdown_add_END:
+  ret
+
+
 .globl asm_jit_call_debug
 .globl asm_jit_call_debug_pc_patch
 .globl asm_jit_call_debug_call_patch
@@ -232,11 +241,6 @@ asm_jit_call_inturbo_END:
   ret
 
 
-.globl asm_jit_for_testing
-.globl asm_jit_for_testing_END
-asm_jit_for_testing:
-  ud2
-
 asm_jit_for_testing_END:
 
 
@@ -255,15 +259,6 @@ asm_jit_value_store:
   mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_IND_ADDR], REG_SCRATCH2_8
 
 asm_jit_value_store_END:
-  ret
-
-
-.globl asm_jit_ADD_CYCLES
-.globl asm_jit_ADD_CYCLES_END
-asm_jit_ADD_CYCLES:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + 0x7f]
-
-asm_jit_ADD_CYCLES_END:
   ret
 
 
@@ -330,9 +325,9 @@ asm_jit_ADD_ZPG_END:
   ret
 
 
-.globl asm_jit_CHECK_BCD
-.globl asm_jit_CHECK_BCD_END
-asm_jit_CHECK_BCD:
+.globl asm_jit_check_bcd
+.globl asm_jit_check_bcd_END
+asm_jit_check_bcd:
   # This is fault fixup, i.e. it faults if the 6502 D flag is set.
   # You would expect movzx into a 32-bit register here to be faster due to
   # eliminated dependencies but it is about 10% slower on one of the CLOCKSP
@@ -341,7 +336,7 @@ asm_jit_CHECK_BCD:
   mov REG_SCRATCH3_8, \
       [REG_6502_ID_F_64 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 6]
 
-asm_jit_CHECK_BCD_END:
+asm_jit_check_bcd_END:
   ret
 
 
@@ -809,17 +804,22 @@ asm_jit_SUB_ZPG_END:
   ret
 
 
-.globl asm_jit_WRITE_INV_ABS
-.globl asm_jit_WRITE_INV_ABS_offset_patch
-.globl asm_jit_WRITE_INV_ABS_END
-asm_jit_WRITE_INV_ABS:
+.globl asm_jit_WRITE_INV_ABS_load
+.globl asm_jit_WRITE_INV_ABS_load_END
+.globl asm_jit_WRITE_INV_ABS_store
+.globl asm_jit_WRITE_INV_ABS_store_END
+asm_jit_WRITE_INV_ABS_load:
   mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
-asm_jit_WRITE_INV_ABS_offset_patch:
+
+asm_jit_WRITE_INV_ABS_load_END:
+  ret
+
+asm_jit_WRITE_INV_ABS_store:
   # NOTE: 16-bit imm contant may case LCP stall but quick tests didn't show any
   # problems vs. using a 16-bit register.
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
-asm_jit_WRITE_INV_ABS_END:
+asm_jit_WRITE_INV_ABS_store_END:
   ret
 
 
@@ -941,15 +941,20 @@ asm_jit_ADC_ZPG_END:
   ret
 
 
-.globl asm_jit_ALR_IMM
-.globl asm_jit_ALR_IMM_patch_byte
-.globl asm_jit_ALR_IMM_END
-asm_jit_ALR_IMM:
+.globl asm_jit_ALR_IMM_and
+.globl asm_jit_ALR_IMM_and_END
+.globl asm_jit_ALR_IMM_shr
+.globl asm_jit_ALR_IMM_shr_END
+asm_jit_ALR_IMM_and:
   and REG_6502_A, 0xff
-asm_jit_ALR_IMM_patch_byte:
+
+asm_jit_ALR_IMM_and_END:
+  ret
+
+asm_jit_ALR_IMM_shr:
   shr REG_6502_A, 1
 
-asm_jit_ALR_IMM_END:
+asm_jit_ALR_IMM_shr_END:
   ret
 
 
