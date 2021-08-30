@@ -390,8 +390,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->max_6502_addr = operand_6502;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
-    p_uop++;
     break;
   case k_zpx:
     operand_6502 = p_mem_read[addr_plus_1];
@@ -401,8 +399,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
-    p_uop++;
     break;
   case k_zpy:
     operand_6502 = p_mem_read[addr_plus_1];
@@ -411,8 +407,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y_8bit);
-    p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
     break;
   case k_rel:
@@ -458,8 +452,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         use_interp = 1;
       }
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
-    p_uop++;
 
     if (opmem & k_opmem_read_flag) {
       if (p_memory_access->memory_read_needs_callback(
@@ -503,8 +495,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
-    p_uop++;
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
@@ -518,13 +508,16 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
-    p_uop++;
     break;
   default:
     assert(0);
     operand_6502 = 0;
     break;
+  }
+
+  if (opmem & k_opmem_read_flag) {
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
+    p_uop++;
   }
 
   p_details->operand_6502 = operand_6502;
@@ -802,10 +795,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   }
 
-  if (optype == k_slo) {
-    jit_opcode_make_uop0(p_uop, k_opcode_value_store);
+  if (use_interp) {
+    p_uop = p_first_post_debug_uop;
+
+    jit_opcode_make_uop1(p_uop, k_opcode_interp, addr_6502);
     p_uop++;
-  } else if (g_optype_changes_nz_flags[optype]) {
+    p_details->ends_block = 1;
+
+    p_details->num_uops = (p_uop - &p_details->uops[0]);
+    assert(p_details->num_uops <= k_max_uops_per_opcode);
+    return;
+  }
+
+  if (g_optype_changes_nz_flags[optype]) {
     switch (g_optype_sets_register[optype]) {
     case k_a:
       jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
@@ -824,8 +826,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
         jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
         p_uop++;
       } else if (opmem == (k_opmem_read_flag | k_opmem_write_flag)) {
-        jit_opcode_make_uop0(p_uop, k_opcode_value_store);
-        p_uop++;
         jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_value);
         p_uop++;
       }
@@ -833,22 +833,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     }
   }
 
-  if (use_interp) {
-    p_uop = p_first_post_debug_uop;
-
-    jit_opcode_make_uop1(p_uop, k_opcode_interp, addr_6502);
-    p_uop++;
-    p_details->ends_block = 1;
-
-    p_details->num_uops = (p_uop - &p_details->uops[0]);
-    assert(p_details->num_uops <= k_max_uops_per_opcode);
-    return;
-  }
-
   /* Post-main per-mode uops. */
-  /* Code invalidation for writes, aka. self-modifying code. */
+  /* Opcodes that write, including uopcodes for handling self-modifying code. */
   /* TODO: stack page invalidations. */
   if (opmem & k_opmem_write_flag) {
+    jit_opcode_make_uop0(p_uop, k_opcode_value_store);
+    p_uop++;
+
     switch (opmode) {
     case k_abs:
       jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);

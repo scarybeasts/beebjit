@@ -13,14 +13,15 @@
 #include <assert.h>
 
 enum {
-  k_opcode_x64_load_abs = 0x1000,
-  k_opcode_x64_load_zpg,
-  k_opcode_x64_mode_abx_and_load,
-  k_opcode_x64_mode_abx_store,
-  k_opcode_x64_mode_idy_load,
-  k_opcode_x64_mode_zpx,
-  k_opcode_x64_mode_zpy,
-  k_opcode_x64_store_abs,
+  k_opcode_x64_load_ABS = 0x1000,
+  k_opcode_x64_load_ZPG,
+  k_opcode_x64_mode_ABX_and_load,
+  k_opcode_x64_mode_ABX_store,
+  k_opcode_x64_mode_IDY_load,
+  k_opcode_x64_mode_ZPX,
+  k_opcode_x64_mode_ZPY,
+  k_opcode_x64_store_ABS,
+  k_opcode_x64_store_ZPG,
   k_opcode_x64_ADC_ABS,
   k_opcode_x64_ADC_ABX,
   k_opcode_x64_ADC_ABY,
@@ -1094,57 +1095,6 @@ asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
                 (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
 }
 
-static int
-asm_jit_uop_match(struct asm_uop** p_out,
-                  struct asm_uop* p_start_uop,
-                  uint32_t num_left,
-                  int32_t match1,
-                  int32_t match2,
-                  int32_t match3) {
-  struct asm_uop* p_uop = p_start_uop;
-  assert(match1 != -1);
-  if (num_left < 2) return 0;
-  if (p_uop->is_eliminated) return 0;
-  if (p_uop->uopcode != match1) return 0;
-  p_uop++;
-  if (match2 != -1) {
-    if (num_left < 3) return 0;
-    if (p_uop->is_eliminated) return 0;
-    if (p_uop->uopcode != match2) return 0;
-    p_uop++;
-  }
-  if (match3 != -1) {
-    if (num_left < 4) return 0;
-    if (p_uop->is_eliminated) return 0;
-    if (p_uop->uopcode != match3) return 0;
-    p_uop++;
-  }
-
-  *p_out = p_uop;
-
-  while (p_uop != p_start_uop) {
-    p_uop->is_eliminated = 1;
-    p_uop--;
-  }
-
-  return 1;
-}
-
-static int
-asm_jit_uop_eliminate(struct asm_uop* p_uop,
-                      uint32_t num_left,
-                      int32_t uopcode) {
-  while (num_left--) {
-    if (p_uop->uopcode == uopcode) {
-      p_uop->is_eliminated = 1;
-      return 1;
-    }
-    p_uop++;
-  }
-
-  return 0;
-}
-
 static uint32_t
 asm_jit_get_segment(struct asm_jit_struct* p_asm,
                     uint16_t addr,
@@ -1167,337 +1117,405 @@ asm_jit_get_segment(struct asm_jit_struct* p_asm,
   return segment;
 }
 
+static int32_t
+asm_jit_rewrite_IMM(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_IMM; break;
+  case k_opcode_ALR: new_uopcode = k_opcode_x64_ALR_IMM; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_IMM; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_IMM; break;
+  case k_opcode_CPX: new_uopcode = k_opcode_x64_CPX_IMM; break;
+  case k_opcode_CPY: new_uopcode = k_opcode_x64_CPY_IMM; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_IMM; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_IMM; break;
+  case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_IMM; break;
+  case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_IMM; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_IMM; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_IMM; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_ZPG(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_ZPG; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_ZPG; break;
+  case k_opcode_ASL_value: new_uopcode = k_opcode_x64_ASL_ZPG; break;
+  case k_opcode_BIT: new_uopcode = k_opcode_x64_load_ZPG; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_ZPG; break;
+  case k_opcode_CPX: new_uopcode = k_opcode_x64_CPX_ZPG; break;
+  case k_opcode_CPY: new_uopcode = k_opcode_x64_CPY_ZPG; break;
+  case k_opcode_DEC_value: new_uopcode = k_opcode_x64_DEC_ZPG; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_ZPG; break;
+  case k_opcode_INC_value: new_uopcode = k_opcode_x64_INC_ZPG; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_ZPG; break;
+  case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_ZPG; break;
+  case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_ZPG; break;
+  case k_opcode_LSR_value: new_uopcode = k_opcode_x64_LSR_ZPG; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ZPG; break;
+  /* SAX and SLO only support ABS for now. */
+  case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ZPG; break;
+  case k_opcode_SLO: new_uopcode = k_opcode_x64_SLO_ABS; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ZPG; break;
+  case k_opcode_STX: new_uopcode = k_opcode_x64_STX_ZPG; break;
+  case k_opcode_STY: new_uopcode = k_opcode_x64_STY_ZPG; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_ABS(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_ABS; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_ABS; break;
+  case k_opcode_ASL_value: new_uopcode = k_opcode_x64_ASL_ABS; break;
+  case k_opcode_BIT: new_uopcode = k_opcode_x64_load_ABS; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_ABS; break;
+  case k_opcode_CPX: new_uopcode = k_opcode_x64_CPX_ABS; break;
+  case k_opcode_CPY: new_uopcode = k_opcode_x64_CPY_ABS; break;
+  case k_opcode_DEC_value: new_uopcode = k_opcode_x64_DEC_ABS; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_ABS; break;
+  case k_opcode_INC_value: new_uopcode = k_opcode_x64_INC_ABS; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_ABS; break;
+  case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_ABS; break;
+  case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_ABS; break;
+  case k_opcode_LSR_value: new_uopcode = k_opcode_x64_LSR_ABS; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ABS; break;
+  case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ABS; break;
+  case k_opcode_SLO: new_uopcode = k_opcode_x64_SLO_ABS; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ABS; break;
+  case k_opcode_STX: new_uopcode = k_opcode_x64_STX_ABS; break;
+  case k_opcode_STY: new_uopcode = k_opcode_x64_STY_ABS; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_addr(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_addr; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_addr; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_addr; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_addr; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_addr; break;
+  case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_addr; break;
+  case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_addr; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_addr; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_addr; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_addr; break;
+  case k_opcode_STX: new_uopcode = k_opcode_x64_STX_addr; break;
+  case k_opcode_STY: new_uopcode = k_opcode_x64_STY_addr; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_IDY(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_addr_Y; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_addr_Y; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_addr_Y; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_addr_Y; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_addr_Y; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_addr_Y; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_addr_Y; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_addr_Y; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_ABX(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_ABX; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_ABX; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_ABX; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_ABX; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_ABX; break;
+  case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_ABX; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ABX; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ABX; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ABX; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
+static int32_t
+asm_jit_rewrite_ABY(int32_t uopcode) {
+  int32_t new_uopcode = -1;
+  switch (uopcode) {
+  case k_opcode_ADC: new_uopcode = k_opcode_x64_ADC_ABY; break;
+  case k_opcode_AND: new_uopcode = k_opcode_x64_AND_ABY; break;
+  case k_opcode_CMP: new_uopcode = k_opcode_x64_CMP_ABY; break;
+  case k_opcode_EOR: new_uopcode = k_opcode_x64_EOR_ABY; break;
+  case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_ABY; break;
+  case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_ABY; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
+  case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ABY; break;
+  case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ABY; break;
+  case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ABY; break;
+  default: assert(0); break;
+  }
+  return new_uopcode;
+}
+
 void
 asm_jit_rewrite(struct asm_jit_struct* p_asm,
                 struct asm_uop* p_uops,
                 uint32_t num_uops) {
   uint32_t i;
-  struct asm_uop* p_next_uop;
-  uint32_t num_left = num_uops;
+  struct asm_uop* p_mode_uop = NULL;
+  struct asm_uop* p_main_uop = NULL;
+  struct asm_uop* p_load_uop = NULL;
+  struct asm_uop* p_store_uop = NULL;
+  struct asm_uop* p_carry_uop = NULL;
+  struct asm_uop* p_flags_uop = NULL;
+  struct asm_uop* p_tmp_uop;
+  int32_t uopcode;
+  int32_t new_uopcode;
+  uint16_t addr;
+  int is_zpg;
+  int is_mode_addr;
+  int is_mode_abn;
+  int is_rmw;
+  int do_set_segment;
+  int do_eliminate_load_store;
 
-  (void) p_asm;
-
-  for (i = 0; i < num_uops; ++i, num_left--) {
-    struct asm_uop* p_match;
+  for (i = 0; i < num_uops; ++i) {
     struct asm_uop* p_uop = &p_uops[i];
-    if (asm_jit_uop_match(&p_match,
-                          p_uop,
-                          num_left,
-                          k_opcode_value_set,
-                          -1,
-                          -1)) {
-      switch (p_match->uopcode) {
-      case k_opcode_ADC: p_uop->uopcode = k_opcode_x64_ADC_IMM; break;
-      case k_opcode_ALR: p_uop->uopcode = k_opcode_x64_ALR_IMM; break;
-      case k_opcode_AND: p_uop->uopcode = k_opcode_x64_AND_IMM; break;
-      case k_opcode_CMP: p_uop->uopcode = k_opcode_x64_CMP_IMM; break;
-      case k_opcode_CPX: p_uop->uopcode = k_opcode_x64_CPX_IMM; break;
-      case k_opcode_CPY: p_uop->uopcode = k_opcode_x64_CPY_IMM; break;
-      case k_opcode_EOR: p_uop->uopcode = k_opcode_x64_EOR_IMM; break;
-      case k_opcode_LDA: p_uop->uopcode = k_opcode_x64_LDA_IMM; break;
-      case k_opcode_LDX: p_uop->uopcode = k_opcode_x64_LDX_IMM; break;
-      case k_opcode_LDY: p_uop->uopcode = k_opcode_x64_LDY_IMM; break;
-      case k_opcode_ORA: p_uop->uopcode = k_opcode_x64_ORA_IMM; break;
-      case k_opcode_SBC: p_uop->uopcode = k_opcode_x64_SBC_IMM; break;
-      default: assert(0); break;
-      }
-    } else if (asm_jit_uop_match(&p_match,
-                                 p_uop,
-                                 num_left,
-                                 k_opcode_addr_add_y,
-                                 k_opcode_addr_check,
-                                 k_opcode_value_load)) {
-      switch (p_match->uopcode) {
-      case k_opcode_ADC: p_uop->uopcode = k_opcode_x64_ADC_addr_Y; break;
-      case k_opcode_AND: p_uop->uopcode = k_opcode_x64_AND_addr_Y; break;
-      case k_opcode_CMP: p_uop->uopcode = k_opcode_x64_CMP_addr_Y; break;
-      case k_opcode_EOR: p_uop->uopcode = k_opcode_x64_EOR_addr_Y; break;
-      case k_opcode_LDA: p_uop->uopcode = k_opcode_x64_LDA_addr_Y; break;
-      case k_opcode_ORA: p_uop->uopcode = k_opcode_x64_ORA_addr_Y; break;
-      case k_opcode_SBC: p_uop->uopcode = k_opcode_x64_SBC_addr_Y; break;
-      case k_opcode_STA: p_uop->uopcode = k_opcode_x64_STA_addr_Y; break;
-      default: assert(0); break;
-      }
-    } else if (asm_jit_uop_match(&p_match,
-                                 p_uop,
-                                 num_left,
-                                 k_opcode_value_load,
-                                 -1,
-                                 -1)) {
-      switch (p_match->uopcode) {
-      case k_opcode_ADC: p_uop->uopcode = k_opcode_x64_ADC_addr; break;
-      case k_opcode_ASL_value:
-      case k_opcode_DEC_value:
-      case k_opcode_INC_value:
-      case k_opcode_LSR_value:
-      case k_opcode_ROL_value:
-      case k_opcode_ROR_value:
-        /* These are the zpx mode RMW opcodes. Do a full RMW for now. */
-        p_match->is_eliminated = 0;
-        if ((p_match->uopcode != k_opcode_ROL_value) &&
-            (p_match->uopcode != k_opcode_ROR_value)) {
-          /* Eliminate the NZ flags fetch for the x64 opcodes that do it
-           * themselves.
-           */
-          (void) asm_jit_uop_eliminate((p_match + 1),
-                                       (num_left - 2),
-                                       k_opcode_flags_nz_value);
-        }
-        break;
-      case k_opcode_AND: p_uop->uopcode = k_opcode_x64_AND_addr; break;
-      case k_opcode_CMP: p_uop->uopcode = k_opcode_x64_CMP_addr; break;
-      case k_opcode_EOR: p_uop->uopcode = k_opcode_x64_EOR_addr; break;
-      case k_opcode_LDA: p_uop->uopcode = k_opcode_x64_LDA_addr; break;
-      case k_opcode_LDX: p_uop->uopcode = k_opcode_x64_LDX_addr; break;
-      case k_opcode_LDY: p_uop->uopcode = k_opcode_x64_LDY_addr; break;
-      case k_opcode_NOP: p_uop->uopcode = k_opcode_NOP; break;
-      case k_opcode_ORA: p_uop->uopcode = k_opcode_x64_ORA_addr; break;
-      case k_opcode_SBC: p_uop->uopcode = k_opcode_x64_SBC_addr; break;
-      case k_opcode_STA: p_uop->uopcode = k_opcode_x64_STA_addr; break;
-      case k_opcode_STX: p_uop->uopcode = k_opcode_x64_STX_addr; break;
-      case k_opcode_STY: p_uop->uopcode = k_opcode_x64_STY_addr; break;
-      default: assert(0); break;
-      }
-    } else if (asm_jit_uop_match(&p_match,
-                                 p_uop,
-                                 num_left,
-                                 k_opcode_addr_set,
-                                 k_opcode_value_load,
-                                 -1)) {
-      /* TODO: handle RMW with a real RMW for non-RAM addresses. */
-      int is_zpg = (p_uop->value1 <= 0xFF);
-      int is_write = 0;
-      int is_rmw = 0;
-      switch (p_match->uopcode) {
-      case k_opcode_ADC:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_ADC_ZPG;
-        else p_uop->uopcode = k_opcode_x64_ADC_ABS;
-        break;
-      case k_opcode_AND:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_AND_ZPG;
-        else p_uop->uopcode = k_opcode_x64_AND_ABS;
-        break;
-      case k_opcode_ASL_value:
-        is_rmw = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_ASL_ZPG;
-        else p_uop->uopcode = k_opcode_x64_ASL_ABS;
-        break;
-      case k_opcode_BIT:
-        p_match->is_eliminated = 0;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_load_zpg;
-        else p_uop->uopcode = k_opcode_x64_load_abs;
-        break;
-      case k_opcode_CMP:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_CMP_ZPG;
-        else p_uop->uopcode = k_opcode_x64_CMP_ABS;
-        break;
-      case k_opcode_CPX:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_CPX_ZPG;
-        else p_uop->uopcode = k_opcode_x64_CPX_ABS;
-        break;
-      case k_opcode_CPY:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_CPY_ZPG;
-        else p_uop->uopcode = k_opcode_x64_CPY_ABS;
-        break;
-      case k_opcode_DEC_value:
-        is_rmw = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_DEC_ZPG;
-        else p_uop->uopcode = k_opcode_x64_DEC_ABS;
-        break;
-      case k_opcode_EOR:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_EOR_ZPG;
-        else p_uop->uopcode = k_opcode_x64_EOR_ABS;
-        break;
-      case k_opcode_INC_value:
-        is_rmw = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_INC_ZPG;
-        else p_uop->uopcode = k_opcode_x64_INC_ABS;
-        break;
-      case k_opcode_LDA:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_LDA_ZPG;
-        else p_uop->uopcode = k_opcode_x64_LDA_ABS;
-        break;
-      case k_opcode_LDX:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_LDX_ZPG;
-        else p_uop->uopcode = k_opcode_x64_LDX_ABS;
-        break;
-      case k_opcode_LDY:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_LDY_ZPG;
-        else p_uop->uopcode = k_opcode_x64_LDY_ABS;
-        break;
-      case k_opcode_LSR_value:
-        is_rmw = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_LSR_ZPG;
-        else p_uop->uopcode = k_opcode_x64_LSR_ABS;
-        break;
-      case k_opcode_NOP: p_uop->uopcode = k_opcode_NOP; break;
-      case k_opcode_ORA:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_ORA_ZPG;
-        else p_uop->uopcode = k_opcode_x64_ORA_ABS;
-        break;
-      case k_opcode_ROL_value:
-      case k_opcode_ROR_value:
-        p_uop->uopcode = k_opcode_x64_load_abs;
-        p_match->is_eliminated = 0;
-        assert((i + 4) < num_uops);
-        p_next_uop = &p_uops[i + 3];
-        assert(p_next_uop->uopcode == k_opcode_SAVE_CARRY);
-        p_next_uop = &p_uops[i + 4];
-        assert(p_next_uop->uopcode == k_opcode_value_store);
-        p_next_uop->uopcode = k_opcode_x64_store_abs;
-        p_next_uop->value1 = p_uop->value1;
-        /* TODO. */
-        p_next_uop->value2 = K_BBC_MEM_WRITE_FULL_ADDR;
-        break;
-      case k_opcode_SBC:
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_SBC_ZPG;
-        else p_uop->uopcode = k_opcode_x64_SBC_ABS;
-        break;
-      case k_opcode_SAX:
-        is_write = 1;
-        p_uop->uopcode = k_opcode_x64_SAX_ABS;
-        break;
-      case k_opcode_SLO:
-        is_rmw = 1;
-        p_uop->uopcode = k_opcode_x64_SLO_ABS;
-        break;
-      case k_opcode_STA:
-        is_write = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_STA_ZPG;
-        else p_uop->uopcode = k_opcode_x64_STA_ABS;
-        break;
-      case k_opcode_STX:
-        is_write = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_STX_ZPG;
-        else p_uop->uopcode = k_opcode_x64_STX_ABS;
-        break;
-      case k_opcode_STY:
-        is_write = 1;
-        if (is_zpg) p_uop->uopcode = k_opcode_x64_STY_ZPG;
-        else p_uop->uopcode = k_opcode_x64_STY_ABS;
-        break;
-      default: assert(0); break;
-      }
-      p_uop->value2 = asm_jit_get_segment(p_asm, p_uop->value1, is_write, 0);
-      if (is_rmw) {
-        int found;
-        found = asm_jit_uop_eliminate((p_match + 1),
-                                      (num_left - 3),
-                                      k_opcode_value_store);
-        assert(found);
-        (void) asm_jit_uop_eliminate((p_match + 1),
-                                      (num_left - 3),
-                                      k_opcode_flags_nz_value);
-      }
-    } else if (asm_jit_uop_match(&p_match,
-                                 p_uop,
-                                 num_left,
-                                 k_opcode_addr_set,
-                                 k_opcode_addr_add_x,
-                                 k_opcode_value_load)) {
-      int is_write = 0;
-      switch (p_match->uopcode) {
-      case k_opcode_ADC: p_uop->uopcode = k_opcode_x64_ADC_ABX; break;
-      case k_opcode_AND: p_uop->uopcode = k_opcode_x64_AND_ABX; break;
-      /* TODO: optimize these into a single RMW instruction where possible. */
-      case k_opcode_ASL_value:
-      case k_opcode_DEC_value:
-      case k_opcode_INC_value:
-      case k_opcode_LSR_value:
-      case k_opcode_ROL_value:
-      case k_opcode_ROR_value:
-        p_uop->uopcode = k_opcode_x64_mode_abx_and_load;
-        p_match->is_eliminated = 0;
-        assert((i + 4) < num_uops);
-        p_next_uop = &p_uops[i + 4];
-        if (p_next_uop->uopcode == k_opcode_SAVE_CARRY) {
-          assert((i + 5) < num_uops);
-          p_next_uop = &p_uops[i + 5];
-        }
-        assert(p_next_uop->uopcode == k_opcode_value_store);
-        p_next_uop->uopcode = k_opcode_x64_mode_abx_store;
-        p_next_uop->value1 = p_uop->value1;
-        /* TODO. */
-        p_next_uop->value2 = K_BBC_MEM_WRITE_FULL_ADDR;
-        if ((p_match->uopcode != k_opcode_ROL_value) &&
-            (p_match->uopcode != k_opcode_ROR_value)) {
-          (void) asm_jit_uop_eliminate((p_match + 1),
-                                        (num_left - 4),
-                                        k_opcode_flags_nz_value);
-        }
-        break;
-      case k_opcode_CMP: p_uop->uopcode = k_opcode_x64_CMP_ABX; break;
-      case k_opcode_EOR: p_uop->uopcode = k_opcode_x64_EOR_ABX; break;
-      case k_opcode_LDA: p_uop->uopcode = k_opcode_x64_LDA_ABX; break;
-      case k_opcode_LDY: p_uop->uopcode = k_opcode_x64_LDY_ABX; break;
-      case k_opcode_NOP: p_uop->uopcode = k_opcode_NOP; break;
-      case k_opcode_ORA: p_uop->uopcode = k_opcode_x64_ORA_ABX; break;
-      case k_opcode_SBC: p_uop->uopcode = k_opcode_x64_SBC_ABX; break;
-      case k_opcode_STA:
-        is_write = 1;
-        p_uop->uopcode = k_opcode_x64_STA_ABX;
-        break;
-      default: assert(0); break;
-      }
-      p_uop->value2 = asm_jit_get_segment(p_asm, p_uop->value1, is_write, 1);
-    } else if (asm_jit_uop_match(&p_match,
-                                 p_uop,
-                                 num_left,
-                                 k_opcode_addr_set,
-                                 k_opcode_addr_add_y,
-                                 k_opcode_value_load)) {
-      int is_write = 0;
-      switch (p_match->uopcode) {
-      case k_opcode_ADC: p_uop->uopcode = k_opcode_x64_ADC_ABY; break;
-      case k_opcode_AND: p_uop->uopcode = k_opcode_x64_AND_ABY; break;
-      case k_opcode_CMP: p_uop->uopcode = k_opcode_x64_CMP_ABY; break;
-      case k_opcode_EOR: p_uop->uopcode = k_opcode_x64_EOR_ABY; break;
-      case k_opcode_LDA: p_uop->uopcode = k_opcode_x64_LDA_ABY; break;
-      case k_opcode_LDX: p_uop->uopcode = k_opcode_x64_LDX_ABY; break;
-      case k_opcode_NOP: p_uop->uopcode = k_opcode_NOP; break;
-      case k_opcode_ORA: p_uop->uopcode = k_opcode_x64_ORA_ABY; break;
-      case k_opcode_SBC: p_uop->uopcode = k_opcode_x64_SBC_ABY; break;
-      case k_opcode_STA:
-        is_write = 1;
-        p_uop->uopcode = k_opcode_x64_STA_ABY;
-        break;
-      default: assert(0); break;
-      }
-      p_uop->value2 = asm_jit_get_segment(p_asm, p_uop->value1, is_write, 1);
-    }
-    switch (p_uop->uopcode) {
+    int32_t uopcode = p_uop->uopcode;
+    switch (uopcode) {
+    case k_opcode_value_set:
+      p_mode_uop = p_uop;
+      assert((i + 1) < num_uops);
+      p_main_uop = &p_uops[i + 1];
+      break;
     case k_opcode_addr_set:
-      if ((i + 1) >= num_uops) break;
-      p_next_uop = &p_uops[i + 1];
-      switch (p_next_uop->uopcode) {
-      case k_opcode_value_load_16bit:
-        /* This is the indirect load sequence for JMP ($xxxx). */
-        p_uop->uopcode = k_opcode_MODE_IND_16;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_addr_add_x_8bit:
-        p_uop->uopcode = k_opcode_x64_mode_zpx;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_addr_add_y_8bit:
-        p_uop->uopcode = k_opcode_x64_mode_zpy;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_addr_load_16bit_zpg:
-        p_uop->uopcode = k_opcode_x64_mode_idy_load;
-        p_next_uop->is_eliminated = 1;
-      default:
-        break;
+      p_mode_uop = p_uop;
+      break;
+    case k_opcode_value_load_16bit:
+    case k_opcode_addr_add_x_8bit:
+    case k_opcode_addr_add_y_8bit:
+    case k_opcode_addr_add_x:
+    case k_opcode_addr_add_y:
+      assert(i != 0);
+      p_mode_uop = p_uop;
+      break;
+    case k_opcode_value_load:
+      p_load_uop = p_uop;
+      assert((i + 1) < num_uops);
+      p_main_uop = &p_uops[i + 1];
+      break;
+    case k_opcode_value_store:
+      p_store_uop = p_uop;
+      assert(i != 0);
+      if (p_main_uop == NULL) {
+        p_main_uop = &p_uops[i - 1];
       }
       break;
+    case k_opcode_SAVE_CARRY:
+    case k_opcode_SAVE_CARRY_INV:
+      p_carry_uop = p_uop;
+      break;
+    case k_opcode_flags_nz_a:
+    case k_opcode_flags_nz_x:
+    case k_opcode_flags_nz_y:
+    case k_opcode_flags_nz_value:
+      p_flags_uop = p_uop;
+      break;
     case k_opcode_addr_check:
-      /* Checking high addresses is handled via fault-fixup, not explicitly. */
+      /* Address check in the x64 model is implicit via fault+fixup. */
       p_uop->is_eliminated = 1;
       break;
     default:
       break;
     }
   }
+
+  if (p_mode_uop == NULL) {
+    return;
+  }
+
+  is_rmw = 0;
+  if ((p_load_uop != NULL) && (p_store_uop != NULL)) {
+    is_rmw = 1;
+  }
+  is_mode_addr = 0;
+  is_mode_abn = 0;
+  do_set_segment = 0;
+  do_eliminate_load_store = 0;
+  uopcode = p_mode_uop->uopcode;
+  switch (uopcode) {
+  case k_opcode_value_load_16bit:
+    /* Mode IND. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_MODE_IND_16;
+    break;
+  case k_opcode_value_set:
+    /* Mode IMM. */
+    assert(p_main_uop != NULL);
+    new_uopcode = p_main_uop->uopcode;
+    new_uopcode = asm_jit_rewrite_IMM(new_uopcode);
+    p_mode_uop->uopcode = new_uopcode;
+    p_main_uop->is_eliminated = 1;
+    break;
+  case k_opcode_addr_set:
+    /* Mode ABS or ZPG. */
+    assert(p_main_uop != NULL);
+    addr = p_mode_uop->value1;
+    is_zpg = (addr < 0x100);
+    new_uopcode = p_main_uop->uopcode;
+    if ((new_uopcode == k_opcode_ROL_value) ||
+        (new_uopcode == k_opcode_ROR_value)) {
+      if (is_zpg) p_mode_uop->uopcode = k_opcode_x64_load_ZPG;
+      else p_mode_uop->uopcode = k_opcode_x64_load_ABS;
+      p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+      assert(p_load_uop != NULL);
+      p_load_uop->is_eliminated = 1;
+      assert(p_store_uop != NULL);
+      if (is_zpg) p_store_uop->uopcode = k_opcode_x64_store_ZPG;
+      else p_store_uop->uopcode = k_opcode_x64_store_ABS;
+      p_store_uop->value1 = p_mode_uop->value1;
+      p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
+    } else {
+      if (is_zpg) new_uopcode = asm_jit_rewrite_ZPG(new_uopcode);
+      else new_uopcode = asm_jit_rewrite_ABS(new_uopcode);
+      p_mode_uop->uopcode = new_uopcode;
+      if (p_main_uop->uopcode != k_opcode_BIT) {
+        p_main_uop->is_eliminated = 1;
+      }
+      do_set_segment = 1;
+      do_eliminate_load_store = 1;
+    }
+    break;
+  case k_opcode_addr_add_x_8bit:
+    /* Mode ZPX or IDX. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_x64_mode_ZPX;
+    is_mode_addr = 1;
+    break;
+  case k_opcode_addr_add_y_8bit:
+    /* Mode ZPY. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_x64_mode_ZPY;
+    is_mode_addr = 1;
+    break;
+  case k_opcode_addr_add_x:
+    /* Mode ABX. */
+    assert(p_main_uop != NULL);
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    if (is_rmw) {
+      p_mode_uop->uopcode = k_opcode_x64_mode_ABX_and_load;
+      p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+      assert(p_load_uop != NULL);
+      p_load_uop->is_eliminated = 1;
+      assert(p_store_uop != NULL);
+      p_store_uop->uopcode = k_opcode_x64_mode_ABX_store;
+      p_store_uop->value1 = p_mode_uop->value1;
+      p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
+    } else {
+      new_uopcode = p_main_uop->uopcode;
+      new_uopcode = asm_jit_rewrite_ABX(new_uopcode);
+      p_mode_uop->uopcode = new_uopcode;
+      p_main_uop->is_eliminated = 1;
+      do_eliminate_load_store = 1;
+      do_set_segment = 1;
+    }
+    is_mode_abn = 1;
+    break;
+  case k_opcode_addr_add_y:
+    /* Mode ABY or IDY. */
+    assert(p_main_uop != NULL);
+    p_tmp_uop = (p_mode_uop - 1);
+    if (p_tmp_uop->uopcode == k_opcode_addr_set) {
+      p_mode_uop->is_eliminated = 1;
+      p_mode_uop--;
+      new_uopcode = p_main_uop->uopcode;
+      new_uopcode = asm_jit_rewrite_ABY(new_uopcode);
+      p_mode_uop->uopcode = new_uopcode;
+      p_main_uop->is_eliminated = 1;
+      is_mode_abn = 1;
+      do_set_segment = 1;
+      do_eliminate_load_store = 1;
+    } else {
+      assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_zpg);
+      p_tmp_uop->is_eliminated = 1;
+      p_tmp_uop = (p_tmp_uop - 1);
+      assert(p_tmp_uop->uopcode == k_opcode_addr_set);
+      p_tmp_uop->uopcode = k_opcode_x64_mode_IDY_load;
+      new_uopcode = p_main_uop->uopcode;
+      new_uopcode = asm_jit_rewrite_IDY(new_uopcode);
+      p_mode_uop->uopcode = new_uopcode;
+      p_main_uop->is_eliminated = 1;
+      do_eliminate_load_store = 1;
+    }
+    break;
+  case -1:
+    break;
+  default:
+    assert(0);
+    break;
+  }
+
+  if (is_mode_addr) {
+    assert(p_mode_uop != NULL);
+    assert(p_main_uop != NULL);
+    new_uopcode = p_main_uop->uopcode;
+    new_uopcode = asm_jit_rewrite_addr(new_uopcode);
+    p_main_uop->uopcode = new_uopcode;
+    do_eliminate_load_store = 1;
+  }
+
+  if (do_set_segment) {
+    int is_write = 1;
+    if (p_load_uop != NULL) {
+      is_write = 0;
+    }
+    p_mode_uop->value2 = asm_jit_get_segment(p_asm,
+                                             addr,
+                                             is_write,
+                                             is_mode_abn);
+  }
+
+  if (do_eliminate_load_store) {
+    assert((p_load_uop != NULL) || (p_store_uop != NULL));
+    if (p_load_uop != NULL) {
+      p_load_uop->is_eliminated = 1;
+    }
+    if (p_store_uop != NULL) {
+      p_store_uop->is_eliminated = 1;
+    }
+  }
+
+  (void) p_flags_uop;
+  (void) p_carry_uop;
 }
 
 void
@@ -1729,18 +1747,19 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TXA: asm_emit_instruction_TXA(p_dest_buf); break;
   case k_opcode_TXS: asm_emit_instruction_TXS(p_dest_buf); break;
   case k_opcode_TYA: asm_emit_instruction_TYA(p_dest_buf); break;
-  case k_opcode_x64_load_abs: ASM_ADDR_U32(load_abs); break;
-  case k_opcode_x64_load_zpg: ASM_ADDR_U8(load_zpg); break;
-  case k_opcode_x64_mode_abx_and_load:
+  case k_opcode_x64_load_ABS: ASM_ADDR_U32(load_ABS); break;
+  case k_opcode_x64_load_ZPG: ASM_ADDR_U8(load_ZPG); break;
+  case k_opcode_x64_mode_ABX_and_load:
     ASM_ADDR_U32_RAW(mode_abx_and_load);
     break;
-  case k_opcode_x64_mode_abx_store: ASM_ADDR_U32_RAW(mode_abx_store); break;
-  case k_opcode_x64_mode_idy_load:
+  case k_opcode_x64_mode_ABX_store: ASM_ADDR_U32_RAW(mode_abx_store); break;
+  case k_opcode_x64_mode_IDY_load:
     asm_emit_jit_MODE_IND_8(p_dest_buf, value1);
     break;
-  case k_opcode_x64_mode_zpx: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
-  case k_opcode_x64_mode_zpy: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;
-  case k_opcode_x64_store_abs: ASM_ADDR_U32(store_abs); break;
+  case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
+  case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;
+  case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;
+  case k_opcode_x64_store_ZPG: ASM_ADDR_U32(store_ZPG); break;
   case k_opcode_x64_ADC_ABS: ASM_ADDR_U32(ADC_ABS); break;
   case k_opcode_x64_ADC_ABX: ASM_ADDR_U32_RAW(ADC_ABX); break;
   case k_opcode_x64_ADC_ABY: ASM_ADDR_U32_RAW(ADC_ABY); break;

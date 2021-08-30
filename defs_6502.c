@@ -324,6 +324,10 @@ defs_6502_calculate_opmem(uint8_t optype, uint8_t opmode) {
     case k_trb:
       opmem = (k_opmem_read_flag | k_opmem_write_flag);
       break;
+    case k_jmp:
+    case k_jsr:
+      opmem = 0;
+      break;
     default:
       opmem = k_opmem_read_flag;
       break;

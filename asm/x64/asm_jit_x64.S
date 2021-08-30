@@ -768,12 +768,21 @@ asm_jit_STOA_IMM_8bit_END:
   ret
 
 
-.globl asm_jit_store_abs
-.globl asm_jit_store_abs_END
-asm_jit_store_abs:
+.globl asm_jit_store_ABS
+.globl asm_jit_store_ABS_END
+asm_jit_store_ABS:
   mov [REG_MEM + 0x7fffffff], REG_SCRATCH2_8
 
-asm_jit_store_abs_END:
+asm_jit_store_ABS_END:
+  ret
+
+
+.globl asm_jit_store_ZPG
+.globl asm_jit_store_ZPG_END
+asm_jit_store_ZPG:
+  mov [REG_MEM + 0x7fffffff], REG_SCRATCH2_8
+
+asm_jit_store_ZPG_END:
   ret
 
 
@@ -1120,21 +1129,21 @@ asm_jit_BEQ_8bit_END:
   ret
 
 
-.globl asm_jit_load_abs
-.globl asm_jit_load_abs_END
-asm_jit_load_abs:
+.globl asm_jit_load_ABS
+.globl asm_jit_load_ABS_END
+asm_jit_load_ABS:
   movzx REG_SCRATCH2_32, BYTE PTR [REG_MEM + 0x7fffffff]
 
-asm_jit_load_abs_END:
+asm_jit_load_ABS_END:
   ret
 
 
-.globl asm_jit_load_zpg
-.globl asm_jit_load_zpg_END
-asm_jit_load_zpg:
+.globl asm_jit_load_ZPG
+.globl asm_jit_load_ZPG_END
+asm_jit_load_ZPG:
   movzx REG_SCRATCH2_32, BYTE PTR [REG_MEM + 0x7f]
 
-asm_jit_load_zpg_END:
+asm_jit_load_ZPG_END:
   ret
 
 
@@ -1807,7 +1816,7 @@ asm_jit_ROL_ZPG:
 asm_jit_ROL_ZPG_END:
   ret
 
-# TODO: restore single RMW instruction where possible.
+# TODO: unused. Restore single RMW instruction where possible.
 .globl asm_jit_ROR_ABS
 .globl asm_jit_ROR_ABS_END
 asm_jit_ROR_ABS:
