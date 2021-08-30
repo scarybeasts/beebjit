@@ -12,6 +12,39 @@
 
 #include <assert.h>
 
+/* TODO: restore these optimizations internally to the x64 asm backend. */
+enum {
+  k_opcode_LDA_Z,
+  k_opcode_LDX_Z,
+  k_opcode_LDY_Z,
+  k_opcode_SUB_ABS,
+  k_opcode_SUB_IMM,
+  k_opcode_STOA_IMM,
+  k_opcode_ADD_ABS,
+  k_opcode_ADD_ABX,
+  k_opcode_ADD_ABY,
+  k_opcode_ADD_IMM,
+  k_opcode_ADD_SCRATCH,
+  k_opcode_ADD_SCRATCH_Y,
+  k_opcode_CLEAR_CARRY,
+  k_opcode_INVERT_CARRY,
+  k_opcode_SET_CARRY,
+  k_opcode_WRITE_INV_SCRATCH_n,
+  k_opcode_ASL_ACC_n,
+  k_opcode_LSR_ACC_n,
+  k_opcode_ROL_ACC_n,
+  k_opcode_ROR_ACC_n,
+  k_opcode_EOR_SCRATCH_n,
+  k_opcode_LDA_SCRATCH_n,
+  k_opcode_LDA_SCRATCH_X,
+  k_opcode_STA_SCRATCH_n,
+  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n,
+  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X,
+  k_opcode_LOAD_SCRATCH_8,
+  k_opcode_LOAD_SCRATCH_16,
+  k_opcode_MODE_IND_SCRATCH_16,
+};
+
 enum {
   k_opcode_x64_load_ABS = 0x1000,
   k_opcode_x64_load_ZPG,

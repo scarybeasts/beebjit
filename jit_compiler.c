@@ -1081,7 +1081,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     if (new_uopcode != -1) {
       jit_opcode_find_replace2(p_opcode,
                                opcode_6502,
-                               k_opcode_LOAD_SCRATCH_8,
+                               0, //k_opcode_LOAD_SCRATCH_8,
                                (uint16_t) (addr_6502 + 1),
                                new_uopcode,
                                0);
@@ -1115,7 +1115,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     if (new_uopcode != -1) {
       jit_opcode_find_replace2(p_opcode,
                                opcode_6502,
-                               k_opcode_LOAD_SCRATCH_16,
+                               0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
                                new_uopcode,
                                0);
@@ -1144,7 +1144,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     if (new_uopcode != -1) {
       jit_opcode_find_replace2(p_opcode,
                                opcode_6502,
-                               k_opcode_LOAD_SCRATCH_16,
+                               0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
                                new_uopcode,
                                0);
@@ -1156,21 +1156,21 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
       new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
       jit_opcode_find_replace2(p_opcode,
                                k_opcode_MODE_IND_16,
-                               k_opcode_LOAD_SCRATCH_16,
+                               0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
                                k_opcode_MODE_IND_SCRATCH_16,
                                0);
       break;
     case 0xBD: /* LDA abx */
-      new_uopcode = k_opcode_LDA_SCRATCH_X;
+      //new_uopcode = k_opcode_LDA_SCRATCH_X;
       jit_opcode_find_replace2(p_opcode,
                                0xBD,
-                               k_opcode_LOAD_SCRATCH_16,
+                               0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
-                               k_opcode_LDA_SCRATCH_X,
+                               0, //k_opcode_LDA_SCRATCH_X,
                                0);
       page_crossing_search_uopcode = k_opcode_CHECK_PAGE_CROSSING_X_n;
-      page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X;
+      //page_crossing_replace_uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X;
       break;
     default:
       break;

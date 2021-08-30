@@ -50,14 +50,6 @@ jit_optimizer_uopcode_can_jump(int32_t uopcode) {
     if (opbranch != k_bra_n) {
       ret = 1;
     }
-  } else {
-    switch (uopcode) {
-    case k_opcode_JMP_SCRATCH_n:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
   }
   return ret;
 }
@@ -92,19 +84,6 @@ jit_optimizer_uop_could_write(struct asm_uop* p_uop, uint16_t addr) {
         break;
       }
     }
-  } else {
-    switch (uopcode) {
-    case k_opcode_STOA_IMM:
-      write_addr_start = p_uop->value1;
-      write_addr_end = p_uop->value1;
-      break;
-    case k_opcode_STA_SCRATCH_n:
-      write_addr_start = 0;
-      write_addr_end = (k_6502_addr_space_size - 1);
-      break;
-    default:
-      break;
-    }
   }
 
   if (write_addr_start == -1) {
@@ -124,25 +103,10 @@ jit_optimizer_uopcode_sets_nz_flags(int32_t uopcode) {
     ret = g_optype_changes_nz_flags[optype];
   } else {
     switch (uopcode) {
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
-    case k_opcode_EOR_SCRATCH_n:
     case k_opcode_flags_nz_a:
     case k_opcode_flags_nz_x:
     case k_opcode_flags_nz_y:
     case k_opcode_flags_nz_value:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
-    case k_opcode_LSR_ACC_n:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
       ret = 1;
       break;
     default:
@@ -176,15 +140,6 @@ jit_optimizer_uopcode_overwrites_a(int32_t uopcode) {
     case k_pla:
     case k_txa:
     case k_tya:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
       ret = 1;
       break;
     default:
@@ -228,27 +183,6 @@ jit_optimizer_uopcode_needs_a(int32_t uopcode) {
     default:
       break;
     }
-  } else {
-    switch (uopcode) {
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
-    case k_opcode_flags_nz_a:
-    case k_opcode_LSR_ACC_n:
-    case k_opcode_ROL_ACC_n:
-    case k_opcode_ROR_ACC_n:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
   }
   return ret;
 }
@@ -262,14 +196,6 @@ jit_optimizer_uopcode_overwrites_x(int32_t uopcode) {
     case k_ldx:
     case k_tax:
     case k_tsx:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDX_Z:
       ret = 1;
       break;
     default:
@@ -309,9 +235,7 @@ jit_optimizer_uopcode_needs_x(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_ADD_ABX:
     case k_opcode_flags_nz_x:
       ret = 1;
       break;
@@ -330,14 +254,6 @@ jit_optimizer_uopcode_overwrites_y(int32_t uopcode) {
     switch (optype) {
     case k_ldy:
     case k_tay:
-      ret = 1;
-      break;
-    default:
-      break;
-    }
-  } else {
-    switch (uopcode) {
-    case k_opcode_LDY_Z:
       ret = 1;
       break;
     default:
@@ -376,8 +292,6 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_flags_nz_y:
@@ -449,27 +363,14 @@ jit_optimizer_uop_invalidates_idy(struct asm_uop* p_uop,
   } else {
     switch (uopcode) {
     case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    case k_opcode_EOR_SCRATCH_n:
     case k_opcode_flags_nz_a:
     case k_opcode_flags_nz_x:
     case k_opcode_flags_nz_y:
     case k_opcode_flags_nz_value:
-    case k_opcode_LDA_SCRATCH_n:
-    case k_opcode_LDA_Z:
-    case k_opcode_LDX_Z:
-    case k_opcode_LDY_Z:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
@@ -477,9 +378,6 @@ jit_optimizer_uop_invalidates_idy(struct asm_uop* p_uop,
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
       ret = 0;
       break;
     default:
@@ -524,25 +422,14 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
   } else {
     switch (uopcode) {
     case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_SCRATCH_8:
-    case k_opcode_LOAD_SCRATCH_16:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_16:
@@ -550,13 +437,8 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_n:
     case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
@@ -606,27 +488,14 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
   } else {
     switch (uopcode) {
     case k_opcode_debug:
-    case k_opcode_ADD_ABS:
-    case k_opcode_ADD_ABX:
-    case k_opcode_ADD_ABY:
-    case k_opcode_ADD_IMM:
-    case k_opcode_ADD_SCRATCH:
-    case k_opcode_ADD_SCRATCH_Y:
-    case k_opcode_ASL_ACC_n:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_LDA_SCRATCH_n:
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_SCRATCH_8:
-    case k_opcode_LOAD_SCRATCH_16:
-    case k_opcode_LSR_ACC_n:
     case k_opcode_MODE_ABX:
     case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_16:
@@ -634,13 +503,8 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_STA_SCRATCH_n:
-    case k_opcode_STOA_IMM:
-    case k_opcode_SUB_ABS:
-    case k_opcode_SUB_IMM:
     case k_opcode_WRITE_INV_ABS:
     case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_n:
     case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
@@ -692,8 +556,6 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_carry_write_opcode;
   struct asm_uop* p_carry_write_uop;
   int carry_flipped_for_branch;
-
-  int has_STOA = asm_jit_supports_uopcode(k_opcode_STOA_IMM);
 
   /* Pass 1: tag opcodes with any known register and flag values. */
   /* TODO: this pass operates on 6502 opcodes but it should probably work on
@@ -849,42 +711,42 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
       switch (uopcode) {
       case 0x61: /* ADC idx */
       case 0x75: /* ADC zpx */
-        new_add_uopcode = k_opcode_ADD_SCRATCH;
+        //new_add_uopcode = k_opcode_ADD_SCRATCH;
         break;
       case 0x65: /* ADC zpg */
       case 0x6D: /* ADC abs */
-        new_add_uopcode = k_opcode_ADD_ABS;
+        //new_add_uopcode = k_opcode_ADD_ABS;
         break;
       case 0x69: /* ADC imm */
-        new_add_uopcode = k_opcode_ADD_IMM;
+        //new_add_uopcode = k_opcode_ADD_IMM;
         break;
       case 0x71: /* ADC idy */
-        new_add_uopcode = k_opcode_ADD_SCRATCH_Y;
+        //new_add_uopcode = k_opcode_ADD_SCRATCH_Y;
         break;
       case 0x79: /* ADC aby */
-        new_add_uopcode = k_opcode_ADD_ABY;
+        //new_add_uopcode = k_opcode_ADD_ABY;
         break;
       case 0x7D: /* ADC abx */
-        new_add_uopcode = k_opcode_ADD_ABX;
+        //new_add_uopcode = k_opcode_ADD_ABX;
         break;
       case 0x84: /* STY zpg */
       case 0x8C: /* STY abs */
-        if (has_STOA && (reg_y != k_value_unknown)) {
-          uopcode = k_opcode_STOA_IMM;
+        if (reg_y != k_value_unknown) {
+          //uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_y;
         }
         break;
       case 0x85: /* STA zpg */
       case 0x8D: /* STA abs */
-        if (has_STOA && (reg_a != k_value_unknown)) {
-          uopcode = k_opcode_STOA_IMM;
+        if (reg_a != k_value_unknown) {
+          //uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_a;
         }
         break;
       case 0x86: /* STX zpg */
       case 0x8E: /* STX abs */
-        if (has_STOA && (reg_x != k_value_unknown)) {
-          uopcode = k_opcode_STOA_IMM;
+        if (reg_x != k_value_unknown) {
+          //uopcode = k_opcode_STOA_IMM;
           p_uop->value2 = reg_x;
         }
         break;
@@ -935,7 +797,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         break;
       case 0xE5: /* SBC zpg */
       case 0xED: /* SBC abs */
-        new_sub_uopcode = k_opcode_SUB_ABS;
+        //new_sub_uopcode = k_opcode_SUB_ABS;
         break;
       case 0xE8: /* INX */
         if (reg_x != k_value_unknown) {
@@ -945,7 +807,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         }
         break;
       case 0xE9: /* SBC imm */
-        new_sub_uopcode = k_opcode_SUB_IMM;
+        //new_sub_uopcode = k_opcode_SUB_IMM;
         break;
       case k_opcode_check_bcd:
         if (flag_decimal == k_value_unknown) {
@@ -966,10 +828,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
       }
 
       if ((new_add_uopcode != -1) && (flag_carry != k_value_unknown)) {
-        if ((flag_carry == 0) ||
-            ((new_add_uopcode == k_opcode_ADD_IMM) &&
-             (p_uop->value1 != 0xFF) &&
-             (p_uop->value1 != 0x7F))) {
+        if (flag_carry == 0) {
           /* Eliminate LOAD_CARRY_FOR_CALC, flip ADC to ADD. */
           struct asm_uop* p_elim_uop;
           uopcode = new_add_uopcode;
@@ -983,10 +842,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         }
       }
       if ((new_sub_uopcode != -1) && (flag_carry != k_value_unknown)) {
-        if ((flag_carry == 1) ||
-            ((new_sub_uopcode == k_opcode_SUB_IMM) &&
-             (p_uop->value1 != 0xFF) &&
-             (p_uop->value1 != 0x7F))) {
+        if (flag_carry == 1) {
           /* Eliminate LOAD_CARRY_INV_FOR_CALC, flip SBC to SUB. */
           struct asm_uop* p_elim_uop;
           uopcode = new_sub_uopcode;
@@ -1004,15 +860,15 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         int replaced = 0;
         switch (uopcode) {
         case 0x51: /* EOR idy */
-          uopcode = k_opcode_EOR_SCRATCH_n;
+          //uopcode = k_opcode_EOR_SCRATCH_n;
           replaced = 1;
           break;
         case 0x91: /* STA idy */
-          uopcode = k_opcode_STA_SCRATCH_n;
+          //uopcode = k_opcode_STA_SCRATCH_n;
           replaced = 1;
           break;
         case 0xB1: /* LDA idy */
-          uopcode = k_opcode_LDA_SCRATCH_n;
+          //uopcode = k_opcode_LDA_SCRATCH_n;
           replaced = 1;
           break;
         default:
@@ -1028,11 +884,11 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
 
           p_uop->value1 = reg_y;
           if (p_crossing_uop != NULL) {
-            p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
+            //p_crossing_uop->uopcode = k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n;
             p_crossing_uop->value1 = reg_y;
           }
           if (p_write_inv_uop != NULL) {
-            p_write_inv_uop->uopcode = k_opcode_WRITE_INV_SCRATCH_n;
+            //p_write_inv_uop->uopcode = k_opcode_WRITE_INV_SCRATCH_n;
             p_write_inv_uop->value1 = reg_y;
           }
         }
@@ -1071,19 +927,19 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
       switch (opcode_6502) {
       case 0x0A: /* ASL A */
         old_uopcode = 0x0A;
-        new_uopcode = k_opcode_ASL_ACC_n;
+        //new_uopcode = k_opcode_ASL_ACC_n;
         break;
       case 0x2A: /* ROL A */
         old_uopcode = 0x2A;
-        new_uopcode = k_opcode_ROL_ACC_n;
+        //new_uopcode = k_opcode_ROL_ACC_n;
         break;
       case 0x4A: /* LSR A */
         old_uopcode = 0x4A;
-        new_uopcode = k_opcode_LSR_ACC_n;
+        //new_uopcode = k_opcode_LSR_ACC_n;
         break;
       case 0x6A: /* ROR A */
         old_uopcode = 0x6A;
-        new_uopcode = k_opcode_ROR_ACC_n;
+        //new_uopcode = k_opcode_ROR_ACC_n;
         break;
       default:
         break;
@@ -1158,9 +1014,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
       /* NZ flag load. */
       if (p_nz_flags_opcode != NULL) {
         int32_t nz_flags_uopcode = p_nz_flags_uop->uopcode;
-        if (jit_optimizer_uopcode_needs_nz_flags(uopcode) ||
-            ((nz_flags_uopcode == k_opcode_FLAG_MEM) &&
-             jit_optimizer_uop_could_write(p_uop, p_nz_flags_uop->value1))) {
+        if (jit_optimizer_uopcode_needs_nz_flags(uopcode)) {
           /* If we can't eliminate a flag load, there's a special case of
            * loading 0 into a register where we can collapse the register load
            * and flag load.
@@ -1171,15 +1025,15 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           switch (nz_flags_uopcode) {
           case k_opcode_flags_nz_a:
             find_uopcode = 0xA9; /* LDA imm */
-            replace_uopcode = k_opcode_LDA_Z;
+            //replace_uopcode = k_opcode_LDA_Z;
             break;
           case k_opcode_flags_nz_x:
             find_uopcode = 0xA2; /* LDX imm */
-            replace_uopcode = k_opcode_LDX_Z;
+            //replace_uopcode = k_opcode_LDX_Z;
             break;
           case k_opcode_flags_nz_y:
             find_uopcode = 0xA0; /* LDY imm */
-            replace_uopcode = k_opcode_LDY_Z;
+            //replace_uopcode = k_opcode_LDY_Z;
             break;
           case k_opcode_flags_nz_value:
             break;
@@ -1301,7 +1155,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
                 carry_flipped_for_branch = 1;
                 jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
               } else {
-                p_uop->uopcode = k_opcode_INVERT_CARRY;
+                //p_uop->uopcode = k_opcode_INVERT_CARRY;
               }
             } else {
               jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
@@ -1311,9 +1165,9 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           case 0x38: /* SEC */
             inversion ^= (carry_write_uopcode == 0x38); /* SEC */
             if (inversion) {
-              p_uop->uopcode = k_opcode_SET_CARRY;
+              //p_uop->uopcode = k_opcode_SET_CARRY;
             } else {
-              p_uop->uopcode = k_opcode_CLEAR_CARRY;
+              //p_uop->uopcode = k_opcode_CLEAR_CARRY;
             }
             break;
           default:
