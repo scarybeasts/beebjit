@@ -535,12 +535,12 @@ asm_jit_LOAD_SCRATCH_8_END:
   ret
 
 
-.globl asm_jit_MODE_ABX
-.globl asm_jit_MODE_ABX_END
-asm_jit_MODE_ABX:
+.globl asm_jit_mode_ABX
+.globl asm_jit_mode_ABX_END
+asm_jit_mode_ABX:
   lea REG_SCRATCH1_32, [REG_6502_X_64 + 0x7fffffff]
 
-asm_jit_MODE_ABX_END:
+asm_jit_mode_ABX_END:
   ret
 
 
@@ -562,12 +562,12 @@ asm_jit_mode_abx_store_END:
   ret
 
 
-.globl asm_jit_MODE_ABY
-.globl asm_jit_MODE_ABY_END
-asm_jit_MODE_ABY:
+.globl asm_jit_mode_ABY
+.globl asm_jit_mode_ABY_END
+asm_jit_mode_ABY:
   lea REG_SCRATCH1_32, [REG_6502_Y_64 + 0x7fffffff]
 
-asm_jit_MODE_ABY_END:
+asm_jit_mode_ABY_END:
   ret
 
 
@@ -813,77 +813,47 @@ asm_jit_SUB_ZPG_END:
   ret
 
 
-.globl asm_jit_WRITE_INV_ABS_load
-.globl asm_jit_WRITE_INV_ABS_load_END
-.globl asm_jit_WRITE_INV_ABS_store
-.globl asm_jit_WRITE_INV_ABS_store_END
-asm_jit_WRITE_INV_ABS_load:
-  mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
-
-asm_jit_WRITE_INV_ABS_load_END:
-  ret
-
-asm_jit_WRITE_INV_ABS_store:
-  # NOTE: 16-bit imm contant may case LCP stall but quick tests didn't show any
-  # problems vs. using a 16-bit register.
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
-
-asm_jit_WRITE_INV_ABS_store_END:
-  ret
-
-
-.globl asm_jit_WRITE_INV_SCRATCH
-.globl asm_jit_WRITE_INV_SCRATCH_END
-asm_jit_WRITE_INV_SCRATCH:
+.globl asm_jit_write_inv
+.globl asm_jit_write_inv_END
+asm_jit_write_inv:
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH1 * 4]
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
-asm_jit_WRITE_INV_SCRATCH_END:
+asm_jit_write_inv_END:
   ret
 
 
-.globl asm_jit_WRITE_INV_SCRATCH_n_8bit
-.globl asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch
-.globl asm_jit_WRITE_INV_SCRATCH_n_8bit_END
-asm_jit_WRITE_INV_SCRATCH_n_8bit:
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0x7f]
-asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch:
-  mov REG_SCRATCH2_32, [REG_CONTEXT + \
-                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
-                        REG_SCRATCH2 * 4]
+.globl asm_jit_write_inv_ABS_load
+.globl asm_jit_write_inv_ABS_load_END
+.globl asm_jit_write_inv_ABS_store
+.globl asm_jit_write_inv_ABS_store_END
+asm_jit_write_inv_ABS_load:
+  mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
+
+asm_jit_write_inv_ABS_load_END:
+  ret
+
+asm_jit_write_inv_ABS_store:
+  # NOTE: 16-bit imm contant may case LCP stall but quick tests didn't show any
+  # problems vs. using a 16-bit register.
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
-asm_jit_WRITE_INV_SCRATCH_n_8bit_END:
+asm_jit_write_inv_ABS_store_END:
   ret
 
 
-.globl asm_jit_WRITE_INV_SCRATCH_n_32bit
-.globl asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch
-.globl asm_jit_WRITE_INV_SCRATCH_n_32bit_END
-asm_jit_WRITE_INV_SCRATCH_n_32bit:
-  lea REG_SCRATCH2_32, [REG_SCRATCH1 + 0x7fffffff]
-asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch:
-  mov REG_SCRATCH2_32, [REG_CONTEXT + \
-                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
-                        REG_SCRATCH2 * 4]
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
-
-asm_jit_WRITE_INV_SCRATCH_n_32bit_END:
-  ret
-
-
-.globl asm_jit_WRITE_INV_SCRATCH_Y
-.globl asm_jit_WRITE_INV_SCRATCH_Y_END
-asm_jit_WRITE_INV_SCRATCH_Y:
+.globl asm_jit_write_inv_IDY
+.globl asm_jit_write_inv_IDY_END
+asm_jit_write_inv_IDY:
   lea REG_SCRATCH2_32, [REG_SCRATCH1 + REG_6502_Y_64]
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
   mov WORD PTR [REG_SCRATCH2], 0x17ff
 
-asm_jit_WRITE_INV_SCRATCH_Y_END:
+asm_jit_write_inv_IDY_END:
   ret
 
 

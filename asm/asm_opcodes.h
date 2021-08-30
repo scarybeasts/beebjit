@@ -30,9 +30,6 @@ enum {
   k_opcode_SAVE_CARRY,
   k_opcode_SAVE_CARRY_INV,
   k_opcode_SAVE_OVERFLOW,
-  k_opcode_WRITE_INV_ABS,
-  k_opcode_WRITE_INV_SCRATCH,
-  k_opcode_WRITE_INV_SCRATCH_Y,
 
   /* Addressing opcodes, 0x200 - 0x2FF. */
   k_opcode_addr_set = 0x200,
@@ -41,6 +38,7 @@ enum {
   k_opcode_addr_add_x_8bit,
   k_opcode_addr_add_y_8bit,
   k_opcode_addr_load_16bit_zpg,
+  k_opcode_write_inv,
 
   /* ALU opcodes, 0x300 - 0x3FF. */
   k_opcode_value_set = 0x300,
@@ -117,9 +115,7 @@ enum {
   k_opcode_TYA,
 
   /* TODO: hide the asm backend specific optimization opcodes. */
-  k_opcode_MODE_ABX = 0x500,
-  k_opcode_MODE_ABY,
-  k_opcode_MODE_IND_16,
+  k_opcode_MODE_IND_16 = 0x500,
 
   /* The asm backends can make their own opcodes from 0x1000, but these are
    * private and not exposed.

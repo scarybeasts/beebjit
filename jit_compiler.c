@@ -842,44 +842,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
     switch (opmode) {
     case k_abs:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
-      p_uop++;
-      break;
     case k_abx:
-      /* TODO: should be only one inv opcode? */
-      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABX, operand_6502);
-      p_uop++;
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
     case k_aby:
-      jit_opcode_make_uop1(p_uop, k_opcode_MODE_ABY, operand_6502);
-      p_uop++;
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
     case k_idx:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
-      p_uop++;
-      break;
     case k_idy:
-      jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH_Y, 0);
+      jit_opcode_make_uop0(p_uop, k_opcode_write_inv);
       p_uop++;
       break;
     case k_zpg:
-      if (p_compiler->compile_for_code_in_zero_page) {
-        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_ABS, operand_6502);
-        p_uop++;
-      }
-      break;
     case k_zpx:
     case k_zpy:
       if (p_compiler->compile_for_code_in_zero_page) {
-        jit_opcode_make_uop1(p_uop, k_opcode_WRITE_INV_SCRATCH, 0);
+        jit_opcode_make_uop0(p_uop, k_opcode_write_inv);
         p_uop++;
       }
       break;
     default:
+      assert(0);
       break;
     }
   }
@@ -1094,13 +1073,13 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
       break;
     case 0x8C: /* STY abs */
       new_uopcode = 0x94; /* STY zpx -- which is STY_scratch. */
-      write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
-      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      //write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+      //write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
       break;
     case 0x8D: /* STA abs */
       new_uopcode = 0x95; /* STA zpx -- which is STA_SCRATCH. */
-      write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
-      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      //write_inv_search_uopcode = k_opcode_WRITE_INV_ABS;
+      //write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH;
       break;
     case 0xAE: /* LDX abs */
       new_uopcode = 0xB6; /* LDX zpy -- which is LDX_scratch. */
@@ -1125,9 +1104,9 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     switch (opcode_6502) {
     case 0x99: /* STA aby */
       new_uopcode = 0x91; /* STA idy */
-      write_inv_search_uopcode = k_opcode_WRITE_INV_SCRATCH;
-      write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH_Y;
-      write_inv_erase_uopcode = k_opcode_MODE_ABY;
+      //write_inv_search_uopcode = k_opcode_WRITE_INV_SCRATCH;
+      //write_inv_replace_uopcode = k_opcode_WRITE_INV_SCRATCH_Y;
+      //write_inv_erase_uopcode = k_opcode_MODE_ABY;
       break;
     case 0xB9: /* LDA aby */
       new_uopcode = 0xB1; /* LDA idy */
@@ -1153,12 +1132,12 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
   default:
     switch (opcode_6502) {
     case 0x6C: /* JMP ind */
-      new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
+      //new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
       jit_opcode_find_replace2(p_opcode,
                                k_opcode_MODE_IND_16,
                                0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
-                               k_opcode_MODE_IND_SCRATCH_16,
+                               0, //k_opcode_MODE_IND_SCRATCH_16,
                                0);
       break;
     case 0xBD: /* LDA abx */

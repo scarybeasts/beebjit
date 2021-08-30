@@ -295,8 +295,6 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_flags_nz_y:
-    case k_opcode_MODE_ABY:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 1;
       break;
     default:
@@ -430,16 +428,10 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_16:
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_WRITE_INV_ABS:
-    case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
     default:
@@ -496,16 +488,10 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_LOAD_CARRY_FOR_BRANCH:
     case k_opcode_LOAD_CARRY_FOR_CALC:
     case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_MODE_ABX:
-    case k_opcode_MODE_ABY:
     case k_opcode_MODE_IND_16:
-    case k_opcode_MODE_IND_SCRATCH_16:
     case k_opcode_SAVE_CARRY:
     case k_opcode_SAVE_CARRY_INV:
     case k_opcode_SAVE_OVERFLOW:
-    case k_opcode_WRITE_INV_ABS:
-    case k_opcode_WRITE_INV_SCRATCH:
-    case k_opcode_WRITE_INV_SCRATCH_Y:
       ret = 0;
       break;
     default:
@@ -879,8 +865,8 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           struct asm_uop* p_crossing_uop =
               jit_opcode_find_uop(p_opcode,
                                   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
-          struct asm_uop* p_write_inv_uop =
-              jit_opcode_find_uop(p_opcode, k_opcode_WRITE_INV_SCRATCH_Y);
+          struct asm_uop* p_write_inv_uop = NULL;
+              //jit_opcode_find_uop(p_opcode, k_opcode_WRITE_INV_SCRATCH_Y);
 
           p_uop->value1 = reg_y;
           if (p_crossing_uop != NULL) {

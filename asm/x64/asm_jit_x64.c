@@ -29,7 +29,6 @@ enum {
   k_opcode_CLEAR_CARRY,
   k_opcode_INVERT_CARRY,
   k_opcode_SET_CARRY,
-  k_opcode_WRITE_INV_SCRATCH_n,
   k_opcode_ASL_ACC_n,
   k_opcode_LSR_ACC_n,
   k_opcode_ROL_ACC_n,
@@ -55,6 +54,10 @@ enum {
   k_opcode_x64_mode_ZPY,
   k_opcode_x64_store_ABS,
   k_opcode_x64_store_ZPG,
+  k_opcode_x64_write_inv_ABS,
+  k_opcode_x64_write_inv_ABX,
+  k_opcode_x64_write_inv_ABY,
+  k_opcode_x64_write_inv_IDY,
   k_opcode_x64_ADC_ABS,
   k_opcode_x64_ADC_ABX,
   k_opcode_x64_ADC_ABY,
@@ -1038,38 +1041,6 @@ asm_emit_jit_SUB_IMM(struct util_buffer* p_buf, uint8_t value) {
 }
 
 static void
-asm_emit_jit_WRITE_INV_SCRATCH_n(struct util_buffer* p_buf, uint8_t value) {
-  void asm_jit_WRITE_INV_SCRATCH_n_8bit(void);
-  void asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch(void);
-  void asm_jit_WRITE_INV_SCRATCH_n_8bit_END(void);
-  void asm_jit_WRITE_INV_SCRATCH_n_32bit(void);
-  void asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch(void);
-  void asm_jit_WRITE_INV_SCRATCH_n_32bit_END(void);
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  if (value < 0x80) {
-    asm_copy(p_buf,
-             asm_jit_WRITE_INV_SCRATCH_n_8bit,
-             asm_jit_WRITE_INV_SCRATCH_n_8bit_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_WRITE_INV_SCRATCH_n_8bit,
-                   asm_jit_WRITE_INV_SCRATCH_n_8bit_lea_patch,
-                   value);
-  } else {
-    asm_copy(p_buf,
-             asm_jit_WRITE_INV_SCRATCH_n_32bit,
-             asm_jit_WRITE_INV_SCRATCH_n_32bit_END);
-    asm_patch_int(p_buf,
-                  offset,
-                  asm_jit_WRITE_INV_SCRATCH_n_32bit,
-                  asm_jit_WRITE_INV_SCRATCH_n_32bit_lea_patch,
-                  value);
-  }
-}
-
-static void
 asm_emit_jit_ASL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
   void asm_jit_ASL_ACC_n(void);
   void asm_jit_ASL_ACC_n_END(void);
@@ -1322,10 +1293,11 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_store_uop = NULL;
   struct asm_uop* p_carry_uop = NULL;
   struct asm_uop* p_flags_uop = NULL;
+  struct asm_uop* p_inv_uop = NULL;
+  uint16_t addr = 0;
   struct asm_uop* p_tmp_uop;
   int32_t uopcode;
   int32_t new_uopcode;
-  uint16_t addr;
   int is_zpg;
   int is_mode_addr;
   int is_mode_abn;
@@ -1378,6 +1350,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_addr_check:
       /* Address check in the x64 model is implicit via fault+fixup. */
       p_uop->is_eliminated = 1;
+      break;
+    case k_opcode_write_inv:
+      assert(p_inv_uop == NULL);
+      p_inv_uop = p_uop;
       break;
     default:
       break;
@@ -1441,6 +1417,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       do_set_segment = 1;
       do_eliminate_load_store = 1;
     }
+    if (p_inv_uop != NULL) {
+      p_inv_uop->uopcode = k_opcode_x64_write_inv_ABS;
+      p_inv_uop->value1 = addr;
+    }
     break;
   case k_opcode_addr_add_x_8bit:
     /* Mode ZPX or IDX. */
@@ -1464,6 +1444,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    addr = p_mode_uop->value1;
     if (is_rmw) {
       p_mode_uop->uopcode = k_opcode_x64_mode_ABX_and_load;
       p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
@@ -1481,6 +1462,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       do_eliminate_load_store = 1;
       do_set_segment = 1;
     }
+    if (p_inv_uop != NULL) {
+      p_inv_uop->uopcode = k_opcode_x64_write_inv_ABX;
+      p_inv_uop->value1 = addr;
+    }
     is_mode_abn = 1;
     break;
   case k_opcode_addr_add_y:
@@ -1490,10 +1475,15 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     if (p_tmp_uop->uopcode == k_opcode_addr_set) {
       p_mode_uop->is_eliminated = 1;
       p_mode_uop--;
+      addr = p_mode_uop->value1;
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_ABY(new_uopcode);
       p_mode_uop->uopcode = new_uopcode;
       p_main_uop->is_eliminated = 1;
+      if (p_inv_uop != NULL) {
+        p_inv_uop->uopcode = k_opcode_x64_write_inv_ABY;
+        p_inv_uop->value1 = addr;
+      }
       is_mode_abn = 1;
       do_set_segment = 1;
       do_eliminate_load_store = 1;
@@ -1507,6 +1497,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       new_uopcode = asm_jit_rewrite_IDY(new_uopcode);
       p_mode_uop->uopcode = new_uopcode;
       p_main_uop->is_eliminated = 1;
+      if (p_inv_uop != NULL) {
+        p_inv_uop->uopcode = k_opcode_x64_write_inv_IDY;
+      }
       do_eliminate_load_store = 1;
     }
     break;
@@ -1689,8 +1682,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LSR_ACC_n:
     asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_MODE_ABX: ASM_U32(MODE_ABX); break;
-  case k_opcode_MODE_ABY: ASM_U32(MODE_ABY); break;
   case k_opcode_MODE_IND_16:
     asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
     break;
@@ -1718,18 +1709,17 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_SUB_IMM:
     asm_emit_jit_SUB_IMM(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_WRITE_INV_ABS:
-    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
-    ASM_U32(WRITE_INV_ABS_load);
-    ASM(WRITE_INV_ABS_store);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH: ASM(WRITE_INV_SCRATCH); break;
-  case k_opcode_WRITE_INV_SCRATCH_n:
-    asm_emit_jit_WRITE_INV_SCRATCH_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH_Y: ASM(WRITE_INV_SCRATCH_Y); break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
+  case k_opcode_write_inv: ASM(write_inv); break;
+  case k_opcode_x64_write_inv_ABS:
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    ASM_U32(write_inv_ABS_load);
+    ASM(write_inv_ABS_store);
+    break;
+  case k_opcode_x64_write_inv_ABX: ASM_U32(mode_ABX); ASM(write_inv); break;
+  case k_opcode_x64_write_inv_ABY: ASM_U32(mode_ABY); ASM(write_inv); break;
+  case k_opcode_x64_write_inv_IDY: ASM(write_inv_IDY); break;
   case k_opcode_ASL_acc: ASM(ASL_acc); break;
   case k_opcode_ASL_value: ASM(ASL_value); break;
   case k_opcode_BCC: ASM_Bxx(BCC); break;
