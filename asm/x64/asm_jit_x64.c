@@ -53,6 +53,7 @@ enum {
   k_opcode_x64_mode_ABX_and_load,
   k_opcode_x64_mode_ABX_store,
   k_opcode_x64_mode_IDY_load,
+  k_opcode_x64_mode_IND,
   k_opcode_x64_mode_ZPX,
   k_opcode_x64_mode_ZPY,
   k_opcode_x64_save_carry_inv,
@@ -1321,7 +1322,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_addr_set:
       p_mode_uop = p_uop;
       break;
-    case k_opcode_value_load_16bit:
+    case k_opcode_value_load_16bit_wrap:
     case k_opcode_addr_add_x_8bit:
     case k_opcode_addr_add_y_8bit:
     case k_opcode_addr_add_x:
@@ -1413,12 +1414,12 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   do_eliminate_load_store = 0;
   uopcode = p_mode_uop->uopcode;
   switch (uopcode) {
-  case k_opcode_value_load_16bit:
+  case k_opcode_value_load_16bit_wrap:
     /* Mode IND. */
     p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
-    p_mode_uop->uopcode = k_opcode_MODE_IND_16;
+    p_mode_uop->uopcode = k_opcode_x64_mode_IND;
     break;
   case k_opcode_value_set:
     /* Mode IMM. */
@@ -1527,7 +1528,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       do_set_segment = 1;
       do_eliminate_load_store = 1;
     } else {
-      assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_zpg);
+      assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap);
       p_tmp_uop->is_eliminated = 1;
       p_tmp_uop = (p_tmp_uop - 1);
       assert(p_tmp_uop->uopcode == k_opcode_addr_set);
@@ -1649,7 +1650,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_inturbo:
     asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_addr_load_16bit_zpg: ASM(addr_load_16bit_zpg); break;
+  case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_ADD_ABS:
     asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1, value2);
     break;
@@ -1711,7 +1712,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LSR_ACC_n:
     asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_MODE_IND_16:
+  case k_opcode_x64_mode_IND:
     asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;

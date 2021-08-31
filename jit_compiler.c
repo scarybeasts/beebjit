@@ -481,7 +481,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit);
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
     p_uop++;
     break;
   case k_idx:
@@ -492,7 +492,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_zpg);
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
     p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
@@ -503,7 +503,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->max_6502_addr = 0xFFFF;
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_zpg);
+    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
     p_uop++;
     jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
     p_uop++;
@@ -604,8 +604,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     /* SEI */
     jit_opcode_make_uop0(p_uop, k_opcode_SEI);
     p_uop++;
-    /* MODE_IND */
-    jit_opcode_make_uop1(p_uop, k_opcode_MODE_IND_16, k_6502_vector_irq);
+    /* Load IRQ vector. */
+    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, k_6502_vector_irq);
+    p_uop++;
+    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
     p_uop++;
     /* JMP_SCRATCH_n */
     jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
@@ -1127,7 +1129,7 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
     case 0x6C: /* JMP ind */
       //new_uopcode = k_opcode_MODE_IND_SCRATCH_16;
       jit_opcode_find_replace2(p_opcode,
-                               k_opcode_MODE_IND_16,
+                               0, //k_opcode_MODE_IND_16,
                                0, //k_opcode_LOAD_SCRATCH_16,
                                (uint16_t) (addr_6502 + 1),
                                0, //k_opcode_MODE_IND_SCRATCH_16,

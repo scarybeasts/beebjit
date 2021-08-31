@@ -34,7 +34,7 @@ enum {
   k_opcode_addr_add_y,
   k_opcode_addr_add_x_8bit,
   k_opcode_addr_add_y_8bit,
-  k_opcode_addr_load_16bit_zpg,
+  k_opcode_addr_load_16bit_wrap,
   k_opcode_flags_nz_a,
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,
@@ -43,7 +43,7 @@ enum {
   k_opcode_PUSH_16,
   k_opcode_value_set,
   k_opcode_value_load,
-  k_opcode_value_load_16bit,
+  k_opcode_value_load_16bit_wrap,
   k_opcode_value_store,
   k_opcode_write_inv,
 
@@ -110,9 +110,6 @@ enum {
   k_opcode_TXA,
   k_opcode_TYA,
   k_opcode_main_end,
-
-  /* TODO: hide the asm backend specific optimization opcodes. */
-  k_opcode_MODE_IND_16 = 0x400,
 
   /* The asm backends can make their own opcodes from 0x1000, but these are
    * private and not exposed.

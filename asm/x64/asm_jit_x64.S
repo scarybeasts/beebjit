@@ -603,9 +603,9 @@ asm_jit_MODE_IND_16_END:
   ret
 
 
-.globl asm_jit_addr_load_16bit_zpg
-.globl asm_jit_addr_load_16bit_zpg_END
-asm_jit_addr_load_16bit_zpg:
+.globl asm_jit_addr_load_16bit_wrap
+.globl asm_jit_addr_load_16bit_wrap_END
+asm_jit_addr_load_16bit_wrap:
   # This faults (with a fixup handler) if we're trying to load from $00FF,
   # which is highly unusual.
   mov REG_SCRATCH2_8, \
@@ -615,7 +615,7 @@ asm_jit_addr_load_16bit_zpg:
   mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
   mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
 
-asm_jit_addr_load_16bit_zpg_END:
+asm_jit_addr_load_16bit_wrap_END:
   ret
 
 

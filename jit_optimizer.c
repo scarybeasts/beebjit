@@ -418,7 +418,6 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_MODE_IND_16:
       ret = 0;
       break;
     default:
@@ -472,7 +471,6 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_MODE_IND_16:
       ret = 0;
       break;
     default:
