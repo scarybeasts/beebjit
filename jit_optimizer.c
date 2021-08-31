@@ -369,13 +369,6 @@ jit_optimizer_uop_invalidates_idy(struct asm_uop* p_uop,
     case k_opcode_flags_nz_x:
     case k_opcode_flags_nz_y:
     case k_opcode_flags_nz_value:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-    case k_opcode_LOAD_OVERFLOW:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
       ret = 0;
       break;
     default:
@@ -425,13 +418,7 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
     case k_opcode_MODE_IND_16:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
       ret = 0;
       break;
     default:
@@ -485,13 +472,7 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
-    case k_opcode_LOAD_CARRY_FOR_BRANCH:
-    case k_opcode_LOAD_CARRY_FOR_CALC:
-    case k_opcode_LOAD_CARRY_INV_FOR_CALC:
     case k_opcode_MODE_IND_16:
-    case k_opcode_SAVE_CARRY:
-    case k_opcode_SAVE_CARRY_INV:
-    case k_opcode_SAVE_OVERFLOW:
       ret = 0;
       break;
     default:
@@ -821,8 +802,8 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           if (flag_carry == 1) {
             p_uop->value1++;
           }
-          p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                           k_opcode_LOAD_CARRY_FOR_CALC);
+          p_elim_uop = jit_opcode_find_uop(p_opcode, 0);
+                                           //k_opcode_LOAD_CARRY_FOR_CALC);
           assert(p_elim_uop != NULL);
           p_elim_uop->is_eliminated = 1;
         }
@@ -835,8 +816,8 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
           if (flag_carry == 0) {
             p_uop->value1++;
           }
-          p_elim_uop = jit_opcode_find_uop(p_opcode,
-                                           k_opcode_LOAD_CARRY_INV_FOR_CALC);
+          p_elim_uop = jit_opcode_find_uop(p_opcode, 0);
+                                           //k_opcode_LOAD_CARRY_INV_FOR_CALC);
           assert(p_elim_uop != NULL);
           p_elim_uop->is_eliminated = 1;
         }
@@ -1104,7 +1085,7 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         jit_optimizer_eliminate(&p_ldy_opcode, p_ldy_uop, p_opcode);
       }
       /* Overflow flag save elimination. */
-      if ((p_overflow_opcode != NULL) && (uopcode == k_opcode_SAVE_OVERFLOW)) {
+      if ((p_overflow_opcode != NULL) && (uopcode == k_opcode_save_overflow)) {
         jit_optimizer_eliminate(&p_overflow_opcode, p_overflow_uop, p_opcode);
       }
       /* Carry flag save elimination. */
@@ -1113,31 +1094,25 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         int32_t carry_write_uopcode = p_carry_write_uop->uopcode;
         int inversion = 0;
         switch (uopcode) {
-        case k_opcode_SAVE_CARRY:
-        case k_opcode_SAVE_CARRY_INV:
+        case k_opcode_save_carry:
         case 0x18: /* CLC */
         case 0x38: /* SEC */
           jit_optimizer_eliminate(&p_carry_write_opcode,
                                   p_carry_write_uop,
                                   p_opcode);
           break;
-        case k_opcode_LOAD_CARRY_FOR_BRANCH:
-        case k_opcode_LOAD_CARRY_FOR_CALC:
-        case k_opcode_LOAD_CARRY_INV_FOR_CALC:
-          if (uopcode != k_opcode_LOAD_CARRY_FOR_BRANCH) {
-            /* Eliminate unfinalized write. */
-            jit_optimizer_eliminate(&p_carry_write_opcode,
-                                    p_carry_write_uop,
-                                    p_opcode);
-          }
+        case k_opcode_load_carry:
+          /* Eliminate unfinalized write. */
+          jit_optimizer_eliminate(&p_carry_write_opcode,
+                                  p_carry_write_uop,
+                                  p_opcode);
           /* Eliminate load or replace with direct host carry flag change. */
-          inversion ^= (uopcode == k_opcode_LOAD_CARRY_INV_FOR_CALC);
+          inversion ^= (uopcode == 0);
           switch (carry_write_uopcode) {
-          case k_opcode_SAVE_CARRY:
-          case k_opcode_SAVE_CARRY_INV:
-            inversion ^= (carry_write_uopcode == k_opcode_SAVE_CARRY_INV);
+          case k_opcode_save_carry:
+            inversion ^= (carry_write_uopcode == 0);
             if (inversion) {
-              if (uopcode == k_opcode_LOAD_CARRY_FOR_BRANCH) {
+              if (uopcode == 0) {
                 carry_flipped_for_branch = 1;
                 jit_optimizer_eliminate(&p_eliminate_opcode, p_uop, NULL);
               } else {
@@ -1226,12 +1201,11 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
         p_ldy_opcode = p_opcode;
         p_ldy_uop = p_uop;
         break;
-      case k_opcode_SAVE_OVERFLOW:
+      case k_opcode_save_overflow:
         p_overflow_opcode = p_opcode;
         p_overflow_uop = p_uop;
         break;
-      case k_opcode_SAVE_CARRY:
-      case k_opcode_SAVE_CARRY_INV:
+      case k_opcode_save_carry:
       case 0x18: /* CLC */
       case 0x38: /* SEC */
         p_carry_write_opcode = p_opcode;

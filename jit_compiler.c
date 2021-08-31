@@ -357,15 +357,16 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
   }
   if ((optype == k_adc) ||
+      (optype == k_sbc) ||
       (optype == k_rol) ||
-      (optype == k_ror)) {
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_CALC);
+      (optype == k_ror) ||
+      (optype == k_bcc) ||
+      (optype == k_bcs)) {
+    jit_opcode_make_uop0(p_uop, k_opcode_load_carry);
     p_uop++;
-  } else if (optype == k_sbc) {
-    /* TODO: get rid of inversion special case and require "carry", not "borrow"
-     * semantics by default from the asm backend?
-     */
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_INV_FOR_CALC);
+  }
+  if ((optype == k_bvc) || (optype == k_bvs)) {
+    jit_opcode_make_uop0(p_uop, k_opcode_load_overflow);
     p_uop++;
   }
 
@@ -545,15 +546,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_adc:
     jit_opcode_make_uop0(p_uop, k_opcode_ADC);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_overflow);
     p_uop++;
     break;
   case k_alr:
     jit_opcode_make_uop0(p_uop, k_opcode_ALR);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_and: jit_opcode_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
@@ -565,18 +566,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jit_opcode_make_uop0(p_uop, k_opcode_ASL_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_bcc:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
-    p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_BCC, jit_addr);
     p_uop++;
     break;
   case k_bcs:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_CARRY_FOR_BRANCH);
-    p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_BCS, jit_addr);
     p_uop++;
     break;
@@ -615,14 +612,10 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_bvc:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
-    p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_BVC, jit_addr);
     p_uop++;
     break;
   case k_bvs:
-    jit_opcode_make_uop0(p_uop, k_opcode_LOAD_OVERFLOW);
-    p_uop++;
     jit_opcode_make_uop1(p_uop, k_opcode_BVS, jit_addr);
     p_uop++;
     break;
@@ -638,19 +631,19 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_cmp:
     jit_opcode_make_uop0(p_uop, k_opcode_CMP);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_cpx:
     jit_opcode_make_uop0(p_uop, k_opcode_CPX);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_cpy:
     jit_opcode_make_uop0(p_uop, k_opcode_CPY);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_dec: jit_opcode_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
@@ -693,7 +686,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jit_opcode_make_uop0(p_uop, k_opcode_LSR_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   /* NOTE: sends undocumented modes of NOP along to JIT. Zalaga uses NOP abx
@@ -718,7 +711,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jit_opcode_make_uop0(p_uop, k_opcode_ROL_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_ror:
@@ -729,7 +722,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       jit_opcode_make_uop0(p_uop, k_opcode_ROR_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_rti:
@@ -758,9 +751,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_sbc:
     jit_opcode_make_uop0(p_uop, k_opcode_SBC);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY_INV);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_SAVE_OVERFLOW);
+    jit_opcode_make_uop0(p_uop, k_opcode_save_overflow);
     p_uop++;
     break;
   case k_sec: jit_opcode_make_uop0(p_uop, k_opcode_SEC); p_uop++; break;
@@ -774,7 +767,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     if ((opmode == k_abs) || (opmode == k_zpg)) {
       jit_opcode_make_uop0(p_uop, k_opcode_SLO);
       p_uop++;
-      jit_opcode_make_uop0(p_uop, k_opcode_SAVE_CARRY);
+      jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
       p_uop++;
     } else {
       use_interp = 1;
@@ -1770,15 +1763,15 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
           case 0xA0: /* LDY imm */
             p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
             break;
-          case k_opcode_SAVE_OVERFLOW:
+          case k_opcode_save_overflow:
             p_compiler->addr_o_fixup[addr_6502] = 1;
             break;
-          case k_opcode_SAVE_CARRY:
+          case k_opcode_save_carry:
             p_compiler->addr_c_fixup[addr_6502] = 1;
             break;
-          case k_opcode_SAVE_CARRY_INV:
-            p_compiler->addr_c_fixup[addr_6502] = 2;
-            break;
+          //case k_opcode_SAVE_CARRY_INV:
+          //  p_compiler->addr_c_fixup[addr_6502] = 2;
+          //  break;
           case 0x18: /* CLC */
             p_compiler->addr_c_fixup[addr_6502] = 3;
             break;

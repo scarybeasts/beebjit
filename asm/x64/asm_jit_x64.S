@@ -490,39 +490,39 @@ asm_jit_LDY_Z_END:
   ret
 
 
-.globl asm_jit_LOAD_CARRY_FOR_BRANCH
-.globl asm_jit_LOAD_CARRY_FOR_BRANCH_END
-asm_jit_LOAD_CARRY_FOR_BRANCH:
+.globl asm_jit_load_carry_for_branch
+.globl asm_jit_load_carry_for_branch_END
+asm_jit_load_carry_for_branch:
   bt REG_6502_CF_64, 0
 
-asm_jit_LOAD_CARRY_FOR_BRANCH_END:
+asm_jit_load_carry_for_branch_END:
   ret
 
 
-.globl asm_jit_LOAD_CARRY_FOR_CALC
-.globl asm_jit_LOAD_CARRY_FOR_CALC_END
-asm_jit_LOAD_CARRY_FOR_CALC:
+.globl asm_jit_load_carry_for_calc
+.globl asm_jit_load_carry_for_calc_END
+asm_jit_load_carry_for_calc:
   shr REG_6502_CF, 1
 
-asm_jit_LOAD_CARRY_FOR_CALC_END:
+asm_jit_load_carry_for_calc_END:
   ret
 
 
-.globl asm_jit_LOAD_CARRY_INV_FOR_CALC
-.globl asm_jit_LOAD_CARRY_INV_FOR_CALC_END
-asm_jit_LOAD_CARRY_INV_FOR_CALC:
+.globl asm_jit_load_carry_inv_for_calc
+.globl asm_jit_load_carry_inv_for_calc_END
+asm_jit_load_carry_inv_for_calc:
   cmp REG_6502_CF, 1
 
-asm_jit_LOAD_CARRY_INV_FOR_CALC_END:
+asm_jit_load_carry_inv_for_calc_END:
   ret
 
 
-.globl asm_jit_LOAD_OVERFLOW
-.globl asm_jit_LOAD_OVERFLOW_END
-asm_jit_LOAD_OVERFLOW:
+.globl asm_jit_load_overflow
+.globl asm_jit_load_overflow_END
+asm_jit_load_overflow:
   bt REG_6502_OF_64, 0
 
-asm_jit_LOAD_OVERFLOW_END:
+asm_jit_load_overflow_END:
   ret
 
 
@@ -714,30 +714,30 @@ asm_jit_PUSH_16_END:
   ret
 
 
-.globl asm_jit_SAVE_CARRY
-.globl asm_jit_SAVE_CARRY_END
-asm_jit_SAVE_CARRY:
+.globl asm_jit_save_carry
+.globl asm_jit_save_carry_END
+asm_jit_save_carry:
   setb REG_6502_CF
 
-asm_jit_SAVE_CARRY_END:
+asm_jit_save_carry_END:
   ret
 
 
-.globl asm_jit_SAVE_CARRY_INV
-.globl asm_jit_SAVE_CARRY_INV_END
-asm_jit_SAVE_CARRY_INV:
+.globl asm_jit_save_carry_inv
+.globl asm_jit_save_carry_inv_END
+asm_jit_save_carry_inv:
   setae REG_6502_CF
 
-asm_jit_SAVE_CARRY_INV_END:
+asm_jit_save_carry_inv_END:
   ret
 
 
-.globl asm_jit_SAVE_OVERFLOW
-.globl asm_jit_SAVE_OVERFLOW_END
-asm_jit_SAVE_OVERFLOW:
+.globl asm_jit_save_overflow
+.globl asm_jit_save_overflow_END
+asm_jit_save_overflow:
   seto REG_6502_OF
 
-asm_jit_SAVE_OVERFLOW_END:
+asm_jit_save_overflow_END:
   ret
 
 
