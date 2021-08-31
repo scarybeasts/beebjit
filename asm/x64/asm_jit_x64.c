@@ -40,7 +40,6 @@ enum {
   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n,
   k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X,
   k_opcode_LOAD_SCRATCH_8,
-  k_opcode_LOAD_SCRATCH_16,
   k_opcode_MODE_IND_SCRATCH_16,
 };
 
@@ -166,11 +165,10 @@ enum {
 #define ASM_ADDR_U8(x)                                                         \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
-  delta = (value2 - K_BBC_MEM_READ_IND_ADDR);                                  \
   asm_copy_patch_byte(p_dest_buf,                                              \
                       asm_jit_ ## x,                                           \
                       asm_jit_ ## x ## _END,                                   \
-                      (value1 - REG_MEM_OFFSET + delta))
+                      (value1 - REG_MEM_OFFSET))
 
 #define ASM_U32(x)                                                             \
   void asm_jit_ ## x(void);                                                    \
@@ -831,88 +829,6 @@ asm_emit_jit_LOAD_SCRATCH_8(struct util_buffer* p_buf, uint16_t addr) {
 }
 
 static void
-asm_emit_jit_LOAD_SCRATCH_16(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_MODE_IND_16(void);
-  void asm_jit_MODE_IND_16_mov1_patch(void);
-  void asm_jit_MODE_IND_16_mov2_patch(void);
-  void asm_jit_MODE_IND_16_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf, asm_jit_MODE_IND_16, asm_jit_MODE_IND_16_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_IND_16,
-                asm_jit_MODE_IND_16_mov1_patch,
-                (addr - REG_MEM_OFFSET));
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_IND_16,
-                asm_jit_MODE_IND_16_mov2_patch,
-                ((addr + 1) - REG_MEM_OFFSET));
-}
-
-static void
-asm_emit_jit_MODE_IND_8(struct util_buffer* p_buf, uint8_t addr) {
-  void asm_jit_MODE_IND_8(void);
-  void asm_jit_MODE_IND_8_mov1_patch(void);
-  void asm_jit_MODE_IND_8_mov2_patch(void);
-  void asm_jit_MODE_IND_8_END(void);
-  uint16_t next_addr;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  if (addr == 0xFF) {
-    next_addr = 0;
-  } else {
-    next_addr = (addr + 1);
-  }
-
-  asm_copy(p_buf, asm_jit_MODE_IND_8, asm_jit_MODE_IND_8_END);
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_jit_MODE_IND_8,
-                 asm_jit_MODE_IND_8_mov1_patch,
-                 (addr - REG_MEM_OFFSET));
-  asm_patch_byte(p_buf,
-                 offset,
-                 asm_jit_MODE_IND_8,
-                 asm_jit_MODE_IND_8_mov2_patch,
-                 (next_addr - REG_MEM_OFFSET));
-}
-
-static void
-asm_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
-  void asm_jit_MODE_IND_16(void);
-  void asm_jit_MODE_IND_16_mov1_patch(void);
-  void asm_jit_MODE_IND_16_mov2_patch(void);
-  void asm_jit_MODE_IND_16_END(void);
-  uint16_t next_addr;
-
-  size_t offset = util_buffer_get_pos(p_buf);
-  uint32_t segment = K_BBC_MEM_READ_FULL_ADDR;
-  uint32_t delta = (segment - K_BBC_MEM_READ_IND_ADDR);
-
-  /* On the 6502, (e.g.) JMP (&10FF) does not fetch across the page boundary. */
-  if ((addr & 0xFF) == 0xFF) {
-    next_addr = (addr & 0xFF00);
-  } else {
-    next_addr = (addr + 1);
-  }
-
-  asm_copy(p_buf, asm_jit_MODE_IND_16, asm_jit_MODE_IND_16_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_IND_16,
-                asm_jit_MODE_IND_16_mov1_patch,
-                (addr - REG_MEM_OFFSET + delta));
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_MODE_IND_16,
-                asm_jit_MODE_IND_16_mov2_patch,
-                (next_addr - REG_MEM_OFFSET + delta));
-}
-
-static void
 asm_emit_jit_MODE_ZPX(struct util_buffer* p_buf, uint8_t value) {
   void asm_jit_MODE_ZPX_8bit(void);
   void asm_jit_MODE_ZPX_8bit_lea_patch(void);
@@ -1420,6 +1336,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
     p_mode_uop->uopcode = k_opcode_x64_mode_IND;
+    /* TODO: not correct for hardware register hits, but BRK breaks with IND. */
+    p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
     break;
   case k_opcode_value_set:
     /* Mode IMM. */
@@ -1706,14 +1624,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LOAD_SCRATCH_8:
     asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_LOAD_SCRATCH_16:
-    asm_emit_jit_LOAD_SCRATCH_16(p_dest_buf, (uint16_t) value1);
-    break;
   case k_opcode_LSR_ACC_n:
     asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_x64_mode_IND:
-    asm_emit_jit_MODE_IND_16(p_dest_buf, (uint16_t) value1);
+    ASM_ADDR_U32(mode_IND_mov1);
+    value1++;
+    if ((value1 & 0xFF) == 0) value1 -= 0x100;
+    ASM_ADDR_U32(mode_IND_mov2);
     break;
   case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
@@ -1811,7 +1729,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_x64_mode_ABX_store: ASM_ADDR_U32_RAW(mode_abx_store); break;
   case k_opcode_x64_mode_IDY_load:
-    asm_emit_jit_MODE_IND_8(p_dest_buf, value1);
+    ASM_ADDR_U8(mode_IDY_load_mov1);
+    value1 = ((value1 + 1) & 0xFF);
+    ASM_ADDR_U8(mode_IDY_load_mov2);
     break;
   case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
   case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;

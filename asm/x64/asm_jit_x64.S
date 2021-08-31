@@ -571,35 +571,39 @@ asm_jit_mode_ABY_END:
   ret
 
 
-.globl asm_jit_MODE_IND_8
-.globl asm_jit_MODE_IND_8_mov1_patch
-.globl asm_jit_MODE_IND_8_mov2_patch
-.globl asm_jit_MODE_IND_8_END
-asm_jit_MODE_IND_8:
+.globl asm_jit_mode_IDY_load_mov1
+.globl asm_jit_mode_IDY_load_mov1_END
+.globl asm_jit_mode_IDY_load_mov2
+.globl asm_jit_mode_IDY_load_mov2_END
+asm_jit_mode_IDY_load_mov1:
   # Deliberately done as 2x 8 byte loads, not 1x 16.
   # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7f]
-asm_jit_MODE_IND_8_mov1_patch:
-  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7f]
-asm_jit_MODE_IND_8_mov2_patch:
+asm_jit_mode_IDY_load_mov1_END:
+  ret
 
-asm_jit_MODE_IND_8_END:
+asm_jit_mode_IDY_load_mov2:
+  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7f]
+
+asm_jit_mode_IDY_load_mov2_END:
   ret
 
 
-.globl asm_jit_MODE_IND_16
-.globl asm_jit_MODE_IND_16_mov1_patch
-.globl asm_jit_MODE_IND_16_mov2_patch
-.globl asm_jit_MODE_IND_16_END
-asm_jit_MODE_IND_16:
+.globl asm_jit_mode_IND_mov1
+.globl asm_jit_mode_IND_mov1_END
+.globl asm_jit_mode_IND_mov2
+.globl asm_jit_mode_IND_mov2_END
+asm_jit_mode_IND_mov1:
   # Deliberately done as 2x 8 byte loads, not 1x 16.
   # It's faster, possibly store-to-load forwarding fails?
   movzx REG_SCRATCH1_32, BYTE PTR [REG_MEM + 0x7fffffff]
-asm_jit_MODE_IND_16_mov1_patch:
-  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7fffffff]
-asm_jit_MODE_IND_16_mov2_patch:
+asm_jit_mode_IND_mov1_END:
+  ret
 
-asm_jit_MODE_IND_16_END:
+asm_jit_mode_IND_mov2:
+  mov REG_SCRATCH1_8_HI, [REG_MEM + 0x7fffffff]
+
+asm_jit_mode_IND_mov2_END:
   ret
 
 
