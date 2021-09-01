@@ -1226,6 +1226,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   int is_rmw;
   int do_set_segment;
   int do_eliminate_load_store;
+  int do_eliminate_flags;
 
   for (i = 0; i < num_uops; ++i) {
     struct asm_uop* p_uop = &p_uops[i];
@@ -1328,6 +1329,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   is_mode_abn = 0;
   do_set_segment = 0;
   do_eliminate_load_store = 0;
+  do_eliminate_flags = 0;
   uopcode = p_mode_uop->uopcode;
   switch (uopcode) {
   case k_opcode_value_load_16bit_wrap:
@@ -1374,6 +1376,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       }
       do_set_segment = 1;
       do_eliminate_load_store = 1;
+      if (is_rmw) {
+        do_eliminate_flags = 1;
+      }
     }
     if (p_inv_uop != NULL) {
       p_inv_uop->uopcode = k_opcode_x64_write_inv_ABS;
@@ -1471,10 +1476,14 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   if (is_mode_addr) {
     assert(p_mode_uop != NULL);
     assert(p_main_uop != NULL);
-    new_uopcode = p_main_uop->uopcode;
-    new_uopcode = asm_jit_rewrite_addr(new_uopcode);
-    p_main_uop->uopcode = new_uopcode;
-    do_eliminate_load_store = 1;
+    if (is_rmw) {
+      /* Leave it as RMW. */
+    } else {
+      new_uopcode = p_main_uop->uopcode;
+      new_uopcode = asm_jit_rewrite_addr(new_uopcode);
+      p_main_uop->uopcode = new_uopcode;
+      do_eliminate_load_store = 1;
+    }
   }
 
   if (do_set_segment) {
@@ -1497,8 +1506,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_store_uop->is_eliminated = 1;
     }
   }
-
-  (void) p_flags_uop;
+  if (do_eliminate_flags) {
+    assert(p_flags_uop != NULL);
+    p_flags_uop->is_eliminated = 1;
+  }
 }
 
 void

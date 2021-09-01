@@ -1820,12 +1820,17 @@ main(int argc, const char* argv[]) {
 
   /* Nothing was testing mode zpx RMW instructions?? */
   set_new_index(p_buf, 0x1A40);
-  emit_LDA(p_buf, k_imm, 0x76);
+  emit_LDA(p_buf, k_imm, 0xFE);
   emit_STA(p_buf, k_zpg, 0xF0);
   emit_LDX(p_buf, k_imm, 0x01);
   emit_INC(p_buf, k_zpx, 0xEF);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_NF(p_buf, 1);
   emit_LDA(p_buf, k_zpg, 0xF0);
-  emit_REQUIRE_EQ(p_buf, 0x77);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
+  emit_INC(p_buf, k_zpx, 0xEF);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
   emit_JMP(p_buf, k_abs, 0xDA80);
 
   /* x64 rewriter was asserting if it saw SLO as non-abs/zpg mode. */
