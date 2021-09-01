@@ -471,6 +471,8 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_ZF(p_buf, 1);
   emit_DEC(p_buf, k_abs, 0xC603);
   emit_REQUIRE_ZF(p_buf, 0);
+  emit_LDA(p_buf, k_abs, 0xC603);
+  emit_REQUIRE_EQ(p_buf, 0xFF);
   emit_CLC(p_buf);
   emit_ROR(p_buf, k_abs, 0xC603);
   emit_REQUIRE_CF(p_buf, 1);
