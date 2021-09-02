@@ -156,16 +156,17 @@ asm_jit_addr_load_END:
   ret
 
 
-.globl asm_jit_addr_load_16bit_zpg
-.globl asm_jit_addr_load_16bit_zpg_END
-asm_jit_addr_load_16bit_zpg:
+.globl asm_jit_addr_load_16bit_wrap
+.globl asm_jit_addr_load_16bit_wrap_END
+asm_jit_addr_load_16bit_wrap:
+  # NOTE: assumes zero-page.
   add REG_SCRATCH2, REG_SCRATCH1, #1
   and REG_SCRATCH2, REG_SCRATCH2, #0xFF
   ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH2]
   ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
 
-asm_jit_addr_load_16bit_zpg_END:
+asm_jit_addr_load_16bit_wrap_END:
   ret
 
 
@@ -453,14 +454,33 @@ asm_jit_value_store_addr_END:
   ret
 
 
-.globl asm_jit_write_inv_addr
-.globl asm_jit_write_inv_addr_END
-asm_jit_write_inv_addr:
+.globl asm_jit_write_inv
+.globl asm_jit_write_inv_END
+asm_jit_write_inv:
   ldr REG_SCRATCH3_32, [REG_JIT_PTRS, REG_SCRATCH1, lsl #2]
   # Store anything convenient since it'll write fault.
   str REG_SCRATCH3_32, [REG_SCRATCH3]
 
-asm_jit_write_inv_addr_END:
+asm_jit_write_inv_END:
+  ret
+
+
+.globl asm_jit_write_inv_ABS_load
+.globl asm_jit_write_inv_ABS_load_END
+.globl asm_jit_write_inv_ABS_store
+.globl asm_jit_write_inv_ABS_store_END
+asm_jit_write_inv_ABS_load:
+  # 6502 range is 0 - 0xFFF. Constant below is 4x that due to 32 bit ptrs.
+  ldr REG_SCRATCH3_32, [REG_JIT_PTRS, #0x3FFC]
+
+asm_jit_write_inv_ABS_load_END:
+  ret
+
+asm_jit_write_inv_ABS_store:
+  # Store anything convenient since it'll write fault.
+  str REG_SCRATCH3_32, [REG_SCRATCH3]
+
+asm_jit_write_inv_ABS_store_END:
   ret
 
 

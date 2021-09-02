@@ -1880,8 +1880,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_CF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xDB40);
 
-  /* End of test. */
+  /* Test JIT invalidation at an address < 0x1000, but not zero page. */
   set_new_index(p_buf, 0x1B40);
+  emit_LDA(p_buf, k_imm, 0xEA);
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x0201);
+  emit_JSR(p_buf, 0x0200);
+  emit_LDA(p_buf, k_imm, 0xE8);
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x0200);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xDB80);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1B80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

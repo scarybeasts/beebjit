@@ -12,11 +12,13 @@
 
 enum {
   k_opcode_arm64_addr_trunc_8bit = 0x1000,
+  k_opcode_arm64_load_byte_pair,
   k_opcode_arm64_mode_ABX,
   k_opcode_arm64_mode_ABY,
   k_opcode_arm64_value_load_ABS,
   k_opcode_arm64_value_set_hi,
   k_opcode_arm64_value_store_ABS,
+  k_opcode_arm64_write_inv_ABS,
   k_opcode_arm64_ADC_IMM,
   k_opcode_arm64_AND_IMM,
   k_opcode_arm64_CMP_IMM,
@@ -122,24 +124,8 @@ asm_jit_supports_optimizer(void) {
 
 int
 asm_jit_supports_uopcode(int32_t uopcode) {
-  int ret = 1;
-
-  /* Some uopcodes don't make sense on ARM64 because they would be more likely
-   * a pessimization than an optimization.
-   * One example is STOA, which writes a constant to a memory location. ARM64
-   * does not have a single instruction to do this, unlike x64. In the case of
-   * STOA, keeping with the original load / store sequence avoids potentially
-   * adding an extra constant load.
-   */
-  switch (uopcode) {
-  case k_opcode_STOA_IMM:
-    ret = 0;
-    break;
-  default:
-    break;
-  }
-
-  return ret;
+  (void) uopcode;
+  return 1;
 }
 
 struct asm_jit_struct*
@@ -277,23 +263,13 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t value1) {
   ASM(jump_interp);
 }
 
-static void
-asm_emit_jit_MODE_IND_16(struct util_buffer* p_buf, uint16_t addr) {
-  /* Wraps around 0x10FF -> 0x1000. */
-  uint16_t next_addr;
-  if ((addr & 0xFF) == 0xFF) {
-    next_addr = (addr & 0xFF00);
-  } else {
-    next_addr = (addr + 1);
-  }
-  asm_emit_jit_LOAD_BYTE_PAIR(p_buf, addr, next_addr);
-}
-
 void
 asm_jit_rewrite(struct asm_jit_struct* p_asm,
                 struct asm_uop* p_uops,
                 uint32_t num_uops) {
   uint32_t i_uops;
+  int is_abs = 0;
+  uint16_t addr = 0;
 
   (void) p_asm;
 
@@ -386,6 +362,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_addr_set:
       assert((i_uops + 1) < num_uops);
       i_uops++;
+      addr = value1;
       p_next_uop = &p_uops[i_uops];
       do_rmw_abs_store = 0;
       do_keep_load = 0;
@@ -393,6 +370,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       case k_opcode_value_load:
         assert((i_uops + 1) < num_uops);
         i_uops++;
+        is_abs = 1;
         p_next_uop2 = &p_uops[i_uops];
         switch (p_next_uop2->uopcode) {
         case k_opcode_ADC:
@@ -494,11 +472,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
           p_next_uop->is_eliminated = 1;
         }
         break;
-      /* TODO: should be just one opcode. */
-      case k_opcode_addr_load_16bit_zpg:
-      case k_opcode_value_load_16bit:
-        /* Mode IDY, or indirect JMP mode addressing. */
-        p_uop->uopcode = k_opcode_MODE_IND_16;
+      case k_opcode_addr_load_16bit_wrap:
+      case k_opcode_value_load_16bit_wrap:
+        /* Mode IDY, or mode IND JMP mode addressing. */
+        p_uop->uopcode = k_opcode_arm64_load_byte_pair;
         p_next_uop->is_eliminated = 1;
         break;
       case k_opcode_addr_add_x_8bit:
@@ -562,6 +539,12 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
         break;
       }
       break;
+    case k_opcode_write_inv:
+      if (is_abs && (addr < 0x1000)) {
+        p_uop->uopcode = k_opcode_arm64_write_inv_ABS;
+        p_uop->value1 = addr;
+      }
+      break;
     default:
       break;
     }
@@ -570,8 +553,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       assert((i_uops + 1) < num_uops);
       i_uops++;
       p_next_uop = &p_uops[i_uops];
-      assert((p_next_uop->uopcode == k_opcode_SAVE_CARRY_INV) ||
-             (p_next_uop->uopcode == k_opcode_SAVE_CARRY));
+      assert(p_next_uop->uopcode == k_opcode_save_carry);
       p_next_uop->is_eliminated = 1;
     }
     if (do_rmw_abs_store) {
@@ -616,7 +598,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_addr_add_x: ASM(addr_add_x); break;
   case k_opcode_addr_add_y: ASM(addr_add_y); break;
-  case k_opcode_addr_load_16bit_zpg: ASM(addr_load_16bit_zpg); break;
+  case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_addr_set: ASM_IMM16(addr_set); break;
   case k_opcode_check_bcd:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
@@ -661,14 +643,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     }
     ASM(JMP_addr);
     break;
-  case k_opcode_LOAD_CARRY_FOR_BRANCH: break;
-  case k_opcode_LOAD_CARRY_FOR_CALC: break;
-  case k_opcode_LOAD_CARRY_INV_FOR_CALC: break;
-  case k_opcode_LOAD_OVERFLOW: break;
-  /* TODO: remove these two. */
-  case k_opcode_MODE_ABX: break;
-  case k_opcode_MODE_ABY: break;
-  case k_opcode_MODE_IND_16: asm_emit_jit_MODE_IND_16(p_buf, value1); break;
+  case k_opcode_load_carry: break;
+  case k_opcode_load_overflow: break;
   case k_opcode_PULL_16: ASM(pull_16bit); break;
   case k_opcode_PUSH_16:
     tmp = value1;
@@ -679,20 +655,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_IMM16(value_set);
     ASM(push);
     break;
-  case k_opcode_SAVE_CARRY: ASM(save_carry); break;
-  /* TODO: "inv" carry is an Intel-ism, get rid! */
-  case k_opcode_SAVE_CARRY_INV: ASM(save_carry); break;
-  case k_opcode_SAVE_OVERFLOW: ASM(save_overflow); break;
+  case k_opcode_save_carry: ASM(save_carry); break;
+  case k_opcode_save_overflow: ASM(save_overflow); break;
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
   case k_opcode_value_store: ASM(value_store_addr); break;
-  case k_opcode_WRITE_INV_ABS:
-    /* TODO: can do better, depending on whether addr <= 0x1000. */
-    ASM_IMM16(addr_set);
-    ASM(write_inv_addr);
-    break;
-  case k_opcode_WRITE_INV_SCRATCH: ASM(write_inv_addr); break;
-  case k_opcode_WRITE_INV_SCRATCH_Y: ASM(write_inv_addr); break;
+  case k_opcode_write_inv: ASM(write_inv); break;
   case k_opcode_ADC: ASM(ADC); break;
   case k_opcode_ALR: ASM(ALR); break;
   case k_opcode_AND: ASM(AND); break;
@@ -752,12 +720,22 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TXA: asm_emit_instruction_TXA(p_buf); break;
   case k_opcode_TXS: asm_emit_instruction_TXS(p_buf); break;
   case k_opcode_TYA: asm_emit_instruction_TYA(p_buf); break;
+  case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
+  case k_opcode_arm64_load_byte_pair:
+    /* Wraps around 0x10FF -> 0x1000. */
+    tmp = (value1 + 1);
+    if (!(tmp & 0xFF)) tmp -= 0x100;
+    asm_emit_jit_LOAD_BYTE_PAIR(p_buf, value1, (tmp & 0xFFFF));
+    break;
   case k_opcode_arm64_mode_ABX: ASM_IMM12(mode_ABX); break;
   case k_opcode_arm64_mode_ABY: ASM_IMM12(mode_ABY); break;
-  case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
   case k_opcode_arm64_value_load_ABS: ASM_IMM12(value_load_ABS); break;
   case k_opcode_arm64_value_set_hi: ASM_IMM16(value_set_hi); break;
   case k_opcode_arm64_value_store_ABS: ASM_IMM12(value_store_ABS); break;
+  case k_opcode_arm64_write_inv_ABS:
+    ASM_IMM12(write_inv_ABS_load);
+    ASM(write_inv_ABS_store);
+    break;
   case k_opcode_arm64_ADC_IMM: ASM(ADC_IMM); break;
   case k_opcode_arm64_AND_IMM: ASM_IMMR_IMMS(AND_IMM); break;
   case k_opcode_arm64_CMP_IMM:
