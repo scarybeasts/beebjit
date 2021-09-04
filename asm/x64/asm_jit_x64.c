@@ -7,6 +7,7 @@
 #include "../asm_defs_host.h"
 #include "../asm_jit_defs.h"
 #include "../asm_opcodes.h"
+#include "../asm_util.h"
 /* For REG_MEM_OFFSET. */
 #include "asm_defs_registers_x64.h"
 
@@ -1207,16 +1208,15 @@ void
 asm_jit_rewrite(struct asm_jit_struct* p_asm,
                 struct asm_uop* p_uops,
                 uint32_t num_uops) {
-  uint32_t i;
-  struct asm_uop* p_main_uop = NULL;
-  struct asm_uop* p_mode_uop = NULL;
-  struct asm_uop* p_load_uop = NULL;
-  struct asm_uop* p_store_uop = NULL;
-  struct asm_uop* p_load_carry_uop = NULL;
-  struct asm_uop* p_save_carry_uop = NULL;
-  struct asm_uop* p_flags_uop = NULL;
-  struct asm_uop* p_inv_uop = NULL;
-  uint16_t addr = 0;
+  struct asm_uop* p_main_uop;
+  struct asm_uop* p_mode_uop;
+  struct asm_uop* p_load_uop;
+  struct asm_uop* p_store_uop;
+  struct asm_uop* p_load_carry_uop;
+  struct asm_uop* p_save_carry_uop;
+  struct asm_uop* p_flags_uop;
+  struct asm_uop* p_inv_uop;
+  struct asm_uop* p_addr_check_uop;
   struct asm_uop* p_tmp_uop;
   int32_t uopcode;
   int32_t new_uopcode;
@@ -1227,65 +1227,19 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   int do_set_segment;
   int do_eliminate_load_store;
   int do_eliminate_flags;
+  uint16_t addr;
 
-  for (i = 0; i < num_uops; ++i) {
-    struct asm_uop* p_uop = &p_uops[i];
-    int32_t uopcode = p_uop->uopcode;
-    switch (uopcode) {
-    case k_opcode_value_set:
-      p_mode_uop = p_uop;
-      assert((i + 1) < num_uops);
-      break;
-    case k_opcode_addr_set:
-      p_mode_uop = p_uop;
-      break;
-    case k_opcode_value_load_16bit_wrap:
-    case k_opcode_addr_add_x_8bit:
-    case k_opcode_addr_add_y_8bit:
-    case k_opcode_addr_add_x:
-    case k_opcode_addr_add_y:
-      assert(i != 0);
-      p_mode_uop = p_uop;
-      break;
-    case k_opcode_value_load:
-      p_load_uop = p_uop;
-      assert((i + 1) < num_uops);
-      break;
-    case k_opcode_value_store:
-      p_store_uop = p_uop;
-      assert(i != 0);
-      break;
-    case k_opcode_load_carry:
-      /* Rewrite to x64 specific carry load. */
-      assert((i + 1) < num_uops);
-      p_load_carry_uop = p_uop;
-      break;
-    case k_opcode_save_carry:
-      /* Rewrite to x64 specific carry save. */
-      p_save_carry_uop = p_uop;
-      break;
-    case k_opcode_flags_nz_a:
-    case k_opcode_flags_nz_x:
-    case k_opcode_flags_nz_y:
-    case k_opcode_flags_nz_value:
-      assert(p_flags_uop == NULL);
-      p_flags_uop = p_uop;
-      break;
-    case k_opcode_addr_check:
-      /* Address check in the x64 model is implicit via fault+fixup. */
-      p_uop->is_eliminated = 1;
-      break;
-    case k_opcode_write_inv:
-      assert(p_inv_uop == NULL);
-      p_inv_uop = p_uop;
-      break;
-    default:
-      if ((uopcode >= k_opcode_main_begin) && (uopcode <= k_opcode_main_end)) {
-        p_main_uop = p_uop;
-      }
-      break;
-    }
-  }
+  asm_breakdown_from_6502(p_uops,
+                          num_uops,
+                          &p_main_uop,
+                          &p_mode_uop,
+                          &p_load_uop,
+                          &p_store_uop,
+                          &p_load_carry_uop,
+                          &p_save_carry_uop,
+                          &p_flags_uop,
+                          &p_inv_uop,
+                          &p_addr_check_uop);
 
   /* Fix up carry flag managment, including for Intel doing borrow instead of
    * carry for subtract.
@@ -1321,6 +1275,12 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     return;
   }
 
+  /* The x64 model does implicit, not explicit, address checks. */
+  if (p_addr_check_uop != NULL) {
+    p_addr_check_uop->is_eliminated = 1;
+  }
+
+  addr = 0;
   is_rmw = 0;
   if ((p_load_uop != NULL) && (p_store_uop != NULL)) {
     is_rmw = 1;

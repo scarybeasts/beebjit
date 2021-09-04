@@ -743,13 +743,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
     p_uop++;
     break;
-  case k_sax:
-    jit_opcode_make_uop0(p_uop, k_opcode_SAX);
-    p_uop++;
-    /* TODO: value_store should be added generically. */
-    jit_opcode_make_uop0(p_uop, k_opcode_value_store);
-    p_uop++;
-    break;
+  case k_sax: jit_opcode_make_uop0(p_uop, k_opcode_SAX); p_uop++; break;
   case k_sbc:
     jit_opcode_make_uop0(p_uop, k_opcode_SBC);
     p_uop++;

@@ -5,7 +5,7 @@ gcc -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
     -fno-pie -no-pie -Wa,--noexecstack \
     -g -o beebjit \
-    asm/asm_abi.c asm/asm_tables.c \
+    asm/asm_abi.c asm/asm_tables.c asm/asm_util.c \
     asm/asm_common.c asm/asm_common.S \
     asm/asm_inturbo.c asm/asm_inturbo.S \
     asm/asm_jit.c asm/asm_jit.S \
