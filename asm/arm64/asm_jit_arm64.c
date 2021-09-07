@@ -6,6 +6,7 @@
 #include "../asm_common.h"
 #include "../asm_jit_defs.h"
 #include "../asm_opcodes.h"
+#include "../asm_util.h"
 #include "asm_helper_arm64.h"
 
 #include <assert.h>
@@ -267,303 +268,288 @@ void
 asm_jit_rewrite(struct asm_jit_struct* p_asm,
                 struct asm_uop* p_uops,
                 uint32_t num_uops) {
-  uint32_t i_uops;
-  int is_abs = 0;
-  uint16_t addr = 0;
+  struct asm_uop* p_main_uop;
+  struct asm_uop* p_mode_uop;
+  struct asm_uop* p_load_uop;
+  struct asm_uop* p_store_uop;
+  struct asm_uop* p_load_carry_uop;
+  struct asm_uop* p_save_carry_uop;
+  struct asm_uop* p_flags_uop;
+  struct asm_uop* p_inv_uop;
+  struct asm_uop* p_addr_check_uop;
+  struct asm_uop* p_tmp_uop;
+  int32_t uopcode;
+  int32_t value1;
+  uint8_t immr;
+  uint8_t imms;
+  int is_imm;
+  int is_abs;
+  uint16_t addr;
 
   (void) p_asm;
 
-  for (i_uops = 0; i_uops < num_uops; ++i_uops) {
-    struct asm_uop* p_uop = &p_uops[i_uops];
-    int32_t uopcode = p_uop->uopcode;
-    int32_t value1 = p_uop->value1;
-    struct asm_uop* p_next_uop;
-    struct asm_uop* p_next_uop2;
-    struct asm_uop* p_next_uop3;
-    int do_eliminate_carry;
-    int do_rmw_abs_store;
-    int do_keep_load;
-    uint8_t immr;
-    uint8_t imms;
+  asm_breakdown_from_6502(p_uops,
+                          num_uops,
+                          &p_main_uop,
+                          &p_mode_uop,
+                          &p_load_uop,
+                          &p_store_uop,
+                          &p_load_carry_uop,
+                          &p_save_carry_uop,
+                          &p_flags_uop,
+                          &p_inv_uop,
+                          &p_addr_check_uop);
 
-    do_eliminate_carry = 0;
-    do_rmw_abs_store = 0;
+  if (p_main_uop == NULL) {
+    return;
+  }
 
-    switch (uopcode) {
-    case k_opcode_value_set:
-      assert((i_uops + 1) < num_uops);
-      i_uops++;
-      p_next_uop = &p_uops[i_uops];
-      switch (p_next_uop->uopcode) {
-      case k_opcode_ADC:
-        p_uop->uopcode = k_opcode_arm64_value_set_hi;
-        p_uop->value1 = (p_uop->value1 << 8);
-        p_next_uop->uopcode = k_opcode_arm64_ADC_IMM;
-        break;
-      case k_opcode_ALR:
-        do_eliminate_carry = 1;
-        break;
-      case k_opcode_AND:
-        if (asm_calculate_immr_imms(&immr, &imms, value1)) {
-          p_uop->uopcode = k_opcode_arm64_AND_IMM;
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      case k_opcode_CMP:
-        p_uop->uopcode = k_opcode_arm64_CMP_IMM;
-        p_next_uop->is_eliminated = 1;
-        do_eliminate_carry = 1;
-        break;
-      case k_opcode_CPX:
-        p_uop->uopcode = k_opcode_arm64_CPX_IMM;
-        p_next_uop->is_eliminated = 1;
-        do_eliminate_carry = 1;
-        break;
-      case k_opcode_CPY:
-        p_uop->uopcode = k_opcode_arm64_CPY_IMM;
-        p_next_uop->is_eliminated = 1;
-        do_eliminate_carry = 1;
-        break;
-      case k_opcode_EOR:
-        if (asm_calculate_immr_imms(&immr, &imms, value1)) {
-          p_uop->uopcode = k_opcode_arm64_EOR_IMM;
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      case k_opcode_LDA:
-        p_uop->uopcode = k_opcode_arm64_LDA_IMM;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_LDX:
-        p_uop->uopcode = k_opcode_arm64_LDX_IMM;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_LDY:
-        p_uop->uopcode = k_opcode_arm64_LDY_IMM;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_NOP: break;
-      case k_opcode_ORA:
-        if (asm_calculate_immr_imms(&immr, &imms, value1)) {
-          p_uop->uopcode = k_opcode_arm64_ORA_IMM;
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      case k_opcode_SBC:
-        p_uop->uopcode = k_opcode_arm64_value_set_hi;
-        p_uop->value1 = (p_uop->value1 << 8);
-        p_next_uop->uopcode = k_opcode_arm64_SBC_IMM;
-        break;
-      default:
-        assert(0);
-        break;
+  /* Some ARM64 operations have built-in carry save management. */
+  switch (p_main_uop->uopcode) {
+  case k_opcode_ALR:
+  case k_opcode_ASL_acc:
+  case k_opcode_CMP:
+  case k_opcode_CPX:
+  case k_opcode_CPY:
+  case k_opcode_LSR_acc:
+  case k_opcode_ASL_value:
+  case k_opcode_LSR_value:
+  case k_opcode_ROL_acc:
+  case k_opcode_ROL_value:
+  case k_opcode_ROR_acc:
+  case k_opcode_ROR_value:
+  case k_opcode_SLO:
+    assert(p_save_carry_uop != NULL);
+    p_save_carry_uop->is_eliminated = 1;
+    break;
+  default:
+    break;
+  }
+
+  if (p_mode_uop == NULL) {
+    return;
+  }
+
+  is_imm = 0;
+  is_abs = 0;
+  addr = 0;
+
+  uopcode = p_mode_uop->uopcode;
+  value1 = p_mode_uop->value1;
+  switch (uopcode) {
+  case k_opcode_value_set:
+    /* Mode IMM. */
+    assert(p_main_uop != NULL);
+    is_imm = 1;
+    switch (p_main_uop->uopcode) {
+    case k_opcode_ADC:
+      p_mode_uop->uopcode = k_opcode_arm64_value_set_hi;
+      p_mode_uop->value1 = (value1 << 8);
+      p_main_uop->uopcode = k_opcode_arm64_ADC_IMM;
+      break;
+    case k_opcode_ALR: break;
+    case k_opcode_AND:
+      if (asm_calculate_immr_imms(&immr, &imms, value1)) {
+        p_mode_uop->uopcode = k_opcode_arm64_AND_IMM;
+        p_main_uop->is_eliminated = 1;
       }
       break;
-    case k_opcode_addr_set:
-      assert((i_uops + 1) < num_uops);
-      i_uops++;
-      addr = value1;
-      p_next_uop = &p_uops[i_uops];
-      do_rmw_abs_store = 0;
-      do_keep_load = 0;
-      switch (p_next_uop->uopcode) {
-      case k_opcode_value_load:
-        assert((i_uops + 1) < num_uops);
-        i_uops++;
-        is_abs = 1;
-        p_next_uop2 = &p_uops[i_uops];
-        switch (p_next_uop2->uopcode) {
-        case k_opcode_ADC:
-        case k_opcode_AND:
-        case k_opcode_EOR:
-        case k_opcode_ORA:
-        case k_opcode_SBC:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_value_load_ABS;
-          } else {
-            do_keep_load = 1;
-          }
-          break;
-        case k_opcode_ASL_value:
-        case k_opcode_LSR_value:
-        case k_opcode_ROL_value:
-        case k_opcode_ROR_value:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_value_load_ABS;
-            do_rmw_abs_store = 1;
-          } else {
-            do_keep_load = 1;
-          }
-          do_eliminate_carry = 1;
-          break;
-        case k_opcode_BIT:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_value_load_ABS;
-          } else {
-            do_keep_load = 1;
-          }
-          break;
-        case k_opcode_CMP:
-        case k_opcode_CPX:
-        case k_opcode_CPY:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_value_load_ABS;
-          } else {
-            do_keep_load = 1;
-          }
-          do_eliminate_carry = 1;
-          break;
-        case k_opcode_DEC_value:
-        case k_opcode_INC_value:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_value_load_ABS;
-            do_rmw_abs_store = 1;
-          } else {
-            do_keep_load = 1;
-          }
-          break;
-        case k_opcode_LDA:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_LDA_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        case k_opcode_LDX:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_LDX_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        case k_opcode_LDY:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_LDY_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        case k_opcode_NOP: break;
-        case k_opcode_SAX: break;
-        case k_opcode_SLO:
-          do_eliminate_carry = 1;
-          do_keep_load = 1;
-          break;
-        case k_opcode_STA:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_STA_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        case k_opcode_STX:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_STX_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        case k_opcode_STY:
-          if (p_uop->value1 < 0x1000) {
-            p_uop->uopcode = k_opcode_arm64_STY_ABS;
-            p_next_uop2->is_eliminated = 1;
-          }
-          break;
-        default:
-          assert(0);
-          break;
-        }
-        if (!do_keep_load) {
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      case k_opcode_addr_load_16bit_wrap:
-      case k_opcode_value_load_16bit_wrap:
-        /* Mode IDY, or mode IND JMP mode addressing. */
-        p_uop->uopcode = k_opcode_arm64_load_byte_pair;
-        p_next_uop->is_eliminated = 1;
-        break;
-      case k_opcode_addr_add_x_8bit:
-        /* Mode ZPX. */
-        p_uop->uopcode = k_opcode_arm64_mode_ABX;
-        p_next_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
-        break;
-      case k_opcode_addr_add_y_8bit:
-        /* Mode ZPY. */
-        p_uop->uopcode = k_opcode_arm64_mode_ABY;
-        p_next_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
-        break;
-      case k_opcode_addr_add_x:
-        /* Mode ABX. */
-        if (p_uop->value1 < 0x1000) {
-          p_uop->uopcode = k_opcode_arm64_mode_ABX;
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      case k_opcode_addr_add_y:
-        /* Mode ABY. */
-        if (p_uop->value1 < 0x1000) {
-          p_uop->uopcode = k_opcode_arm64_mode_ABY;
-          p_next_uop->is_eliminated = 1;
-        }
-        break;
-      default:
-        assert(0);
-        break;
+    case k_opcode_CMP:
+      p_mode_uop->uopcode = k_opcode_arm64_CMP_IMM;
+      p_main_uop->is_eliminated = 1;
+      break;
+    case k_opcode_CPX:
+      p_mode_uop->uopcode = k_opcode_arm64_CPX_IMM;
+      p_main_uop->is_eliminated = 1;
+      break;
+    case k_opcode_CPY:
+      p_mode_uop->uopcode = k_opcode_arm64_CPY_IMM;
+      p_main_uop->is_eliminated = 1;
+      break;
+    case k_opcode_EOR:
+      if (asm_calculate_immr_imms(&immr, &imms, value1)) {
+        p_mode_uop->uopcode = k_opcode_arm64_EOR_IMM;
+        p_main_uop->is_eliminated = 1;
       }
       break;
-    case k_opcode_ASL_acc:
-    case k_opcode_LSR_acc:
-    case k_opcode_ROL_acc:
-    case k_opcode_ROR_acc:
-      do_eliminate_carry = 1;
+    case k_opcode_LDA:
+      p_mode_uop->uopcode = k_opcode_arm64_LDA_IMM;
+      p_main_uop->is_eliminated = 1;
       break;
-    case k_opcode_value_load:
-      if (p_uop->is_eliminated) {
-        break;
-      }
-      assert((i_uops + 1) < num_uops);
-      i_uops++;
-      p_next_uop = &p_uops[i_uops];
-      switch (p_next_uop->uopcode) {
-      case k_opcode_ASL_value:
-      case k_opcode_LSR_value:
-      case k_opcode_ROL_value:
-      case k_opcode_ROR_value:
-        do_eliminate_carry = 1;
-        break;
-      case k_opcode_LDA:
-      case k_opcode_LDX:
-      case k_opcode_LDY:
-      case k_opcode_STA:
-      case k_opcode_STX:
-      case k_opcode_STY:
-        p_uop->is_eliminated = 1;
-        break;
-      default:
-        break;
+    case k_opcode_LDX:
+      p_mode_uop->uopcode = k_opcode_arm64_LDX_IMM;
+      p_main_uop->is_eliminated = 1;
+      break;
+    case k_opcode_LDY:
+      p_mode_uop->uopcode = k_opcode_arm64_LDY_IMM;
+      p_main_uop->is_eliminated = 1;
+      break;
+    case k_opcode_NOP: break;
+    case k_opcode_ORA:
+      if (asm_calculate_immr_imms(&immr, &imms, value1)) {
+        p_mode_uop->uopcode = k_opcode_arm64_ORA_IMM;
+        p_main_uop->is_eliminated = 1;
       }
       break;
-    case k_opcode_write_inv:
-      if (is_abs && (addr < 0x1000)) {
-        p_uop->uopcode = k_opcode_arm64_write_inv_ABS;
-        p_uop->value1 = addr;
+    case k_opcode_SBC:
+      p_mode_uop->uopcode = k_opcode_arm64_value_set_hi;
+      p_mode_uop->value1 = (value1 << 8);
+      p_main_uop->uopcode = k_opcode_arm64_SBC_IMM;
+      break;
+    default:
+      assert(0);
+      break;
+    }
+    break;
+  case k_opcode_addr_set:
+    /* Mode ABS or ZPG. */
+    is_abs = 1;
+    addr = value1;
+    switch (p_main_uop->uopcode) {
+    case k_opcode_ADC:
+    case k_opcode_AND:
+    case k_opcode_ASL_value:
+    case k_opcode_BIT:
+    case k_opcode_CMP:
+    case k_opcode_CPX:
+    case k_opcode_CPY:
+    case k_opcode_EOR:
+    case k_opcode_DEC_value:
+    case k_opcode_INC_value:
+    case k_opcode_LSR_value:
+    case k_opcode_NOP:
+    case k_opcode_ORA:
+    case k_opcode_ROL_value:
+    case k_opcode_ROR_value:
+    case k_opcode_SAX:
+    case k_opcode_SBC:
+    case k_opcode_SLO:
+      if (addr < 0x1000) {
+        if (p_load_uop != NULL) {
+          p_mode_uop->uopcode = k_opcode_arm64_value_load_ABS;
+          p_load_uop->is_eliminated = 1;
+        } else {
+          /* Hits here for SAX. */
+          p_mode_uop->is_eliminated = 1;
+        }
+        if (p_store_uop != NULL) {
+          p_store_uop->uopcode = k_opcode_arm64_value_store_ABS;
+          p_store_uop->value1 = addr;
+        }
       }
+      break;
+    case k_opcode_LDA:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_LDA_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    case k_opcode_LDX:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_LDX_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    case k_opcode_LDY:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_LDY_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    case k_opcode_STA:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_STA_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    case k_opcode_STX:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_STX_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    case k_opcode_STY:
+      if (addr < 0x1000) {
+        p_mode_uop->uopcode = k_opcode_arm64_STY_ABS;
+        p_main_uop->is_eliminated = 1;
+      }
+      break;
+    default:
+      assert(0);
+      break;
+    }
+    break;
+  case k_opcode_value_load_16bit_wrap:
+    /* Mode IND JMP mode addressing. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_arm64_load_byte_pair;
+    break;
+  case k_opcode_addr_add_x_8bit:
+    /* Mode ZPX or IDX. */
+    p_mode_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_arm64_mode_ABX;
+    break;
+  case k_opcode_addr_add_y_8bit:
+    /* Mode ZPY. */
+    p_mode_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_arm64_mode_ABY;
+    break;
+  case k_opcode_addr_add_x:
+    /* Mode ABX. */
+    p_tmp_uop = (p_mode_uop - 1);
+    assert(p_tmp_uop->uopcode == k_opcode_addr_set);
+    if (p_tmp_uop->value1 < 0x1000) {
+      p_mode_uop->is_eliminated = 1;
+      p_tmp_uop->uopcode = k_opcode_arm64_mode_ABX;
+    }
+    break;
+  case k_opcode_addr_add_y:
+    /* Mode ABY or IDY. */
+    p_tmp_uop = (p_mode_uop - 1);
+    if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap) {
+      break;
+    }
+    assert(p_tmp_uop->uopcode == k_opcode_addr_set);
+    if (p_tmp_uop->value1 < 0x1000) {
+      p_mode_uop->is_eliminated = 1;
+      p_tmp_uop->uopcode = k_opcode_arm64_mode_ABY;
+    }
+    break;
+  default:
+    assert(0);
+    break;
+  }
+
+  /* Loads and stores have the load/store built in to the operation. */
+  if (!is_imm) {
+    switch (p_main_uop->uopcode) {
+    case k_opcode_LDA:
+    case k_opcode_LDX:
+    case k_opcode_LDY:
+      assert(p_load_uop != NULL);
+      p_load_uop->is_eliminated = 1;
+      break;
+    case k_opcode_STA:
+    case k_opcode_STX:
+    case k_opcode_STY:
+      assert(p_store_uop != NULL);
+      p_store_uop->is_eliminated = 1;
       break;
     default:
       break;
     }
+  }
 
-    if (do_eliminate_carry) {
-      assert((i_uops + 1) < num_uops);
-      i_uops++;
-      p_next_uop = &p_uops[i_uops];
-      assert(p_next_uop->uopcode == k_opcode_save_carry);
-      p_next_uop->is_eliminated = 1;
-    }
-    if (do_rmw_abs_store) {
-      assert((i_uops + 1) < num_uops);
-      i_uops++;
-      p_next_uop3 = &p_uops[i_uops];
-      assert(p_next_uop3->uopcode == k_opcode_value_store);
-      assert(p_uop->uopcode == k_opcode_arm64_value_load_ABS);
-      p_next_uop3->uopcode = k_opcode_arm64_value_store_ABS;
-      p_next_uop3->value1 = p_uop->value1;
+  if (p_inv_uop != NULL) {
+    if (is_abs && (addr < 0x1000)) {
+      p_inv_uop->uopcode = k_opcode_arm64_write_inv_ABS;
+      p_inv_uop->value1 = addr;
     }
   }
 }
