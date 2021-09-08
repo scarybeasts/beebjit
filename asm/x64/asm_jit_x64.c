@@ -279,11 +279,6 @@ asm_jit_test_preconditions(void) {
 }
 
 int
-asm_jit_supports_optimizer(void) {
-  return 0;
-}
-
-int
 asm_jit_supports_uopcode(int32_t uopcode) {
   (void) uopcode;
   return 1;
