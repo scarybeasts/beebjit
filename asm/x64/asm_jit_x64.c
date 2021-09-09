@@ -54,6 +54,7 @@ enum {
   k_opcode_x64_mode_ABX_store,
   k_opcode_x64_mode_IDY_load,
   k_opcode_x64_mode_IND,
+  k_opcode_x64_mode_IND_nowrap,
   k_opcode_x64_mode_ZPX,
   k_opcode_x64_mode_ZPY,
   k_opcode_x64_save_carry_inv,
@@ -1296,6 +1297,15 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     /* TODO: not correct for hardware register hits, but BRK breaks with IND. */
     p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
     break;
+  case k_opcode_addr_load_16bit_nowrap:
+    /* Dynamic operand 16-bit load. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_x64_mode_IND_nowrap;
+    p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+    is_mode_addr = 1;
+    break;
   case k_opcode_value_set:
     /* Mode IMM. */
     assert(p_main_uop != NULL);
@@ -1340,8 +1350,13 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_inv_uop->value1 = addr;
     }
     break;
+  case k_opcode_addr_load_16bit_wrap:
+    /* Mode IDX. */
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_add_x_8bit);
+    /* FALL THROUGH. */
   case k_opcode_addr_add_x_8bit:
-    /* Mode ZPX or IDX. */
+    /* Mode ZPX. */
     p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
@@ -1420,8 +1435,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       }
       do_eliminate_load_store = 1;
     }
-    break;
-  case -1:
     break;
   default:
     assert(0);
@@ -1599,6 +1612,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     if ((value1 & 0xFF) == 0) value1 -= 0x100;
     ASM_ADDR_U32(mode_IND_mov2);
     break;
+  case k_opcode_x64_mode_IND_nowrap:
+    ASM_ADDR_U32(mode_IND_mov1);
+    value1++;
+    ASM_ADDR_U32(mode_IND_mov2);
+    break;
   case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
   case k_opcode_PUSH_16:
@@ -1625,14 +1643,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); break;
-  case k_opcode_x64_write_inv_ABS:
-    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
-    ASM_U32(write_inv_ABS_load);
-    ASM(write_inv_ABS_store);
-    break;
-  case k_opcode_x64_write_inv_ABX: ASM_U32(mode_ABX); ASM(write_inv); break;
-  case k_opcode_x64_write_inv_ABY: ASM_U32(mode_ABY); ASM(write_inv); break;
-  case k_opcode_x64_write_inv_IDY: ASM(write_inv_IDY); break;
   case k_opcode_ASL_acc: ASM(ASL_acc); break;
   case k_opcode_ASL_value: ASM(ASL_value); break;
   case k_opcode_BCC: ASM_Bxx(BCC); break;
@@ -1704,6 +1714,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_save_carry_inv: ASM(save_carry_inv); break;
   case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;
   case k_opcode_x64_store_ZPG: ASM_ADDR_U32(store_ZPG); break;
+  case k_opcode_x64_write_inv_ABS:
+    value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
+    ASM_U32(write_inv_ABS_load);
+    ASM(write_inv_ABS_store);
+    break;
+  case k_opcode_x64_write_inv_ABX: ASM_U32(mode_ABX); ASM(write_inv); break;
+  case k_opcode_x64_write_inv_ABY: ASM_U32(mode_ABY); ASM(write_inv); break;
+  case k_opcode_x64_write_inv_IDY: ASM(write_inv_IDY); break;
   case k_opcode_x64_ADC_ABS: ASM_ADDR_U32(ADC_ABS); break;
   case k_opcode_x64_ADC_ABX: ASM_ADDR_U32_RAW(ADC_ABX); break;
   case k_opcode_x64_ADC_ABY: ASM_ADDR_U32_RAW(ADC_ABY); break;
@@ -1792,6 +1810,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_STY_addr: ASM(STY_addr); break;
   case k_opcode_x64_STY_ABS: ASM_ADDR_U32(STY_ABS); break;
   case k_opcode_x64_STY_ZPG: ASM_ADDR_U8(STY_ZPG); break;
+  case k_opcode_addr_set:
+    assert(0);
+    break;
+  case k_opcode_value_set:
+    assert(0);
+    break;
   default:
     assert(0);
     break;

@@ -35,6 +35,7 @@ enum {
   k_opcode_addr_add_x_8bit,
   k_opcode_addr_add_y_8bit,
   k_opcode_addr_load_16bit_wrap,
+  k_opcode_addr_load_16bit_nowrap,
   k_opcode_flags_nz_a,
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,

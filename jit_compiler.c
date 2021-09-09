@@ -981,7 +981,9 @@ jit_compiler_get_dynamic_history(struct jit_compiler* p_compiler,
 }
 
 static void
-jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
+jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
+                                     struct jit_opcode_details* p_opcode) {
+  uint8_t optype;
   uint8_t opmode;
   struct asm_uop* p_uop;
   uint32_t index;
@@ -989,15 +991,37 @@ jit_compiler_try_make_dynamic_opcode(struct jit_opcode_details* p_opcode) {
   uint16_t addr = p_opcode->addr_6502;
   uint16_t next_addr = (uint16_t) (addr + 1);
 
-  opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
+  if (jit_opcode_find_uop(p_opcode, k_opcode_interp) != NULL) {
+    return;
+  }
+
+  optype = p_compiler->p_opcode_types[opcode_6502];
+  opmode = p_compiler->p_opcode_modes[opcode_6502];
 
   switch (opmode) {
   case k_imm:
+    /* Examples: Thrust, Stryker's Run. */
     p_uop = jit_opcode_find_uop(p_opcode, k_opcode_value_set);
     assert(p_uop != NULL);
     index = (p_uop - &p_opcode->uops[0]);
     jit_opcode_make_uop1(p_uop, k_opcode_addr_set, next_addr);
     jit_opcode_insert_uop(p_opcode, (index + 1), k_opcode_value_load, 0);
+    break;
+  case k_abs:
+    if ((optype == k_jmp) || (optype == k_jsr)) {
+      /* Different "abs" type. Not yet supported. */
+      return;
+    }
+    /* Examples: Stryker's Run. */
+    p_uop = jit_opcode_find_uop(p_opcode, k_opcode_addr_set);
+    assert(p_uop != NULL);
+    index = (p_uop - &p_opcode->uops[0]);
+    p_uop->value1 = next_addr;
+    jit_opcode_insert_uop(p_opcode,
+                          (index + 1),
+                          k_opcode_addr_load_16bit_nowrap,
+                          0);
+    jit_opcode_insert_uop(p_opcode, (index + 2), k_opcode_addr_check, 0);
     break;
   default:
     /* Can't handle mode yet. */
@@ -1221,7 +1245,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
        * particular opcode. In such a case, we'll fall through and potentially
        * make the entire opcode dynamic.
        */
-      jit_compiler_try_make_dynamic_opcode(p_details);
+      jit_compiler_try_make_dynamic_opcode(p_compiler, p_details);
       if (p_details->is_dynamic_operand) {
         if (p_compiler->log_dynamic) {
           log_do_log(k_log_jit,
