@@ -1002,12 +1002,14 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     break;
   case k_abs:
   case k_abx:
+  case k_aby:
     if ((optype == k_jmp) || (optype == k_jsr)) {
       /* Different "abs" type. Not yet supported. */
       return;
     }
     /* Examples (ABS): Stryker's Run. */
-    /* Examples (ABX): Galaforce, Pipeline. */
+    /* Examples (ABX): Galaforce, Pipeline, Meteors. */
+    /* Examples (ABY): Rocket Raid, Galaforce. */
     p_uop = jit_opcode_find_uop(p_opcode, k_opcode_addr_set);
     assert(p_uop != NULL);
     index = (p_uop - &p_opcode->uops[0]);
@@ -1015,13 +1017,16 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     if (opmode == k_abx) {
       p_uop++;
       assert(p_uop->uopcode == k_opcode_addr_add_x);
+    } else if (opmode == k_aby) {
+      p_uop++;
+      assert(p_uop->uopcode == k_opcode_addr_add_y);
     }
     jit_opcode_insert_uop(p_opcode,
                           (index + 1),
                           k_opcode_addr_load_16bit_nowrap,
                           0);
     index += 2;
-    if (opmode == k_abx) {
+    if ((opmode == k_abx) || (opmode == k_aby)) {
       index++;
     }
     jit_opcode_insert_uop(p_opcode, index, k_opcode_addr_check, 0);

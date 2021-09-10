@@ -1275,6 +1275,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
     break;
   case k_opcode_addr_load_16bit_nowrap:
+    /* TODO: add optimized variants of common situations, e.g. LDA abx. */
     /* Dynamic operand 16-bit load. */
     p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
@@ -1537,7 +1538,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
     break;
   /* Addressing and value opcodes. */
-  case k_opcode_addr_add_x: ASM(addr_add_x); break;
+  case k_opcode_addr_add_x: ASM(save_addr_low_byte); ASM(addr_add_x); break;
+  case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_ADD_ABS:
     asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1, value2);
@@ -1561,6 +1563,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_check_page_crossing_x: ASM(check_page_crossing_x); break;
+  case k_opcode_check_page_crossing_y: ASM(check_page_crossing_y); break;
   case k_opcode_CLEAR_CARRY: ASM(CLEAR_CARRY); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
@@ -1666,7 +1669,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_x64_check_page_crossing_IDY:
-    ASM(check_page_crossing_mode_IDY);
+    ASM(save_addr_low_byte);
+    ASM(check_page_crossing_y);
     break;
   case k_opcode_x64_load_ABS: ASM_ADDR_U32(load_ABS); break;
   case k_opcode_x64_load_carry_for_branch: ASM(load_carry_for_branch); break;

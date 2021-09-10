@@ -353,19 +353,6 @@ asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
   ret
 
 
-.globl asm_jit_check_page_crossing_mode_IDY
-.globl asm_jit_check_page_crossing_mode_IDY_END
-asm_jit_check_page_crossing_mode_IDY:
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
-                                   REG_SCRATCH2 + \
-                                   K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
-
-asm_jit_check_page_crossing_mode_IDY_END:
-  ret
-
-
 .globl asm_jit_check_page_crossing_x
 .globl asm_jit_check_page_crossing_x_END
 asm_jit_check_page_crossing_x:
@@ -375,6 +362,18 @@ asm_jit_check_page_crossing_x:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_jit_check_page_crossing_x_END:
+  ret
+
+
+.globl asm_jit_check_page_crossing_y
+.globl asm_jit_check_page_crossing_y_END
+asm_jit_check_page_crossing_y:
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
+                                   REG_SCRATCH2 + \
+                                   K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
+  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
+
+asm_jit_check_page_crossing_y_END:
   ret
 
 
@@ -609,13 +608,18 @@ asm_jit_mode_IND_mov2_END:
 .globl asm_jit_addr_add_x
 .globl asm_jit_addr_add_x_END
 asm_jit_addr_add_x:
-  # Save low byte of pre-add address, in case we need it for the page crossing
-  # check. Doing so shouldn't be a drag on performance because this opcode is
-  # only used for uncommon situations such as dynamic operands.
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_X_64]
 
 asm_jit_addr_add_x_END:
+  ret
+
+
+.globl asm_jit_addr_add_y
+.globl asm_jit_addr_add_y_END
+asm_jit_addr_add_y:
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + REG_6502_Y_64]
+
+asm_jit_addr_add_y_END:
   ret
 
 
@@ -727,6 +731,15 @@ asm_jit_PUSH_16_word_patch:
   lea REG_6502_S_32, [REG_6502_S_64 - 2]
 
 asm_jit_PUSH_16_END:
+  ret
+
+
+.globl asm_jit_save_addr_low_byte
+.globl asm_jit_save_addr_low_byte_END
+asm_jit_save_addr_low_byte:
+  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
+
+asm_jit_save_addr_low_byte_END:
   ret
 
 
