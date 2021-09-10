@@ -38,14 +38,15 @@ enum {
   k_opcode_LDA_SCRATCH_n,
   k_opcode_LDA_SCRATCH_X,
   k_opcode_STA_SCRATCH_n,
-  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n,
-  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X,
   k_opcode_LOAD_SCRATCH_8,
   k_opcode_MODE_IND_SCRATCH_16,
 };
 
 enum {
-  k_opcode_x64_load_ABS = 0x1000,
+  k_opcode_x64_check_page_crossing_ABX = 0x1000,
+  k_opcode_x64_check_page_crossing_ABY,
+  k_opcode_x64_check_page_crossing_IDY,
+  k_opcode_x64_load_ABS,
   k_opcode_x64_load_carry_for_branch,
   k_opcode_x64_load_carry_for_calc,
   k_opcode_x64_load_carry_inv_for_calc,
@@ -681,42 +682,6 @@ asm_emit_jit_ADD_SCRATCH_Y(struct util_buffer* p_buf) {
 }
 
 static void
-asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(struct util_buffer* p_buf,
-                                           uint8_t n) {
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n(void);
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch(void);
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  asm_copy(p_buf,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END);
-  asm_patch_int(p_buf,
-                offset,
-                asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n,
-                asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch,
-                (K_ASM_TABLE_PAGE_WRAP_CYCLE_INV + n));
-}
-
-static void
-asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(struct util_buffer* p_buf) {
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X(void);
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END(void);
-  asm_copy(p_buf,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_X_END);
-}
-
-static void
-asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(struct util_buffer* p_buf) {
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(void);
-  void asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END(void);
-  asm_copy(p_buf,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y,
-           asm_jit_CHECK_PAGE_CROSSING_SCRATCH_Y_END);
-}
-
-static void
 asm_emit_jit_CHECK_PAGE_CROSSING_X_n(struct util_buffer* p_buf,
                                      uint16_t addr) {
   void asm_jit_CHECK_PAGE_CROSSING_X_n(void);
@@ -1213,6 +1178,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
+  struct asm_uop* p_page_crossing_uop;
   struct asm_uop* p_tmp_uop;
   int32_t uopcode;
   int32_t new_uopcode;
@@ -1235,7 +1201,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_save_carry_uop,
                           &p_flags_uop,
                           &p_inv_uop,
-                          &p_addr_check_uop);
+                          &p_addr_check_uop,
+                          &p_page_crossing_uop);
 
   /* Fix up carry flag managment, including for Intel doing borrow instead of
    * carry for subtract.
@@ -1286,6 +1253,16 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   do_set_segment = 0;
   do_eliminate_load_store = 0;
   do_eliminate_flags = 0;
+
+  uopcode = p_mode_uop->uopcode;
+  if ((uopcode == k_opcode_addr_add_x) || (uopcode == k_opcode_addr_add_y)) {
+    p_tmp_uop = (p_mode_uop - 1);
+    if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_nowrap) {
+      /* Back up for dyanmic operand load. */
+      p_mode_uop = p_tmp_uop;
+    }
+  }
+
   uopcode = p_mode_uop->uopcode;
   switch (uopcode) {
   case k_opcode_value_load_16bit_wrap:
@@ -1399,6 +1376,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_inv_uop->uopcode = k_opcode_x64_write_inv_ABX;
       p_inv_uop->value1 = addr;
     }
+    if (p_page_crossing_uop != NULL) {
+      p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_ABX;
+      p_page_crossing_uop->value1 = addr;
+    }
     is_mode_abn = 1;
     break;
   case k_opcode_addr_add_y:
@@ -1417,6 +1398,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
         p_inv_uop->uopcode = k_opcode_x64_write_inv_ABY;
         p_inv_uop->value1 = addr;
       }
+      if (p_page_crossing_uop != NULL) {
+        p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_ABY;
+        p_page_crossing_uop->value1 = addr;
+      }
       is_mode_abn = 1;
       do_set_segment = 1;
       do_eliminate_load_store = 1;
@@ -1432,6 +1417,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_main_uop->is_eliminated = 1;
       if (p_inv_uop != NULL) {
         p_inv_uop->uopcode = k_opcode_x64_write_inv_IDY;
+      }
+      if (p_page_crossing_uop != NULL) {
+        p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_IDY;
       }
       do_eliminate_load_store = 1;
     }
@@ -1523,6 +1511,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
 
   /* Emit the opcode. */
   switch (uopcode) {
+  /* Misc. management opcodes. */
   case k_opcode_add_cycles: ASM_U8(countdown_add); break;
   case k_opcode_check_bcd: ASM(check_bcd); break;
   case k_opcode_check_pending_irq:
@@ -1547,6 +1536,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_inturbo:
     asm_emit_jit_call_inturbo(p_dest_buf, (uint16_t) value1);
     break;
+  /* Addressing and value opcodes. */
+  case k_opcode_addr_add_x: ASM(addr_add_x); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
   case k_opcode_ADD_ABS:
     asm_emit_jit_ADD_ABS(p_dest_buf, (uint16_t) value1, value2);
@@ -1569,21 +1560,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_ASL_ACC_n:
     asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_X:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_X(p_dest_buf);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    asm_emit_jit_CHECK_PAGE_CROSSING_SCRATCH_Y(p_dest_buf);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_Y_n:
-    asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
-    break;
+  case k_opcode_check_page_crossing_x: ASM(check_page_crossing_x); break;
   case k_opcode_CLEAR_CARRY: ASM(CLEAR_CARRY); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
@@ -1605,17 +1582,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_LSR_ACC_n:
     asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_x64_mode_IND:
-    ASM_ADDR_U32(mode_IND_mov1);
-    value1++;
-    if ((value1 & 0xFF) == 0) value1 -= 0x100;
-    ASM_ADDR_U32(mode_IND_mov2);
-    break;
-  case k_opcode_x64_mode_IND_nowrap:
-    ASM_ADDR_U32(mode_IND_mov1);
-    value1++;
-    ASM_ADDR_U32(mode_IND_mov2);
     break;
   case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
@@ -1693,6 +1659,15 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TXA: asm_emit_instruction_TXA(p_dest_buf); break;
   case k_opcode_TXS: asm_emit_instruction_TXS(p_dest_buf); break;
   case k_opcode_TYA: asm_emit_instruction_TYA(p_dest_buf); break;
+  case k_opcode_x64_check_page_crossing_ABX:
+    asm_emit_jit_CHECK_PAGE_CROSSING_X_n(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_x64_check_page_crossing_ABY:
+    asm_emit_jit_CHECK_PAGE_CROSSING_Y_n(p_dest_buf, (uint16_t) value1);
+    break;
+  case k_opcode_x64_check_page_crossing_IDY:
+    ASM(check_page_crossing_mode_IDY);
+    break;
   case k_opcode_x64_load_ABS: ASM_ADDR_U32(load_ABS); break;
   case k_opcode_x64_load_carry_for_branch: ASM(load_carry_for_branch); break;
   case k_opcode_x64_load_carry_for_calc: ASM(load_carry_for_calc); break;
@@ -1708,6 +1683,17 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM_ADDR_U8(mode_IDY_load_mov1);
     value1 = ((value1 + 1) & 0xFF);
     ASM_ADDR_U8(mode_IDY_load_mov2);
+    break;
+  case k_opcode_x64_mode_IND:
+    ASM_ADDR_U32(mode_IND_mov1);
+    value1++;
+    if ((value1 & 0xFF) == 0) value1 -= 0x100;
+    ASM_ADDR_U32(mode_IND_mov2);
+    break;
+  case k_opcode_x64_mode_IND_nowrap:
+    ASM_ADDR_U32(mode_IND_mov1);
+    value1++;
+    ASM_ADDR_U32(mode_IND_mov2);
     break;
   case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
   case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;

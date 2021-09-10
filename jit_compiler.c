@@ -856,19 +856,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      */
     switch (opmode) {
     case k_abx:
-      jit_opcode_make_uop1(p_uop,
-                           k_opcode_CHECK_PAGE_CROSSING_X_n,
-                           operand_6502);
+      jit_opcode_make_uop0(p_uop, k_opcode_check_page_crossing_x);
       p_uop++;
       break;
     case k_aby:
-      jit_opcode_make_uop1(p_uop,
-                           k_opcode_CHECK_PAGE_CROSSING_Y_n,
-                           operand_6502);
-      p_uop++;
-      break;
     case k_idy:
-      jit_opcode_make_uop1(p_uop, k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y, 0);
+      jit_opcode_make_uop0(p_uop, k_opcode_check_page_crossing_y);
       p_uop++;
       break;
     default:
@@ -1008,20 +1001,30 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     jit_opcode_insert_uop(p_opcode, (index + 1), k_opcode_value_load, 0);
     break;
   case k_abs:
+  case k_abx:
     if ((optype == k_jmp) || (optype == k_jsr)) {
       /* Different "abs" type. Not yet supported. */
       return;
     }
-    /* Examples: Stryker's Run. */
+    /* Examples (ABS): Stryker's Run. */
+    /* Examples (ABX): Galaforce, Pipeline. */
     p_uop = jit_opcode_find_uop(p_opcode, k_opcode_addr_set);
     assert(p_uop != NULL);
     index = (p_uop - &p_opcode->uops[0]);
     p_uop->value1 = next_addr;
+    if (opmode == k_abx) {
+      p_uop++;
+      assert(p_uop->uopcode == k_opcode_addr_add_x);
+    }
     jit_opcode_insert_uop(p_opcode,
                           (index + 1),
                           k_opcode_addr_load_16bit_nowrap,
                           0);
-    jit_opcode_insert_uop(p_opcode, (index + 2), k_opcode_addr_check, 0);
+    index += 2;
+    if (opmode == k_abx) {
+      index++;
+    }
+    jit_opcode_insert_uop(p_opcode, index, k_opcode_addr_check, 0);
     break;
   default:
     /* Can't handle mode yet. */

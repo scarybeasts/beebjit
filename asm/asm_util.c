@@ -20,7 +20,8 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
                         struct asm_uop** p_out_save_carry,
                         struct asm_uop** p_out_flags,
                         struct asm_uop** p_out_inv,
-                        struct asm_uop** p_out_addr_check) {
+                        struct asm_uop** p_out_addr_check,
+                        struct asm_uop** p_out_page_crossing) {
   uint32_t i;
 
   *p_out_main = NULL;
@@ -32,6 +33,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
   *p_out_flags = NULL;
   *p_out_inv = NULL;
   *p_out_addr_check = NULL;
+  *p_out_page_crossing = NULL;
 
   for (i = 0; i < num_uops; ++i) {
     struct asm_uop* p_uop = &p_uops[i];
@@ -94,6 +96,11 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
       assert(i != 0);
       assert(*p_out_inv == NULL);
       *p_out_inv = p_uop;
+      break;
+    case k_opcode_check_page_crossing_x:
+    case k_opcode_check_page_crossing_y:
+      assert(*p_out_page_crossing == NULL);
+      *p_out_page_crossing = p_uop;
       break;
     default:
       if ((uopcode >= k_opcode_main_begin) && (uopcode <= k_opcode_main_end)) {

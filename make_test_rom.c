@@ -1909,7 +1909,7 @@ main(int argc, const char* argv[]) {
    * Galaforce memory copy at first load.
    */
   set_new_index(p_buf, 0x3010);
-  emit_LDY(p_buf, k_imm, 0x04);
+  emit_LDY(p_buf, k_imm, 0x05);
   emit_LDA(p_buf, k_abx, 0x1A00); /* Jump target for both BNEs. */
   emit_STA(p_buf, k_abx, 0x0A00);
   emit_INX(p_buf);

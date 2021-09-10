@@ -235,7 +235,6 @@ jit_optimizer_uopcode_needs_x(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
     case k_opcode_flags_nz_x:
       ret = 1;
       break;
@@ -292,8 +291,6 @@ jit_optimizer_uopcode_needs_y(int32_t uopcode) {
     }
   } else {
     switch (uopcode) {
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_flags_nz_y:
       ret = 1;
       break;
@@ -362,9 +359,6 @@ jit_optimizer_uop_invalidates_idy(struct asm_uop* p_uop,
     switch (uopcode) {
     case k_opcode_debug:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_flags_nz_a:
     case k_opcode_flags_nz_x:
     case k_opcode_flags_nz_y:
@@ -414,9 +408,6 @@ jit_optimizer_uopcode_needs_or_trashes_overflow(int32_t uopcode) {
     switch (uopcode) {
     case k_opcode_debug:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
       ret = 0;
       break;
@@ -467,9 +458,6 @@ jit_optimizer_uopcode_needs_or_trashes_carry(int32_t uopcode) {
     switch (uopcode) {
     case k_opcode_debug:
     case k_opcode_check_bcd:
-    case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    case k_opcode_CHECK_PAGE_CROSSING_X_n:
-    case k_opcode_CHECK_PAGE_CROSSING_Y_n:
     case k_opcode_check_pending_irq:
       ret = 0;
       break;
@@ -842,8 +830,8 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
 
         if (replaced) {
           struct asm_uop* p_crossing_uop =
-              jit_opcode_find_uop(p_opcode,
-                                  k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
+              jit_opcode_find_uop(p_opcode, 0);
+                                  //k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y);
           struct asm_uop* p_write_inv_uop = NULL;
               //jit_opcode_find_uop(p_opcode, k_opcode_WRITE_INV_SCRATCH_Y);
 
