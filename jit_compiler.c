@@ -1007,6 +1007,10 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
       /* Different "abs" type. Not yet supported. */
       return;
     }
+    if (optype == k_bit) {
+      /* x64 backend currently has trouble with BIT_addr. */
+      return;
+    }
     /* Examples (ABS): Stryker's Run. */
     /* Examples (ABX): Galaforce, Pipeline, Meteors. */
     /* Examples (ABY): Rocket Raid, Galaforce. */
