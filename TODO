@@ -7,6 +7,9 @@ Ideally, important items get fixed before the next release.
 The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
+- Mode ZPG for dynamic operand.
+- Investigate mode REL for dynamic operand.
+
 
 Fix later
 =========
