@@ -13,6 +13,8 @@
 
 enum {
   k_opcode_arm64_addr_trunc_8bit = 0x1000,
+  k_opcode_arm64_check_page_crossing_ABX,
+  k_opcode_arm64_check_page_crossing_ABY,
   k_opcode_arm64_load_byte_pair,
   k_opcode_arm64_mode_ABX,
   k_opcode_arm64_mode_ABY,
@@ -272,6 +274,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
+  struct asm_uop* p_page_crossing_uop;
   struct asm_uop* p_tmp_uop;
   int32_t uopcode;
   int32_t value1;
@@ -293,7 +296,8 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_save_carry_uop,
                           &p_flags_uop,
                           &p_inv_uop,
-                          &p_addr_check_uop);
+                          &p_addr_check_uop,
+                          &p_page_crossing_uop);
 
   if (p_main_uop == NULL) {
     return;
@@ -328,6 +332,15 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   is_imm = 0;
   is_abs = 0;
   addr = 0;
+
+  uopcode = p_mode_uop->uopcode;
+  if ((uopcode == k_opcode_addr_add_x) || (uopcode == k_opcode_addr_add_y)) {
+    p_tmp_uop = (p_mode_uop - 1);
+    if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_nowrap) {
+      /* Back up for dyanmic operand load. */
+      p_mode_uop = p_tmp_uop;
+    }
+  }
 
   uopcode = p_mode_uop->uopcode;
   value1 = p_mode_uop->value1;
@@ -480,9 +493,21 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
     p_mode_uop->uopcode = k_opcode_arm64_load_byte_pair;
+    /* Wraps around 0x10FF -> 0x1000. */
+    addr = (p_mode_uop->value1 + 1);
+    if (!(addr & 0xFF)) addr -= 0x100;
+    p_mode_uop->value2 = addr;
+    break;
+  case k_opcode_addr_load_16bit_nowrap:
+    /* Fetch for 16-bit dynamic operand. */
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_arm64_load_byte_pair;
+    p_mode_uop->value2 = (uint16_t) (p_mode_uop->value1 + 1);
     break;
   case k_opcode_addr_add_x_8bit:
-    /* Mode ZPX or IDX. */
+    /* Mode ZPX. */
     p_mode_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
@@ -503,6 +528,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_mode_uop->is_eliminated = 1;
       p_tmp_uop->uopcode = k_opcode_arm64_mode_ABX;
     }
+    if (p_page_crossing_uop != NULL) {
+      p_page_crossing_uop->uopcode = k_opcode_arm64_check_page_crossing_ABX;
+      p_page_crossing_uop->value1 = p_tmp_uop->value1;
+    }
     break;
   case k_opcode_addr_add_y:
     /* Mode ABY or IDY. */
@@ -510,11 +539,25 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap) {
       break;
     }
+    /* Mode ABY. */
     assert(p_tmp_uop->uopcode == k_opcode_addr_set);
     if (p_tmp_uop->value1 < 0x1000) {
       p_mode_uop->is_eliminated = 1;
       p_tmp_uop->uopcode = k_opcode_arm64_mode_ABY;
     }
+    if (p_page_crossing_uop != NULL) {
+      p_page_crossing_uop->uopcode = k_opcode_arm64_check_page_crossing_ABY;
+      p_page_crossing_uop->value1 = p_tmp_uop->value1;
+    }
+    break;
+  case k_opcode_addr_load_16bit_wrap:
+    /* Mode IDX. */
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_add_x_8bit);
+    p_mode_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->uopcode = k_opcode_arm64_mode_ABX;
     break;
   default:
     assert(0);
@@ -586,15 +629,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(check_bcd);
     break;
-  case k_opcode_CHECK_PAGE_CROSSING_SCRATCH_Y:
-    ASM(check_page_crossing_addr_Y);
-    break;
-  case k_opcode_CHECK_PAGE_CROSSING_X_n:
+  case k_opcode_check_page_crossing_x: ASM(check_page_crossing_x); break;
+  case k_opcode_check_page_crossing_y: ASM(check_page_crossing_y); break;
+  case k_opcode_arm64_check_page_crossing_ABX:
     value1 = (0x100 - (value1 & 0xFF));
     ASM_IMM12(check_page_crossing_ABX_sub);
     ASM(check_page_crossing_ABX_add);
     break;
-  case k_opcode_CHECK_PAGE_CROSSING_Y_n:
+  case k_opcode_arm64_check_page_crossing_ABY:
     value1 = (0x100 - (value1 & 0xFF));
     ASM_IMM12(check_page_crossing_ABY_sub);
     ASM(check_page_crossing_ABY_add);
@@ -703,10 +745,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TYA: asm_emit_instruction_TYA(p_buf); break;
   case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
   case k_opcode_arm64_load_byte_pair:
-    /* Wraps around 0x10FF -> 0x1000. */
-    tmp = (value1 + 1);
-    if (!(tmp & 0xFF)) tmp -= 0x100;
-    asm_emit_jit_LOAD_BYTE_PAIR(p_buf, value1, (tmp & 0xFFFF));
+    asm_emit_jit_LOAD_BYTE_PAIR(p_buf, value1, value2);
     break;
   case k_opcode_arm64_mode_ABX: ASM_IMM12(mode_ABX); break;
   case k_opcode_arm64_mode_ABY: ASM_IMM12(mode_ABY); break;

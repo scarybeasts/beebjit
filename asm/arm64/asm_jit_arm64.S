@@ -240,18 +240,28 @@ asm_jit_check_page_crossing_ABY_add_END:
   ret
 
 
-.globl asm_jit_check_page_crossing_addr_Y
-.globl asm_jit_check_page_crossing_addr_Y_END
-asm_jit_check_page_crossing_addr_Y:
+.globl asm_jit_check_page_crossing_x
+.globl asm_jit_check_page_crossing_x_END
+asm_jit_check_page_crossing_x:
+  sub REG_SCRATCH2, REG_SCRATCH1, REG_6502_X
+  eon REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
+  ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
+  add REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+
+asm_jit_check_page_crossing_x_END:
+  ret
+
+
+.globl asm_jit_check_page_crossing_y
+.globl asm_jit_check_page_crossing_y_END
+asm_jit_check_page_crossing_y:
   sub REG_SCRATCH2, REG_SCRATCH1, REG_6502_Y
   eon REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
   ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
   add REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
 
-asm_jit_check_page_crossing_addr_Y_END:
+asm_jit_check_page_crossing_y_END:
   ret
-
-asm_jit_PAGE_CROSSING_CHECK_SCRATCH_Y:
 
 
 .globl asm_jit_check_pending_irq_load
