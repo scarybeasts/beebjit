@@ -1269,8 +1269,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
         continue;
       }
     }
-    /*if (p_compiler->option_no_dynamic_opcode) {*/
-    if (1) {
+    if (p_compiler->option_no_dynamic_opcode) {
       continue;
     }
     if ((any_opcode_invalidate_count < p_compiler->dynamic_trigger) &&

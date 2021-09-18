@@ -1,4 +1,5 @@
 #include "../asm_defs_host.h"
+#include "../asm_inturbo_defs.h"
 #include "../asm_jit_defs.h"
 #include "asm_calling_convention_arm64.h"
 #include "asm_defs_registers_arm64.h"
@@ -24,7 +25,7 @@ asm_jit_enter:
 
   b asm_enter_common
 
-asm_inturbo_enter_END:
+asm_jit_enter_END:
   ret
 
 
@@ -99,6 +100,35 @@ not_exiting:
   br REG_6502_PC
 
 not_exiting_END:
+  ret
+
+
+.globl asm_jit_call_inturbo
+.globl asm_jit_call_inturbo_END
+asm_jit_call_inturbo:
+  # Read opcode from PC.
+  add REG_6502_PC, REG_6502_PC, REG_MEM_READ
+  ldrb REG_SCRATCH1_32, [REG_6502_PC]
+
+  # Calculate jump target.
+  lsl REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODES_SHIFT
+  orr REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODES
+
+  # Save JIT context register and load inturbo context register.
+  stp REG_CONTEXT, x30, [sp, #-16]!
+  ldr REG_CONTEXT, [REG_CONTEXT, #K_JIT_CONTEXT_OFFSET_INTURBO]
+
+  # Call inturbo and restore.
+  blr REG_SCRATCH1
+  ldp REG_CONTEXT, x30, [sp], #16
+
+  # Calculate new JIT code address and jump.
+  sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
+  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  br REG_6502_PC
+
+asm_jit_call_inturbo_END:
   ret
 
 

@@ -181,8 +181,15 @@ asm_emit_inturbo_advance_pc_and_next(struct util_buffer* p_buf,
 void
 asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
                                     uint8_t advance) {
-  (void) p_buf;
-  (void) advance;
+  void asm_inturbo_advance_pc(void);
+  void asm_inturbo_advance_pc_END(void);
+  void asm_inturbo_ret(void);
+  void asm_inturbo_ret_END(void);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_inturbo_advance_pc,
+                             asm_inturbo_advance_pc_END,
+                             advance);
+  asm_copy(p_buf, asm_inturbo_ret, asm_inturbo_ret_END);
 }
 
 void

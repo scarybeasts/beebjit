@@ -660,6 +660,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_value: ASM(flags_nz_value); break;
   case k_opcode_interp: asm_emit_jit_jump_interp(p_buf, value1); break;
+  case k_opcode_inturbo: ASM_IMM16(load_PC); ASM(call_inturbo); break;
   case k_opcode_JMP_SCRATCH_n:
     if (value1 != 0) {
       ASM_IMM12(addr_add);
