@@ -509,44 +509,46 @@ main(int argc, const char* argv[]) {
 
   /* Test JIT invalidation through different write modes. */
   set_new_index(p_buf, 0x0690);
-  emit_JSR(p_buf, 0x3050);
+  emit_JSR(p_buf, 0x31D0);
+  emit_LDA(p_buf, k_imm, 0xEA);   /* NOP */
   emit_LDX(p_buf, k_imm, 0x01);
-  emit_LDY(p_buf, k_imm, 0x02);
-  emit_LDA(p_buf, k_imm, 0xCA);   /* DEX */
-  emit_STA(p_buf, k_abx, 0x304F);
-  emit_JSR(p_buf, 0x3050);
-  emit_CPX(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abx, 0x31CF);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x31D0);
+  emit_CPX(p_buf, k_imm, 0x05);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_LDA(p_buf, k_imm, 0x88);   /* DEY */
-  emit_STA(p_buf, k_aby, 0x304E);
-  emit_JSR(p_buf, 0x3050);
-  emit_CPY(p_buf, k_imm, 0x01);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_aby, 0x31D0);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x31D0);
+  emit_CPX(p_buf, k_imm, 0x04);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC6C0);
 
   /* Test JIT invalidation through remaining write modes. */
   set_new_index(p_buf, 0x06C0);
-  emit_LDA(p_buf, k_imm, 0xEA);   /* NOP */
-  emit_STA(p_buf, k_abs, 0x3050);
-  emit_JSR(p_buf, 0x3050);
-  emit_LDA(p_buf, k_imm, 0x48);
-  emit_STA(p_buf, k_zpg, 0x8F);
-  emit_LDA(p_buf, k_imm, 0x30);
-  emit_STA(p_buf, k_zpg, 0x90);
-  emit_LDY(p_buf, k_imm, 0x08);
+  emit_STA(p_buf, k_abs, 0x31D2);
   emit_LDX(p_buf, k_imm, 0x00);
-  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
-  emit_STA(p_buf, k_idy, 0x8F);
-  emit_JSR(p_buf, 0x3050);
-  emit_CPX(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x31D0);
+  emit_CPX(p_buf, k_imm, 0x03);
   emit_REQUIRE_ZF(p_buf, 1);
-  emit_LDA(p_buf, k_imm, 0x50);
-  emit_STA(p_buf, k_zpg, 0x8F);
+  emit_LDX(p_buf, k_imm, 0xD0);
+  emit_STX(p_buf, k_zpg, 0x8F);
+  emit_LDX(p_buf, k_imm, 0x31);
+  emit_STX(p_buf, k_zpg, 0x90);
+  emit_LDY(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_idy, 0x8F);   /* Write to $31D3. */
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x31D0);
+  emit_CPX(p_buf, k_imm, 0x02);
+  emit_REQUIRE_ZF(p_buf, 1);
+  emit_LDX(p_buf, k_imm, 0xD4);
+  emit_STX(p_buf, k_zpg, 0x8F);
   emit_LDX(p_buf, k_imm, 0x10);
-  emit_LDA(p_buf, k_imm, 0xC8);   /* INY */
-  emit_STA(p_buf, k_idx, 0x7F);
-  emit_JSR(p_buf, 0x3050);
-  emit_CPY(p_buf, k_imm, 0x09);
+  emit_STA(p_buf, k_idx, 0x7F);   /* Write to $31D4. */
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x31D0);
+  emit_CPX(p_buf, k_imm, 0x01);
   emit_REQUIRE_ZF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xC700);
 
@@ -2079,6 +2081,16 @@ main(int argc, const char* argv[]) {
   /* For testing a regression with JIT prefix / postfix. */
   set_new_index(p_buf, 0x31C0);
   emit_CLC(p_buf);
+  emit_RTS(p_buf);
+
+  /* For testing write invalidations thorugh different modes. */
+  set_new_index(p_buf, 0x31D0);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
+  emit_INX(p_buf);
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */
