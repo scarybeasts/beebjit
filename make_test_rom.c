@@ -1897,8 +1897,59 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x02);
   emit_JMP(p_buf, k_abs, 0xDB80);
 
-  /* End of test. */
+  /* Test a dynamic opcode. */
   set_new_index(p_buf, 0x1B80);
+  emit_LDA(p_buf, k_imm, 0x60);
+  emit_STA(p_buf, k_abs, 0x0201);
+  emit_STA(p_buf, k_abs, 0x0203);
+  /* Iterate, flipping CLC <-> SEC, to make a dynamic opcode. */
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_LDA(p_buf, k_imm, 0x18);   /* CLC */
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_JSR(p_buf, 0x0200);
+  emit_LDA(p_buf, k_imm, 0x38);   /* SEC */
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_JSR(p_buf, 0x0200);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -19);
+  /* Check INX as the dynamic opcode. */
+  emit_LDA(p_buf, k_imm, 0xE8);
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_LDX(p_buf, k_imm, 0x20);
+  emit_JSR(p_buf, 0x0200);
+  emit_CPX(p_buf, k_imm, 0x21);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Do a write invalidation in the dynamic opcode. */
+  emit_LDA(p_buf, k_imm, 0xEA);   /* NOP */
+  emit_STA(p_buf, k_abs, 0x0300);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x0301);
+  emit_JSR(p_buf, 0x0300);
+  emit_LDA(p_buf, k_imm, 0x8D);   /* STA abs (0x0300) */
+  emit_STA(p_buf, k_abs, 0x0200);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x0201);
+  emit_LDA(p_buf, k_imm, 0x03);
+  emit_STA(p_buf, k_abs, 0x0202);
+  emit_LDA(p_buf, k_imm, 0xC8);   /* INY */
+  emit_JSR(p_buf, 0x0200);
+  emit_LDY(p_buf, k_imm, 0x30);
+  emit_JSR(p_buf, 0x0300);
+  emit_CPY(p_buf, k_imm, 0x31);
+  emit_REQUIRE_ZF(p_buf, 1);
+  /* Hit a hardware register, bouncing to interp, in the dynamic opcode. */
+  emit_LDA(p_buf, k_imm, 0x4A);
+  emit_STA(p_buf, k_abs, 0x0201);
+  emit_LDA(p_buf, k_imm, 0xFE);
+  emit_STA(p_buf, k_abs, 0x0202);
+  emit_LDA(p_buf, k_imm, 0x5A);
+  emit_JSR(p_buf, 0x0200);
+  emit_LDA(p_buf, k_abs, 0xFE4A);
+  emit_REQUIRE_EQ(p_buf, 0x5A);
+  emit_JMP(p_buf, k_abs, 0xDC00);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1C00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
