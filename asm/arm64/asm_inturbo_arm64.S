@@ -13,8 +13,8 @@
 asm_inturbo_enter:
   mov REG_MEM_READ, REG_PARAM4
 
-  movz REG_INTURBO_CODE, #(K_INTURBO_OPCODES >> 16), lsl #16
-  movk REG_INTURBO_CODE, #(K_INTURBO_OPCODES & 0xFFFF)
+  movz REG_INTURBO_CODE, #(K_INTURBO_ADDR >> 16), lsl #16
+  movk REG_INTURBO_CODE, #(K_INTURBO_ADDR & 0xFFFF)
 
   adr REG_INTERP_FUNC, asm_inturbo_call_interp
 
@@ -141,7 +141,7 @@ asm_inturbo_do_write_invalidation_END:
 .globl asm_inturbo_jump_next_opcode
 .globl asm_inturbo_jump_next_opcode_END
 asm_inturbo_jump_next_opcode:
-  add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #K_INTURBO_OPCODES_SHIFT
+  add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #K_INTURBO_OPCODE_SHIFT
   br REG_SCRATCH1
 
 asm_inturbo_jump_next_opcode_END:

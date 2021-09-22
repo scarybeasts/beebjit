@@ -134,6 +134,7 @@ asm_jit_create(void* p_jit_base,
   (void) is_memory_always_ram;
   (void) p_memory_object;
 
+  /* Leave the JIT code pages in a read-only state. */
   asm_jit_finish_code_updates(NULL);
 
   return NULL;
@@ -152,28 +153,19 @@ asm_jit_get_private(struct asm_jit_struct* p_asm) {
 
 void
 asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
-  size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
-
   (void) p_asm;
-
-  os_alloc_make_mapping_read_write_exec((void*) (uintptr_t) K_BBC_JIT_ADDR,
-                                        mapping_size);
+  os_alloc_make_mapping_read_write_exec((void*) K_JIT_ADDR, K_JIT_SIZE);
 }
 
 void
 asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
-  void* p_start = (void*) (uintptr_t) K_BBC_JIT_ADDR;
-  size_t mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
-  void* p_end = (p_start + mapping_size);
-
   (void) p_asm;
 
-  os_alloc_make_mapping_read_exec((void*) (uintptr_t) K_BBC_JIT_ADDR,
-                                  mapping_size);
+  os_alloc_make_mapping_read_exec((void*) K_JIT_ADDR, K_JIT_SIZE);
   /* mprotect(), as far as I can discern, does not guarantee to clear icache
    * for PROT_EXEC mappings.
    */
-  __builtin___clear_cache(p_start, p_end);
+  __builtin___clear_cache((void*) K_JIT_ADDR, (void*) K_JIT_ADDR_END);
 }
 
 int
@@ -183,8 +175,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                      int32_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
-  void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
-                     (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
   /* NOTE: is_write will come in as unknown due to ARM64 kernel challenges
    * reporting this flag.
    * The way to work around this, if necessary, is to read the faulting
@@ -197,7 +187,8 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   /* Currently, the only fault we expect to see is for attempts to invalidate
    * JIT code. The JIT code mapping is kept read-only.
    */
-  if ((p_fault_addr < (void*) K_BBC_JIT_ADDR) || (p_fault_addr >= p_jit_end)) {
+  if ((p_fault_addr < (void*) K_JIT_ADDR) ||
+      (p_fault_addr >= (void*) K_JIT_ADDR_END)) {
     return 0;
   }
 

@@ -1359,7 +1359,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
 
-  util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
+  util_buffer_setup(p_tmp_buf, p_host_address_base, K_JIT_BYTES_PER_BYTE);
   util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
   util_buffer_setup(p_single_uopcode_buf,
                     &single_opcode_buffer[0],
@@ -1456,7 +1456,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
                 p_compiler->p_host_address_object, addr_6502);
         util_buffer_setup(p_tmp_buf,
                           p_host_address_base,
-                          K_BBC_JIT_BYTES_PER_BYTE);
+                          K_JIT_BYTES_PER_BYTE);
         util_buffer_set_base_address(p_tmp_buf, p_host_address_base);
 
         asm_fill_with_trap(p_tmp_buf);
@@ -1766,7 +1766,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     struct util_buffer* p_tmp_buf = p_compiler->p_tmp_buf;
     void* p_host_address_base = p_compiler->get_block_host_address(
         p_compiler->p_host_address_object, sub_instruction_addr_6502);
-    util_buffer_setup(p_tmp_buf, p_host_address_base, K_BBC_JIT_BYTES_PER_BYTE);
+    util_buffer_setup(p_tmp_buf, p_host_address_base, K_JIT_BYTES_PER_BYTE);
     jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
     asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   }

@@ -69,7 +69,7 @@ struct jit_struct {
 static inline uint8_t*
 jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (p_jit->p_jit_base +
-                        (addr_6502 * K_BBC_JIT_BYTES_PER_BYTE));
+                        (addr_6502 * K_JIT_BYTES_PER_BYTE));
   return p_jit_ptr;
 }
 
@@ -95,7 +95,7 @@ jit_6502_block_addr_from_host(struct jit_struct* p_jit,
   uint8_t* p_jit_base = p_jit->p_jit_base;
 
   block_addr_6502 = (p_host_cpu_ip - p_jit_base);
-  block_addr_6502 /= K_BBC_JIT_BYTES_PER_BYTE;
+  block_addr_6502 /= K_JIT_BYTES_PER_BYTE;
 
   assert(block_addr_6502 < k_6502_addr_space_size);
 
@@ -445,7 +445,7 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
   host_block_6502 = jit_6502_block_addr_from_host(p_jit, p_host_ip);
   code_block_6502 = p_jit->code_blocks[host_block_6502];
 
-  if (((uintptr_t) p_host_ip & (K_BBC_JIT_BYTES_PER_BYTE - 1)) == 0) {
+  if (((uintptr_t) p_host_ip & (K_JIT_BYTES_PER_BYTE - 1)) == 0) {
     /* A block compile request. Still need to check if this splits an existing
      * block.
      */
@@ -693,18 +693,15 @@ jit_handle_fault(uintptr_t* p_host_pc,
   uintptr_t new_pc = *p_host_pc;
   int is_inturbo = 0;
 
-  void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
-                     (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
-  void* p_inturbo_end = ((void*) K_INTURBO_OPCODES +
-                         (256 * (1 << K_INTURBO_OPCODES_SHIFT)));
   void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
   /* Fail unless the faulting instruction is in the JIT or inturbo region. */
-  if ((p_fault_pc >= (void*) K_BBC_JIT_ADDR) && (p_fault_pc < p_jit_end)) {
+  if ((p_fault_pc >= (void*) K_JIT_ADDR) &&
+      (p_fault_pc < (void*) K_JIT_ADDR_END)) {
     /* JIT code. Continue. */
-  } else if ((p_fault_pc >= (void*) K_INTURBO_OPCODES) &&
-             (p_fault_pc < p_inturbo_end)) {
+  } else if ((p_fault_pc >= (void*) K_INTURBO_ADDR) &&
+             (p_fault_pc < (void*) K_INTURBO_ADDR_END)) {
     /* Inturbo code. Continue. */
     is_inturbo = 1;
   } else {
@@ -765,7 +762,6 @@ static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   struct inturbo_struct* p_inturbo;
-  size_t mapping_size;
   uint8_t* p_jit_base;
   struct util_buffer* p_temp_buf;
   void* p_no_code_mapping_addr;
@@ -834,20 +830,18 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->driver.abi.p_interp_object = p_jit;
 
   /* This is the mapping that holds the dynamically JIT'ed code. */
-  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE);
-  p_jit->p_mapping_jit = os_alloc_get_mapping((void*) K_BBC_JIT_ADDR,
-                                              mapping_size);
+  p_jit->p_mapping_jit = os_alloc_get_mapping((void*) K_JIT_ADDR, K_JIT_SIZE);
   p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
-  os_alloc_make_mapping_read_write_exec(p_jit_base, mapping_size);
+  os_alloc_make_mapping_read_write_exec(p_jit_base, K_JIT_SIZE);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
-  util_buffer_setup(p_temp_buf, p_jit_base, mapping_size);
+  util_buffer_setup(p_temp_buf, p_jit_base, K_JIT_SIZE);
   asm_fill_with_trap(p_temp_buf);
 
   p_jit->p_jit_base = p_jit_base;
 
   p_jit->p_mapping_no_code_ptr =
-      os_alloc_get_mapping((void*) K_BBC_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
+      os_alloc_get_mapping((void*) K_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
   p_no_code_mapping_addr =
       os_alloc_get_mapping_addr(p_jit->p_mapping_no_code_ptr);
   p_jit->jit_ptr_no_code = (uint32_t) (uintptr_t) p_no_code_mapping_addr;

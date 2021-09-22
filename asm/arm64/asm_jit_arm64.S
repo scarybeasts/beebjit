@@ -54,8 +54,8 @@ asm_jit_compile_trampoline:
 
   add sp, sp, 16
 
-  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
-  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  lsl REG_6502_PC, REG_6502_PC, #K_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_JIT_ADDR
   br REG_6502_PC
 
 
@@ -95,8 +95,8 @@ asm_jit_call_interp_END:
 not_exiting:
   bl asm_restore_AXYS_PC_flags
 
-  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
-  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  lsl REG_6502_PC, REG_6502_PC, #K_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_JIT_ADDR
   br REG_6502_PC
 
 not_exiting_END:
@@ -111,8 +111,8 @@ asm_jit_call_inturbo:
   ldrb REG_SCRATCH1_32, [REG_6502_PC]
 
   # Calculate jump target.
-  lsl REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODES_SHIFT
-  orr REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODES
+  lsl REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODE_SHIFT
+  orr REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_ADDR
 
   # Save JIT context register and load inturbo context register.
   stp REG_CONTEXT, x30, [sp, #-16]!
@@ -124,8 +124,8 @@ asm_jit_call_inturbo:
 
   # Calculate new JIT code address and jump.
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
-  lsl REG_6502_PC, REG_6502_PC, #K_BBC_JIT_BYTES_SHIFT
-  orr REG_6502_PC, REG_6502_PC, #K_BBC_JIT_ADDR
+  lsl REG_6502_PC, REG_6502_PC, #K_JIT_BYTES_SHIFT
+  orr REG_6502_PC, REG_6502_PC, #K_JIT_ADDR
   br REG_6502_PC
 
 asm_jit_call_inturbo_END:
@@ -808,8 +808,8 @@ asm_jit_JMP_END:
 .globl asm_jit_JMP_addr
 .globl asm_jit_JMP_addr_END
 asm_jit_JMP_addr:
-  lsl REG_SCRATCH1, REG_SCRATCH1, #K_BBC_JIT_BYTES_SHIFT
-  orr REG_SCRATCH1, REG_SCRATCH1, #K_BBC_JIT_ADDR
+  lsl REG_SCRATCH1, REG_SCRATCH1, #K_JIT_BYTES_SHIFT
+  orr REG_SCRATCH1, REG_SCRATCH1, #K_JIT_ADDR
   br REG_SCRATCH1
 
 asm_jit_JMP_addr_END:

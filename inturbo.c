@@ -22,9 +22,6 @@
 #include <stdint.h>
 #include <string.h>
 
-static const size_t k_inturbo_bytes_per_opcode = (1 << K_INTURBO_OPCODES_SHIFT);
-static void* k_inturbo_opcodes_addr = (void*) K_INTURBO_OPCODES;
-
 struct inturbo_struct {
   struct cpu_driver driver;
 
@@ -557,7 +554,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
     int use_interp;
 
     uint8_t* p_inturbo_opcodes_ptr =
-        (p_inturbo_base + (i * k_inturbo_bytes_per_opcode));
+        (p_inturbo_base + (i * K_INTURBO_OPCODE_SIZE));
 
     /* Render the opcode implementation into a "large" 256 byte buffer.
      * Later, we stuff it into a smaller buffer for compact L1 icache usage
@@ -581,7 +578,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                             write_callback_from);
 
     opcode_len = (util_buffer_get_pos(p_buf) + epilog_len);
-    if (opcode_len > k_inturbo_bytes_per_opcode) {
+    if (opcode_len > K_INTURBO_OPCODE_SIZE) {
       log_do_log(k_log_perf,
                  k_log_info,
                  "inturbo opcode $%.02X excessive len %"PRIu32,
@@ -602,7 +599,7 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       /* Re-write the opcode because writing to a potentially smaller buffer
        * might change some offsets.
        */
-      util_buffer_setup(p_buf, &buf[0], k_inturbo_bytes_per_opcode);
+      util_buffer_setup(p_buf, &buf[0], K_INTURBO_OPCODE_SIZE);
       util_buffer_set_base_address(p_buf, p_inturbo_opcodes_ptr);
       inturbo_generate_opcode(p_inturbo,
                               &use_interp,
@@ -619,10 +616,10 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     asm_fill_with_trap(p_buf);
 
-    (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], k_inturbo_bytes_per_opcode);
+    (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], K_INTURBO_OPCODE_SIZE);
     if (!use_interp) {
       (void) memcpy(
-          (p_inturbo_opcodes_ptr + k_inturbo_bytes_per_opcode - epilog_len),
+          (p_inturbo_opcodes_ptr + K_INTURBO_OPCODE_SIZE - epilog_len),
           &epilog_buf[0],
           epilog_len);
     }
@@ -714,8 +711,8 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   struct timing_struct* p_timing = p_cpu_driver->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address =
-      (uint32_t) (size_t) (k_inturbo_opcodes_addr +
-                           (opcode * k_inturbo_bytes_per_opcode));
+      (uint32_t) (size_t) (K_INTURBO_ADDR +
+                           (opcode * K_INTURBO_OPCODE_SIZE));
 
   countdown = timing_get_countdown(p_timing);
 
@@ -809,7 +806,6 @@ static void
 inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
   int debug_subsystem_active;
-  size_t mapping_size;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
@@ -855,13 +851,12 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_inturbo->driver.abi.p_interp_callback = inturbo_enter_interp;
   p_inturbo->driver.abi.p_interp_object = p_inturbo;
 
-  mapping_size = (256 * k_inturbo_bytes_per_opcode);
-  p_inturbo->p_mapping_base = os_alloc_get_mapping(k_inturbo_opcodes_addr,
-                                                   mapping_size);
+  p_inturbo->p_mapping_base = os_alloc_get_mapping((void*) K_INTURBO_ADDR,
+                                                   K_INTURBO_SIZE);
   p_inturbo->p_inturbo_base =
       os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
   os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
-                                        mapping_size);
+                                        K_INTURBO_SIZE);
 
   inturbo_fill_tables(p_inturbo);
 }
