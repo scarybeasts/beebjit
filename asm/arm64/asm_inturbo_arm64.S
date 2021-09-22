@@ -524,7 +524,7 @@ asm_instruction_BEQ_interp_accurate_END:
 .globl asm_instruction_BIT_interp
 .globl asm_instruction_BIT_interp_END
 asm_instruction_BIT_interp:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH1]
 
 asm_instruction_BIT_interp_END:
   ret
