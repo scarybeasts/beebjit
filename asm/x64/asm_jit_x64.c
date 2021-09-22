@@ -309,9 +309,9 @@ asm_jit_create(void* p_jit_base,
    * and smaller, at the expense of more complicated bridging between JIT and
    * interp.
    */
-  mapping_size = (k_6502_addr_space_size * K_BBC_JIT_TRAMPOLINE_BYTES);
+  mapping_size = (k_6502_addr_space_size * K_JIT_TRAMPOLINE_BYTES);
   s_p_mapping_trampolines =
-      os_alloc_get_mapping((void*) K_BBC_JIT_TRAMPOLINES_ADDR, mapping_size);
+      os_alloc_get_mapping((void*) K_JIT_TRAMPOLINES_ADDR, mapping_size);
   p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
   os_alloc_make_mapping_read_write_exec(p_trampolines, mapping_size);
   util_buffer_setup(p_temp_buf, p_trampolines, mapping_size);
@@ -321,8 +321,8 @@ asm_jit_create(void* p_jit_base,
     /* Initialize JIT trampoline. */
     util_buffer_setup(
         p_temp_buf,
-        (p_trampolines + (i * K_BBC_JIT_TRAMPOLINE_BYTES)),
-        K_BBC_JIT_TRAMPOLINE_BYTES);
+        (p_trampolines + (i * K_JIT_TRAMPOLINE_BYTES)),
+        K_JIT_TRAMPOLINE_BYTES);
     asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
 
@@ -479,8 +479,7 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   /* Fault is recognized.
    * Bounce into the interpreter via the trampolines.
    */
-  *p_pc =
-      (K_BBC_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_BBC_JIT_TRAMPOLINE_BYTES));
+  *p_pc = (K_JIT_TRAMPOLINES_ADDR + (addr_6502 * K_JIT_TRAMPOLINE_BYTES));
   return 1;
 }
 
@@ -602,7 +601,7 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr) {
    * memory. This ensures that the (uncommon) jumps out of JIT are forward
    * jumps, which may help on some CPUs.
    */
-  assert(K_BBC_JIT_TRAMPOLINES_ADDR > K_BBC_JIT_ADDR);
+  assert(K_JIT_TRAMPOLINES_ADDR > K_JIT_ADDR);
 
   asm_copy(p_buf, asm_jit_jump_interp, asm_jit_jump_interp_END);
   asm_patch_int(p_buf,
@@ -762,7 +761,7 @@ asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
                 offset,
                 asm_jit_JMP_SCRATCH_n,
                 asm_jit_JMP_SCRATCH_n_lea_patch,
-                ((K_BBC_JIT_ADDR >> K_BBC_JIT_BYTES_SHIFT) + n));
+                ((K_JIT_ADDR >> K_JIT_BYTES_SHIFT) + n));
 }
 
 static void
@@ -1510,7 +1509,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_countdown:
   case k_opcode_check_pending_irq:
     p_trampolines = os_alloc_get_mapping_addr(s_p_mapping_trampolines);
-    p_trampoline_addr = (p_trampolines + (value1 * K_BBC_JIT_TRAMPOLINE_BYTES));
+    p_trampoline_addr = (p_trampolines + (value1 * K_JIT_TRAMPOLINE_BYTES));
     break;
   default:
     break;

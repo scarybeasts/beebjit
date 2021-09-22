@@ -58,9 +58,9 @@ asm_jit_compile_trampoline:
   call asm_restore_AXYS_PC_flags
 
   lahf
-  shl REG_6502_PC, K_BBC_JIT_BYTES_SHIFT
+  shl REG_6502_PC, K_JIT_BYTES_SHIFT
   sahf
-  lea REG_6502_PC, [REG_6502_PC + K_BBC_JIT_ADDR]
+  lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
 
   # We're jumping out of a call so pop the return address.
   pop REG_SCRATCH2
@@ -116,9 +116,9 @@ not_exiting:
   call asm_restore_AXYS_PC_flags
 
   lahf
-  shl REG_6502_PC, K_BBC_JIT_BYTES_SHIFT
+  shl REG_6502_PC, K_JIT_BYTES_SHIFT
   sahf
-  lea REG_6502_PC, [REG_6502_PC + K_BBC_JIT_ADDR]
+  lea REG_6502_PC, [REG_6502_PC + K_JIT_ADDR]
 
   jmp REG_6502_PC
 
@@ -219,9 +219,9 @@ asm_jit_call_inturbo:
 asm_jit_call_inturbo_pc_patch:
   movzx REG_SCRATCH1_32, BYTE PTR [REG_6502_PC]
   lahf
-  shl REG_SCRATCH1_32, K_INTURBO_OPCODES_SHIFT
+  shl REG_SCRATCH1_32, K_INTURBO_OPCODE_SHIFT
   sahf
-  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_OPCODES]
+  lea REG_SCRATCH1_32, [REG_SCRATCH1 + K_INTURBO_ADDR]
   # Save JIT REG_CONTEXT.
   # Keeps stack alignment to 16 after the call.
   push REG_CONTEXT
@@ -231,9 +231,9 @@ asm_jit_call_inturbo_pc_patch:
   pop REG_CONTEXT
   lahf
   lea REG_6502_PC_32, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
-  shl REG_6502_PC_32, K_BBC_JIT_BYTES_SHIFT
+  shl REG_6502_PC_32, K_JIT_BYTES_SHIFT
   sahf
-  lea REG_6502_PC_32, [REG_6502_PC + K_BBC_JIT_ADDR]
+  lea REG_6502_PC_32, [REG_6502_PC + K_JIT_ADDR]
 
   jmp REG_6502_PC
 
@@ -449,11 +449,11 @@ asm_jit_flags_nz_value_END:
 .globl asm_jit_JMP_SCRATCH_n_END
 asm_jit_JMP_SCRATCH_n:
   # TODO: the rorx is quite a bit faster, at least in microbenchmarks.
-  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_BBC_JIT_BYTES_SHIFT)
+  #rorx REG_SCRATCH1_32, REG_SCRATCH1_32, (32 - K_JIT_BYTES_SHIFT)
   lea REG_SCRATCH1_32, [REG_SCRATCH1 + 0x7fffffff]
 asm_jit_JMP_SCRATCH_n_lea_patch:
   lahf
-  shl REG_SCRATCH1_32, K_BBC_JIT_BYTES_SHIFT
+  shl REG_SCRATCH1_32, K_JIT_BYTES_SHIFT
   sahf
   jmp REG_SCRATCH1
 
