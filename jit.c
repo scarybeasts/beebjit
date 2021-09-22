@@ -16,6 +16,7 @@
 
 #include "asm/asm_common.h"
 #include "asm/asm_defs_host.h"
+#include "asm/asm_inturbo_defs.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
 
@@ -688,16 +689,25 @@ jit_handle_fault(uintptr_t* p_host_pc,
                  uintptr_t host_context) {
   struct jit_struct* p_jit;
   struct jit_host_ip_details details;
-  uint16_t addr_6502;
+  int32_t addr_6502 = -1;
   uintptr_t new_pc = *p_host_pc;
+  int is_inturbo = 0;
 
   void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
                      (k_6502_addr_space_size * K_BBC_JIT_BYTES_PER_BYTE));
+  void* p_inturbo_end = ((void*) K_INTURBO_OPCODES +
+                         (256 * (1 << K_INTURBO_OPCODES_SHIFT)));
   void* p_fault_pc = (void*) *p_host_pc;
   void* p_fault_addr = (void*) host_fault_addr;
 
-  /* Crash unless the faulting instruction is in the JIT region. */
-  if ((p_fault_pc < (void*) K_BBC_JIT_ADDR) || (p_fault_pc >= p_jit_end)) {
+  /* Fail unless the faulting instruction is in the JIT or inturbo region. */
+  if ((p_fault_pc >= (void*) K_BBC_JIT_ADDR) && (p_fault_pc < p_jit_end)) {
+    /* JIT code. Continue. */
+  } else if ((p_fault_pc >= (void*) K_INTURBO_OPCODES) &&
+             (p_fault_pc < p_inturbo_end)) {
+    /* Inturbo code. Continue. */
+    is_inturbo = 1;
+  } else {
     fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
@@ -706,24 +716,34 @@ jit_handle_fault(uintptr_t* p_host_pc,
     fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
-  p_jit = (struct jit_struct*) host_context;
+  if (!is_inturbo) {
+    p_jit = (struct jit_struct*) host_context;
+  } else {
+    /* Inturbo stores a pointer to JIT pointers in it's private member. */
+    void** p_inturbo = (void**) host_context;
+    void* p_jit_ptrs = *p_inturbo;
+    p_jit = (struct jit_struct*) (p_jit_ptrs - K_JIT_CONTEXT_OFFSET_JIT_PTRS);
+  }
   /* Sanity check it is really a jit struct. */
   if (p_jit->p_compile_callback != jit_compile) {
     fault_reraise(p_fault_pc, p_fault_addr, is_write, is_exec);
   }
 
-  /* NOTE -- may call assert() which isn't async safe but faulting context is
-   * raw asm, shouldn't be a disaster.
-   */
-  jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_pc);
-  assert(details.block_6502 != -1);
-  assert(details.pc_6502 != -1);
+  if (!is_inturbo) {
+    /* NOTE -- may call assert() which isn't async safe but faulting context is
+     * raw asm, shouldn't be a disaster.
+     */
+    jit_get_6502_details_from_host_ip(p_jit, &details, p_fault_pc);
+    assert(details.block_6502 != -1);
+    assert(details.pc_6502 != -1);
 
-  addr_6502 = details.pc_6502;
+    addr_6502 = details.pc_6502;
+  }
 
   /* Bail unless it's a clearly recognized fault. */
   if (!asm_jit_handle_fault(p_jit->p_asm,
                             &new_pc,
+                            is_inturbo,
                             addr_6502,
                             p_fault_addr,
                             is_write)) {

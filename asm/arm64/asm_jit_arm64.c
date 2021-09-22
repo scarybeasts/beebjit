@@ -179,7 +179,8 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
 int
 asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                      uintptr_t* p_pc,
-                     uint16_t addr_6502,
+                     int is_inturbo,
+                     int32_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
   void* p_jit_end = ((void*) K_BBC_JIT_ADDR +
@@ -189,6 +190,7 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
    * The way to work around this, if necessary, is to read the faulting
    * instruction to see what it is doing.
    */
+  (void) is_inturbo;
   (void) addr_6502;
   (void) is_write;
 

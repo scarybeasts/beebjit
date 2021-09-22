@@ -127,6 +127,17 @@ asm_inturbo_ret_END:
   ret
 
 
+.globl asm_inturbo_do_write_invalidation
+.globl asm_inturbo_do_write_invalidation_END
+asm_inturbo_do_write_invalidation:
+  ldr REG_SCRATCH2, [REG_CONTEXT]
+  ldr REG_SCRATCH2_32, [REG_SCRATCH2, REG_SCRATCH1, lsl #2]
+  str REG_SCRATCH2_32, [REG_SCRATCH2]
+
+asm_inturbo_do_write_invalidation_END:
+  ret
+
+
 .globl asm_inturbo_jump_next_opcode
 .globl asm_inturbo_jump_next_opcode_END
 asm_inturbo_jump_next_opcode:
@@ -141,7 +152,9 @@ asm_inturbo_jump_next_opcode_END:
 .globl asm_inturbo_enter_debug_END
 asm_inturbo_enter_debug:
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
+  stp x29, x30, [sp, #-16]!
   blr REG_DEBUG_FUNC
+  ldp x29, x30, [sp], #16
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
 
 asm_inturbo_enter_debug_END:

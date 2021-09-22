@@ -359,7 +359,8 @@ asm_jit_finish_code_updates(struct asm_jit_struct* p_asm) {
 int
 asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                      uintptr_t* p_pc,
-                     uint16_t addr_6502,
+                     int is_inturbo,
+                     int32_t addr_6502,
                      void* p_fault_addr,
                      int is_write) {
   int inaccessible_indirect_page;
@@ -370,6 +371,11 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   int wrap_indirect_write;
 
   (void) p_asm;
+
+  /* x64 inturbo shouldn't be faulting ever. */
+  if (is_inturbo) {
+    return 0;
+  }
 
   /* The indirect page fault occurs when an indirect addressing mode is used
    * to access 0xF000 - 0xFFFF, primarily of interest due to the hardware
