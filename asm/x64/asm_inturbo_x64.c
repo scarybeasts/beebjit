@@ -38,6 +38,14 @@ asm_inturbo_is_enabled(void) {
 }
 
 void
+asm_inturbo_init(void) {
+}
+
+void
+asm_inturbo_destroy(void) {
+}
+
+void
 asm_emit_inturbo_save_countdown(struct util_buffer* p_buf) {
   void asm_inturbo_save_countdown(void);
   void asm_inturbo_save_countdown_END(void);

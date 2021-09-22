@@ -5,6 +5,12 @@ asm_inturbo_is_enabled(void) {
   return 0;
 }
 
+void asm_inturbo_init(void) {
+}
+
+void asm_inturbo_destroy(void) {
+}
+
 void
 asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                        uint16_t special_addr_above) {

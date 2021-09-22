@@ -6,6 +6,8 @@
 struct util_buffer;
 
 int asm_inturbo_is_enabled(void);
+void asm_inturbo_init(void);
+void asm_inturbo_destroy(void);
 uint32_t asm_inturbo_enter(void* p_context,
                            uint32_t jump_addr_x64,
                            int64_t countdown,

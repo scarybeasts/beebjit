@@ -697,6 +697,7 @@ inturbo_destroy(struct cpu_driver* p_cpu_driver) {
   }
 
   os_alloc_free_mapping(p_inturbo->p_mapping_base);
+  asm_inturbo_destroy();
   util_free(p_inturbo);
 }
 
@@ -857,6 +858,8 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
       os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
   os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
                                         K_INTURBO_SIZE);
+
+  asm_inturbo_init();
 
   inturbo_fill_tables(p_inturbo);
 }
