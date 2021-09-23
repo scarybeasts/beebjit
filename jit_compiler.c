@@ -365,11 +365,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   /* Mode resolution and possibly per-mode uops. */
+  operand_6502 = 0;
   switch (opmode) {
   case 0:
   case k_nil:
   case k_acc:
-    operand_6502 = 0;
     break;
   case k_imm:
     if (optype == k_brk) {
@@ -506,7 +506,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   default:
     assert(0);
-    operand_6502 = 0;
     break;
   }
 
