@@ -115,7 +115,12 @@ os_alloc_get_mapping_from_handle(intptr_t handle,
   }
 
   if ((p_addr != NULL) && (p_map != p_addr)) {
-    util_bail("mmap in wrong location");
+    util_bail("mmap in wrong location (expected %p, got %p)"
+              ", heap %p binary %p",
+              p_addr,
+              p_map,
+              p_ret,
+              os_alloc_get_mapping_from_handle);
   }
 
   p_ret->p_addr = p_map;
