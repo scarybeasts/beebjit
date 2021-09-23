@@ -144,16 +144,30 @@ asm_inturbo_jump_next_opcode_END:
   ret
 
 
-.globl asm_inturbo_enter_debug
-.globl asm_inturbo_enter_debug_END
-asm_inturbo_enter_debug:
+.globl asm_inturbo_enter_debug_pre
+.globl asm_inturbo_enter_debug_pre_END
+.globl asm_inturbo_enter_debug_branch
+.globl asm_inturbo_enter_debug_branch_END
+.globl asm_inturbo_enter_debug_post
+.globl asm_inturbo_enter_debug_post_END
+asm_inturbo_enter_debug_pre:
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   stp x29, x30, [sp, #-16]!
-  blr REG_DEBUG_FUNC
+
+asm_inturbo_enter_debug_pre_END:
+  ret
+
+asm_inturbo_enter_debug_branch:
+  bl asm_inturbo_enter_debug_branch
+
+asm_inturbo_enter_debug_branch_END:
+  ret
+
+asm_inturbo_enter_debug_post:
   ldp x29, x30, [sp], #16
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
 
-asm_inturbo_enter_debug_END:
+asm_inturbo_enter_debug_post_END:
   ret
 
 

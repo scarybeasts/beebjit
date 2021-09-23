@@ -23,12 +23,10 @@
 #define REG_SCRATCH3       x15
 #define REG_SCRATCH3_32    w15
 /* Callee save (x19 - x29 inclusive). */
-#define REG_MEM_STACK      x21
-#define REG_COUNTDOWN      x22
-#define REG_CONTEXT        x23
-#define REG_JIT_PTRS       x24
-#define REG_INTERP_FUNC    x25
-#define REG_DEBUG_FUNC     x26
+#define REG_MEM_STACK      x23
+#define REG_COUNTDOWN      x24
+#define REG_CONTEXT        x25
+#define REG_JIT_PTRS       x26
 #define REG_MEM_READ       x27
 #define REG_MEM_WRITE      x28
 #define REG_JIT_COMPILE    x29

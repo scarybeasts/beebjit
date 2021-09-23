@@ -249,9 +249,12 @@ asm_emit_jit_LOAD_BYTE_PAIR(struct util_buffer* p_buf,
 }
 
 static void
-asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t value1) {
+asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr_6502) {
+  void asm_jit_call_interp(void);
+  uint32_t value1 = addr_6502;
   ASM_IMM16(load_PC);
-  ASM(jump_interp);
+  value1 = (uint32_t) (uintptr_t) asm_jit_call_interp;
+  ASM_IMM26(jump_interp);
 }
 
 void
@@ -647,7 +650,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(countdown_tbnz);
     break;
-  case k_opcode_debug: ASM_IMM16(load_PC); ASM(call_debug); break;
+  case k_opcode_debug:
+    ASM_IMM16(load_PC);
+    value1 = (uint32_t) (uintptr_t) asm_debug;
+    ASM_IMM26(call_debug);
+    break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_buf); break;

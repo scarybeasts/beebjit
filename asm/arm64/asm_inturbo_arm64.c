@@ -198,9 +198,20 @@ asm_emit_inturbo_advance_pc_and_ret(struct util_buffer* p_buf,
 
 void
 asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
-  void asm_inturbo_enter_debug(void);
-  void asm_inturbo_enter_debug_END(void);
-  asm_copy(p_buf, asm_inturbo_enter_debug, asm_inturbo_enter_debug_END);
+  void asm_inturbo_enter_debug_pre(void);
+  void asm_inturbo_enter_debug_pre_END(void);
+  void asm_inturbo_enter_debug_branch(void);
+  void asm_inturbo_enter_debug_branch_END(void);
+  void asm_inturbo_enter_debug_post(void);
+  void asm_inturbo_enter_debug_post_END(void);
+  asm_copy(p_buf, asm_inturbo_enter_debug_pre, asm_inturbo_enter_debug_pre_END);
+  asm_copy_patch_arm64_imm26_pc_rel(p_buf,
+                                    asm_inturbo_enter_debug_branch,
+                                    asm_inturbo_enter_debug_branch_END,
+                                    asm_debug);
+  asm_copy(p_buf,
+           asm_inturbo_enter_debug_post,
+           asm_inturbo_enter_debug_post_END);
 }
 
 void

@@ -17,7 +17,6 @@ asm_jit_enter:
   add REG_MEM_READ, REG_PARAM4, REG_MEM_READ
 
   adr REG_JIT_COMPILE, asm_jit_compile_trampoline
-  adr REG_INTERP_FUNC, asm_jit_call_interp
   # NOTE: can save a register by adjusting REG_CONTEXT as we bounce in and out
   # of JIT.
   # REG_PARAM1 is REG_CONTEXT.
@@ -341,7 +340,7 @@ asm_jit_countdown_tbnz_END:
 .globl asm_jit_call_debug
 .globl asm_jit_call_debug_END
 asm_jit_call_debug:
-  blr REG_DEBUG_FUNC
+  bl asm_jit_call_debug
 
 asm_jit_call_debug_END:
   ret
@@ -359,7 +358,7 @@ asm_jit_flags_nz_value_END:
 .globl asm_jit_jump_interp
 .globl asm_jit_jump_interp_END
 asm_jit_jump_interp:
-  br REG_INTERP_FUNC
+  b asm_jit_jump_interp
 
 asm_jit_jump_interp_END:
   ret

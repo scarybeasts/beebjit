@@ -41,8 +41,6 @@ asm_enter_common:
   add REG_MEM_WRITE, REG_MEM_READ, REG_SCRATCH1
   add REG_MEM_STACK, REG_MEM_READ, #0x100
 
-  adr REG_DEBUG_FUNC, asm_debug
-
   br REG_SCRATCH2
 
 asm_enter_common_END:

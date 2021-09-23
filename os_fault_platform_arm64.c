@@ -26,7 +26,7 @@ os_fault_is_exec_fault(void* p) {
 uintptr_t
 os_fault_get_jit_context(void* p) {
   ucontext_t* p_context = (ucontext_t*) p;
-  return p_context->uc_mcontext.regs[23];
+  return p_context->uc_mcontext.regs[25];
 }
 
 uintptr_t
