@@ -27,7 +27,6 @@
 #define REG_COUNTDOWN      x22
 #define REG_CONTEXT        x23
 #define REG_JIT_PTRS       x24
-#define REG_INTURBO_CODE   x24
 #define REG_INTERP_FUNC    x25
 #define REG_DEBUG_FUNC     x26
 #define REG_MEM_READ       x27

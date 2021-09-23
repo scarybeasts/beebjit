@@ -87,11 +87,7 @@ asm_emit_inturbo_save_countdown(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_epilog(struct util_buffer* p_buf) {
-  void asm_inturbo_jump_call_interp(void);
-  void asm_inturbo_jump_call_interp_END(void);
-  asm_copy(p_buf,
-           asm_inturbo_jump_call_interp,
-           asm_inturbo_jump_call_interp_END);
+  asm_emit_inturbo_call_interp(p_buf);
 }
 
 void
@@ -211,9 +207,11 @@ void
 asm_emit_inturbo_call_interp(struct util_buffer* p_buf) {
   void asm_inturbo_jump_call_interp(void);
   void asm_inturbo_jump_call_interp_END(void);
-  asm_copy(p_buf,
-           asm_inturbo_jump_call_interp,
-           asm_inturbo_jump_call_interp_END);
+  void asm_inturbo_call_interp(void);
+  asm_copy_patch_arm64_imm26_pc_rel(p_buf,
+                                    asm_inturbo_jump_call_interp,
+                                    asm_inturbo_jump_call_interp_END,
+                                    asm_inturbo_call_interp);
 }
 
 void

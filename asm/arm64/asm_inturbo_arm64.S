@@ -13,11 +13,6 @@
 asm_inturbo_enter:
   mov REG_MEM_READ, REG_PARAM4
 
-  movz REG_INTURBO_CODE, #(K_INTURBO_ADDR >> 16), lsl #16
-  movk REG_INTURBO_CODE, #(K_INTURBO_ADDR & 0xFFFF)
-
-  adr REG_INTERP_FUNC, asm_inturbo_call_interp
-
   b asm_enter_common
 
 asm_inturbo_enter_END:
@@ -141,7 +136,8 @@ asm_inturbo_do_write_invalidation_END:
 .globl asm_inturbo_jump_next_opcode
 .globl asm_inturbo_jump_next_opcode_END
 asm_inturbo_jump_next_opcode:
-  add REG_SCRATCH1, REG_INTURBO_CODE, REG_SCRATCH1, lsl #K_INTURBO_OPCODE_SHIFT
+  lsl REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODE_SHIFT
+  orr REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_ADDR
   br REG_SCRATCH1
 
 asm_inturbo_jump_next_opcode_END:
@@ -164,7 +160,7 @@ asm_inturbo_enter_debug_END:
 .globl asm_inturbo_jump_call_interp
 .globl asm_inturbo_jump_call_interp_END
 asm_inturbo_jump_call_interp:
-  br REG_INTERP_FUNC
+  b asm_inturbo_jump_call_interp
 
 asm_inturbo_jump_call_interp_END:
   ret
@@ -173,6 +169,7 @@ asm_inturbo_jump_call_interp_END:
 .globl asm_inturbo_call_interp
 .globl asm_inturbo_call_interp_END
 asm_inturbo_call_interp:
+  stp x29, x30, [sp, #-16]!
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   bl asm_save_AXYS_PC_flags
 
@@ -189,6 +186,7 @@ asm_inturbo_call_interp:
   tst REG_SCRATCH1, REG_SCRATCH1
   b.eq not_exiting
   mov REG_RETURN, REG_SCRATCH1
+  ldp x29, x30, [sp], #16
   b asm_exit
 
 asm_inturbo_call_interp_END:
@@ -198,6 +196,7 @@ not_exiting:
   bl asm_restore_AXYS_PC_flags
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
   ldrb REG_SCRATCH1_32, [REG_6502_PC]
+  ldp x29, x30, [sp], #16
   b asm_inturbo_jump_next_opcode
 
 not_exiting_END:

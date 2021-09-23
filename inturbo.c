@@ -521,8 +521,8 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   uint8_t* p_opcode_cycles;
   uint16_t read_callback_from;
   uint16_t write_callback_from;
-  uint8_t epilog_buf[256];
   uint32_t epilog_len;
+  uint8_t buf[256];
 
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
@@ -544,12 +544,13 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
                                              &p_opcode_mem,
                                              &p_opcode_cycles);
 
-  util_buffer_setup(p_buf, &epilog_buf[0], 256);
+  /* Get epilog length. */
+  util_buffer_setup(p_buf, &buf[0], 256);
+  util_buffer_set_base_address(p_buf, p_inturbo_base);
   asm_emit_inturbo_epilog(p_buf);
   epilog_len = util_buffer_get_pos(p_buf);
 
   for (i = 0; i < 256; ++i) {
-    uint8_t buf[256];
     uint32_t opcode_len;
     int use_interp;
 
@@ -618,10 +619,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
 
     (void) memcpy(p_inturbo_opcodes_ptr, &buf[0], K_INTURBO_OPCODE_SIZE);
     if (!use_interp) {
-      (void) memcpy(
-          (p_inturbo_opcodes_ptr + K_INTURBO_OPCODE_SIZE - epilog_len),
-          &epilog_buf[0],
-          epilog_len);
+      void* p_epilog = (p_inturbo_opcodes_ptr +
+                        K_INTURBO_OPCODE_SIZE -
+                        epilog_len);
+      util_buffer_setup(p_buf, p_epilog, epilog_len);
+      asm_emit_inturbo_epilog(p_buf);
     }
   }
 
