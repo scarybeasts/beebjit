@@ -79,15 +79,15 @@ asm_jit_interp:
 
   # Save REG_CONTEXT because it's currently the same as REG_PARAM1 in the
   # AMD64 calling convention, which is overwritten below.
-  # Use REG_SCRATCH4 because that won't be overwritten as a parameter in either
+  # Use REG_6502_A_64 because that won't be overwritten as a parameter in either
   # AMD64 or Win x64 calling convention.
-  mov REG_SCRATCH4, REG_CONTEXT
+  mov REG_6502_A_64, REG_CONTEXT
 
   # Double push to keep stack aligned to 16 bytes before the call.
   push REG_CONTEXT
   push REG_CONTEXT
   # param1 is interp object.
-  mov REG_PARAM1, [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_OBJECT]
+  mov REG_PARAM1, [REG_CONTEXT + K_CONTEXT_OFFSET_INTERP_OBJECT]
   # param2 is stack storage for 2x int64 return values.
   lea REG_PARAM2, [rsp - 16]
   # param3 is current countdown value.
@@ -100,7 +100,7 @@ asm_jit_interp:
 
   # Return value space and Win x64 shadow space convention.
   sub rsp, 16 + 32
-  call [REG_SCRATCH4 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
+  call [REG_6502_A_64 + K_CONTEXT_OFFSET_INTERP_CALLBACK]
   add rsp, 16 + 32
   mov REG_COUNTDOWN, [rsp - 16]
   mov REG_RETURN, [rsp - 8]
