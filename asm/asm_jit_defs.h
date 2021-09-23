@@ -9,7 +9,7 @@
 #define K_JIT_BYTES_SHIFT                  7
 #define K_JIT_BYTES_PER_BYTE               (1 << K_JIT_BYTES_SHIFT)
 #define K_JIT_SIZE                         (65536 * K_JIT_BYTES_PER_BYTE)
-#define K_JIT_ADDR                         0x01000000ull
+#define K_JIT_ADDR                         0x06000000ull
 #define K_JIT_ADDR_END                     (K_JIT_ADDR + K_JIT_SIZE)
 #define K_JIT_NO_CODE_JIT_PTR_PAGE         (K_JIT_ADDR_END + 0)
 #define K_JIT_TRAMPOLINE_BYTES             16
