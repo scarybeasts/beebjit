@@ -19,13 +19,12 @@ asm_inturbo_enter_END:
   ret
 
 
+.globl asm_inturbo_start_countdown
+.globl asm_inturbo_start_countdown_END
+asm_inturbo_start_countdown:
+  sub REG_SCRATCH3, REG_COUNTDOWN, #4095
 
-.globl asm_inturbo_save_countdown
-.globl asm_inturbo_save_countdown_END
-asm_inturbo_save_countdown:
-  mov REG_COUNTDOWN_OLD, REG_COUNTDOWN
-
-asm_inturbo_save_countdown_END:
+asm_inturbo_start_countdown_END:
   ret
 
 
@@ -48,21 +47,20 @@ asm_inturbo_check_special_address_sub_and_tbz_END:
   ret
 
 
-.globl asm_inturbo_check_countdown_sub
-.globl asm_inturbo_check_countdown_sub_END
-asm_inturbo_check_countdown_sub:
-  sub REG_COUNTDOWN, REG_COUNTDOWN, #4095
+.globl asm_inturbo_check_and_commit_countdown_tbnz
+.globl asm_inturbo_check_and_commit_countdown_tbnz_END
+.globl asm_inturbo_check_and_commit_countdown_mov
+.globl asm_inturbo_check_and_commit_countdown_mov_END
+asm_inturbo_check_and_commit_countdown_tbnz:
+  tbnz REG_SCRATCH3, #63, asm_inturbo_check_and_commit_countdown_tbnz
 
-asm_inturbo_check_countdown_sub_END:
+asm_inturbo_check_and_commit_countdown_tbnz_END:
   ret
 
+asm_inturbo_check_and_commit_countdown_mov:
+  mov REG_COUNTDOWN, REG_SCRATCH3
 
-.globl asm_inturbo_check_countdown_tbnz
-.globl asm_inturbo_check_countdown_tbnz_END
-asm_inturbo_check_countdown_tbnz:
-  tbnz REG_COUNTDOWN, #63, asm_inturbo_check_countdown_tbnz
-
-asm_inturbo_check_countdown_tbnz_END:
+asm_inturbo_check_and_commit_countdown_mov_END:
   ret
 
 
@@ -190,7 +188,7 @@ asm_inturbo_call_interp:
   sub sp, sp, #16
   ldr REG_PARAM1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_OBJECT]
   mov REG_PARAM2, sp
-  mov REG_PARAM3, REG_COUNTDOWN_OLD
+  mov REG_PARAM3, REG_COUNTDOWN
   ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_CALLBACK]
   blr REG_SCRATCH1
   ldr REG_COUNTDOWN, [sp, #0]
@@ -222,7 +220,7 @@ not_exiting_END:
 asm_inturbo_check_page_crossing:
   eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
   ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH2
 
 asm_inturbo_check_page_crossing_END:
   ret
@@ -480,7 +478,7 @@ asm_instruction_BCC_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BCC_interp_accurate_END:
@@ -504,7 +502,7 @@ asm_instruction_BCS_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BCS_interp_accurate_END:
@@ -527,7 +525,7 @@ asm_instruction_BEQ_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BEQ_interp_accurate_END:
@@ -559,7 +557,7 @@ asm_instruction_BMI_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BMI_interp_accurate_END:
@@ -582,7 +580,7 @@ asm_instruction_BNE_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BNE_interp_accurate_END:
@@ -605,7 +603,7 @@ asm_instruction_BPL_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BPL_interp_accurate_END:
@@ -629,7 +627,7 @@ asm_instruction_BVC_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BVC_interp_accurate_END:
@@ -653,7 +651,7 @@ asm_instruction_BVS_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH1
+  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BVS_interp_accurate_END:

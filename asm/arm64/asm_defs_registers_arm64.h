@@ -15,13 +15,12 @@
 #define REG_6502_ID_F      x5
 #define REG_6502_CF        x6
 #define REG_6502_OF        x7
-#define REG_COUNTDOWN_OLD  x12
-#define REG_SCRATCH1       x13
-#define REG_SCRATCH1_32    w13
-#define REG_SCRATCH2       x14
-#define REG_SCRATCH2_32    w14
-#define REG_SCRATCH3       x15
-#define REG_SCRATCH3_32    w15
+#define REG_SCRATCH1       x8
+#define REG_SCRATCH1_32    w8
+#define REG_SCRATCH2       x9
+#define REG_SCRATCH2_32    w9
+#define REG_SCRATCH3       x10
+#define REG_SCRATCH3_32    w10
 /* Callee save (x19 - x29 inclusive). */
 #define REG_MEM_STACK      x23
 #define REG_COUNTDOWN      x24

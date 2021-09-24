@@ -79,10 +79,13 @@ asm_inturbo_destroy(void) {
 }
 
 void
-asm_emit_inturbo_save_countdown(struct util_buffer* p_buf) {
-  void asm_inturbo_save_countdown(void);
-  void asm_inturbo_save_countdown_END(void);
-  asm_copy(p_buf, asm_inturbo_save_countdown, asm_inturbo_save_countdown_END);
+asm_emit_inturbo_start_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+  void asm_inturbo_start_countdown(void);
+  void asm_inturbo_start_countdown_END(void);
+  asm_copy_patch_arm64_imm12(p_buf,
+                             asm_inturbo_start_countdown,
+                             asm_inturbo_start_countdown_END,
+                             opcycles);
 }
 
 void
@@ -112,23 +115,22 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf) {
   uint8_t* p_dest;
-  void asm_inturbo_check_countdown_sub(void);
-  void asm_inturbo_check_countdown_sub_END(void);
-  void asm_inturbo_check_countdown_tbnz(void);
-  void asm_inturbo_check_countdown_tbnz_END(void);
+  void asm_inturbo_check_and_commit_countdown_tbnz(void);
+  void asm_inturbo_check_and_commit_countdown_tbnz_END(void);
+  void asm_inturbo_check_and_commit_countdown_mov(void);
+  void asm_inturbo_check_and_commit_countdown_mov_END(void);
   asm_copy(p_buf,
-           asm_inturbo_check_countdown_sub,
-           asm_inturbo_check_countdown_sub_END);
-  asm_patch_arm64_imm12(p_buf, opcycles);
-  asm_copy(p_buf,
-           asm_inturbo_check_countdown_tbnz,
-           asm_inturbo_check_countdown_tbnz_END);
+           asm_inturbo_check_and_commit_countdown_tbnz,
+           asm_inturbo_check_and_commit_countdown_tbnz_END);
   p_dest = util_buffer_get_base_address(p_buf);
   p_dest += util_buffer_get_length(p_buf);
   p_dest -= 4;
   asm_patch_arm64_imm14_pc_rel(p_buf, p_dest);
+  asm_copy(p_buf,
+           asm_inturbo_check_and_commit_countdown_mov,
+           asm_inturbo_check_and_commit_countdown_mov_END);
 }
 
 void
