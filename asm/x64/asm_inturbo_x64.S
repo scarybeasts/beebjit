@@ -19,16 +19,6 @@ asm_inturbo_enter_END:
   ret
 
 
-.globl asm_inturbo_save_countdown
-.globl asm_inturbo_save_countdown_END
-asm_inturbo_save_countdown:
-
-  mov REG_SCRATCH4, REG_COUNTDOWN
-
-asm_inturbo_save_countdown_END:
-  ret
-
-
 .globl asm_inturbo_JMP_scratch_plus_1_interp
 .globl asm_inturbo_JMP_scratch_plus_1_interp_END
 asm_inturbo_JMP_scratch_plus_1_interp:
@@ -66,19 +56,27 @@ asm_inturbo_check_special_address_END:
   ret
 
 
-.globl asm_inturbo_check_countdown
-.globl asm_inturbo_check_countdown_END
-.globl asm_inturbo_check_countdown_lea_patch
-.globl asm_inturbo_check_countdown_jb_patch
-asm_inturbo_check_countdown:
+.globl asm_inturbo_start_countdown
+.globl asm_inturbo_start_countdown_lea_patch
+.globl asm_inturbo_start_countdown_END
+asm_inturbo_start_countdown:
+  lea REG_SCRATCH3, [REG_COUNTDOWN - 1]
+asm_inturbo_start_countdown_lea_patch:
 
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
-asm_inturbo_check_countdown_lea_patch:
-  bt REG_COUNTDOWN, 63
+asm_inturbo_start_countdown_END:
+  ret
+
+
+.globl asm_inturbo_check_and_commit_countdown
+.globl asm_inturbo_check_and_commit_countdown_END
+.globl asm_inturbo_check_and_commit_countdown_jb_patch
+asm_inturbo_check_and_commit_countdown:
+  bt REG_SCRATCH3, 63
   jb asm_unpatched_branch_target
-asm_inturbo_check_countdown_jb_patch:
+asm_inturbo_check_and_commit_countdown_jb_patch:
+  mov REG_COUNTDOWN, REG_SCRATCH3
 
-asm_inturbo_check_countdown_END:
+asm_inturbo_check_and_commit_countdown_END:
   ret
 
 
@@ -234,7 +232,6 @@ asm_inturbo_interrupt_vector_END:
 .globl asm_inturbo_call_interp
 asm_inturbo_call_interp:
 
-  mov REG_COUNTDOWN, REG_SCRATCH4
   mov REG_SCRATCH2, [REG_CONTEXT + K_CONTEXT_OFFSET_STATE_6502]
   lea REG_6502_PC, [REG_6502_PC - K_BBC_MEM_READ_FULL_ADDR]
   call asm_save_AXYS_PC_flags
@@ -330,7 +327,7 @@ asm_inturbo_mode_abx_check_page_crossing:
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_X_64]
   bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_abx_check_page_crossing_END
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 asm_inturbo_mode_abx_check_page_crossing_END:
   ret
@@ -355,7 +352,7 @@ asm_inturbo_mode_aby_check_page_crossing:
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_aby_check_page_crossing_END
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 asm_inturbo_mode_aby_check_page_crossing_END:
   ret
@@ -435,7 +432,7 @@ asm_inturbo_mode_idy_check_page_crossing:
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
   jnc asm_inturbo_mode_idy_check_page_crossing_END
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 1]
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 asm_inturbo_mode_idy_check_page_crossing_END:
   ret
@@ -471,8 +468,8 @@ asm_instruction_Bxx_interp_accurate:
   mov REG_SCRATCH1_32, 0
   setnc REG_SCRATCH1_8
 
-  lea REG_COUNTDOWN, [REG_COUNTDOWN - 2]
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH1]
+  lea REG_SCRATCH3, [REG_SCRATCH3 - 2]
+  lea REG_SCRATCH3, [REG_SCRATCH3 + REG_SCRATCH1]
   mov REG_SCRATCH1, REG_SCRATCH2
 asm_instruction_Bxx_interp_accurate_not_taken_target:
 

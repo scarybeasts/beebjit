@@ -43,8 +43,6 @@
 #define REG_SCRATCH3_8     r9b
 #define REG_SCRATCH3_16    r9w
 #define REG_SCRATCH3_32    r9d
-#define REG_SCRATCH4       r11
-#define REG_SCRATCH4_8     r11b
-#define REG_SCRATCH4_32    r11d
+/* NOTE: r11 is unassigned. */
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_X64_H */

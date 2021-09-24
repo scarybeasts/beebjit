@@ -56,8 +56,6 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_inturbo_enter_debug(p_buf);
   }
 
-  asm_emit_inturbo_save_countdown(p_buf);
-
   /* Preflight checks. Some opcodes or situations are tricky enough we want to
    * go straight to the interpreter.
    */
@@ -81,6 +79,7 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     this_callback_from = write_callback_from;
   }
 
+  /* Address calculation. */
   switch (opmode) {
   case k_nil:
   case k_acc:
@@ -99,23 +98,12 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
       break;
     }
     asm_emit_inturbo_mode_abs(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
     break;
   case k_abx:
     asm_emit_inturbo_mode_abx(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem & k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
-    }
     break;
   case k_aby:
     asm_emit_inturbo_mode_aby(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem & k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
-    }
     break;
   case k_zpx:
     asm_emit_inturbo_mode_zpx(p_buf);
@@ -125,15 +113,9 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     break;
   case k_idx:
     asm_emit_inturbo_mode_idx(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
     break;
   case k_idy:
     asm_emit_inturbo_mode_idy(p_buf);
-    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
-    if ((opmem == k_opmem_read_flag) && is_accurate) {
-      /* Accurate checks for the +1 cycle if a page boundary is crossed. */
-      asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
-    }
     break;
   case k_ind:
     asm_emit_inturbo_mode_ind(p_buf);
@@ -141,6 +123,45 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
   default:
     assert(0);
     break;
+  }
+
+  /* Check the address for special access (hardware register etc.). */
+  switch (opmode) {
+  case k_abs:
+    if (optype == k_jsr) {
+      break;
+    }
+    /* FALL THROUGH */
+  case k_abx:
+  case k_aby:
+  case k_idx:
+  case k_idy:
+    asm_emit_inturbo_check_special_address(p_buf, this_callback_from);
+    break;
+  default:
+    break;
+  }
+
+  /* Calculate the countdown baseline. Must be done before anything that might
+   * affect countdown, such as page crossing calculations.
+   */
+  asm_emit_inturbo_start_countdown(p_buf, opcycles);
+
+  /* If applicable, calculate non-branch page crossings. */
+  if ((opmem == k_opmem_read_flag) && is_accurate) {
+    switch (opmode) {
+    case k_abx:
+      asm_emit_inturbo_mode_abx_check_page_crossing(p_buf);
+      break;
+    case k_aby:
+      asm_emit_inturbo_mode_aby_check_page_crossing(p_buf);
+      break;
+    case k_idy:
+      asm_emit_inturbo_mode_idy_check_page_crossing(p_buf);
+      break;
+    default:
+      break;
+    }
   }
 
   /* For branches, calculate taken vs. not taken early. This is so that any
@@ -209,7 +230,7 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
   }
 
   /* Check for countdown expiry. */
-  asm_emit_inturbo_check_countdown(p_buf, opcycles);
+  asm_emit_inturbo_check_and_commit_countdown(p_buf);
 
   switch (optype) {
   case k_adc:
@@ -594,7 +615,6 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
       if (is_debug) {
         asm_emit_inturbo_enter_debug(p_buf);
       }
-      asm_emit_inturbo_save_countdown(p_buf);
       asm_emit_inturbo_call_interp(p_buf);
     } else {
       /* Re-write the opcode because writing to a potentially smaller buffer

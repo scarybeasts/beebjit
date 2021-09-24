@@ -13,7 +13,9 @@ uint32_t asm_inturbo_enter(void* p_context,
                            int64_t countdown,
                            void* p_mem_base);
 
-void asm_emit_inturbo_save_countdown(struct util_buffer* p_buf);
+void asm_emit_inturbo_start_countdown(struct util_buffer* p_buf,
+                                      uint8_t opcycles);
+void asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf);
 void asm_emit_inturbo_epilog(struct util_buffer* p_buf);
 void asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
                                             uint16_t special_mode_above);
@@ -110,14 +112,6 @@ void asm_inturbo_check_special_address();
 void asm_inturbo_check_special_address_END();
 void asm_inturbo_check_special_address_lea_patch();
 void asm_inturbo_check_special_address_jb_patch();
-void asm_inturbo_check_countdown();
-void asm_inturbo_check_countdown_END();
-void asm_inturbo_check_countdown_lea_patch();
-void asm_inturbo_check_countdown_jb_patch();
-void asm_inturbo_check_countdown_with_page_crossing();
-void asm_inturbo_check_countdown_with_page_crossing_END();
-void asm_inturbo_check_countdown_with_page_crossing_lea_patch();
-void asm_inturbo_check_countdown_with_page_crossing_jb_patch();
 void asm_inturbo_check_decimal();
 void asm_inturbo_check_decimal_END();
 void asm_inturbo_check_decimal_jb_patch();

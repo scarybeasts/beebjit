@@ -19,16 +19,14 @@ asm_emit_inturbo_check_special_address(struct util_buffer* p_buf,
 }
 
 void
-asm_emit_inturbo_check_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
+asm_emit_inturbo_start_countdown(struct util_buffer* p_buf, uint8_t opcycles) {
   (void) p_buf;
   (void) opcycles;
 }
 
 void
-asm_emit_inturbo_check_countdown_with_page_crossing(struct util_buffer* p_buf,
-                                                    uint8_t opcycles) {
+asm_emit_inturbo_check_and_commit_countdown(struct util_buffer* p_buf) {
   (void) p_buf;
-  (void) opcycles;
 }
 
 void
