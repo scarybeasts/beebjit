@@ -15,6 +15,7 @@
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
 #include "asm/asm_opcodes.h"
+#include "asm/asm_util.h"
 
 #include <assert.h>
 #include <string.h>
@@ -227,8 +228,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   util_buffer_set_base_address(p_tmp_buf, NULL);
   /* Note: target pointer is a short jump range, in case the asm backend emits
    * a shorter sequence for that.
-  */
-  jit_opcode_make_uop1(&tmp_uop, k_opcode_JMP, 0);
+   */
+  asm_make_uop0(&tmp_uop, k_opcode_JMP);
   asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   p_compiler->len_asm_jmp = util_buffer_get_pos(p_tmp_buf);
 
@@ -341,13 +342,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->cycles_run_start = -1;
 
   if (p_compiler->debug) {
-    jit_opcode_make_uop1(p_uop, k_opcode_debug, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_debug, addr_6502);
     p_uop++;
     p_first_post_debug_uop = p_uop;
   }
 
   if ((optype == k_adc) || (optype == k_sbc)) {
-    jit_opcode_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
     p_uop++;
   }
   if ((optype == k_adc) ||
@@ -356,11 +357,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       (optype == k_ror) ||
       (optype == k_bcc) ||
       (optype == k_bcs)) {
-    jit_opcode_make_uop0(p_uop, k_opcode_load_carry);
+    asm_make_uop0(p_uop, k_opcode_load_carry);
     p_uop++;
   }
   if ((optype == k_bvc) || (optype == k_bvs)) {
-    jit_opcode_make_uop0(p_uop, k_opcode_load_overflow);
+    asm_make_uop0(p_uop, k_opcode_load_overflow);
     p_uop++;
   }
 
@@ -376,32 +377,32 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       break;
     }
     operand_6502 = p_mem_read[addr_plus_1];
-    jit_opcode_make_uop1(p_uop, k_opcode_value_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_value_set, operand_6502);
     p_uop++;
     break;
   case k_zpg:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = operand_6502;
     p_details->max_6502_addr = operand_6502;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
     break;
   case k_zpx:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
+    asm_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
     break;
   case k_zpy:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y_8bit);
+    asm_make_uop0(p_uop, k_opcode_addr_add_y_8bit);
     p_uop++;
     break;
   case k_rel:
@@ -423,17 +424,17 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
        */
       break;
     }
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
     if ((operand_6502 & 0xFF) == 0x00) {
       could_page_cross = 0;
     }
     if (opmode == k_abx) {
-      jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x);
+      asm_make_uop0(p_uop, k_opcode_addr_add_x);
       p_uop++;
     }
     if (opmode == k_aby) {
-      jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
+      asm_make_uop0(p_uop, k_opcode_addr_add_y);
       p_uop++;
     }
     if (opmode == k_abx || opmode == k_aby) {
@@ -473,35 +474,35 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = ((p_mem_read[addr_plus_2] << 8) | p_mem_read[addr_plus_1]);
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
+    asm_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
     p_uop++;
     break;
   case k_idx:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
+    asm_make_uop0(p_uop, k_opcode_addr_add_x_8bit);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
+    asm_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
     break;
   case k_idy:
     operand_6502 = p_mem_read[addr_plus_1];
     p_details->min_6502_addr = 0;
     p_details->max_6502_addr = 0xFFFF;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
+    asm_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_addr_add_y);
+    asm_make_uop0(p_uop, k_opcode_addr_add_y);
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;
     break;
   default:
@@ -510,7 +511,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   }
 
   if (opmem & k_opmem_read_flag) {
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load);
+    asm_make_uop0(p_uop, k_opcode_value_load);
     p_uop++;
   }
 
@@ -537,127 +538,127 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Per-type uops. */
   switch (optype) {
   case k_adc:
-    jit_opcode_make_uop0(p_uop, k_opcode_ADC);
+    asm_make_uop0(p_uop, k_opcode_ADC);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_overflow);
+    asm_make_uop0(p_uop, k_opcode_save_overflow);
     p_uop++;
     break;
   case k_alr:
-    jit_opcode_make_uop0(p_uop, k_opcode_ALR);
+    asm_make_uop0(p_uop, k_opcode_ALR);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
-  case k_and: jit_opcode_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
+  case k_and: asm_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
   case k_asl:
     if (opmode == k_acc) {
-      jit_opcode_make_uop0(p_uop, k_opcode_ASL_acc);
+      asm_make_uop0(p_uop, k_opcode_ASL_acc);
       p_uop++;
     } else {
-      jit_opcode_make_uop0(p_uop, k_opcode_ASL_value);
+      asm_make_uop0(p_uop, k_opcode_ASL_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_bcc:
-    jit_opcode_make_uop1(p_uop, k_opcode_BCC, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BCC, jit_addr);
     p_uop++;
     break;
   case k_bcs:
-    jit_opcode_make_uop1(p_uop, k_opcode_BCS, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BCS, jit_addr);
     p_uop++;
     break;
   case k_beq:
-    jit_opcode_make_uop1(p_uop, k_opcode_BEQ, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BEQ, jit_addr);
     p_uop++;
     break;
   case k_bit:
-    jit_opcode_make_uop0(p_uop, k_opcode_BIT); p_uop++; break;
+    asm_make_uop0(p_uop, k_opcode_BIT); p_uop++; break;
   case k_bmi:
-    jit_opcode_make_uop1(p_uop, k_opcode_BMI, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BMI, jit_addr);
     p_uop++;
     break;
   case k_bne:
-    jit_opcode_make_uop1(p_uop, k_opcode_BNE, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BNE, jit_addr);
     p_uop++;
     break;
   case k_bpl:
-    jit_opcode_make_uop1(p_uop, k_opcode_BPL, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BPL, jit_addr);
     p_uop++;
     break;
   case k_brk:
-    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
+    asm_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
     p_uop++;
     /* PHP */
-    jit_opcode_make_uop0(p_uop, k_opcode_PHP);
+    asm_make_uop0(p_uop, k_opcode_PHP);
     p_uop++;
     /* SEI */
-    jit_opcode_make_uop0(p_uop, k_opcode_SEI);
+    asm_make_uop0(p_uop, k_opcode_SEI);
     p_uop++;
     /* Load IRQ vector. */
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, k_6502_vector_irq);
+    asm_make_uop1(p_uop, k_opcode_addr_set, k_6502_vector_irq);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
+    asm_make_uop0(p_uop, k_opcode_value_load_16bit_wrap);
     p_uop++;
     /* JMP_SCRATCH_n */
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
+    asm_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
     p_uop++;
     break;
   case k_bvc:
-    jit_opcode_make_uop1(p_uop, k_opcode_BVC, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BVC, jit_addr);
     p_uop++;
     break;
   case k_bvs:
-    jit_opcode_make_uop1(p_uop, k_opcode_BVS, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_BVS, jit_addr);
     p_uop++;
     break;
-  case k_clc: jit_opcode_make_uop0(p_uop, k_opcode_CLC); p_uop++; break;
-  case k_cld: jit_opcode_make_uop0(p_uop, k_opcode_CLD); p_uop++; break;
+  case k_clc: asm_make_uop0(p_uop, k_opcode_CLC); p_uop++; break;
+  case k_cld: asm_make_uop0(p_uop, k_opcode_CLD); p_uop++; break;
   case k_cli:
-    jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_CLI);
+    asm_make_uop0(p_uop, k_opcode_CLI);
     p_uop++;
     break;
-  case k_clv: jit_opcode_make_uop0(p_uop, k_opcode_CLV); p_uop++; break;
+  case k_clv: asm_make_uop0(p_uop, k_opcode_CLV); p_uop++; break;
   case k_cmp:
-    jit_opcode_make_uop0(p_uop, k_opcode_CMP);
+    asm_make_uop0(p_uop, k_opcode_CMP);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_cpx:
-    jit_opcode_make_uop0(p_uop, k_opcode_CPX);
+    asm_make_uop0(p_uop, k_opcode_CPX);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_cpy:
-    jit_opcode_make_uop0(p_uop, k_opcode_CPY);
+    asm_make_uop0(p_uop, k_opcode_CPY);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
-  case k_dec: jit_opcode_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
-  case k_dex: jit_opcode_make_uop0(p_uop, k_opcode_DEX); p_uop++; break;
-  case k_dey: jit_opcode_make_uop0(p_uop, k_opcode_DEY); p_uop++; break;
-  case k_eor: jit_opcode_make_uop0(p_uop, k_opcode_EOR); p_uop++; break;
-  case k_inc: jit_opcode_make_uop0(p_uop, k_opcode_INC_value); p_uop++; break;
-  case k_inx: jit_opcode_make_uop0(p_uop, k_opcode_INX); p_uop++; break;
-  case k_iny: jit_opcode_make_uop0(p_uop, k_opcode_INY); p_uop++; break;
+  case k_dec: asm_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
+  case k_dex: asm_make_uop0(p_uop, k_opcode_DEX); p_uop++; break;
+  case k_dey: asm_make_uop0(p_uop, k_opcode_DEY); p_uop++; break;
+  case k_eor: asm_make_uop0(p_uop, k_opcode_EOR); p_uop++; break;
+  case k_inc: asm_make_uop0(p_uop, k_opcode_INC_value); p_uop++; break;
+  case k_inx: asm_make_uop0(p_uop, k_opcode_INX); p_uop++; break;
+  case k_iny: asm_make_uop0(p_uop, k_opcode_INY); p_uop++; break;
   case k_jmp:
     if (opmode == k_ind) {
-      jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
+      asm_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
       p_uop++;
     } else {
       assert(opmode == k_abs);
       p_details->branch_addr_6502 = operand_6502;
       jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
                                                                operand_6502);
-      jit_opcode_make_uop1(p_uop, k_opcode_JMP, jit_addr);
+      asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
       p_uop++;
     }
     break;
@@ -665,59 +666,59 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->branch_addr_6502 = operand_6502;
     jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
                                                              operand_6502);
-    jit_opcode_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
+    asm_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
     p_uop++;
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP, jit_addr);
+    asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
     p_uop++;
     break;
-  case k_lda: jit_opcode_make_uop0(p_uop, k_opcode_LDA); p_uop++; break;
-  case k_ldx: jit_opcode_make_uop0(p_uop, k_opcode_LDX); p_uop++; break;
-  case k_ldy: jit_opcode_make_uop0(p_uop, k_opcode_LDY); p_uop++; break;
+  case k_lda: asm_make_uop0(p_uop, k_opcode_LDA); p_uop++; break;
+  case k_ldx: asm_make_uop0(p_uop, k_opcode_LDX); p_uop++; break;
+  case k_ldy: asm_make_uop0(p_uop, k_opcode_LDY); p_uop++; break;
   case k_lsr:
     if (opmode == k_acc) {
-      jit_opcode_make_uop0(p_uop, k_opcode_LSR_acc);
+      asm_make_uop0(p_uop, k_opcode_LSR_acc);
       p_uop++;
     } else {
-      jit_opcode_make_uop0(p_uop, k_opcode_LSR_value);
+      asm_make_uop0(p_uop, k_opcode_LSR_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   /* NOTE: sends undocumented modes of NOP along to JIT. Zalaga uses NOP abx
    * in a hot path.
    */
-  case k_nop: jit_opcode_make_uop0(p_uop, k_opcode_NOP); p_uop++; break;
-  case k_ora: jit_opcode_make_uop0(p_uop, k_opcode_ORA); p_uop++; break;
-  case k_pha: jit_opcode_make_uop0(p_uop, k_opcode_PHA); p_uop++; break;
-  case k_pla: jit_opcode_make_uop0(p_uop, k_opcode_PLA); p_uop++; break;
-  case k_php: jit_opcode_make_uop0(p_uop, k_opcode_PHP); p_uop++; break;
+  case k_nop: asm_make_uop0(p_uop, k_opcode_NOP); p_uop++; break;
+  case k_ora: asm_make_uop0(p_uop, k_opcode_ORA); p_uop++; break;
+  case k_pha: asm_make_uop0(p_uop, k_opcode_PHA); p_uop++; break;
+  case k_pla: asm_make_uop0(p_uop, k_opcode_PLA); p_uop++; break;
+  case k_php: asm_make_uop0(p_uop, k_opcode_PHP); p_uop++; break;
   case k_plp:
-    jit_opcode_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_check_pending_irq, addr_6502);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_PLP);
+    asm_make_uop0(p_uop, k_opcode_PLP);
     p_uop++;
     break;
   case k_rol:
     if (opmode == k_acc) {
-      jit_opcode_make_uop0(p_uop, k_opcode_ROL_acc);
+      asm_make_uop0(p_uop, k_opcode_ROL_acc);
       p_uop++;
     } else {
-      jit_opcode_make_uop0(p_uop, k_opcode_ROL_value);
+      asm_make_uop0(p_uop, k_opcode_ROL_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_ror:
     if (opmode == k_acc) {
-      jit_opcode_make_uop0(p_uop, k_opcode_ROR_acc);
+      asm_make_uop0(p_uop, k_opcode_ROR_acc);
       p_uop++;
     } else {
-      jit_opcode_make_uop0(p_uop, k_opcode_ROR_value);
+      asm_make_uop0(p_uop, k_opcode_ROR_value);
       p_uop++;
     }
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
   case k_rti:
@@ -730,47 +731,47 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     use_interp = 1;
     break;
   case k_rts:
-    jit_opcode_make_uop0(p_uop, k_opcode_PULL_16);
+    asm_make_uop0(p_uop, k_opcode_PULL_16);
     p_uop++;
     /* TODO: may increment 0xFFFF -> 0x10000, which may crash. */
-    jit_opcode_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
+    asm_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 1);
     p_uop++;
     break;
-  case k_sax: jit_opcode_make_uop0(p_uop, k_opcode_SAX); p_uop++; break;
+  case k_sax: asm_make_uop0(p_uop, k_opcode_SAX); p_uop++; break;
   case k_sbc:
-    jit_opcode_make_uop0(p_uop, k_opcode_SBC);
+    asm_make_uop0(p_uop, k_opcode_SBC);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+    asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
-    jit_opcode_make_uop0(p_uop, k_opcode_save_overflow);
+    asm_make_uop0(p_uop, k_opcode_save_overflow);
     p_uop++;
     break;
-  case k_sec: jit_opcode_make_uop0(p_uop, k_opcode_SEC); p_uop++; break;
-  case k_sed: jit_opcode_make_uop0(p_uop, k_opcode_SED); p_uop++; break;
-  case k_sei: jit_opcode_make_uop0(p_uop, k_opcode_SEI); p_uop++; break;
+  case k_sec: asm_make_uop0(p_uop, k_opcode_SEC); p_uop++; break;
+  case k_sed: asm_make_uop0(p_uop, k_opcode_SED); p_uop++; break;
+  case k_sei: asm_make_uop0(p_uop, k_opcode_SEI); p_uop++; break;
   case k_slo:
     /* Only send SLO along to the asm backend for the simple mode used by
      * Zalaga. This avoids the backend having to implement too much for a
      * non-critical opcode.
      */
     if ((opmode == k_abs) || (opmode == k_zpg)) {
-      jit_opcode_make_uop0(p_uop, k_opcode_SLO);
+      asm_make_uop0(p_uop, k_opcode_SLO);
       p_uop++;
-      jit_opcode_make_uop0(p_uop, k_opcode_save_carry);
+      asm_make_uop0(p_uop, k_opcode_save_carry);
       p_uop++;
     } else {
       use_interp = 1;
     }
     break;
-  case k_sta: jit_opcode_make_uop0(p_uop, k_opcode_STA); p_uop++; break;
-  case k_stx: jit_opcode_make_uop0(p_uop, k_opcode_STX); p_uop++; break;
-  case k_sty: jit_opcode_make_uop0(p_uop, k_opcode_STY); p_uop++; break;
-  case k_tax: jit_opcode_make_uop0(p_uop, k_opcode_TAX); p_uop++; break;
-  case k_tay: jit_opcode_make_uop0(p_uop, k_opcode_TAY); p_uop++; break;
-  case k_tsx: jit_opcode_make_uop0(p_uop, k_opcode_TSX); p_uop++; break;
-  case k_txs: jit_opcode_make_uop0(p_uop, k_opcode_TXS); p_uop++; break;
-  case k_txa: jit_opcode_make_uop0(p_uop, k_opcode_TXA); p_uop++; break;
-  case k_tya: jit_opcode_make_uop0(p_uop, k_opcode_TYA); p_uop++; break;
+  case k_sta: asm_make_uop0(p_uop, k_opcode_STA); p_uop++; break;
+  case k_stx: asm_make_uop0(p_uop, k_opcode_STX); p_uop++; break;
+  case k_sty: asm_make_uop0(p_uop, k_opcode_STY); p_uop++; break;
+  case k_tax: asm_make_uop0(p_uop, k_opcode_TAX); p_uop++; break;
+  case k_tay: asm_make_uop0(p_uop, k_opcode_TAY); p_uop++; break;
+  case k_tsx: asm_make_uop0(p_uop, k_opcode_TSX); p_uop++; break;
+  case k_txs: asm_make_uop0(p_uop, k_opcode_TXS); p_uop++; break;
+  case k_txa: asm_make_uop0(p_uop, k_opcode_TXA); p_uop++; break;
+  case k_tya: asm_make_uop0(p_uop, k_opcode_TYA); p_uop++; break;
   default:
     /* Various undocumented opcodes. */
     use_interp = 1;
@@ -780,7 +781,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (use_interp) {
     p_uop = p_first_post_debug_uop;
 
-    jit_opcode_make_uop1(p_uop, k_opcode_interp, addr_6502);
+    asm_make_uop1(p_uop, k_opcode_interp, addr_6502);
     p_uop++;
     p_details->ends_block = 1;
 
@@ -792,23 +793,23 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (g_optype_changes_nz_flags[optype]) {
     switch (g_optype_sets_register[optype]) {
     case k_a:
-      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
+      asm_make_uop0(p_uop, k_opcode_flags_nz_a);
       p_uop++;
       break;
     case k_x:
-      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_x);
+      asm_make_uop0(p_uop, k_opcode_flags_nz_x);
       p_uop++;
       break;
     case k_y:
-      jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_y);
+      asm_make_uop0(p_uop, k_opcode_flags_nz_y);
       p_uop++;
       break;
     default:
       if (opmode == k_acc) {
-        jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_a);
+        asm_make_uop0(p_uop, k_opcode_flags_nz_a);
         p_uop++;
       } else if (opmem == (k_opmem_read_flag | k_opmem_write_flag)) {
-        jit_opcode_make_uop0(p_uop, k_opcode_flags_nz_value);
+        asm_make_uop0(p_uop, k_opcode_flags_nz_value);
         p_uop++;
       }
       break;
@@ -819,7 +820,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Opcodes that write, including uopcodes for handling self-modifying code. */
   /* TODO: stack page invalidations. */
   if (opmem & k_opmem_write_flag) {
-    jit_opcode_make_uop0(p_uop, k_opcode_value_store);
+    asm_make_uop0(p_uop, k_opcode_value_store);
     p_uop++;
 
     switch (opmode) {
@@ -828,14 +829,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     case k_aby:
     case k_idx:
     case k_idy:
-      jit_opcode_make_uop0(p_uop, k_opcode_write_inv);
+      asm_make_uop0(p_uop, k_opcode_write_inv);
       p_uop++;
       break;
     case k_zpg:
     case k_zpx:
     case k_zpy:
       if (p_compiler->compile_for_code_in_zero_page) {
-        jit_opcode_make_uop0(p_uop, k_opcode_write_inv);
+        asm_make_uop0(p_uop, k_opcode_write_inv);
         p_uop++;
       }
       break;
@@ -855,12 +856,12 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      */
     switch (opmode) {
     case k_abx:
-      jit_opcode_make_uop0(p_uop, k_opcode_check_page_crossing_x);
+      asm_make_uop0(p_uop, k_opcode_check_page_crossing_x);
       p_uop++;
       break;
     case k_aby:
     case k_idy:
-      jit_opcode_make_uop0(p_uop, k_opcode_check_page_crossing_y);
+      asm_make_uop0(p_uop, k_opcode_check_page_crossing_y);
       p_uop++;
       break;
     default:
@@ -871,7 +872,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   /* Accurate timings for branches. */
   if ((opmode == k_rel) && p_compiler->option_accurate_timings) {
     /* Fixup countdown if a branch wasn't taken. */
-    jit_opcode_make_uop1(p_uop,
+    asm_make_uop1(p_uop,
                          k_opcode_add_cycles,
                          (uint8_t) (p_details->max_cycles - 2));
     p_uop++;
@@ -978,12 +979,12 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
   uint8_t optype;
   uint8_t opmode;
   struct asm_uop* p_uop;
-  uint32_t index;
+  int32_t index;
   int32_t opcode_6502 = p_opcode->opcode_6502;
   uint16_t addr = p_opcode->addr_6502;
   uint16_t next_addr = (uint16_t) (addr + 1);
 
-  if (jit_opcode_find_uop(p_opcode, k_opcode_interp) != NULL) {
+  if (jit_opcode_find_uop(p_opcode, &index, k_opcode_interp) != NULL) {
     return;
   }
 
@@ -993,11 +994,11 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
   switch (opmode) {
   case k_imm:
     /* Examples: Thrust, Stryker's Run. */
-    p_uop = jit_opcode_find_uop(p_opcode, k_opcode_value_set);
+    p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_value_set);
     assert(p_uop != NULL);
-    index = (p_uop - &p_opcode->uops[0]);
-    jit_opcode_make_uop1(p_uop, k_opcode_addr_set, next_addr);
-    jit_opcode_insert_uop(p_opcode, (index + 1), k_opcode_value_load, 0);
+    asm_make_uop1(p_uop, k_opcode_addr_set, next_addr);
+    p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
+    asm_make_uop0(p_uop, k_opcode_value_load);
     break;
   case k_abs:
   case k_abx:
@@ -1013,9 +1014,8 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     /* Examples (ABS): Stryker's Run. */
     /* Examples (ABX): Galaforce, Pipeline, Meteors. */
     /* Examples (ABY): Rocket Raid, Galaforce. */
-    p_uop = jit_opcode_find_uop(p_opcode, k_opcode_addr_set);
+    p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
     assert(p_uop != NULL);
-    index = (p_uop - &p_opcode->uops[0]);
     p_uop->value1 = next_addr;
     if (opmode == k_abx) {
       p_uop++;
@@ -1024,15 +1024,14 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
       p_uop++;
       assert(p_uop->uopcode == k_opcode_addr_add_y);
     }
-    jit_opcode_insert_uop(p_opcode,
-                          (index + 1),
-                          k_opcode_addr_load_16bit_nowrap,
-                          0);
+    p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
+    asm_make_uop0(p_uop, k_opcode_addr_load_16bit_nowrap);
     index += 2;
     if ((opmode == k_abx) || (opmode == k_aby)) {
       index++;
     }
-    jit_opcode_insert_uop(p_opcode, index, k_opcode_addr_check, 0);
+    p_uop = jit_opcode_insert_uop(p_opcode, index);
+    asm_make_uop0(p_uop, k_opcode_addr_check);
     break;
   default:
     /* Can't handle mode yet. */
@@ -1282,7 +1281,7 @@ jit_compiler_check_dynamics(struct jit_compiler* p_compiler,
                  addr_6502,
                  opcode_6502);
     }
-    jit_opcode_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
+    asm_make_uop1(&p_details->uops[0], k_opcode_inturbo, addr_6502);
     p_details->num_uops = 1;
     p_details->ends_block = 1;
     p_details->is_dynamic_opcode = 1;
@@ -1328,10 +1327,8 @@ jit_compiler_setup_cycle_counts(struct jit_compiler* p_compiler) {
       needs_countdown = 1;
     }
     if (needs_countdown) {
-      p_uop = jit_opcode_insert_uop(p_details,
-                                    0,
-                                    k_opcode_countdown,
-                                    p_details->addr_6502);
+      p_uop = jit_opcode_insert_uop(p_details, 0);
+      asm_make_uop1(p_uop, k_opcode_countdown, p_details->addr_6502);
       p_details->cycles_run_start = 0;
       assert(!p_details->has_prefix_uop);
       p_details->has_prefix_uop = 1;
@@ -1441,7 +1438,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         void* p_resume =
             (p_host_address_base + util_buffer_get_length(p_tmp_buf));
         p_resume += p_compiler->len_asm_invalidated;
-        jit_opcode_make_uop1(&tmp_uop,
+        asm_make_uop1(&tmp_uop,
                              k_opcode_JMP,
                              (int32_t) (uintptr_t) p_resume);
         asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
@@ -1707,43 +1704,43 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   jit_compiler_check_dynamics(p_compiler,
                               &sub_instruction_addr_6502);
 
-  /* Third, offer the asm backend the chance to rewrite. Most significantly,
-   * this is used as a coalesce pass. For example, the CISC-y x64 can take our
-   * RISC-y uops and combine many of them. e.g. EOR abx can be done in one
-   * x64 instruction.
-   */
-  jit_compiler_asm_rewrite(p_compiler);
-
   /* If the block didn't end with an explicit jump, put it in. */
   p_details = p_compiler->p_last_opcode;
   assert(p_details->addr_6502 != -1);
   if (!p_details->ends_block) {
+    struct asm_uop* p_uop;
     uint32_t jit_addr;
     end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
     /* JMP abs */
     jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
                                                               end_addr_6502);
-    (void) jit_opcode_insert_uop(p_details,
-                                 p_details->num_uops,
-                                 k_opcode_JMP,
-                                 jit_addr);
+    p_uop = jit_opcode_insert_uop(p_details, p_details->num_uops);
+    asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
     assert(!p_details->has_postfix_uop);
     p_details->has_postfix_uop = 1;
     p_details->ends_block = 1;
   }
 
-  /* Fourth, walk the opcode list; add countdown checks and calculate cycle
+  /* Third, walk the opcode list; add countdown checks and calculate cycle
    * counts.
    */
   jit_compiler_setup_cycle_counts(p_compiler);
 
-  /* Fifth, run the optimizer across the list of opcodes. */
-/*
+  /* Fourth, run the optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
-    p_details = jit_optimizer_optimize(&p_compiler->opcode_details[0]);
-    jit_compiler_make_last_opcode(p_compiler, p_details);
+    struct jit_opcode_details* p_last_details =
+        jit_optimizer_optimize(&p_compiler->opcode_details[0]);
+    if (p_last_details != NULL) {
+      jit_compiler_make_last_opcode(p_compiler, p_last_details);
+    }
   }
-*/
+
+  /* Fifth, offer the asm backend the chance to rewrite. Most significantly,
+   * this is used as a coalesce pass. For example, the CISC-y x64 can take our
+   * RISC-y uops and combine many of them. e.g. EOR abx can be done in one
+   * x64 instruction.
+   */
+  jit_compiler_asm_rewrite(p_compiler);
 
   /* Sixth, emit the uop stream to the output buffer. */
   p_compiler->has_unresolved_jumps = 0;
@@ -1766,7 +1763,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     void* p_host_address_base = p_compiler->get_block_host_address(
         p_compiler->p_host_address_object, sub_instruction_addr_6502);
     util_buffer_setup(p_tmp_buf, p_host_address_base, K_JIT_BYTES_PER_BYTE);
-    jit_opcode_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
+    asm_make_uop1(&tmp_uop, k_opcode_inturbo, sub_instruction_addr_6502);
     asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
   }
 

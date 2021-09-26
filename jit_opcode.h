@@ -57,20 +57,14 @@ void jit_opcode_find_replace2(struct jit_opcode_details* p_opcode,
                               int32_t uop2,
                               int32_t value2);
 
-void jit_opcode_make_uop0(struct asm_uop* p_uop, int32_t uopcode);
-void jit_opcode_make_uop1(struct asm_uop* p_uop,
-                          int32_t uopcode,
-                          int32_t value1);
-
 struct asm_uop* jit_opcode_find_uop(struct jit_opcode_details* p_opcode,
+                                    int32_t* p_out_index,
                                     int32_t uopcode);
 
 void jit_opcode_erase_uop(struct jit_opcode_details* p_opcode, int32_t uopcode);
 
 struct asm_uop* jit_opcode_insert_uop(struct jit_opcode_details* p_opcode,
-                                      uint32_t index,
-                                      int32_t uopcode,
-                                      int32_t value);
+                                      uint32_t index);
 
 void jit_opcode_eliminate(struct jit_opcode_details* p_opcode);
 

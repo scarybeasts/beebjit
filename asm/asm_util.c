@@ -4,6 +4,50 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <string.h>
+
+void
+asm_make_uop0(struct asm_uop* p_uop, int32_t uopcode) {
+  p_uop->uopcode = uopcode;
+  p_uop->value1 = 0;
+  p_uop->value2 = 0;
+  p_uop->is_eliminated = 0;
+}
+
+void
+asm_make_uop1(struct asm_uop* p_uop, int32_t uopcode, int32_t value1) {
+  p_uop->uopcode = uopcode;
+  p_uop->value1 = value1;
+  p_uop->value2 = 0;
+  p_uop->is_eliminated = 0;
+}
+
+struct asm_uop*
+asm_find_uop(int32_t* p_out_index,
+             struct asm_uop* p_uops,
+             uint32_t num_uops,
+             int32_t uopcode) {
+  uint32_t i_uops;
+  *p_out_index = -1;
+  for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+    struct asm_uop* p_uop = &p_uops[i_uops];
+    if (p_uop->uopcode != uopcode) {
+      continue;
+    }
+    *p_out_index = i_uops;
+    return p_uop;
+  }
+  return NULL;
+}
+
+struct asm_uop*
+asm_insert_uop(struct asm_uop* p_uops, uint32_t num_uops, uint32_t index) {
+  assert(index <= num_uops);
+  (void) memmove(&p_uops[index + 1],
+                 &p_uops[index],
+                 ((num_uops - index) * sizeof(struct asm_uop)));
+  return &p_uops[index];
+}
 
 /* NOTE: this routine is tightly coupled to the way the 6502 JIT client issues
  * sequences of uopcodes. This is not a particularly correct design, but it
@@ -104,7 +148,9 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
       break;
     default:
       if ((uopcode >= k_opcode_main_begin) && (uopcode <= k_opcode_main_end)) {
-        *p_out_main = p_uop;
+        if (*p_out_main == NULL) {
+          *p_out_main = p_uop;
+        }
       }
       break;
     }
