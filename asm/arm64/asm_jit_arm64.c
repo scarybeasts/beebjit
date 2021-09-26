@@ -23,6 +23,7 @@ enum {
   k_opcode_arm64_value_store_ABS,
   k_opcode_arm64_write_inv_ABS,
   k_opcode_arm64_ADC_IMM,
+  k_opcode_arm64_ADD_IMM,
   k_opcode_arm64_AND_IMM,
   k_opcode_arm64_CMP_IMM,
   k_opcode_arm64_CPX_IMM,
@@ -39,6 +40,7 @@ enum {
   k_opcode_arm64_STA_ABS,
   k_opcode_arm64_STX_ABS,
   k_opcode_arm64_STY_ABS,
+  k_opcode_arm64_SUB_IMM,
 };
 
 #define ASM(x)                                                                 \
@@ -102,8 +104,8 @@ enum {
 {                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
-  uint8_t immr;                                                                \
-  uint8_t imms;                                                                \
+  uint8_t immr = 0;                                                            \
+  uint8_t imms = 0;                                                            \
   if (!asm_calculate_immr_imms(&immr, &imms, value1)) assert(0);               \
   asm_copy_patch_arm64_imm12(p_buf,                                            \
                              asm_jit_ ## x,                                    \
@@ -351,6 +353,11 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_mode_uop->value1 = (value1 << 8);
       p_main_uop->uopcode = k_opcode_arm64_ADC_IMM;
       break;
+    case k_opcode_ADD:
+      p_mode_uop->uopcode = k_opcode_arm64_value_set_hi;
+      p_mode_uop->value1 = (value1 << 8);
+      p_main_uop->uopcode = k_opcode_arm64_ADD_IMM;
+      break;
     case k_opcode_ALR: break;
     case k_opcode_AND:
       if (asm_calculate_immr_imms(&immr, &imms, value1)) {
@@ -400,6 +407,11 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_mode_uop->value1 = (value1 << 8);
       p_main_uop->uopcode = k_opcode_arm64_SBC_IMM;
       break;
+    case k_opcode_SUB:
+      p_mode_uop->uopcode = k_opcode_arm64_value_set_hi;
+      p_mode_uop->value1 = (value1 << 8);
+      p_main_uop->uopcode = k_opcode_arm64_SUB_IMM;
+      break;
     default:
       assert(0);
       break;
@@ -411,6 +423,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     addr = value1;
     switch (p_main_uop->uopcode) {
     case k_opcode_ADC:
+    case k_opcode_ADD:
     case k_opcode_AND:
     case k_opcode_ASL_value:
     case k_opcode_BIT:
@@ -428,6 +441,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_SAX:
     case k_opcode_SBC:
     case k_opcode_SLO:
+    case k_opcode_SUB:
       if (addr < 0x1000) {
         if (p_load_uop != NULL) {
           p_mode_uop->uopcode = k_opcode_arm64_value_load_ABS;
@@ -686,6 +700,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_store: ASM(value_store_addr); break;
   case k_opcode_write_inv: ASM(write_inv); break;
   case k_opcode_ADC: ASM(ADC); break;
+  case k_opcode_ADD: ASM(ADD); break;
   case k_opcode_ALR: ASM(ALR); break;
   case k_opcode_AND: ASM(AND); break;
   case k_opcode_ASL_acc: ASM(ASL_ACC); break;
@@ -738,6 +753,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_STA: ASM(STA); break;
   case k_opcode_STX: ASM(STX); break;
   case k_opcode_STY: ASM(STY); break;
+  case k_opcode_SUB: ASM(SUB); break;
   case k_opcode_TAX: asm_emit_instruction_TAX(p_buf); break;
   case k_opcode_TAY: asm_emit_instruction_TAY(p_buf); break;
   case k_opcode_TSX: asm_emit_instruction_TSX(p_buf); break;
@@ -758,6 +774,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(write_inv_ABS_store);
     break;
   case k_opcode_arm64_ADC_IMM: ASM(ADC_IMM); break;
+  case k_opcode_arm64_ADD_IMM: ASM(ADD_IMM); break;
   case k_opcode_arm64_AND_IMM: ASM_IMMR_IMMS(AND_IMM); break;
   case k_opcode_arm64_CMP_IMM:
     ASM_IMM12(CMP_IMM_subs);
@@ -783,6 +800,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_arm64_STA_ABS: ASM_IMM12(STA_ABS); break;
   case k_opcode_arm64_STX_ABS: ASM_IMM12(STX_ABS); break;
   case k_opcode_arm64_STY_ABS: ASM_IMM12(STY_ABS); break;
+  case k_opcode_arm64_SUB_IMM: ASM(SUB_IMM); break;
   default:
     assert(0);
   }

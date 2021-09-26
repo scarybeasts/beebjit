@@ -549,6 +549,27 @@ asm_jit_ADC_IMM_END:
   ret
 
 
+.globl asm_jit_ADD
+.globl asm_jit_ADD_END
+asm_jit_ADD:
+  lsl REG_6502_A, REG_6502_A, #24
+  adds REG_6502_A_32, REG_6502_A_32, REG_SCRATCH2_32, lsl #24
+  lsr REG_6502_A, REG_6502_A, #24
+
+asm_jit_ADD_END:
+  ret
+
+
+.globl asm_jit_ADD_IMM
+.globl asm_jit_ADD_IMM_END
+asm_jit_ADD_IMM:
+  adds REG_6502_A_32, REG_SCRATCH2_32, REG_6502_A_32, lsl #24
+  lsr REG_6502_A, REG_6502_A, #24
+
+asm_jit_ADD_IMM_END:
+  ret
+
+
 .globl asm_jit_ALR
 .globl asm_jit_ALR_END
 asm_jit_ALR:
@@ -1135,4 +1156,26 @@ asm_jit_STY_ABS:
   strb REG_6502_Y_32, [REG_MEM_WRITE, #0xFFF]
 
 asm_jit_STY_ABS_END:
+  ret
+
+
+.globl asm_jit_SUB
+.globl asm_jit_SUB_END
+asm_jit_SUB:
+  lsl REG_6502_A, REG_6502_A, #24
+  subs REG_6502_A_32, REG_6502_A_32, REG_SCRATCH2_32, lsl #24
+  lsr REG_6502_A, REG_6502_A, #24
+
+asm_jit_SUB_END:
+  ret
+
+
+.globl asm_jit_SUB_IMM
+.globl asm_jit_SUB_IMM_END
+asm_jit_SUB_IMM:
+  lsl REG_6502_A, REG_6502_A, #24
+  subs REG_6502_A_32, REG_6502_A_32, REG_SCRATCH2_32
+  lsr REG_6502_A, REG_6502_A, #24
+
+asm_jit_SUB_IMM_END:
   ret
