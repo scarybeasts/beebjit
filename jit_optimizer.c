@@ -145,6 +145,14 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     struct asm_uop* p_uop;
 
     switch (optype) {
+    case k_adc:
+      if (p_opcode->flag_carry != 0) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_ADC);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ADD);
+      break;
     case k_dex:
       if (p_opcode->reg_x == k_value_unknown) {
         break;
@@ -176,6 +184,14 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       load_uopcode_old = k_opcode_INY;
       load_uopcode_new = k_opcode_LDY;
       load_uopcode_value = (p_opcode->reg_y + 1);
+      break;
+    case k_sbc:
+      if (p_opcode->flag_carry != 1) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_SBC);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_SUB);
       break;
     case k_tax:
       if (p_opcode->reg_a == k_value_unknown) {

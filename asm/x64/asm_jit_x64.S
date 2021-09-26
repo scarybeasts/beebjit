@@ -262,69 +262,6 @@ asm_jit_value_store_END:
   ret
 
 
-.globl asm_jit_ADD_ABS
-.globl asm_jit_ADD_ABS_END
-asm_jit_ADD_ABS:
-  add REG_6502_A, [REG_MEM + 0x7fffffff]
-
-asm_jit_ADD_ABS_END:
-  ret
-
-
-.globl asm_jit_ADD_ABX
-.globl asm_jit_ADD_ABX_END
-asm_jit_ADD_ABX:
-  add REG_6502_A, [REG_6502_X_64 + 0x7fffffff]
-
-asm_jit_ADD_ABX_END:
-  ret
-
-
-.globl asm_jit_ADD_ABY
-.globl asm_jit_ADD_ABY_END
-asm_jit_ADD_ABY:
-  add REG_6502_A, [REG_6502_Y_64 + 0x7fffffff]
-
-asm_jit_ADD_ABY_END:
-  ret
-
-
-.globl asm_jit_ADD_IMM
-.globl asm_jit_ADD_IMM_END
-asm_jit_ADD_IMM:
-  add REG_6502_A, 0
-
-asm_jit_ADD_IMM_END:
-  ret
-
-
-.globl asm_jit_ADD_SCRATCH
-.globl asm_jit_ADD_SCRATCH_END
-asm_jit_ADD_SCRATCH:
-  add REG_6502_A, [REG_SCRATCH1 + 0x7fffffff]
-
-asm_jit_ADD_SCRATCH_END:
-  ret
-
-
-.globl asm_jit_ADD_SCRATCH_Y
-.globl asm_jit_ADD_SCRATCH_Y_END
-asm_jit_ADD_SCRATCH_Y:
-  add REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
-
-asm_jit_ADD_SCRATCH_Y_END:
-  ret
-
-
-.globl asm_jit_ADD_ZPG
-.globl asm_jit_ADD_ZPG_END
-asm_jit_ADD_ZPG:
-  add REG_6502_A, [REG_MEM + 0x7f]
-
-asm_jit_ADD_ZPG_END:
-  ret
-
-
 .globl asm_jit_check_bcd
 .globl asm_jit_check_bcd_END
 asm_jit_check_bcd:
@@ -815,33 +752,6 @@ asm_jit_store_ZPG_END:
   ret
 
 
-.globl asm_jit_SUB_ABS
-.globl asm_jit_SUB_ABS_END
-asm_jit_SUB_ABS:
-  sub REG_6502_A, [REG_MEM + 0x7fffffff]
-
-asm_jit_SUB_ABS_END:
-  ret
-
-
-.globl asm_jit_SUB_IMM
-.globl asm_jit_SUB_IMM_END
-asm_jit_SUB_IMM:
-  sub REG_6502_A, 0
-
-asm_jit_SUB_IMM_END:
-  ret
-
-
-.globl asm_jit_SUB_ZPG
-.globl asm_jit_SUB_ZPG_END
-asm_jit_SUB_ZPG:
-  sub REG_6502_A, [REG_MEM + 0x7f]
-
-asm_jit_SUB_ZPG_END:
-  ret
-
-
 .globl asm_jit_write_inv
 .globl asm_jit_write_inv_END
 asm_jit_write_inv:
@@ -946,6 +856,69 @@ asm_jit_ADC_ZPG:
   adc REG_6502_A, [REG_MEM + 0x7f]
 
 asm_jit_ADC_ZPG_END:
+  ret
+
+
+.globl asm_jit_ADD_ABS
+.globl asm_jit_ADD_ABS_END
+asm_jit_ADD_ABS:
+  add REG_6502_A, [REG_MEM + 0x7fffffff]
+
+asm_jit_ADD_ABS_END:
+  ret
+
+
+.globl asm_jit_ADD_ABX
+.globl asm_jit_ADD_ABX_END
+asm_jit_ADD_ABX:
+  add REG_6502_A, [REG_6502_X_64 + 0x7fffffff]
+
+asm_jit_ADD_ABX_END:
+  ret
+
+
+.globl asm_jit_ADD_ABY
+.globl asm_jit_ADD_ABY_END
+asm_jit_ADD_ABY:
+  add REG_6502_A, [REG_6502_Y_64 + 0x7fffffff]
+
+asm_jit_ADD_ABY_END:
+  ret
+
+
+.globl asm_jit_ADD_addr
+.globl asm_jit_ADD_addr_END
+asm_jit_ADD_addr:
+  add REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_ADD_addr_END:
+  ret
+
+
+.globl asm_jit_ADD_addr_Y
+.globl asm_jit_ADD_addr_Y_END
+asm_jit_ADD_addr_Y:
+  add REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_ADD_addr_Y_END:
+  ret
+
+
+.globl asm_jit_ADD_IMM
+.globl asm_jit_ADD_IMM_END
+asm_jit_ADD_IMM:
+  add REG_6502_A, 0
+
+asm_jit_ADD_IMM_END:
+  ret
+
+
+.globl asm_jit_ADD_ZPG
+.globl asm_jit_ADD_ZPG_END
+asm_jit_ADD_ZPG:
+  add REG_6502_A, [REG_MEM + 0x7f]
+
+asm_jit_ADD_ZPG_END:
   ret
 
 
@@ -2062,4 +2035,69 @@ asm_jit_STY_ZPG:
   mov [REG_MEM + 0x7f], REG_6502_Y
 
 asm_jit_STY_ZPG_END:
+  ret
+
+
+.globl asm_jit_SUB_ABS
+.globl asm_jit_SUB_ABS_END
+asm_jit_SUB_ABS:
+  sub REG_6502_A, [REG_MEM + 0x7fffffff]
+
+asm_jit_SUB_ABS_END:
+  ret
+
+
+.globl asm_jit_SUB_ABX
+.globl asm_jit_SUB_ABX_END
+asm_jit_SUB_ABX:
+  sub REG_6502_A, [REG_6502_X_64 + 0x7fffffff]
+
+asm_jit_SUB_ABX_END:
+  ret
+
+
+.globl asm_jit_SUB_ABY
+.globl asm_jit_SUB_ABY_END
+asm_jit_SUB_ABY:
+  sub REG_6502_A, [REG_6502_Y_64 + 0x7fffffff]
+
+asm_jit_SUB_ABY_END:
+  ret
+
+
+.globl asm_jit_SUB_addr
+.globl asm_jit_SUB_addr_END
+asm_jit_SUB_addr:
+  sub REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_SUB_addr_END:
+  ret
+
+
+.globl asm_jit_SUB_addr_Y
+.globl asm_jit_SUB_addr_Y_END
+asm_jit_SUB_addr_Y:
+  sub REG_6502_A, [REG_SCRATCH1 + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_SUB_addr_Y_END:
+  ret
+
+
+.globl asm_jit_SUB_IMM
+.globl asm_jit_SUB_IMM_END
+asm_jit_SUB_IMM:
+  # NOTE: Intel has subtract with borrow, not subtract with carry, so
+  # appropriate carry flag management also needs to be used.
+  sub REG_6502_A, 0
+
+asm_jit_SUB_IMM_END:
+  ret
+
+
+.globl asm_jit_SUB_ZPG
+.globl asm_jit_SUB_ZPG_END
+asm_jit_SUB_ZPG:
+  sub REG_6502_A, [REG_MEM + 0x7f]
+
+asm_jit_SUB_ZPG_END:
   ret

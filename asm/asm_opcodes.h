@@ -50,6 +50,7 @@ enum {
   /* 6502-like opcodes. */
   k_opcode_main_begin = 0x300,
   k_opcode_ADC,
+  k_opcode_ADD,
   k_opcode_ALR,
   k_opcode_AND,
   k_opcode_ASL_acc,
@@ -103,6 +104,7 @@ enum {
   k_opcode_STA,
   k_opcode_STX,
   k_opcode_STY,
+  k_opcode_SUB,
   k_opcode_TAX,
   k_opcode_TAY,
   k_opcode_TSX,
