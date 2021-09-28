@@ -1011,12 +1011,12 @@ asm_jit_ASL_ABS_END:
   ret
 
 
-.globl asm_jit_ASL_acc
-.globl asm_jit_ASL_acc_END
-asm_jit_ASL_acc:
+.globl asm_jit_ASL_ACC
+.globl asm_jit_ASL_ACC_END
+asm_jit_ASL_ACC:
   shl REG_6502_A, 1
 
-asm_jit_ASL_acc_END:
+asm_jit_ASL_ACC_END:
   ret
 
 
@@ -1645,12 +1645,12 @@ asm_jit_LSR_ABS_END:
   ret
 
 
-.globl asm_jit_LSR_acc
-.globl asm_jit_LSR_acc_END
-asm_jit_LSR_acc:
+.globl asm_jit_LSR_ACC
+.globl asm_jit_LSR_ACC_END
+asm_jit_LSR_ACC:
   shr REG_6502_A, 1
 
-asm_jit_LSR_acc_END:
+asm_jit_LSR_ACC_END:
   ret
 
 
@@ -1753,12 +1753,12 @@ asm_jit_ROL_ABS_END:
   ret
 
 
-.globl asm_jit_ROL_acc
-.globl asm_jit_ROL_acc_END
-asm_jit_ROL_acc:
+.globl asm_jit_ROL_ACC
+.globl asm_jit_ROL_ACC_END
+asm_jit_ROL_ACC:
   rcl REG_6502_A, 1
 
-asm_jit_ROL_acc_END:
+asm_jit_ROL_ACC_END:
   ret
 
 
@@ -1798,12 +1798,12 @@ asm_jit_ROR_ABS_END:
   ret
 
 
-.globl asm_jit_ROR_acc
-.globl asm_jit_ROR_acc_END
-asm_jit_ROR_acc:
+.globl asm_jit_ROR_ACC
+.globl asm_jit_ROR_ACC_END
+asm_jit_ROR_ACC:
   rcr REG_6502_A, 1
 
-asm_jit_ROR_acc_END:
+asm_jit_ROR_ACC_END:
   ret
 
 

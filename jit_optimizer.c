@@ -11,6 +11,44 @@
 static const int32_t k_value_unknown = -1;
 
 static void
+jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_prev_opcode = NULL;
+  int32_t prev_optype = -1;
+  int32_t uopcode = -1;
+  struct jit_opcode_details* p_opcode;
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint8_t opcode_6502 = p_opcode->opcode_6502;
+    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
+    uint8_t opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
+    if (opmode != k_acc) {
+      p_prev_opcode = NULL;
+      continue;
+    }
+    switch (optype) {
+    case k_asl: uopcode = k_opcode_ASL_acc; break;
+    case k_lsr: uopcode = k_opcode_LSR_acc; break;
+    case k_rol: uopcode = k_opcode_ROL_acc; break;
+    case k_ror: uopcode = k_opcode_ROR_acc; break;
+    default: assert(0); break;
+    }
+    if ((p_prev_opcode != NULL) && (optype == prev_optype)) {
+      int32_t index;
+      struct asm_uop* p_uop = jit_opcode_find_uop(p_prev_opcode,
+                                                  &index,
+                                                  uopcode);
+      assert(p_uop != NULL);
+      p_uop->value1++;
+      jit_opcode_eliminate(p_opcode);
+    } else {
+      p_prev_opcode = p_opcode;
+      prev_optype = optype;
+    }
+  }
+}
+
+static void
 jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
   int32_t reg_a = k_value_unknown;
@@ -241,10 +279,13 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 
 struct jit_opcode_details*
 jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
-  /* Pass 1: tag opcodes with any known register and flag values. */
+  /* Pass 1: opcode merging. LSR A and similar opcodes. */
+  jit_optimizer_merge_opcodes(p_opcodes);
+
+  /* Pass 2: tag opcodes with any known register and flag values. */
   jit_optimizer_calculate_known_values(p_opcodes);
 
-  /* Pass 2: replacements of uops with better ones if known state offers the
+  /* Pass 3: replacements of uops with better ones if known state offers the
    * opportunity.
    * Classic example is CLC; ADC. At the ADC instruction, it is known that
    * CF==0 so the ADC can become just an ADD.

@@ -554,7 +554,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_and: asm_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
   case k_asl:
     if (opmode == k_acc) {
-      asm_make_uop0(p_uop, k_opcode_ASL_acc);
+      asm_make_uop1(p_uop, k_opcode_ASL_acc, 1);
       p_uop++;
     } else {
       asm_make_uop0(p_uop, k_opcode_ASL_value);
@@ -676,7 +676,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   case k_ldy: asm_make_uop0(p_uop, k_opcode_LDY); p_uop++; break;
   case k_lsr:
     if (opmode == k_acc) {
-      asm_make_uop0(p_uop, k_opcode_LSR_acc);
+      asm_make_uop1(p_uop, k_opcode_LSR_acc, 1);
       p_uop++;
     } else {
       asm_make_uop0(p_uop, k_opcode_LSR_value);
@@ -701,7 +701,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_rol:
     if (opmode == k_acc) {
-      asm_make_uop0(p_uop, k_opcode_ROL_acc);
+      asm_make_uop1(p_uop, k_opcode_ROL_acc, 1);
       p_uop++;
     } else {
       asm_make_uop0(p_uop, k_opcode_ROL_value);
@@ -712,7 +712,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     break;
   case k_ror:
     if (opmode == k_acc) {
-      asm_make_uop0(p_uop, k_opcode_ROR_acc);
+      asm_make_uop1(p_uop, k_opcode_ROR_acc, 1);
       p_uop++;
     } else {
       asm_make_uop0(p_uop, k_opcode_ROR_value);

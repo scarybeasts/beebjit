@@ -22,10 +22,6 @@ enum {
   k_opcode_CLEAR_CARRY,
   k_opcode_INVERT_CARRY,
   k_opcode_SET_CARRY,
-  k_opcode_ASL_ACC_n,
-  k_opcode_LSR_ACC_n,
-  k_opcode_ROL_ACC_n,
-  k_opcode_ROR_ACC_n,
   k_opcode_EOR_SCRATCH_n,
   k_opcode_LDA_SCRATCH_n,
   k_opcode_LDA_SCRATCH_X,
@@ -80,6 +76,7 @@ enum {
   k_opcode_x64_AND_ZPG,
   k_opcode_x64_AND_IMM,
   k_opcode_x64_ASL_ABS,
+  k_opcode_x64_ASL_ACC_n,
   k_opcode_x64_ASL_ZPG,
   k_opcode_x64_CMP_ABS,
   k_opcode_x64_CMP_ABX,
@@ -123,6 +120,7 @@ enum {
   k_opcode_x64_LDY_IMM,
   k_opcode_x64_LDY_ZPG,
   k_opcode_x64_LSR_ABS,
+  k_opcode_x64_LSR_ACC_n,
   k_opcode_x64_LSR_ZPG,
   k_opcode_x64_ORA_ABS,
   k_opcode_x64_ORA_ABX,
@@ -131,6 +129,8 @@ enum {
   k_opcode_x64_ORA_addr_Y,
   k_opcode_x64_ORA_IMM,
   k_opcode_x64_ORA_ZPG,
+  k_opcode_x64_ROL_ACC_n,
+  k_opcode_x64_ROR_ACC_n,
   k_opcode_x64_SAX_ABS,
   k_opcode_x64_SBC_ABS,
   k_opcode_x64_SBC_ABX,
@@ -836,41 +836,10 @@ asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
 }
 
 static void
-asm_emit_jit_ASL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
-  void asm_jit_ASL_ACC_n(void);
-  void asm_jit_ASL_ACC_n_END(void);
-  asm_copy_patch_byte(p_buf, asm_jit_ASL_ACC_n, asm_jit_ASL_ACC_n_END, n);
-}
-
-static void
 asm_emit_jit_LDA_SCRATCH_X(struct util_buffer* p_buf) {
   void asm_jit_LDA_SCRATCH_X(void);
   void asm_jit_LDA_SCRATCH_X_END(void);
   asm_copy(p_buf, asm_jit_LDA_SCRATCH_X, asm_jit_LDA_SCRATCH_X_END);
-}
-
-static void
-asm_emit_jit_LSR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
-  void asm_jit_LSR_ACC_n(void);
-  void asm_jit_LSR_ACC_n_END(void);
-  asm_copy_patch_byte(p_buf, asm_jit_LSR_ACC_n, asm_jit_LSR_ACC_n_END, n);
-}
-
-static void
-asm_emit_jit_ROL_ACC_n(struct util_buffer* p_buf, uint8_t n) {
-  void asm_jit_ROL_ACC_n(void);
-  void asm_jit_ROL_ACC_n_END(void);
-  asm_copy_patch_byte(p_buf,
-                          asm_jit_ROL_ACC_n,
-                          asm_jit_ROL_ACC_n_END,
-                          n);
-}
-
-static void
-asm_emit_jit_ROR_ACC_n(struct util_buffer* p_buf, uint8_t n) {
-  void asm_jit_ROR_ACC_n(void);
-  void asm_jit_ROR_ACC_n_END(void);
-  asm_copy_patch_byte(p_buf, asm_jit_ROR_ACC_n, asm_jit_ROR_ACC_n_END, n);
 }
 
 static void
@@ -1155,6 +1124,23 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_CPX:
     case k_opcode_CPY:
       p_save_carry_uop->uopcode = k_opcode_x64_save_carry_inv;
+      break;
+    default:
+      break;
+    }
+  }
+
+  /* Intel uses a different instruction sequence for shifts and rotates other
+   * than by 1.
+   */
+  if ((p_main_uop != NULL) &&
+      (p_mode_uop == NULL) &&
+      (p_main_uop->value1 != 1)) {
+    switch (p_main_uop->uopcode) {
+    case k_opcode_ASL_acc: p_main_uop->uopcode = k_opcode_x64_ASL_ACC_n; break;
+    case k_opcode_LSR_acc: p_main_uop->uopcode = k_opcode_x64_LSR_ACC_n; break;
+    case k_opcode_ROL_acc: p_main_uop->uopcode = k_opcode_x64_ROL_ACC_n; break;
+    case k_opcode_ROR_acc: p_main_uop->uopcode = k_opcode_x64_ROR_ACC_n; break;
       break;
     default:
       break;
@@ -1468,9 +1454,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_add_x: ASM(save_addr_low_byte); ASM(addr_add_x); break;
   case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
-  case k_opcode_ASL_ACC_n:
-    asm_emit_jit_ASL_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
   case k_opcode_check_page_crossing_x: ASM(check_page_crossing_x); break;
   case k_opcode_check_page_crossing_y: ASM(check_page_crossing_y); break;
   case k_opcode_CLEAR_CARRY: ASM(CLEAR_CARRY); break;
@@ -1492,19 +1475,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LOAD_SCRATCH_8:
     asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_LSR_ACC_n:
-    asm_emit_jit_LSR_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
   case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
   case k_opcode_PUSH_16:
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
-    break;
-  case k_opcode_ROL_ACC_n:
-    asm_emit_jit_ROL_ACC_n(p_dest_buf, (uint8_t) value1);
-    break;
-  case k_opcode_ROR_ACC_n:
-    asm_emit_jit_ROR_ACC_n(p_dest_buf, (uint8_t) value1);
     break;
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
@@ -1515,7 +1489,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); break;
-  case k_opcode_ASL_acc: ASM(ASL_acc); break;
+  case k_opcode_ASL_acc: ASM(ASL_ACC); break;
   case k_opcode_ASL_value: ASM(ASL_value); break;
   case k_opcode_BCC: ASM_Bxx(BCC); break;
   case k_opcode_BCS: ASM_Bxx(BCS); break;
@@ -1537,7 +1511,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_INX: asm_emit_instruction_INX(p_dest_buf); break;
   case k_opcode_INY: asm_emit_instruction_INY(p_dest_buf); break;
   case k_opcode_JMP: ASM_Bxx(JMP); break;
-  case k_opcode_LSR_acc: ASM(LSR_acc); break;
+  case k_opcode_LSR_acc: ASM(LSR_ACC); break;
   case k_opcode_LSR_value: ASM(LSR_value); break;
   case k_opcode_NOP:
     /* We don't really have to emit anything for a NOP, but for now and for
@@ -1552,9 +1526,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PHP: asm_emit_instruction_PHP(p_dest_buf); break;
   case k_opcode_PLA: asm_emit_instruction_PLA(p_dest_buf); break;
   case k_opcode_PLP: asm_emit_instruction_PLP(p_dest_buf); break;
-  case k_opcode_ROL_acc: ASM(ROL_acc); break;
+  case k_opcode_ROL_acc: ASM(ROL_ACC); break;
   case k_opcode_ROL_value: ASM(ROL_value); break;
-  case k_opcode_ROR_acc: ASM(ROR_acc); break;
+  case k_opcode_ROR_acc: ASM(ROR_ACC); break;
   case k_opcode_ROR_value: ASM(ROR_value); break;
   case k_opcode_SEC: asm_emit_instruction_SEC(p_dest_buf); break;
   case k_opcode_SED: asm_emit_instruction_SED(p_dest_buf); break;
@@ -1638,6 +1612,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_AND_IMM: ASM_U8(AND_IMM); break;
   case k_opcode_x64_AND_ZPG: ASM_ADDR_U8(AND_ZPG); break;
   case k_opcode_x64_ASL_ABS: ASM_ADDR_U32(ASL_ABS); break;
+  case k_opcode_x64_ASL_ACC_n: ASM_U8(ASL_ACC_n); break;
   case k_opcode_x64_ASL_ZPG: ASM_ADDR_U8(ASL_ZPG); break;
   case k_opcode_x64_CMP_ABS: ASM_ADDR_U32(CMP_ABS); break;
   case k_opcode_x64_CMP_ABX: ASM_ADDR_U32_RAW(CMP_ABX); break;
@@ -1681,6 +1656,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_LDY_IMM: ASM_U8(LDY_IMM); break;
   case k_opcode_x64_LDY_ZPG: ASM_ADDR_U8(LDY_ZPG); break;
   case k_opcode_x64_LSR_ABS: ASM_ADDR_U32(LSR_ABS); break;
+  case k_opcode_x64_LSR_ACC_n: ASM_U8(LSR_ACC_n); break;
   case k_opcode_x64_LSR_ZPG: ASM_ADDR_U8(LSR_ZPG); break;
   case k_opcode_x64_ORA_ABS: ASM_ADDR_U32(ORA_ABS); break;
   case k_opcode_x64_ORA_ABX: ASM_ADDR_U32_RAW(ORA_ABX); break;
@@ -1689,6 +1665,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_ORA_addr_Y: ASM(ORA_addr_Y); break;
   case k_opcode_x64_ORA_IMM: ASM_U8(ORA_IMM); break;
   case k_opcode_x64_ORA_ZPG: ASM_ADDR_U8(ORA_ZPG); break;
+  case k_opcode_x64_ROL_ACC_n: ASM_U8(ROL_ACC_n); break;
+  case k_opcode_x64_ROR_ACC_n: ASM_U8(ROR_ACC_n); break;
   case k_opcode_x64_SAX_ABS: ASM_ADDR_U32(SAX_ABS); break;
   case k_opcode_x64_SBC_ABS: ASM_ADDR_U32(SBC_ABS); break;
   case k_opcode_x64_SBC_ABX: ASM_ADDR_U32_RAW(SBC_ABX); break;
