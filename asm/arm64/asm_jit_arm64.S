@@ -610,14 +610,19 @@ asm_jit_ASL_END:
   ret
 
 
-.globl asm_jit_ASL_ACC
+.globl asm_jit_ASL_ACC_ubfm_carry
+.globl asm_jit_ASL_ACC_ubfm_carry_END
+.globl asm_jit_ASL_ACC_ubfm_shift
+.globl asm_jit_ASL_ACC_ubfm_shift_END
 .globl asm_jit_ASL_ACC_END
-asm_jit_ASL_ACC:
-  ubfx REG_6502_CF, REG_6502_A, #7, #1
-  lsl REG_6502_A, REG_6502_A, #1
-  and REG_6502_A, REG_6502_A, #0xFF
-
-asm_jit_ASL_ACC_END:
+asm_jit_ASL_ACC_ubfm_carry:
+  # aka. ubfx REG_6502_CF, REG_6502_A, #7, #1
+  ubfm REG_6502_CF, REG_6502_A, #7, #7
+asm_jit_ASL_ACC_ubfm_carry_END:
+asm_jit_ASL_ACC_ubfm_shift:
+  # Shift the lower 7 bits left.
+  ubfm REG_6502_A, REG_6502_A, #63, #6
+asm_jit_ASL_ACC_ubfm_shift_END:
   ret
 
 
@@ -936,13 +941,18 @@ asm_jit_LSR_END:
   ret
 
 
-.globl asm_jit_LSR_ACC
-.globl asm_jit_LSR_ACC_END
-asm_jit_LSR_ACC:
-  ubfx REG_6502_CF, REG_6502_A, #0, #1
-  lsr REG_6502_A, REG_6502_A, #1
-
-asm_jit_LSR_ACC_END:
+.globl asm_jit_LSR_ACC_ubfm_carry
+.globl asm_jit_LSR_ACC_ubfm_carry_END
+.globl asm_jit_LSR_ACC_ubfm_shift
+.globl asm_jit_LSR_ACC_ubfm_shift_END
+asm_jit_LSR_ACC_ubfm_carry:
+  # aka. ubfx REG_6502_CF, REG_6502_A, #0, #1
+  ubfm REG_6502_CF, REG_6502_A, #0, #0
+asm_jit_LSR_ACC_ubfm_carry_END:
+asm_jit_LSR_ACC_ubfm_shift:
+  # Shift lower 8 bits right one.
+  ubfm REG_6502_A, REG_6502_A, #1, #7
+asm_jit_LSR_ACC_ubfm_shift_END:
   ret
 
 
@@ -998,7 +1008,7 @@ asm_jit_ROL_END:
 .globl asm_jit_ROL_ACC
 .globl asm_jit_ROL_ACC_END
 asm_jit_ROL_ACC:
-  add REG_6502_A, REG_6502_CF, REG_6502_A, lsl #1
+  orr REG_6502_A, REG_6502_CF, REG_6502_A, lsl #1
   ubfx REG_6502_CF, REG_6502_A, #8, #1
   and REG_6502_A, REG_6502_A, #0xFF
 

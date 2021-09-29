@@ -104,9 +104,17 @@ enum {
 {                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
-  uint8_t immr = 0;                                                            \
-  uint8_t imms = 0;                                                            \
   if (!asm_calculate_immr_imms(&immr, &imms, value1)) assert(0);               \
+  asm_copy_patch_arm64_imm12(p_buf,                                            \
+                             asm_jit_ ## x,                                    \
+                             asm_jit_ ## x ## _END,                            \
+                             ((immr << 6) | imms));                            \
+}
+
+#define ASM_IMMR_IMMS_RAW(x)                                                   \
+{                                                                              \
+  void asm_jit_ ## x(void);                                                    \
+  void asm_jit_ ## x ## _END(void);                                            \
   asm_copy_patch_arm64_imm12(p_buf,                                            \
                              asm_jit_ ## x,                                    \
                              asm_jit_ ## x ## _END,                            \
@@ -616,6 +624,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   int32_t uopcode = p_uop->uopcode;
   uint32_t value1 = p_uop->value1;
   uint32_t value2 = p_uop->value2;
+  uint8_t immr = 0;
+  uint8_t imms = 0;
+  uint32_t i;
   uint32_t tmp;
 
   (void) p_asm;
@@ -703,7 +714,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_ADD: ASM(ADD); break;
   case k_opcode_ALR: ASM(ALR); break;
   case k_opcode_AND: ASM(AND); break;
-  case k_opcode_ASL_acc: ASM(ASL_ACC); break;
+  case k_opcode_ASL_acc:
+    immr = (8 - value1);
+    imms = (8 - value1);
+    ASM_IMMR_IMMS_RAW(ASL_ACC_ubfm_carry);
+    immr = (64 - value1);
+    imms = (7 - value1);
+    ASM_IMMR_IMMS_RAW(ASL_ACC_ubfm_shift);
+    break;
   case k_opcode_ASL_value: ASM(ASL); break;
   case k_opcode_BCC: ASM_IMM19(BCC); break;
   case k_opcode_BCS: ASM_IMM19(BCS); break;
@@ -732,7 +750,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LDA: ASM(LDA); break;
   case k_opcode_LDX: ASM(LDX); break;
   case k_opcode_LDY: ASM(LDY); break;
-  case k_opcode_LSR_acc: ASM(LSR_ACC); break;
+  case k_opcode_LSR_acc:
+    immr = (value1 - 1);
+    imms = 0;
+    ASM_IMMR_IMMS_RAW(LSR_ACC_ubfm_carry);
+    immr = value1;
+    imms = 7;
+    ASM_IMMR_IMMS_RAW(LSR_ACC_ubfm_shift);
+    break;
   case k_opcode_LSR_value: ASM(LSR); break;
   case k_opcode_NOP: asm_emit_instruction_REAL_NOP(p_buf); break;
   case k_opcode_ORA: ASM(ORA); break;
@@ -740,9 +765,18 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PHP: asm_emit_instruction_PHP(p_buf); break;
   case k_opcode_PLA: asm_emit_instruction_PLA(p_buf); break;
   case k_opcode_PLP: asm_emit_instruction_PLP(p_buf); break;
-  case k_opcode_ROL_acc: ASM(ROL_ACC); break;
+  case k_opcode_ROL_acc:
+    /* TODO: better optimize ROL_acc and ROR_acc. */
+    for (i = 0; i < value1; ++i) {
+      ASM(ROL_ACC);
+    }
+    break;
   case k_opcode_ROL_value: ASM(ROL); break;
-  case k_opcode_ROR_acc: ASM(ROR_ACC); break;
+  case k_opcode_ROR_acc:
+    for (i = 0; i < value1; ++i) {
+      ASM(ROR_ACC);
+    }
+    break;
   case k_opcode_ROR_value: ASM(ROR); break;
   case k_opcode_SAX: ASM(SAX); break;
   case k_opcode_SBC: ASM(SBC); break;

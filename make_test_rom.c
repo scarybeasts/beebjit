@@ -171,11 +171,13 @@ main(int argc, const char* argv[]) {
 
   /* Test shift / rotate instuction coalescing. */
   set_new_index(p_buf, 0x01C0);
-  emit_LDA(p_buf, k_imm, 0x05);
+  emit_LDA(p_buf, k_imm, 0x45);
   emit_ASL(p_buf, k_acc, 0);
   emit_ASL(p_buf, k_acc, 0);
-  emit_CMP(p_buf, k_imm, 0x14);
-  emit_REQUIRE_ZF(p_buf, 1);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_NF(p_buf, 0);
+  emit_REQUIRE_ZF(p_buf, 0);
+  emit_REQUIRE_EQ(p_buf, 0x14);
   emit_SEC(p_buf);
   emit_ROR(p_buf, k_acc, 0);
   emit_ROR(p_buf, k_acc, 0);
