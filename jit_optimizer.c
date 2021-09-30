@@ -39,8 +39,10 @@ jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
                                                   &index,
                                                   uopcode);
       assert(p_uop != NULL);
-      p_uop->value1++;
-      jit_opcode_eliminate(p_opcode);
+      if (p_uop->value1 < 7) {
+        p_uop->value1++;
+        jit_opcode_eliminate(p_opcode);
+      }
     } else {
       p_prev_opcode = p_opcode;
       prev_optype = optype;
