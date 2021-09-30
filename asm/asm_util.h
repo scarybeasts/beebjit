@@ -23,7 +23,7 @@ void asm_breakdown_from_6502(struct asm_uop* p_uops,
                              struct asm_uop** p_out_store,
                              struct asm_uop** p_out_load_carry,
                              struct asm_uop** p_out_save_carry,
-                             struct asm_uop** p_out_flags,
+                             struct asm_uop** p_out_nz_flags,
                              struct asm_uop** p_out_inv,
                              struct asm_uop** p_out_addr_check,
                              struct asm_uop** p_out_page_crossing);

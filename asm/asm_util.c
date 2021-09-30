@@ -62,7 +62,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
                         struct asm_uop** p_out_store,
                         struct asm_uop** p_out_load_carry,
                         struct asm_uop** p_out_save_carry,
-                        struct asm_uop** p_out_flags,
+                        struct asm_uop** p_out_nz_flags,
                         struct asm_uop** p_out_inv,
                         struct asm_uop** p_out_addr_check,
                         struct asm_uop** p_out_page_crossing) {
@@ -74,7 +74,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
   *p_out_store = NULL;
   *p_out_load_carry = NULL;
   *p_out_save_carry = NULL;
-  *p_out_flags = NULL;
+  *p_out_nz_flags = NULL;
   *p_out_inv = NULL;
   *p_out_addr_check = NULL;
   *p_out_page_crossing = NULL;
@@ -128,8 +128,8 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
     case k_opcode_flags_nz_y:
     case k_opcode_flags_nz_value:
       assert(i != 0);
-      assert(*p_out_flags == NULL);
-      *p_out_flags = p_uop;
+      assert(*p_out_nz_flags == NULL);
+      *p_out_nz_flags = p_uop;
       break;
     case k_opcode_addr_check:
       assert(i != 0);

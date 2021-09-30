@@ -1070,7 +1070,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_store_uop;
   struct asm_uop* p_load_carry_uop;
   struct asm_uop* p_save_carry_uop;
-  struct asm_uop* p_flags_uop;
+  struct asm_uop* p_nz_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
   struct asm_uop* p_page_crossing_uop;
@@ -1083,7 +1083,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   int is_rmw;
   int do_set_segment;
   int do_eliminate_load_store;
-  int do_eliminate_flags;
   uint16_t addr;
 
   asm_breakdown_from_6502(p_uops,
@@ -1094,10 +1093,13 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_store_uop,
                           &p_load_carry_uop,
                           &p_save_carry_uop,
-                          &p_flags_uop,
+                          &p_nz_flags_uop,
                           &p_inv_uop,
                           &p_addr_check_uop,
                           &p_page_crossing_uop);
+  if (p_main_uop == NULL) {
+    return;
+  }
 
   /* Fix up carry flag managment, including for Intel doing borrow instead of
    * carry for subtract.
@@ -1130,12 +1132,38 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     }
   }
 
+  /* Many Intel instructions update the save NZ flag state for us. */
+  switch (p_main_uop->uopcode) {
+  case k_opcode_ADC:
+  case k_opcode_ADD:
+  case k_opcode_ALR:
+  case k_opcode_AND:
+  case k_opcode_ASL_acc:
+  case k_opcode_ASL_value:
+  case k_opcode_DEC_value:
+  case k_opcode_DEX:
+  case k_opcode_DEY:
+  case k_opcode_EOR:
+  case k_opcode_INC_value:
+  case k_opcode_INX:
+  case k_opcode_INY:
+  case k_opcode_LSR_acc:
+  case k_opcode_LSR_value:
+  case k_opcode_ORA:
+  /* Not ROL, ROR. rcr and rcl don't set x64 sign / zero flags. */
+  case k_opcode_SBC:
+  case k_opcode_SLO:
+  case k_opcode_SUB:
+    assert(p_nz_flags_uop != NULL);
+    p_nz_flags_uop->is_eliminated = 1;
+  default:
+    break;
+  }
+
   /* Intel uses a different instruction sequence for shifts and rotates other
    * than by 1.
    */
-  if ((p_main_uop != NULL) &&
-      (p_mode_uop == NULL) &&
-      (p_main_uop->value1 != 1)) {
+  if ((p_mode_uop == NULL) && (p_main_uop->value1 != 1)) {
     switch (p_main_uop->uopcode) {
     case k_opcode_ASL_acc: p_main_uop->uopcode = k_opcode_x64_ASL_ACC_n; break;
     case k_opcode_LSR_acc: p_main_uop->uopcode = k_opcode_x64_LSR_ACC_n; break;
@@ -1165,7 +1193,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   is_mode_abn = 0;
   do_set_segment = 0;
   do_eliminate_load_store = 0;
-  do_eliminate_flags = 0;
 
   uopcode = p_mode_uop->uopcode;
   if ((uopcode == k_opcode_addr_add_x) || (uopcode == k_opcode_addr_add_y)) {
@@ -1232,9 +1259,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       }
       do_set_segment = 1;
       do_eliminate_load_store = 1;
-      if (is_rmw) {
-        do_eliminate_flags = 1;
-      }
     }
     if (p_inv_uop != NULL) {
       p_inv_uop->uopcode = k_opcode_x64_write_inv_ABS;
@@ -1375,10 +1399,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     if (p_store_uop != NULL) {
       p_store_uop->is_eliminated = 1;
     }
-  }
-  if (do_eliminate_flags) {
-    assert(p_flags_uop != NULL);
-    p_flags_uop->is_eliminated = 1;
   }
 }
 
