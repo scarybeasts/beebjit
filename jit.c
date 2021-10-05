@@ -74,11 +74,9 @@ jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
 }
 
 static inline int
-jit_has_6502_code(struct jit_struct* p_jit, uint16_t addr_6502) {
-  if (p_jit->jit_ptrs[addr_6502] == p_jit->jit_ptr_no_code) {
-    return 0;
-  }
-  return 1;
+jit_is_6502_pc_in_code_block(struct jit_struct* p_jit, uint16_t addr_6502) {
+  int ret = (p_jit->code_blocks[addr_6502] != -1);
+  return ret;
 }
 
 static void*
@@ -143,10 +141,11 @@ jit_interp_instruction_callback(void* p,
 
   opmem = p_jit->p_opcode_mem[done_opcode];
 
-  if (opmem & k_opmem_write_flag) {
-    /* Any memory writes executed by the interpreter need to invalidate
-     * compiled JIT code if they're self-modifying writes.
-     */
+  /* Any memory writes executed by the interpreter need to invalidate
+   * compiled JIT code if they're self-modifying writes.
+   */
+  if ((opmem & k_opmem_write_flag) &&
+      jit_is_6502_pc_in_code_block(p_jit, done_addr)) {
     if (!p_jit->did_interp_invalidate_memory) {
       asm_jit_start_code_updates(p_jit->p_asm);
       p_jit->did_interp_invalidate_memory = 1;
@@ -565,7 +564,7 @@ jit_compile(struct jit_struct* p_jit,
   }
 
   if (p_jit->log_compile) {
-    has_6502_code = jit_has_6502_code(p_jit, addr_6502);
+    has_6502_code = jit_is_6502_pc_in_code_block(p_jit, addr_6502);
     is_block_continuation = jit_compiler_is_block_continuation(p_compiler,
                                                                addr_6502);
   }
