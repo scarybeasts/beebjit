@@ -563,32 +563,13 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop0(p_uop, k_opcode_save_carry);
     p_uop++;
     break;
-  case k_bcc:
-    asm_make_uop1(p_uop, k_opcode_BCC, jit_addr);
-    p_uop++;
-    break;
-  case k_bcs:
-    asm_make_uop1(p_uop, k_opcode_BCS, jit_addr);
-    p_uop++;
-    break;
-  case k_beq:
-    asm_make_uop1(p_uop, k_opcode_BEQ, jit_addr);
-    p_uop++;
-    break;
-  case k_bit:
-    asm_make_uop0(p_uop, k_opcode_BIT); p_uop++; break;
-  case k_bmi:
-    asm_make_uop1(p_uop, k_opcode_BMI, jit_addr);
-    p_uop++;
-    break;
-  case k_bne:
-    asm_make_uop1(p_uop, k_opcode_BNE, jit_addr);
-    p_uop++;
-    break;
-  case k_bpl:
-    asm_make_uop1(p_uop, k_opcode_BPL, jit_addr);
-    p_uop++;
-    break;
+  case k_bcc: asm_make_uop1(p_uop, k_opcode_BCC, jit_addr); p_uop++; break;
+  case k_bcs: asm_make_uop1(p_uop, k_opcode_BCS, jit_addr); p_uop++; break;
+  case k_beq: asm_make_uop1(p_uop, k_opcode_BEQ, jit_addr); p_uop++; break;
+  case k_bit: asm_make_uop0(p_uop, k_opcode_BIT); p_uop++; break;
+  case k_bmi: asm_make_uop1(p_uop, k_opcode_BMI, jit_addr); p_uop++; break;
+  case k_bne: asm_make_uop1(p_uop, k_opcode_BNE, jit_addr); p_uop++; break;
+  case k_bpl: asm_make_uop1(p_uop, k_opcode_BPL, jit_addr); p_uop++; break;
   case k_brk:
     asm_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
     p_uop++;
@@ -607,14 +588,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop1(p_uop, k_opcode_JMP_SCRATCH_n, 0);
     p_uop++;
     break;
-  case k_bvc:
-    asm_make_uop1(p_uop, k_opcode_BVC, jit_addr);
-    p_uop++;
-    break;
-  case k_bvs:
-    asm_make_uop1(p_uop, k_opcode_BVS, jit_addr);
-    p_uop++;
-    break;
+  case k_bvc: asm_make_uop1(p_uop, k_opcode_BVC, jit_addr); p_uop++; break;
+  case k_bvs: asm_make_uop1(p_uop, k_opcode_BVS, jit_addr); p_uop++; break;
   case k_clc: asm_make_uop0(p_uop, k_opcode_CLC); p_uop++; break;
   case k_cld: asm_make_uop0(p_uop, k_opcode_CLD); p_uop++; break;
   case k_cli:
