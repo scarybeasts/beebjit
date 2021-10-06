@@ -848,8 +848,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if ((opmode == k_rel) && p_compiler->option_accurate_timings) {
     /* Fixup countdown if a branch wasn't taken. */
     asm_make_uop1(p_uop,
-                         k_opcode_add_cycles,
-                         (uint8_t) (p_details->max_cycles - 2));
+                  k_opcode_add_cycles,
+                  (uint8_t) (p_details->max_cycles - 2));
     p_uop++;
   }
 
