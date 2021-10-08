@@ -546,20 +546,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   /* Per-type uops. */
   switch (optype) {
-  case k_adc:
-    asm_make_uop0(p_uop, k_opcode_ADC);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_overflow);
-    p_uop++;
-    break;
-  case k_alr:
-    asm_make_uop0(p_uop, k_opcode_ALR);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    break;
+  case k_adc: asm_make_uop0(p_uop, k_opcode_ADC); p_uop++; break;
+  case k_alr: asm_make_uop0(p_uop, k_opcode_ALR); p_uop++; break;
   case k_and: asm_make_uop0(p_uop, k_opcode_AND); p_uop++; break;
   case k_asl:
     if (opmode == k_acc) {
@@ -569,8 +557,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       asm_make_uop0(p_uop, k_opcode_ASL_value);
       p_uop++;
     }
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
     break;
   case k_bcc: asm_make_uop1(p_uop, k_opcode_BCC, jit_addr); p_uop++; break;
   case k_bcs: asm_make_uop1(p_uop, k_opcode_BCS, jit_addr); p_uop++; break;
@@ -608,24 +594,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_clv: asm_make_uop0(p_uop, k_opcode_CLV); p_uop++; break;
-  case k_cmp:
-    asm_make_uop0(p_uop, k_opcode_CMP);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    break;
-  case k_cpx:
-    asm_make_uop0(p_uop, k_opcode_CPX);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    break;
-  case k_cpy:
-    asm_make_uop0(p_uop, k_opcode_CPY);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    break;
+  case k_cmp: asm_make_uop0(p_uop, k_opcode_CMP); p_uop++; break;
+  case k_cpx: asm_make_uop0(p_uop, k_opcode_CPX); p_uop++; break;
+  case k_cpy: asm_make_uop0(p_uop, k_opcode_CPY); p_uop++; break;
   case k_dec: asm_make_uop0(p_uop, k_opcode_DEC_value); p_uop++; break;
   case k_dex: asm_make_uop0(p_uop, k_opcode_DEX); p_uop++; break;
   case k_dey: asm_make_uop0(p_uop, k_opcode_DEY); p_uop++; break;
@@ -666,8 +637,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       asm_make_uop0(p_uop, k_opcode_LSR_value);
       p_uop++;
     }
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
     break;
   /* NOTE: sends undocumented modes of NOP along to JIT. Zalaga uses NOP abx
    * in a hot path.
@@ -691,8 +660,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       asm_make_uop0(p_uop, k_opcode_ROL_value);
       p_uop++;
     }
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
     break;
   case k_ror:
     if (opmode == k_acc) {
@@ -702,8 +669,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       asm_make_uop0(p_uop, k_opcode_ROR_value);
       p_uop++;
     }
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
     break;
   case k_rti:
     /* Bounce to the interpreter for RTI. The problem with RTI is that it
@@ -722,14 +687,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_uop++;
     break;
   case k_sax: asm_make_uop0(p_uop, k_opcode_SAX); p_uop++; break;
-  case k_sbc:
-    asm_make_uop0(p_uop, k_opcode_SBC);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_carry);
-    p_uop++;
-    asm_make_uop0(p_uop, k_opcode_save_overflow);
-    p_uop++;
-    break;
+  case k_sbc: asm_make_uop0(p_uop, k_opcode_SBC); p_uop++; break;
   case k_sec: asm_make_uop0(p_uop, k_opcode_SEC); p_uop++; break;
   case k_sed: asm_make_uop0(p_uop, k_opcode_SED); p_uop++; break;
   case k_sei: asm_make_uop0(p_uop, k_opcode_SEI); p_uop++; break;
@@ -740,8 +698,6 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
      */
     if ((opmode == k_abs) || (opmode == k_zpg)) {
       asm_make_uop0(p_uop, k_opcode_SLO);
-      p_uop++;
-      asm_make_uop0(p_uop, k_opcode_save_carry);
       p_uop++;
     } else {
       use_interp = 1;
@@ -774,20 +730,29 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     return;
   }
 
+  /* Emit save carry before save NZ flags. This is because the act of saving
+   * NZ flags will clobber any unsaved carry / overflow flag in both asm
+   * backends.
+   */
+  if (g_optype_changes_carry[optype]) {
+    switch (optype) {
+    /* These have built-in handling. */
+    case k_clc: case k_plp: case k_rti: case k_sec: break;
+    default: asm_make_uop0(p_uop, k_opcode_save_carry); p_uop++; break;
+    }
+  }
+  if (g_optype_changes_overflow[optype]) {
+    switch (optype) {
+    /* These have built-in handling. */
+    case k_bit: case k_clv: case k_plp: case k_rti: break;
+    default: asm_make_uop0(p_uop, k_opcode_save_overflow); p_uop++; break;
+    }
+  }
   if (g_optype_changes_nz_flags[optype]) {
     switch (g_optype_sets_register[optype]) {
-    case k_a:
-      asm_make_uop0(p_uop, k_opcode_flags_nz_a);
-      p_uop++;
-      break;
-    case k_x:
-      asm_make_uop0(p_uop, k_opcode_flags_nz_x);
-      p_uop++;
-      break;
-    case k_y:
-      asm_make_uop0(p_uop, k_opcode_flags_nz_y);
-      p_uop++;
-      break;
+    case k_a: asm_make_uop0(p_uop, k_opcode_flags_nz_a); p_uop++; break;
+    case k_x: asm_make_uop0(p_uop, k_opcode_flags_nz_x); p_uop++; break;
+    case k_y: asm_make_uop0(p_uop, k_opcode_flags_nz_y); p_uop++; break;
     default:
       if (opmode == k_acc) {
         asm_make_uop0(p_uop, k_opcode_flags_nz_a);
