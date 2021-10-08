@@ -1950,8 +1950,37 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x5A);
   emit_JMP(p_buf, k_abs, 0xDC00);
 
-  /* End of test. */
+  /* Test optimization of flag elimination across PHP. */
   set_new_index(p_buf, 0x1C00);
+  emit_CLI(p_buf);
+  emit_CLC(p_buf);
+  emit_CLD(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JMP(p_buf, k_abs, 0xDC08);
+  set_new_index(p_buf, 0x1C08);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_PHP(p_buf);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_PLA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0xB0);
+  emit_JMP(p_buf, k_abs, 0xDC40);
+
+  /* Test optimization of flag elimination across conditional branch. */
+  set_new_index(p_buf, 0x1C40);
+  emit_CLI(p_buf);
+  emit_CLC(p_buf);
+  emit_CLD(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JMP(p_buf, k_abs, 0xDC48);
+  set_new_index(p_buf, 0x1C48);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_BCC(p_buf, 2);
+  emit_LDX(p_buf, k_imm, 0x00);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xDC80);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1C80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

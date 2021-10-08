@@ -14,9 +14,12 @@ struct jit_opcode_details {
   int32_t addr_6502;
   uint8_t opcode_6502;
   uint16_t operand_6502;
+  uint8_t optype_6502;
+  uint8_t opmode_6502;
+  uint8_t opreg_6502;
+  uint8_t opbranch_6502;
   uint8_t num_bytes_6502;
   uint8_t max_cycles;
-  int branches;
   uint16_t branch_addr_6502;
   int32_t min_6502_addr;
   int32_t max_6502_addr;
@@ -37,9 +40,9 @@ struct jit_opcode_details {
   int32_t reg_y;
   int32_t flag_carry;
   int32_t flag_decimal;
-  uint8_t num_fixup_uops;
-  struct asm_uop* fixup_uops[k_max_uops_per_opcode];
+  int32_t nz_flags_location;
   int self_modify_invalidated;
+  int is_eliminated;
   int is_dynamic_opcode;
   int is_dynamic_operand;
   int is_branch_landing_addr;

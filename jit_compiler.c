@@ -77,8 +77,7 @@ struct jit_compiler {
   uint8_t addr_is_block_continuation[k_6502_addr_space_size];
 
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
-  uint8_t addr_nz_fixup[k_6502_addr_space_size];
-  int32_t addr_nz_mem_fixup[k_6502_addr_space_size];
+  int32_t addr_nz_fixup[k_6502_addr_space_size];
   uint8_t addr_o_fixup[k_6502_addr_space_size];
   uint8_t addr_c_fixup[k_6502_addr_space_size];
   int32_t addr_a_fixup[k_6502_addr_space_size];
@@ -304,6 +303,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   uint8_t optype;
   uint8_t opmode;
   uint8_t opmem;
+  uint8_t opreg;
 
   struct memory_access* p_memory_access = p_compiler->p_memory_access;
   uint8_t* p_mem_read = p_compiler->p_mem_read;
@@ -327,19 +327,28 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   optype = p_compiler->p_opcode_types[opcode_6502];
   opmode = p_compiler->p_opcode_modes[opcode_6502];
   opmem = p_compiler->p_opcode_mem[opcode_6502];
+  opreg = g_optype_sets_register[optype];
+  if (opmode == k_acc) {
+    opreg = k_a;
+  }
 
   p_details->opcode_6502 = opcode_6502;
+  p_details->optype_6502 = optype;
+  p_details->opmode_6502 = opmode;
+  p_details->opreg_6502 = opreg;
+  p_details->opbranch_6502 = g_opbranch[optype];
   p_details->num_bytes_6502 = g_opmodelens[opmode];
-  p_details->branches = g_opbranch[optype];
   p_details->ends_block = 0;
-  if (p_details->branches == k_bra_y) {
+  if (p_details->opbranch_6502 == k_bra_y) {
     p_details->ends_block = 1;
   }
 
-  p_details->num_fixup_uops = 0;
   p_details->p_host_address_prefix_end = NULL;
   p_details->p_host_address_start = NULL;
   p_details->cycles_run_start = -1;
+
+  p_details->is_eliminated = 0;
+  p_details->nz_flags_location = 0;
 
   if (p_compiler->debug) {
     asm_make_uop1(p_uop, k_opcode_debug, addr_6502);
@@ -1078,7 +1087,7 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
 
     is_next_post_branch_addr = 0;
     /* Tag branch and jump targets. */
-    if ((p_details->branches == k_bra_m) || (opcode_6502 == 0x4C)) {
+    if ((p_details->opbranch_6502 == k_bra_m) || (opcode_6502 == 0x4C)) {
       struct jit_opcode_details* p_target_details;
       int32_t branch_addr_6502 = p_details->branch_addr_6502;
       assert(branch_addr_6502 != -1);
@@ -1094,14 +1103,14 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
         }
       }
     }
-    if (p_details->branches == k_bra_m) {
+    if (p_details->opbranch_6502 == k_bra_m) {
       is_next_post_branch_addr = 1;
     }
 
     /* Exit loop condition: this opcode ends the block, e.g. RTS, JMP etc. */
     if (p_details->ends_block) {
       uint8_t opcode_6502 = p_details->opcode_6502;
-      assert(p_details->branches != k_bra_m);
+      assert(p_details->opbranch_6502 != k_bra_m);
       /* Let compilation continue if this is a JMP or RTS and the next opcode
        * is referenced previously in the block.
        * (Disabled as it's part of extended block support.)
@@ -1551,7 +1560,6 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       }
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
-      p_compiler->addr_nz_mem_fixup[addr_6502] = -1;
       p_compiler->addr_o_fixup[addr_6502] = 0;
       p_compiler->addr_c_fixup[addr_6502] = 0;
       p_compiler->addr_a_fixup[addr_6502] = -1;
@@ -1567,7 +1575,6 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       } else if (!is_new_jit_ptr) {
         /* No metadata here. */
       } else {
-        uint32_t i_uops;
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
           p_compiler->p_jit_ptrs[addr_6502] =
@@ -1580,50 +1587,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
                                  ticks);
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
-        for (i_uops = 0; i_uops < p_details->num_fixup_uops; ++i_uops) {
-          struct asm_uop* p_uop = p_details->fixup_uops[i_uops];
-          switch (p_uop->uopcode) {
-          case k_opcode_flags_nz_a:
-            p_compiler->addr_nz_fixup[addr_6502] = k_a;
-            break;
-          case k_opcode_flags_nz_x:
-            p_compiler->addr_nz_fixup[addr_6502] = k_x;
-            break;
-          case k_opcode_flags_nz_y:
-            p_compiler->addr_nz_fixup[addr_6502] = k_y;
-            break;
-          case k_opcode_flags_nz_value:
-            p_compiler->addr_nz_mem_fixup[addr_6502] = (uint16_t) p_uop->value1;
-            break;
-          case 0xA9: /* LDA imm */
-            p_compiler->addr_a_fixup[addr_6502] = (uint8_t) p_uop->value1;
-            break;
-          case 0xA2: /* LDX imm */
-            p_compiler->addr_x_fixup[addr_6502] = (uint8_t) p_uop->value1;
-            break;
-          case 0xA0: /* LDY imm */
-            p_compiler->addr_y_fixup[addr_6502] = (uint8_t) p_uop->value1;
-            break;
-          case k_opcode_save_overflow:
-            p_compiler->addr_o_fixup[addr_6502] = 1;
-            break;
-          case k_opcode_save_carry:
-            p_compiler->addr_c_fixup[addr_6502] = 1;
-            break;
-          //case k_opcode_SAVE_CARRY_INV:
-          //  p_compiler->addr_c_fixup[addr_6502] = 2;
-          //  break;
-          case 0x18: /* CLC */
-            p_compiler->addr_c_fixup[addr_6502] = 3;
-            break;
-          case 0x38: /* SEC */
-            p_compiler->addr_c_fixup[addr_6502] = 4;
-            break;
-          default:
-            assert(0);
-            break;
-          }
-        }
+        p_compiler->addr_nz_fixup[addr_6502] = p_details->nz_flags_location;
       }
 
       addr_6502++;
@@ -1667,13 +1631,13 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
    * The only way to clear it is compile across the continuation boundary.
    */
 
-  /* First break all the opcodes for this run into uops.
+  /* 1) Break all the opcodes for this run into uops.
    * This defines maximum possible bounds for the block and respects existing
    * known block boundaries.
    */
   jit_compiler_find_compile_bounds(p_compiler);
 
-  /* Second, work out if we'll be compiling any dynamic opcodes / operands.
+  /* 2) Work out if we'll be compiling any dynamic opcodes / operands.
    * NOTE: may truncate p_compiler->total_num_opcodes.
    */
   jit_compiler_check_dynamics(p_compiler,
@@ -1696,28 +1660,32 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
-  /* Third, walk the opcode list; add countdown checks and calculate cycle
-   * counts.
+  /* 3) Walk the opcode list; add countdown checks and calculate cycle counts.
    */
   jit_compiler_setup_cycle_counts(p_compiler);
 
-  /* Fourth, run the optimizer across the list of opcodes. */
+  /* 4) Run the pre-rewrite optimizer across the list of opcodes. */
   if (!p_compiler->option_no_optimize) {
     struct jit_opcode_details* p_last_details =
-        jit_optimizer_optimize(&p_compiler->opcode_details[0]);
+        jit_optimizer_optimize_pre_rewrite(&p_compiler->opcode_details[0]);
     if (p_last_details != NULL) {
       jit_compiler_make_last_opcode(p_compiler, p_last_details);
     }
   }
 
-  /* Fifth, offer the asm backend the chance to rewrite. Most significantly,
+  /* 5) Offer the asm backend the chance to rewrite. Most significantly,
    * this is used as a coalesce pass. For example, the CISC-y x64 can take our
    * RISC-y uops and combine many of them. e.g. EOR abx can be done in one
    * x64 instruction.
    */
   jit_compiler_asm_rewrite(p_compiler);
 
-  /* Sixth, emit the uop stream to the output buffer. */
+  /* 6) Run the post-rewrite optimizer across the list of opcodes. */
+  if (!p_compiler->option_no_optimize) {
+    jit_optimizer_optimize_post_rewrite(&p_compiler->opcode_details[0]);
+  }
+
+  /* 7) Emit the uop stream to the output buffer. */
   p_compiler->has_unresolved_jumps = 0;
   jit_compiler_emit_uops(p_compiler);
   if (p_compiler->has_unresolved_jumps) {
@@ -1729,7 +1697,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
     assert(!p_compiler->has_unresolved_jumps);
   }
 
-  /* Seventh, update compiler metadata. */
+  /* 8) Update compiler metadata. */
   jit_compiler_update_metadata(p_compiler);
 
   if (sub_instruction_addr_6502 != -1) {
@@ -1750,11 +1718,10 @@ int64_t
 jit_compiler_fixup_state(struct jit_compiler* p_compiler,
                          struct state_6502* p_state_6502,
                          int64_t countdown,
-                         uint64_t host_rflags) {
+                         uint64_t host_flags) {
   uint16_t pc_6502 = p_state_6502->reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
-  uint8_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
-  int32_t nz_mem_fixup = p_compiler->addr_nz_mem_fixup[pc_6502];
+  int32_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
   uint8_t o_fixup = p_compiler->addr_o_fixup[pc_6502];
   uint8_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
   int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
@@ -1776,23 +1743,21 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   if (y_fixup != -1) {
     state_6502_set_y(p_state_6502, y_fixup);
   }
-  if ((nz_fixup != 0) || (nz_mem_fixup != -1)) {
+  if (nz_fixup != 0) {
     uint8_t nz_val = 0;
     uint8_t flag_n;
     uint8_t flag_z;
     uint8_t flags_new;
     switch (nz_fixup) {
     case 0:
-      assert(nz_mem_fixup != -1);
-      nz_val = p_compiler->p_mem_read[nz_mem_fixup];
       break;
-    case k_a:
+    case k_opcode_flags_nz_a:
       nz_val = p_state_6502->reg_a;
       break;
-    case k_x:
+    case k_opcode_flags_nz_x:
       nz_val = p_state_6502->reg_x;
       break;
-    case k_y:
+    case k_opcode_flags_nz_y:
       nz_val = p_state_6502->reg_y;
       break;
     default:
@@ -1809,16 +1774,16 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags |= flags_new;
   }
   if (o_fixup) {
-    int host_overflow_flag = !!(host_rflags & 0x0800);
+    int host_overflow_flag = !!(host_flags & 0x0800);
     p_state_6502->reg_flags &= ~(1 << k_flag_overflow);
     p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
   }
   if (c_fixup) {
     int new_carry;
     if (c_fixup == 1) {
-      new_carry = !!(host_rflags & 0x0001);
+      new_carry = !!(host_flags & 0x0001);
     } else if (c_fixup == 2) {
-      new_carry = !(host_rflags & 0x0001);
+      new_carry = !(host_flags & 0x0001);
     } else if (c_fixup == 3) {
       new_carry = 0;
     } else {
@@ -1857,7 +1822,6 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
     p_compiler->addr_cycles_fixup[i] = -1;
     p_compiler->addr_nz_fixup[i] = 0;
-    p_compiler->addr_nz_mem_fixup[i] = -1;
     p_compiler->addr_o_fixup[i] = 0;
     p_compiler->addr_c_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;

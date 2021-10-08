@@ -79,6 +79,8 @@ jit_opcode_eliminate(struct jit_opcode_details* p_opcode) {
   uint32_t i;
   uint32_t num_uops = p_opcode->num_uops;
 
+  p_opcode->is_eliminated = 1;
+
   for (i = 0; i < num_uops; ++i) {
     struct asm_uop* p_uop;
     if (i == 0) {

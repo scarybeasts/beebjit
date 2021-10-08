@@ -19,13 +19,12 @@ jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
-    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
-    if (opmode != k_acc) {
+    uint8_t optype;
+    if (p_opcode->opmode_6502 != k_acc) {
       p_prev_opcode = NULL;
       continue;
     }
+    optype = p_opcode->optype_6502;
     switch (optype) {
     case k_asl: uopcode = k_opcode_ASL_acc; break;
     case k_lsr: uopcode = k_opcode_LSR_acc; break;
@@ -62,17 +61,11 @@ jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
     uint16_t operand_6502 = p_opcode->operand_6502;
-    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
-    uint8_t opreg = g_optype_sets_register[optype];
-    uint8_t opmode = defs_6502_get_6502_opmode_map()[opcode_6502];
+    uint8_t optype = p_opcode->optype_6502;
+    uint8_t opreg = p_opcode->opreg_6502;
+    uint8_t opmode = p_opcode->opmode_6502;
     int changes_carry = g_optype_changes_carry[optype];
-
-    /* TODO: seems hacky, should g_optype_sets_register just be per-opcode? */
-    if (opmode == k_acc) {
-      opreg = k_a;
-    }
 
     p_opcode->reg_a = reg_a;
     p_opcode->reg_x = reg_x;
@@ -176,15 +169,13 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
+    int32_t index;
+    struct asm_uop* p_uop;
     int32_t load_uopcode_old = -1;
     int32_t load_uopcode_new = -1;
     uint8_t load_uopcode_value = 0;
-    int32_t index;
-    uint8_t opcode_6502 = p_opcode->opcode_6502;
-    uint8_t optype = defs_6502_get_6502_optype_map()[opcode_6502];
-    struct asm_uop* p_uop;
 
-    switch (optype) {
+    switch (p_opcode->optype_6502) {
     case k_adc:
       if (p_opcode->flag_carry != 0) {
         break;
@@ -279,8 +270,69 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
   }
 }
 
+static void
+jit_optimizer_eliminate_flag_setting(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_nz_flags_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t num_uops = p_opcode->num_uops;
+    uint32_t i_uops;
+    int is_eliminated;
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    if (p_nz_flags_uop != NULL) {
+      p_opcode->nz_flags_location = p_nz_flags_uop->uopcode;
+    }
+
+    /* PHP needs the NZ flags. */
+    if (p_opcode->optype_6502 == k_php) {
+      p_nz_flags_uop = NULL;
+    }
+    /* Any jump, including conditional, must commit flags. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_nz_flags_uop = NULL;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      int32_t nz_flags_uopcode = 0;
+      switch (p_uop->uopcode) {
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+      case k_opcode_flags_nz_y:
+      case k_opcode_flags_nz_value:
+        nz_flags_uopcode = p_uop->uopcode;
+        break;
+      default:
+        break;
+      }
+      if (nz_flags_uopcode == 0) {
+        continue;
+      }
+      is_eliminated = p_uop->is_eliminated;
+      (void) is_eliminated;
+      /* Eliminate the previous flag set, if appropriate. */
+      if (p_nz_flags_uop != NULL) {
+        p_nz_flags_uop->is_eliminated = 1;
+      }
+      /* Don't eliminate flags from the value register for now. */
+      if (nz_flags_uopcode == k_opcode_flags_nz_value) {
+        p_nz_flags_uop = NULL;
+      } else {
+        p_nz_flags_uop = p_uop;
+      }
+    }
+  }
+}
+
 struct jit_opcode_details*
-jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
+jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
   jit_optimizer_merge_opcodes(p_opcodes);
 
@@ -295,4 +347,10 @@ jit_optimizer_optimize(struct jit_opcode_details* p_opcodes) {
   jit_optimizer_replace_uops(p_opcodes);
 
   return NULL;
+}
+
+void
+jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
+  /* Pass 1: flag setting elimination. */
+  jit_optimizer_eliminate_flag_setting(p_opcodes);
 }

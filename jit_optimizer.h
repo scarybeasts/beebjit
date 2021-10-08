@@ -6,6 +6,8 @@
 struct jit_opcode_details;
 
 struct jit_opcode_details*
-jit_optimizer_optimize(struct jit_opcode_details* p_opcodes);
+jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes);
+
+void jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes);
 
 #endif /* BEEJIT_JIT_OPTIMIZER_H */
