@@ -334,6 +334,7 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
 static void
 jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_save_carry_uop = NULL;
   struct asm_uop* p_save_overflow_uop = NULL;
 
   for (p_opcode = p_opcodes;
@@ -346,18 +347,35 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       continue;
     }
 
+    if (p_save_carry_uop != NULL) {
+      p_opcode->c_flag_location = p_save_carry_uop->uopcode;
+    }
     if (p_save_overflow_uop != NULL) {
       p_opcode->v_flag_location = p_save_overflow_uop->uopcode;
     }
 
     /* Any jump, including conditional, must commit flags. */
     if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_save_carry_uop = NULL;
       p_save_overflow_uop = NULL;
     }
 
     for (i_uops = 0; i_uops < num_uops; ++i_uops) {
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
+      case k_opcode_load_carry:
+        if ((p_save_carry_uop != NULL) &&
+            (p_save_carry_uop->uopcode == k_opcode_save_carry)) {
+          p_save_carry_uop->is_eliminated = 1;
+          p_uop->is_eliminated = 1;
+        }
+        p_save_carry_uop = NULL;
+        break;
+      case k_opcode_save_carry:
+      case k_opcode_CLC:
+      case k_opcode_SEC:
+        p_save_carry_uop = p_uop;
+        break;
       case k_opcode_load_overflow:
         p_save_overflow_uop = NULL;
         break;
@@ -376,6 +394,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
          * preserve the host carry / overflow flags across a "test" instruction.
          */
         if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_save_carry_uop = NULL;
           p_save_overflow_uop = NULL;
         }
         break;

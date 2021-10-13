@@ -1744,16 +1744,21 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
   }
   if (c_fixup) {
-    int new_carry;
-    if (c_fixup == 1) {
-      new_carry = !!(host_flags & 0x0001);
-    } else if (c_fixup == 2) {
-      new_carry = !(host_flags & 0x0001);
-    } else if (c_fixup == 3) {
+    int new_carry = 0;
+    switch (c_fixup) {
+    case k_opcode_CLC:
       new_carry = 0;
-    } else {
-      assert(c_fixup == 4);
+      break;
+    case k_opcode_SEC:
       new_carry = 1;
+      break;
+    case k_opcode_save_carry:
+      assert(0);
+      new_carry = !!(host_flags & 0x0001);
+      break;
+    default:
+      assert(0);
+      break;
     }
     p_state_6502->reg_flags &= ~(1 << k_flag_carry);
     p_state_6502->reg_flags |= (new_carry << k_flag_carry);
