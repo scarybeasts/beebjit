@@ -271,7 +271,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 }
 
 static void
-jit_optimizer_eliminate_flag_setting(struct jit_opcode_details* p_opcodes) {
+jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
   struct asm_uop* p_nz_flags_uop = NULL;
 
@@ -331,6 +331,61 @@ jit_optimizer_eliminate_flag_setting(struct jit_opcode_details* p_opcodes) {
   }
 }
 
+static void
+jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_save_overflow_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t num_uops = p_opcode->num_uops;
+    uint32_t i_uops;
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    if (p_save_overflow_uop != NULL) {
+      p_opcode->v_flag_location = p_save_overflow_uop->uopcode;
+    }
+
+    /* Any jump, including conditional, must commit flags. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_save_overflow_uop = NULL;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_load_overflow:
+        p_save_overflow_uop = NULL;
+        break;
+      case k_opcode_save_overflow:
+        if (p_save_overflow_uop != NULL) {
+          p_save_overflow_uop->is_eliminated = 1;
+        }
+        p_save_overflow_uop = p_uop;
+        break;
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+      case k_opcode_flags_nz_y:
+      case k_opcode_flags_nz_value:
+        /* This might be best abstracted into the asm backends somehow, but for
+         * now, let's observe that both the x64 and ARM64 backends cannot
+         * preserve the host carry / overflow flags across a "test" instruction.
+         */
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_save_overflow_uop = NULL;
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+}
+
 struct jit_opcode_details*
 jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
@@ -351,6 +406,9 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
 
 void
 jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
-  /* Pass 1: flag setting elimination. */
-  jit_optimizer_eliminate_flag_setting(p_opcodes);
+  /* Pass 1: NZ flag saving elimination. */
+  jit_optimizer_eliminate_nz_flag_saving(p_opcodes);
+
+  /* Pass 2: carry and overflow flag saving elimination. */
+  jit_optimizer_eliminate_c_v_flag_saving(p_opcodes);
 }

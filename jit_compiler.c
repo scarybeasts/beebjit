@@ -78,8 +78,8 @@ struct jit_compiler {
 
   int32_t addr_cycles_fixup[k_6502_addr_space_size];
   int32_t addr_nz_fixup[k_6502_addr_space_size];
-  uint8_t addr_o_fixup[k_6502_addr_space_size];
-  uint8_t addr_c_fixup[k_6502_addr_space_size];
+  int32_t addr_v_fixup[k_6502_addr_space_size];
+  int32_t addr_c_fixup[k_6502_addr_space_size];
   int32_t addr_a_fixup[k_6502_addr_space_size];
   int32_t addr_x_fixup[k_6502_addr_space_size];
   int32_t addr_y_fixup[k_6502_addr_space_size];
@@ -349,6 +349,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->is_eliminated = 0;
   p_details->nz_flags_location = 0;
+  p_details->c_flag_location = 0;
+  p_details->v_flag_location = 0;
 
   if (p_compiler->debug) {
     asm_make_uop1(p_uop, k_opcode_debug, addr_6502);
@@ -360,16 +362,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     asm_make_uop1(p_uop, k_opcode_check_bcd, addr_6502);
     p_uop++;
   }
-  if ((optype == k_adc) ||
-      (optype == k_sbc) ||
-      (optype == k_rol) ||
-      (optype == k_ror) ||
-      (optype == k_bcc) ||
-      (optype == k_bcs)) {
+  if (g_optype_uses_carry[optype]) {
     asm_make_uop0(p_uop, k_opcode_load_carry);
     p_uop++;
   }
-  if ((optype == k_bvc) || (optype == k_bvs)) {
+  if (g_optype_uses_overflow[optype]) {
     asm_make_uop0(p_uop, k_opcode_load_overflow);
     p_uop++;
   }
@@ -1525,7 +1522,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       }
 
       p_compiler->addr_nz_fixup[addr_6502] = 0;
-      p_compiler->addr_o_fixup[addr_6502] = 0;
+      p_compiler->addr_v_fixup[addr_6502] = 0;
       p_compiler->addr_c_fixup[addr_6502] = 0;
       p_compiler->addr_a_fixup[addr_6502] = -1;
       p_compiler->addr_x_fixup[addr_6502] = -1;
@@ -1553,6 +1550,8 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
         p_compiler->addr_nz_fixup[addr_6502] = p_details->nz_flags_location;
+        p_compiler->addr_c_fixup[addr_6502] = p_details->c_flag_location;
+        p_compiler->addr_v_fixup[addr_6502] = p_details->v_flag_location;
       }
 
       addr_6502++;
@@ -1687,8 +1686,8 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   uint16_t pc_6502 = p_state_6502->reg_pc;
   int32_t cycles_fixup = p_compiler->addr_cycles_fixup[pc_6502];
   int32_t nz_fixup = p_compiler->addr_nz_fixup[pc_6502];
-  uint8_t o_fixup = p_compiler->addr_o_fixup[pc_6502];
-  uint8_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
+  int32_t v_fixup = p_compiler->addr_v_fixup[pc_6502];
+  int32_t c_fixup = p_compiler->addr_c_fixup[pc_6502];
   int32_t a_fixup = p_compiler->addr_a_fixup[pc_6502];
   int32_t x_fixup = p_compiler->addr_x_fixup[pc_6502];
   int32_t y_fixup = p_compiler->addr_y_fixup[pc_6502];
@@ -1738,8 +1737,9 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags &= ~((1 << k_flag_negative) | (1 << k_flag_zero));
     p_state_6502->reg_flags |= flags_new;
   }
-  if (o_fixup) {
+  if (v_fixup) {
     int host_overflow_flag = !!(host_flags & 0x0800);
+    assert(v_fixup == k_opcode_save_overflow);
     p_state_6502->reg_flags &= ~(1 << k_flag_overflow);
     p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
   }
@@ -1787,7 +1787,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
 
     p_compiler->addr_cycles_fixup[i] = -1;
     p_compiler->addr_nz_fixup[i] = 0;
-    p_compiler->addr_o_fixup[i] = 0;
+    p_compiler->addr_v_fixup[i] = 0;
     p_compiler->addr_c_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;
     p_compiler->addr_x_fixup[i] = -1;

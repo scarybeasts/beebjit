@@ -41,6 +41,8 @@ struct jit_opcode_details {
   int32_t flag_carry;
   int32_t flag_decimal;
   int32_t nz_flags_location;
+  int32_t c_flag_location;
+  int32_t v_flag_location;
   int self_modify_invalidated;
   int is_eliminated;
   int is_dynamic_opcode;

@@ -1979,8 +1979,18 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_NF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xDC80);
 
-  /* End of test. */
+  /* Test recovery of eliminated C / V flags in another corner case. */
   set_new_index(p_buf, 0x1C80);
+  emit_JSR(p_buf, 0x31E0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x31EB);
+  emit_JSR(p_buf, 0x31E0);
+  emit_REQUIRE_CF(p_buf, 1);
+  emit_REQUIRE_OF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xDCC0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1CC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
@@ -2173,6 +2183,17 @@ main(int argc, const char* argv[]) {
   emit_INX(p_buf);
   emit_INX(p_buf);
   emit_INX(p_buf);
+  emit_RTS(p_buf);
+
+  /* For testing a corner case C / V flag recovery on recompile. */
+  set_new_index(p_buf, 0x31E0);
+  emit_LDA(p_buf, k_imm, 0x81);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_zpg, 0xF1);   /* Sets C and V. */
+  emit_ORA(p_buf, k_imm, 0x08);   /* Intel can't recover C / V across or. */
+  emit_ADC(p_buf, k_imm, 0x01);   /* Sets C and V again. */
   emit_RTS(p_buf);
 
   /* Need this byte here for a specific test. */

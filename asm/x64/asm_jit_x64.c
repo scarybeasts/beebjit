@@ -1070,6 +1070,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_store_uop;
   struct asm_uop* p_load_carry_uop;
   struct asm_uop* p_save_carry_uop;
+  struct asm_uop* p_load_overflow_uop;
   struct asm_uop* p_nz_flags_uop;
   struct asm_uop* p_inv_uop;
   struct asm_uop* p_addr_check_uop;
@@ -1093,6 +1094,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_store_uop,
                           &p_load_carry_uop,
                           &p_save_carry_uop,
+                          &p_load_overflow_uop,
                           &p_nz_flags_uop,
                           &p_inv_uop,
                           &p_addr_check_uop,
@@ -1106,6 +1108,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
    */
   if (p_load_carry_uop != NULL) {
     switch (p_main_uop->uopcode) {
+    case k_opcode_PHP:
+      p_load_carry_uop->is_eliminated = 1;
+      break;
     case k_opcode_BCC:
     case k_opcode_BCS:
       p_load_carry_uop->uopcode = k_opcode_x64_load_carry_for_branch;
@@ -1126,6 +1131,15 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_CPX:
     case k_opcode_CPY:
       p_save_carry_uop->uopcode = k_opcode_x64_save_carry_inv;
+      break;
+    default:
+      break;
+    }
+  }
+  if (p_load_overflow_uop != NULL) {
+    switch (p_main_uop->uopcode) {
+    case k_opcode_PHP:
+      p_load_overflow_uop->is_eliminated = 1;
       break;
     default:
       break;
@@ -1154,7 +1168,11 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   case k_opcode_SBC:
   case k_opcode_SLO:
   case k_opcode_SUB:
+    /* The dedicated flag setting is eliminated, but the effect still occurs in
+     * the x64 instruction.
+     */
     assert(p_nz_flags_uop != NULL);
+    p_nz_flags_uop->is_merged = 1;
     p_nz_flags_uop->is_eliminated = 1;
   default:
     break;

@@ -12,6 +12,7 @@ asm_make_uop0(struct asm_uop* p_uop, int32_t uopcode) {
   p_uop->value1 = 0;
   p_uop->value2 = 0;
   p_uop->is_eliminated = 0;
+  p_uop->is_merged = 0;
 }
 
 void
@@ -20,6 +21,7 @@ asm_make_uop1(struct asm_uop* p_uop, int32_t uopcode, int32_t value1) {
   p_uop->value1 = value1;
   p_uop->value2 = 0;
   p_uop->is_eliminated = 0;
+  p_uop->is_merged = 0;
 }
 
 struct asm_uop*
@@ -62,6 +64,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
                         struct asm_uop** p_out_store,
                         struct asm_uop** p_out_load_carry,
                         struct asm_uop** p_out_save_carry,
+                        struct asm_uop** p_out_load_overflow,
                         struct asm_uop** p_out_nz_flags,
                         struct asm_uop** p_out_inv,
                         struct asm_uop** p_out_addr_check,
@@ -74,6 +77,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
   *p_out_store = NULL;
   *p_out_load_carry = NULL;
   *p_out_save_carry = NULL;
+  *p_out_load_overflow = NULL;
   *p_out_nz_flags = NULL;
   *p_out_inv = NULL;
   *p_out_addr_check = NULL;
@@ -122,6 +126,11 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
       assert(i != 0);
       assert(*p_out_save_carry == NULL);
       *p_out_save_carry = p_uop;
+      break;
+    case k_opcode_load_overflow:
+      assert((i + 1) < num_uops);
+      assert(*p_out_load_overflow == NULL);
+      *p_out_load_overflow = p_uop;
       break;
     case k_opcode_flags_nz_a:
     case k_opcode_flags_nz_x:

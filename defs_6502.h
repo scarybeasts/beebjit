@@ -21,6 +21,7 @@ extern const char* g_p_opnames[k_6502_op_num_types];
 extern uint8_t g_opmodelens[k_6502_op_num_modes];
 extern uint8_t g_opbranch[k_6502_op_num_types];
 extern uint8_t g_optype_uses_carry[k_6502_op_num_types];
+extern uint8_t g_optype_uses_overflow[k_6502_op_num_types];
 extern uint8_t g_optype_changes_nz_flags[k_6502_op_num_types];
 extern uint8_t g_optype_changes_carry[k_6502_op_num_types];
 extern uint8_t g_optype_changes_overflow[k_6502_op_num_types];
