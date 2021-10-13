@@ -150,7 +150,7 @@ jit_test_details_from_host_ip(void) {
 }
 
 static void
-jit_test_block_split() {
+jit_test_block_split(void) {
   struct util_buffer* p_buf = util_buffer_create();
 
   jit_test_expect_block_invalidated(1, 0xB00);
@@ -185,7 +185,7 @@ jit_test_block_split() {
 }
 
 static void
-jit_test_block_continuation() {
+jit_test_block_continuation(void) {
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xC00), 0x100);
@@ -218,7 +218,7 @@ jit_test_block_continuation() {
 }
 
 static void
-jit_test_invalidation() {
+jit_test_invalidation(void) {
   struct util_buffer* p_buf = util_buffer_create();
 
   util_buffer_setup(p_buf, (s_p_mem + 0xD00), 0x100);
@@ -292,7 +292,7 @@ jit_test_invalidation() {
 }
 
 static void
-jit_test_dynamic_operand() {
+jit_test_dynamic_operand(void) {
   struct util_buffer* p_buf = util_buffer_create();
 
   state_6502_set_x(s_p_state_6502, 0);
@@ -426,7 +426,7 @@ jit_test_dynamic_operand() {
 }
 
 static void
-jit_test_dynamic_operand_2() {
+jit_test_dynamic_operand_2(void) {
   /* Test dynamic operand handling that needs history to work in order to create
    * dynamic operands.
    */
@@ -480,7 +480,7 @@ jit_test_dynamic_operand_2() {
 }
 
 static void
-jit_test_dynamic_opcode() {
+jit_test_dynamic_opcode(void) {
   uint64_t num_compiles;
   uint64_t ticks;
   struct util_buffer* p_buf = util_buffer_create();
@@ -627,7 +627,7 @@ jit_test_dynamic_opcode() {
 }
 
 static void
-jit_test_dynamic_opcode_2() {
+jit_test_dynamic_opcode_2(void) {
   struct util_buffer* p_buf = util_buffer_create();
 
   /* Trigger what looks like a dynamic operand, but on an opcode for which
@@ -654,7 +654,7 @@ jit_test_dynamic_opcode_2() {
 }
 
 static void
-jit_test_dynamic_opcode_3() {
+jit_test_dynamic_opcode_3(void) {
   uint64_t ticks;
   struct util_buffer* p_buf = util_buffer_create();
 
@@ -704,7 +704,7 @@ jit_test_dynamic_opcode_3() {
 }
 
 static void
-jit_test_sub_instruction() {
+jit_test_sub_instruction(void) {
   uint64_t num_compiles;
   struct util_buffer* p_buf = util_buffer_create();
 
@@ -739,7 +739,7 @@ jit_test_sub_instruction() {
 }
 
 static void
-jit_test_compile_metadata() {
+jit_test_compile_metadata(void) {
   /* Test metadata correctness, especially in the presence of optimizations. */
   struct util_buffer* p_buf;
   int32_t cycles;
@@ -836,6 +836,41 @@ jit_test_compile_metadata() {
   util_buffer_destroy(p_buf);
 }
 
+static void
+jit_test_compile_binary(void) {
+  /* Direct tests on the output binary code.
+   * These tests are fragile, but it's worth a few of them to ensure that
+   * certain expected optimizations are present in the output. Without these
+   * tests, an optimization could fail without us ever noticing.
+   */
+  struct util_buffer* p_buf;
+  void* p_binary;
+  void* p_expect = NULL;
+  size_t expect_len = 0;
+
+  /* Check NZ flag elimination. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3000), 0x100);
+  emit_LDA(p_buf, k_zpg, 0x41);
+  emit_ORA(p_buf, k_imm, 0x07);
+  emit_LDX(p_buf, k_zpg, 0x41);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3000);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3000);
+#if defined(__x86_64__)
+  /* movzx eax, BYTE PTR [rbp-0x3f]
+   * or    al,  0x07
+   * mov   bl,  BYTE PTR [rbp-0x3f]
+   */
+  p_expect = "\x0f\xb6\x45\xc1" "\x0c\x07" "\x8a\x5d\xc1";
+  expect_len = 9;
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
+}
+
 void
 jit_test(struct bbc_struct* p_bbc) {
   jit_test_init(p_bbc);
@@ -872,6 +907,7 @@ jit_test(struct bbc_struct* p_bbc) {
 
   jit_compiler_testing_set_max_ops(s_p_compiler, 1024);
   jit_compiler_testing_set_optimizing(s_p_compiler, 1);
+  jit_test_compile_binary();
   jit_test_compile_metadata();
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
   jit_compiler_testing_set_optimizing(s_p_compiler, 0);
