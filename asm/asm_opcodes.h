@@ -9,6 +9,7 @@ struct asm_uop {
   int32_t value2;
   int is_eliminated;
   int is_merged;
+  int32_t backend_tag;
 };
 
 enum {
@@ -24,8 +25,10 @@ enum {
   k_opcode_interp,
   k_opcode_inturbo,
   k_opcode_load_carry,
+  k_opcode_load_carry_inverted,
   k_opcode_load_overflow,
   k_opcode_save_carry,
+  k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
 
   /* Addressing and value opcodes, 0x200 - 0x2FF. */

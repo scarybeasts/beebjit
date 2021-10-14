@@ -35,9 +35,6 @@ enum {
   k_opcode_x64_check_page_crossing_ABY,
   k_opcode_x64_check_page_crossing_IDY,
   k_opcode_x64_load_ABS,
-  k_opcode_x64_load_carry_for_branch,
-  k_opcode_x64_load_carry_for_calc,
-  k_opcode_x64_load_carry_inv_for_calc,
   k_opcode_x64_load_ZPG,
   k_opcode_x64_mode_ABX_and_load,
   k_opcode_x64_mode_ABX_store,
@@ -46,7 +43,6 @@ enum {
   k_opcode_x64_mode_IND_nowrap,
   k_opcode_x64_mode_ZPX,
   k_opcode_x64_mode_ZPY,
-  k_opcode_x64_save_carry_inv,
   k_opcode_x64_store_ABS,
   k_opcode_x64_store_ZPG,
   k_opcode_x64_write_inv_ABS,
@@ -1108,18 +1104,29 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
    */
   if (p_load_carry_uop != NULL) {
     switch (p_main_uop->uopcode) {
-    case k_opcode_PHP:
-      p_load_carry_uop->is_eliminated = 1;
+    case k_opcode_ADC:
+    case k_opcode_ROL_acc:
+    case k_opcode_ROL_value:
+    case k_opcode_ROR_acc:
+    case k_opcode_ROR_value:
+      /* The load carry can trash the saved carry and be faster. */
+      p_load_carry_uop->backend_tag = 1;
+      break;
+    case k_opcode_ADD:
+    case k_opcode_SUB:
+      assert(p_load_carry_uop->is_eliminated);
       break;
     case k_opcode_BCC:
     case k_opcode_BCS:
-      p_load_carry_uop->uopcode = k_opcode_x64_load_carry_for_branch;
+      break;
+    case k_opcode_PHP:
+      p_load_carry_uop->is_eliminated = 1;
       break;
     case k_opcode_SBC:
-      p_load_carry_uop->uopcode = k_opcode_x64_load_carry_inv_for_calc;
+      p_load_carry_uop->uopcode = k_opcode_load_carry_inverted;
       break;
     default:
-      p_load_carry_uop->uopcode = k_opcode_x64_load_carry_for_calc;
+      assert(0);
       break;
     }
   }
@@ -1130,7 +1137,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_CMP:
     case k_opcode_CPX:
     case k_opcode_CPY:
-      p_save_carry_uop->uopcode = k_opcode_x64_save_carry_inv;
+      p_save_carry_uop->uopcode = k_opcode_save_carry_inverted;
       break;
     default:
       break;
@@ -1509,6 +1516,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LDA_Z: asm_emit_jit_LDA_Z(p_dest_buf); break;
   case k_opcode_LDX_Z: asm_emit_jit_LDX_Z(p_dest_buf); break;
   case k_opcode_LDY_Z: asm_emit_jit_LDY_Z(p_dest_buf); break;
+  case k_opcode_load_carry:
+    if (p_uop->backend_tag == 1) {
+      ASM(load_carry_for_calc);
+    } else {
+      ASM(load_carry_for_branch);
+    }
+    break;
+  case k_opcode_load_carry_inverted: ASM(load_carry_inv_for_calc); break;
   case k_opcode_load_overflow: ASM(load_overflow); break;
   case k_opcode_LOAD_SCRATCH_8:
     asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
@@ -1519,6 +1534,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
     break;
   case k_opcode_save_carry: ASM(save_carry); break;
+  case k_opcode_save_carry_inverted: ASM(save_carry_inv); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
   case k_opcode_SET_CARRY: ASM(SET_CARRY); break;
   case k_opcode_STOA_IMM:
@@ -1588,11 +1604,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_y);
     break;
   case k_opcode_x64_load_ABS: ASM_ADDR_U32(load_ABS); break;
-  case k_opcode_x64_load_carry_for_branch: ASM(load_carry_for_branch); break;
-  case k_opcode_x64_load_carry_for_calc: ASM(load_carry_for_calc); break;
-  case k_opcode_x64_load_carry_inv_for_calc:
-    ASM(load_carry_inv_for_calc);
-    break;
   case k_opcode_x64_load_ZPG: ASM_ADDR_U8(load_ZPG); break;
   case k_opcode_x64_mode_ABX_and_load:
     ASM_ADDR_U32_RAW(mode_abx_and_load);
@@ -1616,7 +1627,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
   case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;
-  case k_opcode_x64_save_carry_inv: ASM(save_carry_inv); break;
   case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;
   case k_opcode_x64_store_ZPG: ASM_ADDR_U32(store_ZPG); break;
   case k_opcode_x64_write_inv_ABS:

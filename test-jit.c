@@ -869,6 +869,27 @@ jit_test_compile_binary(void) {
   expect_len = 9;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check CLC/ADC -> ADD. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3100), 0x100);
+  emit_CLD(p_buf);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3100);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3100);
+#if defined(__x86_64__)
+  /* btr   r13d, 0x3
+   * add    al,  0x1
+   */
+  p_expect = "\x41\x0f\xba\xf5\x03" "\x04\x01";
+  expect_len = 2;
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

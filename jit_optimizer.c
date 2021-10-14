@@ -174,15 +174,20 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     int32_t load_uopcode_old = -1;
     int32_t load_uopcode_new = -1;
     uint8_t load_uopcode_value = 0;
+    int do_eliminate_check_bcd = 0;
+    int do_eliminate_load_carry = 0;
 
     switch (p_opcode->optype_6502) {
     case k_adc:
-      if (p_opcode->flag_carry != 0) {
-        break;
+      if (p_opcode->flag_decimal == 0) {
+        do_eliminate_check_bcd = 1;
       }
-      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_ADC);
-      assert(p_uop != NULL);
-      asm_make_uop0(p_uop, k_opcode_ADD);
+      if (p_opcode->flag_carry == 0) {
+        p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_ADC);
+        assert(p_uop != NULL);
+        asm_make_uop0(p_uop, k_opcode_ADD);
+        do_eliminate_load_carry = 1;
+      }
       break;
     case k_dex:
       if (p_opcode->reg_x == k_value_unknown) {
@@ -217,12 +222,15 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       load_uopcode_value = (p_opcode->reg_y + 1);
       break;
     case k_sbc:
-      if (p_opcode->flag_carry != 1) {
-        break;
+      if (p_opcode->flag_decimal == 0) {
+        do_eliminate_check_bcd = 1;
       }
-      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_SBC);
-      assert(p_uop != NULL);
-      asm_make_uop0(p_uop, k_opcode_SUB);
+      if (p_opcode->flag_carry == 1) {
+        p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_SBC);
+        assert(p_uop != NULL);
+        asm_make_uop0(p_uop, k_opcode_SUB);
+        do_eliminate_load_carry = 1;
+      }
       break;
     case k_tax:
       if (p_opcode->reg_a == k_value_unknown) {
@@ -258,6 +266,17 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       break;
     default:
       break;
+    }
+
+    if (do_eliminate_check_bcd) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_check_bcd);
+      assert(p_uop != NULL);
+      p_uop->is_eliminated = 1;
+    }
+    if (do_eliminate_load_carry) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_load_carry);
+      assert(p_uop != NULL);
+      p_uop->is_eliminated = 1;
     }
 
     if (load_uopcode_old != -1) {
@@ -364,6 +383,10 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_load_carry:
+        /* The carry load will be eliminated if this was made an ADD / SUB. */
+        if (p_uop->is_eliminated) {
+          break;
+        }
         if ((p_save_carry_uop != NULL) &&
             (p_save_carry_uop->uopcode == k_opcode_save_carry)) {
           p_save_carry_uop->is_eliminated = 1;
@@ -374,6 +397,9 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       case k_opcode_save_carry:
       case k_opcode_CLC:
       case k_opcode_SEC:
+        if (p_save_carry_uop != NULL) {
+          p_save_carry_uop->is_eliminated = 1;
+        }
         p_save_carry_uop = p_uop;
         break;
       case k_opcode_load_overflow:
