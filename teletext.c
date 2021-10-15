@@ -290,8 +290,6 @@ teletext_create() {
   uint32_t i;
   struct teletext_struct* p_teletext;
 
-  (void) teletext_graphics;
-  (void) teletext_separated_graphics;
   if (!s_teletext_was_generated) {
     teletext_generate();
   }
