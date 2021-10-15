@@ -229,7 +229,8 @@ teletext_generate() {
                               &doubled_gfx_glyph[0]);
 
     teletext_double_up_pixels(&doubled_gfx_glyph[0], &sep_gfx_buf[0]);
-    teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],                               &doubled_gfx_glyph[0]);
+    teletext_stretch_12_to_16(&s_teletext_generated_sep_gfx[glyph_index * 320],
+                              &doubled_gfx_glyph[0]);
   }
 }
 
