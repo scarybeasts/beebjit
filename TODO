@@ -9,6 +9,7 @@ are currently prioritized.
 
 - Mode ZPG for dynamic operand.
 - Investigate mode REL for dynamic operand.
+- Optimize carry elimination for inverted carry situations.
 
 
 Fix later

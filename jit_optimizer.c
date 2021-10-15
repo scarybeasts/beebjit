@@ -166,6 +166,7 @@ jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
 static void
 jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
+  int had_check_bcd = 0;
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
@@ -179,7 +180,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 
     switch (p_opcode->optype_6502) {
     case k_adc:
-      if (p_opcode->flag_decimal == 0) {
+      if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
         do_eliminate_check_bcd = 1;
       }
       if (p_opcode->flag_carry == 0) {
@@ -188,6 +189,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
         asm_make_uop0(p_uop, k_opcode_ADD);
         do_eliminate_load_carry = 1;
       }
+      had_check_bcd = 1;
       break;
     case k_dex:
       if (p_opcode->reg_x == k_value_unknown) {
@@ -222,7 +224,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       load_uopcode_value = (p_opcode->reg_y + 1);
       break;
     case k_sbc:
-      if (p_opcode->flag_decimal == 0) {
+      if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
         do_eliminate_check_bcd = 1;
       }
       if (p_opcode->flag_carry == 1) {
@@ -231,6 +233,7 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
         asm_make_uop0(p_uop, k_opcode_SUB);
         do_eliminate_load_carry = 1;
       }
+      had_check_bcd = 1;
       break;
     case k_tax:
       if (p_opcode->reg_a == k_value_unknown) {
@@ -361,6 +364,8 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
        p_opcode += p_opcode->num_bytes_6502) {
     uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
+    int had_save_carry = 0;
+    int had_save_overflow = 0;
 
     if (p_opcode->is_eliminated) {
       continue;
@@ -395,6 +400,8 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         p_save_carry_uop = NULL;
         break;
       case k_opcode_save_carry:
+        had_save_carry = 1;
+        /* FALL THROUGH */
       case k_opcode_CLC:
       case k_opcode_SEC:
         if (p_save_carry_uop != NULL) {
@@ -410,6 +417,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
           p_save_overflow_uop->is_eliminated = 1;
         }
         p_save_overflow_uop = p_uop;
+        had_save_overflow = 1;
         break;
       case k_opcode_flags_nz_a:
       case k_opcode_flags_nz_x:
@@ -419,10 +427,32 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
          * now, let's observe that both the x64 and ARM64 backends cannot
          * preserve the host carry / overflow flags across a "test" instruction.
          */
-        if (!p_uop->is_eliminated || p_uop->is_merged) {
+        if (!p_uop->is_eliminated) {
           p_save_carry_uop = NULL;
           p_save_overflow_uop = NULL;
         }
+        /* The NZ flag set might be part of a host instruction, in which case
+         * it's also typical to trash host carry / overflow flags, unless the
+         * carry / overflow is being set at the same time.
+         */
+        if (p_uop->is_merged) {
+          if (!had_save_carry) {
+            p_save_carry_uop = NULL;
+          }
+          if (!had_save_overflow) {
+            p_save_overflow_uop = NULL;
+          }
+        }
+        break;
+      case k_opcode_CLD:
+      case k_opcode_CLI:
+      case k_opcode_SED:
+      case k_opcode_SEI:
+        /* TODO: the Intel x64 backend trashes the host carry / overflow on
+         * these and it probably shouldn't.
+         */
+        p_save_carry_uop = NULL;
+        p_save_overflow_uop = NULL;
         break;
       default:
         break;

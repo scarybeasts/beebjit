@@ -1753,7 +1753,6 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
       new_carry = 1;
       break;
     case k_opcode_save_carry:
-      assert(0);
       new_carry = !!(host_flags & 0x0001);
       break;
     default:
