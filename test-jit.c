@@ -934,6 +934,24 @@ jit_test_compile_binary(void) {
              "\x14\x01"
              "\x12\x45\xc2";
   expect_len = 15;
+#elif defined(__aarch64__)
+  /* Note that we can only eliminate the overflow and not the carry because of
+   * how the ARM64 backend handles carry.
+   */
+  /* tbnz  w5, #3, 0x6190070
+   * mov   x9, #0x1000000
+   * add   x9, x9, x6
+   * lsl   x0, x0, #24
+   * orr   x0, x0, #0xffffff
+   * adds  w0, w0, w9
+   * lsr   x0, x0, #24
+   * cset  x6, cs
+   * ldrb  w9, [x27, 0x41]
+   */
+  p_expect = "\x45\x03\x18\x37" "\x09\x20\xa0\xd2" "\x29\x01\x06\x8b"
+             "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x09\x2b"
+             "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x69\x0b\x41\x39";
+  expect_len = 36;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }

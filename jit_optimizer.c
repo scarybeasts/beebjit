@@ -388,11 +388,14 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_load_carry:
-        /* The carry load will be eliminated if this was made an ADD / SUB. */
-        if (p_uop->is_eliminated) {
+        /* The carry load will be eliminated if this was made an ADD / SUB, or
+         * by the ARM64 backend.
+         */
+        if (p_uop->is_eliminated && !p_uop->is_merged) {
           break;
         }
-        if ((p_save_carry_uop != NULL) &&
+        if (!p_uop->is_merged &&
+            (p_save_carry_uop != NULL) &&
             (p_save_carry_uop->uopcode == k_opcode_save_carry)) {
           p_save_carry_uop->is_eliminated = 1;
           p_uop->is_eliminated = 1;

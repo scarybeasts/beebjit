@@ -462,6 +462,9 @@ asm_exit_END:
 .globl asm_debug_END
 asm_debug:
   stp x29, x30, [sp, #-16]!
+  # Save the host flags because carry / overflow save elimination can leave
+  # state there.
+  mrs x29, nzcv
 
   bl asm_save_AXYS_PC_flags
 
@@ -473,6 +476,7 @@ asm_debug:
   bl asm_restore_AXYS_PC_flags
 
   # TODO: handle different 6502 PC!
+  msr nzcv, x29
   ldp x29, x30, [sp], #16
   ret
 

@@ -306,7 +306,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_inv_uop,
                           &p_addr_check_uop,
                           &p_page_crossing_uop);
-
   if (p_main_uop == NULL) {
     return;
   }
@@ -328,6 +327,34 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   case k_opcode_SLO:
     assert(p_save_carry_uop != NULL);
     p_save_carry_uop->is_eliminated = 1;
+    p_save_carry_uop->is_merged = 1;
+    break;
+  default:
+    break;
+  }
+
+  /* All curent operations have built-in carry load management. That is to say,
+   * nothing takes the host carry flag as input.
+   */
+  if (p_load_carry_uop != NULL) {
+    /* A transform such as ADC -> ADD will remove the load carry altogether,
+     * so don't mark it as merged.
+     */
+    if (!p_load_carry_uop->is_eliminated) {
+      p_load_carry_uop->is_eliminated = 1;
+      p_load_carry_uop->is_merged = 1;
+    }
+  }
+
+  /* ADD / SUB (but not ADC / SBC!) operations set the NZ flags
+   * automatically.
+   */
+  switch (p_main_uop->uopcode) {
+  case k_opcode_ADD:
+  case k_opcode_SUB:
+    assert(p_flags_uop != NULL);
+    p_flags_uop->is_eliminated = 1;
+    p_flags_uop->is_merged = 1;
     break;
   default:
     break;

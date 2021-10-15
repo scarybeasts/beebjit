@@ -42,8 +42,7 @@ asm_jit_compile_trampoline:
   # param3: countdown
   mov REG_PARAM3, REG_COUNTDOWN
   # param4: flags
-  # TODO
-  movz REG_PARAM4, #0
+  mrs REG_PARAM4, nzcv
 
   ldr REG_SCRATCH1, [REG_CONTEXT, #K_JIT_CONTEXT_OFFSET_JIT_CALLBACK]
   blr REG_SCRATCH1
@@ -72,8 +71,7 @@ asm_jit_call_interp:
   # param3: countdown
   mov REG_PARAM3, REG_COUNTDOWN
   # param4: flags
-  # TODO
-  movz REG_PARAM4, #0
+  mrs REG_PARAM4, nzcv
 
   ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_CALLBACK]
   blr REG_SCRATCH1
