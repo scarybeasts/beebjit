@@ -13,6 +13,13 @@ static struct interp_struct* s_p_interp = NULL;
 static struct jit_compiler* s_p_compiler = NULL;
 static struct timing_struct* s_p_timing = NULL;
 
+static void
+jit_test_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr) {
+  asm_jit_start_code_updates(p_jit->p_asm);
+  jit_invalidate_code_at_address(p_jit, addr);
+  asm_jit_finish_code_updates(p_jit->p_asm);
+}
+
 static uint8_t*
 jit_get_jit_code_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
   uint8_t* p_jit_ptr = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
@@ -235,7 +242,7 @@ jit_test_invalidation(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xD01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xD01);
 
   state_6502_set_pc(s_p_state_6502, 0xD00);
   jit_enter(s_p_cpu_driver);
@@ -258,7 +265,7 @@ jit_test_invalidation(void) {
   jit_test_expect_block_invalidated(1, 0xD01);
   jit_test_expect_block_invalidated(0, 0xD04);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xD05);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xD05);
 
   /* This execution will create a block at 0xD05 because of the invalidation
    * but it should not be a fundamental block boundary. Also, 0xD04 must remain
@@ -329,8 +336,8 @@ jit_test_dynamic_operand(void) {
   jit_test_expect_code_invalidated(0, 0xE03);
   jit_test_expect_block_invalidated(1, 0xE01);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xE01);
-  jit_invalidate_code_at_address(s_p_jit, 0xE02);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE02);
 
   jit_test_expect_block_invalidated(0, 0xE00);
 
@@ -338,7 +345,7 @@ jit_test_dynamic_operand(void) {
    * opcode should not have a dynamic operand right away.
    */
   s_p_mem[0xE00] = 0xB9;
-  jit_invalidate_code_at_address(s_p_jit, 0xE00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE00);
   state_6502_set_pc(s_p_state_6502, 0xE00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
@@ -366,7 +373,7 @@ jit_test_dynamic_operand(void) {
   jit_test_expect_block_invalidated(0, 0xE82);
   jit_test_expect_code_invalidated(0, 0xE82);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xE84);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE84);
   jit_test_expect_block_invalidated(0, 0xE82);
   jit_test_expect_code_invalidated(0, 0xE82);
 
@@ -377,7 +384,7 @@ jit_test_dynamic_operand(void) {
   jit_test_expect_block_invalidated(1, 0xE82);
   jit_test_expect_code_invalidated(0, 0xE82);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xE84);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE84);
   jit_test_expect_block_invalidated(1, 0xE82);
   jit_test_expect_code_invalidated(0, 0xE82);
 
@@ -387,7 +394,7 @@ jit_test_dynamic_operand(void) {
    * invalidation for a self-modify invalidation, i.e. the code at $0E80 should
    * not have been compiled as dynamic operand.
    */
-  jit_invalidate_code_at_address(s_p_jit, 0xE81);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE81);
   jit_test_expect_code_invalidated(1, 0xE80);
 
   /* Try again but with the two dynamic operands in a block. */
@@ -400,15 +407,15 @@ jit_test_dynamic_operand(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xE91);
-  jit_invalidate_code_at_address(s_p_jit, 0xE93);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE91);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE93);
 
   state_6502_set_pc(s_p_state_6502, 0xE90);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  jit_invalidate_code_at_address(s_p_jit, 0xE91);
-  jit_invalidate_code_at_address(s_p_jit, 0xE93);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE91);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xE93);
 
   /* There was a bug where dynamic operands would not be handled later in a
    * block. This is tested here. If the bug triggers, the code at $0E92 would
@@ -441,7 +448,7 @@ jit_test_dynamic_operand_2(void) {
   interp_testing_unexit(s_p_interp);
 
   s_p_mem[0xF01] = 0x02;
-  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xF01);
   jit_test_expect_code_invalidated(1, 0xF00);
 
   /* First compile-time encounter of the self-modified code. */
@@ -451,7 +458,7 @@ jit_test_dynamic_operand_2(void) {
 
   /* But it's not enough to create a dynamic operand. */
   s_p_mem[0xF01] = 0x03;
-  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xF01);
   jit_test_expect_code_invalidated(1, 0xF00);
 
   /* Second compile-time encounter of the self-modified code. */
@@ -461,7 +468,7 @@ jit_test_dynamic_operand_2(void) {
 
   /* It's enough to create a dynamic operand. */
   s_p_mem[0xF01] = 0x03;
-  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xF01);
   jit_test_expect_code_invalidated(0, 0xF00);
 
   /* Check dynamic operand persists if we compile a block that runs into the
@@ -473,7 +480,7 @@ jit_test_dynamic_operand_2(void) {
   interp_testing_unexit(s_p_interp);
 
   s_p_mem[0xF01] = 0x04;
-  jit_invalidate_code_at_address(s_p_jit, 0xF01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0xF01);
   jit_test_expect_code_invalidated(0, 0xF00);
 
   util_buffer_destroy(p_buf);
@@ -500,7 +507,7 @@ jit_test_dynamic_opcode(void) {
 
   /* Invalidate INX once and recompile. */
   s_p_mem[0x1902] = 0xEA;
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
   ticks = timing_get_total_timer_ticks(s_p_timing);
   state_6502_set_pc(s_p_state_6502, 0x1900);
   jit_enter(s_p_cpu_driver);
@@ -511,7 +518,7 @@ jit_test_dynamic_opcode(void) {
 
   /* Replace INX with DEX, should compile as dynamic opcode. */
   s_p_mem[0x1902] = 0xCA;
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
 
   ticks = timing_get_total_timer_ticks(s_p_timing);
   state_6502_set_pc(s_p_state_6502, 0x1900);
@@ -526,7 +533,7 @@ jit_test_dynamic_opcode(void) {
    * by making sure it doesn't incur a recompile.
    */
   s_p_mem[0x1902] = 0xE8;
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
 
   num_compiles = s_p_jit->counter_num_compiles;
   state_6502_set_pc(s_p_state_6502, 0x1900);
@@ -542,9 +549,9 @@ jit_test_dynamic_opcode(void) {
   s_p_mem[0x1902] = 0x8E;
   s_p_mem[0x1903] = 0x00;
   s_p_mem[0x1904] = 0x19;
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
-  jit_invalidate_code_at_address(s_p_jit, 0x1903);
-  jit_invalidate_code_at_address(s_p_jit, 0x1904);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1903);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1904);
 
   jit_test_expect_code_invalidated(0, 0x1900);
 
@@ -565,11 +572,11 @@ jit_test_dynamic_opcode(void) {
   s_p_mem[0x1902] = 0x91;
   s_p_mem[0x1903] = 0x00;
   s_p_mem[0x1904] = 0xEA;
-  jit_invalidate_code_at_address(s_p_jit, 0x1900);
-  jit_invalidate_code_at_address(s_p_jit, 0x1901);
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
-  jit_invalidate_code_at_address(s_p_jit, 0x1903);
-  jit_invalidate_code_at_address(s_p_jit, 0x1904);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1900);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1901);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1903);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1904);
 
   state_6502_set_pc(s_p_state_6502, 0x1900);
   jit_enter(s_p_cpu_driver);
@@ -582,8 +589,8 @@ jit_test_dynamic_opcode(void) {
    */
   s_p_mem[0x1902] = 0x2A;
   s_p_mem[0x1903] = 0xEA;
-  jit_invalidate_code_at_address(s_p_jit, 0x1902);
-  jit_invalidate_code_at_address(s_p_jit, 0x1903);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1902);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1903);
 
   state_6502_set_pc(s_p_state_6502, 0x1900);
   jit_enter(s_p_cpu_driver);
@@ -600,14 +607,14 @@ jit_test_dynamic_opcode(void) {
 
   /* First invalidation. */
   s_p_mem[0x1A00] = 0x85;
-  jit_invalidate_code_at_address(s_p_jit, 0x1A00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1A00);
   state_6502_set_pc(s_p_state_6502, 0x1A00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
   /* Second invalidation, back to STX. */
   s_p_mem[0x1A00] = 0x86;
-  jit_invalidate_code_at_address(s_p_jit, 0x1A00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1A00);
   state_6502_set_pc(s_p_state_6502, 0x1A00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
@@ -616,7 +623,7 @@ jit_test_dynamic_opcode(void) {
 
   /* Trigger a block split in the middle of the dynamic opcode! */
   s_p_mem[0x1A01] = 0xEA;
-  jit_invalidate_code_at_address(s_p_jit, 0x1A01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1A01);
   state_6502_set_pc(s_p_state_6502, 0x1A01);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
@@ -642,7 +649,7 @@ jit_test_dynamic_opcode_2(void) {
 
   /* First invalidation. */
   s_p_mem[0x1B01] = 0x00;
-  jit_invalidate_code_at_address(s_p_jit, 0x1B01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1B01);
   state_6502_set_pc(s_p_state_6502, 0x1B00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
@@ -671,14 +678,14 @@ jit_test_dynamic_opcode_3(void) {
 
   /* First invalidation. */
   s_p_mem[0x1C00] = 0xAE;
-  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1C00);
   state_6502_set_pc(s_p_state_6502, 0x1C00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
   /* Second invalidation. */
   s_p_mem[0x1C00] = 0xAC;
-  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1C00);
   state_6502_set_pc(s_p_state_6502, 0x1C00);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
@@ -689,9 +696,9 @@ jit_test_dynamic_opcode_3(void) {
   s_p_mem[0x1C00] = 0xAD;
   s_p_mem[0x1C01] = 0x20;
   s_p_mem[0x1C02] = 0xFE;
-  jit_invalidate_code_at_address(s_p_jit, 0x1C00);
-  jit_invalidate_code_at_address(s_p_jit, 0x1C01);
-  jit_invalidate_code_at_address(s_p_jit, 0x1C02);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1C00);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1C01);
+  jit_test_invalidate_code_at_address(s_p_jit, 0x1C02);
   ticks = timing_get_total_timer_ticks(s_p_timing);
   state_6502_set_pc(s_p_state_6502, 0x1C00);
   jit_enter(s_p_cpu_driver);
