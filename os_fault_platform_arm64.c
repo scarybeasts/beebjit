@@ -40,3 +40,13 @@ os_fault_set_pc(void* p, uintptr_t pc) {
   ucontext_t* p_context = (ucontext_t*) p;
   p_context->uc_mcontext.pc = pc;
 }
+
+int
+os_fault_is_carry_flag_set(uintptr_t host_flags) {
+  return !!(host_flags & 0x20000000);
+}
+
+int
+os_fault_is_overflow_flag_set(uintptr_t host_flags) {
+  return !!(host_flags & 0x10000000);
+}

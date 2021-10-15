@@ -29,3 +29,15 @@ os_fault_set_pc(void* p, uintptr_t pc) {
   (void) p;
   (void) pc;
 }
+
+int
+os_fault_is_carry_flag_set(uintptr_t host_flags) {
+  (void) host_flags;
+  return 0;
+}
+
+int
+os_fault_is_overflow_flag_set(uintptr_t host_flags) {
+  (void) host_flags;
+  return 0;
+}

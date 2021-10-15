@@ -6,6 +6,7 @@
 #include "jit_optimizer.h"
 #include "log.h"
 #include "memory_access.h"
+#include "os_fault_platform.h"
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"
@@ -1738,7 +1739,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     p_state_6502->reg_flags |= flags_new;
   }
   if (v_fixup) {
-    int host_overflow_flag = !!(host_flags & 0x0800);
+    int host_overflow_flag = os_fault_is_overflow_flag_set(host_flags);
     assert(v_fixup == k_opcode_save_overflow);
     p_state_6502->reg_flags &= ~(1 << k_flag_overflow);
     p_state_6502->reg_flags |= (host_overflow_flag << k_flag_overflow);
@@ -1753,7 +1754,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
       new_carry = 1;
       break;
     case k_opcode_save_carry:
-      new_carry = !!(host_flags & 0x0001);
+      new_carry = os_fault_is_carry_flag_set(host_flags);
       break;
     default:
       assert(0);

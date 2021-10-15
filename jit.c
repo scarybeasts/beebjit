@@ -202,7 +202,7 @@ static void
 jit_enter_interp(struct jit_struct* p_jit,
                  struct jit_enter_interp_ret* p_ret,
                  int64_t countdown,
-                 uint64_t intel_rflags) {
+                 uint64_t host_flags) {
   uint32_t cpu_driver_flags;
 
   struct cpu_driver* p_jit_cpu_driver = &p_jit->driver;
@@ -224,7 +224,7 @@ jit_enter_interp(struct jit_struct* p_jit,
   countdown = jit_compiler_fixup_state(p_compiler,
                                        p_state_6502,
                                        countdown,
-                                       intel_rflags);
+                                       host_flags);
 
   p_jit->counter_stay_in_interp = 0;
   p_jit->did_interp_invalidate_memory = 0;
@@ -496,7 +496,7 @@ static int64_t
 jit_compile(struct jit_struct* p_jit,
             uint8_t* p_host_cpu_ip,
             int64_t countdown,
-            uint64_t intel_rflags) {
+            uint64_t host_flags) {
   struct jit_host_ip_details details;
   uint32_t bytes_6502_compiled;
   uint16_t addr_6502;
@@ -535,7 +535,7 @@ jit_compile(struct jit_struct* p_jit,
     countdown = jit_compiler_fixup_state(p_compiler,
                                          p_state_6502,
                                          countdown,
-                                         intel_rflags);
+                                         host_flags);
   }
 
   if ((addr_6502 < 0xFF) &&
