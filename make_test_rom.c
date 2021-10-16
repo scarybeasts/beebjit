@@ -1989,8 +1989,50 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_OF(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xDCC0);
 
-  /* End of test. */
+  /* Test for recovery of Y register with set Y elimination. */
   set_new_index(p_buf, 0x1CC0);
+  emit_LDA(p_buf, k_imm, 0xA0);   /* LDY #6 */
+  emit_STA(p_buf, k_abs, 0x4CC0);
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_STA(p_buf, k_abs, 0x4CC1);
+  emit_LDA(p_buf, k_imm, 0xC8);   /* INY */
+  emit_STA(p_buf, k_abs, 0x4CC2);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4CC3);
+  emit_JSR(p_buf, 0x4CC0);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4CC2);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x4CC0);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x06);
+  emit_JMP(p_buf, k_abs, 0xDD00);
+
+  /* Test for incorrect non-IMM load Y elimination. */
+  set_new_index(p_buf, 0x1D00);
+  emit_LDA(p_buf, k_imm, 0x7B);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xA4);   /* LDY $F0 */
+  emit_STA(p_buf, k_abs, 0x4D00);
+  emit_LDA(p_buf, k_imm, 0xF0);
+  emit_STA(p_buf, k_abs, 0x4D01);
+  emit_LDA(p_buf, k_imm, 0xA0);   /* LDY #6 */
+  emit_STA(p_buf, k_abs, 0x4D02);
+  emit_LDA(p_buf, k_imm, 0x06);
+  emit_STA(p_buf, k_abs, 0x4D03);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4D04);
+  emit_JSR(p_buf, 0x4D00);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4D02);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0x4D00);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x7B);
+  emit_JMP(p_buf, k_abs, 0xDD40);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1D40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

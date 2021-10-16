@@ -464,6 +464,63 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
   }
 }
 
+static void
+jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_load_y_uop = NULL;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    uint32_t num_uops = p_opcode->num_uops;
+    uint32_t i_uops;
+    int is_imm = 0;
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    /* Any jump, including conditional, must commit register values. */
+    if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_load_y_uop = NULL;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_value_set:
+        is_imm = 1;
+        break;
+      case k_opcode_LDY:
+        if (p_load_y_uop != NULL) {
+          p_load_y_uop->is_eliminated = 1;
+        }
+        if (is_imm) {
+          p_load_y_uop = p_uop;
+        } else {
+          p_load_y_uop = NULL;
+        }
+        break;
+      case k_opcode_check_page_crossing_y:
+      case k_opcode_addr_add_y:
+      case k_opcode_addr_add_y_8bit:
+      case k_opcode_flags_nz_y:
+      case k_opcode_CPY:
+      case k_opcode_DEY:
+      case k_opcode_INY:
+      case k_opcode_STY:
+      case k_opcode_TYA:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_y_uop = NULL;
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+}
+
 struct jit_opcode_details*
 jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
   /* Pass 1: opcode merging. LSR A and similar opcodes. */
@@ -489,4 +546,10 @@ jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
 
   /* Pass 2: carry and overflow flag saving elimination. */
   jit_optimizer_eliminate_c_v_flag_saving(p_opcodes);
+
+  /* Pass 3: eliminate redundant register sets. This comes alive after previous
+   * passes. It triggers most significantly for code that uses INY to index
+   * an unrolled sequence of e.g LDA ($00),Y loads.
+   */
+  jit_optimizer_eliminate_axy_loads(p_opcodes);
 }

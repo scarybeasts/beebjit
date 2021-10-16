@@ -1190,10 +1190,17 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
    */
   if ((p_mode_uop == NULL) && (p_main_uop->value1 != 1)) {
     switch (p_main_uop->uopcode) {
-    case k_opcode_ASL_acc: p_main_uop->uopcode = k_opcode_x64_ASL_ACC_n; break;
-    case k_opcode_LSR_acc: p_main_uop->uopcode = k_opcode_x64_LSR_ACC_n; break;
-    case k_opcode_ROL_acc: p_main_uop->uopcode = k_opcode_x64_ROL_ACC_n; break;
-    case k_opcode_ROR_acc: p_main_uop->uopcode = k_opcode_x64_ROR_ACC_n; break;
+    case k_opcode_ASL_acc:
+      p_main_uop->backend_tag = k_opcode_x64_ASL_ACC_n;
+      break;
+    case k_opcode_LSR_acc:
+      p_main_uop->backend_tag = k_opcode_x64_LSR_ACC_n;
+      break;
+    case k_opcode_ROL_acc:
+      p_main_uop->backend_tag = k_opcode_x64_ROL_ACC_n;
+      break;
+    case k_opcode_ROR_acc:
+      p_main_uop->backend_tag = k_opcode_x64_ROR_ACC_n;
       break;
     default:
       break;
@@ -1232,20 +1239,26 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   switch (uopcode) {
   case k_opcode_value_load_16bit_wrap:
     /* Mode IND. */
-    p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
-    p_mode_uop->uopcode = k_opcode_x64_mode_IND;
+    p_mode_uop->is_eliminated = 1;
+    addr = p_mode_uop->value1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_x64_mode_IND;
+    p_mode_uop->value1 = addr;
     /* TODO: not correct for hardware register hits, but BRK breaks with IND. */
     p_mode_uop->value2 = K_BBC_MEM_READ_FULL_ADDR;
     break;
   case k_opcode_addr_load_16bit_nowrap:
     /* TODO: add optimized variants of common situations, e.g. LDA abx. */
     /* Dynamic operand 16-bit load. */
-    p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
-    p_mode_uop->uopcode = k_opcode_x64_mode_IND_nowrap;
+    p_mode_uop->is_eliminated = 1;
+    addr = p_mode_uop->value1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_x64_mode_IND_nowrap;
+    p_mode_uop->value1 = addr;
     p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
     is_mode_addr = 1;
     break;
@@ -1254,39 +1267,46 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     assert(p_main_uop != NULL);
     new_uopcode = p_main_uop->uopcode;
     new_uopcode = asm_jit_rewrite_IMM(new_uopcode);
-    p_mode_uop->uopcode = new_uopcode;
-    p_main_uop->is_eliminated = 1;
+    p_mode_uop->is_eliminated = 1;
+    p_main_uop->value1 = p_mode_uop->value1;
+    p_main_uop->backend_tag = new_uopcode;
     break;
   case k_opcode_addr_set:
     /* Mode ABS or ZPG. */
     assert(p_main_uop != NULL);
+    p_mode_uop->is_eliminated = 1;
     addr = p_mode_uop->value1;
     is_zpg = (addr < 0x100);
     new_uopcode = p_main_uop->uopcode;
     if ((new_uopcode == k_opcode_ROL_value) ||
         (new_uopcode == k_opcode_ROR_value)) {
-      if (is_zpg) p_mode_uop->uopcode = k_opcode_x64_load_ZPG;
-      else p_mode_uop->uopcode = k_opcode_x64_load_ABS;
-      p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
       assert(p_load_uop != NULL);
-      p_load_uop->is_eliminated = 1;
       assert(p_store_uop != NULL);
-      if (is_zpg) p_store_uop->uopcode = k_opcode_x64_store_ZPG;
-      else p_store_uop->uopcode = k_opcode_x64_store_ABS;
-      p_store_uop->value1 = p_mode_uop->value1;
+      if (is_zpg) new_uopcode = k_opcode_x64_load_ZPG;
+      else new_uopcode = k_opcode_x64_load_ABS;
+      p_load_uop->backend_tag = new_uopcode;
+      p_load_uop->value1 = addr;
+      p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+      if (is_zpg) new_uopcode = k_opcode_x64_store_ZPG;
+      else new_uopcode = k_opcode_x64_store_ABS;
+      p_store_uop->backend_tag = new_uopcode;
+      p_store_uop->value1 = addr;
       p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
     } else {
       if (is_zpg) new_uopcode = asm_jit_rewrite_ZPG(new_uopcode);
       else new_uopcode = asm_jit_rewrite_ABS(new_uopcode);
-      p_mode_uop->uopcode = new_uopcode;
-      if (p_main_uop->uopcode != k_opcode_BIT) {
-        p_main_uop->is_eliminated = 1;
+      if (p_main_uop->uopcode == k_opcode_BIT) {
+        /* Make sure the segment gets applied to the correct uopcode. */
+        p_main_uop = p_mode_uop;
+        p_main_uop->is_eliminated = 0;
       }
+      p_main_uop->backend_tag = new_uopcode;
+      p_main_uop->value1 = addr;
       do_set_segment = 1;
       do_eliminate_load_store = 1;
     }
     if (p_inv_uop != NULL) {
-      p_inv_uop->uopcode = k_opcode_x64_write_inv_ABS;
+      p_inv_uop->backend_tag = k_opcode_x64_write_inv_ABS;
       p_inv_uop->value1 = addr;
     }
     break;
@@ -1297,50 +1317,59 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     /* FALL THROUGH. */
   case k_opcode_addr_add_x_8bit:
     /* Mode ZPX. */
-    p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
-    p_mode_uop->uopcode = k_opcode_x64_mode_ZPX;
+    p_mode_uop->is_eliminated = 1;
+    addr = p_mode_uop->value1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_x64_mode_ZPX;
+    p_mode_uop->value1 = addr;
     is_mode_addr = 1;
     break;
   case k_opcode_addr_add_y_8bit:
     /* Mode ZPY. */
-    p_mode_uop->is_eliminated = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
-    p_mode_uop->uopcode = k_opcode_x64_mode_ZPY;
+    p_mode_uop->is_eliminated = 1;
+    addr = p_mode_uop->value1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_x64_mode_ZPY;
+    p_mode_uop->value1 = addr;
     is_mode_addr = 1;
     break;
   case k_opcode_addr_add_x:
     /* Mode ABX. */
     assert(p_main_uop != NULL);
     p_mode_uop->is_eliminated = 1;
+    p_mode_uop->is_merged = 1;
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->is_eliminated = 1;
     addr = p_mode_uop->value1;
     if (is_rmw) {
-      p_mode_uop->uopcode = k_opcode_x64_mode_ABX_and_load;
-      p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
       assert(p_load_uop != NULL);
-      p_load_uop->is_eliminated = 1;
       assert(p_store_uop != NULL);
-      p_store_uop->uopcode = k_opcode_x64_mode_ABX_store;
-      p_store_uop->value1 = p_mode_uop->value1;
+      p_load_uop->backend_tag = k_opcode_x64_mode_ABX_and_load;
+      p_load_uop->value1 = addr;
+      p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+      p_store_uop->backend_tag = k_opcode_x64_mode_ABX_store;
+      p_store_uop->value1 = addr;
       p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
     } else {
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_ABX(new_uopcode);
-      p_mode_uop->uopcode = new_uopcode;
-      p_main_uop->is_eliminated = 1;
+      p_mode_uop->is_eliminated = 1;
+      p_main_uop->backend_tag = new_uopcode;
+      p_main_uop->value1 = addr;
       do_eliminate_load_store = 1;
       do_set_segment = 1;
     }
     if (p_inv_uop != NULL) {
-      p_inv_uop->uopcode = k_opcode_x64_write_inv_ABX;
+      p_inv_uop->backend_tag = k_opcode_x64_write_inv_ABX;
       p_inv_uop->value1 = addr;
     }
     if (p_page_crossing_uop != NULL) {
-      p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_ABX;
+      p_page_crossing_uop->backend_tag = k_opcode_x64_check_page_crossing_ABX;
       p_page_crossing_uop->value1 = addr;
     }
     is_mode_abn = 1;
@@ -1350,39 +1379,50 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     assert(p_main_uop != NULL);
     p_tmp_uop = (p_mode_uop - 1);
     if (p_tmp_uop->uopcode == k_opcode_addr_set) {
+      /* Mode ABY. */
+      p_tmp_uop->is_eliminated = 1;
       p_mode_uop->is_eliminated = 1;
-      p_mode_uop--;
-      addr = p_mode_uop->value1;
+      p_mode_uop->is_merged = 1;
+      addr = p_tmp_uop->value1;
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_ABY(new_uopcode);
-      p_mode_uop->uopcode = new_uopcode;
-      p_main_uop->is_eliminated = 1;
+      p_main_uop->backend_tag = new_uopcode;
+      p_main_uop->value1 = addr;
       if (p_inv_uop != NULL) {
-        p_inv_uop->uopcode = k_opcode_x64_write_inv_ABY;
+        p_inv_uop->backend_tag = k_opcode_x64_write_inv_ABY;
         p_inv_uop->value1 = addr;
       }
       if (p_page_crossing_uop != NULL) {
-        p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_ABY;
+        p_page_crossing_uop->backend_tag = k_opcode_x64_check_page_crossing_ABY;
         p_page_crossing_uop->value1 = addr;
       }
       is_mode_abn = 1;
       do_set_segment = 1;
       do_eliminate_load_store = 1;
     } else {
+      /* Mode IDY. */
       assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap);
-      p_tmp_uop->is_eliminated = 1;
       p_tmp_uop = (p_tmp_uop - 1);
       assert(p_tmp_uop->uopcode == k_opcode_addr_set);
-      p_tmp_uop->uopcode = k_opcode_x64_mode_IDY_load;
+      p_tmp_uop->is_eliminated = 1;
+      addr = p_tmp_uop->value1;
+      p_tmp_uop = (p_tmp_uop + 1);
+      p_tmp_uop->backend_tag = k_opcode_x64_mode_IDY_load;
+      p_tmp_uop->value1 = addr;
+      /* Eliminate k_opcode_addr_add_y, but mark it as merged so the optimizer
+       * knows this depends on Y.
+       */
+      p_mode_uop->is_eliminated = 1;
+      p_mode_uop->is_merged = 1;
+
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_IDY(new_uopcode);
-      p_mode_uop->uopcode = new_uopcode;
-      p_main_uop->is_eliminated = 1;
+      p_main_uop->backend_tag = new_uopcode;
       if (p_inv_uop != NULL) {
-        p_inv_uop->uopcode = k_opcode_x64_write_inv_IDY;
+        p_inv_uop->backend_tag = k_opcode_x64_write_inv_IDY;
       }
       if (p_page_crossing_uop != NULL) {
-        p_page_crossing_uop->uopcode = k_opcode_x64_check_page_crossing_IDY;
+        p_page_crossing_uop->backend_tag = k_opcode_x64_check_page_crossing_IDY;
       }
       do_eliminate_load_store = 1;
     }
@@ -1400,7 +1440,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     } else {
       new_uopcode = p_main_uop->uopcode;
       new_uopcode = asm_jit_rewrite_addr(new_uopcode);
-      p_main_uop->uopcode = new_uopcode;
+      p_main_uop->backend_tag = new_uopcode;
       do_eliminate_load_store = 1;
     }
   }
@@ -1410,7 +1450,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     if (p_load_uop != NULL) {
       is_write = 0;
     }
-    p_mode_uop->value2 = asm_jit_get_segment(p_asm,
+    p_main_uop->value2 = asm_jit_get_segment(p_asm,
                                              addr,
                                              is_write,
                                              is_mode_abn);
@@ -1454,6 +1494,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
 
   (void) p_asm;
 
+  if (p_uop->backend_tag >= 0x1000) {
+    uopcode = p_uop->backend_tag;
+  }
   assert(uopcode >= 0x100);
 
   /* Resolve trampoline addresses. */

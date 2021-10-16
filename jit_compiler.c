@@ -349,6 +349,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->cycles_run_start = -1;
 
   p_details->is_eliminated = 0;
+  p_details->reg_a = -1;
+  p_details->reg_x = -1;
+  p_details->reg_y = -1;
   p_details->nz_flags_location = 0;
   p_details->c_flag_location = 0;
   p_details->v_flag_location = 0;
@@ -1550,6 +1553,9 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
                                  ticks);
 
         p_compiler->addr_cycles_fixup[addr_6502] = cycles;
+        p_compiler->addr_a_fixup[addr_6502] = p_details->reg_a;
+        p_compiler->addr_x_fixup[addr_6502] = p_details->reg_x;
+        p_compiler->addr_y_fixup[addr_6502] = p_details->reg_y;
         p_compiler->addr_nz_fixup[addr_6502] = p_details->nz_flags_location;
         p_compiler->addr_c_fixup[addr_6502] = p_details->c_flag_location;
         p_compiler->addr_v_fixup[addr_6502] = p_details->v_flag_location;
