@@ -218,6 +218,32 @@ Nothing significant to note beyond other CLOCKSP tests.
 [ITRP] 0B6D: INX
 [ITRP] 0B6E: LDY #$10
 
+3) Tight non-self modified plotting loop?
+[ITRP] 1990: LDA $19A3,Y
+[ITRP] 1993: EOR ($00),Y
+[ITRP] 1995: STA ($00),Y
+[ITRP] 1997: DEY
+[ITRP] 1998: BPL $1990
+
+4) Interesting hot path, startfield plotting, uses unusual modes.
+[ITRP] 1850: LDA $10,X
+[ITRP] 1852: EOR ($0E,X)
+[ITRP] 1854: STA ($0E,X)
+[ITRP] 1856: LDA $0E,X
+[ITRP] 1858: AND #$07
+[ITRP] 185A: CMP #$07
+[ITRP] 185C: BNE $1878
+[ITRP] 185E: LDA $0E,X
+[ITRP] 1860: EOR #$40
+[ITRP] 1862: ADC #$79
+[ITRP] 1864: AND #$F8
+[ITRP] 1866: STA $0E,X
+[ITRP] 1868: LDA $0F,X
+[ITRP] 186A: EOR #$01
+[ITRP] 186C: ADC #$02
+[ITRP] 186E: STA $0F,X
+[ITRP] 1870: BPL $187A
+
 
 - Hopper
 1) Sprite plotting?
