@@ -63,6 +63,8 @@ void jit_compiler_testing_set_max_ops(struct jit_compiler* p_compiler,
                                       uint32_t num_ops);
 void jit_compiler_testing_set_dynamic_trigger(
     struct jit_compiler* p_compiler, uint32_t count);
+void jit_compiler_testing_set_accurate_cycles(struct jit_compiler* p_compiler,
+                                              int is_accurate);
 int32_t jit_compiler_testing_get_cycles_fixup(struct jit_compiler* p_compiler,
                                               uint16_t addr);
 int32_t jit_compiler_testing_get_a_fixup(struct jit_compiler* p_compiler,

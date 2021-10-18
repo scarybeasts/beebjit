@@ -70,6 +70,7 @@ jit_test_init(struct bbc_struct* p_bbc) {
   jit_compiler_testing_set_sub_instruction(s_p_compiler, 0);
   jit_compiler_testing_set_max_ops(s_p_compiler, 4);
   jit_compiler_testing_set_dynamic_trigger(s_p_compiler, 1);
+  jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
 }
 
 static void
@@ -853,9 +854,9 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3000);
 #if defined(__x86_64__)
-  /* movzx eax, BYTE PTR [rbp-0x3f]
-   * or    al,  0x07
-   * mov   bl,  BYTE PTR [rbp-0x3f]
+  /* movzx  eax, BYTE PTR [rbp-0x3f]
+   * or     al,  0x07
+   * mov    bl,  BYTE PTR [rbp-0x3f]
    */
   p_expect = "\x0f\xb6\x45\xc1" "\x0c\x07" "\x8a\x5d\xc1";
   expect_len = 9;
@@ -882,8 +883,8 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3100);
 #if defined(__x86_64__)
-  /* btr   r13d, 0x3
-   * add   al,  0x1
+  /* btr    r13d, 0x3
+   * add    al,  0x1
    */
   p_expect = "\x41\x0f\xba\xf5\x03" "\x04\x01";
   expect_len = 2;
@@ -909,10 +910,10 @@ jit_test_compile_binary(void) {
   util_buffer_destroy(p_buf);
   p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3200);
 #if defined(__x86_64__)
-  /* mov   r9b, BYTE PTR [r13+0x12017ffa]
-   * shr   r14b, 1
-   * adc   al, 0x1
-   * adc   al, BYTE PTR [rbp-0x3e]
+  /* mov    r9b, BYTE PTR [r13+0x12017ffa]
+   * shr    r14b, 1
+   * adc    al, 0x1
+   * adc    al, BYTE PTR [rbp-0x3e]
    */
   p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x12"
              "\x41\xd0\xee"
@@ -937,6 +938,35 @@ jit_test_compile_binary(void) {
              "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x09\x2b"
              "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x69\x0b\x41\x39";
   expect_len = 36;
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check a simple mode IDY load elimination. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3300), 0x100);
+  emit_EOR(p_buf, k_idy, 0x70);
+  emit_STA(p_buf, k_idy, 0x70);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3300);
+  /* Avoid emitting page crossing check. */
+  jit_compiler_testing_set_accurate_cycles(s_p_compiler, 0);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3300);
+#if defined(__x86_64__)
+  /* movzx  edx, BYTE PTR [rbp-0x10]
+   * mov    dh, BYTE PTR [rbp-0x0f]
+   * xor    al, BYTE PTR [rdx+rcx*1+0x10008000]
+   * mov    BYTE PTR [rdx+rcx*1+0x11008000], al
+   */
+  p_expect = "\x0f\xb6\x55\xf0"
+             "\x8a\x75\xf1"
+             "\x32\x84\x0a\x00\x80\x00\x10"
+             "\x88\x84\x0a\x00\x80\x00\x11";
+  expect_len = 21;
+#elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }

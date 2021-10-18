@@ -293,6 +293,78 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
 }
 
 static void
+jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
+  struct jit_opcode_details* p_opcode;
+  int32_t last_addr = -1;
+  int is_last_idx = 0;
+
+  for (p_opcode = p_opcodes;
+       p_opcode->addr_6502 != -1;
+       p_opcode += p_opcode->num_bytes_6502) {
+    int is_addr_match;
+    int is_idx_match;
+    uint32_t i_uops;
+    uint32_t num_uops = p_opcode->num_uops;
+    struct asm_uop* p_addr_set_uop = NULL;
+    struct asm_uop* p_addr_add_uop = NULL;
+    struct asm_uop* p_addr_load_uop = NULL;
+    int is_write = 0;
+    int is_idx = 0;
+    int is_indirect = 0;
+    int32_t addr = -1;
+
+    if (p_opcode->is_eliminated) {
+      continue;
+    }
+
+    for (i_uops = 0; i_uops < num_uops; ++i_uops) {
+      struct asm_uop* p_uop = &p_opcode->uops[i_uops];
+      switch (p_uop->uopcode) {
+      case k_opcode_addr_set:
+        p_addr_set_uop = p_uop;
+        addr = p_addr_set_uop->value1;
+        break;
+      case k_opcode_addr_add_x_8bit:
+        p_addr_add_uop = p_uop;
+        is_idx = 1;
+        break;
+      case k_opcode_addr_load_16bit_wrap:
+        p_addr_load_uop = p_uop;
+        is_indirect = 1;
+        break;
+      case k_opcode_STA:
+        is_write = 1;
+        break;
+      default:
+        break;
+      }
+    }
+
+    is_addr_match = ((addr != -1) && (addr == last_addr));
+    is_idx_match = (is_idx == is_last_idx);
+
+    last_addr = -1;
+
+    if (!is_indirect || (addr == -1)) {
+      continue;
+    }
+
+    if (is_addr_match && is_idx_match) {
+      p_addr_set_uop->is_eliminated = 1;
+      p_addr_load_uop->is_eliminated = 1;
+      if (p_addr_add_uop != NULL) {
+        p_addr_add_uop->is_eliminated = 1;
+      }
+    }
+
+    if (!is_write) {
+      last_addr = addr;
+      is_last_idx = is_idx;
+    }
+  }
+}
+
+static void
 jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
   struct asm_uop* p_nz_flags_uop = NULL;
@@ -535,6 +607,9 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
    * CF==0 so the ADC can become just an ADD.
    */
   jit_optimizer_replace_uops(p_opcodes);
+
+  /* Pass 4: eliminate repeated mode loads, e.g EOR ($70),Y STA ($70),Y. */
+  jit_optimizer_eliminate_mode_loads(p_opcodes);
 
   return NULL;
 }

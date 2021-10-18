@@ -2031,8 +2031,26 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x7B);
   emit_JMP(p_buf, k_abs, 0xDD40);
 
-  /* End of test. */
+  /* Test that a possibly coalescable mode IDX pair works.
+   * One of these can be found in the Galaforce starfield plotting.
+   */
   set_new_index(p_buf, 0x1D40);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x0F);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x10);
+  emit_LDA(p_buf, k_imm, 0x11);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDA(p_buf, k_imm, 0x21);
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_EOR(p_buf, k_idx, 0x0E);
+  emit_STA(p_buf, k_idx, 0x0E);
+  emit_LDA(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x30);
+  emit_JMP(p_buf, k_abs, 0xDD80);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1D80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

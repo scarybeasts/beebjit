@@ -1860,6 +1860,12 @@ jit_compiler_testing_set_dynamic_trigger(struct jit_compiler* p_compiler,
   p_compiler->dynamic_trigger = count;
 }
 
+void
+jit_compiler_testing_set_accurate_cycles(struct jit_compiler* p_compiler,
+                                         int is_accurate) {
+  p_compiler->option_accurate_timings = is_accurate;
+}
+
 int32_t
 jit_compiler_testing_get_cycles_fixup(struct jit_compiler* p_compiler,
                                       uint16_t addr) {
