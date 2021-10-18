@@ -365,7 +365,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
                      void* p_fault_addr,
                      int is_write) {
   int inaccessible_indirect_page;
-  int ff_fault_fixup;
   int bcd_fault_fixup;
   int stack_wrap_fault_fixup;
   int wrap_indirect_read;
@@ -386,12 +385,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
    * for ROM writes.
    */
   inaccessible_indirect_page = 0;
-  /* The 0xFF page wrap fault occurs when a word fetch is performed at the end
-   * of a page, where that page wraps. e.g. idx mode fetching the address from
-   * 0xFF. Using a fault + fixup here makes the code footprint for idx mode
-   * addressing smaller.
-   */
-  ff_fault_fixup = 0;
   /* The BCD fault occurs when the BCD flag is unknown and set at the start of
    * a block with ADC / SBC instructions.
    */
@@ -442,10 +435,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
     wrap_indirect_read = 1;
   }
   if (p_fault_addr ==
-          ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE)) {
-    ff_fault_fixup = 1;
-  }
-  if (p_fault_addr ==
           ((void*) K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE + 2)) {
     /* D flag alone. */
     bcd_fault_fixup = 1;
@@ -469,7 +458,6 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
   }
 
   if (!inaccessible_indirect_page &&
-      !ff_fault_fixup &&
       !bcd_fault_fixup &&
       !stack_wrap_fault_fixup &&
       !wrap_indirect_read &&
