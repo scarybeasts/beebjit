@@ -576,23 +576,6 @@ asm_jit_addr_load_16bit_wrap_END:
   ret
 
 
-.globl asm_jit_MODE_IND_SCRATCH_16
-.globl asm_jit_MODE_IND_SCRATCH_16_END
-asm_jit_MODE_IND_SCRATCH_16:
-  # This faults (with a fixup handler) if we're trying to load from $xxFF,
-  # which is highly unusual.
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  mov REG_SCRATCH2_8, \
-      [REG_SCRATCH2 + K_BBC_MEM_READ_FULL_ADDR + K_6502_ADDR_SPACE_SIZE - 0xFF]
-
-  mov REG_SCRATCH2, REG_SCRATCH1
-  mov REG_SCRATCH1_8_HI, [REG_SCRATCH1 + 1 + REG_MEM - REG_MEM_OFFSET]
-  mov REG_SCRATCH1_8, [REG_SCRATCH2 + REG_MEM - REG_MEM_OFFSET]
-
-asm_jit_MODE_IND_SCRATCH_16_END:
-  ret
-
-
 .globl asm_jit_MODE_ZPX
 .globl asm_jit_MODE_ZPX_lea_patch
 .globl asm_jit_MODE_ZPX_END

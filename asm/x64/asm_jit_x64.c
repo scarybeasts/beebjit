@@ -27,7 +27,6 @@ enum {
   k_opcode_LDA_SCRATCH_X,
   k_opcode_STA_SCRATCH_n,
   k_opcode_LOAD_SCRATCH_8,
-  k_opcode_MODE_IND_SCRATCH_16,
 };
 
 enum {
@@ -1571,7 +1570,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_LOAD_SCRATCH_8:
     asm_emit_jit_LOAD_SCRATCH_8(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_MODE_IND_SCRATCH_16: ASM(MODE_IND_SCRATCH_16); break;
   case k_opcode_PULL_16: ASM(PULL_16); break;
   case k_opcode_PUSH_16:
     asm_emit_jit_PUSH_16(p_dest_buf, (uint16_t) value1);
