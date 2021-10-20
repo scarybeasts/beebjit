@@ -722,7 +722,7 @@ asm_jit_store_ABS_END:
 .globl asm_jit_store_ZPG
 .globl asm_jit_store_ZPG_END
 asm_jit_store_ZPG:
-  mov [REG_MEM + 0x7fffffff], REG_SCRATCH2_8
+  mov [REG_MEM + 0x7f], REG_SCRATCH2_8
 
 asm_jit_store_ZPG_END:
   ret

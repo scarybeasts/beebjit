@@ -1686,7 +1686,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
   case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;
   case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;
-  case k_opcode_x64_store_ZPG: ASM_ADDR_U32(store_ZPG); break;
+  case k_opcode_x64_store_ZPG: ASM_ADDR_U8(store_ZPG); break;
   case k_opcode_x64_write_inv_ABS:
     value1 = (K_JIT_CONTEXT_OFFSET_JIT_PTRS + (value1 * sizeof(uint32_t)));
     ASM_U32(write_inv_ABS);
