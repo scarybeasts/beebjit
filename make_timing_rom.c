@@ -801,8 +801,40 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 12);
   emit_JMP(p_buf, k_abs, 0xCB40);
 
-  /* Exit sequence. */
+  /* Check instruction timings with "known Y" optimization, part 1. */
   set_new_index(p_buf, 0x0B40);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_JMP(p_buf, k_abs, 0xCB45);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_LDY(p_buf, k_imm, 0x02);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 18);
+  emit_JMP(p_buf, k_abs, 0xCB80);
+
+  /* Check instruction timings with "known Y" optimization, part 2. */
+  set_new_index(p_buf, 0x0B80);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_JMP(p_buf, k_abs, 0xCB85);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_CYCLES_RESET(p_buf);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_LDY(p_buf, k_imm, 0x02);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 17);
+  emit_JMP(p_buf, k_abs, 0xCBC0);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0BC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */

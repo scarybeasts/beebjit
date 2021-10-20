@@ -178,6 +178,13 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
     int do_eliminate_check_bcd = 0;
     int do_eliminate_load_carry = 0;
 
+    /* The transforms below will crash if we've written the opcode to be an
+     * interp or inturbo bail.
+     */
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
     switch (p_opcode->optype_6502) {
     case k_adc:
       if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
@@ -269,6 +276,21 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       break;
     default:
       break;
+    }
+
+    if ((p_opcode->opmode_6502 == k_idy) &&
+        (p_opcode->reg_y != k_value_unknown)) {
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_add_y);
+      assert(p_uop != NULL);
+      p_uop->uopcode = k_opcode_addr_add_constant;
+      p_uop->value1 = p_opcode->reg_y;
+      p_uop = jit_opcode_find_uop(p_opcode,
+                                  &index,
+                                  k_opcode_check_page_crossing_y);
+      if (p_uop != NULL) {
+        p_uop->uopcode = k_opcode_check_page_crossing_n;
+        p_uop->value1 = p_opcode->reg_y;
+      }
     }
 
     if (do_eliminate_check_bcd) {
@@ -603,8 +625,13 @@ jit_optimizer_optimize_pre_rewrite(struct jit_opcode_details* p_opcodes) {
 
   /* Pass 3: replacements of uops with better ones if known state offers the
    * opportunity.
-   * Classic example is CLC; ADC. At the ADC instruction, it is known that
+   * 1) Classic example is CLC; ADC. At the ADC instruction, it is known that
    * CF==0 so the ADC can become just an ADD.
+   * 2) We rewrite e.g. INY to be LDY #n if the value of Y is statically known.
+   * This is common for unrolled loops.
+   * 3) We rewrite e.g. LDA ($3A),Y to make the "Y" addition in the address
+   * calculation constant, if Y is statically known. This is common for
+   * unrolled loops.
    */
   jit_optimizer_replace_uops(p_opcodes);
 

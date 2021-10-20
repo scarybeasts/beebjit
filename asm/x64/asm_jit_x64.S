@@ -277,16 +277,39 @@ asm_jit_check_bcd_END:
   ret
 
 
-.globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n
-.globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch
-.globl asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END
-asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n:
-  movzx REG_SCRATCH2_32, REG_SCRATCH1_8
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
-asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_mov_patch:
+.globl asm_jit_check_page_crossing_ABX
+.globl asm_jit_check_page_crossing_ABX_END
+asm_jit_check_page_crossing_ABX:
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + 0x7fffffff]
+
+asm_jit_check_page_crossing_ABX_END:
+  ret
+
+
+.globl asm_jit_check_page_crossing_ABY
+.globl asm_jit_check_page_crossing_ABY_END
+asm_jit_check_page_crossing_ABY:
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + 0x7fffffff]
+
+asm_jit_check_page_crossing_ABY_END:
+  ret
+
+
+.globl asm_jit_check_page_crossing_adjust
+.globl asm_jit_check_page_crossing_adjust_END
+asm_jit_check_page_crossing_adjust:
   lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
-asm_jit_CHECK_PAGE_CROSSING_SCRATCH_n_END:
+asm_jit_check_page_crossing_adjust_END:
+  ret
+
+
+.globl asm_jit_check_page_crossing_n
+.globl asm_jit_check_page_crossing_n_END
+asm_jit_check_page_crossing_n:
+  movzx REG_SCRATCH2_32, BYTE PTR [REG_SCRATCH2 + 0x7fffffff]
+
+asm_jit_check_page_crossing_n_END:
   ret
 
 
@@ -296,7 +319,6 @@ asm_jit_check_page_crossing_x:
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + \
                                    REG_SCRATCH2 + \
                                    K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_jit_check_page_crossing_x_END:
   ret
@@ -308,33 +330,8 @@ asm_jit_check_page_crossing_y:
   movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + \
                                    REG_SCRATCH2 + \
                                    K_ASM_TABLE_PAGE_WRAP_CYCLE_INV]
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
 
 asm_jit_check_page_crossing_y_END:
-  ret
-
-
-.globl asm_jit_CHECK_PAGE_CROSSING_X_n
-.globl asm_jit_CHECK_PAGE_CROSSING_X_n_mov_patch
-.globl asm_jit_CHECK_PAGE_CROSSING_X_n_END
-asm_jit_CHECK_PAGE_CROSSING_X_n:
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_X_64 + 0x7fffffff]
-asm_jit_CHECK_PAGE_CROSSING_X_n_mov_patch:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
-
-asm_jit_CHECK_PAGE_CROSSING_X_n_END:
-  ret
-
-
-.globl asm_jit_CHECK_PAGE_CROSSING_Y_n
-.globl asm_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch
-.globl asm_jit_CHECK_PAGE_CROSSING_Y_n_END
-asm_jit_CHECK_PAGE_CROSSING_Y_n:
-  movzx REG_SCRATCH2_32, BYTE PTR [REG_6502_Y_64 + 0x7fffffff]
-asm_jit_CHECK_PAGE_CROSSING_Y_n_mov_patch:
-  lea REG_COUNTDOWN, [REG_COUNTDOWN + REG_SCRATCH2]
-
-asm_jit_CHECK_PAGE_CROSSING_Y_n_END:
   ret
 
 
@@ -731,34 +728,32 @@ asm_jit_store_ZPG_END:
   ret
 
 
+.globl asm_jit_write_inv_commit
+.globl asm_jit_write_inv_commit_END
+asm_jit_write_inv_commit:
+  mov WORD PTR [REG_SCRATCH2], 0x17ff
+
+asm_jit_write_inv_commit_END:
+  ret
+
+
 .globl asm_jit_write_inv
 .globl asm_jit_write_inv_END
 asm_jit_write_inv:
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH1 * 4]
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
 
 asm_jit_write_inv_END:
   ret
 
 
-.globl asm_jit_write_inv_ABS_load
-.globl asm_jit_write_inv_ABS_load_END
-.globl asm_jit_write_inv_ABS_store
-.globl asm_jit_write_inv_ABS_store_END
-asm_jit_write_inv_ABS_load:
+.globl asm_jit_write_inv_ABS
+.globl asm_jit_write_inv_ABS_END
+asm_jit_write_inv_ABS:
   mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff]
 
-asm_jit_write_inv_ABS_load_END:
-  ret
-
-asm_jit_write_inv_ABS_store:
-  # NOTE: 16-bit imm contant may case LCP stall but quick tests didn't show any
-  # problems vs. using a 16-bit register.
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
-
-asm_jit_write_inv_ABS_store_END:
+asm_jit_write_inv_ABS_END:
   ret
 
 
@@ -769,9 +764,18 @@ asm_jit_write_inv_IDY:
   mov REG_SCRATCH2_32, [REG_CONTEXT + \
                         K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
                         REG_SCRATCH2 * 4]
-  mov WORD PTR [REG_SCRATCH2], 0x17ff
 
 asm_jit_write_inv_IDY_END:
+  ret
+
+
+.globl asm_jit_write_inv_IDY_n
+.globl asm_jit_write_inv_IDY_n_END
+asm_jit_write_inv_IDY_n:
+  # The contant encodes both K_JIT_CONTEXT_OFFSET_JIT_PTRS and the "n".
+  mov REG_SCRATCH2_32, [REG_CONTEXT + 0x7fffffff + REG_SCRATCH1 * 4]
+
+asm_jit_write_inv_IDY_n_END:
   ret
 
 
@@ -808,6 +812,15 @@ asm_jit_ADC_addr:
   adc REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_ADC_addr_END:
+  ret
+
+
+.globl asm_jit_ADC_addr_n
+.globl asm_jit_ADC_addr_n_END
+asm_jit_ADC_addr_n:
+  adc REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_ADC_addr_n_END:
   ret
 
 
@@ -871,6 +884,15 @@ asm_jit_ADD_addr:
   add REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_ADD_addr_END:
+  ret
+
+
+.globl asm_jit_ADD_addr_n
+.globl asm_jit_ADD_addr_n_END
+asm_jit_ADD_addr_n:
+  add REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_ADD_addr_n_END:
   ret
 
 
@@ -951,6 +973,15 @@ asm_jit_AND_addr:
   and REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_AND_addr_END:
+  ret
+
+
+.globl asm_jit_AND_addr_n
+.globl asm_jit_AND_addr_n_END
+asm_jit_AND_addr_n:
+  and REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_AND_addr_n_END:
   ret
 
 
@@ -1224,6 +1255,15 @@ asm_jit_CMP_addr_END:
   ret
 
 
+.globl asm_jit_CMP_addr_n
+.globl asm_jit_CMP_addr_n_END
+asm_jit_CMP_addr_n:
+  cmp REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_CMP_addr_n_END:
+  ret
+
+
 .globl asm_jit_CMP_addr_Y
 .globl asm_jit_CMP_addr_Y_END
 asm_jit_CMP_addr_Y:
@@ -1368,6 +1408,15 @@ asm_jit_EOR_addr_END:
   ret
 
 
+.globl asm_jit_EOR_addr_n
+.globl asm_jit_EOR_addr_n_END
+asm_jit_EOR_addr_n:
+  xor REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_EOR_addr_n_END:
+  ret
+
+
 .globl asm_jit_EOR_addr_Y
 .globl asm_jit_EOR_addr_Y_END
 asm_jit_EOR_addr_Y:
@@ -1464,6 +1513,20 @@ asm_jit_LDA_addr:
   movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_LDA_addr_END:
+  ret
+
+
+.globl asm_jit_LDA_addr_n
+.globl asm_jit_LDA_addr_n_END
+asm_jit_LDA_addr_n:
+  # TODO: this is a 3-component lea. It's possible to fold REG_MEM and the
+  # constant into one larger constant, resulting in a 2-component lea, but a
+  # larger encoding. I don't really observe any timing difference in a
+  # microbenchmark on my 11th gen Intel, but AMD is alleged to prefer
+  # 2-component lea's so it may be worth revisiting in the future.
+  movzx REG_6502_A_32, BYTE PTR [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_LDA_addr_n_END:
   ret
 
 
@@ -1696,6 +1759,15 @@ asm_jit_ORA_addr_END:
   ret
 
 
+.globl asm_jit_ORA_addr_n
+.globl asm_jit_ORA_addr_n_END
+asm_jit_ORA_addr_n:
+  or REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_ORA_addr_n_END:
+  ret
+
+
 .globl asm_jit_ORA_addr_Y
 .globl asm_jit_ORA_addr_Y_END
 asm_jit_ORA_addr_Y:
@@ -1862,6 +1934,15 @@ asm_jit_SBC_addr_END:
   ret
 
 
+.globl asm_jit_SBC_addr_n
+.globl asm_jit_SBC_addr_n_END
+asm_jit_SBC_addr_n:
+  sbb REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_SBC_addr_n_END:
+  ret
+
+
 .globl asm_jit_SBC_addr_Y
 .globl asm_jit_SBC_addr_Y_END
 asm_jit_SBC_addr_Y:
@@ -1942,6 +2023,15 @@ asm_jit_STA_addr:
   mov [REG_SCRATCH1 + K_BBC_MEM_WRITE_IND_ADDR], REG_6502_A
 
 asm_jit_STA_addr_END:
+  ret
+
+
+.globl asm_jit_STA_addr_n
+.globl asm_jit_STA_addr_n_END
+asm_jit_STA_addr_n:
+  mov [REG_SCRATCH1 + 0x7fffffff], REG_6502_A
+
+asm_jit_STA_addr_n_END:
   ret
 
 
@@ -2050,6 +2140,15 @@ asm_jit_SUB_addr:
   sub REG_6502_A, [REG_SCRATCH1 + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_SUB_addr_END:
+  ret
+
+
+.globl asm_jit_SUB_addr_n
+.globl asm_jit_SUB_addr_n_END
+asm_jit_SUB_addr_n:
+  sub REG_6502_A, [REG_SCRATCH1 + REG_MEM + 0x7f]
+
+asm_jit_SUB_addr_n_END:
   ret
 
 

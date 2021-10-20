@@ -104,6 +104,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
     case k_opcode_addr_add_y_8bit:
     case k_opcode_addr_add_x:
     case k_opcode_addr_add_y:
+    case k_opcode_addr_add_constant:
       assert((i + 1) < num_uops);
       assert(i != 0);
       *p_out_mode = p_uop;
