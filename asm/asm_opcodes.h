@@ -32,8 +32,9 @@ enum {
   k_opcode_save_carry_inverted,
   k_opcode_save_overflow,
 
-  /* Addressing and value opcodes, 0x200 - 0x2FF. */
-  k_opcode_addr_set = 0x200,
+  /* Addressing opcodes, 0x200 - 0x2FF. */
+  k_opcode_addr_begin = 0x200,
+  k_opcode_addr_set,
   k_opcode_addr_add_x,
   k_opcode_addr_add_y,
   k_opcode_addr_add_constant,
@@ -41,6 +42,9 @@ enum {
   k_opcode_addr_add_y_8bit,
   k_opcode_addr_load_16bit_wrap,
   k_opcode_addr_load_16bit_nowrap,
+  k_opcode_addr_end,
+
+  /* Value opcodes, 0x300 - 0x3FF. */
   k_opcode_flags_nz_a,
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,
@@ -54,7 +58,7 @@ enum {
   k_opcode_write_inv,
 
   /* 6502-like opcodes. */
-  k_opcode_main_begin = 0x300,
+  k_opcode_main_begin = 0x400,
   k_opcode_ADC,
   k_opcode_ADD,
   k_opcode_ALR,

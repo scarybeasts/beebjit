@@ -2049,8 +2049,36 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x30);
   emit_JMP(p_buf, k_abs, 0xDD80);
 
-  /* End of test. */
+  /* Test for the BIT / PHP instruction interfering with address base load
+   * elimination optimization.
+   */
   set_new_index(p_buf, 0x1D80);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x1000);
+  emit_LDY(p_buf, k_imm, 0x00);
+  /* Try BIT. */
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_BIT(p_buf, k_abs, 0x1000);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_idy, 0xF0);
+  /* Try PHP. */
+  emit_LDA(p_buf, k_idy, 0xF0);
+  emit_PHP(p_buf);
+  emit_CLC(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_idy, 0xF0);
+  emit_LDA(p_buf, k_abs, 0x1000);
+  emit_REQUIRE_EQ(p_buf, 0x02);
+  emit_JMP(p_buf, k_abs, 0xDDC0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1DC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

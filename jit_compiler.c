@@ -338,6 +338,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->opmode_6502 = opmode;
   p_details->opreg_6502 = opreg;
   p_details->opbranch_6502 = g_opbranch[optype];
+  p_details->opmem_6502 = opmem;
   p_details->num_bytes_6502 = g_opmodelens[opmode];
   p_details->ends_block = 0;
   if (p_details->opbranch_6502 == k_bra_y) {

@@ -969,6 +969,46 @@ jit_test_compile_binary(void) {
 #elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check that known-Y and IDY base load elimination are combining correctly,
+   * since this combo appears in BBC BASIC optimizations a lot.
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3400), 0x100);
+  emit_LDY(p_buf, k_imm, 0x04);
+  emit_LDA(p_buf, k_idy, 0x4B);
+  emit_STA(p_buf, k_zpg, 0x41);
+  emit_DEY(p_buf);
+  emit_LDA(p_buf, k_idy, 0x4B);
+  emit_STA(p_buf, k_zpg, 0x40);
+  emit_DEY(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3400);
+  /* Avoid emitting page crossing check. */
+  jit_compiler_testing_set_accurate_cycles(s_p_compiler, 0);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3400);
+#if defined(__x86_64__)
+  /* movzx  edx, BYTE PTR [rbp-0x35]
+   * mov    dh, BYTE PTR [rbp-0x34]
+   * movzx  eax, BYTE PTR [rdx+rbp*1-0x7c]
+   * mov    BYTE PTR [rbp-0x3f],al
+   * movzx  eax,BYTE PTR [rdx+rbp*1-0x7d]
+   * mov    BYTE PTR [rbp-0x40],al
+   */
+  p_expect = "\x0f\xb6\x55\xcb"
+             "\x8a\x75\xcc"
+             "\x0f\xb6\x44\x2a\x84"
+             "\x88\x45\xc1"
+             "\x0f\xb6\x44\x2a\x83"
+             "\x88\x45\xc0";
+  expect_len = 23;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

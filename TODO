@@ -8,8 +8,10 @@ The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
 - Mode ZPG for dynamic operand.
+- Add mode IDY (X) dedicated uops to x64 backend (for dynamic operand).
 - Investigate mode REL for dynamic operand.
 - Optimize carry elimination for inverted carry situations.
+- Re-add mode IDX address optimization.
 
 
 Fix later

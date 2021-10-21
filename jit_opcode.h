@@ -18,6 +18,7 @@ struct jit_opcode_details {
   uint8_t opmode_6502;
   uint8_t opreg_6502;
   uint8_t opbranch_6502;
+  uint8_t opmem_6502;
   uint8_t num_bytes_6502;
   uint8_t max_cycles;
   uint16_t branch_addr_6502;
