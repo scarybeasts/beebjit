@@ -42,6 +42,7 @@ enum {
   k_opcode_addr_add_y_8bit,
   k_opcode_addr_load_16bit_wrap,
   k_opcode_addr_load_16bit_nowrap,
+  k_opcode_addr_load_8bit,
   k_opcode_addr_end,
 
   /* Value opcodes, 0x300 - 0x3FF. */

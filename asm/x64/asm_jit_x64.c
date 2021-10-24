@@ -37,6 +37,7 @@ enum {
   k_opcode_x64_mode_IDY_load,
   k_opcode_x64_mode_IND,
   k_opcode_x64_mode_IND_nowrap,
+  k_opcode_x64_mode_IND8,
   k_opcode_x64_mode_ZPX,
   k_opcode_x64_mode_ZPY,
   k_opcode_x64_store_ABS,
@@ -1233,6 +1234,17 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
     is_mode_addr = 1;
     break;
+  case k_opcode_addr_load_8bit:
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    p_mode_uop->is_eliminated = 1;
+    addr = p_mode_uop->value1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_x64_mode_IND8;
+    p_mode_uop->value1 = addr;
+    p_mode_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+    is_mode_addr = 1;
+    break;
   case k_opcode_value_set:
     /* Mode IMM. */
     assert(p_main_uop != NULL);
@@ -1683,6 +1695,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     value1++;
     ASM_ADDR_U32(mode_IND_mov2);
     break;
+  case k_opcode_x64_mode_IND8: ASM_ADDR_U32(mode_IND_mov1); break;
   case k_opcode_x64_mode_ZPX: asm_emit_jit_MODE_ZPX(p_dest_buf, value1); break;
   case k_opcode_x64_mode_ZPY: asm_emit_jit_MODE_ZPY(p_dest_buf, value1); break;
   case k_opcode_x64_store_ABS: ASM_ADDR_U32(store_ABS); break;

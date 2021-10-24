@@ -984,6 +984,14 @@ jit_compiler_try_make_dynamic_opcode(struct jit_compiler* p_compiler,
     p_uop = jit_opcode_insert_uop(p_opcode, index);
     asm_make_uop0(p_uop, k_opcode_addr_check);
     break;
+  case k_zpg:
+    /* Examples: Exile. */
+    p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_addr_set);
+    assert(p_uop != NULL);
+    p_uop->value1 = next_addr;
+    p_uop = jit_opcode_insert_uop(p_opcode, (index + 1));
+    asm_make_uop0(p_uop, k_opcode_addr_load_8bit);
+    break;
   default:
     /* Can't handle mode yet. */
     return;

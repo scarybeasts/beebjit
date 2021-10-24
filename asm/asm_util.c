@@ -100,6 +100,7 @@ asm_breakdown_from_6502(struct asm_uop* p_uops,
     case k_opcode_value_load_16bit_wrap:
     case k_opcode_addr_load_16bit_wrap:
     case k_opcode_addr_load_16bit_nowrap:
+    case k_opcode_addr_load_8bit:
     case k_opcode_addr_add_x_8bit:
     case k_opcode_addr_add_y_8bit:
     case k_opcode_addr_add_x:
