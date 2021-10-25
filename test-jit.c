@@ -316,8 +316,8 @@ jit_test_dynamic_operand(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
 
-  /* After the first run through, the LDA $0E01 will have been self-modified
-   * to LDA $0E02 and currently status will be awaiting compilation.
+  /* After the first run through, the LDA $0E01,X will have been self-modified
+   * to LDA $0E02,X and currently status will be awaiting compilation.
    */
   jit_test_expect_block_invalidated(0, 0xE00);
   jit_test_expect_code_invalidated(1, 0xE00);
@@ -1006,6 +1006,38 @@ jit_test_compile_binary(void) {
              "\x0f\xb6\x44\x2a\x83"
              "\x88\x45\xc0";
   expect_len = 23;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check the dynamic operand output for mode ABX, since this occurs a lot
+   * in sprite routines.
+   */
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 1);
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3500), 0x100);
+  emit_LDA(p_buf, k_abx, 0x2324);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3500);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  /* Invalidate then compile it a second time to get the dynamic operand. */
+  jit_test_invalidate_code_at_address(s_p_jit, 0x3501);
+  state_6502_set_pc(s_p_state_6502, 0x3500);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3500);
+#if defined(__x86_64__)
+  /* movzx  edx,BYTE PTR [rbp+0x3481]
+   * mov    dh,BYTE PTR [rbp+0x3482]
+   * movzx  eax,BYTE PTR [rdx+rbx*1+0x10008000]
+   */
+  p_expect = "\x0f\xb6\x95\x81\x34\x00\x00"
+             "\x8a\xb5\x82\x34\x00\x00"
+             "\x0f\xb6\x84\x1a\x00\x80\x00\x10";
+  expect_len = 21;
 #elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);

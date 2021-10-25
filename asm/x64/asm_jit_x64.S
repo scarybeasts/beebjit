@@ -457,15 +457,6 @@ asm_jit_load_overflow_END:
   ret
 
 
-.globl asm_jit_LOAD_SCRATCH_8
-.globl asm_jit_LOAD_SCRATCH_8_END
-asm_jit_LOAD_SCRATCH_8:
-  movzx REG_ADDR_32, BYTE PTR [REG_MEM + 0x7fffffff]
-
-asm_jit_LOAD_SCRATCH_8_END:
-  ret
-
-
 .globl asm_jit_mode_ABX
 .globl asm_jit_mode_ABX_END
 asm_jit_mode_ABX:
@@ -778,6 +769,18 @@ asm_jit_write_inv_IDY_n_END:
   ret
 
 
+.globl asm_jit_write_inv_IDY_X
+.globl asm_jit_write_inv_IDY_X_END
+asm_jit_write_inv_IDY_X:
+  lea REG_SCRATCH2_32, [REG_ADDR + REG_6502_X_64]
+  mov REG_SCRATCH2_32, [REG_CONTEXT + \
+                        K_JIT_CONTEXT_OFFSET_JIT_PTRS + \
+                        REG_SCRATCH2 * 4]
+
+asm_jit_write_inv_IDY_X_END:
+  ret
+
+
 .globl asm_jit_ADC_ABS
 .globl asm_jit_ADC_ABS_END
 asm_jit_ADC_ABS:
@@ -820,6 +823,15 @@ asm_jit_ADC_addr_n:
   adc REG_6502_A, [REG_ADDR + REG_MEM + 0x7f]
 
 asm_jit_ADC_addr_n_END:
+  ret
+
+
+.globl asm_jit_ADC_addr_X
+.globl asm_jit_ADC_addr_X_END
+asm_jit_ADC_addr_X:
+  adc REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_ADC_addr_X_END:
   ret
 
 
@@ -892,6 +904,15 @@ asm_jit_ADD_addr_n:
   add REG_6502_A, [REG_ADDR + REG_MEM + 0x7f]
 
 asm_jit_ADD_addr_n_END:
+  ret
+
+
+.globl asm_jit_ADD_addr_X
+.globl asm_jit_ADD_addr_X_END
+asm_jit_ADD_addr_X:
+  add REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_ADD_addr_X_END:
   ret
 
 
@@ -981,6 +1002,15 @@ asm_jit_AND_addr_n:
   and REG_6502_A, [REG_ADDR + REG_MEM + 0x7f]
 
 asm_jit_AND_addr_n_END:
+  ret
+
+
+.globl asm_jit_AND_addr_X
+.globl asm_jit_AND_addr_X_END
+asm_jit_AND_addr_X:
+  and REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_AND_addr_X_END:
   ret
 
 
@@ -1263,6 +1293,15 @@ asm_jit_CMP_addr_n_END:
   ret
 
 
+.globl asm_jit_CMP_addr_X
+.globl asm_jit_CMP_addr_X_END
+asm_jit_CMP_addr_X:
+  cmp REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_CMP_addr_X_END:
+  ret
+
+
 .globl asm_jit_CMP_addr_Y
 .globl asm_jit_CMP_addr_Y_END
 asm_jit_CMP_addr_Y:
@@ -1416,6 +1455,15 @@ asm_jit_EOR_addr_n_END:
   ret
 
 
+.globl asm_jit_EOR_addr_X
+.globl asm_jit_EOR_addr_X_END
+asm_jit_EOR_addr_X:
+  xor REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_EOR_addr_X_END:
+  ret
+
+
 .globl asm_jit_EOR_addr_Y
 .globl asm_jit_EOR_addr_Y_END
 asm_jit_EOR_addr_Y:
@@ -1530,6 +1578,17 @@ asm_jit_LDA_addr_n_END:
   ret
 
 
+.globl asm_jit_LDA_addr_X
+.globl asm_jit_LDA_addr_X_END
+asm_jit_LDA_addr_X:
+  movzx REG_6502_A_32, BYTE PTR [REG_ADDR + \
+                                 REG_6502_X_64 + \
+                                 K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_LDA_addr_X_END:
+  ret
+
+
 .globl asm_jit_LDA_addr_Y
 .globl asm_jit_LDA_addr_Y_END
 asm_jit_LDA_addr_Y:
@@ -1547,26 +1606,6 @@ asm_jit_LDA_IMM:
   mov REG_6502_A_32, 0x00000000
 
 asm_jit_LDA_IMM_END:
-  ret
-
-
-.globl asm_jit_LDA_SCRATCH_X
-.globl asm_jit_LDA_SCRATCH_X_END
-asm_jit_LDA_SCRATCH_X:
-  movzx REG_6502_A_32, BYTE PTR [REG_ADDR + \
-                                 REG_6502_X_64 + \
-                                 K_BBC_MEM_READ_IND_ADDR]
-
-asm_jit_LDA_SCRATCH_X_END:
-  ret
-
-
-.globl asm_jit_LDX_ABS
-.globl asm_jit_LDX_ABS_END
-asm_jit_LDX_ABS:
-  mov REG_6502_X, [REG_MEM + 0x7fffffff]
-
-asm_jit_LDX_ABS_END:
   ret
 
 
@@ -1594,6 +1633,15 @@ asm_jit_LDA_ZPG:
   movzx REG_6502_A_32, BYTE PTR [REG_MEM + 0x7f]
 
 asm_jit_LDA_ZPG_END:
+  ret
+
+
+.globl asm_jit_LDX_ABS
+.globl asm_jit_LDX_ABS_END
+asm_jit_LDX_ABS:
+  mov REG_6502_X, [REG_MEM + 0x7fffffff]
+
+asm_jit_LDX_ABS_END:
   ret
 
 
@@ -1765,6 +1813,15 @@ asm_jit_ORA_addr_n:
   or REG_6502_A, [REG_ADDR + REG_MEM + 0x7f]
 
 asm_jit_ORA_addr_n_END:
+  ret
+
+
+.globl asm_jit_ORA_addr_X
+.globl asm_jit_ORA_addr_X_END
+asm_jit_ORA_addr_X:
+  or REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_ORA_addr_X_END:
   ret
 
 
@@ -1943,6 +2000,15 @@ asm_jit_SBC_addr_n_END:
   ret
 
 
+.globl asm_jit_SBC_addr_X
+.globl asm_jit_SBC_addr_X_END
+asm_jit_SBC_addr_X:
+  sbb REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_SBC_addr_X_END:
+  ret
+
+
 .globl asm_jit_SBC_addr_Y
 .globl asm_jit_SBC_addr_Y_END
 asm_jit_SBC_addr_Y:
@@ -2032,6 +2098,15 @@ asm_jit_STA_addr_n:
   mov [REG_ADDR + 0x7fffffff], REG_6502_A
 
 asm_jit_STA_addr_n_END:
+  ret
+
+
+.globl asm_jit_STA_addr_X
+.globl asm_jit_STA_addr_X_END
+asm_jit_STA_addr_X:
+  mov [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_WRITE_IND_ADDR], REG_6502_A
+
+asm_jit_STA_addr_X_END:
   ret
 
 
@@ -2149,6 +2224,15 @@ asm_jit_SUB_addr_n:
   sub REG_6502_A, [REG_ADDR + REG_MEM + 0x7f]
 
 asm_jit_SUB_addr_n_END:
+  ret
+
+
+.globl asm_jit_SUB_addr_X
+.globl asm_jit_SUB_addr_X_END
+asm_jit_SUB_addr_X:
+  sub REG_6502_A, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_SUB_addr_X_END:
   ret
 
 

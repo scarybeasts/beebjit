@@ -2098,8 +2098,66 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x69);
   emit_JMP(p_buf, k_abs, 0xDE00);
 
-  /* End of test. */
+  /* Test dynamic operands on mode aby calculates the address correctly. */
   set_new_index(p_buf, 0x1E00);
+  emit_LDA(p_buf, k_imm, 0xB9);   /* LDA $0000,Y */
+  emit_STA(p_buf, k_abs, 0x4E00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4E01);
+  emit_STA(p_buf, k_abs, 0x4E02);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4E03);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x4E01);
+  emit_JSR(p_buf, 0x4E00);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x61);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_STA(p_buf, k_abs, 0x4E01);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4E02);
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0x4E00);
+  emit_REQUIRE_EQ(p_buf, 0x61);
+  emit_JMP(p_buf, k_abs, 0xDE40);
+
+  /* Test dynamic operands on STA abx for correct write invalidation. */
+  set_new_index(p_buf, 0x1E40);
+  emit_LDA(p_buf, k_imm, 0x9D);   /* STA $8000,X */
+  emit_STA(p_buf, k_abs, 0x4E40);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4E41);
+  emit_LDA(p_buf, k_imm, 0x80);
+  emit_STA(p_buf, k_abs, 0x4E42);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4E43);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x4E41);
+  emit_JSR(p_buf, 0x4E40);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
+  emit_STA(p_buf, k_abs, 0x4E50);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4E51);
+  emit_JSR(p_buf, 0x4E50);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_abs, 0x4E41);
+  emit_LDA(p_buf, k_imm, 0x4E);
+  emit_STA(p_buf, k_abs, 0x4E42);
+  emit_LDX(p_buf, k_imm, 0x10);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_JSR(p_buf, 0x4E40);        /* Should write RTS to $4E50. */
+  emit_LDX(p_buf, k_imm, 0x01);
+  emit_JSR(p_buf, 0x4E50);
+  emit_TXA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xDEC0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1EC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

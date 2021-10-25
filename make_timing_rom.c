@@ -833,8 +833,27 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 17);
   emit_JMP(p_buf, k_abs, 0xCBC0);
 
-  /* Exit sequence. */
+  /* Test timing of aby mode load opcode with dynamic operand. */
   set_new_index(p_buf, 0x0BC0);
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0x3020);
+  emit_INC(p_buf, k_abs, 0x3021);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDY(p_buf, k_imm, 0x6F);     /* No aby page crossing. */
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x3020);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x18);
+  emit_LDY(p_buf, k_imm, 0x70);     /* aby page crossing. */
+  emit_CYCLES_RESET(p_buf);
+  emit_JSR(p_buf, 0x3020);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x19);
+  emit_JMP(p_buf, k_abs, 0xCC00);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0C00);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
@@ -849,6 +868,11 @@ main(int argc, const char* argv[]) {
   emit_STA(p_buf, k_abs, 0x3015);
   /* KIL */
   util_buffer_add_1b(p_buf, 0x72);
+
+  /* For testing dynamic operand of aby mode. */
+  set_new_index(p_buf, 0x2020);
+  emit_LDA(p_buf, k_aby, 0x0080);
+  emit_RTS(p_buf);
 
   /* Routine to arrange for an TIMER1 based IRQ at a specific time. */
   /* Input: A is timer value desired at first post-RTS opcode. */
