@@ -1663,6 +1663,15 @@ asm_jit_LDX_addr_END:
   ret
 
 
+.globl asm_jit_LDX_addr_Y
+.globl asm_jit_LDX_addr_Y_END
+asm_jit_LDX_addr_Y:
+  mov REG_6502_X, [REG_ADDR + REG_6502_Y_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_LDX_addr_Y_END:
+  ret
+
+
 .globl asm_jit_LDX_IMM
 .globl asm_jit_LDX_IMM_END
 asm_jit_LDX_IMM:
@@ -1705,6 +1714,15 @@ asm_jit_LDY_addr:
   mov REG_6502_Y, [REG_ADDR + K_BBC_MEM_READ_IND_ADDR]
 
 asm_jit_LDY_addr_END:
+  ret
+
+
+.globl asm_jit_LDY_addr_X
+.globl asm_jit_LDY_addr_X_END
+asm_jit_LDY_addr_X:
+  mov REG_6502_Y, [REG_ADDR + REG_6502_X_64 + K_BBC_MEM_READ_IND_ADDR]
+
+asm_jit_LDY_addr_X_END:
   ret
 
 

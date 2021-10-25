@@ -2156,8 +2156,61 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xDEC0);
 
-  /* End of test. */
+  /* Test dynamic operands on LDY abx. */
   set_new_index(p_buf, 0x1EC0);
+  emit_LDA(p_buf, k_imm, 0xBC);   /* LDY $0000,X */
+  emit_STA(p_buf, k_abs, 0x4EC0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4EC1);
+  emit_STA(p_buf, k_abs, 0x4EC2);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4EC3);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x4EC1);
+  emit_JSR(p_buf, 0x4EC0);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x5A);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_STA(p_buf, k_abs, 0x4EC1);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4EC2);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_LDX(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0x4EC0);
+  emit_TYA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x5A);
+  emit_JMP(p_buf, k_abs, 0xDF00);
+
+  /* Test dynamic operands on an RMW abx. */
+  set_new_index(p_buf, 0x1F00);
+  emit_LDA(p_buf, k_imm, 0xFE);   /* INC $8000,X */
+  emit_STA(p_buf, k_abs, 0x4F00);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4F01);
+  emit_STA(p_buf, k_abs, 0x4F02);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x4F03);
+  emit_LDX(p_buf, k_imm, 16);
+  emit_INC(p_buf, k_abs, 0x4F01);
+  emit_JSR(p_buf, 0x4F00);
+  emit_DEX(p_buf);
+  emit_BNE(p_buf, -9);
+  emit_LDA(p_buf, k_imm, 0x39);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0xE0);
+  emit_STA(p_buf, k_abs, 0x4F01);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_abs, 0x4F02);
+  emit_LDX(p_buf, k_imm, 0x10);
+  emit_JSR(p_buf, 0x4F00);
+  emit_LDA(p_buf, k_zpg, 0xF0);
+  emit_REQUIRE_EQ(p_buf, 0x3A);
+  emit_JMP(p_buf, k_abs, 0xDF40);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1F40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

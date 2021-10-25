@@ -67,6 +67,11 @@ performance and stability test cases.
 ...
 [ITRP] 1EFC: CMP #$1F
 
+- Unusual self-modify of LDY ABX:
+[ITRP] 0E4F: STA $11DC
+...
+[ITRP] 11DB: LDY $345A,X
+
 
 5) Stryker's Run
 - Sprite plot routine hosted in zero page, 0x7 - 0x77 inclusive.
