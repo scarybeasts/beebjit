@@ -29,6 +29,8 @@ enum {
   k_opcode_x64_check_page_crossing_ABY,
   k_opcode_x64_check_page_crossing_IDY,
   k_opcode_x64_check_page_crossing_IDY_X,
+  k_opcode_x64_flags_nz_mem_ABS,
+  k_opcode_x64_flags_nz_mem_ZPG,
   k_opcode_x64_load_ABS,
   k_opcode_x64_load_ZPG,
   k_opcode_x64_mode_ABX_and_load,
@@ -139,8 +141,12 @@ enum {
   k_opcode_x64_ORA_addr_Y,
   k_opcode_x64_ORA_IMM,
   k_opcode_x64_ORA_ZPG,
+  k_opcode_x64_ROL_ABS,
   k_opcode_x64_ROL_ACC_n,
+  k_opcode_x64_ROL_ZPG,
+  k_opcode_x64_ROR_ABS,
   k_opcode_x64_ROR_ACC_n,
+  k_opcode_x64_ROR_ZPG,
   k_opcode_x64_SAX_ABS,
   k_opcode_x64_SBC_ABS,
   k_opcode_x64_SBC_ABX,
@@ -873,6 +879,8 @@ asm_jit_rewrite_ZPG(int32_t uopcode) {
   case k_opcode_LSR_value: new_uopcode = k_opcode_x64_LSR_ZPG; break;
   case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
   case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ZPG; break;
+  case k_opcode_ROL_value: new_uopcode = k_opcode_x64_ROL_ZPG; break;
+  case k_opcode_ROR_value: new_uopcode = k_opcode_x64_ROR_ZPG; break;
   /* SAX and SLO only support ABS for now. */
   case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
   case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ZPG; break;
@@ -907,6 +915,8 @@ asm_jit_rewrite_ABS(int32_t uopcode) {
   case k_opcode_LSR_value: new_uopcode = k_opcode_x64_LSR_ABS; break;
   case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
   case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_ABS; break;
+  case k_opcode_ROL_value: new_uopcode = k_opcode_x64_ROL_ABS; break;
+  case k_opcode_ROR_value: new_uopcode = k_opcode_x64_ROR_ABS; break;
   case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
   case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ABS; break;
   case k_opcode_SLO: new_uopcode = k_opcode_x64_SLO_ABS; break;
@@ -1084,15 +1094,17 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
                           &p_inv_uop,
                           &p_addr_check_uop,
                           &p_page_crossing_uop);
+
   if (p_main_uop == NULL) {
     return;
   }
+  uopcode = p_main_uop->uopcode;
 
   /* Fix up carry flag managment, including for Intel doing borrow instead of
    * carry for subtract.
    */
   if (p_load_carry_uop != NULL) {
-    switch (p_main_uop->uopcode) {
+    switch (uopcode) {
     case k_opcode_ADC:
     case k_opcode_ROL_acc:
     case k_opcode_ROL_value:
@@ -1120,7 +1132,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     }
   }
   if (p_save_carry_uop != NULL) {
-    switch (p_main_uop->uopcode) {
+    switch (uopcode) {
     case k_opcode_SBC:
     case k_opcode_SUB:
     case k_opcode_CMP:
@@ -1133,7 +1145,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     }
   }
   if (p_load_overflow_uop != NULL) {
-    switch (p_main_uop->uopcode) {
+    switch (uopcode) {
     case k_opcode_PHP:
       p_load_overflow_uop->is_eliminated = 1;
       break;
@@ -1143,7 +1155,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   }
 
   /* Many Intel instructions update the save NZ flag state for us. */
-  switch (p_main_uop->uopcode) {
+  switch (uopcode) {
   case k_opcode_ADC:
   case k_opcode_ADD:
   case k_opcode_ALR:
@@ -1170,6 +1182,20 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     assert(p_nz_flags_uop != NULL);
     p_nz_flags_uop->is_merged = 1;
     p_nz_flags_uop->is_eliminated = 1;
+    break;
+  case k_opcode_ROL_value:
+  case k_opcode_ROR_value:
+    assert(p_mode_uop != NULL);
+    if (p_mode_uop->uopcode != k_opcode_addr_set) {
+      /* The non-simple ROL / ROR read-modify-writes do built in flag saving. */
+      assert(p_save_carry_uop != NULL);
+      assert(p_nz_flags_uop != NULL);
+      p_save_carry_uop->is_eliminated = 1;
+      p_save_carry_uop->is_merged = 1;
+      p_nz_flags_uop->is_eliminated = 1;
+      p_nz_flags_uop->is_merged = 1;
+    }
+    break;
   default:
     break;
   }
@@ -1178,7 +1204,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
    * than by 1.
    */
   if ((p_mode_uop == NULL) && (p_main_uop->value1 != 1)) {
-    switch (p_main_uop->uopcode) {
+    switch (uopcode) {
     case k_opcode_ASL_acc:
       p_main_uop->backend_tag = k_opcode_x64_ASL_ACC_n;
       break;
@@ -1269,35 +1295,35 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     new_uopcode = p_main_uop->uopcode;
     if ((new_uopcode == k_opcode_ROL_value) ||
         (new_uopcode == k_opcode_ROR_value)) {
-      assert(p_load_uop != NULL);
-      assert(p_store_uop != NULL);
-      if (is_zpg) new_uopcode = k_opcode_x64_load_ZPG;
-      else new_uopcode = k_opcode_x64_load_ABS;
-      p_load_uop->backend_tag = new_uopcode;
-      p_load_uop->value1 = addr;
-      p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
-      if (is_zpg) new_uopcode = k_opcode_x64_store_ZPG;
-      else new_uopcode = k_opcode_x64_store_ABS;
-      p_store_uop->backend_tag = new_uopcode;
-      p_store_uop->value1 = addr;
-      p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
-    } else {
-      if (is_zpg) new_uopcode = asm_jit_rewrite_ZPG(new_uopcode);
-      else new_uopcode = asm_jit_rewrite_ABS(new_uopcode);
-      if (p_main_uop->uopcode == k_opcode_BIT) {
-        /* Make sure the segment gets applied to the correct uopcode. */
-        p_main_uop = p_mode_uop;
-        p_main_uop->is_eliminated = 0;
+      /* x64 rcl / rcr don't update host NZ flags. Given that the common case is
+       * that flags aren't needed, we use a single-instruction x64 RMW opcode
+       * for the operation, and recover flags from memory if needed.
+       */
+      assert(p_nz_flags_uop != NULL);
+      assert(p_nz_flags_uop->uopcode == k_opcode_flags_nz_value);
+      p_nz_flags_uop->uopcode = k_opcode_flags_nz_mem;
+      if (is_zpg) {
+        p_nz_flags_uop->backend_tag = k_opcode_x64_flags_nz_mem_ZPG;
+      } else {
+        p_nz_flags_uop->backend_tag = k_opcode_x64_flags_nz_mem_ABS;
       }
-      p_main_uop->backend_tag = new_uopcode;
-      p_main_uop->value1 = addr;
-      do_set_segment = 1;
-      do_eliminate_load_store = 1;
+      p_nz_flags_uop->value1 = addr;
     }
+    if (is_zpg) new_uopcode = asm_jit_rewrite_ZPG(new_uopcode);
+    else new_uopcode = asm_jit_rewrite_ABS(new_uopcode);
+    if (p_main_uop->uopcode == k_opcode_BIT) {
+      /* Make sure the segment gets applied to the correct uopcode. */
+      p_main_uop = p_mode_uop;
+      p_main_uop->is_eliminated = 0;
+    }
+    p_main_uop->backend_tag = new_uopcode;
+    p_main_uop->value1 = addr;
     if (p_inv_uop != NULL) {
       p_inv_uop->backend_tag = k_opcode_x64_write_inv_ABS;
       p_inv_uop->value1 = addr;
     }
+    do_set_segment = 1;
+    do_eliminate_load_store = 1;
     break;
   case k_opcode_addr_load_16bit_wrap:
     /* Mode IDX. */
@@ -1542,6 +1568,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
    */
   uint32_t delta;
   void* p_trampolines;
+  size_t offset;
   void* p_trampoline_addr = NULL;
   int32_t uopcode = p_uop->uopcode;
   uint32_t value1 = p_uop->value1;
@@ -1684,9 +1711,17 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PLA: asm_emit_instruction_PLA(p_dest_buf); break;
   case k_opcode_PLP: asm_emit_instruction_PLP(p_dest_buf); break;
   case k_opcode_ROL_acc: ASM(ROL_ACC); break;
-  case k_opcode_ROL_value: ASM(ROL_value); break;
+  case k_opcode_ROL_value:
+    ASM(ROL_value);
+    ASM(save_carry);
+    ASM(flags_nz_value);
+    break;
   case k_opcode_ROR_acc: ASM(ROR_ACC); break;
-  case k_opcode_ROR_value: ASM(ROR_value); break;
+  case k_opcode_ROR_value:
+    ASM(ROR_value);
+    ASM(save_carry);
+    ASM(flags_nz_value);
+    break;
   case k_opcode_SEC: asm_emit_instruction_SEC(p_dest_buf); break;
   case k_opcode_SED: asm_emit_instruction_SED(p_dest_buf); break;
   case k_opcode_SEI: asm_emit_instruction_SEI(p_dest_buf); break;
@@ -1718,6 +1753,36 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_x);
     ASM(check_page_crossing_adjust);
     break;
+  case k_opcode_x64_flags_nz_mem_ABS:
+  {
+    void asm_jit_flags_nz_mem_ABS(void);
+    void asm_jit_flags_nz_mem_ABS_END(void);
+    offset = util_buffer_get_pos(p_dest_buf);
+    asm_copy(p_dest_buf,
+             asm_jit_flags_nz_mem_ABS,
+             asm_jit_flags_nz_mem_ABS_END);
+    asm_patch_int(p_dest_buf,
+                  (offset - 1),
+                  asm_jit_flags_nz_mem_ABS,
+                  asm_jit_flags_nz_mem_ABS_END,
+                  (value1 - REG_MEM_OFFSET));
+    break;
+  }
+  case k_opcode_x64_flags_nz_mem_ZPG:
+  {
+    void asm_jit_flags_nz_mem_ZPG(void);
+    void asm_jit_flags_nz_mem_ZPG_END(void);
+    offset = util_buffer_get_pos(p_dest_buf);
+    asm_copy(p_dest_buf,
+             asm_jit_flags_nz_mem_ZPG,
+             asm_jit_flags_nz_mem_ZPG_END);
+    asm_patch_byte(p_dest_buf,
+                   (offset - 1),
+                   asm_jit_flags_nz_mem_ZPG,
+                   asm_jit_flags_nz_mem_ZPG_END,
+                   (value1 - REG_MEM_OFFSET));
+    break;
+  }
   case k_opcode_x64_load_ABS: ASM_ADDR_U32(load_ABS); break;
   case k_opcode_x64_load_ZPG: ASM_ADDR_U8(load_ZPG); break;
   case k_opcode_x64_mode_ABX_and_load:
@@ -1866,8 +1931,12 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_ORA_addr_Y: ASM(ORA_addr_Y); break;
   case k_opcode_x64_ORA_IMM: ASM_U8(ORA_IMM); break;
   case k_opcode_x64_ORA_ZPG: ASM_ADDR_U8(ORA_ZPG); break;
+  case k_opcode_x64_ROL_ABS: ASM_ADDR_U32(ROL_ABS); break;
   case k_opcode_x64_ROL_ACC_n: ASM_U8(ROL_ACC_n); break;
+  case k_opcode_x64_ROL_ZPG: ASM_ADDR_U8(ROL_ZPG); break;
+  case k_opcode_x64_ROR_ABS: ASM_ADDR_U32(ROR_ABS); break;
   case k_opcode_x64_ROR_ACC_n: ASM_U8(ROR_ACC_n); break;
+  case k_opcode_x64_ROR_ZPG: ASM_ADDR_U8(ROR_ZPG); break;
   case k_opcode_x64_SAX_ABS: ASM_ADDR_U32(SAX_ABS); break;
   case k_opcode_x64_SBC_ABS: ASM_ADDR_U32(SBC_ABS); break;
   case k_opcode_x64_SBC_ABX: ASM_ADDR_U32_RAW(SBC_ABX); break;

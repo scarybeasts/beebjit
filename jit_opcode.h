@@ -74,4 +74,7 @@ struct asm_uop* jit_opcode_insert_uop(struct jit_opcode_details* p_opcode,
 
 void jit_opcode_eliminate(struct jit_opcode_details* p_opcode);
 
+int jit_opcode_can_write_to_addr(struct jit_opcode_details* p_opcode,
+                                 uint16_t addr);
+
 #endif /* JIT_OPCODE_H */

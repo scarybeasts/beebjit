@@ -419,20 +419,24 @@ static void
 jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
   struct asm_uop* p_nz_flags_uop = NULL;
+  uint16_t nz_mem_addr = 0;
 
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
     uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
-    int is_eliminated;
 
     if (p_opcode->is_eliminated) {
       continue;
     }
 
     if (p_nz_flags_uop != NULL) {
-      p_opcode->nz_flags_location = p_nz_flags_uop->uopcode;
+      if (p_nz_flags_uop->uopcode == k_opcode_flags_nz_mem) {
+        p_opcode->nz_flags_location = nz_mem_addr;
+      } else {
+        p_opcode->nz_flags_location = -p_nz_flags_uop->uopcode;
+      }
     }
 
     /* PHP needs the NZ flags. */
@@ -441,6 +445,12 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
     }
     /* Any jump, including conditional, must commit flags. */
     if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_nz_flags_uop = NULL;
+    }
+    /* A write might invalidate flag state stored in memory. */
+    if ((p_nz_flags_uop != NULL) &&
+        (p_nz_flags_uop->uopcode == k_opcode_flags_nz_mem) &&
+        jit_opcode_can_write_to_addr(p_opcode, nz_mem_addr)) {
       p_nz_flags_uop = NULL;
     }
 
@@ -452,6 +462,7 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
       case k_opcode_flags_nz_x:
       case k_opcode_flags_nz_y:
       case k_opcode_flags_nz_value:
+      case k_opcode_flags_nz_mem:
         nz_flags_uopcode = p_uop->uopcode;
         break;
       default:
@@ -460,17 +471,22 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
       if (nz_flags_uopcode == 0) {
         continue;
       }
-      is_eliminated = p_uop->is_eliminated;
-      (void) is_eliminated;
       /* Eliminate the previous flag set, if appropriate. */
       if (p_nz_flags_uop != NULL) {
         p_nz_flags_uop->is_eliminated = 1;
       }
-      /* Don't eliminate flags from the value register for now. */
-      if (nz_flags_uopcode == k_opcode_flags_nz_value) {
+      if (p_uop->is_eliminated) {
+        /* The x64 rewriter will have merge eliminated a lot of NZ flag
+         * writes.
+         */
+        assert(p_uop->is_merged);
         p_nz_flags_uop = NULL;
       } else {
+        assert(nz_flags_uopcode != k_opcode_flags_nz_value);
         p_nz_flags_uop = p_uop;
+        if (nz_flags_uopcode == k_opcode_flags_nz_mem) {
+          nz_mem_addr = p_uop->value1;
+        }
       }
     }
   }
@@ -549,6 +565,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       case k_opcode_flags_nz_x:
       case k_opcode_flags_nz_y:
       case k_opcode_flags_nz_value:
+      case k_opcode_flags_nz_mem:
         /* This might be best abstracted into the asm backends somehow, but for
          * now, let's observe that both the x64 and ARM64 backends cannot
          * preserve the host carry / overflow flags across a "test" instruction.

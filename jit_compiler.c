@@ -353,7 +353,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   p_details->reg_a = -1;
   p_details->reg_x = -1;
   p_details->reg_y = -1;
-  p_details->nz_flags_location = 0;
+  p_details->nz_flags_location = -1;
   p_details->c_flag_location = 0;
   p_details->v_flag_location = 0;
 
@@ -1534,7 +1534,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
         p_compiler->addr_is_block_continuation[addr_6502] = 0;
       }
 
-      p_compiler->addr_nz_fixup[addr_6502] = 0;
+      p_compiler->addr_nz_fixup[addr_6502] = -1;
       p_compiler->addr_v_fixup[addr_6502] = 0;
       p_compiler->addr_c_fixup[addr_6502] = 0;
       p_compiler->addr_a_fixup[addr_6502] = -1;
@@ -1723,25 +1723,25 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
   if (y_fixup != -1) {
     state_6502_set_y(p_state_6502, y_fixup);
   }
-  if (nz_fixup != 0) {
+  if (nz_fixup != -1) {
     uint8_t nz_val = 0;
     uint8_t flag_n;
     uint8_t flag_z;
     uint8_t flags_new;
     switch (nz_fixup) {
-    case 0:
-      break;
-    case k_opcode_flags_nz_a:
+    case -k_opcode_flags_nz_a:
       nz_val = p_state_6502->reg_a;
       break;
-    case k_opcode_flags_nz_x:
+    case -k_opcode_flags_nz_x:
       nz_val = p_state_6502->reg_x;
       break;
-    case k_opcode_flags_nz_y:
+    case -k_opcode_flags_nz_y:
       nz_val = p_state_6502->reg_y;
       break;
     default:
-      assert(0);
+      assert(nz_fixup >= 0);
+      assert(nz_fixup < k_6502_addr_space_size);
+      nz_val = p_compiler->p_mem_read[nz_fixup];
       break;
     }
 
@@ -1806,7 +1806,7 @@ jit_compiler_memory_range_invalidate(struct jit_compiler* p_compiler,
     p_compiler->addr_is_block_continuation[i] = 0;
 
     p_compiler->addr_cycles_fixup[i] = -1;
-    p_compiler->addr_nz_fixup[i] = 0;
+    p_compiler->addr_nz_fixup[i] = -1;
     p_compiler->addr_v_fixup[i] = 0;
     p_compiler->addr_c_fixup[i] = 0;
     p_compiler->addr_a_fixup[i] = -1;

@@ -1041,6 +1041,38 @@ jit_test_compile_binary(void) {
 #elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+
+  /* Check the output for ROL zpg. It's a performance hot spot in a BASIC math
+   * routine.
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3600), 0x100);
+  emit_ROL(p_buf, k_zpg, 0x32);
+  emit_ROL(p_buf, k_zpg, 0x31);
+  emit_DEX(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3600);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3600);
+#if defined(__x86_64__)
+  /* shr    r14b, 1
+   * rcl    BYTE PTR [rbp-0x4e], 1
+   * rcl    BYTE PTR [rbp-0x4f], 1
+   * setb   r14b
+   * dec    bl
+   */
+  p_expect = "\x41\xd0\xee"
+             "\xd0\x55\xb2"
+             "\xd0\x55\xb1"
+             "\x41\x0f\x92\xc6"
+             "\xfe\xcb";
+  expect_len = 15;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

@@ -1,5 +1,6 @@
 #include "jit_opcode.h"
 
+#include "defs_6502.h"
 #include "util.h"
 
 #include "asm/asm_util.h"
@@ -95,4 +96,19 @@ jit_opcode_eliminate(struct jit_opcode_details* p_opcode) {
     p_uop = &p_opcode->uops[i];
     p_uop->is_eliminated = 1;
   }
+}
+
+int
+jit_opcode_can_write_to_addr(struct jit_opcode_details* p_opcode,
+                             uint16_t addr) {
+  if (!(p_opcode->opmem_6502 & k_opmem_write_flag)) {
+    return 0;
+  }
+  if (p_opcode->is_dynamic_operand) {
+    return 1;
+  }
+  if ((addr >= p_opcode->min_6502_addr) && (addr <= p_opcode->max_6502_addr)) {
+    return 1;
+  }
+  return 0;
 }

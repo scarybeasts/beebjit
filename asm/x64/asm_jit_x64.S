@@ -368,6 +368,24 @@ asm_jit_INVERT_CARRY_END:
   ret
 
 
+.globl asm_jit_flags_nz_mem_ABS
+.globl asm_jit_flags_nz_mem_ABS_END
+asm_jit_flags_nz_mem_ABS:
+  test BYTE PTR [REG_MEM + 0x7fffffff], 0xff
+
+asm_jit_flags_nz_mem_ABS_END:
+  ret
+
+
+.globl asm_jit_flags_nz_mem_ZPG
+.globl asm_jit_flags_nz_mem_ZPG_END
+asm_jit_flags_nz_mem_ZPG:
+  test BYTE PTR [REG_MEM + 0x7f], 0xff
+
+asm_jit_flags_nz_mem_ZPG_END:
+  ret
+
+
 .globl asm_jit_flags_nz_value
 .globl asm_jit_flags_nz_value_END
 asm_jit_flags_nz_value:
@@ -1914,7 +1932,7 @@ asm_jit_ROL_ZPG:
 asm_jit_ROL_ZPG_END:
   ret
 
-# TODO: unused. Restore single RMW instruction where possible.
+
 .globl asm_jit_ROR_ABS
 .globl asm_jit_ROR_ABS_END
 asm_jit_ROR_ABS:

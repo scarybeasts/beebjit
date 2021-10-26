@@ -50,6 +50,7 @@ enum {
   k_opcode_flags_nz_x,
   k_opcode_flags_nz_y,
   k_opcode_flags_nz_value,
+  k_opcode_flags_nz_mem,
   k_opcode_PULL_16,
   k_opcode_PUSH_16,
   k_opcode_value_set,
