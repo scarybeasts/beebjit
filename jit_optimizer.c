@@ -549,7 +549,12 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         if (p_save_carry_uop != NULL) {
           p_save_carry_uop->is_eliminated = 1;
         }
-        p_save_carry_uop = p_uop;
+        if (p_uop->is_merged) {
+          assert(p_uop->is_eliminated);
+          p_save_carry_uop = NULL;
+        } else {
+          p_save_carry_uop = p_uop;
+        }
         break;
       case k_opcode_load_overflow:
         p_save_overflow_uop = NULL;

@@ -2209,8 +2209,20 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x3A);
   emit_JMP(p_buf, k_abs, 0xDF40);
 
-  /* End of test. */
+  /* Test for a carry flag going missing in a ROR abx operation. */
   set_new_index(p_buf, 0x1F40);
+  emit_LDA(p_buf, k_imm, 0xD9);
+  emit_STA(p_buf, k_abs, 0x7005);
+  emit_LDX(p_buf, k_imm, 0x05);
+  emit_CLC(p_buf);
+  emit_ROR(p_buf, k_abx, 0x7000);
+  emit_ROR(p_buf, k_abx, 0x7000);
+  emit_LDA(p_buf, k_abs, 0x7005);
+  emit_REQUIRE_EQ(p_buf, 0xB6);
+  emit_JMP(p_buf, k_abs, 0xDF80);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1F80);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
