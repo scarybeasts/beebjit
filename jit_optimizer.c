@@ -475,11 +475,11 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
       if (p_nz_flags_uop != NULL) {
         p_nz_flags_uop->is_eliminated = 1;
       }
-      if (p_uop->is_eliminated) {
+      if (p_uop->is_merged) {
         /* The x64 rewriter will have merge eliminated a lot of NZ flag
          * writes.
          */
-        assert(p_uop->is_merged);
+        assert(p_uop->is_eliminated);
         p_nz_flags_uop = NULL;
       } else {
         assert(nz_flags_uopcode != k_opcode_flags_nz_value);

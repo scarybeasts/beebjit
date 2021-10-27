@@ -1121,6 +1121,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_BCS:
       break;
     case k_opcode_PHP:
+      p_load_carry_uop->is_merged = 1;
       p_load_carry_uop->is_eliminated = 1;
       break;
     case k_opcode_SBC:
@@ -1147,6 +1148,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   if (p_load_overflow_uop != NULL) {
     switch (uopcode) {
     case k_opcode_PHP:
+      p_load_overflow_uop->is_merged = 1;
       p_load_overflow_uop->is_eliminated = 1;
       break;
     default:

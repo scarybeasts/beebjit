@@ -2221,8 +2221,24 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0xB6);
   emit_JMP(p_buf, k_abs, 0xDF80);
 
-  /* End of test. */
+  /* Test for failure to commit carry flag prior to a PHP.
+   * Exile uses a lot of PHP / PLP and hit this with the optimizer rewrite.
+   */
   set_new_index(p_buf, 0x1F80);
+  emit_CLC(p_buf);
+  emit_CLV(p_buf);
+  emit_SEI(p_buf);
+  emit_LDA(p_buf, k_imm, 0xD0);
+  emit_JMP(p_buf, k_abs, 0xDF88);
+  emit_ADC(p_buf, k_imm, 0x90);
+  emit_PHP(p_buf);
+  emit_ADC(p_buf, k_imm, 0x01);
+  emit_PLA(p_buf);
+  emit_REQUIRE_EQ(p_buf, 0x75);
+  emit_JMP(p_buf, k_abs, 0xDFC0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x1FC0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
