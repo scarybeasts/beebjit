@@ -2227,9 +2227,10 @@ main(int argc, const char* argv[]) {
   set_new_index(p_buf, 0x1F80);
   emit_CLC(p_buf);
   emit_CLV(p_buf);
+  emit_CLD(p_buf);
   emit_SEI(p_buf);
   emit_LDA(p_buf, k_imm, 0xD0);
-  emit_JMP(p_buf, k_abs, 0xDF88);
+  emit_JMP(p_buf, k_abs, 0xDF89);
   emit_ADC(p_buf, k_imm, 0x90);
   emit_PHP(p_buf);
   emit_ADC(p_buf, k_imm, 0x01);
@@ -2237,8 +2238,26 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x75);
   emit_JMP(p_buf, k_abs, 0xDFC0);
 
-  /* End of test. */
+  /* Test for failure to load carry flag after a PLP.
+   * Exile uses a lot of PHP / PLP and hit this with the optimizer rewrite.
+   */
   set_new_index(p_buf, 0x1FC0);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_CLC(p_buf);
+  emit_JMP(p_buf, k_abs, 0xDFC8);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_ADC(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x05);   /* SEI, SEC as flags. */
+  emit_PHA(p_buf);
+  emit_PLP(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_REQUIRE_EQ(p_buf, 0x01);
+  emit_JMP(p_buf, k_abs, 0xE000);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2000);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

@@ -1141,6 +1141,10 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     case k_opcode_CPY:
       p_save_carry_uop->uopcode = k_opcode_save_carry_inverted;
       break;
+    case k_opcode_PLP:
+      p_save_carry_uop->is_merged = 1;
+      p_save_carry_uop->is_eliminated = 1;
+      break;
     default:
       break;
     }

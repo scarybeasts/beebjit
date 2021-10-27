@@ -533,6 +533,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         if (p_uop->is_eliminated && !p_uop->is_merged) {
           break;
         }
+        /* Eliminate the store and the load together if we've got a pair. */
         if (!p_uop->is_merged &&
             (p_save_carry_uop != NULL) &&
             (p_save_carry_uop->uopcode == k_opcode_save_carry)) {

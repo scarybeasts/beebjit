@@ -739,14 +739,14 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   if (g_optype_changes_carry[optype]) {
     switch (optype) {
     /* These have built-in handling. */
-    case k_clc: case k_plp: case k_rti: case k_sec: break;
+    case k_clc: case k_sec: break;
     default: asm_make_uop0(p_uop, k_opcode_save_carry); p_uop++; break;
     }
   }
   if (g_optype_changes_overflow[optype]) {
     switch (optype) {
     /* These have built-in handling. */
-    case k_bit: case k_clv: case k_plp: case k_rti: break;
+    case k_bit: case k_clv: case k_plp: break;
     default: asm_make_uop0(p_uop, k_opcode_save_overflow); p_uop++; break;
     }
   }
