@@ -12,7 +12,8 @@
 #include <assert.h>
 
 enum {
-  k_opcode_arm64_addr_trunc_8bit = 0x1000,
+  k_opcode_arm64_addr_load_byte = 0x1000,
+  k_opcode_arm64_addr_trunc_8bit,
   k_opcode_arm64_check_page_crossing_ABX,
   k_opcode_arm64_check_page_crossing_ABY,
   k_opcode_arm64_load_byte_pair,
@@ -314,12 +315,13 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   switch (p_main_uop->uopcode) {
   case k_opcode_ALR:
   case k_opcode_ASL_acc:
+  case k_opcode_ASL_value:
   case k_opcode_CMP:
   case k_opcode_CPX:
   case k_opcode_CPY:
   case k_opcode_LSR_acc:
-  case k_opcode_ASL_value:
   case k_opcode_LSR_value:
+  case k_opcode_PLP:
   case k_opcode_ROL_acc:
   case k_opcode_ROL_value:
   case k_opcode_ROR_acc:
@@ -553,6 +555,16 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     p_mode_uop->uopcode = k_opcode_arm64_load_byte_pair;
     p_mode_uop->value2 = (uint16_t) (p_mode_uop->value1 + 1);
     break;
+  case k_opcode_addr_load_8bit:
+    /* Fetch for 8-bit dynamic operand (mode ZPG). */
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    addr = p_mode_uop->value1;
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_arm64_addr_load_byte;
+    p_mode_uop->value1 = addr;
+    break;
   case k_opcode_addr_add_x_8bit:
     /* Mode ZPX. */
     p_mode_uop->uopcode = k_opcode_arm64_addr_trunc_8bit;
@@ -660,6 +672,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
 
   (void) p_asm;
 
+  if (p_uop->backend_tag >= 0x1000) {
+    uopcode = p_uop->backend_tag;
+  }
   assert(uopcode >= 0x100);
 
   switch (uopcode) {
@@ -823,6 +838,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_TXA: asm_emit_instruction_TXA(p_buf); break;
   case k_opcode_TXS: asm_emit_instruction_TXS(p_buf); break;
   case k_opcode_TYA: asm_emit_instruction_TYA(p_buf); break;
+  case k_opcode_arm64_addr_load_byte: asm_emit_jit_addr_load(p_buf, value1); break;
   case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
   case k_opcode_arm64_load_byte_pair:
     asm_emit_jit_LOAD_BYTE_PAIR(p_buf, value1, value2);
