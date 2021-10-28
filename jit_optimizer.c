@@ -603,6 +603,11 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         p_save_carry_uop = NULL;
         p_save_overflow_uop = NULL;
         break;
+      case k_opcode_load_carry_inverted:
+      case k_opcode_save_carry_inverted:
+        /* TODO: no eliminations yet for the inverted cases. */
+        p_save_carry_uop = NULL;
+        break;
       default:
         break;
       }

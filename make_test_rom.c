@@ -2256,8 +2256,21 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x01);
   emit_JMP(p_buf, k_abs, 0xE000);
 
-  /* End of test. */
+  /* Test for confusion involving inverted carry management on x64.
+   * Again, hit by Exile with the new optimizer.
+   */
   set_new_index(p_buf, 0x2000);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JMP(p_buf, k_abs, 0xE006);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_CMP(p_buf, k_imm, 0x00);
+  emit_ROR(p_buf, k_acc, 0);
+  emit_REQUIRE_EQ(p_buf, 0x80);
+  emit_JMP(p_buf, k_abs, 0xE040);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2040);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
