@@ -251,15 +251,6 @@ asm_emit_jit_value_load(struct util_buffer* p_buf, uint16_t value1) {
 }
 
 static void
-asm_emit_jit_LOAD_BYTE_PAIR(struct util_buffer* p_buf,
-                            uint16_t addr1,
-                            uint16_t addr2) {
-  asm_emit_jit_addr_load(p_buf, addr1);
-  asm_emit_jit_value_load(p_buf, addr2);
-  ASM(LOAD_BYTE_PAIR_or);
-}
-
-static void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr_6502) {
   void asm_jit_call_interp(void);
   uint32_t value1 = addr_6502;
@@ -290,6 +281,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   uint8_t imms;
   int is_imm;
   int is_abs;
+  int is_idy;
   uint16_t addr;
 
   (void) p_asm;
@@ -368,6 +360,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
 
   is_imm = 0;
   is_abs = 0;
+  is_idy = 0;
   addr = 0;
 
   uopcode = p_mode_uop->uopcode;
@@ -615,15 +608,17 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_addr_add_y:
     /* Mode ABY or IDY. */
-    p_tmp_uop = (p_mode_uop - 1);
-    if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap) {
+    p_mode_uop--;
+    if (p_mode_uop->uopcode == k_opcode_addr_load_16bit_wrap) {
+      is_idy = 1;
       break;
     }
     /* Mode ABY. */
-    assert(p_tmp_uop->uopcode == k_opcode_addr_set);
-    if (p_tmp_uop->value1 < 0x1000) {
-      addr = p_tmp_uop->value1;
-      p_tmp_uop->is_eliminated = 1;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    if (p_mode_uop->value1 < 0x1000) {
+      addr = p_mode_uop->value1;
+      p_mode_uop->is_eliminated = 1;
+      p_mode_uop++;
       p_mode_uop->backend_tag = k_opcode_arm64_mode_ABY;
       p_mode_uop->value1 = addr;
     }
@@ -645,10 +640,22 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
     /* Mode IDY, with known-Y. */
     p_mode_uop--;
     assert(p_mode_uop->uopcode == k_opcode_addr_load_16bit_wrap);
+    is_idy = 1;
     break;
   default:
     assert(0);
     break;
+  }
+
+  if (is_idy) {
+    p_mode_uop--;
+    assert(p_mode_uop->uopcode == k_opcode_addr_set);
+    addr = p_mode_uop->value1;
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop++;
+    p_mode_uop->backend_tag = k_opcode_arm64_load_byte_pair;
+    p_mode_uop->value1 = addr;
+    p_mode_uop->value2 = (uint8_t) (addr + 1);
   }
 
   /* Loads and stores have the load/store built in to the operation. */
@@ -870,7 +877,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_arm64_addr_load_byte: asm_emit_jit_addr_load(p_buf, value1); break;
   case k_opcode_arm64_addr_trunc_8bit: ASM(addr_trunc_8bit); break;
   case k_opcode_arm64_load_byte_pair:
-    asm_emit_jit_LOAD_BYTE_PAIR(p_buf, value1, value2);
+    asm_emit_jit_addr_load(p_buf, value1);
+    asm_emit_jit_value_load(p_buf, value2);
+    ASM(LOAD_BYTE_PAIR_or);
     break;
   case k_opcode_arm64_mode_ABX: ASM_IMM12(mode_ABX); break;
   case k_opcode_arm64_mode_ABY: ASM_IMM12(mode_ABY); break;
