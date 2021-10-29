@@ -1738,6 +1738,9 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     case -k_opcode_flags_nz_y:
       nz_val = p_state_6502->reg_y;
       break;
+    case -k_opcode_flags_nz_value:
+      assert(0);
+      break;
     default:
       assert(nz_fixup >= 0);
       assert(nz_fixup < k_6502_addr_space_size);
