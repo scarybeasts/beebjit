@@ -55,12 +55,12 @@ asm_instruction_BIT_value:
   # O flag
   ubfx REG_6502_OF, REG_SCRATCH2, #6, #1
   # N flag
-  ubfx REG_SCRATCH3, REG_SCRATCH2, #7, #1
+  ubfx REG_SCRATCH1, REG_SCRATCH2, #7, #1
   # Z flag
   cset REG_SCRATCH2, eq
   lsl REG_SCRATCH2, REG_SCRATCH2, #30
-  lsl REG_SCRATCH3, REG_SCRATCH3, #31
-  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
+  lsl REG_SCRATCH1, REG_SCRATCH1, #31
+  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
   msr nzcv, REG_SCRATCH2
 
 asm_instruction_BIT_value_END:
@@ -312,16 +312,17 @@ asm_instruction_Y_NZ_flags_END:
 .globl asm_save_AXYS_PC_flags
 .globl asm_save_AXYS_PC_flags_END
 asm_save_AXYS_PC_flags:
+  # x29 is currently REG_JIT_COMPILE, which is safe to use temporarily.
   stp x29, x30, [sp, #-16]!
-  ldr REG_SCRATCH3, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
-  str REG_6502_A_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_A]
-  str REG_6502_X_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_X]
-  str REG_6502_Y_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_Y]
-  str REG_6502_S_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_S]
-  str REG_6502_PC_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_PC]
+  ldr x29, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
+  str REG_6502_A_32, [x29, #K_STATE_6502_OFFSET_REG_A]
+  str REG_6502_X_32, [x29, #K_STATE_6502_OFFSET_REG_X]
+  str REG_6502_Y_32, [x29, #K_STATE_6502_OFFSET_REG_Y]
+  str REG_6502_S_32, [x29, #K_STATE_6502_OFFSET_REG_S]
+  str REG_6502_PC_32, [x29, #K_STATE_6502_OFFSET_REG_PC]
 
   bl asm_emit_arm64_flags_to_scratch
-  str REG_SCRATCH1_32, [REG_SCRATCH3, #K_STATE_6502_OFFSET_REG_FLAGS]
+  str REG_SCRATCH1_32, [x29, #K_STATE_6502_OFFSET_REG_FLAGS]
 
   ldp x29, x30, [sp], #16
   ret
@@ -376,14 +377,15 @@ asm_emit_arm64_flags_to_scratch_END:
 asm_set_arm64_flags_from_scratch:
   and REG_6502_ID_F, REG_SCRATCH1, 0x0C
 
+  # Use REG_6502_CF and REG_6502_OF as temporaries until they are set below.
   # N flag.
-  ubfx REG_SCRATCH2, REG_SCRATCH1, #7, #1
-  lsl REG_SCRATCH2, REG_SCRATCH2, #31
+  ubfx REG_6502_CF, REG_SCRATCH1, #7, #1
+  lsl REG_6502_CF, REG_6502_CF, #31
   # Z flag.
-  ubfx REG_SCRATCH3, REG_SCRATCH1, #1, #1
-  lsl REG_SCRATCH3, REG_SCRATCH3, #30
-  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
-  msr nzcv, REG_SCRATCH2
+  ubfx REG_6502_OF, REG_SCRATCH1, #1, #1
+  lsl REG_6502_OF, REG_6502_OF, #30
+  add REG_6502_CF, REG_6502_CF, REG_6502_OF
+  msr nzcv, REG_6502_CF
 
   ubfx REG_6502_CF, REG_SCRATCH1, #0, #1
   ubfx REG_6502_OF, REG_SCRATCH1, #6, #1

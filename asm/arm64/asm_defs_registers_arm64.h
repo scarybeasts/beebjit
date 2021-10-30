@@ -12,6 +12,9 @@
 #define REG_6502_S_32             w3
 #define REG_6502_PC               x4
 #define REG_6502_PC_32            w4
+/* REG_JIT_SCRATCH is used by JIT when the PC is implicit. */
+#define REG_JIT_SCRATCH           x4
+#define REG_JIT_SCRATCH_32        w4
 #define REG_6502_ID_F             x5
 #define REG_6502_CF               x6
 #define REG_6502_OF               x7
@@ -19,8 +22,8 @@
 #define REG_SCRATCH1_32           w8
 #define REG_SCRATCH2              x9
 #define REG_SCRATCH2_32           w9
-#define REG_SCRATCH3              x10
-#define REG_SCRATCH3_32           w10
+#define REG_INTURBO_SCRATCH3      x10
+#define REG_INTURBO_SCRATCH3_32   w10
 /* Callee save (x19 - x29 inclusive). */
 #define REG_JIT_ADDR_BASE         x22
 #define REG_JIT_ADDR_BASE_32      w22

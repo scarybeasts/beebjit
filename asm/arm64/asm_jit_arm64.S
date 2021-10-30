@@ -392,8 +392,8 @@ asm_jit_mode_ABY_END:
 .globl asm_jit_push
 .globl asm_jit_push_END
 asm_jit_push:
-  add REG_SCRATCH3, REG_MEM_STACK, REG_6502_S
-  strb REG_SCRATCH2_32, [REG_SCRATCH3]
+  add REG_JIT_SCRATCH, REG_MEM_STACK, REG_6502_S
+  strb REG_SCRATCH2_32, [REG_JIT_SCRATCH]
   sub REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
 
@@ -485,9 +485,9 @@ asm_jit_value_store_addr_END:
 .globl asm_jit_write_inv
 .globl asm_jit_write_inv_END
 asm_jit_write_inv:
-  ldr REG_SCRATCH3_32, [REG_JIT_PTRS, REG_JIT_ADDR_BASE, lsl #2]
+  ldr REG_JIT_SCRATCH_32, [REG_JIT_PTRS, REG_JIT_ADDR_BASE, lsl #2]
   # Store anything convenient since it'll write fault.
-  str REG_SCRATCH3_32, [REG_SCRATCH3]
+  str REG_JIT_SCRATCH_32, [REG_JIT_SCRATCH]
 
 asm_jit_write_inv_END:
   ret
@@ -499,14 +499,14 @@ asm_jit_write_inv_END:
 .globl asm_jit_write_inv_ABS_store_END
 asm_jit_write_inv_ABS_load:
   # 6502 range is 0 - 0xFFF. Constant below is 4x that due to 32 bit ptrs.
-  ldr REG_SCRATCH3_32, [REG_JIT_PTRS, #0x3FFC]
+  ldr REG_JIT_SCRATCH_32, [REG_JIT_PTRS, #0x3FFC]
 
 asm_jit_write_inv_ABS_load_END:
   ret
 
 asm_jit_write_inv_ABS_store:
   # Store anything convenient since it'll write fault.
-  str REG_SCRATCH3_32, [REG_SCRATCH3]
+  str REG_JIT_SCRATCH_32, [REG_JIT_SCRATCH]
 
 asm_jit_write_inv_ABS_store_END:
   ret
@@ -974,10 +974,10 @@ asm_jit_pull_16bit:
 
   add REG_6502_S, REG_6502_S, #2
   and REG_6502_S, REG_6502_S, #0xFF
-  add REG_SCRATCH3, REG_MEM_STACK, REG_6502_S
-  ldrb REG_SCRATCH3_32, [REG_SCRATCH3]
+  add REG_JIT_SCRATCH, REG_MEM_STACK, REG_6502_S
+  ldrb REG_JIT_SCRATCH_32, [REG_JIT_SCRATCH]
 
-  orr REG_JIT_ADDR_BASE, REG_SCRATCH2, REG_SCRATCH3, lsl #8
+  orr REG_JIT_ADDR_BASE, REG_SCRATCH2, REG_JIT_SCRATCH, lsl #8
 
 asm_jit_pull_16bit_END:
   ret
@@ -1008,9 +1008,9 @@ asm_jit_ROL_ACC_END:
 .globl asm_jit_ROR
 .globl asm_jit_ROR_END
 asm_jit_ROR:
-  orr REG_SCRATCH3, REG_SCRATCH2, REG_6502_CF, lsl #8
+  orr REG_JIT_SCRATCH, REG_SCRATCH2, REG_6502_CF, lsl #8
   ubfx REG_6502_CF, REG_SCRATCH2, #0, #1
-  lsr REG_SCRATCH2, REG_SCRATCH3, #1
+  lsr REG_SCRATCH2, REG_JIT_SCRATCH, #1
 
 asm_jit_ROR_END:
   ret
@@ -1039,8 +1039,8 @@ asm_jit_SAX_END:
 .globl asm_jit_SBC
 .globl asm_jit_SBC_END
 asm_jit_SBC:
-  eor REG_SCRATCH3, REG_6502_CF, #1
-  add REG_SCRATCH2, REG_SCRATCH3, REG_SCRATCH2, lsl #24
+  eor REG_JIT_SCRATCH, REG_6502_CF, #1
+  add REG_SCRATCH2, REG_JIT_SCRATCH, REG_SCRATCH2, lsl #24
   lsl REG_6502_A, REG_6502_A, #24
   subs REG_6502_A_32, REG_6502_A_32, REG_SCRATCH2_32
   lsr REG_6502_A, REG_6502_A, #24
@@ -1052,8 +1052,8 @@ asm_jit_SBC_END:
 .globl asm_jit_SBC_IMM
 .globl asm_jit_SBC_IMM_END
 asm_jit_SBC_IMM:
-  eor REG_SCRATCH3, REG_6502_CF, #1
-  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
+  eor REG_JIT_SCRATCH, REG_6502_CF, #1
+  add REG_SCRATCH2, REG_SCRATCH2, REG_JIT_SCRATCH
   lsl REG_6502_A, REG_6502_A, #24
   subs REG_6502_A_32, REG_6502_A_32, REG_SCRATCH2_32
   lsr REG_6502_A, REG_6502_A, #24

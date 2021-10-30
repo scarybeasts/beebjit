@@ -22,7 +22,7 @@ asm_inturbo_enter_END:
 .globl asm_inturbo_start_countdown
 .globl asm_inturbo_start_countdown_END
 asm_inturbo_start_countdown:
-  sub REG_SCRATCH3, REG_COUNTDOWN, #4095
+  sub REG_INTURBO_SCRATCH3, REG_COUNTDOWN, #4095
 
 asm_inturbo_start_countdown_END:
   ret
@@ -31,7 +31,7 @@ asm_inturbo_start_countdown_END:
 .globl asm_inturbo_check_special_address_movz
 .globl asm_inturbo_check_special_address_movz_END
 asm_inturbo_check_special_address_movz:
-  movz REG_SCRATCH3, #0xFFFF
+  movz REG_INTURBO_SCRATCH3, #0xFFFF
 
 asm_inturbo_check_special_address_movz_END:
   ret
@@ -40,8 +40,8 @@ asm_inturbo_check_special_address_movz_END:
 .globl asm_inturbo_check_special_address_sub_and_tbz
 .globl asm_inturbo_check_special_address_sub_and_tbz_END
 asm_inturbo_check_special_address_sub_and_tbz:
-  sub REG_SCRATCH3, REG_SCRATCH1, REG_SCRATCH3
-  tbz REG_SCRATCH3, #16, asm_inturbo_check_special_address_sub_and_tbz
+  sub REG_INTURBO_SCRATCH3, REG_SCRATCH1, REG_INTURBO_SCRATCH3
+  tbz REG_INTURBO_SCRATCH3, #16, asm_inturbo_check_special_address_sub_and_tbz
 
 asm_inturbo_check_special_address_sub_and_tbz_END:
   ret
@@ -52,13 +52,13 @@ asm_inturbo_check_special_address_sub_and_tbz_END:
 .globl asm_inturbo_check_and_commit_countdown_mov
 .globl asm_inturbo_check_and_commit_countdown_mov_END
 asm_inturbo_check_and_commit_countdown_tbnz:
-  tbnz REG_SCRATCH3, #63, asm_inturbo_check_and_commit_countdown_tbnz
+  tbnz REG_INTURBO_SCRATCH3, #63, asm_inturbo_check_and_commit_countdown_tbnz
 
 asm_inturbo_check_and_commit_countdown_tbnz_END:
   ret
 
 asm_inturbo_check_and_commit_countdown_mov:
-  mov REG_COUNTDOWN, REG_SCRATCH3
+  mov REG_COUNTDOWN, REG_INTURBO_SCRATCH3
 
 asm_inturbo_check_and_commit_countdown_mov_END:
   ret
@@ -220,7 +220,7 @@ not_exiting_END:
 asm_inturbo_check_page_crossing:
   eor REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
   ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH2
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH2
 
 asm_inturbo_check_page_crossing_END:
   ret
@@ -335,12 +335,12 @@ asm_inturbo_mode_idx_END:
 .globl asm_inturbo_mode_idy
 .globl asm_inturbo_mode_idy_END
 asm_inturbo_mode_idy:
-  ldrb REG_SCRATCH3_32, [REG_6502_PC, #1]
-  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH3]
-  add REG_SCRATCH3_32, REG_SCRATCH3_32, #1
-  and REG_SCRATCH3_32, REG_SCRATCH3_32, #0xFF
-  ldrb REG_SCRATCH3_32, [REG_MEM_READ, REG_SCRATCH3]
-  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3, lsl #8
+  ldrb REG_INTURBO_SCRATCH3_32, [REG_6502_PC, #1]
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_INTURBO_SCRATCH3]
+  add REG_INTURBO_SCRATCH3_32, REG_INTURBO_SCRATCH3_32, #1
+  and REG_INTURBO_SCRATCH3_32, REG_INTURBO_SCRATCH3_32, #0xFF
+  ldrb REG_INTURBO_SCRATCH3_32, [REG_MEM_READ, REG_INTURBO_SCRATCH3]
+  add REG_SCRATCH2, REG_SCRATCH2, REG_INTURBO_SCRATCH3, lsl #8
   add REG_SCRATCH1, REG_SCRATCH2, REG_6502_Y
 
 asm_inturbo_mode_idy_END:
@@ -353,9 +353,9 @@ asm_inturbo_mode_ind:
   ldrh REG_SCRATCH1_32, [REG_6502_PC, #1]
   mov REG_SCRATCH2, REG_SCRATCH1
   and REG_SCRATCH2, REG_SCRATCH2, #0xFFFFFF00
-  add REG_SCRATCH3, REG_SCRATCH1, #1
-  and REG_SCRATCH3, REG_SCRATCH3, #0xFF
-  orr REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH3
+  add REG_INTURBO_SCRATCH3, REG_SCRATCH1, #1
+  and REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, #0xFF
+  orr REG_SCRATCH2, REG_SCRATCH2, REG_INTURBO_SCRATCH3
   ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
   ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH2]
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
@@ -478,7 +478,7 @@ asm_instruction_BCC_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BCC_interp_accurate_END:
@@ -502,7 +502,7 @@ asm_instruction_BCS_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BCS_interp_accurate_END:
@@ -525,7 +525,7 @@ asm_instruction_BEQ_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BEQ_interp_accurate_END:
@@ -557,7 +557,7 @@ asm_instruction_BMI_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BMI_interp_accurate_END:
@@ -580,7 +580,7 @@ asm_instruction_BNE_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BNE_interp_accurate_END:
@@ -603,7 +603,7 @@ asm_instruction_BPL_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BPL_interp_accurate_END:
@@ -627,7 +627,7 @@ asm_instruction_BVC_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BVC_interp_accurate_END:
@@ -651,7 +651,7 @@ asm_instruction_BVS_interp_accurate:
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
-  sub REG_SCRATCH3, REG_SCRATCH3, REG_SCRATCH1
+  sub REG_INTURBO_SCRATCH3, REG_INTURBO_SCRATCH3, REG_SCRATCH1
   mov REG_SCRATCH1, REG_SCRATCH2
 
 asm_instruction_BVS_interp_accurate_END:
