@@ -2269,8 +2269,24 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x80);
   emit_JMP(p_buf, k_abs, 0xE040);
 
-  /* End of test. */
+  /* Test the mode IDY load elimination optimization with a non-zero Y. */
   set_new_index(p_buf, 0x2040);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_LDA(p_buf, k_imm, 0x17);
+  emit_STA(p_buf, k_abs, 0x1001);
+  emit_LDY(p_buf, k_imm, 0x01);
+  emit_LDA(p_buf, k_imm, 0x30);
+  emit_EOR(p_buf, k_idy, 0xF0);
+  emit_STA(p_buf, k_idy, 0xF0);
+  emit_LDA(p_buf, k_abs, 0x1001);
+  emit_REQUIRE_EQ(p_buf, 0x27);
+  emit_JMP(p_buf, k_abs, 0xE080);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2080);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

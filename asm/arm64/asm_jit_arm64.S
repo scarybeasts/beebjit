@@ -105,18 +105,18 @@ not_exiting_END:
 asm_jit_call_inturbo:
   # Read opcode from PC.
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
-  ldrb REG_SCRATCH1_32, [REG_6502_PC]
+  ldrb REG_SCRATCH2_32, [REG_6502_PC]
 
   # Calculate jump target.
-  lsl REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_OPCODE_SHIFT
-  orr REG_SCRATCH1, REG_SCRATCH1, #K_INTURBO_ADDR
+  lsl REG_SCRATCH2, REG_SCRATCH2, #K_INTURBO_OPCODE_SHIFT
+  orr REG_SCRATCH2, REG_SCRATCH2, #K_INTURBO_ADDR
 
   # Save JIT context register and load inturbo context register.
   stp REG_CONTEXT, x30, [sp, #-16]!
   ldr REG_CONTEXT, [REG_CONTEXT, #K_JIT_CONTEXT_OFFSET_INTURBO]
 
   # Call inturbo and restore.
-  blr REG_SCRATCH1
+  blr REG_SCRATCH2
   ldp REG_CONTEXT, x30, [sp], #16
 
   # Calculate new JIT code address and jump.
@@ -132,7 +132,7 @@ asm_jit_call_inturbo_END:
 .globl asm_jit_addr_add
 .globl asm_jit_addr_add_END
 asm_jit_addr_add:
-  add REG_SCRATCH1, REG_SCRATCH1, #4095
+  add REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, #4095
 
 asm_jit_addr_add_END:
   ret
@@ -141,7 +141,7 @@ asm_jit_addr_add_END:
 .globl asm_jit_addr_add_x
 .globl asm_jit_addr_add_x_END
 asm_jit_addr_add_x:
-  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_X
+  add REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, REG_6502_X
 
 asm_jit_addr_add_x_END:
   ret
@@ -150,7 +150,7 @@ asm_jit_addr_add_x_END:
 .globl asm_jit_addr_add_y
 .globl asm_jit_addr_add_y_END
 asm_jit_addr_add_y:
-  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_Y
+  add REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, REG_6502_Y
 
 asm_jit_addr_add_y_END:
   ret
@@ -162,13 +162,13 @@ asm_jit_addr_add_y_END:
 .globl asm_jit_addr_check_tbnz_END
 asm_jit_addr_check_add:
   # Trigger on >= 0xFC00.
-  add REG_SCRATCH2, REG_SCRATCH1, #0x400
+  add REG_SCRATCH1, REG_JIT_ADDR_BASE, #0x400
 
 asm_jit_addr_check_add_END:
   ret
 
 asm_jit_addr_check_tbnz:
-  tbnz REG_SCRATCH2, #16, asm_jit_addr_check_tbnz
+  tbnz REG_SCRATCH1, #16, asm_jit_addr_check_tbnz
 
 asm_jit_addr_check_tbnz_END:
   ret
@@ -177,7 +177,7 @@ asm_jit_addr_check_tbnz_END:
 .globl asm_jit_addr_load
 .globl asm_jit_addr_load_END
 asm_jit_addr_load:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #0xFFF]
+  ldrb REG_JIT_ADDR_BASE_32, [REG_MEM_READ, #0xFFF]
 
 asm_jit_addr_load_END:
   ret
@@ -187,11 +187,11 @@ asm_jit_addr_load_END:
 .globl asm_jit_addr_load_16bit_wrap_END
 asm_jit_addr_load_16bit_wrap:
   # NOTE: assumes zero-page.
-  add REG_SCRATCH2, REG_SCRATCH1, #1
+  add REG_SCRATCH2, REG_JIT_ADDR_BASE, #1
   and REG_SCRATCH2, REG_SCRATCH2, #0xFF
   ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH2]
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
-  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
+  ldrb REG_JIT_ADDR_BASE_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
+  orr REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, REG_SCRATCH2, lsl #8
 
 asm_jit_addr_load_16bit_wrap_END:
   ret
@@ -200,7 +200,7 @@ asm_jit_addr_load_16bit_wrap_END:
 .globl asm_jit_addr_load_addr
 .globl asm_jit_addr_load_addr_END
 asm_jit_addr_load_addr:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_JIT_ADDR_BASE_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
 
 asm_jit_addr_load_addr_END:
   ret
@@ -209,7 +209,7 @@ asm_jit_addr_load_addr_END:
 .globl asm_jit_addr_set
 .globl asm_jit_addr_set_END
 asm_jit_addr_set:
-  movz REG_SCRATCH1, 0xFFFF
+  movz REG_JIT_ADDR_BASE, 0xFFFF
 
 asm_jit_addr_set_END:
   ret
@@ -218,7 +218,7 @@ asm_jit_addr_set_END:
 .globl asm_jit_addr_trunc_8bit
 .globl asm_jit_addr_trunc_8bit_END
 asm_jit_addr_trunc_8bit:
-  and REG_SCRATCH1, REG_SCRATCH1, #0xFF
+  and REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, #0xFF
 
 asm_jit_addr_trunc_8bit_END:
   ret
@@ -270,8 +270,8 @@ asm_jit_check_page_crossing_ABY_add_END:
 .globl asm_jit_check_page_crossing_x
 .globl asm_jit_check_page_crossing_x_END
 asm_jit_check_page_crossing_x:
-  sub REG_SCRATCH2, REG_SCRATCH1, REG_6502_X
-  eon REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
+  sub REG_SCRATCH2, REG_JIT_ADDR_BASE, REG_6502_X
+  eon REG_SCRATCH2, REG_SCRATCH2, REG_JIT_ADDR_BASE
   ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
   add REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
 
@@ -282,8 +282,8 @@ asm_jit_check_page_crossing_x_END:
 .globl asm_jit_check_page_crossing_y
 .globl asm_jit_check_page_crossing_y_END
 asm_jit_check_page_crossing_y:
-  sub REG_SCRATCH2, REG_SCRATCH1, REG_6502_Y
-  eon REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
+  sub REG_SCRATCH2, REG_JIT_ADDR_BASE, REG_6502_Y
+  eon REG_SCRATCH2, REG_SCRATCH2, REG_JIT_ADDR_BASE
   ubfx REG_SCRATCH2, REG_SCRATCH2, #8, #1
   add REG_COUNTDOWN, REG_COUNTDOWN, REG_SCRATCH2
 
@@ -362,15 +362,6 @@ asm_jit_jump_interp_END:
   ret
 
 
-.globl asm_jit_load_12bit
-.globl asm_jit_load_12bit_END
-asm_jit_load_12bit:
-  ldrb REG_SCRATCH1_32, [REG_MEM_READ, #0xFFF]
-
-asm_jit_load_12bit_END:
-  ret
-
-
 .globl asm_jit_load_PC
 .globl asm_jit_load_PC_END
 asm_jit_load_PC:
@@ -383,7 +374,7 @@ asm_jit_load_PC_END:
 .globl asm_jit_mode_ABX
 .globl asm_jit_mode_ABX_END
 asm_jit_mode_ABX:
-  add REG_SCRATCH1, REG_6502_X, #4095
+  add REG_JIT_ADDR_BASE, REG_6502_X, #4095
 
 asm_jit_mode_ABX_END:
   ret
@@ -392,7 +383,7 @@ asm_jit_mode_ABX_END:
 .globl asm_jit_mode_ABY
 .globl asm_jit_mode_ABY_END
 asm_jit_mode_ABY:
-  add REG_SCRATCH1, REG_6502_Y, #4095
+  add REG_JIT_ADDR_BASE, REG_6502_Y, #4095
 
 asm_jit_mode_ABY_END:
   ret
@@ -440,7 +431,7 @@ asm_jit_value_load_ABS_END:
 .globl asm_jit_value_load_addr
 .globl asm_jit_value_load_addr_END
 asm_jit_value_load_addr:
-  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
 
 asm_jit_value_load_addr_END:
   ret
@@ -485,7 +476,7 @@ asm_jit_value_store_ABS_END:
 .globl asm_jit_value_store_addr
 .globl asm_jit_value_store_addr_END
 asm_jit_value_store_addr:
-  strb REG_SCRATCH2_32, [REG_MEM_WRITE, REG_SCRATCH1]
+  strb REG_SCRATCH2_32, [REG_MEM_WRITE, REG_JIT_ADDR_BASE]
 
 asm_jit_value_store_addr_END:
   ret
@@ -494,7 +485,7 @@ asm_jit_value_store_addr_END:
 .globl asm_jit_write_inv
 .globl asm_jit_write_inv_END
 asm_jit_write_inv:
-  ldr REG_SCRATCH3_32, [REG_JIT_PTRS, REG_SCRATCH1, lsl #2]
+  ldr REG_SCRATCH3_32, [REG_JIT_PTRS, REG_JIT_ADDR_BASE, lsl #2]
   # Store anything convenient since it'll write fault.
   str REG_SCRATCH3_32, [REG_SCRATCH3]
 
@@ -831,9 +822,9 @@ asm_jit_JMP_END:
 .globl asm_jit_JMP_addr
 .globl asm_jit_JMP_addr_END
 asm_jit_JMP_addr:
-  lsl REG_SCRATCH1, REG_SCRATCH1, #K_JIT_BYTES_SHIFT
-  orr REG_SCRATCH1, REG_SCRATCH1, #K_JIT_ADDR
-  br REG_SCRATCH1
+  lsl REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, #K_JIT_BYTES_SHIFT
+  orr REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, #K_JIT_ADDR
+  br REG_JIT_ADDR_BASE
 
 asm_jit_JMP_addr_END:
   ret
@@ -842,7 +833,7 @@ asm_jit_JMP_addr_END:
 .globl asm_jit_LDA
 .globl asm_jit_LDA_END
 asm_jit_LDA:
-  ldrb REG_6502_A_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_6502_A_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
 
 asm_jit_LDA_END:
   ret
@@ -869,7 +860,7 @@ asm_jit_LDA_IMM_END:
 .globl asm_jit_LDX
 .globl asm_jit_LDX_END
 asm_jit_LDX:
-  ldrb REG_6502_X_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_6502_X_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
 
 asm_jit_LDX_END:
   ret
@@ -896,7 +887,7 @@ asm_jit_LDX_IMM_END:
 .globl asm_jit_LDY
 .globl asm_jit_LDY_END
 asm_jit_LDY:
-  ldrb REG_6502_Y_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_6502_Y_32, [REG_MEM_READ, REG_JIT_ADDR_BASE]
 
 asm_jit_LDY_END:
   ret
@@ -923,7 +914,7 @@ asm_jit_LDY_IMM_END:
 .globl asm_jit_LOAD_BYTE_PAIR_or
 .globl asm_jit_LOAD_BYTE_PAIR_or_END
 asm_jit_LOAD_BYTE_PAIR_or:
-  orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2, lsl #8
+  orr REG_JIT_ADDR_BASE, REG_JIT_ADDR_BASE, REG_SCRATCH2, lsl #8
 
 asm_jit_LOAD_BYTE_PAIR_or_END:
   ret
@@ -986,7 +977,7 @@ asm_jit_pull_16bit:
   add REG_SCRATCH3, REG_MEM_STACK, REG_6502_S
   ldrb REG_SCRATCH3_32, [REG_SCRATCH3]
 
-  orr REG_SCRATCH1, REG_SCRATCH2, REG_SCRATCH3, lsl #8
+  orr REG_JIT_ADDR_BASE, REG_SCRATCH2, REG_SCRATCH3, lsl #8
 
 asm_jit_pull_16bit_END:
   ret
@@ -1071,28 +1062,10 @@ asm_jit_SBC_IMM_END:
   ret
 
 
-.globl asm_jit_SCRATCH_ADD_X
-.globl asm_jit_SCRATCH_ADD_X_END
-asm_jit_SCRATCH_ADD_X:
-  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_X
-
-asm_jit_SCRATCH_ADD_X_END:
-  ret
-
-
-.globl asm_jit_SCRATCH_ADD_Y
-.globl asm_jit_SCRATCH_ADD_Y_END
-asm_jit_SCRATCH_ADD_Y:
-  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_Y
-
-asm_jit_SCRATCH_ADD_Y_END:
-  ret
-
-
 .globl asm_jit_SHY_SCRATCH2
 .globl asm_jit_SHY_SCRATCH2_END
 asm_jit_SHY_SCRATCH2:
-  lsr REG_SCRATCH2, REG_SCRATCH1, #8
+  lsr REG_SCRATCH2, REG_JIT_ADDR_BASE, #8
   # NOTE: overflows 8-bit.
   add REG_SCRATCH2, REG_SCRATCH2, #1
   and REG_SCRATCH2, REG_SCRATCH2, REG_6502_Y
@@ -1116,7 +1089,7 @@ asm_jit_SLO_END:
 .globl asm_jit_STA
 .globl asm_jit_STA_END
 asm_jit_STA:
-  strb REG_6502_A_32, [REG_MEM_WRITE, REG_SCRATCH1]
+  strb REG_6502_A_32, [REG_MEM_WRITE, REG_JIT_ADDR_BASE]
 
 asm_jit_STA_END:
   ret
@@ -1134,7 +1107,7 @@ asm_jit_STA_ABS_END:
 .globl asm_jit_STX
 .globl asm_jit_STX_END
 asm_jit_STX:
-  strb REG_6502_X_32, [REG_MEM_WRITE, REG_SCRATCH1]
+  strb REG_6502_X_32, [REG_MEM_WRITE, REG_JIT_ADDR_BASE]
 
 asm_jit_STX_END:
   ret
@@ -1152,7 +1125,7 @@ asm_jit_STX_ABS_END:
 .globl asm_jit_STY
 .globl asm_jit_STY_END
 asm_jit_STY:
-  strb REG_6502_Y_32, [REG_MEM_WRITE, REG_SCRATCH1]
+  strb REG_6502_Y_32, [REG_MEM_WRITE, REG_JIT_ADDR_BASE]
 
 asm_jit_STY_END:
   ret

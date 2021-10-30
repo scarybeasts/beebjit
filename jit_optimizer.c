@@ -319,9 +319,6 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
   int32_t curr_base_addr_index = -1;
 
-/* TODO */
-return;
-
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
