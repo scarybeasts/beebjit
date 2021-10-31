@@ -113,7 +113,6 @@ asm_instruction_CLV_END:
 asm_instruction_DEX:
 
   sub REG_6502_X, REG_6502_X, #1
-  adds xzr, xzr, REG_6502_X, lsl #56
   and REG_6502_X, REG_6502_X, #0xFF
 
 asm_instruction_DEX_END:
@@ -125,7 +124,6 @@ asm_instruction_DEX_END:
 asm_instruction_DEY:
 
   sub REG_6502_Y, REG_6502_Y, #1
-  adds xzr, xzr, REG_6502_Y, lsl #56
   and REG_6502_Y, REG_6502_Y, #0xFF
 
 asm_instruction_DEY_END:
@@ -137,7 +135,6 @@ asm_instruction_DEY_END:
 asm_instruction_INX:
 
   add REG_6502_X, REG_6502_X, #1
-  adds xzr, xzr, REG_6502_X, lsl #56
   and REG_6502_X, REG_6502_X, #0xFF
 
 asm_instruction_INX_END:
@@ -149,7 +146,6 @@ asm_instruction_INX_END:
 asm_instruction_INY:
 
   add REG_6502_Y, REG_6502_Y, #1
-  adds xzr, xzr, REG_6502_Y, lsl #56
   and REG_6502_Y, REG_6502_Y, #0xFF
 
 asm_instruction_INY_END:
