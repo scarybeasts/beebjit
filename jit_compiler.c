@@ -1739,7 +1739,7 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
       nz_val = p_state_6502->reg_y;
       break;
     case -k_opcode_flags_nz_value:
-      assert(0);
+      nz_val = p_state_6502->reg_host_value;
       break;
     default:
       assert(nz_fixup >= 0);

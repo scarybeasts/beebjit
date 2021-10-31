@@ -51,17 +51,18 @@ asm_enter_common_END:
 .globl asm_instruction_BIT_value_END
 asm_instruction_BIT_value:
 
-  tst REG_6502_A, REG_SCRATCH2
-  # O flag
-  ubfx REG_6502_OF, REG_SCRATCH2, #6, #1
+  tst REG_6502_A, REG_VALUE
   # N flag
-  ubfx REG_SCRATCH1, REG_SCRATCH2, #7, #1
+  ubfx REG_SCRATCH1, REG_VALUE, #7, #1
   # Z flag
-  cset REG_SCRATCH2, eq
-  lsl REG_SCRATCH2, REG_SCRATCH2, #30
+  # Use REG_6502_OF as a temporary; it's set properly below.
+  cset REG_6502_OF, eq
+  lsl REG_6502_OF, REG_6502_OF, #30
   lsl REG_SCRATCH1, REG_SCRATCH1, #31
-  add REG_SCRATCH2, REG_SCRATCH2, REG_SCRATCH1
-  msr nzcv, REG_SCRATCH2
+  add REG_SCRATCH1, REG_SCRATCH1, REG_6502_OF
+  msr nzcv, REG_SCRATCH1
+  # O flag
+  ubfx REG_6502_OF, REG_VALUE, #6, #1
 
 asm_instruction_BIT_value_END:
   ret
@@ -320,6 +321,7 @@ asm_save_AXYS_PC_flags:
   str REG_6502_Y_32, [x29, #K_STATE_6502_OFFSET_REG_Y]
   str REG_6502_S_32, [x29, #K_STATE_6502_OFFSET_REG_S]
   str REG_6502_PC_32, [x29, #K_STATE_6502_OFFSET_REG_PC]
+  str REG_VALUE_32, [x29, #K_STATE_6502_OFFSET_REG_HOST_VALUE]
 
   bl asm_emit_arm64_flags_to_scratch
   str REG_SCRATCH1_32, [x29, #K_STATE_6502_OFFSET_REG_FLAGS]
@@ -334,15 +336,17 @@ asm_save_AXYS_PC_flags_END:
 .globl asm_restore_AXYS_PC_flags
 .globl asm_restore_AXYS_PC_flags_END
 asm_restore_AXYS_PC_flags:
+  # x29 is currently REG_JIT_COMPILE, which is safe to use temporarily.
   stp x29, x30, [sp, #-16]!
-  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
-  ldr REG_6502_A_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_A]
-  ldr REG_6502_X_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_X]
-  ldr REG_6502_Y_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_Y]
-  ldr REG_6502_S_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_S]
-  ldr REG_6502_PC_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_PC]
+  ldr x29, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
+  ldr REG_6502_A_32, [x29, #K_STATE_6502_OFFSET_REG_A]
+  ldr REG_6502_X_32, [x29, #K_STATE_6502_OFFSET_REG_X]
+  ldr REG_6502_Y_32, [x29, #K_STATE_6502_OFFSET_REG_Y]
+  ldr REG_6502_S_32, [x29, #K_STATE_6502_OFFSET_REG_S]
+  ldr REG_6502_PC_32, [x29, #K_STATE_6502_OFFSET_REG_PC]
+  ldr REG_VALUE_32, [x29, #K_STATE_6502_OFFSET_REG_HOST_VALUE]
 
-  ldr REG_SCRATCH1_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_FLAGS]
+  ldr REG_SCRATCH1_32, [x29, #K_STATE_6502_OFFSET_REG_FLAGS]
   bl asm_set_arm64_flags_from_scratch
 
   ldp x29, x30, [sp], #16

@@ -773,10 +773,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_PUSH_16:
     tmp = value1;
     value1 = (value1 >> 8);
-    ASM_IMM16(value_set);
+    ASM_IMM16(scratch_set);
     ASM(push);
     value1 = (tmp & 0xFF);
-    ASM_IMM16(value_set);
+    ASM_IMM16(scratch_set);
     ASM(push);
     break;
   case k_opcode_save_carry: ASM(save_carry); break;

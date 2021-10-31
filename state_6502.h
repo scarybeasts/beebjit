@@ -20,9 +20,11 @@ enum {
   k_state_6502_offset_reg_irq_fire =   24,
   k_state_6502_offset_reg_host_pc =    28,
   k_state_6502_offset_reg_host_flags = 32,
+  k_state_6502_offset_reg_host_value = 36,
 };
 
 struct state_6502 {
+  /* Fields in the asm ABI. */
   uint32_t reg_a;
   uint32_t reg_x;
   uint32_t reg_y;
@@ -32,8 +34,10 @@ struct state_6502 {
   uint32_t irq_fire;
   uint32_t reg_host_pc;
   uint32_t reg_host_flags;
-  uint32_t irq_high;
+  uint32_t reg_host_value;
 
+  /* Fields not in the asm ABI. */
+  uint32_t irq_high;
   uint8_t* p_mem_read;
   struct timing_struct* p_timing;
   uint64_t ticks_baseline;

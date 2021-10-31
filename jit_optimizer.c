@@ -482,14 +482,9 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
         assert(p_uop->is_eliminated);
         p_nz_flags_uop = NULL;
       } else {
-        /* TODO: support value register recovery for ARM64. */
-        if (nz_flags_uopcode == k_opcode_flags_nz_value) {
-          p_nz_flags_uop = NULL;
-        } else {
-          p_nz_flags_uop = p_uop;
-          if (nz_flags_uopcode == k_opcode_flags_nz_mem) {
-            nz_mem_addr = p_uop->value1;
-          }
+        p_nz_flags_uop = p_uop;
+        if (nz_flags_uopcode == k_opcode_flags_nz_mem) {
+          nz_mem_addr = p_uop->value1;
         }
       }
     }
