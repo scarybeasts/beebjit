@@ -312,6 +312,17 @@ asm_jit_check_page_crossing_ABY_add_END:
   ret
 
 
+.globl asm_jit_check_page_crossing_n
+.globl asm_jit_check_page_crossing_n_END
+asm_jit_check_page_crossing_n:
+  eon REG_JIT_SCRATCH, REG_JIT_ADDR_BASE, REG_JIT_ADDR
+  ubfx REG_JIT_SCRATCH, REG_JIT_SCRATCH, #8, #1
+  add REG_COUNTDOWN, REG_COUNTDOWN, REG_JIT_SCRATCH
+
+asm_jit_check_page_crossing_n_END:
+  ret
+
+
 .globl asm_jit_check_page_crossing_x
 .globl asm_jit_check_page_crossing_x_END
 asm_jit_check_page_crossing_x:

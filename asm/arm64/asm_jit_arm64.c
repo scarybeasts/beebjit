@@ -725,6 +725,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(check_bcd);
     break;
+  case k_opcode_check_page_crossing_n: ASM(check_page_crossing_n); break;
   case k_opcode_check_page_crossing_x: ASM(check_page_crossing_x); break;
   case k_opcode_check_page_crossing_y: ASM(check_page_crossing_y); break;
   case k_opcode_arm64_check_page_crossing_ABX:
