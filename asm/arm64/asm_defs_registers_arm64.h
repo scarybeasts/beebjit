@@ -25,6 +25,8 @@
 #define REG_INTURBO_SCRATCH3      x10
 #define REG_INTURBO_SCRATCH3_32   w10
 /* Callee save (x19 - x29 inclusive). */
+#define REG_JIT_ADDR              x21
+#define REG_JIT_ADDR_32           w21
 #define REG_JIT_ADDR_BASE         x22
 #define REG_JIT_ADDR_BASE_32      w22
 #define REG_MEM_STACK             x23

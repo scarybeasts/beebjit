@@ -509,9 +509,9 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->max_6502_addr = 0xFFFF;
     asm_make_uop1(p_uop, k_opcode_addr_set, operand_6502);
     p_uop++;
-    asm_make_uop0(p_uop, k_opcode_addr_load_16bit_wrap);
+    asm_make_uop0(p_uop, k_opcode_addr_base_load_16bit_wrap);
     p_uop++;
-    asm_make_uop0(p_uop, k_opcode_addr_add_y);
+    asm_make_uop0(p_uop, k_opcode_addr_add_base_y);
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_addr_check, addr_6502);
     p_uop++;

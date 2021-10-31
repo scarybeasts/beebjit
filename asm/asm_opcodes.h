@@ -37,12 +37,14 @@ enum {
   k_opcode_addr_set,
   k_opcode_addr_add_x,
   k_opcode_addr_add_y,
-  k_opcode_addr_add_constant,
+  k_opcode_addr_add_base_y,
+  k_opcode_addr_add_base_constant,
   k_opcode_addr_add_x_8bit,
   k_opcode_addr_add_y_8bit,
   k_opcode_addr_load_16bit_wrap,
   k_opcode_addr_load_16bit_nowrap,
   k_opcode_addr_load_8bit,
+  k_opcode_addr_base_load_16bit_wrap,
   k_opcode_addr_end,
 
   /* Value opcodes, 0x300 - 0x3FF. */
