@@ -890,10 +890,10 @@ jit_test_compile_binary(void) {
   expect_len = 2;
 #elif defined(__aarch64__)
   /* and   x5, x5, #0xfffffffffffffff7
-   * mov   x9, #0x1000000
-   * adds  w0, w9, w0, lsl #24
+   * mov   x20, #0x1000000
+   * adds  w0, w20, w0, lsl #24
    */
-  p_expect = "\xa5\xf8\x7c\x92" "\x09\x20\xa0\xd2" "\x20\x61\x00\x2b";
+  p_expect = "\xa5\xf8\x7c\x92" "\x14\x20\xa0\xd2" "\x80\x62\x00\x2b";
   expect_len = 12;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -925,18 +925,18 @@ jit_test_compile_binary(void) {
    * how the ARM64 backend handles carry.
    */
   /* tbnz  w5, #3, 0x6190070
-   * mov   x9, #0x1000000
-   * add   x9, x9, x6
+   * mov   x20, #0x1000000
+   * add   x20, x20, x6
    * lsl   x0, x0, #24
    * orr   x0, x0, #0xffffff
-   * adds  w0, w0, w9
+   * adds  w0, w0, w20
    * lsr   x0, x0, #24
    * cset  x6, cs
-   * ldrb  w9, [x27, 0x41]
+   * ldrb  w20, [x27, 0x41]
    */
-  p_expect = "\x45\x03\x18\x37" "\x09\x20\xa0\xd2" "\x29\x01\x06\x8b"
-             "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x09\x2b"
-             "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x69\x0b\x41\x39";
+  p_expect = "\x45\x03\x18\x37" "\x14\x20\xa0\xd2" "\x94\x02\x06\x8b"
+             "\x00\x9c\x68\xd3" "\x00\x5c\x40\xb2" "\x00\x00\x14\x2b"
+             "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a" "\x74\x0b\x41\x39";
   expect_len = 36;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
@@ -967,6 +967,25 @@ jit_test_compile_binary(void) {
              "\x88\x84\x0a\x00\x80\x00\x11";
   expect_len = 21;
 #elif defined(__aarch64__)
+  /* TODO: the second add y / addr check can also be eliminated. */
+  /* ldrb  w22, [x27, #112]
+   * ldrb  w4, [x27, #113]
+   * orr   x22, x22, x4, lsl #8
+   * add   x21, x22, x2
+   * add   x4, x21, #0x400
+   * tbnz  w4, #16, 0x6198070
+   * ldrb  w20, [x27, x21]
+   * eor   x0, x0, x20
+   * add   x21, x22, x2
+   * add   x4, x21, #0x400
+   * tbnz  w4, #16, 0x6198068
+   * strb  w0, [x28, x21]
+   */
+  p_expect = "\x76\xc3\x41\x39" "\x64\xc7\x41\x39" "\xd6\x22\x04\xaa"
+             "\xd5\x02\x02\x8b" "\xa4\x02\x10\x91" "\xa4\x02\x80\x37"
+             "\x74\x6b\x75\x38" "\x00\x00\x14\xca" "\xd5\x02\x02\x8b"
+             "\xa4\x02\x10\x91" "\xc4\x01\x80\x37" "\x80\x6b\x35\x38";
+  expect_len = 48;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
@@ -1007,6 +1026,26 @@ jit_test_compile_binary(void) {
              "\x88\x45\xc0";
   expect_len = 23;
 #elif defined(__aarch64__)
+  /* ldrb  w22, [x27, #75]
+   * ldrb  w4, [x27, #76]
+   * orr   x22, x22, x4, lsl #8
+   * add   x21, x22, #0x4
+   * add   x4, x21, #0x400
+   * tbnz  w4, #16, 0x61a0070
+   * ldrb  w0, [x27, x21]
+   * strb  w0, [x28, #65]
+   * add   x21, x22, #0x3
+   * add   x4, x21, #0x400
+   * tbnz  w4, #16, 0x61a0068
+   * ldrb  w0, [x27, x21]
+   * strb  w0, [x28, #64]
+   */
+  p_expect = "\x76\x2f\x41\x39" "\x64\x33\x41\x39" "\xd6\x22\x04\xaa"
+             "\xd5\x12\x00\x91" "\xa4\x02\x10\x91" "\xa4\x02\x80\x37"
+             "\x60\x6b\x75\x38" "\x80\x07\x01\x39" "\xd5\x0e\x00\x91"
+             "\xa4\x02\x10\x91" "\xc4\x01\x80\x37" "\x60\x6b\x75\x38"
+             "\x80\x03\x01\x39";
+  expect_len = 52;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
@@ -1039,6 +1078,20 @@ jit_test_compile_binary(void) {
              "\x0f\xb6\x84\x1a\x00\x80\x00\x10";
   expect_len = 21;
 #elif defined(__aarch64__)
+  /* mov   x21, #0x3501
+   * ldrb  w21, [x27, x21]
+   * mov   x4, #0x3502
+   * ldrb  w4, [x27, x4]
+   * orr   x21, x21, x4, lsl #8
+   * add   x21, x21, x1
+   * add   x4, x21, #0x400
+   * tbnz  w4, #16, 0x61a8070
+   * ldrb  w0, [x27, x21]
+   */
+  p_expect = "\x35\xa0\x86\xd2" "\x75\x6b\x75\x38" "\x44\xa0\x86\xd2"
+             "\x64\x6b\x64\x38" "\xb5\x22\x04\xaa" "\xb5\x02\x01\x8b"
+             "\xa4\x02\x10\x91" "\x64\x02\x80\x37" "\x60\x6b\x75\x38";
+  expect_len = 36;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
@@ -1071,6 +1124,22 @@ jit_test_compile_binary(void) {
              "\xfe\xcb";
   expect_len = 15;
 #elif defined(__aarch64__)
+  /* ldrb  w20, [x27, #50]
+   * add   x20, x6, x20, lsl #1
+   * ubfx  x6, x20, #8, #1
+   * strb  w20, [x28, #50]
+   * ldrb  w20, [x27, #49]
+   * add   x20, x6, x20, lsl #1
+   * ubfx  x6, x20, #8, #1
+   * strb  w20, [x28, #49]
+   * sub   x1, x1, #0x1
+   * and   x1, x1, #0xff
+   */
+  p_expect = "\x74\xcb\x40\x39" "\xd4\x04\x14\x8b" "\x86\x22\x48\xd3"
+             "\x94\xcb\x00\x39" "\x74\xc7\x40\x39" "\xd4\x04\x14\x8b"
+             "\x86\x22\x48\xd3" "\x94\xc7\x00\x39" "\x21\x04\x00\xd1"
+             "\x21\x1c\x40\x92";
+  expect_len = 40;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }

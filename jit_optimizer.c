@@ -346,7 +346,7 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
       case k_opcode_addr_add_x_8bit:
         p_addr_add_uop = p_uop;
         break;
-      case k_opcode_addr_load_16bit_wrap:
+      case k_opcode_addr_base_load_16bit_wrap:
         p_addr_load_uop = p_uop;
         break;
       case k_opcode_PHP:
