@@ -1448,25 +1448,6 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       is_mode_abn = 1;
       do_set_segment = 1;
       do_eliminate_load_store = 1;
-    } else if (p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap) {
-      /* Mode IDY. */
-      p_tmp_uop = (p_tmp_uop - 1);
-      assert(p_tmp_uop->uopcode == k_opcode_addr_set);
-      p_tmp_uop->is_eliminated = 1;
-      addr = p_tmp_uop->value1;
-      p_tmp_uop = (p_tmp_uop + 1);
-      p_tmp_uop->backend_tag = k_opcode_x64_mode_IDY_load;
-      p_tmp_uop->value1 = addr;
-      new_uopcode = p_main_uop->uopcode;
-      new_uopcode = asm_jit_rewrite_IDY(new_uopcode);
-      p_main_uop->backend_tag = new_uopcode;
-      if (p_inv_uop != NULL) {
-        p_inv_uop->backend_tag = k_opcode_x64_write_inv_IDY;
-      }
-      if (p_page_crossing_uop != NULL) {
-        p_page_crossing_uop->backend_tag = k_opcode_x64_check_page_crossing_IDY;
-      }
-      do_eliminate_load_store = 1;
     } else {
       /* Mode dyn,Y. */
       assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_nowrap);
@@ -1490,10 +1471,34 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       do_eliminate_load_store = 1;
     }
     break;
-  case k_opcode_addr_add_constant:
+  case k_opcode_addr_add_base_y:
+    /* Mode IDY. */
+    p_tmp_uop = (p_mode_uop - 1);
+    assert(p_tmp_uop->uopcode == k_opcode_addr_base_load_16bit_wrap);
+    p_tmp_uop = (p_tmp_uop - 1);
+    assert(p_tmp_uop->uopcode == k_opcode_addr_set);
+    p_tmp_uop->is_eliminated = 1;
+    addr = p_tmp_uop->value1;
+    p_tmp_uop = (p_tmp_uop + 1);
+    p_tmp_uop->backend_tag = k_opcode_x64_mode_IDY_load;
+    p_tmp_uop->value1 = addr;
+    p_mode_uop->is_eliminated = 1;
+    p_mode_uop->is_merged = 1;
+    new_uopcode = p_main_uop->uopcode;
+    new_uopcode = asm_jit_rewrite_IDY(new_uopcode);
+    p_main_uop->backend_tag = new_uopcode;
+    if (p_inv_uop != NULL) {
+      p_inv_uop->backend_tag = k_opcode_x64_write_inv_IDY;
+    }
+    if (p_page_crossing_uop != NULL) {
+      p_page_crossing_uop->backend_tag = k_opcode_x64_check_page_crossing_IDY;
+    }
+    do_eliminate_load_store = 1;
+    break;
+  case k_opcode_addr_add_base_constant:
     /* Mode IDY, optimzed where Y is a known constant. */
     p_tmp_uop = (p_mode_uop - 1);
-    assert(p_tmp_uop->uopcode == k_opcode_addr_load_16bit_wrap);
+    assert(p_tmp_uop->uopcode == k_opcode_addr_base_load_16bit_wrap);
     p_tmp_uop = (p_tmp_uop - 1);
     assert(p_tmp_uop->uopcode == k_opcode_addr_set);
     p_tmp_uop->is_eliminated = 1;
