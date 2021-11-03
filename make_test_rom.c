@@ -2285,8 +2285,22 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x27);
   emit_JMP(p_buf, k_abs, 0xE080);
 
-  /* End of test. */
+  /* Test for a JIT bug with a missing flag save after a "known value" rewrite,
+   * up against a block boundary.
+   */
   set_new_index(p_buf, 0x2080);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JSR(p_buf, 0xE0B3);      /* Create block boundary. */
+  emit_JSR(p_buf, 0xE0B0);
+  emit_REQUIRE_NF(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE0C0);
+  set_new_index(p_buf, 0x20B0);
+  emit_LDY(p_buf, k_imm, 0xD3);
+  emit_DEY(p_buf);
+  emit_RTS(p_buf);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x20C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
