@@ -526,6 +526,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_load_carry:
+      case k_opcode_load_carry_inverted:
         /* The carry load will be eliminated if this was made an ADD / SUB, or
          * by the ARM64 backend.
          */
@@ -535,13 +536,24 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
         /* Eliminate the store and the load together if we've got a pair. */
         if (!p_uop->is_merged &&
             (p_save_carry_uop != NULL) &&
-            (p_save_carry_uop->uopcode == k_opcode_save_carry)) {
+            ((p_save_carry_uop->uopcode == k_opcode_save_carry) ||
+                (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted))) {
+          int do_invert =
+              (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted);
+          if (p_uop->uopcode == k_opcode_load_carry_inverted) {
+            do_invert ^= 1;
+          }
           p_save_carry_uop->is_eliminated = 1;
-          p_uop->is_eliminated = 1;
+          if (do_invert) {
+            p_uop->uopcode = k_opcode_carry_invert;
+          } else {
+            p_uop->is_eliminated = 1;
+          }
         }
         p_save_carry_uop = NULL;
         break;
       case k_opcode_save_carry:
+      case k_opcode_save_carry_inverted:
         had_save_carry = 1;
         /* FALL THROUGH */
       case k_opcode_CLC:
@@ -601,11 +613,6 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
          */
         p_save_carry_uop = NULL;
         p_save_overflow_uop = NULL;
-        break;
-      case k_opcode_load_carry_inverted:
-      case k_opcode_save_carry_inverted:
-        /* TODO: no eliminations yet for the inverted cases. */
-        p_save_carry_uop = NULL;
         break;
       default:
         break;

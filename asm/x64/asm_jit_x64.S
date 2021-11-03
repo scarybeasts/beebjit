@@ -261,6 +261,15 @@ asm_jit_value_store_END:
   ret
 
 
+.globl asm_jit_carry_invert
+.globl asm_jit_carry_invert_END
+asm_jit_carry_invert:
+  cmc
+
+asm_jit_carry_invert_END:
+  ret
+
+
 .globl asm_jit_check_bcd
 .globl asm_jit_check_bcd_END
 asm_jit_check_bcd:
@@ -347,24 +356,6 @@ asm_jit_CHECK_PENDING_IRQ:
 asm_jit_CHECK_PENDING_IRQ_jump_patch:
 
 asm_jit_CHECK_PENDING_IRQ_END:
-  ret
-
-
-.globl asm_jit_CLEAR_CARRY
-.globl asm_jit_CLEAR_CARRY_END
-asm_jit_CLEAR_CARRY:
-  clc
-
-asm_jit_CLEAR_CARRY_END:
-  ret
-
-
-.globl asm_jit_INVERT_CARRY
-.globl asm_jit_INVERT_CARRY_END
-asm_jit_INVERT_CARRY:
-  cmc
-
-asm_jit_INVERT_CARRY_END:
   ret
 
 
@@ -688,15 +679,6 @@ asm_jit_save_overflow:
   seto REG_6502_OF
 
 asm_jit_save_overflow_END:
-  ret
-
-
-.globl asm_jit_SET_CARRY
-.globl asm_jit_SET_CARRY_END
-asm_jit_SET_CARRY:
-  stc
-
-asm_jit_SET_CARRY_END:
   ret
 
 

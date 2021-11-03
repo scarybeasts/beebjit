@@ -16,6 +16,7 @@ enum {
   /* Misc. management opcodes, 0x100 - 0x1FF. */
   k_opcode_add_cycles = 0x100,
   k_opcode_addr_check,
+  k_opcode_carry_invert,
   k_opcode_check_bcd,
   k_opcode_check_page_crossing_x,
   k_opcode_check_page_crossing_y,

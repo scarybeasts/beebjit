@@ -1142,6 +1142,38 @@ jit_test_compile_binary(void) {
   expect_len = 40;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check the output for an SBC chain rolling into an ADC.
+   * Exile has similar sequences where the carry flag does a bit of a journey!
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3700), 0x100);
+  emit_SEC(p_buf);
+  emit_SBC(p_buf, k_zpg, 0x40);
+  emit_SBC(p_buf, k_zpg, 0x41);
+  emit_ADC(p_buf, k_zpg, 0x42);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3700);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3700);
+#if defined(__x86_64__)
+  /* mov    r9b, BYTE PTR [r13+0x12017ffa]
+   * sub    al, BYTE PTR [rbp-0x40]
+   * sbb    al, BYTE PTR [rbp-0x3f]
+   * cmc
+   * adc    al,BYTE PTR [rbp-0x3e]
+   */
+  p_expect = "\x45\x8a\x8d\xfa\x7f\x01\x12"
+             "\x2a\x45\xc0"
+             "\x1a\x45\xc1"
+             "\xf5"
+             "\x12\x45\xc2";
+  expect_len = 17;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

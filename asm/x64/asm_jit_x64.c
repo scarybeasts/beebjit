@@ -19,9 +19,6 @@ enum {
   k_opcode_LDX_Z,
   k_opcode_LDY_Z,
   k_opcode_STOA_IMM,
-  k_opcode_CLEAR_CARRY,
-  k_opcode_INVERT_CARRY,
-  k_opcode_SET_CARRY,
 };
 
 enum {
@@ -1635,6 +1632,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_add_x: ASM(save_addr_low_byte); ASM(addr_add_x); break;
   case k_opcode_addr_add_y: ASM(save_addr_low_byte); ASM(addr_add_y); break;
   case k_opcode_addr_load_16bit_wrap: ASM(addr_load_16bit_wrap); break;
+  case k_opcode_carry_invert: ASM(carry_invert); break;
   case k_opcode_check_page_crossing_n:
     ASM(save_addr_low_byte);
     value2 = K_ASM_TABLE_PAGE_WRAP_CYCLE_INV;
@@ -1649,12 +1647,10 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     ASM(check_page_crossing_y);
     ASM(check_page_crossing_adjust);
     break;
-  case k_opcode_CLEAR_CARRY: ASM(CLEAR_CARRY); break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_y: asm_emit_instruction_Y_NZ_flags(p_dest_buf); break;
   case k_opcode_flags_nz_value: ASM(flags_nz_value); break;
-  case k_opcode_INVERT_CARRY: ASM(INVERT_CARRY); break;
   case k_opcode_JMP_SCRATCH_n:
     asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
     break;
@@ -1677,7 +1673,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_carry_inverted: ASM(save_carry_inv); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
-  case k_opcode_SET_CARRY: ASM(SET_CARRY); break;
   case k_opcode_STOA_IMM:
     asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
     break;

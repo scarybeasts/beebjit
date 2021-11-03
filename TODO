@@ -8,7 +8,6 @@ The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
 - Investigate mode REL for dynamic operand.
-- Optimize carry elimination for inverted carry situations.
 - Re-add mode IDX address optimization.
 
 

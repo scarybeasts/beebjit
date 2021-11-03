@@ -1774,6 +1774,9 @@ jit_compiler_fixup_state(struct jit_compiler* p_compiler,
     case k_opcode_save_carry:
       new_carry = os_fault_is_carry_flag_set(host_flags);
       break;
+    case k_opcode_save_carry_inverted:
+      new_carry = !os_fault_is_carry_flag_set(host_flags);
+      break;
     default:
       assert(0);
       break;
