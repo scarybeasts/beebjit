@@ -24,7 +24,6 @@ at the start of the block. Also, the timing subtractions do not need to be
 dependent on one another.
 - Tape loading noises.
 - Disc loading noises.
-- Add a test for the JIT optimizer.
 - BCD support in JIT. It gives accurate results but slowly because it uses the
 interpreter. No evidence yet of intense BCD usage in anything that needs to go
 fast.
