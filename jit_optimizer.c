@@ -666,12 +666,16 @@ jit_optimizer_append_uop(struct jit_opcode_details* p_opcode,
   uint8_t num_uops = p_opcode->num_uops;
   struct asm_uop* p_uop = &p_opcode->uops[num_uops];
   assert(num_uops < k_max_uops_per_opcode);
-  p_opcode->num_uops++;
+  if (p_opcode->has_postfix_uop) {
+    (void) memcpy(p_uop, (p_uop - 1), sizeof(struct asm_uop));
+    p_uop--;
+  }
   p_uop->uopcode = uopcode;
   p_uop->value1 = 0;
   p_uop->value2 = 0;
-
   p_uop->is_eliminated = 0;
+
+  p_opcode->num_uops++;
 }
 
 struct jit_opcode_details*
