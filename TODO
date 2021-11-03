@@ -7,7 +7,6 @@ Ideally, important items get fixed before the next release.
 The includes: bugs and deficiencies that are egregious. Feature requests that
 are currently prioritized.
 
-- Exile broken with the JIT optimizer active.
 - Investigate mode REL for dynamic operand.
 - Optimize carry elimination for inverted carry situations.
 - Re-add mode IDX address optimization.
