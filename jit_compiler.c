@@ -426,7 +426,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
 
   p_details->max_cycles = p_compiler->p_opcode_cycles[opcode_6502];
   if (p_compiler->option_accurate_timings) {
-    if ((opmem & k_opmem_read_flag) &&
+    if ((opmem == k_opmem_read_flag) &&
         (opmode == k_abx || opmode == k_aby || opmode == k_idy) &&
         could_page_cross) {
       p_details->max_cycles++;
