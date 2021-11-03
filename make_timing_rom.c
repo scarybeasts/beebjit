@@ -852,8 +852,19 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x19);
   emit_JMP(p_buf, k_abs, 0xCC00);
 
-  /* Exit sequence. */
+  /* Test timing of a mode abx RMW instruction.
+   * Yes, this was somehow wrong in JIT, likely an uncaught regression for a
+   * long time.
+   */
   set_new_index(p_buf, 0x0C00);
+  emit_CYCLES_RESET(p_buf);
+  emit_ROR(p_buf, k_abx, 0x7001);
+  emit_CYCLES(p_buf);
+  emit_REQUIRE_EQ(p_buf, 15);
+  emit_JMP(p_buf, k_abs, 0xCC40);
+
+  /* Exit sequence. */
+  set_new_index(p_buf, 0x0C40);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $E000 to RAM at $3000 */
