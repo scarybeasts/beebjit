@@ -15,9 +15,6 @@
 
 /* TODO: restore these optimizations internally to the x64 asm backend. */
 enum {
-  k_opcode_LDA_Z,
-  k_opcode_LDX_Z,
-  k_opcode_LDY_Z,
   k_opcode_STOA_IMM,
 };
 
@@ -662,27 +659,6 @@ asm_emit_jit_JMP_SCRATCH_n(struct util_buffer* p_buf, uint16_t n) {
                 asm_jit_JMP_SCRATCH_n,
                 asm_jit_JMP_SCRATCH_n_lea_patch,
                 ((K_JIT_ADDR >> K_JIT_BYTES_SHIFT) + n));
-}
-
-static void
-asm_emit_jit_LDA_Z(struct util_buffer* p_buf) {
-  void asm_jit_LDA_Z(void);
-  void asm_jit_LDA_Z_END(void);
-  asm_copy(p_buf, asm_jit_LDA_Z, asm_jit_LDA_Z_END);
-}
-
-static void
-asm_emit_jit_LDX_Z(struct util_buffer* p_buf) {
-  void asm_jit_LDX_Z(void);
-  void asm_jit_LDX_Z_END(void);
-  asm_copy(p_buf, asm_jit_LDX_Z, asm_jit_LDX_Z_END);
-}
-
-static void
-asm_emit_jit_LDY_Z(struct util_buffer* p_buf) {
-  void asm_jit_LDY_Z(void);
-  void asm_jit_LDY_Z_END(void);
-  asm_copy(p_buf, asm_jit_LDY_Z, asm_jit_LDY_Z_END);
 }
 
 static void
@@ -1654,9 +1630,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_JMP_SCRATCH_n:
     asm_emit_jit_JMP_SCRATCH_n(p_dest_buf, (uint16_t) value1);
     break;
-  case k_opcode_LDA_Z: asm_emit_jit_LDA_Z(p_dest_buf); break;
-  case k_opcode_LDX_Z: asm_emit_jit_LDX_Z(p_dest_buf); break;
-  case k_opcode_LDY_Z: asm_emit_jit_LDY_Z(p_dest_buf); break;
   case k_opcode_load_carry:
     if (p_uop->backend_tag == 1) {
       ASM(load_carry_for_calc);
@@ -1701,6 +1674,9 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_INX: asm_emit_instruction_INX(p_dest_buf); break;
   case k_opcode_INY: asm_emit_instruction_INY(p_dest_buf); break;
   case k_opcode_JMP: ASM_Bxx(JMP); break;
+  case k_opcode_LDA_zero_and_flags: ASM(LDA_zero); break;
+  case k_opcode_LDX_zero_and_flags: ASM(LDX_zero); break;
+  case k_opcode_LDY_zero_and_flags: ASM(LDY_zero); break;
   case k_opcode_LSR_acc: ASM(LSR_ACC); break;
   case k_opcode_LSR_value: ASM(LSR_value); break;
   case k_opcode_NOP:

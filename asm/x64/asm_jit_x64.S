@@ -403,33 +403,6 @@ asm_jit_JMP_SCRATCH_n_END:
   ret
 
 
-.globl asm_jit_LDA_Z
-.globl asm_jit_LDA_Z_END
-asm_jit_LDA_Z:
-  xor REG_6502_A_32, REG_6502_A_32
-
-asm_jit_LDA_Z_END:
-  ret
-
-
-.globl asm_jit_LDX_Z
-.globl asm_jit_LDX_Z_END
-asm_jit_LDX_Z:
-  xor REG_6502_X_32, REG_6502_X_32
-
-asm_jit_LDX_Z_END:
-  ret
-
-
-.globl asm_jit_LDY_Z
-.globl asm_jit_LDY_Z_END
-asm_jit_LDY_Z:
-  xor REG_6502_Y_32, REG_6502_Y_32
-
-asm_jit_LDY_Z_END:
-  ret
-
-
 .globl asm_jit_load_carry_for_branch
 .globl asm_jit_load_carry_for_branch_END
 asm_jit_load_carry_for_branch:
@@ -1627,6 +1600,15 @@ asm_jit_LDA_ABY_END:
   ret
 
 
+.globl asm_jit_LDA_zero
+.globl asm_jit_LDA_zero_END
+asm_jit_LDA_zero:
+  xor REG_6502_A_32, REG_6502_A_32
+
+asm_jit_LDA_zero_END:
+  ret
+
+
 .globl asm_jit_LDA_ZPG
 .globl asm_jit_LDA_ZPG_END
 asm_jit_LDA_ZPG:
@@ -1681,6 +1663,15 @@ asm_jit_LDX_IMM_END:
   ret
 
 
+.globl asm_jit_LDX_zero
+.globl asm_jit_LDX_zero_END
+asm_jit_LDX_zero:
+  xor REG_6502_X_32, REG_6502_X_32
+
+asm_jit_LDX_zero_END:
+  ret
+
+
 .globl asm_jit_LDX_ZPG
 .globl asm_jit_LDX_ZPG_END
 asm_jit_LDX_ZPG:
@@ -1732,6 +1723,15 @@ asm_jit_LDY_IMM:
   mov REG_6502_Y, 0
 
 asm_jit_LDY_IMM_END:
+  ret
+
+
+.globl asm_jit_LDY_zero
+.globl asm_jit_LDY_zero_END
+asm_jit_LDY_zero:
+  xor REG_6502_Y_32, REG_6502_Y_32
+
+asm_jit_LDY_zero_END:
   ret
 
 

@@ -1174,6 +1174,25 @@ jit_test_compile_binary(void) {
 #elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check the output for LDA #0 where flags are needed. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3800), 0x100);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_JMP(p_buf, k_abs, 0x3804);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3800);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3800);
+#if defined(__x86_64__)
+  /* xor    eax, eax */
+  p_expect = "\x31\xc0";
+  expect_len = 2;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

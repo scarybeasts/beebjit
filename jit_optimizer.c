@@ -629,9 +629,11 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
-    uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
-    int is_imm = 0;
+    uint32_t num_uops = p_opcode->num_uops;
+    int32_t imm_value = -1;
+    struct asm_uop* p_load_uop = NULL;
+    struct asm_uop* p_load_flags_uop = NULL;
 
     if (p_opcode->is_eliminated) {
       continue;
@@ -646,22 +648,28 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       struct asm_uop* p_uop = &p_opcode->uops[i_uops];
       switch (p_uop->uopcode) {
       case k_opcode_value_set:
-        is_imm = 1;
+        imm_value = p_uop->value1;
         break;
       case k_opcode_LDY:
         if (p_load_y_uop != NULL) {
           p_load_y_uop->is_eliminated = 1;
         }
-        if (is_imm) {
+        if (imm_value >= 0) {
           p_load_y_uop = p_uop;
         } else {
           p_load_y_uop = NULL;
         }
+        /* FALL THROUGH */
+      case k_opcode_LDA:
+      case k_opcode_LDX:
+        p_load_uop = p_uop;
         break;
+      case k_opcode_flags_nz_y:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
       case k_opcode_check_page_crossing_y:
       case k_opcode_addr_add_y:
       case k_opcode_addr_add_y_8bit:
-      case k_opcode_flags_nz_y:
       case k_opcode_CPY:
       case k_opcode_DEY:
       case k_opcode_INY:
@@ -671,8 +679,39 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
           p_load_y_uop = NULL;
         }
         break;
+      case k_opcode_flags_nz_a:
+      case k_opcode_flags_nz_x:
+        p_load_flags_uop = p_uop;
+        break;
       default:
         break;
+      }
+    }
+
+    /* Replace loads of immediate #0 + flags setting with a single uopcode. */
+    if (p_load_uop != NULL) {
+      assert(p_load_flags_uop != NULL);
+      if ((imm_value == 0) && !p_load_flags_uop->is_eliminated) {
+        switch (p_load_uop->uopcode) {
+        case k_opcode_LDA:
+          p_load_uop->uopcode = k_opcode_LDA_zero_and_flags;
+          break;
+        case k_opcode_LDX:
+          p_load_uop->uopcode = k_opcode_LDX_zero_and_flags;
+          break;
+        case k_opcode_LDY:
+          p_load_uop->uopcode = k_opcode_LDY_zero_and_flags;
+          break;
+        default:
+          assert(0);
+          break;
+        }
+        p_load_uop->backend_tag = 0;
+        /* This whole shebang might already be eliminated, but no harm in doing
+         * part of it again if that's the case.
+         */
+        p_load_flags_uop->is_eliminated = 1;
+        p_load_flags_uop->is_merged = 1;
       }
     }
   }
@@ -712,6 +751,8 @@ jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
   /* Pass 3: eliminate redundant register sets. This comes alive after previous
    * passes. It triggers most significantly for code that uses INY to index
    * an unrolled sequence of e.g LDA ($00),Y loads.
+   * It's also a convenient pass to look for remaining loads of the constant
+   * zero, with NZ flag setting, and replace with a dedicated opcode.
    */
   jit_optimizer_eliminate_axy_loads(p_opcodes);
 
