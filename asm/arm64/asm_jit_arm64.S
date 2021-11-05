@@ -949,6 +949,15 @@ asm_jit_LDA_IMM_END:
   ret
 
 
+.globl asm_jit_LDA_zero_and_flags
+.globl asm_jit_LDA_zero_and_flags_END
+asm_jit_LDA_zero_and_flags:
+  subs REG_6502_A, REG_6502_A, REG_6502_A
+
+asm_jit_LDA_zero_and_flags_END:
+  ret
+
+
 .globl asm_jit_LDX
 .globl asm_jit_LDX_END
 asm_jit_LDX:
@@ -976,6 +985,15 @@ asm_jit_LDX_IMM_END:
   ret
 
 
+.globl asm_jit_LDX_zero_and_flags
+.globl asm_jit_LDX_zero_and_flags_END
+asm_jit_LDX_zero_and_flags:
+  subs REG_6502_X, REG_6502_X, REG_6502_X
+
+asm_jit_LDX_zero_and_flags_END:
+  ret
+
+
 .globl asm_jit_LDY
 .globl asm_jit_LDY_END
 asm_jit_LDY:
@@ -1000,6 +1018,15 @@ asm_jit_LDY_IMM:
   movz REG_6502_Y, #0xFFFF
 
 asm_jit_LDY_IMM_END:
+  ret
+
+
+.globl asm_jit_LDY_zero_and_flags
+.globl asm_jit_LDY_zero_and_flags_END
+asm_jit_LDY_zero_and_flags:
+  subs REG_6502_Y, REG_6502_Y, REG_6502_Y
+
+asm_jit_LDY_zero_and_flags_END:
   ret
 
 

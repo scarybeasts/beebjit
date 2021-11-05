@@ -1172,6 +1172,19 @@ jit_test_compile_binary(void) {
              "\x12\x45\xc2";
   expect_len = 17;
 #elif defined(__aarch64__)
+  /* tbnz  w5, #3, 0x61b8070
+   * ldrb  w20, [x27, #64]
+   * lsl   x0, x0, #24
+   * subs  w0, w0, w20, lsl #24
+   * lsr   x0, x0, #24
+   * cset  x6, cs
+   * ldrb  w20, [x27, #65]
+   * [...]
+   */
+  p_expect = "\x45\x03\x18\x37" "\x74\x03\x41\x39" "\x00\x9c\x68\xd3"
+             "\x00\x60\x14\x6b" "\x00\xfc\x58\xd3" "\xe6\x37\x9f\x9a"
+             "\x74\x07\x41\x39";
+  expect_len = 28;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 
@@ -1191,6 +1204,8 @@ jit_test_compile_binary(void) {
   p_expect = "\x31\xc0";
   expect_len = 2;
 #elif defined(__aarch64__)
+  p_expect = "\x00\x00\x00\xeb";
+  expect_len = 4;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }

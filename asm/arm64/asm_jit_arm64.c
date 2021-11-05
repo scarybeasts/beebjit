@@ -824,8 +824,11 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_INY: asm_emit_instruction_INY(p_buf); break;
   case k_opcode_JMP: ASM_IMM26(JMP); break;
   case k_opcode_LDA: ASM(LDA); break;
+  case k_opcode_LDA_zero_and_flags: ASM(LDA_zero_and_flags); break;
   case k_opcode_LDX: ASM(LDX); break;
+  case k_opcode_LDX_zero_and_flags: ASM(LDX_zero_and_flags); break;
   case k_opcode_LDY: ASM(LDY); break;
+  case k_opcode_LDY_zero_and_flags: ASM(LDY_zero_and_flags); break;
   case k_opcode_LSR_acc:
     immr = (value1 - 1);
     imms = 0;
