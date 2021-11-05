@@ -608,6 +608,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
       case k_opcode_CLI:
       case k_opcode_SED:
       case k_opcode_SEI:
+      case k_opcode_BIT:
         /* TODO: the Intel x64 backend trashes the host carry / overflow on
          * these and it probably shouldn't.
          */

@@ -2299,8 +2299,21 @@ main(int argc, const char* argv[]) {
   emit_DEY(p_buf);
   emit_RTS(p_buf);
 
-  /* End of test. */
+  /* Test for BIT disturbing carry flag. */
   set_new_index(p_buf, 0x20C0);
+  emit_LDA(p_buf, k_imm, 0xFF);
+  emit_STA(p_buf, k_zpg, 0xF0);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xF1);
+  emit_SEC(p_buf);
+  emit_ADC(p_buf, k_zpg, 0xF0);   /* Carry now set. */
+  emit_BIT(p_buf, k_zpg, 0xF1);
+  emit_ADC(p_buf, k_imm, 0x00);
+  emit_REQUIRE_EQ(p_buf, 1);
+  emit_JMP(p_buf, k_abs, 0xE100);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2100);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
