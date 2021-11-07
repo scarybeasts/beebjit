@@ -134,7 +134,12 @@ asm_jit_test_preconditions(void) {
 
 int
 asm_jit_supports_uopcode(int32_t uopcode) {
-  (void) uopcode;
+  if (uopcode == k_opcode_ST_IMM) {
+    /* ARM64 can't store immediate values, and any internal expansion would
+     * just be the same as the unoptimized code. So save the complexity.
+     */
+    return 0;
+  }
   return 1;
 }
 

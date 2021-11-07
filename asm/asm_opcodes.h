@@ -119,6 +119,7 @@ enum {
   k_opcode_SED,
   k_opcode_SEI,
   k_opcode_SLO,
+  k_opcode_ST_IMM,
   k_opcode_STA,
   k_opcode_STX,
   k_opcode_STY,

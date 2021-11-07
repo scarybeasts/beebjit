@@ -1208,6 +1208,27 @@ jit_test_compile_binary(void) {
   expect_len = 4;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check the output for LDA imm / STA zpg / LDA imm, which some backends can
+   * optimize via the k_opcode_ST_IMM uopcode.
+   */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3900), 0x100);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0xE0);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3900);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3900);
+#if defined(__x86_64__)
+  /* mov    BYTE PTR [rbp+0x60], 0x0 */
+  p_expect = "\xc6\x45\x60\x00";
+  expect_len = 2;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

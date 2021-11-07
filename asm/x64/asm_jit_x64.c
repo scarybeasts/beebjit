@@ -13,11 +13,6 @@
 
 #include <assert.h>
 
-/* TODO: restore these optimizations internally to the x64 asm backend. */
-enum {
-  k_opcode_STOA_IMM,
-};
-
 enum {
   k_opcode_x64_check_page_crossing_ABX = 0x1000,
   k_opcode_x64_check_page_crossing_ABY,
@@ -152,6 +147,8 @@ enum {
   k_opcode_x64_SBC_IMM,
   k_opcode_x64_SBC_ZPG,
   k_opcode_x64_SLO_ABS,
+  k_opcode_x64_ST_IMM_ABS,
+  k_opcode_x64_ST_IMM_ZPG,
   k_opcode_x64_STA_addr,
   k_opcode_x64_STA_addr_n,
   k_opcode_x64_STA_addr_X,
@@ -731,41 +728,6 @@ asm_emit_jit_PUSH_16(struct util_buffer* p_buf, uint16_t value) {
 }
 
 static void
-asm_emit_jit_STOA_IMM(struct util_buffer* p_buf, uint16_t addr, uint8_t value) {
-  void asm_jit_STOA_IMM(void);
-  void asm_jit_STOA_IMM_END(void);
-  void asm_jit_STOA_IMM_8bit(void);
-  void asm_jit_STOA_IMM_8bit_END(void);
-  size_t offset = util_buffer_get_pos(p_buf);
-
-  if (addr < 0x100) {
-    asm_copy(p_buf, asm_jit_STOA_IMM_8bit, asm_jit_STOA_IMM_8bit_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_STOA_IMM_8bit,
-                   asm_jit_STOA_IMM_8bit_END,
-                   value);
-    asm_patch_byte(p_buf,
-                   (offset - 1),
-                   asm_jit_STOA_IMM_8bit,
-                   asm_jit_STOA_IMM_8bit_END,
-                   (addr - REG_MEM_OFFSET));
-  } else {
-    asm_copy(p_buf, asm_jit_STOA_IMM, asm_jit_STOA_IMM_END);
-    asm_patch_byte(p_buf,
-                   offset,
-                   asm_jit_STOA_IMM,
-                   asm_jit_STOA_IMM_END,
-                   value);
-    asm_patch_int(p_buf,
-                  (offset - 1),
-                  asm_jit_STOA_IMM,
-                  asm_jit_STOA_IMM_END,
-                  (addr - REG_MEM_OFFSET + K_BBC_MEM_OFFSET_TO_WRITE_FULL));
-  }
-}
-
-static void
 asm_emit_jit_SLO_ABS(struct util_buffer* p_buf, uint16_t addr) {
   void asm_jit_SLO_ABS(void);
   void asm_jit_SLO_ABS_mov1_patch(void);
@@ -858,6 +820,7 @@ asm_jit_rewrite_ZPG(int32_t uopcode) {
   case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
   case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ZPG; break;
   case k_opcode_SLO: new_uopcode = k_opcode_x64_SLO_ABS; break;
+  case k_opcode_ST_IMM: new_uopcode = k_opcode_x64_ST_IMM_ZPG; break;
   case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ZPG; break;
   case k_opcode_STX: new_uopcode = k_opcode_x64_STX_ZPG; break;
   case k_opcode_STY: new_uopcode = k_opcode_x64_STY_ZPG; break;
@@ -893,6 +856,7 @@ asm_jit_rewrite_ABS(int32_t uopcode) {
   case k_opcode_SAX: new_uopcode = k_opcode_x64_SAX_ABS; break;
   case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_ABS; break;
   case k_opcode_SLO: new_uopcode = k_opcode_x64_SLO_ABS; break;
+  case k_opcode_ST_IMM: new_uopcode = k_opcode_x64_ST_IMM_ABS; break;
   case k_opcode_STA: new_uopcode = k_opcode_x64_STA_ABS; break;
   case k_opcode_STX: new_uopcode = k_opcode_x64_STX_ABS; break;
   case k_opcode_STY: new_uopcode = k_opcode_x64_STY_ABS; break;
@@ -1511,14 +1475,18 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   }
 
   if (do_set_segment) {
+    uint32_t segment;
     int is_write = 1;
     if (p_load_uop != NULL) {
       is_write = 0;
     }
-    p_main_uop->value2 = asm_jit_get_segment(p_asm,
-                                             addr,
-                                             is_write,
-                                             is_mode_abn);
+    segment = asm_jit_get_segment(p_asm, addr, is_write, is_mode_abn);
+    /* TODO: should probably always add segment to value1. */
+    if (p_main_uop->uopcode != k_opcode_ST_IMM) {
+      p_main_uop->value2 = segment;
+    } else {
+      p_main_uop->value1 += segment;
+    }
   }
 
   if (do_eliminate_load_store) {
@@ -1646,9 +1614,6 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_save_carry: ASM(save_carry); break;
   case k_opcode_save_carry_inverted: ASM(save_carry_inv); break;
   case k_opcode_save_overflow: ASM(save_overflow); break;
-  case k_opcode_STOA_IMM:
-    asm_emit_jit_STOA_IMM(p_dest_buf, (uint16_t) value1, (uint8_t) value2);
-    break;
   case k_opcode_value_load: ASM(value_load); break;
   case k_opcode_value_store: ASM(value_store); break;
   case k_opcode_write_inv: ASM(write_inv); ASM(write_inv_commit); break;
@@ -1930,6 +1895,38 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_x64_SBC_IMM: ASM_U8(SBC_IMM); break;
   case k_opcode_x64_SBC_ZPG: ASM_ADDR_U8(SBC_ZPG); break;
   case k_opcode_x64_SLO_ABS: asm_emit_jit_SLO_ABS(p_dest_buf, value1); break;
+  case k_opcode_x64_ST_IMM_ABS:
+  {
+    void asm_jit_ST_IMM_ABS(void);
+    void asm_jit_ST_IMM_ABS_END(void);
+    offset = util_buffer_get_pos(p_dest_buf);
+    asm_copy_patch_byte(p_dest_buf,
+                        asm_jit_ST_IMM_ABS,
+                        asm_jit_ST_IMM_ABS_END,
+                        value2);
+    asm_patch_int(p_dest_buf,
+                  (offset - 1),
+                  asm_jit_ST_IMM_ABS,
+                  asm_jit_ST_IMM_ABS_END,
+                  (value1 - REG_MEM_OFFSET - K_BBC_MEM_READ_IND_ADDR));
+    break;
+  }
+  case k_opcode_x64_ST_IMM_ZPG:
+  {
+    void asm_jit_ST_IMM_ZPG(void);
+    void asm_jit_ST_IMM_ZPG_END(void);
+    offset = util_buffer_get_pos(p_dest_buf);
+    asm_copy_patch_byte(p_dest_buf,
+                        asm_jit_ST_IMM_ZPG,
+                        asm_jit_ST_IMM_ZPG_END,
+                        value2);
+    asm_patch_byte(p_dest_buf,
+                   (offset - 1),
+                   asm_jit_ST_IMM_ZPG,
+                   asm_jit_ST_IMM_ZPG_END,
+                   (value1 - REG_MEM_OFFSET));
+    break;
+  }
   case k_opcode_x64_STA_addr: ASM(STA_addr); break;
   case k_opcode_x64_STA_addr_n:
     value2 = K_BBC_MEM_WRITE_IND_ADDR;

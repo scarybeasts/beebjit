@@ -2,6 +2,7 @@
 
 #include "defs_6502.h"
 #include "jit_opcode.h"
+#include "asm/asm_jit.h"
 #include "asm/asm_opcodes.h"
 #include "asm/asm_util.h"
 
@@ -185,6 +186,10 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
       continue;
     }
 
+    if (p_opcode->is_dynamic_operand) {
+      continue;
+    }
+
     switch (p_opcode->optype_6502) {
     case k_adc:
       if ((p_opcode->flag_decimal == 0) || had_check_bcd) {
@@ -241,6 +246,54 @@ jit_optimizer_replace_uops(struct jit_opcode_details* p_opcodes) {
         do_eliminate_load_carry = 1;
       }
       had_check_bcd = 1;
+      break;
+    case k_sta:
+      if (p_opcode->reg_a == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STA);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_a;
+      break;
+    case k_stx:
+      if (p_opcode->reg_x == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STX);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_x;
+      break;
+    case k_sty:
+      if (p_opcode->reg_y == k_value_unknown) {
+        break;
+      }
+      if ((p_opcode->opmode_6502 != k_zpg) &&
+          (p_opcode->opmode_6502 != k_abs)) {
+        break;
+      }
+      if (!asm_jit_supports_uopcode(k_opcode_ST_IMM)) {
+        break;
+      }
+      p_uop = jit_opcode_find_uop(p_opcode, &index, k_opcode_STY);
+      assert(p_uop != NULL);
+      asm_make_uop0(p_uop, k_opcode_ST_IMM);
+      p_uop->value2 = p_opcode->reg_y;
       break;
     case k_tax:
       if (p_opcode->reg_a == k_value_unknown) {
@@ -625,6 +678,8 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
 static void
 jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
   struct jit_opcode_details* p_opcode;
+  struct asm_uop* p_load_a_uop = NULL;
+  struct asm_uop* p_load_x_uop = NULL;
   struct asm_uop* p_load_y_uop = NULL;
 
   for (p_opcode = p_opcodes;
@@ -642,6 +697,8 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
 
     /* Any jump, including conditional, must commit register values. */
     if (p_opcode->opbranch_6502 != k_bra_n) {
+      p_load_a_uop = NULL;
+      p_load_x_uop = NULL;
       p_load_y_uop = NULL;
     }
 
@@ -650,6 +707,28 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
       switch (p_uop->uopcode) {
       case k_opcode_value_set:
         imm_value = p_uop->value1;
+        break;
+      case k_opcode_LDA:
+        if (p_load_a_uop != NULL) {
+          p_load_a_uop->is_eliminated = 1;
+        }
+        if (imm_value >= 0) {
+          p_load_a_uop = p_uop;
+        } else {
+          p_load_a_uop = NULL;
+        }
+        p_load_uop = p_uop;
+        break;
+      case k_opcode_LDX:
+        if (p_load_x_uop != NULL) {
+          p_load_x_uop->is_eliminated = 1;
+        }
+        if (imm_value >= 0) {
+          p_load_x_uop = p_uop;
+        } else {
+          p_load_x_uop = NULL;
+        }
+        p_load_uop = p_uop;
         break;
       case k_opcode_LDY:
         if (p_load_y_uop != NULL) {
@@ -660,10 +739,49 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
         } else {
           p_load_y_uop = NULL;
         }
-        /* FALL THROUGH */
-      case k_opcode_LDA:
-      case k_opcode_LDX:
         p_load_uop = p_uop;
+        break;
+      case k_opcode_flags_nz_a:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
+      case k_opcode_ADC:
+      case k_opcode_ADD:
+      case k_opcode_ALR:
+      case k_opcode_AND:
+      case k_opcode_ASL_acc:
+      case k_opcode_BIT:
+      case k_opcode_CMP:
+      case k_opcode_EOR:
+      case k_opcode_LSR_acc:
+      case k_opcode_ORA:
+      case k_opcode_PHA:
+      case k_opcode_ROL_acc:
+      case k_opcode_ROR_acc:
+      case k_opcode_SBC:
+      case k_opcode_SLO:
+      case k_opcode_STA:
+      case k_opcode_SUB:
+      case k_opcode_TAX:
+      case k_opcode_TAY:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_a_uop = NULL;
+        }
+        break;
+      case k_opcode_flags_nz_x:
+        p_load_flags_uop = p_uop;
+        /* FALL THROUGH */
+      case k_opcode_check_page_crossing_x:
+      case k_opcode_addr_add_x:
+      case k_opcode_addr_add_x_8bit:
+      case k_opcode_CPX:
+      case k_opcode_DEX:
+      case k_opcode_INX:
+      case k_opcode_STX:
+      case k_opcode_TXS:
+      case k_opcode_TXA:
+        if (!p_uop->is_eliminated || p_uop->is_merged) {
+          p_load_x_uop = NULL;
+        }
         break;
       case k_opcode_flags_nz_y:
         p_load_flags_uop = p_uop;
@@ -680,11 +798,13 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
           p_load_y_uop = NULL;
         }
         break;
-      case k_opcode_flags_nz_a:
-      case k_opcode_flags_nz_x:
-        p_load_flags_uop = p_uop;
-        break;
       default:
+        if (p_uop->uopcode == k_opcode_SAX) {
+          if (!p_uop->is_eliminated || p_uop->is_merged) {
+            p_load_a_uop = NULL;
+            p_load_x_uop = NULL;
+          }
+        }
         break;
       }
     }

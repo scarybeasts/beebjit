@@ -655,24 +655,6 @@ asm_jit_save_overflow_END:
   ret
 
 
-.globl asm_jit_STOA_IMM
-.globl asm_jit_STOA_IMM_END
-asm_jit_STOA_IMM:
-  mov BYTE PTR [REG_MEM + 0x7fffffff], 0
-
-asm_jit_STOA_IMM_END:
-  ret
-
-
-.globl asm_jit_STOA_IMM_8bit
-.globl asm_jit_STOA_IMM_8bit_END
-asm_jit_STOA_IMM_8bit:
-  mov BYTE PTR [REG_MEM + 0x7f], 0
-
-asm_jit_STOA_IMM_8bit_END:
-  ret
-
-
 .globl asm_jit_store_ABS
 .globl asm_jit_store_ABS_END
 asm_jit_store_ABS:
@@ -2071,6 +2053,24 @@ asm_jit_SLO_ABS_mov2_patch:
   bt REG_SCRATCH3_32, 7
 
 asm_jit_SLO_ABS_END:
+  ret
+
+
+.globl asm_jit_ST_IMM_ABS
+.globl asm_jit_ST_IMM_ABS_END
+asm_jit_ST_IMM_ABS:
+  mov BYTE PTR [REG_MEM + 0x7fffffff], 0
+
+asm_jit_ST_IMM_ABS_END:
+  ret
+
+
+.globl asm_jit_ST_IMM_ZPG
+.globl asm_jit_ST_IMM_ZPG_END
+asm_jit_ST_IMM_ZPG:
+  mov BYTE PTR [REG_MEM + 0x7f], 0
+
+asm_jit_ST_IMM_ZPG_END:
   ret
 
 
