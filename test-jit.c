@@ -1204,6 +1204,7 @@ jit_test_compile_binary(void) {
   p_expect = "\x31\xc0";
   expect_len = 2;
 #elif defined(__aarch64__)
+  /* subs  x0, x0, x0 */
   p_expect = "\x00\x00\x00\xeb";
   expect_len = 4;
 #endif
@@ -1227,6 +1228,11 @@ jit_test_compile_binary(void) {
   p_expect = "\xc6\x45\x60\x00";
   expect_len = 2;
 #elif defined(__aarch64__)
+  /* mov   x0, #0x0
+   * strb  w0, [x28, #224]
+   */
+  p_expect = "\x00\x00\x80\xd2" "\x80\x83\x03\x39";
+  expect_len = 8;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
 }
