@@ -833,9 +833,11 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
         break;
       case k_opcode_countdown:
         if (p_add_cycles_uop != NULL) {
-          p_uop->value2 -= p_add_cycles_uop->value1;
-          p_add_cycles_uop->is_eliminated = 1;
-          p_add_cycles_uop->is_merged = 1;
+          if (p_uop->value2 >= p_add_cycles_uop->value1) {
+            p_uop->value2 -= p_add_cycles_uop->value1;
+            p_add_cycles_uop->is_eliminated = 1;
+            p_add_cycles_uop->is_merged = 1;
+          }
         }
         break;
       default:
