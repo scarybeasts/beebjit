@@ -21,6 +21,11 @@ jit_optimizer_merge_opcodes(struct jit_opcode_details* p_opcodes) {
        p_opcode->addr_6502 != -1;
        p_opcode += p_opcode->num_bytes_6502) {
     uint8_t optype;
+
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
     if (p_opcode->opmode_6502 != k_acc) {
       p_prev_opcode = NULL;
       continue;
@@ -73,6 +78,10 @@ jit_optimizer_calculate_known_values(struct jit_opcode_details* p_opcodes) {
     p_opcode->reg_y = reg_y;
     p_opcode->flag_carry = flag_carry;
     p_opcode->flag_decimal = flag_decimal;
+
+    if (p_opcode->ends_block) {
+      continue;
+    }
 
     switch (optype) {
     case k_clc:
@@ -385,6 +394,10 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
     int is_changing_addr_reg = 0;
     int is_tricky_opcode = 0;
 
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
     if (p_opcode->is_eliminated) {
       continue;
     }
@@ -480,6 +493,10 @@ jit_optimizer_eliminate_nz_flag_saving(struct jit_opcode_details* p_opcodes) {
     uint32_t num_uops = p_opcode->num_uops;
     uint32_t i_uops;
 
+    if (p_opcode->ends_block) {
+      continue;
+    }
+
     if (p_opcode->is_eliminated) {
       continue;
     }
@@ -558,6 +575,10 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
     int had_save_carry = 0;
     int had_save_overflow = 0;
     int32_t index;
+
+    if (p_opcode->ends_block) {
+      continue;
+    }
 
     if (p_opcode->is_eliminated) {
       continue;
@@ -720,6 +741,10 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
     int32_t imm_value = -1;
     struct asm_uop* p_load_uop = NULL;
     struct asm_uop* p_load_flags_uop = NULL;
+
+    if (p_opcode->ends_block) {
+      continue;
+    }
 
     if (p_opcode->is_eliminated) {
       continue;

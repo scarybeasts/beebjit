@@ -2312,8 +2312,32 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 1);
   emit_JMP(p_buf, k_abs, 0xE100);
 
-  /* End of test. */
+  /* Test for an Exile crash in the optimizer with dynamic opcodes. */
   set_new_index(p_buf, 0x2100);
+  emit_CLC(p_buf);
+  emit_LDA(p_buf, k_imm, 0x69);   /* ADC #1 */
+  emit_STA(p_buf, k_abs, 0x5100);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0x5101);
+  emit_LDA(p_buf, k_imm, 0x90);   /* BCC 1 */
+  emit_STA(p_buf, k_abs, 0x5102);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0x5103);
+  emit_LDA(p_buf, k_imm, 0xE8);   /* INX */
+  emit_STA(p_buf, k_abs, 0x5104);
+  emit_LDA(p_buf, k_imm, 0x60);   /* RTS */
+  emit_STA(p_buf, k_abs, 0x5105);
+  emit_LDY(p_buf, k_imm, 0x10);
+  emit_LDA(p_buf, k_abs, 0x5102); /* Flip BCC <-> BCS. */
+  emit_EOR(p_buf, k_imm, 0x20);
+  emit_STA(p_buf, k_abs, 0x5102);
+  emit_JSR(p_buf, 0x5100);
+  emit_DEY(p_buf);
+  emit_BNE(p_buf, -14);
+  emit_JMP(p_buf, k_abs, 0xE140);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2140);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
