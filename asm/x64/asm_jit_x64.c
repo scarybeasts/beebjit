@@ -785,6 +785,7 @@ asm_jit_rewrite_IMM(int32_t uopcode) {
   case k_opcode_LDA: new_uopcode = k_opcode_x64_LDA_IMM; break;
   case k_opcode_LDX: new_uopcode = k_opcode_x64_LDX_IMM; break;
   case k_opcode_LDY: new_uopcode = k_opcode_x64_LDY_IMM; break;
+  case k_opcode_NOP: new_uopcode = k_opcode_NOP; break;
   case k_opcode_ORA: new_uopcode = k_opcode_x64_ORA_IMM; break;
   case k_opcode_SBC: new_uopcode = k_opcode_x64_SBC_IMM; break;
   case k_opcode_SUB: new_uopcode = k_opcode_x64_SUB_IMM; break;

@@ -924,6 +924,8 @@ main(int argc, const char* argv[]) {
   util_buffer_add_2b(p_buf, 0xF4, 0x00);
   /* NOP abx, used by Zalaga. */
   util_buffer_add_3b(p_buf, 0xDC, 0x00, 0x00);
+  /* NOP imm, used by Barbarian @$1B88. */
+  util_buffer_add_2b(p_buf, 0x80, 0xA0);
   /* SAX zp, used by Zalaga. */
   emit_LDA(p_buf, k_imm, 0xA9);
   emit_LDX(p_buf, k_imm, 0x34);
