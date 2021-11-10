@@ -1235,6 +1235,27 @@ jit_test_compile_binary(void) {
   expect_len = 8;
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check for branch cycles fixup merging with countdowns. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3A00), 0x100);
+  emit_BEQ(p_buf, 1);
+  emit_INX(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3A00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3A00);
+#if defined(__x86_64__)
+  /* je     0x61d0180
+   * lea    r15, [r15-0x7]
+   */
+  p_expect = "\x0f\x84\x6b\x01\x00\x00" "\x4d\x8d\x7f\xf9";
+  expect_len = 10;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

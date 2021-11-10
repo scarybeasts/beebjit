@@ -681,6 +681,7 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
   struct asm_uop* p_load_a_uop = NULL;
   struct asm_uop* p_load_x_uop = NULL;
   struct asm_uop* p_load_y_uop = NULL;
+  struct asm_uop* p_add_cycles_uop = NULL;
 
   for (p_opcode = p_opcodes;
        p_opcode->addr_6502 != -1;
@@ -798,6 +799,16 @@ jit_optimizer_eliminate_axy_loads(struct jit_opcode_details* p_opcodes) {
           p_load_y_uop = NULL;
         }
         break;
+      case k_opcode_add_cycles:
+        p_add_cycles_uop = p_uop;
+        break;
+      case k_opcode_countdown:
+        if (p_add_cycles_uop != NULL) {
+          p_uop->value2 -= p_add_cycles_uop->value1;
+          p_add_cycles_uop->is_eliminated = 1;
+          p_add_cycles_uop->is_merged = 1;
+        }
+        break;
       default:
         if (p_uop->uopcode == k_opcode_SAX) {
           if (!p_uop->is_eliminated || p_uop->is_merged) {
@@ -874,6 +885,8 @@ jit_optimizer_optimize_post_rewrite(struct jit_opcode_details* p_opcodes) {
    * an unrolled sequence of e.g LDA ($00),Y loads.
    * It's also a convenient pass to look for remaining loads of the constant
    * zero, with NZ flag setting, and replace with a dedicated opcode.
+   * Furthermore, it's also a convenient pass to merge post-branch cycles
+   * fixups with countdowns.
    */
   jit_optimizer_eliminate_axy_loads(p_opcodes);
 
