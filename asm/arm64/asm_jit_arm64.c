@@ -350,6 +350,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
    */
   switch (p_main_uop->uopcode) {
   case k_opcode_ADD:
+  case k_opcode_CMP:
+  case k_opcode_CPX:
+  case k_opcode_CPY:
   case k_opcode_SUB:
     assert(p_flags_uop != NULL);
     p_flags_uop->is_eliminated = 1;
