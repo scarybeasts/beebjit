@@ -1256,6 +1256,32 @@ jit_test_compile_binary(void) {
 #elif defined(__aarch64__)
 #endif
   test_expect_binary(p_expect, p_binary, expect_len);
+
+  /* Check for flags elimination rolling into a CMP, and a CMP + BCC. */
+  p_buf = util_buffer_create();
+  util_buffer_setup(p_buf, (s_p_mem + 0x3B00), 0x100);
+  emit_LDA(p_buf, k_zpg, 0x45);
+  emit_CMP(p_buf, k_imm, 0x96);
+  emit_BCC(p_buf, 1);
+  emit_INX(p_buf);
+  emit_EXIT(p_buf);
+  state_6502_set_pc(s_p_state_6502, 0x3B00);
+  jit_enter(s_p_cpu_driver);
+  interp_testing_unexit(s_p_interp);
+  util_buffer_destroy(p_buf);
+  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3B00);
+#if defined(__x86_64__)
+  /* movzx  eax, BYTE PTR [rbp-0x3b]
+   * cmp    al, 0x96
+   * setae  r14b
+   * jb     0x61d8380
+   */
+  p_expect = "\x0f\xb6\x45\xc5" "\x3c\x96" "\x41\x0f\x93\xc6"
+             "\x0f\x82\x61\x03\x00\x00";
+  expect_len = 16;
+#elif defined(__aarch64__)
+#endif
+  test_expect_binary(p_expect, p_binary, expect_len);
 }
 
 void

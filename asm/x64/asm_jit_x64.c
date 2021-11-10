@@ -1105,6 +1105,9 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   case k_opcode_AND:
   case k_opcode_ASL_acc:
   case k_opcode_ASL_value:
+  case k_opcode_CMP:
+  case k_opcode_CPX:
+  case k_opcode_CPY:
   case k_opcode_DEC_value:
   case k_opcode_DEX:
   case k_opcode_DEY:

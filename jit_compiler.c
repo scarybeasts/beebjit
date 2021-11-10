@@ -762,6 +762,15 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
       } else if (opmem == (k_opmem_read_flag | k_opmem_write_flag)) {
         asm_make_uop0(p_uop, k_opcode_flags_nz_value);
         p_uop++;
+      } else if (optype == k_cmp) {
+        asm_make_uop0(p_uop, k_opcode_flags_nz_a);
+        p_uop++;
+      } else if (optype == k_cpx) {
+        asm_make_uop0(p_uop, k_opcode_flags_nz_x);
+        p_uop++;
+      } else if (optype == k_cpy) {
+        asm_make_uop0(p_uop, k_opcode_flags_nz_y);
+        p_uop++;
       }
       break;
     }

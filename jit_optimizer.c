@@ -557,6 +557,7 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
     uint32_t i_uops;
     int had_save_carry = 0;
     int had_save_overflow = 0;
+    int32_t index;
 
     if (p_opcode->is_eliminated) {
       continue;
@@ -567,6 +568,34 @@ jit_optimizer_eliminate_c_v_flag_saving(struct jit_opcode_details* p_opcodes) {
     }
     if (p_save_overflow_uop != NULL) {
       p_opcode->v_flag_location = p_save_overflow_uop->uopcode;
+    }
+
+    /* If this is a carry-related branch, we might be able to collapse out the
+     * carry load, if we've tracking a carry save.
+     */
+    if ((p_opcode->optype_6502 == k_bcc) || (p_opcode->optype_6502 == k_bcs)) {
+      if (p_save_carry_uop != NULL) {
+        if ((p_save_carry_uop->uopcode == k_opcode_save_carry) ||
+            (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted)) {
+          int is_inversion =
+              (p_save_carry_uop->uopcode == k_opcode_save_carry_inverted);
+          struct asm_uop* p_load_carry_uop =
+              jit_opcode_find_uop(p_opcode, &index, k_opcode_load_carry);
+          p_load_carry_uop->is_eliminated = 1;
+          /* If it's an inversion, flip BCC <-> BCS. */
+          if (is_inversion) {
+            if (p_opcode->optype_6502 == k_bcc) {
+              struct asm_uop* p_branch_uop =
+                  jit_opcode_find_uop(p_opcode, &index, k_opcode_BCC);
+              p_branch_uop->uopcode = k_opcode_BCS;
+            } else {
+              struct asm_uop* p_branch_uop =
+                  jit_opcode_find_uop(p_opcode, &index, k_opcode_BCS);
+              p_branch_uop->uopcode = k_opcode_BCC;
+            }
+          }
+        }
+      }
     }
 
     /* Any jump, including conditional, must commit flags. */
