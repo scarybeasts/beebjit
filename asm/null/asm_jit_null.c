@@ -1,5 +1,7 @@
 #include "../asm_jit.h"
 
+#include <stddef.h>
+
 int
 asm_jit_is_enabled(void) {
   return 0;
@@ -91,7 +93,7 @@ void
 asm_emit_jit(struct asm_jit_struct* p_asm,
              struct util_buffer* p_buf,
              struct util_buffer* p_buf_epilog,
-             struct asm_uop* p_uop);
+             struct asm_uop* p_uop) {
   (void) p_asm;
   (void) p_buf;
   (void) p_buf_epilog;
