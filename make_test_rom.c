@@ -2355,8 +2355,28 @@ main(int argc, const char* argv[]) {
   util_buffer_add_2b(p_buf, 0x97, 0x00);
   emit_JMP(p_buf, k_abs, 0xE1C0);
 
-  /* End of test. */
+  /* A corner-case test for the "mode IDY load elimination" optimization,
+   * found in the Star Drifter protected loader.
+   */
   set_new_index(p_buf, 0x21C0);
+  emit_LDA(p_buf, k_imm, 0x01);
+  emit_STA(p_buf, k_abs, 0x2800);
+  emit_LDA(p_buf, k_imm, 0x02);
+  emit_STA(p_buf, k_abs, 0x2900);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x5F);
+  emit_LDA(p_buf, k_imm, 0x28);
+  emit_STA(p_buf, k_zpg, 0x60);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_LDY(p_buf, k_imm, 0x00);
+  emit_EOR(p_buf, k_idy, 0x5F);
+  emit_INC(p_buf, k_zpg, 0x60);
+  emit_EOR(p_buf, k_idy, 0x5F);
+  emit_REQUIRE_EQ(p_buf, 0x03);
+  emit_JMP(p_buf, k_abs, 0xE200);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2200);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

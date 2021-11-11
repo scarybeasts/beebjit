@@ -453,18 +453,11 @@ jit_optimizer_eliminate_mode_loads(struct jit_opcode_details* p_opcodes) {
      */
     is_write = !!(p_opcode->opmem_6502 & k_opmem_write_flag);
     if (is_write && (curr_base_addr_index != -1)) {
-      uint16_t addr = 0;
-      uint16_t next_addr = 0;
-      if (p_addr_set_uop == NULL) {
-        /* Can happen when bouncing a write to the interpreter. */
-        is_simple_addr = 0;
-      } else {
-        addr = p_addr_set_uop->value1;
-        next_addr = (addr + 1);
-      }
+      uint16_t simple_addr = p_addr_set_uop->value1;
+      uint16_t curr_base_addr_index_next = (uint8_t) (curr_base_addr_index + 1);
       if (is_simple_addr &&
-          (curr_base_addr_index != addr) &&
-          (curr_base_addr_index != next_addr)) {
+          (curr_base_addr_index != simple_addr) &&
+          (curr_base_addr_index_next != simple_addr)) {
         /* This write doesn't affect the cached base address. */
       } else {
         curr_base_addr_index = -1;
