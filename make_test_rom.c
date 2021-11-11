@@ -2349,8 +2349,14 @@ main(int argc, const char* argv[]) {
   emit_INC(p_buf, k_abs, 0xC000);
   emit_JMP(p_buf, k_abs, 0xE180);
 
-  /* End of test. */
+  /* Issue a SAX zpy; this was asserting the x64 backend. */
   set_new_index(p_buf, 0x2180);
+  emit_JMP(p_buf, k_abs, 0xE183);
+  util_buffer_add_2b(p_buf, 0x97, 0x00);
+  emit_JMP(p_buf, k_abs, 0xE1C0);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x21C0);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
