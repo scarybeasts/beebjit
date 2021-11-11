@@ -2338,8 +2338,19 @@ main(int argc, const char* argv[]) {
   emit_BNE(p_buf, -14);
   emit_JMP(p_buf, k_abs, 0xE140);
 
-  /* End of test. */
+  /* Test read-modify-write on the ROM region at $8000.
+   * Fire Track was crashing on this @$47FF. The test of the $C000 ROM region
+   * elsewhere in this test file doesn't seem to cover it.
+   */
   set_new_index(p_buf, 0x2140);
+  emit_JMP(p_buf, k_abs, 0xE143);
+  emit_INC(p_buf, k_abs, 0x8000);
+  /* Include an OS ROM hit for codegen comparison. */
+  emit_INC(p_buf, k_abs, 0xC000);
+  emit_JMP(p_buf, k_abs, 0xE180);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2180);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */

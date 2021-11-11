@@ -1263,14 +1263,26 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
       p_main_uop = p_mode_uop;
       p_main_uop->is_eliminated = 0;
     }
-    p_main_uop->backend_tag = new_uopcode;
-    p_main_uop->value1 = addr;
+    if (is_rmw && !p_asm->is_memory_always_ram(p_asm->p_memory_object, addr)) {
+      /* Leave it as RMW so that the read and write can hit different
+       * mappings.
+       */
+      p_load_uop->backend_tag = k_opcode_x64_load_ABS;
+      p_load_uop->value1 = addr;
+      p_load_uop->value2 = K_BBC_MEM_READ_IND_ADDR;
+      p_store_uop->backend_tag = k_opcode_x64_store_ABS;
+      p_store_uop->value1 = addr;
+      p_store_uop->value2 = K_BBC_MEM_WRITE_IND_ADDR;
+    } else {
+      p_main_uop->backend_tag = new_uopcode;
+      p_main_uop->value1 = addr;
+      do_set_segment = 1;
+      do_eliminate_load_store = 1;
+    }
     if (p_inv_uop != NULL) {
       p_inv_uop->backend_tag = k_opcode_x64_write_inv_ABS;
       p_inv_uop->value1 = addr;
     }
-    do_set_segment = 1;
-    do_eliminate_load_store = 1;
     break;
   case k_opcode_addr_load_16bit_wrap:
     /* Mode IDX. */
