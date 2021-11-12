@@ -161,7 +161,7 @@ void
 os_alloc_make_mapping_read_only(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_READ);
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect R failed @%p", p_addr);
   }
 }
 
@@ -169,7 +169,7 @@ void
 os_alloc_make_mapping_read_write(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE));
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect RW failed @%p", p_addr);
   }
 }
 
@@ -177,7 +177,7 @@ void
 os_alloc_make_mapping_read_write_exec(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_WRITE | PROT_EXEC));
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect RWX failed @%p", p_addr);
   }
 }
 
@@ -185,7 +185,7 @@ void
 os_alloc_make_mapping_read_exec(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, (PROT_READ | PROT_EXEC));
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect RX failed @%p", p_addr);
   }
 }
 
@@ -193,6 +193,6 @@ void
 os_alloc_make_mapping_none(void* p_addr, size_t size) {
   int ret = mprotect(p_addr, size, PROT_NONE);
   if (ret != 0) {
-    util_bail("mprotect failed");
+    util_bail("mprotect N failed @%p", p_addr);
   }
 }
