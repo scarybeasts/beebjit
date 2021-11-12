@@ -1,15 +1,8 @@
 #include "../asm_common.h"
 
-uint32_t
-asm_enter(void* p_context,
-          uint32_t jump_addr_x64,
-          int64_t countdown,
-          void* p_mem_base) {
-  (void) p_context;
-  (void) jump_addr_x64;
-  (void) countdown;
-  (void) p_mem_base;
-  return 0;
+void
+asm_fill_with_trap(struct util_buffer* p_buf) {
+  (void) p_buf;
 }
 
 void
