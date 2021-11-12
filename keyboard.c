@@ -2,7 +2,7 @@
 
 #include "bbc_options.h"
 #include "log.h"
-#include "os_thread.h"
+#include "os_lock.h"
 #include "state_6502.h"
 #include "timing.h"
 #include "util.h"

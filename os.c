@@ -8,8 +8,13 @@
 #include "os_fault_posix.c"
 #include "os_poller_posix.c"
 #include "os_terminal_posix.c"
-#include "os_thread_linux.c"
+#include "os_thread_posix.c"
 #include "os_time_posix.c"
+#if __APPLE__
+#include "os_lock_macos.c"
+#else
+#include "os_lock_posix.c"
+#endif
 #if defined(BEEBJIT_HEADLESS) || __APPLE__
 #include "os_sound_null.c"
 #include "os_window_null.c"
