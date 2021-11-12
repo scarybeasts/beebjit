@@ -5,7 +5,6 @@
 
 #include <signal.h>
 #include <string.h>
-#include <ucontext.h>
 #include <unistd.h>
 
 static void (*s_p_fault_callback)(uintptr_t*, uintptr_t, int, int, uintptr_t);

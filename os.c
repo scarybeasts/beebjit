@@ -23,10 +23,19 @@
 #include "os_window_x11.c"
 #include "os_x11_keys_linux.c"
 #endif
+
 #if defined(__x86_64__)
+#if __APPLE__
+#error TODO
+#else
 #include "os_fault_platform_x64.c"
+#endif
 #elif defined(__aarch64__)
+#if __APPLE__
+#include "os_fault_platform_arm64_macos.c"
+#else
 #include "os_fault_platform_arm64.c"
+#endif
 #else
 #include "os_fault_platform_null.c"
 #endif
