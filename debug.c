@@ -866,8 +866,8 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
     (void) printf("breakpoint %"PRIu32":", i);
     if (p_breakpoint->has_exec_range) {
       (void) printf(" exec @$%.4"PRIX16"-$%.4"PRIX16,
-                    p_breakpoint->exec_start,
-                    p_breakpoint->exec_end);
+                    (uint16_t) p_breakpoint->exec_start,
+                    (uint16_t) p_breakpoint->exec_end);
     }
     if (p_breakpoint->has_memory_range) {
       const char* p_name = "read";
@@ -880,8 +880,8 @@ debug_dump_breakpoints(struct debug_struct* p_debug) {
       }
       (void) printf(" %s @$%.4"PRIX16"-$%.4"PRIX16,
                     p_name,
-                    p_breakpoint->memory_start,
-                    p_breakpoint->memory_end);
+                    (uint16_t) p_breakpoint->memory_start,
+                    (uint16_t) p_breakpoint->memory_end);
     }
     if (p_breakpoint->p_expression != NULL) {
       const char* p_str = expression_get_original_string(
@@ -921,7 +921,7 @@ debug_check_unusual(struct debug_struct* p_debug,
   if (is_register && ((opmode == k_idx) || (opmode == k_idy))) {
     (void) printf("DEBUG (UNUSUAL): "
                   "Indirect access to register $%.4"PRIX16" at $%.4"PRIX16"\n",
-                  p_debug->addr_6502,
+                  (uint16_t) p_debug->addr_6502,
                   p_debug->reg_pc);
     warned = 1;
   }
@@ -931,7 +931,7 @@ debug_check_unusual(struct debug_struct* p_debug,
     (void) printf("DEBUG: Code at $%.4"PRIX16" is writing to ROM "
                   "at $%.4"PRIX16"\n",
                   p_debug->reg_pc,
-                  p_debug->addr_6502);
+                  (uint16_t) p_debug->addr_6502);
     warned = 1;
   }
 
@@ -947,7 +947,7 @@ debug_check_unusual(struct debug_struct* p_debug,
       (void) printf("DEBUG (UNUSUAL): 8-bit ADDRESS WRAP at "
                     "$%.4"PRIX16" to $%.4"PRIX16"\n",
                     p_debug->reg_pc,
-                    p_debug->addr_6502);
+                    (uint16_t) p_debug->addr_6502);
       warned = 1;
     }
   }
@@ -955,7 +955,7 @@ debug_check_unusual(struct debug_struct* p_debug,
     (void) printf("DEBUG (VERY UNUSUAL): "
                   "16-bit ADDRESS WRAP at $%.4"PRIX16" to $%.4"PRIX16"\n",
                   p_debug->reg_pc,
-                  p_debug->addr_6502);
+                  (uint16_t) p_debug->addr_6502);
     warned = 1;
   }
 
@@ -1355,7 +1355,7 @@ debug_print_hex_line(uint8_t* p_buf,
     num = (max - pos);
   }
 
-  (void) printf("%.4"PRIX16":", (base + pos));
+  (void) printf("%.4"PRIX16":", (uint16_t) (base + pos));
   for (i = 0; i < num; ++i) {
     (void) printf(" %.2"PRIX8, p_buf[pos + i]);
   }
@@ -1415,7 +1415,7 @@ debug_print_status_line(struct debug_struct* p_debug,
     (void) snprintf(extra_buf,
                     sizeof(extra_buf),
                     "[addr=%.4"PRIX16" val=%.2"PRIX8"]",
-                    p_debug->addr_6502,
+                    (uint16_t) p_debug->addr_6502,
                     p_mem_read[p_debug->addr_6502]);
   } else if (branch_taken != -1) {
     if (branch_taken == 0) {
@@ -2026,7 +2026,7 @@ debug_callback_common(struct debug_struct* p_debug,
       for (i = 0; i < data_chunks; ++i) {
         debug_print_hex_line(&sector_data[0], (i * 16), byte_length, 0);
       }
-    } else if (sscanf(input_buf, "dset %"PRIx8, &parse_int) == 1) {
+    } else if (sscanf(input_buf, "dset %"PRIx32, &parse_int) == 1) {
       disc_tool_fill_fm_data(p_tool, parse_int);
     } else if (!strcmp(input_buf, "dpos") ||
                (sscanf(input_buf, "dpos %"PRId32, &parse_int) == 1)) {
@@ -2068,7 +2068,7 @@ debug_callback_common(struct debug_struct* p_debug,
       }
     } else if ((strncmp(input_buf, "dwfmc", 5) == 0) &&
                (sscanf(input_buf,
-                      "dwfmc %"PRIx8" %"PRIx8,
+                      "dwfmc %"PRIx32" %"PRIx32,
                        &parse_int,
                        &parse_int2) == 2)) {
       uint8_t data = parse_int;
@@ -2076,8 +2076,8 @@ debug_callback_common(struct debug_struct* p_debug,
       disc_tool_write_fm_data(p_tool, &clocks, &data, 1);
     } else if ((ret = sscanf(input_buf,
                              "dwfm "
-                             "%"PRIx8" %"PRIx8" %"PRIx8" %"PRIx8
-                             "%"PRIx8" %"PRIx8" %"PRIx8" %"PRIx8,
+                             "%"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32
+                             "%"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32,
                              &parse_int,
                              &parse_int2,
                              &parse_int3,
