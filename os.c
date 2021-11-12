@@ -1,4 +1,4 @@
-#if defined(__linux__)
+#if defined(__linux__) || __APPLE__
 
 /* Must occur before other includes. */
 #define _GNU_SOURCE /* For REG_RIP in ucontext.h, os_fault_posix.c */
@@ -10,7 +10,7 @@
 #include "os_terminal_posix.c"
 #include "os_thread_linux.c"
 #include "os_time_posix.c"
-#if defined(BEEBJIT_HEADLESS)
+#if defined(BEEBJIT_HEADLESS) || __APPLE__
 #include "os_sound_null.c"
 #include "os_window_null.c"
 #else
@@ -40,6 +40,6 @@
 
 #else
 
-#error Not yet ported to Mac, etc.
+#error Not yet ported to this system.
 
 #endif
