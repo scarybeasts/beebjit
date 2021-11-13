@@ -5,8 +5,8 @@
 #include "asm_calling_convention_arm64.h"
 
 .file "asm/arm64/asm_common_arm64.S"
-.section rodata
 .text
+.p2align 2
 
 
 .globl asm_enter_common

@@ -5,8 +5,8 @@
 #include "asm_defs_registers_arm64.h"
 
 .file "asm/arm64/asm_jit_arm64.S"
-.section rodata
 .text
+.p2align 2
 
 
 .globl asm_jit_enter

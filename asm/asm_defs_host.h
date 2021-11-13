@@ -1,11 +1,11 @@
 #ifndef BEEBJIT_ASM_DEFS_HOST_H
 #define BEEBJIT_ASM_DEFS_HOST_H
 
-#define K_BBC_MEM_RAW_ADDR                      0x30f008000ull
-#define K_BBC_MEM_READ_IND_ADDR                 0x310008000ull
-#define K_BBC_MEM_WRITE_IND_ADDR                0x311008000ull
-#define K_BBC_MEM_READ_FULL_ADDR                0x312008000ull
-#define K_BBC_MEM_WRITE_FULL_ADDR               0x313008000ull
+#define K_BBC_MEM_RAW_ADDR                      0x30f008000
+#define K_BBC_MEM_READ_IND_ADDR                 0x310008000
+#define K_BBC_MEM_WRITE_IND_ADDR                0x311008000
+#define K_BBC_MEM_READ_FULL_ADDR                0x312008000
+#define K_BBC_MEM_WRITE_FULL_ADDR               0x313008000
 #define K_BBC_MEM_OFFSET_TO_WRITE_IND           0x01000000
 #define K_BBC_MEM_OFFSET_TO_READ_FULL           0x02000000
 #define K_BBC_MEM_OFFSET_TO_WRITE_FULL          0x03000000
