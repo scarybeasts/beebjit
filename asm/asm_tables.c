@@ -20,10 +20,11 @@ asm_tables_init() {
   }
   s_inited = 1;
 
-  /* TODO: this is temporary. These asm tables should be initialized somewhere
-   * in the x64 specific backend.
+  /* TODO: this is temporary. This hack makes sure we only create the tables if
+   * the x64 backend is in use. They should be initialized somewhere in the x64
+   * specific backend.
    */
-  if (!asm_jit_is_enabled()) {
+  if (!asm_jit_uses_indirect_mappings()) {
     return;
   }
 
