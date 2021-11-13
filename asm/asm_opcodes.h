@@ -5,8 +5,8 @@
 
 struct asm_uop {
   int32_t uopcode;
-  int32_t value1;
-  int32_t value2;
+  intptr_t value1;
+  intptr_t value2;
   int is_eliminated;
   int is_merged;
   int32_t backend_tag;

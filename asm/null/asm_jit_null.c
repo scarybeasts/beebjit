@@ -108,7 +108,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
 /* asm symbols. */
 uint32_t
 asm_jit_enter(void* p_context,
-              uint32_t jump_addr,
+              void* p_start_addr,
               int64_t countdown,
               void* p_mem_base) {
   (void) p_context;

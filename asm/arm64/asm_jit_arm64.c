@@ -99,7 +99,7 @@ enum {
   asm_copy_patch_arm64_imm26_pc_rel(p_buf,                                     \
                                     asm_jit_ ## x,                             \
                                     asm_jit_ ## x ## _END,                     \
-                                    (void*) (uintptr_t) value1);               \
+                                    (void*) value1);                           \
 }
 
 #define ASM_IMMR_IMMS(x)                                                       \
@@ -176,7 +176,7 @@ asm_jit_get_private(struct asm_jit_struct* p_asm) {
 void
 asm_jit_start_code_updates(struct asm_jit_struct* p_asm) {
   (void) p_asm;
-  os_alloc_make_mapping_read_write_exec((void*) K_JIT_ADDR, K_JIT_SIZE);
+  os_alloc_make_mapping_read_write((void*) K_JIT_ADDR, K_JIT_SIZE);
 }
 
 void
@@ -230,9 +230,10 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
 
 void
 asm_jit_invalidate_code_at(void* p) {
-  uint32_t* p_dst = (uint32_t*) p;
+  uintptr_t ptr = (uintptr_t) p;
+  ptr |= K_JIT_ADDR;
   /* blr x29 */
-  *p_dst = 0xd63f03a0;
+  *(uint32_t*) ptr = 0xd63f03a0;
 }
 
 int
@@ -264,9 +265,9 @@ asm_emit_jit_addr_hi_load(struct util_buffer* p_buf, uint16_t value1) {
 static void
 asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr_6502) {
   void asm_jit_call_interp(void);
-  uint32_t value1 = addr_6502;
+  intptr_t value1 = addr_6502;
   ASM_IMM16(load_PC);
-  value1 = (uint32_t) (uintptr_t) asm_jit_call_interp;
+  value1 = (intptr_t) asm_jit_call_interp;
   ASM_IMM26(jump_interp);
 }
 
@@ -703,8 +704,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
              struct util_buffer* p_buf_epilog,
              struct asm_uop* p_uop) {
   int32_t uopcode = p_uop->uopcode;
-  uint32_t value1 = p_uop->value1;
-  uint32_t value2 = p_uop->value2;
+  intptr_t value1 = p_uop->value1;
+  intptr_t value2 = p_uop->value2;
   uint8_t immr = 0;
   uint8_t imms = 0;
   uint32_t i;
@@ -766,7 +767,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
     break;
   case k_opcode_debug:
     ASM_IMM16(load_PC);
-    value1 = (uint32_t) (uintptr_t) asm_debug;
+    value1 = (intptr_t) asm_debug;
     ASM_IMM26(call_debug);
     break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_buf); break;

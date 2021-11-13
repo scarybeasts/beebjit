@@ -13,7 +13,7 @@ void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
 int asm_jit_uses_indirect_mappings(void);
 uint32_t asm_jit_enter(void* p_context,
-                       uint32_t jump_addr_x64,
+                       void* p_start_addr,
                        int64_t countdown,
                        void* p_mem_base);
 

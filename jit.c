@@ -269,7 +269,6 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
 static int
 jit_enter(struct cpu_driver* p_cpu_driver) {
   int exited;
-  uint32_t uint_start_addr;
   int64_t countdown;
 
   struct timing_struct* p_timing = p_cpu_driver->p_timing;
@@ -279,8 +278,6 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_start_addr = jit_get_jit_block_host_address(p_jit, addr_6502);
   void* p_mem_base = (void*) K_BBC_MEM_READ_IND_ADDR;
 
-  uint_start_addr = (uint32_t) (size_t) p_start_addr;
-
   countdown = timing_get_countdown(p_timing);
 
   /* The memory must be aligned to at least 0x100 so that our register access
@@ -288,7 +285,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
    */
   assert(((uintptr_t) p_mem_base & 0xff) == 0);
 
-  exited = asm_jit_enter(p_jit, uint_start_addr, countdown, p_mem_base);
+  exited = asm_jit_enter(p_jit, p_start_addr, countdown, p_mem_base);
   assert(exited == 1);
 
   return exited;
