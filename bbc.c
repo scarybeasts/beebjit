@@ -31,6 +31,8 @@
 #include "wd_fdc.h"
 
 #include "asm/asm_defs_host.h"
+/* For asm_jit_uses_indirect_mappings(). */
+#include "asm/asm_jit.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -1246,6 +1248,56 @@ bbc_reset_callback_baselines(struct bbc_struct* p_bbc) {
   }
 }
 
+static void
+bbc_setup_indirect_mappings(struct bbc_struct* p_bbc,
+                            size_t map_size,
+                            size_t half_map_size,
+                            size_t map_offset) {
+  p_bbc->p_mapping_read_ind =
+      os_alloc_get_mapping_from_handle(
+          p_bbc->mem_handle,
+          (void*) (size_t) (K_BBC_MEM_READ_IND_ADDR - map_offset),
+          0,
+          map_size);
+  p_bbc->p_mem_read_ind =
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind + k_6502_addr_space_size),
+                             map_offset);
+  /* Make the ROM read-only. */
+  os_alloc_make_mapping_read_only((p_bbc->p_mem_read_ind + k_bbc_ram_size),
+                                  (k_6502_addr_space_size - k_bbc_ram_size));
+
+  p_bbc->p_mapping_write_ind =
+      os_alloc_get_mapping_from_handle(
+          p_bbc->mem_handle,
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR - map_offset),
+          0,
+          half_map_size);
+  /* Writeable dummy ROM region. */
+  p_bbc->p_mapping_write_ind_2 =
+      os_alloc_get_mapping(
+          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
+          half_map_size);
+  p_bbc->p_mem_write_ind =
+      (os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) + map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind - map_offset), map_offset);
+  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_6502_addr_space_size),
+                             map_offset);
+
+  /* Make the registers page inaccessible in the indirect read / write
+   * mappings. This enables an optimization: indirect reads and writes can
+   * avoid expensive checks for hitting registers, which is rare, and rely
+   * instead on a fault + fixup.
+   */
+  os_alloc_make_mapping_none(
+      (p_bbc->p_mem_read_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+      K_BBC_MEM_INACCESSIBLE_LEN);
+  os_alloc_make_mapping_none(
+      (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
+      K_BBC_MEM_INACCESSIBLE_LEN);
+}
+
 struct bbc_struct*
 bbc_create(int mode,
            int is_master,
@@ -1373,33 +1425,9 @@ bbc_create(int mode,
    * access for indirect reads and writes) but work for the exceptional case
    * via a fault + fixup.
    */
-  p_bbc->p_mapping_read_ind =
-      os_alloc_get_mapping_from_handle(
-          p_bbc->mem_handle,
-          (void*) (size_t) (K_BBC_MEM_READ_IND_ADDR - map_offset),
-          0,
-          map_size);
-  p_bbc->p_mem_read_ind =
-      (os_alloc_get_mapping_addr(p_bbc->p_mapping_read_ind) + map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind - map_offset), map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_read_ind + k_6502_addr_space_size),
-                             map_offset);
-  p_bbc->p_mapping_write_ind =
-      os_alloc_get_mapping_from_handle(
-          p_bbc->mem_handle,
-          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR - map_offset),
-          0,
-          half_map_size);
-  /* Writeable dummy ROM region. */
-  p_bbc->p_mapping_write_ind_2 =
-      os_alloc_get_mapping(
-          (void*) (size_t) (K_BBC_MEM_WRITE_IND_ADDR + map_offset),
-          half_map_size);
-  p_bbc->p_mem_write_ind =
-      (os_alloc_get_mapping_addr(p_bbc->p_mapping_write_ind) + map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind - map_offset), map_offset);
-  os_alloc_make_mapping_none((p_bbc->p_mem_write_ind + k_6502_addr_space_size),
-                             map_offset);
+  if (asm_jit_uses_indirect_mappings()) {
+    bbc_setup_indirect_mappings(p_bbc, map_size, half_map_size, map_offset);
+  }
 
   p_bbc->p_mapping_read =
       os_alloc_get_mapping_from_handle(
@@ -1412,6 +1440,11 @@ bbc_create(int mode,
   os_alloc_make_mapping_none((p_bbc->p_mem_read - map_offset), map_offset);
   os_alloc_make_mapping_none((p_bbc->p_mem_read + k_6502_addr_space_size),
                              map_offset);
+  /* TODO: we can widen what we make read-only? */
+  /* Make the ROM readonly in the read mapping used at runtime. */
+  os_alloc_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
+                                  (k_6502_addr_space_size - k_bbc_ram_size));
+
   p_bbc->p_mapping_write =
       os_alloc_get_mapping_from_handle(
           p_bbc->mem_handle,
@@ -1430,25 +1463,6 @@ bbc_create(int mode,
                              map_offset);
 
   p_bbc->p_mem_sideways = util_mallocz(k_bbc_rom_size * k_bbc_num_roms);
-
-  /* TODO: we can widen what we make read-only? */
-  /* Make the ROM readonly in the read mappings used at runtime. */
-  os_alloc_make_mapping_read_only((p_bbc->p_mem_read + k_bbc_ram_size),
-                                  (k_6502_addr_space_size - k_bbc_ram_size));
-  os_alloc_make_mapping_read_only((p_bbc->p_mem_read_ind + k_bbc_ram_size),
-                                  (k_6502_addr_space_size - k_bbc_ram_size));
-
-  /* Make the registers page inaccessible in the indirect read / write
-   * mappings. This enables an optimization: indirect reads and writes can
-   * avoid expensive checks for hitting registers, which is rare, and rely
-   * instead on a fault + fixup.
-   */
-  os_alloc_make_mapping_none(
-      (p_bbc->p_mem_read_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
-      K_BBC_MEM_INACCESSIBLE_LEN);
-  os_alloc_make_mapping_none(
-      (p_bbc->p_mem_write_ind + K_BBC_MEM_INACCESSIBLE_OFFSET),
-      K_BBC_MEM_INACCESSIBLE_LEN);
 
   /* Special memory chunks on a Master. */
   if (p_bbc->is_master) {

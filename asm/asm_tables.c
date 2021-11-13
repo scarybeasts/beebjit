@@ -1,6 +1,7 @@
 #include "asm_tables.h"
 
 #include "asm_defs_host.h"
+#include "asm_jit.h"
 #include "../os_alloc.h"
 
 static const size_t k_asm_tables_size = 4096;
@@ -18,6 +19,13 @@ asm_tables_init() {
     return;
   }
   s_inited = 1;
+
+  /* TODO: this is temporary. These asm tables should be initialized somewhere
+   * in the x64 specific backend.
+   */
+  if (!asm_jit_is_enabled()) {
+    return;
+  }
 
   p_mapping = os_alloc_get_mapping((void*) K_ASM_TABLE_ADDR, k_asm_tables_size);
   p_base = os_alloc_get_mapping_addr(p_mapping);

@@ -11,6 +11,7 @@ struct asm_jit_struct;
 int asm_jit_is_enabled(void);
 void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
+int asm_jit_uses_indirect_mappings(void);
 uint32_t asm_jit_enter(void* p_context,
                        uint32_t jump_addr_x64,
                        int64_t countdown,
