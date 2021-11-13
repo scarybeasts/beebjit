@@ -305,6 +305,11 @@ asm_jit_supports_uopcode(int32_t uopcode) {
   return 1;
 }
 
+int
+asm_jit_uses_indirect_mappings(void) {
+  return 1;
+}
+
 struct asm_jit_struct*
 asm_jit_create(void* p_jit_base,
                int (*is_memory_always_ram)(void* p, uint16_t addr),
@@ -322,6 +327,8 @@ asm_jit_create(void* p_jit_base,
   p_asm = util_mallocz(sizeof(struct asm_jit_struct));
   p_asm->is_memory_always_ram = is_memory_always_ram;
   p_asm->p_memory_object = p_memory_object;
+
+  os_alloc_make_mapping_read_write_exec(p_jit_base, K_JIT_SIZE);
 
   /* This is the mapping that holds trampolines to jump out of JIT. These
    * one-per-6502-address trampolines enable the core JIT code to be simpler

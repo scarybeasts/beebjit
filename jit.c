@@ -828,10 +828,11 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_jit->driver.abi.p_interp_callback = jit_enter_interp;
   p_jit->driver.abi.p_interp_object = p_jit;
 
-  /* This is the mapping that holds the dynamically JIT'ed code. */
+  /* This is the mapping that holds the dynamically JIT'ed code.
+   * Directly after creation, it will be read-write.
+   */
   p_jit->p_mapping_jit = os_alloc_get_mapping((void*) K_JIT_ADDR, K_JIT_SIZE);
   p_jit_base = os_alloc_get_mapping_addr(p_jit->p_mapping_jit);
-  os_alloc_make_mapping_read_write_exec(p_jit_base, K_JIT_SIZE);
   p_temp_buf = util_buffer_create();
   p_jit->p_temp_buf = p_temp_buf;
   util_buffer_setup(p_temp_buf, p_jit_base, K_JIT_SIZE);
@@ -854,7 +855,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   os_fault_register_handler(jit_handle_fault);
 
   /* Anything the specific asm driver (x64 or ARM64) needs to get its job
-   * done.
+   * done. This includes setting up initial mapping permissions on the JIT
+   * mapping.
    */
   p_jit->p_asm = asm_jit_create(p_jit_base,
                                 p_memory_access->memory_is_always_ram,

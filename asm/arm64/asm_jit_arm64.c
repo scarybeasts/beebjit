@@ -143,6 +143,11 @@ asm_jit_supports_uopcode(int32_t uopcode) {
   return 1;
 }
 
+int
+asm_jit_uses_indirect_mappings(void) {
+  return 0;
+}
+
 struct asm_jit_struct*
 asm_jit_create(void* p_jit_base,
                int (*is_memory_always_ram)(void* p, uint16_t addr),
