@@ -461,9 +461,9 @@ ASM_SYM(asm_exit_END):
   ret
 
 
-.globl ASM_SYM(asm_debug)
-.globl ASM_SYM(asm_debug_END)
-ASM_SYM(asm_debug):
+.globl ASM_SYM(asm_debug_trampoline)
+.globl ASM_SYM(asm_debug_trampoiine_END)
+ASM_SYM(asm_debug_trampoline):
   stp x29, x30, [sp, #-16]!
   # Save the host flags because carry / overflow save elimination can leave
   # state there.
@@ -483,5 +483,5 @@ ASM_SYM(asm_debug):
   ldp x29, x30, [sp], #16
   ret
 
-ASM_SYM(asm_debug_END):
+ASM_SYM(asm_debug_trampoline_END):
   ret

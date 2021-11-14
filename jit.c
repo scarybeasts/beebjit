@@ -795,8 +795,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_custom_counters = jit_get_custom_counters;
 
   p_jit->p_compile_callback = jit_compile;
-  p_cpu_driver->abi.p_debug_asm = asm_debug;
-  p_cpu_driver->abi.p_interp_asm = asm_jit_call_interp;
+  p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
+  p_cpu_driver->abi.p_interp_asm = asm_jit_interp_trampoline;
 
   /* The JIT mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.

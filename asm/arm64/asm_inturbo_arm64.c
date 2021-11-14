@@ -67,7 +67,7 @@ asm_emit_inturbo_mode_imm(struct util_buffer* p_buf) {
 
 int
 asm_inturbo_is_enabled(void) {
-  return 1;
+  return 0;
 }
 
 void
@@ -210,7 +210,7 @@ asm_emit_inturbo_enter_debug(struct util_buffer* p_buf) {
   asm_copy_patch_arm64_imm26_pc_rel(p_buf,
                                     asm_inturbo_enter_debug_branch,
                                     asm_inturbo_enter_debug_branch_END,
-                                    asm_debug);
+                                    asm_debug_trampoline);
   asm_copy(p_buf,
            asm_inturbo_enter_debug_post,
            asm_inturbo_enter_debug_post_END);

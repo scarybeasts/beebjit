@@ -58,9 +58,9 @@ ASM_SYM(asm_jit_compile_trampoline):
   br REG_6502_PC
 
 
-.globl ASM_SYM(asm_jit_call_interp)
-.globl ASM_SYM(asm_jit_call_interp_END)
-ASM_SYM(asm_jit_call_interp):
+.globl ASM_SYM(asm_jit_interp_trampoline)
+.globl ASM_SYM(asm_jit_interp_trampoline_END)
+ASM_SYM(asm_jit_interp_trampoline):
   stp x29, x30, [sp, #-32]!
 
   bl ASM_SYM(asm_save_AXYS_PC_flags)
@@ -87,7 +87,7 @@ ASM_SYM(asm_jit_call_interp):
   mov REG_RETURN, REG_SCRATCH1
   b ASM_SYM(asm_exit)
 
-ASM_SYM(asm_jit_call_interp_END):
+ASM_SYM(asm_jit_interp_trampoline_END):
   ret
 
 not_exiting:
@@ -395,7 +395,8 @@ ASM_SYM(asm_jit_countdown_tbnz_END):
 .globl ASM_SYM(asm_jit_call_debug)
 .globl ASM_SYM(asm_jit_call_debug_END)
 ASM_SYM(asm_jit_call_debug):
-  bl ASM_SYM(asm_jit_call_debug)
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_DEBUG_ASM]
+  blr REG_SCRATCH1
 
 ASM_SYM(asm_jit_call_debug_END):
   ret
@@ -413,7 +414,8 @@ ASM_SYM(asm_jit_flags_nz_value_END):
 .globl ASM_SYM(asm_jit_jump_interp)
 .globl ASM_SYM(asm_jit_jump_interp_END)
 ASM_SYM(asm_jit_jump_interp):
-  b ASM_SYM(asm_jit_jump_interp)
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_ASM]
+  br REG_SCRATCH1
 
 ASM_SYM(asm_jit_jump_interp_END):
   ret
@@ -575,33 +577,41 @@ ASM_SYM(asm_jit_value_store_addr_END):
   ret
 
 
-.globl ASM_SYM(asm_jit_write_inv)
-.globl ASM_SYM(asm_jit_write_inv_END)
-ASM_SYM(asm_jit_write_inv):
+.globl ASM_SYM(asm_jit_write_inv_load)
+.globl ASM_SYM(asm_jit_write_inv_load_END)
+ASM_SYM(asm_jit_write_inv_load):
   ldr REG_JIT_SCRATCH_32, [REG_JIT_PTRS, REG_JIT_ADDR, lsl #2]
+
+ASM_SYM(asm_jit_write_inv_load_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_write_inv_orr)
+.globl ASM_SYM(asm_jit_write_inv_orr_END)
+ASM_SYM(asm_jit_write_inv_orr):
+  orr REG_JIT_SCRATCH, REG_JIT_SCRATCH, #K_JIT_ADDR
+
+ASM_SYM(asm_jit_write_inv_orr_END):
+  ret
+
+
+.globl ASM_SYM(asm_jit_write_inv_store)
+.globl ASM_SYM(asm_jit_write_inv_store_END)
+ASM_SYM(asm_jit_write_inv_store):
   # Store anything convenient since it'll write fault.
   str REG_JIT_SCRATCH_32, [REG_JIT_SCRATCH]
 
-ASM_SYM(asm_jit_write_inv_END):
+ASM_SYM(asm_jit_write_inv_store_END):
   ret
 
 
 .globl ASM_SYM(asm_jit_write_inv_ABS_load)
 .globl ASM_SYM(asm_jit_write_inv_ABS_load_END)
-.globl ASM_SYM(asm_jit_write_inv_ABS_store)
-.globl ASM_SYM(asm_jit_write_inv_ABS_store_END)
 ASM_SYM(asm_jit_write_inv_ABS_load):
   # 6502 range is 0 - 0xFFF. Constant below is 4x that due to 32 bit ptrs.
   ldr REG_JIT_SCRATCH_32, [REG_JIT_PTRS, #0x3FFC]
 
 ASM_SYM(asm_jit_write_inv_ABS_load_END):
-  ret
-
-ASM_SYM(asm_jit_write_inv_ABS_store):
-  # Store anything convenient since it'll write fault.
-  str REG_JIT_SCRATCH_32, [REG_JIT_SCRATCH]
-
-ASM_SYM(asm_jit_write_inv_ABS_store_END):
   ret
 
 

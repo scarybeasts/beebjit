@@ -69,7 +69,7 @@ enum {
   asm_copy_patch_arm64_imm14_pc_rel(p_buf,                                     \
                                     asm_jit_ ## x,                             \
                                     asm_jit_ ## x ## _END,                     \
-                                    (void*) (uintptr_t) value1);               \
+                                    (void*) value1);                           \
 }
 
 #define ASM_IMM16(x)                                                           \
@@ -89,7 +89,7 @@ enum {
   asm_copy_patch_arm64_imm19_pc_rel(p_buf,                                     \
                                     asm_jit_ ## x,                             \
                                     asm_jit_ ## x ## _END,                     \
-                                    (void*) (uintptr_t) value1);               \
+                                    (void*) value1);                           \
 }
 
 #define ASM_IMM26(x)                                                           \
@@ -267,8 +267,7 @@ asm_emit_jit_jump_interp(struct util_buffer* p_buf, uint16_t addr_6502) {
   void asm_jit_call_interp(void);
   intptr_t value1 = addr_6502;
   ASM_IMM16(load_PC);
-  value1 = (intptr_t) asm_jit_call_interp;
-  ASM_IMM26(jump_interp);
+  ASM(jump_interp);
 }
 
 void
@@ -288,7 +287,7 @@ asm_jit_rewrite(struct asm_jit_struct* p_asm,
   struct asm_uop* p_page_crossing_uop;
   struct asm_uop* p_tmp_uop;
   int32_t uopcode;
-  int32_t value1;
+  intptr_t value1;
   uint8_t immr;
   uint8_t imms;
   int is_imm;
@@ -722,8 +721,8 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_add_cycles: ASM_IMM12(countdown_add); break;
   case k_opcode_addr_check:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
-    value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM(addr_check_add);
+    value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(addr_check_tbnz);
     break;
   case k_opcode_addr_add_base_constant:
@@ -736,7 +735,7 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_addr_set: ASM_IMM16(addr_set); break;
   case k_opcode_check_bcd:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
-    value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
+    value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(check_bcd);
     break;
   case k_opcode_check_page_crossing_n: ASM(check_page_crossing_n); break;
@@ -755,20 +754,19 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_check_pending_irq:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
     ASM(check_pending_irq_load);
-    value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
+    value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM19(check_pending_irq_cbnz);
     break;
   case k_opcode_countdown:
     asm_emit_jit_jump_interp(p_buf_epilog, value1);
     value1 = value2;
     ASM_IMM12(countdown_sub);
-    value1 = (uint32_t) (uintptr_t) util_buffer_get_base_address(p_buf_epilog);
+    value1 = (intptr_t) util_buffer_get_base_address(p_buf_epilog);
     ASM_IMM14(countdown_tbnz);
     break;
   case k_opcode_debug:
     ASM_IMM16(load_PC);
-    value1 = (intptr_t) asm_debug;
-    ASM_IMM26(call_debug);
+    ASM(call_debug);
     break;
   case k_opcode_flags_nz_a: asm_emit_instruction_A_NZ_flags(p_buf); break;
   case k_opcode_flags_nz_x: asm_emit_instruction_X_NZ_flags(p_buf); break;
@@ -799,7 +797,17 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_value_load: ASM(value_load_addr); break;
   case k_opcode_value_set: ASM_IMM16(value_set); break;
   case k_opcode_value_store: ASM(value_store_addr); break;
-  case k_opcode_write_inv: ASM(write_inv); break;
+  case k_opcode_write_inv:
+    ASM(write_inv_load);
+    if ((intptr_t) K_JIT_ADDR > 0xFFFFFFFF) {
+      /* We currently store 32-bit JIT pointers so we need to "or" back in the
+       * JIT base on platforms that only allow >4GB mappings (e.g. macOS
+       * ARM64).
+       */
+      ASM(write_inv_orr);
+    }
+    ASM(write_inv_store);
+    break;
   case k_opcode_ADC: ASM(ADC); break;
   case k_opcode_ADD: ASM(ADD); break;
   case k_opcode_ALR: ASM(ALR); break;
@@ -911,7 +919,14 @@ asm_emit_jit(struct asm_jit_struct* p_asm,
   case k_opcode_arm64_value_store_ABS: ASM_IMM12(value_store_ABS); break;
   case k_opcode_arm64_write_inv_ABS:
     ASM_IMM12(write_inv_ABS_load);
-    ASM(write_inv_ABS_store);
+    if ((intptr_t) K_JIT_ADDR > 0xFFFFFFFF) {
+      /* We currently store 32-bit JIT pointers so we need to "or" back in the
+       * JIT base on platforms that only allow >4GB mappings (e.g. macOS
+       * ARM64).
+       */
+      ASM(write_inv_orr);
+    }
+    ASM(write_inv_store);
     break;
   case k_opcode_arm64_ADC_IMM: ASM(ADC_IMM); break;
   case k_opcode_arm64_ADD_IMM: ASM(ADD_IMM); break;

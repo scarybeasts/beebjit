@@ -316,7 +316,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int use_interp = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
-  uint32_t jit_addr = 0;
+  intptr_t jit_addr = 0;
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
@@ -1411,9 +1411,7 @@ jit_compiler_emit_uops(struct jit_compiler* p_compiler) {
         void* p_resume =
             (p_host_address_base + util_buffer_get_length(p_tmp_buf));
         p_resume += p_compiler->len_asm_invalidated;
-        asm_make_uop1(&tmp_uop,
-                             k_opcode_JMP,
-                             (int32_t) (uintptr_t) p_resume);
+        asm_make_uop1(&tmp_uop, k_opcode_JMP, (intptr_t) p_resume);
         asm_emit_jit(p_compiler->p_asm, p_tmp_buf, NULL, &tmp_uop);
 
         /* Continue compiling the code block in the next host block, after the

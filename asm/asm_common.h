@@ -157,6 +157,6 @@ uint32_t asm_enter_common(void* p_context,
                           uint32_t jump_addr_x64,
                           int64_t countdown,
                           void* p_mem_base);
-void asm_debug(void);
+void asm_debug_trampoline(void);
 
 #endif /* BEEBJIT_ASM_COMMON_H */

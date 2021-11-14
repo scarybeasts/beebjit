@@ -47,6 +47,6 @@ uint32_t asm_jit_enter(void* p_context,
                        void* p_start_addr,
                        int64_t countdown,
                        void* p_mem_base);
-void asm_jit_call_interp(void);
+void asm_jit_interp_trampoline(void);
 
 #endif /* BEEBJIT_ASM_JIT_H */
