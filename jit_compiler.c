@@ -321,7 +321,7 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
   int use_interp = 0;
   int could_page_cross = 1;
   uint16_t rel_target_6502 = 0;
-  intptr_t jit_addr = 0;
+  uintptr_t jit_addr = 0;
 
   (void) memset(p_details, '\0', sizeof(struct jit_opcode_details));
   p_details->addr_6502 = addr_6502;
@@ -425,8 +425,8 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     operand_6502 = p_mem_read[addr_plus_1];
     rel_target_6502 = ((int) addr_6502 + 2 + (int8_t) operand_6502);
     p_details->branch_addr_6502 = rel_target_6502;
-    jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
-                                                             rel_target_6502);
+    jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                              rel_target_6502);
     break;
   case k_abs:
   case k_abx:
@@ -618,16 +618,16 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     } else {
       assert(opmode == k_abs);
       p_details->branch_addr_6502 = operand_6502;
-      jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
-                                                               operand_6502);
+      jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                                operand_6502);
       asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
       p_uop++;
     }
     break;
   case k_jsr:
     p_details->branch_addr_6502 = operand_6502;
-    jit_addr = (intptr_t) jit_compiler_resolve_branch_target(p_compiler,
-                                                             operand_6502);
+    jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
+                                                              operand_6502);
     asm_make_uop1(p_uop, k_opcode_PUSH_16, (uint16_t) (addr_6502 + 2));
     p_uop++;
     asm_make_uop1(p_uop, k_opcode_JMP, jit_addr);
@@ -1645,7 +1645,7 @@ jit_compiler_compile_block(struct jit_compiler* p_compiler,
   assert(p_details->addr_6502 != -1);
   if (!p_details->ends_block) {
     struct asm_uop* p_uop;
-    uint32_t jit_addr;
+    uintptr_t jit_addr;
     end_addr_6502 = jit_compiler_get_end_addr_6502(p_compiler);
     /* JMP abs */
     jit_addr = (uintptr_t) jit_compiler_resolve_branch_target(p_compiler,
