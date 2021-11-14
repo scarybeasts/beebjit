@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 struct jit_struct {
+  /* Fields referenced by the JIT code. */
   struct cpu_driver driver;
 
   /* C callbacks called by JIT code. */
@@ -38,6 +39,8 @@ struct jit_struct {
 
   /* 6502 address -> JIT code pointers. */
   uint32_t jit_ptrs[k_6502_addr_space_size];
+
+  /* Fields not referenced by JIT code. */
   /* 6502 address -> code block. */
   int32_t code_blocks[k_6502_addr_space_size];
 
@@ -271,7 +274,7 @@ jit_enter(struct cpu_driver* p_cpu_driver) {
   int exited;
   int64_t countdown;
 
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
@@ -764,9 +767,10 @@ jit_init(struct cpu_driver* p_cpu_driver) {
 
   struct jit_struct* p_jit = (struct jit_struct*) p_cpu_driver;
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
-  struct bbc_options* p_options = p_cpu_driver->p_options;
+  struct memory_access* p_memory_access =
+      p_cpu_driver->p_extra->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
+  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
   void* p_debug_object = p_options->p_debug_object;
   int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
@@ -791,6 +795,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->get_custom_counters = jit_get_custom_counters;
 
   p_jit->p_compile_callback = jit_compile;
+  p_cpu_driver->abi.p_debug_asm = asm_debug;
+  p_cpu_driver->abi.p_interp_asm = asm_jit_call_interp;
 
   /* The JIT mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.

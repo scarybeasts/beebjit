@@ -60,7 +60,7 @@ jit_test_init(struct bbc_struct* p_bbc) {
   s_p_jit = (struct jit_struct*) p_cpu_driver;
   s_p_timing = p_timing;
   s_p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  s_p_mem = p_cpu_driver->p_memory_access->p_mem_read;
+  s_p_mem = p_cpu_driver->p_extra->p_memory_access->p_mem_read;
   s_p_interp = s_p_jit->p_interp;
   s_p_compiler = s_p_jit->p_compiler;
 

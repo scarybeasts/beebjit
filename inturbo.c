@@ -548,10 +548,11 @@ inturbo_fill_tables(struct inturbo_struct* p_inturbo) {
   struct util_buffer* p_buf = util_buffer_create();
   uint8_t* p_inturbo_base = p_inturbo->p_inturbo_base;
 
-  struct bbc_options* p_options = p_inturbo->driver.p_options;
+  struct bbc_options* p_options = p_inturbo->driver.p_extra->p_options;
   int is_accurate = p_options->accurate;
   int is_debug = p_inturbo->debug_subsystem_active;
-  struct memory_access* p_memory_access = p_inturbo->driver.p_memory_access;
+  struct memory_access* p_memory_access =
+      p_inturbo->driver.p_extra->p_memory_access;
   void* p_memory_object = p_memory_access->p_callback_obj;
 
   read_callback_from = p_memory_access->memory_read_needs_callback_from(
@@ -730,8 +731,8 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
 
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
   uint16_t addr_6502 = state_6502_get_pc(p_state_6502);
-  uint8_t* p_mem_read = p_cpu_driver->p_memory_access->p_mem_read;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
+  uint8_t* p_mem_read = p_cpu_driver->p_extra->p_memory_access->p_mem_read;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
   uint32_t p_start_address =
       (uint32_t) (size_t) (K_INTURBO_ADDR +
@@ -833,9 +834,10 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
   struct state_6502* p_state_6502 = p_cpu_driver->abi.p_state_6502;
-  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
-  struct timing_struct* p_timing = p_cpu_driver->p_timing;
-  struct bbc_options* p_options = p_cpu_driver->p_options;
+  struct memory_access* p_memory_access =
+      p_cpu_driver->p_extra->p_memory_access;
+  struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
+  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
   struct debug_struct* p_debug_object = p_options->p_debug_object;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 

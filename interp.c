@@ -52,7 +52,7 @@ interp_destroy(struct cpu_driver* p_cpu_driver) {
 static int
 interp_enter(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  int64_t countdown = timing_get_countdown(p_interp->driver.p_timing);
+  int64_t countdown = timing_get_countdown(p_interp->driver.p_extra->p_timing);
 
   countdown = interp_enter_with_details(p_interp, countdown, NULL, NULL);
   (void) countdown;
@@ -104,8 +104,9 @@ interp_last_tick_callback(void* p) {
 static void
 interp_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
-  struct memory_access* p_memory_access = p_cpu_driver->p_memory_access;
-  struct bbc_options* p_options = p_cpu_driver->p_options;
+  struct memory_access* p_memory_access =
+    p_cpu_driver->p_extra->p_memory_access;
+  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
   struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
 
@@ -191,7 +192,7 @@ interp_call_debugger(struct interp_struct* p_interp,
   uint8_t flags;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
-  struct bbc_options* p_options = p_interp->driver.p_options;
+  struct bbc_options* p_options = p_interp->driver.p_extra->p_options;
   int (*debug_active_at_addr)(void*, uint16_t) =
       p_options->debug_active_at_addr;
   struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_interp;
@@ -1034,8 +1035,9 @@ interp_enter_with_details(struct interp_struct* p_interp,
   int is_nmi;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
-  struct timing_struct* p_timing = p_interp->driver.p_timing;
-  struct memory_access* p_memory_access = p_interp->driver.p_memory_access;
+  struct timing_struct* p_timing = p_interp->driver.p_extra->p_timing;
+  struct memory_access* p_memory_access =
+      p_interp->driver.p_extra->p_memory_access;
   uint8_t (*memory_read_callback)(void*, uint16_t, uint16_t, int) =
       p_memory_access->memory_read_callback;
   int (*memory_write_callback)(void*, uint16_t, uint8_t, uint16_t, int) =

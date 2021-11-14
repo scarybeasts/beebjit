@@ -12,10 +12,6 @@ int asm_jit_is_enabled(void);
 void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
 int asm_jit_uses_indirect_mappings(void);
-uint32_t asm_jit_enter(void* p_context,
-                       void* p_start_addr,
-                       int64_t countdown,
-                       void* p_mem_base);
 
 struct asm_jit_struct* asm_jit_create(
     void* p_jit_base,
@@ -45,5 +41,12 @@ void asm_emit_jit(struct asm_jit_struct* p_asm,
                   struct util_buffer* p_buf,
                   struct util_buffer* p_buf_epilog,
                   struct asm_uop* p_uop);
+
+/* asm symbols. */
+uint32_t asm_jit_enter(void* p_context,
+                       void* p_start_addr,
+                       int64_t countdown,
+                       void* p_mem_base);
+void asm_jit_call_interp(void);
 
 #endif /* BEEBJIT_ASM_JIT_H */

@@ -55,14 +55,23 @@ struct cpu_driver_funcs {
                           uint8_t** p_out_opcycles);
 };
 
-struct cpu_driver {
-  struct asm_abi abi;
-
+struct cpu_driver_extra {
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
+};
 
+struct cpu_driver {
+  struct asm_abi abi;
+
+  /* Per-driver-type functions. */
   struct cpu_driver_funcs* p_funcs;
+
+  /* A few non-JIT-referenced fields stashed away in order to provide more
+   * fields at <= 127 bytes offset from the start of the structure. Such fields
+   * can be more efficiently referenced by some of the backends (x64).
+   */
+  struct cpu_driver_extra* p_extra;
 
   uint32_t flags;
   uint32_t exit_value;

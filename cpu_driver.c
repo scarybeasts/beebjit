@@ -135,6 +135,8 @@ cpu_driver_alloc(int mode,
   struct cpu_driver* p_cpu_driver = NULL;
   struct cpu_driver_funcs* p_funcs =
       util_mallocz(sizeof(struct cpu_driver_funcs));
+  struct cpu_driver_extra* p_extra = 
+      util_mallocz(sizeof(struct cpu_driver_extra));
 
   switch (mode) {
   case k_cpu_mode_interp:
@@ -171,9 +173,10 @@ cpu_driver_alloc(int mode,
   asm_abi_init(&p_cpu_driver->abi, p_memory_access, p_options, p_state_6502);
   defs_6502_init();
 
-  p_cpu_driver->p_memory_access = p_memory_access;
-  p_cpu_driver->p_timing = p_timing;
-  p_cpu_driver->p_options = p_options;
+  p_cpu_driver->p_extra = p_extra;
+  p_extra->p_memory_access = p_memory_access;
+  p_extra->p_timing = p_timing;
+  p_extra->p_options = p_options;
   p_cpu_driver->p_funcs = p_funcs;
 
   p_funcs->set_reset_callback = cpu_driver_set_reset_callback_default;
