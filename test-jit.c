@@ -20,15 +20,10 @@ jit_test_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr) {
   asm_jit_finish_code_updates(p_jit->p_asm);
 }
 
-static uint8_t*
-jit_get_jit_code_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_jit_ptr = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
-  return p_jit_ptr;
-}
-
 static int
 jit_is_jit_ptr_dyanmic(struct jit_struct* p_jit, uint16_t addr_6502) {
-  return (p_jit->jit_ptrs[addr_6502] == p_jit->jit_ptr_dynamic_operand);
+  void* p_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
+  return (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand);
 }
 
 static void
@@ -39,7 +34,7 @@ jit_test_expect_block_invalidated(int expect, uint16_t block_addr) {
 
 static void
 jit_test_expect_code_invalidated(int expect, uint16_t code_addr) {
-  void* p_host_address = jit_get_jit_code_host_address(s_p_jit, code_addr);
+  void* p_host_address = jit_get_host_jit_ptr(s_p_jit, code_addr);
   test_expect_u32(expect, asm_jit_is_invalidated_code_at(p_host_address));
 }
 
@@ -852,7 +847,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3000);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3000);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3f]
    * or     al,  0x07
@@ -881,7 +876,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3100);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3100);
 #if defined(__x86_64__)
   /* btr    r13d, 0x3
    * add    al,  0x1
@@ -908,7 +903,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3200);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3200);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * shr    r14b, 1
@@ -954,7 +949,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3300);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3300);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x10]
    * mov    dh, BYTE PTR [rbp-0x0f]
@@ -1009,7 +1004,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   jit_compiler_testing_set_accurate_cycles(s_p_compiler, 1);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3400);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3400);
 #if defined(__x86_64__)
   /* movzx  edx, BYTE PTR [rbp-0x35]
    * mov    dh, BYTE PTR [rbp-0x34]
@@ -1067,7 +1062,7 @@ jit_test_compile_binary(void) {
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
   jit_compiler_testing_set_dynamic_operand(s_p_compiler, 0);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3500);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3500);
 #if defined(__x86_64__)
   /* movzx  edx,BYTE PTR [rbp+0x3481]
    * mov    dh,BYTE PTR [rbp+0x3482]
@@ -1109,7 +1104,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3600);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3600);
 #if defined(__x86_64__)
   /* shr    r14b, 1
    * rcl    BYTE PTR [rbp-0x4e], 1
@@ -1157,7 +1152,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3700);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3700);
 #if defined(__x86_64__)
   /* mov    r9b, BYTE PTR [r13+0x12017ffa]
    * sub    al, BYTE PTR [rbp-0x40]
@@ -1198,7 +1193,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3800);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3800);
 #if defined(__x86_64__)
   /* xor    eax, eax */
   p_expect = "\x31\xc0";
@@ -1222,7 +1217,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3900);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3900);
 #if defined(__x86_64__)
   /* mov    BYTE PTR [rbp+0x60], 0x0 */
   p_expect = "\xc6\x45\x60\x00";
@@ -1246,7 +1241,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3A00);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3A00);
 #if defined(__x86_64__)
   /* je     0x61d0180
    * lea    r15, [r15-0x7]
@@ -1274,7 +1269,7 @@ jit_test_compile_binary(void) {
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
   util_buffer_destroy(p_buf);
-  p_binary = jit_get_jit_code_host_address(s_p_jit, 0x3B00);
+  p_binary = jit_get_host_jit_ptr(s_p_jit, 0x3B00);
 #if defined(__x86_64__)
   /* movzx  eax, BYTE PTR [rbp-0x3b]
    * cmp    al, 0x96

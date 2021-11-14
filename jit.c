@@ -37,14 +37,16 @@ struct jit_struct {
   /* C pointers used by JIT code. */
   struct inturbo_struct* p_inturbo;
 
-  /* 6502 address -> JIT code pointers. */
+  /* 6502 address -> JIT code pointers.
+   * These are stored as 32-bit even when the mapping is hosted in 64-bit
+   * space. It's hoped to be more cache efficient.
+   */
   uint32_t jit_ptrs[k_6502_addr_space_size];
 
   /* Fields not referenced by JIT code. */
   /* 6502 address -> code block. */
   int32_t code_blocks[k_6502_addr_space_size];
 
-  /* Fields not referenced by JIT'ed code. */
   struct asm_jit_struct* p_asm;
   struct os_alloc_mapping* p_mapping_jit;
   struct os_alloc_mapping* p_mapping_no_code_ptr;
@@ -52,8 +54,8 @@ struct jit_struct {
   struct jit_compiler* p_compiler;
   struct util_buffer* p_temp_buf;
   struct interp_struct* p_interp;
-  uint32_t jit_ptr_no_code;
-  uint32_t jit_ptr_dynamic_operand;
+  void* p_jit_ptr_no_code;
+  void* p_jit_ptr_dynamic_operand;
   uint8_t* p_opcode_types;
   uint8_t* p_opcode_modes;
   uint8_t* p_opcode_mem;
@@ -69,10 +71,9 @@ struct jit_struct {
   int do_fault_log;
 };
 
-static inline uint8_t*
+static inline void*
 jit_get_jit_block_host_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_jit_ptr = (p_jit->p_jit_base +
-                        (addr_6502 * K_JIT_BYTES_PER_BYTE));
+  void* p_jit_ptr = (p_jit->p_jit_base + (addr_6502 * K_JIT_BYTES_PER_BYTE));
   return p_jit_ptr;
 }
 
@@ -116,11 +117,18 @@ jit_invalidate_host_block_address(struct jit_struct* p_jit,
   asm_jit_invalidate_code_at(p_jit_ptr);
 }
 
+static inline void*
+jit_get_host_jit_ptr(struct jit_struct* p_jit, uint16_t addr_6502) {
+  uintptr_t p_host_jit_ptr = p_jit->jit_ptrs[addr_6502];
+  p_host_jit_ptr |= (uintptr_t) p_jit->p_jit_base;
+  return (void*) p_host_jit_ptr;
+}
+
 static inline void
 jit_invalidate_code_at_address(struct jit_struct* p_jit, uint16_t addr_6502) {
-  uint8_t* p_host_cpu_ip = (uint8_t*) (uintptr_t) p_jit->jit_ptrs[addr_6502];
+  void* p_host_jit_ptr = jit_get_host_jit_ptr(p_jit, addr_6502);
 
-  asm_jit_invalidate_code_at(p_host_cpu_ip);
+  asm_jit_invalidate_code_at(p_host_jit_ptr);
 }
 
 static int
@@ -382,7 +390,7 @@ jit_memory_range_invalidate(struct cpu_driver* p_cpu_driver,
   for (i = addr; i < addr_end; ++i) {
     jit_invalidate_code_at_address(p_jit, i);
     jit_invalidate_host_block_address(p_jit, i);
-    p_jit->jit_ptrs[i] = p_jit->jit_ptr_no_code;
+    p_jit->jit_ptrs[i] = (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
     p_jit->code_blocks[i] = -1;
   }
 
@@ -431,7 +439,6 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
   int32_t code_block_6502;
   uint16_t i_pc_6502;
   uint16_t pc_6502;
-  uint32_t jit_ptr;
   void* p_jit_ptr;
   void* p_last_jit_ptr;
   int exact_match = -1;
@@ -464,10 +471,9 @@ jit_get_6502_details_from_host_ip(struct jit_struct* p_jit,
     if (p_jit->code_blocks[i_pc_6502] != code_block_6502) {
       break;
     }
-    jit_ptr = p_jit->jit_ptrs[i_pc_6502];
-    assert(jit_ptr != p_jit->jit_ptr_no_code);
-    p_jit_ptr = (void*) (uintptr_t) jit_ptr;
-    if (jit_ptr == p_jit->jit_ptr_dynamic_operand) {
+    p_jit_ptr = jit_get_host_jit_ptr(p_jit, i_pc_6502);
+    assert(p_jit_ptr != p_jit->p_jit_ptr_no_code);
+    if (p_jit_ptr == p_jit->p_jit_ptr_dynamic_operand) {
       /* Just continue. */
     } else if (p_jit_ptr == p_host_ip) {
       pc_6502 = i_pc_6502;
@@ -587,7 +593,8 @@ jit_compile(struct jit_struct* p_jit,
       break;
     }
     p_jit->code_blocks[clear_ptrs_addr_6502] = -1;
-    p_jit->jit_ptrs[clear_ptrs_addr_6502] = p_jit->jit_ptr_no_code;
+    p_jit->jit_ptrs[clear_ptrs_addr_6502] =
+        (uint32_t) (uintptr_t) p_jit->p_jit_ptr_no_code;
     clear_ptrs_addr_6502++;
   }
 
@@ -847,9 +854,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       os_alloc_get_mapping((void*) K_JIT_NO_CODE_JIT_PTR_PAGE, 4096);
   p_no_code_mapping_addr =
       os_alloc_get_mapping_addr(p_jit->p_mapping_no_code_ptr);
-  p_jit->jit_ptr_no_code = (uint32_t) (uintptr_t) p_no_code_mapping_addr;
-  p_jit->jit_ptr_dynamic_operand =
-      (uint32_t) (uintptr_t) (p_no_code_mapping_addr + 4);
+  p_jit->p_jit_ptr_no_code = p_no_code_mapping_addr;
+  p_jit->p_jit_ptr_dynamic_operand = (p_no_code_mapping_addr + 4);
 
   /* Ah the horrors, a fault / SIGSEGV handler! This actually enables a ton of
    * optimizations by using faults for very uncommon conditions, such that the
@@ -873,8 +879,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       jit_get_block_host_address_callback,
       p_jit,
       &p_jit->jit_ptrs[0],
-      p_jit->jit_ptr_no_code,
-      p_jit->jit_ptr_dynamic_operand,
+      p_jit->p_jit_ptr_no_code,
+      p_jit->p_jit_ptr_dynamic_operand,
       &p_jit->code_blocks[0],
       p_options,
       debug,

@@ -230,10 +230,8 @@ asm_jit_handle_fault(struct asm_jit_struct* p_asm,
 
 void
 asm_jit_invalidate_code_at(void* p) {
-  uintptr_t ptr = (uintptr_t) p;
-  ptr |= K_JIT_ADDR;
   /* blr x29 */
-  *(uint32_t*) ptr = 0xd63f03a0;
+  *(uint32_t*) p = 0xd63f03a0;
 }
 
 int

@@ -64,8 +64,8 @@ struct jit_compiler {
   struct util_buffer* p_tmp_buf;
   struct util_buffer* p_single_uopcode_buf;
   struct util_buffer* p_single_uopcode_epilog_buf;
-  uint32_t jit_ptr_no_code;
-  uint32_t jit_ptr_dynamic_operand;
+  void* p_jit_ptr_no_code;
+  void* p_jit_ptr_dynamic_operand;
 
   uint32_t len_asm_jmp;
   uint32_t len_asm_invalidated;
@@ -111,10 +111,14 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
   void* p_host_ptr =
       p_compiler->get_block_host_address(p_compiler->p_host_address_object,
                                          addr_6502);
-  uint32_t jit_ptr = p_compiler->p_jit_ptrs[addr_6502];
+  uintptr_t jit_ptr = (uintptr_t) p_compiler->p_jit_ptrs[addr_6502];
+  void* p_jit_ptr;
+
+  jit_ptr |= K_JIT_ADDR;
+  p_jit_ptr = (void*) jit_ptr;
 
   (void) p_host_ptr;
-  assert(jit_ptr != (uint32_t) (size_t) p_host_ptr);
+  assert(p_jit_ptr != p_host_ptr);
 
   /* TODO: this shouldn't be necessary. Is invalidating a range not clearing
    * JIT pointers properly?
@@ -123,14 +127,14 @@ jit_has_invalidated_code(struct jit_compiler* p_compiler, uint16_t addr_6502) {
     return 0;
   }
 
-  if (jit_ptr == p_compiler->jit_ptr_no_code) {
+  if (p_jit_ptr == p_compiler->p_jit_ptr_no_code) {
     return 0;
   }
 
   assert(p_compiler->p_code_blocks[addr_6502] != -1);
 
 
-  return asm_jit_is_invalidated_code_at((void*) (uintptr_t) jit_ptr);
+  return asm_jit_is_invalidated_code_at(p_jit_ptr);
 }
 
 struct jit_compiler*
@@ -140,8 +144,8 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
                     void* (*get_block_host_address)(void*, uint16_t),
                     void* p_host_address_object,
                     uint32_t* p_jit_ptrs,
-                    uint32_t jit_ptr_no_code,
-                    uint32_t jit_ptr_dynamic_operand,
+                    void* p_jit_ptr_no_code,
+                    void* p_jit_ptr_dynamic_operand,
                     int32_t* p_code_blocks,
                     struct bbc_options* p_options,
                     int debug,
@@ -215,11 +219,12 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
   p_compiler->p_single_uopcode_buf = util_buffer_create();
   p_compiler->p_single_uopcode_epilog_buf = util_buffer_create();
 
-  p_compiler->jit_ptr_no_code = jit_ptr_no_code;
-  p_compiler->jit_ptr_dynamic_operand = jit_ptr_dynamic_operand;
+  p_compiler->p_jit_ptr_no_code = p_jit_ptr_no_code;
+  p_compiler->p_jit_ptr_dynamic_operand = p_jit_ptr_dynamic_operand;
 
   for (i = 0; i < k_6502_addr_space_size; ++i) {
-    p_compiler->p_jit_ptrs[i] = p_compiler->jit_ptr_no_code;
+    p_compiler->p_jit_ptrs[i] =
+        (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_no_code;
     p_compiler->p_code_blocks[i] = -1;
   }
 
@@ -1537,7 +1542,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
 
     addr_6502 = p_details->addr_6502;
     for (i = 0; i < num_bytes_6502; ++i) {
-      p_compiler->p_jit_ptrs[addr_6502] = jit_ptr;
+      p_compiler->p_jit_ptrs[addr_6502] = (uint32_t) jit_ptr;
       p_compiler->p_code_blocks[addr_6502] = p_compiler->start_addr_6502;
 
       if (addr_6502 != p_compiler->start_addr_6502) {
@@ -1557,7 +1562,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
       if (i != 0) {
         if (p_details->is_dynamic_operand) {
           p_compiler->p_jit_ptrs[addr_6502] =
-              p_compiler->jit_ptr_dynamic_operand;
+              (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
         }
       } else if (!is_new_jit_ptr) {
         /* No metadata here. */
@@ -1565,7 +1570,7 @@ jit_compiler_update_metadata(struct jit_compiler* p_compiler) {
         uint8_t opcode_6502 = p_details->opcode_6502;
         if (p_details->is_dynamic_opcode) {
           p_compiler->p_jit_ptrs[addr_6502] =
-              p_compiler->jit_ptr_dynamic_operand;
+              (uint32_t) (uintptr_t) p_compiler->p_jit_ptr_dynamic_operand;
         }
         jit_compiler_add_history(p_compiler,
                                  addr_6502,
