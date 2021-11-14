@@ -2,6 +2,7 @@
 
 #include "../asm_defs_host.h"
 #include "../asm_inturbo_defs.h"
+#include "../asm_platform.h"
 #include "asm_calling_convention_arm64.h"
 
 .file "asm/arm64/asm_common_arm64.S"
@@ -9,13 +10,13 @@
 .p2align 2
 
 
-.globl asm_enter_common
-.globl asm_enter_common_END
-asm_enter_common:
+.globl ASM_SYM(asm_enter_common)
+.globl ASM_SYM(asm_enter_common_END)
+ASM_SYM(asm_enter_common):
   stp x29, x30, [sp, #-16]!
 
   # param1, x0 == context
-  # param2, x1 == x64 start address
+  # param2, x1 == ARM64 start address
   # param3, x2 == countdown
   # param4, x3 == mem base
 
@@ -31,7 +32,7 @@ asm_enter_common:
   mov REG_COUNTDOWN, REG_PARAM3
   # REG_MEM_READ, from REG_PARAM4, is set up by JIT or inturbo entry.
 
-  bl asm_restore_AXYS_PC_flags
+  bl ASM_SYM(asm_restore_AXYS_PC_flags)
 
   # More juggling of final jump location.
   mov REG_SCRATCH2, REG_MEM_WRITE
@@ -43,13 +44,13 @@ asm_enter_common:
 
   br REG_SCRATCH2
 
-asm_enter_common_END:
+ASM_SYM(asm_enter_common_END):
   ret
 
 
-.globl asm_instruction_BIT_value
-.globl asm_instruction_BIT_value_END
-asm_instruction_BIT_value:
+.globl ASM_SYM(asm_instruction_BIT_value)
+.globl ASM_SYM(asm_instruction_BIT_value_END)
+ASM_SYM(asm_instruction_BIT_value):
 
   tst REG_6502_A, REG_VALUE
   # N flag
@@ -64,251 +65,251 @@ asm_instruction_BIT_value:
   # O flag
   ubfx REG_6502_OF, REG_VALUE, #6, #1
 
-asm_instruction_BIT_value_END:
+ASM_SYM(asm_instruction_BIT_value_END):
   ret
 
 
-.globl asm_instruction_CLC
-.globl asm_instruction_CLC_END
-asm_instruction_CLC:
+.globl ASM_SYM(asm_instruction_CLC)
+.globl ASM_SYM(asm_instruction_CLC_END)
+ASM_SYM(asm_instruction_CLC):
 
   movz REG_6502_CF, #0
 
-asm_instruction_CLC_END:
+ASM_SYM(asm_instruction_CLC_END):
   ret
 
 
-.globl asm_instruction_CLD
-.globl asm_instruction_CLD_END
-asm_instruction_CLD:
+.globl ASM_SYM(asm_instruction_CLD)
+.globl ASM_SYM(asm_instruction_CLD_END)
+ASM_SYM(asm_instruction_CLD):
 
   bic REG_6502_ID_F, REG_6502_ID_F, #0x08
 
-asm_instruction_CLD_END:
+ASM_SYM(asm_instruction_CLD_END):
   ret
 
 
-.globl asm_instruction_CLI
-.globl asm_instruction_CLI_END
-asm_instruction_CLI:
+.globl ASM_SYM(asm_instruction_CLI)
+.globl ASM_SYM(asm_instruction_CLI_END)
+ASM_SYM(asm_instruction_CLI):
 
   bic REG_6502_ID_F, REG_6502_ID_F, #0x04
 
-asm_instruction_CLI_END:
+ASM_SYM(asm_instruction_CLI_END):
   ret
 
 
-.globl asm_instruction_CLV
-.globl asm_instruction_CLV_END
-asm_instruction_CLV:
+.globl ASM_SYM(asm_instruction_CLV)
+.globl ASM_SYM(asm_instruction_CLV_END)
+ASM_SYM(asm_instruction_CLV):
 
   movz REG_6502_OF, #0
 
-asm_instruction_CLV_END:
+ASM_SYM(asm_instruction_CLV_END):
   ret
 
 
-.globl asm_instruction_DEX
-.globl asm_instruction_DEX_END
-asm_instruction_DEX:
+.globl ASM_SYM(asm_instruction_DEX)
+.globl ASM_SYM(asm_instruction_DEX_END)
+ASM_SYM(asm_instruction_DEX):
 
   sub REG_6502_X, REG_6502_X, #1
   and REG_6502_X, REG_6502_X, #0xFF
 
-asm_instruction_DEX_END:
+ASM_SYM(asm_instruction_DEX_END):
   ret
 
 
-.globl asm_instruction_DEY
-.globl asm_instruction_DEY_END
-asm_instruction_DEY:
+.globl ASM_SYM(asm_instruction_DEY)
+.globl ASM_SYM(asm_instruction_DEY_END)
+ASM_SYM(asm_instruction_DEY):
 
   sub REG_6502_Y, REG_6502_Y, #1
   and REG_6502_Y, REG_6502_Y, #0xFF
 
-asm_instruction_DEY_END:
+ASM_SYM(asm_instruction_DEY_END):
   ret
 
 
-.globl asm_instruction_INX
-.globl asm_instruction_INX_END
-asm_instruction_INX:
+.globl ASM_SYM(asm_instruction_INX)
+.globl ASM_SYM(asm_instruction_INX_END)
+ASM_SYM(asm_instruction_INX):
 
   add REG_6502_X, REG_6502_X, #1
   and REG_6502_X, REG_6502_X, #0xFF
 
-asm_instruction_INX_END:
+ASM_SYM(asm_instruction_INX_END):
   ret
 
 
-.globl asm_instruction_INY
-.globl asm_instruction_INY_END
-asm_instruction_INY:
+.globl ASM_SYM(asm_instruction_INY)
+.globl ASM_SYM(asm_instruction_INY_END)
+ASM_SYM(asm_instruction_INY):
 
   add REG_6502_Y, REG_6502_Y, #1
   and REG_6502_Y, REG_6502_Y, #0xFF
 
-asm_instruction_INY_END:
+ASM_SYM(asm_instruction_INY_END):
   ret
 
 
-.globl asm_instruction_NOP
-.globl asm_instruction_NOP_END
-asm_instruction_NOP:
+.globl ASM_SYM(asm_instruction_NOP)
+.globl ASM_SYM(asm_instruction_NOP_END)
+ASM_SYM(asm_instruction_NOP):
 
   nop
 
-asm_instruction_NOP_END:
+ASM_SYM(asm_instruction_NOP_END):
   ret
 
 
-.globl asm_instruction_PHA
-.globl asm_instruction_PHA_END
-asm_instruction_PHA:
+.globl ASM_SYM(asm_instruction_PHA)
+.globl ASM_SYM(asm_instruction_PHA_END)
+ASM_SYM(asm_instruction_PHA):
 
   strb REG_6502_A_32, [REG_MEM_STACK, REG_6502_S]
   sub REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
 
-asm_instruction_PHA_END:
+ASM_SYM(asm_instruction_PHA_END):
   ret
 
 
-.globl asm_instruction_PLA
-.globl asm_instruction_PLA_END
-asm_instruction_PLA:
+.globl ASM_SYM(asm_instruction_PLA)
+.globl ASM_SYM(asm_instruction_PLA_END)
+ASM_SYM(asm_instruction_PLA):
 
   add REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
   ldrb REG_6502_A_32, [REG_MEM_STACK, REG_6502_S]
 
-asm_instruction_PLA_END:
+ASM_SYM(asm_instruction_PLA_END):
   ret
 
 
-.globl asm_instruction_SEC
-.globl asm_instruction_SEC_END
-asm_instruction_SEC:
+.globl ASM_SYM(asm_instruction_SEC)
+.globl ASM_SYM(asm_instruction_SEC_END)
+ASM_SYM(asm_instruction_SEC):
 
   movz REG_6502_CF, #1
 
-asm_instruction_SEC_END:
+ASM_SYM(asm_instruction_SEC_END):
   ret
 
 
-.globl asm_instruction_SED
-.globl asm_instruction_SED_END
-asm_instruction_SED:
+.globl ASM_SYM(asm_instruction_SED)
+.globl ASM_SYM(asm_instruction_SED_END)
+ASM_SYM(asm_instruction_SED):
 
   orr REG_6502_ID_F, REG_6502_ID_F, #0x08
 
-asm_instruction_SED_END:
+ASM_SYM(asm_instruction_SED_END):
   ret
 
 
-.globl asm_instruction_SEI
-.globl asm_instruction_SEI_END
-asm_instruction_SEI:
+.globl ASM_SYM(asm_instruction_SEI)
+.globl ASM_SYM(asm_instruction_SEI_END)
+ASM_SYM(asm_instruction_SEI):
 
   orr REG_6502_ID_F, REG_6502_ID_F, #0x04
 
-asm_instruction_SEI_END:
+ASM_SYM(asm_instruction_SEI_END):
   ret
 
 
-.globl asm_instruction_TAX
-.globl asm_instruction_TAX_END
-asm_instruction_TAX:
+.globl ASM_SYM(asm_instruction_TAX)
+.globl ASM_SYM(asm_instruction_TAX_END)
+ASM_SYM(asm_instruction_TAX):
 
   mov REG_6502_X, REG_6502_A
 
-asm_instruction_TAX_END:
+ASM_SYM(asm_instruction_TAX_END):
   ret
 
 
-.globl asm_instruction_TAY
-.globl asm_instruction_TAY_END
-asm_instruction_TAY:
+.globl ASM_SYM(asm_instruction_TAY)
+.globl ASM_SYM(asm_instruction_TAY_END)
+ASM_SYM(asm_instruction_TAY):
 
   mov REG_6502_Y, REG_6502_A
 
-asm_instruction_TAY_END:
+ASM_SYM(asm_instruction_TAY_END):
   ret
 
 
-.globl asm_instruction_TSX
-.globl asm_instruction_TSX_END
-asm_instruction_TSX:
+.globl ASM_SYM(asm_instruction_TSX)
+.globl ASM_SYM(asm_instruction_TSX_END)
+ASM_SYM(asm_instruction_TSX):
 
   mov REG_6502_X, REG_6502_S
 
-asm_instruction_TSX_END:
+ASM_SYM(asm_instruction_TSX_END):
   ret
 
 
-.globl asm_instruction_TXA
-.globl asm_instruction_TXA_END
-asm_instruction_TXA:
+.globl ASM_SYM(asm_instruction_TXA)
+.globl ASM_SYM(asm_instruction_TXA_END)
+ASM_SYM(asm_instruction_TXA):
 
   mov REG_6502_A, REG_6502_X
 
-asm_instruction_TXA_END:
+ASM_SYM(asm_instruction_TXA_END):
   ret
 
 
-.globl asm_instruction_TXS
-.globl asm_instruction_TXS_END
-asm_instruction_TXS:
+.globl ASM_SYM(asm_instruction_TXS)
+.globl ASM_SYM(asm_instruction_TXS_END)
+ASM_SYM(asm_instruction_TXS):
 
   mov REG_6502_S, REG_6502_X
 
-asm_instruction_TXS_END:
+ASM_SYM(asm_instruction_TXS_END):
   ret
 
 
-.globl asm_instruction_TYA
-.globl asm_instruction_TYA_END
-asm_instruction_TYA:
+.globl ASM_SYM(asm_instruction_TYA)
+.globl ASM_SYM(asm_instruction_TYA_END)
+ASM_SYM(asm_instruction_TYA):
 
   mov REG_6502_A, REG_6502_Y
 
-asm_instruction_TYA_END:
+ASM_SYM(asm_instruction_TYA_END):
   ret
 
 
-.globl asm_instruction_A_NZ_flags
-.globl asm_instruction_A_NZ_flags_END
-asm_instruction_A_NZ_flags:
+.globl ASM_SYM(asm_instruction_A_NZ_flags)
+.globl ASM_SYM(asm_instruction_A_NZ_flags_END)
+ASM_SYM(asm_instruction_A_NZ_flags):
 
   adds xzr, xzr, REG_6502_A, lsl #56
 
-asm_instruction_A_NZ_flags_END:
+ASM_SYM(asm_instruction_A_NZ_flags_END):
   ret
 
 
-.globl asm_instruction_X_NZ_flags
-.globl asm_instruction_X_NZ_flags_END
-asm_instruction_X_NZ_flags:
+.globl ASM_SYM(asm_instruction_X_NZ_flags)
+.globl ASM_SYM(asm_instruction_X_NZ_flags_END)
+ASM_SYM(asm_instruction_X_NZ_flags):
 
   adds xzr, xzr, REG_6502_X, lsl #56
 
-asm_instruction_X_NZ_flags_END:
+ASM_SYM(asm_instruction_X_NZ_flags_END):
   ret
 
 
-.globl asm_instruction_Y_NZ_flags
-.globl asm_instruction_Y_NZ_flags_END
-asm_instruction_Y_NZ_flags:
+.globl ASM_SYM(asm_instruction_Y_NZ_flags)
+.globl ASM_SYM(asm_instruction_Y_NZ_flags_END)
+ASM_SYM(asm_instruction_Y_NZ_flags):
 
   adds xzr, xzr, REG_6502_Y, lsl #56
 
-asm_instruction_Y_NZ_flags_END:
+ASM_SYM(asm_instruction_Y_NZ_flags_END):
   ret
 
 
-.globl asm_save_AXYS_PC_flags
-.globl asm_save_AXYS_PC_flags_END
-asm_save_AXYS_PC_flags:
+.globl ASM_SYM(asm_save_AXYS_PC_flags)
+.globl ASM_SYM(asm_save_AXYS_PC_flags_END)
+ASM_SYM(asm_save_AXYS_PC_flags):
   # x29 is currently REG_JIT_COMPILE, which is safe to use temporarily.
   stp x29, x30, [sp, #-16]!
   ldr x29, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
@@ -319,19 +320,19 @@ asm_save_AXYS_PC_flags:
   str REG_6502_PC_32, [x29, #K_STATE_6502_OFFSET_REG_PC]
   str REG_VALUE_32, [x29, #K_STATE_6502_OFFSET_REG_HOST_VALUE]
 
-  bl asm_emit_arm64_flags_to_scratch
+  bl ASM_SYM(asm_emit_arm64_flags_to_scratch)
   str REG_SCRATCH1_32, [x29, #K_STATE_6502_OFFSET_REG_FLAGS]
 
   ldp x29, x30, [sp], #16
   ret
 
-asm_save_AXYS_PC_flags_END:
+ASM_SYM(asm_save_AXYS_PC_flags_END):
   ret
 
 
-.globl asm_restore_AXYS_PC_flags
-.globl asm_restore_AXYS_PC_flags_END
-asm_restore_AXYS_PC_flags:
+.globl ASM_SYM(asm_restore_AXYS_PC_flags)
+.globl ASM_SYM(asm_restore_AXYS_PC_flags_END)
+ASM_SYM(asm_restore_AXYS_PC_flags):
   # x29 is currently REG_JIT_COMPILE, which is safe to use temporarily.
   stp x29, x30, [sp, #-16]!
   ldr x29, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
@@ -343,18 +344,18 @@ asm_restore_AXYS_PC_flags:
   ldr REG_VALUE_32, [x29, #K_STATE_6502_OFFSET_REG_HOST_VALUE]
 
   ldr REG_SCRATCH1_32, [x29, #K_STATE_6502_OFFSET_REG_FLAGS]
-  bl asm_set_arm64_flags_from_scratch
+  bl ASM_SYM(asm_set_arm64_flags_from_scratch)
 
   ldp x29, x30, [sp], #16
   ret
 
-asm_restore_AXYS_PC_flags_END:
+ASM_SYM(asm_restore_AXYS_PC_flags_END):
   ret
 
 
-.globl asm_emit_arm64_flags_to_scratch
-.globl asm_emit_arm64_flags_to_scratch_END
-asm_emit_arm64_flags_to_scratch:
+.globl ASM_SYM(asm_emit_arm64_flags_to_scratch)
+.globl ASM_SYM(asm_emit_arm64_flags_to_scratch_END)
+ASM_SYM(asm_emit_arm64_flags_to_scratch):
   orr REG_SCRATCH1, REG_6502_ID_F, #0x20
 
   cset REG_SCRATCH2, eq
@@ -368,13 +369,13 @@ asm_emit_arm64_flags_to_scratch:
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   orr REG_SCRATCH1, REG_SCRATCH1, REG_6502_CF
 
-asm_emit_arm64_flags_to_scratch_END:
+ASM_SYM(asm_emit_arm64_flags_to_scratch_END):
   ret
 
 
-.globl asm_set_arm64_flags_from_scratch
-.globl asm_set_arm64_flags_from_scratch_END
-asm_set_arm64_flags_from_scratch:
+.globl ASM_SYM(asm_set_arm64_flags_from_scratch)
+.globl ASM_SYM(asm_set_arm64_flags_from_scratch_END)
+ASM_SYM(asm_set_arm64_flags_from_scratch):
   and REG_6502_ID_F, REG_SCRATCH1, 0x0C
 
   # Use REG_6502_CF and REG_6502_OF as temporaries until they are set below.
@@ -390,47 +391,47 @@ asm_set_arm64_flags_from_scratch:
   ubfx REG_6502_CF, REG_SCRATCH1, #0, #1
   ubfx REG_6502_OF, REG_SCRATCH1, #6, #1
 
-asm_set_arm64_flags_from_scratch_END:
+ASM_SYM(asm_set_arm64_flags_from_scratch_END):
   ret
 
 
-.globl asm_set_brk_flag_in_scratch
-.globl asm_set_brk_flag_in_scratch_END
-asm_set_brk_flag_in_scratch:
+.globl ASM_SYM(asm_set_brk_flag_in_scratch)
+.globl ASM_SYM(asm_set_brk_flag_in_scratch_END)
+ASM_SYM(asm_set_brk_flag_in_scratch):
 
   orr REG_SCRATCH1, REG_SCRATCH1, #0x10
 
-asm_set_brk_flag_in_scratch_END:
+ASM_SYM(asm_set_brk_flag_in_scratch_END):
   ret
 
 
-.globl asm_push_from_scratch
-.globl asm_push_from_scratch_END
-asm_push_from_scratch:
+.globl ASM_SYM(asm_push_from_scratch)
+.globl ASM_SYM(asm_push_from_scratch_END)
+ASM_SYM(asm_push_from_scratch):
 
   strb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
   sub REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
 
-asm_push_from_scratch_END:
+ASM_SYM(asm_push_from_scratch_END):
   ret
 
 
-.globl asm_pull_to_scratch
-.globl asm_pull_to_scratch_END
-asm_pull_to_scratch:
+.globl ASM_SYM(asm_pull_to_scratch)
+.globl ASM_SYM(asm_pull_to_scratch_END)
+ASM_SYM(asm_pull_to_scratch):
 
   add REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
   ldrb REG_SCRATCH1_32, [REG_MEM_STACK, REG_6502_S]
 
-asm_pull_to_scratch_END:
+ASM_SYM(asm_pull_to_scratch_END):
   ret
 
 
-.globl asm_pull_word_to_scratch
-.globl asm_pull_word_to_scratch_END
-asm_pull_word_to_scratch:
+.globl ASM_SYM(asm_pull_word_to_scratch)
+.globl ASM_SYM(asm_pull_word_to_scratch_END)
+ASM_SYM(asm_pull_word_to_scratch):
 
   add REG_6502_S, REG_6502_S, #1
   and REG_6502_S, REG_6502_S, #0xFF
@@ -441,12 +442,12 @@ asm_pull_word_to_scratch:
   lsl REG_SCRATCH1, REG_SCRATCH1, #8
   orr REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
 
-asm_pull_word_to_scratch_END:
+ASM_SYM(asm_pull_word_to_scratch_END):
   ret
 
 
-.globl asm_exit
-asm_exit:
+.globl ASM_SYM(asm_exit)
+ASM_SYM(asm_exit):
   # Restore callee save registers.
   ldp x21, x22, [sp], #16
   ldp x23, x24, [sp], #16
@@ -456,31 +457,31 @@ asm_exit:
   ldp x29, x30, [sp], #16
   ret
 
-asm_exit_END:
+ASM_SYM(asm_exit_END):
   ret
 
 
-.globl asm_debug
-.globl asm_debug_END
-asm_debug:
+.globl ASM_SYM(asm_debug)
+.globl ASM_SYM(asm_debug_END)
+ASM_SYM(asm_debug):
   stp x29, x30, [sp, #-16]!
   # Save the host flags because carry / overflow save elimination can leave
   # state there.
   mrs x29, nzcv
 
-  bl asm_save_AXYS_PC_flags
+  bl ASM_SYM(asm_save_AXYS_PC_flags)
 
   mov REG_PARAM1, REG_CONTEXT
   movz REG_PARAM2, #0
   ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_DEBUG_CALLBACK]
   blr REG_SCRATCH1
 
-  bl asm_restore_AXYS_PC_flags
+  bl ASM_SYM(asm_restore_AXYS_PC_flags)
 
   # TODO: handle different 6502 PC!
   msr nzcv, x29
   ldp x29, x30, [sp], #16
   ret
 
-asm_debug_end:
+ASM_SYM(asm_debug_END):
   ret
