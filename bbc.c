@@ -1656,9 +1656,11 @@ bbc_destroy(struct bbc_struct* p_bbc) {
   os_alloc_free_mapping(p_bbc->p_mapping_read);
   os_alloc_free_mapping(p_bbc->p_mapping_write);
   os_alloc_free_mapping(p_bbc->p_mapping_write_2);
-  os_alloc_free_mapping(p_bbc->p_mapping_read_ind);
-  os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
-  os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+  if (p_bbc->p_mapping_read_ind != NULL) {
+    os_alloc_free_mapping(p_bbc->p_mapping_read_ind);
+    os_alloc_free_mapping(p_bbc->p_mapping_write_ind);
+    os_alloc_free_mapping(p_bbc->p_mapping_write_ind_2);
+  }
   os_alloc_free_memory_handle(p_bbc->mem_handle);
 
   os_time_free_sleeper(p_bbc->p_sleeper);
