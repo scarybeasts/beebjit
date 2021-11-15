@@ -10,21 +10,23 @@
 .p2align 2
 
 
-.globl ASM_SYM(asm_enter_common)
-.globl ASM_SYM(asm_enter_common_END)
-ASM_SYM(asm_enter_common):
-  stp x29, x30, [sp, #-16]!
-
-  # param1, x0 == context
-  # param2, x1 == ARM64 start address
-  # param3, x2 == countdown
-  # param4, x3 == mem base
-
+.globl ASM_SYM(asm_common_save_callee_regs)
+ASM_SYM(asm_common_save_callee_regs):
   # Save callee save registers.
   stp x27, x28, [sp, #-16]!
   stp x25, x26, [sp, #-16]!
   stp x23, x24, [sp, #-16]!
   stp x21, x22, [sp, #-16]!
+  ret
+
+
+.globl ASM_SYM(asm_common_enter)
+.globl ASM_SYM(asm_common_enter_END)
+ASM_SYM(asm_common_enter):
+  # param1, x0 == context
+  # param2, x1 == ARM64 start address
+  # param3, x2 == countdown
+  # param4, x3 == mem base
 
   mov REG_CONTEXT, REG_PARAM1
   # Temporary storage for the final jump location.
@@ -44,7 +46,7 @@ ASM_SYM(asm_enter_common):
 
   br REG_SCRATCH2
 
-ASM_SYM(asm_enter_common_END):
+ASM_SYM(asm_common_enter_END):
   ret
 
 
@@ -446,8 +448,8 @@ ASM_SYM(asm_pull_word_to_scratch_END):
   ret
 
 
-.globl ASM_SYM(asm_exit)
-ASM_SYM(asm_exit):
+.globl ASM_SYM(asm_common_exit)
+ASM_SYM(asm_common_exit):
   # Restore callee save registers.
   ldp x21, x22, [sp], #16
   ldp x23, x24, [sp], #16
@@ -457,7 +459,7 @@ ASM_SYM(asm_exit):
   ldp x29, x30, [sp], #16
   ret
 
-ASM_SYM(asm_exit_END):
+ASM_SYM(asm_common_exit_END):
   ret
 
 

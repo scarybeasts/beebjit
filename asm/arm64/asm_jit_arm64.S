@@ -13,6 +13,9 @@
 .globl ASM_SYM(asm_jit_enter)
 .globl ASM_SYM(asm_jit_enter_END)
 ASM_SYM(asm_jit_enter):
+  stp x29, x30, [sp, #-16]!
+  bl ASM_SYM(asm_common_save_callee_regs)
+
   movz REG_MEM_READ, #(K_BBC_MEM_OFFSET_TO_READ_FULL >> 16), lsl #16
   movk REG_MEM_READ, #(K_BBC_MEM_OFFSET_TO_READ_FULL & 0xFFFF)
   add REG_MEM_READ, REG_PARAM4, REG_MEM_READ
@@ -23,7 +26,7 @@ ASM_SYM(asm_jit_enter):
   # REG_PARAM1 is REG_CONTEXT.
   add REG_JIT_PTRS, REG_PARAM1, #K_JIT_CONTEXT_OFFSET_JIT_PTRS
 
-  b ASM_SYM(asm_enter_common)
+  b ASM_SYM(asm_common_enter)
 
 ASM_SYM(asm_jit_enter_END):
   ret
@@ -85,7 +88,7 @@ ASM_SYM(asm_jit_interp_trampoline):
   tst REG_SCRATCH1, REG_SCRATCH1
   b.eq not_exiting
   mov REG_RETURN, REG_SCRATCH1
-  b ASM_SYM(asm_exit)
+  b ASM_SYM(asm_common_exit)
 
 ASM_SYM(asm_jit_interp_trampoline_END):
   ret

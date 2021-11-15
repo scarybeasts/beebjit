@@ -276,7 +276,6 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   jit_compiler_destroy(p_jit->p_compiler);
 
   os_alloc_free_mapping(p_jit->p_mapping_jit);
-  os_alloc_free_mapping(p_jit->p_mapping_no_code_ptr);
 
   os_alloc_free_aligned(p_cpu_driver);
 }

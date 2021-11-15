@@ -12,9 +12,12 @@
 .globl ASM_SYM(asm_inturbo_enter)
 .globl ASM_SYM(asm_inturbo_enter_END)
 ASM_SYM(asm_inturbo_enter):
+  stp x29, x30, [sp, #-16]!
+  bl ASM_SYM(asm_common_save_callee_regs)
+
   mov REG_MEM_READ, REG_PARAM4
 
-  b ASM_SYM(asm_enter_common)
+  b ASM_SYM(asm_common_enter)
 
 ASM_SYM(asm_inturbo_enter_END):
   ret
@@ -200,7 +203,7 @@ ASM_SYM(asm_inturbo_call_interp):
   b.eq not_exiting
   mov REG_RETURN, REG_SCRATCH1
   ldp x29, x30, [sp], #16
-  b ASM_SYM(asm_exit)
+  b ASM_SYM(asm_common_exit)
 
 ASM_SYM(asm_inturbo_call_interp_END):
   ret
