@@ -168,12 +168,14 @@ cpu_driver_alloc(int mode,
     if (p_cpu_driver == NULL) {
       util_bail("interp_create() failed");
     }
+    mode = k_cpu_mode_interp;
   }
 
   asm_abi_init(&p_cpu_driver->abi, p_memory_access, p_options, p_state_6502);
   defs_6502_init();
 
   p_cpu_driver->p_extra = p_extra;
+  p_extra->type = mode;
   p_extra->p_memory_access = p_memory_access;
   p_extra->p_timing = p_timing;
   p_extra->p_options = p_options;

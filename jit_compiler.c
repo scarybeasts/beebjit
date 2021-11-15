@@ -13,6 +13,7 @@
 
 #include "asm/asm_common.h"
 #include "asm/asm_defs_host.h"
+#include "asm/asm_inturbo.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
 #include "asm/asm_opcodes.h"
@@ -193,6 +194,11 @@ jit_compiler_create(struct asm_jit_struct* p_asm,
       util_has_option(p_options->p_opt_flags, "jit:no-dynamic-opcode");
   p_compiler->option_no_sub_instruction =
       util_has_option(p_options->p_opt_flags, "jit:no-sub-instruction");
+
+  if (!asm_inturbo_is_enabled()) {
+    p_compiler->option_no_dynamic_opcode = 1;
+    p_compiler->option_no_sub_instruction = 1;
+  }
 
   p_compiler->log_dynamic = util_has_option(p_options->p_log_flags,
                                             "jit:dynamic");

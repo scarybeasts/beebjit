@@ -16,6 +16,7 @@
 
 #include "asm/asm_common.h"
 #include "asm/asm_defs_host.h"
+#include "asm/asm_inturbo.h"
 #include "asm/asm_inturbo_defs.h"
 #include "asm/asm_jit.h"
 #include "asm/asm_jit_defs.h"
@@ -265,7 +266,9 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
 
   os_alloc_free_mapping(p_jit->p_mapping_no_code_ptr);
 
-  p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
+  if (p_inturbo_cpu_driver != NULL) {
+    p_inturbo_cpu_driver->p_funcs->destroy(p_inturbo_cpu_driver);
+  }
   p_interp_cpu_driver->p_funcs->destroy(p_interp_cpu_driver);
 
   util_buffer_destroy(p_jit->p_temp_buf);
@@ -273,6 +276,7 @@ jit_destroy(struct cpu_driver* p_cpu_driver) {
   jit_compiler_destroy(p_jit->p_compiler);
 
   os_alloc_free_mapping(p_jit->p_mapping_jit);
+  os_alloc_free_mapping(p_jit->p_mapping_no_code_ptr);
 
   os_alloc_free_aligned(p_cpu_driver);
 }
@@ -767,7 +771,6 @@ jit_handle_fault(uintptr_t* p_host_pc,
 static void
 jit_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
-  struct inturbo_struct* p_inturbo;
   uint8_t* p_jit_base;
   struct util_buffer* p_temp_buf;
   void* p_no_code_mapping_addr;
@@ -781,6 +784,7 @@ jit_init(struct cpu_driver* p_cpu_driver) {
   void* p_debug_object = p_options->p_debug_object;
   int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
+  struct inturbo_struct* p_inturbo = NULL;
 
   p_jit->log_compile = util_has_option(p_options->p_log_flags, "jit:compile");
   p_funcs->get_opcode_maps(p_cpu_driver,
@@ -814,25 +818,31 @@ jit_init(struct cpu_driver* p_cpu_driver) {
                                                       p_memory_access,
                                                       p_timing,
                                                       p_options);
+  assert(((struct cpu_driver*) p_interp)->p_extra->type == k_cpu_mode_interp);
   cpu_driver_init((struct cpu_driver*) p_interp);
   p_jit->p_interp = p_interp;
 
   /* The JIT mode uses an inturbo to handle opcodes that are self-modified
    * continually.
    */
-  p_inturbo = (struct inturbo_struct*) cpu_driver_alloc(k_cpu_mode_inturbo,
-                                                        0,
-                                                        p_state_6502,
-                                                        p_memory_access,
-                                                        p_timing,
-                                                        p_options);
-  inturbo_set_interp(p_inturbo, p_interp);
-  /* Enable inturbo ret mode, which means we can call it to interpret a single
-   * instruction and it will ret right back to us after every instruction.
-   */
-  inturbo_set_ret_mode(p_inturbo);
-  inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
-  cpu_driver_init((struct cpu_driver*) p_inturbo);
+  if (asm_inturbo_is_enabled()) {
+    struct cpu_driver* p_inturbo_driver;
+    p_inturbo = (struct inturbo_struct*) cpu_driver_alloc(k_cpu_mode_inturbo,
+                                                          0,
+                                                          p_state_6502,
+                                                          p_memory_access,
+                                                          p_timing,
+                                                          p_options);
+    p_inturbo_driver = (struct cpu_driver*) p_inturbo;
+    assert(p_inturbo_driver->p_extra->type == k_cpu_mode_inturbo);
+    inturbo_set_interp(p_inturbo, p_interp);
+    /* Enable inturbo ret mode, which means we can call it to interpret a single
+     * instruction and it will ret right back to us after every instruction.
+     */
+    inturbo_set_ret_mode(p_inturbo);
+    inturbo_set_do_write_invalidation(p_inturbo, &p_jit->jit_ptrs[0]);
+    cpu_driver_init(p_inturbo_driver);
+  }
   p_jit->p_inturbo = p_inturbo;
 
   p_jit->driver.abi.p_interp_callback = jit_enter_interp;

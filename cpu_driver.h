@@ -59,6 +59,7 @@ struct cpu_driver_extra {
   struct memory_access* p_memory_access;
   struct timing_struct* p_timing;
   struct bbc_options* p_options;
+  int32_t type;
 };
 
 struct cpu_driver {
