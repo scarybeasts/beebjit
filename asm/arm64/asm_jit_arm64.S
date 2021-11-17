@@ -118,9 +118,13 @@ ASM_SYM(asm_jit_call_inturbo):
   # Save JIT context register and load inturbo context register.
   stp REG_CONTEXT, x30, [sp, #-16]!
   ldr REG_CONTEXT, [REG_CONTEXT, #K_JIT_CONTEXT_OFFSET_INTURBO]
+  # Twiddle registers from "JIT" to "inturbo".
+  stp REG_JIT_COMPILE, REG_JIT_PTRS, [sp, #-16]!
+  ldr REG_INTURBO_INTERP, [REG_CONTEXT, #K_CONTEXT_OFFSET_INTERP_ASM]
 
   # Call inturbo and restore.
   blr REG_SCRATCH1
+  ldp REG_JIT_COMPILE, REG_JIT_PTRS, [sp], #16
   ldp REG_CONTEXT, x30, [sp], #16
 
   # Calculate new JIT code address and jump.

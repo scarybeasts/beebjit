@@ -134,6 +134,7 @@ ASM_SYM(asm_inturbo_ret_END):
 ASM_SYM(asm_inturbo_do_write_invalidation):
   ldr REG_SCRATCH2, [REG_CONTEXT]
   ldr REG_SCRATCH2_32, [REG_SCRATCH2, REG_SCRATCH1, lsl #2]
+  orr REG_SCRATCH2, REG_SCRATCH2, #K_JIT_ADDR
   str REG_SCRATCH2_32, [REG_SCRATCH2]
 
 ASM_SYM(asm_inturbo_do_write_invalidation_END):
