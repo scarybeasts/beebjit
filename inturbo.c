@@ -311,10 +311,10 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_instruction_DEC_scratch_interp(p_buf);
     break;
   case k_dex:
-    asm_emit_instruction_DEX(p_buf);
+    asm_emit_inturbo_DEX(p_buf);
     break;
   case k_dey:
-    asm_emit_instruction_DEY(p_buf);
+    asm_emit_inturbo_DEY(p_buf);
     break;
   case k_eor:
     if (opmode == k_imm) {
@@ -327,10 +327,10 @@ inturbo_generate_opcode(struct inturbo_struct* p_inturbo,
     asm_emit_instruction_INC_scratch_interp(p_buf);
     break;
   case k_inx:
-    asm_emit_instruction_INX(p_buf);
+    asm_emit_inturbo_INX(p_buf);
     break;
   case k_iny:
-    asm_emit_instruction_INY(p_buf);
+    asm_emit_inturbo_INY(p_buf);
     break;
   case k_jmp:
     asm_emit_instruction_JMP_scratch_interp(p_buf);

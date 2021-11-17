@@ -46,7 +46,9 @@ ASM_SYM(asm_inturbo_check_special_address_movz_END):
 .globl ASM_SYM(asm_inturbo_check_special_address_sub_and_tbz_END)
 ASM_SYM(asm_inturbo_check_special_address_sub_and_tbz):
   sub REG_INTURBO_SCRATCH3, REG_SCRATCH1, REG_INTURBO_SCRATCH3
-  tbz REG_INTURBO_SCRATCH3, #16, _asm_inturbo_check_special_address_sub_and_tbz
+  tbz REG_INTURBO_SCRATCH3, \
+      #16, \
+      ASM_SYM(asm_inturbo_check_special_address_sub_and_tbz)
 
 ASM_SYM(asm_inturbo_check_special_address_sub_and_tbz_END):
   ret
@@ -57,7 +59,9 @@ ASM_SYM(asm_inturbo_check_special_address_sub_and_tbz_END):
 .globl ASM_SYM(asm_inturbo_check_and_commit_countdown_mov)
 .globl ASM_SYM(asm_inturbo_check_and_commit_countdown_mov_END)
 ASM_SYM(asm_inturbo_check_and_commit_countdown_tbnz):
-  tbnz REG_INTURBO_SCRATCH3, #63, _asm_inturbo_check_and_commit_countdown_tbnz
+  tbnz REG_INTURBO_SCRATCH3, \
+       #63, \
+       ASM_SYM(asm_inturbo_check_and_commit_countdown_tbnz)
 
 ASM_SYM(asm_inturbo_check_and_commit_countdown_tbnz_END):
   ret
@@ -81,7 +85,7 @@ ASM_SYM(asm_inturbo_commit_branch_END):
 .globl ASM_SYM(asm_inturbo_check_decimal_tbnz)
 .globl ASM_SYM(asm_inturbo_check_decimal_tbnz_END)
 ASM_SYM(asm_inturbo_check_decimal_tbnz):
-  tbnz REG_6502_ID_F, #3, _asm_inturbo_check_decimal_tbnz
+  tbnz REG_6502_ID_F, #3, ASM_SYM(asm_inturbo_check_decimal_tbnz)
 
 ASM_SYM(asm_inturbo_check_decimal_tbnz_END):
   ret
@@ -92,7 +96,7 @@ ASM_SYM(asm_inturbo_check_decimal_tbnz_END):
 ASM_SYM(asm_inturbo_check_interrupt_cbnz):
   ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_STATE_6502]
   ldr REG_SCRATCH1_32, [REG_SCRATCH1, #K_STATE_6502_OFFSET_REG_IRQ_FIRE]
-  cbnz REG_SCRATCH1, _asm_inturbo_check_interrupt_cbnz
+  cbnz REG_SCRATCH1, ASM_SYM(asm_inturbo_check_interrupt_cbnz)
 
 ASM_SYM(asm_inturbo_check_interrupt_cbnz_END):
   ret
@@ -458,7 +462,7 @@ ASM_SYM(asm_instruction_ASL_scratch_interp_END):
 .globl ASM_SYM(asm_instruction_BCC_interp)
 .globl ASM_SYM(asm_instruction_BCC_interp_END)
 ASM_SYM(asm_instruction_BCC_interp):
-  tbnz REG_6502_CF, #0, _asm_instruction_BCC_interp_END
+  tbnz REG_6502_CF, #0, ASM_SYM(asm_instruction_BCC_interp_END)
   mov REG_SCRATCH1, REG_SCRATCH2
 
 ASM_SYM(asm_instruction_BCC_interp_END):
@@ -468,7 +472,7 @@ ASM_SYM(asm_instruction_BCC_interp_END):
 .globl ASM_SYM(asm_instruction_BCC_interp_accurate)
 .globl ASM_SYM(asm_instruction_BCC_interp_accurate_END)
 ASM_SYM(asm_instruction_BCC_interp_accurate):
-  tbnz REG_6502_CF, #0, _asm_instruction_BCC_interp_accurate_END
+  tbnz REG_6502_CF, #0, ASM_SYM(asm_instruction_BCC_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -482,7 +486,7 @@ ASM_SYM(asm_instruction_BCC_interp_accurate_END):
 .globl ASM_SYM(asm_instruction_BCS_interp)
 .globl ASM_SYM(asm_instruction_BCS_interp_END)
 ASM_SYM(asm_instruction_BCS_interp):
-  tbz REG_6502_CF, #0, _asm_instruction_BCS_interp_END
+  tbz REG_6502_CF, #0, ASM_SYM(asm_instruction_BCS_interp_END)
   mov REG_SCRATCH1, REG_SCRATCH2
 
 ASM_SYM(asm_instruction_BCS_interp_END):
@@ -492,7 +496,7 @@ ASM_SYM(asm_instruction_BCS_interp_END):
 .globl ASM_SYM(asm_instruction_BCS_interp_accurate)
 .globl ASM_SYM(asm_instruction_BCS_interp_accurate_END)
 ASM_SYM(asm_instruction_BCS_interp_accurate):
-  tbz REG_6502_CF, #0, _asm_instruction_BCS_interp_accurate_END
+  tbz REG_6502_CF, #0, ASM_SYM(asm_instruction_BCS_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -515,7 +519,7 @@ ASM_SYM(asm_instruction_BEQ_interp_END):
 .globl ASM_SYM(asm_instruction_BEQ_interp_accurate)
 .globl ASM_SYM(asm_instruction_BEQ_interp_accurate_END)
 ASM_SYM(asm_instruction_BEQ_interp_accurate):
-  b.ne _asm_instruction_BEQ_interp_accurate_END
+  b.ne ASM_SYM(asm_instruction_BEQ_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -529,7 +533,7 @@ ASM_SYM(asm_instruction_BEQ_interp_accurate_END):
 .globl ASM_SYM(asm_instruction_BIT_interp)
 .globl ASM_SYM(asm_instruction_BIT_interp_END)
 ASM_SYM(asm_instruction_BIT_interp):
-  ldrb REG_SCRATCH2_32, [REG_MEM_READ, REG_SCRATCH1]
+  ldrb REG_VALUE_32, [REG_MEM_READ, REG_SCRATCH1]
 
 ASM_SYM(asm_instruction_BIT_interp_END):
   ret
@@ -547,7 +551,7 @@ ASM_SYM(asm_instruction_BMI_interp_END):
 .globl ASM_SYM(asm_instruction_BMI_interp_accurate)
 .globl ASM_SYM(asm_instruction_BMI_interp_accurate_END)
 ASM_SYM(asm_instruction_BMI_interp_accurate):
-  b.pl _asm_instruction_BMI_interp_accurate_END
+  b.pl ASM_SYM(asm_instruction_BMI_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -570,7 +574,7 @@ ASM_SYM(asm_instruction_BNE_interp_END):
 .globl ASM_SYM(asm_instruction_BNE_interp_accurate)
 .globl ASM_SYM(asm_instruction_BNE_interp_accurate_END)
 ASM_SYM(asm_instruction_BNE_interp_accurate):
-  b.eq _asm_instruction_BNE_interp_accurate_END
+  b.eq ASM_SYM(asm_instruction_BNE_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -593,7 +597,7 @@ ASM_SYM(asm_instruction_BPL_interp_END):
 .globl ASM_SYM(asm_instruction_BPL_interp_accurate)
 .globl ASM_SYM(asm_instruction_BPL_interp_accurate_END)
 ASM_SYM(asm_instruction_BPL_interp_accurate):
-  b.mi _asm_instruction_BPL_interp_accurate_END
+  b.mi ASM_SYM(asm_instruction_BPL_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -607,7 +611,7 @@ ASM_SYM(asm_instruction_BPL_interp_accurate_END):
 .globl ASM_SYM(asm_instruction_BVC_interp)
 .globl ASM_SYM(asm_instruction_BVC_interp_END)
 ASM_SYM(asm_instruction_BVC_interp):
-  tbnz REG_6502_OF, #0, _asm_instruction_BVC_interp_END
+  tbnz REG_6502_OF, #0, ASM_SYM(asm_instruction_BVC_interp_END)
   mov REG_SCRATCH1, REG_SCRATCH2
 
 ASM_SYM(asm_instruction_BVC_interp_END):
@@ -617,7 +621,7 @@ ASM_SYM(asm_instruction_BVC_interp_END):
 .globl ASM_SYM(asm_instruction_BVC_interp_accurate)
 .globl ASM_SYM(asm_instruction_BVC_interp_accurate_END)
 ASM_SYM(asm_instruction_BVC_interp_accurate):
-  tbnz REG_6502_OF, #0, _asm_instruction_BVC_interp_accurate_END
+  tbnz REG_6502_OF, #0, ASM_SYM(asm_instruction_BVC_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
@@ -631,7 +635,7 @@ ASM_SYM(asm_instruction_BVC_interp_accurate_END):
 .globl ASM_SYM(asm_instruction_BVS_interp)
 .globl ASM_SYM(asm_instruction_BVS_interp_END)
 ASM_SYM(asm_instruction_BVS_interp):
-  tbz REG_6502_OF, #0, _asm_instruction_BVS_interp_END
+  tbz REG_6502_OF, #0, ASM_SYM(asm_instruction_BVS_interp_END)
   mov REG_SCRATCH1, REG_SCRATCH2
 
 ASM_SYM(asm_instruction_BVS_interp_END):
@@ -641,7 +645,7 @@ ASM_SYM(asm_instruction_BVS_interp_END):
 .globl ASM_SYM(asm_instruction_BVS_interp_accurate)
 .globl ASM_SYM(asm_instruction_BVS_interp_accurate_END)
 ASM_SYM(asm_instruction_BVS_interp_accurate):
-  tbz REG_6502_OF, #0, _asm_instruction_BVS_interp_accurate_END
+  tbz REG_6502_OF, #0, ASM_SYM(asm_instruction_BVS_interp_accurate_END)
   eor REG_SCRATCH1, REG_SCRATCH1, REG_SCRATCH2
   ubfx REG_SCRATCH1, REG_SCRATCH1, #8, #1
   add REG_SCRATCH1, REG_SCRATCH1, #1
