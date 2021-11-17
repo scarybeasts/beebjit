@@ -8,10 +8,6 @@ struct util_buffer;
 int asm_inturbo_is_enabled(void);
 void asm_inturbo_init(void);
 void asm_inturbo_destroy(void);
-uint32_t asm_inturbo_enter(void* p_context,
-                           uint32_t jump_addr_x64,
-                           int64_t countdown,
-                           void* p_mem_base);
 
 void asm_emit_inturbo_start_countdown(struct util_buffer* p_buf,
                                       uint8_t opcycles);
@@ -108,6 +104,12 @@ void asm_emit_instruction_STX_scratch_interp(struct util_buffer* p_buf);
 void asm_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf);
 
 /* Symbols pointing directly to ASM bytes. */
+uint32_t asm_inturbo_enter(void* p_context,
+                           void* p_start_address,
+                           int64_t countdown,
+                           void* p_mem_base);
+void asm_inturbo_interp_trampoline(void);
+
 void asm_inturbo_check_special_address();
 void asm_inturbo_check_special_address_END();
 void asm_inturbo_check_special_address_lea_patch();

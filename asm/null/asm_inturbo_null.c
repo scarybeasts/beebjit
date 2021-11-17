@@ -446,12 +446,16 @@ asm_emit_instruction_STY_scratch_interp(struct util_buffer* p_buf) {
 /* asm aymbols. */
 uint32_t
 asm_inturbo_enter(void* p_context,
-                  uint32_t jump_addr,
+                  void* p_start_address,
                   int64_t countdown,
                   void* p_mem_base) {
   (void) p_context;
-  (void) jump_addr;
+  (void) p_start_address;
   (void) countdown;
   (void) p_mem_base;
   return 0;
+}
+
+void
+asm_inturbo_interp_trampoline(void) {
 }

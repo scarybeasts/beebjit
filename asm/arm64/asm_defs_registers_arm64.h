@@ -38,5 +38,6 @@
 #define REG_MEM_READ              x27
 #define REG_MEM_WRITE             x28
 #define REG_JIT_COMPILE           x29
+#define REG_INTURBO_INTERP        x29
 
 #endif /* BEEBJIT_ASM_DEFS_REGISTERS_ARM64_H */

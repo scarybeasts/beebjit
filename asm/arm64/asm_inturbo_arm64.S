@@ -16,6 +16,7 @@ ASM_SYM(asm_inturbo_enter):
   bl ASM_SYM(asm_common_save_callee_regs)
 
   mov REG_MEM_READ, REG_PARAM4
+  ldr REG_INTURBO_INTERP, [REG_PARAM1, #K_CONTEXT_OFFSET_INTERP_ASM]
 
   b ASM_SYM(asm_common_enter)
 
@@ -146,45 +147,34 @@ ASM_SYM(asm_inturbo_jump_next_opcode_END):
   ret
 
 
-.globl ASM_SYM(asm_inturbo_enter_debug_pre)
-.globl ASM_SYM(asm_inturbo_enter_debug_pre_END)
-.globl ASM_SYM(asm_inturbo_enter_debug_branch)
-.globl ASM_SYM(asm_inturbo_enter_debug_branch_END)
-.globl ASM_SYM(asm_inturbo_enter_debug_post)
-.globl ASM_SYM(asm_inturbo_enter_debug_post_END)
-ASM_SYM(asm_inturbo_enter_debug_pre):
+.globl ASM_SYM(asm_inturbo_call_debug)
+.globl ASM_SYM(asm_inturbo_call_debug_END)
+ASM_SYM(asm_inturbo_call_debug):
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   stp x29, x30, [sp, #-16]!
 
-ASM_SYM(asm_inturbo_enter_debug_pre_END):
-  ret
+  ldr REG_SCRATCH1, [REG_CONTEXT, #K_CONTEXT_OFFSET_DEBUG_ASM]
+  blr REG_SCRATCH1
 
-ASM_SYM(asm_inturbo_enter_debug_branch):
-  bl ASM_SYM(asm_inturbo_enter_debug_branch)
-
-ASM_SYM(asm_inturbo_enter_debug_branch_END):
-  ret
-
-ASM_SYM(asm_inturbo_enter_debug_post):
   ldp x29, x30, [sp], #16
   add REG_6502_PC, REG_6502_PC, REG_MEM_READ
 
-ASM_SYM(asm_inturbo_enter_debug_post_END):
+ASM_SYM(asm_inturbo_call_debug_END):
   ret
 
 
-.globl ASM_SYM(asm_inturbo_jump_call_interp)
-.globl ASM_SYM(asm_inturbo_jump_call_interp_END)
-ASM_SYM(asm_inturbo_jump_call_interp):
-  b ASM_SYM(asm_inturbo_jump_call_interp)
+.globl ASM_SYM(asm_inturbo_jump_interp)
+.globl ASM_SYM(asm_inturbo_jump_interp_END)
+ASM_SYM(asm_inturbo_jump_interp):
+  br REG_INTURBO_INTERP
 
-ASM_SYM(asm_inturbo_jump_call_interp_END):
+ASM_SYM(asm_inturbo_jump_interp_END):
   ret
 
 
-.globl ASM_SYM(asm_inturbo_call_interp)
-.globl ASM_SYM(asm_inturbo_call_interp_END)
-ASM_SYM(asm_inturbo_call_interp):
+.globl ASM_SYM(asm_inturbo_interp_trampoline)
+.globl ASM_SYM(asm_inturbo_interp_trampoline_END)
+ASM_SYM(asm_inturbo_interp_trampoline):
   stp x29, x30, [sp, #-16]!
   sub REG_6502_PC, REG_6502_PC, REG_MEM_READ
   bl ASM_SYM(asm_save_AXYS_PC_flags)
@@ -205,7 +195,7 @@ ASM_SYM(asm_inturbo_call_interp):
   ldp x29, x30, [sp], #16
   b ASM_SYM(asm_common_exit)
 
-ASM_SYM(asm_inturbo_call_interp_END):
+ASM_SYM(asm_inturbo_interp_trampoline_END):
   ret
 
 not_exiting:

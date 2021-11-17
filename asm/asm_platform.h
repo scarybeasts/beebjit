@@ -11,9 +11,11 @@
 /* Has to be >4GB. */
 #define K_BBC_MEM_RAW_ADDR                 0x30f008000
 #define K_JIT_ADDR                         0x300000000
+#define K_INTURBO_ADDR                     0x400000000
 #else
 #define K_BBC_MEM_RAW_ADDR                 0x0f008000
 #define K_JIT_ADDR                         0x06000000
+#define K_INTURBO_ADDR                     0x07000000
 #endif
 
 #endif /* BEEBJIT_ASM_PLATFORM_H */

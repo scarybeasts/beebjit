@@ -734,8 +734,8 @@ inturbo_enter(struct cpu_driver* p_cpu_driver) {
   uint8_t* p_mem_read = p_cpu_driver->p_extra->p_memory_access->p_mem_read;
   struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   uint8_t opcode = p_mem_read[addr_6502];
-  uint32_t p_start_address =
-      (uint32_t) (size_t) (K_INTURBO_ADDR +
+  void* p_start_address =
+      (void*) (uintptr_t) (K_INTURBO_ADDR +
                            (opcode * K_INTURBO_OPCODE_SIZE));
 
   countdown = timing_get_countdown(p_timing);
@@ -851,6 +851,9 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_funcs->set_exit_value = inturbo_set_exit_value;
   p_funcs->get_address_info = inturbo_get_address_info;
 
+  p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
+  p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline;
+
   debug_subsystem_active = p_options->debug_active_at_addr(
       p_debug_object, 0xFFFF);
   p_inturbo->debug_subsystem_active = debug_subsystem_active;
@@ -880,12 +883,12 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
                                                    K_INTURBO_SIZE);
   p_inturbo->p_inturbo_base =
       os_alloc_get_mapping_addr(p_inturbo->p_mapping_base);
-  os_alloc_make_mapping_read_write_exec(p_inturbo->p_inturbo_base,
-                                        K_INTURBO_SIZE);
 
   asm_inturbo_init();
 
   inturbo_fill_tables(p_inturbo);
+
+  os_alloc_make_mapping_read_exec(p_inturbo->p_inturbo_base, K_INTURBO_SIZE);
 }
 
 struct cpu_driver*
