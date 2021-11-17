@@ -1116,3 +1116,14 @@ asm_instruction_STY_scratch_interp:
 
 asm_instruction_STY_scratch_interp_END:
   ret
+
+
+# Not called in the x64 model.
+.globl asm_inturbo_interp_trampoline
+.globl asm_inturbo_interp_trampoline_END
+asm_inturbo_interp_trampoline:
+  int 3
+  ret
+
+asm_inturbo_interp_trampoline_END:
+  ret

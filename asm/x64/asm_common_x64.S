@@ -538,3 +538,14 @@ asm_debug:
 
 asm_debug_END:
   ret
+
+
+# Not called in the x64 model.
+.globl asm_debug_trampoline
+.globl asm_debug_trampoline_END
+asm_debug_trampoline:
+  int 3
+  ret
+
+asm_debug_trampoline_END:
+  ret

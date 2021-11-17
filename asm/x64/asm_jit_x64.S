@@ -2281,3 +2281,14 @@ asm_jit_SUB_ZPG:
 
 asm_jit_SUB_ZPG_END:
   ret
+
+
+# Not called in the x64 model.
+.globl asm_jit_interp_trampoline
+.globl asm_jit_interp_trampoline_END
+asm_jit_interp_trampoline:
+  int 3
+  ret
+
+asm_jit_interp_trampoline_END:
+  ret
