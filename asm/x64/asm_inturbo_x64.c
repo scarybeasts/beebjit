@@ -546,7 +546,7 @@ asm_emit_inturbo_DEX(struct util_buffer* p_buf) {
 
 void
 asm_emit_inturbo_DEY(struct util_buffer* p_buf) {
-  asm_emit_instruction_DEX(p_buf);
+  asm_emit_instruction_DEY(p_buf);
 }
 
 void
