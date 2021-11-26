@@ -1140,54 +1140,12 @@ video_timer_fired(void* p) {
 static void
 video_mode_updated(struct video_struct* p_video) {
   /* Let the renderer know about the new mode. */
-  int mode;
-
   int is_teletext = (p_video->video_ula_control & k_ula_teletext);
   int chars_per_line = (p_video->video_ula_control & k_ula_chars_per_line);
   int clock_speed = video_get_clock_speed(p_video);
   chars_per_line >>= k_ula_chars_per_line_shift;
-  if (is_teletext) {
-    mode = k_render_mode7;
-  } else if (clock_speed == 1) {
-    switch (chars_per_line) {
-    case 1:
-      mode = k_render_mode2;
-      break;
-    case 2:
-      mode = k_render_mode1;
-      break;
-    case 3:
-      mode = k_render_mode0;
-      break;
-    default:
-      mode = k_render_mode0;
-      break;
-    }
-  } else {
-    assert(clock_speed == 0);
-    switch (chars_per_line) {
-    case 0:
-      mode = k_render_mode8;
-      break;
-    case 1:
-      mode = k_render_mode5;
-      break;
-    case 2:
-      mode = k_render_mode4;
-      break;
-    default:
-      /* EMU NOTE: not clear what to render here. Probably anything will do for
-       * now because it's not a defined mode.
-       * This condition can occur in practice, for example half-way through
-       * mode switches.
-       * Also, Tricky's Frogger reliably hits here with chars_per_line == 0.
-       */
-      mode = k_render_mode4;
-      break;
-    }
-  }
 
-  render_set_mode(p_video->p_render, mode);
+  render_set_mode(p_video->p_render, clock_speed, chars_per_line, is_teletext);
 }
 
 static void
