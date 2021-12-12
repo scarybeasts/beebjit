@@ -281,13 +281,32 @@ bbc_do_pre_read_write_tick_handling(struct bbc_struct* p_bbc,
   p_bbc->advance_cycles_expected = 0;
 
   if (!is_1MHz) {
+    int is_video_ula = 0;
     if (do_last_tick_callback) {
       /* If it's not 1MHz, this is the last tick. */
       p_bbc->memory_access.memory_client_last_tick_callback(
           p_bbc->memory_access.p_last_tick_callback_obj);
     }
-    /* Currently, all 2MHz peripherals are handled as tick then access. */
-    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    /* Currently, all 2MHz peripherals are handled as tick then access, except
+     * the video ULA.
+     */
+    switch (addr & ~0x03) {
+    case k_addr_video_ula:
+      is_video_ula = 1;
+      break;
+    case (k_addr_video_ula + 4):
+    case (k_addr_video_ula + 8):
+    case (k_addr_video_ula + 12):
+      if (!p_bbc->is_master) {
+        is_video_ula = 1;
+      }
+      break;
+    default:
+      break;
+    }
+    if (!is_video_ula) {
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    }
     return;
   }
 
@@ -457,6 +476,7 @@ bbc_read_callback(void* p,
      * See: https://stardot.org.uk/forums/viewtopic.php?f=4&t=17509
      * Break out to default 0xFE return.
      */
+    (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     break;
   case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
   case (k_addr_master_floppy + 4):
@@ -467,9 +487,14 @@ bbc_read_callback(void* p,
         break;
       }
       ret = wd_fdc_read(p_bbc->p_wd_fdc, ((addr - 0x4) & 0x7));
+    } else {
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
     break;
   case (k_addr_video_ula + 12):
+    if (!p_bbc->is_master) {
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
+    }
     break;
   case (k_addr_rom_select + 0):
     /* ROMSEL is readable on a Master but not on a model B. */
@@ -939,6 +964,7 @@ bbc_write_callback(void* p,
     {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
     break;
   case (k_addr_master_floppy + 0): /* k_addr_video_ula + 4 */
@@ -948,12 +974,14 @@ bbc_write_callback(void* p,
     } else {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
     break;
   case (k_addr_video_ula + 12):
     if (!p_bbc->is_master) {
       struct video_struct* p_video = bbc_get_video(p_bbc);
       video_ula_write(p_video, (addr & 0x1), val);
+      (void) timing_advance_time_delta(p_bbc->p_timing, 1);
     }
     break;
   case (k_addr_rom_select + 0):
