@@ -3,7 +3,7 @@ set -e
 
 gcc -Wall -W -Werror \
     -Wno-unknown-warning-option -Wno-address-of-packed-member \
-    -fno-pie -Wa,--noexecstack \
+    -fno-pie -no-pie -Wa,--noexecstack \
     -O3 -DNDEBUG -flto -o beebjit \
     asm/asm_abi.c asm/asm_tables.c asm/asm_util.c \
     asm/asm_common.c asm/asm_common.S \

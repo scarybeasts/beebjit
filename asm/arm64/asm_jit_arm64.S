@@ -20,7 +20,7 @@ ASM_SYM(asm_jit_enter):
   movk REG_MEM_READ, #(K_BBC_MEM_OFFSET_TO_READ_FULL & 0xFFFF)
   add REG_MEM_READ, REG_PARAM4, REG_MEM_READ
 
-  adr REG_JIT_COMPILE, _asm_jit_compile_trampoline
+  adr REG_JIT_COMPILE, ASM_SYM(asm_jit_compile_trampoline)
   # NOTE: can save a register by adjusting REG_CONTEXT as we bounce in and out
   # of JIT.
   # REG_PARAM1 is REG_CONTEXT.
@@ -203,7 +203,7 @@ ASM_SYM(asm_jit_addr_check_add_END):
   ret
 
 ASM_SYM(asm_jit_addr_check_tbnz):
-  tbnz REG_JIT_SCRATCH, #16, _asm_jit_addr_check_tbnz
+  tbnz REG_JIT_SCRATCH, #16, ASM_SYM(asm_jit_addr_check_tbnz)
 
 ASM_SYM(asm_jit_addr_check_tbnz_END):
   ret
@@ -280,7 +280,7 @@ ASM_SYM(asm_jit_addr_trunc_8bit_END):
 .globl ASM_SYM(asm_jit_check_bcd)
 .globl ASM_SYM(asm_jit_check_bcd_END)
 ASM_SYM(asm_jit_check_bcd):
-  tbnz REG_6502_ID_F, #3, _asm_jit_check_bcd
+  tbnz REG_6502_ID_F, #3, ASM_SYM(asm_jit_check_bcd)
 
 ASM_SYM(asm_jit_check_bcd_END):
   ret
@@ -367,7 +367,7 @@ ASM_SYM(asm_jit_check_pending_irq_load_END):
   ret
 
 ASM_SYM(asm_jit_check_pending_irq_cbnz):
-  cbnz REG_JIT_SCRATCH, _asm_jit_check_pending_irq_cbnz
+  cbnz REG_JIT_SCRATCH, ASM_SYM(asm_jit_check_pending_irq_cbnz)
 
 ASM_SYM(asm_jit_check_pending_irq_cbnz_END):
   ret
@@ -393,7 +393,7 @@ ASM_SYM(asm_jit_countdown_sub_END):
   ret
 
 ASM_SYM(asm_jit_countdown_tbnz):
-  tbnz REG_COUNTDOWN, #63, _asm_jit_countdown_tbnz
+  tbnz REG_COUNTDOWN, #63, ASM_SYM(asm_jit_countdown_tbnz)
 
 ASM_SYM(asm_jit_countdown_tbnz_END):
   ret
@@ -728,7 +728,7 @@ ASM_SYM(asm_jit_ASL_ACC_ubfm_shift_END):
 .globl ASM_SYM(asm_jit_BCC)
 .globl ASM_SYM(asm_jit_BCC_END)
 ASM_SYM(asm_jit_BCC):
-  cbz REG_6502_CF, _asm_jit_BCC
+  cbz REG_6502_CF, ASM_SYM(asm_jit_BCC)
 
 ASM_SYM(asm_jit_BCC_END):
   ret
@@ -737,7 +737,7 @@ ASM_SYM(asm_jit_BCC_END):
 .globl ASM_SYM(asm_jit_BCS)
 .globl ASM_SYM(asm_jit_BCS_END)
 ASM_SYM(asm_jit_BCS):
-  cbnz REG_6502_CF, _asm_jit_BCS
+  cbnz REG_6502_CF, ASM_SYM(asm_jit_BCS)
 
 ASM_SYM(asm_jit_BCS_END):
   ret
@@ -746,7 +746,7 @@ ASM_SYM(asm_jit_BCS_END):
 .globl ASM_SYM(asm_jit_BEQ)
 .globl ASM_SYM(asm_jit_BEQ_END)
 ASM_SYM(asm_jit_BEQ):
-  b.eq _asm_jit_BEQ
+  b.eq ASM_SYM(asm_jit_BEQ)
 
 ASM_SYM(asm_jit_BEQ_END):
   ret
@@ -755,7 +755,7 @@ ASM_SYM(asm_jit_BEQ_END):
 .globl ASM_SYM(asm_jit_BMI)
 .globl ASM_SYM(asm_jit_BMI_END)
 ASM_SYM(asm_jit_BMI):
-  b.mi _asm_jit_BMI
+  b.mi ASM_SYM(asm_jit_BMI)
 
 ASM_SYM(asm_jit_BMI_END):
   ret
@@ -764,7 +764,7 @@ ASM_SYM(asm_jit_BMI_END):
 .globl ASM_SYM(asm_jit_BNE)
 .globl ASM_SYM(asm_jit_BNE_END)
 ASM_SYM(asm_jit_BNE):
-  b.ne _asm_jit_BNE
+  b.ne ASM_SYM(asm_jit_BNE)
 
 ASM_SYM(asm_jit_BNE_END):
   ret
@@ -773,7 +773,7 @@ ASM_SYM(asm_jit_BNE_END):
 .globl ASM_SYM(asm_jit_BPL)
 .globl ASM_SYM(asm_jit_BPL_END)
 ASM_SYM(asm_jit_BPL):
-  b.pl _asm_jit_BPL
+  b.pl ASM_SYM(asm_jit_BPL)
 
 ASM_SYM(asm_jit_BPL_END):
   ret
@@ -782,7 +782,7 @@ ASM_SYM(asm_jit_BPL_END):
 .globl ASM_SYM(asm_jit_BVC)
 .globl ASM_SYM(asm_jit_BVC_END)
 ASM_SYM(asm_jit_BVC):
-  cbz REG_6502_OF, _asm_jit_BVC
+  cbz REG_6502_OF, ASM_SYM(asm_jit_BVC)
 
 ASM_SYM(asm_jit_BVC_END):
   ret
@@ -791,7 +791,7 @@ ASM_SYM(asm_jit_BVC_END):
 .globl ASM_SYM(asm_jit_BVS)
 .globl ASM_SYM(asm_jit_BVS_END)
 ASM_SYM(asm_jit_BVS):
-  cbnz REG_6502_OF, _asm_jit_BVS
+  cbnz REG_6502_OF, ASM_SYM(asm_jit_BVS)
 
 ASM_SYM(asm_jit_BVS_END):
   ret
