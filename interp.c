@@ -278,7 +278,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   countdown = timing_get_countdown(p_timing);
 
 #define INTERP_MODE_ABS_READ(INSTR)                                           \
-  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  addr = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                        \
+  addr <<= 8;                                                                 \
+  addr |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                       \
   pc += 3;                                                                    \
   if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
@@ -295,7 +297,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_65c12_BCD_ABS_READ(INSTR)                                 \
-  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  addr = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                        \
+  addr <<= 8;                                                                 \
+  addr |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                       \
   pc += 3;                                                                    \
   if (addr < read_callback_from) {                                            \
     v = p_mem_read[addr];                                                     \
@@ -311,7 +315,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ABS_WRITE(INSTR)                                          \
-  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  addr = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                        \
+  addr <<= 8;                                                                 \
+  addr |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                       \
   pc += 3;                                                                    \
   if (addr < write_callback_from) {                                           \
     INSTR;                                                                    \
@@ -328,7 +334,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ABS_READ_WRITE(INSTR)                                     \
-  addr = *(uint16_t*) &p_mem_read[pc + 1];                                    \
+  addr = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                        \
+  addr <<= 8;                                                                 \
+  addr |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                       \
   pc += 3;                                                                    \
   if (addr < write_callback_from) {                                           \
     v = p_mem_read[addr];                                                     \
@@ -352,7 +360,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ABr_READ(INSTR, reg_name)                                 \
-  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
   addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
@@ -383,8 +393,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_65c12_BCD_ABr_READ(INSTR, reg_name)                       \
-  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
-  addr = (addr_temp + reg_name);                                              \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
   if (addr < read_callback_from) {                                            \
@@ -406,7 +417,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ABr_WRITE(INSTR, reg_name)                                \
-  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
   addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   if (addr < write_callback_from) {                                           \
@@ -430,7 +443,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ABr_READ_WRITE(INSTR, reg_name)                           \
-  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
   addr = (addr_temp + reg_name);                                              \
   pc += 3;                                                                    \
   if (addr < write_callback_from) {                                           \
@@ -460,7 +475,9 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
 
 /* An optimization on the 65c12 only. */
 #define INTERP_MODE_ABX_READ_WRITE_6_CYC(INSTR)                               \
-  addr_temp = *(uint16_t*) &p_mem_read[pc + 1];                               \
+  addr_temp = *(uint8_t*) &p_mem_read[(uint16_t) (pc + 2)];                   \
+  addr_temp <<= 8;                                                            \
+  addr_temp |= *(uint8_t*) &p_mem_read[(uint16_t) (pc + 1)];                  \
   addr = (addr_temp + x);                                                     \
   pc += 3;                                                                    \
   page_crossing = !!((addr_temp >> 8) ^ (addr >> 8));                         \
@@ -481,7 +498,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDX_READ(INSTR)                                           \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
@@ -501,7 +518,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_65c12_BCD_IDX_READ(INSTR)                                 \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
@@ -520,7 +537,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDX_WRITE(INSTR)                                          \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
@@ -540,7 +557,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDX_READ_WRITE(INSTR)                                     \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
@@ -561,7 +578,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ID_READ(INSTR)                                            \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
   pc += 2;                                                                    \
   if (addr < read_callback_from) {                                            \
@@ -579,7 +596,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ID_WRITE(INSTR)                                           \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   addr = ((p_mem_read[(uint8_t) (addr + 1)] << 8) | p_mem_read[addr]);        \
   pc += 2;                                                                    \
   if (addr < write_callback_from) {                                           \
@@ -597,7 +614,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDY_READ(INSTR)                                           \
-  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
@@ -630,7 +647,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_65c12_BCD_IDY_READ(INSTR)                                 \
-  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
@@ -654,7 +671,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDY_WRITE(INSTR)                                          \
-  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
@@ -680,7 +697,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_IDY_READ_WRITE(INSTR)                                     \
-  addr_temp = p_mem_read[pc + 1];                                             \
+  addr_temp = p_mem_read[(uint16_t) (pc + 1)];                                \
   addr_temp = ((p_mem_read[(uint8_t) (addr_temp + 1)] << 8) |                 \
       p_mem_read[addr_temp]);                                                 \
   addr = (addr_temp + y);                                                     \
@@ -703,14 +720,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   }
 
 #define INTERP_MODE_ZPG_READ(INSTR)                                           \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   v = p_mem_read[addr];                                                       \
   INSTR;                                                                      \
   cycles_this_instruction = 3;
 
 #define INTERP_MODE_ZPG_READ_WRITE(INSTR)                                     \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   v = p_mem_read[addr];                                                       \
   INSTR;                                                                      \
@@ -718,14 +735,14 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cycles_this_instruction = 5;
 
 #define INTERP_MODE_ZPG_WRITE(INSTR)                                          \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   INSTR;                                                                      \
   p_mem_write[addr] = v;                                                      \
   cycles_this_instruction = 3;
 
 #define INTERP_MODE_ZPr_READ(INSTR, reg_name)                                 \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   addr += reg_name;                                                           \
   addr &= 0xFF;                                                               \
@@ -734,7 +751,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cycles_this_instruction = 4;
 
 #define INTERP_MODE_ZPr_WRITE(INSTR, reg_name)                                \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   addr += reg_name;                                                           \
   addr &= 0xFF;                                                               \
@@ -743,7 +760,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   cycles_this_instruction = 4;
 
 #define INTERP_MODE_ZPX_READ_WRITE(INSTR)                                     \
-  addr = p_mem_read[pc + 1];                                                  \
+  addr = p_mem_read[(uint16_t) (pc + 1)];                                     \
   pc += 2;                                                                    \
   addr += x;                                                                  \
   addr &= 0xFF;                                                               \
@@ -757,7 +774,7 @@ interp_check_log_bcd(struct interp_struct* p_interp) {
   zf = (reg_name == 0);
 
 #define INTERP_INSTR_BRANCH(condition)                                        \
-  v = p_mem_read[pc + 1];                                                     \
+  v = p_mem_read[(uint16_t) (pc + 1)];                                        \
   cycles_this_instruction = 2;                                                \
   pc += 2;                                                                    \
   if (condition) {                                                            \

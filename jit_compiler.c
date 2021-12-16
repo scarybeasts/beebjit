@@ -356,6 +356,11 @@ jit_compiler_get_opcode_details(struct jit_compiler* p_compiler,
     p_details->ends_block = 1;
   }
 
+  /* Don't try and handle address space wraps in opcode fetch. */
+  if ((addr_6502 + p_details->num_bytes_6502) >= k_6502_addr_space_size) {
+    use_interp = 1;
+  }
+
   p_details->p_host_address_prefix_end = NULL;
   p_details->p_host_address_start = NULL;
   p_details->cycles_run_start = -1;
@@ -1067,12 +1072,13 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
     struct jit_opcode_details* p_next_details =
         &p_compiler->opcode_details[opcode_index];
     int is_branch_landing_addr_backup = p_next_details->is_branch_landing_addr;
+    uint32_t num_bytes_6502;
 
     jit_compiler_get_opcode_details(p_compiler, p_next_details, addr_6502);
 
     /* Check it fits in the address space we've got left. */
-    if ((opcode_index + p_next_details->num_bytes_6502) >=
-        k_max_addr_space_per_compile) {
+    num_bytes_6502 = p_next_details->num_bytes_6502;
+    if ((opcode_index + num_bytes_6502) >= k_max_addr_space_per_compile) {
       break;
     }
 
@@ -1141,8 +1147,6 @@ jit_compiler_find_compile_bounds(struct jit_compiler* p_compiler) {
       break;
     }
   }
-
-  assert(addr_6502 > p_compiler->start_addr_6502);
 
   /* Terminate the list of opcodes. */
   jit_compiler_make_last_opcode(p_compiler, p_details);

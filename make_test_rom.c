@@ -2375,8 +2375,23 @@ main(int argc, const char* argv[]) {
   emit_REQUIRE_EQ(p_buf, 0x03);
   emit_JMP(p_buf, k_abs, 0xE200);
 
-  /* End of test. */
+  /* Check an opcode that wraps around 0xFFFF -> 0x0000. */
   set_new_index(p_buf, 0x2200);
+  emit_LDA(p_buf, k_imm, 0x00);
+  emit_STA(p_buf, k_zpg, 0x00);
+  emit_LDA(p_buf, k_imm, 0x10);
+  emit_STA(p_buf, k_zpg, 0x01);
+  emit_LDA(p_buf, k_imm, 0x4C);   /* JMP $E240 */
+  emit_STA(p_buf, k_zpg, 0x02);
+  emit_LDA(p_buf, k_imm, 0x40);
+  emit_STA(p_buf, k_zpg, 0x03);
+  emit_LDA(p_buf, k_imm, 0xE2);
+  emit_STA(p_buf, k_zpg, 0x04);
+  /* This executes ISC $1000,X, across the 64k bounary. */
+  emit_JMP(p_buf, k_abs, 0xFFFF);
+
+  /* End of test. */
+  set_new_index(p_buf, 0x2240);
   emit_EXIT(p_buf);
 
   /* Some program code that we copy to ROM at $F000 to RAM at $3000 */
