@@ -1,5 +1,6 @@
 #include "os_window.h"
 
+#include "keyboard.h"
 #include "os_channel.h"
 #include "os_thread.h"
 #include "util.h"
@@ -9,14 +10,18 @@
 struct os_window_struct {
   uint32_t width;
   uint32_t height;
+  struct keyboard_struct* p_keyboard;
   uint32_t* p_buffer;
   NSWindow* p_nswindow;
+  NSView* p_nsview;
   CGContextRef context;
   intptr_t read1_fd;
   intptr_t write1_fd;
   intptr_t read2_fd;
   intptr_t write2_fd;
 };
+
+static uint8_t s_cocoa_keycode_lookup[256];
 
 static void
 beebjit_main_thread_start(void* p) {
@@ -38,12 +43,94 @@ cocoa_check_is_not_main_thread(void) {
   }
 }
 
+static void
+cocoa_build_keycode_lookup(void) {
+  /* https://stackoverflow.com/questions/36900825/where-are-all-the-cocoa-keycodes */
+  s_cocoa_keycode_lookup[0] = 'A';
+  s_cocoa_keycode_lookup[11] = 'B';
+  s_cocoa_keycode_lookup[8] = 'C';
+  s_cocoa_keycode_lookup[2] = 'D';
+  s_cocoa_keycode_lookup[14] = 'E';
+  s_cocoa_keycode_lookup[3] = 'F';
+  s_cocoa_keycode_lookup[5] = 'G';
+  s_cocoa_keycode_lookup[4] = 'H';
+  s_cocoa_keycode_lookup[34] = 'I';
+  s_cocoa_keycode_lookup[38] = 'J';
+  s_cocoa_keycode_lookup[40] = 'K';
+  s_cocoa_keycode_lookup[37] = 'L';
+  s_cocoa_keycode_lookup[46] = 'M';
+  s_cocoa_keycode_lookup[45] = 'N';
+  s_cocoa_keycode_lookup[31] = 'O';
+  s_cocoa_keycode_lookup[35] = 'P';
+  s_cocoa_keycode_lookup[12] = 'Q';
+  s_cocoa_keycode_lookup[15] = 'R';
+  s_cocoa_keycode_lookup[1] = 'S';
+  s_cocoa_keycode_lookup[17] = 'T';
+  s_cocoa_keycode_lookup[32] = 'U';
+  s_cocoa_keycode_lookup[9] = 'V';
+  s_cocoa_keycode_lookup[13] = 'W';
+  s_cocoa_keycode_lookup[7] = 'X';
+  s_cocoa_keycode_lookup[16] = 'Y';
+  s_cocoa_keycode_lookup[6] = 'Z';
+  s_cocoa_keycode_lookup[29] = '0';
+  s_cocoa_keycode_lookup[18] = '1';
+  s_cocoa_keycode_lookup[19] = '2';
+  s_cocoa_keycode_lookup[20] = '3';
+  s_cocoa_keycode_lookup[21] = '4';
+  s_cocoa_keycode_lookup[23] = '5';
+  s_cocoa_keycode_lookup[22] = '6';
+  s_cocoa_keycode_lookup[26] = '7';
+  s_cocoa_keycode_lookup[28] = '8';
+  s_cocoa_keycode_lookup[25] = '9';
+  s_cocoa_keycode_lookup[122] = k_keyboard_key_f1;
+  s_cocoa_keycode_lookup[120] = k_keyboard_key_f2;
+  s_cocoa_keycode_lookup[99] = k_keyboard_key_f3;
+  s_cocoa_keycode_lookup[118] = k_keyboard_key_f4;
+  s_cocoa_keycode_lookup[96] = k_keyboard_key_f5;
+  s_cocoa_keycode_lookup[97] = k_keyboard_key_f6;
+  s_cocoa_keycode_lookup[98] = k_keyboard_key_f7;
+  s_cocoa_keycode_lookup[100] = k_keyboard_key_f8;
+  s_cocoa_keycode_lookup[101] = k_keyboard_key_f9;
+  /* F10 */
+  s_cocoa_keycode_lookup[109] = k_keyboard_key_f0;
+  s_cocoa_keycode_lookup[111] = k_keyboard_key_f12;
+  s_cocoa_keycode_lookup[49] = ' ';
+  s_cocoa_keycode_lookup[36] = k_keyboard_key_enter;
+  s_cocoa_keycode_lookup[51] = k_keyboard_key_backspace;
+  s_cocoa_keycode_lookup[53] = k_keyboard_key_escape;
+  s_cocoa_keycode_lookup[48] = k_keyboard_key_tab;
+  s_cocoa_keycode_lookup[123] = k_keyboard_key_arrow_left;
+  s_cocoa_keycode_lookup[124] = k_keyboard_key_arrow_right;
+  s_cocoa_keycode_lookup[126] = k_keyboard_key_arrow_up;
+  s_cocoa_keycode_lookup[125] = k_keyboard_key_arrow_down;
+  s_cocoa_keycode_lookup[24] = '=';
+  s_cocoa_keycode_lookup[27] = '-';
+  s_cocoa_keycode_lookup[41] = ';';
+  s_cocoa_keycode_lookup[44] = '/';
+  s_cocoa_keycode_lookup[50] = '`';
+  s_cocoa_keycode_lookup[33] = '[';
+  s_cocoa_keycode_lookup[30] = ']';
+  s_cocoa_keycode_lookup[42] = '\\';
+  s_cocoa_keycode_lookup[39] = '\'';
+  s_cocoa_keycode_lookup[43] = ',';
+  s_cocoa_keycode_lookup[47] = '.';
+  /* These don't directly exist on a MacBook Air keyboard; they're fn plus
+   * up / down / right.
+   */
+  s_cocoa_keycode_lookup[116] = k_keyboard_key_page_up;
+  s_cocoa_keycode_lookup[119] = k_keyboard_key_end;
+}
+
 void
 os_window_main_thread_start(void (*p_beebjit_main)(void)) {
   cocoa_check_is_main_thread();
 
+  cocoa_build_keycode_lookup();
+
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   NSApp = [NSApplication sharedApplication];
+  /* Application cannot gain focus (e.g. to get key presses) without this. */
+  [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
   (void) os_thread_create(beebjit_main_thread_start, p_beebjit_main);
 
@@ -52,6 +139,83 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
   [NSApp release];
   [pool release];
 }
+
+@interface BeebjitView : NSView
+
+@property struct os_window_struct* osWindow;
+
+@end
+
+@implementation BeebjitView
+/* Key presses are rejected with the system "bip!" sound without this. */
+- (BOOL)acceptsFirstResponder {
+  return YES;
+}
+
+- (void)keyDown:(NSEvent*)event {
+  uint32_t keyCode = event.keyCode;
+  uint8_t beebjitKey = 0;
+  struct keyboard_struct* p_keyboard = _osWindow->p_keyboard;
+  if (p_keyboard == NULL) {
+    return;
+  }
+  if (keyCode < 256) {
+    beebjitKey = s_cocoa_keycode_lookup[(uint8_t) keyCode];
+  }
+  if (beebjitKey != 0) {
+    keyboard_system_key_pressed(p_keyboard, beebjitKey);
+  }
+}
+
+- (void)keyUp:(NSEvent*)event {
+  uint32_t keyCode = event.keyCode;
+  uint8_t beebjitKey = 0;
+  struct keyboard_struct* p_keyboard = _osWindow->p_keyboard;
+  if (p_keyboard == NULL) {
+    return;
+  }
+  if (keyCode < 256) {
+    beebjitKey = s_cocoa_keycode_lookup[(uint8_t) keyCode];
+  }
+  if (beebjitKey != 0) {
+    keyboard_system_key_released(p_keyboard, beebjitKey);
+  }
+}
+
+- (void)flagsChanged:(NSEvent*)event {
+  uint32_t modifierFlags = event.modifierFlags;
+  struct keyboard_struct* p_keyboard = _osWindow->p_keyboard;
+  if (p_keyboard == NULL) {
+    return;
+  }
+  /* Undocumented in the main constants, but 2 and 4 appear to denote left
+   * shift and right shift.
+   * We use left shift in place of caps lock, because caps lock doesn't offer
+   * us the key up events that we need.
+   */
+  if (modifierFlags & 2) {
+    keyboard_system_key_pressed(p_keyboard, k_keyboard_key_caps_lock);
+  } else {
+    keyboard_system_key_released(p_keyboard, k_keyboard_key_caps_lock);
+  }
+  if (modifierFlags & 4) {
+    keyboard_system_key_pressed(p_keyboard, k_keyboard_key_shift_left);
+  } else {
+    keyboard_system_key_released(p_keyboard, k_keyboard_key_shift_left);
+  }
+  if (modifierFlags & NSEventModifierFlagControl) {
+    keyboard_system_key_pressed(p_keyboard, k_keyboard_key_ctrl);
+  } else {
+    keyboard_system_key_released(p_keyboard, k_keyboard_key_ctrl);
+  }
+  if (modifierFlags & NSEventModifierFlagOption) {
+    keyboard_system_key_pressed(p_keyboard, k_keyboard_key_alt_left);
+  } else {
+    keyboard_system_key_released(p_keyboard, k_keyboard_key_alt_left);
+  }
+}
+
+@end
 
 struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
@@ -70,9 +234,9 @@ os_window_create(uint32_t width, uint32_t height) {
 
   dispatch_sync(dispatch_get_main_queue(), ^{
     cocoa_check_is_main_thread();
-    NSRect rect = NSMakeRect(100, 100, width, height);
+    NSRect rect = NSMakeRect(0, 0, width, height);
     NSWindow* window = [[NSWindow alloc]
-                        initWithContentRect: rect
+                        initWithContentRect:rect
                         styleMask:NSWindowStyleMaskTitled
                                  |NSWindowStyleMaskClosable
                                  |NSWindowStyleMaskMiniaturizable
@@ -80,6 +244,15 @@ os_window_create(uint32_t width, uint32_t height) {
                         defer:NO
                        ];
     p_window->p_nswindow = window;
+
+    BeebjitView* view = [[BeebjitView alloc] initWithFrame:rect];
+    p_window->p_nsview = view;
+    view.osWindow = p_window;
+    [view setWantsLayer:YES];
+
+    [window setContentView:view];
+
+    [window makeKeyAndOrderFront:nil];
 
     /* We use CG bitmaps and not NSBitmapImageRep, because the latter seems to
      * cache a point-in-time view of the pixel buffer, leading to the screen not
@@ -102,11 +275,6 @@ os_window_create(uint32_t width, uint32_t height) {
 
     uint8_t* p_buffer = CGBitmapContextGetData(context);
     p_window->p_buffer = (uint32_t*) p_buffer;
-
-    NSView* view = [window contentView];
-    [view setWantsLayer:YES];
-
-    [window makeKeyAndOrderFront: nil];
   });
 
   return p_window;
@@ -134,8 +302,13 @@ os_window_set_name(struct os_window_struct* p_window, const char* p_name) {
 void
 os_window_set_keyboard_callback(struct os_window_struct* p_window,
                                 struct keyboard_struct* p_keyboard) {
-  (void) p_window;
-  (void) p_keyboard;
+  cocoa_check_is_not_main_thread();
+
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    cocoa_check_is_main_thread();
+
+    p_window->p_keyboard = p_keyboard;
+  });
 }
 
 void
