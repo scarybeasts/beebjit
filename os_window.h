@@ -2,11 +2,14 @@
 #define BEEBJIT_OS_WINDOW_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct keyboard_struct;
 struct video_struct;
 
 struct os_window_struct;
+
+void os_window_main_thread_start(void (*p_beebjit_main)(void));
 
 struct os_window_struct* os_window_create(uint32_t width, uint32_t height);
 void os_window_destroy(struct os_window_struct* p_window);

@@ -8,6 +8,7 @@
 #include "os_sound.h"
 #include "os_time.h"
 #include "os_terminal.h"
+#include "os_thread.h"
 #include "os_window.h"
 #include "render.h"
 #include "serial_ula.h"
@@ -33,6 +34,9 @@ enum {
   k_max_tapes = 4,
 };
 
+static int s_argc;
+static const char** s_argv;
+
 static void
 main_save_frame(const char* p_frames_dir,
                 uint32_t save_frame_count,
@@ -57,8 +61,8 @@ main_save_frame(const char* p_frames_dir,
   util_file_close(p_file);
 }
 
-int
-main(int argc, const char* argv[]) {
+static void
+beebjit_main(void) {
   int i_args;
   size_t read_ret;
   uint8_t os_rom[k_bbc_rom_size];
@@ -135,20 +139,20 @@ main(int argc, const char* argv[]) {
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
 
-  for (i_args = 1; i_args < argc; ++i_args) {
-    const char* arg = argv[i_args];
+  for (i_args = 1; i_args < s_argc; ++i_args) {
+    const char* arg = s_argv[i_args];
     int has_1 = 0;
     int has_2 = 0;
     const char* val1 = NULL;
     const char* val2 = NULL;
 
-    if ((i_args + 1) < argc) {
+    if ((i_args + 1) < s_argc) {
       has_1 = 1;
-      val1 = argv[i_args + 1];
+      val1 = s_argv[i_args + 1];
     }
-    if ((i_args + 2) < argc) {
+    if ((i_args + 2) < s_argc) {
       has_2 = 1;
-      val2 = argv[i_args + 2];
+      val2 = s_argv[i_args + 2];
     }
 
     if (has_2 && !strcmp(arg, "-rom")) {
@@ -432,7 +436,7 @@ main(int argc, const char* argv[]) {
 
   if (test_flag) {
     test_do_tests(p_bbc);
-    return 0;
+    exit(0);
   }
 
   if (cycles != 0) {
@@ -718,5 +722,20 @@ main(int argc, const char* argv[]) {
   util_free(p_opt_flags);
   util_free(p_log_flags);
 
+  exit(0);
+}
+
+int
+main(int argc, const char* argv[]) {
+  s_argc = argc;
+  s_argv = argv;
+  /* The beebjit_main function calls exit() and should not return.
+   * The OS window function can launch beebjit_main on a new thread if it needs
+   * the main thread for itself. This is the case on MacOS. For other OS's,
+   * beebjit_main is simply called on the main thread.
+   */
+  os_window_main_thread_start(beebjit_main);
+  /* Not reached. */
+  assert(0);
   return 0;
 }

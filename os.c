@@ -15,9 +15,11 @@
 #else
 #include "os_lock_posix.c"
 #endif
-#if defined(BEEBJIT_HEADLESS) || __APPLE__
+#if defined(BEEBJIT_HEADLESS)
 #include "os_sound_null.c"
 #include "os_window_null.c"
+#elif __APPLE__
+#include "os_sound_null.c"
 #else
 #include "os_sound_linux.c"
 #include "os_window_x11.c"
