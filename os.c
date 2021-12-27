@@ -19,7 +19,8 @@
 #include "os_sound_null.c"
 #include "os_window_null.c"
 #elif __APPLE__
-#include "os_sound_null.c"
+/* os_window_macos.m is added in the build script as a separate file. */
+#include "os_sound_macos.c"
 #else
 #include "os_sound_linux.c"
 #include "os_window_x11.c"

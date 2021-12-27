@@ -245,6 +245,10 @@ os_sound_write(struct os_sound_struct* p_driver,
     /* Post buffer and move on if it is filled. */
     assert(p_driver->fill_frames_pos <= frames_per_period);
     if (p_driver->fill_frames_pos == frames_per_period) {
+      /* TODO: is this thread safe?
+       * This could execute on the beebjit thread while the Windows audio thread
+       * is still inside the buffer done callback.
+       */
       ret = waveOutWrite(p_driver->handle_wav, p_wav_header, sizeof(WAVEHDR));
       if (ret != MMSYSERR_NOERROR) {
         util_bail("waveOutWrite failed");
