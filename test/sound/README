@@ -1,0 +1,17 @@
+These discs are interesting tests for the audio subsystem.
+
+- ReetPetite.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/167
+From http://bbcmicro.co.uk/gameimg/discs/1411/ReetPetite.ssd
+Sampled sound playback, uses tone channel period of 4.
+
+- Speech.dsd
+From https://github.com/mattgodbolt/jsbeeb/issues/193
+From http://bbcmicro.co.uk/gameimg/discs/1411/Speech.dsd
+Very unusual sampled sound playback routine, uses tone channel period of 8(!)
+and does not toggle the sound write enable bit.
+
+- tyb-enjoy.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/122
+From https://bitshifters.github.io/posts/archives/tyb-enjoy.html
+Sampled sound playback, needs sideways RAM, uses tone channel period of 4.
