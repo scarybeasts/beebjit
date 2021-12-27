@@ -1,4 +1,12 @@
 These discs are interesting tests for the audio subsystem.
+Copyrights remain with their respective authors.
+
+- dizzy.ssd
+Provided by Simon Morris.
+A conversion of the Dizzy, Prince of the Yolkfolk Atari ST VGM.
+Plays a low frequency square wave (using sampled sound playback techniques
+because it's too low for the beeb's SN chip). This sound is prone to distortion
+if the resampling isn't spot on.
 
 - ReetPetite.ssd
 From https://github.com/mattgodbolt/jsbeeb/issues/167
