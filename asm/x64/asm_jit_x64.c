@@ -175,46 +175,62 @@ enum {
 };
 
 #define ASM(x)                                                                 \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
-  asm_copy(p_dest_buf, asm_jit_ ## x, asm_jit_ ## x ## _END);
+  asm_copy(p_dest_buf, asm_jit_ ## x, asm_jit_ ## x ## _END);                  \
+}
 
 #define ASM_U8(x)                                                              \
-  void asm_jit_ ## x(void);                                                    \
-  void asm_jit_ ## x ## _END(void);                                            \
-  asm_copy_patch_byte(p_dest_buf, asm_jit_ ## x, asm_jit_ ## x ## _END, value1);
-
-#define ASM_ADDR_U8(x)                                                         \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
   asm_copy_patch_byte(p_dest_buf,                                              \
                       asm_jit_ ## x,                                           \
                       asm_jit_ ## x ## _END,                                   \
-                      (value1 - REG_MEM_OFFSET))
+                      value1);                                                 \
+}
 
-#define ASM_U32(x)                                                             \
+#define ASM_ADDR_U8(x)                                                         \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
-  asm_copy_patch_u32(p_dest_buf, asm_jit_ ## x, asm_jit_ ## x ## _END, value1);
+  asm_copy_patch_byte(p_dest_buf,                                              \
+                      asm_jit_ ## x,                                           \
+                      asm_jit_ ## x ## _END,                                   \
+                      (value1 - REG_MEM_OFFSET));                              \
+}
+
+#define ASM_U32(x)                                                             \
+{                                                                              \
+  void asm_jit_ ## x(void);                                                    \
+  void asm_jit_ ## x ## _END(void);                                            \
+  asm_copy_patch_u32(p_dest_buf, asm_jit_ ## x, asm_jit_ ## x ## _END, value1);\
+}
 
 #define ASM_ADDR_U32(x)                                                        \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
   delta = (value2 - K_BBC_MEM_READ_IND_ADDR);                                  \
   asm_copy_patch_u32(p_dest_buf,                                               \
                      asm_jit_ ## x,                                            \
                      asm_jit_ ## x ## _END,                                    \
-                     (value1 - REG_MEM_OFFSET + delta));
+                     (value1 - REG_MEM_OFFSET + delta));                       \
+}
 
 #define ASM_ADDR_U32_RAW(x)                                                    \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
   asm_copy_patch_u32(p_dest_buf,                                               \
                      asm_jit_ ## x,                                            \
                      asm_jit_ ## x ## _END,                                    \
-                     (value1 + value2));
+                     (value1 + value2));                                       \
+}
 
 #define ASM_Bxx(x)                                                             \
+{                                                                              \
   void asm_jit_ ## x(void);                                                    \
   void asm_jit_ ## x ## _END(void);                                            \
   void asm_jit_ ## x ## _8bit(void);                                           \
@@ -224,7 +240,8 @@ enum {
                     asm_jit_ ## x,                                             \
                     asm_jit_ ## x ## _END,                                     \
                     asm_jit_ ## x ## _8bit,                                    \
-                    asm_jit_ ## x ## _8bit_END);
+                    asm_jit_ ## x ## _8bit_END);                               \
+}
 
 static struct os_alloc_mapping* s_p_mapping_trampolines;
 
