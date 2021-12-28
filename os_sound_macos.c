@@ -96,8 +96,33 @@ os_sound_create(char* p_device_name,
 
 void
 os_sound_destroy(struct os_sound_struct* p_driver) {
-  (void) p_driver;
-  util_bail("TODO");
+  uint32_t i;
+  OSStatus ret;
+
+  /* The simplest way to shut down cleanly (avoiding problems with the callback
+   * firing during shutdown) is to pass "false", meaning the audio system will
+   * wait until queued buffers have played.
+   * Note that AudioQueueDispose is documented as also disposing of any attached
+   * buffers.
+   */
+  ret = AudioQueueDispose(p_driver->queue, false);
+  if (ret != noErr) {
+    util_bail("AudioQueueDispose");
+  }
+
+  for (i = 0; i < p_driver->num_periods; ++i) {
+    int ret;
+    ret = close(p_driver->pipe_read[i]);
+    if (ret != 0) {
+      util_bail("close pipe read");
+    }
+    ret = close(p_driver->pipe_write[i]);
+    if (ret != 0) {
+      util_bail("close pipe write");
+    }
+  }
+
+  util_free(p_driver);
 }
 
 int
