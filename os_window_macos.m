@@ -1,11 +1,12 @@
 #include "os_window.h"
 
 #include "keyboard.h"
-#include "os_channel.h"
 #include "os_thread.h"
 #include "util.h"
 
 #import <Cocoa/Cocoa.h>
+
+#include <unistd.h>
 
 struct os_window_struct {
   uint32_t width;
@@ -15,10 +16,8 @@ struct os_window_struct {
   NSWindow* p_nswindow;
   NSView* p_nsview;
   CGContextRef context;
-  intptr_t read1_fd;
-  intptr_t write1_fd;
-  intptr_t read2_fd;
-  intptr_t write2_fd;
+  int pipe_read;
+  int pipe_write;
 };
 
 static uint8_t s_cocoa_keycode_lookup[256];
@@ -217,9 +216,32 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
 
 @end
 
+@interface BeebjitWindowDelegate : NSObject<NSWindowDelegate>
+
+@property struct os_window_struct* osWindow;
+
+@end
+
+@implementation BeebjitWindowDelegate
+
+- (void)windowWillClose:(NSNotification*)notification
+{
+  ssize_t ret;
+  uint8_t val = 'C';
+  /* Signal the main beebjit event loop. */
+  ret = write(_osWindow->pipe_write, &val, 1);
+  if (ret != 1) {
+    util_bail("write");
+  }
+}
+
+@end
+
 struct os_window_struct*
 os_window_create(uint32_t width, uint32_t height) {
   struct os_window_struct* p_window;
+  int ret;
+  int filedes[2];
 
   cocoa_check_is_not_main_thread();
 
@@ -227,10 +249,12 @@ os_window_create(uint32_t width, uint32_t height) {
   p_window->width = width;
   p_window->height = height;
 
-  os_channel_get_handles(&p_window->read1_fd,
-                         &p_window->write1_fd,
-                         &p_window->read2_fd,
-                         &p_window->write2_fd);
+  ret = pipe(&filedes[0]);
+  if (ret != 0) {
+    util_bail("pipe");
+  }
+  p_window->pipe_read = filedes[0];
+  p_window->pipe_write = filedes[1];
 
   dispatch_sync(dispatch_get_main_queue(), ^{
     cocoa_check_is_main_thread();
@@ -243,6 +267,7 @@ os_window_create(uint32_t width, uint32_t height) {
                         backing:NSBackingStoreBuffered
                         defer:NO
                        ];
+    [window setReleasedWhenClosed:NO];
     p_window->p_nswindow = window;
 
     BeebjitView* view = [[BeebjitView alloc] initWithFrame:rect];
@@ -251,6 +276,12 @@ os_window_create(uint32_t width, uint32_t height) {
     [view setWantsLayer:YES];
 
     [window setContentView:view];
+
+    /* Set a delegate to listen for the window events, such as pending close. */
+    BeebjitWindowDelegate* delegate = [BeebjitWindowDelegate alloc];
+    delegate.osWindow = p_window;
+
+    [window setDelegate:delegate];
 
     [window makeKeyAndOrderFront:nil];
 
@@ -282,6 +313,26 @@ os_window_create(uint32_t width, uint32_t height) {
 
 void
 os_window_destroy(struct os_window_struct* p_window) {
+  int ret;
+
+  NSWindow* window = p_window->p_nswindow;
+  [window release];
+
+  /* TODO: also release the other NS objects we created? */
+
+  CGContextRef context = p_window->context;
+  CGContextRelease(context);
+
+  ret = close(p_window->pipe_read);
+  if (ret != 0) {
+    util_bail("close pipe_read");
+  }
+
+  ret = close(p_window->pipe_write);
+  if (ret != 0) {
+    util_bail("close pipe_write");
+  }
+
   util_free(p_window);
 }
 
@@ -327,7 +378,7 @@ os_window_get_buffer(struct os_window_struct* p_window) {
 
 intptr_t
 os_window_get_handle(struct os_window_struct* p_window) {
-  return p_window->read2_fd;
+  return p_window->pipe_read;
 }
 
 void
@@ -360,12 +411,17 @@ os_window_sync_buffer_to_screen(struct os_window_struct* p_window) {
 
 void
 os_window_process_events(struct os_window_struct* p_window) {
+  /* Deliberately empty.
+   * We only get here if the window is closing so there's nothing to do.
+   */
   (void) p_window;
-  util_bail("shouldn't hit here!");
 }
 
 int
 os_window_is_closed(struct os_window_struct* p_window) {
+  /* This is only called after we signal the close event, which is the only
+   * event we send to the beebjit main loop.
+   */
   (void) p_window;
-  return 0;
+  return 1;
 }
