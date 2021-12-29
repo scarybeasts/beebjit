@@ -17,6 +17,7 @@ ASM_SYM(asm_common_save_callee_regs):
   stp x25, x26, [sp, #-16]!
   stp x23, x24, [sp, #-16]!
   stp x21, x22, [sp, #-16]!
+  stp x19, x20, [sp, #-16]!
   ret
 
 
@@ -451,6 +452,7 @@ ASM_SYM(asm_pull_word_to_scratch_END):
 .globl ASM_SYM(asm_common_exit)
 ASM_SYM(asm_common_exit):
   # Restore callee save registers.
+  ldp x19, x20, [sp], #16
   ldp x21, x22, [sp], #16
   ldp x23, x24, [sp], #16
   ldp x25, x26, [sp], #16
