@@ -20,8 +20,8 @@ struct os_sound_struct {
 
   AudioQueueRef queue;
   AudioQueueBufferRef buffers[k_os_sound_max_period];
-  int pipe_read[k_os_sound_max_period];
-  int pipe_write[k_os_sound_max_period];
+  int pipe_read;
+  int pipe_write;
   int is_filling;
   uint32_t fill_buffer_index;
   uint32_t fill_frame_pos;
@@ -32,14 +32,16 @@ audio_queue_buffer_ready(struct os_sound_struct* p_driver, uint32_t index) {
   OSStatus err;
   ssize_t ret;
   AudioQueueBufferRef buffer;
-  int8_t val = 'B';
+  int8_t val = ('0' + index);
 
   assert(index < p_driver->num_periods);
 
   buffer = p_driver->buffers[index];
   assert(buffer->mAudioDataBytesCapacity == (p_driver->frames_per_period * 2));
 
-  ret = write(p_driver->pipe_write[index], &val, 1);
+  (void) memset(buffer->mAudioData, '\0', buffer->mAudioDataBytesCapacity);
+
+  ret = write(p_driver->pipe_write, &val, 1);
   if (ret != 1) {
     util_bail("write audio pipe");
   }
@@ -96,8 +98,8 @@ os_sound_create(char* p_device_name,
 
 void
 os_sound_destroy(struct os_sound_struct* p_driver) {
-  uint32_t i;
-  OSStatus ret;
+  OSStatus status;
+  int ret;
 
   /* The simplest way to shut down cleanly (avoiding problems with the callback
    * firing during shutdown) is to pass "false", meaning the audio system will
@@ -105,21 +107,18 @@ os_sound_destroy(struct os_sound_struct* p_driver) {
    * Note that AudioQueueDispose is documented as also disposing of any attached
    * buffers.
    */
-  ret = AudioQueueDispose(p_driver->queue, false);
-  if (ret != noErr) {
+  status = AudioQueueDispose(p_driver->queue, false);
+  if (status != noErr) {
     util_bail("AudioQueueDispose");
   }
 
-  for (i = 0; i < p_driver->num_periods; ++i) {
-    int ret;
-    ret = close(p_driver->pipe_read[i]);
-    if (ret != 0) {
-      util_bail("close pipe read");
-    }
-    ret = close(p_driver->pipe_write[i]);
-    if (ret != 0) {
-      util_bail("close pipe write");
-    }
+  ret = close(p_driver->pipe_read);
+  if (ret != 0) {
+    util_bail("close pipe read");
+  }
+  ret = close(p_driver->pipe_write);
+  if (ret != 0) {
+    util_bail("close pipe write");
   }
 
   util_free(p_driver);
@@ -141,6 +140,8 @@ os_sound_init(struct os_sound_struct* p_driver) {
    */
   uint32_t i;
   OSStatus err;
+  int ret;
+  int fildes[2];
   AudioQueueRef queue;
   AudioStreamBasicDescription fmt = {};
   uint32_t frames_per_period = p_driver->frames_per_period;
@@ -167,9 +168,14 @@ os_sound_init(struct os_sound_struct* p_driver) {
   }
   p_driver->queue = queue;
 
+  ret = pipe(&fildes[0]);
+  if (ret != 0) {
+    util_bail("pipe");
+  }
+  p_driver->pipe_read = fildes[0];
+  p_driver->pipe_write = fildes[1];
+
   for (i = 0; i < p_driver->num_periods; ++i) {
-    int ret;
-    int fildes[2];
     AudioQueueBufferRef buffer;
 
     /* This function allocates a count of bytes, not freames. */
@@ -179,13 +185,6 @@ os_sound_init(struct os_sound_struct* p_driver) {
     }
     buffer->mUserData = (void*) (intptr_t) i;
     p_driver->buffers[i] = buffer;
-
-    ret = pipe(&fildes[0]);
-    if (ret != 0) {
-      util_bail("pipe");
-    }
-    p_driver->pipe_read[i] = fildes[0];
-    p_driver->pipe_write[i] = fildes[1];
 
     audio_queue_buffer_ready(p_driver, i);
   }
@@ -229,13 +228,27 @@ os_sound_write(struct os_sound_struct* p_driver,
      * filling one.
      */
     if (!p_driver->is_filling) {
+      /* Drain the entire pipe, to catch up again if audio got behind (e.g.
+       * at the built-in debug prompt.
+       * In normal operation, this read will return 1 byte.
+       */
+      int ret;
+      uint8_t buf[65536];
       int8_t val;
-      int ret = read(p_driver->pipe_read[fill_buffer_index], &val, 1);
-      if (ret != 1) {
+      ret = read(p_driver->pipe_read, &buf[0], sizeof(buf));
+      if (ret <= 0) {
         util_bail("read from pipe_read");
       }
-      assert(val == 'B');
-      (void) val;
+      /* Look at the most recent write to the pipe and see which buffer index
+       * did the write. This is usually just "the next one", but if we're
+       * re-syncing after an audio dropout, we'll start again on the most
+       * recent buffer in the queue.
+       */
+      val = buf[ret - 1];
+      val -= '0';
+      assert((val >= 0) && ((uint32_t) val < p_driver->num_periods));
+      fill_buffer_index = val;
+      p_driver->fill_buffer_index = fill_buffer_index;
       p_driver->is_filling = 0;
       p_driver->fill_frame_pos = 0;
     }
