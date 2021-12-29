@@ -640,6 +640,7 @@ beebjit_main(void) {
       int do_clear_after_paint;
       int save_frame;
       uint64_t cycles;
+      int do_ack_rendered;
 
       bbc_client_receive_message(p_bbc, &message);
       if (message.data[0] == k_message_exited) {
@@ -650,6 +651,8 @@ beebjit_main(void) {
       do_full_render = message.data[1];
       do_clear_after_paint = message.data[2];
       cycles = message.data[3];
+      do_ack_rendered = message.data[4];
+
       save_frame = 0;
       if ((frame_cycles > 0) &&
           (cycles >= frame_cycles) &&
@@ -675,7 +678,7 @@ beebjit_main(void) {
           render_clear_buffer(p_render);
         }
       }
-      if (bbc_get_vsync_wait_for_render(p_bbc)) {
+      if (do_ack_rendered) {
         message.data[0] = k_message_render_done;
         bbc_client_send_message(p_bbc, &message);
       }

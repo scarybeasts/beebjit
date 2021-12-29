@@ -40,7 +40,7 @@ improvements out one by one on a rainy day.
 These speeds are for JIT mode. In some cases here, interp mode is faster
 because of some very severe JIT interaction.
 
-(all: -mode jit -opt sound:off,video:no-vsync-wait-for-render)
+(all: -mode jit -opt sound:off)
 (5th gen i5, v0.9.4 or so)
 - Elite.ssd. Slams hardware registers in a tight loop reading keyboard.
 - Tarzan.ssd. Very slow (120MHz). interp is faster!! Looks to be a tight

@@ -124,7 +124,6 @@ struct bbc_struct {
   int fast_flag;
   int test_map_flag;
   int autoboot_flag;
-  int vsync_wait_for_render;
   int do_video_memory_sync;
   struct bbc_options options;
 
@@ -1168,13 +1167,15 @@ bbc_framebuffer_ready_callback(void* p,
   struct bbc_message message;
 
   struct bbc_struct* p_bbc = (struct bbc_struct*) p;
+  int do_wait_for_render = !p_bbc->fast_flag;
 
   message.data[0] = k_message_vsync;
   message.data[1] = do_full_render;
   message.data[2] = framing_changed;
   message.data[3] = timing_get_total_timer_ticks(p_bbc->p_timing);
+  message.data[4] = do_wait_for_render;
   bbc_cpu_send_message(p_bbc, &message);
-  if (bbc_get_vsync_wait_for_render(p_bbc)) {
+  if (do_wait_for_render) {
     struct bbc_message message;
     bbc_cpu_receive_message(p_bbc, &message);
     assert(message.data[0] == k_message_render_done);
@@ -1380,7 +1381,6 @@ bbc_create(int mode,
   p_bbc->test_map_flag = test_map_flag;
   p_bbc->is_wd_fdc = (wd_1770_type > 0);
   p_bbc->is_wd_1772 = (wd_1770_type == 2);
-  p_bbc->vsync_wait_for_render = 1;
   p_bbc->exit_value = 0;
   p_bbc->handle_channel_read_bbc = -1;
   p_bbc->handle_channel_write_bbc = -1;
@@ -1388,9 +1388,6 @@ bbc_create(int mode,
   p_bbc->handle_channel_write_client = -1;
   p_bbc->timer_id_autoboot = -1;
 
-  if (util_has_option(p_opt_flags, "video:no-vsync-wait-for-render")) {
-    p_bbc->vsync_wait_for_render = 0;
-  }
   p_bbc->do_video_memory_sync = 1;
   if (util_has_option(p_opt_flags, "video:no-memory-sync")) {
     p_bbc->do_video_memory_sync = 0;
@@ -2055,11 +2052,6 @@ bbc_get_run_flag(struct bbc_struct* p_bbc) {
 int
 bbc_get_print_flag(struct bbc_struct* p_bbc) {
   return p_bbc->print_flag;
-}
-
-int
-bbc_get_vsync_wait_for_render(struct bbc_struct* p_bbc) {
-  return p_bbc->vsync_wait_for_render;
 }
 
 static void
