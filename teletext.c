@@ -64,6 +64,7 @@ struct teletext_struct {
   int is_hold_graphics;
   uint8_t* p_held_character;
   int do_character_rounding;
+  int last_dispen;
 };
 
 static void
@@ -526,11 +527,14 @@ teletext_RA_changed(struct teletext_struct* p_teletext, uint8_t ra) {
 }
 
 void
-teletext_DISPMTG_changed(struct teletext_struct* p_teletext, int value) {
-  /* TODO: we've currently only wired this up to HSYNC but it will suffice. */
-  (void) value;
-
-  teletext_scanline_ended(p_teletext);
+teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value) {
+  /* The chip increments its scanline counter on the falling edge of display
+   * enable from the 6845.
+   */
+  if ((value == 0) && (p_teletext->last_dispen == 1)) {
+    teletext_scanline_ended(p_teletext);
+  }
+  p_teletext->last_dispen = value;
 }
 
 void

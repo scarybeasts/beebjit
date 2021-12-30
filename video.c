@@ -229,6 +229,16 @@ video_is_display_enabled(struct video_struct* p_video) {
 }
 
 static inline void
+video_update_teletext_DISPEN(struct video_struct* p_video) {
+  int dispen = video_is_display_enabled(p_video);
+  /* The IC15 latch only lets DISPEN through if teletext linear addressing is
+   * in effect.
+   */
+  dispen &= !!(p_video->address_counter & 0x2000);
+  teletext_DISPEN_changed(p_video->p_teletext, dispen);
+}
+
+static inline void
 video_start_new_frame(struct video_struct* p_video) {
   uint32_t address_counter;
 
@@ -256,6 +266,7 @@ video_start_new_frame(struct video_struct* p_video) {
   address_counter |= p_video->crtc_registers[k_crtc_reg_mem_addr_low];
   p_video->address_counter = address_counter;
   p_video->address_counter_this_row = address_counter;
+  video_update_teletext_DISPEN(p_video);
   /* NOTE: it's untested what happens if you start a new frame, then start a
    * new character row without ever having hit R1 (horizontal displayed).
    */
@@ -625,9 +636,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
       p_video->display_enable_horiz = 0;
       func_render = func_render_blank;
       p_video->address_counter_next_row = p_video->address_counter;
-      if (p_video->display_enable_vert) {
-        teletext_DISPMTG_changed(p_video->p_teletext, 0);
-      }
+      teletext_DISPEN_changed(p_video->p_teletext, 0);
     }
     if (check_vsync_at_half_r0 &&
         (p_video->horiz_counter == p_video->half_r0)) {
@@ -767,6 +776,13 @@ check_r6:
       p_video->crtc_frames++;
       video_update_odd_even_frame(p_video);
     }
+
+    /* This handles sending DISPEN high for the beginning of a new horizontal
+     * line. It has to occur way down here after the R6 check, in case R6 is
+     * hitting at the same time as a new horizontal line.
+     * The testcases on mode7-75.ssd hit this condition visibly.
+     */
+    video_update_teletext_DISPEN(p_video);
 
 check_r7:
     check_vsync_at_half_r0 = video_is_check_vsync_at_half_r0(p_video);
@@ -1690,7 +1706,8 @@ video_render_full_frame(struct video_struct* p_video) {
         }
       }
       (void) render_hsync(p_render, hsync_pulse_ticks);
-      teletext_DISPMTG_changed(p_teletext, 0);
+      teletext_DISPEN_changed(p_teletext, 1);
+      teletext_DISPEN_changed(p_teletext, 0);
     }
   }
 }
@@ -2023,6 +2040,7 @@ video_crtc_write(struct video_struct* p_video, uint8_t addr, uint8_t val) {
     }
     video_update_odd_even_frame(p_video);
     video_update_cursor_disabled(p_video);
+    video_update_teletext_DISPEN(p_video);
     break;
   case k_crtc_reg_cursor_start:
     p_video->cursor_flashing = !!(val & 0x40);
