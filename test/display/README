@@ -1,0 +1,48 @@
+These discs are interesting in some way for emulator display testing.
+Behavior of the 6845 CRTC, SAA5050 Teletext chip and BBC Micro video ULA are
+tested pretty extensively.
+Copyrights remain with their respective authors.
+
+
+- glitch.ssd
+Test cases that hammer CRTC / ULA registers and may even look pretty.
+
+- mode7-75.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/126
+By Kieran Connell.
+Messes with CRTC R9 in MODE 7.
+
+- mode7-bug.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/141
+By Kieran Connell.
+Triggers interesting MODE 7 character states.
+
+- Music2.ssd
+From http://mdfs.net/Mirror/Image/JGH/Music2.ssd
+The Doctor Who song playback displays MODE 8.
+
+- PLAY_DISC.ssd, SAVE_DISC.ssd
+From https://github.com/mattgodbolt/jsbeeb/issues/198
+Disc for drives 0 / 1 for Dragonsoft Explorer.
+Dragonsoft Explorer requires sideways RAM and has a custom disc loading
+routine that issue unusual i8271 commands directly.
+Also seems to do timing / video tricks.
+
+- raster-c.ssd
+By Kieran Connell.
+Excellent test case of Hitachi CRTC corner cases.
+
+- teletest_v1.ssd
+Various teletext tests.
+Includes the famous Teletext engineering test page.
+And a test by me that tests additional things.
+
+- upside-doom.ssd
+By Kieran Connell.
+CRTC test case that uses a multiple frames per horizontal line, and illustrates
+the CRTC quirk of "no display on last horizontal character".
+
+- upside-doom-no-skew.ssd
+By Kieran Connell.
+As above but uses a strange skew trick to avoid the problem of "no display on
+last horizontal character".
