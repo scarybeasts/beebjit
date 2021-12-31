@@ -583,7 +583,6 @@ video_advance_crtc_timing(struct video_struct* p_video) {
   goto check_r6;
 
   while (ticks < ticks_target) {
-    ticks += ticks_inc;
     r0_hit = (p_video->horiz_counter == r0);
     r1_hit = (p_video->horiz_counter == r1);
 
@@ -694,6 +693,7 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     p_video->address_counter = ((p_video->address_counter + 1) & 0x3FFF);
 
     if (!r0_hit) {
+      ticks += ticks_inc;
       continue;
     }
 
@@ -703,6 +703,8 @@ video_advance_crtc_timing(struct video_struct* p_video) {
     if (p_video->is_rendering_active) {
       func_render_blank(p_render, 0, 0, ticks);
     }
+    ticks += ticks_inc;
+
     p_video->horiz_counter = 0;
     p_video->display_enable_horiz = 1;
     p_video->is_first_frame_scanline = 0;
