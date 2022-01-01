@@ -369,7 +369,6 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
     if (!(ticks & 1)) {
       uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
       teletext_render_data(p_render->p_teletext,
-                           1,
                            (struct render_character_1MHz*) p_render_pos,
                            (struct render_character_1MHz*) p_next_render_pos,
                            data);
@@ -380,7 +379,7 @@ render_function_teletext_deinterlaced(struct render_struct* p_render,
     /* In teletext mode, we still need to tell the SAA5050 chip about data
      * bytes that are off-screen, so that it can maintain state.
      */
-    teletext_render_data(p_render->p_teletext, 0, NULL, NULL, data);
+    teletext_render_data(p_render->p_teletext, NULL, NULL, data);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);
@@ -411,14 +410,12 @@ render_function_teletext_interlaced(struct render_struct* p_render,
     if (p_render->vert_beam_pos & 1) {
       uint32_t* p_next_render_pos = (p_render_pos + p_render->width);
       teletext_render_data(p_render->p_teletext,
-                           0,
                            (struct render_character_1MHz*) p_next_render_pos,
                            NULL,
                            data);
       render_check_cursor(p_render, p_next_render_pos, NULL, 16);
     } else {
       teletext_render_data(p_render->p_teletext,
-                           0,
                            (struct render_character_1MHz*) p_render_pos,
                            NULL,
                            data);
@@ -429,7 +426,7 @@ render_function_teletext_interlaced(struct render_struct* p_render,
     /* In teletext mode, we still need to tell the SAA5050 chip about data
      * bytes that are off-screen, so that it can maintain state.
      */
-    teletext_render_data(p_render->p_teletext, 0, NULL, NULL, data);
+    teletext_render_data(p_render->p_teletext, NULL, NULL, data);
     if ((p_render->horiz_beam_pos & ~15) ==
         p_render->horiz_beam_window_start_pos) {
       render_reset_render_pos(p_render);

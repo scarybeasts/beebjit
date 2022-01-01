@@ -63,7 +63,8 @@ struct teletext_struct {
   uint32_t bg_color;
   int is_hold_graphics;
   uint8_t* p_held_character;
-  int do_character_rounding;
+  int crtc_ra0;
+  int is_isv;
   int last_dispen;
 };
 
@@ -406,13 +407,13 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
 
 void
 teletext_render_data(struct teletext_struct* p_teletext,
-                     int do_deinterlace,
                      struct render_character_1MHz* p_out,
                      struct render_character_1MHz* p_next_out,
                      uint8_t data) {
   uint32_t i;
   uint32_t bg_color;
   uint32_t src_data_scanline;
+  int do_render_rounded_scanline;
 
   /* Foreground color and active characters are set-after so load them before
    * potentially processing a control code.
@@ -479,9 +480,26 @@ teletext_render_data(struct teletext_struct* p_teletext,
     }
   }
 
-  if (!do_deinterlace &&
-      p_teletext->do_character_rounding &&
+  /* Handle non-interlaced teletext (the glyphs end up weird because character
+   * rounded scanline rows aren't selected correctly).
+   */
+  do_render_rounded_scanline = 0;
+  if (!p_teletext->is_isv &&
+      p_teletext->crtc_ra0 &&
       !p_teletext->double_active) {
+    do_render_rounded_scanline = 1;
+  }
+
+  /* Handle interlaced rendering. This is a non-default configuration where
+   * the renderer only rasters every other line in the canvas.
+   */
+  if ((p_next_out == NULL) &&
+      p_teletext->crtc_ra0 &&
+      !p_teletext->double_active) {
+    do_render_rounded_scanline = 1;
+  }
+
+  if (do_render_rounded_scanline) {
     src_data_scanline++;
   }
 
@@ -504,9 +522,9 @@ teletext_render_data(struct teletext_struct* p_teletext,
   if (p_out == NULL) {
     return;
   }
-  assert(do_deinterlace);
 
-  if (!p_teletext->double_active) {
+  /* Another condition to handle non-interlaced teletext. */
+  if (p_teletext->is_isv && !p_teletext->double_active) {
     p_src_data += 16;
   }
 
@@ -522,8 +540,11 @@ teletext_render_data(struct teletext_struct* p_teletext,
 }
 
 void
-teletext_RA_changed(struct teletext_struct* p_teletext, uint8_t ra) {
-  p_teletext->do_character_rounding = (ra & 1);
+teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
+                        uint8_t ra,
+                        int is_isv) {
+  p_teletext->crtc_ra0 = (ra & 1);
+  p_teletext->is_isv = is_isv;
 }
 
 void

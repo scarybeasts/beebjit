@@ -12,11 +12,12 @@ struct teletext_struct* teletext_create();
 void teletext_destroy(struct teletext_struct* p_teletext);
 
 void teletext_render_data(struct teletext_struct* p_teletext,
-                          int do_deinterlace,
                           struct render_character_1MHz* p_out,
                           struct render_character_1MHz* p_next_out,
                           uint8_t data);
-void teletext_RA_changed(struct teletext_struct* p_teletext, uint8_t ra);
+void teletext_RA_ISV_changed(struct teletext_struct* p_teletext,
+                             uint8_t ra,
+                             int is_isv);
 void teletext_DISPEN_changed(struct teletext_struct* p_teletext, int value);
 void teletext_VSYNC_changed(struct teletext_struct* p_teletext, int value);
 

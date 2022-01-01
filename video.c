@@ -808,9 +808,13 @@ check_r7:
        * 0..2..4.. for odd and even frames, and inform the SAA5050 differently
        * for interlace odd frames.
        */
-      teletext_RA_changed(p_video->p_teletext, p_video->is_odd_interlace_frame);
+      teletext_RA_ISV_changed(p_video->p_teletext,
+                              p_video->is_odd_interlace_frame,
+                              1);
     } else {
-      teletext_RA_changed(p_video->p_teletext, p_video->scanline_counter);
+      teletext_RA_ISV_changed(p_video->p_teletext,
+                              p_video->scanline_counter,
+                              0);
     }
 
     render_set_RA(p_render, p_video->scanline_counter);
