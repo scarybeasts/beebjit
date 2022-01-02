@@ -6,9 +6,17 @@ Copyrights remain with their respective authors.
 - glitch.ssd
 Test cases that hammer CRTC / ULA registers and may even look pretty.
 
-- PLAY_DISC.ssd, SAVE_DISC.ssd
-From https://github.com/mattgodbolt/jsbeeb/issues/198
-Disc for drives 0 / 1 for Dragonsoft Explorer.
-Dragonsoft Explorer requires sideways RAM and has a custom disc loading
-routine that issue unusual i8271 commands directly.
-Also seems to do timing / video tricks.
+- protection.ssd
+From jsbeeb:
+https://github.com/mattgodbolt/jsbeeb/blob/main/discs/Protection.ssd
+The isolated protection "decryption" code from Kevin Edwards' nastiest
+copy protection.
+Tests precise VIA timing and quirks.
+
+- tests.ssd
+Misc little BASIC tests cases by me. Mostly VIA corner cases.
+
+- viatest.ssd
+By Rich Talbot-Watkins.
+An SSD created from the jsbeeb file:
+https://github.com/mattgodbolt/jsbeeb/blob/main/tests/TestTimingsSource
