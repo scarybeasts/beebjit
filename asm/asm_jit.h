@@ -9,6 +9,7 @@ struct util_buffer;
 struct asm_jit_struct;
 
 int asm_jit_is_enabled(void);
+int asm_jit_is_default(void);
 void asm_jit_test_preconditions(void);
 int asm_jit_supports_uopcode(int32_t uopcode);
 int asm_jit_uses_indirect_mappings(void);

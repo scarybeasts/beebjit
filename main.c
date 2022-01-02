@@ -20,6 +20,9 @@
 #include "video.h"
 #include "wd_fdc.h"
 
+/* For asm_jit_is_default(). */
+#include "asm/asm_jit.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -82,6 +85,7 @@ beebjit_main(void) {
   intptr_t handle_channel_write_ui;
   char* p_opt_flags;
   char* p_log_flags;
+  int mode;
 
   const char* rom_names[k_bbc_num_roms] = {};
   int sideways_ram[k_bbc_num_roms] = {};
@@ -123,7 +127,6 @@ beebjit_main(void) {
   int extended_roms_flag = 0;
   int32_t debug_stop_addr = -1;
   int32_t pc = -1;
-  int mode = k_cpu_mode_jit;
   uint64_t cycles = 0;
   uint32_t expect = 0;
   int window_open = 0;
@@ -135,6 +138,12 @@ beebjit_main(void) {
   uint64_t frame_cycles = 0;
   uint32_t max_frames = 1;
   int is_exit_on_max_frames_flag = 0;
+
+  if (asm_jit_is_default()) {
+    mode = k_cpu_mode_jit;
+  } else {
+    mode = k_cpu_mode_interp;
+  }
 
   p_opt_flags = util_mallocz(1);
   p_log_flags = util_mallocz(1);
