@@ -29,15 +29,15 @@
 
 #if defined(__x86_64__)
 #if __APPLE__
-#error TODO
+#include "os_fault_platform_macos_x64.c"
 #else
-#include "os_fault_platform_x64.c"
+#include "os_fault_platform_linux_x64.c"
 #endif
 #elif defined(__aarch64__)
 #if __APPLE__
-#include "os_fault_platform_arm64_macos.c"
+#include "os_fault_platform_macos_arm64.c"
 #else
-#include "os_fault_platform_arm64.c"
+#include "os_fault_platform_linux_arm64.c"
 #endif
 #else
 #include "os_fault_platform_null.c"
