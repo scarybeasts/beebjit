@@ -6,7 +6,6 @@
 
 .file "asm/x64/asm_inturbo_x64.S"
 .intel_syntax noprefix
-.section rodata
 .text
 
 

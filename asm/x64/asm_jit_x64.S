@@ -6,7 +6,6 @@
 
 .file "asm/x64/asm_jit_x64.S"
 .intel_syntax noprefix
-.section rodata
 .text
 
 
