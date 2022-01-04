@@ -560,6 +560,10 @@ jit_compile(struct jit_struct* p_jit,
     jit_memory_range_invalidate(&p_jit->driver,
                                 0,
                                 (k_6502_addr_space_size - 1));
+    /* Invalidating a range finishes code updates, so start them again so we
+     * can still write to our code mapping.
+     */
+    asm_jit_start_code_updates(p_jit->p_asm);
 
     jit_compiler_set_compiling_for_code_in_zero_page(p_compiler, 1);
   } else if ((addr_6502 >= 0x100) && (addr_6502 <= 0x1FF)) {
