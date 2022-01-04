@@ -100,21 +100,21 @@ jit_test_details_from_host_ip(void) {
   test_expect_u32(0xFFFFFFFF, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = (void*) (uintptr_t) s_p_jit->jit_ptrs[0xA00];
+  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA00);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(1, details.exact_match);
   test_expect_u32(0xA00, details.pc_6502);
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = (void*) (uintptr_t) s_p_jit->jit_ptrs[0xA01];
+  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA01);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(1, details.exact_match);
   test_expect_u32(0xA01, details.pc_6502);
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = (void*) (uintptr_t) s_p_jit->jit_ptrs[0xA00];
+  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA00);
   p_jit_ptr++;
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0, details.exact_match);
@@ -122,7 +122,7 @@ jit_test_details_from_host_ip(void) {
   test_expect_u32(0xA00, details.block_6502);
   test_expect_u32((uint32_t) (uintptr_t) p_A00_host_block,
                   (uint32_t) (uintptr_t) details.p_invalidation_code_block);
-  p_jit_ptr = (void*) (uintptr_t) s_p_jit->jit_ptrs[0xA01];
+  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0xA01);
   p_jit_ptr++;
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0, details.exact_match);
@@ -142,7 +142,7 @@ jit_test_details_from_host_ip(void) {
   state_6502_set_pc(s_p_state_6502, 0x200);
   jit_enter(s_p_cpu_driver);
   interp_testing_unexit(s_p_interp);
-  p_jit_ptr = (void*) (uintptr_t) s_p_jit->jit_ptrs[0x280];
+  p_jit_ptr = jit_get_host_jit_ptr(s_p_jit, 0x280);
   jit_get_6502_details_from_host_ip(s_p_jit, &details, p_jit_ptr);
   test_expect_u32(0x280, details.pc_6502);
   test_expect_u32(0x200, details.block_6502);
