@@ -48,7 +48,7 @@ ASM_SYM(asm_inturbo_check_special_address):
   lea REG_SCRATCH3_32, [REG_SCRATCH1 + 0xFFFF]
 ASM_SYM(asm_inturbo_check_special_address_lea_patch):
   bt REG_SCRATCH3_32, 16
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_check_special_address_jb_patch):
 
 ASM_SYM(asm_inturbo_check_special_address_END):
@@ -71,7 +71,7 @@ ASM_SYM(asm_inturbo_start_countdown_END):
 .globl ASM_SYM(asm_inturbo_check_and_commit_countdown_jb_patch)
 ASM_SYM(asm_inturbo_check_and_commit_countdown):
   bt REG_SCRATCH3, 63
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_check_and_commit_countdown_jb_patch):
   mov REG_COUNTDOWN, REG_SCRATCH3
 
@@ -95,7 +95,7 @@ ASM_SYM(asm_inturbo_commit_branch_END):
 ASM_SYM(asm_inturbo_check_decimal):
 
   bt REG_6502_ID_F_64, 3
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_check_decimal_jb_patch):
 
 ASM_SYM(asm_inturbo_check_decimal_END):
@@ -112,7 +112,7 @@ ASM_SYM(asm_inturbo_check_interrupt):
       DWORD PTR [REG_SCRATCH1 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH1_32, [REG_SCRATCH1 - 1]
   bt REG_SCRATCH1_32, 31
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_check_interrupt_jae_patch):
 
 ASM_SYM(asm_inturbo_check_interrupt_END):
@@ -325,7 +325,7 @@ ASM_SYM(asm_inturbo_mode_abx_check_page_crossing):
   movzx REG_SCRATCH2, REG_SCRATCH2_8
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_X_64]
   bt REG_SCRATCH2_32, 8
-  jnc asm_inturbo_mode_abx_check_page_crossing_END
+  jnc ASM_SYM(asm_inturbo_mode_abx_check_page_crossing_END)
   lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 ASM_SYM(asm_inturbo_mode_abx_check_page_crossing_END):
@@ -350,7 +350,7 @@ ASM_SYM(asm_inturbo_mode_aby_check_page_crossing):
   movzx REG_SCRATCH2, REG_SCRATCH2_8
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
-  jnc asm_inturbo_mode_aby_check_page_crossing_END
+  jnc ASM_SYM(asm_inturbo_mode_aby_check_page_crossing_END)
   lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 ASM_SYM(asm_inturbo_mode_aby_check_page_crossing_END):
@@ -395,7 +395,7 @@ ASM_SYM(asm_inturbo_mode_idx):
   movzx REG_SCRATCH1_32, WORD PTR [REG_SCRATCH1 + K_BBC_MEM_READ_FULL_ADDR]
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH2_32, 8
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_mode_idx_jump_patch):
 
 ASM_SYM(asm_inturbo_mode_idx_END):
@@ -416,7 +416,7 @@ ASM_SYM(asm_inturbo_mode_idy):
 
   # Handle special case of 0xFF via the interpreter.
   bt REG_SCRATCH3_32, 8
-  jc asm_unpatched_branch_target
+  jc ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_inturbo_mode_idy_jump_patch):
 
 ASM_SYM(asm_inturbo_mode_idy_END):
@@ -430,7 +430,7 @@ ASM_SYM(asm_inturbo_mode_idy_check_page_crossing):
   movzx REG_SCRATCH2, REG_SCRATCH2_8
   lea REG_SCRATCH2, [REG_SCRATCH2 + REG_6502_Y_64]
   bt REG_SCRATCH2_32, 8
-  jnc asm_inturbo_mode_idy_check_page_crossing_END
+  jnc ASM_SYM(asm_inturbo_mode_idy_check_page_crossing_END)
   lea REG_SCRATCH3, [REG_SCRATCH3 - 1]
 
 ASM_SYM(asm_inturbo_mode_idy_check_page_crossing_END):
@@ -575,7 +575,7 @@ ASM_SYM(asm_instruction_BCC_interp_END):
 ASM_SYM(asm_instruction_BCC_interp_accurate):
 
   bt REG_6502_CF_64, 0
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BCC_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BCC_interp_accurate_END):
@@ -599,7 +599,7 @@ ASM_SYM(asm_instruction_BCS_interp_END):
 ASM_SYM(asm_instruction_BCS_interp_accurate):
 
   bt REG_6502_CF_64, 0
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BCS_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BCS_interp_accurate_END):
@@ -621,7 +621,7 @@ ASM_SYM(asm_instruction_BEQ_interp_END):
 .globl ASM_SYM(asm_instruction_BEQ_interp_accurate_jump_patch)
 ASM_SYM(asm_instruction_BEQ_interp_accurate):
 
-  jne asm_unpatched_branch_target
+  jne ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BEQ_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BEQ_interp_accurate_END):
@@ -653,7 +653,7 @@ ASM_SYM(asm_instruction_BMI_interp_END):
 .globl ASM_SYM(asm_instruction_BMI_interp_accurate_jump_patch)
 ASM_SYM(asm_instruction_BMI_interp_accurate):
 
-  jns asm_unpatched_branch_target
+  jns ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BMI_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BMI_interp_accurate_END):
@@ -675,7 +675,7 @@ ASM_SYM(asm_instruction_BNE_interp_END):
 .globl ASM_SYM(asm_instruction_BNE_interp_accurate_jump_patch)
 ASM_SYM(asm_instruction_BNE_interp_accurate):
 
-  je asm_unpatched_branch_target
+  je ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BNE_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BNE_interp_accurate_END):
@@ -697,7 +697,7 @@ ASM_SYM(asm_instruction_BPL_interp_END):
 .globl ASM_SYM(asm_instruction_BPL_interp_accurate_jump_patch)
 ASM_SYM(asm_instruction_BPL_interp_accurate):
 
-  js asm_unpatched_branch_target
+  js ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BPL_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BPL_interp_accurate_END):
@@ -721,7 +721,7 @@ ASM_SYM(asm_instruction_BVC_interp_END):
 ASM_SYM(asm_instruction_BVC_interp_accurate):
 
   bt REG_6502_OF_64, 0
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BVC_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BVC_interp_accurate_END):
@@ -746,7 +746,7 @@ ASM_SYM(asm_instruction_BVS_interp_END):
 ASM_SYM(asm_instruction_BVS_interp_accurate):
 
   bt REG_6502_OF_64, 0
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_instruction_BVS_interp_accurate_jump_patch):
 
 ASM_SYM(asm_instruction_BVS_interp_accurate_END):

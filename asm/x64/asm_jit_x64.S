@@ -144,7 +144,7 @@ ASM_SYM(asm_jit_check_countdown):
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80000000]
 ASM_SYM(asm_jit_check_countdown_count_patch):
   bt REG_COUNTDOWN, 63
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_jit_check_countdown_jump_patch):
 
 ASM_SYM(asm_jit_check_countdown_END):
@@ -159,7 +159,7 @@ ASM_SYM(asm_jit_check_countdown_8bit):
   lea REG_COUNTDOWN, [REG_COUNTDOWN - 0x80]
 ASM_SYM(asm_jit_check_countdown_8bit_count_patch):
   bt REG_COUNTDOWN, 63
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_jit_check_countdown_8bit_jump_patch):
 
 ASM_SYM(asm_jit_check_countdown_8bit_END):
@@ -351,7 +351,7 @@ ASM_SYM(asm_jit_CHECK_PENDING_IRQ):
   mov REG_SCRATCH2_32, [REG_SCRATCH2 + K_STATE_6502_OFFSET_REG_IRQ_FIRE]
   lea REG_SCRATCH2_32, [REG_SCRATCH2 - 1]
   bt REG_SCRATCH2_32, 31
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 ASM_SYM(asm_jit_CHECK_PENDING_IRQ_jump_patch):
 
 ASM_SYM(asm_jit_CHECK_PENDING_IRQ_END):
@@ -1043,7 +1043,7 @@ ASM_SYM(asm_jit_ASL_ZPG_END):
 .globl ASM_SYM(asm_jit_BCC)
 .globl ASM_SYM(asm_jit_BCC_END)
 ASM_SYM(asm_jit_BCC):
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BCC_END):
   ret
@@ -1052,7 +1052,7 @@ ASM_SYM(asm_jit_BCC_END):
 .globl ASM_SYM(asm_jit_BCC_8bit)
 .globl ASM_SYM(asm_jit_BCC_8bit_END)
 ASM_SYM(asm_jit_BCC_8bit):
-  jae asm_jit_BCC_8bit
+  jae ASM_SYM(asm_jit_BCC_8bit)
 
 ASM_SYM(asm_jit_BCC_8bit_END):
   ret
@@ -1061,7 +1061,7 @@ ASM_SYM(asm_jit_BCC_8bit_END):
 .globl ASM_SYM(asm_jit_BCS)
 .globl ASM_SYM(asm_jit_BCS_END)
 ASM_SYM(asm_jit_BCS):
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BCS_END):
   ret
@@ -1070,7 +1070,7 @@ ASM_SYM(asm_jit_BCS_END):
 .globl ASM_SYM(asm_jit_BCS_8bit)
 .globl ASM_SYM(asm_jit_BCS_8bit_END)
 ASM_SYM(asm_jit_BCS_8bit):
-  jb asm_jit_BCS_8bit
+  jb ASM_SYM(asm_jit_BCS_8bit)
 
 ASM_SYM(asm_jit_BCS_8bit_END):
   ret
@@ -1079,7 +1079,7 @@ ASM_SYM(asm_jit_BCS_8bit_END):
 .globl ASM_SYM(asm_jit_BEQ)
 .globl ASM_SYM(asm_jit_BEQ_END)
 ASM_SYM(asm_jit_BEQ):
-  je asm_unpatched_branch_target
+  je ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BEQ_END):
   ret
@@ -1088,7 +1088,7 @@ ASM_SYM(asm_jit_BEQ_END):
 .globl ASM_SYM(asm_jit_BEQ_8bit)
 .globl ASM_SYM(asm_jit_BEQ_8bit_END)
 ASM_SYM(asm_jit_BEQ_8bit):
-  je asm_jit_BEQ_8bit
+  je ASM_SYM(asm_jit_BEQ_8bit)
 
 ASM_SYM(asm_jit_BEQ_8bit_END):
   ret
@@ -1115,7 +1115,7 @@ ASM_SYM(asm_jit_load_ZPG_END):
 .globl ASM_SYM(asm_jit_BMI)
 .globl ASM_SYM(asm_jit_BMI_END)
 ASM_SYM(asm_jit_BMI):
-  js asm_unpatched_branch_target
+  js ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BMI_END):
   ret
@@ -1124,7 +1124,7 @@ ASM_SYM(asm_jit_BMI_END):
 .globl ASM_SYM(asm_jit_BMI_8bit)
 .globl ASM_SYM(asm_jit_BMI_8bit_END)
 ASM_SYM(asm_jit_BMI_8bit):
-  js asm_jit_BMI_8bit
+  js ASM_SYM(asm_jit_BMI_8bit)
 
 ASM_SYM(asm_jit_BMI_8bit_END):
   ret
@@ -1133,7 +1133,7 @@ ASM_SYM(asm_jit_BMI_8bit_END):
 .globl ASM_SYM(asm_jit_BNE)
 .globl ASM_SYM(asm_jit_BNE_END)
 ASM_SYM(asm_jit_BNE):
-  jne asm_unpatched_branch_target
+  jne ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BNE_END):
   ret
@@ -1142,7 +1142,7 @@ ASM_SYM(asm_jit_BNE_END):
 .globl ASM_SYM(asm_jit_BNE_8bit)
 .globl ASM_SYM(asm_jit_BNE_8bit_END)
 ASM_SYM(asm_jit_BNE_8bit):
-  jne asm_jit_BNE_8bit
+  jne ASM_SYM(asm_jit_BNE_8bit)
 
 ASM_SYM(asm_jit_BNE_8bit_END):
   ret
@@ -1151,7 +1151,7 @@ ASM_SYM(asm_jit_BNE_8bit_END):
 .globl ASM_SYM(asm_jit_BPL)
 .globl ASM_SYM(asm_jit_BPL_END)
 ASM_SYM(asm_jit_BPL):
-  jns asm_unpatched_branch_target
+  jns ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BPL_END):
   ret
@@ -1160,7 +1160,7 @@ ASM_SYM(asm_jit_BPL_END):
 .globl ASM_SYM(asm_jit_BPL_8bit)
 .globl ASM_SYM(asm_jit_BPL_8bit_END)
 ASM_SYM(asm_jit_BPL_8bit):
-  jns asm_jit_BPL_8bit
+  jns ASM_SYM(asm_jit_BPL_8bit)
 
 ASM_SYM(asm_jit_BPL_8bit_END):
   ret
@@ -1169,7 +1169,7 @@ ASM_SYM(asm_jit_BPL_8bit_END):
 .globl ASM_SYM(asm_jit_BVC)
 .globl ASM_SYM(asm_jit_BVC_END)
 ASM_SYM(asm_jit_BVC):
-  jae asm_unpatched_branch_target
+  jae ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BVC_END):
   ret
@@ -1178,7 +1178,7 @@ ASM_SYM(asm_jit_BVC_END):
 .globl ASM_SYM(asm_jit_BVC_8bit)
 .globl ASM_SYM(asm_jit_BVC_8bit_END)
 ASM_SYM(asm_jit_BVC_8bit):
-  jae asm_jit_BVC_8bit
+  jae ASM_SYM(asm_jit_BVC_8bit)
 
 ASM_SYM(asm_jit_BVC_8bit_END):
   ret
@@ -1187,7 +1187,7 @@ ASM_SYM(asm_jit_BVC_8bit_END):
 .globl ASM_SYM(asm_jit_BVS)
 .globl ASM_SYM(asm_jit_BVS_END)
 ASM_SYM(asm_jit_BVS):
-  jb asm_unpatched_branch_target
+  jb ASM_SYM(asm_unpatched_branch_target)
 
 ASM_SYM(asm_jit_BVS_END):
   ret
@@ -1196,7 +1196,7 @@ ASM_SYM(asm_jit_BVS_END):
 .globl ASM_SYM(asm_jit_BVS_8bit)
 .globl ASM_SYM(asm_jit_BVS_8bit_END)
 ASM_SYM(asm_jit_BVS_8bit):
-  jb asm_jit_BVS_8bit
+  jb ASM_SYM(asm_jit_BVS_8bit)
 
 ASM_SYM(asm_jit_BVS_8bit_END):
   ret
