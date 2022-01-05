@@ -1052,7 +1052,9 @@ ASM_SYM(asm_jit_BCC_END):
 .globl ASM_SYM(asm_jit_BCC_8bit)
 .globl ASM_SYM(asm_jit_BCC_8bit_END)
 ASM_SYM(asm_jit_BCC_8bit):
-  jae ASM_SYM(asm_jit_BCC_8bit)
+  # Force short jump encoding for "jae".
+  .byte 0x73
+  .byte 0x00
 
 ASM_SYM(asm_jit_BCC_8bit_END):
   ret
@@ -1070,7 +1072,9 @@ ASM_SYM(asm_jit_BCS_END):
 .globl ASM_SYM(asm_jit_BCS_8bit)
 .globl ASM_SYM(asm_jit_BCS_8bit_END)
 ASM_SYM(asm_jit_BCS_8bit):
-  jb ASM_SYM(asm_jit_BCS_8bit)
+  # Force short jump encoding for "jb".
+  .byte 0x72
+  .byte 0x00
 
 ASM_SYM(asm_jit_BCS_8bit_END):
   ret
@@ -1088,7 +1092,9 @@ ASM_SYM(asm_jit_BEQ_END):
 .globl ASM_SYM(asm_jit_BEQ_8bit)
 .globl ASM_SYM(asm_jit_BEQ_8bit_END)
 ASM_SYM(asm_jit_BEQ_8bit):
-  je ASM_SYM(asm_jit_BEQ_8bit)
+  # Force short jump encoding for "je".
+  .byte 0x74
+  .byte 0x00
 
 ASM_SYM(asm_jit_BEQ_8bit_END):
   ret
@@ -1124,7 +1130,9 @@ ASM_SYM(asm_jit_BMI_END):
 .globl ASM_SYM(asm_jit_BMI_8bit)
 .globl ASM_SYM(asm_jit_BMI_8bit_END)
 ASM_SYM(asm_jit_BMI_8bit):
-  js ASM_SYM(asm_jit_BMI_8bit)
+  # Force short jump encoding for "js".
+  .byte 0x78
+  .byte 0x00
 
 ASM_SYM(asm_jit_BMI_8bit_END):
   ret
@@ -1142,7 +1150,9 @@ ASM_SYM(asm_jit_BNE_END):
 .globl ASM_SYM(asm_jit_BNE_8bit)
 .globl ASM_SYM(asm_jit_BNE_8bit_END)
 ASM_SYM(asm_jit_BNE_8bit):
-  jne ASM_SYM(asm_jit_BNE_8bit)
+  # Force short jump encoding for "jne".
+  .byte 0x75
+  .byte 0x00
 
 ASM_SYM(asm_jit_BNE_8bit_END):
   ret
@@ -1160,7 +1170,9 @@ ASM_SYM(asm_jit_BPL_END):
 .globl ASM_SYM(asm_jit_BPL_8bit)
 .globl ASM_SYM(asm_jit_BPL_8bit_END)
 ASM_SYM(asm_jit_BPL_8bit):
-  jns ASM_SYM(asm_jit_BPL_8bit)
+  # Force short jump encoding for "jns".
+  .byte 0x79
+  .byte 0x00
 
 ASM_SYM(asm_jit_BPL_8bit_END):
   ret
@@ -1178,7 +1190,9 @@ ASM_SYM(asm_jit_BVC_END):
 .globl ASM_SYM(asm_jit_BVC_8bit)
 .globl ASM_SYM(asm_jit_BVC_8bit_END)
 ASM_SYM(asm_jit_BVC_8bit):
-  jae ASM_SYM(asm_jit_BVC_8bit)
+  # Force short jump encoding for "jae".
+  .byte 0x73
+  .byte 0x00
 
 ASM_SYM(asm_jit_BVC_8bit_END):
   ret
@@ -1196,7 +1210,9 @@ ASM_SYM(asm_jit_BVS_END):
 .globl ASM_SYM(asm_jit_BVS_8bit)
 .globl ASM_SYM(asm_jit_BVS_8bit_END)
 ASM_SYM(asm_jit_BVS_8bit):
-  jb ASM_SYM(asm_jit_BVS_8bit)
+  # Force short jump encoding for "jb".
+  .byte 0x72
+  .byte 0x00
 
 ASM_SYM(asm_jit_BVS_8bit_END):
   ret
@@ -1494,7 +1510,9 @@ ASM_SYM(asm_jit_JMP_END):
 .globl ASM_SYM(asm_jit_JMP_8bit)
 .globl ASM_SYM(asm_jit_JMP_8bit_END)
 ASM_SYM(asm_jit_JMP_8bit):
-  jmp ASM_SYM(asm_jit_JMP_8bit)
+  # Force short jump encoding for "jmp".
+  .byte 0xeb
+  .byte 0x00
 
 ASM_SYM(asm_jit_JMP_8bit_END):
   ret
