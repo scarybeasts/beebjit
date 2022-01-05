@@ -1684,6 +1684,7 @@ video_render_full_frame(struct video_struct* p_video) {
 
   render_vsync(p_render);
   teletext_VSYNC_changed(p_teletext, 0);
+  teletext_RA_ISV_changed(p_teletext, 0, 1);
 
   for (i_lines = 0; i_lines < num_pre_lines; ++i_lines) {
     (void) render_hsync(p_render, hsync_pulse_ticks);
