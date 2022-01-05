@@ -1,5 +1,6 @@
 #include "os_sound.h"
 
+#include "log.h"
 #include "util.h"
 
 #include <AudioToolbox/AudioQueue.h>
@@ -191,7 +192,8 @@ os_sound_init(struct os_sound_struct* p_driver) {
 
   err = AudioQueueStart(queue, NULL);
   if (err != noErr) {
-    util_bail("AudioQueueStart");
+    log_do_log(k_log_audio, k_log_warning, "AudioQueueStart failed: %d", err);
+    return -1;
   }
 
   return 0;
