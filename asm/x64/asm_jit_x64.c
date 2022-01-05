@@ -317,7 +317,9 @@ asm_jit_test_preconditions(void) {
   void asm_jit_BEQ_8bit(void);
   void asm_jit_BEQ_8bit_END(void);
   if ((asm_jit_BEQ_8bit_END - asm_jit_BEQ_8bit) != 2) {
-    util_bail("JIT assembly miscompiled -- clang issue? try opt build.");
+    util_bail("JIT assembly miscompiled (%p %p) clang issue? try opt build",
+              asm_jit_BEQ_8bit,
+              asm_jit_BEQ_8bit_END);
   }
 }
 
