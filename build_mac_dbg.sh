@@ -1,10 +1,18 @@
 #!/bin/sh
 set -e
 
+BEEBJIT_PLATFORM=`uname -m`
+BEEBJIT_CLANG_EXTRA=""
+if [ $BEEBJIT_PLATFORM = "x86_64" ]
+then
+  BEEBJIT_CLANG_EXTRA="-Wl,-pagezero_size,0x00400000 -fno-pie"
+fi
+
 clang -Wall -W -Werror \
       -Wno-unknown-warning-option -Wno-address-of-packed-member \
       -Wa,--noexecstack \
       -framework Cocoa -framework Audiotoolbox \
+      $BEEBJIT_CLANG_EXTRA \
       -g -o beebjit \
       asm/asm_abi.c asm/asm_tables.c asm/asm_util.c \
       asm/asm_common.c asm/asm_common.S \
