@@ -16,15 +16,21 @@ posix_fault_handler(int signum, siginfo_t* p_siginfo, void* p_void) {
   uintptr_t host_context;
   int is_exec_fault;
   int is_write_fault;
+  int si_code = p_siginfo->si_code;
 
   /* Crash unless it's fault type we expected. */
-  if ((signum == SIGSEGV) && (p_siginfo->si_code == SEGV_ACCERR)) {
+  if ((signum == SIGSEGV) && (si_code == SEGV_ACCERR)) {
     /* OK. */
-  } else if ((signum == SIGBUS) && (p_siginfo->si_code == BUS_ADRALN)) {
-    /* OK; hits on macOS for writing to the read-only JIT mapping.
-     * Note that it's definitely not a bad alignment; that's just the code that
-     * comes through as the others would likely make even less sense.
-     */
+  } else if (signum == SIGBUS) {
+    if ((si_code == BUS_ADRALN) || (si_code == BUS_ADRERR)) {
+      /* TODO: this should be abstracted into a platform specific file. */
+      /* OK; hits on macOS.
+       * Note that it's definitely not a bad alignment; that's just the code
+       * that comes through on macOS ARM64.
+       */
+    } else {
+      os_fault_bail();
+    }
   } else {
     os_fault_bail();
   }
