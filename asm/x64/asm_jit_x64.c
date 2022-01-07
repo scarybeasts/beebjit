@@ -379,6 +379,8 @@ asm_jit_create(void* p_jit_base,
     asm_emit_jit_jump_interp_trampoline(p_temp_buf, i);
   }
 
+  os_alloc_make_mapping_read_exec(p_trampolines, mapping_size);
+
   util_buffer_destroy(p_temp_buf);
 
   return p_asm;

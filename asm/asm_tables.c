@@ -73,4 +73,6 @@ asm_tables_init() {
   p_dst = (p_base + K_ASM_TABLE_OF_TO_6502_OFFSET);
   *p_dst++ = 0;
   *p_dst++ = 0x40;
+
+  os_alloc_make_mapping_read_only(p_base, k_asm_tables_size);
 }
