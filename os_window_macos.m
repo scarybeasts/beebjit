@@ -6,6 +6,7 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include <signal.h>
 #include <unistd.h>
 
 struct os_window_struct {
@@ -122,6 +123,8 @@ cocoa_build_keycode_lookup(void) {
 
 void
 os_window_main_thread_start(void (*p_beebjit_main)(void)) {
+  sig_t sig_ret;
+
   cocoa_check_is_main_thread();
 
   cocoa_build_keycode_lookup();
@@ -130,6 +133,22 @@ os_window_main_thread_start(void (*p_beebjit_main)(void)) {
   NSApp = [NSApplication sharedApplication];
   /* Application cannot gain focus (e.g. to get key presses) without this. */
   [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+
+  /* If the macOS defaults key NSGlobalDomain NSExceptionHandlingMask is set,
+   * e.g. to 63 as observed on one machine, the Cocoa framework may have
+   * installed signal handlers by now.
+   * See: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Exceptions/Tasks/ControllingAppResponse.html#//apple_ref/doc/uid/20000473
+   * Unininstall them so beebjit doesn't get upset when it tries to take over
+   * fault handling.
+   */
+  sig_ret = signal(SIGSEGV, SIG_DFL);
+  if (sig_ret == SIG_ERR) {
+    util_bail("signal failed");
+  }
+  sig_ret = signal(SIGBUS, SIG_DFL);
+  if (sig_ret == SIG_ERR) {
+    util_bail("signal failed");
+  }
 
   (void) os_thread_create(beebjit_main_thread_start, p_beebjit_main);
 
