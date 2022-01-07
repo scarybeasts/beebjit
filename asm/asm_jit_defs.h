@@ -18,9 +18,5 @@
 #define K_JIT_CONTEXT_OFFSET_INTURBO       (K_CONTEXT_OFFSET_DRIVER_END + 8)
 #define K_JIT_CONTEXT_OFFSET_JIT_PTRS      (K_CONTEXT_OFFSET_DRIVER_END + 16)
 
-/* TODO: these are x64 backend specific, and don't belong here. */
-#define K_JIT_TRAMPOLINE_BYTES             16
-#define K_JIT_TRAMPOLINES_ADDR             0x30000000
-
 #endif /* BEEBJIT_ASM_JIT_DEFS_H */
 

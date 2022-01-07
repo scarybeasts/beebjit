@@ -13,6 +13,9 @@
 
 #include <assert.h>
 
+#define K_JIT_TRAMPOLINE_BYTES             16
+#define K_JIT_TRAMPOLINES_ADDR             0x80000000
+
 enum {
   k_opcode_x64_check_page_crossing_ABX = 0x1000,
   k_opcode_x64_check_page_crossing_ABY,
