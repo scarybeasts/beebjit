@@ -1087,107 +1087,274 @@ debug_make_sub_instruction_active(struct debug_struct* p_debug) {
 }
 
 static int64_t
-debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
+debug_read_variable_a(void* p, uint32_t index) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  int64_t ret = 0;
+  (void) index;
+  return p_debug->reg_a;
+}
+
+static int64_t
+debug_read_variable_x(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->reg_x;
+}
+
+static int64_t
+debug_read_variable_y(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->reg_y;
+}
+
+static int64_t
+debug_read_variable_s(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->reg_s;
+}
+
+static int64_t
+debug_read_variable_pc(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->reg_pc;
+}
+
+static int64_t
+debug_read_variable_flags(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->reg_flags;
+}
+
+static int64_t
+debug_read_variable_addr(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->addr_6502;
+}
+
+static int64_t
+debug_read_variable_is_read(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->is_read;
+}
+
+static int64_t
+debug_read_variable_is_write(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return p_debug->is_write;
+}
+
+static int64_t
+debug_read_variable_mem(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  if (index < k_6502_addr_space_size) {
+    return p_debug->p_mem_read[index];
+  }
+  return -1;
+}
+
+static int64_t
+debug_read_variable_temp(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+    return p_debug->temp_storage[index];
+  }
+  return -1;
+}
+
+static int64_t
+debug_read_variable_crtc_r(void* p, uint32_t index) {
+  if (index < k_video_crtc_num_registers) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    uint8_t crtc_regs[k_video_crtc_num_registers];
+    video_get_crtc_registers(p_debug->p_video, &crtc_regs[0]);
+    return crtc_regs[index];
+  }
+  return -1;
+}
+
+static int64_t
+debug_read_variable_crtc_c0(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint16_t addr_counter;
+  (void) index;
+  video_get_crtc_state(p_debug->p_video,
+                       &horiz_counter,
+                       &scanline_counter,
+                       &vert_counter,
+                       &addr_counter);
+  return horiz_counter;
+}
+
+static int64_t
+debug_read_variable_crtc_c4(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint16_t addr_counter;
+  (void) index;
+  video_get_crtc_state(p_debug->p_video,
+                       &horiz_counter,
+                       &scanline_counter,
+                       &vert_counter,
+                       &addr_counter);
+  return vert_counter;
+}
+
+static int64_t
+debug_read_variable_crtc_c9(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint16_t addr_counter;
+  (void) index;
+  video_get_crtc_state(p_debug->p_video,
+                       &horiz_counter,
+                       &scanline_counter,
+                       &vert_counter,
+                       &addr_counter);
+  return scanline_counter;
+}
+
+static int64_t
+debug_read_variable_crtc_ma(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  uint8_t horiz_counter;
+  uint8_t scanline_counter;
+  uint8_t vert_counter;
+  uint16_t addr_counter;
+  (void) index;
+  video_get_crtc_state(p_debug->p_video,
+                       &horiz_counter,
+                       &scanline_counter,
+                       &vert_counter,
+                       &addr_counter);
+  return addr_counter;
+}
+
+static int64_t
+debug_read_variable_render_x(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  video_advance_crtc_timing(p_debug->p_video);
+  return render_get_horiz_pos(p_debug->p_render);
+}
+
+static int64_t
+debug_read_variable_render_y(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  video_advance_crtc_timing(p_debug->p_video);
+  return render_get_vert_pos(p_debug->p_render);
+}
+
+static int64_t
+debug_read_variable_sysvia_r(void* p, uint32_t index) {
+  if (index < k_via_num_mapped_registers) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    /* This hits the normal VIA read path, with side effects possible. */
+    return via_read_raw(p_debug->p_system_via, index);
+  }
+  return -1;
+}
+
+static int64_t
+debug_read_variable_uservia_r(void* p, uint32_t index) {
+  if (index < k_via_num_mapped_registers) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    /* This hits the normal VIA read path, with side effects possible. */
+    return via_read_raw(p_debug->p_user_via, index);
+  }
+  return -1;
+}
+
+static int64_t
+debug_read_variable_irq(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return state_6502_has_irq_high(p_debug->p_state_6502);
+}
+
+static int64_t
+debug_read_variable_nmi(void* p, uint32_t index) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  return state_6502_has_nmi_high(p_debug->p_state_6502);
+}
+
+static expression_var_read_func_t
+debug_get_read_variable_function(void* p, const char* p_name) {
+  expression_var_read_func_t ret = NULL;
   int needs_sub_instruction = 0;
 
-  /* NOTE: this isn't efficient. A proper design would be to call this once
-   * at parse time, and it returns a function that satisfies the read.
-   */
   if (!strcmp(p_name, "a")) {
-    ret = p_debug->reg_a;
+    ret = debug_read_variable_a;
   } else if (!strcmp(p_name, "x")) {
-    ret = p_debug->reg_x;
+    ret = debug_read_variable_x;
   } else if (!strcmp(p_name, "y")) {
-    ret = p_debug->reg_y;
+    ret = debug_read_variable_y;
   } else if (!strcmp(p_name, "s")) {
-    ret = p_debug->reg_s;
+    ret = debug_read_variable_s;
   } else if (!strcmp(p_name, "pc")) {
-    ret = p_debug->reg_pc;
+    ret = debug_read_variable_pc;
   } else if (!strcmp(p_name, "flags")) {
-    ret = p_debug->reg_flags;
+    ret = debug_read_variable_flags;
   } else if (!strcmp(p_name, "addr")) {
-    ret = p_debug->addr_6502;
+    ret = debug_read_variable_addr;
   } else if (!strcmp(p_name, "is_read")) {
-    ret = p_debug->is_read;
+    ret = debug_read_variable_is_read;
   } else if (!strcmp(p_name, "is_write")) {
-    ret = p_debug->is_write;
+    ret = debug_read_variable_is_write;
   } else if (!strcmp(p_name, "mem")) {
-    ret = -1;
-    if (index < k_6502_addr_space_size) {
-      ret = p_debug->p_mem_read[index];
-    }
+    ret = debug_read_variable_mem;
   } else if (!strcmp(p_name, "temp")) {
-    ret = -1;
-    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
-      ret = p_debug->temp_storage[index];
-    }
+    ret = debug_read_variable_temp;
   } else if (!strcmp(p_name, "crtc_r")) {
-    ret = -1;
-    if (index < k_video_crtc_num_registers) {
-      uint8_t crtc_regs[k_video_crtc_num_registers];
-      video_get_crtc_registers(p_debug->p_video, &crtc_regs[0]);
-      ret = crtc_regs[index];
-    }
-  } else if (!strncmp(p_name, "crtc_", 5)) {
-    uint8_t horiz_counter;
-    uint8_t scanline_counter;
-    uint8_t vert_counter;
-    uint16_t addr_counter;
+    ret = debug_read_variable_crtc_r;
+  } else if (!strcmp(p_name, "crtc_c0")) {
     needs_sub_instruction = 1;
-    video_get_crtc_state(p_debug->p_video,
-                         &horiz_counter,
-                         &scanline_counter,
-                         &vert_counter,
-                         &addr_counter);
-    if (!strcmp(p_name, "crtc_c0")) {
-      ret = horiz_counter;
-    } else if (!strcmp(p_name, "crtc_c4")) {
-      ret = vert_counter;
-    } else if (!strcmp(p_name, "crtc_c9")) {
-      ret = scanline_counter;
-    } else if (!strcmp(p_name, "crtc_ma")) {
-      ret = addr_counter;
-    } else {
-      log_do_log(k_log_misc,
-                 k_log_warning,
-                 "unknown crtc variable: %s",
-                 p_name);
-    }
+    ret = debug_read_variable_crtc_c0;
+  } else if (!strcmp(p_name, "crtc_c4")) {
+    needs_sub_instruction = 1;
+    ret = debug_read_variable_crtc_c4;
+  } else if (!strcmp(p_name, "crtc_c9")) {
+    needs_sub_instruction = 1;
+    ret = debug_read_variable_crtc_c9;
+  } else if (!strcmp(p_name, "crtc_ma")) {
+    needs_sub_instruction = 1;
+    ret = debug_read_variable_crtc_ma;
   } else if (!strcmp(p_name, "render_x")) {
     needs_sub_instruction = 1;
-    video_advance_crtc_timing(p_debug->p_video);
-    ret = render_get_horiz_pos(p_debug->p_render);
+    ret = debug_read_variable_render_x;
   } else if (!strcmp(p_name, "render_y")) {
     needs_sub_instruction = 1;
-    video_advance_crtc_timing(p_debug->p_video);
-    ret = render_get_vert_pos(p_debug->p_render);
+    ret = debug_read_variable_render_y;
   } else if (!strcmp(p_name, "sysvia_r")) {
     needs_sub_instruction = 1;
-    /* This hits the normal VIA read path, with side effects possible. */
-    ret = -1;
-    if (index < k_via_num_mapped_registers) {
-      ret = via_read_raw(p_debug->p_system_via, index);
-    }
+    ret = debug_read_variable_sysvia_r;
   } else if (!strcmp(p_name, "uservia_r")) {
     needs_sub_instruction = 1;
-    /* This hits the normal VIA read path, with side effects possible. */
-    ret = -1;
-    if (index < k_via_num_mapped_registers) {
-      ret = via_read_raw(p_debug->p_user_via, index);
-    }
+    ret = debug_read_variable_uservia_r;
   } else if (!strcmp(p_name, "irq")) {
     needs_sub_instruction = 1;
-    ret = state_6502_has_irq_high(p_debug->p_state_6502);
+    ret = debug_read_variable_irq;
   } else if (!strcmp(p_name, "nmi")) {
     needs_sub_instruction = 1;
-    ret = state_6502_has_nmi_high(p_debug->p_state_6502);
-  } else {
-    log_do_log(k_log_misc, k_log_warning, "unknown read variable: %s", p_name);
+    ret = debug_read_variable_nmi;
   }
 
   if (needs_sub_instruction) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
     debug_make_sub_instruction_active(p_debug);
   }
 
@@ -1195,44 +1362,108 @@ debug_variable_read_callback(void* p, const char* p_name, uint32_t index) {
 }
 
 static void
-debug_variable_write_callback(void* p,
-                              const char* p_name,
-                              uint32_t index,
-                              int64_t value) {
+debug_write_variable_a(void* p, uint32_t index, int64_t value) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_a = value;
+}
+
+static void
+debug_write_variable_x(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_x = value;
+}
+
+static void
+debug_write_variable_y(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_y = value;
+}
+
+static void
+debug_write_variable_s(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_s = value;
+}
+
+static void
+debug_write_variable_pc(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  (void) index;
+  p_debug->reg_pc = value;
+}
+
+static void
+debug_write_variable_mem(void* p, uint32_t index, int64_t value) {
+  if (index < k_6502_addr_space_size) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    bbc_memory_write(p_debug->p_bbc, index, value);
+  }
+}
+
+static void
+debug_write_variable_temp(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
+    p_debug->temp_storage[index] = value;
+  }
+}
+
+static void
+debug_write_variable_drawline(void* p, uint32_t index, int64_t value) {
+  struct debug_struct* p_debug = (struct debug_struct*) p;
+  struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
+  (void) index;
+  render_horiz_line(p_render, (uint32_t) value);
+}
+
+static void
+debug_write_variable_sysvia_r(void* p, uint32_t index, int64_t value) {
+  if (index < k_via_num_mapped_registers) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    via_write_raw(p_debug->p_system_via, index, (uint8_t) value);
+  }
+}
+
+static void
+debug_write_variable_uservia_r(void* p, uint32_t index, int64_t value) {
+  if (index < k_via_num_mapped_registers) {
+    struct debug_struct* p_debug = (struct debug_struct*) p;
+    via_write_raw(p_debug->p_user_via, index, (uint8_t) value);
+  }
+}
+
+static expression_var_write_func_t
+debug_get_write_variable_function(void* p, const char* p_name) {
+  expression_var_write_func_t ret = NULL;
+  (void) p;
 
   if (!strcmp(p_name, "a")) {
-    p_debug->reg_a = value;
+    ret = debug_write_variable_a;
   } else if (!strcmp(p_name, "x")) {
-    p_debug->reg_x = value;
+    ret = debug_write_variable_x;
   } else if (!strcmp(p_name, "y")) {
-    p_debug->reg_y = value;
+    ret = debug_write_variable_y;
   } else if (!strcmp(p_name, "s")) {
-    p_debug->reg_s = value;
+    ret = debug_write_variable_s;
   } else if (!strcmp(p_name, "pc")) {
-    p_debug->reg_pc = value;
+    ret = debug_write_variable_pc;
   } else if (!strcmp(p_name, "mem")) {
-    if (index < k_6502_addr_space_size) {
-      bbc_memory_write(p_debug->p_bbc, index, value);
-    }
+    ret = debug_write_variable_mem;
   } else if (!strcmp(p_name, "temp")) {
-    if (index < (sizeof(p_debug->temp_storage) / sizeof(int64_t))) {
-      p_debug->temp_storage[index] = value;
-    }
+    ret = debug_write_variable_temp;
   } else if (!strcmp(p_name, "drawline")) {
-    struct render_struct* p_render = bbc_get_render(p_debug->p_bbc);
-    render_horiz_line(p_render, (uint32_t) value);
+    ret = debug_write_variable_drawline;
   } else if (!strcmp(p_name, "sysvia_r")) {
-    if (index < k_via_num_mapped_registers) {
-      via_write_raw(p_debug->p_system_via, index, (uint8_t) value);
-    }
+    ret = debug_write_variable_sysvia_r;
   } else if (!strcmp(p_name, "uservia_r")) {
-    if (index < k_via_num_mapped_registers) {
-      via_write_raw(p_debug->p_user_via, index, (uint8_t) value);
-    }
-  } else {
-    log_do_log(k_log_misc, k_log_warning, "unknown write variable: %s", p_name);
+    ret = debug_write_variable_uservia_r;
   }
+
+  return ret;
 }
 
 static void
@@ -1302,8 +1533,8 @@ debug_setup_breakpoint(struct debug_struct* p_debug) {
                                                              (i_params + 1));
         if (!p_breakpoint->p_expression) {
           p_breakpoint->p_expression = expression_create(
-              debug_variable_read_callback,
-              debug_variable_write_callback,
+              debug_get_read_variable_function,
+              debug_get_write_variable_function,
               p_debug);
         }
         (void) expression_parse(p_breakpoint->p_expression, p_expr_str);
@@ -1850,8 +2081,8 @@ debug_callback_common(struct debug_struct* p_debug,
     } else if (!strcmp(p_command, "eval") && (p_param_1_str != NULL)) {
       int64_t expression_ret;
       struct expression_struct* p_expression = expression_create(
-          debug_variable_read_callback,
-          debug_variable_write_callback,
+          debug_get_read_variable_function,
+          debug_get_write_variable_function,
           p_debug);
       (void) expression_parse(p_expression, p_param_1_str);
       expression_ret = expression_execute(p_expression);

@@ -6,54 +6,93 @@ static int64_t s_test_var = 0;
 static uint8_t s_test_buf[8];
 
 static int64_t
-expression_test_variable_read_callback(void* p,
-                                       const char* p_name,
-                                       uint32_t index) {
+expression_test_read_one_func(void* p, uint32_t index) {
   (void) p;
   (void) index;
+  return 1;
+}
 
-  if (!strcmp(p_name, "one")) {
-    return 1;
-  }
-  if (!strcmp(p_name, "two")) {
-    return 2;
-  }
+static int64_t
+expression_test_read_two_func(void* p, uint32_t index) {
+  (void) p;
+  (void) index;
+  return 2;
+}
 
-  if (!strcmp(p_name, "getindex")) {
-    return index;
-  }
+static int64_t
+expression_test_read_index_func(void* p, uint32_t index) {
+  (void) p;
+  return index;
+}
 
-  if (!strcmp(p_name, "var")) {
-    return s_test_var;
-  }
-  if (!strcmp(p_name, "buf") && (index < sizeof(s_test_buf))) {
+static int64_t
+expression_test_read_var_func(void* p, uint32_t index) {
+  (void) p;
+  (void) index;
+  return s_test_var;
+}
+
+static int64_t
+expression_test_read_buf_func(void* p, uint32_t index) {
+  (void) p;
+  if (index < sizeof(s_test_buf)) {
     return s_test_buf[index];
   }
+  return -1;
+}
 
-  return 0;
+static expression_var_read_func_t
+expression_test_var_read_lookup_func(void* p, const char* p_name) {
+  (void) p;
+  if (!strcmp(p_name, "one")) {
+    return expression_test_read_one_func;
+  }
+  if (!strcmp(p_name, "two")) {
+    return expression_test_read_two_func;
+  }
+  if (!strcmp(p_name, "getindex")) {
+    return expression_test_read_index_func;
+  }
+  if (!strcmp(p_name, "var")) {
+    return expression_test_read_var_func;
+  }
+  if (!strcmp(p_name, "buf")) {
+    return expression_test_read_buf_func;
+  }
+  return NULL;
 }
 
 static void
-expression_test_variable_write_callback(void* p,
-                                        const char* p_name,
-                                        uint32_t index,
-                                        int64_t value) {
+expression_test_write_var_func(void* p, uint32_t index, int64_t value) {
   (void) p;
+  (void) index;
+  s_test_var = value;
+}
 
-  if (!strcmp(p_name, "var")) {
-    s_test_var = value;
-    return;
-  }
-  if (!strcmp(p_name, "buf") && (index < sizeof(s_test_buf))) {
+static void
+expression_test_write_buf_func(void* p, uint32_t index, int64_t value) {
+  (void) p;
+  if (index < sizeof(s_test_buf)) {
     s_test_buf[index] = value;
-    return;
   }
+}
+
+static expression_var_write_func_t
+expression_test_var_write_lookup_func(void* p, const char* p_name) {
+  (void) p;
+  if (!strcmp(p_name, "var")) {
+    return expression_test_write_var_func;
+  }
+  if (!strcmp(p_name, "buf")) {
+    return expression_test_write_buf_func;
+  }
+  return NULL;
 }
 
 static struct expression_struct*
 expression_test_get_expression(void) {
-  return expression_create(expression_test_variable_read_callback,
-                           expression_test_variable_write_callback,
+  return expression_create(expression_test_var_read_lookup_func,
+                           expression_test_var_write_lookup_func,
                            NULL);
 }
 
