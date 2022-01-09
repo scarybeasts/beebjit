@@ -106,7 +106,6 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp = (struct interp_struct*) p_cpu_driver;
   struct memory_access* p_memory_access =
     p_cpu_driver->p_extra->p_memory_access;
-  struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
   struct debug_struct* p_debug = p_cpu_driver->abi.p_debug_object;
 
@@ -121,8 +120,7 @@ interp_init(struct cpu_driver* p_cpu_driver) {
   p_memory_access->memory_client_last_tick_callback = interp_last_tick_callback;
   p_memory_access->p_last_tick_callback_obj = p_interp;
 
-  p_interp->debug_subsystem_active = p_options->debug_subsystem_active(
-      p_options->p_debug_object);
+  p_interp->debug_subsystem_active = debug_subsystem_active(p_debug);
   p_interp->p_debug_interrupt = debug_get_interrupt(p_debug);
 
   p_cpu_driver->p_funcs->get_opcode_maps(p_cpu_driver,
@@ -175,7 +173,7 @@ interp_get_flags(uint8_t zf,
   return flags;
 }
 
-static void
+static inline void
 interp_call_debugger(struct interp_struct* p_interp,
                      uint8_t* p_a,
                      uint8_t* p_x,
@@ -192,31 +190,23 @@ interp_call_debugger(struct interp_struct* p_interp,
   uint8_t flags;
 
   struct state_6502* p_state_6502 = p_interp->driver.abi.p_state_6502;
-  struct bbc_options* p_options = p_interp->driver.p_extra->p_options;
-  int (*debug_active_at_addr)(void*, uint16_t) =
-      p_options->debug_active_at_addr;
   struct cpu_driver* p_cpu_driver = (struct cpu_driver*) p_interp;
-  struct debug_struct* p_debug_object = p_cpu_driver->abi.p_debug_object;
-  volatile int* p_debug_interrupt = p_interp->p_debug_interrupt;
+  void* (*debug_callback)(struct cpu_driver*, int) =
+      p_cpu_driver->abi.p_debug_callback;
 
-  if (debug_active_at_addr(p_debug_object, *p_pc) || *p_debug_interrupt) {
-    void* (*debug_callback)(struct cpu_driver*, int) =
-        p_cpu_driver->abi.p_debug_callback;
+  flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
+  state_6502_set_registers(p_state_6502,
+                           *p_a,
+                           *p_x,
+                           *p_y,
+                           *p_s,
+                           flags,
+                           *p_pc);
 
-    flags = interp_get_flags(*p_zf, *p_nf, *p_cf, *p_of, *p_df, *p_intf);
-    state_6502_set_registers(p_state_6502,
-                             *p_a,
-                             *p_x,
-                             *p_y,
-                             *p_s,
-                             flags,
-                             *p_pc);
+  debug_callback(p_cpu_driver, irq_vector);
 
-    debug_callback(p_cpu_driver, irq_vector);
-
-    state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
-    interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);
-  }
+  state_6502_get_registers(p_state_6502, p_a, p_x, p_y, p_s, &flags, p_pc);
+  interp_set_flags(flags, p_zf, p_nf, p_cf, p_of, p_df, p_intf);
 }
 
 static int

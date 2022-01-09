@@ -1340,8 +1340,7 @@ bbc_create(int mode,
            int fasttape_flag,
            int test_map_flag,
            const char* p_opt_flags,
-           const char* p_log_flags,
-           int32_t debug_stop_addr) {
+           const char* p_log_flags) {
   struct timing_struct* p_timing;
   struct state_6502* p_state_6502;
   struct debug_struct* p_debug;
@@ -1511,8 +1510,6 @@ bbc_create(int mode,
   p_bbc->memory_access.memory_read_callback = bbc_read_callback;
   p_bbc->memory_access.memory_write_callback = bbc_write_callback;
 
-  p_bbc->options.debug_subsystem_active = debug_subsystem_active;
-  p_bbc->options.debug_active_at_addr = debug_active_at_addr;
   p_bbc->options.debug_callback = debug_callback;
   p_bbc->options.p_opt_flags = p_opt_flags;
   p_bbc->options.p_log_flags = p_log_flags;
@@ -1615,7 +1612,7 @@ bbc_create(int mode,
                                     bbc_set_fast_mode,
                                     p_bbc);
 
-  p_debug = debug_create(p_bbc, debug_flag, debug_stop_addr, &p_bbc->options);
+  p_debug = debug_create(p_bbc, debug_flag, &p_bbc->options);
 
   p_bbc->p_debug = p_debug;
   p_bbc->options.p_debug_object = p_debug;

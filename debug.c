@@ -90,7 +90,6 @@ struct debug_struct {
   int is_write;
 
   /* Breakpointing. */
-  int32_t debug_stop_addr;
   int32_t next_or_finish_stop_addr;
   struct debug_breakpoint breakpoints[k_max_break];
   uint32_t num_breakpoints_used;
@@ -186,19 +185,7 @@ debug_get_interrupt(struct debug_struct* p_debug) {
 int
 debug_subsystem_active(void* p) {
   struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (p_debug->debug_active || (p_debug->debug_stop_addr >= 0)) {
-    return 1;
-  }
-  return 0;
-}
-
-int
-debug_active_at_addr(void* p, uint16_t addr_6502) {
-  struct debug_struct* p_debug = (struct debug_struct*) p;
-  if (p_debug->debug_active || (addr_6502 == p_debug->debug_stop_addr)) {
-    return 1;
-  }
-  return 0;
+  return p_debug->debug_active;
 }
 
 static void
@@ -680,10 +667,6 @@ debug_check_breakpoints(struct debug_struct* p_debug,
   uint32_t i;
 
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
-    *p_out_print = 1;
-    *p_out_stop = 1;
-  }
-  if (p_debug->reg_pc == p_debug->debug_stop_addr) {
     *p_out_print = 1;
     *p_out_stop = 1;
   }
@@ -2142,10 +2125,6 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_int >= 0) &&
                (parse_int < 65536)) {
       bbc_memory_write(p_bbc, parse_int, p_mem_read[parse_int]);
-    } else if ((sscanf(input_buf, "stopat %"PRIx32, &parse_int) == 1) &&
-               (parse_int >= 0) &&
-               (parse_int < 65536)) {
-      p_debug->debug_stop_addr = parse_int;
     } else if ((sscanf(input_buf,
                       "loadmem %255s %"PRIx32,
                       parse_string,
@@ -2427,7 +2406,6 @@ debug_callback(struct cpu_driver* p_cpu_driver, int do_irq) {
 struct debug_struct*
 debug_create(struct bbc_struct* p_bbc,
              int debug_active,
-             int32_t debug_stop_addr,
              struct bbc_options* p_options) {
   uint32_t i;
   struct debug_struct* p_debug;
@@ -2452,7 +2430,6 @@ debug_create(struct bbc_struct* p_bbc,
   p_debug->debug_active = debug_active;
   p_debug->debug_running = bbc_get_run_flag(p_bbc);
   p_debug->debug_running_print = bbc_get_print_flag(p_bbc);
-  p_debug->debug_stop_addr = debug_stop_addr;
   p_debug->next_or_finish_stop_addr = -1;
   p_debug->p_tool = disc_tool_create();
   p_debug->p_command_strings = util_string_list_alloc();

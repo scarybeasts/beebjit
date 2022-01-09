@@ -125,7 +125,6 @@ beebjit_main(void) {
   int is_master_flag = 0;
   int autoboot_flag = 0;
   int extended_roms_flag = 0;
-  int32_t debug_stop_addr = -1;
   int32_t pc = -1;
   uint64_t cycles = 0;
   uint32_t expect = 0;
@@ -227,9 +226,6 @@ beebjit_main(void) {
       p_old_log_flags = p_log_flags;
       p_log_flags = util_strdup2(p_log_flags, val1);
       util_free(p_old_log_flags);
-      ++i_args;
-    } else if (has_1 && !strcmp(arg, "-stopat")) {
-      (void) sscanf(val1, "%"PRIx32, &debug_stop_addr);
       ++i_args;
     } else if (has_1 && !strcmp(arg, "-pc")) {
       (void) sscanf(val1, "%"PRIx32, &pc);
@@ -437,8 +433,7 @@ beebjit_main(void) {
                      fasttape_flag,
                      test_map_flag,
                      p_opt_flags,
-                     p_log_flags,
-                     debug_stop_addr);
+                     p_log_flags);
   if (p_bbc == NULL) {
     util_bail("bbc_create failed");
   }

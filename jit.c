@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "cpu_driver.h"
+#include "debug.h"
 #include "defs_6502.h"
 #include "interp.h"
 #include "inturbo.h"
@@ -784,8 +785,8 @@ jit_init(struct cpu_driver* p_cpu_driver) {
       p_cpu_driver->p_extra->p_memory_access;
   struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
-  void* p_debug_object = p_options->p_debug_object;
-  int debug = p_options->debug_active_at_addr(p_debug_object, 0xFFFF);
+  struct debug_struct* p_debug = p_options->p_debug_object;
+  int debug = debug_subsystem_active(p_debug);
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
   struct inturbo_struct* p_inturbo = NULL;
 

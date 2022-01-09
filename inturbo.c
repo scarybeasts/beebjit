@@ -2,6 +2,7 @@
 
 #include "bbc_options.h"
 #include "cpu_driver.h"
+#include "debug.h"
 #include "defs_6502.h"
 #include "interp.h"
 #include "log.h"
@@ -829,7 +830,6 @@ inturbo_get_address_info(struct cpu_driver* p_cpu_driver, uint16_t addr) {
 static void
 inturbo_init(struct cpu_driver* p_cpu_driver) {
   struct interp_struct* p_interp;
-  int debug_subsystem_active;
 
   struct inturbo_struct* p_inturbo = (struct inturbo_struct*) p_cpu_driver;
 
@@ -838,7 +838,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
       p_cpu_driver->p_extra->p_memory_access;
   struct timing_struct* p_timing = p_cpu_driver->p_extra->p_timing;
   struct bbc_options* p_options = p_cpu_driver->p_extra->p_options;
-  struct debug_struct* p_debug_object = p_options->p_debug_object;
+  struct debug_struct* p_debug = p_options->p_debug_object;
   struct cpu_driver_funcs* p_funcs = p_cpu_driver->p_funcs;
 
   p_funcs->destroy = inturbo_destroy;
@@ -854,9 +854,7 @@ inturbo_init(struct cpu_driver* p_cpu_driver) {
   p_cpu_driver->abi.p_debug_asm = asm_debug_trampoline;
   p_cpu_driver->abi.p_interp_asm = asm_inturbo_interp_trampoline;
 
-  debug_subsystem_active = p_options->debug_active_at_addr(
-      p_debug_object, 0xFFFF);
-  p_inturbo->debug_subsystem_active = debug_subsystem_active;
+  p_inturbo->debug_subsystem_active = debug_subsystem_active(p_debug);
 
   /* The inturbo mode uses an interpreter to handle complicated situations,
    * such as IRQs, hardware accesses, etc.

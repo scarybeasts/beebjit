@@ -51,8 +51,7 @@ struct bbc_struct* bbc_create(int mode,
                               int fasttape_flag,
                               int test_map_flag,
                               const char* p_opt_flags,
-                              const char* p_log_flags,
-                              int32_t debug_stop_addr);
+                              const char* p_log_flags);
 void bbc_destroy(struct bbc_struct* p_bbc);
 
 void bbc_focus_lost_callback(void* p);
