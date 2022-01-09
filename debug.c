@@ -92,7 +92,7 @@ struct debug_struct {
   /* Breakpointing. */
   int32_t next_or_finish_stop_addr;
   struct debug_breakpoint breakpoints[k_max_break];
-  uint32_t num_breakpoints_used;
+  uint32_t max_breakpoint_used_plus_one;
   int64_t temp_storage[16];
   int is_sub_instruction_active;
   uint32_t timer_id_sub_instruction;
@@ -650,8 +650,9 @@ debug_get_free_breakpoint(struct debug_struct* p_debug) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       p_breakpoint->is_in_use = 1;
-      assert(p_debug->num_breakpoints_used < k_max_break);
-      p_debug->num_breakpoints_used++;
+      if ((i + 1) > p_debug->max_breakpoint_used_plus_one) {
+        p_debug->max_breakpoint_used_plus_one = (i + 1);
+      }
       return p_breakpoint;
     }
   }
@@ -660,22 +661,33 @@ debug_get_free_breakpoint(struct debug_struct* p_debug) {
 }
 
 static inline void
+debug_calculate_max_breakpoint(struct debug_struct* p_debug) {
+  uint32_t i;
+
+  p_debug->max_breakpoint_used_plus_one = 0;
+
+  for (i = 0; i < k_max_break; ++i) {
+    struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
+    if (p_breakpoint->is_in_use) {
+      p_debug->max_breakpoint_used_plus_one = (i + 1);
+    }
+  }
+}
+
+static inline void
 debug_check_breakpoints(struct debug_struct* p_debug,
                         int* p_out_print,
                         int* p_out_stop,
                         uint8_t opmem) {
   uint32_t i;
+  uint32_t max_breakpoint_used_plus_one = p_debug->max_breakpoint_used_plus_one;
 
   if (p_debug->reg_pc == p_debug->next_or_finish_stop_addr) {
     *p_out_print = 1;
     *p_out_stop = 1;
   }
 
-  if (p_debug->num_breakpoints_used == 0) {
-    return;
-  }
-
-  for (i = 0; i < k_max_break; ++i) {
+  for (i = 0; i < max_breakpoint_used_plus_one; ++i) {
     struct debug_breakpoint* p_breakpoint = &p_debug->breakpoints[i];
     if (!p_breakpoint->is_in_use) {
       continue;
@@ -2045,8 +2057,7 @@ debug_callback_common(struct debug_struct* p_debug,
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
       debug_clear_breakpoint(p_debug, parse_int);
-      assert(p_debug->num_breakpoints_used > 0);
-      p_debug->num_breakpoints_used--;
+      debug_calculate_max_breakpoint(p_debug);
     } else if (!strcmp(p_command, "enable") &&
                (parse_int >= 0) &&
                (parse_int < k_max_break)) {
