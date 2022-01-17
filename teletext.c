@@ -66,6 +66,8 @@ struct teletext_struct {
   int crtc_ra0;
   int is_isv;
   int last_dispen;
+  uint8_t* p_render_character;
+  uint32_t render_fg_color;
 };
 
 static void
@@ -156,7 +158,7 @@ teletext_smooth_diagonals(uint8_t* p_dest, uint8_t* p_src) {
 }
 
 static void
-teletext_generate() {
+teletext_generate(void) {
   uint32_t i;
 
   s_teletext_was_generated = 1;
@@ -289,7 +291,7 @@ teletext_new_frame_started(struct teletext_struct* p_teletext) {
 }
 
 struct teletext_struct*
-teletext_create() {
+teletext_create(void) {
   uint32_t i;
   struct teletext_struct* p_teletext;
 
@@ -329,7 +331,6 @@ teletext_destroy(struct teletext_struct* p_teletext) {
 
 static inline void
 teletext_handle_control_character(struct teletext_struct* p_teletext,
-                                  uint32_t* p_fg_color,
                                   uint8_t src_char) {
   switch (src_char) {
   case 0:
@@ -380,7 +381,7 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
      */
     p_teletext->fg_color = p_teletext->bg_color;
     /* This control code is set-at, unlike other changes to foreground color. */
-    *p_fg_color = p_teletext->fg_color;
+    p_teletext->render_fg_color = p_teletext->fg_color;
     break;
   case 25:
     p_teletext->is_separated_active = 0;
@@ -406,27 +407,19 @@ teletext_handle_control_character(struct teletext_struct* p_teletext,
 }
 
 void
-teletext_render_data(struct teletext_struct* p_teletext,
-                     struct render_character_1MHz* p_out,
-                     struct render_character_1MHz* p_next_out,
-                     uint8_t data) {
-  uint32_t i;
-  uint32_t bg_color;
-  uint32_t src_data_scanline;
-  int do_render_rounded_scanline;
-
+teletext_data(struct teletext_struct* p_teletext, uint8_t data) {
   /* Foreground color and active characters are set-after so load them before
    * potentially processing a control code.
    */
-  uint32_t fg_color = p_teletext->fg_color;
   int is_hold_graphics = p_teletext->is_hold_graphics;
-  /* Selects space, 0x20. */
-  uint8_t* p_src_data = p_teletext->p_active_characters;
+  p_teletext->render_fg_color = p_teletext->fg_color;
 
   data &= 0x7F;
 
   if (data >= 0x20) {
-    p_src_data += (320 * (data - 0x20));
+    uint8_t* p_render_character = p_teletext->p_active_characters;
+    p_render_character += (320 * (data - 0x20));
+    p_teletext->p_render_character = p_render_character;
     /* EMU NOTE: from the Teletext spec, "the "Held-Mosaic" character inserted
      * is the most recent mosaics character with bit 6 = '1' in its code on
      * that row".
@@ -438,7 +431,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
      */
     if (p_teletext->is_graphics_active) {
       if (data & 0x20) {
-        p_teletext->p_held_character = p_src_data;
+        p_teletext->p_held_character = p_render_character;
       }
     } else {
       p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
@@ -448,21 +441,30 @@ teletext_render_data(struct teletext_struct* p_teletext,
     int is_graphics_active = p_teletext->is_graphics_active;
     int is_double_active = p_teletext->double_active;
 
-    teletext_handle_control_character(p_teletext, &fg_color, data);
+    teletext_handle_control_character(p_teletext, data);
     /* Hold on is set-at and hold off is set-after. */
     is_hold_graphics |= p_teletext->is_hold_graphics;
     if (is_graphics_active &&
         is_hold_graphics &&
         (p_teletext->double_active == is_double_active)) {
-      p_src_data = p_held_character;
+      p_teletext->p_render_character = p_held_character;
     } else {
+      p_teletext->p_render_character = &s_teletext_generated_glyphs[0];
       p_teletext->p_held_character = &s_teletext_generated_glyphs[0];
     }
   }
+}
 
-  if (p_out == NULL) {
-    return;
-  }
+void
+teletext_render(struct teletext_struct* p_teletext,
+                struct render_character_1MHz* p_out,
+                struct render_character_1MHz* p_next_out) {
+  uint32_t i;
+  uint32_t src_data_scanline;
+  int do_render_rounded_scanline;
+  uint8_t* p_src_data = p_teletext->p_render_character;
+  uint32_t render_fg_color = p_teletext->render_fg_color;
+  uint32_t bg_color = p_teletext->bg_color;
 
   if ((p_teletext->flash_active && !p_teletext->flash_visible_this_frame) ||
       (p_teletext->second_character_row_of_double &&
@@ -506,13 +508,11 @@ teletext_render_data(struct teletext_struct* p_teletext,
   assert(src_data_scanline < 20);
   p_src_data += (src_data_scanline * 16);
 
-  bg_color = p_teletext->bg_color;
-
   for (i = 0; i < 16; ++i) {
     uint32_t color;
     uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
+    color = (val * render_fg_color);
     color += ((255 - val) * bg_color);
 
     p_out->host_pixels[i] = (color | 0xff000000);
@@ -532,7 +532,7 @@ teletext_render_data(struct teletext_struct* p_teletext,
     uint32_t color;
     uint8_t val = p_src_data[i];
 
-    color = (val * fg_color);
+    color = (val * render_fg_color);
     color += ((255 - val) * bg_color);
 
     p_out->host_pixels[i] = (color | 0xff000000);
